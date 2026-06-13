@@ -76,3 +76,48 @@ INSTANTIATE_TEST_SUITE_P(
     std::make_tuple(9498, AVRational {4749, 50})  // from my LG 27GN950
   )
 );
+
+struct FramerateToRationalTest: testing::TestWithParam<std::tuple<int, int, AVRational>> {};
+
+TEST_P(FramerateToRationalTest, Run) {
+  const auto &[framerate, framerateX100, expected] = GetParam();
+  video::config_t config {};
+  config.framerate = framerate;
+  config.framerateX100 = framerateX100;
+  auto res = video::framerate_to_rational(config);
+  ASSERT_EQ(0, av_cmp_q(res, expected)) << "expected "
+                                        << expected.num << "/" << expected.den
+                                        << ", got "
+                                        << res.num << "/" << res.den;
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  FramerateToRationalTests,
+  FramerateToRationalTest,
+  testing::Values(
+    std::make_tuple(60, 0, AVRational {60, 1}),  // no X100 value, fall back to integer framerate
+    std::make_tuple(60, 5994, AVRational {60000, 1001}),
+    std::make_tuple(120, 11988, AVRational {120000, 1001}),
+    std::make_tuple(24, 2398, AVRational {24000, 1001})
+  )
+);
+
+struct CaptureFrameIntervalTest: testing::TestWithParam<std::tuple<int, int, std::chrono::nanoseconds>> {};
+
+TEST_P(CaptureFrameIntervalTest, Run) {
+  const auto &[framerate, framerateX100, expected] = GetParam();
+  video::config_t config {};
+  config.framerate = framerate;
+  config.framerateX100 = framerateX100;
+  ASSERT_EQ(expected, video::capture_frame_interval(config));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  CaptureFrameIntervalTests,
+  CaptureFrameIntervalTest,
+  testing::Values(
+    std::make_tuple(60, 0, std::chrono::nanoseconds {16666666}),
+    std::make_tuple(60, 5994, std::chrono::nanoseconds {16683333}),  // 1e9 * 1001 / 60000
+    std::make_tuple(120, 11988, std::chrono::nanoseconds {8341666})  // 1e9 * 1001 / 120000
+  )
+);

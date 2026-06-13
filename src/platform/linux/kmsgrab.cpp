@@ -609,7 +609,7 @@ namespace platf {
       }
 
       int init(const std::string &display_name, const ::video::config_t &config) {
-        delay = std::chrono::nanoseconds {1s} / config.framerate;
+        delay = ::video::capture_frame_interval(config);
 
         int monitor_index = util::from_view(display_name);
         int monitor = 0;

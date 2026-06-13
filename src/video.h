@@ -4,6 +4,9 @@
  */
 #pragma once
 
+// standard includes
+#include <chrono>
+
 // local includes
 #include "input.h"
 #include "platform/common.h"
@@ -383,5 +386,26 @@ namespace video {
         // "rational numbers with |num| <= 1<<26 && |den| <= 1<<26 can be recovered exactly from their double representation"
         return av_d2q((double) framerateX100 / 100.0f, 1 << 26);
     }
+  }
+
+  /**
+   * @brief Requested framerate as an exact rational.
+   * Uses the exact fractional rate when the client provided an X100 value,
+   * otherwise the integer framerate over 1.
+   */
+  inline AVRational framerate_to_rational(const config_t &config) {
+    if (config.framerateX100 > 0) {
+      return framerateX100_to_rational(config.framerateX100);
+    }
+    return AVRational {config.framerate, 1};
+  }
+
+  /**
+   * @brief Capture frame interval for the requested framerate.
+   * Uses the exact fractional rate when the client provided an X100 value.
+   */
+  inline std::chrono::nanoseconds capture_frame_interval(const config_t &config) {
+    const AVRational fps = framerate_to_rational(config);
+    return std::chrono::nanoseconds {(static_cast<int64_t>(fps.den) * 1'000'000'000LL) / fps.num};
   }
 }  // namespace video

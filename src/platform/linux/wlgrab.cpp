@@ -30,15 +30,12 @@ namespace wl {
   public:
     int init(platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
       // calculate frame interval we should capture at
-      if (config.framerateX100 > 0) {
-        AVRational fps_strict = ::video::framerateX100_to_rational(config.framerateX100);
-        delay = std::chrono::nanoseconds(
-          (static_cast<int64_t>(fps_strict.den) * 1'000'000'000LL) / fps_strict.num
-        );
-        BOOST_LOG(info) << "[wlgrab] Requested frame rate [" << fps_strict.num << "/" << fps_strict.den << ", approx. " << av_q2d(fps_strict) << " fps]";
+      delay = ::video::capture_frame_interval(config);
+      const AVRational fps = ::video::framerate_to_rational(config);
+      if (fps.den != 1) {
+        BOOST_LOG(info) << "[wlgrab] Requested frame rate [" << fps.num << "/" << fps.den << ", approx. " << av_q2d(fps) << " fps]";
       } else {
-        delay = std::chrono::nanoseconds {1s} / config.framerate;
-        BOOST_LOG(info) << "[wlgrab] Requested frame rate [" << config.framerate << "fps]";
+        BOOST_LOG(info) << "[wlgrab] Requested frame rate [" << fps.num << "fps]";
       }
 
       mem_type = hwdevice_type;

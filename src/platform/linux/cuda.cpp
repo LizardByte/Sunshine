@@ -731,7 +731,7 @@ namespace cuda {
           }
         }
 
-        delay = std::chrono::nanoseconds {1s} / config.framerate;
+        delay = ::video::capture_frame_interval(config);
 
         capture_params = NVFBC_CREATE_CAPTURE_SESSION_PARAMS {NVFBC_CREATE_CAPTURE_SESSION_PARAMS_VER};
 
