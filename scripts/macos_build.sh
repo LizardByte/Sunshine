@@ -37,6 +37,8 @@ required_formulas=(
   "openssl@3"
   "opus"
   "llvm"
+  "qtbase"
+  "qtsvg"
 )
 
 function _usage() {

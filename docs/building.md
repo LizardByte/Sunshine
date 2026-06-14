@@ -27,7 +27,6 @@ pkg install -y \
   devel/evdev-proto \
   devel/git \
   devel/libevdev \
-  devel/libnotify \
   devel/ninja \
   devel/pkgconf \
   devel/qt6-base \
@@ -94,6 +93,8 @@ dependencies=(
   "openssl@3"
   "opus"
   "pkg-config"
+  "qtbase"
+  "qtsvg"
 )
 brew install "${dependencies[@]}"
 ```
@@ -122,6 +123,8 @@ dependencies=(
   "ninja"
   "npm9"
   "pkgconfig"
+  "qt6-qtbase"
+  "qt6-qtsvg"
 )
 sudo port install "${dependencies[@]}"
 ```
@@ -166,6 +169,8 @@ dependencies=(
   "mingw-w64-${TOOLCHAIN}-openssl"
   "mingw-w64-${TOOLCHAIN}-opus"
   "mingw-w64-${TOOLCHAIN}-toolchain"
+  "mingw-w64-${TOOLCHAIN}-qt6-base"
+  "mingw-w64-${TOOLCHAIN}-qt6-svg"
 )
 if [[ "${MSYSTEM}" == "UCRT64" ]]; then
   dependencies+=(
