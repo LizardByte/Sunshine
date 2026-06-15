@@ -184,7 +184,7 @@ namespace wl {
   public:
     /**
      * @brief Initialize display.
-     * If display_name == nullptr -> display_name = std::getenv("WAYLAND_DISPLAY")
+     * If display_name == nullptr -> Set display_name to value of environment variable "WAYLAND_DISPLAY"
      * @param display_name The name of the display.
      * @return 0 on success, -1 on failure.
      */

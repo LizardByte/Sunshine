@@ -50,7 +50,9 @@ namespace wl {
 
   int display_t::init(const char *display_name) {
     if (!display_name) {
-      display_name = std::getenv("WAYLAND_DISPLAY");
+      if (std::string v; platf::get_env("WAYLAND_DISPLAY", v)) {
+        display_name = v.c_str();
+      }
     }
 
     if (!display_name) {
