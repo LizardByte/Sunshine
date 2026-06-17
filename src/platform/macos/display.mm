@@ -2,6 +2,15 @@
  * @file src/platform/macos/display.mm
  * @brief Definitions for display capture on macOS.
  */
+ 
+// standard includes
+#include <cstdlib>
+#include <sstream>
+#include <thread>
+
+// platform includes
+#include <IOKit/pwr_mgt/IOPMLib.h>
+
 // local includes
 #include "src/config.h"
 #include "src/logging.h"
@@ -11,17 +20,10 @@
 #include "src/platform/macos/misc.h"
 #include "src/platform/macos/nv12_zero_device.h"
 
-// platform includes
-#include <IOKit/pwr_mgt/IOPMLib.h>
-
 // Avoid conflict between AVFoundation and libavutil both defining AVMediaType
 #define AVMediaType AVMediaType_FFmpeg
 #include "src/video.h"
 #undef AVMediaType
-
-#include <cstdlib>
-#include <sstream>
-#include <thread>
 
 namespace fs = std::filesystem;
 
