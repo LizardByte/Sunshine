@@ -37,14 +37,34 @@ else()
             PATTERN ".DS_Store" EXCLUDE
             PATTERN "._*" EXCLUDE)
 
+    set(SUNSHINE_BUNDLE_FIXUP_DIRS "")
+    set(SUNSHINE_MACDEPLOYQT_CODE "")
+    if(SUNSHINE_ENABLE_TRAY)
+        include("${CMAKE_MODULE_PATH}/packaging/qt.cmake")
+        sunshine_require_qt_tool(macdeployqt SUNSHINE_MACDEPLOYQT_EXECUTABLE)
+        sunshine_collect_qt_library_dirs(SUNSHINE_BUNDLE_FIXUP_DIRS)
+        set(SUNSHINE_MACDEPLOYQT_CODE "
+        message(STATUS \"Running macdeployqt for: \${_app}\")
+        execute_process(
+                COMMAND \"${SUNSHINE_MACDEPLOYQT_EXECUTABLE}\" \"\${_app}\" -no-strip
+                RESULT_VARIABLE _macdeployqt_result
+        )
+        if(NOT _macdeployqt_result EQUAL 0)
+            message(FATAL_ERROR \"macdeployqt failed: \${_macdeployqt_result}\")
+        endif()
+")
+    endif()
+
     # Pull in non-system dylibs for a self-contained .app
     install(CODE "
         set(_app \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_PROJECT_NAME}.app\")
+        set(_bundle_fixup_dirs \"${SUNSHINE_BUNDLE_FIXUP_DIRS}\")
+${SUNSHINE_MACDEPLOYQT_CODE}
 
         message(STATUS \"Running fixup_bundle for: \${_app}\")
         include(BundleUtilities)
         set(BU_CHMOD_BUNDLE_ITEMS TRUE)
-        fixup_bundle(\"\${_app}\" \"\" \"\")
+        fixup_bundle(\"\${_app}\" \"\" \"\${_bundle_fixup_dirs}\")
 
         # Remove Finder/resource-fork metadata that breaks codesign.
         execute_process(COMMAND /usr/bin/xattr -rc \"\${_app}\")

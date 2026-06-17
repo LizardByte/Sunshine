@@ -55,6 +55,8 @@ class Sunshine < Formula
   depends_on "miniupnpc"
   depends_on "openssl@3"
   depends_on "opus"
+  depends_on "qtbase"
+  depends_on "qtsvg"
 
   on_macos do
     depends_on "llvm" => [:build, :test]
@@ -74,7 +76,6 @@ class Sunshine < Formula
     depends_on "libcap"
     depends_on "libdrm"
     depends_on "libice"
-    depends_on "libnotify"
     depends_on "libsm"
     depends_on "libva"
     depends_on "libx11"
@@ -91,8 +92,6 @@ class Sunshine < Formula
     depends_on "pango"
     depends_on "pipewire"
     depends_on "pulseaudio"
-    depends_on "qtbase"
-    depends_on "qtsvg"
     depends_on "shaderc"
     depends_on "systemd"
     depends_on "vulkan-loader"

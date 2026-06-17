@@ -9,6 +9,48 @@ if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64" AND DEFINED _MINHOOK_DLL)
     install(FILES "${_MINHOOK_DLL}" DESTINATION "." COMPONENT application)
 endif()
 
+if(SUNSHINE_ENABLE_TRAY)
+    include("${CMAKE_MODULE_PATH}/packaging/qt.cmake")
+    sunshine_require_qt_tool(windeployqt SUNSHINE_WINDEPLOYQT_EXECUTABLE)
+
+    set(SUNSHINE_WINDEPLOYQT_OPTIONS
+            --no-opengl-sw
+            --no-quick-import
+            --no-system-d3d-compiler
+            --no-translations)
+
+    sunshine_deploy_qt_runtime(
+            sunshine
+            "${SUNSHINE_WINDEPLOYQT_EXECUTABLE}"
+            ${SUNSHINE_WINDEPLOYQT_OPTIONS})
+
+    install(CODE "
+        set(_qt_deploy_dir \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}\")
+        set(_qt_deploy_options ${SUNSHINE_WINDEPLOYQT_OPTIONS})
+        execute_process(
+                COMMAND \"${SUNSHINE_WINDEPLOYQT_EXECUTABLE}\"
+                \${_qt_deploy_options}
+                --dir \"\${_qt_deploy_dir}\"
+                \"\${_qt_deploy_dir}/sunshine.exe\"
+                RESULT_VARIABLE _qt_deploy_result
+        )
+        if(NOT _qt_deploy_result EQUAL 0)
+            message(FATAL_ERROR \"windeployqt failed: \${_qt_deploy_result}\")
+        endif()
+
+        execute_process(
+                COMMAND \"${CMAKE_COMMAND}\"
+                \"-DSUNSHINE_RUNTIME_TARGET=\${_qt_deploy_dir}/sunshine.exe\"
+                \"-DSUNSHINE_RUNTIME_OUTPUT_DIR=\${_qt_deploy_dir}\"
+                -P \"${CMAKE_MODULE_PATH}/packaging/windows_runtime_deps.cmake\"
+                RESULT_VARIABLE _runtime_deploy_result
+        )
+        if(NOT _runtime_deploy_result EQUAL 0)
+            message(FATAL_ERROR \"Runtime dependency deployment failed: \${_runtime_deploy_result}\")
+        endif()
+    " COMPONENT application)
+endif()
+
 # ViGEmBus installer
 set(SUNSHINE_THIRD_PARTY_DIR "third-party")
 set(VIGEMBUS_INSTALLER "${CMAKE_BINARY_DIR}/${SUNSHINE_THIRD_PARTY_DIR}/vigembus_installer.exe")

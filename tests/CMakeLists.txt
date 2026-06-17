@@ -190,4 +190,18 @@ if (WIN32)
             VERBATIM
         )
     endif()
+
+    if(SUNSHINE_ENABLE_TRAY)
+        include("${CMAKE_MODULE_PATH}/packaging/qt.cmake")
+        sunshine_require_qt_tool(windeployqt SUNSHINE_WINDEPLOYQT_EXECUTABLE)
+        set(SUNSHINE_WINDEPLOYQT_OPTIONS
+                --no-opengl-sw
+                --no-quick-import
+                --no-system-d3d-compiler
+                --no-translations)
+        sunshine_deploy_qt_runtime(
+                ${PROJECT_NAME}
+                "${SUNSHINE_WINDEPLOYQT_EXECUTABLE}"
+                ${SUNSHINE_WINDEPLOYQT_OPTIONS})
+    endif()
 endif ()
