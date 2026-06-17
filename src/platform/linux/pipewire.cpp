@@ -136,16 +136,12 @@ namespace pipewire {
 
     ~pipewire_t() {
       BOOST_LOG(debug) << "[pipewire] Destroying pipewire_t"sv;
-      if (loop) {
-        BOOST_LOG(debug) << "[pipewire] Stop PW thread loop"sv;
-        pw_thread_loop_stop(loop);
-      }
       try {
         cleanup_stream();
       } catch (const std::exception &e) {
-        BOOST_LOG(error) << "[pipewire] Standard exception caught in ~pipewire_t: "sv << e.what();
+        BOOST_LOG(error) << "[pipewire] Standard exception caught in ~pipewire_t cleanup_stream: "sv << e.what();
       } catch (...) {
-        BOOST_LOG(error) << "[pipewire] Unknown exception caught in ~pipewire_t"sv;
+        BOOST_LOG(error) << "[pipewire] Unknown exception caught in ~pipewire_t cleanup_stream"sv;
       }
 
       pw_thread_loop_lock(loop);
