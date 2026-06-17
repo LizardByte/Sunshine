@@ -2,7 +2,7 @@
  * @file src/platform/macos/display.mm
  * @brief Definitions for display capture on macOS.
  */
- 
+
 // standard includes
 #include <cstdlib>
 #include <sstream>
