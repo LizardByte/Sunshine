@@ -190,41 +190,46 @@
 
 /* Moonlight Theme - Cool and serene inspired by moonlight */
 [data-theme="moonlight"] {
-    --color-primary: #818CF8;
-    --color-primary-hover: #A5B4FC;
-    --color-primary-light: #312E81;
-    --color-accent: #A78BFA;
-    --color-accent-hover: #C4B5FD;
-    --color-accent-light: #4C1D95;
-    --color-success: #34D399;
-    --color-success-hover: #6EE7B7;
-    --color-success-light: #064E3B;
-    --color-danger: #F87171;
-    --color-danger-hover: #FCA5A5;
-    --color-danger-light: #7F1D1D;
-    --color-warning: #FBBF24;
-    --color-warning-hover: #FCD34D;
-    --color-warning-light: #3B2D1C;
-    --color-info: #60A5FA;
-    --color-info-hover: #93C5FD;
-    --color-info-light: #1E3A8A;
+    --color-primary: #B0BCDF;
+    --color-primary-hover: #C8D1EA;
+    --color-primary-light: #2A2440;
+    --color-accent: #9A7FD1;
+    --color-accent-hover: #B49EE0;
+    --color-accent-light: #443266;
+    --color-success: #5BD6A3;
+    --color-success-hover: #7FE3BB;
+    --color-success-light: #163A2E;
+    --color-danger: #F0738A;
+    --color-danger-hover: #F596A8;
+    --color-danger-light: #3D1F2A;
+    --color-warning: #E5B567;
+    --color-warning-hover: #EFC988;
+    --color-warning-light: #332918;
+    --color-info: #7C9BE0;
+    --color-info-hover: #9DB5EA;
+    --color-info-light: #232A40;
 
-    --color-bg-base: #0F0F23;
-    --color-bg-subtle: #1A1A2E;
-    --color-bg-muted: #252540;
-    --color-surface: #1A1A2E;
-    --color-surface-raised: #252540;
+    --color-on-primary: #1C1928;
+    --color-on-success: #1C1928;
+    --color-on-info: #1C1928;
+    --color-on-danger: #1C1928;
 
-    --color-border: #3F3F5F;
-    --color-border-strong: #4F4F6F;
+    --color-bg-base: #15131D;
+    --color-bg-subtle: #1C1928;
+    --color-bg-muted: #2A2540;
+    --color-surface: #1C1928;
+    --color-surface-raised: #2A2540;
 
-    --color-text-base: #E0E7FF;
-    --color-text-muted: #C7D2FE;
-    --color-text-subtle: #A5B4FC;
+    --color-border: #322C44;
+    --color-border-strong: #463A5E;
 
-    --navbar-bg: linear-gradient(135deg, #1E1B4B 0%, #312E81 50%, #4C1D95 100%);
-    --navbar-text: #E0E7FF;
-    --navbar-text-muted: rgba(224, 231, 255, 0.8);
+    --color-text-base: #E6E8F4;
+    --color-text-muted: #C0C6DD;
+    --color-text-subtle: #B0BCDF;
+
+    --navbar-bg: linear-gradient(135deg, #1B1726 0%, #2E2547 50%, #443266 100%);
+    --navbar-text: #E6E8F4;
+    --navbar-text-muted: rgba(230, 232, 244, 0.8);
 
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.5);
