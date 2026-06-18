@@ -165,6 +165,11 @@
     --color-info-hover: #82C4F8;
     --color-info-light: #102C4F;
 
+    --color-on-primary: #1C1928;
+    --color-on-success: #1C1928;
+    --color-on-info: #1C1928;
+    --color-on-danger: #1C1928;
+
     --color-bg-base: #0A0A20;
     --color-bg-subtle: #121238;
     --color-bg-muted: #1C1C50;
