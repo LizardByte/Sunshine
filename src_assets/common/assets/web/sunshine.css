@@ -146,41 +146,41 @@
 
 /* Midnight Theme - Deep dark blue */
 [data-theme="midnight"] {
-    --color-primary: #3B82F6;
-    --color-primary-hover: #60A5FA;
-    --color-primary-light: #1E3A8A;
-    --color-accent: #06B6D4;
-    --color-accent-hover: #22D3EE;
-    --color-accent-light: #164E63;
-    --color-success: #34D399;
-    --color-success-hover: #6EE7B7;
-    --color-success-light: #064E3B;
-    --color-danger: #F87171;
-    --color-danger-hover: #FCA5A5;
-    --color-danger-light: #7F1D1D;
-    --color-warning: #FBBF24;
-    --color-warning-hover: #FCD34D;
-    --color-warning-light: #37260A;
-    --color-info: #60A5FA;
-    --color-info-hover: #93C5FD;
-    --color-info-light: #1E3A8A;
+    --color-primary: #5C6BF5;
+    --color-primary-hover: #7C88F8;
+    --color-primary-light: #1E1E6E;
+    --color-accent: #2FC4DE;
+    --color-accent-hover: #5BD4E9;
+    --color-accent-light: #0E3C47;
+    --color-success: #3FD9A0;
+    --color-success-hover: #67E4B6;
+    --color-success-light: #0D3D2D;
+    --color-danger: #F76C7A;
+    --color-danger-hover: #FB8E99;
+    --color-danger-light: #41121E;
+    --color-warning: #F5C04B;
+    --color-warning-hover: #F9D079;
+    --color-warning-light: #33270D;
+    --color-info: #5BB0F5;
+    --color-info-hover: #82C4F8;
+    --color-info-light: #102C4F;
 
-    --color-bg-base: #020617;
-    --color-bg-subtle: #0F172A;
-    --color-bg-muted: #1E293B;
-    --color-surface: #0F172A;
-    --color-surface-raised: #1E293B;
+    --color-bg-base: #0A0A20;
+    --color-bg-subtle: #121238;
+    --color-bg-muted: #1C1C50;
+    --color-surface: #121238;
+    --color-surface-raised: #1C1C50;
 
-    --color-border: #1E293B;
-    --color-border-strong: #334155;
+    --color-border: #242460;
+    --color-border-strong: #313188;
 
-    --color-text-base: #F1F5F9;
-    --color-text-muted: #CBD5E1;
-    --color-text-subtle: #94A3B8;
+    --color-text-base: #E6E8FF;
+    --color-text-muted: #C3C7F0;
+    --color-text-subtle: #9498D0;
 
-    --navbar-bg: linear-gradient(135deg, #0C4A6E 0%, #075985 100%);
-    --navbar-text: #F1F5F9;
-    --navbar-text-muted: rgba(241, 245, 249, 0.8);
+    --navbar-bg: linear-gradient(135deg, #0A0A24 0%, #16165A 50%, #191970 100%);
+    --navbar-text: #E6E8FF;
+    --navbar-text-muted: rgba(230, 232, 255, 0.8);
 
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.5);
