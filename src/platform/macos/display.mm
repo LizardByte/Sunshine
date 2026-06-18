@@ -86,7 +86,7 @@ namespace platf {
     }
 
     void log_display_diagnostic(CGDirectDisplayID display_id, const char *source) {
-      NSString *display_name = [AVVideo getDisplayName:display_id];
+      NSString *display_name = [SCVideo getDisplayName:display_id];
       const char *display_name_utf8 = display_name ? display_name.UTF8String : "<unknown>";
       CGDisplayModeRef mode = CGDisplayCopyDisplayMode(display_id);
 
