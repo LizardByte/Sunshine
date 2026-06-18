@@ -7,7 +7,7 @@
 
 <body id="app" v-cloak>
   <Navbar></Navbar>
-  <div class="container">
+  <div id="content" class="container">
     <h1 class="my-4">{{ $t('troubleshooting.troubleshooting') }}</h1>
     <!-- ViGEmBus Installation -->
     <div class="card my-4" v-if="platform === 'windows' && controllerEnabled">

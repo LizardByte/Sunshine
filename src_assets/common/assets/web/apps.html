@@ -7,7 +7,7 @@
 
 <body id="app" v-cloak>
   <Navbar></Navbar>
-  <div class="container">
+  <div id="content" class="container">
     <div class="my-4">
       <h1>{{ $t('apps.applications_title') }}<span v-if="apps.length"> ({{ appCountLabel }})</span></h1>
       <p>{{ $t('apps.applications_desc') }}</p>

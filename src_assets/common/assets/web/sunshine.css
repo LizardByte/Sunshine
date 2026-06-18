@@ -160,7 +160,7 @@
     --color-danger-light: #7F1D1D;
     --color-warning: #FBBF24;
     --color-warning-hover: #FCD34D;
-    --color-warning-light: #78350F;
+    --color-warning-light: #37260A;
     --color-info: #60A5FA;
     --color-info-hover: #93C5FD;
     --color-info-light: #1E3A8A;
@@ -204,7 +204,7 @@
     --color-danger-light: #7F1D1D;
     --color-warning: #FBBF24;
     --color-warning-hover: #FCD34D;
-    --color-warning-light: #78350F;
+    --color-warning-light: #3B2D1C;
     --color-info: #60A5FA;
     --color-info-hover: #93C5FD;
     --color-info-light: #1E3A8A;
@@ -292,7 +292,7 @@
     --color-danger-light: #7F1D1D;
     --color-warning: #FBBF24;
     --color-warning-hover: #FCD34D;
-    --color-warning-light: #78350F;
+    --color-warning-light: #43300F;
     --color-info: #60A5FA;
     --color-info-hover: #93C5FD;
     --color-info-light: #1E3A8A;
@@ -976,6 +976,12 @@ body {
    ========================================================================== */
 
 /* Force Bootstrap components to use our theme variables */
+.nav-link,
+.dropdown-item {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
 .card {
     background-color: var(--color-surface) !important;
     border: 1px solid var(--color-border) !important;
