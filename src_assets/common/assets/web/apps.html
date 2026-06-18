@@ -67,13 +67,13 @@
           <div class="card-body d-flex flex-column">
             <h5 class="card-title mb-2">{{ app.name }}</h5>
             <div class="app-details text-muted small mb-3">
-              <div v-if="app.output" class="text-truncate">
+              <div v-if="app.output" :title="app.output">
                 <file-text :size="14" class="icon me-1"></file-text>
-                {{ app.output }}
+                <span class="app-detail-text">{{ app.output }}</span>
               </div>
-              <div v-if="app.cmd" class="text-truncate">
+              <div v-if="app.cmd" :title="app.cmd">
                 <terminal :size="14" class="icon me-1"></terminal>
-                {{ app.cmd }}
+                <span class="app-detail-text">{{ app.cmd }}</span>
               </div>
             </div>
             <div class="mt-auto d-flex gap-2">

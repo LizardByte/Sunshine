@@ -2243,6 +2243,17 @@ p {
     align-items: center;
 }
 
+.app-details > div .icon {
+    flex-shrink: 0;
+}
+
+.app-details > div .app-detail-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* ==========================================================================
    Featured Apps Page Styles
    ========================================================================== */
