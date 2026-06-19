@@ -1,0 +1,157 @@
+{
+  "name": "xvfb",
+  "buildsystem": "meson",
+  "config-opts": [
+    "-Dxorg=true",
+    "-Dxvfb=true",
+    "-Dhal=false"
+  ],
+  "build-commands": [
+    "install -Dm755 ../xvfb-run /app/bin/xvfb-run"
+  ],
+  "sources": [
+    {
+      "type": "git",
+      "url": "https://github.com/LizardByte-infrastructure/xserver.git",
+      "tag": "xorg-server-21.1.13",
+      "commit": "be2767845d6ed3c6dbd25a151051294d0908a995",
+      "x-checker-data": {
+        "type": "anitya",
+        "project-id": 5250,
+        "stable-only": true,
+        "tag-template": "xorg-server-$version"
+      }
+    },
+    {
+      "type": "file",
+      "path": "xvfb-run"
+    }
+  ],
+  "modules": [
+    {
+      "name": "libxcvt",
+      "buildsystem": "meson",
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://github.com/LizardByte-infrastructure/libxcvt.git",
+          "tag": "libxcvt-0.1.2",
+          "commit": "d9ca87eea9eecddaccc3a77227bcb3acf84e89df",
+          "x-checker-data": {
+            "type": "anitya",
+            "project-id": 235147,
+            "stable-only": true,
+            "tag-template": "libxcvt-$version"
+          }
+        }
+      ]
+    },
+    {
+      "name": "libXmu",
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://github.com/LizardByte-infrastructure/libxmu.git",
+          "tag": "libXmu-1.2.1",
+          "commit": "792f80402ee06ce69bca3a8f2a84295999c3a170",
+          "x-checker-data": {
+            "type": "anitya",
+            "project-id": 1785,
+            "stable-only": true,
+            "tag-template": "libXmu-$version"
+          }
+        }
+      ]
+    },
+    {
+      "name": "font-util",
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://github.com/LizardByte-infrastructure/font-util.git",
+          "tag": "font-util-1.4.1",
+          "commit": "b5ca142f81a6f14eddb23be050291d1c25514777",
+          "x-checker-data": {
+            "type": "anitya",
+            "project-id": 15055,
+            "stable-only": true,
+            "tag-template": "font-util-$version"
+          }
+        }
+      ]
+    },
+    {
+      "name": "libfontenc",
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://github.com/LizardByte-infrastructure/libfontenc.git",
+          "tag": "libfontenc-1.1.8",
+          "commit": "92a85fda2acb4e14ec0b2f6d8fe3eaf2b687218c",
+          "x-checker-data": {
+            "type": "anitya",
+            "project-id": 1613,
+            "stable-only": true,
+            "tag-template": "libfontenc-$version"
+          }
+        }
+      ]
+    },
+    {
+      "name": "libtirpc",
+      "build-options": {
+        "cflags": "-std=gnu17"
+      },
+      "config-opts": [
+        "--disable-gssapi"
+      ],
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://downloads.sourceforge.net/sourceforge/libtirpc/libtirpc-1.3.4.tar.bz2",
+          "sha256": "1e0b0c7231c5fa122e06c0609a76723664d068b0dba3b8219b63e6340b347860",
+          "x-checker-data": {
+            "type": "anitya",
+            "project-id": 1740,
+            "stable-only": true,
+            "url-template": "https://downloads.sourceforge.net/sourceforge/libtirpc/libtirpc-$version.tar.bz2"
+          }
+        }
+      ]
+    },
+    {
+      "name": "xvfb-libXfont2",
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://github.com/LizardByte-infrastructure/libxfont.git",
+          "tag": "libXfont2-2.0.6",
+          "commit": "d54aaf2483df6a1f98fadc09004157e657b7f73e",
+          "x-checker-data": {
+            "type": "anitya",
+            "project-id": 17165,
+            "stable-only": true,
+            "tag-template": "libXfont2-$version"
+          }
+        }
+      ]
+    },
+    {
+      "name": "xvfb-xauth",
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://github.com/LizardByte-infrastructure/xauth.git",
+          "tag": "xauth-1.1.3",
+          "commit": "c29eef23683f0e3575a3c60d9314de8156fbe2c2",
+          "x-checker-data": {
+            "type": "anitya",
+            "project-id": 5253,
+            "stable-only": true,
+            "tag-template": "xauth-$version"
+          }
+        }
+      ]
+    }
+  ]
+}

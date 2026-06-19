@@ -1,0 +1,70 @@
+# This file describes the settings to be used by the documentation system
+# doxygen (www.doxygen.org) for a project.
+#
+# All text after a double hash (##) is considered a comment and is placed in
+# front of the TAG it is preceding.
+#
+# All text after a single hash (#) is considered a comment and will be ignored.
+# The format is:
+# TAG = value [value, ...]
+# For lists, items can also be appended using:
+# TAG += value [value, ...]
+# Values that contain spaces should be placed between quotes (\" \").
+#
+# Note:
+#
+# Use doxygen to compare the used configuration file with the template
+# configuration file:
+# doxygen -x [configFile]
+# Use doxygen to compare the used configuration file with the template
+# configuration file without replacing the environment variables or CMake type
+# replacement variables:
+# doxygen -x_noenv [configFile]
+
+# project metadata
+DOCSET_BUNDLE_ID = dev.lizardbyte.Sunshine
+DOCSET_PUBLISHER_ID = dev.lizardbyte.Sunshine.documentation
+PROJECT_BRIEF = "Self-hosted game stream host for Moonlight."
+PROJECT_ICON = ../sunshine.ico
+PROJECT_LOGO = ../sunshine.png
+PROJECT_NAME = Sunshine
+
+# project specific settings
+DOT_GRAPH_MAX_NODES = 60
+IMAGE_PATH = ../docs/images
+PREDEFINED += SUNSHINE_BUILD_WAYLAND
+PREDEFINED += SUNSHINE_TRAY=1
+
+# TODO: Enable this when we have complete documentation
+WARN_IF_UNDOCUMENTED = NO
+
+# files and directories to process
+USE_MDFILE_AS_MAINPAGE = ../README.md
+INPUT = ../README.md \
+        getting_started.md \
+        changelog.md \
+        ../DOCKER_README.md \
+        third_party_packages.md \
+        gamestream_migration.md \
+        legal.md \
+        configuration.md \
+        app_examples.md \
+        awesome_sunshine.md \
+        guides.md \
+        performance_tuning.md \
+        api.md \
+        troubleshooting.md \
+        building.md \
+        contributing.md \
+        ../third-party/doxyconfig/docs/source_code.md \
+        ../src
+
+# extra css
+HTML_EXTRA_STYLESHEET += doc-styles.css
+
+# extra js
+HTML_EXTRA_FILES += api.js
+HTML_EXTRA_FILES += configuration.js
+
+# custom aliases
+ALIASES += api_examples{3|}="@htmlonly<script>(function() { let examples = generateExamples('\1', '\2', \3); document.write(createTabs(examples)); })();</script>@endhtmlonly"

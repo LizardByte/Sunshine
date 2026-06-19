@@ -1,0 +1,28 @@
+{
+  "name": "libevdev",
+  "buildsystem": "meson",
+  "config-opts": [
+    "-Ddocumentation=disabled",
+    "-Dtests=disabled"
+  ],
+  "sources": [
+    {
+      "type": "git",
+      "url": "https://github.com/LizardByte-infrastructure/libevdev.git",
+      "commit": "ac0056961c3332a260db063ab4fccc7747638a1d",
+      "tag": "libevdev-1.13.4",
+      "x-checker-data": {
+        "type": "anitya",
+        "project-id": 20540,
+        "stable-only": true,
+        "tag-template": "libevdev-$version"
+      }
+    }
+  ],
+  "cleanup": [
+    "/bin",
+    "/include",
+    "/lib/pkgconfig",
+    "/share"
+  ]
+}

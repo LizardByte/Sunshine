@@ -1,0 +1,29 @@
+{
+  "problemMatcher": [
+    {
+      "owner": "gcc",
+      "pattern": [
+        {
+          "regexp": "^(.*):(\\d+):(\\d+):\\s+(?:fatal\\s+)?(warning|error):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      ]
+    },
+    {
+      "owner": "doxygen",
+      "pattern": [
+        {
+          "regexp": "^.*?([A-Za-z]:[\\\\/][^:]+|[\\\\/][^:]+):(\\d+): ([a-zA-Z]+): (.+)$",
+          "file": 1,
+          "line": 2,
+          "severity": 3,
+          "message": 4
+        }
+      ]
+    }
+  ]
+}

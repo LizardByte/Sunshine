@@ -1,0 +1,50 @@
+{
+  "name": "avahi",
+  "cleanup": [
+    "/bin",
+    "/lib/avahi",
+    "/share"
+  ],
+  "config-opts": [
+    "--with-distro=none",
+    "--disable-gobject",
+    "--disable-introspection",
+    "--disable-qt3",
+    "--disable-qt4",
+    "--disable-qt5",
+    "--disable-gtk",
+    "--disable-core-docs",
+    "--disable-manpages",
+    "--disable-libdaemon",
+    "--disable-python",
+    "--disable-pygobject",
+    "--disable-mono",
+    "--disable-monodoc",
+    "--disable-autoipd",
+    "--disable-doxygen-doc",
+    "--disable-doxygen-dot",
+    "--disable-doxygen-xml",
+    "--disable-doxygen-html",
+    "--disable-manpages",
+    "--disable-xmltoman",
+    "--disable-libevent"
+  ],
+  "sources": [
+    {
+      "type": "git",
+      "url": "https://github.com/avahi/avahi.git",
+      "commit": "f060abee2807c943821d88839c013ce15db17b58",
+      "tag": "v0.8",
+      "x-checker-data": {
+        "type": "git",
+        "tag-pattern": "^v([\\d.]+)$"
+      }
+    },
+    {
+      "type": "shell",
+      "commands": [
+        "autoreconf -ivf"
+      ]
+    }
+  ]
+}

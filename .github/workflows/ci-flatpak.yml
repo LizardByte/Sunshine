@@ -1,0 +1,240 @@
+---
+name: CI-Flatpak
+permissions: {}
+
+on:
+  workflow_call:
+    inputs:
+      release_commit:
+        required: true
+        type: string
+      release_version:
+        required: true
+        type: string
+
+env:
+  PYTHON_VERSION: '3.14'
+
+jobs:
+  build_linux_flatpak:
+    name: ${{ matrix.arch }}
+    env:
+      APP_ID: dev.lizardbyte.app.Sunshine
+      FREEDESKTOP_SDK_VERSION: "25.08"
+      KDE_PLATFORM_VERSION: "6.10"
+      MATRIX_ARCH: ${{ matrix.arch }}
+      NODE_VERSION: "20"
+    permissions:
+      contents: read
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-22.04
+          - arch: aarch64
+            runner: ubuntu-22.04-arm
+    steps:
+      - name: More space
+        if: matrix.arch == 'x86_64'
+        uses: LizardByte/actions/actions/more_space@200eaeb897a2b065a65cb6f16b41077432007490  # v2026.605.34721
+        with:
+          analyze-space-savings: true
+          clean-all: true
+
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        with:
+          submodules: recursive
+
+      - name: Setup python
+        id: python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+        with:
+          enable-cache: true
+
+      - name: Sync Python tools
+        run: |
+          uv sync --locked --only-group flatpak \
+            --python "${PYTHON_VERSION}" \
+            --no-python-downloads \
+            --no-install-project
+
+      - name: Setup Dependencies Linux Flatpak
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            cmake \
+            flatpak
+
+          sudo su "$(whoami)" -c "flatpak --user remote-add --if-not-exists flathub \
+            https://flathub.org/repo/flathub.flatpakrepo
+          "
+
+          sudo su "$(whoami)" -c "flatpak --user install -y flathub \
+            org.flatpak.Builder \
+            org.kde.Platform/${MATRIX_ARCH}/${KDE_PLATFORM_VERSION} \
+            org.kde.Sdk/${MATRIX_ARCH}/${KDE_PLATFORM_VERSION} \
+            org.freedesktop.Sdk.Extension.node${NODE_VERSION}/${MATRIX_ARCH}/${FREEDESKTOP_SDK_VERSION} \
+          "
+
+          flatpak run org.flatpak.Builder --version
+
+      - name: flatpak node generator
+        # https://github.com/flatpak/flatpak-builder-tools/blob/master/node/README.md
+        run: uv run --locked --no-sync python -m flatpak_node_generator npm package-lock.json
+
+      - name: Debug generated-sources.json
+        run: cat generated-sources.json
+
+      - name: flatpak pip generator
+        # generates glad-dependencies.json for PyPI build-time dependencies (e.g. jinja2 for glad)
+        run: |
+          uv export \
+            --quiet \
+            --locked \
+            --only-group glad \
+            --no-emit-project \
+            --no-emit-local \
+            --no-header \
+            --output-file glad-requirements.txt
+
+          uv run --locked --no-sync python \
+            ./packaging/linux/flatpak/deps/flatpak-builder-tools/pip/flatpak-pip-generator.py \
+            --runtime="org.kde.Sdk//${KDE_PLATFORM_VERSION}" \
+            --output glad-dependencies \
+            --build-only \
+            --requirements-file=glad-requirements.txt
+
+          # Copy generated pip sources into build dir alongside the manifest
+          mkdir -p build
+          cp glad-dependencies.json build/
+
+      - name: Cache Flatpak build
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: ./build/.flatpak-builder
+          key: flatpak-${{ matrix.arch }}-${{ github.sha }}
+          restore-keys: |
+            flatpak-${{ matrix.arch }}-
+
+      - name: Configure Flatpak Manifest
+        env:
+          INPUT_RELEASE_VERSION: ${{ inputs.release_version }}
+          INPUT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REPOSITORY_CLONE_URL: ${{ github.event.repository.clone_url }}
+        run: |
+          # variables for manifest
+          branch="${GITHUB_REF}"
+          build_version="${INPUT_RELEASE_VERSION}"
+          commit="${INPUT_RELEASE_COMMIT}"
+          clone_url="${REPOSITORY_CLONE_URL}"
+
+          if [ "${GITHUB_EVENT_NAME}" == "push" ]; then
+            echo "This is a PUSH event"
+            branch="${GITHUB_REF_NAME}"
+          fi
+
+          echo "Branch: ${branch}"
+          echo "Commit: ${commit}"
+          echo "Clone URL: ${clone_url}"
+
+          export BRANCH=${branch}
+          export BUILD_VERSION=${build_version}
+          export CLONE_URL=${clone_url}
+          export COMMIT=${commit}
+
+          mkdir -p build
+          mkdir -p artifacts
+
+          cmake -DGITHUB_CLONE_URL="${clone_url}" \
+            -B build \
+            -S . \
+            -DSUNSHINE_CONFIGURE_FLATPAK_MAN=ON \
+            -DSUNSHINE_CONFIGURE_ONLY=ON
+
+      - name: Debug Manifest
+        working-directory: build
+        run: cat "${APP_ID}.yml"
+
+      - name: Build Linux Flatpak
+        working-directory: build
+        run: |
+          echo "::add-matcher::.github/matchers/gcc-strip3.json"
+          sudo su "$(whoami)" -c "flatpak run org.flatpak.Builder \
+            --arch=${MATRIX_ARCH} \
+            --force-clean \
+            --repo=repo \
+            --sandbox \
+            --stop-at=cuda build-sunshine ${APP_ID}.yml"
+          cp -r .flatpak-builder copy-of-flatpak-builder
+          sudo su "$(whoami)" -c "flatpak run org.flatpak.Builder \
+            --arch=${MATRIX_ARCH} \
+            --force-clean \
+            --repo=repo \
+            --sandbox \
+            build-sunshine ${APP_ID}.yml"
+          rm -rf .flatpak-builder
+          mv copy-of-flatpak-builder .flatpak-builder
+          sudo su "$(whoami)" -c "flatpak build-bundle \
+            --arch=${MATRIX_ARCH} \
+            ./repo \
+            ../artifacts/sunshine_${MATRIX_ARCH}.flatpak ${APP_ID}"
+          sudo su "$(whoami)" -c "flatpak build-bundle \
+            --runtime \
+            --arch=${MATRIX_ARCH} \
+            ./repo \
+            ../artifacts/sunshine_debug_${MATRIX_ARCH}.flatpak ${APP_ID}.Debug"
+          echo "::remove-matcher owner=gcc-strip3::"
+
+      - name: Lint Flatpak
+        working-directory: build
+        run: |
+          exceptions_file="${GITHUB_WORKSPACE}/packaging/linux/flatpak/exceptions.json"
+
+          echo "Linting flatpak manifest"
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
+            --exceptions \
+            --user-exceptions "${exceptions_file}" \
+            manifest \
+            "${APP_ID}.yml"
+
+          echo "Linting flatpak repo"
+          # TODO: add arg
+          # --mirror-screenshots-url=https://dl.flathub.org/media \
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
+            --exceptions \
+            --user-exceptions "${exceptions_file}" \
+            repo \
+            repo
+
+      - name: Package Flathub repo archive
+        # copy files required to generate the Flathub repo
+        if: matrix.arch == 'x86_64'
+        run: |
+          mkdir -p flathub/modules
+          cp "./build/generated-sources.json" "./flathub/"
+          cp "./build/glad-dependencies.json" "./flathub/"
+          cp "./build/${APP_ID}.yml" "./flathub/"
+          cp "./build/${APP_ID}.metainfo.xml" "./flathub/"
+          cp "./package-lock.json" "./flathub/"
+          cp "./packaging/linux/flatpak/README.md" "./flathub/"
+          cp "./packaging/linux/flatpak/flathub.json" "./flathub/"
+          cp -r "./packaging/linux/flatpak/modules/." "./flathub/modules/"
+          # submodules will need to be handled in the workflow that creates the PR
+
+          # create the archive
+          tar -czf ./artifacts/flathub.tar.gz -C ./flathub .
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: build-Linux-Flatpak-${{ matrix.arch }}
+          path: artifacts/
+          if-no-files-found: error

@@ -1,0 +1,26 @@
+# ignore hidden files
+.*
+
+# do not ignore .git, needed for versioning
+!/.git
+
+# do not ignore .rstcheck.cfg, needed to test building docs
+!/.rstcheck.cfg
+
+# ignore repo directories and files
+docker/
+gh-pages-template/
+scripts/
+tools/
+crowdin.yml
+
+# don't ignore linux build script
+!scripts/linux_build.sh
+
+# ignore dev directories
+build/
+cmake-*/
+venv/
+
+# ignore artifacts
+artifacts/

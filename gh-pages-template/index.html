@@ -1,0 +1,248 @@
+---
+title: Sunshine
+subtitle: A LizardByte project
+layout: page
+full-width: true
+after-content:
+- donate.html
+- support.html
+cover-img:
+- /Sunshine/assets/img/banners/AdobeStock_305732536_1920x1280.jpg
+- /Sunshine/assets/img/banners/AdobeStock_231616343_1920x1280.jpg
+- /Sunshine/assets/img/banners/AdobeStock_303330124_1920x1280.jpg
+---
+
+<!-- About section-->
+<section class="py-5" id="About">
+    <div class="container px-auto">
+        <p class="lead text-center mx-auto mt-0 mb-5">
+            Sunshine is a self-hosted game stream host for Moonlight. Offering low latency, cloud gaming
+            server capabilities with support for AMD, Intel, and Nvidia GPUs for hardware encoding. Software
+            encoding is also available. You can connect to Sunshine from any Moonlight client on a variety
+            of devices. A web UI is provided to allow configuration, and client pairing, from your favorite
+            web browser. Pair from the local server or any mobile device.
+        </p>
+    </div>
+</section>
+
+<!-- Features section-->
+<section class="py-5" id="Features">
+    <div class="container px-auto">
+        <h2 class="text-center fw-bolder my-5">Features</h2>
+        <div class="row gx-5">
+            {% for feature in site.data.features %}
+            <div class="col-md-6 col-lg-4 mb-5">
+                <div class="card-custom h-100 shadow border-0 rounded-0">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center">
+                            <div class="icon">
+                                {% if feature.icon_fa %}
+                                <i class="fa-fw fa-2x {{ feature.icon_fa }}"></i>
+                                {% elsif feature.icon_img %}
+                                <img {% if feature.icon_img_invert %}class="invert"{% endif %} src="{{ feature.icon_img }}" alt="{{ feature.icon_img_alt | default: feature.title }}"/>
+                                {% endif %}
+                            </div>
+                            <div class="ms-3">
+                                <h5 class="fw-bolder mb-0">{{ feature.title }}</h5>
+                                <p class="mb-0">{{ feature.description }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<!-- Clients section-->
+<section class="py-5" id="Clients">
+    <div class="container px-auto">
+        <h2 class="text-center fw-bolder my-5">Clients</h2>
+        <div class="row gx-5">
+            {% for client in site.data.clients %}
+            <div class="col-md-6 col-lg-4 mb-5">
+                <div class="card-custom h-100 shadow border-0 rounded-0 d-flex flex-column">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center">
+                            <div class="icon">
+                                {% for icon in client.icons %}
+                                <img {% if icon.invert %}class="invert"{% endif %} src="{{ icon.src }}" alt="{{ icon.alt }}"/>
+                                {% endfor %}
+                            </div>
+                            <div class="ms-3">
+                                <h5 class="fw-bolder mb-0">
+                                    <a href="{{ client.github }}" target="_blank" class="text-decoration-none project-card-link crowdin-ignore">
+                                        {{ client.name }}
+                                    </a>
+                                </h5>
+                            </div>
+                            <div class="ms-auto">
+                                {% if client.type == "official" %}
+                                <span class="badge text-bg-info rounded-pill">Official</span>
+                                {% elsif client.type == "community" %}
+                                <span class="badge text-bg-warning rounded-pill">Community</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% if client.downloads %}
+                    <div class="card-footer p-3 px-4">
+                        {% for download in client.downloads %}
+                        <div class="{% unless forloop.last %}pb-3{% endunless %}">
+                            {% if download.img_src %}
+                            <a href="{{ download.url }}" target="_blank"{% if download.btn_class %} class="{{ download.btn_class }}"{% endif %}>
+                                <img alt="{{ download.label }}"
+                                     src="{{ download.img_src }}"
+                                     height="{{ download.img_height }}"
+                                     {% if download.img_style %}style="{{ download.img_style }}"{% endif %}/>
+                            </a>
+                            {% else %}
+                            <a href="{{ download.url }}" target="_blank" class="{{ download.btn_class | default: 'btn btn-info' }}">
+                                {% if download.icon_fa %}<i class="{{ download.icon_fa }}"></i>{% endif %}
+                                {{ download.label }}
+                            </a>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<!-- More cards -->
+<div class="container py-5 px-auto">
+    <div class="container col-md-10">
+        <!-- Docs section -->
+        <section class="py-4" id="Docs">
+            <div class="card-custom shadow border-0 rounded-0">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center">
+                        <i class="fa-fw fa-2x fas fa-book"></i>
+                        <div class="ms-3">
+                            <h2 class="fw-bolder mb-0">Documentation</h2>
+                            <p class="mb-0">
+                                Read the documentation to learn how to install, use, and configure Sunshine.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer p-3 px-4">
+                    <a class="btn btn-outline-theme me-3 mb-3" href="https://docs.lizardbyte.dev/projects/sunshine" target="_blank">
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/readthedocs.svg" alt="ReadTheDocs"/>
+                        Read the Docs
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Download section -->
+        <section class="py-4" id="Download">
+            <div class="card-custom shadow border-0 rounded-0">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center">
+                        <i class="fa-fw fa-2x fas fa-download"></i>
+                        <div class="ms-3">
+                            <h2 class="fw-bolder mb-0">Download</h2>
+                            <p class="mb-0">
+                                Download Sunshine for your platform.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer p-3 px-4">
+                    <a class="latest-button btn btn-outline-theme me-3 mb-3 d-none" href="https://github.com/LizardByte/Sunshine/releases/latest" target="_blank">
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/github.svg" alt="GitHub"/>
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/icons/windows.svg" alt="Windows"/>
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/debian.svg" alt="Debian"/>
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/ubuntu.svg" alt="Ubuntu"/>
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/flatpak.svg" alt="Flatpak"/>
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/linux.svg" alt="AppImage"/>
+                            Latest: <span id="latest-version" class="crowdin-ignore"></span>
+                    </a>
+                    <a class="beta-button btn btn-outline-theme me-3 mb-3 d-none" href="#" target="_blank">
+                        <i class="fa-fw fa-lg fas fa-flask"></i>
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/icons/windows.svg" alt="Windows"/>
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/debian.svg" alt="Debian"/>
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/ubuntu.svg" alt="Ubuntu"/>
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/flatpak.svg" alt="Flatpak"/>
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/linux.svg" alt="AppImage"/>
+                            Beta: <span id="beta-version" class="crowdin-ignore"></span>
+                    </a>
+                    <a class="btn btn-outline-theme me-3 mb-3" href="https://github.com/LizardByte/pacman-repo" target="_blank">
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/archlinux.svg" alt="Arch Linux"/>
+                            Arch Linux
+                    </a>
+                    <a class="btn btn-outline-theme me-3 mb-3" href="https://hub.docker.com/r/lizardbyte/sunshine" target="_blank">
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/docker.svg" alt="Docker"/>
+                            Docker
+                    </a>
+                    <a class="btn btn-outline-theme me-3 mb-3" href="https://flathub.org/apps/dev.lizardbyte.app.Sunshine" target="_blank">
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/flathub.svg" alt="Flathub"/>
+                            Flathub
+                    </a>
+                    <a class="btn btn-outline-theme me-3 mb-3" href="https://github.com/LizardByte/homebrew-homebrew" target="_blank">
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/homebrew.svg" alt="Homebrew"/>
+                            Homebrew
+                    </a>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+
+<!-- TODO: Move this to website repo, and make it accept arguments for the repo name -->
+<script>
+  // Fetch the releases from the GitHub API
+  fetch('https://api.github.com/repos/LizardByte/Sunshine/releases')
+    .then(response => response.json())
+    .then(data => {
+      // Filter the releases to get only the pre-releases
+      const preReleases = data.filter(release => release.prerelease);
+      // Filter the releases to get only the stable releases
+      const stableReleases = data.filter(release => !release.prerelease);
+
+      const latestButton = document.querySelector('.latest-button');
+      const latestVersion = document.querySelector('#latest-version');
+      const betaButton = document.querySelector('.beta-button');
+      const betaVersion = document.querySelector('#beta-version');
+
+      // If there are no stable releases, hide the latest download button
+      if (stableReleases.length === 0) {
+        latestButton.classList.add('d-none');
+      } else {
+        // Show the latest download button
+        latestButton.classList.remove('d-none');
+
+        // Get the latest stable release
+        const latestStableRelease = stableReleases[0];
+        latestVersion.textContent = latestStableRelease.tag_name;
+
+        // If there is a pre-release, update the href attribute of the anchor tag
+        if (preReleases.length > 0) {
+          const latestPreRelease = preReleases[0];
+
+          // Compare the date of the latest pre-release with the date of the latest stable release
+          const preReleaseDate = new Date(latestPreRelease.published_at);
+          const stableReleaseDate = new Date(latestStableRelease.published_at);
+
+          // If the pre-release is newer, update the href attribute of the anchor tag
+          if (preReleaseDate > stableReleaseDate) {
+            betaButton.href = latestPreRelease.html_url;
+            betaVersion.textContent = latestPreRelease.tag_name;
+            betaButton.classList.remove('d-none');
+          } else {
+            // If the pre-release is older, hide the button
+            betaButton.classList.add('d-none');
+          }
+        } else {
+          // If there is no pre-release, hide the button
+          betaButton.classList.add('d-none');
+        }
+      }
+    });
+</script>

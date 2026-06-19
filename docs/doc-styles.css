@@ -1,0 +1,6 @@
+/* A fake button as doxygen doesn't allow button elements */
+.open-button {
+    background: var(--primary-color);
+    color: white;
+    cursor: pointer;
+}

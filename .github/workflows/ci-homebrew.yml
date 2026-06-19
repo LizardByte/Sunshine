@@ -1,0 +1,258 @@
+---
+name: CI-Homebrew
+permissions: {}
+
+on:
+  workflow_call:
+    inputs:
+      git_username:
+        required: true
+        type: string
+      publish_release:
+        required: true
+        type: string
+      release_commit:
+        required: true
+        type: string
+      release_tag:
+        required: true
+        type: string
+      release_version:
+        required: true
+        type: string
+    secrets:
+      GH_TOKEN:
+        required: true
+      GIT_EMAIL:
+        required: true
+
+jobs:
+  build_homebrew:
+    name: ${{ matrix.os_name }}-${{ matrix.os_version }}${{ matrix.release == true && ' (Release)' || '' }}
+    permissions:
+      contents: read
+    runs-on: ${{ matrix.os_name }}-${{ matrix.os_version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
+          # while GitHub has larger macOS runners, they are not available for our repos :(
+          - os_name: "macos"
+            os_version: "14"
+          - os_name: "macos"
+            os_version: "15"
+          - os_name: "macos"
+            os_version: "26"
+          - os_name: "ubuntu"
+            os_version: "24.04"
+          - os_name: "ubuntu"
+            os_version: "latest"
+            release: true  # this job will only configure the formula for release, no validation
+    steps:
+      - name: More space
+        if: runner.os == 'Linux'
+        uses: LizardByte/actions/actions/more_space@200eaeb897a2b065a65cb6f16b41077432007490  # v2026.605.34721
+        with:
+          analyze-space-savings: true
+          clean-all: true
+          safe-packages: brew
+
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+
+      - name: Seed additional macOS TCC permissions
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+
+          configure_system_tccdb() {
+            local values=$1
+            local dbPath="/Library/Application Support/com.apple.TCC/TCC.db"
+            local sqlQuery="INSERT OR IGNORE INTO access VALUES($values);"
+            sudo sqlite3 "$dbPath" "$sqlQuery"
+          }
+
+          configure_user_tccdb() {
+            local values=$1
+            local dbPath="$HOME/Library/Application Support/com.apple.TCC/TCC.db"
+            local sqlQuery="INSERT OR IGNORE INTO access VALUES($values);"
+            sqlite3 "$dbPath" "$sqlQuery"
+          }
+
+          systemValuesArray=(
+            "'kTCCServiceAudioCapture','/opt/hca/hosted-compute-agent',1,2,4,1,NULL,NULL,NULL,'UNUSED',NULL,0,1736467200"
+            "'kTCCServiceAudioCapture','/opt/hca/start_hca.sh',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1576661342"
+            "'kTCCServiceAudioCapture','/usr/local/opt/runner/provisioner/provisioner',1,2,4,1,NULL,NULL,NULL,'UNUSED',NULL,0,1736467200"
+            "'kTCCServiceAudioCapture','/usr/local/opt/runner/runprovisioner.sh',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1576661342"
+          )
+          for values in "${systemValuesArray[@]}"; do
+            configure_system_tccdb "$values,NULL,NULL,'UNUSED',${values##*,}"
+          done
+
+          userValuesArray=(
+            "'kTCCServiceAudioCapture','/opt/hca/hosted-compute-agent',1,2,4,1,NULL,NULL,NULL,'UNUSED',NULL,0,1736467200"
+            "'kTCCServiceAudioCapture','/opt/hca/start_hca.sh',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1576661342"
+            "'kTCCServiceAudioCapture','/usr/local/opt/runner/provisioner/provisioner',1,2,4,1,NULL,NULL,NULL,'UNUSED',NULL,0,1736467200"
+            "'kTCCServiceAudioCapture','/usr/local/opt/runner/runprovisioner.sh',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1576661342"
+          )
+          for values in "${userValuesArray[@]}"; do
+            configure_user_tccdb "$values,NULL,NULL,'UNUSED',${values##*,}"
+          done
+
+          echo "macOS TCC permissions configured."
+
+      - name: Configure formula
+        env:
+          INPUT_RELEASE_VERSION: ${{ inputs.release_version }}
+          INPUT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+          MATRIX_RELEASE: ${{ matrix.release }}
+          PR_CLONE_URL: ${{ github.event.pull_request.head.repo.clone_url }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_DEFAULT_BRANCH: ${{ github.event.pull_request.head.repo.default_branch }}
+          REPOSITORY_CLONE_URL: ${{ github.event.repository.clone_url }}
+          REPOSITORY_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          # variables for formula
+          branch="${GITHUB_HEAD_REF}"
+          build_version="${INPUT_RELEASE_VERSION}"
+          clone_url="${REPOSITORY_CLONE_URL}"
+          commit="${INPUT_RELEASE_COMMIT}"
+          default_branch="${REPOSITORY_DEFAULT_BRANCH}"
+          tag="${GITHUB_REF_NAME}"
+
+          if [ "${GITHUB_EVENT_NAME}" == "push" ]; then
+            echo "This is a PUSH event"
+            if [ "${MATRIX_RELEASE}" == "true" ]; then
+              # we will publish the formula with the release tag
+              tag="${INPUT_RELEASE_TAG}"
+            fi
+          elif [ "${GITHUB_EVENT_NAME}" == "pull_request" ]; then
+            echo "This is a PR event"
+            clone_url=${PR_CLONE_URL}
+            branch="${PR_HEAD_REF}"
+            default_branch="${PR_DEFAULT_BRANCH}"
+            tag="${PR_HEAD_REF}"
+          fi
+
+          echo "Branch: ${branch}"
+          echo "Clone URL: ${clone_url}"
+          echo "Tag: ${tag}"
+
+          export BRANCH=${branch}
+          export BUILD_VERSION=${build_version}
+          export CLONE_URL=${clone_url}
+          export COMMIT=${commit}
+          export TAG=${tag}
+
+          mkdir -p build
+          cmake \
+            -B build \
+            -S . \
+            -DGITHUB_DEFAULT_BRANCH="${default_branch}" \
+            -DSUNSHINE_CONFIGURE_HOMEBREW=ON \
+            -DSUNSHINE_CONFIGURE_ONLY=ON
+
+          # copy formula to artifacts
+          mkdir -p homebrew
+          cp -f ./build/sunshine.rb ./homebrew/sunshine.rb
+
+          # testing
+          cat ./homebrew/sunshine.rb
+
+      - name: Setup Xvfb
+        if: matrix.release != true && runner.os == 'Linux'
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            xvfb
+
+          export DISPLAY=:1
+          Xvfb ${DISPLAY} -screen 0 1024x768x24 &
+
+          echo "DISPLAY=${DISPLAY}" >> "${GITHUB_ENV}"
+
+      - run: echo "::add-matcher::.github/matchers/gcc-strip3.json"
+      - name: Validate Homebrew Formula
+        id: test
+        if: matrix.release != true
+        uses: LizardByte/actions/actions/release_homebrew@200eaeb897a2b065a65cb6f16b41077432007490  # v2026.605.34721
+        with:
+          actionlint_config: "---\n# empty config"
+          formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
+          git_email: ${{ secrets.GIT_EMAIL }}
+          git_username: ${{ inputs.git_username }}
+          publish: false
+          token: ${{ secrets.GH_TOKEN }}
+          validate: true
+      - run: echo "::remove-matcher owner=gcc-strip3::"
+
+      - name: Upload coverage artifact
+        if: >-
+          always() &&
+          matrix.release != true &&
+          (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: coverage-Homebrew-${{ matrix.os_name }}-${{ matrix.os_version }}
+          path: |
+            ${{ steps.test.outputs.testpath }}/coverage.xml
+            ${{ steps.test.outputs.testpath }}/tests/test_results.xml
+          if-no-files-found: error
+
+      - name: Patch homebrew formula
+        # remove version from formula as it's not necessary for release versions
+        # don't run this on macOS, as the sed command fails
+        if: matrix.release
+        run: |
+          # variables
+          formula_file="homebrew/sunshine.rb"
+
+          # remove the formula version
+          sed -i '/^  version .*$/d' $formula_file
+
+      - name: Upload Artifacts
+        if: matrix.release
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: build-Homebrew
+          path: homebrew/
+          if-no-files-found: error
+
+      - name: Patch homebrew formula (Beta)
+        # create beta version of the formula
+        # don't run this on macOS, as the sed command fails
+        if: matrix.release
+        run: |
+          # variables
+          formula_file="homebrew/sunshine-beta.rb"
+
+          # rename the file
+          mv homebrew/sunshine.rb $formula_file
+
+          # update the formula
+          sed -i 's/class Sunshine < Formula/class SunshineBeta < Formula/' $formula_file
+          sed -i 's/conflicts_with "sunshine-beta"/conflicts_with "sunshine"/' $formula_file
+
+          # update livecheck to check for latest stable or pre-release
+          # shellcheck disable=SC1004
+          sed -i '/strategy :github_latest do |json, regex|/,/^    end$/c\
+              strategy :github_releases do |json, regex|\
+                json.map do |release|\
+                  next if release["draft"]\
+          \
+                  match = release["tag_name"]&.match(regex)\
+                  next if match.blank?\
+          \
+                  match[1]\
+                end\
+              end' $formula_file
+
+      - name: Upload Artifacts (Beta)
+        if: matrix.release
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: beta-Homebrew
+          path: homebrew/
+          if-no-files-found: error

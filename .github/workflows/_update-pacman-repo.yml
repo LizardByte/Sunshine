@@ -1,0 +1,33 @@
+---
+# This workflow is centrally managed in https://github.com/LizardByte/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
+# To use, add the `pacman-pkg` repository label to identify repositories that should trigger this workflow.
+
+# Update pacman repo on release events.
+
+name: Update pacman repo
+permissions: {}
+
+on:
+  release:
+    types:
+      - released
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.event.release.tag_name }}"
+  cancel-in-progress: true
+
+jobs:
+  update-pacman-repo:
+    name: Update pacman repo
+    uses: LizardByte/.github/.github/workflows/__call-update-pacman-repo.yml@master
+    if: github.repository_owner == 'LizardByte'
+    permissions:
+      contents: read
+    with:
+      gh_name: ${{ vars.GH_BOT_NAME }}
+    secrets:
+      GH_EMAIL: ${{ secrets.GH_BOT_EMAIL }}
+      GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}

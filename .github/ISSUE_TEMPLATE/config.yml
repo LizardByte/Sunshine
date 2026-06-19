@@ -1,0 +1,19 @@
+---
+# This file is centrally managed in https://github.com/<organization>/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
+blank_issues_enabled: false
+contact_links:
+  - name: Discussions
+    url: https://github.com/orgs/LizardByte/discussions
+    about: Community discussions
+  - name: Questions
+    url: https://github.com/orgs/LizardByte/discussions
+    about: Ask questions
+  - name: Feature Requests
+    url: https://github.com/orgs/LizardByte/discussions
+    about: Request new features
+  - name: Support Center
+    url: https://app.lizardbyte.dev/support
+    about: Official LizardByte support
