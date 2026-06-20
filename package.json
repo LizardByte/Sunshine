@@ -9,7 +9,7 @@
   },
   "type": "module",
   "dependencies": {
-    "@lucide/vue": "1.20.0",
+    "@lucide/vue": "1.21.0",
     "bootstrap": "5.3.8",
     "date-fns": "4.4.0",
     "marked": "18.0.5",
