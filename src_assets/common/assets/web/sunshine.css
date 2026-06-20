@@ -2245,7 +2245,10 @@ p {
     justify-content: flex-end;
     gap: var(--spacing-sm);
     padding: var(--spacing-md);
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.7) 55%, rgba(0, 0, 0, 0) 100%);
+    background: linear-gradient(to top,
+        color-mix(in srgb, var(--color-primary) 22%, rgba(0, 0, 0, 0.9)) 0%,
+        color-mix(in srgb, var(--color-primary) 12%, rgba(0, 0, 0, 0.68)) 55%,
+        transparent 100%);
     color: #fff;
     opacity: 0;
     pointer-events: none;
@@ -2291,8 +2294,8 @@ p {
     font-weight: 600;
     padding: 0.2em 0.5em;
     border-radius: var(--radius-sm);
-    background: rgba(255, 255, 255, 0.18);
-    color: #fff;
+    background: var(--color-primary);
+    color: var(--color-on-primary);
     text-transform: uppercase;
     letter-spacing: 0.02em;
 }
