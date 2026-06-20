@@ -375,7 +375,7 @@ namespace egl {
     void load_ram(platf::img_t &img);
     void load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture, bool is_yuv444);
 
-    void apply_colorspace(const video::sunshine_colorspace_t &colorspace);
+    void apply_colorspace(const video::sunshine_colorspace_t &colorspace, bool is_yuv444);
 
     // The first texture is the monitor image.
     // The second texture is the cursor image

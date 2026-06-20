@@ -856,7 +856,7 @@ namespace egl {
     return yuv444;
   }
 
-  void sws_t::apply_colorspace(const video::sunshine_colorspace_t &colorspace) {
+  void sws_t::apply_colorspace(const video::sunshine_colorspace_t &colorspace, bool is_yuv444) {
     auto color_p = video::color_vectors_from_colorspace(colorspace, true);
 
     std::string_view members[] {
@@ -869,9 +869,11 @@ namespace egl {
 
     color_matrix.update(members, sizeof(members) / sizeof(decltype(members[0])));
 
-    program[0].bind(color_matrix);
-    program[1].bind(color_matrix);
-    program[2].bind(color_matrix);
+    int planesCount = is_yuv444 ? 3 : 2;
+
+    for (int i = 0; i < planesCount; i++) {
+      program[i].bind(color_matrix);
+    }
   }
 
   int configure_sws_pipeline(sws_t &sws, const video::color_t *color_p, gl::tex_t &&tex, bool is_yuv444) {

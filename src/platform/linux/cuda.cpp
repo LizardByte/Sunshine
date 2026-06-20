@@ -504,7 +504,7 @@ namespace cuda {
      * @brief Configures shader parameters for the specified colorspace.
      */
     void apply_colorspace() override {
-      sws.apply_colorspace(colorspace);
+      sws.apply_colorspace(colorspace, is_yuv444);
     }
 
     file_t file;
