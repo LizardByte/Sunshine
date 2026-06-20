@@ -2199,6 +2199,10 @@ p {
     box-shadow: var(--shadow-lg);
 }
 
+.app-card .card-body {
+    padding: var(--spacing-md);
+}
+
 .app-poster-container {
     position: relative;
     width: 100%;
@@ -2233,26 +2237,66 @@ p {
     opacity: 0.5;
 }
 
-.app-details {
-    flex-grow: 1;
+.app-poster-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.7) 55%, rgba(0, 0, 0, 0) 100%);
+    color: #fff;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition-base);
 }
 
-.app-details > div {
-    margin-bottom: 0.25rem;
+.app-card:hover .app-poster-overlay,
+.app-card:focus-within .app-poster-overlay {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.app-overlay-row {
     display: flex;
     align-items: center;
+    font-size: 0.8rem;
+    line-height: 1.3;
 }
 
-.app-details > div .icon {
+.app-poster-overlay .icon {
     flex-shrink: 0;
 }
 
-.app-details > div .app-detail-text {
+.app-poster-overlay .app-detail-text {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+.app-overlay-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+}
+
+.app-flag-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    min-height: 1.5rem;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 0.2em 0.5em;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
 
 /* ==========================================================================
    Featured Apps Page Styles
