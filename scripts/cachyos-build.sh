@@ -135,12 +135,12 @@ else
   say "Installing build deps via pacman --needed (you'll be asked for sudo if needed)..."
   if ! sudo pacman -S --needed --noconfirm \
         base-devel cmake ninja git \
-        openssl curl libpulse libdrm libva libva-drm \
+        openssl curl libpulse libdrm libva \
         libx11 libxfixes libxrandr libxcb libxkbcommon \
-        libevdev libopus ffmpeg \
+        libevdev opus ffmpeg \
         libpipewire libportal \
         wayland wayland-protocols \
-        libudev0 libcap-miniupnpc libnatpmp \
+        libudev libcap libnatpmp \
         vulkan-headers shaderc glslang \
         boost miniupnpc nlohmann-json \
         libpng libxext libxtst; then
@@ -167,6 +167,8 @@ cmake -B "$BUILD_DIR" -G Ninja -S "$REPO_ROOT" \
     -DBUILD_DOCS=OFF \
     -DSUNSHINE_ENABLE_TESTS=OFF \
     -DSUNSHINE_ENABLE_TRAY=OFF \
+    -DSUNSHINE_ENABLE_CUDA=OFF \
+    -DCUDA_FAIL_ON_MISSING=OFF \
     -DFFMPEG_PREBUILT=ON
 cmake_rc=$?
 set -u

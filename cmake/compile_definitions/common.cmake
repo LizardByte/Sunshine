@@ -29,20 +29,78 @@ endif()
 if(SUNSHINE_CACHYOS_NATIVE AND UNIX AND NOT APPLE)
     set(_sunshine_native_march "")
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "(amd64|AMD64|x86_64|X86_64)")
-        # Try to detect a known Zen generation via /proc/cpuinfo on the build
-        # host. Falls back to x86-64-v3 (AVX2 baseline) which CachyOS ships.
-        set(_sunshine_cpuinfo_file "/proc/cpuinfo")
-        if(EXISTS ${_sunshine_cpuinfo_file})
-            file(READ ${_sunshine_cpuinfo_file} _sunshine_cpuinfo)
-            string(TOLOWER "${_sunshine_cpuinfo}" _sunshine_cpuinfo_lower)
-            if(_sunshine_cpuinfo_lower MATCHES "model name.*zen 4")
-                set(_sunshine_native_march "znver4")
-            elseif(_sunshine_cpuinfo_lower MATCHES "model name.*zen 3")
-                set(_sunshine_native_march "znver3")
-            elseif(_sunshine_cpuinfo_lower MATCHES "model name.*zen 2")
-                set(_sunshine_native_march "znver2")
-            elseif(_sunshine_cpuinfo_lower MATCHES "model name.*zen")
-                set(_sunshine_native_march "znver1")
+        # Detect the build host's microarch. We try four sources in order of
+        # reliability, then fall back to x86-64-v3 (the CachyOS kernel/userspace
+        # baseline, safe on every CachyOS-supported CPU since the original
+        # Ryzen).
+        #
+        # 1. `gcc -march=native -E -v - </dev/null` -- GCC's own detection.
+        #    Most accurate, but GCC's output format varies between versions.
+        # 2. `lscpu` -- clean text output with "Model name:".
+        # 3. /proc/cpuinfo "model name" line (multi-line, requires us to
+        #    search the whole file).
+        # 4. /proc/cpuinfo "cpu family" / "model" fields (numeric).
+        #
+        # The model name on Ryzen parts in /proc/cpuinfo is typically
+        # "AMD Ryzen 5 4600H with Radeon Graphics" -- which does NOT
+        # contain the word "zen", so a naive regex on "model name" misses
+        # Zen 2/3/4 entirely and falls through to the wrong generation.
+        # Hence the multi-source approach below.
+
+        # 1. Try `gcc -march=native`.
+        execute_process(
+            COMMAND gcc -march=native -E -v -x c /dev/null
+            OUTPUT_VARIABLE _sunshine_gcc_v
+            ERROR_VARIABLE _sunshine_gcc_e
+            OUTPUT_QUIET)
+        if(_sunshine_gcc_e MATCHES "march[ =]+(znver[1-9]|x86-64-v[1-4])")
+            set(_sunshine_native_march "${CMAKE_MATCH_1}")
+        endif()
+
+        # 2. Try `lscpu Model name`.
+        if(NOT _sunshine_native_march)
+            find_program(_sunshine_lscpu lscpu)
+            if(_sunshine_lscpu)
+                execute_process(
+                    COMMAND ${_sunshine_lscpu}
+                    OUTPUT_VARIABLE _sunshine_lscpu_out
+                    OUTPUT_QUIET)
+                if(_sunshine_lscpu_out MATCHES "Model name:[^\n]*([Zz]en[ -]?[4-9])")
+                    set(_zen_gen "${CMAKE_MATCH_1}")
+                    string(TOLOWER "${_zen_gen}" _zen_gen_lower)
+                    string(STRIP "${_zen_gen_lower}" _zen_gen_lower)
+                    string(REGEX REPLACE "zen[ -]?" "znver" _sunshine_native_march "${_zen_gen_lower}")
+                elseif(_sunshine_lscpu_out MATCHES "Model name:[^\n]*[Zz]en[ -]?[23]?")
+                    set(_zen_match "${CMAKE_MATCH_0}")
+                    string(TOLOWER "${_zen_match}" _zen_match_lower)
+                    if(_zen_match_lower MATCHES "zen[ -]?4")
+                        set(_sunshine_native_march "znver4")
+                    elseif(_zen_match_lower MATCHES "zen[ -]?3")
+                        set(_sunshine_native_march "znver3")
+                    elseif(_zen_match_lower MATCHES "zen[ -]?2")
+                        set(_sunshine_native_march "znver2")
+                    elseif(_zen_match_lower MATCHES "zen[ -]?1")
+                        set(_sunshine_native_march "znver1")
+                    endif()
+                endif()
+            endif()
+        endif()
+
+        # 3. Try /proc/cpuinfo: search the whole file for a "zen N" reference.
+        if(NOT _sunshine_native_march)
+            set(_sunshine_cpuinfo_file "/proc/cpuinfo")
+            if(EXISTS ${_sunshine_cpuinfo_file})
+                file(READ ${_sunshine_cpuinfo_file} _sunshine_cpuinfo)
+                string(TOLOWER "${_sunshine_cpuinfo}" _sunshine_cpuinfo_lower)
+                if(_sunshine_cpuinfo_lower MATCHES "zen[ -]?4")
+                    set(_sunshine_native_march "znver4")
+                elseif(_sunshine_cpuinfo_lower MATCHES "zen[ -]?3")
+                    set(_sunshine_native_march "znver3")
+                elseif(_sunshine_cpuinfo_lower MATCHES "zen[ -]?2")
+                    set(_sunshine_native_march "znver2")
+                elseif(_sunshine_cpuinfo_lower MATCHES "zen[ -]?1")
+                    set(_sunshine_native_march "znver1")
+                endif()
             endif()
         endif()
         if(NOT _sunshine_native_march)
