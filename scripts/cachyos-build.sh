@@ -130,22 +130,99 @@ say "Submodule check: ✓"
 # ---------------------------------------------------------------------------
 step "3/6  Build dependencies"
 if [[ "$RUN_PACMAN" -eq 0 ]]; then
-  say "Skipping pacman (--no-pacman)."
+  say "Skipping package install (--no-pacman / --no-install)."
 else
-  say "Installing build deps via pacman --needed (you'll be asked for sudo if needed)..."
-  if ! sudo pacman -S --needed --noconfirm \
-        base-devel cmake ninja git \
-        openssl curl libpulse libdrm libva \
-        libx11 libxfixes libxrandr libxcb libxkbcommon \
-        libevdev opus ffmpeg \
-        libpipewire libportal \
-        wayland wayland-protocols \
-        libudev libcap libnatpmp \
-        vulkan-headers shaderc glslang \
-        boost miniupnpc nlohmann-json \
-        libpng libxext libxtst; then
-    warn "pacman returned non-zero. Some packages may not be available in your repos. Continuing — build will tell us if anything critical is missing."
-  fi
+  # Auto-detect distro / package manager from /etc/os-release.
+  # Falls back to "unknown" + skipping the install if we can't tell.
+  detect_distro() {
+    if [[ -f /etc/os-release ]]; then
+      . /etc/os-release
+      echo "${ID:-unknown}"
+    elif command -v lsb_release >/dev/null 2>&1; then
+      lsb_release -is | tr '[:upper:]' '[:lower:]'
+    else
+      echo unknown
+    fi
+  }
+  DISTRO_ID="$(detect_distro)"
+  say "Detected distro: ${DISTRO_ID}"
+
+  case "${DISTRO_ID}" in
+    cachyos|arch|manjaro|endeavouros|arco|garuda)
+      say "Installing build deps via pacman --needed (CachyOS/Arch path)..."
+      if ! sudo pacman -S --needed --noconfirm \
+            base-devel cmake ninja git \
+            openssl curl libpulse libdrm libva \
+            libx11 libxfixes libxrandr libxcb libxkbcommon \
+            libevdev opus ffmpeg \
+            libpipewire libportal \
+            wayland wayland-protocols \
+            libudev libcap libnatpmp \
+            vulkan-headers shaderc glslang \
+            boost miniupnpc nlohmann-json \
+            libpng libxext libxtst; then
+        warn "pacman returned non-zero. Continuing — build will tell us if anything's actually missing."
+      fi
+      ;;
+    debian|ubuntu|pop|linuxmint|elementary|zorin|kali|mx)
+      say "Installing build deps via apt (Debian/Ubuntu path)..."
+      if ! sudo apt-get update; then
+        warn "apt-get update failed; trying install anyway."
+      fi
+      if ! sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build git pkg-config \
+            libssl-dev libcurl4-openssl-dev libpulse-dev libdrm-dev libva-dev \
+            libx11-dev libxfixes-dev libxrandr-dev libxcb1-dev libxkbcommon-dev \
+            libevdev-dev libopus-dev ffmpeg \
+            libpipewire-0.3-dev libportal-dev \
+            libwayland-dev wayland-protocols \
+            libudev-dev libcap-dev libnatpmp-dev \
+            vulkan-tools glslang-tools spirv-tools \
+            libboost-all-dev libminiupnpc-dev nlohmann-json3-dev \
+            libpng-dev libxext-dev libxtst-dev; then
+        warn "apt-get returned non-zero. Continuing — build will tell us if anything's actually missing."
+      fi
+      ;;
+    fedora|nobara|rocky|almalinux|rhel|centos)
+      say "Installing build deps via dnf (Fedora/Nobara path)..."
+      if ! sudo dnf install -y \
+            gcc-c++ cmake ninja-build git pkgconfig \
+            openssl-devel libcurl-devel pulseaudio-libs-devel libdrm-devel libva-devel \
+            libX11-devel libXfixes-devel libXrandr-devel libxcb-devel libxkbcommon-devel \
+            libevdev-devel opus-devel ffmpeg-devel \
+            pipewire-devel libportal-devel \
+            wayland-devel wayland-protocols-devel \
+            systemd-devel libcap-devel libnatpmp-devel \
+            vulkan-devel glslang-devel spirv-tools \
+            boost-devel miniupnpc-devel json-devel \
+            libpng-devel libXext-devel libXtst-devel; then
+        warn "dnf returned non-zero. Continuing — build will tell us if anything's actually missing."
+      fi
+      ;;
+    opensuse*|sles)
+      say "Installing build deps via zypper (openSUSE path)..."
+      if ! sudo zypper --non-interactive install \
+            gcc-c++ cmake ninja git pkg-config \
+            libopenssl-3-devel libcurl-devel libpulse-devel libdrm-devel libva-devel \
+            libX11-devel libXfixes-devel libXrandr-devel libxcb-devel libxkbcommon-devel \
+            libevdev-devel opus-devel ffmpeg-4-devel \
+            pipewire-devel libportal-devel \
+            wayland-devel wayland-protocols-devel \
+            libudev-devel libcap-devel libnatpmp-devel \
+            vulkan-devel shaderc glslang-devel \
+            boost-devel libminiupnpc-devel nlohmann_json-devel \
+            libpng-devel libXext-devel libXtst-devel; then
+        warn "zypper returned non-zero. Continuing — build will tell us if anything's actually missing."
+      fi
+      ;;
+    *)
+      warn "Unknown distro '${DISTRO_ID}'. Skipping automatic package install."
+      warn "Either install the packages manually and re-run with --no-install,"
+      warn "or open an issue with your distro's package names."
+      warn "See README.md > 'Heads up: this fork was made for one person's rig'"
+      warn "for the package name translation table."
+      ;;
+  esac
 fi
 say "Dependencies: assuming OK (build will fail loudly if not)."
 

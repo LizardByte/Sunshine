@@ -26,6 +26,75 @@
 > and gamepad support are 100% unchanged** — this fork is purely a
 > latency/perf overlay on the same codebase.
 
+> ## 🛠️ Heads up: this fork was made for one person's rig
+>
+> The `scripts/cachyos-build.sh` was written and tested on **one specific
+> machine**: an AMD Ryzen 5 4600H (Zen 2) laptop running CachyOS with an
+> NVIDIA GTX 1650 Mobile (Turing) and a 2.4 Gbps Wi-Fi 7 link. It is not a
+> general-purpose cross-distro build script.
+>
+> If you're not on CachyOS (or a close Arch derivative like Arch/Manjaro/
+> EndeavourOS), the script's `pacman -S` line will fail because the package
+> names are wrong. **Two ways to handle that:**
+>
+> 1. **Quick: edit the package list.** The script is a 250-line bash file;
+>    the only line that breaks on a non-CachyOS system is the `sudo pacman -S
+>    --needed --noconfirm ...` block. Swap `pacman` for your distro's package
+>    manager (`apt`, `dnf`, `zypper`) and the package names for the
+>    equivalents. Everything else (cmake / ninja build flags, submodules,
+>    microarch detection) is distro-agnostic. See the porting table below.
+>
+> 2. **Auto-detect (works on most distros now).** Recent commits added a
+>    `detect_distro()` helper that switches the package manager based on
+>    `/etc/os-release`. The script will use `pacman` on CachyOS/Arch/Manjaro,
+>    `apt` on Debian/Ubuntu/Pop!_OS, `dnf` on Fedora/Nobara, and `zypper` on
+>    openSUSE. Pass `--no-pacman` to skip the install step if you want to
+>    do it manually.
+>
+> ### Package name translation (verified by hand, not by running on every distro)
+>
+> | Purpose | CachyOS (pacman) | Debian/Ubuntu (apt) | Fedora/Nobara (dnf) | openSUSE (zypper) |
+> |---|---|---|---|---|
+> | Compiler toolchain | `base-devel cmake ninja` | `build-essential cmake ninja-build` | `gcc-c++ cmake ninja-build` | `gcc-c++ cmake ninja` |
+> | OpenSSL | `openssl` | `libssl-dev` | `openssl-devel` | `libopenssl-3-devel` |
+> | PulseAudio | `libpulse` | `libpulse-dev` | `pulseaudio-libs-devel` | `libpulse-devel` |
+> | DRM/KMS | `libdrm` | `libdrm-dev` | `libdrm-devel` | `libdrm-devel` |
+> | VA-API | `libva` | `libva-dev` | `libva-devel` | `libva-devel` |
+> | Opus | `opus` | `libopus-dev` | `opus-devel` | `opus-devel` |
+> | FFmpeg | `ffmpeg` | *(use the upstream build-deps tarball, or `libavcodec-dev libavformat-dev libavutil-dev libswscale-dev`)* | `ffmpeg-devel` | `ffmpeg-4-devel` (or `-6`) |
+> | PipeWire | `libpipewire libportal` | `libpipewire-0.3-dev libportal-dev` | `pipewire-devel` | `pipewire-devel` |
+> | Wayland | `wayland wayland-protocols` | `libwayland-dev wayland-protocols` | `wayland-devel wayland-protocols-devel` | `wayland-devel` |
+> | libudev | `libudev` | `libudev-dev` | `systemd-devel` | `libudev-devel` |
+> | libcap | `libcap` | `libcap-dev` | `libcap-devel` | `libcap-devel` |
+> | libnatpmp | `libnatpmp` | `libnatpmp-dev` | `libnatpmp-devel` | `libnatpmp-devel` |
+> | Vulkan | `vulkan-headers shaderc glslang` | `libvulkan-dev glslang-tools` | `vulkan-devel glslang-devel` | `vulkan-devel shaderc` |
+> | Boost | `boost` | `libboost-all-dev` | `boost-devel` | `boost-devel` |
+> | miniupnpc | `miniupnpc` | `libminiupnpc-dev` | `miniupnpc-devel` | `libminiupnpc-devel` |
+> | nlohmann-json | `nlohmann-json` | `nlohmann-json3-dev` | `json-devel` | `nlohmann_json-devel` |
+> | libpng | `libpng` | `libpng-dev` | `libpng-devel` | `libpng-devel` |
+> | libXfixes | `libxfixes` | `libxfixes-dev` | `libXfixes-devel` | `libXfixes-devel` |
+> | libXrandr | `libxrandr` | `libxrandr-dev` | `libXrandr-devel` | `libXrandr-devel` |
+> | libxkbcommon | `libxkbcommon` | `libxkbcommon-dev` | `libxkbcommon-devel` | `libxkbcommon-devel` |
+> | libevdev | `libevdev` | `libevdev-dev` | `libevdev-devel` | `libevdev-devel` |
+> | libXtst | `libxtst` | `libxtst-dev` | `libXtst-devel` | `libXtst-devel` |
+> | libXext | `libxext` | `libxext-dev` | `libXext-devel` | `libXext-devel` |
+>
+> **CPU microarch detection** is distro-agnostic. The cmake auto-detects
+> Zen 1/2/3/4 from `/proc/cpuinfo`'s `cpu family` + `model` fields, falls
+> back to `gcc -march=native` if available, then to `lscpu`, then to a
+> safe `x86-64-v3` baseline. Override with:
+>
+> ```bash
+> cmake -DSUNSHINE_CACHYOS_NATIVE=OFF -DSUNSHINE_CACHYOS_MARCH=znver4 ...
+> # or
+> cmake -DSUNSHINE_CACHYOS_NATIVE=OFF -DSUNSHINE_CACHYOS_MARCH=native ...
+> ```
+>
+> **ARM64** (e.g. Snapdragon laptops, Apple Silicon via Asahi, RPi 5):
+> the script's Linux branch should work as-is — `pacman` won't be found
+> and the rest of the build is distro-agnostic. Open an issue with your
+> distro's package manager output and I'll add a case.
+
 ## 🔧 Changes in this fork (the whole point)
 
 8 files changed, +700 / −2 lines. All gated by `__linux__` or the CMake
