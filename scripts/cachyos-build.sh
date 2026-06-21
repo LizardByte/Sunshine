@@ -66,7 +66,7 @@ step() {
 # ---------------------------------------------------------------------------
 # 1. Platform check
 # ---------------------------------------------------------------------------
-step "1/6  Platform check"
+step "1/7  Platform check"
 if [[ "$(uname -s)" != "Linux" ]]; then
   die "This script is for Linux. Sunshine builds on macOS and Windows too — use the upstream docs for those."
 fi
@@ -78,7 +78,7 @@ say "Linux + pacman: ✓ ($(. /etc/os-release && echo "$PRETTY_NAME"))"
 # ---------------------------------------------------------------------------
 # 2. Submodules
 # ---------------------------------------------------------------------------
-step "2/6  Git submodules"
+step "2/7  Git submodules"
 
 # Required submodules. If any of these are missing or empty, init.
 REQUIRED_SUBS=(
@@ -128,7 +128,7 @@ say "Submodule check: ✓"
 # ---------------------------------------------------------------------------
 # 3. Build dependencies
 # ---------------------------------------------------------------------------
-step "3/6  Build dependencies"
+step "3/7  Build dependencies"
 if [[ "$RUN_PACMAN" -eq 0 ]]; then
   say "Skipping package install (--no-pacman / --no-install)."
 else
@@ -160,7 +160,7 @@ else
             libudev libcap libnatpmp \
             vulkan-headers shaderc glslang \
             boost miniupnpc nlohmann-json \
-            libpng libxext libxtst; then
+            libpng libxext libxtst nodejs npm; then
         warn "pacman returned non-zero. Continuing — build will tell us if anything's actually missing."
       fi
       ;;
@@ -227,9 +227,27 @@ fi
 say "Dependencies: assuming OK (build will fail loudly if not)."
 
 # ---------------------------------------------------------------------------
+# 3.5  Web UI build (vite)
+# ---------------------------------------------------------------------------
+# The C++ binary serves the web UI from build/assets/web/, which is produced
+# by `npm run build` (vite). If we skip this, the new Performance tab and
+# any other web UI changes will be missing from the installed binary.
+if command -v npm >/dev/null 2>&1; then
+  step "3.5/6  Web UI (npm install + vite build)"
+  if [[ ! -d "$REPO_ROOT/node_modules" ]]; then
+    say "Installing npm dependencies (one-time)..."
+    (cd "$REPO_ROOT" && npm install --no-audit --no-fund 2>&1 | tail -5)
+  fi
+  say "Building web UI with vite..."
+  (cd "$REPO_ROOT" && npm run build 2>&1 | tail -5) || warn "vite build failed; web UI may be stale."
+else
+  warn "npm not found — skipping web UI build. The web UI will be empty until you run 'npm install && npm run build' manually."
+fi
+
+# ---------------------------------------------------------------------------
 # 4. CMake configure
 # ---------------------------------------------------------------------------
-step "4/6  CMake configure"
+step "5/7  CMake configure"
 
 if [[ "$CLEAN" -eq 1 && -d "$BUILD_DIR" ]]; then
   say "Removing old build directory (--clean)..."
@@ -267,7 +285,7 @@ fi
 # ---------------------------------------------------------------------------
 # 5. Build
 # ---------------------------------------------------------------------------
-step "5/6  Build (ninja)"
+step "6/7  Build (ninja)"
 say "Building with ninja (this takes 2-5 minutes on a Ryzen 5 4600H)..."
 set +e
 cmake --build "$BUILD_DIR" -j"$(nproc)"
@@ -282,7 +300,7 @@ say "Build: ✓"
 # ---------------------------------------------------------------------------
 # 6. Install + final check
 # ---------------------------------------------------------------------------
-step "6/6  Install + verification"
+step "7/7  Install + verification"
 say "sudo cmake --install build..."
 set +e
 sudo cmake --install "$BUILD_DIR"
