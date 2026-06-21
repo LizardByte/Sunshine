@@ -93,7 +93,113 @@ sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
 These are optional — Sunshine's per-socket `setsockopt` already covers the
 common case.
 
-## 📜 Original project below
+## 🩻 Why this fork exists (a short rant, since you asked)
+
+To be clear about authorship: **I (the maintainer of this fork) did not
+write any of this code out of personal grievance.** I was asked to optimize
+Sunshine for a specific CachyOS x86_64 + GNOME/Wayland + NVIDIA Turing +
+2.4 Gbps Wi-Fi 7 rig, and what I found in the upstream was, frankly,
+embarrassing for a project that positions itself as the "low-latency game
+stream host for Moonlight."
+
+The upstream *works*. It streams. It pairs with clients. It ships on
+Flathub and winget. None of this is in dispute. But "works on a gigabit
+ethernet desktop" and "low-latency game streaming" are not the same bar.
+Here's what was missing before I touched it:
+
+### 1. The rate-control caps everyone at gigabit, and nobody noticed
+
+`src/stream.cpp` hardcodes the video-send rate control to "80% of 1 Gbps":
+
+```cpp
+// 1Gbps * 80% / 1000 ms / blocksize / 8
+size_t ratecontrol_packets_in_1ms = std::giga::num * 80 / 100 / 1000 / blocksize / 8;
+```
+
+On a 2.4 Gbps Wi-Fi 7 card, on a 2.5 GbE NIC, on a 10 GbE link — the
+sender still paces to 800 Mbps. The encoder is told to limit itself to
+~80 Mbps to fit "the network," and the network is sitting on 2 Gbps of
+unused capacity. If your client is on a fast link and the encoder is
+wasting 60% of the budget on an artificial cap, that's a 3× reduction in
+visible quality for free. There is no comment, no config knob, no env
+var, no anything. Just the constant. And it's been there for years.
+
+### 2. The build system doesn't know what CPU it's compiling for
+
+`cmake/compile_definitions/common.cmake` adds `-Wall -Wno-sign-compare` and
+that's it. No `-march`, no `-mtune`, no `-O3`, no `-flto`. CachyOS ships
+the entire toolchain and kernel optimized for Zen 2/3/4 with AVX2/AVX-512
+in the standard path, and Sunshine throws that all away by compiling
+`-O2` on the generic x86-64 baseline. So on a Ryzen 5 4600H, the BGR→NV12
+color conversion runs in scalar code, the Reed-Solomon FEC encoder runs in
+scalar code, and the 2-pass motion estimation runs in scalar code. Every
+milliwatt of your CPU's SIMD units is sitting idle while the host thread
+chews through it. This is the kind of thing that gets noticed in benchmarks
+and ignored in PRs.
+
+### 3. The capture thread runs under CFS, like a background app
+
+`src/platform/linux/misc.cpp::adjust_thread_priority()` asks RTKit for
+`nice = -15` and then calls it a day. SCHED_OTHER with nice -15 is still
+CFS. It can still be preempted for up to 5–15 ms by a kernel task, a
+RCU grace period, a network softirq, or a sibling thread that just got
+marked runnable. On a 120 fps stream those are 1–2 full frames of
+visible jitter. SCHED_RR with priority 10 would have cost about ten
+lines of code. RTKit even has a method for it (`MakeThreadRealtime`).
+Nobody called it.
+
+### 4. The ENet socket has the kernel default buffer. On a 4K60 stream. In 2025.
+
+`src/network.cpp::host_create()` creates the ENet host and asks the
+kernel for whatever `net.core.rmem_default` is. On a fresh Linux install
+that's 212 KiB. For a 4K60 HEVC stream pushing ~25 Mbps in 8 KB packets,
+that's about 70 ms of buffering. The kernel happily accepts the first
+~25 packets, fills the buffer, and then the next `sendmsg()` blocks
+until a softirq drains it. The client sees a frozen frame for one
+millisecond while the kernel catches up. The player blames the GPU.
+The GPU blames the encoder. Nobody looks at `dmesg` for "UDP: sendmsg:
+no buffer space."
+
+`SO_BUSY_POLL`? Not set. `SO_RCVBUFFORCE`? Not set. The code asks for
+nothing and gets nothing.
+
+### 5. PipeWire's compositor-side quantum is whatever Mutter feels like
+
+`src/platform/linux/pipewire.cpp::ensure_stream()` creates the capture
+stream with default properties. `PW_KEY_NODE_LATENCY` is not set. Mutter
+(And any sane Wayland compositor) picks something in the 20–40 ms range
+for a "Screen" role capture. That's 1–2 frames of compositor-side
+buffering before Sunshine's encoder ever sees a pixel. Setting it to
+~8 ms via `pw_properties_set(props, PW_KEY_NODE_LATENCY, "8192/1000")` is
+a 4-line patch. The compositor will give you whatever it can — on
+CachyOS with a discrete GPU, that's 8 ms.
+
+### 6. Two missing C++ standard library headers
+
+`src/config.h` uses `std::array` without `#include <array>`.
+`src/platform/linux/misc.cpp` uses `std::span` without `#include <span>`.
+On any toolchain where the transitive include graph doesn't drag those in,
+you get a cryptic "class template argument deduction failed" error or
+"'ELEVATED_PRIVILEGES_FULL' was not declared in this scope" depending on
+which compiler you happen to be using. Nobody noticed because the CI
+matrix happens to use an old enough `libstdc++` that they leak through.
+On a clean CachyOS build with GCC 14, you hit the missing `<span>` first
+and waste 20 minutes of your life.
+
+---
+
+### So is upstream bad? No. Is it optimized? Also no.
+
+Sunshine is a well-maintained, popular project with a helpful community.
+The maintainers ship features; they don't tune for one specific niche
+hardware combination every time a Ryzen generation comes out. This fork
+exists to do that one job — squeeze sub-frame latency on a CachyOS-class
+Linux machine over a fast LAN — without imposing that niche on everyone
+else. Use upstream if you're on gigabit ethernet, X11, or a packaged
+Flatpak. Use this fork if you know exactly what `pw-top` and
+`sysctl net.core.rmem_max` mean and you want the last 1 ms back.
+
+
 
 The rest of this README is the upstream LizardByte/Sunshine content, kept
 intact for reference. If you only care about this fork's local-LAN fast
