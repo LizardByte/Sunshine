@@ -4,6 +4,7 @@
  */
 
 // standard includes
+#include <filesystem>
 #include <fstream>
 #include <future>
 #include <queue>
@@ -11,6 +12,11 @@
 // lib includes
 #include <boost/endian/arithmetic.hpp>
 #include <openssl/err.h>
+
+#ifdef __linux__
+  #include <ifaddrs.h>
+  #include <netinet/in.h>
+#endif
 
 extern "C" {
   // clang-format off
@@ -78,6 +84,95 @@ using asio::ip::udp;
 using namespace std::literals;
 
 namespace stream {
+
+  namespace detail {
+
+    /**
+     * @brief Read the negotiated link speed of the interface that owns
+     * `local_address` from sysfs and return it in bits-per-second.
+     *
+     * /sys/class/net/<iface>/speed reports the link speed in Mbps, or -1
+     * if the driver can't tell (e.g. some virtual interfaces). We treat
+     * anything <= 0 as "unknown" and fall back to 1 Gbps to preserve the
+     * pre-existing pacing behaviour. Wi-Fi 7 cards report 2400 Mbps,
+     * 2.5 GbE NICs report 2500, 10 GbE reports 10000, etc.
+     *
+     * Linux-only: callers gate on `__linux__`. The fallback is 1 Gbps on
+     * every platform so other targets compile unchanged.
+     */
+    inline size_t detect_link_speed_bps(const boost::asio::ip::address &local_address) {
+      constexpr size_t FALLBACK_BPS = 1'000'000'000;  // 1 Gbps
+#ifdef __linux__
+      // Walk /sys/class/net, find the interface whose local address
+      // matches, then read its `speed` file.
+      namespace fs = std::filesystem;
+      std::error_code ec;
+      fs::path net_dir {"/sys/class/net"};
+      if (!fs::exists(net_dir, ec) || ec) {
+        return FALLBACK_BPS;
+      }
+
+      auto matches_local = [&](const fs::path &iface) -> bool {
+        // Read /sys/class/net/<iface>/address for the MAC and the
+        // interface's address list via getifaddrs. Cheaper to just walk
+        // getifaddrs directly.
+        return true;  // selection is done in the caller loop below
+      };
+      (void) matches_local;
+
+      // Use getifaddrs to enumerate addresses and pick the interface
+      // whose address matches local_address.
+      struct ifaddrs *addrs = nullptr;
+      if (::getifaddrs(&addrs) != 0 || !addrs) {
+        return FALLBACK_BPS;
+      }
+
+      std::string matched_iface;
+      for (auto *ifa = addrs; ifa != nullptr; ifa = ifa->ifa_next) {
+        if (!ifa->ifa_addr || !ifa->ifa_name) continue;
+        auto family = ifa->ifa_addr->sa_family;
+        if (family == AF_INET && local_address.is_v4()) {
+          auto in = reinterpret_cast<struct sockaddr_in *>(ifa->ifa_addr);
+          if (in->sin_addr.s_addr == local_address.to_v4().to_uint()) {
+            matched_iface = ifa->ifa_name;
+            break;
+          }
+        } else if (family == AF_INET6 && local_address.is_v6()) {
+          // Skip link-local / loopback v6; for streaming the local
+          // address will be a routable v6.
+          auto in6 = reinterpret_cast<struct sockaddr_in6 *>(ifa->ifa_addr);
+          auto ours = local_address.to_v6().to_bytes();
+          if (std::memcmp(&in6->sin6_addr, ours.data(), 16) == 0) {
+            matched_iface = ifa->ifa_name;
+            break;
+          }
+        }
+      }
+      ::freeifaddrs(addrs);
+
+      if (matched_iface.empty()) {
+        return FALLBACK_BPS;
+      }
+
+      fs::path speed_file = net_dir / matched_iface / "speed";
+      std::ifstream f {speed_file};
+      if (!f) {
+        return FALLBACK_BPS;
+      }
+      long mbps = 0;
+      f >> mbps;
+      if (mbps <= 0) {
+        // -1 means "unknown"; fall back rather than pacing to zero.
+        return FALLBACK_BPS;
+      }
+      return static_cast<size_t>(mbps) * 1'000'000;
+#else
+      (void) local_address;
+      return FALLBACK_BPS;
+#endif
+    }
+
+  }  // namespace detail
 
   enum class socket_e : int {
     video,  ///< Video
@@ -1405,8 +1500,17 @@ namespace stream {
       }
 
       try {
-        // Use around 80% of 1Gbps          1Gbps            percent    ms     packet      byte
-        size_t ratecontrol_packets_in_1ms = std::giga::num * 80 / 100 / 1000 / blocksize / 8;
+        // Use around 80% of the negotiated link speed. Sunshine originally
+        // hardcoded "1 Gbps" which left most of any faster link on the
+        // table -- a 2.4 Gbps Wi-Fi 7 card or 2.5 GbE would still be
+        // paced like a 1 Gbps link. Auto-detect the active interface's
+        // speed (read from sysfs, in Mbps) and pace to 80% of that.
+        //
+        // Falls back to 1 Gbps if the interface isn't found or sysfs is
+        // unreadable, matching the original behaviour exactly.
+        size_t link_bps = detail::detect_link_speed_bps(session->localAddress);
+        size_t ratecontrol_packets_in_1ms = link_bps * 80 / 100 / 1000 / blocksize / 8;
+        if (ratecontrol_packets_in_1ms < 1) ratecontrol_packets_in_1ms = 1;
 
         // Send less than 64K in a single batch.
         // On Windows, batches above 64K seem to bypass SO_SNDBUF regardless of its size,

@@ -1,0 +1,420 @@
+diff --git a/cmake/compile_definitions/common.cmake b/cmake/compile_definitions/common.cmake
+index 204a668..7d54a9c 100644
+--- a/cmake/compile_definitions/common.cmake
++++ b/cmake/compile_definitions/common.cmake
+@@ -7,6 +7,74 @@ list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-sign-compare)
+ # Wno-maybe-uninitialized/Wno-uninitialized - disable warnings for maybe uninitialized variables
+ # Wno-sign-compare - disable warnings for signed/unsigned comparisons
+ # Wno-restrict - disable warnings for memory overlap
++
++# ----------------------------------------------------------------------------
++# CachyOS / Linux local-LAN fast-path build flags.
++#
++# When SUNSHINE_CACHYOS_NATIVE is ON (the default on Linux), we:
++#   - march on Zen 2 (znver2) so AVX2/BMI2/FMA paths get picked up
++#   - march on Zen 3 (znver3) or Zen 4 (znver4) when the host supports it
++#   - enable -O3 -flto so the encoder/color-conversion hot loops get
++#     vectorised and dead-store eliminated across translation units
++#   - drop frame pointers and PLT indirections (small but free win)
++#
++# Disable by passing -DSUNSHINE_CACHYOS_NATIVE=OFF if you ship a generic
++# Linux binary or run on a different microarch.
++# ----------------------------------------------------------------------------
++if(UNIX AND NOT APPLE AND NOT DEFINED SUNSHINE_CACHYOS_NATIVE)
++    set(SUNSHINE_CACHYOS_NATIVE ON CACHE BOOL
++        "Optimise for the build host's microarchitecture (CachyOS-style).")
++endif()
++
++if(SUNSHINE_CACHYOS_NATIVE AND UNIX AND NOT APPLE)
++    set(_sunshine_native_march "")
++    if(CMAKE_SYSTEM_PROCESSOR MATCHES "(amd64|AMD64|x86_64|X86_64)")
++        # Try to detect a known Zen generation via /proc/cpuinfo on the build
++        # host. Falls back to x86-64-v3 (AVX2 baseline) which CachyOS ships.
++        set(_sunshine_cpuinfo_file "/proc/cpuinfo")
++        if(EXISTS ${_sunshine_cpuinfo_file})
++            file(READ ${_sunshine_cpuinfo_file} _sunshine_cpuinfo)
++            string(TOLOWER "${_sunshine_cpuinfo}" _sunshine_cpuinfo_lower)
++            if(_sunshine_cpuinfo_lower MATCHES "model name.*zen 4")
++                set(_sunshine_native_march "znver4")
++            elseif(_sunshine_cpuinfo_lower MATCHES "model name.*zen 3")
++                set(_sunshine_native_march "znver3")
++            elseif(_sunshine_cpuinfo_lower MATCHES "model name.*zen 2")
++                set(_sunshine_native_march "znver2")
++            elseif(_sunshine_cpuinfo_lower MATCHES "model name.*zen")
++                set(_sunshine_native_march "znver1")
++            endif()
++        endif()
++        if(NOT _sunshine_native_march)
++            # CachyOS kernels/tools and Steam Deck's steamrt are typically
++            # built with x86-64-v3. v3 = AVX2 + BMI2 + FMA, safe on every
++            # CachyOS-supported CPU since the original Ryzen launch.
++            # We only use it for -march; GCC's -mtune doesn't understand
++            # microarch levels, so we fall back to -mtune=generic.
++            set(_sunshine_native_march "x86-64-v3")
++            set(_sunshine_native_mtune "generic")
++        endif()
++        # znver2/znver3/znver4 are valid for both -march and -mtune on GCC.
++        # x86-64-v3 is only valid for -march; -mtune has to be generic.
++        if("${_sunshine_native_march}" STREQUAL "x86-64-v3")
++            set(_sunshine_native_mtune "generic")
++        else()
++            set(_sunshine_native_mtune "${_sunshine_native_march}")
++        endif()
++        message(STATUS "CachyOS native build: -march=${_sunshine_native_march} -mtune=${_sunshine_native_mtune}")
++        list(APPEND SUNSHINE_COMPILE_OPTIONS
++            "-march=${_sunshine_native_march}"
++            "-mtune=${_sunshine_native_mtune}"
++            "-O3"
++            "-fno-plt"
++            "-fomit-frame-pointer")
++        if(CMAKE_BUILD_TYPE STREQUAL "Release")
++            # LTO only at Release; Debug builds stay debuggable.
++            list(APPEND SUNSHINE_COMPILE_OPTIONS "-flto=auto")
++        endif()
++    endif()
++endif()
++
+ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+     # GCC specific compile options
+ 
+diff --git a/cmake/targets/common.cmake b/cmake/targets/common.cmake
+index d55e1f6..baf6556 100644
+--- a/cmake/targets/common.cmake
++++ b/cmake/targets/common.cmake
+@@ -35,6 +35,12 @@ endif()
+ 
+ target_compile_options(sunshine PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)  # cmake-lint: disable=C0301
+ 
++# CachyOS / Linux local-LAN: pair the -flto we set above with link-time LTO,
++# and add -Wl,-O2 so the linker re-runs cross-TU optimisations on Release.
++if(SUNSHINE_CACHYOS_NATIVE AND UNIX AND NOT APPLE AND CMAKE_BUILD_TYPE STREQUAL "Release")
++    target_link_options(sunshine PRIVATE "-flto=auto" "-Wl,-O2")
++endif()
++
+ # Homebrew build fails the vite build if we set these environment variables
+ if(${SUNSHINE_BUILD_HOMEBREW})
+     set(NPM_SOURCE_ASSETS_DIR "")
+diff --git a/src/config.h b/src/config.h
+index e0e4050..af94f9e 100644
+--- a/src/config.h
++++ b/src/config.h
+@@ -5,6 +5,7 @@
+ #pragma once
+ 
+ // standard includes
++#include <array>
+ #include <bitset>
+ #include <chrono>
+ #include <optional>
+diff --git a/src/network.cpp b/src/network.cpp
+index aad65a7..e8825e1 100644
+--- a/src/network.cpp
++++ b/src/network.cpp
+@@ -6,6 +6,10 @@
+ #include <algorithm>
+ #include <sstream>
+ 
++#ifdef __linux__
++  #include <sys/socket.h>  // SO_BUSY_POLL, SO_RCVBUFFORCE, setsockopt
++#endif
++
+ // local includes
+ #include "config.h"
+ #include "logging.h"
+@@ -176,9 +180,44 @@ namespace net {
+     // Maximum of 128 clients, which should be enough for anyone
+     auto host = host_t {enet_host_create(af == IPV4 ? AF_INET : AF_INET6, &addr, 128, 0, 0, 0)};
+ 
++    if (!host) {
++      return host;
++    }
++
+     // Enable opportunistic QoS tagging (automatically disables if the network appears to drop tagged packets)
+     enet_socket_set_option(host->socket, ENET_SOCKOPT_QOS, 1);
+ 
++#ifdef __linux__
++    // CachyOS / Linux local-LAN fast path: grow the kernel UDP socket buffers
++    // so a 4K60 HEVC stream (~25 Mbps) never blocks on send. Without this the
++    // default rmem_max/wmem_max on a fresh install is ~200KB, which is one
++    // frame of 4K60 -> the next sendmsg() blocks until the kernel drains.
++    //
++    // 4 MiB is a safe upper bound for ~25 Mbps @ 8ms = ~25KB in-flight; we
++    // pick well above that so a single retransmit storm can't make us stall.
++    // SO_RCVBUFFORCE / SO_SNDBUFFORCE let us exceed rmem_max/wmem_max without
++    // requiring sysctl changes (they require CAP_NET_ADMIN, which Sunshine
++    // doesn't run with -- so the call silently no-ops if it fails).
++    {
++      int bufsize = 4 * 1024 * 1024;
++      (void) setsockopt(host->socket, SOL_SOCKET, SO_RCVBUFFORCE, &bufsize, sizeof(bufsize));
++      (void) setsockopt(host->socket, SOL_SOCKET, SO_SNDBUFFORCE, &bufsize, sizeof(bufsize));
++      // Fallback to the rmem_max-limited path if FORCE isn't permitted.
++      (void) setsockopt(host->socket, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
++      (void) setsockopt(host->socket, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
++    }
++
++    // SO_BUSY_POLL: have the kernel poll the NIC for incoming packets instead
++    // of sleeping until the next interrupt. 50us is a good middle ground:
++    // it cuts the receive-side wakeup latency from ~100us-1ms down to ~50us
++    // on Wi-Fi without burning a full core. Higher values (e.g. 100us) cost
++    // noticeably more CPU for diminishing returns on a wireless link.
++    {
++      int busy_poll_us = 50;
++      (void) setsockopt(host->socket, SOL_SOCKET, SO_BUSY_POLL, &busy_poll_us, sizeof(busy_poll_us));
++    }
++#endif
++
+     return host;
+   }
+ 
+diff --git a/src/platform/linux/misc.cpp b/src/platform/linux/misc.cpp
+index 5f41781..22576c9 100644
+--- a/src/platform/linux/misc.cpp
++++ b/src/platform/linux/misc.cpp
+@@ -12,6 +12,7 @@
+ #include <fstream>
+ #include <iomanip>
+ #include <iostream>
++#include <span>
+ #include <sstream>
+ 
+ // platform includes
+@@ -26,8 +27,11 @@
+ #include <sys/socket.h>
+ 
+ #if !defined(__FreeBSD__)
++  #include <pthread.h>
++  #include <sched.h>
+   #include <sys/capability.h>
+   #include <sys/prctl.h>
++  #include <atomic>
+ #endif
+ #ifdef __FreeBSD__
+   #include <net/if_dl.h>  // For sockaddr_dl, LLADDR, and AF_LINK
+@@ -344,6 +348,7 @@ namespace platf {
+ #endif
+     bool success = false;
+     int32_t linux_nice;
++    bool want_realtime = false;
+ 
+     using enum thread_priority_e;
+     switch (priority) {
+@@ -358,6 +363,7 @@ namespace platf {
+         break;
+       case critical:
+         linux_nice = -15;
++        want_realtime = true;
+         break;
+       default:
+         BOOST_LOG(debug) << "Unknown thread priority: "sv << std::to_underlying(priority);
+@@ -399,6 +405,44 @@ namespace platf {
+         BOOST_LOG(debug) << "setpriority success for nice "sv << linux_nice;
+       }
+     }
++
++#if !defined(__FreeBSD__)
++    // CachyOS / Linux local-LAN fast path: for the streaming capture thread
++    // also push it onto SCHED_RR (kernel real-time round-robin) and pin it
++    // to a non-IRQ, non-SMT sibling core. SCHED_RR removes the 5-15 ms CFS
++    // tail-latency spikes that show up as frame jitter, and the affinity
++    // hint keeps the thread's L1/L2 cache warm frame-to-frame.
++    //
++    // These calls fail silently under containers / systemd-run / non-PRI
++    // users — that's fine, the thread already has the nice level from above.
++    if (want_realtime) {
++      struct sched_param sp {};
++      sp.sched_priority = 10;  // lowest RT priority that still beats CFS
++      if (::pthread_setschedparam(pthread_self(), SCHED_RR, &sp) != 0) {
++        BOOST_LOG(debug) << "SCHED_RR not available; falling back to nice only"sv;
++      }
++
++      long nproc = ::sysconf(_SC_NPROCESSORS_ONLN);
++      if (nproc >= 2) {
++        // Skip core 0 (IRQ affine by default) and SMT siblings.
++        // On Ryzen 5 4600H (6C/12T) this picks physical cores 1..5.
++        long physical_cores = nproc / 2;
++        if (physical_cores < 1) physical_cores = 1;
++        long usable = physical_cores - 1;
++        if (usable < 1) usable = 1;
++        static std::atomic<unsigned> slot {0};
++        unsigned core = 1 + (slot.fetch_add(1, std::memory_order_relaxed) % (unsigned) usable);
++        if ((long) core >= nproc) core = (unsigned) (nproc - 1);
++
++        cpu_set_t set;
++        CPU_ZERO(&set);
++        CPU_SET(core, &set);
++        if (::sched_setaffinity(0, sizeof(set), &set) != 0) {
++          BOOST_LOG(debug) << "sched_setaffinity failed (container?); running unpinned"sv;
++        }
++      }
++    }
++#endif
+   }
+ 
+   void set_thread_name(const std::string &name) {
+diff --git a/src/platform/linux/pipewire.cpp b/src/platform/linux/pipewire.cpp
+index d7a2094..620bf96 100644
+--- a/src/platform/linux/pipewire.cpp
++++ b/src/platform/linux/pipewire.cpp
+@@ -224,6 +224,22 @@ namespace pipewire {
+         }
+ 
+         struct pw_properties *props = pw_properties_new(PW_KEY_MEDIA_TYPE, "Video", PW_KEY_MEDIA_CATEGORY, "Capture", PW_KEY_MEDIA_ROLE, "Screen", nullptr);
++
++        // CachyOS / Linux local-LAN fast path: ask PipeWire for an 8 ms
++        // node latency. The default is closer to ~20-40 ms which adds 1-2
++        // frames of buffering before the encoder ever sees a pixel. Setting
++        // PW_KEY_NODE_LATENCY is just a hint -- the compositor can still
++        // give us a larger quantum if the GPU/driver can't keep up, but on
++        // CachyOS with Wayland/Mutter + a discrete GPU we usually get what
++        // we ask for.
++        //
++        // Value is a fraction string in nanoseconds: "8192/1000" = 8.192 ms.
++        // We pick 8 ms because at 120 fps that's still <1 frame of latency
++        // and gives the driver enough headroom to not drop frames.
++#ifdef PW_KEY_NODE_LATENCY
++        pw_properties_set(props, PW_KEY_NODE_LATENCY, "8192/1000");
++#endif
++
+ #ifdef PW_KEY_TARGET_OBJECT
+         // If pipewire supports setting a PW_KEY_TARGET_OBJECT via object serial and the serial is valid (lower 32-bits not SPA_ID_INVALID, see PW_KEY_OBJECT_SERIAL docs), use it.
+         if ((object_serial & SPA_ID_INVALID) != SPA_ID_INVALID) {
+diff --git a/src/stream.cpp b/src/stream.cpp
+index c0da867..39e0367 100644
+--- a/src/stream.cpp
++++ b/src/stream.cpp
+@@ -4,6 +4,7 @@
+  */
+ 
+ // standard includes
++#include <filesystem>
+ #include <fstream>
+ #include <future>
+ #include <queue>
+@@ -12,6 +13,11 @@
+ #include <boost/endian/arithmetic.hpp>
+ #include <openssl/err.h>
+ 
++#ifdef __linux__
++  #include <ifaddrs.h>
++  #include <netinet/in.h>
++#endif
++
+ extern "C" {
+   // clang-format off
+ #include <moonlight-common-c/src/Limelight-internal.h>
+@@ -79,6 +85,95 @@ using namespace std::literals;
+ 
+ namespace stream {
+ 
++  namespace detail {
++
++    /**
++     * @brief Read the negotiated link speed of the interface that owns
++     * `local_address` from sysfs and return it in bits-per-second.
++     *
++     * /sys/class/net/<iface>/speed reports the link speed in Mbps, or -1
++     * if the driver can't tell (e.g. some virtual interfaces). We treat
++     * anything <= 0 as "unknown" and fall back to 1 Gbps to preserve the
++     * pre-existing pacing behaviour. Wi-Fi 7 cards report 2400 Mbps,
++     * 2.5 GbE NICs report 2500, 10 GbE reports 10000, etc.
++     *
++     * Linux-only: callers gate on `__linux__`. The fallback is 1 Gbps on
++     * every platform so other targets compile unchanged.
++     */
++    inline size_t detect_link_speed_bps(const boost::asio::ip::address &local_address) {
++      constexpr size_t FALLBACK_BPS = 1'000'000'000;  // 1 Gbps
++#ifdef __linux__
++      // Walk /sys/class/net, find the interface whose local address
++      // matches, then read its `speed` file.
++      namespace fs = std::filesystem;
++      std::error_code ec;
++      fs::path net_dir {"/sys/class/net"};
++      if (!fs::exists(net_dir, ec) || ec) {
++        return FALLBACK_BPS;
++      }
++
++      auto matches_local = [&](const fs::path &iface) -> bool {
++        // Read /sys/class/net/<iface>/address for the MAC and the
++        // interface's address list via getifaddrs. Cheaper to just walk
++        // getifaddrs directly.
++        return true;  // selection is done in the caller loop below
++      };
++      (void) matches_local;
++
++      // Use getifaddrs to enumerate addresses and pick the interface
++      // whose address matches local_address.
++      struct ifaddrs *addrs = nullptr;
++      if (::getifaddrs(&addrs) != 0 || !addrs) {
++        return FALLBACK_BPS;
++      }
++
++      std::string matched_iface;
++      for (auto *ifa = addrs; ifa != nullptr; ifa = ifa->ifa_next) {
++        if (!ifa->ifa_addr || !ifa->ifa_name) continue;
++        auto family = ifa->ifa_addr->sa_family;
++        if (family == AF_INET && local_address.is_v4()) {
++          auto in = reinterpret_cast<struct sockaddr_in *>(ifa->ifa_addr);
++          if (in->sin_addr.s_addr == local_address.to_v4().to_uint()) {
++            matched_iface = ifa->ifa_name;
++            break;
++          }
++        } else if (family == AF_INET6 && local_address.is_v6()) {
++          // Skip link-local / loopback v6; for streaming the local
++          // address will be a routable v6.
++          auto in6 = reinterpret_cast<struct sockaddr_in6 *>(ifa->ifa_addr);
++          auto ours = local_address.to_v6().to_bytes();
++          if (std::memcmp(&in6->sin6_addr, ours.data(), 16) == 0) {
++            matched_iface = ifa->ifa_name;
++            break;
++          }
++        }
++      }
++      ::freeifaddrs(addrs);
++
++      if (matched_iface.empty()) {
++        return FALLBACK_BPS;
++      }
++
++      fs::path speed_file = net_dir / matched_iface / "speed";
++      std::ifstream f {speed_file};
++      if (!f) {
++        return FALLBACK_BPS;
++      }
++      long mbps = 0;
++      f >> mbps;
++      if (mbps <= 0) {
++        // -1 means "unknown"; fall back rather than pacing to zero.
++        return FALLBACK_BPS;
++      }
++      return static_cast<size_t>(mbps) * 1'000'000;
++#else
++      (void) local_address;
++      return FALLBACK_BPS;
++#endif
++    }
++
++  }  // namespace detail
++
+   enum class socket_e : int {
+     video,  ///< Video
+     audio  ///< Audio
+@@ -1405,8 +1500,17 @@ namespace stream {
+       }
+ 
+       try {
+-        // Use around 80% of 1Gbps          1Gbps            percent    ms     packet      byte
+-        size_t ratecontrol_packets_in_1ms = std::giga::num * 80 / 100 / 1000 / blocksize / 8;
++        // Use around 80% of the negotiated link speed. Sunshine originally
++        // hardcoded "1 Gbps" which left most of any faster link on the
++        // table -- a 2.4 Gbps Wi-Fi 7 card or 2.5 GbE would still be
++        // paced like a 1 Gbps link. Auto-detect the active interface's
++        // speed (read from sysfs, in Mbps) and pace to 80% of that.
++        //
++        // Falls back to 1 Gbps if the interface isn't found or sysfs is
++        // unreadable, matching the original behaviour exactly.
++        size_t link_bps = detail::detect_link_speed_bps(session->localAddress);
++        size_t ratecontrol_packets_in_1ms = link_bps * 80 / 100 / 1000 / blocksize / 8;
++        if (ratecontrol_packets_in_1ms < 1) ratecontrol_packets_in_1ms = 1;
+ 
+         // Send less than 64K in a single batch.
+         // On Windows, batches above 64K seem to bypass SO_SNDBUF regardless of its size,

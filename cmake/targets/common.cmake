@@ -35,6 +35,12 @@ endif()
 
 target_compile_options(sunshine PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)  # cmake-lint: disable=C0301
 
+# CachyOS / Linux local-LAN: pair the -flto we set above with link-time LTO,
+# and add -Wl,-O2 so the linker re-runs cross-TU optimisations on Release.
+if(SUNSHINE_CACHYOS_NATIVE AND UNIX AND NOT APPLE AND CMAKE_BUILD_TYPE STREQUAL "Release")
+    target_link_options(sunshine PRIVATE "-flto=auto" "-Wl,-O2")
+endif()
+
 # Homebrew build fails the vite build if we set these environment variables
 if(${SUNSHINE_BUILD_HOMEBREW})
     set(NPM_SOURCE_ASSETS_DIR "")

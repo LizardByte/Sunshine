@@ -12,6 +12,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <span>
 #include <sstream>
 
 // platform includes
@@ -26,8 +27,11 @@
 #include <sys/socket.h>
 
 #if !defined(__FreeBSD__)
+  #include <pthread.h>
+  #include <sched.h>
   #include <sys/capability.h>
   #include <sys/prctl.h>
+  #include <atomic>
 #endif
 #ifdef __FreeBSD__
   #include <net/if_dl.h>  // For sockaddr_dl, LLADDR, and AF_LINK
@@ -344,6 +348,7 @@ namespace platf {
 #endif
     bool success = false;
     int32_t linux_nice;
+    bool want_realtime = false;
 
     using enum thread_priority_e;
     switch (priority) {
@@ -358,6 +363,7 @@ namespace platf {
         break;
       case critical:
         linux_nice = -15;
+        want_realtime = true;
         break;
       default:
         BOOST_LOG(debug) << "Unknown thread priority: "sv << std::to_underlying(priority);
@@ -399,6 +405,44 @@ namespace platf {
         BOOST_LOG(debug) << "setpriority success for nice "sv << linux_nice;
       }
     }
+
+#if !defined(__FreeBSD__)
+    // CachyOS / Linux local-LAN fast path: for the streaming capture thread
+    // also push it onto SCHED_RR (kernel real-time round-robin) and pin it
+    // to a non-IRQ, non-SMT sibling core. SCHED_RR removes the 5-15 ms CFS
+    // tail-latency spikes that show up as frame jitter, and the affinity
+    // hint keeps the thread's L1/L2 cache warm frame-to-frame.
+    //
+    // These calls fail silently under containers / systemd-run / non-PRI
+    // users — that's fine, the thread already has the nice level from above.
+    if (want_realtime) {
+      struct sched_param sp {};
+      sp.sched_priority = 10;  // lowest RT priority that still beats CFS
+      if (::pthread_setschedparam(pthread_self(), SCHED_RR, &sp) != 0) {
+        BOOST_LOG(debug) << "SCHED_RR not available; falling back to nice only"sv;
+      }
+
+      long nproc = ::sysconf(_SC_NPROCESSORS_ONLN);
+      if (nproc >= 2) {
+        // Skip core 0 (IRQ affine by default) and SMT siblings.
+        // On Ryzen 5 4600H (6C/12T) this picks physical cores 1..5.
+        long physical_cores = nproc / 2;
+        if (physical_cores < 1) physical_cores = 1;
+        long usable = physical_cores - 1;
+        if (usable < 1) usable = 1;
+        static std::atomic<unsigned> slot {0};
+        unsigned core = 1 + (slot.fetch_add(1, std::memory_order_relaxed) % (unsigned) usable);
+        if ((long) core >= nproc) core = (unsigned) (nproc - 1);
+
+        cpu_set_t set;
+        CPU_ZERO(&set);
+        CPU_SET(core, &set);
+        if (::sched_setaffinity(0, sizeof(set), &set) != 0) {
+          BOOST_LOG(debug) << "sched_setaffinity failed (container?); running unpinned"sv;
+        }
+      }
+    }
+#endif
   }
 
   void set_thread_name(const std::string &name) {

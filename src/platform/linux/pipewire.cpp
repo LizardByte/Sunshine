@@ -224,6 +224,22 @@ namespace pipewire {
         }
 
         struct pw_properties *props = pw_properties_new(PW_KEY_MEDIA_TYPE, "Video", PW_KEY_MEDIA_CATEGORY, "Capture", PW_KEY_MEDIA_ROLE, "Screen", nullptr);
+
+        // CachyOS / Linux local-LAN fast path: ask PipeWire for an 8 ms
+        // node latency. The default is closer to ~20-40 ms which adds 1-2
+        // frames of buffering before the encoder ever sees a pixel. Setting
+        // PW_KEY_NODE_LATENCY is just a hint -- the compositor can still
+        // give us a larger quantum if the GPU/driver can't keep up, but on
+        // CachyOS with Wayland/Mutter + a discrete GPU we usually get what
+        // we ask for.
+        //
+        // Value is a fraction string in nanoseconds: "8192/1000" = 8.192 ms.
+        // We pick 8 ms because at 120 fps that's still <1 frame of latency
+        // and gives the driver enough headroom to not drop frames.
+#ifdef PW_KEY_NODE_LATENCY
+        pw_properties_set(props, PW_KEY_NODE_LATENCY, "8192/1000");
+#endif
+
 #ifdef PW_KEY_TARGET_OBJECT
         // If pipewire supports setting a PW_KEY_TARGET_OBJECT via object serial and the serial is valid (lower 32-bits not SPA_ID_INVALID, see PW_KEY_OBJECT_SERIAL docs), use it.
         if ((object_serial & SPA_ID_INVALID) != SPA_ID_INVALID) {

@@ -5,6 +5,7 @@
 #pragma once
 
 // standard includes
+#include <array>
 #include <bitset>
 #include <chrono>
 #include <optional>

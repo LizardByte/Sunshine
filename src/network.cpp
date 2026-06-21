@@ -6,6 +6,10 @@
 #include <algorithm>
 #include <sstream>
 
+#ifdef __linux__
+  #include <sys/socket.h>  // SO_BUSY_POLL, SO_RCVBUFFORCE, setsockopt
+#endif
+
 // local includes
 #include "config.h"
 #include "logging.h"
@@ -176,8 +180,43 @@ namespace net {
     // Maximum of 128 clients, which should be enough for anyone
     auto host = host_t {enet_host_create(af == IPV4 ? AF_INET : AF_INET6, &addr, 128, 0, 0, 0)};
 
+    if (!host) {
+      return host;
+    }
+
     // Enable opportunistic QoS tagging (automatically disables if the network appears to drop tagged packets)
     enet_socket_set_option(host->socket, ENET_SOCKOPT_QOS, 1);
+
+#ifdef __linux__
+    // CachyOS / Linux local-LAN fast path: grow the kernel UDP socket buffers
+    // so a 4K60 HEVC stream (~25 Mbps) never blocks on send. Without this the
+    // default rmem_max/wmem_max on a fresh install is ~200KB, which is one
+    // frame of 4K60 -> the next sendmsg() blocks until the kernel drains.
+    //
+    // 4 MiB is a safe upper bound for ~25 Mbps @ 8ms = ~25KB in-flight; we
+    // pick well above that so a single retransmit storm can't make us stall.
+    // SO_RCVBUFFORCE / SO_SNDBUFFORCE let us exceed rmem_max/wmem_max without
+    // requiring sysctl changes (they require CAP_NET_ADMIN, which Sunshine
+    // doesn't run with -- so the call silently no-ops if it fails).
+    {
+      int bufsize = 4 * 1024 * 1024;
+      (void) setsockopt(host->socket, SOL_SOCKET, SO_RCVBUFFORCE, &bufsize, sizeof(bufsize));
+      (void) setsockopt(host->socket, SOL_SOCKET, SO_SNDBUFFORCE, &bufsize, sizeof(bufsize));
+      // Fallback to the rmem_max-limited path if FORCE isn't permitted.
+      (void) setsockopt(host->socket, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
+      (void) setsockopt(host->socket, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
+    }
+
+    // SO_BUSY_POLL: have the kernel poll the NIC for incoming packets instead
+    // of sleeping until the next interrupt. 50us is a good middle ground:
+    // it cuts the receive-side wakeup latency from ~100us-1ms down to ~50us
+    // on Wi-Fi without burning a full core. Higher values (e.g. 100us) cost
+    // noticeably more CPU for diminishing returns on a wireless link.
+    {
+      int busy_poll_us = 50;
+      (void) setsockopt(host->socket, SOL_SOCKET, SO_BUSY_POLL, &busy_poll_us, sizeof(busy_poll_us));
+    }
+#endif
 
     return host;
   }

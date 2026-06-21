@@ -7,6 +7,74 @@ list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-sign-compare)
 # Wno-maybe-uninitialized/Wno-uninitialized - disable warnings for maybe uninitialized variables
 # Wno-sign-compare - disable warnings for signed/unsigned comparisons
 # Wno-restrict - disable warnings for memory overlap
+
+# ----------------------------------------------------------------------------
+# CachyOS / Linux local-LAN fast-path build flags.
+#
+# When SUNSHINE_CACHYOS_NATIVE is ON (the default on Linux), we:
+#   - march on Zen 2 (znver2) so AVX2/BMI2/FMA paths get picked up
+#   - march on Zen 3 (znver3) or Zen 4 (znver4) when the host supports it
+#   - enable -O3 -flto so the encoder/color-conversion hot loops get
+#     vectorised and dead-store eliminated across translation units
+#   - drop frame pointers and PLT indirections (small but free win)
+#
+# Disable by passing -DSUNSHINE_CACHYOS_NATIVE=OFF if you ship a generic
+# Linux binary or run on a different microarch.
+# ----------------------------------------------------------------------------
+if(UNIX AND NOT APPLE AND NOT DEFINED SUNSHINE_CACHYOS_NATIVE)
+    set(SUNSHINE_CACHYOS_NATIVE ON CACHE BOOL
+        "Optimise for the build host's microarchitecture (CachyOS-style).")
+endif()
+
+if(SUNSHINE_CACHYOS_NATIVE AND UNIX AND NOT APPLE)
+    set(_sunshine_native_march "")
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "(amd64|AMD64|x86_64|X86_64)")
+        # Try to detect a known Zen generation via /proc/cpuinfo on the build
+        # host. Falls back to x86-64-v3 (AVX2 baseline) which CachyOS ships.
+        set(_sunshine_cpuinfo_file "/proc/cpuinfo")
+        if(EXISTS ${_sunshine_cpuinfo_file})
+            file(READ ${_sunshine_cpuinfo_file} _sunshine_cpuinfo)
+            string(TOLOWER "${_sunshine_cpuinfo}" _sunshine_cpuinfo_lower)
+            if(_sunshine_cpuinfo_lower MATCHES "model name.*zen 4")
+                set(_sunshine_native_march "znver4")
+            elseif(_sunshine_cpuinfo_lower MATCHES "model name.*zen 3")
+                set(_sunshine_native_march "znver3")
+            elseif(_sunshine_cpuinfo_lower MATCHES "model name.*zen 2")
+                set(_sunshine_native_march "znver2")
+            elseif(_sunshine_cpuinfo_lower MATCHES "model name.*zen")
+                set(_sunshine_native_march "znver1")
+            endif()
+        endif()
+        if(NOT _sunshine_native_march)
+            # CachyOS kernels/tools and Steam Deck's steamrt are typically
+            # built with x86-64-v3. v3 = AVX2 + BMI2 + FMA, safe on every
+            # CachyOS-supported CPU since the original Ryzen launch.
+            # We only use it for -march; GCC's -mtune doesn't understand
+            # microarch levels, so we fall back to -mtune=generic.
+            set(_sunshine_native_march "x86-64-v3")
+            set(_sunshine_native_mtune "generic")
+        endif()
+        # znver2/znver3/znver4 are valid for both -march and -mtune on GCC.
+        # x86-64-v3 is only valid for -march; -mtune has to be generic.
+        if("${_sunshine_native_march}" STREQUAL "x86-64-v3")
+            set(_sunshine_native_mtune "generic")
+        else()
+            set(_sunshine_native_mtune "${_sunshine_native_march}")
+        endif()
+        message(STATUS "CachyOS native build: -march=${_sunshine_native_march} -mtune=${_sunshine_native_mtune}")
+        list(APPEND SUNSHINE_COMPILE_OPTIONS
+            "-march=${_sunshine_native_march}"
+            "-mtune=${_sunshine_native_mtune}"
+            "-O3"
+            "-fno-plt"
+            "-fomit-frame-pointer")
+        if(CMAKE_BUILD_TYPE STREQUAL "Release")
+            # LTO only at Release; Debug builds stay debuggable.
+            list(APPEND SUNSHINE_COMPILE_OPTIONS "-flto=auto")
+        endif()
+    endif()
+endif()
+
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # GCC specific compile options
 
