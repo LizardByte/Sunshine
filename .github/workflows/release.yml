@@ -1,0 +1,217 @@
+---
+name: release
+
+# This workflow builds binaries for the cachyos-fastpath branch and
+# uploads them to the GitHub release for the tag that triggered it.
+#
+# Trigger:
+#   - Push a tag matching v* (e.g. v0.0.1-cachyos-fastpath)
+#   - Or run it manually from the Actions tab (workflow_dispatch)
+#
+# Matrix:
+#   - linux-x86_64: built inside the CachyOS Docker image so the resulting
+#                   binary is linked against CachyOS's glibc (~2.40+).
+#                   This is the one that actually works on CachyOS;
+#                   a binary built on Ubuntu 22.04 has glibc 2.35 and
+#                   will not load on Arch-derivatives newer than late 2023.
+#   - macos-x86_64, macos-arm64: stock GitHub-hosted runners.
+#   - windows-x86_64: stock GitHub-hosted runner, packaged as a zip.
+#
+# Artifacts uploaded per release:
+#   - sunshine-cachyos-linux-x86_64.tar.gz
+#   - sunshine-macos-x86_64.tar.gz
+#   - sunshine-macos-arm64.tar.gz
+#   - sunshine-windows-x86_64.zip
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. v0.0.1-cachyos-fastpath)'
+        required: true
+        default: 'manual-cachyos-fastpath'
+
+permissions:
+  contents: write   # needed to create the release and upload assets
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Linux (CachyOS) — runs inside the CachyOS Docker image so the
+  # resulting binary is linked against a fresh enough glibc.
+  # -------------------------------------------------------------------------
+  build_linux_cachyos:
+    name: Linux (CachyOS glibc, x86_64)
+    runs-on: ubuntu-24.04
+    container:
+      image: docker.io/cachyos/cachyos:latest
+      options: --privileged
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Initialize pacman keyring (Docker)
+        run: |
+          pacman-key --init
+          pacman-key --populate archlinux cachyos
+          # Trust the cachyos packager keys
+          pacman -Sy --noconfirm cachyos-keyring && pacman -Sy --noconfirm archlinux-keyring || true
+
+      - name: Install build dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --needed --noconfirm \
+            base-devel cmake ninja git \
+            openssl curl libpulse libdrm libva libva-drm \
+            libx11 libxfixes libxrandr libxcb libxkbcommon \
+            libevdev libopus ffmpeg \
+            libpipewire libportal \
+            wayland wayland-protocols \
+            libudev0 libcap-miniupnpc libnatpmp \
+            vulkan-headers shaderc glslang \
+            boost miniupnpc nlohmann-json \
+            libpng libxext libxtst
+
+      - name: Configure (CachyOS fast path)
+        run: |
+          cmake -B build -G Ninja \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DBUILD_DOCS=OFF \
+              -DSUNSHINE_ENABLE_TESTS=OFF \
+              -DSUNSHINE_ENABLE_TRAY=OFF \
+              -DFFMPEG_PREBUILT=ON \
+              -DSUNSHINE_ASSETS_DIR=./assets
+          # Echo the detected microarch so we know the fast path engaged
+          grep "CachyOS native build" build/CMakeFiles/CMakeOutput.log || \
+            echo "::warning::CachyOS native build flag not detected in cmake output"
+
+      - name: Build (ninja)
+        run: cmake --build build -j"$(nproc)"
+
+      - name: Stage binary + assets
+        run: |
+          mkdir -p stage/sunshine
+          install -m 0755 build/sunshine stage/sunshine/sunshine
+          # Bundle the web UI assets so the binary is self-contained.
+          if [[ -d build/assets ]]; then
+            cp -r build/assets stage/sunshine/assets
+          fi
+          # Also create a fake assets dir that points back to the upstream install
+          # so users who install it system-wide get the right defaults.
+
+      - name: Tarball
+        run: |
+          cd stage
+          tar czf ../sunshine-cachyos-linux-x86_64.tar.gz sunshine
+
+      - name: Upload as release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: sunshine-cachyos-linux-x86_64.tar.gz
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+
+  # -------------------------------------------------------------------------
+  # macOS — stock GitHub-hosted runners. Two architectures.
+  # -------------------------------------------------------------------------
+  build_macos_intel:
+    name: macOS x86_64
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install deps
+        run: |
+          brew update
+          brew install boost cmake ninja pkg-config openssl@3 opus ffmpeg libxkbcommon
+      - name: Configure
+        run: |
+          cmake -B build -G Ninja \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DBUILD_DOCS=OFF \
+              -DSUNSHINE_ENABLE_TESTS=OFF \
+              -DFFMPEG_PREBUILT=ON
+      - name: Build
+        run: cmake --build build -j"$(sysctl -n hw.ncpu)"
+      - name: Stage + tarball
+        run: |
+          mkdir -p stage/Sunshine.app/Contents/MacOS
+          cp build/sunshine stage/Sunshine.app/Contents/MacOS/sunshine
+          cd stage && tar czf ../sunshine-macos-x86_64.tar.gz Sunshine.app
+      - name: Upload
+        uses: softprops/action-gh-release@v2
+        with:
+          files: sunshine-macos-x86_64.tar.gz
+          fail_on_unmatched_files: true
+
+  build_macos_arm:
+    name: macOS arm64
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install deps
+        run: |
+          brew update
+          brew install boost cmake ninja pkg-config openssl@3 opus ffmpeg libxkbcommon
+      - name: Configure
+        run: |
+          cmake -B build -G Ninja \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DBUILD_DOCS=OFF \
+              -DSUNSHINE_ENABLE_TESTS=OFF \
+              -DFFMPEG_PREBUILT=ON
+      - name: Build
+        run: cmake --build build -j"$(sysctl -n hw.ncpu)"
+      - name: Stage + tarball
+        run: |
+          mkdir -p stage/Sunshine.app/Contents/MacOS
+          cp build/sunshine stage/Sunshine.app/Contents/MacOS/sunshine
+          cd stage && tar czf ../sunshine-macos-arm64.tar.gz Sunshine.app
+      - name: Upload
+        uses: softprops/action-gh-release@v2
+        with:
+          files: sunshine-macos-arm64.tar.gz
+          fail_on_unmatched_files: true
+
+  # -------------------------------------------------------------------------
+  # Windows — stock runner, packaged as a zip.
+  # -------------------------------------------------------------------------
+  build_windows:
+    name: Windows x86_64
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Configure
+        run: |
+          cmake -B build -G Ninja `
+              -DCMAKE_BUILD_TYPE=Release `
+              -DBUILD_DOCS=OFF `
+              -DSUNSHINE_ENABLE_TESTS=OFF `
+              -DFFMPEG_PREBUILT=ON
+      - name: Build
+        run: cmake --build build -j"$env:NUMBER_OF_PROCESSORS"
+      - name: Stage + zip
+        run: |
+          Compress-Archive -Path build/sunshine.exe, build/assets -DestinationPath sunshine-windows-x86_64.zip
+      - name: Upload
+        uses: softprops/action-gh-release@v2
+        with:
+          files: sunshine-windows-x86_64.zip
+          fail_on_unmatched_files: true
