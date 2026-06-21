@@ -44,16 +44,45 @@ macOS or Windows.
 
 ## 🏗️ Build on CachyOS
 
+**One-liner (recommended):**
+
 ```bash
-git clone https://github.com/vindeckyy/Sunshine.git
+git clone --recurse-submodules https://github.com/vindeckyy/Sunshine.git
 cd Sunshine
 git checkout cachyos-fastpath
+./scripts/cachyos-build.sh
+```
+
+The script:
+- Verifies submodules are present (and fetches them if not)
+- Installs build deps via `pacman` (no `apt` — this is CachyOS, not Debian)
+- Configures with the CachyOS fast-path flags auto-detected
+- Builds with ninja, installs with sudo, reloads your user systemd manager
+
+> ⚠️ If you already cloned without `--recurse-submodules`, run
+> `git submodule update --init --recursive` inside the repo before
+> `./scripts/cachyos-build.sh`. Otherwise `cmake` will fail on
+> `third-party/moonlight-common-c/enet`, `third-party/Simple-Web-Server`,
+> `third-party/libdisplaydevice`, `third-party/tray`, or `third-party/glad`.
+
+**Manual (if you don't want to run the script):**
+
+```bash
+git clone --recurse-submodules https://github.com/vindeckyy/Sunshine.git
+cd Sunshine
+git checkout cachyos-fastpath
+sudo pacman -S --needed base-devel cmake ninja git boost openssl curl \
+    libpulse libdrm libva libx11 libxfixes libxrandr libxkbcommon \
+    libevdev libopus ffmpeg libpipewire libportal wayland \
+    libudev0 libcap-miniupnpc libnatpmp vulkan-headers shaderc glslang \
+    miniupnpc nlohmann-json libpng libxext libxtst
 cmake -B build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_DOCS=OFF \
     -DSUNSHINE_ENABLE_TESTS=OFF \
+    -DSUNSHINE_ENABLE_TRAY=OFF \
     -DFFMPEG_PREBUILT=ON
-cmake --build build
+cmake --build build -j$(nproc)
 sudo cmake --install build
 ```
 
