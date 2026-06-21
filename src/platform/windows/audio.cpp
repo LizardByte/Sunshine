@@ -523,7 +523,12 @@ namespace platf::audio {
       }
 
       // *2 --> needs to fit double
-      sample_buf = util::buffer_t<float> {std::max(frames, frame_size) * 2 * channels_out};
+      // Cast to size_t first so the multiplication happens in 64 bits on
+      // platforms where size_t is wider than uint32_t. Otherwise
+      // std::max(frames, frame_size) * 2 * channels_out computes in
+      // uint32_t, which can overflow before the result is widened to
+      // size_t for the std::vector constructor.
+      sample_buf = util::buffer_t<float> {static_cast<size_t>(std::max(frames, frame_size)) * 2 * channels_out};
       sample_buf_pos = std::begin(sample_buf);
 
       status = audio_client->GetService(IID_IAudioCaptureClient, (void **) &audio_capture);
