@@ -886,7 +886,10 @@ namespace confighttp {
       output_tree["status"] = nvhttp::set_client_enabled(uuid, enabled);
 
       if (!enabled && output_tree["status"]) {
-        rtsp_stream::terminate_sessions();
+        auto cert = nvhttp::get_cert_by_uuid(uuid);
+        if (!cert.empty()) {
+          rtsp_stream::terminate_sessions_by_cert(cert);
+        }
 
         if (rtsp_stream::session_count() == 0 && proc::proc.running() > 0) {
           proc::proc.terminate();
@@ -1494,8 +1497,8 @@ namespace confighttp {
     nlohmann::json output_tree;
 
 #ifdef _WIN32
-    // Get the path to the vigembus installer
-    const std::filesystem::path installer_path = platf::appdata().parent_path() / "scripts" / "vigembus_installer.exe";
+    // Get the path to the packaged ViGEmBus installer.
+    const std::filesystem::path installer_path = platf::appdata().parent_path() / "third-party" / "vigembus_installer.exe";
 
     if (!std::filesystem::exists(installer_path)) {
       output_tree["status"] = false;

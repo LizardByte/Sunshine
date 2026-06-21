@@ -39,6 +39,7 @@ namespace rtsp_stream {
     std::optional<crypto::cipher::gcm_t> rtsp_cipher;
     std::string rtsp_url_scheme;
     uint32_t rtsp_iv_counter;
+    std::string client_cert;
   };
 
   void launch_session_raise(std::shared_ptr<launch_session_t> launch_session);
@@ -59,6 +60,7 @@ namespace rtsp_stream {
    * @brief Terminates all running streaming sessions.
    */
   void terminate_sessions();
+  void terminate_sessions_by_cert(std::string_view cert);
 
   /**
    * @brief Runs the RTSP server loop.

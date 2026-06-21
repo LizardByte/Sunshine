@@ -176,11 +176,23 @@ namespace wl {
       listener {
         &CLASS_CALL(interface_t, add_interface),
         &CLASS_CALL(interface_t, del_interface)
+      },
+      dmabuf_listener {
+        &CLASS_CALL(interface_t, dmabuf_format),
+        &CLASS_CALL(interface_t, dmabuf_modifier)
       } {
   }
 
   void interface_t::listen(wl_registry *registry) {
     wl_registry_add_listener(registry, &listener, this);
+  }
+
+  void interface_t::dmabuf_format(zwp_linux_dmabuf_v1 *zwp_linux_dmabuf, uint32_t format) {
+  }
+
+  void interface_t::dmabuf_modifier(zwp_linux_dmabuf_v1 *zwp_linux_dmabuf, uint32_t format, uint32_t modifier_hi, uint32_t modifier_lo) {
+    uint64_t modifier = ((uint64_t) modifier_hi << 32) | modifier_lo;
+    supported_modifiers[format].push_back(modifier);
   }
 
   void interface_t::add_interface(
@@ -210,7 +222,8 @@ namespace wl {
       this->interface[WLR_EXPORT_DMABUF] = true;
     } else if (!std::strcmp(interface, zwp_linux_dmabuf_v1_interface.name)) {
       BOOST_LOG(info) << "[wayland] Found interface: "sv << interface << '(' << id << ") version "sv << version;
-      dmabuf_interface = (zwp_linux_dmabuf_v1 *) wl_registry_bind(registry, id, &zwp_linux_dmabuf_v1_interface, version);
+      dmabuf_interface = (zwp_linux_dmabuf_v1 *) wl_registry_bind(registry, id, &zwp_linux_dmabuf_v1_interface, std::min(version, 3u));
+      zwp_linux_dmabuf_v1_add_listener(dmabuf_interface, &dmabuf_listener, this);
 
       this->interface[LINUX_DMABUF] = true;
     }
@@ -275,10 +288,12 @@ namespace wl {
   void dmabuf_t::listen(
     zwlr_screencopy_manager_v1 *screencopy_manager,
     zwp_linux_dmabuf_v1 *dmabuf_interface,
+    const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers,
     wl_output *output,
     bool blend_cursor
   ) {
     this->dmabuf_interface = dmabuf_interface;
+    this->supported_modifiers = supported_modifiers;
     // Reset state
     shm_info.supported = false;
     dmabuf_info.supported = false;
@@ -357,7 +372,17 @@ namespace wl {
     }
 
     // Create GBM buffer
-    current_bo = gbm_bo_create(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, GBM_BO_USE_RENDERING);
+    if (supported_modifiers) {
+      auto it = supported_modifiers->find(dmabuf_info.format);
+      if (it != supported_modifiers->end() && !it->second.empty()) {
+        current_bo = gbm_bo_create_with_modifiers(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, it->second.data(), it->second.size());
+      }
+    }
+
+    if (!current_bo) {
+      current_bo = gbm_bo_create(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, GBM_BO_USE_RENDERING);
+    }
+
     if (!current_bo) {
       BOOST_LOG(error) << "Failed to create GBM buffer"sv;
       zwlr_screencopy_frame_v1_destroy(frame);

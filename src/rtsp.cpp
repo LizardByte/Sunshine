@@ -569,6 +569,20 @@ namespace rtsp_stream {
       }
     }
 
+    void clear_by_cert(std::string_view cert) {
+      auto lg = _session_slots.lock();
+      for (auto i = _session_slots->begin(); i != _session_slots->end();) {
+        auto &slot = *(*i);
+        if (stream::session::client_cert(slot) == cert) {
+          stream::session::stop(slot);
+          stream::session::join(slot);
+          i = _session_slots->erase(i);
+        } else {
+          i++;
+        }
+      }
+    }
+
     /**
      * @brief Removes the provided session from the set of sessions.
      * @param session The session to remove.
@@ -641,6 +655,10 @@ namespace rtsp_stream {
 
   void terminate_sessions() {
     server.clear(true);
+  }
+
+  void terminate_sessions_by_cert(std::string_view cert) {
+    server.clear_by_cert(cert);
   }
 
   int send(tcp::socket &sock, const std::string_view &sv) {
@@ -984,6 +1002,23 @@ namespace rtsp_stream {
       // Legacy clients use nvFeatureFlags to indicate support for audio encryption
       if (util::from_view(args.at("x-nv-general.featureFlags"sv)) & 0x20) {
         config.encryptionFlagsEnabled |= SS_ENC_AUDIO;
+      }
+
+      // Limit the packetsize to avoid fragmentation with clients that cannot configure this value
+      if (config::stream.packetsize && config::stream.packetsize < config.packetsize) {
+        if (config::stream.packetsize < config::PACKETSIZE_MIN || config::stream.packetsize > config::PACKETSIZE_MAX) {
+          BOOST_LOG(warning) << "packetsize range: ["sv << config::PACKETSIZE_MIN << "-"sv << config::PACKETSIZE_MAX
+                             << "] invalid value: "sv << config::stream.packetsize;
+        } else {
+          if (config::stream.packetsize < config::PACKETSIZE_SMALL) {
+            BOOST_LOG(info) << "packetsize is small < "sv << config::PACKETSIZE_SMALL << " bytes, reduce bitrate if the stream breaks"sv;
+          } else if (config::stream.packetsize > config::PACKETSIZE_LARGE) {
+            BOOST_LOG(info) << "packetsize is large > "sv << config::PACKETSIZE_LARGE << " bytes, jumbo frames may be used"sv;
+          }
+
+          BOOST_LOG(info) << "packetsize limit: "sv << config.packetsize << " -> "sv << config::stream.packetsize << " bytes"sv;
+          config.packetsize = config::stream.packetsize;
+        }
       }
 
       config.monitor.height = (int) util::from_view(args.at("x-nv-video[0].clientViewportHt"sv));

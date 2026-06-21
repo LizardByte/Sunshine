@@ -2,8 +2,8 @@
 set -e
 
 # Version requirements - centralized for easy maintenance
-cmake_min="3.25.0"
-target_cmake_version="3.30.1"
+cmake_min="4.0.0"
+target_cmake_version="4.3.0"
 doxygen_min="1.10.0"
 _doxygen_min="${doxygen_min//\./_}"  # Convert dots to underscores for URL
 doxygen_max="1.12.0"
@@ -279,7 +279,6 @@ function add_arch_deps() {
     "gcc${gcc_version}-libs"
     'git'
     'graphviz'
-    'libayatana-appindicator'
     'libcap'
     'libdrm'
     'libevdev'
@@ -301,6 +300,8 @@ function add_arch_deps() {
     'opus'
     'python-jinja'  # glad OpenGL/EGL loader generator
     'python-setuptools'  # glad OpenGL/EGL loader generated, v2.0.0
+    'qt6-base'
+    'qt6-svg'
     'shaderc'
     'udev'
     'vulkan-icd-loader'
@@ -335,8 +336,8 @@ function add_debian_based_deps() {
     "gcc-${gcc_version}"
     "g++-${gcc_version}"
     "git"
+    "glslang-tools"  # Vulkan shader compiler
     "graphviz"
-    "libayatana-appindicator3-dev"
     "libcap-dev"  # KMS
     "libcurl4-openssl-dev"
     "libdrm-dev"  # KMS
@@ -360,16 +361,26 @@ function add_debian_based_deps() {
     "libxrandr-dev"  # X11
     "libxtst-dev"  # X11
     "libvulkan-dev"  # Vulkan
-    "glslang-tools"  # Vulkan shader compiler
     "ninja-build"
     "npm"  # web-ui
     "python3-jinja2"  # glad OpenGL/EGL loader generator
     "python3-setuptools"  # glad OpenGL/EGL loader generated, v2.0.0
+    "qt6-base-dev"
     "systemd"
     "udev"
     "wget"  # necessary for cuda install with `run` file
     "xvfb"  # necessary for headless unit testing
   )
+
+  # Ubuntu 22.04 uses a different package name for Qt6 SVG
+  if [[ "$distro" == "ubuntu" ]] && [[ "$version" == "22.04" ]]; then
+    dependencies+=(
+      "libgl-dev"  # OpenGL development headers, needed for qt6-svg
+      "libqt6svg6-dev"
+    )
+  else
+    dependencies+=("qt6-svg-dev")
+  fi
 
   if [[ "$skip_libva" == 0 ]]; then
     dependencies+=(
@@ -397,6 +408,9 @@ function add_debian_deps() {
 }
 
 function add_ubuntu_deps() {
+  # Enable universe; qt6-base-dev and several other required packages live there.
+  $package_install_command "software-properties-common"
+  ${sudo_cmd} add-apt-repository universe -y
   add_test_ppa
   add_debian_based_deps
 
@@ -429,8 +443,8 @@ function add_fedora_deps() {
     "gcc${gcc_version}"
     "gcc${gcc_version}-c++"
     "git"
+    "glslc"
     "graphviz"
-    "libappindicator-gtk3-devel"
     "libappstream-glib"
     "libcap-devel"
     "libcurl-devel"
@@ -457,9 +471,10 @@ function add_fedora_deps() {
     "pulseaudio-libs-devel"
     "python3-jinja2"  # glad OpenGL/EGL loader generator
     "python3-setuptools"  # glad OpenGL/EGL loader generated, v2.0.0
+    "qt6-qtbase-devel"
+    "qt6-qtsvg-devel"
     "rpm-build"  # if you want to build an RPM binary package
     "vulkan-loader-devel"
-    "glslc"
     "wget"  # necessary for cuda install with `run` file
     "which"  # necessary for cuda install with `run` file
     "xorg-x11-server-Xvfb"  # necessary for headless unit testing

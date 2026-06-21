@@ -326,6 +326,14 @@ namespace kwin {
     }
 
     /**
+     * @brief Check if kwin screencasting is currently available
+     * @return true if screencast can be started, false otherwise
+     */
+    bool is_kwin_screencasting_available() const {
+      return kde_screencast_v1_ != nullptr;
+    }
+
+    /**
      * @brief Generate a sorted list of known output names.
      * @return List of strings with output names to pass to start()
      */
@@ -642,6 +650,20 @@ namespace kwin {
       if (screencast->init(true) < 0) {
         return -1;
       }
+#if !defined(__FreeBSD__)
+      // Check if KWin screencasting extension is accessible after first init attempt
+      if (!screencast->is_kwin_screencasting_available()) {
+        // KWin screencasting extension was not found. Drop ALL elevated privileges in case KWin is missing CAP_SYS_NICE
+        BOOST_LOG(warning) << "[kwingrab] KWin screencasting unavailable after init. Trying again after dropping ALL elevated privileges."sv;
+        platf::drop_elevated_privileges(true);
+        // Retry screencast session init after privilege drop
+        screencast.reset();  // Cleanup current screencast instance
+        screencast = std::make_unique<screencast_t>();  // Create new screencast instance
+        if (screencast->init(true) < 0) {
+          return -1;
+        }
+      }
+#endif
       if (screencast->start(display_name) < 0) {
         return -1;
       }

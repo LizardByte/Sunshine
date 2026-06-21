@@ -60,7 +60,7 @@ else()
         endif()
 
         # SHOULD_SIGN is set only when publish_release is true or when manually building
-        if(\$ENV{SHOULD_SIGN} STREQUAL \"true\")
+        if(\"\$ENV{SHOULD_SIGN}\" STREQUAL \"true\")
           # Sign anything inside Contents/Frameworks
           set(_fw_dir \"\${_app}/Contents/Frameworks\")
           if(EXISTS \"\${_fw_dir}\")

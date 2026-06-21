@@ -445,8 +445,22 @@ namespace platf {
     lifetime::exit_sunshine(0, true);
   }
 
+  std::string get_env(const std::string &name) {
+    if (const auto value = getenv(name.c_str()); value != nullptr) {
+      return value;
+    }
+    return "";
+  }
+
   int set_env(const std::string &name, const std::string &value) {
     return setenv(name.c_str(), value.c_str(), 1);
+  }
+
+  int append_env(const std::string &name, const std::string &value, const std::string &separator) {
+    if (const std::string old_value = get_env(name); !old_value.contains(value)) {
+      return set_env(name, old_value.empty() ? value : old_value + separator + value);
+    }
+    return 0;
   }
 
   int unset_env(const std::string &name) {
@@ -1130,6 +1144,8 @@ namespace platf {
 
     // enable Vulkan video extensions for AMD RADV
     set_env("RADV_PERFTEST", "video_encode");
+    // Above is deprecated on Mesa 26.1+ and replaced by (keep both to ensure best compatibility):
+    append_env("RADV_EXPERIMENTAL", "video_encode", ",");
 
     // These are allowed to fail.
     gbm::init();

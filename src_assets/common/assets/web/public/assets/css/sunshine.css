@@ -682,6 +682,7 @@ body {
 .modal-header,
 .modal-footer {
     border-color: var(--color-border) !important;
+    background-color: var(--color-surface-raised) !important;
 }
 
 .list-group-item {
@@ -1710,6 +1711,20 @@ p {
     margin-bottom: 0.25rem;
     display: flex;
     align-items: center;
+}
+
+.apps-toolbar .input-group {
+    width: 14rem;
+}
+
+.apps-toolbar .btn-outline-secondary {
+    border: 1px solid var(--color-border);
+}
+
+.apps-toolbar .btn-outline-secondary.active {
+    background-color: var(--color-bg-muted);
+    border-color: var(--color-border-strong);
+    color: var(--color-text-base);
 }
 
 /* ==========================================================================

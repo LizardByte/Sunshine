@@ -62,7 +62,6 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/src/Rtsp.h"
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/src/RtspParser.c"
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/src/Video.h"
-        "${CMAKE_SOURCE_DIR}/third-party/tray/src/tray.h"
         "${CMAKE_SOURCE_DIR}/src/upnp.cpp"
         "${CMAKE_SOURCE_DIR}/src/upnp.h"
         "${CMAKE_SOURCE_DIR}/src/cbs.cpp"
@@ -128,8 +127,6 @@ if(NOT SUNSHINE_ASSETS_DIR_DEF)
 endif()
 list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_ASSETS_DIR="${SUNSHINE_ASSETS_DIR_DEF}")
 
-list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_TRAY=${SUNSHINE_TRAY})
-
 # Publisher metadata
 list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_PUBLISHER_NAME="${SUNSHINE_PUBLISHER_NAME}")
 list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_PUBLISHER_WEBSITE="${SUNSHINE_PUBLISHER_WEBSITE}")
@@ -162,3 +159,12 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
         ${Boost_LIBRARIES}
         ${OPENSSL_LIBRARIES}
         ${PLATFORM_LIBRARIES})
+
+# tray icon
+if(SUNSHINE_ENABLE_TRAY)
+    list(APPEND SUNSHINE_EXTERNAL_LIBRARIES tray::tray)
+else()
+    set(SUNSHINE_TRAY 0)
+    message(STATUS "Tray icon disabled")
+endif()
+list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_TRAY=${SUNSHINE_TRAY})

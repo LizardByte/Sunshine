@@ -121,7 +121,7 @@
 
     <!-- Resources -->
     <div class="my-4">
-      <Resource-Card></Resource-Card>
+      <Resource-Card :installed-version-not-stable="installedVersionNotStable"></Resource-Card>
     </div>
   </div>
 </body>
@@ -142,7 +142,7 @@
     Info,
     CheckCircle,
     Download
-  } from 'lucide-vue-next'
+  } from '@lucide/vue'
 
   // Configure marked to allow HTML
   marked.setOptions({

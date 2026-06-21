@@ -8,6 +8,10 @@
                   <Globe :size="18" class="icon"></Globe>
                   {{ $t('resource_card.lizardbyte_website') }}
                 </a>
+                <a class="btn btn-info" :href="documentationUrl" target="_blank">
+                  <BookOpen :size="18" class="icon"></BookOpen>
+                  {{ $t('resource_card.documentation') }}
+                </a>
                 <a class="btn btn-primary" href="https://app.lizardbyte.dev/discord" target="_blank">
                   <SimpleIcon icon="Discord" :size="18" class="icon"></SimpleIcon>
                   Discord
@@ -43,17 +47,31 @@
 <script>
 import {
   AlertCircle,
+  BookOpen,
   FileText,
   Globe,
-} from 'lucide-vue-next'
+} from '@lucide/vue'
 import SimpleIcon from './SimpleIcon.vue'
 
 export default {
+  props: {
+    installedVersionNotStable: {
+      type: Boolean,
+      default: false
+    }
+  },
   components: {
     SimpleIcon,
     AlertCircle,
+    BookOpen,
     FileText,
     Globe,
+  },
+  computed: {
+    documentationUrl() {
+      const docsVersion = this.installedVersionNotStable ? 'master' : 'latest'
+      return `https://docs.lizardbyte.dev/projects/sunshine/${docsVersion}/`
+    }
   }
 }
 </script>

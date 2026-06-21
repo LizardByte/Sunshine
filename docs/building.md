@@ -26,20 +26,21 @@ pkg install -y \
   devel/cmake \
   devel/evdev-proto \
   devel/git \
-  devel/libayatana-appindicator \
   devel/libevdev \
   devel/libnotify \
   devel/ninja \
   devel/pkgconf \
+  devel/qt6-base \
   ftp/curl \
   graphics/libdrm \
+  graphics/qt6-svg \
   graphics/wayland \
   multimedia/libva \
   net/miniupnpc \
   ports-mgmt/pkg \
   security/openssl \
   shells/bash \
-  www/npm \
+  www/npm-node22 \
   x11/libX11 \
   x11/libxcb \
   x11/libXfixes \

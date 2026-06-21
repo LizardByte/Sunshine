@@ -2,10 +2,6 @@
 	path = packaging/linux/flatpak/deps/flatpak-builder-tools
 	url = https://github.com/flatpak/flatpak-builder-tools.git
 	branch = master
-[submodule "packaging/linux/flatpak/deps/shared-modules"]
-	path = packaging/linux/flatpak/deps/shared-modules
-	url = https://github.com/flathub/shared-modules.git
-	branch = master
 [submodule "third-party/build-deps"]
 	path = third-party/build-deps
 	url = https://github.com/LizardByte/build-deps.git
@@ -28,6 +24,10 @@
 [submodule "third-party/libdisplaydevice"]
 	path = third-party/libdisplaydevice
 	url = https://github.com/LizardByte/libdisplaydevice.git
+	branch = master
+[submodule "third-party/lizardbyte-common"]
+	path = third-party/lizardbyte-common
+	url = https://github.com/LizardByte/lizardbyte-common.git
 	branch = master
 [submodule "third-party/moonlight-common-c"]
 	path = third-party/moonlight-common-c
