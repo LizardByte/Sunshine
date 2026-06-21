@@ -174,7 +174,10 @@ namespace cuda {
       img.row_pitch = img.width * img.pixel_pitch;
 
       std::vector<std::uint8_t> image_data;
-      image_data.resize(img.row_pitch * img.height);
+      // Cast to size_t first so row_pitch * height doesn't overflow int
+      // (max int is ~2.1B; at 8K with 4-byte pitch that's only ~132M, but
+      // 12K+ or 16K capture on a hypothetical future GPU could trip it).
+      image_data.resize(static_cast<size_t>(img.row_pitch) * img.height);
 
       img.data = image_data.data();
 
