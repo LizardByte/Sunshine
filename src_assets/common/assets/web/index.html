@@ -188,9 +188,9 @@
         this.controllerEnabled = config.controller !== "disabled";
         this.version = new SunshineVersion(null, config.version);
         console.log("Version: ", this.version.version)
-        this.githubVersion = new SunshineVersion(await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest").then((r) => r.json()), null);
+        this.githubVersion = new SunshineVersion(await fetch("https://api.github.com/repos/vindeckyy/Sunshine-fast-queue/releases/latest").then((r) => r.json()), null);
         console.log("GitHub Version: ", this.githubVersion.version)
-        this.preReleaseVersion = new SunshineVersion((await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases").then((r) => r.json())).find(release => release.prerelease), null);
+        this.preReleaseVersion = new SunshineVersion((await fetch("https://api.github.com/repos/vindeckyy/Sunshine-fast-queue/releases").then((r) => r.json())).find(release => release.prerelease), null);
         console.log("Pre-Release Version: ", this.preReleaseVersion.version)
 
         // Fetch ViGEmBus status only on Windows when controller is enabled
