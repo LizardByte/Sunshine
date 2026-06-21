@@ -260,7 +260,7 @@ set +e
 cmake -B "$BUILD_DIR" -G Ninja -S "$REPO_ROOT" \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_DOCS=OFF \
-    -DSUNSHINE_ENABLE_TESTS=OFF \
+    -DBUILD_TESTS=OFF \
     -DSUNSHINE_ENABLE_TRAY=OFF \
     -DSUNSHINE_ENABLE_CUDA=OFF \
     -DCUDA_FAIL_ON_MISSING=OFF \
@@ -287,8 +287,13 @@ fi
 # ---------------------------------------------------------------------------
 step "6/7  Build (ninja)"
 say "Building with ninja (this takes 2-5 minutes on a Ryzen 5 4600H)..."
+# Cap parallelism at nproc/2 so LTO+coverage (or just LTO at -j12) doesn't OOM
+# a 15 GiB box.  -j2 on a 4C machine, -j6 on a 12-thread machine, etc.
+_jobs=$(( $(nproc) / 2 ))
+[[ $_jobs -lt 2 ]] && _jobs=2
+say "Using -j$_jobs (nproc/2, capped at 2 minimum)"
 set +e
-cmake --build "$BUILD_DIR" -j"$(nproc)"
+cmake --build "$BUILD_DIR" -j"$_jobs"
 build_rc=$?
 set -u
 
