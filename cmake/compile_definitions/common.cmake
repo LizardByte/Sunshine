@@ -52,7 +52,7 @@ if(SUNSHINE_CACHYOS_NATIVE AND UNIX AND NOT APPLE)
             COMMAND gcc -march=native -E -v -x c /dev/null
             OUTPUT_VARIABLE _sunshine_gcc_v
             ERROR_VARIABLE _sunshine_gcc_e
-            OUTPUT_QUIET)
+            ERROR_QUIET)
         if(_sunshine_gcc_e MATCHES "march[ =]+(znver[1-9]|x86-64-v[1-4])")
             set(_sunshine_native_march "${CMAKE_MATCH_1}")
         endif()
@@ -64,15 +64,11 @@ if(SUNSHINE_CACHYOS_NATIVE AND UNIX AND NOT APPLE)
                 execute_process(
                     COMMAND ${_sunshine_lscpu}
                     OUTPUT_VARIABLE _sunshine_lscpu_out
-                    OUTPUT_QUIET)
-                if(_sunshine_lscpu_out MATCHES "Model name:[^\n]*([Zz]en[ -]?[4-9])")
-                    set(_zen_gen "${CMAKE_MATCH_1}")
-                    string(TOLOWER "${_zen_gen}" _zen_gen_lower)
-                    string(STRIP "${_zen_gen_lower}" _zen_gen_lower)
-                    string(REGEX REPLACE "zen[ -]?" "znver" _sunshine_native_march "${_zen_gen_lower}")
-                elseif(_sunshine_lscpu_out MATCHES "Model name:[^\n]*[Zz]en[ -]?[23]?")
-                    set(_zen_match "${CMAKE_MATCH_0}")
+                    ERROR_QUIET)
+                if(_sunshine_lscpu_out MATCHES "Model name:[^\n]*([Zz]en[ -]?[1-9])")
+                    set(_zen_match "${CMAKE_MATCH_1}")
                     string(TOLOWER "${_zen_match}" _zen_match_lower)
+                    string(STRIP "${_zen_match_lower}" _zen_match_lower)
                     if(_zen_match_lower MATCHES "zen[ -]?4")
                         set(_sunshine_native_march "znver4")
                     elseif(_zen_match_lower MATCHES "zen[ -]?3")
@@ -81,24 +77,36 @@ if(SUNSHINE_CACHYOS_NATIVE AND UNIX AND NOT APPLE)
                         set(_sunshine_native_march "znver2")
                     elseif(_zen_match_lower MATCHES "zen[ -]?1")
                         set(_sunshine_native_march "znver1")
+                    else()
+                        set(_sunshine_native_march "x86-64-v3")
                     endif()
                 endif()
             endif()
         endif()
 
-        # 3. Try /proc/cpuinfo: search the whole file for a "zen N" reference.
+        # 3. /proc/cpuinfo: model name doesn't say "zen" on Ryzen parts, but
+        #    the "cpu family" + "model" fields do encode the microarch. Family
+        #    23 = Zen 1/1+, Family 25 = Zen 2/3, Family 26 = Zen 4.
+        #    Within those, model numbers split the generations. Use them as a
+        #    third source before falling through to x86-64-v3.
         if(NOT _sunshine_native_march)
             set(_sunshine_cpuinfo_file "/proc/cpuinfo")
             if(EXISTS ${_sunshine_cpuinfo_file})
                 file(READ ${_sunshine_cpuinfo_file} _sunshine_cpuinfo)
-                string(TOLOWER "${_sunshine_cpuinfo}" _sunshine_cpuinfo_lower)
-                if(_sunshine_cpuinfo_lower MATCHES "zen[ -]?4")
+                # Family 26, model >= 0x10 = Zen 4 (Phoenix, Genoa, etc.)
+                if(_sunshine_cpuinfo MATCHES "cpu family[ \t]*: 26" AND _sunshine_cpuinfo MATCHES "model[ \t]*: ([0-9]+)")
                     set(_sunshine_native_march "znver4")
-                elseif(_sunshine_cpuinfo_lower MATCHES "zen[ -]?3")
-                    set(_sunshine_native_march "znver3")
-                elseif(_sunshine_cpuinfo_lower MATCHES "zen[ -]?2")
-                    set(_sunshine_native_march "znver2")
-                elseif(_sunshine_cpuinfo_lower MATCHES "zen[ -]?1")
+                # Family 25, model 0x21-0xAF = Zen 3 (Vermeer, Cezanne),
+                # 0x10-0x1F and 0x40-0x7F = Zen 2 (Renoir, Lucienne, Matisse)
+                elseif(_sunshine_cpuinfo MATCHES "cpu family[ \t]*: 25" AND _sunshine_cpuinfo MATCHES "model[ \t]*: ([0-9]+)")
+                    set(_model "${CMAKE_MATCH_1}")
+                    if(_model GREATER 63)
+                        set(_sunshine_native_march "znver3")
+                    else()
+                        set(_sunshine_native_march "znver2")
+                    endif()
+                # Family 23 = Zen 1 / Zen 1+
+                elseif(_sunshine_cpuinfo MATCHES "cpu family[ \t]*: 23")
                     set(_sunshine_native_march "znver1")
                 endif()
             endif()
