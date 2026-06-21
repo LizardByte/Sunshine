@@ -16,3 +16,26 @@ updates:
       cronjob: "30 2 * * *"
       timezone: "America/New_York"
     open-pull-requests-limit: 10
+
+  # Sunshine-fast-queue specific override: the upstream config doesn't know
+  # this fork doesn't ship Flatpak builds. The aiohttp vulnerabilities
+  # (12 alerts at last count) are all in flatpak-node-generator, which is
+  # only used to package Node.js deps into Flatpak manifests. The fork's
+  # build path (scripts/cachyos-build.sh) is native cmake/ninja and never
+  # invokes the Flatpak toolchain, so aiohttp is never loaded at build
+  # time or runtime on this fork. These alerts are not reachable.
+  #
+  # If you re-enable Flatpak packaging on this fork, delete this block
+  # and run `uv lock --upgrade-package aiohttp` to pull a fixed version.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    ignore:
+      - dependency-name: "aiohttp"
+        # See comment above. 12 advisories as of June 2026; all unreachable
+        # on this fork because the Flatpak toolchain is not used.
+      - dependency-name: "flatpak-node-generator"
+        # Transitive aiohttp carrier. Same reason.
+      - dependency-name: "flatpak-pip-generator"
+        # Other Flatpak dev-time helper; same reason.
