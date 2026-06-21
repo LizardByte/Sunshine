@@ -8,6 +8,7 @@
 #include <array>
 #include <atomic>
 #include <condition_variable>
+#include <deque>
 #include <functional>
 #include <map>
 #include <mutex>
@@ -291,7 +292,7 @@ namespace safe {
       }
 
       auto val = std::move(_queue.front());
-      _queue.erase(std::begin(_queue));
+      _queue.pop_front();
 
       return val;
     }
@@ -312,12 +313,12 @@ namespace safe {
       }
 
       auto val = std::move(_queue.front());
-      _queue.erase(std::begin(_queue));
+      _queue.pop_front();
 
       return val;
     }
 
-    std::vector<T> &unsafe() {
+    std::deque<T> &unsafe() {
       return _queue;
     }
 
@@ -340,7 +341,12 @@ namespace safe {
     std::mutex _lock;
     std::condition_variable _cv;
 
-    std::vector<T> _queue;
+    // ponytail: std::deque gives O(1) pop_front instead of std::vector's O(n)
+    // erase(begin()). queue_t is the cross-cutting hot path for audio packets,
+    // video packets, capture sessions, network messages, and pairing certs —
+    // every pop was shifting the whole queue. Ceiling moved: same thread-safety,
+    // same public API.
+    std::deque<T> _queue;
   };
 
   template<class T>
