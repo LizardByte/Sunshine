@@ -3,7 +3,7 @@
 > A no-kidding fork of [LizardByte/Sunshine](https://github.com/LizardByte/Sunshine) for the
 > CachyOS / Arch / Manjaro / EndeavourOS machine that wants every millisecond back over the
 > local LAN. Sub-frame capture, sub-frame encode, sub-frame send. Built for one rig, then
-> generalized so anyone on a Zen-class CPU + 2.4 Gbps Wi-Fi 7 (or faster) can use it.
+> generalized so anyone on a Zen-class CPU + 2.4 Gbps Wi-Fi 6 (or faster) can use it.
 
 ```
                                  .
@@ -42,7 +42,7 @@ setup:
    and `SO_BUSY_POLL=50` is set so the receive path doesn't sleep through an
    interrupt.
 4. The video-send rate pacer reads `/sys/class/net/<iface>/speed` instead of
-   hardcoding 1 Gbps, so 2.4 Gbps Wi-Fi 7, 2.5 GbE, and 10 GbE links all use
+   hardcoding 1 Gbps, so 2.4 Gbps Wi-Fi 6, 2.5 GbE, and 10 GbE links all use
    their full capacity (the 80% headroom is preserved).
 5. PipeWire node latency is set to 8 ms via `PW_KEY_NODE_LATENCY`, so Mutter
    (and any sane Wayland compositor) gives us the lowest quantum it can.
@@ -169,7 +169,7 @@ Upstream hardcodes the pacer to "80% of 1 Gbps":
 size_t ratecontrol_packets_in_1ms = std::giga::num * 80 / 100 / 1000 / blocksize / 8;
 ```
 
-On a 2.5 GbE NIC, a 2.4 Gbps Wi-Fi 7 link, a 5 GbE USB-C dongle, or a
+On a 2.5 GbE NIC, a 2.4 Gbps Wi-Fi 6 link, a 5 GbE USB-C dongle, or a
 10 GbE SFP+ NIC, the sender still paces to 800 Mbps. The encoder is told
 to limit itself to ~80 Mbps to fit "the network", and the network is
 sitting on 2 Gbps of unused capacity.
@@ -330,7 +330,7 @@ The rest of the fork still works.
 ## Performance
 
 Real numbers from the CachyOS build host (Ryzen 5 4600H, GTX 1650 Mobile,
-2.4 Gbps Wi-Fi 7, GNOME Wayland, PipeWire 1.6, Moonlight client on a 120 Hz
+2.4 Gbps Wi-Fi 6, GNOME Wayland, PipeWire 1.6, Moonlight client on a 120 Hz
 laptop screen on the same Wi-Fi):
 
 | Metric | Upstream (LizardByte/Sunshine v2026.516.143833) | Solar Flare v0.1.0 |
