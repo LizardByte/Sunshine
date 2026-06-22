@@ -1,4 +1,4 @@
-# Solar Flare
+# SolarFlare
 
 > A no-kidding fork of [LizardByte/Sunshine](https://github.com/LizardByte/Sunshine) for the
 > CachyOS / Arch / Manjaro / EndeavourOS machine that wants every millisecond back over the
@@ -7,7 +7,7 @@
 
 ```
                                  .
-                                /|\        Solar Flare v0.1.0
+                                /|\        SolarFlare v0.1.0
                                / | \       for CachyOS x86_64 + GNOME/Wayland
                               /  |  \      "There is no lag. There is only network."
                              /   |   \
@@ -28,7 +28,7 @@
 
 ## The honest TL;DR
 
-Solar Flare is [LizardByte/Sunshine](https://github.com/LizardByte/Sunshine). Same
+SolarFlare is [LizardByte/Sunshine](https://github.com/LizardByte/Sunshine). Same
 codebase, same C++ binary, same Moonlight protocol. I took the upstream and made
 six changes that, together, buy you 5–10 ms of end-to-end latency on a local-LAN
 setup:
@@ -55,7 +55,7 @@ path end-to-end. Multi-distro support for Debian / Ubuntu / Fedora / openSUSE
 is documented in `docs/PORTING.md`. Every fork-specific knob is runtime-tunable
 via the upstream `sunshine.conf`; nothing requires a recompile to undo.
 
-**The project name "Solar Flare" is my own coinage.** I am not affiliated with
+**The project name "SolarFlare" is my own coinage.** I am not affiliated with
 LizardByte. The Sunshine maintainers are friendly; the work in this fork is
 deliberately small and surgical, not a hostile rewrite.
 
@@ -187,7 +187,7 @@ anyone on a stock desktop.
 Upstream creates the capture stream with default properties. `PW_KEY_NODE_LATENCY`
 is not set. Mutter (and any sane Wayland compositor: KDE's KWin, Sway,
 Hyprland) picks something in the 20–40 ms range for a "Screen" role capture.
-That's 1–2 frames of compositor-side buffering before Sunshine's encoder ever
+That's 1–2 frames of compositor-side buffering before the encoder ever
 sees a pixel.
 
 The fork sets it to 8 ms (the lowest Mutter will accept on a discrete-GPU
@@ -205,8 +205,7 @@ stream):
 ```
 
 You can verify the hint is honored with `pw-top`: the `node-latency` column
-for the Sunshine capture stream reads 8 ms on the fork vs. 20–40 ms on
-upstream.
+for the capture stream reads 8 ms on the fork vs. 20–40 ms on upstream.
 
 ### 6. Two missing standard library headers
 
@@ -333,7 +332,7 @@ Real numbers from the CachyOS build host (Ryzen 5 4600H, GTX 1650 Mobile,
 2.4 Gbps Wi-Fi 6, GNOME Wayland, PipeWire 1.6, Moonlight client on a 120 Hz
 laptop screen on the same Wi-Fi):
 
-| Metric | Upstream (LizardByte/Sunshine v2026.516.143833) | Solar Flare v0.1.0 |
+| Metric | Upstream (LizardByte/Sunshine v2026.516.143833) | SolarFlare v0.1.0 |
 |---|---|---|
 | Encode ms/frame (avg) | ~3.5 ms | ~1.8 ms |
 | Encode ms/frame (p95) | ~6 ms | ~3 ms |
@@ -344,7 +343,7 @@ laptop screen on the same Wi-Fi):
 
 These are *typical* numbers, not a controlled benchmark. Your numbers will
 vary based on the specific scenes, your monitor's refresh rate, and your
-network. The only claim I make with confidence: Solar Flare is faster than
+network. The only claim I make with confidence: SolarFlare is faster than
 upstream by 5–15 ms on a comparable CachyOS-class machine.
 
 ## Files changed (so you can review the diff)
