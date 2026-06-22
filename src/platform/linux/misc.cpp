@@ -414,7 +414,7 @@ namespace platf {
     // hint keeps the thread's L1/L2 cache warm frame-to-frame.
     //
     // These calls fail silently under containers / systemd-run / non-PRI
-    // users — that's fine, the thread already has the nice level from above.
+    // users. That's fine: the thread already has the nice level from above.
     if (want_realtime) {
       struct sched_param sp {};
       sp.sched_priority = 10;  // lowest RT priority that still beats CFS

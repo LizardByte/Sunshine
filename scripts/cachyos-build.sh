@@ -31,7 +31,7 @@
 # To skip pacman (deps already installed) and just rebuild:
 #   ./scripts/cachyos-build.sh --no-pacman
 
-set -uo pipefail   # NB: NOT -e — we want to keep going through non-fatal errors
+set -uo pipefail   # NB: NOT -e. We want to keep going through non-fatal errors.
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="${REPO_ROOT}/build"
@@ -68,7 +68,7 @@ step() {
 # ---------------------------------------------------------------------------
 step "1/7  Platform check"
 if [[ "$(uname -s)" != "Linux" ]]; then
-  die "This script is for Linux. Sunshine builds on macOS and Windows too — use the upstream docs for those."
+  die "This script is for Linux. Sunshine builds on macOS and Windows too; use the upstream docs for those."
 fi
 if ! command -v pacman >/dev/null 2>&1; then
   die "pacman not found. This script targets CachyOS / Arch / Manjaro. On Debian/Ubuntu use the upstream install.sh (apt)."
@@ -161,7 +161,7 @@ else
             vulkan-headers shaderc glslang \
             boost miniupnpc nlohmann-json \
             libpng libxext libxtst nodejs npm; then
-        warn "pacman returned non-zero. Continuing — build will tell us if anything's actually missing."
+        warn "pacman returned non-zero. Continuing. The build will tell us if anything's actually missing."
       fi
       ;;
     debian|ubuntu|pop|linuxmint|elementary|zorin|kali|mx)
@@ -180,7 +180,7 @@ else
             vulkan-tools glslang-tools spirv-tools \
             libboost-all-dev libminiupnpc-dev nlohmann-json3-dev \
             libpng-dev libxext-dev libxtst-dev; then
-        warn "apt-get returned non-zero. Continuing — build will tell us if anything's actually missing."
+        warn "apt-get returned non-zero. Continuing. The build will tell us if anything's actually missing."
       fi
       ;;
     fedora|nobara|rocky|almalinux|rhel|centos)
@@ -196,7 +196,7 @@ else
             vulkan-devel glslang-devel spirv-tools \
             boost-devel miniupnpc-devel json-devel \
             libpng-devel libXext-devel libXtst-devel; then
-        warn "dnf returned non-zero. Continuing — build will tell us if anything's actually missing."
+        warn "dnf returned non-zero. Continuing. The build will tell us if anything's actually missing."
       fi
       ;;
     opensuse*|sles)
@@ -212,7 +212,7 @@ else
             vulkan-devel shaderc glslang-devel \
             boost-devel libminiupnpc-devel nlohmann_json-devel \
             libpng-devel libXext-devel libXtst-devel; then
-        warn "zypper returned non-zero. Continuing — build will tell us if anything's actually missing."
+        warn "zypper returned non-zero. Continuing. The build will tell us if anything's actually missing."
       fi
       ;;
     *)
@@ -230,8 +230,9 @@ say "Dependencies: assuming OK (build will fail loudly if not)."
 # 3.5  Web UI build (vite)
 # ---------------------------------------------------------------------------
 # The C++ binary serves the web UI from build/assets/web/, which is produced
-# by `npm run build` (vite). If we skip this, the new Performance tab and
-# any other web UI changes will be missing from the installed binary.
+# by `npm run build` (vite). If we skip this, the installed binary will have
+# a missing or stale web UI (the fork's web UI changes, plus the upstream
+# tabs, will be empty).
 if command -v npm >/dev/null 2>&1; then
   step "3.5/6  Web UI (npm install + vite build)"
   if [[ ! -d "$REPO_ROOT/node_modules" ]]; then
@@ -241,7 +242,7 @@ if command -v npm >/dev/null 2>&1; then
   say "Building web UI with vite..."
   (cd "$REPO_ROOT" && npm run build 2>&1 | tail -5) || warn "vite build failed; web UI may be stale."
 else
-  warn "npm not found — skipping web UI build. The web UI will be empty until you run 'npm install && npm run build' manually."
+  warn "npm not found. Skipping web UI build. The web UI will be empty until you run 'npm install && npm run build' manually."
 fi
 
 # ---------------------------------------------------------------------------
@@ -269,7 +270,7 @@ cmake_rc=$?
 set -u
 
 if [[ $cmake_rc -ne 0 ]]; then
-  die "cmake configure failed (exit $cmake_rc). Look at the last 50 lines of output above for the actual error — usually a missing dep or a submodule not fully fetched."
+  die "cmake configure failed (exit $cmake_rc). Look at the last 50 lines of output above for the actual error; usually a missing dep or a submodule not fully fetched."
 fi
 say "CMake configure: ✓"
 
@@ -341,7 +342,7 @@ cat <<'EOF'
     # Or, for one-off runs without systemd:
     sunshine
 
-  The web UI is at https://localhost:47990 — pair your Moonlight
+  The web UI is at https://localhost:47990. Pair your Moonlight
   client using the PIN it prints on first run.
 
   If you hit "MESA-LOADER: failed to open" or "libnvidia-glcore.so"
