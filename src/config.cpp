@@ -1274,10 +1274,10 @@ namespace config {
 
     // This config option will only be used by the UI
     // When editing in the config file itself, use "keybindings"
-    bool map_rightalt_to_win = false;
-    bool_f(vars, "key_rightalt_to_key_win", map_rightalt_to_win);
+    input.key_rightalt_to_key_win = false;
+    bool_f(vars, "key_rightalt_to_key_win", input.key_rightalt_to_key_win);
 
-    if (map_rightalt_to_win) {
+    if (input.key_rightalt_to_key_win) {
       input.keybindings.emplace(0xA5, 0x5B);
     }
 
