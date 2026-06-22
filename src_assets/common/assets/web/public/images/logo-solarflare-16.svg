@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none">
+  <defs>
+    <radialGradient id="sf-core-16" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FEF3C7"/>
+      <stop offset="50%" stop-color="#FCD34D"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </radialGradient>
+    <linearGradient id="sf-flare-16" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#FBBF24" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#F97316" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="8" cy="8" rx="8" ry="1.4" fill="url(#sf-flare-16)"/>
+  <circle cx="8" cy="8" r="3.5" fill="url(#sf-core-16)"/>
+  <circle cx="7.2" cy="7.2" r="1" fill="#FFFBEB" opacity="0.9"/>
+</svg>

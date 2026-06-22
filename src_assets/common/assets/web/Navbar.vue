@@ -2,8 +2,9 @@
   <div>
     <nav class="navbar navbar-expand-lg navbar-sunshine">
       <div class="container-fluid">
-        <a class="navbar-brand" href="./" title="Sunshine">
-          <img src="/images/logo-sunshine-45.png" height="45" alt="Sunshine">
+        <a class="navbar-brand solarflare-brand" href="./" title="SolarFlare">
+          <img src="/images/logo-solarflare-45.svg" height="40" alt="SolarFlare" class="solarflare-logo">
+          <span class="solarflare-wordmark">SolarFlare</span>
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent"
                 aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
@@ -146,5 +147,41 @@ export default {
 /* Navbar toggler icon for dark text on light background */
 .navbar-sunshine .navbar-toggler-icon {
   --bs-navbar-toggler-icon-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.9%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
+}
+
+/* SolarFlare brand: SVG logo + bold wordmark in the navbar */
+.solarflare-brand {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 0.6rem;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+.solarflare-logo {
+  filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.35));
+  transition: transform var(--transition-base), filter var(--transition-base);
+}
+.solarflare-brand:hover .solarflare-logo {
+  transform: rotate(-6deg) scale(1.05);
+  filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.6));
+}
+.solarflare-wordmark {
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+  color: var(--navbar-text);
+  background: linear-gradient(90deg, #FBBF24 0%, #FB923C 50%, #FDBA74 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* Glassmorphism navbar (subtle, only on wide screens) */
+@supports (backdrop-filter: blur(12px)) or (-webkit-backdrop-filter: blur(12px)) {
+  .navbar-sunshine {
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+  }
 }
 </style>

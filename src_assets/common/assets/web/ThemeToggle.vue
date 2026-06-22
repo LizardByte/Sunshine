@@ -15,6 +15,7 @@ import {
   Sparkles,
   Sun,
   Sunrise,
+  Zap,
   Trees,
   Waves,
 } from '@lucide/vue'
@@ -81,6 +82,12 @@ onMounted(() => {
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="nord" aria-pressed="false">
           <Mountain :size="18" class="theme-icon icon"></Mountain>
           {{ $t('navbar.theme_nord') }}
+        </button>
+      </li>
+      <li>
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="solarflare" aria-pressed="false">
+          <Zap :size="18" class="theme-icon icon"></Zap>
+          {{ $t('navbar.theme_solarflare') }}
         </button>
       </li>
       <li><hr class="dropdown-divider"></li>

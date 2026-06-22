@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SolarFlare logo.
+  A sun (parent: Sunshine) emitting a horizontal flare burst (the speed/fast-path idea).
+  Pure SVG, scales to any size, recolored via CSS currentColor.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45" fill="none">
+  <defs>
+    <radialGradient id="sf-core" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FEF3C7"/>
+      <stop offset="35%" stop-color="#FCD34D"/>
+      <stop offset="70%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </radialGradient>
+    <linearGradient id="sf-flare" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0"/>
+      <stop offset="40%" stop-color="#FB923C" stop-opacity="0.7"/>
+      <stop offset="55%" stop-color="#FBBF24" stop-opacity="0.9"/>
+      <stop offset="70%" stop-color="#F97316" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#F97316" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="sf-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FBBF24" stop-opacity="0.4"/>
+      <stop offset="60%" stop-color="#F59E0B" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="#F59E0B" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Outer ambient glow -->
+  <circle cx="22.5" cy="22.5" r="22" fill="url(#sf-glow)"/>
+
+  <!-- Horizontal flare burst (the "fast" part of the brand) -->
+  <ellipse cx="22.5" cy="22.5" rx="22" ry="3.5" fill="url(#sf-flare)"/>
+
+  <!-- Sun body (the "solar" part, parent to Sunshine) -->
+  <circle cx="22.5" cy="22.5" r="10" fill="url(#sf-core)"/>
+
+  <!-- Sun rays (subtle, 8-fold) -->
+  <g stroke="#F59E0B" stroke-width="1.6" stroke-linecap="round" opacity="0.85">
+    <line x1="22.5" y1="8"  x2="22.5" y2="11.5"/>
+    <line x1="22.5" y1="33.5" x2="22.5" y2="37"/>
+    <line x1="8"  y1="22.5" x2="11.5" y2="22.5"/>
+    <line x1="33.5" y1="22.5" x2="37" y2="22.5"/>
+    <line x1="12.4" y1="12.4" x2="14.9" y2="14.9"/>
+    <line x1="30.1" y1="30.1" x2="32.6" y2="32.6"/>
+    <line x1="12.4" y1="32.6" x2="14.9" y2="30.1"/>
+    <line x1="30.1" y1="14.9" x2="32.6" y2="12.4"/>
+  </g>
+
+  <!-- Bright core highlight (gives it that "active flare" feel) -->
+  <circle cx="20" cy="20" r="3" fill="#FFFBEB" opacity="0.9"/>
+</svg>

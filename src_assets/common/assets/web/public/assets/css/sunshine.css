@@ -623,6 +623,89 @@
     --navbar-text-muted: rgba(255, 255, 255, 0.9);
 }
 
+/* SolarFlare Dark - brand identity, deep slate with solar-flare accents */
+[data-theme="solarflare"] {
+    --color-primary: #F59E0B;
+    --color-primary-hover: #FBBF24;
+    --color-primary-light: #422006;
+    --color-accent: #FB923C;
+    --color-accent-hover: #FDBA74;
+    --color-accent-light: #431407;
+    --color-success: #34D399;
+    --color-success-hover: #6EE7B7;
+    --color-success-light: #052E1B;
+    --color-danger: #F87171;
+    --color-danger-hover: #FCA5A5;
+    --color-danger-light: #450A0A;
+    --color-warning: #FBBF24;
+    --color-warning-hover: #FCD34D;
+    --color-warning-light: #451A03;
+    --color-info: #60A5FA;
+    --color-info-hover: #93C5FD;
+    --color-info-light: #0C1F3F;
+
+    --color-bg-base: #0B0F1A;
+    --color-bg-subtle: #111827;
+    --color-bg-muted: #1F2937;
+    --color-surface: #111827;
+    --color-surface-raised: #1F2937;
+
+    --color-border: #1F2937;
+    --color-border-strong: #374151;
+
+    --color-text-base: #F8FAFC;
+    --color-text-muted: #CBD5E1;
+    --color-text-subtle: #94A3B8;
+
+    --navbar-bg: linear-gradient(135deg, #111827 0%, #1F2937 60%, #422006 100%);
+    --navbar-text: #FBBF24;
+    --navbar-text-muted: rgba(251, 191, 36, 0.75);
+
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+}
+
+/* SolarFlare Light - daytime variant of the brand identity */
+[data-theme="solarflare-light"] {
+    --color-primary: #D97706;
+    --color-primary-hover: #B45309;
+    --color-primary-light: #FEF3C7;
+    --color-accent: #F97316;
+    --color-accent-hover: #EA580C;
+    --color-accent-light: #FFEDD5;
+    --color-success: #059669;
+    --color-success-hover: #047857;
+    --color-success-light: #D1FAE5;
+    --color-danger: #DC2626;
+    --color-danger-hover: #B91C1C;
+    --color-danger-light: #FEE2E2;
+    --color-warning: #D97706;
+    --color-warning-hover: #B45309;
+    --color-warning-light: #FEF3C7;
+    --color-info: #2563EB;
+    --color-info-hover: #1D4ED8;
+    --color-info-light: #DBEAFE;
+
+    --color-bg-base: #FFFBEB;
+    --color-bg-subtle: #FEF3C7;
+    --color-bg-muted: #FDE68A;
+    --color-surface: #FFFFFF;
+    --color-surface-raised: #FFFBEB;
+
+    --color-border: #FDE68A;
+    --color-border-strong: #FCD34D;
+
+    --color-text-base: #451A03;
+    --color-text-muted: #78350F;
+    --color-text-subtle: #92400E;
+
+    --navbar-bg: linear-gradient(135deg, #F59E0B 0%, #FB923C 50%, #FBBF24 100%);
+    --navbar-text: #FFFFFF;
+    --navbar-text-muted: rgba(255, 255, 255, 0.9);
+}
+
 /* ==========================================================================
    Global Styles
    ========================================================================== */
@@ -2015,4 +2098,144 @@ p {
     .screenshot-counter {
         bottom: var(--spacing-sm);
     }
+}
+
+/* ==========================================================================
+   SolarFlare UI additions
+   ========================================================================== */
+
+/* The SVG logo filter (drop-shadow) is set inline by .solarflare-logo; this
+   picks up the navbar version.  Subtle, not loud. */
+.solarflare-logo {
+    vertical-align: middle;
+}
+
+/* Slow pulse on the hero logo so the dashboard feels alive */
+@keyframes solarflare-pulse {
+    0%, 100% { filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.35)); }
+    50%      { filter: drop-shadow(0 0 14px rgba(251, 191, 36, 0.65)); }
+}
+.solarflare-pulse {
+    animation: solarflare-pulse 3.5s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .solarflare-pulse { animation: none; }
+}
+
+/* Hero card on the home page */
+.solarflare-hero {
+    background: linear-gradient(135deg, var(--color-bg-subtle) 0%, var(--color-surface-raised) 100%);
+    border-left: 4px solid var(--color-primary) !important;
+    overflow: hidden;
+    position: relative;
+}
+.solarflare-hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -10%;
+    width: 60%;
+    height: 200%;
+    background: radial-gradient(ellipse, rgba(251, 191, 36, 0.08) 0%, transparent 70%);
+    pointer-events: none;
+}
+.solarflare-hero-mark {
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+}
+.solarflare-hero-text {
+    position: relative;
+    z-index: 1;
+    min-width: 0;
+}
+.solarflare-hero-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    background: linear-gradient(90deg, #FCD34D 0%, #FB923C 60%, #FDBA74 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    margin: 0;
+}
+.solarflare-hero-tagline {
+    color: var(--color-text-muted);
+    font-size: 0.95rem;
+}
+.solarflare-hero-version {
+    margin-left: 0.5rem;
+    padding: 0.1em 0.5em;
+    background: var(--color-bg-muted);
+    border-radius: var(--radius-sm);
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 0.85em;
+    color: var(--color-text-subtle);
+}
+
+/* Status dot in the hero */
+.solarflare-hero-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.85rem;
+    border-radius: 999px;
+    background: var(--color-bg-muted);
+    border: 1px solid var(--color-border);
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--color-text-base);
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
+}
+.solarflare-status-dot {
+    display: inline-block;
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: var(--color-text-subtle);
+    box-shadow: 0 0 0 0 currentColor;
+}
+.solarflare-status-ok    { background: #10B981; animation: solarflare-dot-pulse 2s ease-in-out infinite; color: #10B981; }
+.solarflare-status-warn  { background: #F59E0B; color: #F59E0B; }
+.solarflare-status-error { background: #EF4444; color: #EF4444; }
+.solarflare-status-unknown { background: #6B7280; color: #6B7280; }
+@keyframes solarflare-dot-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 currentColor; }
+    50%      { box-shadow: 0 0 0 4px transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .solarflare-status-ok { animation: none; }
+}
+
+/* Subtle card hover lift on the home page cards */
+.card {
+    transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+/* SolarFlare brand watermark in the page footer */
+.solarflare-footer {
+    text-align: center;
+    padding: var(--spacing-2xl) 0 var(--spacing-lg);
+    color: var(--color-text-subtle);
+    font-size: 0.85rem;
+}
+.solarflare-footer a {
+    color: var(--color-text-muted);
+    text-decoration: none;
+    background: linear-gradient(90deg, #FCD34D 0%, #FB923C 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    font-weight: 600;
+}
+.solarflare-footer a:hover {
+    text-decoration: underline;
 }

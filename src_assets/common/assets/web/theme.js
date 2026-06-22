@@ -18,6 +18,7 @@ const darkThemes = new Set([
     'moonlight',
     'nord',
     'slate',
+    'solarflare',
 ])
 
 const setTheme = theme => {

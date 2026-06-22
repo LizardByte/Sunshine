@@ -8,6 +8,27 @@
 <body id="app" v-cloak>
   <Navbar></Navbar>
   <div id="content" class="container">
+
+    <!-- SolarFlare status hero -->
+    <div class="solarflare-hero card my-4">
+      <div class="card-body d-flex flex-wrap align-items-center gap-3">
+        <div class="solarflare-hero-mark">
+          <img src="/images/logo-solarflare-45.svg" height="56" alt="SolarFlare" class="solarflare-logo solarflare-pulse">
+        </div>
+        <div class="solarflare-hero-text flex-grow-1">
+          <h2 class="solarflare-hero-title mb-1">SolarFlare</h2>
+          <p class="solarflare-hero-tagline mb-0">
+            A Sunshine fork tuned for sub-frame local LAN streaming on Zen-class CPUs.
+            <span v-if="version" class="solarflare-hero-version">v{{ version.version }}</span>
+          </p>
+        </div>
+        <div class="solarflare-hero-status">
+          <span class="solarflare-status-dot" :class="solarflareStatusClass"></span>
+          <span class="solarflare-status-text">{{ solarflareStatusText }}</span>
+        </div>
+      </div>
+    </div>
+
     <h1 class="my-4">{{ $t('index.welcome') }}</h1>
     <p>{{ $t('index.description') }}</p>
 
@@ -123,6 +144,10 @@
     <div class="my-4">
       <Resource-Card :installed-version-not-stable="installedVersionNotStable"></Resource-Card>
     </div>
+
+    <footer class="solarflare-footer">
+      <span>Powered by <a href="https://github.com/vindeckyy/Solar-Flare" target="_blank" rel="noopener">SolarFlare</a> &middot; a derivative of <a href="https://github.com/LizardByte/Sunshine" target="_blank" rel="noopener">LizardByte/Sunshine</a></span>
+    </footer>
   </div>
 </body>
 
@@ -153,7 +178,7 @@
     sanitize: false
   });
 
-  console.log("Hello, Sunshine!")
+  console.log("Hello, SolarFlare!")
   let app = createApp({
     components: {
       Navbar,
@@ -188,9 +213,9 @@
         this.controllerEnabled = config.controller !== "disabled";
         this.version = new SunshineVersion(null, config.version);
         console.log("Version: ", this.version.version)
-        this.githubVersion = new SunshineVersion(await fetch("https://api.github.com/repos/vindeckyy/Sunshine-fast-queue/releases/latest").then((r) => r.json()), null);
+        this.githubVersion = new SunshineVersion(await fetch("https://api.github.com/repos/vindeckyy/Solar-Flare/releases/latest").then((r) => r.json()), null);
         console.log("GitHub Version: ", this.githubVersion.version)
-        this.preReleaseVersion = new SunshineVersion((await fetch("https://api.github.com/repos/vindeckyy/Sunshine-fast-queue/releases").then((r) => r.json())).find(release => release.prerelease), null);
+        this.preReleaseVersion = new SunshineVersion((await fetch("https://api.github.com/repos/vindeckyy/Solar-Flare/releases").then((r) => r.json())).find(release => release.prerelease), null);
         console.log("Pre-Release Version: ", this.preReleaseVersion.version)
 
         // Fetch ViGEmBus status only on Windows when controller is enabled
@@ -233,6 +258,19 @@
       buildVersionIsDirty() {
         return this.version.version?.split(".").length === 5 &&
           this.version.version.indexOf("dirty") !== -1
+      },
+      solarflareStatusClass() {
+        if (this.fancyLogs.find(x => x.level === 'Fatal')) return 'solarflare-status-error';
+        if (this.stableBuildAvailable || this.preReleaseBuildAvailable) return 'solarflare-status-warn';
+        if (this.version) return 'solarflare-status-ok';
+        return 'solarflare-status-unknown';
+      },
+      solarflareStatusText() {
+        if (this.fancyLogs.find(x => x.level === 'Fatal')) return 'Fatal error in startup logs';
+        if (this.preReleaseBuildAvailable) return 'Pre-release available';
+        if (this.stableBuildAvailable) return 'Update available';
+        if (this.version) return 'Running latest';
+        return 'Loading…';
       },
       /** Parse the text errors, calculating the text, the timestamp and the level */
       fancyLogs() {
