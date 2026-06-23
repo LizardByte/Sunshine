@@ -425,7 +425,11 @@ namespace kwin {
         return -1;
       }
 
-      BOOST_LOG(info) << "[kwingrab] stream created, PipeWire node "sv << out_node_id;
+      if ((out_objectserial & SPA_ID_INVALID) == SPA_ID_INVALID) {
+        BOOST_LOG(info) << "[kwingrab] Pipewire stream created: node="sv << out_node_id;
+      } else {
+        BOOST_LOG(info) << "[kwingrab] Pipewire stream created: objectserial="sv << out_objectserial << " (node="sv << out_node_id << ")"sv;
+      }
 
       if (out_params->width == 0 || out_params->height == 0) {
         BOOST_LOG(error) << "[kwingrab] could not determine output dimensions"sv;
