@@ -167,7 +167,7 @@ class Sunshine < Formula
       -DCMAKE_INSTALL_PREFIX=#{prefix}
       -DGLAD_SKIP_PIP_INSTALL=ON
       -DHOMEBREW_ALLOW_FETCHCONTENT=ON
-      -DOPENSSL_ROOT_DIR=#{Formula["openssl"].opt_prefix}
+      -DOPENSSL_ROOT_DIR=#{formula_opt_prefix("openssl")}
       -DSUNSHINE_ASSETS_DIR=sunshine/assets
       -DSUNSHINE_BUILD_HOMEBREW=ON
       -DSUNSHINE_PUBLISHER_NAME='LizardByte'
@@ -213,14 +213,14 @@ class Sunshine < Formula
     args << "-DBOOST_USE_STATIC=ON"
     ohai "Enabled statically linking Boost libraries"
 
-    unless Formula["icu4c"].any_version_installed?
+    unless formula_any_version_installed?("icu4c")
       odie <<~EOS
         icu4c must be installed to link against static Boost libraries,
         either install icu4c or use brew install sunshine --with-static-boost instead
       EOS
     end
     ENV.append "CXXFLAGS", "-I#{Formula["icu4c"].opt_include}"
-    icu4c_lib_path = Formula["icu4c"].opt_lib.to_s
+    icu4c_lib_path = formula_opt_lib("icu4c").to_s
     ENV.append "LDFLAGS", "-L#{icu4c_lib_path}"
     ENV["LIBRARY_PATH"] = icu4c_lib_path
     ohai "Linking against ICU libraries at: #{icu4c_lib_path}"
