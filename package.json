@@ -22,6 +22,6 @@
     "@vitejs/plugin-vue": "6.0.7",
     "serve": "14.2.6",
     "vite": "6.4.3",
-    "vite-plugin-ejs": "1.7.0"
+    "vite-plugin-ejs": "1.7.1"
   }
 }
