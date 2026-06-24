@@ -361,8 +361,10 @@ namespace cuda {
       auto hw_frames_ctx = (AVHWFramesContext *) hw_frames_ctx_buf->data;
 
       if (hw_frames_ctx->sw_format != AV_PIX_FMT_NV12 &&
-          hw_frames_ctx->sw_format != AV_PIX_FMT_YUV444P) {
-        BOOST_LOG(error) << "cuda::gl_cuda_vram_t doesn't support any format other than AV_PIX_FMT_NV12 and AV_PIX_FMT_YUV444P"sv;
+          hw_frames_ctx->sw_format != AV_PIX_FMT_YUV444P &&
+          hw_frames_ctx->sw_format != AV_PIX_FMT_P010LE &&
+          hw_frames_ctx->sw_format != AV_PIX_FMT_YUV444P16LE) {
+        BOOST_LOG(error) << "cuda::gl_cuda_vram_t doesn't support any format other than AV_PIX_FMT_NV12, AV_PIX_FMT_P010LE, AV_PIX_FMT_YUV444P and AV_PIX_FMT_YUV444P16LE"sv;
         return -1;
       }
 
@@ -374,7 +376,7 @@ namespace cuda {
       }
 
       sw_format = hw_frames_ctx->sw_format;
-      is_yuv444 = (sw_format == AV_PIX_FMT_YUV444P);
+      is_yuv444 = (sw_format == AV_PIX_FMT_YUV444P || sw_format == AV_PIX_FMT_YUV444P16LE);
 
       auto sws_opt = egl::sws_t::make(width, height, frame->width, frame->height, sw_format, is_yuv444);
       if (!sws_opt) {
