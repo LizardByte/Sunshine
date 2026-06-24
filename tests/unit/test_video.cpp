@@ -6,6 +6,29 @@
 
 #include <src/video.h>
 
+namespace {
+  struct ActiveVideoModeGuard {
+    ActiveVideoModeGuard():
+        hevc_mode {video::active_hevc_mode},
+        av1_mode {video::active_av1_mode},
+        mpeg2_mode {video::active_mpeg2_mode},
+        h263p_mode {video::active_h263p_mode} {
+    }
+
+    ~ActiveVideoModeGuard() {
+      video::active_hevc_mode = hevc_mode;
+      video::active_av1_mode = av1_mode;
+      video::active_mpeg2_mode = mpeg2_mode;
+      video::active_h263p_mode = h263p_mode;
+    }
+
+    int hevc_mode;
+    int av1_mode;
+    int mpeg2_mode;
+    int h263p_mode;
+  };
+}  // namespace
+
 struct EncoderTest: PlatformTestSuite, testing::WithParamInterface<video::encoder_t *> {
   void SetUp() override {
     auto &encoder = *GetParam();
@@ -47,6 +70,30 @@ INSTANTIATE_TEST_SUITE_P(
 
 TEST_P(EncoderTest, ValidateEncoder) {
   // todo:: test something besides fixture setup
+}
+
+TEST_F(PlatformTestSuite, SoftwareEncoderSupportsForcedMpeg2) {
+  ActiveVideoModeGuard guard;
+
+  video::active_hevc_mode = 1;
+  video::active_av1_mode = 1;
+  video::active_mpeg2_mode = 2;
+  video::active_h263p_mode = 1;
+
+  ASSERT_TRUE(video::validate_encoder(video::software, false));
+  EXPECT_TRUE(video::software.mpeg2[video::encoder_t::PASSED]);
+}
+
+TEST_F(PlatformTestSuite, SoftwareEncoderSupportsForcedH263Plus) {
+  ActiveVideoModeGuard guard;
+
+  video::active_hevc_mode = 1;
+  video::active_av1_mode = 1;
+  video::active_mpeg2_mode = 1;
+  video::active_h263p_mode = 2;
+
+  ASSERT_TRUE(video::validate_encoder(video::software, false));
+  EXPECT_TRUE(video::software.h263p[video::encoder_t::PASSED]);
 }
 
 struct FramerateX100Test: testing::TestWithParam<std::tuple<std::int32_t, AVRational>> {};

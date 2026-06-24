@@ -70,6 +70,10 @@ namespace video {
       BOOST_LOG(error) << "No display devices are active at the moment! Cannot probe the encoders.";
       return false;
     }
+
+    bool is_legacy_video_format(int video_format) {
+      return video_format == format_mpeg2 || video_format == format_h263p;
+    }
   }  // namespace
 
   void free_ctx(AVCodecContext *ctx) {
@@ -437,6 +441,7 @@ namespace video {
     safe::mail_raw_t::event_t<input::touch_port_t> touch_port_events;
 
     config_t config;
+    const encoder_t *encoder_p;
     int frame_nr;
     void *channel_data;
   };
@@ -452,6 +457,7 @@ namespace video {
   struct capture_ctx_t {
     img_event_t images;
     config_t config;
+    const encoder_t *encoder_p;
   };
 
   struct capture_thread_async_ctx_t {
@@ -459,7 +465,6 @@ namespace video {
     std::thread capture_thread;
 
     safe::signal_t reinit_event;
-    const encoder_t *encoder_p;
     sync_util::sync_t<std::weak_ptr<platf::display_t>> display_wp;
   };
 
@@ -513,6 +518,8 @@ namespace video {
       {},  // Fallback options
       "h264_nvenc"s,
     },
+    {},  // MPEG-2
+    {},  // H.263+
     PARALLEL_ENCODING | REF_FRAMES_INVALIDATION | YUV444_SUPPORT | ASYNC_TEARDOWN  // flags
   };
 #elif !defined(__APPLE__)
@@ -610,6 +617,8 @@ namespace video {
       {},  // Fallback options
       "h264_nvenc"s,
     },
+    {},  // MPEG-2
+    {},  // H.263+
     PARALLEL_ENCODING | YUV444_SUPPORT
   };
 #endif
@@ -720,6 +729,26 @@ namespace video {
       },
       "h264_qsv"s,
     },
+    {
+      // Common options
+      {
+        {"preset"s, &config::video.qsv.qsv_preset},
+        {"forced_idr"s, 1},
+        {"async_depth"s, 1},
+        {"low_delay_brc"s, 1},
+        {"low_power"s, 1},
+      },
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
+      {
+        // Fallback options
+        {"low_power"s, 0},
+      },
+      "mpeg2_qsv"s,
+    },
+    {},  // H.263+
     PARALLEL_ENCODING | CBR_WITH_VBR | RELAXED_COMPLIANCE | NO_RC_BUF_LIMIT | YUV444_SUPPORT
   };
 
@@ -826,6 +855,8 @@ namespace video {
       },
       "h264_amf"s,
     },
+    {},  // MPEG-2
+    {},  // H.263+
     PARALLEL_ENCODING
   };
 
@@ -883,6 +914,8 @@ namespace video {
       {},  // Fallback options
       "h264_mf"s,
     },
+    {},  // MPEG-2
+    {},  // H.263+
     PARALLEL_ENCODING | FIXED_GOP_SIZE  // MF encoder doesn't support on-demand IDR frames
   };
 #endif
@@ -954,6 +987,30 @@ namespace video {
       {},  // Fallback options
       "libx264"s,
     },
+    {
+      {
+        // Required when AV_CODEC_FLAG_CLOSED_GOP is set.
+        {"sc_threshold"s, 1000000000},
+      },
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
+      {},  // Fallback options
+      "mpeg2video"s,
+    },
+    {
+      {
+        // Required when AV_CODEC_FLAG_CLOSED_GOP is set.
+        {"sc_threshold"s, 1000000000},
+      },
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
+      {},  // Fallback options
+      "h263p"s,
+    },
     H264_ONLY | PARALLEL_ENCODING | ALWAYS_REPROBE | YUV444_SUPPORT
   };
 
@@ -1011,6 +1068,20 @@ namespace video {
       {},  // Fallback options
       "h264_vaapi"s,
     },
+    {
+      // Common options
+      {
+        {"async_depth"s, 1},
+        {"idr_interval"s, std::numeric_limits<int>::max()},
+      },
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
+      {},  // Fallback options
+      "mpeg2_vaapi"s,
+    },
+    {},  // H.263+
     // RC buffer size will be set in platform code if supported
     LIMITED_GOP_SIZE | PARALLEL_ENCODING | NO_RC_BUF_LIMIT
   };
@@ -1082,6 +1153,8 @@ namespace video {
       {},  // Fallback options
       "h264_vulkan"s,
     },
+    {},  // MPEG-2
+    {},  // H.263+
     LIMITED_GOP_SIZE | PARALLEL_ENCODING
   };
   #endif  // SUNSHINE_BUILD_VULKAN
@@ -1155,6 +1228,8 @@ namespace video {
       },
       "h264_videotoolbox"s,
     },
+    {},  // MPEG-2
+    {},  // H.263+
     PARALLEL_ENCODING
   };
 #endif
@@ -1181,10 +1256,38 @@ namespace video {
   };
 
   static encoder_t *chosen_encoder;
+  static encoder_t *legacy_encoder;
   int active_hevc_mode;
   int active_av1_mode;
+  int active_mpeg2_mode;
+  int active_h263p_mode;
   bool last_encoder_probe_supported_ref_frames_invalidation = false;
   std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec = {};
+
+  bool encoder_supports_video_format(const encoder_t &encoder, int video_format) {
+    switch (video_format) {
+      case format_mpeg2:
+        return encoder.mpeg2[encoder_t::PASSED];
+      case format_h263p:
+        return encoder.h263p[encoder_t::PASSED];
+      case format_h264:
+        return encoder.h264[encoder_t::PASSED];
+      case format_hevc:
+        return encoder.hevc[encoder_t::PASSED];
+      case format_av1:
+        return encoder.av1[encoder_t::PASSED];
+      default:
+        return false;
+    }
+  }
+
+  encoder_t *encoder_for_config(const config_t &config) {
+    if (is_legacy_video_format(config.videoFormat) && legacy_encoder && encoder_supports_video_format(*legacy_encoder, config.videoFormat)) {
+      return legacy_encoder;
+    }
+
+    return chosen_encoder;
+  }
 
   void reset_display(std::shared_ptr<platf::display_t> &disp, const platf::mem_type_e &type, const std::string &display_name, const config_t &config) {
     // We try this twice, in case we still get an error on reinitialization
@@ -1257,8 +1360,7 @@ namespace video {
   void captureThread(
     std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_queue,
     sync_util::sync_t<std::weak_ptr<platf::display_t>> &display_wp,
-    safe::signal_t &reinit_event,
-    const encoder_t &encoder
+    safe::signal_t &reinit_event
   ) {
     std::vector<capture_ctx_t> capture_ctxs;
 
@@ -1282,6 +1384,7 @@ namespace video {
       return;
     }
     capture_ctxs.emplace_back(std::move(*initial_capture_ctx));
+    const auto &encoder = *capture_ctxs.front().encoder_p;
 
     // Get all the monitor names now, rather than at boot, to
     // get the most up-to-date list available monitors
@@ -1631,7 +1734,7 @@ namespace video {
     bool hardware = platform_formats->avcodec_base_dev_type != AV_HWDEVICE_TYPE_NONE;
 
     auto &video_format = encoder.codec_from_config(config);
-    if (!video_format[encoder_t::PASSED] || !disp->is_codec_supported(video_format.name, config)) {
+    if (video_format.name.empty() || !video_format[encoder_t::PASSED] || !disp->is_codec_supported(video_format.name, config)) {
       BOOST_LOG(error) << encoder.name << ": "sv << video_format.name << " mode not supported"sv;
       return nullptr;
     }
@@ -1667,6 +1770,9 @@ namespace video {
                   (colorspace.bit_depth == 10 && config.chromaSamplingType == 0) ? platform_formats->avcodec_pix_fmt_10bit :
                   (colorspace.bit_depth == 10 && config.chromaSamplingType == 1) ? platform_formats->avcodec_pix_fmt_yuv444_10bit :
                                                                                    AV_PIX_FMT_NONE;
+    if (!hardware && is_legacy_video_format(config.videoFormat)) {
+      sw_fmt = AV_PIX_FMT_YUV420P;
+    }
 
     // Allow up to 1 retry to apply the set of fallback options.
     //
@@ -1687,13 +1793,13 @@ namespace video {
       }
 
       switch (config.videoFormat) {
-        case 0:
+        case format_h264:
           // 10-bit h264 encoding is not supported by our streaming protocol
           assert(!config.dynamicRange);
           ctx->profile = (config.chromaSamplingType == 1) ? AV_PROFILE_H264_HIGH_444_PREDICTIVE : AV_PROFILE_H264_HIGH;
           break;
 
-        case 1:
+        case format_hevc:
           if (config.chromaSamplingType == 1) {
             // HEVC uses the same RExt profile for both 8 and 10 bit YUV 4:4:4 encoding
             ctx->profile = AV_PROFILE_HEVC_REXT;
@@ -1702,23 +1808,33 @@ namespace video {
           }
           break;
 
-        case 2:
+        case format_av1:
           // AV1 supports both 8 and 10 bit encoding with the same Main profile
           // but YUV 4:4:4 sampling requires High profile
           ctx->profile = (config.chromaSamplingType == 1) ? AV_PROFILE_AV1_HIGH : AV_PROFILE_AV1_MAIN;
+          break;
+
+        case format_mpeg2:
+          ctx->profile = AV_PROFILE_MPEG2_MAIN;
+          break;
+
+        case format_h263p:
           break;
       }
 
       // B-frames delay decoder output, so never use them
       ctx->max_b_frames = 0;
 
-      // Use an infinite GOP length since I-frames are generated on demand
-      // Exception: encoders with FIXED_GOP_SIZE flag don't support on-demand IDR
-      if (encoder.flags & FIXED_GOP_SIZE) {
-        // Fixed GOP for encoders that don't support on-demand IDR (e.g. Media Foundation)
+      if (is_legacy_video_format(config.videoFormat)) {
+        // FFmpeg's legacy encoders reject the infinite GOP value used by modern codecs.
+        ctx->gop_size = 600;
+        ctx->keyint_min = 1;
+      } else if (encoder.flags & FIXED_GOP_SIZE) {
+        // Fixed GOP for encoders that don't support on-demand IDR (e.g. Media Foundation).
         ctx->gop_size = 120;  // ~2 seconds at 60 FPS - larger to reduce oversized IDR frame frequency
         ctx->keyint_min = 120;
       } else {
+        // Use an infinite GOP length since I-frames are generated on demand.
         ctx->gop_size = encoder.flags & LIMITED_GOP_SIZE ?
                           std::numeric_limits<std::int16_t>::max() :
                           std::numeric_limits<int>::max();
@@ -1884,12 +2000,14 @@ namespace video {
         ctx->rc_min_rate = bitrate;
       }
 
-      if (encoder.flags & RELAXED_COMPLIANCE) {
+      if ((encoder.flags & RELAXED_COMPLIANCE) || config.videoFormat == format_h263p) {
         ctx->strict_std_compliance = FF_COMPLIANCE_UNOFFICIAL;
       }
 
       if (!(encoder.flags & NO_RC_BUF_LIMIT)) {
-        if (!hardware && (ctx->slices > 1 || config.videoFormat == 1)) {
+        if (is_legacy_video_format(config.videoFormat)) {
+          ctx->rc_buffer_size = bitrate;
+        } else if (!hardware && (ctx->slices > 1 || config.videoFormat == format_hevc)) {
           // Use a larger rc_buffer_size for software encoding when slices are enabled,
           // because libx264 can severely degrade quality if the buffer is too small.
           // libx265 encounters this issue more frequently, so always scale the
@@ -2280,8 +2398,6 @@ namespace video {
     std::vector<std::string> &display_names,
     int &display_p
   ) {
-    const auto &encoder = *chosen_encoder;
-
     std::shared_ptr<platf::display_t> disp;
 
     auto switch_display_event = mail::man->event<int>(mail::switch_display);
@@ -2294,6 +2410,8 @@ namespace video {
 
       synced_session_ctxs.emplace_back(std::make_unique<sync_session_ctx_t>(std::move(*ctx)));
     }
+
+    const auto &encoder = *synced_session_ctxs.front()->encoder_p;
 
     while (encode_session_ctx_queue.running()) {
       // Refresh display names since a display removal might have caused the reinitialization
@@ -2457,6 +2575,7 @@ namespace video {
   void capture_async(
     safe::mail_t mail,
     config_t &config,
+    const encoder_t &encoder,
     void *channel_data
   ) {
     auto shutdown_event = mail->event<bool>(mail::shutdown);
@@ -2472,7 +2591,7 @@ namespace video {
       return;
     }
 
-    ref->capture_ctx_queue->raise(capture_ctx_t {images, config});
+    ref->capture_ctx_queue->raise(capture_ctx_t {images, config, &encoder});
 
     if (!ref->capture_ctx_queue->running()) {
       return;
@@ -2503,8 +2622,6 @@ namespace video {
         display = ref->display_wp->lock();
       }
 
-      auto &encoder = *chosen_encoder;
-
       auto encode_device = make_encode_device(*display, encoder, config);
       if (!encode_device) {
         return;
@@ -2532,7 +2649,7 @@ namespace video {
         display,
         std::move(encode_device),
         ref->reinit_event,
-        *ref->encoder_p,
+        encoder,
         channel_data
       );
     }
@@ -2544,10 +2661,15 @@ namespace video {
     void *channel_data
   ) {
     auto idr_events = mail->event<bool>(mail::idr);
+    auto encoder = encoder_for_config(config);
+    if (!encoder || !encoder_supports_video_format(*encoder, config.videoFormat)) {
+      BOOST_LOG(error) << "No encoder is available for video format ["sv << config.videoFormat << ']';
+      return;
+    }
 
     idr_events->raise(true);
-    if (chosen_encoder->flags & PARALLEL_ENCODING) {
-      capture_async(std::move(mail), config, channel_data);
+    if (encoder->flags & PARALLEL_ENCODING) {
+      capture_async(std::move(mail), config, *encoder, channel_data);
     } else {
       safe::signal_t join_event;
       auto ref = capture_thread_sync.ref();
@@ -2559,6 +2681,7 @@ namespace video {
         mail->event<hdr_info_t>(mail::hdr),
         mail->event<input::touch_port_t>(mail::touch_port),
         config,
+        encoder,
         1,
         channel_data,
       });
@@ -2635,10 +2758,14 @@ namespace video {
 
     auto test_hevc = active_hevc_mode >= 2 || (active_hevc_mode == 0 && !(encoder.flags & H264_ONLY));
     auto test_av1 = active_av1_mode >= 2 || (active_av1_mode == 0 && !(encoder.flags & H264_ONLY));
+    auto test_mpeg2 = active_mpeg2_mode >= 2;
+    auto test_h263p = active_h263p_mode == 2;
 
     encoder.h264.capabilities.set();
     encoder.hevc.capabilities.set();
     encoder.av1.capabilities.set();
+    encoder.mpeg2.capabilities.set();
+    encoder.h263p.capabilities.set();
 
     // First, test encoder viability
     config_t config_max_ref_frames {1920, 1080, 60, 6000, 1000, 1, 1, 1, 0, 0, 0};
@@ -2678,8 +2805,8 @@ namespace video {
     encoder.h264[encoder_t::PASSED] = true;
 
     if (test_hevc) {
-      config_max_ref_frames.videoFormat = 1;
-      config_autoselect.videoFormat = 1;
+      config_max_ref_frames.videoFormat = format_hevc;
+      config_autoselect.videoFormat = format_hevc;
 
       if (disp->is_codec_supported(encoder.hevc.name, config_autoselect)) {
         auto max_ref_frames_hevc = validate_config(disp, encoder, config_max_ref_frames);
@@ -2706,8 +2833,8 @@ namespace video {
     }
 
     if (test_av1) {
-      config_max_ref_frames.videoFormat = 2;
-      config_autoselect.videoFormat = 2;
+      config_max_ref_frames.videoFormat = format_av1;
+      config_autoselect.videoFormat = format_av1;
 
       if (disp->is_codec_supported(encoder.av1.name, config_autoselect)) {
         auto max_ref_frames_av1 = validate_config(disp, encoder, config_max_ref_frames);
@@ -2731,6 +2858,47 @@ namespace video {
     } else {
       // Clear all cap bits for AV1 if we didn't probe it
       encoder.av1.capabilities.reset();
+    }
+
+    auto test_legacy_codec = [&](encoder_t::codec_t &codec, int video_format) {
+      config_max_ref_frames.videoFormat = video_format;
+      config_autoselect.videoFormat = video_format;
+      config_max_ref_frames.dynamicRange = 0;
+      config_autoselect.dynamicRange = 0;
+      config_max_ref_frames.chromaSamplingType = 0;
+      config_autoselect.chromaSamplingType = 0;
+      codec.capabilities.reset();
+      if (codec.name.empty()) {
+        return;
+      }
+
+      codec.capabilities.set();
+      if (disp->is_codec_supported(codec.name, config_autoselect)) {
+        auto max_ref_frames = validate_config(disp, encoder, config_max_ref_frames);
+
+        // Legacy codecs are only used for explicit compatibility paths, so a
+        // successful autoselect configuration is good enough if ref limits fail.
+        auto autoselect = max_ref_frames >= 0 ? max_ref_frames : validate_config(disp, encoder, config_autoselect);
+
+        codec.capabilities.reset();
+        codec[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames >= 0;
+        codec[encoder_t::PASSED] = max_ref_frames >= 0 || autoselect >= 0;
+      } else {
+        codec.capabilities.reset();
+        BOOST_LOG(info) << "Encoder ["sv << codec.name << "] is not supported on this GPU"sv;
+      }
+    };
+
+    if (test_mpeg2) {
+      test_legacy_codec(encoder.mpeg2, format_mpeg2);
+    } else {
+      encoder.mpeg2.capabilities.reset();
+    }
+
+    if (test_h263p) {
+      test_legacy_codec(encoder.h263p, format_h263p);
+    } else {
+      encoder.h263p.capabilities.reset();
     }
 
     // Test HDR and YUV444 support
@@ -2804,12 +2972,12 @@ namespace video {
       encoder.h264[encoder_t::DYNAMIC_RANGE] = false;
       encoder.h264[encoder_t::DYNAMIC_RANGE_YUV444] = false;
 
-      test_yuv444(encoder.hevc, 1);
-      test_yuv420_hdr(encoder.hevc, 1);
-      test_yuv444_hdr(encoder.hevc, 1);
-      test_yuv444(encoder.av1, 2);
-      test_yuv420_hdr(encoder.av1, 2);
-      test_yuv444_hdr(encoder.av1, 2);
+      test_yuv444(encoder.hevc, format_hevc);
+      test_yuv420_hdr(encoder.hevc, format_hevc);
+      test_yuv444_hdr(encoder.hevc, format_hevc);
+      test_yuv444(encoder.av1, format_av1);
+      test_yuv420_hdr(encoder.av1, format_av1);
+      test_yuv444_hdr(encoder.av1, format_av1);
     }
 
     encoder.h264[encoder_t::VUI_PARAMETERS] = encoder.h264[encoder_t::VUI_PARAMETERS] && !config::sunshine.flags[config::flag::FORCE_VIDEO_HEADER_REPLACE];
@@ -2842,8 +3010,11 @@ namespace video {
     // Restart encoder selection
     auto previous_encoder = chosen_encoder;
     chosen_encoder = nullptr;
+    legacy_encoder = nullptr;
     active_hevc_mode = config::video.hevc_mode;
     active_av1_mode = config::video.av1_mode;
+    active_mpeg2_mode = config::video.mpeg2_mode;
+    active_h263p_mode = config::video.h263p_mode;
     last_encoder_probe_supported_ref_frames_invalidation = false;
 
     auto adjust_encoder_constraints_hevc = [&](encoder_t *encoder) {
@@ -2878,6 +3049,24 @@ namespace video {
         BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support AV1 on this system"sv;
         active_av1_mode = 0;
       }
+    };
+
+    auto adjust_legacy_encoder_constraints = [&](encoder_t *encoder) {
+      if (active_mpeg2_mode == 2 && !encoder->mpeg2[encoder_t::PASSED]) {
+        BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support MPEG-2 on this system"sv;
+        active_mpeg2_mode = 1;
+      }
+
+      if (active_h263p_mode == 2 && !encoder->h263p[encoder_t::PASSED]) {
+        BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support H.263+ on this system"sv;
+        active_h263p_mode = 1;
+      }
+    };
+
+    auto encoder_supports_requested_legacy_codecs = [&](encoder_t *encoder) {
+      return encoder &&
+             (active_mpeg2_mode < 2 || encoder->mpeg2[encoder_t::PASSED]) &&
+             (active_h263p_mode != 2 || encoder->h263p[encoder_t::PASSED]);
     };
 
     if (!config::video.encoder.empty()) {
@@ -2954,7 +3143,7 @@ namespace video {
       });
 
       if (chosen_encoder == nullptr) {
-        BOOST_LOG(error) << "Couldn't find any working encoder that meets HEVC/AV1 requirements"sv;
+        BOOST_LOG(error) << "Couldn't find any working encoder that meets codec requirements"sv;
       }
     }
 
@@ -2990,6 +3179,39 @@ namespace video {
         BOOST_LOG(fatal) << "Please check that a display is connected and powered on."sv;
       }
       return -1;
+    }
+
+    if (active_mpeg2_mode >= 2 || active_h263p_mode == 2) {
+      if (encoder_supports_requested_legacy_codecs(chosen_encoder)) {
+        legacy_encoder = chosen_encoder;
+      } else {
+        auto saved_hevc_mode = active_hevc_mode;
+        auto saved_av1_mode = active_av1_mode;
+        active_hevc_mode = 1;
+        active_av1_mode = 1;
+
+        if (validate_encoder(software, previous_encoder && previous_encoder != &software) &&
+            encoder_supports_requested_legacy_codecs(&software)) {
+          legacy_encoder = &software;
+        }
+
+        active_hevc_mode = saved_hevc_mode;
+        active_av1_mode = saved_av1_mode;
+      }
+
+      if (legacy_encoder) {
+        adjust_legacy_encoder_constraints(legacy_encoder);
+      } else {
+        if (active_mpeg2_mode == 2) {
+          BOOST_LOG(warning) << "No encoder supports MPEG-2 on this system"sv;
+          active_mpeg2_mode = 1;
+        }
+
+        if (active_h263p_mode == 2) {
+          BOOST_LOG(warning) << "No encoder supports H.263+ on this system"sv;
+          active_h263p_mode = 1;
+        }
+      }
     }
 
     BOOST_LOG(info);
@@ -3036,6 +3258,14 @@ namespace video {
       BOOST_LOG(info) << "Found AV1 encoder: "sv << encoder.av1.name << " ["sv << encoder.name << ']';
     }
 
+    if (legacy_encoder && legacy_encoder->mpeg2[encoder_t::PASSED]) {
+      BOOST_LOG(info) << "Found MPEG-2 encoder: "sv << legacy_encoder->mpeg2.name << " ["sv << legacy_encoder->name << ']';
+    }
+
+    if (legacy_encoder && legacy_encoder->h263p[encoder_t::PASSED]) {
+      BOOST_LOG(info) << "Found H.263+ encoder: "sv << legacy_encoder->h263p.name << " ["sv << legacy_encoder->name << ']';
+    }
+
     // 2 - passed
     // 3 - HDR yuv420
     // 4 - HDR yuv444
@@ -3067,6 +3297,14 @@ namespace video {
         }
       }
       BOOST_LOG(debug) << "ENCODER STATUS ACTIVE_AV1_MODE: "sv << active_av1_mode;
+    }
+
+    if (active_mpeg2_mode == 0) {
+      active_mpeg2_mode = 1;
+    }
+
+    if (active_h263p_mode == 0) {
+      active_h263p_mode = 1;
     }
 
     return 0;
@@ -3197,7 +3435,6 @@ namespace video {
 #endif
 
   int start_capture_async(capture_thread_async_ctx_t &capture_thread_ctx) {
-    capture_thread_ctx.encoder_p = chosen_encoder;
     capture_thread_ctx.reinit_event.reset();
 
     capture_thread_ctx.capture_ctx_queue = std::make_shared<safe::queue_t<capture_ctx_t>>(30);
@@ -3206,8 +3443,7 @@ namespace video {
       captureThread,
       capture_thread_ctx.capture_ctx_queue,
       std::ref(capture_thread_ctx.display_wp),
-      std::ref(capture_thread_ctx.reinit_event),
-      std::ref(*capture_thread_ctx.encoder_p)
+      std::ref(capture_thread_ctx.reinit_event)
     };
 
     return 0;
