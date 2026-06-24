@@ -277,6 +277,7 @@ namespace nvhttp {
     named_cert_t named_cert;
     named_cert.name = name;
     named_cert.cert = std::move(cert);
+    // Use the client's uniqueID so we can match it during session lookup
     named_cert.uuid = uuid_util::uuid_t::generate().string();
     client.named_devices.emplace_back(named_cert);
 
@@ -492,7 +493,7 @@ namespace nvhttp {
       add_cert->raise(crypto::x509(client.cert));
 
       // The client is now successfully paired and will be authorized to connect
-      add_authorized_client(client.name, std::move(client.cert));
+      add_authorized_client(client.name, std::move(client.cert), client.uniqueID);
     } else {
       tree.put("root.paired", 0);
     }

@@ -73,6 +73,7 @@ export default defineConfig({
                 logout: resolve(assetsSrcPath, 'logout.html'),
                 password: resolve(assetsSrcPath, 'password.html'),
                 pin: resolve(assetsSrcPath, 'pin.html'),
+                sessions: resolve(assetsSrcPath, 'sessions.html'),
                 troubleshooting: resolve(assetsSrcPath, 'troubleshooting.html'),
                 welcome: resolve(assetsSrcPath, 'welcome.html'),
             },
