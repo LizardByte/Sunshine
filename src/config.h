@@ -217,6 +217,7 @@ namespace config {
     bool ds5_inputtino_randomize_mac;
 
     bool keyboard;
+    bool key_rightalt_to_key_win;
     bool mouse;
     bool controller;
 
