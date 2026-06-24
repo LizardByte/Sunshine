@@ -177,7 +177,8 @@ jobs:
       - name: Validate Homebrew Formula
         id: test
         if: matrix.release != true
-        uses: LizardByte/actions/actions/release_homebrew@200eaeb897a2b065a65cb6f16b41077432007490  # v2026.605.34721
+        # uses: LizardByte/actions/actions/release_homebrew@200eaeb897a2b065a65cb6f16b41077432007490  # v2026.605.34721
+        uses: LizardByte/actions/actions/release_homebrew@fix/release_homebrew/reduce-test-duplication
         with:
           actionlint_config: "---\n# empty config"
           formula_file: ${{ github.workspace }}/homebrew/sunshine.rb

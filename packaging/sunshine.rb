@@ -48,7 +48,6 @@ class Sunshine < Formula
   depends_on "graphviz" => :build if build.with? "docs"
   depends_on "node" => :build
   depends_on "pkgconf" => :build
-  depends_on "gcovr" => :test
   depends_on "boost"
   depends_on "curl"
   depends_on "icu4c@78"
@@ -62,6 +61,7 @@ class Sunshine < Formula
 
   on_linux do
     depends_on GCC_FORMULA => [:build, :test]
+    depends_on "gcovr" => [:build, :test]
     depends_on "lizardbyte/homebrew/#{CUDA_FORMULA}" => :build if build.with? "cuda"
     depends_on "python3" => :build
     depends_on "at-spi2-core"
@@ -248,6 +248,62 @@ class Sunshine < Formula
     ohai "CUDA enabled with nvcc at: #{nvcc_path}"
   end
 
+  def release_homebrew_testpath
+    testpath_value = ENV.fetch("HOMEBREW_TEST_ARTIFACTS_DIR", "")
+    return Pathname.new(testpath_value) unless testpath_value.empty?
+
+    return if ENV.fetch("HOMEBREW_TEST_BOT", "") != "1"
+
+    temp_path = ENV.fetch("HOMEBREW_TEMP", "")
+    return if temp_path.empty?
+
+    Pathname.new(temp_path)/name/"test"
+  end
+
+  def ensure_artifact_exists(path)
+    odie "#{path} was not created" unless path.exist?
+  end
+
+  def run_test_suite(artifact_dir)
+    mkdir_p artifact_dir/"tests"
+    test_results = artifact_dir/"tests/test_results.xml"
+
+    system bin/"test_sunshine", "--gtest_color=yes", "--gtest_output=xml:#{test_results}"
+    ensure_artifact_exists test_results
+  end
+
+  def generate_coverage_report(artifact_dir, coverage_buildpath)
+    return unless OS.linux?
+    return if coverage_buildpath.to_s.empty?
+
+    coverage_report = artifact_dir/"coverage.xml"
+
+    cd "#{coverage_buildpath}/build" do
+      gcc_path = Formula[GCC_FORMULA]
+      gcov_executable = "#{gcc_path.opt_bin}/gcov-#{GCC_VERSION}"
+
+      system "gcovr", ".",
+        "-r", "../src",
+        "--gcov-executable", gcov_executable,
+        "--exclude-noncode-lines",
+        "--exclude-throw-branches",
+        "--exclude-unreachable-branches",
+        "--xml-pretty",
+        "-o=#{coverage_report}"
+    end
+
+    ensure_artifact_exists coverage_report
+  end
+
+  def collect_test_artifacts
+    artifact_dir = release_homebrew_testpath
+    return unless IS_UPSTREAM_REPO
+    return unless artifact_dir
+
+    run_test_suite artifact_dir
+    generate_coverage_report artifact_dir, buildpath
+  end
+
   def build_cmake_args
     args = base_cmake_args
     add_test_args(args)
@@ -279,6 +335,7 @@ class Sunshine < Formula
     setup_build_environment
     build_and_install_project
     install_platform_specific_files
+    collect_test_artifacts
   end
 
   service do
@@ -314,33 +371,14 @@ class Sunshine < Formula
     # test that the binary runs at all
     system bin/"sunshine", "--version"
 
-    if IS_UPSTREAM_REPO && ENV.fetch("HOMEBREW_BOTTLE_BUILD", "false") != "true"
-      # run the test suite
-      system bin/"test_sunshine", "--gtest_color=yes", "--gtest_output=xml:tests/test_results.xml"
-      assert_path_exists File.join(testpath, "tests", "test_results.xml")
-
-      # create gcovr report
-      buildpath = ENV.fetch("HOMEBREW_BUILDPATH", "")
-      unless buildpath.empty?
-        # Change to the source directory for gcovr to work properly
-        cd "#{buildpath}/build" do
-          # Use GCC version to match what was used during compilation
-          if OS.linux?
-            gcc_path = Formula[GCC_FORMULA]
-            gcov_executable = "#{gcc_path.opt_bin}/gcov-#{GCC_VERSION}"
-
-            system "gcovr", ".",
-              "-r", "../src",
-              "--gcov-executable", gcov_executable,
-              "--exclude-noncode-lines",
-              "--exclude-throw-branches",
-              "--exclude-unreachable-branches",
-              "--xml-pretty",
-              "-o=#{testpath}/coverage.xml"
-
-            assert_path_exists File.join(testpath, "coverage.xml")
-          end
-        end
+    if IS_UPSTREAM_REPO
+      artifact_dir = release_homebrew_testpath
+      if artifact_dir
+        assert_path_exists artifact_dir/"tests/test_results.xml"
+        assert_path_exists artifact_dir/"coverage.xml" if OS.linux?
+      elsif ENV.fetch("HOMEBREW_BOTTLE_BUILD", "false") != "true"
+        run_test_suite testpath
+        generate_coverage_report testpath, ENV.fetch("HOMEBREW_BUILDPATH", "")
       end
     end
   end
