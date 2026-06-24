@@ -364,7 +364,7 @@ namespace cuda {
           hw_frames_ctx->sw_format != AV_PIX_FMT_YUV444P &&
           hw_frames_ctx->sw_format != AV_PIX_FMT_P010LE &&
           hw_frames_ctx->sw_format != AV_PIX_FMT_YUV444P16LE) {
-        BOOST_LOG(error) << "cuda::gl_cuda_vram_t doesn't support any format other than AV_PIX_FMT_NV12 and AV_PIX_FMT_YUV444P"sv;
+        BOOST_LOG(error) << "cuda::gl_cuda_vram_t doesn't support any format other than AV_PIX_FMT_NV12, AV_PIX_FMT_P010LE, AV_PIX_FMT_YUV444P and AV_PIX_FMT_YUV444P16LE"sv;
         return -1;
       }
 
