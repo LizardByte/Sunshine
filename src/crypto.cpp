@@ -11,7 +11,7 @@
 
 namespace crypto {
   using asn1_string_t = util::safe_ptr<ASN1_STRING, ASN1_STRING_free>;
-  using x509_name_t = util::safe_ptr<X509_NAME, X509_NAME_free>;
+  using x509_name_t = util::safe_ptr<X509_NAME, &X509_NAME_free>;
 
   cert_chain_t::cert_chain_t():
       _certs {},
