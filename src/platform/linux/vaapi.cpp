@@ -381,7 +381,7 @@ namespace va {
     }
 
     void apply_colorspace() override {
-      sws.apply_colorspace(colorspace);
+      sws.apply_colorspace(colorspace, false);
     }
 
     va::display_t::pointer va_display;
