@@ -758,7 +758,13 @@ namespace input {
     }
 
     auto release = util::endian::little(packet->header.magic) == KEY_UP_EVENT_MAGIC;
-    auto keyCode = packet->keyCode & 0x00FF;
+    auto keyCode = util::endian::little(packet->keyCode);
+
+    // Preserve full-width keycodes for Sunshine non-normalized keyboard events.
+    // Normalized keycodes are legacy VK values and only use the low 8 bits.
+    if (!(packet->flags & SS_KBE_FLAG_NON_NORMALIZED)) {
+      keyCode &= 0x00FF;
+    }
 
     // Set synthetic modifier flags if the keyboard packet is requesting modifier
     // keys that are not current pressed.

@@ -157,7 +157,12 @@ namespace platf::keyboard {
     {KEY_BACKSLASH, 0xDC},
     {KEY_RIGHTBRACE, 0xDD},
     {KEY_APOSTROPHE, 0xDE},
-    {KEY_102ND, 0xE2}
+    {KEY_102ND, 0xE2},
+    // Sunshine extension keycodes (sent with SS_KBE_FLAG_NON_NORMALIZED)
+    {KEY_UNDO, 0x100},
+    {KEY_CUT, 0x101},
+    {KEY_COPY, 0x102},
+    {KEY_PASTE, 0x103}
   };
 
   void update(input_raw_t *raw, uint16_t modcode, bool release, uint8_t flags) {
