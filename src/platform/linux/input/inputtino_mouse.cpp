@@ -14,24 +14,43 @@
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
+#include "wl_mouse.h"
 
 using namespace std::literals;
 
 namespace platf::mouse {
 
   void move(input_raw_t *raw, int deltaX, int deltaY) {
+#ifdef SUNSHINE_BUILD_WAYLAND
+    if (config::input.wlr_virtual_mouse && raw->wl_mouse.pointer) {
+      platf::wl_mouse::move(&raw->wl_mouse, deltaX, deltaY);
+      return;
+    }
+#endif
     if (raw->mouse) {
       (*raw->mouse).move(deltaX, deltaY);
     }
   }
 
   void move_abs(input_raw_t *raw, const touch_port_t &touch_port, float x, float y) {
+#ifdef SUNSHINE_BUILD_WAYLAND
+    if (config::input.wlr_virtual_mouse && raw->wl_mouse.pointer) {
+      platf::wl_mouse::move_abs(&raw->wl_mouse, x, y, touch_port.width, touch_port.height);
+      return;
+    }
+#endif
     if (raw->mouse) {
       (*raw->mouse).move_abs(x, y, touch_port.width, touch_port.height);
     }
   }
 
   void button(input_raw_t *raw, int button, bool release) {
+#ifdef SUNSHINE_BUILD_WAYLAND
+    if (config::input.wlr_virtual_mouse && raw->wl_mouse.pointer) {
+      platf::wl_mouse::button(&raw->wl_mouse, button, release);
+      return;
+    }
+#endif
     if (raw->mouse) {
       inputtino::Mouse::MOUSE_BUTTON btn_type;
       switch (button) {
@@ -63,12 +82,24 @@ namespace platf::mouse {
   }
 
   void scroll(input_raw_t *raw, int high_res_distance) {
+#ifdef SUNSHINE_BUILD_WAYLAND
+    if (config::input.wlr_virtual_mouse && raw->wl_mouse.pointer) {
+      platf::wl_mouse::scroll(&raw->wl_mouse, high_res_distance);
+      return;
+    }
+#endif
     if (raw->mouse) {
       (*raw->mouse).vertical_scroll(high_res_distance);
     }
   }
 
   void hscroll(input_raw_t *raw, int high_res_distance) {
+#ifdef SUNSHINE_BUILD_WAYLAND
+    if (config::input.wlr_virtual_mouse && raw->wl_mouse.pointer) {
+      platf::wl_mouse::hscroll(&raw->wl_mouse, high_res_distance);
+      return;
+    }
+#endif
     if (raw->mouse) {
       (*raw->mouse).horizontal_scroll(high_res_distance);
     }
