@@ -131,6 +131,7 @@ namespace wl {
     std::string name;
     std::string description;
     platf::touch_port_t viewport;
+    bool has_current_mode {false};
     wl_output_listener wl_listener;
     zxdg_output_v1_listener xdg_listener;
   };
