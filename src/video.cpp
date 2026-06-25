@@ -31,6 +31,12 @@ extern "C" {
 #include "sync.h"
 #include "video.h"
 
+#ifdef SUNSHINE_BUILD_VULKAN
+  #if defined(__linux__) || defined(linux) || defined(__linux) || defined(__FreeBSD__)
+    #include "platform/linux/vulkan_encode.h"
+  #endif
+#endif
+
 #ifdef _WIN32
 extern "C" {
   #include <libavutil/hwcontext_d3d11va.h>
@@ -1185,6 +1191,8 @@ namespace video {
   int active_av1_mode;
   bool last_encoder_probe_supported_ref_frames_invalidation = false;
   std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec = {};
+  constexpr auto no_display_available_msg = "Unable to start capture because no display is available"sv;
+  constexpr auto no_encoder_selected_msg = "No encoder selected; aborting capture instead of using invalid encoder state"sv;
 
   void reset_display(std::shared_ptr<platf::display_t> &disp, const platf::mem_type_e &type, const std::string &display_name, const config_t &config) {
     // We try this twice, in case we still get an error on reinitialization
@@ -1218,16 +1226,18 @@ namespace video {
     }
 
     // Refresh the display names
-    auto old_display_names = std::move(display_names);
+    auto had_display_names = !display_names.empty();
     display_names = platf::display_names(dev_type);
 
-    // If we now have no displays, let's put the old display array back and fail
-    if (display_names.empty() && !old_display_names.empty()) {
-      BOOST_LOG(error) << "No displays were found after reenumeration!"sv;
-      display_names = std::move(old_display_names);
-      return;
-    } else if (display_names.empty()) {
-      display_names.emplace_back(output_name);
+    // If we now have no displays, fail instead of reusing stale display names.
+    if (display_names.empty()) {
+      if (!had_display_names && !output_name.empty()) {
+        display_names.emplace_back(output_name);
+      } else {
+        BOOST_LOG(error) << (had_display_names ? "No displays were found after reenumeration!"sv : "No displays were found during enumeration!"sv);
+        current_display_index = -1;
+        return;
+      }
     }
 
     // We now have a new display name list, so reset the index back to 0
@@ -1288,6 +1298,10 @@ namespace video {
     std::vector<std::string> display_names;
     int display_p = -1;
     refresh_displays(encoder.platform_formats->dev_type, display_names, display_p);
+    if (display_p < 0 || display_names.empty()) {
+      BOOST_LOG(error) << no_display_available_msg;
+      return;
+    }
     auto disp = platf::display(encoder.platform_formats->dev_type, display_names[display_p], capture_ctxs.front().config);
     if (!disp) {
       return;
@@ -1909,27 +1923,34 @@ namespace video {
       // Allow the encoding device a final opportunity to set/unset or override any options
       encode_device->init_codec_options(ctx.get(), &options);
 
-      if (auto status = avcodec_open2(ctx.get(), codec, &options)) {
-        char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
-
-        if (!video_format.fallback_options.empty() && retries == 0) {
-          BOOST_LOG(info)
-            << "Retrying with fallback configuration options for ["sv << video_format.name << "] after error: "sv
-            << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, status);
-
-          continue;
-        } else {
-          BOOST_LOG(error)
-            << "Could not open codec ["sv
-            << video_format.name << "]: "sv
-            << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, status);
-
-          return nullptr;
-        }
+      auto status = avcodec_open2(ctx.get(), codec, &options);
+      if (!status) {
+        // Successfully opened the codec
+        break;
       }
 
-      // Successfully opened the codec
-      break;
+      char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
+      if (!video_format.fallback_options.empty() && retries == 0) {
+        BOOST_LOG(info)
+          << "Retrying with fallback configuration options for ["sv << video_format.name << "] after error: "sv
+          << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, status);
+
+        continue;
+      }
+
+      BOOST_LOG(error)
+        << "Could not open codec ["sv
+        << video_format.name << "]: "sv
+        << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, status);
+
+      if (encoder.name == "vulkan"sv) {
+        BOOST_LOG(error)
+          << "Vulkan encoder setup failed for ["sv << video_format.name
+          << "]; this GPU or driver does not expose the required Vulkan video encode capability. "
+          << "Sunshine will discard this encoder and continue probing fallback encoders."sv;
+      }
+
+      return nullptr;
     }
 
     avcodec_frame_t frame {av_frame_alloc()};
@@ -2298,6 +2319,10 @@ namespace video {
     while (encode_session_ctx_queue.running()) {
       // Refresh display names since a display removal might have caused the reinitialization
       refresh_displays(encoder.platform_formats->dev_type, display_names, display_p);
+      if (display_p < 0 || display_names.empty()) {
+        BOOST_LOG(error) << no_display_available_msg;
+        return encode_e::error;
+      }
 
       // Process any pending display switch with the new list of displays
       if (switch_display_event->peek()) {
@@ -2503,6 +2528,11 @@ namespace video {
         display = ref->display_wp->lock();
       }
 
+      if (!chosen_encoder) {
+        BOOST_LOG(error) << no_encoder_selected_msg;
+        return;
+      }
+
       auto &encoder = *chosen_encoder;
 
       auto encode_device = make_encode_device(*display, encoder, config);
@@ -2544,6 +2574,11 @@ namespace video {
     void *channel_data
   ) {
     auto idr_events = mail->event<bool>(mail::idr);
+
+    if (!chosen_encoder) {
+      BOOST_LOG(error) << no_encoder_selected_msg;
+      return;
+    }
 
     idr_events->raise(true);
     if (chosen_encoder->flags & PARALLEL_ENCODING) {
@@ -2639,6 +2674,14 @@ namespace video {
     encoder.h264.capabilities.set();
     encoder.hevc.capabilities.set();
     encoder.av1.capabilities.set();
+
+#ifdef SUNSHINE_BUILD_VULKAN
+    if (encoder.name == "vulkan"sv && !vk::validate()) {
+      fg.disable();
+      BOOST_LOG(info) << "Encoder ["sv << encoder.name << "] is not supported on this GPU"sv;
+      return false;
+    }
+#endif
 
     // First, test encoder viability
     config_t config_max_ref_frames {1920, 1080, 60, 6000, 1000, 1, 1, 1, 0, 0, 0};
@@ -3107,6 +3150,7 @@ namespace video {
 
     if (encode_device && encode_device->data) {
       if (((vulkan_init_avcodec_hardware_input_buffer_fn) encode_device->data)(encode_device, &hw_device_buf)) {
+        BOOST_LOG(error) << "Failed to create a Vulkan device from the capture backend; aborting Vulkan encoder setup"sv;
         return -1;
       }
       return hw_device_buf;

@@ -106,6 +106,64 @@ namespace vk {
     return -1;
   }
 
+  static bool physical_device_supports_h264_encode(VkPhysicalDevice physical_device) {
+    uint32_t count = 0;
+    if (vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &count, nullptr) != VK_SUCCESS) {
+      return false;
+    }
+
+    std::vector<VkExtensionProperties> extensions(count);
+    if (vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &count, extensions.data()) != VK_SUCCESS) {
+      return false;
+    }
+
+    bool video_queue = false;
+    bool encode_queue = false;
+    bool encode_h264 = false;
+
+    for (const auto &extension : extensions) {
+      const std::string_view name {extension.extensionName};
+      video_queue = video_queue || name == "VK_KHR_video_queue"sv;
+      encode_queue = encode_queue || name == "VK_KHR_video_encode_queue"sv;
+      encode_h264 = encode_h264 || name == "VK_KHR_video_encode_h264"sv;
+    }
+
+    return video_queue && encode_queue && encode_h264;
+  }
+
+  static bool has_h264_encode_physical_device() {
+    VkApplicationInfo app = {VK_STRUCTURE_TYPE_APPLICATION_INFO};
+    app.apiVersion = VK_API_VERSION_1_1;
+
+    VkInstanceCreateInfo ci = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
+    ci.pApplicationInfo = &app;
+
+    VkInstance instance = VK_NULL_HANDLE;
+    if (vkCreateInstance(&ci, nullptr, &instance) != VK_SUCCESS) {
+      return false;
+    }
+
+    uint32_t count = 0;
+    if (vkEnumeratePhysicalDevices(instance, &count, nullptr) != VK_SUCCESS || count == 0) {
+      vkDestroyInstance(instance, nullptr);
+      return false;
+    }
+
+    std::vector<VkPhysicalDevice> physical_devices(count);
+    if (vkEnumeratePhysicalDevices(instance, &count, physical_devices.data()) != VK_SUCCESS) {
+      vkDestroyInstance(instance, nullptr);
+      return false;
+    }
+
+    const bool supported = std::any_of(
+      std::begin(physical_devices),
+      std::end(physical_devices),
+      physical_device_supports_h264_encode
+    );
+    vkDestroyInstance(instance, nullptr);
+    return supported;
+  }
+
   struct PushConstants {
     std::array<float, 4> color_vec_y;
     std::array<float, 4> color_vec_u;
@@ -1025,11 +1083,19 @@ namespace vk {
   }
 
   bool validate() {
-    if (!avcodec_find_encoder_by_name("h264_vulkan") && !avcodec_find_encoder_by_name("hevc_vulkan")) {
+    if (!avcodec_find_encoder_by_name("h264_vulkan")) {
+      BOOST_LOG(info) << "FFmpeg h264_vulkan encoder is not available"sv;
       return false;
     }
+
+    if (!has_h264_encode_physical_device()) {
+      BOOST_LOG(info) << "Vulkan H.264 video encode is not supported by this device"sv;
+      return false;
+    }
+
     AVBufferRef *dev = nullptr;
     if (create_vulkan_hwdevice(&dev) < 0) {
+      BOOST_LOG(info) << "Failed to create Vulkan hardware device for encoder validation"sv;
       return false;
     }
     av_buffer_unref(&dev);

@@ -611,6 +611,11 @@ namespace platf {
       int init(const std::string &display_name, const ::video::config_t &config) {
         delay = std::chrono::nanoseconds {1s} / config.framerate;
 
+        if (kms::card_descriptors.empty()) {
+          BOOST_LOG(error) << "No KMS monitor descriptors are available; aborting monitor lookup for ["sv << display_name << ']';
+          return -1;
+        }
+
         int monitor_index = util::from_view(display_name);
         int monitor = 0;
 
@@ -777,7 +782,7 @@ namespace platf {
           }
         }
 
-        BOOST_LOG(error) << "Couldn't find monitor ["sv << monitor_index << ']';
+        BOOST_LOG(error) << "Couldn't find monitor ["sv << monitor_index << "] in "sv << monitor << " enumerated KMS monitor(s)"sv;
         return -1;
 
       // Neatly break from nested for loop
@@ -1616,6 +1621,12 @@ namespace platf {
   std::vector<std::string> kms_display_names(mem_type_e hwdevice_type) {
     int count = 0;
 
+    kms::env_width = 0;
+    kms::env_height = 0;
+    kms::env_logical_width = 0;
+    kms::env_logical_height = 0;
+    kms::card_descriptors.clear();
+
     if (!fs::exists("/dev/dri")) {
       BOOST_LOG(warning) << "Couldn't find /dev/dri, kmsgrab won't be enabled"sv;
       return {};
@@ -1728,13 +1739,14 @@ namespace platf {
       correlate_to_wayland(cds);
     }
 
+    BOOST_LOG(debug) << "Enumerated "sv << display_names.size() << " KMS monitor(s)"sv;
+
+    if (display_names.empty()) {
+      BOOST_LOG(error) << "No KMS monitors were found during enumeration"sv;
+      return {};
+    }
+
     // Deduce the full virtual desktop size
-    kms::env_width = 0;
-    kms::env_height = 0;
-
-    kms::env_logical_width = 0;
-    kms::env_logical_height = 0;
-
     for (auto &card_descriptor : cds) {
       for (auto &[_, monitor_descriptor] : card_descriptor.crtc_to_monitor) {
         BOOST_LOG(debug) << "Monitor description"sv;
