@@ -44,13 +44,13 @@ jobs:
           clean-all: true
 
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           submodules: recursive
 
       - name: Setup python
         id: python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -117,7 +117,7 @@ jobs:
           cp glad-dependencies.json build/
 
       - name: Cache Flatpak build
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8  # v6.0.0
         with:
           path: ./build/.flatpak-builder
           key: flatpak-${{ matrix.arch }}-${{ github.sha }}

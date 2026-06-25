@@ -178,6 +178,9 @@ namespace input {
     // Keep track of alt+ctrl+shift key combo
     int shortcutFlags;
 
+    bool left_alt_pressed = false;
+    bool right_alt_pressed = false;
+
     std::vector<gamepad_t> gamepads;
     std::unique_ptr<platf::client_input_t> client_context;
 
@@ -760,17 +763,30 @@ namespace input {
     auto release = util::endian::little(packet->header.magic) == KEY_UP_EVENT_MAGIC;
     auto keyCode = packet->keyCode & 0x00FF;
 
+    if (keyCode == VKEY_LMENU) {
+      input->left_alt_pressed = !release;
+    } else if (keyCode == VKEY_RMENU) {
+      input->right_alt_pressed = !release;
+    }
+
+    // Right-alt maps to meta, so it must not also register as ALT
+    int modifiers = packet->modifiers;
+    if (config::input.key_rightalt_to_key_win &&
+        input->right_alt_pressed && !input->left_alt_pressed) {
+      modifiers &= ~MODIFIER_ALT;
+    }
+
     // Set synthetic modifier flags if the keyboard packet is requesting modifier
     // keys that are not current pressed.
     uint8_t synthetic_modifiers = 0;
     if (!release && !is_modifier(keyCode)) {
-      if (!(input->shortcutFlags & input_t::SHIFT) && (packet->modifiers & MODIFIER_SHIFT)) {
+      if (!(input->shortcutFlags & input_t::SHIFT) && (modifiers & MODIFIER_SHIFT)) {
         synthetic_modifiers |= MODIFIER_SHIFT;
       }
-      if (!(input->shortcutFlags & input_t::CTRL) && (packet->modifiers & MODIFIER_CTRL)) {
+      if (!(input->shortcutFlags & input_t::CTRL) && (modifiers & MODIFIER_CTRL)) {
         synthetic_modifiers |= MODIFIER_CTRL;
       }
-      if (!(input->shortcutFlags & input_t::ALT) && (packet->modifiers & MODIFIER_ALT)) {
+      if (!(input->shortcutFlags & input_t::ALT) && (modifiers & MODIFIER_ALT)) {
         synthetic_modifiers |= MODIFIER_ALT;
       }
     }

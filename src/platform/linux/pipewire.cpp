@@ -28,6 +28,18 @@
 constexpr int SPA_VIDEO_TRANSFER_SMPTE2084 = 14;
 #endif
 
+#if PW_CHECK_VERSION(0, 3, 75)
+// Runtime linked library version checks are available. Check for pipewire 0.3.64 which documented object serial support and deprecated node id.
+const bool SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL = pw_check_library_version(0, 3, 64);
+#elifdef PW_KEY_TARGET_OBJECT
+// Runtime linked library version checks are UNAVAILABLE but necessary PW_KEY_TARGET_OBJECT for object serial support is available.
+constexpr bool SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL = true;
+#else
+// Pipewire object serials are unsupported without PW_KEY_TARGET_OBJECT (we define it here so compilation won't break but don't use it).
+constexpr bool SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL = false;
+  #define PW_KEY_TARGET_OBJECT "target.object"
+#endif
+
 namespace {
   // Buffer and limit constants
   constexpr int SPA_POD_BUFFER_SIZE = 4096;
@@ -216,6 +228,7 @@ namespace pipewire {
 
     int ensure_stream(const platf::mem_type_e mem_type, const uint32_t width, const uint32_t height, const uint32_t refresh_rate, const struct dmabuf_format_info_t *dmabuf_infos, const int n_dmabuf_infos, const bool display_is_nvidia) {
       pw_thread_loop_lock(loop);
+      int result = 0;
       if (!stream_data.stream) {
         if (!core) {
           BOOST_LOG(debug) << "[pipewire] PW core not available. Cannot ensure stream."sv;
@@ -224,14 +237,6 @@ namespace pipewire {
         }
 
         struct pw_properties *props = pw_properties_new(PW_KEY_MEDIA_TYPE, "Video", PW_KEY_MEDIA_CATEGORY, "Capture", PW_KEY_MEDIA_ROLE, "Screen", nullptr);
-#ifdef PW_KEY_TARGET_OBJECT
-        // If pipewire supports setting a PW_KEY_TARGET_OBJECT via object serial and the serial is valid (lower 32-bits not SPA_ID_INVALID, see PW_KEY_OBJECT_SERIAL docs), use it.
-        if ((object_serial & SPA_ID_INVALID) != SPA_ID_INVALID) {
-          BOOST_LOG(debug) << "[pipewire] Set PW stream target object to serial: "sv << object_serial;
-          pw_properties_setf(props, PW_KEY_TARGET_OBJECT, "%" PRIu64, object_serial);
-          node = PW_ID_ANY;  // Force pw_connect_stream to connect via object serial in PW_KEY_TARGET_OBJECT with this value.
-        }
-#endif
 
         BOOST_LOG(debug) << "[pipewire] Create PW stream"sv;
         stream_data.stream = pw_stream_new(core, "Sunshine Video Capture", props);
@@ -264,11 +269,28 @@ namespace pipewire {
           params[n_params] = format_param;
           n_params++;
         }
-        BOOST_LOG(debug) << "[pipewire] Connect PW stream - fd: "sv << fd << " node: "sv << node << " object serial: "sv << object_serial;
-        pw_stream_connect(stream_data.stream, PW_DIRECTION_INPUT, node, (enum pw_stream_flags)(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params.data(), n_params);
+
+        // Connection via pipewire object serial if it is supported and the serial is valid (lower 32-bits != SPA_ID_INVALID, see also PW_KEY_OBJECT_SERIAL docs)
+        if (SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL && (object_serial & SPA_ID_INVALID) != SPA_ID_INVALID) {
+          pw_properties_setf(props, PW_KEY_TARGET_OBJECT, "%" PRIu64, object_serial);
+          BOOST_LOG(debug) << "[pipewire] Connect PW stream - fd: "sv << fd << " object serial: "sv << object_serial;
+          result = pw_stream_connect(stream_data.stream, PW_DIRECTION_INPUT, PW_ID_ANY, (enum pw_stream_flags)(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params.data(), n_params);
+          if (result < 0) {
+            // Unset object serial for retry with node id
+            pw_properties_set(props, PW_KEY_TARGET_OBJECT, nullptr);
+          }
+        } else {
+          result = -1;  // Mark failed so we try to connect via node id
+        }
+        // Connection via legacy (and deprecated) pipewire node id
+        if (result < 0) {
+          BOOST_LOG(debug) << "[pipewire] Connect PW stream - fd: "sv << fd << " node: "sv << node;
+          result = pw_stream_connect(stream_data.stream, PW_DIRECTION_INPUT, node, (enum pw_stream_flags)(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params.data(), n_params);
+        }
       }
+
       pw_thread_loop_unlock(loop);
-      return 0;
+      return result;
     }
 
     static void close_img_fds(egl::img_descriptor_t *img_descriptor) {

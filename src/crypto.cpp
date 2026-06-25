@@ -11,6 +11,7 @@
 
 namespace crypto {
   using asn1_string_t = util::safe_ptr<ASN1_STRING, ASN1_STRING_free>;
+  using x509_name_t = util::safe_ptr<X509_NAME, &X509_NAME_free>;
 
   cert_chain_t::cert_chain_t():
       _certs {},
@@ -391,7 +392,10 @@ namespace crypto {
     const ASN1_BIT_STRING *asn1 = nullptr;
     X509_get0_signature(&asn1, nullptr, x.get());
 
-    return {(const char *) asn1->data, (std::size_t) asn1->length};
+    return {
+      reinterpret_cast<const char *>(ASN1_STRING_get0_data(asn1)),
+      static_cast<std::size_t>(ASN1_STRING_length(asn1))
+    };
   }
 
   std::string rand(std::size_t bytes) {
@@ -461,10 +465,11 @@ namespace crypto {
 
     X509_set_pubkey(x509.get(), pkey.get());
 
-    auto name = X509_get_subject_name(x509.get());
-    X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (const std::uint8_t *) cn.data(), (int) cn.size(), -1, 0);
+    x509_name_t name {X509_NAME_new()};
+    X509_NAME_add_entry_by_txt(name.get(), "CN", MBSTRING_ASC, reinterpret_cast<const std::uint8_t *>(cn.data()), (int) cn.size(), -1, 0);
 
-    X509_set_issuer_name(x509.get(), name);
+    X509_set_subject_name(x509.get(), name.get());
+    X509_set_issuer_name(x509.get(), name.get());
     X509_sign(x509.get(), pkey.get(), EVP_sha256());
 
     return {pem(x509), pem(pkey)};

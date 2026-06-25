@@ -80,30 +80,30 @@ if(CUDA_FOUND)
     add_compile_definitions(SUNSHINE_BUILD_CUDA)
 endif()
 
-# libdrm is required for DRM (KMS), KWin ScreenCast and Wayland
-if(${SUNSHINE_ENABLE_DRM} OR ${SUNSHINE_ENABLE_KWIN} OR ${SUNSHINE_ENABLE_WAYLAND})
+# libdrm is required for DRM (KMS). Only the headers are required for Wayland,
+# Vulkan, and PipeWire (KWin, Portal).
+if(${SUNSHINE_ENABLE_DRM} OR ${SUNSHINE_ENABLE_WAYLAND} OR ${SUNSHINE_ENABLE_VULKAN}
+   OR ${SUNSHINE_ENABLE_KWIN} OR ${SUNSHINE_ENABLE_PORTAL})
     find_package(LIBDRM REQUIRED)
 else()
     set(LIBDRM_FOUND OFF)
 endif()
 if(LIBDRM_FOUND)
     include_directories(SYSTEM ${LIBDRM_INCLUDE_DIRS})
-    list(APPEND PLATFORM_LIBRARIES ${LIBDRM_LIBRARIES})
+    if(${SUNSHINE_ENABLE_DRM})
+        list(APPEND PLATFORM_LIBRARIES ${LIBDRM_LIBRARIES})
+        add_compile_definitions(SUNSHINE_BUILD_DRM)
+        list(APPEND PLATFORM_TARGET_FILES
+                "${CMAKE_SOURCE_DIR}/src/platform/linux/kmsgrab.cpp")
+        list(APPEND SUNSHINE_DEFINITIONS EGL_NO_X11=1)
+    endif()
 endif()
 
-# drm
-if(${SUNSHINE_ENABLE_DRM})
+# Capabilities
+if(LINUX)
     find_package(LIBCAP REQUIRED)
-else()
-    set(LIBCAP_FOUND OFF)
-endif()
-if(LIBDRM_FOUND AND LIBCAP_FOUND)
-    add_compile_definitions(SUNSHINE_BUILD_DRM)
     include_directories(SYSTEM ${LIBCAP_INCLUDE_DIRS})
     list(APPEND PLATFORM_LIBRARIES ${LIBCAP_LIBRARIES})
-    list(APPEND PLATFORM_TARGET_FILES
-            "${CMAKE_SOURCE_DIR}/src/platform/linux/kmsgrab.cpp")
-    list(APPEND SUNSHINE_DEFINITIONS EGL_NO_X11=1)
 endif()
 
 # evdev
@@ -288,13 +288,13 @@ elseif(${SUNSHINE_ENABLE_KWIN} AND NOT WAYLAND_FOUND)
 endif()
 
 if(NOT ${CUDA_FOUND}
-        AND NOT (${LIBDRM_FOUND} AND ${LIBCAP_FOUND})
+        AND NOT ${LIBDRM_FOUND}
         AND NOT ${LIBVA_FOUND}
         AND NOT ${KWIN_FOUND}
         AND NOT ${PORTAL_FOUND}
         AND NOT ${WAYLAND_FOUND}
         AND NOT ${X11_FOUND})
-    message(FATAL_ERROR "Couldn't find either cuda, (libdrm and libcap), libva, kwin, pipewire, portal, wayland or x11")
+    message(FATAL_ERROR "Couldn't find either cuda, libdrm, libva, kwin, pipewire, portal, wayland or x11")
 endif()
 
 # These need to be set before adding the inputtino subdirectory in order for them to be picked up

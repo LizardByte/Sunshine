@@ -9,12 +9,12 @@
   },
   "type": "module",
   "dependencies": {
-    "@lucide/vue": "1.17.0",
+    "@lucide/vue": "1.21.0",
     "bootstrap": "5.3.8",
     "date-fns": "4.4.0",
     "marked": "18.0.5",
-    "vue": "3.5.37",
-    "vue-i18n": "11.4.5",
+    "vue": "3.5.39",
+    "vue-i18n": "11.4.6",
     "vue3-simple-icons": "16.10.0"
   },
   "devDependencies": {
@@ -22,6 +22,6 @@
     "@vitejs/plugin-vue": "6.0.7",
     "serve": "14.2.6",
     "vite": "6.4.3",
-    "vite-plugin-ejs": "1.7.0"
+    "vite-plugin-ejs": "1.8.0"
   }
 }

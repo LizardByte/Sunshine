@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
       - name: Release Setup
         id: release-setup
@@ -218,13 +218,16 @@ jobs:
             coverage: true
             pr: true
           - name: Homebrew-macos-14
-            coverage: false
+            coverage: true
+            coverage_file: coverage.lcov
             pr: true
           - name: Homebrew-macos-15
-            coverage: false
+            coverage: true
+            coverage_file: coverage.lcov
             pr: true
           - name: Homebrew-macos-26
-            coverage: false
+            coverage: true
+            coverage_file: coverage.lcov
             pr: true
           - name: Homebrew-ubuntu-24.04
             coverage: true
@@ -247,7 +250,7 @@ jobs:
 
       - name: Checkout
         if: steps.should_run.outputs.SHOULD_RUN == 'true'
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
       - name: Download coverage artifact
         if: steps.should_run.outputs.SHOULD_RUN == 'true'
@@ -264,7 +267,7 @@ jobs:
         with:
           disable_search: true
           fail_ci_if_error: true
-          files: ./_coverage/coverage.xml
+          files: ./_coverage/${{ matrix.coverage_file || 'coverage.xml' }}
           report_type: coverage
           flags: ${{ matrix.name }}
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -343,7 +346,7 @@ jobs:
           path: homebrew
 
       - name: Upload Homebrew Beta Formula
-        uses: LizardByte/actions/actions/release_homebrew@200eaeb897a2b065a65cb6f16b41077432007490  # v2026.605.34721
+        uses: LizardByte/actions/actions/release_homebrew@a46850981292c4bbc0c41715f286ad95adaaaf4a  # v2026.625.20301
         with:
           actionlint_config: "---\n# empty config"
           formula_file: ${{ github.workspace }}/homebrew/sunshine-beta.rb

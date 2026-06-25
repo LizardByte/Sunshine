@@ -1274,10 +1274,10 @@ namespace config {
 
     // This config option will only be used by the UI
     // When editing in the config file itself, use "keybindings"
-    bool map_rightalt_to_win = false;
-    bool_f(vars, "key_rightalt_to_key_win", map_rightalt_to_win);
+    input.key_rightalt_to_key_win = false;
+    bool_f(vars, "key_rightalt_to_key_win", input.key_rightalt_to_key_win);
 
-    if (map_rightalt_to_win) {
+    if (input.key_rightalt_to_key_win) {
       input.keybindings.emplace(0xA5, 0x5B);
     }
 
@@ -1544,9 +1544,6 @@ namespace config {
         // Wait for the UI to be ready for connections
         service_ctrl::wait_for_ui_ready();
       }
-
-      // Launch the web UI
-      launch_ui();
 
       // Always return 1 to ensure Sunshine doesn't start normally
       return 1;
