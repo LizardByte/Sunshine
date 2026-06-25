@@ -1396,6 +1396,71 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### vdd_enabled
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">Automatically create a virtual display when no physical display is detected.</td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}disabled@endcode</td>
+    </tr>
+</table>
+
+### vdd_width
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">Width of the virtual display in pixels.</td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}1920@endcode</td>
+    </tr>
+</table>
+
+### vdd_height
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">Height of the virtual display in pixels.</td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}1080@endcode</td>
+    </tr>
+</table>
+
+### vdd_refresh_rate
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">Refresh rate of the virtual display in Hz.</td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}144@endcode</td>
+    </tr>
+</table>
+
+### vdd_display_count
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">Number of virtual displays to restore on startup. This value is set automatically when adding or removing displays via the tray or web UI.</td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}0@endcode</td>
+    </tr>
+</table>
+
 ### max_bitrate
 
 <table>

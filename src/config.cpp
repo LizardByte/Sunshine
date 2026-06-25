@@ -524,6 +524,14 @@ namespace config {
       {}  // wa
     },  // display_device
 
+    {
+      false,  // virtual_display_enabled
+      1920,   // virtual_display_width
+      1080,   // virtual_display_height
+      144,    // virtual_display_refresh_rate
+      0,      // virtual_display_count
+    },  // vdd
+
     0,  // max_bitrate
     0  // minimum_fps_target (0 = framerate)
   };
@@ -1191,6 +1199,12 @@ namespace config {
     }
     bool_f(vars, "dd_config_revert_on_disconnect", video.dd.config_revert_on_disconnect);
     generic_f(vars, "dd_mode_remapping", video.dd.mode_remapping, dd::mode_remapping_from_view);
+
+    bool_f(vars, "vdd_enabled", video.vdd.virtual_display_enabled);
+    int_f(vars, "vdd_width", video.vdd.virtual_display_width);
+    int_f(vars, "vdd_height", video.vdd.virtual_display_height);
+    int_f(vars, "vdd_refresh_rate", video.vdd.virtual_display_refresh_rate);
+    int_f(vars, "vdd_display_count", video.vdd.virtual_display_count);
     {
       int value = 0;
       int_between_f(vars, "dd_wa_hdr_toggle_delay", value, {0, 3000});

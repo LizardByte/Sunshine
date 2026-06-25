@@ -5,9 +5,14 @@
 // standard includes
 #include <codecvt>
 #include <csignal>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <iostream>
+
+// lib includes
+#include <nlohmann/json.hpp>
 
 #ifdef __APPLE__
   #include <mach-o/dyld.h>
@@ -17,6 +22,7 @@
 #include "confighttp.h"
 #include "display_device.h"
 #include "entry_handler.h"
+#include "file_handler.h"
 #include "globals.h"
 #include "httpcommon.h"
 #include "logging.h"
@@ -25,6 +31,7 @@
 #include "process.h"
 #include "system_tray.h"
 #include "upnp.h"
+#include "platform/windows/vdd_control.h"
 #include "video.h"
 
 extern "C" {
@@ -121,6 +128,65 @@ void mainThreadLoop(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) 
 #endif
   BOOST_LOG(info) << "Main loop has exited"sv;
 }
+
+#ifdef _WIN32
+  /**
+   * @brief Restore virtual displays from persisted config.
+   *
+   * Called during startup when a physical display already exists. Reads
+   * vdd_display_configs (JSON array line) directly from the Sunshine config
+   * file and re-creates each display at its previously saved resolution/refresh.
+   * Falls back to the count-based approach with default config values if the
+   * JSON line is missing or empty.
+   */
+  static void restore_persisted_virtual_displays() {
+    // Read vdd_display_configs directly from the config file (it is not a
+    // user-configurable option and is intentionally not registered in config.cpp).
+    std::string json_str;
+    if (auto content = file_handler::read_file(config::sunshine.config_file.c_str()); !content.empty()) {
+      std::istringstream stream(content);
+      std::string line;
+      while (std::getline(stream, line)) {
+        if (line.starts_with("vdd_display_configs = ")) {
+          json_str = line.substr(std::strlen("vdd_display_configs = "));
+          break;
+        }
+      }
+    }
+
+    if (!json_str.empty()) {
+      try {
+        auto configs = nlohmann::json::parse(json_str);
+        if (configs.is_array() && !configs.empty()) {
+          BOOST_LOG(info) << "Restoring "sv << configs.size() << " persisted virtual display(s) with saved configs"sv;
+          for (const auto &cfg : configs) {
+            int w = cfg.value("w", config::video.vdd.virtual_display_width);
+            int h = cfg.value("h", config::video.vdd.virtual_display_height);
+            int hz = cfg.value("hz", config::video.vdd.virtual_display_refresh_rate);
+            vdd::add_display(w, h, hz);
+          }
+          return;
+        }
+      } catch (const nlohmann::json::parse_error &e) {
+        BOOST_LOG(warning) << "Failed to parse vdd_display_configs: "sv << e.what();
+      }
+    }
+
+    // Fallback: restore by count with default resolution
+    int count = config::video.vdd.virtual_display_count;
+    if (count > 0) {
+      BOOST_LOG(info) << "Restoring "sv << count << " persisted virtual display(s)"sv;
+      for (int i = 0; i < count; ++i) {
+        vdd::add_display(
+          config::video.vdd.virtual_display_width,
+          config::video.vdd.virtual_display_height,
+          config::video.vdd.virtual_display_refresh_rate);
+      }
+    } else {
+      BOOST_LOG(info) << "Physical display detected, VDD ready for manual use"sv;
+    }
+  }
+#endif
 
 int main(int argc, char *argv[]) {
 #ifdef __APPLE__
@@ -317,6 +383,9 @@ int main(int argc, char *argv[]) {
       system_tray::end_tray();
     }
 
+#ifdef _WIN32
+    vdd::destroy();
+#endif
     display_device_deinit_guard = nullptr;
   });
 
@@ -337,6 +406,9 @@ int main(int argc, char *argv[]) {
       system_tray::end_tray();
     }
 
+#ifdef _WIN32
+    vdd::destroy();
+#endif
     display_device_deinit_guard = nullptr;
   });
 
@@ -354,6 +426,25 @@ int main(int argc, char *argv[]) {
   if (!platf_deinit_guard) {
     BOOST_LOG(error) << "Platform failed to initialize"sv;
   }
+
+#ifdef _WIN32
+  // Initialize VDD (Parsec Virtual Display Driver) if enabled
+  if (config::video.vdd.virtual_display_enabled) {
+    if (vdd::init()) {
+      if (vdd::need_virtual_display()) {
+        BOOST_LOG(info) << "No physical display detected - creating virtual display"sv;
+        vdd::add_display(
+          config::video.vdd.virtual_display_width,
+          config::video.vdd.virtual_display_height,
+          config::video.vdd.virtual_display_refresh_rate);
+      } else {
+        restore_persisted_virtual_displays();
+      }
+    } else {
+      BOOST_LOG(warning) << "VDD driver not available - virtual displays disabled"sv;
+    }
+  }
+#endif
 
   auto proc_deinit_guard = proc::init();
   if (!proc_deinit_guard) {
