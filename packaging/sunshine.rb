@@ -5,6 +5,9 @@ class Sunshine < Formula
 
   CUDA_VERSION = "13.1".freeze
   CUDA_FORMULA = "cuda@#{CUDA_VERSION}".freeze
+  COVERAGE_LCOV = "coverage.lcov".freeze
+  COVERAGE_PROFDATA = "coverage.profdata".freeze
+  COVERAGE_XML = "coverage.xml".freeze
   GCC_VERSION = "14".freeze
   GCC_FORMULA = "gcc@#{GCC_VERSION}".freeze
   LLVM_PROFILE_FILE_ENV = "LLVM_PROFILE_FILE".freeze
@@ -47,7 +50,6 @@ class Sunshine < Formula
 
   depends_on "cmake" => :build
   depends_on "doxygen" => :build if build.with? "docs"
-  depends_on "gcovr" => [:build, :test]
   depends_on "graphviz" => :build if build.with? "docs"
   depends_on "node" => :build
   depends_on "pkgconf" => :build
@@ -60,6 +62,7 @@ class Sunshine < Formula
 
   on_linux do
     depends_on GCC_FORMULA => [:build, :test]
+    depends_on "gcovr" => [:build, :test]
     depends_on "lizardbyte/homebrew/#{CUDA_FORMULA}" => :build if build.with? "cuda"
     depends_on "python3" => :build
     depends_on "at-spi2-core"
@@ -279,7 +282,7 @@ class Sunshine < Formula
   end
 
   def with_llvm_profile_file(artifact_dir)
-    original_profile_file = ENV[LLVM_PROFILE_FILE_ENV]
+    original_profile_file = ENV.fetch(LLVM_PROFILE_FILE_ENV, nil)
     ENV[LLVM_PROFILE_FILE_ENV] = "#{artifact_dir}/sunshine-%p.profraw"
     yield
   ensure
@@ -299,11 +302,12 @@ class Sunshine < Formula
     Utils.safe_popen_read("xcrun", "--find", "llvm-profdata").strip
   end
 
-  def coverage_llvm_options
-    [
-      "--llvm-profdata-executable", llvm_profdata_executable,
-      "--llvm-cov-binary", bin/TEST_BINARY
-    ]
+  def llvm_cov_executable
+    Utils.safe_popen_read("xcrun", "--find", "llvm-cov").strip
+  end
+
+  def coverage_report_path(artifact_dir)
+    artifact_dir/(OS.mac? ? COVERAGE_LCOV : COVERAGE_XML)
   end
 
   def coverage_common_options(coverage_report)
@@ -319,33 +323,80 @@ class Sunshine < Formula
   def generate_coverage_report(artifact_dir, coverage_buildpath)
     return if coverage_buildpath.to_s.empty?
 
-    coverage_report = artifact_dir/"coverage.xml"
+    coverage_report = coverage_report_path(artifact_dir)
 
     if OS.mac?
-      odie "No LLVM profile data was created" if Dir["#{artifact_dir}/*.profraw"].empty?
-
-      cd coverage_buildpath.to_s do
-        system "gcovr", artifact_dir.to_s,
-          "-r", "src",
-          *coverage_llvm_options,
-          *coverage_common_options(coverage_report)
-      end
+      generate_llvm_coverage_report artifact_dir, coverage_buildpath, coverage_report
     else
-      cd "#{coverage_buildpath}/build" do
-        system "gcovr", ".",
-          "-r", "../src",
-          *coverage_gcov_options,
-          *coverage_common_options(coverage_report)
-      end
+      generate_gcov_coverage_report coverage_report, coverage_buildpath
     end
 
     ensure_artifact_exists coverage_report
-    ensure_coverage_report_has_lines coverage_report
   end
 
-  def ensure_coverage_report_has_lines(path)
+  def generate_llvm_coverage_report(artifact_dir, coverage_buildpath, coverage_report)
+    profile_files = Dir["#{artifact_dir}/*.profraw"]
+    odie "No LLVM profile data was created" if profile_files.empty?
+
+    profile_data = artifact_dir/COVERAGE_PROFDATA
+    system llvm_profdata_executable, "merge", "--sparse", "-o", profile_data.to_s, *profile_files
+    lcov = Utils.safe_popen_read(
+      llvm_cov_executable,
+      "export",
+      "-format=lcov",
+      "-instr-profile=#{profile_data}",
+      (bin/TEST_BINARY).to_s,
+    )
+    coverage_report.write lcov_for_source_files(lcov, coverage_buildpath)
+    ensure_lcov_report_has_lines coverage_report
+  end
+
+  def generate_gcov_coverage_report(coverage_report, coverage_buildpath)
+    cd "#{coverage_buildpath}/build" do
+      system "gcovr", ".",
+        "-r", "../src",
+        *coverage_gcov_options,
+        *coverage_common_options(coverage_report)
+    end
+
+    ensure_cobertura_report_has_lines coverage_report
+  end
+
+  def coverage_source_prefixes(coverage_buildpath)
+    paths = [
+      coverage_buildpath.to_s,
+      Pathname.new(coverage_buildpath.to_s).realpath.to_s,
+    ]
+    paths.uniq.map { |path| "#{path}/src/" }
+  end
+
+  def relative_lcov_record(record, source_prefixes)
+    lines = record.lines
+    source_index = lines.index { |line| line.start_with?("SF:") }
+    return unless source_index
+
+    source_path = lines[source_index].delete_prefix("SF:").strip
+    source_prefix = source_prefixes.find { |prefix| source_path.start_with?(prefix) }
+    return unless source_prefix
+
+    lines[source_index] = "SF:src/#{source_path.delete_prefix(source_prefix)}\n"
+    "#{lines.join}end_of_record\n"
+  end
+
+  def lcov_for_source_files(lcov, coverage_buildpath)
+    source_prefixes = coverage_source_prefixes(coverage_buildpath)
+    records = lcov.split("end_of_record\n")
+    records.filter_map { |record| relative_lcov_record(record, source_prefixes) }.join
+  end
+
+  def ensure_cobertura_report_has_lines(path)
     lines_valid = path.read[/lines-valid="(\d+)"/, 1].to_i
     odie "#{path} does not contain any source lines" if lines_valid.zero?
+  end
+
+  def ensure_lcov_report_has_lines(path)
+    has_lines = path.read.lines.any? { |line| line.start_with?("DA:") }
+    odie "#{path} does not contain any source lines" unless has_lines
   end
 
   def collect_test_artifacts
@@ -428,7 +479,7 @@ class Sunshine < Formula
       artifact_dir = release_homebrew_testpath
       if artifact_dir
         assert_path_exists artifact_dir/"tests/test_results.xml"
-        assert_path_exists artifact_dir/"coverage.xml"
+        assert_path_exists coverage_report_path(artifact_dir)
       elsif ENV.fetch("HOMEBREW_BOTTLE_BUILD", "false") != "true"
         run_test_suite testpath
         generate_coverage_report testpath, ENV.fetch("HOMEBREW_BUILDPATH", "")

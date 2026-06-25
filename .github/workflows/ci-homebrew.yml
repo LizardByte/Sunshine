@@ -198,6 +198,7 @@ jobs:
           name: coverage-Homebrew-${{ matrix.os_name }}-${{ matrix.os_version }}
           path: |
             ${{ steps.test.outputs.testpath }}/coverage.xml
+            ${{ steps.test.outputs.testpath }}/coverage.lcov
             ${{ steps.test.outputs.testpath }}/tests/test_results.xml
           if-no-files-found: error
 

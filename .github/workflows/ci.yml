@@ -219,12 +219,15 @@ jobs:
             pr: true
           - name: Homebrew-macos-14
             coverage: true
+            coverage_file: coverage.lcov
             pr: true
           - name: Homebrew-macos-15
             coverage: true
+            coverage_file: coverage.lcov
             pr: true
           - name: Homebrew-macos-26
             coverage: true
+            coverage_file: coverage.lcov
             pr: true
           - name: Homebrew-ubuntu-24.04
             coverage: true
@@ -264,7 +267,7 @@ jobs:
         with:
           disable_search: true
           fail_ci_if_error: true
-          files: ./_coverage/coverage.xml
+          files: ./_coverage/${{ matrix.coverage_file || 'coverage.xml' }}
           report_type: coverage
           flags: ${{ matrix.name }}
           token: ${{ secrets.CODECOV_TOKEN }}
