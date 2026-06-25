@@ -128,25 +128,23 @@ any of the following paths are modified.
 ```
 
 When testing locally, it may be desirable to manually extract, initialize, update, and compile strings. Python and
-uv are required for this, along with the Python dependencies in the `third-party/lizardbyte-common/pyproject.toml`
-file. You can install these with the following command.
+uv are required for this, along with the Python dependencies in the Sunshine `pyproject.toml`. From the repository
+root, install these with the following command.
 
 ```bash
-uv sync --project third-party/lizardbyte-common --locked --only-group locale --no-install-project
+uv sync --locked
 ```
 
 Additionally, [xgettext](https://www.gnu.org/software/gettext) must be installed.
 
 * Extract, initialize, and update
   ```bash
-  uv run --project third-party/lizardbyte-common --locked --no-sync \
-    python third-party/lizardbyte-common/scripts/localize.py --root-dir . --extract --init --update
+  uv run --locked --no-sync lb-localize --root-dir . --extract --init --update
   ```
 
 * Compile
   ```bash
-  uv run --project third-party/lizardbyte-common --locked --no-sync \
-    python third-party/lizardbyte-common/scripts/localize.py --root-dir . --compile
+  uv run --locked --no-sync lb-localize --root-dir . --compile
   ```
 
 > [!IMPORTANT]
@@ -160,10 +158,12 @@ Additionally, [xgettext](https://www.gnu.org/software/gettext) must be installed
 #### Clang Format
 Source code is tested against the `.clang-format` file for linting errors.
 
-To apply clang-format locally (will modify files):
+From the repository root, apply clang-format locally with the installed lizardbyte-common script. This will modify
+files in place.
+
 ```bash
-uv run --project third-party/lizardbyte-common --locked --only-group lint-c \
-  python third-party/lizardbyte-common/scripts/update_clang_format.py
+uv sync --locked
+uv run --locked --no-sync lb-update-clang-format
 ```
 
 #### Unit Testing

@@ -12,7 +12,9 @@ authors = [
     {name = "LizardByte", email = "lizardbyte@users.noreply.github.com"}
 ]
 
-dependencies = []
+dependencies = [
+    "lizardbyte-common[c]",
+]
 
 [dependency-groups]
 # glad2 declares Jinja2>=2.7,<4.0 as a dependency, so installing it pulls in jinja2 transitively.
@@ -41,3 +43,4 @@ py-modules = []
 flatpak_node_generator = { path = "packaging/linux/flatpak/deps/flatpak-builder-tools/node" }
 flatpak_pip_generator = { path = "packaging/linux/flatpak/deps/flatpak-builder-tools/pip" }
 glad2 = { path = "third-party/glad" }
+lizardbyte-common = { path = "third-party/lizardbyte-common" }

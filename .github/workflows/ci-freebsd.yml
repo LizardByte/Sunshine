@@ -143,10 +143,7 @@ jobs:
           release: ${{ matrix.bsd_release }}
           run: |
             set -e
-            uv sync --locked --only-group glad --python "/usr/local/bin/python${PYTHON_VERSION}" \
-              --no-python-downloads --no-install-project
-            uv sync --project third-party/lizardbyte-common --locked --only-group test-c \
-              --python "/usr/local/bin/python${PYTHON_VERSION}" \
+            uv sync --locked --group glad --python "/usr/local/bin/python${PYTHON_VERSION}" \
               --no-python-downloads --no-install-project
 
             # fix git safe.directory issues
@@ -259,7 +256,7 @@ jobs:
         shell: freebsd {0}
         run: |
           cd "${GITHUB_WORKSPACE}/build"
-          uv run --project ../third-party/lizardbyte-common --locked --no-sync gcovr . -r ../src \
+          uv run --project .. --locked --no-sync gcovr . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \
