@@ -23,8 +23,14 @@ include_directories("${GTEST_SOURCE_DIR}/googletest/include" "${GTEST_SOURCE_DIR
 
 # coverage
 # https://gcovr.com/en/stable/guide/compiling.html#compiler-options
-set(CMAKE_CXX_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
-set(CMAKE_C_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
+option(SUNSHINE_LLVM_COVERAGE "Use LLVM source-based coverage" OFF)
+if(SUNSHINE_LLVM_COVERAGE)
+    add_compile_options(-fprofile-instr-generate -fcoverage-mapping -ggdb -O0)
+    add_link_options(-fprofile-instr-generate)
+else()
+    set(CMAKE_CXX_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
+    set(CMAKE_C_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
+endif()
 
 # Find the correct libgcov library path matching the gcc compiler version
 # This ensures the test executable links against the same libgcov version used during compilation

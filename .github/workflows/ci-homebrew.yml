@@ -177,7 +177,7 @@ jobs:
       - name: Validate Homebrew Formula
         id: test
         if: matrix.release != true
-        uses: LizardByte/actions/actions/release_homebrew@200eaeb897a2b065a65cb6f16b41077432007490  # v2026.605.34721
+        uses: LizardByte/actions/actions/release_homebrew@a46850981292c4bbc0c41715f286ad95adaaaf4a  # v2026.625.20301
         with:
           actionlint_config: "---\n# empty config"
           formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
@@ -198,6 +198,7 @@ jobs:
           name: coverage-Homebrew-${{ matrix.os_name }}-${{ matrix.os_version }}
           path: |
             ${{ steps.test.outputs.testpath }}/coverage.xml
+            ${{ steps.test.outputs.testpath }}/coverage.lcov
             ${{ steps.test.outputs.testpath }}/tests/test_results.xml
           if-no-files-found: error
 
