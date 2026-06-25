@@ -218,13 +218,13 @@ jobs:
             coverage: true
             pr: true
           - name: Homebrew-macos-14
-            coverage: false
+            coverage: true
             pr: true
           - name: Homebrew-macos-15
-            coverage: false
+            coverage: true
             pr: true
           - name: Homebrew-macos-26
-            coverage: false
+            coverage: true
             pr: true
           - name: Homebrew-ubuntu-24.04
             coverage: true

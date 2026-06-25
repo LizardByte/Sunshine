@@ -7,6 +7,7 @@ class Sunshine < Formula
   CUDA_FORMULA = "cuda@#{CUDA_VERSION}".freeze
   GCC_VERSION = "14".freeze
   GCC_FORMULA = "gcc@#{GCC_VERSION}".freeze
+  GCOV_IGNORE_ERRORS_FLAG = "--gcov-ignore-errors".freeze
   IS_UPSTREAM_REPO = ENV.fetch("GITHUB_REPOSITORY", "") == "LizardByte/Sunshine"
 
   desc "@PROJECT_DESCRIPTION@"
@@ -45,6 +46,7 @@ class Sunshine < Formula
 
   depends_on "cmake" => :build
   depends_on "doxygen" => :build if build.with? "docs"
+  depends_on "gcovr" => [:build, :test]
   depends_on "graphviz" => :build if build.with? "docs"
   depends_on "node" => :build
   depends_on "pkgconf" => :build
@@ -61,7 +63,6 @@ class Sunshine < Formula
 
   on_linux do
     depends_on GCC_FORMULA => [:build, :test]
-    depends_on "gcovr" => [:build, :test]
     depends_on "lizardbyte/homebrew/#{CUDA_FORMULA}" => :build if build.with? "cuda"
     depends_on "python3" => :build
     depends_on "at-spi2-core"
@@ -272,19 +273,38 @@ class Sunshine < Formula
     ensure_artifact_exists test_results
   end
 
+  def coverage_gcov_executable
+    if OS.mac?
+      llvm_path = Formula["llvm"]
+      "#{llvm_path.opt_bin}/llvm-cov gcov"
+    else
+      gcc_path = Formula[GCC_FORMULA]
+      "#{gcc_path.opt_bin}/gcov-#{GCC_VERSION}"
+    end
+  end
+
+  def coverage_gcov_options
+    options = ["--gcov-executable", coverage_gcov_executable]
+    if OS.mac?
+      options += [
+        GCOV_IGNORE_ERRORS_FLAG, "source_not_found",
+        GCOV_IGNORE_ERRORS_FLAG, "output_error",
+        GCOV_IGNORE_ERRORS_FLAG, "no_working_dir_found"
+      ]
+    end
+
+    options
+  end
+
   def generate_coverage_report(artifact_dir, coverage_buildpath)
-    return unless OS.linux?
     return if coverage_buildpath.to_s.empty?
 
     coverage_report = artifact_dir/"coverage.xml"
 
     cd "#{coverage_buildpath}/build" do
-      gcc_path = Formula[GCC_FORMULA]
-      gcov_executable = "#{gcc_path.opt_bin}/gcov-#{GCC_VERSION}"
-
       system "gcovr", ".",
         "-r", "../src",
-        "--gcov-executable", gcov_executable,
+        *coverage_gcov_options,
         "--exclude-noncode-lines",
         "--exclude-throw-branches",
         "--exclude-unreachable-branches",
@@ -375,7 +395,7 @@ class Sunshine < Formula
       artifact_dir = release_homebrew_testpath
       if artifact_dir
         assert_path_exists artifact_dir/"tests/test_results.xml"
-        assert_path_exists artifact_dir/"coverage.xml" if OS.linux?
+        assert_path_exists artifact_dir/"coverage.xml"
       elsif ENV.fetch("HOMEBREW_BOTTLE_BUILD", "false") != "true"
         run_test_suite testpath
         generate_coverage_report testpath, ENV.fetch("HOMEBREW_BUILDPATH", "")
