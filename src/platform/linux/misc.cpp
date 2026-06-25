@@ -9,6 +9,8 @@
 #endif
 
 // standard includes
+#include <cerrno>
+#include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -123,6 +125,70 @@ namespace dyn {
 
 namespace platf {
   using ifaddr_t = util::safe_ptr<ifaddrs, freeifaddrs>;
+
+#ifdef SUNSHINE_BUILD_DRM
+  int open_drm_card_fd_non_master(const char *path) {
+    int fd = open(path, O_RDWR | O_CLOEXEC);
+    if (fd < 0) {
+      BOOST_LOG(error) << "Couldn't open: "sv << path << ": "sv << strerror(errno);
+      return -1;
+    }
+
+    auto close_and_fail = [&]() {
+      close(fd);
+      return -1;
+    };
+
+    auto is_master = [&]() -> int {
+      drm_auth_t auth {};
+      auth.magic = 0;
+
+      errno = 0;
+      if (drmIoctl(fd, DRM_IOCTL_AUTH_MAGIC, &auth) == 0) {
+        return 1;
+      }
+
+      auto err = errno;
+      if (err == EACCES) {
+        return 0;
+      }
+
+      if (err == EINVAL || err == ENOENT) {
+        return 1;
+      }
+
+      BOOST_LOG(error) << "Couldn't determine DRM master state for "sv << path << ": "sv << strerror(err);
+      return -1;
+    };
+
+    auto master = is_master();
+    if (master < 0) {
+      return close_and_fail();
+    }
+
+    if (master) {
+      if (drmDropMaster(fd)) {
+        auto err = errno;
+        BOOST_LOG(error) << "Couldn't drop DRM master for "sv << path << ": "sv << strerror(err);
+        return close_and_fail();
+      }
+
+      BOOST_LOG(info) << "Dropped DRM master for "sv << path;
+
+      master = is_master();
+      if (master < 0) {
+        return close_and_fail();
+      }
+
+      if (master) {
+        BOOST_LOG(error) << "Still DRM master after drop: "sv << path;
+        return close_and_fail();
+      }
+    }
+
+    return fd;
+  }
+#endif
 
   ifaddr_t get_ifaddrs() {
     ifaddrs *p {nullptr};
