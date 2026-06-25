@@ -140,6 +140,7 @@ jobs:
       COPR_BETA_WEBHOOK_TOKEN: ${{ secrets.COPR_BETA_WEBHOOK_TOKEN }}
       COPR_STABLE_WEBHOOK_TOKEN: ${{ secrets.COPR_STABLE_WEBHOOK_TOKEN }}
       COPR_CLI_CONFIG: ${{ secrets.COPR_CLI_CONFIG }}
+      VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
 
   build-linux-flatpak:
     name: Linux Flatpak
