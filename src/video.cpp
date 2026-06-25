@@ -1697,8 +1697,7 @@ namespace video {
                   continue;
                 }
 
-                while (capture_ctx->images->peek()) {
-                  capture_ctx->images->pop();
+                while (capture_ctx->images->try_pop()) {
                 }
 
                 ++capture_ctx;

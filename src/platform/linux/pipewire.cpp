@@ -1010,14 +1010,12 @@ namespace pipewire {
             }
             if (!push_captured_image_cb(std::move(img_out), false)) {
               BOOST_LOG(debug) << "[pipewire] PipeWire: timeout -> !push_captured_image_cb -> ok";
-              std::this_thread::sleep_for(10us);  // Workaround: delay OK to avoid video stream freezing
               return platf::capture_e::ok;
             }
             break;
           case platf::capture_e::ok:
             if (!push_captured_image_cb(std::move(img_out), true)) {
               BOOST_LOG(debug) << "[pipewire] PipeWire: ok -> !push_captured_image_cb -> ok";
-              std::this_thread::sleep_for(10us);  // Workaround: delay OK to avoid video stream freezing
               return platf::capture_e::ok;
             }
             break;
