@@ -13,7 +13,7 @@
     "bootstrap": "5.3.8",
     "date-fns": "4.4.0",
     "marked": "18.0.5",
-    "vue": "3.5.38",
+    "vue": "3.5.39",
     "vue-i18n": "11.4.6",
     "vue3-simple-icons": "16.10.0"
   },
