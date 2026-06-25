@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="docs" type="CMakeRunConfiguration" factoryName="Application" PROGRAM_PARAMS="&quot;file:\\$CMakeCurrentBuildDir$\build\html\index.html&quot;" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="Sunshine" TARGET_NAME="docs" CONFIG_NAME="Release" RUN_PATH="$PROJECT_DIR$/../../../../../Windows/explorer.exe">
+    <method v="2">
+      <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+    </method>
+  </configuration>
+</component>
