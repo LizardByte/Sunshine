@@ -1545,9 +1545,6 @@ namespace config {
         service_ctrl::wait_for_ui_ready();
       }
 
-      // Launch the web UI
-      launch_ui();
-
       // Always return 1 to ensure Sunshine doesn't start normally
       return 1;
     }
