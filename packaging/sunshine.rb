@@ -7,7 +7,8 @@ class Sunshine < Formula
   CUDA_FORMULA = "cuda@#{CUDA_VERSION}".freeze
   GCC_VERSION = "14".freeze
   GCC_FORMULA = "gcc@#{GCC_VERSION}".freeze
-  GCOV_IGNORE_ERRORS_FLAG = "--gcov-ignore-errors".freeze
+  LLVM_PROFILE_FILE_ENV = "LLVM_PROFILE_FILE".freeze
+  TEST_BINARY = "test_sunshine".freeze
   IS_UPSTREAM_REPO = ENV.fetch("GITHUB_REPOSITORY", "") == "LizardByte/Sunshine"
 
   desc "@PROJECT_DESCRIPTION@"
@@ -56,10 +57,6 @@ class Sunshine < Formula
   depends_on "miniupnpc"
   depends_on "openssl@3"
   depends_on "opus"
-
-  on_macos do
-    depends_on "llvm" => [:build, :test]
-  end
 
   on_linux do
     depends_on GCC_FORMULA => [:build, :test]
@@ -184,6 +181,7 @@ class Sunshine < Formula
   def add_test_args(args)
     if IS_UPSTREAM_REPO
       args << "-DBUILD_TESTS=ON"
+      args << "-DSUNSHINE_LLVM_COVERAGE=ON" if OS.mac?
       ohai "Building tests: enabled"
     else
       args << "-DBUILD_TESTS=OFF"
@@ -269,31 +267,53 @@ class Sunshine < Formula
     mkdir_p artifact_dir/"tests"
     test_results = artifact_dir/"tests/test_results.xml"
 
-    system bin/"test_sunshine", "--gtest_color=yes", "--gtest_output=xml:#{test_results}"
+    if OS.mac?
+      with_llvm_profile_file(artifact_dir) do
+        system bin/TEST_BINARY, "--gtest_color=yes", "--gtest_output=xml:#{test_results}"
+      end
+    else
+      system bin/TEST_BINARY, "--gtest_color=yes", "--gtest_output=xml:#{test_results}"
+    end
+
     ensure_artifact_exists test_results
   end
 
-  def coverage_gcov_executable
-    if OS.mac?
-      llvm_path = Formula["llvm"]
-      "#{llvm_path.opt_bin}/llvm-cov gcov"
+  def with_llvm_profile_file(artifact_dir)
+    original_profile_file = ENV[LLVM_PROFILE_FILE_ENV]
+    ENV[LLVM_PROFILE_FILE_ENV] = "#{artifact_dir}/sunshine-%p.profraw"
+    yield
+  ensure
+    if original_profile_file
+      ENV[LLVM_PROFILE_FILE_ENV] = original_profile_file
     else
-      gcc_path = Formula[GCC_FORMULA]
-      "#{gcc_path.opt_bin}/gcov-#{GCC_VERSION}"
+      ENV.delete(LLVM_PROFILE_FILE_ENV)
     end
   end
 
   def coverage_gcov_options
-    options = ["--gcov-executable", coverage_gcov_executable]
-    if OS.mac?
-      options += [
-        GCOV_IGNORE_ERRORS_FLAG, "source_not_found",
-        GCOV_IGNORE_ERRORS_FLAG, "output_error",
-        GCOV_IGNORE_ERRORS_FLAG, "no_working_dir_found"
-      ]
-    end
+    gcc_path = Formula[GCC_FORMULA]
+    ["--gcov-executable", "#{gcc_path.opt_bin}/gcov-#{GCC_VERSION}"]
+  end
 
-    options
+  def llvm_profdata_executable
+    Utils.safe_popen_read("xcrun", "--find", "llvm-profdata").strip
+  end
+
+  def coverage_llvm_options
+    [
+      "--llvm-profdata-executable", llvm_profdata_executable,
+      "--llvm-cov-binary", bin/TEST_BINARY
+    ]
+  end
+
+  def coverage_common_options(coverage_report)
+    [
+      "--exclude-noncode-lines",
+      "--exclude-throw-branches",
+      "--exclude-unreachable-branches",
+      "--xml-pretty",
+      "-o=#{coverage_report}",
+    ]
   end
 
   def generate_coverage_report(artifact_dir, coverage_buildpath)
@@ -301,18 +321,31 @@ class Sunshine < Formula
 
     coverage_report = artifact_dir/"coverage.xml"
 
-    cd "#{coverage_buildpath}/build" do
-      system "gcovr", ".",
-        "-r", "../src",
-        *coverage_gcov_options,
-        "--exclude-noncode-lines",
-        "--exclude-throw-branches",
-        "--exclude-unreachable-branches",
-        "--xml-pretty",
-        "-o=#{coverage_report}"
+    if OS.mac?
+      odie "No LLVM profile data was created" if Dir["#{artifact_dir}/*.profraw"].empty?
+
+      cd coverage_buildpath.to_s do
+        system "gcovr", artifact_dir.to_s,
+          "-r", "src",
+          *coverage_llvm_options,
+          *coverage_common_options(coverage_report)
+      end
+    else
+      cd "#{coverage_buildpath}/build" do
+        system "gcovr", ".",
+          "-r", "../src",
+          *coverage_gcov_options,
+          *coverage_common_options(coverage_report)
+      end
     end
 
     ensure_artifact_exists coverage_report
+    ensure_coverage_report_has_lines coverage_report
+  end
+
+  def ensure_coverage_report_has_lines(path)
+    lines_valid = path.read[/lines-valid="(\d+)"/, 1].to_i
+    odie "#{path} does not contain any source lines" if lines_valid.zero?
   end
 
   def collect_test_artifacts
@@ -343,7 +376,7 @@ class Sunshine < Formula
   end
 
   def install_platform_specific_files
-    bin.install "build/tests/test_sunshine" if IS_UPSTREAM_REPO
+    bin.install "build/tests/#{TEST_BINARY}" if IS_UPSTREAM_REPO
 
     # codesign the binary on intel macs
     system "codesign", "-s", "-", "--force", "--deep", bin/"sunshine" if OS.mac? && Hardware::CPU.intel?
