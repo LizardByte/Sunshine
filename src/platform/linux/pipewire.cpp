@@ -136,16 +136,12 @@ namespace pipewire {
 
     ~pipewire_t() {
       BOOST_LOG(debug) << "[pipewire] Destroying pipewire_t"sv;
-      if (loop) {
-        BOOST_LOG(debug) << "[pipewire] Stop PW thread loop"sv;
-        pw_thread_loop_stop(loop);
-      }
       try {
         cleanup_stream();
       } catch (const std::exception &e) {
-        BOOST_LOG(error) << "[pipewire] Standard exception caught in ~pipewire_t: "sv << e.what();
+        BOOST_LOG(error) << "[pipewire] Standard exception caught in ~pipewire_t cleanup_stream: "sv << e.what();
       } catch (...) {
-        BOOST_LOG(error) << "[pipewire] Unknown exception caught in ~pipewire_t"sv;
+        BOOST_LOG(error) << "[pipewire] Unknown exception caught in ~pipewire_t cleanup_stream"sv;
       }
 
       pw_thread_loop_lock(loop);
@@ -533,8 +529,13 @@ namespace pipewire {
     };
 
     static void on_stream_state_changed(void *user_data, enum pw_stream_state old, enum pw_stream_state state, const char *err_msg) {
-      BOOST_LOG(debug) << "[pipewire] PipeWire stream state: " << pw_stream_state_as_string(old)
-                       << " -> " << pw_stream_state_as_string(state);
+      if (err_msg != nullptr) {
+        BOOST_LOG(info) << "[pipewire] PipeWire stream error '" << err_msg << "' on state: " << pw_stream_state_as_string(old)
+                        << " -> " << pw_stream_state_as_string(state);
+      } else {
+        BOOST_LOG(info) << "[pipewire] PipeWire stream state: " << pw_stream_state_as_string(old)
+                        << " -> " << pw_stream_state_as_string(state);
+      }
 
       auto *d = static_cast<stream_data_t *>(user_data);
 
@@ -1003,18 +1004,18 @@ namespace pipewire {
           case platf::capture_e::timeout:
             if (!pull_free_image_cb(img_out)) {
               // Detect if shutdown is pending
-              BOOST_LOG(debug) << "[pipewire] PipeWire: timeout -> interrupt nudge";
+              BOOST_LOG(debug) << "[pipewire] PipeWire: timeout -> shutdown pending -> interrupt nudge";
               pipewire.frame_cv().notify_all();
               return platf::capture_e::interrupted;
             }
             if (!push_captured_image_cb(std::move(img_out), false)) {
-              BOOST_LOG(debug) << "[pipewire] PipeWire: !push_captured_image_cb -> ok";
+              BOOST_LOG(debug) << "[pipewire] PipeWire: timeout -> !push_captured_image_cb -> ok";
               return platf::capture_e::ok;
             }
             break;
           case platf::capture_e::ok:
             if (!push_captured_image_cb(std::move(img_out), true)) {
-              BOOST_LOG(debug) << "[pipewire] PipeWire: !push_captured_image_cb -> ok";
+              BOOST_LOG(debug) << "[pipewire] PipeWire: ok -> !push_captured_image_cb -> ok";
               return platf::capture_e::ok;
             }
             break;
