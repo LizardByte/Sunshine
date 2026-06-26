@@ -4,17 +4,25 @@ import { onMounted } from 'vue'
 import {
   CloudMoon,
   CloudRain,
+  Coffee,
   Contrast,
+  Droplet,
   Flame,
   Flower,
   Flower2,
+  Ghost,
   Layers,
+  Milk,
   MonitorSmartphone,
   Moon,
   Mountain,
+  Shuffle,
   Sparkles,
+  Sprout,
   Sun,
   Sunrise,
+  Sunset,
+  TreePine,
   Trees,
   Waves,
 } from '@lucide/vue'
@@ -38,96 +46,104 @@ onMounted(() => {
       </span>
       <span id="bd-theme-text">{{ $t('navbar.toggle_theme') }}</span>
     </a>
-    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="bd-theme-text">
-      <li>
+    <ul class="dropdown-menu dropdown-menu-end theme-menu" aria-labelledby="bd-theme-text">
+      <li class="theme-menu-full">
         <button type="button" class="dropdown-item d-flex align-items-center active" data-bs-theme-value="auto" aria-pressed="true">
           <MonitorSmartphone :size="18" class="theme-icon icon"></MonitorSmartphone>
           {{ $t('navbar.theme_auto') }}
         </button>
+        <button type="button" id="bd-theme-random" class="dropdown-item d-flex align-items-center">
+          <Shuffle :size="18" class="theme-icon icon"></Shuffle>
+          {{ $t('navbar.theme_random') }}
+        </button>
       </li>
-      <li><hr class="dropdown-divider"></li>
       <!-- Dark Themes -->
-      <li>
+      <li class="theme-menu-group">
+        <h6 class="dropdown-header">{{ $t('navbar.theme_group_dark') }}</h6>
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="dark" aria-pressed="false">
           <Moon :size="18" class="theme-icon icon"></Moon>
           {{ $t('navbar.theme_dark') }}
         </button>
-      </li>
-      <li>
-        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="slate" aria-pressed="false">
-          <Layers :size="18" class="theme-icon icon"></Layers>
-          {{ $t('navbar.theme_slate') }}
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="dracula" aria-pressed="false">
+          <Ghost :size="18" class="theme-icon icon"></Ghost>
+          {{ $t('navbar.theme_dracula') }}
         </button>
-      </li>
-      <li>
-        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="moonlight" aria-pressed="false">
-          <CloudMoon :size="18" class="theme-icon icon"></CloudMoon>
-          {{ $t('navbar.theme_moonlight') }}
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="mocha" aria-pressed="false">
+          <Coffee :size="18" class="theme-icon icon"></Coffee>
+          {{ $t('navbar.theme_mocha') }}
         </button>
-      </li>
-      <li>
-        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="midnight" aria-pressed="false">
-          <CloudRain :size="18" class="theme-icon icon"></CloudRain>
-          {{ $t('navbar.theme_midnight') }}
-        </button>
-      </li>
-      <li>
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="ember" aria-pressed="false">
           <Flame :size="18" class="theme-icon icon"></Flame>
           {{ $t('navbar.theme_ember') }}
         </button>
-      </li>
-      <li>
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="rose-pine" aria-pressed="false">
+          <TreePine :size="18" class="theme-icon icon"></TreePine>
+          {{ $t('navbar.theme_rose_pine') }}
+        </button>
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="moonlight" aria-pressed="false">
+          <CloudMoon :size="18" class="theme-icon icon"></CloudMoon>
+          {{ $t('navbar.theme_moonlight') }}
+        </button>
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="slate" aria-pressed="false">
+          <Layers :size="18" class="theme-icon icon"></Layers>
+          {{ $t('navbar.theme_slate') }}
+        </button>
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="midnight" aria-pressed="false">
+          <CloudRain :size="18" class="theme-icon icon"></CloudRain>
+          {{ $t('navbar.theme_midnight') }}
+        </button>
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="nord" aria-pressed="false">
           <Mountain :size="18" class="theme-icon icon"></Mountain>
           {{ $t('navbar.theme_nord') }}
         </button>
       </li>
-      <li><hr class="dropdown-divider"></li>
       <!-- Light Themes -->
-      <li>
+      <li class="theme-menu-group">
+        <h6 class="dropdown-header">{{ $t('navbar.theme_group_light') }}</h6>
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="light" aria-pressed="false">
           <Sun :size="18" class="theme-icon icon"></Sun>
           {{ $t('navbar.theme_light') }}
         </button>
-      </li>
-      <li>
-        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="indigo" aria-pressed="false">
-          <Sparkles :size="18" class="theme-icon icon"></Sparkles>
-          {{ $t('navbar.theme_indigo') }}
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="alucard" aria-pressed="false">
+          <Droplet :size="18" class="theme-icon icon"></Droplet>
+          {{ $t('navbar.theme_alucard') }}
         </button>
-      </li>
-      <li>
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="latte" aria-pressed="false">
+          <Milk :size="18" class="theme-icon icon"></Milk>
+          {{ $t('navbar.theme_latte') }}
+        </button>
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="ember-light" aria-pressed="false">
+          <Sunset :size="18" class="theme-icon icon"></Sunset>
+          {{ $t('navbar.theme_ember_light') }}
+        </button>
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="rose-pine-dawn" aria-pressed="false">
+          <Sprout :size="18" class="theme-icon icon"></Sprout>
+          {{ $t('navbar.theme_rose_pine_dawn') }}
+        </button>
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="sunshine" aria-pressed="false">
           <Sunrise :size="18" class="theme-icon icon"></Sunrise>
           {{ $t('navbar.theme_sunshine') }}
         </button>
-      </li>
-      <li>
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="indigo" aria-pressed="false">
+          <Sparkles :size="18" class="theme-icon icon"></Sparkles>
+          {{ $t('navbar.theme_indigo') }}
+        </button>
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="ocean" aria-pressed="false">
           <Waves :size="18" class="theme-icon icon"></Waves>
           {{ $t('navbar.theme_ocean') }}
         </button>
-      </li>
-      <li>
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="forest" aria-pressed="false">
           <Trees :size="18" class="theme-icon icon"></Trees>
           {{ $t('navbar.theme_forest') }}
         </button>
-      </li>
-      <li>
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="rose" aria-pressed="false">
           <Flower :size="18" class="theme-icon icon"></Flower>
           {{ $t('navbar.theme_rose') }}
         </button>
-      </li>
-      <li>
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="lavender" aria-pressed="false">
           <Flower2 :size="18" class="theme-icon icon"></Flower2>
           {{ $t('navbar.theme_lavender') }}
         </button>
-      </li>
-      <li>
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="monochrome" aria-pressed="false">
           <Contrast :size="18" class="theme-icon icon"></Contrast>
           {{ $t('navbar.theme_monochrome') }}

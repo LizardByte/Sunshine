@@ -7,12 +7,15 @@
 
 <body id="app" v-cloak>
   <Navbar></Navbar>
-  <div class="container">
-    <h1 class="my-4">{{ $t('config.configuration') }}</h1>
+  <div id="content" class="container">
+    <div class="my-4">
+      <h1>{{ $t('config.configuration') }}</h1>
+      <p>{{ $t('config.configuration_desc') }}</p>
+    </div>
 
     <!-- Search Bar with Autocomplete -->
-    <div class="mb-3">
-      <div class="input-group">
+    <div class="toolbar mb-3 d-flex flex-wrap align-items-center gap-3">
+      <div class="input-group config-search">
         <span class="input-group-text">
           <search :size="18" class="icon"></search>
         </span>
@@ -30,25 +33,60 @@
           {{ option.tab }} - {{ option.label }}
         </option>
       </datalist>
-      <div v-if="searchQuery && searchResults.length === 0" class="text-muted small mt-1">
+      <span v-if="searchQuery && searchResults.length === 0" class="text-muted small flex-shrink-0">
         No results found for "{{ searchQuery }}"
-      </div>
-      <div v-else-if="searchQuery" class="text-muted small mt-1">
+      </span>
+      <span v-else-if="searchQuery" class="text-muted small flex-shrink-0">
         Found {{ searchResults.length }} result(s)
-      </div>
+      </span>
     </div>
 
     <div class="form" v-if="config">
-      <!-- Header -->
-      <ul class="nav nav-tabs">
-        <li class="nav-item" v-for="tab in tabs" :key="tab.id">
-          <a class="nav-link" :class="{'active': tab.id === currentTab}" href="#"
-            @click="currentTab = tab.id">
-            <component :is="getTabIcon(tab.id)" :size="18" class="icon"></component>
-            {{tab.name}}
-          </a>
-        </li>
-      </ul>
+      <div class="config-layout">
+        <!-- Sidebar navigation -->
+        <nav class="config-nav">
+          <ul class="nav config-nav-list">
+            <li class="nav-item" v-for="tab in generalTabs" :key="tab.id">
+              <a class="nav-link" :class="{'active': tab.id === currentTab}" href="#"
+                @click="currentTab = tab.id">
+                <component :is="getTabIcon(tab.id)" :size="18" class="icon"></component>
+                {{tab.name}}
+              </a>
+            </li>
+          </ul>
+          <template v-if="encoderTabs.length">
+            <div class="config-nav-heading">{{ $t('config.encoders') }}</div>
+            <ul class="nav config-nav-list">
+              <li class="nav-item" v-for="tab in encoderTabs" :key="tab.id">
+                <a class="nav-link" :class="{'active': tab.id === currentTab}" href="#"
+                  @click="currentTab = tab.id">
+                  <component :is="getTabIcon(tab.id)" :size="18" class="icon"></component>
+                  {{tab.name}}
+                </a>
+              </li>
+            </ul>
+          </template>
+
+          <div class="config-actions">
+            <button class="btn btn-primary" @click="save">
+              <save :size="18" class="icon"></save>
+              {{ $t('_common.save') }}
+            </button>
+            <button class="btn btn-success" @click="apply" v-if="saved && !restarted">
+              <check :size="18" class="icon"></check>
+              {{ $t('_common.apply') }}
+            </button>
+          </div>
+        </nav>
+
+        <!-- Tab content -->
+        <div class="config-content">
+          <div class="alert alert-success mb-4" v-if="saved && !restarted">
+            <b>{{ $t('_common.success') }}</b> {{ $t('config.apply_note') }}
+          </div>
+          <div class="alert alert-success mb-4" v-if="restarted">
+            <b>{{ $t('_common.success') }}</b> {{ $t('config.restart_note') }}
+          </div>
 
       <!-- General Tab -->
       <general
@@ -98,25 +136,10 @@
         :config="config"
         :platform="platform">
       </container-encoders>
+        </div>
+      </div>
     </div>
 
-    <!-- Save and Apply buttons -->
-    <div class="alert alert-success my-4" v-if="saved && !restarted">
-      <b>{{ $t('_common.success') }}</b> {{ $t('config.apply_note') }}
-    </div>
-    <div class="alert alert-success my-4" v-if="restarted">
-      <b>{{ $t('_common.success') }}</b> {{ $t('config.restart_note') }}
-    </div>
-    <div class="mb-3 d-flex gap-2 mt-4">
-      <button class="btn btn-primary" @click="save">
-        <save :size="18" class="icon"></save>
-        {{ $t('_common.save') }}
-      </button>
-      <button class="btn btn-success" @click="apply" v-if="saved && !restarted">
-        <check :size="18" class="icon"></check>
-        {{ $t('_common.apply') }}
-      </button>
-    </div>
   </div>
 </body>
 
@@ -147,6 +170,8 @@
     Sliders,
     Volume2,
   } from '@lucide/vue'
+
+  const ENCODER_TAB_IDS = new Set(["nv", "amd", "qsv", "vaapi", "vt", "vulkan", "sw"]);
 
   const app = createApp({
     components: {
@@ -360,6 +385,12 @@
        }
     },
     computed: {
+      generalTabs() {
+        return this.tabs.filter(tab => !ENCODER_TAB_IDS.has(tab.id));
+      },
+      encoderTabs() {
+        return this.tabs.filter(tab => ENCODER_TAB_IDS.has(tab.id));
+      },
       allConfigOptions() {
         const options = [];
         this.tabs.forEach(tab => {
