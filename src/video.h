@@ -26,22 +26,14 @@ namespace video {
     int width;  ///< Video width in pixels.
     int height;  ///< Video height in pixels.
     int framerate;  ///< Requested framerate used in the per-frame bitrate budget.
-    /**
-     * @brief Framerate X100.
-     */
     int framerateX100;  ///< Optional NTSC-style framerate value, e.g. 59.94 as 5994.
     int bitrate;  ///< Video bitrate in kilobits for the requested framerate.
     int slicesPerFrame;  ///< Number of slices per frame.
     int numRefFrames;  ///< Maximum number of reference frames.
-
     int encoderCscMode;  ///< Requested color range and SDR colorspace; HDR always uses BT.2020 and ST2084.
-
     int videoFormat;  ///< Video codec format: 0 = H.264, 1 = HEVC, 2 = AV1.
-
     int dynamicRange;  ///< Encoding color depth: 0 = 8-bit, 1 = 10-bit.
-
     int chromaSamplingType;  ///< Chroma sampling type: 0 = 4:2:0, 1 = 4:4:4.
-
     int enableIntraRefresh;  ///< Intra refresh setting: 0 = disabled, 1 = enabled.
   };
 

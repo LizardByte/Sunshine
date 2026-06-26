@@ -315,7 +315,7 @@ namespace platf {
   using screen_res_t = util::dyn_safe_ptr<_XRRScreenResources, &x11::rr::FreeScreenResources>;
 
   /**
-     * @brief RAII wrapper that removes a SysV shared-memory segment.
+   * @brief RAII wrapper that removes a SysV shared-memory segment.
    */
   class shm_id_t {
   public:
@@ -353,7 +353,7 @@ namespace platf {
   };
 
   /**
-     * @brief RAII wrapper that detaches mapped SysV shared memory.
+   * @brief RAII wrapper that detaches mapped SysV shared memory.
    */
   class shm_data_t {
   public:

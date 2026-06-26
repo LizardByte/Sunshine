@@ -7,9 +7,9 @@
 #endif
 #ifdef DOXYGEN
   /**
- * @def CALLBACK
- * @brief Windows callback calling convention marker.
- */
+   * @def CALLBACK
+   * @brief Windows callback calling convention marker.
+   */
   #define CALLBACK
 #endif
 
