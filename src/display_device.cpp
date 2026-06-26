@@ -5,12 +5,14 @@
 // header include
 #include "display_device.h"
 
-// lib includes
+// standard includes
 #include <algorithm>
 #include <cctype>
 #include <mutex>
 #include <regex>
 #include <string_view>
+
+// lib includes
 #include <boost/algorithm/string.hpp>
 #include <display_device/audio_context_interface.h>
 #include <display_device/file_settings_persistence.h>
