@@ -10,7 +10,13 @@
 #include "crypto.h"
 
 namespace crypto {
+  /**
+   * @brief OpenSSL ASN.1 string pointer with automatic release.
+   */
   using asn1_string_t = util::safe_ptr<ASN1_STRING, ASN1_STRING_free>;
+  /**
+   * @brief OpenSSL X.509 subject/issuer name pointer with automatic release.
+   */
   using x509_name_t = util::safe_ptr<X509_NAME, &X509_NAME_free>;
 
   cert_chain_t::cert_chain_t():
@@ -322,6 +328,9 @@ namespace crypto {
 
   }  // namespace cipher
 
+  /**
+   * @brief Derive the AES key used by the pairing protocol.
+   */
   aes_t gen_aes_key(const std::array<uint8_t, 16> &salt, const std::string_view &pin) {
     aes_t key(16);
 
@@ -344,6 +353,9 @@ namespace crypto {
     return hsh;
   }
 
+  /**
+   * @brief Parse PEM text into an X.509 certificate object.
+   */
   x509_t x509(const std::string_view &x) {
     bio_t io {BIO_new(BIO_s_mem())};
 
@@ -355,6 +367,9 @@ namespace crypto {
     return p;
   }
 
+  /**
+   * @brief Parse PEM text into an OpenSSL private key object.
+   */
   pkey_t pkey(const std::string_view &k) {
     bio_t io {BIO_new(BIO_s_mem())};
 
@@ -366,6 +381,9 @@ namespace crypto {
     return p;
   }
 
+  /**
+   * @brief Serialize an OpenSSL object to PEM text.
+   */
   std::string pem(x509_t &x509) {
     bio_t bio {BIO_new(BIO_s_mem())};
 
@@ -376,6 +394,9 @@ namespace crypto {
     return {mem_ptr->data, mem_ptr->length};
   }
 
+  /**
+   * @brief Serialize an OpenSSL object to PEM text.
+   */
   std::string pem(pkey_t &pkey) {
     bio_t bio {BIO_new(BIO_s_mem())};
 
@@ -386,6 +407,9 @@ namespace crypto {
     return {mem_ptr->data, mem_ptr->length};
   }
 
+  /**
+   * @brief Return the certificate signature bytes.
+   */
   std::string_view signature(const x509_t &x) {
     // X509_ALGOR *_ = nullptr;
 
@@ -398,6 +422,9 @@ namespace crypto {
     };
   }
 
+  /**
+   * @brief Generate cryptographically secure random bytes.
+   */
   std::string rand(std::size_t bytes) {
     std::string r;
     r.resize(bytes);
@@ -407,6 +434,14 @@ namespace crypto {
     return r;
   }
 
+  /**
+   * @brief Sign data with the requested OpenSSL digest.
+   *
+   * @param pkey Private key PEM data or private key file path.
+   * @param data Payload or state data to serialize, deserialize, or forward.
+   * @param md OpenSSL message digest algorithm used for signing or verification.
+   * @return Number of bytes written, signature bytes, or an error status depending on the overload.
+   */
   std::vector<uint8_t> sign(const pkey_t &pkey, const std::string_view &data, const EVP_MD *md) {
     md_ctx_t ctx {EVP_MD_CTX_create()};
 
@@ -431,6 +466,9 @@ namespace crypto {
     return digest;
   }
 
+  /**
+   * @brief Generate a self-signed certificate and private key for Sunshine pairing.
+   */
   creds_t gen_creds(const std::string_view &cn, std::uint32_t key_bits) {
     x509_t x509 {X509_new()};
     pkey_ctx_t ctx {EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, nullptr)};
@@ -475,10 +513,22 @@ namespace crypto {
     return {pem(x509), pem(pkey)};
   }
 
+  /**
+   * @brief Sign data with SHA-256.
+   */
   std::vector<uint8_t> sign256(const pkey_t &pkey, const std::string_view &data) {
     return sign(pkey, data, EVP_sha256());
   }
 
+  /**
+   * @brief Verify a signature against certificate public key data.
+   *
+   * @param x509 X.509 certificate object or PEM data.
+   * @param data Payload or state data to serialize, deserialize, or forward.
+   * @param signature Signature bytes to verify or encode.
+   * @param md OpenSSL message digest algorithm used for signing or verification.
+   * @return True when OpenSSL verifies the signature with the supplied digest.
+   */
   bool verify(const x509_t &x509, const std::string_view &data, const std::string_view &signature, const EVP_MD *md) {
     auto pkey = X509_get0_pubkey(x509.get());
 
@@ -499,14 +549,23 @@ namespace crypto {
     return true;
   }
 
+  /**
+   * @brief Verify a SHA-256 signature with the certificate public key.
+   */
   bool verify256(const x509_t &x509, const std::string_view &data, const std::string_view &signature) {
     return verify(x509, data, signature, EVP_sha256());
   }
 
+  /**
+   * @brief Destroy an OpenSSL message digest context.
+   */
   void md_ctx_destroy(EVP_MD_CTX *ctx) {
     EVP_MD_CTX_destroy(ctx);
   }
 
+  /**
+   * @brief Generate random text from the supplied alphabet.
+   */
   std::string rand_alphabet(std::size_t bytes, const std::string_view &alphabet) {
     auto value = rand(bytes);
 

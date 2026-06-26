@@ -50,30 +50,56 @@ using namespace std::literals;
 namespace confighttp {
   namespace fs = std::filesystem;
 
+  /**
+   * @brief HTTPS server type used for Sunshine's configuration UI.
+   */
   using https_server_t = SimpleWeb::Server<SimpleWeb::HTTPS>;
 
+  /**
+   * @brief Case-insensitive map used for HTTP headers and query parameters.
+   */
   using args_t = SimpleWeb::CaseInsensitiveMultimap;
+  /**
+   * @brief Shared HTTPS response object passed to configuration handlers.
+   */
   using resp_https_t = std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>;
+  /**
+   * @brief Shared HTTPS request object received by configuration handlers.
+   */
   using req_https_t = std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request>;
+  /**
+   * @brief Handler signature for configuration UI HTTPS routes.
+   */
   using https_handler_t = std::function<void(resp_https_t, req_https_t)>;
 
+  /**
+   * @brief Client certificate operations accepted by the configuration API.
+   */
   enum class op_e {
     ADD,  ///< Add client
     REMOVE  ///< Remove client
   };
 
   // CSRF token management
+  /**
+   * @brief CSRF token value and its expiration deadline.
+   */
   struct csrf_token_t {
-    std::string token;
-    std::chrono::steady_clock::time_point expiration;
+    std::string token;  ///< Random token value that must be echoed by the client.
+    std::chrono::steady_clock::time_point expiration;  ///< Monotonic deadline after which the token is rejected.
   };
 
-  // Store CSRF tokens with thread safety
-  std::map<std::string, csrf_token_t, std::less<>> csrf_tokens;  // NOSONAR(cpp:S5421) - intentionally mutable global
-  std::mutex csrf_tokens_mutex;  // NOSONAR(cpp:S5421) - intentionally mutable global
+  std::map<std::string, csrf_token_t, std::less<>> csrf_tokens;  ///< CSRF tokens by client identifier. NOSONAR(cpp:S5421) - intentionally mutable global
+  std::mutex csrf_tokens_mutex;  ///< Mutex protecting CSRF token storage. NOSONAR(cpp:S5421) - intentionally mutable global
 
   // CSRF token configuration
+  /**
+   * @brief Number of random bytes used when generating a CSRF token.
+   */
   constexpr auto CSRF_TOKEN_SIZE = 32;  // 32 bytes = 256 bits
+  /**
+   * @brief Amount of time a generated CSRF token remains valid.
+   */
   constexpr auto CSRF_TOKEN_LIFETIME = std::chrono::hours(1);  // Tokens valid for 1 hour
 
   /**
@@ -247,9 +273,6 @@ namespace confighttp {
 
   /**
    * @brief Validate the request content type and send a bad request when mismatched.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   * @param contentType The expected content type
    */
   bool check_content_type(const resp_https_t &response, const req_https_t &request, const std::string_view &contentType) {
     const auto requestContentType = request->header.find("content-type");
@@ -360,6 +383,9 @@ namespace confighttp {
     return true;
   }
 
+  /**
+   * @brief Validate CSRF token.
+   */
   bool validate_csrf_token(const resp_https_t &response, const req_https_t &request, const std::string &client_id) {
     // Helper function to check if a URL starts with any allowed origin
     auto is_allowed_origin = [](const std::string_view url) {
@@ -421,9 +447,6 @@ namespace confighttp {
 
   /**
    * @brief Validates the application index and sends an error response if invalid.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   * @param index The application index/id.
    */
   bool check_app_index(const resp_https_t &response, const req_https_t &request, int index) {
     std::string file = file_handler::read_file(config::stream.file_apps.c_str());
@@ -1384,9 +1407,10 @@ namespace confighttp {
   }
 
   /**
-   * @brief Restart Sunshine.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
+   * @brief Authenticate a Web UI request and restart the Sunshine process.
+   *
+   * @param response HTTP response used for authentication or CSRF failures.
+   * @param request HTTP request carrying the client identity and CSRF token.
    *
    * @api_examples{/api/restart| POST| null}
    */
@@ -1721,6 +1745,9 @@ namespace confighttp {
     }
   }
 
+  /**
+   * @brief Start the HTTPS configuration server.
+   */
   void start() {
     platf::set_thread_name("confighttp");
     const auto shutdown_event = mail::man->event<bool>(mail::shutdown);

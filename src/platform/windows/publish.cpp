@@ -21,47 +21,75 @@
 #include "src/thread_safe.h"
 #include "utf_utils.h"
 
+/**
+ * @def _FN(x, ret, args)
+ * @brief Macro for FN.
+ */
 #define _FN(x, ret, args) \
+  /** \
+   * @brief Function pointer type for the dynamically loaded DNS-SD entry point. \
+   */ \
   typedef ret(*x##_fn) args; \
+  /** \
+   * @brief Loaded DNS-SD entry point pointer. \
+   */ \
   static x##_fn x
 
 using namespace std::literals;
 
+/**
+ * @def __SV(quote)
+ * @brief Macro for SV.
+ */
 #define __SV(quote) L##quote##sv
+/**
+ * @def SV(quote)
+ * @brief Macro for SV.
+ */
 #define SV(quote) __SV(quote)
 
 extern "C" {
 #ifndef __MINGW32__
-  constexpr auto DNS_REQUEST_PENDING = 9506L;
-  constexpr auto DNS_QUERY_REQUEST_VERSION1 = 0x1;
-  constexpr auto DNS_QUERY_RESULTS_VERSION1 = 0x1;
+  constexpr auto DNS_REQUEST_PENDING = 9506L;  ///< Windows DNS API constant for request pending.
+  constexpr auto DNS_QUERY_REQUEST_VERSION1 = 0x1;  ///< Windows DNS API constant for query request version1.
+  constexpr auto DNS_QUERY_RESULTS_VERSION1 = 0x1;  ///< Windows DNS API constant for query results version1.
 #endif
 
-  constexpr auto SERVICE_DOMAIN = "local";
-  const auto SERVICE_TYPE_DOMAIN = std::format("{}.{}"sv, platf::SERVICE_TYPE, SERVICE_DOMAIN);
+  constexpr auto SERVICE_DOMAIN = "local";  ///< Protocol or platform constant for service domain.
+  const auto SERVICE_TYPE_DOMAIN = std::format("{}.{}"sv, platf::SERVICE_TYPE, SERVICE_DOMAIN);  ///< Protocol or platform constant for service type domain.
 
 #ifndef __MINGW32__
+  /**
+   * @brief Windows DNS-SD service instance registration data.
+   */
   typedef struct _DNS_SERVICE_INSTANCE {
-    LPWSTR pszInstanceName;
-    LPWSTR pszHostName;
+    LPWSTR pszInstanceName;  ///< DNS-SD service instance name.
+    LPWSTR pszHostName;  ///< Hostname advertising the DNS-SD service.
 
-    IP4_ADDRESS *ip4Address;
-    IP6_ADDRESS *ip6Address;
+    IP4_ADDRESS *ip4Address;  ///< Optional IPv4 address advertised with the service.
+    IP6_ADDRESS *ip6Address;  ///< Optional IPv6 address advertised with the service.
 
-    WORD wPort;
-    WORD wPriority;
-    WORD wWeight;
+    WORD wPort;  ///< TCP or UDP port advertised for the service.
+    WORD wPriority;  ///< DNS-SD priority value.
+    WORD wWeight;  ///< DNS-SD weight value.
 
     // Property list
-    DWORD dwPropertyCount;
+    DWORD dwPropertyCount;  ///< Number of TXT record key/value pairs.
 
-    PWSTR *keys;
-    PWSTR *values;
+    PWSTR *keys;  ///< DNS TXT record keys.
+    PWSTR *values;  ///< DNS TXT record values paired with `keys`.
 
-    DWORD dwInterfaceIndex;
-  } DNS_SERVICE_INSTANCE, *PDNS_SERVICE_INSTANCE;
+    DWORD dwInterfaceIndex;  ///< Network interface index used for registration.
+  } DNS_SERVICE_INSTANCE, *PDNS_SERVICE_INSTANCE;  ///< Alias for DNS SERVICE INSTANCE.
 #endif
 
+  /**
+   * @brief DNS service registration completion callback.
+   *
+   * @param Status Registration status.
+   * @param pQueryContext User query context.
+   * @param pInstance DNS service instance.
+   */
   typedef VOID WINAPI
     DNS_SERVICE_REGISTER_COMPLETE(
       _In_ DWORD Status,
@@ -69,22 +97,31 @@ extern "C" {
       _In_ PDNS_SERVICE_INSTANCE pInstance
     );
 
+  /**
+   * @brief Pointer to the Windows DNS-SD registration completion callback.
+   */
   typedef DNS_SERVICE_REGISTER_COMPLETE *PDNS_SERVICE_REGISTER_COMPLETE;
 
 #ifndef __MINGW32__
+  /**
+   * @brief Windows DNS-SD cancellation request data.
+   */
   typedef struct _DNS_SERVICE_CANCEL {
-    PVOID reserved;
-  } DNS_SERVICE_CANCEL, *PDNS_SERVICE_CANCEL;
+    PVOID reserved;  ///< Reserved by the Windows DNS-SD API and left null.
+  } DNS_SERVICE_CANCEL, *PDNS_SERVICE_CANCEL;  ///< Alias for DNS SERVICE CANCEL.
 
+  /**
+   * @brief Windows DNS-SD service registration request data.
+   */
   typedef struct _DNS_SERVICE_REGISTER_REQUEST {
-    ULONG Version;
-    ULONG InterfaceIndex;
-    PDNS_SERVICE_INSTANCE pServiceInstance;
-    PDNS_SERVICE_REGISTER_COMPLETE pRegisterCompletionCallback;
-    PVOID pQueryContext;
-    HANDLE hCredentials;
-    BOOL unicastEnabled;
-  } DNS_SERVICE_REGISTER_REQUEST, *PDNS_SERVICE_REGISTER_REQUEST;
+    ULONG Version;  ///< Windows DNS-SD request structure version.
+    ULONG InterfaceIndex;  ///< Network interface index used for registration.
+    PDNS_SERVICE_INSTANCE pServiceInstance;  ///< Service instance being registered.
+    PDNS_SERVICE_REGISTER_COMPLETE pRegisterCompletionCallback;  ///< Callback invoked when registration completes.
+    PVOID pQueryContext;  ///< Caller-provided context passed to the completion callback.
+    HANDLE hCredentials;  ///< Optional credentials handle supplied to Windows DNS-SD.
+    BOOL unicastEnabled;  ///< Whether the DNS-SD registration is unicast-only.
+  } DNS_SERVICE_REGISTER_REQUEST, *PDNS_SERVICE_REGISTER_REQUEST;  ///< Alias for DNS SERVICE REGISTER REQUEST.
 #endif
 
   _FN(_DnsServiceFreeInstance, VOID, (_In_ PDNS_SERVICE_INSTANCE pInstance));
@@ -93,6 +130,14 @@ extern "C" {
 } /* extern "C" */
 
 namespace platf::publish {
+  /**
+   * @brief Handle completion of a Windows DNS-SD registration request.
+   *
+   * @param status Native status code returned by the platform API.
+   * @param pQueryContext Alarm object signaled when registration completes.
+   * @param pInstance Registered DNS-SD service instance returned by Windows.
+   * @return Callback has no return value; completion is reported through the alarm.
+   */
   VOID WINAPI register_cb(DWORD status, PVOID pQueryContext, PDNS_SERVICE_INSTANCE pInstance) {
     auto alarm = (safe::alarm_t<PDNS_SERVICE_INSTANCE>::element_type *) pQueryContext;
 
@@ -169,6 +214,9 @@ namespace platf::publish {
     return registered_instance ? 0 : -1;
   }
 
+  /**
+   * @brief Windows DNS-SD registration lifetime for the advertised Sunshine service.
+   */
   class mdns_registration_t: public ::platf::deinit_t {
   public:
     mdns_registration_t():
@@ -196,6 +244,12 @@ namespace platf::publish {
     PDNS_SERVICE_INSTANCE existing_instance;
   };
 
+  /**
+   * @brief Resolve required function pointers from the native library.
+   *
+   * @param handle Native library or object handle used by the operation.
+   * @return 0 when all required DNS-SD functions are resolved; nonzero otherwise.
+   */
   int load_funcs(HMODULE handle) {
     auto fg = util::fail_guard([handle]() {
       FreeLibrary(handle);

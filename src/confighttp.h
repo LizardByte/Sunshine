@@ -16,10 +16,14 @@
 // local includes
 #include "thread_safe.h"
 
+/**
+ * @def WEB_DIR
+ * @brief Macro for WEB DIR.
+ */
 #define WEB_DIR SUNSHINE_ASSETS_DIR "/web/"
 
 namespace confighttp {
-  constexpr auto PORT_HTTPS = 1;
+  constexpr auto PORT_HTTPS = 1;  ///< GameStream port offset for port https.
 
   // Type aliases for HTTPS server components
   using https_server_t = SimpleWeb::Server<SimpleWeb::HTTPS>;
@@ -36,10 +40,34 @@ namespace confighttp {
   bool authenticate(const resp_https_t &response, const req_https_t &request);
   void not_found(const resp_https_t &response, const req_https_t &request, const std::string &error_message = "Not Found");
   void bad_request(const resp_https_t &response, const req_https_t &request, const std::string &error_message = "Bad Request");
+  /**
+   * @brief Check content type.
+   *
+   * @param response HTTP response object to populate.
+   * @param request HTTP request data from the client.
+   * @param contentType Expected HTTP content type.
+   * @return True when the request passes validation and processing may continue.
+   */
   bool check_content_type(const resp_https_t &response, const req_https_t &request, const std::string_view &contentType);
   std::string generate_csrf_token(const std::string &client_id);
+  /**
+   * @brief Validate CSRF token.
+   *
+   * @param response HTTP response object to populate.
+   * @param request HTTP request data from the client.
+   * @param client_id Client identifier used to look up the CSRF token.
+   * @return True when the request passes validation and processing may continue.
+   */
   bool validate_csrf_token(const resp_https_t &response, const req_https_t &request, const std::string &client_id);
   std::string get_client_id(const req_https_t &request);
+  /**
+   * @brief Check app index.
+   *
+   * @param response HTTP response object to populate.
+   * @param request HTTP request data from the client.
+   * @param index Zero-based index of the item being addressed.
+   * @return True when the request passes validation and processing may continue.
+   */
   bool check_app_index(const resp_https_t &response, const req_https_t &request, int index);
   void getPage(const resp_https_t &response, const req_https_t &request, const char *html_file, bool require_auth = true, bool redirect_if_username = false);
   void getAsset(const resp_https_t &response, const req_https_t &request);
@@ -74,6 +102,9 @@ namespace confighttp {
 }  // namespace confighttp
 
 // mime types map
+/**
+ * @brief File-extension to MIME-type mapping used when serving the Web UI.
+ */
 const std::map<std::string, std::string> mime_types = {
   {"css", "text/css"},
   {"gif", "image/gif"},

@@ -18,6 +18,9 @@
 using namespace std::literals;
 
 namespace platf::pen {
+  /**
+   * @brief Apply the supplied state update to the platform backend.
+   */
   void update(client_input_raw_t *raw, const touch_port_t &touch_port, const pen_input_t &pen) {
     if (raw->pen) {
       // First set the buttons

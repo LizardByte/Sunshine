@@ -17,6 +17,9 @@ namespace thread_pool_util {
    */
   class ThreadPool: public task_pool_util::TaskPool {
   public:
+    /**
+     * @brief Callable unit executed by a worker thread.
+     */
     typedef TaskPool::__task __task;
 
   private:
@@ -32,6 +35,11 @@ namespace thread_pool_util {
         _continue {false} {
     }
 
+    /**
+     * @brief Start a pool with the requested number of worker threads.
+     *
+     * @param threads Number of worker threads to start.
+     */
     explicit ThreadPool(int threads):
         _thread(threads),
         _continue {true} {
@@ -49,6 +57,13 @@ namespace thread_pool_util {
       join();
     }
 
+    /**
+     * @brief Queue work for asynchronous execution.
+     *
+     * @param newTask New task.
+     * @param args Arguments forwarded to the callable or parser.
+     * @return Identifier assigned to the queued task.
+     */
     template<class Function, class... Args>
     auto push(Function &&newTask, Args &&...args) {
       std::lock_guard lg(_lock);
@@ -58,12 +73,25 @@ namespace thread_pool_util {
       return future;
     }
 
+    /**
+     * @brief Queue a task that becomes runnable after a delay.
+     *
+     * @param task Task object to enqueue or execute.
+     */
     void pushDelayed(std::pair<__time_point, __task> &&task) {
       std::lock_guard lg(_lock);
 
       TaskPool::pushDelayed(std::move(task));
     }
 
+    /**
+     * @brief Queue a task that becomes runnable after a delay.
+     *
+     * @param newTask New task.
+     * @param duration Delay before the timed task should run.
+     * @param args Arguments forwarded to the callable or parser.
+     * @return Future that becomes ready after the delayed task completes.
+     */
     template<class Function, class X, class Y, class... Args>
     auto pushDelayed(Function &&newTask, std::chrono::duration<X, Y> duration, Args &&...args) {
       std::lock_guard lg(_lock);
@@ -74,6 +102,11 @@ namespace thread_pool_util {
       return future;
     }
 
+    /**
+     * @brief Start worker threads for queued thread-pool tasks.
+     *
+     * @param threads Number of worker threads to start.
+     */
     void start(int threads) {
       _continue = true;
 
@@ -84,6 +117,9 @@ namespace thread_pool_util {
       }
     }
 
+    /**
+     * @brief Stop worker threads and prevent additional task execution.
+     */
     void stop() {
       std::lock_guard lg(_lock);
 
@@ -91,6 +127,9 @@ namespace thread_pool_util {
       _cv.notify_all();
     }
 
+    /**
+     * @brief Wait for worker threads owned by the session to exit.
+     */
     void join() {
       for (auto &t : _thread) {
         t.join();
@@ -98,6 +137,9 @@ namespace thread_pool_util {
     }
 
   public:
+    /**
+     * @brief Run the main application or worker loop.
+     */
     void _main() {
       platf::set_thread_name("TaskPool::worker");
       while (_continue) {

@@ -5,6 +5,10 @@
 
 // Required for IPV6_PKTINFO with Darwin headers
 #ifndef __APPLE_USE_RFC_3542  // NOLINT(bugprone-reserved-identifier)
+  /**
+   * @def __APPLE_USE_RFC_3542
+   * @brief Macro for APPLE USE RFC 3542.
+   */
   #define __APPLE_USE_RFC_3542 1
 #endif
 
@@ -43,7 +47,17 @@ namespace platf {
 #if __MAC_OS_X_VERSION_MAX_ALLOWED < 110000  // __MAC_11_0
   // If they're not in the SDK then we can use our own function definitions.
   // Need to use weak import so that this will link in macOS 10.14 and earlier
+  /**
+   * @brief Query macOS screen-capture permission without prompting the user.
+   *
+   * @return True when screen-capture permission is granted.
+   */
   extern "C" bool CGPreflightScreenCaptureAccess(void) __attribute__((weak_import));
+  /**
+   * @brief Request macOS screen-capture permission from the user.
+   *
+   * @return True when screen-capture permission is granted.
+   */
   extern "C" bool CGRequestScreenCaptureAccess(void) __attribute__((weak_import));
 #endif
 
@@ -52,6 +66,9 @@ namespace platf {
   }  // namespace
 
   // Return whether screen capture is allowed for this process.
+  /**
+   * @brief Check whether screen capture allowed.
+   */
   bool is_screen_capture_allowed() {
     return screen_capture_allowed;
   }
@@ -436,8 +453,17 @@ namespace platf {
   // are disconnected.
   static std::atomic<int> qos_ref_count = 0;
 
+  /**
+   * @brief Owns platform QoS state that is restored during cleanup.
+   */
   class qos_t: public deinit_t {
   public:
+    /**
+     * @brief Apply macOS socket QoS settings for scoped cleanup.
+     *
+     * @param sockfd Native socket descriptor whose options are updated.
+     * @param options Request options or socket options to apply.
+     */
     qos_t(int sockfd, std::vector<std::tuple<int, int, int>> options):
         sockfd(sockfd),
         options(options) {
@@ -462,11 +488,6 @@ namespace platf {
 
   /**
    * @brief Enables QoS on the given socket for traffic to the specified destination.
-   * @param native_socket The native socket handle.
-   * @param address The destination address for traffic sent on this socket.
-   * @param port The destination port for traffic sent on this socket.
-   * @param data_type The type of traffic sent on this socket.
-   * @param dscp_tagging Specifies whether to enable DSCP tagging on outgoing traffic.
    */
   std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
     int sockfd = (int) native_socket;
@@ -546,6 +567,9 @@ namespace platf {
     }
   }
 
+  /**
+   * @brief macOS high-precision timer implementation backed by a worker thread.
+   */
   class macos_high_precision_timer: public high_precision_timer {
   public:
     void sleep_for(const std::chrono::nanoseconds &duration) override {

@@ -21,6 +21,10 @@
 #include "src/platform/macos/nv12_zero_device.h"
 
 // Avoid conflict between AVFoundation and libavutil both defining AVMediaType
+/**
+ * @def AVMediaType
+ * @brief Macro for AV media type.
+ */
 #define AVMediaType AVMediaType_FFmpeg
 #include "src/video.h"
 #undef AVMediaType
@@ -210,10 +214,13 @@ namespace platf {
     }
   }  // namespace
 
+  /**
+   * @brief macOS display capture source and image buffers.
+   */
   struct av_display_t: public display_t {
-    AVVideo *av_capture {};
-    CGDirectDisplayID display_id {};
-    IOPMAssertionID display_sleep_assertion {kIOPMNullAssertionID};
+    AVVideo *av_capture {};  ///< AV capture.
+    CGDirectDisplayID display_id {};  ///< Display ID.
+    IOPMAssertionID display_sleep_assertion {kIOPMNullAssertionID};  ///< Display sleep assertion.
 
     ~av_display_t() override {
       [av_capture release];
@@ -226,6 +233,9 @@ namespace platf {
       }
     }
 
+    /**
+     * @brief Prevent macOS from sleeping the captured display while streaming.
+     */
     void prevent_display_sleep() {
       if (display_sleep_assertion != kIOPMNullAssertionID) {
         return;
@@ -292,10 +302,21 @@ namespace platf {
       return capture_e::ok;
     }
 
+    /**
+     * @brief Allocate an image buffer compatible with this display backend.
+     *
+     * @return Allocated img object, or null when unavailable.
+     */
     std::shared_ptr<img_t> alloc_img() override {
       return std::make_shared<av_img_t>();
     }
 
+    /**
+     * @brief Create AVCodec encode device.
+     *
+     * @param pix_fmt Sunshine pixel format to convert or allocate for.
+     * @return Constructed AVCodec encode device object.
+     */
     std::unique_ptr<avcodec_encode_device_t> make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
       if (pix_fmt == pix_fmt_e::yuv420p) {
         av_capture.pixelFormat = kCVPixelFormatType_32BGRA;
@@ -313,6 +334,12 @@ namespace platf {
       }
     }
 
+    /**
+     * @brief Populate a fallback image when real capture data is unavailable.
+     *
+     * @param img Image or frame object to read from or populate.
+     * @return Capture status reported to the streaming pipeline.
+     */
     int dummy_img(img_t *img) override {
       if (!platf::is_screen_capture_allowed()) {
         // If we don't have the screen capture permission, this function will hang
@@ -359,11 +386,20 @@ namespace platf {
      * display --> an opaque pointer to an object of this class
      * width --> the intended capture width
      * height --> the intended capture height
+     * @param display Display object or identifier associated with the operation.
+     * @param width Frame or display width in pixels.
+     * @param height Frame or display height in pixels.
      */
     static void setResolution(void *display, int width, int height) {
       [static_cast<AVVideo *>(display) setFrameWidth:width frameHeight:height];
     }
 
+    /**
+     * @brief Set pixel format.
+     *
+     * @param display Display object or identifier associated with the operation.
+     * @param pixelFormat Pixel format.
+     */
     static void setPixelFormat(void *display, OSType pixelFormat) {
       static_cast<AVVideo *>(display).pixelFormat = pixelFormat;
     }
@@ -440,8 +476,9 @@ namespace platf {
   }
 
   /**
-   * @brief Returns if GPUs/drivers have changed since the last call to this function.
-   * @return `true` if a change has occurred or if it is unknown whether a change occurred.
+   * @brief Report whether encoder backends should be probed again before streaming.
+   *
+   * @return Always `true` because macOS GPU changes are not tracked by this backend.
    */
   bool needs_encoder_reenumeration() {
     // We don't track GPU state, so we will always reenumerate. Fortunately, it is fast on macOS.

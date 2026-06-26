@@ -19,18 +19,27 @@ using namespace std::literals;
 
 namespace platf::mouse {
 
+  /**
+   * @brief Apply a relative pointer movement to the virtual mouse.
+   */
   void move(input_raw_t *raw, int deltaX, int deltaY) {
     if (raw->mouse) {
       (*raw->mouse).move(deltaX, deltaY);
     }
   }
 
+  /**
+   * @brief Move abs using the backend coordinate system.
+   */
   void move_abs(input_raw_t *raw, const touch_port_t &touch_port, float x, float y) {
     if (raw->mouse) {
       (*raw->mouse).move_abs(x, y, touch_port.width, touch_port.height);
     }
   }
 
+  /**
+   * @brief Press or release a virtual mouse button.
+   */
   void button(input_raw_t *raw, int button, bool release) {
     if (raw->mouse) {
       inputtino::Mouse::MOUSE_BUTTON btn_type;
@@ -62,18 +71,27 @@ namespace platf::mouse {
     }
   }
 
+  /**
+   * @brief Apply a vertical scroll event to the virtual mouse.
+   */
   void scroll(input_raw_t *raw, int high_res_distance) {
     if (raw->mouse) {
       (*raw->mouse).vertical_scroll(high_res_distance);
     }
   }
 
+  /**
+   * @brief Apply a horizontal scroll event to the virtual mouse.
+   */
   void hscroll(input_raw_t *raw, int high_res_distance) {
     if (raw->mouse) {
       (*raw->mouse).horizontal_scroll(high_res_distance);
     }
   }
 
+  /**
+   * @brief Return the current virtual pointer location.
+   */
   util::point_t get_location(input_raw_t *raw) {
     if (raw->mouse) {
       // TODO: decide what to do after https://github.com/games-on-whales/inputtino/issues/6 is resolved.

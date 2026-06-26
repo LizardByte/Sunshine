@@ -13,6 +13,10 @@
 #include "src/logging.h"
 #include "src/utility.h"
 
+/**
+ * @def MAKE_NVENC_VER(major, minor)
+ * @brief Macro for MAKE NVENC VER.
+ */
 #define MAKE_NVENC_VER(major, minor) ((major) | ((minor) << 24))
 
 // Make sure we check backwards compatibility when bumping the Video Codec SDK version
@@ -659,9 +663,11 @@ namespace nvenc {
   bool nvenc_base::nvenc_failed(NVENCSTATUS status) {
     auto status_string = [](NVENCSTATUS status) -> std::string {
       switch (status) {
-#define nvenc_status_case(x) \
-  case x: \
-    return #x;
+#ifndef DOXYGEN
+  #define nvenc_status_case(x) \
+    case x: \
+      return #x;
+#endif
         nvenc_status_case(NV_ENC_SUCCESS);
         nvenc_status_case(NV_ENC_ERR_NO_ENCODE_DEVICE);
         nvenc_status_case(NV_ENC_ERR_UNSUPPORTED_DEVICE);

@@ -21,6 +21,9 @@ using namespace std::literals;
 
 namespace platf {
 
+  /**
+   * @brief Create the platform input backend for a stream.
+   */
   input_t input() {
     return {new input_raw_t()};
   }
@@ -29,41 +32,65 @@ namespace platf {
     return std::make_unique<client_input_raw_t>(input);
   }
 
+  /**
+   * @brief Release a platform input backend created by input().
+   */
   void freeInput(void *p) {
     auto *input = (input_raw_t *) p;
     delete input;
   }
 
+  /**
+   * @brief Move mouse using the backend coordinate system.
+   */
   void move_mouse(input_t &input, int deltaX, int deltaY) {
     auto raw = (input_raw_t *) input.get();
     platf::mouse::move(raw, deltaX, deltaY);
   }
 
+  /**
+   * @brief Move the pointer to an absolute client-provided touch coordinate.
+   */
   void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
     auto raw = (input_raw_t *) input.get();
     platf::mouse::move_abs(raw, touch_port, x, y);
   }
 
+  /**
+   * @brief Press or release a virtual mouse button.
+   */
   void button_mouse(input_t &input, int button, bool release) {
     auto raw = (input_raw_t *) input.get();
     platf::mouse::button(raw, button, release);
   }
 
+  /**
+   * @brief Apply a vertical scroll event to the virtual mouse.
+   */
   void scroll(input_t &input, int high_res_distance) {
     auto raw = (input_raw_t *) input.get();
     platf::mouse::scroll(raw, high_res_distance);
   }
 
+  /**
+   * @brief Apply a horizontal scroll event to the virtual mouse.
+   */
   void hscroll(input_t &input, int high_res_distance) {
     auto raw = (input_raw_t *) input.get();
     platf::mouse::hscroll(raw, high_res_distance);
   }
 
+  /**
+   * @brief Press or release a virtual keyboard key.
+   */
   void keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
     auto raw = (input_raw_t *) input.get();
     platf::keyboard::update(raw, modcode, release, flags);
   }
 
+  /**
+   * @brief Submit UTF-8 text input to the keyboard backend.
+   */
   void unicode(input_t &input, char *utf8, int size) {
     auto raw = (input_raw_t *) input.get();
     platf::keyboard::unicode(raw, utf8, size);
@@ -84,6 +111,9 @@ namespace platf {
     return platf::gamepad::alloc(raw, id, metadata, feedback_queue);
   }
 
+  /**
+   * @brief Release gamepad resources.
+   */
   void free_gamepad(input_t &input, int nr) {
     auto raw = (input_raw_t *) input.get();
     platf::gamepad::free(raw, nr);

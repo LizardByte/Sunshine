@@ -20,6 +20,9 @@ using namespace std::literals;
 
 namespace platf::gamepad {
 
+  /**
+   * @brief Enumerates supported gamepad status options.
+   */
   enum GamepadStatus {
     UHID_NOT_AVAILABLE = 0,  ///< UHID is not available
     UINPUT_NOT_AVAILABLE,  ///< UINPUT is not available
@@ -27,6 +30,11 @@ namespace platf::gamepad {
     GAMEPAD_STATUS  ///< Helper to indicate the number of status
   };
 
+  /**
+   * @brief Create xbox one.
+   *
+   * @return Created xbox one object or status.
+   */
   auto create_xbox_one() {
     return inputtino::XboxOneJoypad::create({.name = inputtino_name_for_seat("Sunshine X-Box One (virtual) pad"sv),
                                              // https://github.com/torvalds/linux/blob/master/drivers/input/joystick/xpad.c#L147
@@ -35,6 +43,11 @@ namespace platf::gamepad {
                                              .version = 0x0408});
   }
 
+  /**
+   * @brief Create an inputtino Nintendo Switch Pro controller.
+   *
+   * @return Created switch object or status.
+   */
   auto create_switch() {
     return inputtino::SwitchJoypad::create({.name = inputtino_name_for_seat("Sunshine Nintendo (virtual) pad"sv),
                                             // https://github.com/torvalds/linux/blob/master/drivers/hid/hid-ids.h#L981
@@ -43,6 +56,12 @@ namespace platf::gamepad {
                                             .version = 0x8111});
   }
 
+  /**
+   * @brief Create an inputtino DualSense controller.
+   *
+   * @param globalIndex Global index.
+   * @return Created DS5 object or status.
+   */
   auto create_ds5(int globalIndex) {
     std::string device_mac = "";  // Inputtino checks empty() to generate a random MAC
 
@@ -54,6 +73,9 @@ namespace platf::gamepad {
     return inputtino::PS5Joypad::create({.name = inputtino_name_for_seat("Sunshine PS5 (virtual) pad"sv), .vendor_id = 0x054C, .product_id = 0x0CE6, .version = 0x8111, .device_phys = device_mac, .device_uniq = device_mac});
   }
 
+  /**
+   * @brief Allocate and initialize platform input state for a stream.
+   */
   int alloc(input_raw_t *raw, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
     ControllerType selectedGamepadType;
 
@@ -180,12 +202,18 @@ namespace platf::gamepad {
     return -1;
   }
 
+  /**
+   * @brief Release backend resources for the indexed gamepad.
+   */
   void free(input_raw_t *raw, int nr) {
     // This will call the destructor which in turn will stop the background threads for rumble and LED (and ultimately remove the joypad device)
     raw->gamepads[nr]->joypad.reset();
     raw->gamepads[nr].reset();
   }
 
+  /**
+   * @brief Apply the supplied state update to the platform backend.
+   */
   void update(input_raw_t *raw, int nr, const gamepad_state_t &gamepad_state) {
     auto gamepad = raw->gamepads[nr];
     if (!gamepad) {
@@ -201,6 +229,9 @@ namespace platf::gamepad {
                *gamepad->joypad);
   }
 
+  /**
+   * @brief Apply controller touchpad data to the backend device.
+   */
   void touch(input_raw_t *raw, const gamepad_touch_t &touch) {
     auto gamepad = raw->gamepads[touch.id.globalIndex];
     if (!gamepad) {
@@ -216,6 +247,9 @@ namespace platf::gamepad {
     }
   }
 
+  /**
+   * @brief Apply controller motion sensor data to the backend device.
+   */
   void motion(input_raw_t *raw, const gamepad_motion_t &motion) {
     auto gamepad = raw->gamepads[motion.id.globalIndex];
     if (!gamepad) {
@@ -234,6 +268,9 @@ namespace platf::gamepad {
     }
   }
 
+  /**
+   * @brief Apply controller battery status to the backend device.
+   */
   void battery(input_raw_t *raw, const gamepad_battery_t &battery) {
     auto gamepad = raw->gamepads[battery.id.globalIndex];
     if (!gamepad) {
@@ -263,6 +300,9 @@ namespace platf::gamepad {
     }
   }
 
+  /**
+   * @brief Return the virtual gamepad types supported by inputtino.
+   */
   std::vector<supported_gamepad_t> &supported_gamepads(input_t *input) {
     if (!input) {
       static std::vector gps {

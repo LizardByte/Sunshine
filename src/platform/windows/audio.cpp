@@ -26,9 +26,24 @@
 #include "PolicyConfig.h"
 // clang-format on
 
+#ifdef DOXYGEN
+/**
+ * @brief Property key for a device description.
+ */
+extern const PROPERTYKEY PKEY_Device_DeviceDesc;
+/**
+ * @brief Property key for a device friendly name.
+ */
+extern const PROPERTYKEY PKEY_Device_FriendlyName;
+/**
+ * @brief Property key for a device interface friendly name.
+ */
+extern const PROPERTYKEY PKEY_DeviceInterface_FriendlyName;
+#else
 DEFINE_PROPERTYKEY(PKEY_Device_DeviceDesc, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 2);  // DEVPROP_TYPE_STRING
 DEFINE_PROPERTYKEY(PKEY_Device_FriendlyName, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 14);  // DEVPROP_TYPE_STRING
 DEFINE_PROPERTYKEY(PKEY_DeviceInterface_FriendlyName, 0x026e516e, 0xb814, 0x414b, 0x83, 0xcd, 0x85, 0x6d, 0x6f, 0xef, 0x48, 0x22, 2);
+#endif
 
 #if defined(__x86_64) || defined(__x86_64__) || defined(__amd64) || defined(__amd64__) || defined(_M_AMD64)
   #define STEAM_DRIVER_SUBDIR L"x64"
@@ -203,27 +218,70 @@ namespace {
 using namespace std::literals;
 
 namespace platf::audio {
+  /**
+   * @brief Release the COM or platform reference owned by the pointer.
+   *
+   * @param p Pointer passed to the deleter or conversion helper.
+   */
   template<class T>
   void Release(T *p) {
     p->Release();
   }
 
+  /**
+   * @brief Free memory allocated by COM task APIs.
+   *
+   * @param p Pointer passed to the deleter or conversion helper.
+   */
   template<class T>
   void co_task_free(T *p) {
     CoTaskMemFree((LPVOID) p);
   }
 
+  /**
+   * @brief COM device enumerator pointer for WASAPI endpoint discovery.
+   */
   using device_enum_t = util::safe_ptr<IMMDeviceEnumerator, Release<IMMDeviceEnumerator>>;
+  /**
+   * @brief COM pointer to a Windows audio endpoint device.
+   */
   using device_t = util::safe_ptr<IMMDevice, Release<IMMDevice>>;
+  /**
+   * @brief COM pointer to a collection of Windows audio endpoint devices.
+   */
   using collection_t = util::safe_ptr<IMMDeviceCollection, Release<IMMDeviceCollection>>;
+  /**
+   * @brief COM pointer to the WASAPI audio client interface.
+   */
   using audio_client_t = util::safe_ptr<IAudioClient, Release<IAudioClient>>;
+  /**
+   * @brief COM pointer to the WASAPI capture client interface.
+   */
   using audio_capture_t = util::safe_ptr<IAudioCaptureClient, Release<IAudioCaptureClient>>;
+  /**
+   * @brief CoTaskMem-allocated WAVEFORMATEX pointer.
+   */
   using wave_format_t = util::safe_ptr<WAVEFORMATEX, co_task_free<WAVEFORMATEX>>;
+  /**
+   * @brief CoTaskMem-allocated wide string pointer.
+   */
   using wstring_t = util::safe_ptr<WCHAR, co_task_free<WCHAR>>;
+  /**
+   * @brief Windows HANDLE wrapper closed with `CloseHandle`.
+   */
   using handle_t = util::safe_ptr_v2<void, BOOL, CloseHandle>;
+  /**
+   * @brief COM pointer to the Windows policy configuration interface.
+   */
   using policy_t = util::safe_ptr<IPolicyConfig, Release<IPolicyConfig>>;
+  /**
+   * @brief COM pointer to a Windows property store.
+   */
   using prop_t = util::safe_ptr<IPropertyStore, Release<IPropertyStore>>;
 
+  /**
+   * @brief Initializes COM for the current thread and uninitializes it on exit.
+   */
   class co_init_t: public deinit_t {
   public:
     co_init_t() {
@@ -235,6 +293,9 @@ namespace platf::audio {
     }
   };
 
+  /**
+   * @brief RAII wrapper that initializes and clears a Windows PROPVARIANT.
+   */
   class prop_var_t {
   public:
     prop_var_t() {
@@ -245,16 +306,22 @@ namespace platf::audio {
       PropVariantClear(&prop);
     }
 
-    PROPVARIANT prop;
+    PROPVARIANT prop;  ///< Variant value returned by Windows property-store queries.
   };
 
+  /**
+   * @brief Windows audio format details selected for capture.
+   */
   struct format_t {
-    WORD channel_count;
-    std::string name;
-    int capture_waveformat_channel_mask;
-    virtual_sink_waveformats_t virtual_sink_waveformats;
+    WORD channel_count;  ///< Channel count.
+    std::string name;  ///< Human-readable name for this item.
+    int capture_waveformat_channel_mask;  ///< Capture waveformat channel mask.
+    virtual_sink_waveformats_t virtual_sink_waveformats;  ///< Virtual sink waveformats.
   };
 
+  /**
+   * @brief Formats.
+   */
   const std::array<const format_t, 3> formats = {
     format_t {
       2,
@@ -276,6 +343,13 @@ namespace platf::audio {
     },
   };
 
+  /**
+   * @brief Create audio client.
+   *
+   * @param device D3D, audio, or platform device used by the operation.
+   * @param format Pixel, audio, or protocol format being converted.
+   * @return Constructed audio client object.
+   */
   audio_client_t make_audio_client(device_t &device, const format_t &format) {
     audio_client_t audio_client;
     auto status = device->Activate(
@@ -335,6 +409,12 @@ namespace platf::audio {
     return audio_client;
   }
 
+  /**
+   * @brief Query the default Windows render endpoint.
+   *
+   * @param device_enum Windows multimedia device enumerator.
+   * @return Default render endpoint, or an empty handle if lookup fails.
+   */
   device_t default_device(device_enum_t &device_enum) {
     device_t device;
     HRESULT status;
@@ -353,20 +433,40 @@ namespace platf::audio {
     return device;
   }
 
+  /**
+   * @brief Windows audio endpoint notification callback registered with MMDevice.
+   */
   class audio_notification_t: public ::IMMNotificationClient {
   public:
     audio_notification_t() {
     }
 
     // IUnknown implementation (unused by IMMDeviceEnumerator)
+    /**
+     * @brief Satisfy IUnknown reference counting for the notification callback.
+     *
+     * @return Static reference count because the callback lifetime is externally owned.
+     */
     ULONG STDMETHODCALLTYPE AddRef() {
       return 1;
     }
 
+    /**
+     * @brief Release the COM or platform reference owned by the pointer.
+     *
+     * @return Reference count or status returned after releasing the object.
+     */
     ULONG STDMETHODCALLTYPE Release() {
       return 1;
     }
 
+    /**
+     * @brief Return the supported COM interface for the notification callback.
+     *
+     * @param riid COM interface identifier requested by QueryInterface.
+     * @param ppvInterface Output pointer receiving the requested interface.
+     * @return S_OK when the interface is supported; E_NOINTERFACE otherwise.
+     */
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, VOID **ppvInterface) {
       if (IID_IUnknown == riid) {
         AddRef();
@@ -383,6 +483,14 @@ namespace platf::audio {
     }
 
     // IMMNotificationClient
+    /**
+     * @brief Handle a Windows default-audio-device change notification.
+     *
+     * @param flow Audio endpoint data-flow direction.
+     * @param role Audio endpoint role used for default-device lookup.
+     * @param pwstrDeviceId Windows endpoint ID for the new default device.
+     * @return S_OK after recording the render-device change notification.
+     */
     HRESULT STDMETHODCALLTYPE OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR pwstrDeviceId) {
       if (flow == eRender) {
         default_render_device_changed_flag.store(true);
@@ -390,14 +498,33 @@ namespace platf::audio {
       return S_OK;
     }
 
+    /**
+     * @brief Ignore endpoint-add notifications.
+     *
+     * @param pwstrDeviceId Windows endpoint ID for the added device.
+     * @return S_OK because Sunshine does not act on this notification.
+     */
     HRESULT STDMETHODCALLTYPE OnDeviceAdded(LPCWSTR pwstrDeviceId) {
       return S_OK;
     }
 
+    /**
+     * @brief Ignore endpoint-removal notifications.
+     *
+     * @param pwstrDeviceId Windows endpoint ID for the removed device.
+     * @return S_OK because Sunshine does not act on this notification.
+     */
     HRESULT STDMETHODCALLTYPE OnDeviceRemoved(LPCWSTR pwstrDeviceId) {
       return S_OK;
     }
 
+    /**
+     * @brief Handle Windows audio endpoint state changes.
+     *
+     * @param pwstrDeviceId Audio device ID.
+     * @param dwNewState New device state.
+     * @return COM status code.
+     */
     HRESULT STDMETHODCALLTYPE OnDeviceStateChanged(
       LPCWSTR pwstrDeviceId,
       DWORD dwNewState
@@ -405,6 +532,13 @@ namespace platf::audio {
       return S_OK;
     }
 
+    /**
+     * @brief Handle Windows audio endpoint property changes.
+     *
+     * @param pwstrDeviceId Audio device ID.
+     * @param key Changed property key.
+     * @return COM status code.
+     */
     HRESULT STDMETHODCALLTYPE OnPropertyValueChanged(
       LPCWSTR pwstrDeviceId,
       const PROPERTYKEY key
@@ -424,8 +558,17 @@ namespace platf::audio {
     std::atomic_bool default_render_device_changed_flag;
   };
 
+  /**
+   * @brief WASAPI microphone capture stream and endpoint notification state.
+   */
   class mic_wasapi_t: public mic_t {
   public:
+    /**
+     * @brief Deliver a captured audio sample to Sunshine's audio pipeline.
+     *
+     * @param sample_out Sample out.
+     * @return Capture status reported to the streaming pipeline.
+     */
     capture_e sample(std::vector<float> &sample_out) override {
       auto sample_size = sample_out.size();
 
@@ -451,6 +594,15 @@ namespace platf::audio {
       return capture_e::ok;
     }
 
+    /**
+     * @brief Initialize WASAPI capture for the selected audio endpoint.
+     *
+     * @param sample_rate Audio sample rate in hertz.
+     * @param frame_size Number of samples captured per audio frame.
+     * @param channels_out Channels out.
+     * @param continuous Whether silent audio should continue to be emitted.
+     * @return 0 on success; nonzero or negative platform status on failure.
+     */
     int init(std::uint32_t sample_rate, std::uint32_t frame_size, std::uint32_t channels_out, bool continuous) {
       audio_event.reset(CreateEventA(nullptr, FALSE, FALSE, nullptr));
       if (!audio_event) {
@@ -668,28 +820,36 @@ namespace platf::audio {
     }
 
   public:
-    handle_t audio_event;
+    handle_t audio_event;  ///< Event signaled by WASAPI when captured audio is available.
 
-    device_enum_t device_enum;
-    device_t device;
-    audio_client_t audio_client;
-    audio_capture_t audio_capture;
+    device_enum_t device_enum;  ///< Device enum.
+    device_t device;  ///< WASAPI endpoint device selected for capture.
+    audio_client_t audio_client;  ///< WASAPI audio client configured for shared-mode capture.
+    audio_capture_t audio_capture;  ///< WASAPI capture client used to read sample packets.
 
-    audio_notification_t endpt_notification;
-    std::optional<std::function<void()>> default_endpt_changed_cb;
+    audio_notification_t endpt_notification;  ///< Endpoint notification callback registered with Windows.
+    std::optional<std::function<void()>> default_endpt_changed_cb;  ///< Callback invoked when the default endpoint changes.
 
-    REFERENCE_TIME default_latency_ms;
+    REFERENCE_TIME default_latency_ms;  ///< WASAPI default device period used as capture latency.
 
-    util::buffer_t<float> sample_buf;
-    float *sample_buf_pos;
-    int channels;
-    bool continuous_audio;
+    util::buffer_t<float> sample_buf;  ///< Floating-point sample buffer filled from WASAPI packets.
+    float *sample_buf_pos;  ///< Current write position in `sample_buf`.
+    int channels;  ///< Number of channels in the capture format.
+    bool continuous_audio;  ///< Whether audio packets continue during silence.
 
-    HANDLE mmcss_task_handle = nullptr;
+    HANDLE mmcss_task_handle = nullptr;  ///< MMCSS task handle for the audio capture thread.
   };
 
+  /**
+   * @brief Platform audio controller that manages sinks and microphone capture.
+   */
   class audio_control_t: public ::platf::audio_control_t {
   public:
+    /**
+     * @brief Query host and virtual sink names available to Sunshine.
+     *
+     * @return Host and virtual sink names when the backend can report them.
+     */
     std::optional<sink_t> sink_info() override {
       sink_t sink;
 
@@ -767,6 +927,17 @@ namespace platf::audio {
       return std::nullopt;
     }
 
+    /**
+     * @brief Create a microphone capture stream for the requested layout.
+     *
+     * @param mapping Opus channel mapping table for the requested layout.
+     * @param channels Number of audio channels in the stream.
+     * @param sample_rate Audio sample rate in hertz.
+     * @param frame_size Number of samples captured per audio frame.
+     * @param continuous_audio Continuous audio.
+     * @param host_audio_enabled Whether host playback should remain enabled during capture.
+     * @return Microphone capture object for the requested audio layout.
+     */
     std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, bool continuous_audio, [[maybe_unused]] bool host_audio_enabled) override {
       auto mic = std::make_unique<mic_wasapi_t>();
 
@@ -793,6 +964,8 @@ namespace platf::audio {
      * Any virtual sink detected will be prefixed by:
      *    virtual-(format name)
      * If it doesn't contain that prefix, then the format will not be changed
+     * @param sink Audio sink name to route or capture.
+     * @return Status from updating format.
      */
     std::optional<std::wstring> set_format(const std::string &sink) {
       if (sink.empty()) {
@@ -854,6 +1027,12 @@ namespace platf::audio {
       return std::nullopt;
     }
 
+    /**
+     * @brief Update the sink value on the backend.
+     *
+     * @param sink Audio sink name to route or capture.
+     * @return Status from updating sink.
+     */
     int set_sink(const std::string &sink) override {
       auto device_id = set_format(sink);
       if (!device_id) {
@@ -884,6 +1063,9 @@ namespace platf::audio {
       return failure;
     }
 
+    /**
+     * @brief Enumerates supported match field options.
+     */
     enum class match_field_e {
       device_id,  ///< Match device_id
       device_friendly_name,  ///< Match endpoint friendly name
@@ -891,15 +1073,32 @@ namespace platf::audio {
       device_description,  ///< Match endpoint description
     };
 
+    /**
+     * @brief List of format fields used to compare audio formats.
+     */
     using match_fields_list_t = std::vector<std::pair<match_field_e, std::wstring>>;
+    /**
+     * @brief One matched audio-format field and its expected value.
+     */
     using matched_field_t = std::pair<match_field_e, std::wstring>;
 
+    /**
+     * @brief Build matching fields for Steam Streaming Speakers.
+     *
+     * @return Field list used to identify Steam's virtual speaker endpoint.
+     */
     audio_control_t::match_fields_list_t match_steam_speakers() {
       return {
         {match_field_e::adapter_friendly_name, L"Steam Streaming Speakers"}
       };
     }
 
+    /**
+     * @brief Build matching fields that all contain the same endpoint name.
+     *
+     * @param name Endpoint name or identifier to match across all fields.
+     * @return Field list requiring every supported endpoint field to match the name.
+     */
     audio_control_t::match_fields_list_t match_all_fields(const std::wstring &name) {
       return {
         {match_field_e::device_id, name},  // {0.0.0.00000000}.{29dd7668-45b2-4846-882d-950f55bf7eb8}
@@ -1116,6 +1315,11 @@ namespace platf::audio {
 #endif
     }
 
+    /**
+     * @brief Initialize Windows audio policy interfaces.
+     *
+     * @return 0 on success; nonzero or negative platform status on failure.
+     */
     int init() {
       auto status = CoCreateInstance(
         CLSID_CPolicyConfigClient,
@@ -1147,12 +1351,15 @@ namespace platf::audio {
       return 0;
     }
 
+    /**
+     * @brief Destroy the Windows audio control.
+     */
     ~audio_control_t() override {
     }
 
-    policy_t policy;
-    audio::device_enum_t device_enum;
-    std::string assigned_sink;
+    policy_t policy;  ///< Windows policy configuration interface used to switch default audio devices.
+    audio::device_enum_t device_enum;  ///< Device enumerator used to query and watch audio endpoints.
+    std::string assigned_sink;  ///< Virtual sink assigned while Sunshine captures host audio.
   };
 }  // namespace platf::audio
 
@@ -1160,8 +1367,13 @@ namespace platf {
 
   // It's not big enough to justify it's own source file :/
   namespace dxgi {
+    /**
+     * @brief Initialize the Windows audio-control backend.
+     *
+     * @return 0 on success; nonzero or negative platform status on failure.
+     */
     int init();
-  }
+  }  // namespace dxgi
 
   std::unique_ptr<audio_control_t> audio_control() {
     auto control = std::make_unique<audio::audio_control_t>();

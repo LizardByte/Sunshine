@@ -9,16 +9,34 @@
 #include "nvprefs_common.h"
 #include "undo_data.h"
 
+/**
+ * @brief nlohmann JSON type used for NVPrefs undo serialization.
+ */
 using json = nlohmann::json;
 
 // Separate namespace for ADL, otherwise we need to define json
 // functions in the same namespace as our types
 namespace nlohmann {
+  /**
+   * @brief Serialized undo-data representation.
+   */
   using data_t = nvprefs::undo_data_t::data_t;
+  /**
+   * @brief Serialized OpenGL swapchain profile settings.
+   */
   using opengl_swapchain_t = data_t::opengl_swapchain_t;
 
+  /**
+   * @brief Helper specialization for optional values.
+   */
   template<typename T>
   struct adl_serializer<std::optional<T>> {
+    /**
+     * @brief Serialize the undo-data object to JSON.
+     *
+     * @param j JSON value being read from or written to.
+     * @param opt Optional value being serialized or restored.
+     */
     static void to_json(json &j, const std::optional<T> &opt) {
       if (opt == std::nullopt) {
         j = nullptr;
@@ -27,6 +45,12 @@ namespace nlohmann {
       }
     }
 
+    /**
+     * @brief Deserialize the undo-data object from JSON.
+     *
+     * @param j JSON value being read from or written to.
+     * @param opt Optional value being serialized or restored.
+     */
     static void from_json(const json &j, std::optional<T> &opt) {
       if (j.is_null()) {
         opt = std::nullopt;
@@ -36,19 +60,43 @@ namespace nlohmann {
     }
   };
 
+  /**
+   * @brief JSON serializer specialization for undo-data records.
+   */
   template<>
   struct adl_serializer<data_t> {
+    /**
+     * @brief Serialize the undo-data object to JSON.
+     *
+     * @param j JSON value being read from or written to.
+     * @param data Payload or state data to serialize, deserialize, or forward.
+     */
     static void to_json(json &j, const data_t &data) {
       j = json {{"opengl_swapchain", data.opengl_swapchain}};
     }
 
+    /**
+     * @brief Deserialize the undo-data object from JSON.
+     *
+     * @param j JSON value being read from or written to.
+     * @param data Payload or state data to serialize, deserialize, or forward.
+     */
     static void from_json(const json &j, data_t &data) {
       j.at("opengl_swapchain").get_to(data.opengl_swapchain);
     }
   };
 
+  /**
+   * @brief JSON serializer specialization for OpenGL swapchain settings.
+   */
   template<>
   struct adl_serializer<opengl_swapchain_t> {
+    /**
+     * @brief Serialize the undo-data object to JSON.
+     *
+     * @param j JSON value being read from or written to.
+     * @param opengl_swapchain Opengl swapchain.
+     */
     static void to_json(json &j, const opengl_swapchain_t &opengl_swapchain) {
       j = json {
         {"our_value", opengl_swapchain.our_value},
@@ -56,6 +104,12 @@ namespace nlohmann {
       };
     }
 
+    /**
+     * @brief Deserialize the undo-data object from JSON.
+     *
+     * @param j JSON value being read from or written to.
+     * @param opengl_swapchain Opengl swapchain.
+     */
     static void from_json(const json &j, opengl_swapchain_t &opengl_swapchain) {
       j.at("our_value").get_to(opengl_swapchain.our_value);
       j.at("undo_value").get_to(opengl_swapchain.undo_value);

@@ -38,11 +38,20 @@ namespace http {
   namespace pt = boost::property_tree;
 
   int reload_user_creds(const std::string &file);
+  /**
+   * @brief Check whether the Web UI credentials file exists and is readable.
+   *
+   * @param file Path to the credentials file.
+   * @return True when the credentials file is present.
+   */
   bool user_creds_exist(const std::string &file);
 
-  std::string unique_id;
-  net::net_e origin_web_ui_allowed;
+  std::string unique_id;  ///< Unique ID.
+  net::net_e origin_web_ui_allowed;  ///< Origin web ui allowed.
 
+  /**
+   * @brief Load persisted HTTP credentials and initialize shared request state.
+   */
   int init() {
     bool clean_slate = config::sunshine.flags[config::flag::FRESH_STATE];
     origin_web_ui_allowed = net::from_enum_string(config::nvhttp.origin_web_ui_allowed);
@@ -66,6 +75,15 @@ namespace http {
     return 0;
   }
 
+  /**
+   * @brief Save user creds.
+   *
+   * @param file Credentials file path.
+   * @param username Username to save.
+   * @param password Password to save.
+   * @param run_our_mouth Whether to log user-facing status messages.
+   * @return 0 on success, non-zero on failure.
+   */
   int save_user_creds(const std::string &file, const std::string &username, const std::string &password, bool run_our_mouth) {
     pt::ptree outputTree;
 
@@ -93,6 +111,9 @@ namespace http {
     return 0;
   }
 
+  /**
+   * @brief Check whether the Web UI credentials file exists and is readable.
+   */
   bool user_creds_exist(const std::string &file) {
     if (!fs::exists(file)) {
       return false;
@@ -111,6 +132,9 @@ namespace http {
     return false;
   }
 
+  /**
+   * @brief Reload the Web UI credentials from disk.
+   */
   int reload_user_creds(const std::string &file) {
     pt::ptree inputTree;
     try {
@@ -125,6 +149,9 @@ namespace http {
     return 0;
   }
 
+  /**
+   * @brief Generate HTTPS credential files from the provided key and certificate paths.
+   */
   int create_creds(const std::string &pkey, const std::string &cert) {
     fs::path pkey_path = pkey;
     fs::path cert_path = cert;
@@ -176,6 +203,9 @@ namespace http {
     return 0;
   }
 
+  /**
+   * @brief Send a static file response for a Web UI request.
+   */
   bool download_file(const std::string &url, const std::string &file, long ssl_version) {
     // sonar complains about weak ssl and tls versions; however sonar cannot detect the fix
     CURL *curl = curl_easy_init();  // NOSONAR
@@ -212,6 +242,9 @@ namespace http {
     return result == CURLE_OK;
   }
 
+  /**
+   * @brief Percent-encode URL data for use in HTTP query strings.
+   */
   std::string url_escape(const std::string &url) {
     char *string = curl_easy_escape(nullptr, url.c_str(), static_cast<int>(url.length()));
     std::string result(string);
@@ -219,6 +252,9 @@ namespace http {
     return result;
   }
 
+  /**
+   * @brief Extract the host component from a URL string.
+   */
   std::string url_get_host(const std::string &url) {
     CURLU *curlu = curl_url();
     curl_url_set(curlu, CURLUPART_URL, url.c_str(), static_cast<unsigned int>(url.length()));

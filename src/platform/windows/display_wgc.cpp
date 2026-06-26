@@ -29,6 +29,13 @@ namespace winrt {
   using namespace Windows::Graphics::DirectX::Direct3D11;
 
   extern "C" {
+    /**
+     * @brief Create direct3 D11 device from DXGI device.
+     *
+     * @param dxgiDevice DXGI device.
+     * @param graphicsDevice Graphics device.
+     * @return Created direct3 D11 device from DXGI device object or status.
+     */
     HRESULT __stdcall CreateDirect3D11DeviceFromDXGIDevice(::IDXGIDevice *dxgiDevice, ::IInspectable **graphicsDevice);
   }
 
@@ -42,6 +49,13 @@ namespace winrt {
     __declspec(uuid("A9B3D012-3DF2-4EE3-B8D1-8695F457D3C1"))
 #endif
     IDirect3DDxgiInterfaceAccess: ::IUnknown {
+    /**
+     * @brief Retrieve a DXGI interface from a WinRT Direct3D object.
+     *
+     * @param id COM interface ID requested from the WinRT wrapper.
+     * @param object Output pointer that receives the requested COM interface.
+     * @return HRESULT from the WinRT object's interface query.
+     */
     virtual HRESULT __stdcall GetInterface(REFIID id, void **object) = 0;
   };
 }  // namespace winrt
@@ -54,6 +68,11 @@ static constexpr GUID GUID__IDirect3DDxgiInterfaceAccess = {
   // compare with __declspec(uuid(...)) for the struct above.
 };
 
+/**
+ * @brief Return the GUID used to request IDirect3DDxgiInterfaceAccess.
+ *
+ * @return GUID for the WinRT DXGI interface-access helper.
+ */
 template<>
 constexpr auto __mingw_uuidof<winrt::IDirect3DDxgiInterfaceAccess>() -> GUID const & {
   return GUID__IDirect3DDxgiInterfaceAccess;
@@ -183,9 +202,6 @@ namespace platf::dxgi {
   /**
    * @brief Get the next frame from the producer thread.
    * If not available, the capture thread blocks until one is, or the wait times out.
-   * @param timeout how long to wait for the next frame
-   * @param out a texture containing the frame just captured
-   * @param out_time the timestamp of the frame just captured
    */
   capture_e wgc_capture_t::next_frame(std::chrono::milliseconds timeout, ID3D11Texture2D **out, uint64_t &out_time) {
     // this CONSUMER runs in the capture thread
@@ -248,10 +264,6 @@ namespace platf::dxgi {
 
   /**
    * @brief Get the next frame from the Windows.Graphics.Capture API and copy it into a new snapshot texture.
-   * @param pull_free_image_cb call this to get a new free image from the video subsystem.
-   * @param img_out the captured frame is returned here
-   * @param timeout how long to wait for the next frame
-   * @param cursor_visible whether to capture the cursor
    */
   capture_e display_wgc_ram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
     HRESULT status;

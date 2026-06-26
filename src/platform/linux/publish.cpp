@@ -85,14 +85,20 @@ namespace avahi {
     ERR_MAX = -54  ///< TODO
   };
 
-  constexpr auto IF_UNSPEC = -1;
+  constexpr auto IF_UNSPEC = -1;  ///< Protocol or platform constant for if unspec.
 
+  /**
+   * @brief Enumerates supported proto options.
+   */
   enum proto {
     PROTO_INET = 0,  ///< IPv4
     PROTO_INET6 = 1,  ///< IPv6
     PROTO_UNSPEC = -1  ///< Unspecified/all protocol(s)
   };
 
+  /**
+   * @brief Enumerates supported server state options.
+   */
   enum ServerState {
     SERVER_INVALID,  ///< Invalid state (initial)
     SERVER_REGISTERING,  ///< Host RRs are being registered
@@ -101,6 +107,9 @@ namespace avahi {
     SERVER_FAILURE  ///< Some fatal failure happened, the server is unable to proceed
   };
 
+  /**
+   * @brief Enumerates supported client state options.
+   */
   enum ClientState {
     CLIENT_S_REGISTERING = SERVER_REGISTERING,  ///< Server state: REGISTERING
     CLIENT_S_RUNNING = SERVER_RUNNING,  ///< Server state: RUNNING
@@ -109,6 +118,9 @@ namespace avahi {
     CLIENT_CONNECTING = 101  ///< We're still connecting. This state is only entered when AVAHI_CLIENT_NO_FAIL has been passed to avahi_client_new() and the daemon is not yet available.
   };
 
+  /**
+   * @brief Enumerates supported entry group state options.
+   */
   enum EntryGroupState {
     ENTRY_GROUP_UNCOMMITED,  ///< The group has not yet been committed, the user must still call avahi_entry_group_commit()
     ENTRY_GROUP_REGISTERING,  ///< The entries of the group are currently being registered
@@ -117,6 +129,9 @@ namespace avahi {
     ENTRY_GROUP_FAILURE  ///< Some kind of failure happened, the entries have been withdrawn
   };
 
+  /**
+   * @brief Enumerates supported client flags options.
+   */
   enum ClientFlags {
     CLIENT_IGNORE_USER_CONFIG = 1,  ///< Don't read user configuration
     CLIENT_NO_FAIL = 2  ///< Don't fail if the daemon is not available when avahi_client_new() is called, instead enter CLIENT_CONNECTING state and wait for the daemon to appear
@@ -137,7 +152,13 @@ namespace avahi {
     PUBLISH_USE_MULTICAST = 256  ///< Register the record using multicast DNS
   };
 
+  /**
+   * @brief Network interface index type used by Avahi.
+   */
   using IfIndex = int;
+  /**
+   * @brief Avahi protocol/address-family selector type.
+   */
   using Protocol = int;
 
   struct EntryGroup;
@@ -145,18 +166,45 @@ namespace avahi {
   struct SimplePoll;
   struct Client;
 
+  /**
+   * @brief Avahi client state-change callback signature.
+   */
   typedef void (*ClientCallback)(Client *, ClientState, void *userdata);
+  /**
+   * @brief Avahi entry-group state-change callback signature.
+   */
   typedef void (*EntryGroupCallback)(EntryGroup *g, EntryGroupState state, void *userdata);
 
+  /**
+   * @brief Function pointer used to free Avahi-allocated memory.
+   */
   typedef void (*free_fn)(void *);
 
+  /**
+   * @brief Function pointer used to create an Avahi client.
+   */
   typedef Client *(*client_new_fn)(const Poll *poll_api, ClientFlags flags, ClientCallback callback, void *userdata, int *error);
+  /**
+   * @brief Function pointer used to destroy an Avahi client.
+   */
   typedef void (*client_free_fn)(Client *);
+  /**
+   * @brief Function pointer used to request an alternative Avahi service name.
+   */
   typedef char *(*alternative_service_name_fn)(char *);
 
+  /**
+   * @brief Function pointer used to get an Avahi client from an entry group.
+   */
   typedef Client *(*entry_group_get_client_fn)(EntryGroup *);
 
+  /**
+   * @brief Function pointer used to create an Avahi entry group.
+   */
   typedef EntryGroup *(*entry_group_new_fn)(Client *, EntryGroupCallback, void *userdata);
+  /**
+   * @brief Function pointer used to add a service to an Avahi entry group.
+   */
   typedef int (*entry_group_add_service_fn)(
     EntryGroup *group,
     IfIndex interface,
@@ -170,39 +218,77 @@ namespace avahi {
     ...
   );
 
+  /**
+   * @brief Function pointer used to test whether an Avahi entry group is empty.
+   */
   typedef int (*entry_group_is_empty_fn)(EntryGroup *);
+  /**
+   * @brief Function pointer used to reset an Avahi entry group.
+   */
   typedef int (*entry_group_reset_fn)(EntryGroup *);
+  /**
+   * @brief Function pointer used to publish an Avahi entry group.
+   */
   typedef int (*entry_group_commit_fn)(EntryGroup *);
 
+  /**
+   * @brief Function pointer used to duplicate Avahi strings.
+   */
   typedef char *(*strdup_fn)(const char *);
+  /**
+   * @brief Function pointer used to format Avahi error codes.
+   */
   typedef char *(*strerror_fn)(int);
+  /**
+   * @brief Function pointer used to read the last Avahi client error.
+   */
   typedef int (*client_errno_fn)(Client *);
 
+  /**
+   * @brief Function pointer used to get the Avahi simple-poll API.
+   */
   typedef Poll *(*simple_poll_get_fn)(SimplePoll *);
+  /**
+   * @brief Function pointer used to run the Avahi simple-poll loop.
+   */
   typedef int (*simple_poll_loop_fn)(SimplePoll *);
+  /**
+   * @brief Function pointer used to stop the Avahi simple-poll loop.
+   */
   typedef void (*simple_poll_quit_fn)(SimplePoll *);
+  /**
+   * @brief Function pointer used to allocate an Avahi simple-poll instance.
+   */
   typedef SimplePoll *(*simple_poll_new_fn)();
+  /**
+   * @brief Function pointer used to free an Avahi simple-poll instance.
+   */
   typedef void (*simple_poll_free_fn)(SimplePoll *);
 
-  free_fn free;
-  client_new_fn client_new;
-  client_free_fn client_free;
-  alternative_service_name_fn alternative_service_name;
-  entry_group_get_client_fn entry_group_get_client;
-  entry_group_new_fn entry_group_new;
-  entry_group_add_service_fn entry_group_add_service;
-  entry_group_is_empty_fn entry_group_is_empty;
-  entry_group_reset_fn entry_group_reset;
-  entry_group_commit_fn entry_group_commit;
-  strdup_fn strdup;
-  strerror_fn strerror;
-  client_errno_fn client_errno;
-  simple_poll_get_fn simple_poll_get;
-  simple_poll_loop_fn simple_poll_loop;
-  simple_poll_quit_fn simple_poll_quit;
-  simple_poll_new_fn simple_poll_new;
-  simple_poll_free_fn simple_poll_free;
+  free_fn free;  ///< Free.
+  client_new_fn client_new;  ///< Client new.
+  client_free_fn client_free;  ///< Client free.
+  alternative_service_name_fn alternative_service_name;  ///< Alternative service name.
+  entry_group_get_client_fn entry_group_get_client;  ///< Entry group get client.
+  entry_group_new_fn entry_group_new;  ///< Entry group new.
+  entry_group_add_service_fn entry_group_add_service;  ///< Entry group add service.
+  entry_group_is_empty_fn entry_group_is_empty;  ///< Entry group is empty.
+  entry_group_reset_fn entry_group_reset;  ///< Entry group reset.
+  entry_group_commit_fn entry_group_commit;  ///< Entry group commit.
+  strdup_fn strdup;  ///< Strdup.
+  strerror_fn strerror;  ///< Strerror.
+  client_errno_fn client_errno;  ///< Client errno.
+  simple_poll_get_fn simple_poll_get;  ///< Simple poll get.
+  simple_poll_loop_fn simple_poll_loop;  ///< Simple poll loop.
+  simple_poll_quit_fn simple_poll_quit;  ///< Simple poll quit.
+  simple_poll_new_fn simple_poll_new;  ///< Simple poll new.
+  simple_poll_free_fn simple_poll_free;  ///< Simple poll free.
 
+  /**
+   * @brief Load common Avahi client and entry-group function pointers.
+   *
+   * @return 0 when common Avahi functions are available; nonzero otherwise.
+   */
   int init_common() {
     static void *handle {nullptr};
     static bool funcs_loaded = false;
@@ -238,6 +324,11 @@ namespace avahi {
     return 0;
   }
 
+  /**
+   * @brief Load Avahi threaded-poll and client function pointers.
+   *
+   * @return 0 when all client functions are available; nonzero otherwise.
+   */
   int init_client() {
     if (init_common()) {
       return -1;
@@ -280,25 +371,50 @@ namespace avahi {
 
 namespace platf::publish {
 
+  /**
+   * @brief Release memory allocated by Avahi.
+   *
+   * @param p Avahi-allocated pointer to release.
+   */
   template<class T>
   void free(T *p) {
     avahi::free(p);
   }
 
+  /**
+   * @brief Owning pointer for Avahi allocations released with `avahi_free`.
+   */
   template<class T>
   using ptr_t = util::safe_ptr<T, free<T>>;
+  /**
+   * @brief Owning pointer for an Avahi client.
+   */
   using client_t = util::dyn_safe_ptr<avahi::Client, &avahi::client_free>;
+  /**
+   * @brief Owning pointer for an Avahi simple poll loop.
+   */
   using poll_t = util::dyn_safe_ptr<avahi::SimplePoll, &avahi::simple_poll_free>;
 
-  avahi::EntryGroup *group = nullptr;
+  avahi::EntryGroup *group = nullptr;  ///< Active Avahi entry group that owns the published service.
 
-  poll_t poll;
-  client_t client;
+  poll_t poll;  ///< Avahi poll loop used while the service is published.
+  client_t client;  ///< Avahi client used to register the Sunshine service.
 
-  ptr_t<char> name;
+  ptr_t<char> name;  ///< Current service name, updated when Avahi reports a collision.
 
+  /**
+   * @brief Create or update the Avahi service entry group.
+   *
+   * @param c Avahi client used to allocate and commit the service entry group.
+   */
   void create_services(avahi::Client *c);
 
+  /**
+   * @brief React to Avahi entry-group state changes.
+   *
+   * @param g Entry group that emitted the state change.
+   * @param state Avahi entry-group state reported by the callback.
+   */
   void entry_group_callback(avahi::EntryGroup *g, avahi::EntryGroupState state, void *) {
     group = g;
 
@@ -322,6 +438,9 @@ namespace platf::publish {
     }
   }
 
+  /**
+   * @brief Publish Sunshine's mDNS service through Avahi.
+   */
   void create_services(avahi::Client *c) {
     int ret;
 
@@ -380,6 +499,12 @@ namespace platf::publish {
     fg.disable();
   }
 
+  /**
+   * @brief React to Avahi client state changes and register services when ready.
+   *
+   * @param c Avahi client that emitted the state change.
+   * @param state Avahi client state reported by the callback.
+   */
   void client_callback(avahi::Client *c, avahi::ClientState state, void *) {
     switch (state) {
       case avahi::CLIENT_S_RUNNING:
@@ -399,14 +524,25 @@ namespace platf::publish {
     }
   }
 
+  /**
+   * @brief RAII helper that runs shutdown cleanup when destroyed.
+   */
   class deinit_t: public ::platf::deinit_t {
   public:
-    std::thread poll_thread;
+    std::thread poll_thread;  ///< Poll thread.
 
+    /**
+     * @brief Store the Avahi polling thread for shutdown on destruction.
+     *
+     * @param poll_thread Poll thread.
+     */
     deinit_t(std::thread poll_thread):
         poll_thread {std::move(poll_thread)} {
     }
 
+    /**
+     * @brief Destroy the Avahi publisher deinitializer.
+     */
     ~deinit_t() override {
       if (avahi::simple_poll_quit && poll) {
         avahi::simple_poll_quit(poll.get());

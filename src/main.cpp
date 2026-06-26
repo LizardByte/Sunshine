@@ -33,12 +33,23 @@ extern "C" {
 
 using namespace std::literals;
 
-std::map<int, std::function<void()>> signal_handlers;
+std::map<int, std::function<void()>> signal_handlers;  ///< Signal handlers.
 
+/**
+ * @brief Forward a POSIX signal to the registered Sunshine handler.
+ *
+ * @param sig Native signal number being handled.
+ */
 void on_signal_forwarder(int sig) {
   signal_handlers.at(sig)();
 }
 
+/**
+ * @brief Register the handler invoked for a POSIX signal.
+ *
+ * @param sig Native signal number being handled.
+ * @param fn Signal handler function to install.
+ */
 template<class FN>
 void on_signal(int sig, FN &&fn) {
   signal_handlers.emplace(sig, std::forward<FN>(fn));
@@ -46,6 +57,9 @@ void on_signal(int sig, FN &&fn) {
   std::signal(sig, on_signal_forwarder);
 }
 
+/**
+ * @brief Cmd to func.
+ */
 std::map<std::string_view, std::function<int(const char *name, int argc, char **argv)>> cmd_to_func {
   {"creds"sv, [](const char *name, int argc, char **argv) {
      return args::creds(name, argc, argv);
@@ -64,6 +78,15 @@ std::map<std::string_view, std::function<int(const char *name, int argc, char **
 };
 
 #ifdef _WIN32
+/**
+ * @brief Handle Windows session-change messages for the monitor window.
+ *
+ * @param hwnd Window handle receiving the Windows control event.
+ * @param uMsg U msg.
+ * @param wParam W param.
+ * @param lParam L param.
+ * @return Process or platform callback exit code.
+ */
 LRESULT CALLBACK SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
   switch (uMsg) {
     case WM_CLOSE:
@@ -84,6 +107,12 @@ LRESULT CALLBACK SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
   }
 }
 
+/**
+ * @brief Handle Windows console control events for shutdown.
+ *
+ * @param type Protocol, message, or resource type selector.
+ * @return Process or platform callback exit code.
+ */
 WINAPI BOOL ConsoleCtrlHandler(DWORD type) {
   if (type == CTRL_CLOSE_EVENT) {
     BOOST_LOG(info) << "Console closed handler called";
@@ -94,11 +123,16 @@ WINAPI BOOL ConsoleCtrlHandler(DWORD type) {
 #endif
 
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
-constexpr bool tray_is_enabled = true;
+constexpr bool tray_is_enabled = true;  ///< Compile-time flag indicating tray support is enabled.
 #else
 constexpr bool tray_is_enabled = false;
 #endif
 
+/**
+ * @brief Run the main event loop until Sunshine is asked to exit.
+ *
+ * @param shutdown_event Shutdown event.
+ */
 void mainThreadLoop(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) {
   bool run_loop = false;
 
@@ -122,6 +156,13 @@ void mainThreadLoop(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) 
   BOOST_LOG(info) << "Main loop has exited"sv;
 }
 
+/**
+ * @brief Run the main application or worker loop.
+ *
+ * @param argc The number of arguments.
+ * @param argv The arguments.
+ * @return Process or platform callback exit code.
+ */
 int main(int argc, char *argv[]) {
 #ifdef __APPLE__
   // Bundle assets are referenced relative to the executable

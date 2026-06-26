@@ -35,9 +35,6 @@ IMAGE_PATH = ../docs/images
 PREDEFINED += SUNSHINE_BUILD_WAYLAND
 PREDEFINED += SUNSHINE_TRAY=1
 
-# TODO: Enable this when we have complete documentation
-WARN_IF_UNDOCUMENTED = NO
-
 # files and directories to process
 USE_MDFILE_AS_MAINPAGE = ../README.md
 INPUT = ../README.md \

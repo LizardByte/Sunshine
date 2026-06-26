@@ -52,8 +52,11 @@ namespace ca {
   }
 
   namespace detail {
+    /**
+     * @brief Small wrapper for displaying CoreAudio OSStatus values.
+     */
     struct StatusView {
-      OSStatus e;
+      OSStatus e;  ///< E.
     };
 
     inline std::ostream &operator<<(std::ostream &os, StatusView v) {

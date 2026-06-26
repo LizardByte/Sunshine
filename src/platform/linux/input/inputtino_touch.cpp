@@ -18,6 +18,9 @@
 using namespace std::literals;
 
 namespace platf::touch {
+  /**
+   * @brief Apply the supplied state update to the platform backend.
+   */
   void update(client_input_raw_t *raw, const touch_port_t &touch_port, const touch_input_t &touch) {
     if (raw->touch) {
       switch (touch.eventType) {
