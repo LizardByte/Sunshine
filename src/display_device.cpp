@@ -868,18 +868,20 @@ namespace display_device {
                     << toJson(config);
 
     DD_DATA.sm_instance->schedule([config](auto &settings_iface, auto &stop_token) {
+      using enum SettingsManagerInterface::ApplyResult;
+
       // We only want to keep retrying in case of a transient errors.
       // In other cases, when we either fail or succeed we just want to stop...
       const auto result {settings_iface.applySettings(config)};
-      if (result == SettingsManagerInterface::ApplyResult::Ok) {
+      if (result == Ok) {
         BOOST_LOG(info) << "Display device configuration applied successfully.";
-      } else if (result == SettingsManagerInterface::ApplyResult::ApiTemporarilyUnavailable) {
+      } else if (result == ApiTemporarilyUnavailable) {
         BOOST_LOG(warning) << "Display device configuration API is temporarily unavailable. Will retry.";
       } else {
         BOOST_LOG(error) << "Display device configuration failed with result: " << apply_result_name(result);
       }
 
-      if (result != SettingsManagerInterface::ApplyResult::ApiTemporarilyUnavailable) {
+      if (result != ApiTemporarilyUnavailable) {
         stop_token.requestStop();
       }
     },
