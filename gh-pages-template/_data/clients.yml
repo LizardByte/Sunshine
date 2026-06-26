@@ -165,3 +165,16 @@
       url: "https://github.com/mariotaku/moonlight-tv#download"
       icon_fa: "fas fa-download"
       btn_class: "btn btn-info"
+
+- name: "Samsung Tizen TV"
+  type: "community"
+  github: "https://github.com/brightcraft/moonlight-tizen"
+  icons:
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@16/icons/samsung.svg"
+      alt: "Samsung Tizen TV"
+      invert: true
+  downloads:
+    - label: "Download on GitHub"
+      url: "https://github.com/brightcraft/moonlight-tizen/releases"
+      icon_fa: "fab fa-github"
+      btn_class: "btn btn-info"
