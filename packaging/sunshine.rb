@@ -231,7 +231,7 @@ class Sunshine < Formula
   def add_cuda_args(args)
     return unless OS.linux?
 
-    if build.with?(CUDA_FORMULA)
+    if build.with?("cuda")
       configure_cuda(args)
     else
       args << "-DSUNSHINE_ENABLE_CUDA=OFF"
@@ -241,11 +241,12 @@ class Sunshine < Formula
 
   def configure_cuda(args)
     cuda_path = Formula["lizardbyte/homebrew/#{CUDA_FORMULA}"]
-    nvcc_path = "#{cuda_path.opt_bin}/nvcc"
+    nvcc_path = "#{cuda_path.opt_libexec}/homebrew/bin/nvcc"
     gcc_path = Formula[GCC_FORMULA]
 
     args << "-DSUNSHINE_ENABLE_CUDA=ON"
     args << "-DCMAKE_CUDA_COMPILER:PATH=#{nvcc_path}"
+    args << "-DCMAKE_CUDA_TOOLKIT_ROOT_DIR:PATH=#{cuda_path.opt_libexec}"
     args << "-DCMAKE_CUDA_HOST_COMPILER=#{gcc_path.opt_bin}/gcc-#{GCC_VERSION}"
     ohai "CUDA enabled with nvcc at: #{nvcc_path}"
   end
