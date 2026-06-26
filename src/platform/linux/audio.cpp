@@ -22,6 +22,9 @@
 namespace platf {
   using namespace std::literals;
 
+  /**
+   * @brief Position mapping.
+   */
   constexpr pa_channel_position_t position_mapping[] {
     PA_CHANNEL_POSITION_FRONT_LEFT,
     PA_CHANNEL_POSITION_FRONT_RIGHT,
@@ -33,6 +36,14 @@ namespace platf {
     PA_CHANNEL_POSITION_SIDE_RIGHT,
   };
 
+  /**
+   * @brief Convert a PulseAudio operation result to a log string.
+   *
+   * @param name Human-readable name to assign.
+   * @param mapping Opus channel mapping table for the requested layout.
+   * @param channels Number of audio channels in the stream.
+   * @return Value converted to string.
+   */
   std::string to_string(const char *name, const std::uint8_t *mapping, int channels) {
     std::stringstream ss;
 
@@ -50,9 +61,18 @@ namespace platf {
     return result;
   }
 
+  /**
+   * @brief PulseAudio recording stream and channel metadata.
+   */
   struct mic_attr_t: public mic_t {
-    util::safe_ptr<pa_simple, pa_simple_free> mic;
+    util::safe_ptr<pa_simple, pa_simple_free> mic;  ///< PulseAudio simple recording stream for microphone capture.
 
+    /**
+     * @brief Deliver a captured audio sample to Sunshine's audio pipeline.
+     *
+     * @param sample_buf Sample buf.
+     * @return Capture status reported to the streaming pipeline.
+     */
     capture_e sample(std::vector<float> &sample_buf) override {
       auto sample_size = sample_buf.size();
 
@@ -68,6 +88,16 @@ namespace platf {
     }
   };
 
+  /**
+   * @brief Create a microphone capture stream for the requested layout.
+   *
+   * @param mapping Opus channel mapping table for the requested layout.
+   * @param channels Number of audio channels in the stream.
+   * @param sample_rate Audio sample rate in hertz.
+   * @param frame_size Number of samples captured per audio frame.
+   * @param source_name Source name.
+   * @return Microphone capture object for the requested audio layout.
+   */
   std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, std::string source_name) {
     auto mic = std::make_unique<mic_attr_t>();
 
@@ -106,32 +136,74 @@ namespace platf {
     template<bool B, class T>
     struct add_const_helper;
 
+    /**
+     * @brief Template helper that preserves constness for const inputs.
+     */
     template<class T>
     struct add_const_helper<true, T> {
+      /**
+       * @brief PulseAudio object type passed to the safe pointer wrapper.
+       */
       using type = const std::remove_pointer_t<T> *;
     };
 
+    /**
+     * @brief Template helper that leaves non-const inputs mutable.
+     */
     template<class T>
     struct add_const_helper<false, T> {
+      /**
+       * @brief PulseAudio object type passed to the safe pointer wrapper.
+       */
       using type = const T *;
     };
 
+    /**
+     * @brief PulseAudio callback info type with pointer constness normalized.
+     */
     template<class T>
     using add_const_t = typename add_const_helper<std::is_pointer_v<T>, T>::type;
 
+    /**
+     * @brief Release memory allocated by PulseAudio.
+     *
+     * @param p Pointer allocated by PulseAudio and released with `pa_xfree`.
+     */
     template<class T>
     void pa_free(T *p) {
       pa_xfree(p);
     }
 
+    /**
+     * @brief Owning pointer for a PulseAudio context.
+     */
     using ctx_t = util::safe_ptr<pa_context, pa_context_unref>;
+    /**
+     * @brief Owning pointer for a PulseAudio mainloop.
+     */
     using loop_t = util::safe_ptr<pa_mainloop, pa_mainloop_free>;
+    /**
+     * @brief Owning pointer for a PulseAudio asynchronous operation.
+     */
     using op_t = util::safe_ptr<pa_operation, pa_operation_unref>;
+    /**
+     * @brief Owning pointer for PulseAudio strings allocated with `pa_xmalloc`.
+     */
     using string_t = util::safe_ptr<char, pa_free<char>>;
 
+    /**
+     * @brief Callback wrapper for PulseAudio introspection results without an end marker.
+     */
     template<class T>
     using cb_simple_t = std::function<void(ctx_t::pointer, add_const_t<T> i)>;
 
+    /**
+     * @brief Handle PulseAudio sink-input introspection results.
+     *
+     * @param ctx Native context object used by the operation or callback.
+     * @param i PulseAudio introspection info supplied to the callback.
+     * @param userdata Caller-provided pointer passed through the callback.
+     */
     template<class T>
     void cb(ctx_t::pointer ctx, add_const_t<T> i, void *userdata) {
       auto &f = *(cb_simple_t<T> *) userdata;
@@ -141,9 +213,20 @@ namespace platf {
       f(ctx, i);
     }
 
+    /**
+     * @brief Callback wrapper for PulseAudio introspection results with an end marker.
+     */
     template<class T>
     using cb_t = std::function<void(ctx_t::pointer, add_const_t<T> i, int eol)>;
 
+    /**
+     * @brief Handle PulseAudio source introspection results.
+     *
+     * @param ctx Native context object used by the operation or callback.
+     * @param i PulseAudio introspection info supplied to the callback.
+     * @param eol PulseAudio end-of-list marker.
+     * @param userdata Caller-provided pointer passed through the callback.
+     */
     template<class T>
     void cb(ctx_t::pointer ctx, add_const_t<T> i, int eol, void *userdata) {
       auto &f = *(cb_t<T> *) userdata;
@@ -156,18 +239,38 @@ namespace platf {
       f(ctx, i, eol);
     }
 
+    /**
+     * @brief Forward a PulseAudio integer callback value into a Sunshine alarm.
+     *
+     * @param ctx PulseAudio context that emitted the callback.
+     * @param i Integer value returned by the PulseAudio operation.
+     * @param userdata Caller-provided pointer passed through the callback.
+     */
     void cb_i(ctx_t::pointer ctx, std::uint32_t i, void *userdata) {
       auto alarm = (safe::alarm_raw_t<int> *) userdata;
 
       alarm->ring(i);
     }
 
+    /**
+     * @brief Translate PulseAudio context state changes into server events.
+     *
+     * @param ctx Native context object used by the operation or callback.
+     * @param userdata Caller-provided pointer passed through the callback.
+     */
     void ctx_state_cb(ctx_t::pointer ctx, void *userdata) {
       auto &f = *(std::function<void(ctx_t::pointer)> *) userdata;
 
       f(ctx);
     }
 
+    /**
+     * @brief Record completion of a PulseAudio asynchronous operation.
+     *
+     * @param ctx Native context object used by the operation or callback.
+     * @param status Native status code returned by the platform API.
+     * @param userdata Caller-provided pointer passed through the callback.
+     */
     void success_cb(ctx_t::pointer ctx, int status, void *userdata) {
       assert(userdata != nullptr);
 
@@ -175,6 +278,9 @@ namespace platf {
       alarm->ring(status ? 0 : 1);
     }
 
+    /**
+     * @brief PulseAudio server controller that creates and removes Sunshine sinks.
+     */
     class server_t: public audio_control_t {
       enum ctx_event_e : int {
         ready,
@@ -183,21 +289,26 @@ namespace platf {
       };
 
     public:
-      loop_t loop;
-      ctx_t ctx;
-      std::string requested_sink;
+      loop_t loop;  ///< PulseAudio threaded mainloop instance.
+      ctx_t ctx;  ///< PulseAudio threaded mainloop context.
+      std::string requested_sink;  ///< Requested sink.
 
       struct {
         std::uint32_t stereo = PA_INVALID_INDEX;
         std::uint32_t surround51 = PA_INVALID_INDEX;
         std::uint32_t surround71 = PA_INVALID_INDEX;
-      } index;
+      } index;  ///< PulseAudio module indexes for Sunshine-created null sinks.
 
-      std::unique_ptr<safe::event_t<ctx_event_e>> events;
-      std::unique_ptr<std::function<void(ctx_t::pointer)>> events_cb;
+      std::unique_ptr<safe::event_t<ctx_event_e>> events;  ///< Event queue receiving PulseAudio context state changes.
+      std::unique_ptr<std::function<void(ctx_t::pointer)>> events_cb;  ///< Callback that translates PulseAudio context updates into events.
 
-      std::thread worker;
+      std::thread worker;  ///< Thread running the PulseAudio mainloop.
 
+      /**
+       * @brief Initialize PulseAudio mainloop, context, and Sunshine null sinks.
+       *
+       * @return 0 on success; nonzero or negative platform status on failure.
+       */
       int init() {
         events = std::make_unique<safe::event_t<ctx_event_e>>();
         loop.reset(pa_mainloop_new());
@@ -255,6 +366,14 @@ namespace platf {
         return 0;
       }
 
+      /**
+       * @brief Create a PulseAudio null sink for one channel layout.
+       *
+       * @param name Human-readable name to assign.
+       * @param channel_mapping Channel mapping.
+       * @param channels Number of audio channels in the stream.
+       * @return PulseAudio module index for the new sink, or PA_INVALID_INDEX on failure.
+       */
       int load_null(const char *name, const std::uint8_t *channel_mapping, int channels) {
         auto alarm = safe::make_alarm<int>();
 
@@ -272,6 +391,12 @@ namespace platf {
         return *alarm->status();
       }
 
+      /**
+       * @brief Unload a Sunshine-created PulseAudio null sink.
+       *
+       * @param i PulseAudio introspection info supplied to the callback.
+       * @return 0 when the sink is absent or unloaded; nonzero on PulseAudio failure.
+       */
       int unload_null(std::uint32_t i) {
         if (i == PA_INVALID_INDEX) {
           return 0;
@@ -293,6 +418,11 @@ namespace platf {
         return 0;
       }
 
+      /**
+       * @brief Query host and virtual sink names available to Sunshine.
+       *
+       * @return Host and virtual sink names when the backend can report them.
+       */
       std::optional<sink_t> sink_info() override {
         constexpr auto stereo = "sink-sunshine-stereo";
         constexpr auto surround51 = "sink-sunshine-surround51";
@@ -388,6 +518,11 @@ namespace platf {
         return std::make_optional(std::move(sink));
       }
 
+      /**
+       * @brief Get default sink name.
+       *
+       * @return PulseAudio name of the current default sink, or an empty string.
+       */
       std::string get_default_sink_name() {
         std::string sink_name;
         auto alarm = safe::make_alarm<int>();
@@ -410,6 +545,12 @@ namespace platf {
         return sink_name;
       }
 
+      /**
+       * @brief Get monitor name.
+       *
+       * @param sink_name Sink name.
+       * @return PulseAudio monitor source name for the supplied sink, or an empty string.
+       */
       std::string get_monitor_name(const std::string &sink_name) {
         std::string monitor_name;
         auto alarm = safe::make_alarm<int>();
@@ -441,6 +582,17 @@ namespace platf {
         return monitor_name;
       }
 
+      /**
+       * @brief Create a microphone capture stream for the requested layout.
+       *
+       * @param mapping Opus channel mapping table for the requested layout.
+       * @param channels Number of audio channels in the stream.
+       * @param sample_rate Audio sample rate in hertz.
+       * @param frame_size Number of samples captured per audio frame.
+       * @param continuous_audio Continuous audio.
+       * @param host_audio_enabled Whether host playback should remain enabled during capture.
+       * @return Microphone capture object for the requested audio layout.
+       */
       std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, bool continuous_audio, [[maybe_unused]] bool host_audio_enabled) override {
         // Sink choice priority:
         // 1. Config sink
@@ -465,6 +617,12 @@ namespace platf {
         return true;
       }
 
+      /**
+       * @brief Update the sink value on the backend.
+       *
+       * @param sink Audio sink name to route or capture.
+       * @return Status from updating sink.
+       */
       int set_sink(const std::string &sink) override {
         auto alarm = safe::make_alarm<int>();
 
@@ -514,6 +672,9 @@ namespace platf {
     };
   }  // namespace pa
 
+  /**
+   * @brief Create the platform audio controller.
+   */
   std::unique_ptr<audio_control_t> audio_control() {
     auto audio = std::make_unique<pa::server_t>();
 

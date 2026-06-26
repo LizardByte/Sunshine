@@ -16,5 +16,12 @@
 using namespace std::literals;
 
 namespace platf::touch {
+  /**
+   * @brief Apply the supplied state update to the platform backend.
+   *
+   * @param raw Platform-specific input backend state.
+   * @param touch_port Touch coordinate bounds used for scaling.
+   * @param touch Touch event data to apply to the virtual device.
+   */
   void update(client_input_raw_t *raw, const touch_port_t &touch_port, const touch_input_t &touch);
-}
+}  // namespace platf::touch

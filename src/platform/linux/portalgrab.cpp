@@ -35,20 +35,41 @@ namespace portal {
   // Forward declarations
   class runtime_t;
 
+  /**
+   * @brief Persistent portal restore token used to reuse screencast permission.
+   */
   class restore_token_t {
   public:
+    /**
+     * @brief Return the currently wrapped value or handle.
+     *
+     * @return Underlying native handle or object pointer.
+     */
     static std::string get() {
       return *token_;
     }
 
+    /**
+     * @brief Store the new value and mark it dirty for persistence.
+     *
+     * @param value Portal restore token received from xdg-desktop-portal.
+     */
     static void set(std::string_view value) {
       *token_ = value;
     }
 
+    /**
+     * @brief Return whether the persisted value is empty.
+     *
+     * @return True when no portal display id has been persisted.
+     */
     static bool empty() {
       return token_->empty();
     }
 
+    /**
+     * @brief Load persisted state from its backing store.
+     */
     static void load() {
       std::ifstream file(get_file_path());
       if (file.is_open()) {
@@ -59,6 +80,9 @@ namespace portal {
       }
     }
 
+    /**
+     * @brief Save current state to its backing store.
+     */
     static void save() {
       if (token_->empty()) {
         return;
@@ -80,21 +104,32 @@ namespace portal {
     }
   };
 
+  /**
+   * @brief DBus response loop and response variant for portal calls.
+   */
   struct dbus_response_t {
-    GMainLoop *loop;
-    GVariant *response;
-    guint subscription_id;
+    GMainLoop *loop;  ///< GLib main loop waiting for a portal response signal.
+    GVariant *response;  ///< DBus response payload returned by the portal.
+    guint subscription_id;  ///< Subscription ID.
   };
 
+  /**
+   * @brief PipeWire stream node and negotiated capture size.
+   */
   struct pipewire_streaminfo_t {
-    uint32_t pipewire_node = PW_ID_ANY;
-    uint64_t pipewire_object_serial = SPA_ID_INVALID;
-    int width = 0;
-    int height = 0;
-    int pos_x = 0;
-    int pos_y = 0;
-    std::string monitor_name;
+    uint32_t pipewire_node = PW_ID_ANY;  ///< PipeWire node ID selected by the portal.
+    uint64_t pipewire_object_serial = SPA_ID_INVALID;  ///< PipeWire object serial selected by the portal.
+    int width = 0;  ///< Stream width in pixels.
+    int height = 0;  ///< Stream height in pixels.
+    int pos_x = 0;  ///< Output X position reported by the portal.
+    int pos_y = 0;  ///< Output Y position reported by the portal.
+    std::string monitor_name;  ///< Monitor name.
 
+    /**
+     * @brief Convert to display name.
+     *
+     * @return Value converted to display name.
+     */
     std::string to_display_name() {
       if (!monitor_name.empty()) {
         return monitor_name;
@@ -102,12 +137,21 @@ namespace portal {
       return std::format("position-{}x{}-resolution-{}x{}", pos_x, pos_y, width, height);
     }
 
+    /**
+     * @brief Check whether a portal stream matches a requested display name.
+     *
+     * @param display_name Display name.
+     * @return True when the portal display id matches the requested display name.
+     */
     bool match_display_name(const std::string_view &display_name) {
       // Check the given non-empty display name matches the display name for this struct
       return !display_name.empty() && display_name == to_display_name();
     }
   };
 
+  /**
+   * @brief DBus connection and portal request helpers for screencast setup.
+   */
   class dbus_t {
   public:
     dbus_t &operator=(dbus_t &&) = delete;  // Do not allow to copying
@@ -157,6 +201,11 @@ namespace portal {
       }
     }
 
+    /**
+     * @brief Open DBus and prepare portal screencast request handling.
+     *
+     * @return 0 on success; nonzero or negative platform status on failure.
+     */
     int init() {
       restore_token_t::load();
 
@@ -176,6 +225,11 @@ namespace portal {
       return 0;
     }
 
+    /**
+     * @brief Connect to xdg-desktop-portal and restore or create a screencast session.
+     *
+     * @return 0 when a portal session is ready; nonzero when D-Bus or portal setup fails.
+     */
     int connect_to_portal() {
       g_autoptr(GMainLoop) loop = g_main_loop_new(nullptr, FALSE);
       g_autofree gchar *session_path = nullptr;
@@ -203,6 +257,14 @@ namespace portal {
 
     // Try to create a combined RemoteDesktop + ScreenCast session
     // Returns true on success, false if should fall back to ScreenCast-only
+    /**
+     * @brief Try to create a RemoteDesktop portal session.
+     *
+     * @param loop GLib main loop associated with the portal request.
+     * @param session_path Session path.
+     * @param session_token Session token.
+     * @return True when the portal request or state check succeeds.
+     */
     bool try_remote_desktop_session(GMainLoop *loop, gchar **session_path, const gchar *session_token) {
       if (create_portal_session(loop, session_path, session_token, false) < 0) {
         return false;
@@ -226,6 +288,13 @@ namespace portal {
     }
 
     // Create a ScreenCast-only session
+    /**
+     * @brief Create a screencast-only portal session without remote-desktop control.
+     *
+     * @param loop GLib main loop associated with the portal request.
+     * @param session_path Session path.
+     * @return 0 when the portal returns a session path; nonzero on request failure.
+     */
     int try_screencast_only_session(GMainLoop *loop, gchar **session_path) {
       g_autofree gchar *new_session_token = nullptr;
       create_session_path(conn, nullptr, &new_session_token);
@@ -240,6 +309,11 @@ namespace portal {
       return 0;
     }
 
+    /**
+     * @brief Check whether session closed.
+     *
+     * @return True when the portal session has been closed.
+     */
     bool is_session_closed() const {
       if (conn && !session_handle.empty()) {
         // Try to retrieve property org.freedesktop.portal.Session::version
@@ -267,8 +341,8 @@ namespace portal {
       return false;
     }
 
-    std::vector<pipewire_streaminfo_t> pipewire_streams;
-    int pipewire_fd;
+    std::vector<pipewire_streaminfo_t> pipewire_streams;  ///< Pipewire streams.
+    int pipewire_fd;  ///< Pipewire fd.
 
   private:
     GDBusConnection *conn;
@@ -628,6 +702,9 @@ namespace portal {
     }
   };
 
+  /**
+   * @brief Portal screencast backend that negotiates PipeWire streams over DBus.
+   */
   class portal_t: public pipewire::pipewire_display_t {
   public:
     int configure_stream(const std::string &display_name, int &out_pipewire_fd, uint32_t &out_pipewire_node, uint64_t &out_pipewire_object_serial [[maybe_unused]]) override {
@@ -680,6 +757,12 @@ namespace portal {
       return 0;
     }
 
+    /**
+     * @brief Check stream dead.
+     *
+     * @param out_status Out status.
+     * @return True when the PipeWire stream can no longer produce frames.
+     */
     bool check_stream_dead(platf::capture_e &out_status) override {
       // If the pipewire stream stopped due to closed portal session stop the capture with an error
       if (dbus.is_session_closed()) {
@@ -700,14 +783,22 @@ namespace portal {
     }
 
     // DBus portal connection
-    dbus_t dbus;
+    dbus_t dbus;  ///< DBus connection used for portal screencast requests.
 
     // Class variable to store runtime state of maxFramerate negotiation
-    static inline std::atomic<bool> negotiate_maxframerate {true};
+    static inline std::atomic<bool> negotiate_maxframerate {true};  ///< Whether portal negotiation should request the maximum frame rate.
   };
 }  // namespace portal
 
 namespace platf {
+  /**
+   * @brief Create a portal-based display capture backend.
+   *
+   * @param hwdevice_type Hardware device type requested for capture or encode.
+   * @param display_name Display name.
+   * @param config Configuration values to apply.
+   * @return Display backend backed by xdg-desktop-portal and PipeWire, or nullptr.
+   */
   std::shared_ptr<display_t> portal_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     using enum platf::mem_type_e;
     if (!pipewire::pipewire_display_t::init_pipewire_and_check_hwdevice_type(hwdevice_type)) {
@@ -728,6 +819,11 @@ namespace platf {
     return portal;
   }
 
+  /**
+   * @brief Enumerate capture targets available through xdg-desktop-portal.
+   *
+   * @return Portal display names, or an empty list when portal discovery fails.
+   */
   std::vector<std::string> portal_display_names() {
     std::vector<std::string> display_names;
     auto dbus = std::make_shared<portal::dbus_t>();

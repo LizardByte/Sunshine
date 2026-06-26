@@ -19,14 +19,30 @@ extern "C" {
 using namespace std::literals;
 
 namespace cbs {
+  /**
+   * @brief Release an FFmpeg coded bitstream context.
+   *
+   * @param c Context pointer owned by the safe pointer wrapper.
+   */
   void close(CodedBitstreamContext *c) {
     ff_cbs_close(&c);
   }
 
+  /**
+   * @brief Owning coded bitstream context pointer that calls ff_cbs_close.
+   */
   using ctx_t = util::safe_ptr<CodedBitstreamContext, close>;
 
+  /**
+   * @brief Owns an FFmpeg coded bitstream fragment and frees fragment buffers on destruction.
+   */
   class frag_t: public CodedBitstreamFragment {
   public:
+    /**
+     * @brief Move-construct a coded bitstream fragment and transfer FFmpeg-owned buffers.
+     *
+     * @param o Fragment whose allocated buffers are transferred to this instance.
+     */
     frag_t(frag_t &&o) {
       std::copy((std::uint8_t *) &o, (std::uint8_t *) (&o + 1), (std::uint8_t *) this);
 
@@ -38,6 +54,12 @@ namespace cbs {
       std::fill_n((std::uint8_t *) this, sizeof(*this), 0);
     }
 
+    /**
+     * @brief Move-assign a coded bitstream fragment and transfer FFmpeg-owned buffers.
+     *
+     * @param o Fragment whose allocated buffers are transferred to this instance.
+     * @return Reference to this fragment.
+     */
     frag_t &operator=(frag_t &&o) {
       std::copy((std::uint8_t *) &o, (std::uint8_t *) (&o + 1), (std::uint8_t *) this);
 
@@ -54,6 +76,15 @@ namespace cbs {
     }
   };
 
+  /**
+   * @brief Serialize a prepared coded bitstream unit with an existing context.
+   *
+   * @param cbs_ctx Coded bitstream context initialized for the codec.
+   * @param nal NAL unit type to insert into the fragment.
+   * @param uh Pointer to the FFmpeg raw unit header/content structure.
+   * @param codec_id FFmpeg codec identifier used by the context.
+   * @return Serialized NAL unit bytes, or an empty buffer if FFmpeg rejects the fragment.
+   */
   util::buffer_t<std::uint8_t> write(cbs::ctx_t &cbs_ctx, std::uint8_t nal, void *uh, AVCodecID codec_id) {
     cbs::frag_t frag;
     auto err = ff_cbs_insert_unit_content(&frag, -1, nal, uh, nullptr);
@@ -79,6 +110,14 @@ namespace cbs {
     return data;
   }
 
+  /**
+   * @brief Serialize a prepared coded bitstream unit with a temporary context.
+   *
+   * @param nal NAL unit type to insert into the fragment.
+   * @param uh Pointer to the FFmpeg raw unit header/content structure.
+   * @param codec_id FFmpeg codec identifier used to initialize the temporary context.
+   * @return Serialized NAL unit bytes, or an empty buffer if FFmpeg rejects the fragment.
+   */
   util::buffer_t<std::uint8_t> write(std::uint8_t nal, void *uh, AVCodecID codec_id) {
     cbs::ctx_t cbs_ctx;
     ff_cbs_init(&cbs_ctx, codec_id, nullptr);
@@ -86,6 +125,9 @@ namespace cbs {
     return write(cbs_ctx, nal, uh, codec_id);
   }
 
+  /**
+   * @brief Build replacement H.264 SPS bytes with Sunshine-required VUI fields.
+   */
   h264_t make_sps_h264(const AVCodecContext *avctx, const AVPacket *packet) {
     cbs::ctx_t ctx;
     if (ff_cbs_init(&ctx, AV_CODEC_ID_H264, nullptr)) {
@@ -142,6 +184,9 @@ namespace cbs {
     };
   }
 
+  /**
+   * @brief Build replacement HEVC VPS/SPS bytes with Sunshine-required VUI fields.
+   */
   hevc_t make_sps_hevc(const AVCodecContext *avctx, const AVPacket *packet) {
     cbs::ctx_t ctx;
     if (ff_cbs_init(&ctx, AV_CODEC_ID_H265, nullptr)) {
@@ -215,9 +260,11 @@ namespace cbs {
   }
 
   /**
-   * This function initializes a Coded Bitstream Context and reads the packet into a Coded Bitstream Fragment.
-   * It then checks if the SPS->VUI (Video Usability Information) is present in the active SPS of the packet.
-   * This is done for both H264 and H265 codecs.
+   * @brief Check whether an encoded H.264 or HEVC packet contains active SPS VUI metadata.
+   *
+   * @param packet Encoded packet to parse with FFmpeg's coded bitstream reader.
+   * @param codec_id FFmpeg codec identifier; expected to be AV_CODEC_ID_H264 or AV_CODEC_ID_H265.
+   * @return `true` when the packet's active SPS advertises VUI parameters.
    */
   bool validate_sps(const AVPacket *packet, int codec_id) {
     cbs::ctx_t ctx;

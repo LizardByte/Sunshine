@@ -100,7 +100,7 @@ jobs:
 
       - name: Sync Python tools
         run: |
-          uv sync --project third-party/lizardbyte-common --locked --only-group test-c \
+          uv sync --locked \
             --python "${PYTHON_VERSION}" \
             --no-python-downloads --no-install-project
 
@@ -184,7 +184,7 @@ jobs:
           (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
         working-directory: build
         run: |
-          uv run --project ../third-party/lizardbyte-common --locked --no-sync gcovr . -r ../src \
+          uv run --project .. --locked --no-sync gcovr . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \

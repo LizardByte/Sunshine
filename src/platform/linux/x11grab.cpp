@@ -33,12 +33,32 @@
 using namespace std::literals;
 
 namespace platf {
+  /**
+   * @brief Load XCB entry points used by the X11 capture backend.
+   *
+   * @return 0 when required XCB symbols are loaded; nonzero otherwise.
+   */
   int load_xcb();
+  /**
+   * @brief Load X11 entry points used by the X11 capture backend.
+   *
+   * @return 0 when required X11 symbols are loaded; nonzero otherwise.
+   */
   int load_x11();
 
   namespace x11 {
+/**
+ * @def _FN(x, ret, args)
+ * @brief Macro for FN.
+ */
 #define _FN(x, ret, args) \
+  /** \
+   * @brief Function pointer type for the dynamically loaded X11 entry point. \
+   */ \
   typedef ret(*x##_fn) args; \
+  /** \
+   * @brief Loaded X11 entry point pointer. \
+   */ \
   static x##_fn x
 
     _FN(GetImage, XImage *, (Display * display, Drawable d, int x, int y, unsigned int width, unsigned int height, unsigned long plane_mask, int format));
@@ -174,6 +194,11 @@ namespace platf {
     _FN(setup_roots_iterator, xcb_screen_iterator_t, (const xcb_setup_t *R));
     _FN(generate_id, std::uint32_t, (xcb_connection_t * c));
 
+    /**
+     * @brief Initialize shared-memory support for X11 capture.
+     *
+     * @return 0 when XCB shared-memory functions are loaded; nonzero otherwise.
+     */
     int init_shm() {
       static void *handle {nullptr};
       static bool funcs_loaded = false;
@@ -204,6 +229,11 @@ namespace platf {
       return 0;
     }
 
+    /**
+     * @brief Initialize XFixes cursor tracking for an X11 display.
+     *
+     * @return 0 on success; nonzero or negative platform status on failure.
+     */
     int init() {
       static void *handle {nullptr};
       static bool funcs_loaded = false;
@@ -240,29 +270,73 @@ namespace platf {
 #undef _FN
   }  // namespace xcb
 
+  /**
+   * @brief Release image resources.
+   *
+   * @param p Pointer passed to the deleter or conversion helper.
+   */
   void freeImage(XImage *);
+  /**
+   * @brief Release x resources.
+   *
+   * @param p Pointer passed to the deleter or conversion helper.
+   */
   void freeX(XFixesCursorImage *);
 
+  /**
+   * @brief XCB connection pointer released with `xcb_disconnect`.
+   */
   using xcb_connect_t = util::dyn_safe_ptr<xcb_connection_t, &xcb::disconnect>;
+  /**
+   * @brief XCB image pointer released with `xcb_image_destroy`.
+   */
   using xcb_img_t = util::c_ptr<xcb_shm_get_image_reply_t>;
 
+  /**
+   * @brief XImage pointer released with `XDestroyImage`.
+   */
   using ximg_t = util::safe_ptr<XImage, freeImage>;
+  /**
+   * @brief XFixes cursor image pointer released with `XFree`.
+   */
   using xcursor_t = util::safe_ptr<XFixesCursorImage, freeX>;
 
+  /**
+   * @brief XRandR CRTC info pointer released with `XRRFreeCrtcInfo`.
+   */
   using crtc_info_t = util::dyn_safe_ptr<_XRRCrtcInfo, &x11::rr::FreeCrtcInfo>;
+  /**
+   * @brief XRandR output info pointer released with `XRRFreeOutputInfo`.
+   */
   using output_info_t = util::dyn_safe_ptr<_XRROutputInfo, &x11::rr::FreeOutputInfo>;
+  /**
+   * @brief XRandR screen resources pointer released with `XRRFreeScreenResources`.
+   */
   using screen_res_t = util::dyn_safe_ptr<_XRRScreenResources, &x11::rr::FreeScreenResources>;
 
+  /**
+   * @brief RAII wrapper that removes a SysV shared-memory segment.
+   */
   class shm_id_t {
   public:
     shm_id_t():
         id {-1} {
     }
 
+    /**
+     * @brief Take ownership of a SysV shared-memory segment ID.
+     *
+     * @param id SysV shared-memory segment ID.
+     */
     shm_id_t(int id):
         id {id} {
     }
 
+    /**
+     * @brief Move ownership of a SysV shared-memory segment ID.
+     *
+     * @param other Shared-memory ID wrapper whose segment ownership is moved.
+     */
     shm_id_t(shm_id_t &&other) noexcept:
         id(other.id) {
       other.id = -1;
@@ -275,19 +349,32 @@ namespace platf {
       }
     }
 
-    int id;
+    int id;  ///< SysV shared-memory segment identifier returned by shmget.
   };
 
+  /**
+   * @brief RAII wrapper that detaches mapped SysV shared memory.
+   */
   class shm_data_t {
   public:
     shm_data_t():
         data {(void *) -1} {
     }
 
+    /**
+     * @brief Take ownership of an attached shared-memory mapping.
+     *
+     * @param data Pointer returned by shmat.
+     */
     shm_data_t(void *data):
         data {data} {
     }
 
+    /**
+     * @brief Move ownership of an attached shared-memory mapping.
+     *
+     * @param other Shared-memory mapping wrapper whose attachment is moved.
+     */
     shm_data_t(shm_data_t &&other) noexcept:
         data(other.data) {
       other.data = (void *) -1;
@@ -299,13 +386,19 @@ namespace platf {
       }
     }
 
-    void *data;
+    void *data;  ///< Address returned by shmat for the shared-memory segment.
   };
 
+  /**
+   * @brief X11 image wrapper used by the software capture path.
+   */
   struct x11_img_t: public img_t {
-    ximg_t img;
+    ximg_t img;  ///< XImage backing the current software-captured frame.
   };
 
+  /**
+   * @brief X11 shared-memory image and segment ownership.
+   */
   struct shm_img_t: public img_t {
     ~shm_img_t() override {
       delete[] data;
@@ -362,14 +455,17 @@ namespace platf {
     }
   }
 
+  /**
+   * @brief X11 display, window, and attribute handles for capture.
+   */
   struct x11_attr_t: public display_t {
-    std::chrono::nanoseconds delay;
+    std::chrono::nanoseconds delay;  ///< Delay before the timer task becomes eligible to run.
 
-    x11::xdisplay_t xdisplay;
-    Window xwindow;
-    XWindowAttributes xattr;
+    x11::xdisplay_t xdisplay;  ///< X11 display connection used for capture.
+    Window xwindow;  ///< Root window being captured.
+    XWindowAttributes xattr;  ///< Cached X11 window attributes used to detect size changes.
 
-    mem_type_e mem_type;
+    mem_type_e mem_type;  ///< Mem type.
 
     /**
      * Last X (NOT the streamed monitor!) size.
@@ -377,6 +473,11 @@ namespace platf {
      */
     // int env_width, env_height;
 
+    /**
+     * @brief Open the X11 display and initialize capture attributes.
+     *
+     * @param mem_type Requested memory path for the capture backend.
+     */
     x11_attr_t(mem_type_e mem_type):
         xdisplay {x11::OpenDisplay(nullptr)},
         xwindow {},
@@ -385,6 +486,13 @@ namespace platf {
       x11::InitThreads();
     }
 
+    /**
+     * @brief Open the X11 display and cache capture window attributes.
+     *
+     * @param display_name Display name.
+     * @param config Configuration values to apply.
+     * @return 0 on success; nonzero or negative platform status on failure.
+     */
     int init(const std::string &display_name, const ::video::config_t &config) {
       if (!xdisplay) {
         BOOST_LOG(error) << "Could not open X11 display"sv;
@@ -501,6 +609,15 @@ namespace platf {
       return capture_e::ok;
     }
 
+    /**
+     * @brief Capture a display frame into the provided image object.
+     *
+     * @param pull_free_image_cb Callback that provides an available image buffer.
+     * @param img_out XImage-backed captured frame returned to the streaming pipeline.
+     * @param timeout Maximum time to wait for the operation.
+     * @param cursor Cursor image or visibility state to composite.
+     * @return Capture status reported to the streaming pipeline.
+     */
     capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
       refresh();
 
@@ -532,10 +649,21 @@ namespace platf {
       return capture_e::ok;
     }
 
+    /**
+     * @brief Allocate an image buffer compatible with this display backend.
+     *
+     * @return Allocated img object, or null when unavailable.
+     */
     std::shared_ptr<img_t> alloc_img() override {
       return std::make_shared<x11_img_t>();
     }
 
+    /**
+     * @brief Create AVCodec encode device.
+     *
+     * @param pix_fmt Sunshine pixel format to convert or allocate for.
+     * @return Constructed AVCodec encode device object.
+     */
     std::unique_ptr<avcodec_encode_device_t> make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
 #ifdef SUNSHINE_BUILD_VAAPI
       if (mem_type == mem_type_e::vaapi) {
@@ -552,6 +680,12 @@ namespace platf {
       return std::make_unique<avcodec_encode_device_t>();
     }
 
+    /**
+     * @brief Populate a fallback image when real capture data is unavailable.
+     *
+     * @param img Image or frame object to read from or populate.
+     * @return Capture status reported to the streaming pipeline.
+     */
     int dummy_img(img_t *img) override {
       // TODO: stop cheating and give black image
       if (!img) {
@@ -567,24 +701,35 @@ namespace platf {
     }
   };
 
+  /**
+   * @brief X11 shared-memory image dimensions and identifiers.
+   */
   struct shm_attr_t: public x11_attr_t {
-    x11::xdisplay_t shm_xdisplay;  // Prevent race condition with x11_attr_t::xdisplay
-    xcb_connect_t xcb;
-    xcb_screen_t *display;
-    std::uint32_t seg;
+    x11::xdisplay_t shm_xdisplay;  ///< X11 display held separately to prevent races with x11_attr_t::xdisplay.
+    xcb_connect_t xcb;  ///< XCB connection used by the shared-memory capture path.
+    xcb_screen_t *display;  ///< XCB screen containing the captured root window.
+    std::uint32_t seg;  ///< XCB shared-memory segment ID attached to the image.
 
-    shm_id_t shm_id;
+    shm_id_t shm_id;  ///< Shm ID.
 
-    shm_data_t data;
+    shm_data_t data;  ///< Attached SysV shared-memory data used by XShm.
 
-    task_pool_util::TaskPool::task_id_t refresh_task_id;
+    task_pool_util::TaskPool::task_id_t refresh_task_id;  ///< Refresh task ID.
 
+    /**
+     * @brief Refresh X11 shared-memory capture after a scheduled delay.
+     */
     void delayed_refresh() {
       refresh();
 
       refresh_task_id = task_pool.pushDelayed(&shm_attr_t::delayed_refresh, 2s, this).task_id;
     }
 
+    /**
+     * @brief Open an X11 shared-memory capture backend.
+     *
+     * @param mem_type Requested memory path for the capture backend.
+     */
     shm_attr_t(mem_type_e mem_type):
         x11_attr_t(mem_type),
         shm_xdisplay {x11::OpenDisplay(nullptr)} {
@@ -640,6 +785,15 @@ namespace platf {
       return capture_e::ok;
     }
 
+    /**
+     * @brief Capture a display frame into the provided image object.
+     *
+     * @param pull_free_image_cb Callback that provides an available image buffer.
+     * @param img_out Shared-memory captured frame returned to the streaming pipeline.
+     * @param timeout Maximum time to wait for the operation.
+     * @param cursor Cursor image or visibility state to composite.
+     * @return Capture status reported to the streaming pipeline.
+     */
     capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
       // The whole X server changed, so we must reinit everything
       if (xattr.width != env_width || xattr.height != env_height) {
@@ -670,6 +824,11 @@ namespace platf {
       }
     }
 
+    /**
+     * @brief Allocate an image buffer compatible with this display backend.
+     *
+     * @return Allocated img object, or null when unavailable.
+     */
     std::shared_ptr<img_t> alloc_img() override {
       auto img = std::make_shared<shm_img_t>();
       img->width = width;
@@ -681,10 +840,23 @@ namespace platf {
       return img;
     }
 
+    /**
+     * @brief Populate a fallback image when real capture data is unavailable.
+     *
+     * @param img Image or frame object to read from or populate.
+     * @return Capture status reported to the streaming pipeline.
+     */
     int dummy_img(platf::img_t *img) override {
       return 0;
     }
 
+    /**
+     * @brief Initialize X11 shared-memory capture for the selected display.
+     *
+     * @param display_name Display name.
+     * @param config Configuration values to apply.
+     * @return 0 on success; nonzero or negative platform status on failure.
+     */
     int init(const std::string &display_name, const ::video::config_t &config) {
       if (x11_attr_t::init(display_name, config)) {
         return 1;
@@ -724,11 +896,24 @@ namespace platf {
       return 0;
     }
 
+    /**
+     * @brief Calculate the XCB shared-memory frame size.
+     *
+     * @return Frame size in bytes for BGRA pixels.
+     */
     std::uint32_t frame_size() {
       return width * height * 4;
     }
   };
 
+  /**
+   * @brief Create an X11 display capture backend.
+   *
+   * @param hwdevice_type Hardware device type requested for capture or encode.
+   * @param display_name Display name.
+   * @param config Configuration values to apply.
+   * @return X11 display backend, or nullptr when initialization fails.
+   */
   std::shared_ptr<display_t> x11_display(platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
     if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda) {
       BOOST_LOG(error) << "Could not initialize x11 display with the given hw device type"sv;
@@ -763,6 +948,11 @@ namespace platf {
     return x11_disp;
   }
 
+  /**
+   * @brief Enumerate display names accepted by the X11 backend.
+   *
+   * @return X11 display names, or an empty list when X11 probing fails.
+   */
   std::vector<std::string> x11_display_names() {
     if (load_x11() || load_xcb()) {
       BOOST_LOG(error) << "Couldn't init x11 libraries"sv;
@@ -800,14 +990,23 @@ namespace platf {
     return names;
   }
 
+  /**
+   * @brief Release image resources.
+   */
   void freeImage(XImage *p) {
     XDestroyImage(p);
   }
 
+  /**
+   * @brief Release x resources.
+   */
   void freeX(XFixesCursorImage *p) {
     x11::Free(p);
   }
 
+  /**
+   * @brief Load XCB entry points used by the X11 capture backend.
+   */
   int load_xcb() {
     // This will be called once only
     static int xcb_status = xcb::init_shm() || xcb::init();
@@ -815,6 +1014,9 @@ namespace platf {
     return xcb_status;
   }
 
+  /**
+   * @brief Load X11 entry points used by the X11 capture backend.
+   */
   int load_x11() {
     // This will be called once only
     static int x11_status =
@@ -868,14 +1070,25 @@ namespace platf {
       blend_cursor((xdisplay_t::pointer) ctx.get(), img, offsetX, offsetY);
     }
 
+    /**
+     * @brief Open and initialize the display connection used for capture.
+     */
     xdisplay_t make_display() {
       return OpenDisplay(nullptr);
     }
 
+    /**
+     * @brief Release display resources.
+     */
     void freeDisplay(_XDisplay *xdisplay) {
       CloseDisplay(xdisplay);
     }
 
+    /**
+     * @brief Release cursor context resources.
+     *
+     * @param ctx Native context object used by the operation or callback.
+     */
     void freeCursorCtx(cursor_ctx_t::pointer ctx) {
       CloseDisplay((xdisplay_t::pointer) ctx);
     }

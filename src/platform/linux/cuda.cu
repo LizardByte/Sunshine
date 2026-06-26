@@ -226,7 +226,7 @@ namespace cuda {
     float scale,
     const viewport_t viewport,
     const cuda_color_t *const color_matrix
-    ) {
+  ) {
     int idX = threadIdx.x + blockDim.x * blockIdx.x;
     int idY = threadIdx.y + blockDim.y * blockIdx.y;
 
@@ -252,7 +252,6 @@ namespace cuda {
     dstY[0] = calcY(rgb, color_matrix) * 255.0f;
     dstU[0] = calcU(rgb, color_matrix) * 255.0f;
     dstV[0] = calcV(rgb, color_matrix) * 255.0f;
-
   }
 
   int tex_t::copy(std::uint8_t *src, int height, int pitch) {
@@ -383,9 +382,7 @@ namespace cuda {
     return convert_yuv444(Y, U, V, pitch, texture, stream, viewport);
   }
 
-  int sws_t::convert_yuv444(std::uint8_t *Y, std::uint8_t *U, std::uint8_t *V, std::uint32_t pitch,
-                                    cudaTextureObject_t texture, stream_t::pointer stream,
-                                    const viewport_t &viewport) {
+  int sws_t::convert_yuv444(std::uint8_t *Y, std::uint8_t *U, std::uint8_t *V, std::uint32_t pitch, cudaTextureObject_t texture, stream_t::pointer stream, const viewport_t &viewport) {
     int threadsX = viewport.width;
     int threadsY = viewport.height;
 
@@ -393,8 +390,14 @@ namespace cuda {
     dim3 grid(div_align(threadsX, threadsPerBlock), threadsY);
 
     RGBA_to_YUV444<<<grid, block, 0, stream>>>(
-        texture, Y, U, V, pitch, scale, viewport,
-        (cuda_color_t *) color_matrix.get()
+      texture,
+      Y,
+      U,
+      V,
+      pitch,
+      scale,
+      viewport,
+      (cuda_color_t *) color_matrix.get()
     );
 
     return CU_CHECK_IGNORE(cudaGetLastError(), "RGBA_to_YUV444 failed");

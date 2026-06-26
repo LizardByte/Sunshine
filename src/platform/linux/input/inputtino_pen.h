@@ -16,5 +16,12 @@
 using namespace std::literals;
 
 namespace platf::pen {
+  /**
+   * @brief Apply the supplied state update to the platform backend.
+   *
+   * @param raw Platform-specific input backend state.
+   * @param touch_port Touch coordinate bounds used for scaling.
+   * @param pen Pen event data to inject.
+   */
   void update(client_input_raw_t *raw, const touch_port_t &touch_port, const pen_input_t &pen);
-}
+}  // namespace platf::pen

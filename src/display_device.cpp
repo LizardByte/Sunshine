@@ -456,7 +456,7 @@ namespace display_device {
     }
 
     /**
-     * @brief Contains remapping data parsed from the string values.
+     * @brief Enumerates supported contains remapping data parsed from the string options.
      */
     struct parsed_remapping_entry_t {
       std::optional<Resolution> requested_resolution;

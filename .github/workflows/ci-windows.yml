@@ -214,7 +214,7 @@ jobs:
           MSYS2_PATH_TYPE: inherit
           UV_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: |
-          uv sync --project third-party/lizardbyte-common --locked --only-group test-c \
+          uv sync --locked \
             --no-python-downloads \
             --no-install-project
 
@@ -369,7 +369,7 @@ jobs:
         env:
           MSYS2_PATH_TYPE: inherit
         run: |
-          uv run --project ../third-party/lizardbyte-common --locked --no-sync gcovr . -r ../src \
+          uv run --project .. --locked --no-sync gcovr . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \

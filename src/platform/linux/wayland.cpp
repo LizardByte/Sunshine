@@ -23,7 +23,7 @@
 #include "src/utility.h"
 #include "wayland.h"
 
-extern const wl_interface wl_output_interface;
+extern const wl_interface wl_output_interface;  ///< Wayland output interface.
 
 using namespace std::literals;
 
@@ -40,6 +40,10 @@ namespace wl {
     return ((*reinterpret_cast<T *>(data)).*m)(params...);
   }
 
+/**
+ * @def CLASS_CALL(c, m)
+ * @brief Macro for CLASS CALL.
+ */
 #define CLASS_CALL(c, m) classCall<c, decltype(&c::m), &c::m>
 
   // Define buffer params listener
@@ -546,6 +550,9 @@ namespace wl {
     std::fill_n(sd.fds, 4, -1);
   };
 
+  /**
+   * @brief Refresh the monitor list reported by the display server.
+   */
   std::vector<std::unique_ptr<monitor_t>> monitors(const char *display_name) {
     display_t display;
 
@@ -578,6 +585,9 @@ namespace wl {
     return display.init() == 0;
   }
 
+  /**
+   * @brief Initialize Wayland registry interfaces required for capture.
+   */
   int init() {
     static bool validated = validate();
 

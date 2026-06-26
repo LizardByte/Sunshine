@@ -99,7 +99,7 @@ namespace display_device {
   void revert_configuration();
 
   /**
-   * @brief Reset the persistence and currently held initial display state.
+   * @brief Reset persisted display state and the captured initial state.
    *
    * This is normally used to get out of the "broken" state where the algorithm wants
    * to restore the initial display state, but it is no longer possible.

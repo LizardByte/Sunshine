@@ -221,7 +221,7 @@ class Sunshine < Formula
         either install icu4c or use brew install sunshine --with-static-boost instead
       EOS
     end
-    ENV.append "CXXFLAGS", "-I#{Formula["icu4c"].opt_include}"
+    ENV.append "CXXFLAGS", "-I#{formula_opt_include("icu4c")}"
     icu4c_lib_path = formula_opt_lib("icu4c").to_s
     ENV.append "LDFLAGS", "-L#{icu4c_lib_path}"
     ENV["LIBRARY_PATH"] = icu4c_lib_path

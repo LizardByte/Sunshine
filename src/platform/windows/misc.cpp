@@ -35,6 +35,10 @@
 
 // Boost overrides NTDDI_VERSION, so we re-override it here
 #undef NTDDI_VERSION
+/**
+ * @def NTDDI_VERSION
+ * @brief Macro for NTDDI VERSION.
+ */
 #define NTDDI_VERSION NTDDI_WIN10
 #include <Shlwapi.h>
 
@@ -50,22 +54,42 @@
 
 // UDP_SEND_MSG_SIZE was added in the Windows 10 20H1 SDK
 #ifndef UDP_SEND_MSG_SIZE
+  /**
+   * @def UDP_SEND_MSG_SIZE
+   * @brief Macro for UDP SEND MSG SIZE.
+   */
   #define UDP_SEND_MSG_SIZE 2
 #endif
 
 // PROC_THREAD_ATTRIBUTE_JOB_LIST is currently missing from MinGW headers
 #ifndef PROC_THREAD_ATTRIBUTE_JOB_LIST
+  /**
+   * @def PROC_THREAD_ATTRIBUTE_JOB_LIST
+   * @brief Macro for PROC THREAD ATTRIBUTE JOB LIST.
+   */
   #define PROC_THREAD_ATTRIBUTE_JOB_LIST ProcThreadAttributeValue(13, FALSE, TRUE, FALSE)
 #endif
 
 #include <qos2.h>
 
 #ifndef WLAN_API_MAKE_VERSION
+  /**
+   * @def WLAN_API_MAKE_VERSION(_major, _minor)
+   * @brief Macro for WLAN API MAKE VERSION.
+   */
   #define WLAN_API_MAKE_VERSION(_major, _minor) (((DWORD) (_minor)) << 16 | (_major))
 #endif
 
 #include <winternl.h>
 extern "C" {
+  /**
+   * @brief Dynamically resolve NtSetTimerResolution from ntdll.
+   *
+   * @param DesiredResolution Desired resolution.
+   * @param SetResolution Set resolution.
+   * @param CurrentResolution Current resolution.
+   * @return NTSTATUS reported by the system timer-resolution request.
+   */
   NTSTATUS NTAPI NtSetTimerResolution(ULONG DesiredResolution, BOOLEAN SetResolution, PULONG CurrentResolution);
 }
 
@@ -100,24 +124,27 @@ namespace bp = boost::process::v1;
 using namespace std::literals;
 
 namespace platf {
+  /**
+   * @brief Owning pointer for `GetAdaptersAddresses` results.
+   */
   using adapteraddrs_t = util::c_ptr<IP_ADAPTER_ADDRESSES>;
 
-  bool enabled_mouse_keys = false;
-  MOUSEKEYS previous_mouse_keys_state;
+  bool enabled_mouse_keys = false;  ///< Tracks whether Windows Mouse Keys was enabled before Sunshine changed it.
+  MOUSEKEYS previous_mouse_keys_state;  ///< Previous mouse keys state.
 
-  HANDLE qos_handle = nullptr;
+  HANDLE qos_handle = nullptr;  ///< QoS handle.
 
-  decltype(QOSCreateHandle) *fn_QOSCreateHandle = nullptr;
-  decltype(QOSAddSocketToFlow) *fn_QOSAddSocketToFlow = nullptr;
-  decltype(QOSRemoveSocketFromFlow) *fn_QOSRemoveSocketFromFlow = nullptr;
+  decltype(QOSCreateHandle) *fn_QOSCreateHandle = nullptr;  ///< Fn QoS create handle.
+  decltype(QOSAddSocketToFlow) *fn_QOSAddSocketToFlow = nullptr;  ///< Fn QoS add socket to flow.
+  decltype(QOSRemoveSocketFromFlow) *fn_QOSRemoveSocketFromFlow = nullptr;  ///< Fn QoS remove socket from flow.
 
-  HANDLE wlan_handle = nullptr;
+  HANDLE wlan_handle = nullptr;  ///< Wlan handle.
 
-  decltype(WlanOpenHandle) *fn_WlanOpenHandle = nullptr;
-  decltype(WlanCloseHandle) *fn_WlanCloseHandle = nullptr;
-  decltype(WlanFreeMemory) *fn_WlanFreeMemory = nullptr;
-  decltype(WlanEnumInterfaces) *fn_WlanEnumInterfaces = nullptr;
-  decltype(WlanSetInterface) *fn_WlanSetInterface = nullptr;
+  decltype(WlanOpenHandle) *fn_WlanOpenHandle = nullptr;  ///< Fn wlan open handle.
+  decltype(WlanCloseHandle) *fn_WlanCloseHandle = nullptr;  ///< Fn wlan close handle.
+  decltype(WlanFreeMemory) *fn_WlanFreeMemory = nullptr;  ///< Fn wlan free memory.
+  decltype(WlanEnumInterfaces) *fn_WlanEnumInterfaces = nullptr;  ///< Fn wlan enum interfaces.
+  decltype(WlanSetInterface) *fn_WlanSetInterface = nullptr;  ///< Fn wlan set interface.
 
   std::filesystem::path appdata() {
     WCHAR sunshine_path[MAX_PATH];
@@ -154,6 +181,11 @@ namespace platf {
     return {port, std::string {data}};
   }
 
+  /**
+   * @brief Read Windows adapter addresses with automatic buffer sizing.
+   *
+   * @return Adapter-address list populated by GetAdaptersAddresses.
+   */
   adapteraddrs_t get_adapteraddrs() {
     adapteraddrs_t info {nullptr};
     ULONG size = 0;
@@ -186,6 +218,9 @@ namespace platf {
     return "00:00:00:00:00:00"s;
   }
 
+  /**
+   * @brief Synchronize thread desktop.
+   */
   HDESK syncThreadDesktop() {
     auto hDesk = OpenInputDesktop(DF_ALLOWOTHERACCOUNTHOOK, FALSE, GENERIC_ALL);
     if (!hDesk) {
@@ -205,6 +240,9 @@ namespace platf {
     return hDesk;
   }
 
+  /**
+   * @brief Write status details to the log.
+   */
   void print_status(const std::string_view &prefix, HRESULT status) {
     char err_string[1024];
 
@@ -213,6 +251,12 @@ namespace platf {
     BOOST_LOG(error) << prefix << ": "sv << std::string_view {err_string, bytes};
   }
 
+  /**
+   * @brief Check whether a Windows access token belongs to an administrator.
+   *
+   * @param user_token Windows access token to inspect.
+   * @return True when the inspected token has administrator privileges.
+   */
   bool IsUserAdmin(HANDLE user_token) {
     WINBOOL ret;
     SID_IDENTIFIER_AUTHORITY NtAuthority = SECURITY_NT_AUTHORITY;
@@ -246,6 +290,8 @@ namespace platf {
   /**
    * @brief Obtain the current sessions user's primary token with elevated privileges.
    * @return The user's token. If user has admin capability it will be elevated, otherwise it will be a limited token. On error, `nullptr`.
+   *
+   * @param elevated Whether the command should run with elevated privileges.
    */
   HANDLE retrieve_users_token(bool elevated) {
     DWORD consoleSessionId;
@@ -308,6 +354,13 @@ namespace platf {
     return userToken;
   }
 
+  /**
+   * @brief Merge user environment variables into a Windows environment block.
+   *
+   * @param env Environment variables for the child process.
+   * @param shell_token Shell token.
+   * @return True when the user environment block was merged into `env`.
+   */
   bool merge_user_environment_block(bp::environment &env, HANDLE shell_token) {
     // Get the target user's environment block
     PVOID env_block;
@@ -378,11 +431,24 @@ namespace platf {
   }
 
   // Note: This does NOT append a null terminator
+  /**
+   * @brief Append a null-terminated string to a Windows environment block.
+   *
+   * @param env_block Env block.
+   * @param offset Byte offset used when converting from the wide string buffer.
+   * @param wstr Wide-character string being converted to UTF-8.
+   */
   void append_string_to_environment_block(wchar_t *env_block, int &offset, const std::wstring &wstr) {
     std::memcpy(&env_block[offset], wstr.data(), wstr.length() * sizeof(wchar_t));
     offset += wstr.length();
   }
 
+  /**
+   * @brief Create environment block.
+   *
+   * @param env Environment variables for the child process.
+   * @return Created environment block object or status.
+   */
   std::wstring create_environment_block(const bp::environment &env) {
     int size = 0;
     for (const auto &entry : env) {
@@ -415,6 +481,12 @@ namespace platf {
     return std::wstring(env_block.data(), offset);
   }
 
+  /**
+   * @brief Allocate and initialize a Windows process-thread attribute list.
+   *
+   * @param attribute_count Attribute count.
+   * @return Initialized attribute list, or nullptr when allocation fails.
+   */
   LPPROC_THREAD_ATTRIBUTE_LIST allocate_proc_thread_attr_list(DWORD attribute_count) {
     SIZE_T size;
     InitializeProcThreadAttributeList(nullptr, attribute_count, 0, &size);
@@ -432,6 +504,11 @@ namespace platf {
     return list;
   }
 
+  /**
+   * @brief Release proc thread attr list resources.
+   *
+   * @param list Multi-string list returned by the Windows API.
+   */
   void free_proc_thread_attr_list(LPPROC_THREAD_ATTRIBUTE_LIST list) {
     DeleteProcThreadAttributeList(list);
     HeapFree(GetProcessHeap(), 0, list);
@@ -1255,9 +1332,12 @@ namespace platf {
     return _putenv_s(name.c_str(), "");
   }
 
+  /**
+   * @brief Stores state while enumerating top-level Windows windows.
+   */
   struct enum_wnd_context_t {
-    std::set<DWORD> process_ids;
-    bool requested_exit;
+    std::set<DWORD> process_ids;  ///< Process ids.
+    bool requested_exit;  ///< Whether a close request was observed while enumerating windows.
   };
 
   static BOOL CALLBACK prgrp_enum_windows(HWND hwnd, LPARAM lParam) {
@@ -1549,8 +1629,16 @@ namespace platf {
     return true;
   }
 
+  /**
+   * @brief Owns platform QoS state that is restored during cleanup.
+   */
   class qos_t: public deinit_t {
   public:
+    /**
+     * @brief Store a Windows QoS flow ID for cleanup on destruction.
+     *
+     * @param flow_id Flow ID.
+     */
     qos_t(QOS_FLOWID flow_id):
         flow_id(flow_id) {
     }
@@ -1568,11 +1656,6 @@ namespace platf {
 
   /**
    * @brief Enables QoS on the given socket for traffic to the specified destination.
-   * @param native_socket The native socket handle.
-   * @param address The destination address for traffic sent on this socket.
-   * @param port The destination port for traffic sent on this socket.
-   * @param data_type The type of traffic sent on this socket.
-   * @param dscp_tagging Specifies whether to enable DSCP tagging on outgoing traffic.
    */
   std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
     SOCKADDR_IN saddr_v4;
@@ -1683,6 +1766,9 @@ namespace platf {
     return std::make_unique<qos_t>(flow_id);
   }
 
+  /**
+   * @brief Read the current Windows high-resolution performance counter.
+   */
   int64_t qpc_counter() {
     LARGE_INTEGER performance_counter;
     if (QueryPerformanceCounter(&performance_counter)) {
@@ -1691,6 +1777,9 @@ namespace platf {
     return 0;
   }
 
+  /**
+   * @brief Convert the difference between two QPC readings to nanoseconds.
+   */
   std::chrono::nanoseconds qpc_time_difference(int64_t performance_counter1, int64_t performance_counter2) {
     auto get_frequency = []() {
       LARGE_INTEGER frequency;
@@ -1714,6 +1803,9 @@ namespace platf {
     return utf_utils::to_utf8(hostname);
   }
 
+  /**
+   * @brief Implements the high-precision timer using Win32 waitable timers.
+   */
   class win32_high_precision_timer: public high_precision_timer {
   public:
     win32_high_precision_timer() {

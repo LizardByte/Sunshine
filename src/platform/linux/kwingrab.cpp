@@ -49,10 +49,18 @@ namespace kwin {
    */
   class screencast_permission_helper_t {
   public:
+    /**
+     * @brief Check whether permission system deactivated.
+     *
+     * @return True when KWin reports that the permission system is disabled.
+     */
     static bool is_permission_system_deactivated() {
       return getenvstr("KWIN_WAYLAND_NO_PERMISSION_CHECKS") == "1";
     }
 
+    /**
+     * @brief Configure the KWin screencast session.
+     */
     static void setup() {
       if (initialized) {
         return;
@@ -139,6 +147,11 @@ namespace kwin {
       initialized = true;
     }
 
+    /**
+     * @brief Check whether newly initialized.
+     *
+     * @return True when KWin was initialized during this check.
+     */
     static bool is_newly_initialized() {
       return create_file;
     }
@@ -238,13 +251,19 @@ namespace kwin {
   };
 
   // Output parameters
+  /**
+   * @brief KWin screencast output name and geometry.
+   */
   struct output_parameter_t {
-    std::string name = "";
-    int width = 0;
-    int height = 0;
-    int pos_x = 0;
-    int pos_y = 0;
+    std::string name = "";  ///< KWin output name.
+    int width = 0;  ///< Output width in pixels.
+    int height = 0;  ///< Output height in pixels.
+    int pos_x = 0;  ///< Output X position in the compositor layout.
+    int pos_y = 0;  ///< Output Y position in the compositor layout.
     // order is needed to get a sorted output list and should be updated before sorting to have current values
+    /**
+     * @brief Order.
+     */
     size_t order = SIZE_MAX;  // Use high number to keep monitors with uninitialized order value to the back
   };
 
@@ -443,9 +462,9 @@ namespace kwin {
       return 0;
     }
 
-    uint32_t out_node_id = PW_ID_ANY;
-    uint64_t out_objectserial = SPA_ID_INVALID;
-    std::shared_ptr<output_parameter_t> out_params = nullptr;
+    uint32_t out_node_id = PW_ID_ANY;  ///< Out node ID.
+    uint64_t out_objectserial = SPA_ID_INVALID;  ///< Out objectserial.
+    std::shared_ptr<output_parameter_t> out_params = nullptr;  ///< Out params.
 
   private:
     // Wayland objects
@@ -688,12 +707,20 @@ namespace kwin {
       return -1;
     }
 
-    std::unique_ptr<screencast_t> screencast;
+    std::unique_ptr<screencast_t> screencast;  ///< Screencast.
   };
 }  // namespace kwin
 
 // Public API for misc.cpp
 namespace platf {
+  /**
+   * @brief Create a KWin screencast display backend.
+   *
+   * @param hwdevice_type Hardware device type requested for capture or encode.
+   * @param display_name Display name.
+   * @param config Configuration values to apply.
+   * @return KWin/PipeWire display backend, or nullptr when initialization fails.
+   */
   std::shared_ptr<display_t> kwin_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     if (!pipewire::pipewire_display_t::init_pipewire_and_check_hwdevice_type(hwdevice_type)) {
       BOOST_LOG(error) << "[kwingrab] Could not initialize pipewire-based display with the given hw device type."sv;
@@ -708,6 +735,11 @@ namespace platf {
     return display;
   }
 
+  /**
+   * @brief Enumerate KWin screencast display names.
+   *
+   * @return KWin display names, or an empty list when KWin capture is unavailable.
+   */
   std::vector<std::string> kwin_display_names() {
     if (has_elevated_privileges(false)) {
       // We're still in the probing phase of Sunshine startup. Dropping portal security early will break KMS.
@@ -724,6 +756,11 @@ namespace platf {
     return screencast->get_output_names();
   }
 
+  /**
+   * @brief Check whether KWin screencast capture is available.
+   *
+   * @return True when KWin capture support is available.
+   */
   bool kwin_available() {
     // Init screencast without permission setup (to not cause unneeded logs / temporary desktop files) and check KWin availability
     if (const auto screencast = std::make_unique<kwin::screencast_t>(); screencast->init(false) < 0 || !screencast->kwin_available()) {

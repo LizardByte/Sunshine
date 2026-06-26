@@ -19,9 +19,15 @@
 
 // We have to include boost/process/v1.hpp before display.h due to WinSock.h,
 // but that prevents the definition of NTSTATUS so we must define it ourself.
+/**
+ * @brief Windows NT status code returned by native APIs.
+ */
 typedef long NTSTATUS;
 
 // Definition from the WDK's d3dkmthk.h
+/**
+ * @brief Enumerates supported d3 DKMT GPU PREFERENCE QUERY STATE options.
+ */
 typedef enum _D3DKMT_GPU_PREFERENCE_QUERY_STATE: DWORD {
   D3DKMT_GPU_PREFERENCE_STATE_UNINITIALIZED,  ///< The GPU preference isn't initialized.
   D3DKMT_GPU_PREFERENCE_STATE_HIGH_PERFORMANCE,  ///< The highest performing GPU is preferred.
@@ -29,7 +35,7 @@ typedef enum _D3DKMT_GPU_PREFERENCE_QUERY_STATE: DWORD {
   D3DKMT_GPU_PREFERENCE_STATE_UNSPECIFIED,  ///< A GPU preference isn't specified.
   D3DKMT_GPU_PREFERENCE_STATE_NOT_FOUND,  ///< A GPU preference isn't found.
   D3DKMT_GPU_PREFERENCE_STATE_USER_SPECIFIED_GPU  ///< A specific GPU is preferred.
-} D3DKMT_GPU_PREFERENCE_QUERY_STATE;
+} D3DKMT_GPU_PREFERENCE_QUERY_STATE;  ///< Alias for D3 DKMT GPU PREFERENCE QUERY STATE.
 
 #include "display.h"
 #include "misc.h"
@@ -354,6 +360,8 @@ namespace platf::dxgi {
    * @param adapter The DXGI adapter to use for capture.
    * @param output The DXGI output to capture.
    * @param enumeration_only Specifies whether this test is occurring for display enumeration.
+   *
+   * @return True when Desktop Duplication can capture the requested output.
    */
   bool test_dxgi_duplication(adapter_t &adapter, output_t &output, bool enumeration_only) {
     D3D_FEATURE_LEVEL featureLevels[] {
@@ -819,6 +827,9 @@ namespace platf::dxgi {
     return true;
   }
 
+  /**
+   * @brief Names for DXGI_FORMAT values used in diagnostic logging.
+   */
   const char *format_str[] = {
     "DXGI_FORMAT_UNKNOWN",
     "DXGI_FORMAT_R32G32B32A32_TYPELESS",
@@ -1109,7 +1120,8 @@ namespace platf {
   }
 
   /**
-   * @brief Returns if GPUs/drivers have changed since the last call to this function.
+   * @brief Check whether DXGI reports that adapter or driver enumeration is stale.
+   *
    * @return `true` if a change has occurred or if it is unknown whether a change occurred.
    */
   bool needs_encoder_reenumeration() {

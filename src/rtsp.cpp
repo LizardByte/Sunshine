@@ -40,6 +40,11 @@ using asio::ip::udp;
 using namespace std::literals;
 
 namespace rtsp_stream {
+  /**
+   * @brief Release msg resources.
+   *
+   * @param msg Raw RTSP message buffer being parsed or encrypted.
+   */
   void free_msg(PRTSP_MESSAGE msg) {
     freeMessage(msg);
 
@@ -48,46 +53,102 @@ namespace rtsp_stream {
 
 #pragma pack(push, 1)
 
+  /**
+   * @brief Encrypted RTSP message header used by GameStream.
+   */
   struct encrypted_rtsp_header_t {
     // We set the MSB in encrypted RTSP messages to allow format-agnostic
     // parsing code to be able to tell encrypted from plaintext messages.
-    static constexpr std::uint32_t ENCRYPTED_MESSAGE_TYPE_BIT = 0x80000000;
+    static constexpr std::uint32_t ENCRYPTED_MESSAGE_TYPE_BIT = 0x80000000;  ///< Protocol or platform constant for encrypted message type bit.
 
+    /**
+     * @brief Return a pointer to the protocol payload following the packet header.
+     *
+     * @return Parsed or serialized payload data.
+     */
     uint8_t *payload() {
       return (uint8_t *) (this + 1);
     }
 
+    /**
+     * @brief Decode the RTSP interleaved-frame payload length.
+     *
+     * @return Payload byte count with the encrypted-message flag masked out.
+     */
     std::uint32_t payload_length() {
       return util::endian::big<std::uint32_t>(typeAndLength) & ~ENCRYPTED_MESSAGE_TYPE_BIT;
     }
 
+    /**
+     * @brief Check whether encrypted.
+     *
+     * @return True when the RTSP connection is using TLS.
+     */
     bool is_encrypted() {
       return !!(util::endian::big<std::uint32_t>(typeAndLength) & ENCRYPTED_MESSAGE_TYPE_BIT);
     }
 
     // This field is the length of the payload + ENCRYPTED_MESSAGE_TYPE_BIT in big-endian
-    std::uint32_t typeAndLength;
+    std::uint32_t typeAndLength;  ///< Type and length.
 
     // This field is the number used to initialize the bottom 4 bytes of the AES IV in big-endian
-    std::uint32_t sequenceNumber;
+    std::uint32_t sequenceNumber;  ///< Sequence number.
 
     // This field is the AES GCM authentication tag
-    std::uint8_t tag[16];
+    std::uint8_t tag[16];  ///< Authentication tag appended to the encrypted payload.
   };
 
 #pragma pack(pop)
 
   class rtsp_server_t;
 
+  /**
+   * @brief Owning pointer for an RTSP message allocated by moonlight-common-c.
+   */
   using msg_t = util::safe_ptr<RTSP_MESSAGE, free_msg>;
+  /**
+   * @brief RTSP command handler signature used by the server dispatch table.
+   */
   using cmd_func_t = std::function<void(rtsp_server_t *server, tcp::socket &, launch_session_t &, msg_t &&)>;
 
+  /**
+   * @brief Write msg details to the log.
+   *
+   * @param msg Raw RTSP message buffer being parsed or encrypted.
+   */
   void print_msg(PRTSP_MESSAGE msg);
+  /**
+   * @brief Send the RTSP response used for unsupported commands.
+   *
+   * @param sock Socket used to read or write the protocol message.
+   * @param session Active streaming or pairing session for the request.
+   * @param req Parsed RTSP request being handled.
+   */
   void cmd_not_found(tcp::socket &sock, launch_session_t &, msg_t &&req);
+  /**
+   * @brief Send the protocol response for the current request.
+   *
+   * @param sock Socket used to read or write the protocol message.
+   * @param session Active streaming or pairing session for the request.
+   * @param options Request options or socket options to apply.
+   * @param statuscode RTSP status code to send in the response.
+   * @param status_msg Status msg.
+   * @param seqn RTSP CSeq value associated with the request.
+   * @param payload Optional payload body to include in the response.
+   */
   void respond(tcp::socket &sock, launch_session_t &session, POPTION_ITEM options, int statuscode, const char *status_msg, int seqn, const std::string_view &payload);
 
+  /**
+   * @brief RTSP client socket state and receive buffer parser.
+   */
   class socket_t: public std::enable_shared_from_this<socket_t> {
   public:
+    /**
+     * @brief Construct an RTSP socket wrapper around an accepted TCP connection.
+     *
+     * @param io_context Io context.
+     * @param handle_data_fn Handle data.
+     */
     socket_t(boost::asio::io_context &io_context, std::function<void(tcp::socket &sock, launch_session_t &, msg_t &&)> &&handle_data_fn):
         handle_data_fn {std::move(handle_data_fn)},
         sock {io_context} {
@@ -125,7 +186,7 @@ namespace rtsp_stream {
     }
 
     /**
-     * @brief Handle the initial read of the header of an encrypted message.
+     * @brief Read the encrypted RTSP header before receiving the encrypted payload.
      * @param socket The socket the message was received on.
      * @param ec The error code of the read operation.
      * @param bytes The number of bytes read.
@@ -174,7 +235,7 @@ namespace rtsp_stream {
     }
 
     /**
-     * @brief Handle the final read of the content of an encrypted message.
+     * @brief Read and decrypt the encrypted RTSP payload.
      * @param socket The socket the message was received on.
      * @param ec The error code of the read operation.
      * @param bytes The number of bytes read.
@@ -265,7 +326,7 @@ namespace rtsp_stream {
     }
 
     /**
-     * @brief Handle the read of the payload portion of a plaintext message.
+     * @brief Read the plaintext RTSP payload after the header is parsed.
      * @param socket The socket the message was received on.
      * @param ec The error code of the read operation.
      * @param bytes The number of bytes read.
@@ -335,7 +396,7 @@ namespace rtsp_stream {
     }
 
     /**
-     * @brief Handle the read of the header portion of a plaintext message.
+     * @brief Read and parse the plaintext RTSP request header.
      * @param socket The socket the message was received on.
      * @param ec The error code of the read operation.
      * @param bytes The number of bytes read.
@@ -382,28 +443,44 @@ namespace rtsp_stream {
       handle_plaintext_payload(socket, ec, buf_size);
     }
 
+    /**
+     * @brief Dispatch a parsed RTSP request to the socket's command handler.
+     *
+     * @param req Parsed RTSP request being handled.
+     */
     void handle_data(msg_t &&req) {
       handle_data_fn(sock, *session, std::move(req));
     }
 
-    std::function<void(tcp::socket &sock, launch_session_t &, msg_t &&)> handle_data_fn;
+    std::function<void(tcp::socket &sock, launch_session_t &, msg_t &&)> handle_data_fn;  ///< Command dispatcher installed by the RTSP server.
 
-    tcp::socket sock;
+    tcp::socket sock;  ///< TCP socket connected to the RTSP client.
 
-    std::array<char, 2048> msg_buf;
+    std::array<char, 2048> msg_buf;  ///< Receive buffer for one RTSP request header and payload.
 
-    char *crlf;
-    char *begin = msg_buf.data();
+    char *crlf;  ///< Pointer to the next CRLF delimiter while parsing the receive buffer.
+    char *begin = msg_buf.data();  ///< Start of the unparsed data currently in `msg_buf`.
 
-    std::shared_ptr<launch_session_t> session;
+    std::shared_ptr<launch_session_t> session;  ///< Launch session claimed by this RTSP socket.
   };
 
+  /**
+   * @brief RTSP listener that matches incoming clients to pending launch sessions.
+   */
   class rtsp_server_t {
   public:
     ~rtsp_server_t() {
       clear();
     }
 
+    /**
+     * @brief Bind the underlying socket or graphics resource to its target.
+     *
+     * @param af Address family used for socket creation or binding.
+     * @param port TCP or UDP port number.
+     * @param ec Error code returned by the asynchronous operation.
+     * @return Network operation status.
+     */
     int bind(net::af_e af, std::uint16_t port, boost::system::error_code &ec) {
       acceptor.open(af == net::IPV4 ? tcp::v4() : tcp::v6(), ec);
       if (ec) {
@@ -440,6 +517,13 @@ namespace rtsp_stream {
       return 0;
     }
 
+    /**
+     * @brief Dispatch a parsed RTSP request to its handler.
+     *
+     * @param sock Socket used to read or write the protocol message.
+     * @param session Active streaming or pairing session for the request.
+     * @param req Parsed RTSP request being handled.
+     */
     void handle_msg(tcp::socket &sock, launch_session_t &session, msg_t &&req) {
       auto func = _map_cmd_cb.find(req->message.request.command);
       if (func != std::end(_map_cmd_cb)) {
@@ -452,6 +536,11 @@ namespace rtsp_stream {
       sock.shutdown(boost::asio::socket_base::shutdown_type::shutdown_both, ec);
     }
 
+    /**
+     * @brief Accept a pending connection and arm the server for the next client.
+     *
+     * @param ec Error code returned by the asynchronous operation.
+     */
     void handle_accept(const boost::system::error_code &ec) {
       if (ec) {
         BOOST_LOG(error) << "Couldn't accept incoming connections: "sv << ec.message();
@@ -486,6 +575,12 @@ namespace rtsp_stream {
       });
     }
 
+    /**
+     * @brief Register or visit handlers stored in the map.
+     *
+     * @param type Protocol, message, or resource type selector.
+     * @param cb Callback invoked for each matching message or session.
+     */
     void map(const std::string_view &type, cmd_func_t cb) {
       _map_cmd_cb.emplace(type, std::move(cb));
     }
@@ -544,7 +639,7 @@ namespace rtsp_stream {
       return (int) _session_slots->size();
     }
 
-    safe::event_t<std::shared_ptr<launch_session_t>> launch_event;
+    safe::event_t<std::shared_ptr<launch_session_t>> launch_event;  ///< Launch event.
 
     /**
      * @brief Clear launch sessions.
@@ -569,6 +664,11 @@ namespace rtsp_stream {
       }
     }
 
+    /**
+     * @brief Clear by cert state.
+     *
+     * @param cert Certificate data or object used by the operation.
+     */
     void clear_by_cert(std::string_view cert) {
       auto lg = _session_slots.lock();
       for (auto i = _session_slots->begin(); i != _session_slots->end();) {
@@ -636,8 +736,11 @@ namespace rtsp_stream {
     std::shared_ptr<socket_t> next_socket;
   };
 
-  rtsp_server_t server {};
+  rtsp_server_t server {};  ///< Singleton RTSP server used by GameStream launch sessions.
 
+  /**
+   * @brief Queue a launch session until the RTSP client connects.
+   */
   void launch_session_raise(std::shared_ptr<launch_session_t> launch_session) {
     server.session_raise(std::move(launch_session));
   }
@@ -657,10 +760,20 @@ namespace rtsp_stream {
     server.clear(true);
   }
 
+  /**
+   * @brief Terminate active sessions associated with a client certificate.
+   */
   void terminate_sessions_by_cert(std::string_view cert) {
     server.clear_by_cert(cert);
   }
 
+  /**
+   * @brief Send the serialized response over the active socket.
+   *
+   * @param sock Socket used to read or write the protocol message.
+   * @param sv String view containing the text to inspect.
+   * @return Network operation status.
+   */
   int send(tcp::socket &sock, const std::string_view &sv) {
     std::size_t bytes_send = 0;
 
@@ -677,6 +790,13 @@ namespace rtsp_stream {
     return 0;
   }
 
+  /**
+   * @brief Send the protocol response for the current request.
+   *
+   * @param sock Socket used to read or write the protocol message.
+   * @param session Active streaming or pairing session for the request.
+   * @param resp RTSP response string to send to the client.
+   */
   void respond(tcp::socket &sock, launch_session_t &session, msg_t &resp) {
     auto payload = std::make_pair(resp->payload, resp->payloadLength);
 
@@ -745,6 +865,9 @@ namespace rtsp_stream {
     }
   }
 
+  /**
+   * @brief Send the protocol response for the current request.
+   */
   void respond(tcp::socket &sock, launch_session_t &session, POPTION_ITEM options, int statuscode, const char *status_msg, int seqn, const std::string_view &payload) {
     msg_t resp {new msg_t::element_type};
     createRtspResponse(resp.get(), nullptr, 0, const_cast<char *>("RTSP/1.0"), statuscode, const_cast<char *>(status_msg), seqn, options, const_cast<char *>(payload.data()), (int) payload.size());
@@ -752,10 +875,21 @@ namespace rtsp_stream {
     respond(sock, session, resp);
   }
 
+  /**
+   * @brief Handle an unsupported RTSP command.
+   */
   void cmd_not_found(tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     respond(sock, session, nullptr, 404, "NOT FOUND", req->sequenceNumber, {});
   }
 
+  /**
+   * @brief Handle RTSP OPTIONS requests.
+   *
+   * @param server RTSP server instance handling the request.
+   * @param sock Socket used to read or write the protocol message.
+   * @param session Active streaming or pairing session for the request.
+   * @param req Parsed RTSP request being handled.
+   */
   void cmd_option(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     OPTION_ITEM option {};
 
@@ -768,6 +902,14 @@ namespace rtsp_stream {
     respond(sock, session, &option, 200, "OK", req->sequenceNumber, {});
   }
 
+  /**
+   * @brief Handle RTSP DESCRIBE requests.
+   *
+   * @param server RTSP server instance.
+   * @param sock Client socket.
+   * @param session Launch session.
+   * @param req RTSP request message.
+   */
   void cmd_describe(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     OPTION_ITEM option {};
 
@@ -851,6 +993,14 @@ namespace rtsp_stream {
     respond(sock, session, &option, 200, "OK", req->sequenceNumber, ss.str());
   }
 
+  /**
+   * @brief Handle RTSP SETUP requests and prepare transport state.
+   *
+   * @param server RTSP server instance handling the request.
+   * @param sock Socket used to read or write the protocol message.
+   * @param session Active streaming or pairing session for the request.
+   * @param req Parsed RTSP request being handled.
+   */
   void cmd_setup(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     OPTION_ITEM options[4] {};
 
@@ -910,6 +1060,14 @@ namespace rtsp_stream {
     respond(sock, session, &seqn, 200, "OK", req->sequenceNumber, {});
   }
 
+  /**
+   * @brief Handle RTSP ANNOUNCE requests from the client.
+   *
+   * @param server RTSP server instance handling the request.
+   * @param sock Socket used to read or write the protocol message.
+   * @param session Active streaming or pairing session for the request.
+   * @param req Parsed RTSP request being handled.
+   */
   void cmd_announce(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     OPTION_ITEM option {};
 
@@ -1153,6 +1311,14 @@ namespace rtsp_stream {
     respond(sock, session, &option, 200, "OK", req->sequenceNumber, {});
   }
 
+  /**
+   * @brief Handle RTSP PLAY requests and start streaming.
+   *
+   * @param server RTSP server instance handling the request.
+   * @param sock Socket used to read or write the protocol message.
+   * @param session Active streaming or pairing session for the request.
+   * @param req Parsed RTSP request being handled.
+   */
   void cmd_play(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     OPTION_ITEM option {};
 
@@ -1209,6 +1375,9 @@ namespace rtsp_stream {
     rtsp_thread.join();
   }
 
+  /**
+   * @brief Write msg details to the log.
+   */
   void print_msg(PRTSP_MESSAGE msg) {
     std::string_view type = msg->type == TYPE_RESPONSE ? "RESPONSE"sv : "REQUEST"sv;
 

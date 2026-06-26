@@ -31,6 +31,10 @@ extern "C" {
 #include "utf_utils.h"
 
 #if !defined(SUNSHINE_SHADERS_DIR)  // for testing this needs to be defined in cmake as we don't do an install
+  /**
+   * @def SUNSHINE_SHADERS_DIR
+   * @brief Macro for SUNSHINE SHADERS DIR.
+   */
   #define SUNSHINE_SHADERS_DIR SUNSHINE_ASSETS_DIR "/shaders/directx"
 #endif
 namespace platf {
@@ -41,10 +45,20 @@ static void free_frame(AVFrame *frame) {
   av_frame_free(&frame);
 }
 
+/**
+ * @brief FFmpeg hardware frame pointer released with `av_frame_free`.
+ */
 using frame_t = util::safe_ptr<AVFrame, free_frame>;
 
 namespace platf::dxgi {
 
+  /**
+   * @brief Create a buffer object or message.
+   *
+   * @param device D3D, audio, or platform device used by the operation.
+   * @param t Initial value used to populate the GPU buffer.
+   * @return Constructed buffer object.
+   */
   template<class T>
   buf_t make_buffer(device_t::pointer device, const T &t) {
     static_assert(sizeof(T) % 16 == 0, "Buffer needs to be aligned on a 16-byte alignment");
@@ -69,6 +83,14 @@ namespace platf::dxgi {
     return buf_t {buf_p};
   }
 
+  /**
+   * @brief Create a blend object or message.
+   *
+   * @param device D3D, audio, or platform device used by the operation.
+   * @param enable Whether the blend state should enable blending.
+   * @param invert Whether the blend state should invert the color channels.
+   * @return Constructed blend object.
+   */
   blend_t make_blend(device_t::pointer device, bool enable, bool invert) {
     D3D11_BLEND_DESC bdesc {};
     auto &rt = bdesc.RenderTarget[0];
@@ -103,53 +125,56 @@ namespace platf::dxgi {
     return blend;
   }
 
-  blob_t convert_yuv420_packed_uv_type0_ps_hlsl;
-  blob_t convert_yuv420_packed_uv_type0_ps_linear_hlsl;
-  blob_t convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl;
-  blob_t convert_yuv420_packed_uv_type0_vs_hlsl;
-  blob_t convert_yuv420_packed_uv_type0s_ps_hlsl;
-  blob_t convert_yuv420_packed_uv_type0s_ps_linear_hlsl;
-  blob_t convert_yuv420_packed_uv_type0s_ps_perceptual_quantizer_hlsl;
-  blob_t convert_yuv420_packed_uv_type0s_vs_hlsl;
-  blob_t convert_yuv420_planar_y_ps_hlsl;
-  blob_t convert_yuv420_planar_y_ps_linear_hlsl;
-  blob_t convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl;
-  blob_t convert_yuv420_planar_y_vs_hlsl;
-  blob_t convert_yuv444_packed_ayuv_ps_hlsl;
-  blob_t convert_yuv444_packed_ayuv_ps_linear_hlsl;
-  blob_t convert_yuv444_packed_vs_hlsl;
-  blob_t convert_yuv444_planar_ps_hlsl;
-  blob_t convert_yuv444_planar_ps_linear_hlsl;
-  blob_t convert_yuv444_planar_ps_perceptual_quantizer_hlsl;
-  blob_t convert_yuv444_packed_y410_ps_hlsl;
-  blob_t convert_yuv444_packed_y410_ps_linear_hlsl;
-  blob_t convert_yuv444_packed_y410_ps_perceptual_quantizer_hlsl;
-  blob_t convert_yuv444_planar_vs_hlsl;
-  blob_t cursor_ps_hlsl;
-  blob_t cursor_ps_normalize_white_hlsl;
-  blob_t cursor_vs_hlsl;
+  blob_t convert_yuv420_packed_uv_type0_ps_hlsl;  ///< Convert yuv420 packed uv type0 ps hlsl.
+  blob_t convert_yuv420_packed_uv_type0_ps_linear_hlsl;  ///< Convert yuv420 packed uv type0 ps linear hlsl.
+  blob_t convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl;  ///< Convert yuv420 packed uv type0 ps perceptual quantizer hlsl.
+  blob_t convert_yuv420_packed_uv_type0_vs_hlsl;  ///< Convert yuv420 packed uv type0 vs hlsl.
+  blob_t convert_yuv420_packed_uv_type0s_ps_hlsl;  ///< Convert yuv420 packed uv type0s ps hlsl.
+  blob_t convert_yuv420_packed_uv_type0s_ps_linear_hlsl;  ///< Convert yuv420 packed uv type0s ps linear hlsl.
+  blob_t convert_yuv420_packed_uv_type0s_ps_perceptual_quantizer_hlsl;  ///< Convert yuv420 packed uv type0s ps perceptual quantizer hlsl.
+  blob_t convert_yuv420_packed_uv_type0s_vs_hlsl;  ///< Convert yuv420 packed uv type0s vs hlsl.
+  blob_t convert_yuv420_planar_y_ps_hlsl;  ///< Convert yuv420 planar y ps hlsl.
+  blob_t convert_yuv420_planar_y_ps_linear_hlsl;  ///< Convert yuv420 planar y ps linear hlsl.
+  blob_t convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl;  ///< Convert yuv420 planar y ps perceptual quantizer hlsl.
+  blob_t convert_yuv420_planar_y_vs_hlsl;  ///< Convert yuv420 planar y vs hlsl.
+  blob_t convert_yuv444_packed_ayuv_ps_hlsl;  ///< Convert YUV444 packed ayuv ps hlsl.
+  blob_t convert_yuv444_packed_ayuv_ps_linear_hlsl;  ///< Convert YUV444 packed ayuv ps linear hlsl.
+  blob_t convert_yuv444_packed_vs_hlsl;  ///< Convert YUV444 packed vs hlsl.
+  blob_t convert_yuv444_planar_ps_hlsl;  ///< Convert YUV444 planar ps hlsl.
+  blob_t convert_yuv444_planar_ps_linear_hlsl;  ///< Convert YUV444 planar ps linear hlsl.
+  blob_t convert_yuv444_planar_ps_perceptual_quantizer_hlsl;  ///< Convert YUV444 planar ps perceptual quantizer hlsl.
+  blob_t convert_yuv444_packed_y410_ps_hlsl;  ///< Convert YUV444 packed y410 ps hlsl.
+  blob_t convert_yuv444_packed_y410_ps_linear_hlsl;  ///< Convert YUV444 packed y410 ps linear hlsl.
+  blob_t convert_yuv444_packed_y410_ps_perceptual_quantizer_hlsl;  ///< Convert YUV444 packed y410 ps perceptual quantizer hlsl.
+  blob_t convert_yuv444_planar_vs_hlsl;  ///< Convert YUV444 planar vs hlsl.
+  blob_t cursor_ps_hlsl;  ///< Cursor ps hlsl.
+  blob_t cursor_ps_normalize_white_hlsl;  ///< Cursor ps normalize white hlsl.
+  blob_t cursor_vs_hlsl;  ///< Cursor vs hlsl.
 
+  /**
+   * @brief D3D-backed captured image and duplication metadata.
+   */
   struct img_d3d_t: public platf::img_t {
     // These objects are owned by the display_t's ID3D11Device
-    texture2d_t capture_texture;
-    render_target_t capture_rt;
-    keyed_mutex_t capture_mutex;
+    texture2d_t capture_texture;  ///< Capture texture.
+    render_target_t capture_rt;  ///< Capture rt.
+    keyed_mutex_t capture_mutex;  ///< Capture mutex.
 
     // This is the shared handle used by hwdevice_t to open capture_texture
-    HANDLE encoder_texture_handle = {};
+    HANDLE encoder_texture_handle = {};  ///< Encoder texture handle.
 
     // Set to true if the image corresponds to a dummy texture used prior to
     // the first successful capture of a desktop frame
-    bool dummy = false;
+    bool dummy = false;  ///< Whether this image is a dummy placeholder.
 
     // Set to true if the image is blank (contains no content at all, including a cursor)
-    bool blank = true;
+    bool blank = true;  ///< Whether the texture currently contains a blank frame.
 
     // Unique identifier for this image
-    uint32_t id = 0;
+    uint32_t id = 0;  ///< Unique identifier used to cache encoder resources for this image.
 
     // DXGI format of this image texture
-    DXGI_FORMAT format;
+    DXGI_FORMAT format;  ///< DXGI format of the captured texture.
 
     virtual ~img_d3d_t() override {
       if (encoder_texture_handle) {
@@ -158,19 +183,33 @@ namespace platf::dxgi {
     };
   };
 
+  /**
+   * @brief Keyed-mutex guard used while sharing a D3D texture.
+   */
   struct texture_lock_helper {
-    keyed_mutex_t _mutex;
-    bool _locked = false;
+    keyed_mutex_t _mutex;  ///< D3D keyed mutex acquired for shared-texture access.
+    bool _locked = false;  ///< Whether the keyed mutex is currently locked.
 
     texture_lock_helper(const texture_lock_helper &) = delete;
     texture_lock_helper &operator=(const texture_lock_helper &) = delete;
 
+    /**
+     * @brief Move a keyed-mutex lock helper while preserving lock ownership.
+     *
+     * @param other Helper whose acquired keyed mutex is transferred.
+     */
     texture_lock_helper(texture_lock_helper &&other) {
       _mutex.reset(other._mutex.release());
       _locked = other._locked;
       other._locked = false;
     }
 
+    /**
+     * @brief Assign state from another instance while preserving ownership semantics.
+     *
+     * @param other Source object whose state is copied or moved into this object.
+     * @return Reference or value produced by the operator.
+     */
     texture_lock_helper &operator=(texture_lock_helper &&other) {
       if (_locked) {
         _mutex->ReleaseSync(0);
@@ -181,6 +220,11 @@ namespace platf::dxgi {
       return *this;
     }
 
+    /**
+     * @brief Acquire a D3D keyed mutex for scoped texture access.
+     *
+     * @param mutex Keyed mutex to acquire for texture access.
+     */
     texture_lock_helper(IDXGIKeyedMutex *mutex):
         _mutex(mutex) {
       if (_mutex) {
@@ -194,6 +238,11 @@ namespace platf::dxgi {
       }
     }
 
+    /**
+     * @brief Acquire the underlying lock or keyed mutex.
+     *
+     * @return True when the keyed mutex is acquired.
+     */
     bool lock() {
       if (_locked) {
         return true;
@@ -208,6 +257,13 @@ namespace platf::dxgi {
     }
   };
 
+  /**
+   * @brief Create cursor xor image.
+   *
+   * @param img_data Raw pointer-shape bytes returned by DXGI.
+   * @param shape_info DXGI metadata describing the pointer shape.
+   * @return Constructed cursor xor image object.
+   */
   util::buffer_t<std::uint8_t> make_cursor_xor_image(const util::buffer_t<std::uint8_t> &img_data, DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info) {
     constexpr std::uint32_t inverted = 0xFFFFFFFF;
     constexpr std::uint32_t transparent = 0;
@@ -277,6 +333,13 @@ namespace platf::dxgi {
     return cursor_img;
   }
 
+  /**
+   * @brief Create cursor alpha image.
+   *
+   * @param img_data Raw pointer-shape bytes returned by DXGI.
+   * @param shape_info DXGI metadata describing the pointer shape.
+   * @return Constructed cursor alpha image object.
+   */
   util::buffer_t<std::uint8_t> make_cursor_alpha_image(const util::buffer_t<std::uint8_t> &img_data, DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info) {
     constexpr std::uint32_t black = 0xFF000000;
     constexpr std::uint32_t white = 0xFFFFFFFF;
@@ -350,6 +413,14 @@ namespace platf::dxgi {
     return cursor_img;
   }
 
+  /**
+   * @brief Compile an HLSL shader from source text.
+   *
+   * @param file Optional stdio file handle connected to the child process.
+   * @param entrypoint Function entry point to resolve from the library.
+   * @param shader_model Shader model.
+   * @return Compiled shader blob, or an empty blob when compilation fails.
+   */
   blob_t compile_shader(LPCSTR file, LPCSTR entrypoint, LPCSTR shader_model) {
     blob_t::pointer msg_p = nullptr;
     blob_t::pointer compiled_p;
@@ -376,16 +447,37 @@ namespace platf::dxgi {
     return blob_t {compiled_p};
   }
 
+  /**
+   * @brief Compile an HLSL pixel shader from source text.
+   *
+   * @param file Optional stdio file handle connected to the child process.
+   * @return Compiled pixel shader object, or an empty handle when compilation fails.
+   */
   blob_t compile_pixel_shader(LPCSTR file) {
     return compile_shader(file, "main_ps", "ps_5_0");
   }
 
+  /**
+   * @brief Compile an HLSL vertex shader from source text.
+   *
+   * @param file Optional stdio file handle connected to the child process.
+   * @return Compiled vertex shader object, or an empty handle when compilation fails.
+   */
   blob_t compile_vertex_shader(LPCSTR file) {
     return compile_shader(file, "main_vs", "vs_5_0");
   }
 
+  /**
+   * @brief Shared D3D11 conversion resources for AVCodec and NVENC encode devices.
+   */
   class d3d_base_encode_device final {
   public:
+    /**
+     * @brief Convert a captured D3D image into encoder input textures.
+     *
+     * @param img_base D3D image supplied by the capture backend.
+     * @return Conversion status.
+     */
     int convert(platf::img_t &img_base) {
       // Garbage collect mapped capture images whose weak references have expired
       for (auto it = img_ctx_map.begin(); it != img_ctx_map.end();) {
@@ -457,6 +549,11 @@ namespace platf::dxgi {
       return 0;
     }
 
+    /**
+     * @brief Apply the configured colorspace metadata to the active frame.
+     *
+     * @param colorspace Colorimetry information used for conversion or encoding.
+     */
     void apply_colorspace(const ::video::sunshine_colorspace_t &colorspace) {
       auto color_vectors = ::video::color_vectors_from_colorspace(colorspace, true);
 
@@ -482,6 +579,14 @@ namespace platf::dxgi {
       this->color_matrix = std::move(color_matrix);
     }
 
+    /**
+     * @brief Create D3D11 output textures, views, and shaders for frame conversion.
+     *
+     * @param frame_texture Frame texture.
+     * @param width Frame or display width in pixels.
+     * @param height Frame or display height in pixels.
+     * @return 0 when output resources are initialized; nonzero on D3D failure.
+     */
     int init_output(ID3D11Texture2D *frame_texture, int width, int height) {
       // The underlying frame pool owns the texture, so we must reference it for ourselves
       frame_texture->AddRef();
@@ -489,16 +594,20 @@ namespace platf::dxgi {
 
       HRESULT status = S_OK;
 
-#define create_vertex_shader_helper(x, y) \
-  if (FAILED(status = device->CreateVertexShader(x->GetBufferPointer(), x->GetBufferSize(), nullptr, &y))) { \
-    BOOST_LOG(error) << "Failed to create vertex shader " << #x << ": " << util::log_hex(status); \
-    return -1; \
-  }
-#define create_pixel_shader_helper(x, y) \
-  if (FAILED(status = device->CreatePixelShader(x->GetBufferPointer(), x->GetBufferSize(), nullptr, &y))) { \
-    BOOST_LOG(error) << "Failed to create pixel shader " << #x << ": " << util::log_hex(status); \
-    return -1; \
-  }
+#ifndef DOXYGEN
+  #define create_vertex_shader_helper(x, y) \
+    if (FAILED(status = device->CreateVertexShader(x->GetBufferPointer(), x->GetBufferSize(), nullptr, &y))) { \
+      BOOST_LOG(error) << "Failed to create vertex shader " << #x << ": " << util::log_hex(status); \
+      return -1; \
+    }
+#endif
+#ifndef DOXYGEN
+  #define create_pixel_shader_helper(x, y) \
+    if (FAILED(status = device->CreatePixelShader(x->GetBufferPointer(), x->GetBufferSize(), nullptr, &y))) { \
+      BOOST_LOG(error) << "Failed to create pixel shader " << #x << ": " << util::log_hex(status); \
+      return -1; \
+    }
+#endif
 
       const bool downscaling = display->width > width || display->height > height;
 
@@ -709,6 +818,14 @@ namespace platf::dxgi {
       return 0;
     }
 
+    /**
+     * @brief Initialize shared D3D conversion resources for the encoder.
+     *
+     * @param display Display object or identifier associated with the operation.
+     * @param adapter_p Adapter p.
+     * @param pix_fmt Sunshine pixel format to convert or allocate for.
+     * @return 0 on success; nonzero or negative platform status on failure.
+     */
     int init(std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p, pix_fmt_e pix_fmt) {
       switch (pix_fmt) {
         case pix_fmt_e::nv12:
@@ -823,17 +940,23 @@ namespace platf::dxgi {
       return 0;
     }
 
+    /**
+     * @brief D3D texture and format information for encoder input.
+     */
     struct encoder_img_ctx_t {
       // Used to determine if the underlying texture changes.
       // Not safe for actual use by the encoder!
-      texture2d_t::const_pointer capture_texture_p;
+      texture2d_t::const_pointer capture_texture_p;  ///< Capture texture p.
 
-      texture2d_t encoder_texture;
-      shader_res_t encoder_input_res;
-      keyed_mutex_t encoder_mutex;
+      texture2d_t encoder_texture;  ///< Encoder texture.
+      shader_res_t encoder_input_res;  ///< Encoder input res.
+      keyed_mutex_t encoder_mutex;  ///< Encoder mutex.
 
-      std::weak_ptr<const platf::img_t> img_weak;
+      std::weak_ptr<const platf::img_t> img_weak;  ///< Captured image lifetime tracked for cache cleanup.
 
+      /**
+       * @brief Reset the object to its initial empty state.
+       */
       void reset() {
         capture_texture_p = nullptr;
         encoder_texture.reset();
@@ -843,6 +966,13 @@ namespace platf::dxgi {
       }
     };
 
+    /**
+     * @brief Initialize encoder-side D3D resources for a captured image.
+     *
+     * @param img Image or frame object to read from or populate.
+     * @param img_ctx Cached encoder resources associated with the image ID.
+     * @return 0 when the shared texture is opened and bound; nonzero on D3D failure.
+     */
     int initialize_image_context(const img_d3d_t &img, encoder_img_ctx_t &img_ctx) {
       // If we've already opened the shared texture, we're done
       if (img_ctx.encoder_texture && img.capture_texture.get() == img_ctx.capture_texture_p) {
@@ -888,6 +1018,11 @@ namespace platf::dxgi {
       return 0;
     }
 
+    /**
+     * @brief Create black texture for rtv clear.
+     *
+     * @return Created black texture for rtv clear object or status.
+     */
     shader_res_t create_black_texture_for_rtv_clear() {
       constexpr auto width = 32;
       constexpr auto height = 32;
@@ -922,63 +1057,88 @@ namespace platf::dxgi {
       return resource_view;
     }
 
-    ::video::color_t *color_p;
+    ::video::color_t *color_p;  ///< Color p.
 
-    buf_t subsample_offset;
-    buf_t color_matrix;
+    buf_t subsample_offset;  ///< Subsample offset.
+    buf_t color_matrix;  ///< Color matrix.
 
-    blend_t blend_disable;
-    sampler_state_t sampler_linear;
+    blend_t blend_disable;  ///< Blend disable.
+    sampler_state_t sampler_linear;  ///< Sampler linear.
 
-    render_target_t out_Y_or_YUV_rtv;
-    render_target_t out_UV_rtv;
-    bool rtvs_cleared = false;
+    render_target_t out_Y_or_YUV_rtv;  ///< Out y or YUV rtv.
+    render_target_t out_UV_rtv;  ///< Out UV rtv.
+    bool rtvs_cleared = false;  ///< Whether render-target views have been cleared for the frame.
 
     // d3d_img_t::id -> encoder_img_ctx_t
     // These store the encoder textures for each img_t that passes through
     // convert(). We can't store them in the img_t itself because it is shared
     // amongst multiple hwdevice_t objects (and therefore multiple ID3D11Devices).
-    std::map<uint32_t, encoder_img_ctx_t> img_ctx_map;
+    std::map<uint32_t, encoder_img_ctx_t> img_ctx_map;  ///< Encoder resources cached by captured image ID.
 
-    std::shared_ptr<display_base_t> display;
+    std::shared_ptr<display_base_t> display;  ///< Display capture backend that supplies source textures.
 
-    vs_t convert_Y_or_YUV_vs;
-    ps_t convert_Y_or_YUV_ps;
-    ps_t convert_Y_or_YUV_fp16_ps;
+    vs_t convert_Y_or_YUV_vs;  ///< Convert y or YUV vs.
+    ps_t convert_Y_or_YUV_ps;  ///< Convert y or YUV ps.
+    ps_t convert_Y_or_YUV_fp16_ps;  ///< Convert y or YUV fp16 ps.
 
-    vs_t convert_UV_vs;
-    ps_t convert_UV_ps;
-    ps_t convert_UV_fp16_ps;
+    vs_t convert_UV_vs;  ///< Convert UV vs.
+    ps_t convert_UV_ps;  ///< Convert UV ps.
+    ps_t convert_UV_fp16_ps;  ///< Convert UV fp16 ps.
 
-    std::array<D3D11_VIEWPORT, 3> out_Y_or_YUV_viewports;
-    std::array<D3D11_VIEWPORT, 3> out_Y_or_YUV_viewports_for_clear;
-    D3D11_VIEWPORT out_UV_viewport;
-    D3D11_VIEWPORT out_UV_viewport_for_clear;
+    std::array<D3D11_VIEWPORT, 3> out_Y_or_YUV_viewports;  ///< Out y or YUV viewports.
+    std::array<D3D11_VIEWPORT, 3> out_Y_or_YUV_viewports_for_clear;  ///< Out y or YUV viewports for clear.
+    D3D11_VIEWPORT out_UV_viewport;  ///< Out UV viewport.
+    D3D11_VIEWPORT out_UV_viewport_for_clear;  ///< Out UV viewport for clear.
 
-    DXGI_FORMAT format;
+    DXGI_FORMAT format;  ///< DXGI format required by the encoder input texture.
 
-    device_t device;
-    device_ctx_t device_ctx;
+    device_t device;  ///< D3D11 device used for encoder-side texture conversion.
+    device_ctx_t device_ctx;  ///< D3D11 device context used to issue conversion commands.
 
-    texture2d_t output_texture;
+    texture2d_t output_texture;  ///< Output texture.
   };
 
+  /**
+   * @brief D3D11 encode device that exposes captured textures to FFmpeg AVCodec.
+   */
   class d3d_avcodec_encode_device_t: public avcodec_encode_device_t {
   public:
+    /**
+     * @brief Initialize the D3D11 AVCodec encode device.
+     *
+     * @param display Display object or identifier associated with the operation.
+     * @param adapter_p Adapter p.
+     * @param pix_fmt Sunshine pixel format to convert or allocate for.
+     * @return 0 on success; nonzero or negative platform status on failure.
+     */
     int init(std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p, pix_fmt_e pix_fmt) {
       int result = base.init(display, adapter_p, pix_fmt);
       data = base.device.get();
       return result;
     }
 
+    /**
+     * @brief Convert a captured D3D texture for FFmpeg AVCodec encoding.
+     *
+     * @param img_base D3D image supplied by the capture backend.
+     * @return Conversion status.
+     */
     int convert(platf::img_t &img_base) override {
       return base.convert(img_base);
     }
 
+    /**
+     * @brief Apply the configured colorspace metadata to the active frame.
+     */
     void apply_colorspace() override {
       base.apply_colorspace(colorspace);
     }
 
+    /**
+     * @brief Configure FFmpeg hardware frames for D3D11 encoder input textures.
+     *
+     * @param frames FFmpeg hardware frames context to initialize.
+     */
     void init_hwframes(AVHWFramesContext *frames) override {
       // We may be called with a QSV or D3D11VA context
       if (frames->device_ctx->type == AV_HWDEVICE_TYPE_D3D11VA) {
@@ -993,6 +1153,12 @@ namespace platf::dxgi {
       frames->initial_pool_size = 1;
     }
 
+    /**
+     * @brief Prepare the D3D device before FFmpeg derives a child hardware context.
+     *
+     * @param hw_device_type FFmpeg hardware device type requested for context derivation.
+     * @return 0 when context derivation may continue; nonzero to abort.
+     */
     int prepare_to_derive_context(int hw_device_type) override {
       // QuickSync requires our device to be multithread-protected
       if (hw_device_type == AV_HWDEVICE_TYPE_QSV) {
@@ -1010,6 +1176,13 @@ namespace platf::dxgi {
       return 0;
     }
 
+    /**
+     * @brief Attach frame resources used by the next conversion or encode operation.
+     *
+     * @param frame Video or graphics frame being processed.
+     * @param hw_frames_ctx FFmpeg hardware frames context associated with the frame.
+     * @return Status from updating frame.
+     */
     int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
       this->hwframe.reset(frame);
       this->frame = frame;
@@ -1053,8 +1226,19 @@ namespace platf::dxgi {
     frame_t hwframe;
   };
 
+  /**
+   * @brief D3D11 encode device that exposes captured textures to NVENC.
+   */
   class d3d_nvenc_encode_device_t: public nvenc_encode_device_t {
   public:
+    /**
+     * @brief Create D3D11 and NVENC resources for texture-based encoding.
+     *
+     * @param display Display object or identifier associated with the operation.
+     * @param adapter_p Adapter p.
+     * @param pix_fmt Sunshine pixel format to convert or allocate for.
+     * @return True when the D3D11 device resources are initialized.
+     */
     bool init_device(std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p, pix_fmt_e pix_fmt) {
       buffer_format = nvenc::nvenc_format_from_sunshine_format(pix_fmt);
       if (buffer_format == NV_ENC_BUFFER_FORMAT_UNDEFINED) {
@@ -1076,6 +1260,13 @@ namespace platf::dxgi {
       return true;
     }
 
+    /**
+     * @brief Initialize the platform encoder for the client stream configuration.
+     *
+     * @param client_config Client stream configuration negotiated for this session.
+     * @param colorspace Colorimetry information used for conversion or encoding.
+     * @return True when the NVENC encoder initializes for the client configuration.
+     */
     bool init_encoder(const ::video::config_t &client_config, const ::video::sunshine_colorspace_t &colorspace) override {
       if (!nvenc_d3d) {
         return false;
@@ -1090,6 +1281,12 @@ namespace platf::dxgi {
       return base.init_output(nvenc_d3d->get_input_texture(), client_config.width, client_config.height) == 0;
     }
 
+    /**
+     * @brief Convert a captured D3D texture for NVENC encoding.
+     *
+     * @param img_base D3D image supplied by the capture backend.
+     * @return Conversion status.
+     */
     int convert(platf::img_t &img_base) override {
       return base.convert(img_base);
     }
@@ -1100,6 +1297,15 @@ namespace platf::dxgi {
     NV_ENC_BUFFER_FORMAT buffer_format = NV_ENC_BUFFER_FORMAT_UNDEFINED;
   };
 
+  /**
+   * @brief Set cursor texture.
+   *
+   * @param device D3D, audio, or platform device used by the operation.
+   * @param cursor Cursor image or visibility state to composite.
+   * @param cursor_img Cursor img.
+   * @param shape_info Shape info.
+   * @return True when the cursor image is uploaded to the D3D texture.
+   */
   bool set_cursor_texture(device_t::pointer device, gpu_cursor_t &cursor, util::buffer_t<std::uint8_t> &&cursor_img, DXGI_OUTDUPL_POINTER_SHAPE_INFO &shape_info) {
     // This cursor image may not be used
     if (cursor_img.size() == 0) {
@@ -1638,10 +1844,6 @@ namespace platf::dxgi {
 
   /**
    * Get the next frame from the Windows.Graphics.Capture API and copy it into a new snapshot texture.
-   * @param pull_free_image_cb call this to get a new free image from the video subsystem.
-   * @param img_out the captured frame is returned here
-   * @param timeout how long to wait for the next frame
-   * @param cursor_visible
    */
   capture_e display_wgc_vram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
     texture2d_t src;
@@ -1938,15 +2140,22 @@ namespace platf::dxgi {
     return device;
   }
 
+  /**
+   * @brief Initialize global D3D11 desktop duplication support.
+   */
   int init() {
     BOOST_LOG(info) << "Compiling shaders..."sv;
 
-#define compile_vertex_shader_helper(x) \
-  if (!(x##_hlsl = compile_vertex_shader(SUNSHINE_SHADERS_DIR "/" #x ".hlsl"))) \
-    return -1;
-#define compile_pixel_shader_helper(x) \
-  if (!(x##_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/" #x ".hlsl"))) \
-    return -1;
+#ifndef DOXYGEN
+  #define compile_vertex_shader_helper(x) \
+    if (!(x##_hlsl = compile_vertex_shader(SUNSHINE_SHADERS_DIR "/" #x ".hlsl"))) \
+      return -1;
+#endif
+#ifndef DOXYGEN
+  #define compile_pixel_shader_helper(x) \
+    if (!(x##_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/" #x ".hlsl"))) \
+      return -1;
+#endif
 
     compile_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps);
     compile_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_linear);

@@ -12,31 +12,107 @@
 // The assert() function is decorated with __cold on macOS which
 // is incompatible with Clang's target multiversioning feature
 #ifndef NDEBUG
+  /**
+   * @def NDEBUG
+   * @brief Macro for NDEBUG.
+   */
   #define NDEBUG
 #endif
 
+/**
+ * @def DECORATE_FUNC_I(a, b)
+ * @brief Macro for DECORATE FUNC i.
+ */
 #define DECORATE_FUNC_I(a, b) a##b
+/**
+ * @def DECORATE_FUNC(a, b)
+ * @brief Macro for DECORATE FUNC.
+ */
 #define DECORATE_FUNC(a, b) DECORATE_FUNC_I(a, b)
 
 // Append an ISA suffix to the public RS API
 #define reed_solomon_init DECORATE_FUNC(reed_solomon_init, ISA_SUFFIX)
+/**
+ * @def reed_solomon_new
+ * @brief Macro for reed solomon new.
+ */
 #define reed_solomon_new DECORATE_FUNC(reed_solomon_new, ISA_SUFFIX)
+/**
+ * @def reed_solomon_new_static
+ * @brief Macro for reed solomon new static.
+ */
 #define reed_solomon_new_static DECORATE_FUNC(reed_solomon_new_static, ISA_SUFFIX)
+/**
+ * @def reed_solomon_release
+ * @brief Macro for reed solomon release.
+ */
 #define reed_solomon_release DECORATE_FUNC(reed_solomon_release, ISA_SUFFIX)
+/**
+ * @def reed_solomon_decode
+ * @brief Macro for reed solomon decode.
+ */
 #define reed_solomon_decode DECORATE_FUNC(reed_solomon_decode, ISA_SUFFIX)
+/**
+ * @def reed_solomon_encode
+ * @brief Macro for reed solomon encode.
+ */
 #define reed_solomon_encode DECORATE_FUNC(reed_solomon_encode, ISA_SUFFIX)
 
 // Append an ISA suffix to internal functions to prevent multiple definition errors
+/**
+ * @def obl_axpy_ref
+ * @brief Macro for obl axpy ref.
+ */
 #define obl_axpy_ref DECORATE_FUNC(obl_axpy_ref, ISA_SUFFIX)
+/**
+ * @def obl_scal_ref
+ * @brief Macro for obl scal ref.
+ */
 #define obl_scal_ref DECORATE_FUNC(obl_scal_ref, ISA_SUFFIX)
+/**
+ * @def obl_axpyb32_ref
+ * @brief Macro for obl axpyb32 ref.
+ */
 #define obl_axpyb32_ref DECORATE_FUNC(obl_axpyb32_ref, ISA_SUFFIX)
+/**
+ * @def obl_axpy
+ * @brief Macro for obl axpy.
+ */
 #define obl_axpy DECORATE_FUNC(obl_axpy, ISA_SUFFIX)
+/**
+ * @def obl_scal
+ * @brief Macro for obl scal.
+ */
 #define obl_scal DECORATE_FUNC(obl_scal, ISA_SUFFIX)
+/**
+ * @def obl_swap
+ * @brief Macro for obl swap.
+ */
 #define obl_swap DECORATE_FUNC(obl_swap, ISA_SUFFIX)
+/**
+ * @def obl_axpyb32
+ * @brief Macro for obl axpyb32.
+ */
 #define obl_axpyb32 DECORATE_FUNC(obl_axpyb32, ISA_SUFFIX)
+/**
+ * @def axpy
+ * @brief Macro for axpy.
+ */
 #define axpy DECORATE_FUNC(axpy, ISA_SUFFIX)
+/**
+ * @def scal
+ * @brief Macro for scal.
+ */
 #define scal DECORATE_FUNC(scal, ISA_SUFFIX)
+/**
+ * @def gemm
+ * @brief Macro for gemm.
+ */
 #define gemm DECORATE_FUNC(gemm, ISA_SUFFIX)
+/**
+ * @def invert_mat
+ * @brief Macro for invert mat.
+ */
 #define invert_mat DECORATE_FUNC(invert_mat, ISA_SUFFIX)
 
 #if defined(__x86_64) || defined(__x86_64__) || defined(__amd64) || defined(__amd64__) || defined(_M_AMD64)
@@ -98,6 +174,10 @@
 #endif
 
 // Compile a default variant
+/**
+ * @def ISA_SUFFIX
+ * @brief Macro for ISA SUFFIX.
+ */
 #define ISA_SUFFIX _def
 #include "../third-party/nanors/deps/obl/autoshim.h"
 #include "../third-party/nanors/rs.c"
@@ -112,10 +192,10 @@
 
 #include "rswrapper.h"
 
-reed_solomon_new_t reed_solomon_new_fn;
-reed_solomon_release_t reed_solomon_release_fn;
-reed_solomon_encode_t reed_solomon_encode_fn;
-reed_solomon_decode_t reed_solomon_decode_fn;
+reed_solomon_new_t reed_solomon_new_fn;  ///< Reed solomon new.
+reed_solomon_release_t reed_solomon_release_fn;  ///< Reed solomon release.
+reed_solomon_encode_t reed_solomon_encode_fn;  ///< Reed solomon encode.
+reed_solomon_decode_t reed_solomon_decode_fn;  ///< Reed solomon decode.
 
 /**
  * @brief This initializes the RS function pointers to the best vectorized version available.

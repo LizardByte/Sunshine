@@ -24,49 +24,67 @@
 #include "src/platform/common.h"
 #include "src/utility.h"
 
-/**
- * @brief Delay for a double click, in milliseconds.
- * @todo Make this configurable.
- */
-constexpr std::chrono::milliseconds MULTICLICK_DELAY_MS(500);
+constexpr auto MULTICLICK_DELAY_MS = std::chrono::milliseconds(500);  ///< Maximum gap between clicks that macOS should treat as a double click.
 
 namespace platf {
   using namespace std::literals;
 
-  constexpr int WHEEL_DELTA = 120;
-  constexpr double DEFAULT_SCROLLWHEEL_SCALING = 0.3125;
-  constexpr int DEFAULT_SCROLL_LINES_PER_DETENT = 5;
+  constexpr int WHEEL_DELTA = 120;  ///< Protocol or platform constant for wheel delta.
+  constexpr double DEFAULT_SCROLLWHEEL_SCALING = 0.3125;  ///< Protocol or platform constant for default scrollwheel scaling.
+  constexpr int DEFAULT_SCROLL_LINES_PER_DETENT = 5;  ///< Protocol or platform constant for default scroll lines per detent.
 
+  /**
+   * @brief macOS input source and target display state.
+   */
   struct macos_input_t {
   public:
-    CGDirectDisplayID display {};
-    CGFloat displayScaling {};
-    CGEventSourceRef source {};
+    CGDirectDisplayID display {};  ///< CoreGraphics identifier for the display receiving injected input.
+    CGFloat displayScaling {};  ///< Scale factor used to translate client coordinates to display pixels.
+    CGEventSourceRef source {};  ///< CoreGraphics event source used for mouse and scroll events.
 
     // keyboard related stuff
-    CGEventSourceRef keyboard_source {};
-    CGEventFlags kb_flags {};
+    CGEventSourceRef keyboard_source {};  ///< CoreGraphics event source used for keyboard injection.
+    CGEventFlags kb_flags {};  ///< Active keyboard modifier flags currently held down by the client.
 
     // mouse related stuff
-    CGEventRef mouse_event {};  // mouse event source
-    double scrollwheel_scaling {DEFAULT_SCROLLWHEEL_SCALING};
-    int scroll_lines_per_detent {DEFAULT_SCROLL_LINES_PER_DETENT};
+    CGEventRef mouse_event {};  ///< Reusable CoreGraphics mouse event updated before posting.
+    double scrollwheel_scaling {DEFAULT_SCROLLWHEEL_SCALING};  ///< Multiplier applied to incoming scroll-wheel deltas.
+    int scroll_lines_per_detent {DEFAULT_SCROLL_LINES_PER_DETENT};  ///< Number of logical scroll lines represented by one wheel detent.
+    /**
+     * @brief Tracks whether the mouse button is currently pressed.
+     */
     bool mouse_down[3] {};  // mouse button status
+    /**
+     * @brief Last mouse event.
+     */
     std::chrono::steady_clock::steady_clock::time_point last_mouse_event[3][2];  // timestamp of last mouse events
   };
 
   // A struct to hold a Windows keycode to Mac virtual keycode mapping.
+  /**
+   * @brief Mapping from Sunshine key symbols to macOS virtual key codes.
+   */
   struct KeyCodeMap {
-    int win_keycode;
-    int mac_keycode;
+    int win_keycode;  ///< Sunshine/Windows virtual key code received from the client.
+    int mac_keycode;  ///< macOS virtual key code sent through CoreGraphics.
   };
 
   // Customized less operator for using std::lower_bound() on a KeyCodeMap array.
+  /**
+   * @brief Order key mappings by Sunshine key code for binary search.
+   *
+   * @param a Left-hand mapping being compared.
+   * @param b Right-hand mapping being compared.
+   * @return True when `a` has a lower Sunshine key code than `b`.
+   */
   bool operator<(const KeyCodeMap &a, const KeyCodeMap &b) {
     return a.win_keycode < b.win_keycode;
   }
 
   // clang-format off
+/**
+ * @brief Key codes map.
+ */
 const KeyCodeMap kKeyCodesMap[] = {
   { 0x08 /* VKEY_BACK */,                      kVK_Delete              },
   { 0x09 /* VKEY_TAB */,                       kVK_Tab                 },
@@ -238,6 +256,12 @@ const KeyCodeMap kKeyCodesMap[] = {
 };
   // clang-format on
 
+  /**
+   * @brief Translate a platform keycode to a Sunshine key symbol.
+   *
+   * @param keycode Platform keycode being translated or emitted.
+   * @return Sunshine key symbol, or 0 when the keycode is unmapped.
+   */
   int keysym(int keycode) {
     KeyCodeMap key_map {};
 
@@ -256,12 +280,22 @@ const KeyCodeMap kKeyCodesMap[] = {
     return temp_map->mac_keycode;
   }
 
+  /**
+   * @brief macOS modifier flags split into generic and device-specific bits.
+   */
   struct modifier_flags_t {
-    CGEventFlags generic {};
-    CGEventFlags device {};
-    CGEventFlags all_devices {};
+    CGEventFlags generic {};  ///< Modifier bits represented by device-independent CoreGraphics flags.
+    CGEventFlags device {};  ///< Modifier bits represented by left/right device-specific flags.
+    CGEventFlags all_devices {};  ///< Mask covering all device-specific variants for this modifier.
   };
 
+  /**
+   * @brief Resolve the CoreGraphics modifier masks associated with a key code.
+   *
+   * @param key Sunshine key code that may represent a modifier key.
+   * @param flags Output masks for the matching CoreGraphics modifier.
+   * @return True when modifier flags were found for the key.
+   */
   bool modifier_flags_for_key(int key, modifier_flags_t &flags) {
     switch (key) {
       case kVK_Shift:
@@ -368,6 +402,16 @@ const KeyCodeMap kKeyCodesMap[] = {
     };
   }
 
+  /**
+   * @brief Post a mouse event at the clamped display location.
+   *
+   * @param input Platform input context.
+   * @param button Mouse button.
+   * @param type CoreGraphics mouse event type.
+   * @param raw_location Requested mouse location.
+   * @param previous_location Previous mouse location.
+   * @param click_count Click count for the event.
+   */
   void post_mouse(
     input_t &input,
     const CGMouseButton button,
@@ -410,6 +454,12 @@ const KeyCodeMap kKeyCodesMap[] = {
     CGWarpMouseCursorPosition(location);
   }
 
+  /**
+   * @brief Choose the CoreGraphics mouse event type for the current button action.
+   *
+   * @param input Platform input backend that receives the event.
+   * @return CoreGraphics mouse event type for button press or release.
+   */
   inline CGEventType event_type_mouse(input_t &input) {
     const auto macos_input = static_cast<macos_input_t *>(input.get());
 
@@ -494,6 +544,12 @@ const KeyCodeMap kKeyCodesMap[] = {
     macos_input->last_mouse_event[mac_button][release] = now;
   }
 
+  /**
+   * @brief Get scroll lines per detent.
+   *
+   * @param scrollwheel_scaling Scrollwheel scaling.
+   * @return Number of logical lines represented by one wheel detent.
+   */
   int get_scroll_lines_per_detent(double &scrollwheel_scaling) {
     double scale = DEFAULT_SCROLLWHEEL_SCALING;
     const auto value = CFPreferencesCopyValue(CFSTR("com.apple.scrollwheel.scaling"), kCFPreferencesAnyApplication, kCFPreferencesCurrentUser, kCFPreferencesAnyHost);
@@ -521,6 +577,13 @@ const KeyCodeMap kKeyCodesMap[] = {
     return std::max(1, static_cast<int>(std::ceil(1.0 + scroll_scale * lines_per_scroll_scale)));
   }
 
+  /**
+   * @brief Convert a high-resolution wheel delta to CoreGraphics scroll pixels.
+   *
+   * @param macos_input macOS input state containing scroll scaling settings.
+   * @param high_res_distance Wheel delta in Windows high-resolution units.
+   * @return Pixel distance to send to CoreGraphics.
+   */
   int scroll_pixels(const macos_input_t *macos_input, const int high_res_distance) {
     const auto source_pixels_per_line = CGEventSourceGetPixelsPerLine(macos_input->source);
     const auto pixels_per_line = source_pixels_per_line > 0 ? static_cast<int>(source_pixels_per_line + 0.5) : 10;
@@ -529,6 +592,13 @@ const KeyCodeMap kKeyCodesMap[] = {
     return static_cast<int>(scaled_pixels / WHEEL_DELTA);
   }
 
+  /**
+   * @brief Post a macOS scroll event to the target display.
+   *
+   * @param input Platform input backend that receives the event.
+   * @param wheelY Wheel y.
+   * @param wheelX Wheel x.
+   */
   void post_scroll(input_t &input, const int wheelY, const int wheelX) {
     if (wheelY == 0 && wheelX == 0) {
       return;

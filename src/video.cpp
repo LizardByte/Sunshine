@@ -72,25 +72,40 @@ namespace video {
     }
   }  // namespace
 
+  /**
+   * @brief Release context resources.
+   */
   void free_ctx(AVCodecContext *ctx) {
     avcodec_free_context(&ctx);
   }
 
+  /**
+   * @brief Release an FFmpeg frame allocated by the capture or conversion backend.
+   */
   void free_frame(AVFrame *frame) {
     av_frame_free(&frame);
   }
 
+  /**
+   * @brief Release a backend buffer allocated for capture or conversion.
+   */
   void free_buffer(AVBufferRef *ref) {
     av_buffer_unref(&ref);
   }
 
   namespace nv {
 
+    /**
+     * @brief Enumerates supported profile h264 options.
+     */
     enum class profile_h264_e : int {
       high = 2,  ///< High profile
       high_444p = 3,  ///< High 4:4:4 Predictive profile
     };
 
+    /**
+     * @brief Enumerates supported profile HEVC options.
+     */
     enum class profile_hevc_e : int {
       main = 0,  ///< Main profile
       main_10 = 1,  ///< Main 10 profile
@@ -101,17 +116,26 @@ namespace video {
 
   namespace qsv {
 
+    /**
+     * @brief Enumerates supported profile h264 options.
+     */
     enum class profile_h264_e : int {
       high = 100,  ///< High profile
       high_444p = 244,  ///< High 4:4:4 Predictive profile
     };
 
+    /**
+     * @brief Enumerates supported profile HEVC options.
+     */
     enum class profile_hevc_e : int {
       main = 1,  ///< Main profile
       main_10 = 2,  ///< Main 10 profile
       rext = 4,  ///< RExt profile
     };
 
+    /**
+     * @brief Enumerates supported profile AV1 options.
+     */
     enum class profile_av1_e : int {
       main = 1,  ///< Main profile
       high = 2,  ///< High profile
@@ -119,14 +143,52 @@ namespace video {
 
   }  // namespace qsv
 
+  /**
+   * @brief Create an FFmpeg hardware device buffer for D3D11VA input.
+   *
+   * @param encode_device Encode device.
+   * @return Hardware buffer on success, or an error code on failure.
+   */
   util::Either<avcodec_buffer_t, int> dxgi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
+  /**
+   * @brief Create an FFmpeg hardware device buffer for VA-API input.
+   *
+   * @param encode_device Encode device.
+   * @return Hardware buffer on success, or an error code on failure.
+   */
   util::Either<avcodec_buffer_t, int> vaapi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
+  /**
+   * @brief Create an FFmpeg hardware device buffer for CUDA input.
+   *
+   * @param encode_device Encode device.
+   * @return Hardware buffer on success, or an error code on failure.
+   */
   util::Either<avcodec_buffer_t, int> cuda_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
+  /**
+   * @brief Create an FFmpeg hardware device buffer for VideoToolbox input.
+   *
+   * @param encode_device Encode device.
+   * @return Hardware buffer on success, or an error code on failure.
+   */
   util::Either<avcodec_buffer_t, int> vt_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
+  /**
+   * @brief Create an FFmpeg hardware device buffer for Vulkan input.
+   *
+   * @return Hardware buffer on success, or an error code on failure.
+   */
   util::Either<avcodec_buffer_t, int> vulkan_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
 
+  /**
+   * @brief FFmpeg software encode device used when no hardware frames are required.
+   */
   class avcodec_software_encode_device_t: public platf::avcodec_encode_device_t {
   public:
+    /**
+     * @brief Accept a software frame without additional hardware conversion.
+     *
+     * @param img Image or frame object to read from or populate.
+     * @return Conversion status.
+     */
     int convert(platf::img_t &img) override {
       // If we need to add aspect ratio padding, we need to scale into an intermediate output buffer
       bool requires_padding = (sw_frame->width != sws_output_frame->width || sw_frame->height != sws_output_frame->height);
@@ -173,6 +235,13 @@ namespace video {
       return 0;
     }
 
+    /**
+     * @brief Attach frame resources used by the next conversion or encode operation.
+     *
+     * @param frame Video or graphics frame being processed.
+     * @param hw_frames_ctx FFmpeg hardware frames context associated with the frame.
+     * @return Status from updating frame.
+     */
     int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
       this->frame = frame;
 
@@ -190,6 +259,9 @@ namespace video {
       return 0;
     }
 
+    /**
+     * @brief Apply the configured colorspace metadata to the active frame.
+     */
     void apply_colorspace() override {
       auto avcodec_colorspace = avcodec_colorspace_from_sunshine_colorspace(colorspace);
       sws_setColorspaceDetails(sws.get(), sws_getCoefficients(SWS_CS_DEFAULT), 0, sws_getCoefficients(avcodec_colorspace.software_format), avcodec_colorspace.range - 1, 0, 1 << 16, 1 << 16);
@@ -206,6 +278,16 @@ namespace video {
       av_image_fill_black(frame->data, linesize, (AVPixelFormat) frame->format, frame->color_range, frame->width, frame->height);
     }
 
+    /**
+     * @brief Initialize FFmpeg software encoding for the requested codec.
+     *
+     * @param in_width In width.
+     * @param in_height In height.
+     * @param frame Video or graphics frame being processed.
+     * @param format Pixel, audio, or protocol format being converted.
+     * @param hardware Whether the frame is backed by hardware resources.
+     * @return 0 on success; nonzero or negative platform status on failure.
+     */
     int init(int in_width, int in_height, AVFrame *frame, AVPixelFormat format, bool hardware) {
       // If the device used is hardware, yet the image resides on main memory
       if (hardware) {
@@ -277,18 +359,21 @@ namespace video {
     }
 
     // Store ownership when frame is hw_frame
-    avcodec_frame_t hw_frame;
+    avcodec_frame_t hw_frame;  ///< Hw frame.
 
-    avcodec_frame_t sw_frame;
-    avcodec_frame_t sws_input_frame;
-    avcodec_frame_t sws_output_frame;
-    sws_t sws;
+    avcodec_frame_t sw_frame;  ///< Sw frame.
+    avcodec_frame_t sws_input_frame;  ///< Sws input frame.
+    avcodec_frame_t sws_output_frame;  ///< Sws output frame.
+    sws_t sws;  ///< Software scaler used when frames need CPU-side pixel conversion.
 
     // Offset of input image to output frame in pixels
-    int offsetW;
-    int offsetH;
+    int offsetW;  ///< Offset w.
+    int offsetH;  ///< Offset h.
   };
 
+  /**
+   * @brief Enumerates supported flag options.
+   */
   enum flag_e : uint32_t {
     DEFAULT = 0,  ///< Default flags
     PARALLEL_ENCODING = 1 << 1,  ///< Capture and encoding can run concurrently on separate threads
@@ -305,16 +390,31 @@ namespace video {
     FIXED_GOP_SIZE = 1 << 12,  ///< Use fixed small GOP size (encoder doesn't support on-demand IDR frames)
   };
 
+  /**
+   * @brief FFmpeg AVCodec encode session and parameter-set rewriting state.
+   */
   class avcodec_encode_session_t: public encode_session_t {
   public:
     avcodec_encode_session_t() = default;
 
+    /**
+     * @brief Initialize an FFmpeg encode session and its hardware encode device.
+     *
+     * @param avcodec_ctx Open FFmpeg codec context for the selected encoder.
+     * @param encode_device Platform encode device that supplies frames to FFmpeg.
+     * @param inject Whether SPS/VPS replacement data should be injected.
+     */
     avcodec_encode_session_t(avcodec_ctx_t &&avcodec_ctx, std::unique_ptr<platf::avcodec_encode_device_t> encode_device, int inject):
         avcodec_ctx {std::move(avcodec_ctx)},
         device {std::move(encode_device)},
         inject {inject} {
     }
 
+    /**
+     * @brief Move an FFmpeg encode session without duplicating codec/device ownership.
+     *
+     * @param other Source object whose state is copied or moved into this object.
+     */
     avcodec_encode_session_t(avcodec_encode_session_t &&other) noexcept = default;
 
     ~avcodec_encode_session_t() {
@@ -330,6 +430,12 @@ namespace video {
     }
 
     // Ensure objects are destroyed in the correct order
+    /**
+     * @brief Assign state from another instance while preserving ownership semantics.
+     *
+     * @param other Source object whose state is copied or moved into this object.
+     * @return Reference or value produced by the operator.
+     */
     avcodec_encode_session_t &operator=(avcodec_encode_session_t &&other) {
       device = std::move(other.device);
       avcodec_ctx = std::move(other.avcodec_ctx);
@@ -342,6 +448,12 @@ namespace video {
       return *this;
     }
 
+    /**
+     * @brief Encode one frame with FFmpeg AVCodec and prepare packet replacements.
+     *
+     * @param img Image or frame object to read from or populate.
+     * @return Conversion status.
+     */
     int convert(platf::img_t &img) override {
       if (!device) {
         return -1;
@@ -349,6 +461,9 @@ namespace video {
       return device->convert(img);
     }
 
+    /**
+     * @brief Mark the frame as a request for an IDR frame.
+     */
     void request_idr_frame() override {
       if (device && device->frame) {
         auto &frame = device->frame;
@@ -357,6 +472,9 @@ namespace video {
       }
     }
 
+    /**
+     * @brief Mark the frame as a request for a normal inter frame.
+     */
     void request_normal_frame() override {
       if (device && device->frame) {
         auto &frame = device->frame;
@@ -365,29 +483,49 @@ namespace video {
       }
     }
 
+    /**
+     * @brief Mark the frame range whose references must be invalidated.
+     *
+     * @param first_frame First frame.
+     * @param last_frame Last frame.
+     */
     void invalidate_ref_frames(int64_t first_frame, int64_t last_frame) override {
       BOOST_LOG(error) << "Encoder doesn't support reference frame invalidation";
       request_idr_frame();
     }
 
-    avcodec_ctx_t avcodec_ctx;
-    std::unique_ptr<platf::avcodec_encode_device_t> device;
+    avcodec_ctx_t avcodec_ctx;  ///< FFmpeg codec context owned by the encode session.
+    std::unique_ptr<platf::avcodec_encode_device_t> device;  ///< Platform device used by the FFmpeg hardware encoder.
 
-    std::vector<packet_raw_t::replace_t> replacements;
+    std::vector<packet_raw_t::replace_t> replacements;  ///< NAL-unit byte ranges that must be replaced before packet send.
 
-    cbs::nal_t sps;
-    cbs::nal_t vps;
+    cbs::nal_t sps;  ///< Original and rewritten sequence parameter set for IDR injection.
+    cbs::nal_t vps;  ///< Original and rewritten HEVC video parameter set for IDR injection.
 
     // inject sps/vps data into idr pictures
-    int inject;
+    int inject;  ///< Number of upcoming IDR frames that should receive rewritten parameter sets.
   };
 
+  /**
+   * @brief NVENC encode session and device state for hardware encoding.
+   */
   class nvenc_encode_session_t: public encode_session_t {
   public:
+    /**
+     * @brief Initialize an NVENC encode session and take ownership of its device.
+     *
+     * @param encode_device Encode device.
+     */
     nvenc_encode_session_t(std::unique_ptr<platf::nvenc_encode_device_t> encode_device):
         device(std::move(encode_device)) {
     }
 
+    /**
+     * @brief Encode one frame with NVENC and return the packet payload.
+     *
+     * @param img Image or frame object to read from or populate.
+     * @return Conversion status.
+     */
     int convert(platf::img_t &img) override {
       if (!device) {
         return -1;
@@ -395,14 +533,26 @@ namespace video {
       return device->convert(img);
     }
 
+    /**
+     * @brief Mark the frame as a request for an IDR frame.
+     */
     void request_idr_frame() override {
       force_idr = true;
     }
 
+    /**
+     * @brief Mark the frame as a request for a normal inter frame.
+     */
     void request_normal_frame() override {
       force_idr = false;
     }
 
+    /**
+     * @brief Mark the frame range whose references must be invalidated.
+     *
+     * @param first_frame First frame.
+     * @param last_frame Last frame.
+     */
     void invalidate_ref_frames(int64_t first_frame, int64_t last_frame) override {
       if (!device || !device->nvenc) {
         return;
@@ -413,6 +563,12 @@ namespace video {
       }
     }
 
+    /**
+     * @brief Submit the next frame to NVENC and return the encoded payload.
+     *
+     * @param frame_index Monotonic frame index assigned by the video pipeline.
+     * @return Encoded NVENC frame payload and frame metadata.
+     */
     nvenc::nvenc_encoded_frame encode_frame(uint64_t frame_index) {
       if (!device || !device->nvenc) {
         return {};
@@ -428,55 +584,101 @@ namespace video {
     bool force_idr = false;
   };
 
+  /**
+   * @brief Context object used while synchronizing encode sessions.
+   */
   struct sync_session_ctx_t {
-    safe::signal_t *join_event;
-    safe::mail_raw_t::event_t<bool> shutdown_event;
-    safe::mail_raw_t::queue_t<packet_t> packets;
-    safe::mail_raw_t::event_t<bool> idr_events;
-    safe::mail_raw_t::event_t<hdr_info_t> hdr_events;
-    safe::mail_raw_t::event_t<input::touch_port_t> touch_port_events;
+    safe::signal_t *join_event;  ///< Signal raised when the capture and encode workers should join.
+    safe::mail_raw_t::event_t<bool> shutdown_event;  ///< Event raised when the stream should shut down.
+    safe::mail_raw_t::queue_t<packet_t> packets;  ///< Queue receiving encoded video packets for the stream sender.
+    safe::mail_raw_t::event_t<bool> idr_events;  ///< Event raised when an IDR frame is requested.
+    safe::mail_raw_t::event_t<hdr_info_t> hdr_events;  ///< Event carrying updated HDR metadata.
+    safe::mail_raw_t::event_t<input::touch_port_t> touch_port_events;  ///< Event carrying updated touch viewport metadata.
 
-    config_t config;
-    int frame_nr;
-    void *channel_data;
+    config_t config;  ///< Stream or encoder configuration captured for the worker.
+    int frame_nr;  ///< Next capture-frame number assigned to encoded packets.
+    void *channel_data;  ///< Platform-specific channel data forwarded to packet senders.
   };
 
+  /**
+   * @brief Synchronization state for one encode session.
+   */
   struct sync_session_t {
-    sync_session_ctx_t *ctx;
-    std::unique_ptr<encode_session_t> session;
+    sync_session_ctx_t *ctx;  ///< Shared capture/encode synchronization context.
+    std::unique_ptr<encode_session_t> session;  ///< Active encoder session used by the capture thread.
   };
 
+  /**
+   * @brief Queue of encode-session contexts waiting for capture work.
+   */
   using encode_session_ctx_queue_t = safe::queue_t<sync_session_ctx_t>;
+  /**
+   * @brief Platform capture status returned by encode operations.
+   */
   using encode_e = platf::capture_e;
 
+  /**
+   * @brief Capture thread context shared with the encoder session.
+   */
   struct capture_ctx_t {
-    img_event_t images;
-    config_t config;
+    img_event_t images;  ///< Queue of captured images waiting for encode.
+    config_t config;  ///< Stream or encoder configuration captured for the worker.
   };
 
+  /**
+   * @brief Asynchronous capture thread state.
+   */
   struct capture_thread_async_ctx_t {
-    std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_queue;
-    std::thread capture_thread;
+    std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_queue;  ///< Capture ctx queue.
+    std::thread capture_thread;  ///< Capture thread.
 
-    safe::signal_t reinit_event;
-    const encoder_t *encoder_p;
-    sync_util::sync_t<std::weak_ptr<platf::display_t>> display_wp;
+    safe::signal_t reinit_event;  ///< Reinit event.
+    const encoder_t *encoder_p;  ///< Encoder p.
+    sync_util::sync_t<std::weak_ptr<platf::display_t>> display_wp;  ///< Display wp.
   };
 
+  /**
+   * @brief Synchronous capture thread state.
+   */
   struct capture_thread_sync_ctx_t {
-    encode_session_ctx_queue_t encode_session_ctx_queue {30};
+    encode_session_ctx_queue_t encode_session_ctx_queue {30};  ///< Encode session ctx queue.
   };
 
+  /**
+   * @brief Start the synchronous multi-client capture thread.
+   *
+   * @param ctx Native context object used by the operation or callback.
+   * @return 0 when the capture thread is started.
+   */
   int start_capture_sync(capture_thread_sync_ctx_t &ctx);
+  /**
+   * @brief Stop capture sync processing.
+   *
+   * @param ctx Native context object used by the operation or callback.
+   */
   void end_capture_sync(capture_thread_sync_ctx_t &ctx);
+  /**
+   * @brief Start the asynchronous capture thread.
+   *
+   * @param ctx Native context object used by the operation or callback.
+   * @return 0 when the capture thread is started; nonzero on setup failure.
+   */
   int start_capture_async(capture_thread_async_ctx_t &ctx);
+  /**
+   * @brief Stop capture async processing.
+   *
+   * @param ctx Native context object used by the operation or callback.
+   */
   void end_capture_async(capture_thread_async_ctx_t &ctx);
 
   // Keep a reference counter to ensure the capture thread only runs when other threads have a reference to the capture thread
-  auto capture_thread_async = safe::make_shared<capture_thread_async_ctx_t>(start_capture_async, end_capture_async);
-  auto capture_thread_sync = safe::make_shared<capture_thread_sync_ctx_t>(start_capture_sync, end_capture_sync);
+  auto capture_thread_async = safe::make_shared<capture_thread_async_ctx_t>(start_capture_async, end_capture_async);  ///< Capture thread async.
+  auto capture_thread_sync = safe::make_shared<capture_thread_sync_ctx_t>(start_capture_sync, end_capture_sync);  ///< Capture thread sync.
 
 #ifdef _WIN32
+  /**
+   * @brief NVENC.
+   */
   encoder_t nvenc {
     "nvenc"sv,
     std::make_unique<encoder_platform_formats_nvenc>(
@@ -615,6 +817,9 @@ namespace video {
 #endif
 
 #ifdef _WIN32
+  /**
+   * @brief Quicksync.
+   */
   encoder_t quicksync {
     "quicksync"sv,
     std::make_unique<encoder_platform_formats_avcodec>(
@@ -723,6 +928,9 @@ namespace video {
     PARALLEL_ENCODING | CBR_WITH_VBR | RELAXED_COMPLIANCE | NO_RC_BUF_LIMIT | YUV444_SUPPORT
   };
 
+  /**
+   * @brief Amdvce.
+   */
   encoder_t amdvce {
     "amdvce"sv,
     std::make_unique<encoder_platform_formats_avcodec>(
@@ -829,6 +1037,9 @@ namespace video {
     PARALLEL_ENCODING
   };
 
+  /**
+   * @brief Mediafoundation.
+   */
   encoder_t mediafoundation {
     "mediafoundation"sv,
     std::make_unique<encoder_platform_formats_avcodec>(
@@ -887,6 +1098,9 @@ namespace video {
   };
 #endif
 
+  /**
+   * @brief Software.
+   */
   encoder_t software {
     "software"sv,
     std::make_unique<encoder_platform_formats_avcodec>(
@@ -958,6 +1172,9 @@ namespace video {
   };
 
 #if defined(__linux__) || defined(linux) || defined(__linux) || defined(__FreeBSD__)
+  /**
+   * @brief VA-API.
+   */
   encoder_t vaapi {
     "vaapi"sv,
     std::make_unique<encoder_platform_formats_avcodec>(
@@ -1088,6 +1305,9 @@ namespace video {
 #endif  // linux
 
 #ifdef __APPLE__
+  /**
+   * @brief Videotoolbox.
+   */
   encoder_t videotoolbox {
     "videotoolbox"sv,
     std::make_unique<encoder_platform_formats_avcodec>(
@@ -1181,11 +1401,19 @@ namespace video {
   };
 
   static encoder_t *chosen_encoder;
-  int active_hevc_mode;
-  int active_av1_mode;
-  bool last_encoder_probe_supported_ref_frames_invalidation = false;
-  std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec = {};
+  int active_hevc_mode;  ///< HEVC mode selected by the most recent encoder probe.
+  int active_av1_mode;  ///< AV1 mode selected by the most recent encoder probe.
+  bool last_encoder_probe_supported_ref_frames_invalidation = false;  ///< Whether the last probe found reference-frame invalidation support.
+  std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec = {};  ///< YUV444 support discovered for each probed codec.
 
+  /**
+   * @brief Recreate a display capture object after a capture failure.
+   *
+   * @param disp Display connection or display handle.
+   * @param type Protocol, message, or resource type selector.
+   * @param display_name Display name.
+   * @param config Configuration values to apply.
+   */
   void reset_display(std::shared_ptr<platf::display_t> &disp, const platf::mem_type_e &type, const std::string &display_name, const config_t &config) {
     // We try this twice, in case we still get an error on reinitialization
     for (int x = 0; x < 2; ++x) {
@@ -1254,6 +1482,14 @@ namespace video {
     }
   }
 
+  /**
+   * @brief Run the shared display capture thread for asynchronous encoding.
+   *
+   * @param capture_ctx_queue Capture context queue.
+   * @param display_wp Weak pointer holder for the active display.
+   * @param reinit_event Signal raised while the display is being reinitialized.
+   * @param encoder Selected encoder.
+   */
   void captureThread(
     std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_queue,
     sync_util::sync_t<std::weak_ptr<platf::display_t>> &display_wp,
@@ -1511,6 +1747,16 @@ namespace video {
     }
   }
 
+  /**
+   * @brief Drain encoded packets from an FFmpeg encoder session.
+   *
+   * @param frame_nr Monotonic frame index assigned by the video pipeline.
+   * @param session Active FFmpeg encoder session.
+   * @param packets Output queue that receives encoded packets.
+   * @param channel_data Platform or protocol state attached to each packet.
+   * @param frame_timestamp Capture timestamp associated with the encoded frame.
+   * @return 0 when packets are queued; nonzero when encoding or packetization fails.
+   */
   int encode_avcodec(int64_t frame_nr, avcodec_encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
     auto &frame = session.device->frame;
     frame->pts = frame_nr;
@@ -1585,6 +1831,16 @@ namespace video {
     return 0;
   }
 
+  /**
+   * @brief Encode one frame through NVENC and queue the resulting packet.
+   *
+   * @param frame_nr Monotonic frame index assigned by the video pipeline.
+   * @param session Active NVENC encoder session.
+   * @param packets Output queue that receives the encoded packet.
+   * @param channel_data Platform or protocol state attached to the packet.
+   * @param frame_timestamp Capture timestamp associated with the encoded frame.
+   * @return 0 when packets are queued; nonzero when NVENC encoding fails.
+   */
   int encode_nvenc(int64_t frame_nr, nvenc_encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
     auto encoded_frame = session.encode_frame(frame_nr);
     if (encoded_frame.data.empty()) {
@@ -1605,6 +1861,16 @@ namespace video {
     return 0;
   }
 
+  /**
+   * @brief Encode one captured frame and queue packets for transmission.
+   *
+   * @param frame_nr Frame nr.
+   * @param session Active streaming or pairing session for the request.
+   * @param packets Packets queued or emitted by the stream.
+   * @param channel_data Channel data.
+   * @param frame_timestamp Frame timestamp.
+   * @return 0 when the frame is encoded and queued; nonzero on encoder failure.
+   */
   int encode(int64_t frame_nr, encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
     if (auto avcodec_session = dynamic_cast<avcodec_encode_session_t *>(&session)) {
       return encode_avcodec(frame_nr, *avcodec_session, packets, channel_data, frame_timestamp);
@@ -1615,6 +1881,17 @@ namespace video {
     return -1;
   }
 
+  /**
+   * @brief Create an AVCodec encode session.
+   *
+   * @param disp Display being encoded.
+   * @param encoder Selected encoder.
+   * @param config Video configuration.
+   * @param width Encoded frame width.
+   * @param height Encoded frame height.
+   * @param encode_device AVCodec encode device.
+   * @return AVCodec encode session, or nullptr on failure.
+   */
   std::unique_ptr<avcodec_encode_session_t> make_avcodec_encode_session(
     platf::display_t *disp,
     const encoder_t &encoder,
@@ -2007,6 +2284,13 @@ namespace video {
     return session;
   }
 
+  /**
+   * @brief Create NVENC encode session.
+   *
+   * @param client_config Client stream configuration negotiated for this session.
+   * @param encode_device Encode device.
+   * @return Constructed NVENC encode session object.
+   */
   std::unique_ptr<nvenc_encode_session_t> make_nvenc_encode_session(const config_t &client_config, std::unique_ptr<platf::nvenc_encode_device_t> encode_device) {
     if (!encode_device->init_encoder(client_config, encode_device->colorspace)) {
       return nullptr;
@@ -2015,6 +2299,17 @@ namespace video {
     return std::make_unique<nvenc_encode_session_t>(std::move(encode_device));
   }
 
+  /**
+   * @brief Create encode session.
+   *
+   * @param disp Display connection or display handle.
+   * @param encoder Encoder configuration or encoder instance.
+   * @param config Configuration values to apply.
+   * @param width Frame or display width in pixels.
+   * @param height Frame or display height in pixels.
+   * @param encode_device Encode device.
+   * @return Constructed encode session object.
+   */
   std::unique_ptr<encode_session_t> make_encode_session(platf::display_t *disp, const encoder_t &encoder, const config_t &config, int width, int height, std::unique_ptr<platf::encode_device_t> encode_device) {
     if (dynamic_cast<platf::avcodec_encode_device_t *>(encode_device.get())) {
       auto avcodec_encode_device = boost::dynamic_pointer_cast<platf::avcodec_encode_device_t>(std::move(encode_device));
@@ -2027,6 +2322,19 @@ namespace video {
     return nullptr;
   }
 
+  /**
+   * @brief Run one encode loop for a display capture stream.
+   *
+   * @param frame_nr Frame counter updated as frames are encoded.
+   * @param mail Session mail bus.
+   * @param images Captured image event source.
+   * @param config Video configuration.
+   * @param disp Display being encoded.
+   * @param encode_device Platform encode device.
+   * @param reinit_event Signal raised while the encoder/display is reinitializing.
+   * @param encoder Selected encoder.
+   * @param channel_data Opaque channel data passed to packets.
+   */
   void encode_run(
     int &frame_nr,  // Store progress of the frame number
     safe::mail_t mail,
@@ -2138,6 +2446,13 @@ namespace video {
     }
   }
 
+  /**
+   * @brief Create a port object or message.
+   *
+   * @param display Display object or identifier associated with the operation.
+   * @param config Configuration values to apply.
+   * @return Constructed port object.
+   */
   input::touch_port_t make_port(platf::display_t *display, const config_t &config) {
     float wd = display->width;
     float hd = display->height;
@@ -2183,6 +2498,14 @@ namespace video {
     };
   }
 
+  /**
+   * @brief Create encode device.
+   *
+   * @param disp Display connection or display handle.
+   * @param encoder Encoder configuration or encoder instance.
+   * @param config Configuration values to apply.
+   * @return Constructed encode device object.
+   */
   std::unique_ptr<platf::encode_device_t> make_encode_device(platf::display_t &disp, const encoder_t &encoder, const config_t &config) {
     std::unique_ptr<platf::encode_device_t> result;
 
@@ -2234,6 +2557,15 @@ namespace video {
     return result;
   }
 
+  /**
+   * @brief Create synced session.
+   *
+   * @param disp Display connection or display handle.
+   * @param encoder Encoder configuration or encoder instance.
+   * @param img Image or frame object to read from or populate.
+   * @param ctx Native context object used by the operation or callback.
+   * @return Constructed synced session object.
+   */
   std::optional<sync_session_t> make_synced_session(platf::display_t *disp, const encoder_t &encoder, platf::img_t &img, sync_session_ctx_t &ctx) {
     sync_session_t encode_session;
 
@@ -2274,6 +2606,15 @@ namespace video {
     return encode_session;
   }
 
+  /**
+   * @brief Run synchronized capture and encoding.
+   *
+   * @param synced_session_ctxs Active synchronized session contexts.
+   * @param encode_session_ctx_queue Pending synchronized session context queue.
+   * @param display_names Cached display names.
+   * @param display_p Active display index.
+   * @return Encoder loop result.
+   */
   encode_e encode_run_sync(
     std::vector<std::unique_ptr<sync_session_ctx_t>> &synced_session_ctxs,
     encode_session_ctx_queue_t &encode_session_ctx_queue,
@@ -2425,6 +2766,9 @@ namespace video {
     return encode_e::ok;
   }
 
+  /**
+   * @brief Run synchronous capture and encode work on the capture thread.
+   */
   void captureThreadSync() {
     auto ref = capture_thread_sync.ref();
 
@@ -2454,6 +2798,13 @@ namespace video {
     while (encode_run_sync(synced_session_ctxs, ctx, display_names, display_p) == encode_e::reinit) {}
   }
 
+  /**
+   * @brief Capture and encode video using the asynchronous capture thread.
+   *
+   * @param mail Session mail bus.
+   * @param config Video configuration.
+   * @param channel_data Opaque channel data passed to packets.
+   */
   void capture_async(
     safe::mail_t mail,
     config_t &config,
@@ -2538,6 +2889,13 @@ namespace video {
     }
   }
 
+  /**
+   * @brief Capture and encode video for a streaming session.
+   *
+   * @param mail Session mail bus.
+   * @param config Video configuration.
+   * @param channel_data Opaque channel data passed to packets.
+   */
   void capture(
     safe::mail_t mail,
     config_t config,
@@ -2568,10 +2926,21 @@ namespace video {
     }
   }
 
+  /**
+   * @brief Enumerates supported validate flag options.
+   */
   enum validate_flag_e {
     VUI_PARAMS = 0x01,  ///< VUI parameters
   };
 
+  /**
+   * @brief Validate config before it is used.
+   *
+   * @param disp Display connection or display handle.
+   * @param encoder Encoder configuration or encoder instance.
+   * @param config Configuration values to apply.
+   * @return 0 when the selected encoder/device accepts the configuration; nonzero otherwise.
+   */
   int validate_config(std::shared_ptr<platf::display_t> disp, const encoder_t &encoder, const config_t &config) {
     auto encode_device = make_encode_device(*disp, encoder, config);
     if (!encode_device) {
@@ -2624,6 +2993,9 @@ namespace video {
     return flag;
   }
 
+  /**
+   * @brief Validate encoder before it is used.
+   */
   bool validate_encoder(encoder_t &encoder, bool expect_failure) {
     const auto output_name {display_device::map_output_name(config::video.output_name)};
     std::shared_ptr<platf::display_t> disp;
@@ -3073,8 +3445,14 @@ namespace video {
   }
 
   // Linux only declaration
+  /**
+   * @brief Callback signature for VA-API AVCodec hardware input initialization.
+   */
   typedef int (*vaapi_init_avcodec_hardware_input_buffer_fn)(platf::avcodec_encode_device_t *encode_device, AVBufferRef **hw_device_buf);
 
+  /**
+   * @brief Initialize AVCodec hardware input buffers for VA-API.
+   */
   util::Either<avcodec_buffer_t, int> vaapi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device) {
     avcodec_buffer_t hw_device_buf;
 
@@ -3136,6 +3514,9 @@ namespace video {
   }
 #endif
 
+  /**
+   * @brief Initialize AVCodec hardware input buffers for CUDA.
+   */
   util::Either<avcodec_buffer_t, int> cuda_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device) {
     avcodec_buffer_t hw_device_buf;
 
@@ -3149,6 +3530,9 @@ namespace video {
     return hw_device_buf;
   }
 
+  /**
+   * @brief Initialize AVCodec hardware input buffers for VideoToolbox.
+   */
   util::Either<avcodec_buffer_t, int> vt_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device) {
     avcodec_buffer_t hw_device_buf;
 
@@ -3165,10 +3549,16 @@ namespace video {
 #ifdef _WIN32
 }
 
+/**
+ * @brief No-op lock callback used when FFmpeg requires a D3D11VA lock function.
+ */
 void do_nothing(void *) {
 }
 
 namespace video {
+  /**
+   * @brief Create an FFmpeg D3D11VA hardware device from Sunshine's DXGI device.
+   */
   util::Either<avcodec_buffer_t, int> dxgi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device) {
     avcodec_buffer_t ctx_buf {av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_D3D11VA)};
     auto ctx = (AVD3D11VADeviceContext *) ((AVHWDeviceContext *) ctx_buf->data)->hwctx;
@@ -3196,6 +3586,9 @@ namespace video {
   }
 #endif
 
+  /**
+   * @brief Start capture async.
+   */
   int start_capture_async(capture_thread_async_ctx_t &capture_thread_ctx) {
     capture_thread_ctx.encoder_p = chosen_encoder;
     capture_thread_ctx.reinit_event.reset();
@@ -3213,20 +3606,32 @@ namespace video {
     return 0;
   }
 
+  /**
+   * @brief Stop capture async processing.
+   */
   void end_capture_async(capture_thread_async_ctx_t &capture_thread_ctx) {
     capture_thread_ctx.capture_ctx_queue->stop();
 
     capture_thread_ctx.capture_thread.join();
   }
 
+  /**
+   * @brief Start capture sync.
+   */
   int start_capture_sync(capture_thread_sync_ctx_t &ctx) {
     std::thread {&captureThreadSync}.detach();
     return 0;
   }
 
+  /**
+   * @brief Stop capture sync processing.
+   */
   void end_capture_sync(capture_thread_sync_ctx_t &ctx) {
   }
 
+  /**
+   * @brief Map base dev type values.
+   */
   platf::mem_type_e map_base_dev_type(AVHWDeviceType type) {
     switch (type) {
       case AV_HWDEVICE_TYPE_D3D11VA:
@@ -3250,6 +3655,9 @@ namespace video {
     return platf::mem_type_e::unknown;
   }
 
+  /**
+   * @brief Map pix fmt values.
+   */
   platf::pix_fmt_e map_pix_fmt(AVPixelFormat fmt) {
     switch (fmt) {
       case AV_PIX_FMT_VUYX:

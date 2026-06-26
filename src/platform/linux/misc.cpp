@@ -5,6 +5,10 @@
 
 // Required for in6_pktinfo with glibc headers
 #ifndef _GNU_SOURCE
+  /**
+   * @def _GNU_SOURCE
+   * @brief Macro for GNU SOURCE.
+   */
   #define _GNU_SOURCE 1
 #endif
 
@@ -60,16 +64,32 @@
 #ifdef __GNUC__
   #define SUNSHINE_GNUC_EXTENSION __extension__
 #else
+  /**
+   * @def SUNSHINE_GNUC_EXTENSION
+   * @brief Macro for SUNSHINE GNUC EXTENSION.
+   */
   #define SUNSHINE_GNUC_EXTENSION
 #endif
 
 #ifndef SOL_IP
+  /**
+   * @def SOL_IP
+   * @brief Macro for SOL IP.
+   */
   #define SOL_IP IPPROTO_IP
 #endif
 #ifndef SOL_IPV6
+  /**
+   * @def SOL_IPV6
+   * @brief Macro for SOL IPv6.
+   */
   #define SOL_IPV6 IPPROTO_IPV6
 #endif
 #ifndef SOL_UDP
+  /**
+   * @def SOL_UDP
+   * @brief Macro for SOL UDP.
+   */
   #define SOL_UDP IPPROTO_UDP
 #endif
 
@@ -77,9 +97,12 @@ using namespace std::literals;
 namespace fs = std::filesystem;
 namespace bp = boost::process::v1;
 
-window_system_e window_system;
+window_system_e window_system;  ///< Window system.
 
 namespace dyn {
+  /**
+   * @brief Return the native handle owned by the wrapper.
+   */
   void *handle(const std::vector<const char *> &libs) {
     void *handle;
 
@@ -103,6 +126,9 @@ namespace dyn {
     return nullptr;
   }
 
+  /**
+   * @brief Load persisted state from its backing store.
+   */
   int load(void *handle, const std::vector<std::tuple<apiproc *, const char *>> &funcs, bool strict) {
     int err = 0;
     for (auto &func : funcs) {
@@ -122,8 +148,16 @@ namespace dyn {
 }  // namespace dyn
 
 namespace platf {
+  /**
+   * @brief Owning pointer for `getifaddrs` results.
+   */
   using ifaddr_t = util::safe_ptr<ifaddrs, freeifaddrs>;
 
+  /**
+   * @brief Read the local interface address list.
+   *
+   * @return Owning pointer to the interface address list, or nullptr on failure.
+   */
   ifaddr_t get_ifaddrs() {
     ifaddrs *p {nullptr};
 
@@ -215,6 +249,9 @@ namespace platf {
     return config_path;
   }
 
+  /**
+   * @brief Convert a socket address to a printable IP address.
+   */
   std::string from_sockaddr(const sockaddr *const ip_addr) {
     char data[INET6_ADDRSTRLEN] = {};
 
@@ -228,6 +265,9 @@ namespace platf {
     return std::string {data};
   }
 
+  /**
+   * @brief Convert a socket address to a port and printable IP address.
+   */
   std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const ip_addr) {
     char data[INET6_ADDRSTRLEN] = {};
 
@@ -244,6 +284,9 @@ namespace platf {
     return {port, std::string {data}};
   }
 
+  /**
+   * @brief Return the hardware MAC address associated with a network address.
+   */
   std::string get_mac_address(const std::string_view &address) {
     auto ifaddrs = get_ifaddrs();
 
@@ -336,6 +379,9 @@ namespace platf {
     }
   }
 
+  /**
+   * @brief Apply the requested scheduling priority to the current thread.
+   */
   void adjust_thread_priority(thread_priority_e priority) {
 #if defined(__FreeBSD__)
     pid_t tid = syscall(SYS_thr_self);
@@ -405,18 +451,30 @@ namespace platf {
     pthread_setname_np(pthread_self(), name.c_str());
   }
 
+  /**
+   * @brief Enable or disable X11 mouse keys for the current session.
+   */
   void enable_mouse_keys() {
     // Unimplemented
   }
 
+  /**
+   * @brief Apply Linux platform state before streaming starts.
+   */
   void streaming_will_start() {
     // Nothing to do
   }
 
+  /**
+   * @brief Restore Linux platform state after streaming stops.
+   */
   void streaming_will_stop() {
     // Nothing to do
   }
 
+  /**
+   * @brief Request a Sunshine process restart on exit.
+   */
   void restart_on_exit() {
     char executable[PATH_MAX];
     ssize_t len = readlink("/proc/self/exe", executable, PATH_MAX - 1);
@@ -439,12 +497,21 @@ namespace platf {
     }
   }
 
+  /**
+   * @brief Restart the Sunshine process through the platform launcher.
+   */
   void restart() {
     // Gracefully clean up and restart ourselves instead of exiting
     atexit(restart_on_exit);
     lifetime::exit_sunshine(0, true);
   }
 
+  /**
+   * @brief Read an environment variable as an optional string.
+   *
+   * @param name Human-readable name to assign.
+   * @return Environment variable value, or an empty string when unset.
+   */
   std::string get_env(const std::string &name) {
     if (const auto value = getenv(name.c_str()); value != nullptr) {
       return value;
@@ -456,6 +523,14 @@ namespace platf {
     return setenv(name.c_str(), value.c_str(), 1);
   }
 
+  /**
+   * @brief Append a value to a separator-delimited environment variable.
+   *
+   * @param name Human-readable name to assign.
+   * @param value Entry to add when it is not already present.
+   * @param separator Character used to join or split the value.
+   * @return Result from updating the environment variable.
+   */
   int append_env(const std::string &name, const std::string &value, const std::string &separator) {
     if (const std::string old_value = get_env(name); !old_value.contains(value)) {
       return set_env(name, old_value.empty() ? value : old_value + separator + value);
@@ -481,6 +556,13 @@ namespace platf {
     return waitpid(-((pid_t) native_handle), nullptr, WNOHANG) >= 0;
   }
 
+  /**
+   * @brief Convert to sockaddr.
+   *
+   * @param address Network address being parsed or filtered.
+   * @param port TCP or UDP port number.
+   * @return Value converted to sockaddr.
+   */
   struct sockaddr_in to_sockaddr(boost::asio::ip::address_v4 address, uint16_t port) {
     struct sockaddr_in saddr_v4 = {};
 
@@ -493,6 +575,13 @@ namespace platf {
     return saddr_v4;
   }
 
+  /**
+   * @brief Convert to sockaddr.
+   *
+   * @param address Network address being parsed or filtered.
+   * @param port TCP or UDP port number.
+   * @return Value converted to sockaddr.
+   */
   struct sockaddr_in6 to_sockaddr(boost::asio::ip::address_v6 address, uint16_t port) {
     struct sockaddr_in6 saddr_v6 = {};
 
@@ -506,6 +595,9 @@ namespace platf {
     return saddr_v6;
   }
 
+  /**
+   * @brief Send multiple fixed-size UDP payload blocks using the platform backend.
+   */
   bool send_batch(batched_send_info_t &send_info) {
     auto sockfd = (int) send_info.native_socket;
     struct msghdr msg = {};
@@ -731,6 +823,9 @@ namespace platf {
     }
   }
 
+  /**
+   * @brief Send the serialized response over the active socket.
+   */
   bool send(send_info_t &send_info) {
     auto sockfd = (int) send_info.native_socket;
     struct msghdr msg = {};
@@ -854,8 +949,17 @@ namespace platf {
   // are disconnected.
   static std::atomic<int> qos_ref_count = 0;
 
+  /**
+   * @brief Linux QoS state used to tune socket priority while streaming.
+   */
   class qos_t: public deinit_t {
   public:
+    /**
+     * @brief Apply Linux socket priority and DSCP QoS settings for scoped cleanup.
+     *
+     * @param sockfd Native socket descriptor whose options are updated.
+     * @param options Request options or socket options to apply.
+     */
     qos_t(int sockfd, std::vector<std::tuple<int, int, int>> options):
         sockfd(sockfd),
         options(options) {
@@ -880,11 +984,6 @@ namespace platf {
 
   /**
    * @brief Enables QoS on the given socket for traffic to the specified destination.
-   * @param native_socket The native socket handle.
-   * @param address The destination address for traffic sent on this socket.
-   * @param port The destination port for traffic sent on this socket.
-   * @param data_type The type of traffic sent on this socket.
-   * @param dscp_tagging Specifies whether to enable DSCP tagging on outgoing traffic.
    */
   std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
     int sockfd = (int) native_socket;
@@ -964,6 +1063,9 @@ namespace platf {
   }
 
   namespace source {
+    /**
+     * @brief Enumerates supported source options.
+     */
     enum source_e : std::size_t {
 #ifdef SUNSHINE_BUILD_CUDA
       NVFBC,  ///< NvFBC
@@ -999,9 +1101,27 @@ namespace platf {
 #endif
 
 #ifdef SUNSHINE_BUILD_WAYLAND
+  /**
+   * @brief Enumerate displays available through the Wayland capture backend.
+   *
+   * @return Wayland display names, or an empty list when discovery fails.
+   */
   std::vector<std::string> wl_display_names();
+  /**
+   * @brief Create a Wayland display capture backend.
+   *
+   * @param hwdevice_type Hardware device type requested for capture or encode.
+   * @param display_name Display name.
+   * @param config Configuration values to apply.
+   * @return Display backend, or nullptr when Wayland capture initialization fails.
+   */
   std::shared_ptr<display_t> wl_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
+  /**
+   * @brief Check whether Wayland capture is available for the current session.
+   *
+   * @return True when the active window system is Wayland and at least one output is discoverable.
+   */
   bool verify_wl() {
     return window_system == window_system_e::WAYLAND && !wl_display_names().empty();
   }
@@ -1045,6 +1165,9 @@ namespace platf {
   }
 #endif
 
+  /**
+   * @brief List display names accepted by the selected capture backend.
+   */
   std::vector<std::string> display_names(mem_type_e hwdevice_type) {
 #ifdef SUNSHINE_BUILD_CUDA
     // display using NvFBC only supports mem_type_e::cuda
@@ -1081,8 +1204,9 @@ namespace platf {
   }
 
   /**
-   * @brief Returns if GPUs/drivers have changed since the last call to this function.
-   * @return `true` if a change has occurred or if it is unknown whether a change occurred.
+   * @brief Report whether encoder backends should be probed again before streaming.
+   *
+   * @return Always `true` because Linux GPU changes are not tracked by this backend.
    */
   bool needs_encoder_reenumeration() {
     // We don't track GPU state, so we will always reenumerate. Fortunately, it is fast on Linux.
@@ -1137,6 +1261,9 @@ namespace platf {
     return nullptr;
   }
 
+  /**
+   * @brief Initialize the Linux high-precision timer file descriptor.
+   */
   std::unique_ptr<deinit_t> init() {
     // enable low latency mode for AMD
     // https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/30039
@@ -1212,6 +1339,9 @@ namespace platf {
     return std::make_unique<deinit_t>();
   }
 
+  /**
+   * @brief Linux high-precision timer implementation backed by `timerfd`.
+   */
   class linux_high_precision_timer: public high_precision_timer {
   public:
     void sleep_for(const std::chrono::nanoseconds &duration) override {
@@ -1227,6 +1357,11 @@ namespace platf {
     return std::make_unique<linux_high_precision_timer>();
   }
 
+  /**
+   * @brief Find the DRM render node associated with the active display.
+   *
+   * @return Render-node path, or an empty string when no matching node is found.
+   */
   std::string find_render_node_with_display() {
 #ifdef SUNSHINE_BUILD_DRM
     auto *dir = opendir("/dev/dri");
@@ -1287,8 +1422,8 @@ namespace platf {
   static constexpr cap_value_t FULL_CAPS[] = {CAP_SYS_ADMIN, CAP_SYS_NICE};
   static constexpr cap_value_t ADMIN_CAPS[] = {CAP_SYS_ADMIN};
 
-  constexpr std::span<const cap_value_t> ELEVATED_PRIVILEGES_FULL {FULL_CAPS};
-  constexpr std::span<const cap_value_t> ELEVATED_PRIVILEGES_ADMIN {ADMIN_CAPS};
+  constexpr std::span<const cap_value_t> ELEVATED_PRIVILEGES_FULL {FULL_CAPS};  ///< Protocol or platform constant for elevated privileges full.
+  constexpr std::span<const cap_value_t> ELEVATED_PRIVILEGES_ADMIN {ADMIN_CAPS};  ///< Protocol or platform constant for elevated privileges admin.
 #endif
 
   bool has_elevated_privileges(bool all_caps) {
