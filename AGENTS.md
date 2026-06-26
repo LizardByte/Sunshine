@@ -32,3 +32,5 @@ Always follow the style guidelines defined in .clang-format for c/c++ code.
 Do not ever create issues or pull requests.
 If asked to create an issue or pull request, do so in their fork instead of the LizardByte GitHub organization.
 Never create an issue or pull request in the LizardByte GitHub organization.
+
+Add or update tests for new or modified methods and code. Target 100% coverage on changed code.
