@@ -327,6 +327,8 @@ const KeyCodeMap kKeyCodesMap[] = {
     }
   }
 
+  void reveal_cursor(input_t &input);
+
   void keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
     auto key = keysym(modcode);
 
@@ -370,6 +372,7 @@ const KeyCodeMap kKeyCodesMap[] = {
     CGEventSetFlags(event, macos_input->kb_flags);
     CGEventPost(kCGSessionEventTap, event);
     CFRelease(event);
+    reveal_cursor(input);
   }
 
   void unicode(input_t &input, char *utf8, int size) {
@@ -400,6 +403,32 @@ const KeyCodeMap kKeyCodesMap[] = {
       current.x,
       current.y
     };
+  }
+
+  /**
+   * @brief Nudge macOS into making the cursor visible after keyboard input.
+   *
+   * @param input Platform input context.
+   */
+  void reveal_cursor(input_t &input) {
+    auto macos_input = static_cast<macos_input_t *>(input.get());
+    auto current = get_mouse_loc(input);
+    auto location = CGPoint {current.x, current.y};
+
+    CGAssociateMouseAndMouseCursorPosition(true);
+    CGDisplayShowCursor(macos_input->display);
+
+    auto event = CGEventCreateMouseEvent(macos_input->source, kCGEventMouseMoved, location, kCGMouseButtonLeft);
+    if (!event) {
+      return;
+    }
+
+    CGEventSetDoubleValueField(event, kCGMouseEventDeltaX, 0);
+    CGEventSetDoubleValueField(event, kCGMouseEventDeltaY, 0);
+    CGEventSetFlags(event, macos_input->kb_flags);
+    CGEventPost(kCGHIDEventTap, event);
+    CFRelease(event);
+    CGWarpMouseCursorPosition(location);
   }
 
   /**
