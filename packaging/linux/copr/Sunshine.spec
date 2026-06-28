@@ -90,9 +90,17 @@ BuildRequires: libnuma-devel
 BuildRequires: libopus-devel
 BuildRequires: libpulse-devel
 BuildRequires: npm
+
+%if 0%{?sle_version}
 BuildRequires: python311
 BuildRequires: python311-Jinja2
 BuildRequires: python311-setuptools
+%else
+BuildRequires: python3
+BuildRequires: python3-Jinja2
+BuildRequires: python3-setuptools
+%endif
+
 %if !0%{?sle_version}
 BuildRequires: shaderc
 %endif
@@ -128,7 +136,7 @@ BuildRequires: gcc15-c++
 %endif
 
 %if 0%{?suse_version}
-%if 0%{?suse_version} <= 1699
+%if 0%{?sle_version}
 # OpenSUSE Leap 15.x
 BuildRequires: gcc14
 BuildRequires: gcc14-c++
@@ -140,13 +148,13 @@ BuildRequires: libqt5-qtsvg-devel
 %global cuda_build 575.57.08
 %else
 # OpenSUSE Tumbleweed
-BuildRequires: gcc14
-BuildRequires: gcc14-c++
-BuildRequires: libqt6-qtbase-devel
-BuildRequires: libqt6-qtsvg-devel
-%global gcc_version 14
-%global cuda_version 12.9.1
-%global cuda_build 575.57.08
+BuildRequires: gcc15
+BuildRequires: gcc15-c++
+BuildRequires: qt6-base-devel
+BuildRequires: qt6-svg-devel
+%global gcc_version 15
+%global cuda_version 13.2.0
+%global cuda_build 595.45.04
 %endif
 %endif
 
@@ -191,7 +199,8 @@ Requires: libpulse0
 %if !0%{?sle_version}
 Requires: libvulkan1
 %endif
-%if 0%{?suse_version} <= 1699
+
+%if 0%{?sle_version}
 # OpenSUSE Leap: built with Qt5
 Requires: libQt5Svg5
 Requires: libQt5Widgets5
@@ -250,15 +259,21 @@ cmake_args+=("-DPython_EXECUTABLE=%{_builddir}/Sunshine/.venv/bin/python")
 %endif
 
 %if 0%{?suse_version}
-# Use the Python interpreter that owns the python311-Jinja2/python311-setuptools BuildRequires.
 cmake_args+=("-DGLAD_SKIP_PIP_INSTALL=ON")
+%if 0%{?sle_version}
+# Use the Python interpreter that owns the python311-Jinja2/python311-setuptools BuildRequires.
 cmake_args+=("-DPython_EXECUTABLE=/usr/bin/python3.11")
+%else
+# Use the Python interpreter that owns the python3-Jinja2/python3-setuptools BuildRequires.
+cmake_args+=("-DPython_EXECUTABLE=/usr/bin/python3")
+%endif
+
 %endif
 
 export CC=gcc-%{gcc_version}
 export CXX=g++-%{gcc_version}
 
-function install_cuda() {
+install_cuda() {
   # check if we need to install cuda
   if [ -f "%{cuda_dir}/bin/nvcc" ]; then
     echo "cuda already installed"
