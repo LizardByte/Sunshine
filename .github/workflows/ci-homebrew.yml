@@ -177,7 +177,7 @@ jobs:
       - name: Validate Homebrew Formula
         id: test
         if: matrix.release != true
-        uses: LizardByte/actions/actions/release_homebrew@a46850981292c4bbc0c41715f286ad95adaaaf4a  # v2026.625.20301
+        uses: LizardByte/actions/actions/release_homebrew@master  # action requires too many updates to pin
         with:
           actionlint_config: "---\n# empty config"
           formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
