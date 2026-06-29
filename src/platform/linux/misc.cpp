@@ -180,10 +180,10 @@ namespace platf {
     std::call_once(migration_flag, []() {
       bool found = false;
       bool migrate_config = true;
-      std::string homedir;
+      fs::path homedir {lizardbyte::common::get_env("HOME")};
 
       // Get the home directory
-      if (!lizardbyte::common::get_env("HOME", homedir) || homedir.empty()) {
+      if (homedir.empty()) {
         // If HOME is empty or not set, use the current user's home directory
         homedir = getpwuid(geteuid())->pw_dir;
       }
@@ -202,13 +202,13 @@ namespace platf {
       // As a last resort, use the home directory
       if (!found) {
         migrate_config = false;
-        config_path = fs::path(homedir) / ".config/sunshine"sv;
+        config_path = homedir / ".config" / "sunshine";
       }
 
       // migrate from the old config location if necessary
       if (std::string migrate_envvar; migrate_config && found && lizardbyte::common::get_env("SUNSHINE_MIGRATE_CONFIG", migrate_envvar) && migrate_envvar == "1") {
         std::error_code ec;
-        fs::path old_config_path = fs::path(homedir) / ".config/sunshine"sv;
+        fs::path old_config_path = homedir / ".config" / "sunshine";
         if (old_config_path != config_path && fs::exists(old_config_path, ec)) {
           if (!fs::exists(config_path, ec)) {
             std::cout << "Migrating config from "sv << old_config_path << " to "sv << config_path << std::endl;
