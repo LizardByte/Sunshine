@@ -180,24 +180,22 @@ namespace platf {
     std::call_once(migration_flag, []() {
       bool found = false;
       bool migrate_config = true;
-      const char *dir;
-      const char *homedir;
-      const char *migrate_envvar;
+      std::string homedir;
 
       // Get the home directory
-      if ((homedir = getenv("HOME")) == nullptr || strlen(homedir) == 0) {
+      if (!lizardbyte::common::get_env("HOME", homedir) || homedir.empty()) {
         // If HOME is empty or not set, use the current user's home directory
         homedir = getpwuid(geteuid())->pw_dir;
       }
 
       // May be set if running under a systemd service with the ConfigurationDirectory= option set.
-      if ((dir = getenv("CONFIGURATION_DIRECTORY")) != nullptr && strlen(dir) > 0) {
+      if (std::string dir; lizardbyte::common::get_env("CONFIGURATION_DIRECTORY", dir) && !dir.empty()) {
         found = true;
         config_path = fs::path(dir) / "sunshine"sv;
       }
       // Otherwise, follow the XDG base directory specification:
       // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-      if (!found && (dir = getenv("XDG_CONFIG_HOME")) != nullptr && strlen(dir) > 0) {
+      if (std::string dir; !found && lizardbyte::common::get_env("XDG_CONFIG_HOME", dir) && !dir.empty()) {
         found = true;
         config_path = fs::path(dir) / "sunshine"sv;
       }
@@ -208,8 +206,7 @@ namespace platf {
       }
 
       // migrate from the old config location if necessary
-      migrate_envvar = getenv("SUNSHINE_MIGRATE_CONFIG");
-      if (migrate_config && found && migrate_envvar && strcmp(migrate_envvar, "1") == 0) {
+      if (std::string migrate_envvar; migrate_config && found && lizardbyte::common::get_env("SUNSHINE_MIGRATE_CONFIG", migrate_envvar) && migrate_envvar == "1") {
         std::error_code ec;
         fs::path old_config_path = fs::path(homedir) / ".config/sunshine"sv;
         if (old_config_path != config_path && fs::exists(old_config_path, ec)) {
@@ -366,7 +363,7 @@ namespace platf {
    */
   void open_url(const std::string &url) {
     // set working dir to user home directory
-    auto working_dir = boost::filesystem::path(std::getenv("HOME"));
+    auto working_dir = boost::filesystem::path(lizardbyte::common::get_env("HOME"));
     std::string cmd = R"(xdg-open ")" + url + R"(")";
 
     boost::process::v1::environment _env = boost::this_process::environment();
@@ -1244,13 +1241,13 @@ namespace platf {
 
     window_system = window_system_e::NONE;
 #ifdef SUNSHINE_BUILD_WAYLAND
-    if (std::getenv("WAYLAND_DISPLAY")) {
+    if (std::string v; lizardbyte::common::get_env("WAYLAND_DISPLAY", v)) {
       window_system = window_system_e::WAYLAND;
     }
 #endif
 #if defined(SUNSHINE_BUILD_X11) || defined(SUNSHINE_BUILD_CUDA)
-    if (std::getenv("DISPLAY") && window_system != window_system_e::WAYLAND) {
-      if (std::getenv("WAYLAND_DISPLAY")) {
+    if (std::string v; lizardbyte::common::get_env("DISPLAY", v) && window_system != window_system_e::WAYLAND) {
+      if (lizardbyte::common::get_env("WAYLAND_DISPLAY", v)) {
         BOOST_LOG(warning) << "Wayland detected, yet sunshine will use X11 for screencasting, screencasting will only work on XWayland applications"sv;
       }
 
