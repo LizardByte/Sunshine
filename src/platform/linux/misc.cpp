@@ -43,6 +43,7 @@
 #include <boost/asio/ip/address.hpp>
 #include <boost/asio/ip/host_name.hpp>
 #include <boost/process/v1.hpp>
+#include <lizardbyte/common/env.h>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -506,41 +507,6 @@ namespace platf {
     lifetime::exit_sunshine(0, true);
   }
 
-  /**
-   * @brief Read an environment variable as an optional string.
-   *
-   * @param name Human-readable name to assign.
-   * @return Environment variable value, or an empty string when unset.
-   */
-  std::string get_env(const std::string &name) {
-    if (const auto value = getenv(name.c_str()); value != nullptr) {
-      return value;
-    }
-    return "";
-  }
-
-  int set_env(const std::string &name, const std::string &value) {
-    return setenv(name.c_str(), value.c_str(), 1);
-  }
-
-  /**
-   * @brief Append a value to a separator-delimited environment variable.
-   *
-   * @param name Human-readable name to assign.
-   * @param value Entry to add when it is not already present.
-   * @param separator Character used to join or split the value.
-   * @return Result from updating the environment variable.
-   */
-  int append_env(const std::string &name, const std::string &value, const std::string &separator) {
-    if (const std::string old_value = get_env(name); !old_value.contains(value)) {
-      return set_env(name, old_value.empty() ? value : old_value + separator + value);
-    }
-    return 0;
-  }
-
-  int unset_env(const std::string &name) {
-    return unsetenv(name.c_str());
-  }
 
   bool request_process_group_exit(std::uintptr_t native_handle) {
     if (kill(-((pid_t) native_handle), SIGTERM) == 0 || errno == ESRCH) {
@@ -1267,12 +1233,12 @@ namespace platf {
   std::unique_ptr<deinit_t> init() {
     // enable low latency mode for AMD
     // https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/30039
-    set_env("AMD_DEBUG", "lowlatencyenc");
+    lizardbyte::common::set_env("AMD_DEBUG", "lowlatencyenc");
 
     // enable Vulkan video extensions for AMD RADV
-    set_env("RADV_PERFTEST", "video_encode");
+    lizardbyte::common::set_env("RADV_PERFTEST", "video_encode");
     // Above is deprecated on Mesa 26.1+ and replaced by (keep both to ensure best compatibility):
-    append_env("RADV_EXPERIMENTAL", "video_encode", ",");
+    lizardbyte::common::append_env("RADV_EXPERIMENTAL", "video_encode", ",");
 
     // These are allowed to fail.
     gbm::init();
