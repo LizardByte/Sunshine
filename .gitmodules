@@ -13,10 +13,6 @@
 [submodule "third-party/glad"]
 	path = third-party/glad
 	url = https://github.com/Dav1dde/glad.git
-[submodule "third-party/googletest"]
-	path = third-party/googletest
-	url = https://github.com/google/googletest.git
-	branch = main
 [submodule "third-party/inputtino"]
 	path = third-party/inputtino
 	url = https://github.com/games-on-whales/inputtino.git

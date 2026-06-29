@@ -23,7 +23,7 @@
 
 namespace fs = std::filesystem;
 
-class LocaleConsistencyTest: public ::testing::Test {
+class LocaleConsistencyTest: public BaseTest {
 protected:
   // Extract locale options from config.cpp
   static std::set<std::string, std::less<>> extractConfigCppLocales() {

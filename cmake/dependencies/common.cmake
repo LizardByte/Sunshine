@@ -17,7 +17,7 @@ add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/enet")
 add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/Simple-Web-Server")
 
 # lizardbyte common helpers
-set(LIZARDBYTE_COMMON_BUILD_TEST_SUPPORT OFF CACHE BOOL "Build lizardbyte-common GoogleTest support helpers" FORCE)
+set(LIZARDBYTE_COMMON_BUILD_TEST_SUPPORT ${BUILD_TESTS} CACHE BOOL "Build lizardbyte-common GoogleTest support helpers" FORCE)
 add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/lizardbyte-common")
 
 # libdisplaydevice

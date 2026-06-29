@@ -76,7 +76,7 @@ X4wnh1bwdiidqpcgyuKossLOPxbS786WmsesaAWPnpoY6M8aija+ALwNNuWWmyMg
 9SVDV76xJzM36Uq7Kg3QJYTlY04WmPIdJHkCtXWf9g==
 -----END CERTIFICATE-----)";
 
-struct PairingTest: testing::TestWithParam<std::tuple<pairing_input, pairing_output>> {};
+struct PairingTest: BaseTest, testing::WithParamInterface<std::tuple<pairing_input, pairing_output>> {};
 
 TEST_P(PairingTest, Run) {
   auto [input, expected] = GetParam();

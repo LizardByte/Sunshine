@@ -20,7 +20,7 @@
 // local includes
 #include "src/file_handler.h"
 
-class ConfigConsistencyTest: public ::testing::Test {
+class ConfigConsistencyTest: public BaseTest {
 protected:
   void SetUp() override {
     // Define the expected mapping between documentation sections and UI tabs

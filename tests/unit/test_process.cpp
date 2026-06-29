@@ -14,7 +14,7 @@
 
 namespace fs = std::filesystem;
 
-class ProcessPNGTest: public ::testing::Test {
+class ProcessPNGTest: public BaseTest {
 protected:
   void SetUp() override {
     // Create test directory

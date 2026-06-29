@@ -37,7 +37,7 @@ struct ExternalCommandTestData {
       xfail_reason(std::move(xfail_rsn)) {}
 };
 
-class ExternalCommandTest: public ::testing::TestWithParam<ExternalCommandTestData> {
+class ExternalCommandTest: public BaseTest, public ::testing::WithParamInterface<ExternalCommandTestData> {
 protected:
   void SetUp() override {
     if constexpr (IS_WINDOWS) {

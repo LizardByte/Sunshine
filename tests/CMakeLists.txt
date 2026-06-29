@@ -15,10 +15,12 @@ include_directories("${CMAKE_SOURCE_DIR}")
 enable_testing()
 
 # Add GoogleTest directory to the project
-set(GTEST_SOURCE_DIR "${CMAKE_SOURCE_DIR}/third-party/googletest")
+set(GTEST_SOURCE_DIR "${CMAKE_SOURCE_DIR}/third-party/lizardbyte-common/third-party/googletest")
 set(INSTALL_GTEST OFF)
 set(INSTALL_GMOCK OFF)
-add_subdirectory("${GTEST_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/googletest")
+if(NOT TARGET gtest)
+    add_subdirectory("${GTEST_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/googletest")
+endif()
 include_directories("${GTEST_SOURCE_DIR}/googletest/include" "${GTEST_SOURCE_DIR}")
 
 # coverage
@@ -167,7 +169,7 @@ add_dependencies(${PROJECT_NAME} sync_locale_files)
 # Build the list of libraries to link
 set(TEST_LINK_LIBRARIES
     ${SUNSHINE_EXTERNAL_LIBRARIES}
-    gtest
+    lizardbyte::test_support
     ${PLATFORM_LIBRARIES}
 )
 

@@ -89,7 +89,7 @@ X4wnh1bwdiidqpcgyuKossLOPxbS786WmsesaAWPnpoY6M8aija+ALwNNuWWmyMg
  *
  * This fixture creates a real server to test the actual confighttp functions.
  */
-class ConfigHttpTest: public ::testing::Test {  // NOSONAR(cpp:S3656) - protected members are intentional for test fixture subclassing
+class ConfigHttpTest: public BaseTest {  // NOSONAR(cpp:S3656) - protected members are intentional for test fixture subclassing
 protected:
   std::unique_ptr<SimpleWeb::Server<SimpleWeb::HTTPS>> server;
   std::unique_ptr<SimpleWeb::Client<SimpleWeb::HTTPS>> client;
