@@ -43,8 +43,8 @@
 #include <boost/asio/ip/address.hpp>
 #include <boost/asio/ip/host_name.hpp>
 #include <boost/process/v1.hpp>
-#include <lizardbyte/common/env.h>
 #include <fcntl.h>
+#include <lizardbyte/common/env.h>
 #include <unistd.h>
 
 #ifdef SUNSHINE_BUILD_DRM
@@ -506,7 +506,6 @@ namespace platf {
     atexit(restart_on_exit);
     lifetime::exit_sunshine(0, true);
   }
-
 
   bool request_process_group_exit(std::uintptr_t native_handle) {
     if (kill(-((pid_t) native_handle), SIGTERM) == 0 || errno == ESRCH) {

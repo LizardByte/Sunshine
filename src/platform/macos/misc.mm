@@ -296,7 +296,6 @@ namespace platf {
     lifetime::exit_sunshine(0, true);
   }
 
-
   bool request_process_group_exit(std::uintptr_t native_handle) {
     if (killpg((pid_t) native_handle, SIGTERM) == 0 || errno == ESRCH) {
       BOOST_LOG(debug) << "Successfully sent SIGTERM to process group: "sv << native_handle;

@@ -953,7 +953,6 @@ namespace platf {
 
   void restart();
 
-
   /**
    * @brief Platform buffer pointer and size for batched socket sends.
    */

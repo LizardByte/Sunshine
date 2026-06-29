@@ -1324,7 +1324,6 @@ namespace platf {
     lifetime::exit_sunshine(0, true);
   }
 
-
   /**
    * @brief Stores state while enumerating top-level Windows windows.
    */
