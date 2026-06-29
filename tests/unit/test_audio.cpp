@@ -10,6 +10,7 @@ using namespace audio;
 
 struct AudioTest: PlatformTestSuite, testing::WithParamInterface<std::tuple<std::basic_string_view<char>, config_t>> {
   void SetUp() override {
+    BaseTest::SetUp();
     m_config = std::get<1>(GetParam());
     m_mail = std::make_shared<safe::mail_raw_t>();
   }

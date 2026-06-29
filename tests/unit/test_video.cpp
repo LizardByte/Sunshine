@@ -8,6 +8,7 @@
 
 struct EncoderTest: PlatformTestSuite, testing::WithParamInterface<video::encoder_t *> {
   void SetUp() override {
+    BaseTest::SetUp();
     auto &encoder = *GetParam();
     if (!video::validate_encoder(encoder, false)) {
       // Encoder failed validation,

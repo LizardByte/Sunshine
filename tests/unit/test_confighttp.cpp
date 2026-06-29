@@ -107,6 +107,7 @@ protected:
   std::filesystem::path web_dir_test_file;
 
   void SetUp() override {
+    BaseTest::SetUp();
     // Save current config
     saved_username = config::sunshine.username;
     saved_password = config::sunshine.password;
@@ -354,6 +355,7 @@ protected:
     if (std::filesystem::exists(test_web_dir)) {
       std::filesystem::remove_all(test_web_dir);
     }
+    BaseTest::TearDown();
   }
 
   static std::string create_auth_header(const std::string &username, const std::string &password) {

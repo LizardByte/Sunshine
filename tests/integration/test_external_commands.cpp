@@ -40,6 +40,7 @@ struct ExternalCommandTestData {
 class ExternalCommandTest: public BaseTest, public ::testing::WithParamInterface<ExternalCommandTestData> {
 protected:
   void SetUp() override {
+    BaseTest::SetUp();
     if constexpr (IS_WINDOWS) {
       current_platform = "windows";
     } else if constexpr (IS_MACOS) {

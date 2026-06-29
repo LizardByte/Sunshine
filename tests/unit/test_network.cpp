@@ -35,6 +35,7 @@ protected:
   std::string original_bind_address;
 
   void SetUp() override {
+    BaseTest::SetUp();
     // Save the original bind_address config
     original_bind_address = config::sunshine.bind_address;
   }
@@ -42,6 +43,7 @@ protected:
   void TearDown() override {
     // Restore the original bind_address config
     config::sunshine.bind_address = original_bind_address;
+    BaseTest::TearDown();
   }
 };
 

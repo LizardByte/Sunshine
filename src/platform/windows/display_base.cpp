@@ -520,8 +520,7 @@ namespace platf::dxgi {
             height = desc.DesktopCoordinates.bottom - offset_y;
 
             display_rotation = desc.Rotation;
-            if (display_rotation == DXGI_MODE_ROTATION_ROTATE90 ||
-                display_rotation == DXGI_MODE_ROTATION_ROTATE270) {
+            if (display_rotation == DXGI_MODE_ROTATION_ROTATE90 || display_rotation == DXGI_MODE_ROTATION_ROTATE270) {
               width_before_rotation = height;
               height_before_rotation = width;
             } else {
@@ -621,8 +620,7 @@ namespace platf::dxgi {
       HANDLE token;
       LUID val;
 
-      if (OpenProcessToken(GetCurrentProcess(), flags, &token) &&
-          !!LookupPrivilegeValue(nullptr, SE_INC_BASE_PRIORITY_NAME, &val)) {
+      if (OpenProcessToken(GetCurrentProcess(), flags, &token) && !!LookupPrivilegeValue(nullptr, SE_INC_BASE_PRIORITY_NAME, &val)) {
         tp.PrivilegeCount = 1;
         tp.Privileges[0].Luid = val;
         tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
