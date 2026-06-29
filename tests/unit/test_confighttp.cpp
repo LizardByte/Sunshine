@@ -1253,7 +1253,6 @@ TEST_F(BrowseDirectoryTest, IsBrowsableExecutable_LinuxGroupExecBit_ReturnsTrue)
 TEST_F(BrowseDirectoryTest, BuildBrowseEntries_TypeAny_ReturnsAllEntries) {
   const auto entries = confighttp::build_browse_entries(browse_test_dir, "any");
   ASSERT_TRUE(entries.is_array());
-  // subdir_a, subdir_b, file_alpha.txt, file_beta.txt, test_exec[.exe] = 5
   ASSERT_EQ(entries.size(), 5u);
 }
 
