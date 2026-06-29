@@ -648,6 +648,9 @@ namespace video {
    * @brief Requested framerate as an exact rational.
    * Uses the exact fractional rate when the client provided an X100 value,
    * otherwise the integer framerate over 1.
+   *
+   * @param config Stream configuration carrying the requested framerate.
+   * @return Requested frame rate as a rational.
    */
   inline AVRational framerate_to_rational(const config_t &config) {
     if (config.framerateX100 > 0) {
@@ -659,6 +662,9 @@ namespace video {
   /**
    * @brief Capture frame interval for the requested framerate.
    * Uses the exact fractional rate when the client provided an X100 value.
+   *
+   * @param config Stream configuration carrying the requested framerate.
+   * @return Duration of a single frame interval in nanoseconds.
    */
   inline std::chrono::nanoseconds capture_frame_interval(const config_t &config) {
     const AVRational fps = framerate_to_rational(config);
