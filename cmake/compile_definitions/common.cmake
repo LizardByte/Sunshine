@@ -150,6 +150,7 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
         ${CMAKE_THREAD_LIBS_INIT}
         enet
         libdisplaydevice::display_device
+        lizardbyte::common
         nlohmann_json::nlohmann_json
         ${Opus_LIBRARY}
         ${FFMPEG_LIBRARIES}

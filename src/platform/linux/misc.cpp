@@ -44,6 +44,7 @@
 #include <boost/asio/ip/host_name.hpp>
 #include <boost/process/v1.hpp>
 #include <fcntl.h>
+#include <lizardbyte/common/env.h>
 #include <unistd.h>
 
 #ifdef SUNSHINE_BUILD_DRM
@@ -179,38 +180,35 @@ namespace platf {
     std::call_once(migration_flag, []() {
       bool found = false;
       bool migrate_config = true;
-      const char *dir;
-      const char *homedir;
-      const char *migrate_envvar;
+      fs::path homedir {lizardbyte::common::get_env("HOME")};
 
       // Get the home directory
-      if ((homedir = getenv("HOME")) == nullptr || strlen(homedir) == 0) {
+      if (homedir.empty()) {
         // If HOME is empty or not set, use the current user's home directory
         homedir = getpwuid(geteuid())->pw_dir;
       }
 
       // May be set if running under a systemd service with the ConfigurationDirectory= option set.
-      if ((dir = getenv("CONFIGURATION_DIRECTORY")) != nullptr && strlen(dir) > 0) {
+      if (std::string dir; lizardbyte::common::get_env("CONFIGURATION_DIRECTORY", dir) && !dir.empty()) {
         found = true;
         config_path = fs::path(dir) / "sunshine"sv;
       }
       // Otherwise, follow the XDG base directory specification:
       // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-      if (!found && (dir = getenv("XDG_CONFIG_HOME")) != nullptr && strlen(dir) > 0) {
+      if (std::string dir; !found && lizardbyte::common::get_env("XDG_CONFIG_HOME", dir) && !dir.empty()) {
         found = true;
         config_path = fs::path(dir) / "sunshine"sv;
       }
       // As a last resort, use the home directory
       if (!found) {
         migrate_config = false;
-        config_path = fs::path(homedir) / ".config/sunshine"sv;
+        config_path = homedir / ".config" / "sunshine";
       }
 
       // migrate from the old config location if necessary
-      migrate_envvar = getenv("SUNSHINE_MIGRATE_CONFIG");
-      if (migrate_config && found && migrate_envvar && strcmp(migrate_envvar, "1") == 0) {
+      if (std::string migrate_envvar; migrate_config && found && lizardbyte::common::get_env("SUNSHINE_MIGRATE_CONFIG", migrate_envvar) && migrate_envvar == "1") {
         std::error_code ec;
-        fs::path old_config_path = fs::path(homedir) / ".config/sunshine"sv;
+        fs::path old_config_path = homedir / ".config" / "sunshine";
         if (old_config_path != config_path && fs::exists(old_config_path, ec)) {
           if (!fs::exists(config_path, ec)) {
             std::cout << "Migrating config from "sv << old_config_path << " to "sv << config_path << std::endl;
@@ -365,7 +363,7 @@ namespace platf {
    */
   void open_url(const std::string &url) {
     // set working dir to user home directory
-    auto working_dir = boost::filesystem::path(std::getenv("HOME"));
+    auto working_dir = boost::filesystem::path(lizardbyte::common::get_env("HOME"));
     std::string cmd = R"(xdg-open ")" + url + R"(")";
 
     boost::process::v1::environment _env = boost::this_process::environment();
@@ -504,42 +502,6 @@ namespace platf {
     // Gracefully clean up and restart ourselves instead of exiting
     atexit(restart_on_exit);
     lifetime::exit_sunshine(0, true);
-  }
-
-  /**
-   * @brief Read an environment variable as an optional string.
-   *
-   * @param name Human-readable name to assign.
-   * @return Environment variable value, or an empty string when unset.
-   */
-  std::string get_env(const std::string &name) {
-    if (const auto value = getenv(name.c_str()); value != nullptr) {
-      return value;
-    }
-    return "";
-  }
-
-  int set_env(const std::string &name, const std::string &value) {
-    return setenv(name.c_str(), value.c_str(), 1);
-  }
-
-  /**
-   * @brief Append a value to a separator-delimited environment variable.
-   *
-   * @param name Human-readable name to assign.
-   * @param value Entry to add when it is not already present.
-   * @param separator Character used to join or split the value.
-   * @return Result from updating the environment variable.
-   */
-  int append_env(const std::string &name, const std::string &value, const std::string &separator) {
-    if (const std::string old_value = get_env(name); !old_value.contains(value)) {
-      return set_env(name, old_value.empty() ? value : old_value + separator + value);
-    }
-    return 0;
-  }
-
-  int unset_env(const std::string &name) {
-    return unsetenv(name.c_str());
   }
 
   bool request_process_group_exit(std::uintptr_t native_handle) {
@@ -1267,25 +1229,25 @@ namespace platf {
   std::unique_ptr<deinit_t> init() {
     // enable low latency mode for AMD
     // https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/30039
-    set_env("AMD_DEBUG", "lowlatencyenc");
+    lizardbyte::common::set_env("AMD_DEBUG", "lowlatencyenc");
 
     // enable Vulkan video extensions for AMD RADV
-    set_env("RADV_PERFTEST", "video_encode");
+    lizardbyte::common::set_env("RADV_PERFTEST", "video_encode");
     // Above is deprecated on Mesa 26.1+ and replaced by (keep both to ensure best compatibility):
-    append_env("RADV_EXPERIMENTAL", "video_encode", ",");
+    lizardbyte::common::append_env("RADV_EXPERIMENTAL", "video_encode", ",");
 
     // These are allowed to fail.
     gbm::init();
 
     window_system = window_system_e::NONE;
 #ifdef SUNSHINE_BUILD_WAYLAND
-    if (std::getenv("WAYLAND_DISPLAY")) {
+    if (std::string v; lizardbyte::common::get_env("WAYLAND_DISPLAY", v)) {
       window_system = window_system_e::WAYLAND;
     }
 #endif
 #if defined(SUNSHINE_BUILD_X11) || defined(SUNSHINE_BUILD_CUDA)
-    if (std::getenv("DISPLAY") && window_system != window_system_e::WAYLAND) {
-      if (std::getenv("WAYLAND_DISPLAY")) {
+    if (std::string v; lizardbyte::common::get_env("DISPLAY", v) && window_system != window_system_e::WAYLAND) {
+      if (lizardbyte::common::get_env("WAYLAND_DISPLAY", v)) {
         BOOST_LOG(warning) << "Wayland detected, yet sunshine will use X11 for screencasting, screencasting will only work on XWayland applications"sv;
       }
 

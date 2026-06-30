@@ -22,7 +22,7 @@ namespace {
   constexpr auto log_file = "test_sunshine.log";
 }  // namespace
 
-struct LogLevelsTest: testing::TestWithParam<decltype(log_levels)::value_type> {};
+struct LogLevelsTest: BaseTest, testing::WithParamInterface<decltype(log_levels)::value_type> {};
 
 INSTANTIATE_TEST_SUITE_P(
   Logging,

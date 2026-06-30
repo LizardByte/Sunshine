@@ -8,6 +8,7 @@
 
 struct EncoderTest: PlatformTestSuite, testing::WithParamInterface<video::encoder_t *> {
   void SetUp() override {
+    BaseTest::SetUp();
     auto &encoder = *GetParam();
     if (!video::validate_encoder(encoder, false)) {
       // Encoder failed validation,
@@ -49,7 +50,7 @@ TEST_P(EncoderTest, ValidateEncoder) {
   // todo:: test something besides fixture setup
 }
 
-struct FramerateX100Test: testing::TestWithParam<std::tuple<std::int32_t, AVRational>> {};
+struct FramerateX100Test: BaseTest, testing::WithParamInterface<std::tuple<std::int32_t, AVRational>> {};
 
 TEST_P(FramerateX100Test, Run) {
   const auto &[x100, expected] = GetParam();

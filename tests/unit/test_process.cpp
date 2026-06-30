@@ -14,9 +14,10 @@
 
 namespace fs = std::filesystem;
 
-class ProcessPNGTest: public ::testing::Test {
+class ProcessPNGTest: public BaseTest {
 protected:
   void SetUp() override {
+    BaseTest::SetUp();
     // Create test directory
     test_dir = fs::temp_directory_path() / "sunshine_process_png_test";  // NOSONAR(cpp:S5443) - safe for tests
     fs::create_directories(test_dir);
@@ -27,6 +28,7 @@ protected:
     if (fs::exists(test_dir)) {
       fs::remove_all(test_dir);
     }
+    BaseTest::TearDown();
   }
 
   // Helper function to create a file with specific content

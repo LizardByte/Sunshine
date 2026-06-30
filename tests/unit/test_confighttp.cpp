@@ -89,7 +89,7 @@ X4wnh1bwdiidqpcgyuKossLOPxbS786WmsesaAWPnpoY6M8aija+ALwNNuWWmyMg
  *
  * This fixture creates a real server to test the actual confighttp functions.
  */
-class ConfigHttpTest: public ::testing::Test {  // NOSONAR(cpp:S3656) - protected members are intentional for test fixture subclassing
+class ConfigHttpTest: public BaseTest {  // NOSONAR(cpp:S3656) - protected members are intentional for test fixture subclassing
 protected:
   std::unique_ptr<SimpleWeb::Server<SimpleWeb::HTTPS>> server;
   std::unique_ptr<SimpleWeb::Client<SimpleWeb::HTTPS>> client;
@@ -107,6 +107,7 @@ protected:
   std::filesystem::path web_dir_test_file;
 
   void SetUp() override {
+    BaseTest::SetUp();
     // Save current config
     saved_username = config::sunshine.username;
     saved_password = config::sunshine.password;
@@ -354,6 +355,7 @@ protected:
     if (std::filesystem::exists(test_web_dir)) {
       std::filesystem::remove_all(test_web_dir);
     }
+    BaseTest::TearDown();
   }
 
   static std::string create_auth_header(const std::string &username, const std::string &password) {
@@ -1251,7 +1253,6 @@ TEST_F(BrowseDirectoryTest, IsBrowsableExecutable_LinuxGroupExecBit_ReturnsTrue)
 TEST_F(BrowseDirectoryTest, BuildBrowseEntries_TypeAny_ReturnsAllEntries) {
   const auto entries = confighttp::build_browse_entries(browse_test_dir, "any");
   ASSERT_TRUE(entries.is_array());
-  // subdir_a, subdir_b, file_alpha.txt, file_beta.txt, test_exec[.exe] = 5
   ASSERT_EQ(entries.size(), 5u);
 }
 

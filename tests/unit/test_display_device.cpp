@@ -43,7 +43,7 @@ namespace {
   const std::string max_uint_string {std::to_string(std::numeric_limits<unsigned int>::max())};
 
   template<class T>
-  struct DisplayDeviceConfigTest: testing::TestWithParam<T> {};
+  struct DisplayDeviceConfigTest: BaseTest, testing::WithParamInterface<T> {};
 }  // namespace
 
 using ParseDeviceId = DisplayDeviceConfigTest<std::pair<std::string, std::string>>;

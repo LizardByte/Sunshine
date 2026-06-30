@@ -11,7 +11,7 @@
 // local imports
 #include <src/httpcommon.h>
 
-struct UrlEscapeTest: testing::TestWithParam<std::tuple<std::string, std::string>> {};
+struct UrlEscapeTest: BaseTest, testing::WithParamInterface<std::tuple<std::string, std::string>> {};
 
 TEST_P(UrlEscapeTest, Run) {
   const auto &[input, expected] = GetParam();
@@ -28,7 +28,7 @@ INSTANTIATE_TEST_SUITE_P(
   )
 );
 
-struct UrlGetHostTest: testing::TestWithParam<std::tuple<std::string, std::string>> {};
+struct UrlGetHostTest: BaseTest, testing::WithParamInterface<std::tuple<std::string, std::string>> {};
 
 TEST_P(UrlGetHostTest, Run) {
   const auto &[input, expected] = GetParam();
@@ -45,7 +45,7 @@ INSTANTIATE_TEST_SUITE_P(
   )
 );
 
-struct DownloadFileTest: testing::TestWithParam<std::tuple<std::string, std::string>> {};
+struct DownloadFileTest: BaseTest, testing::WithParamInterface<std::tuple<std::string, std::string>> {};
 
 TEST_P(DownloadFileTest, Run) {
   const auto &[url, filename] = GetParam();
