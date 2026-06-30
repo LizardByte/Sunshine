@@ -237,6 +237,7 @@ cmake_args=(
   "-DSUNSHINE_PUBLISHER_NAME=LizardByte"
   "-DSUNSHINE_PUBLISHER_WEBSITE=https://app.lizardbyte.dev"
   "-DSUNSHINE_PUBLISHER_ISSUE_URL=https://app.lizardbyte.dev/support"
+  "-DCMAKE_TEST_LAUNCHER=xvfb-run"
 )
 
 %if 0%{?fedora}
@@ -387,12 +388,7 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/*.desktop
 
 # run tests
 cd %{_builddir}/Sunshine/
-# TODO: Switch to using %%ctest
-%if 0%{?suse_version}
-xvfb-run %__builddir/tests/test_sunshine
-%else
-xvfb-run %_vpath_builddir/tests/test_sunshine
-%endif
+%ctest
 
 %install
 # Load NVM for Fedora 44+ so npm is available during make install
