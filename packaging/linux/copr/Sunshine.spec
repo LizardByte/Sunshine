@@ -386,8 +386,13 @@ appstream-util validate %{buildroot}%{_metainfodir}/*.metainfo.xml
 desktop-file-validate %{buildroot}%{_datadir}/applications/*.desktop
 
 # run tests
-cd %{_builddir}/Sunshine/%_vpath_builddir
-xvfb-run ./tests/test_sunshine
+cd %{_builddir}/Sunshine/
+# TODO: Switch to using %%ctest
+%if 0%{?suse_version}
+xvfb-run %__builddir/tests/test_sunshine
+%else
+xvfb-run %_vpath_builddir/tests/test_sunshine
+%endif
 
 %install
 # Load NVM for Fedora 44+ so npm is available during make install
