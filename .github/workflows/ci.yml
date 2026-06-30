@@ -129,6 +129,16 @@ jobs:
       release_commit: ${{ needs.release-setup.outputs.release_commit }}
       release_version: ${{ needs.release-setup.outputs.release_version }}
 
+  build-alpine:
+    name: Alpine
+    needs: release-setup
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci-alpine.yml
+    with:
+      release_commit: ${{ needs.release-setup.outputs.release_commit }}
+      release_version: ${{ needs.release-setup.outputs.release_version }}
+
   build-linux-copr:
     name: Linux Copr
     if: github.event_name != 'push'  # releases are handled directly in ci-copr.yml
@@ -189,6 +199,7 @@ jobs:
       - build-freebsd
       - build-linux
       - build-archlinux
+      - build-alpine
       - build-linux-flatpak
       - build-macos
       - build-homebrew
@@ -210,6 +221,12 @@ jobs:
             coverage: true
             pr: true
           - name: Archlinux
+            coverage: true
+            pr: true
+          - name: Alpine-x86_64
+            coverage: true
+            pr: true
+          - name: Alpine-aarch64
             coverage: true
             pr: true
           - name: macOS-arm64
@@ -294,6 +311,7 @@ jobs:
     needs:
       - release-setup
       - build-archlinux
+      - build-alpine
       - build-docker
       - build-freebsd
       - build-homebrew
