@@ -1954,13 +1954,9 @@ namespace video {
       ctx.reset(avcodec_alloc_context3(codec));
       ctx->width = config.width;
       ctx->height = config.height;
-      ctx->time_base = AVRational {1, config.framerate};
-      ctx->framerate = AVRational {config.framerate, 1};
-      if (config.framerateX100 > 0) {
-        AVRational fps = video::framerateX100_to_rational(config.framerateX100);
-        ctx->framerate = fps;
-        ctx->time_base = AVRational {fps.den, fps.num};
-      }
+      const AVRational fps = video::framerate_to_rational(config);
+      ctx->framerate = fps;
+      ctx->time_base = AVRational {fps.den, fps.num};
 
       switch (config.videoFormat) {
         case 0:
