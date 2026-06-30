@@ -136,34 +136,44 @@ namespace pipewire {
 
     ~pipewire_t() {
       BOOST_LOG(debug) << "[pipewire] Destroying pipewire_t"sv;
-      try {
-        cleanup_stream();
-      } catch (const std::exception &e) {
-        BOOST_LOG(error) << "[pipewire] Standard exception caught in ~pipewire_t cleanup_stream: "sv << e.what();
-      } catch (...) {
-        BOOST_LOG(error) << "[pipewire] Unknown exception caught in ~pipewire_t cleanup_stream"sv;
-      }
-
       pw_thread_loop_lock(loop);
 
+      // Lock the frame mutex to stop fill_img
+      BOOST_LOG(debug) << "[pipewire] Stop fill_img"sv;
+      {
+        std::scoped_lock lock(stream_data.frame_mutex);
+        stream_data.frame_ready = false;
+        stream_data.current_buffer = nullptr;
+      }
+
+      // Release pipewire stream
+      if (stream_data.stream) {
+        BOOST_LOG(debug) << "[pipewire] Disconnect stream"sv;
+        pw_stream_disconnect(stream_data.stream);
+        BOOST_LOG(debug) << "[pipewire] Destroy stream"sv;
+        pw_stream_destroy(stream_data.stream);
+        stream_data.stream = nullptr;
+      }
+      // Release pipewire core
       if (core) {
         BOOST_LOG(debug) << "[pipewire] Disconnect PW core"sv;
         pw_core_disconnect(core);
         core = nullptr;
       }
+      // Release pipewire context
       if (context) {
         BOOST_LOG(debug) << "[pipewire] Destroy PW context"sv;
         pw_context_destroy(context);
         context = nullptr;
       }
-
-      pw_thread_loop_unlock(loop);
-
+      // Release pipewire file descriptor
       if (fd >= 0) {
         BOOST_LOG(debug) << "[pipewire] Close pipewire_fd"sv;
         close(fd);
       }
+      // Release pipewire thread loop
       BOOST_LOG(debug) << "[pipewire] Stop PW thread loop"sv;
+      pw_thread_loop_unlock(loop);
       pw_thread_loop_stop(loop);
       BOOST_LOG(debug) << "[pipewire] Destroy PW thread loop"sv;
       pw_thread_loop_destroy(loop);
@@ -243,34 +253,6 @@ namespace pipewire {
 
       pw_thread_loop_unlock(loop);
       return 0;
-    }
-
-    /**
-     * @brief Release the active PipeWire stream and listener.
-     */
-    void cleanup_stream() {
-      BOOST_LOG(debug) << "[pipewire] Cleaning up stream"sv;
-      if (loop && stream_data.stream) {
-        pw_thread_loop_lock(loop);
-
-        // 1. Lock the frame mutex to stop fill_img
-        BOOST_LOG(debug) << "[pipewire] Stop fill_img"sv;
-        {
-          std::scoped_lock lock(stream_data.frame_mutex);
-          stream_data.frame_ready = false;
-          stream_data.current_buffer = nullptr;
-        }
-
-        if (stream_data.stream) {
-          BOOST_LOG(debug) << "[pipewire] Disconnect stream"sv;
-          pw_stream_disconnect(stream_data.stream);
-          BOOST_LOG(debug) << "[pipewire] Destroy stream"sv;
-          pw_stream_destroy(stream_data.stream);
-          stream_data.stream = nullptr;
-        }
-
-        pw_thread_loop_unlock(loop);
-      }
     }
 
     /**
