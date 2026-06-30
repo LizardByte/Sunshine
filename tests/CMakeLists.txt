@@ -124,6 +124,9 @@ list(REMOVE_ITEM SUNSHINE_SOURCES ${CMAKE_SOURCE_DIR}/src/main.cpp)
 add_executable(${PROJECT_NAME}
         ${TEST_SOURCES}
         ${SUNSHINE_SOURCES})
+# TODO: Use proper gtest integration from GoogleTest module
+add_test(NAME ${PROJECT_NAME}
+        COMMAND ${PROJECT_NAME})
 
 # Copy files needed for config consistency tests to build directory
 # This ensures both CLI and CLion can access the same files relative to the test executable
