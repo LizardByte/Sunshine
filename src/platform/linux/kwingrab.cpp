@@ -248,7 +248,7 @@ namespace kwin {
    * @brief KWin screencast output name and geometry.
    */
   struct output_parameter_t {
-    std::string name = "";  ///< KWin output name.
+    std::string name;  ///< KWin output name.
     int width = 0;  ///< Output width in pixels.
     int height = 0;  ///< Output height in pixels.
     int pos_x = 0;  ///< Output X position in the compositor layout.
@@ -272,6 +272,7 @@ namespace kwin {
     screencast_t &operator=(screencast_t &&) = delete;  // Do not allow to copying
 
     ~screencast_t() {
+      // Release KDE screencast wayland extensions and reset pointers
       if (kde_screencast_stream_v1_) {
         zkde_screencast_stream_unstable_v1_close(kde_screencast_stream_v1_);
         kde_screencast_stream_v1_ = nullptr;
@@ -280,23 +281,30 @@ namespace kwin {
         zkde_screencast_unstable_v1_destroy(kde_screencast_v1_);
         kde_screencast_v1_ = nullptr;
       }
-
       if (kde_output_order) {
         kde_output_order_v1_destroy(kde_output_order);
         kde_output_order = nullptr;
       }
 
+      // Clear output order list
+      output_order.clear();
+      // Clear current output parameters
+      out_params.reset();
+      out_params = nullptr;
+
       // wl_output is owned by the registry, released on disconnect
-      for (const auto &out : outputs | std::views::keys) {
-        wl_output_destroy(out);
+      // also cleanup associated output parameters and clear output list when done
+      for (auto &[output, params] : outputs) {
+        wl_output_destroy(output);
+        params.reset();
       }
       outputs.clear();
 
+      // Release wayland registry, display and reset pointers
       if (wl_registry) {
         wl_registry_destroy(wl_registry);
         wl_registry = nullptr;
       }
-
       if (wl_display) {
         wl_display_disconnect(wl_display);
         wl_display = nullptr;
