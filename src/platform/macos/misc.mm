@@ -19,6 +19,7 @@
 // platform includes
 #include <arpa/inet.h>
 #include <dlfcn.h>
+#include <ApplicationServices/ApplicationServices.h>
 #include <Foundation/Foundation.h>
 #include <mach-o/dyld.h>
 #include <net/if_dl.h>
@@ -258,7 +259,25 @@ namespace platf {
   }
 
   void enable_mouse_keys() {
-    // Unimplemented
+    if (CGAssociateMouseAndMouseCursorPosition(true) != kCGErrorSuccess) {
+      BOOST_LOG(debug) << "Unable to associate mouse movement with cursor position"sv;
+    }
+
+    uint32_t display_count = 0;
+    if (CGGetOnlineDisplayList(0, nullptr, &display_count) != kCGErrorSuccess || display_count == 0) {
+      CGDisplayShowCursor(kCGNullDirectDisplay);
+      return;
+    }
+
+    std::vector<CGDirectDisplayID> displays(display_count);
+    if (CGGetOnlineDisplayList(display_count, displays.data(), &display_count) != kCGErrorSuccess) {
+      CGDisplayShowCursor(kCGNullDirectDisplay);
+      return;
+    }
+
+    for (uint32_t i = 0; i < display_count; ++i) {
+      CGDisplayShowCursor(displays[i]);
+    }
   }
 
   void streaming_will_start() {
