@@ -616,15 +616,28 @@ namespace platf::dxgi {
           // Semi-planar 8-bit YUV 4:2:0
           create_vertex_shader_helper(convert_yuv420_planar_y_vs_hlsl, convert_Y_or_YUV_vs);
           create_pixel_shader_helper(convert_yuv420_planar_y_ps_hlsl, convert_Y_or_YUV_ps);
-          create_pixel_shader_helper(convert_yuv420_planar_y_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
+          if (display->is_source_gamma_encoded_fp16()) {
+            // ACM-SDR FP16: input is already sRGB-encoded; reuse non-linear shader to avoid double sRGB encoding (would cause highlight white-out)
+            create_pixel_shader_helper(convert_yuv420_planar_y_ps_hlsl, convert_Y_or_YUV_fp16_ps);
+          } else {
+            create_pixel_shader_helper(convert_yuv420_planar_y_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
+          }
           if (downscaling) {
             create_vertex_shader_helper(convert_yuv420_packed_uv_type0s_vs_hlsl, convert_UV_vs);
             create_pixel_shader_helper(convert_yuv420_packed_uv_type0s_ps_hlsl, convert_UV_ps);
-            create_pixel_shader_helper(convert_yuv420_packed_uv_type0s_ps_linear_hlsl, convert_UV_fp16_ps);
+            if (display->is_source_gamma_encoded_fp16()) {
+              create_pixel_shader_helper(convert_yuv420_packed_uv_type0s_ps_hlsl, convert_UV_fp16_ps);
+            } else {
+              create_pixel_shader_helper(convert_yuv420_packed_uv_type0s_ps_linear_hlsl, convert_UV_fp16_ps);
+            }
           } else {
             create_vertex_shader_helper(convert_yuv420_packed_uv_type0_vs_hlsl, convert_UV_vs);
             create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_hlsl, convert_UV_ps);
-            create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_linear_hlsl, convert_UV_fp16_ps);
+            if (display->is_source_gamma_encoded_fp16()) {
+              create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_hlsl, convert_UV_fp16_ps);
+            } else {
+              create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_linear_hlsl, convert_UV_fp16_ps);
+            }
           }
           break;
 
@@ -634,6 +647,9 @@ namespace platf::dxgi {
           create_pixel_shader_helper(convert_yuv420_planar_y_ps_hlsl, convert_Y_or_YUV_ps);
           if (display->is_hdr()) {
             create_pixel_shader_helper(convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl, convert_Y_or_YUV_fp16_ps);
+          } else if (display->is_source_gamma_encoded_fp16()) {
+            // ACM-SDR FP16: input is already sRGB-encoded; reuse non-linear shader to avoid double sRGB encoding
+            create_pixel_shader_helper(convert_yuv420_planar_y_ps_hlsl, convert_Y_or_YUV_fp16_ps);
           } else {
             create_pixel_shader_helper(convert_yuv420_planar_y_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
           }
@@ -642,6 +658,8 @@ namespace platf::dxgi {
             create_pixel_shader_helper(convert_yuv420_packed_uv_type0s_ps_hlsl, convert_UV_ps);
             if (display->is_hdr()) {
               create_pixel_shader_helper(convert_yuv420_packed_uv_type0s_ps_perceptual_quantizer_hlsl, convert_UV_fp16_ps);
+            } else if (display->is_source_gamma_encoded_fp16()) {
+              create_pixel_shader_helper(convert_yuv420_packed_uv_type0s_ps_hlsl, convert_UV_fp16_ps);
             } else {
               create_pixel_shader_helper(convert_yuv420_packed_uv_type0s_ps_linear_hlsl, convert_UV_fp16_ps);
             }
@@ -650,6 +668,8 @@ namespace platf::dxgi {
             create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_hlsl, convert_UV_ps);
             if (display->is_hdr()) {
               create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl, convert_UV_fp16_ps);
+            } else if (display->is_source_gamma_encoded_fp16()) {
+              create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_hlsl, convert_UV_fp16_ps);
             } else {
               create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_linear_hlsl, convert_UV_fp16_ps);
             }
@@ -662,6 +682,9 @@ namespace platf::dxgi {
           create_pixel_shader_helper(convert_yuv444_planar_ps_hlsl, convert_Y_or_YUV_ps);
           if (display->is_hdr()) {
             create_pixel_shader_helper(convert_yuv444_planar_ps_perceptual_quantizer_hlsl, convert_Y_or_YUV_fp16_ps);
+          } else if (display->is_source_gamma_encoded_fp16()) {
+            // ACM-SDR FP16: input is already sRGB-encoded; reuse non-linear shader to avoid double sRGB encoding
+            create_pixel_shader_helper(convert_yuv444_planar_ps_hlsl, convert_Y_or_YUV_fp16_ps);
           } else {
             create_pixel_shader_helper(convert_yuv444_planar_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
           }
@@ -671,7 +694,12 @@ namespace platf::dxgi {
           // Packed 8-bit YUV 4:4:4
           create_vertex_shader_helper(convert_yuv444_packed_vs_hlsl, convert_Y_or_YUV_vs);
           create_pixel_shader_helper(convert_yuv444_packed_ayuv_ps_hlsl, convert_Y_or_YUV_ps);
-          create_pixel_shader_helper(convert_yuv444_packed_ayuv_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
+          if (display->is_source_gamma_encoded_fp16()) {
+            // ACM-SDR FP16: input is already sRGB-encoded; reuse non-linear shader to avoid double sRGB encoding
+            create_pixel_shader_helper(convert_yuv444_packed_ayuv_ps_hlsl, convert_Y_or_YUV_fp16_ps);
+          } else {
+            create_pixel_shader_helper(convert_yuv444_packed_ayuv_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
+          }
           break;
 
         case DXGI_FORMAT_Y410:
@@ -680,6 +708,9 @@ namespace platf::dxgi {
           create_pixel_shader_helper(convert_yuv444_packed_y410_ps_hlsl, convert_Y_or_YUV_ps);
           if (display->is_hdr()) {
             create_pixel_shader_helper(convert_yuv444_packed_y410_ps_perceptual_quantizer_hlsl, convert_Y_or_YUV_fp16_ps);
+          } else if (display->is_source_gamma_encoded_fp16()) {
+            // ACM-SDR FP16: input is already sRGB-encoded; reuse non-linear shader to avoid double sRGB encoding
+            create_pixel_shader_helper(convert_yuv444_packed_y410_ps_hlsl, convert_Y_or_YUV_fp16_ps);
           } else {
             create_pixel_shader_helper(convert_yuv444_packed_y410_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
           }
