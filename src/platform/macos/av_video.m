@@ -7,44 +7,14 @@
 
 @implementation AVVideo
 
-// XXX: Currently, this function only returns the screen IDs as names,
-// which is not very helpful to the user. The API to retrieve names
-// was deprecated with 10.9+.
-// However, there is a solution with little external code that can be used:
-// https://stackoverflow.com/questions/20025868/cgdisplayioserviceport-is-deprecated-in-os-x-10-9-how-to-replace
-+ (NSArray<NSDictionary *> *)displayNames {
-  CGDirectDisplayID displays[kMaxDisplays];
-  uint32_t count;
-  if (CGGetActiveDisplayList(kMaxDisplays, displays, &count) != kCGErrorSuccess) {
-    return [NSArray array];
-  }
-
-  NSMutableArray *result = [NSMutableArray array];
-
-  for (uint32_t i = 0; i < count; i++) {
-    [result addObject:@{
-      @"id": [NSNumber numberWithUnsignedInt:displays[i]],
-      @"name": [NSString stringWithFormat:@"%d", displays[i]],
-      @"displayName": [self getDisplayName:displays[i]],
-    }];
-  }
-
-  return [NSArray arrayWithArray:result];
-}
-
-+ (NSString *)getDisplayName:(CGDirectDisplayID)displayID {
-  for (NSScreen *screen in [NSScreen screens]) {
-    if ([screen.deviceDescription[@"NSScreenNumber"] isEqualToNumber:[NSNumber numberWithUnsignedInt:displayID]]) {
-      return screen.localizedName;
-    }
-  }
-  return nil;
-}
-
 - (id)initWithDisplay:(CGDirectDisplayID)displayID frameRate:(int)frameRate {
   self = [super init];
 
   CGDisplayModeRef mode = CGDisplayCopyDisplayMode(displayID);
+  if (!mode) {
+    [self release];
+    return nil;
+  }
 
   self.displayID = displayID;
   self.pixelFormat = kCVPixelFormatType_32BGRA;
