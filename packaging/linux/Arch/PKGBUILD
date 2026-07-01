@@ -31,6 +31,9 @@ fi
 depends=(
   'avahi'
   'curl'
+  'gtk3'
+  'hicolor-icon-theme'
+  'libayatana-appindicator'
   'libcap'
   'libdrm'
   'libevdev'
@@ -168,9 +171,13 @@ build() {
       _cmake_options+=(-DBUILD_TESTS=OFF)
     fi
 
+    if [[ -z "${GITHUB_ACTIONS}" ]]; then
+	    _appstreamcli_arguments=(--no-net)
+    fi
+
     cmake "${_cmake_options[@]}"
 
-    appstreamcli validate "build/dev.lizardbyte.app.Sunshine.metainfo.xml"
+    appstreamcli validate "${_appstreamcli_arguments[@]}" "build/dev.lizardbyte.app.Sunshine.metainfo.xml"
     appstream-util validate "build/dev.lizardbyte.app.Sunshine.metainfo.xml"
     desktop-file-validate "build/dev.lizardbyte.app.Sunshine.desktop"
     desktop-file-validate "build/dev.lizardbyte.app.Sunshine.terminal.desktop"
