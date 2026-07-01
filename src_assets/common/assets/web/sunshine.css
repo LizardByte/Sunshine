@@ -1537,6 +1537,295 @@ p {
 }
 
 /* ==========================================================================
+   Virtual Gamepad and Driver License
+   ========================================================================== */
+
+.virtual-gamepad-card {
+    overflow: hidden;
+}
+
+.virtual-gamepad-hero {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+}
+
+.virtual-gamepad-heading-icon {
+    align-items: center;
+    background-color: var(--color-primary-light);
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-lg);
+    color: var(--color-primary);
+    display: flex;
+    flex: 0 0 auto;
+    height: 3rem;
+    justify-content: center;
+    width: 3rem;
+}
+
+.virtual-gamepad-feature-grid {
+    display: grid;
+    gap: var(--spacing-md);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: var(--spacing-xl);
+}
+
+.virtual-gamepad-feature {
+    align-items: flex-start;
+    background-color: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    display: flex;
+    gap: var(--spacing-md);
+    padding: var(--spacing-lg);
+}
+
+.virtual-gamepad-feature-icon {
+    align-items: center;
+    background-color: var(--color-primary-light);
+    border-radius: var(--radius-md);
+    color: var(--color-primary);
+    display: flex;
+    flex: 0 0 auto;
+    height: 2.25rem;
+    justify-content: center;
+    width: 2.25rem;
+}
+
+.virtual-gamepad-feature h3 {
+    font-size: 1rem;
+    letter-spacing: normal;
+    line-height: 1.4;
+    margin: 0 0 var(--spacing-xs);
+}
+
+.virtual-gamepad-feature p {
+    font-size: 0.875rem;
+    line-height: 1.55;
+    margin: 0;
+}
+
+.virtual-gamepad-section,
+.virtualhid-license-section {
+    border-top: 1px solid var(--color-border);
+    margin-top: var(--spacing-xl);
+    padding-top: var(--spacing-xl);
+}
+
+.virtual-gamepad-section-heading,
+.virtualhid-license-heading {
+    align-items: flex-start;
+    display: flex;
+    gap: var(--spacing-lg);
+    justify-content: space-between;
+    margin-bottom: var(--spacing-lg);
+}
+
+.driver-refresh-button,
+.driver-download-button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.driver-refresh-button,
+.driver-download-button {
+    font-size: 0.875rem;
+    padding: 0.45rem 0.75rem;
+}
+
+.driver-table-shell {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.driver-table-shell .table thead th:first-child {
+    border-top-left-radius: var(--radius-lg);
+}
+
+.driver-table-shell .table thead th:last-child {
+    border-top-right-radius: var(--radius-lg);
+}
+
+.driver-table-shell .table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.driver-table-shell .table tbody th {
+    padding: var(--spacing-md) var(--spacing-lg);
+    white-space: nowrap;
+}
+
+.driver-release-state {
+    align-items: center;
+    display: flex;
+    font-weight: 600;
+    gap: var(--spacing-sm);
+    white-space: nowrap;
+}
+
+.driver-release-current {
+    color: var(--color-success);
+}
+
+.driver-release-outdated {
+    color: var(--color-warning);
+}
+
+.driver-release-neutral {
+    color: var(--color-text-muted);
+}
+
+.driver-release-detail {
+    color: var(--color-text-muted);
+    display: block;
+    margin-top: 0.15rem;
+    white-space: nowrap;
+}
+
+.driver-download-column {
+    text-align: right;
+}
+
+.driver-release-spinning {
+    animation: driver-release-spin 0.9s linear infinite;
+}
+
+@keyframes driver-release-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.virtualhid-license-heading .badge {
+    flex: 0 0 auto;
+    font-size: 0.8rem;
+    padding: 0.5rem 0.75rem;
+}
+
+.virtualhid-license-stats {
+    display: grid;
+    gap: var(--spacing-sm);
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    margin: 0;
+}
+
+.virtualhid-license-stat {
+    background-color: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    min-width: 0;
+    padding: var(--spacing-md);
+}
+
+.virtualhid-license-stat dt {
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    margin-bottom: var(--spacing-xs);
+    text-transform: uppercase;
+}
+
+.virtualhid-license-stat dd {
+    color: var(--color-text-base);
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.virtualhid-license-message {
+    margin: var(--spacing-md) 0 0;
+}
+
+.virtualhid-license-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    justify-content: flex-end;
+    margin-top: var(--spacing-lg);
+}
+
+.virtualhid-license-activation,
+.virtualhid-license-active {
+    background-color: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-lg);
+}
+
+.virtualhid-license-input .form-control {
+    border-bottom-right-radius: 0;
+    border-top-right-radius: 0;
+}
+
+.virtualhid-license-input .btn {
+    border-bottom-left-radius: 0;
+    border-top-left-radius: 0;
+}
+
+.virtualhid-license-active {
+    align-items: flex-start;
+    border-color: var(--color-success);
+    color: var(--color-success);
+    display: flex;
+    gap: var(--spacing-md);
+}
+
+.virtualhid-license-active svg {
+    flex: 0 0 auto;
+}
+
+.virtualhid-license-active p {
+    font-size: 0.875rem;
+    line-height: 1.5;
+    margin-top: var(--spacing-xs);
+}
+
+@media (max-width: 991.98px) {
+    .virtual-gamepad-feature-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .virtual-gamepad-section-heading,
+    .virtualhid-license-heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .driver-refresh-button {
+        justify-content: center;
+        width: 100%;
+    }
+
+    .virtualhid-license-toolbar {
+        justify-content: stretch;
+    }
+
+    .virtualhid-license-toolbar .btn {
+        justify-content: center;
+        width: 100%;
+    }
+
+    .virtualhid-license-input {
+        display: block;
+    }
+
+    .virtualhid-license-input .form-control,
+    .virtualhid-license-input .btn {
+        border-radius: var(--radius-md);
+        width: 100%;
+    }
+
+    .virtualhid-license-input .btn {
+        justify-content: center;
+        margin-top: var(--spacing-sm);
+    }
+}
+
+/* ==========================================================================
    Navigation Tabs
    ========================================================================== */
 

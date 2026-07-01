@@ -1,7 +1,8 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.24)
 # `CMAKE_CUDA_ARCHITECTURES` requires 3.18
 # `set_source_files_properties` requires 3.18
 # `cmake_path(CONVERT ... TO_NATIVE_PATH_LIST ...)` requires 3.20
+# `third-party/libvirtualhid` requires 3.24
 # todo - set this conditionally
 
 project(Sunshine VERSION 0.0.0

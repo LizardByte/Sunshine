@@ -25,6 +25,11 @@
    * @brief Path to the system tray icon used for pairing requests.
    */
   #define TRAY_ICON_LOCKED WEB_DIR "images/sunshine-locked.svg"
+  /**
+   * @def TRAY_ICON_VIRTUALHID
+   * @brief Path to the Virtual HID Driver notification icon.
+   */
+  #define TRAY_ICON_VIRTUALHID WEB_DIR "images/logo-libvirtualhid.svg"
 
   #if defined(_WIN32)
     /**
@@ -37,21 +42,29 @@
   #elif defined(__APPLE__) || defined(__MACH__)
     #include <CoreFoundation/CoreFoundation.h>
     #include <dispatch/dispatch.h>
-    #include <unordered_map>
   #endif
 
   // standard includes
+  #include <array>
   #include <atomic>
   #include <chrono>
   #include <csignal>
+  #include <filesystem>
   #include <format>
+  #include <mutex>
+  #include <optional>
   #include <string>
   #include <thread>
+  #include <unordered_map>
+  #include <utility>
 
   // lib includes
   #include <boost/filesystem.hpp>
   #include <boost/process/v1/environment.hpp>
   #include <tray.h>
+  #ifdef _WIN32
+    #include <libvirtualhid/license.hpp>
+  #endif
 
   // local includes
   #include "confighttp.h"
@@ -60,12 +73,30 @@
   #include "platform/common.h"
   #include "process.h"
   #include "src/entry_handler.h"
+  #include "system_tray.h"
+  #ifdef _WIN32
+    #include "platform/windows/utf_utils.h"
+  #endif
 
 using namespace std::literals;
 
 // system_tray namespace
 namespace system_tray {
   static std::atomic tray_initialized = false;
+  static std::mutex tray_mutex;  ///< Serializes tray data changes and UI updates.
+
+  #ifdef _WIN32
+  constexpr auto LIBVIRTUALHID_RELEASES_URL = "https://github.com/LizardByte/libvirtualhid/releases/latest"sv;  ///< Latest Virtual HID Driver release.
+  static std::array<std::string, 11> virtualhid_license_menu_text;  ///< Storage for dynamic license menu labels.
+  static std::array<struct tray_menu, 6> virtualhid_benefits_menu {{
+    {.text = "Xbox One, Xbox Series, DualSense (DS5), Switch Pro, and Generic", .disabled = 1},
+    {.text = "Motion, touchpads, LEDs, and adaptive triggers where supported", .disabled = 1},
+    {.text = "Actively developed and supported by LizardByte", .disabled = 1},
+    {.text = "-"},
+    {.text = "Open License Settings", .cb = tray_virtualhid_license_cb},
+    {},
+  }};  ///< Persistent Virtual HID Driver benefits shown in the notification area.
+  #endif
 
   void tray_open_ui_cb([[maybe_unused]] struct tray_menu *item) {
     BOOST_LOG(info) << "Opening UI from system tray"sv;
@@ -83,6 +114,18 @@ namespace system_tray {
   void tray_donate_paypal_cb([[maybe_unused]] struct tray_menu *item) {
     platf::open_url("https://www.paypal.com/paypalme/ReenigneArcher");
   }
+
+  #ifdef _WIN32
+  void tray_virtualhid_license_cb([[maybe_unused]] struct tray_menu *item) {
+    BOOST_LOG(info) << "Opening Virtual HID Driver license settings from system tray"sv;
+    launch_ui("/troubleshooting#virtualhid-license");
+  }
+
+  void tray_virtualhid_download_cb([[maybe_unused]] struct tray_menu *item) {
+    BOOST_LOG(info) << "Opening Virtual HID Driver download from system tray"sv;
+    platf::open_url(std::string {LIBVIRTUALHID_RELEASES_URL});
+  }
+  #endif
 
   /**
    * @brief Forwards Qt log messages to Sunshine's BOOST_LOG logger.
@@ -136,6 +179,25 @@ namespace system_tray {
     lifetime::exit_sunshine(0, true);
   }
 
+  #ifdef _WIN32
+  /**
+   * @brief Create the initial Virtual HID Driver license submenu.
+   *
+   * @return Menu storage with a checking state, benefits, license settings, and driver download.
+   */
+  std::array<struct tray_menu, 11> initial_virtualhid_license_menu() {
+    std::array<struct tray_menu, 11> menu {};
+    menu[0] = {.text = "Status: Checking", .disabled = 1};
+    menu[1] = {.text = "-"};
+    menu[2] = {.text = "Open License Settings", .cb = tray_virtualhid_license_cb};
+    menu[3] = {.text = "Benefits over ViGEmBus", .submenu = virtualhid_benefits_menu.data()};
+    menu[4] = {.text = "Download Virtual HID Driver", .cb = tray_virtualhid_download_cb};
+    return menu;
+  }
+
+  static auto virtualhid_license_menu = initial_virtualhid_license_menu();  ///< Virtual HID Driver license submenu.
+  #endif
+
   // Tray menu
   static struct tray tray = {
     .icon = TRAY_ICON,
@@ -145,6 +207,10 @@ namespace system_tray {
         // todo - use boost/locale to translate menu strings
         {.text = "Open Sunshine", .cb = tray_open_ui_cb},
         {.text = "-"},
+  #ifdef _WIN32
+        {.text = "Virtual HID Driver", .submenu = virtualhid_license_menu.data()},
+        {.text = "-"},
+  #endif
         {.text = "Donate",
          .submenu =
            (struct tray_menu[]) {
@@ -162,8 +228,13 @@ namespace system_tray {
         {.text = "Quit", .cb = tray_quit_cb},
         {.text = nullptr}
       },
+  #ifdef _WIN32
+    .iconPathCount = 5,
+    .allIconPaths = {TRAY_ICON, TRAY_ICON_LOCKED, TRAY_ICON_PLAYING, TRAY_ICON_PAUSING, TRAY_ICON_VIRTUALHID},
+  #else
     .iconPathCount = 4,
     .allIconPaths = {TRAY_ICON, TRAY_ICON_LOCKED, TRAY_ICON_PLAYING, TRAY_ICON_PAUSING},
+  #endif
   };
 
   #ifdef SUNSHINE_TESTS
@@ -176,12 +247,181 @@ namespace system_tray {
   }
 
   void reset_tray_data_for_testing() {
+    const std::scoped_lock lock(tray_mutex);
     tray.icon = tray.allIconPaths[0];
     tray.tooltip = PROJECT_NAME;
     tray.notification_icon = nullptr;
     tray.notification_text = nullptr;
     tray.notification_title = nullptr;
     tray.notification_cb = nullptr;
+    #ifdef _WIN32
+    virtualhid_license_menu_text = {};
+    virtualhid_license_menu = initial_virtualhid_license_menu();
+    #endif
+  }
+  #endif
+
+  #ifdef _WIN32
+  /**
+   * @brief Return the user-visible label for a Virtual HID Driver license state.
+   *
+   * @param state License state reported by libvirtualhid.
+   * @return Short state label suitable for a tray menu.
+   */
+  std::string_view virtualhid_license_state_label(lvh::LicenseState state) {
+    using enum lvh::LicenseState;
+
+    switch (state) {
+      case unlicensed:
+        return "Not Activated";
+      case licensed:
+        return "Licensed";
+      case expired:
+        return "Expired";
+      case disabled:
+        return "Disabled";
+      case invalid:
+        return "Invalid";
+      case unavailable:
+      default:
+        return "Unavailable";
+    }
+  }
+
+  /**
+   * @brief Return explanatory tray text for a non-active license state.
+   *
+   * @param state License state reported by libvirtualhid.
+   * @return Short explanation of the state.
+   */
+  std::string_view virtualhid_license_state_detail(lvh::LicenseState state) {
+    using enum lvh::LicenseState;
+
+    switch (state) {
+      case unlicensed:
+        return "No license is active on this machine";
+      case expired:
+        return "The license on this machine has expired";
+      case disabled:
+        return "The license on this machine is disabled";
+      case invalid:
+        return "The license on this machine is invalid";
+      case licensed:
+        return "This machine is activated";
+      case unavailable:
+      default:
+        return "The local license service is unavailable";
+    }
+  }
+
+  /**
+   * @brief Assign text and behavior to one Virtual HID Driver submenu item.
+   *
+   * @param index Submenu index to populate.
+   * @param text User-visible menu text.
+   * @param disabled Whether the item is informational rather than actionable.
+   * @param callback Callback invoked for actionable items.
+   */
+  void set_virtualhid_license_menu_item(
+    const std::size_t index,
+    std::string text,
+    const bool disabled,
+    void (*callback)(struct tray_menu *) = nullptr
+  ) {
+    virtualhid_license_menu_text[index] = std::move(text);
+    virtualhid_license_menu[index] = {
+      .text = virtualhid_license_menu_text[index].c_str(),
+      .disabled = disabled,
+      .cb = callback,
+    };
+  }
+
+  /**
+   * @brief Rebuild the Virtual HID Driver submenu for the latest license state.
+   *
+   * @param license Latest machine license details.
+   */
+  void rebuild_virtualhid_license_menu(const lvh::LicenseStatus &license) {
+    virtualhid_license_menu = {};
+    virtualhid_license_menu_text = {};
+
+    set_virtualhid_license_menu_item(0, std::format("Status: {}", virtualhid_license_state_label(license.state)), true);
+    if (license.licensed()) {
+      set_virtualhid_license_menu_item(
+        1,
+        license.plan_name.empty() ? std::string {virtualhid_license_state_detail(license.state)} : std::format("Plan: {}", license.plan_name),
+        true
+      );
+      set_virtualhid_license_menu_item(
+        2,
+        license.customer_email.empty() ? "Customer: Not reported" : std::format("Customer: {}", license.customer_email),
+        true
+      );
+      set_virtualhid_license_menu_item(
+        3,
+        license.expires_at.empty() ? "Expiration: Not reported" : std::format("Expires: {}", license.expires_at),
+        true
+      );
+      set_virtualhid_license_menu_item(
+        4,
+        license.activation_limit == 0 ?
+          "Machine activations: Not reported" :
+          std::format("Machine activations: {} / {}", license.activation_usage, license.activation_limit),
+        true
+      );
+      set_virtualhid_license_menu_item(6, "View License Details", false, tray_virtualhid_license_cb);
+      set_virtualhid_license_menu_item(7, "Manage License", false, tray_virtualhid_license_cb);
+    } else {
+      set_virtualhid_license_menu_item(1, std::string {virtualhid_license_state_detail(license.state)}, true);
+      set_virtualhid_license_menu_item(2, "Full virtual gamepad support is locked", true);
+      set_virtualhid_license_menu_item(
+        3,
+        license.service_available ? "License service: Available" : "License service: Unavailable",
+        true
+      );
+      set_virtualhid_license_menu_item(4, "Activate this machine to use Virtual HID Driver", true);
+      set_virtualhid_license_menu_item(6, "Activate License", false, tray_virtualhid_license_cb);
+      set_virtualhid_license_menu_item(7, "Buy License", false, tray_virtualhid_license_cb);
+    }
+    virtualhid_license_menu[5] = {.text = "-"};
+    set_virtualhid_license_menu_item(8, "Benefits over ViGEmBus", false);
+    virtualhid_license_menu[8].submenu = virtualhid_benefits_menu.data();
+    set_virtualhid_license_menu_item(9, "Download Virtual HID Driver", false, tray_virtualhid_download_cb);
+  }
+
+  /**
+   * @brief Clear notification fields before replacing the tray state.
+   */
+  void clear_tray_notification() {
+    tray.notification_title = nullptr;
+    tray.notification_text = nullptr;
+    tray.notification_cb = nullptr;
+    tray.notification_icon = nullptr;
+  }
+
+  void update_tray_virtualhid_license(const lvh::LicenseStatus &license, const bool notify_if_unlicensed) {
+    const std::scoped_lock lock(tray_mutex);
+    clear_tray_notification();
+    rebuild_virtualhid_license_menu(license);
+
+    if (notify_if_unlicensed && !license.licensed()) {
+      tray.notification_title = "Activate Virtual HID Driver";
+      tray.notification_text =
+        "Adds Xbox One/Series, DualSense (DS5), Switch Pro, and Generic gamepads beyond ViGEmBus. Actively maintained by LizardByte. Click to activate or buy a license; details remain in the tray menu.";
+      tray.notification_icon = tray.allIconPaths[4];
+      tray.notification_cb = []() {
+        launch_ui("/troubleshooting#virtualhid-license");
+      };
+    }
+
+    if (tray_initialized) {
+      tray_update(&tray);
+    }
+  }
+
+  void prepare_tray_virtualhid_license() {
+    const auto result = lvh::get_license_status();
+    update_tray_virtualhid_license(result.license, !result.license.licensed());
   }
   #endif
 
@@ -192,18 +432,39 @@ namespace system_tray {
    * @return Absolute path to the resource file for the current platform bundle layout.
    */
   const char *GetResourcePath(const char *relativePath) {
-  #ifdef __APPLE__
     if (!relativePath || !*relativePath) {
       return nullptr;
     }
 
-    // Simple cache ensures our string pointers live forever
+    if (std::filesystem::path {relativePath}.is_absolute()) {
+      return relativePath;
+    }
+
+  #if defined(_WIN32) || defined(__APPLE__)
+    // Simple cache ensures our string pointers live forever.
     static std::unordered_map<std::string, std::string> g_cache;
     auto search = g_cache.find(relativePath);
     if (search != g_cache.end()) {
       return search->second.c_str();
     }
+  #endif
 
+  #ifdef _WIN32
+    std::array<wchar_t, 32768> executable {};
+    const auto executable_length = GetModuleFileNameW(nullptr, executable.data(), executable.size());
+    if (executable_length == 0 || executable_length >= executable.size()) {
+      return relativePath;
+    }
+
+    const auto full_path =
+      (std::filesystem::path {executable.data()}.parent_path() / utf_utils::from_utf8(relativePath)).lexically_normal();
+    auto full = utf_utils::to_utf8(full_path.wstring());
+
+    BOOST_LOG(debug) << "System Tray: using " << full << " for icon path";
+
+    auto [it, inserted] = g_cache.emplace(relativePath, std::move(full));
+    return it->second.c_str();
+  #elif defined(__APPLE__)
     // If we're running from an .app bundle, get the internal Resources dir
     CFBundleRef bundle = CFBundleGetMainBundle();
     if (!bundle) {
@@ -242,6 +503,37 @@ namespace system_tray {
     return relativePath;
   #endif
   }
+
+  /**
+   * @brief Resolve tray icons against the current executable or application bundle.
+   */
+  void resolve_tray_icon_paths() {
+  #if defined(_WIN32) || defined(__APPLE__)
+    std::optional<int> notification_icon_index;
+    if (tray.notification_icon != nullptr) {
+      for (int index = 0; index < tray.iconPathCount; ++index) {
+        if (std::string_view {tray.notification_icon} == tray.allIconPaths[index]) {
+          notification_icon_index = index;
+          break;
+        }
+      }
+    }
+
+    for (int index = 0; index < tray.iconPathCount; ++index) {
+      tray.allIconPaths[index] = GetResourcePath(tray.allIconPaths[index]);
+    }
+    tray.icon = tray.allIconPaths[0];
+    if (notification_icon_index.has_value()) {
+      tray.notification_icon = tray.allIconPaths[*notification_icon_index];
+    }
+  #endif
+  }
+
+  #ifdef SUNSHINE_TESTS
+  const char *resource_path_for_testing(const char *relative_path) {
+    return GetResourcePath(relative_path);
+  }
+  #endif
 
   int init_tray() {
   #ifdef _WIN32
@@ -306,27 +598,23 @@ namespace system_tray {
     }
   #endif
 
-  #ifdef __APPLE__
-    // if these icon paths are relative, resolve to internal .app Resources path
-    tray.allIconPaths[0] = GetResourcePath(TRAY_ICON);
-    tray.allIconPaths[1] = GetResourcePath(TRAY_ICON_LOCKED);
-    tray.allIconPaths[2] = GetResourcePath(TRAY_ICON_PLAYING);
-    tray.allIconPaths[3] = GetResourcePath(TRAY_ICON_PAUSING);
-
-    tray.icon = tray.allIconPaths[0];
-  #endif
+    resolve_tray_icon_paths();
 
     tray_set_log_callback(qt_log_to_boost);
 
     tray_set_app_info(PROJECT_NAME, PROJECT_NAME, PROJECT_FQDN);
 
-    if (tray_init(&tray) < 0) {
-      BOOST_LOG(warning) << "Failed to create system tray"sv;
-      return 1;
+    {
+      const std::scoped_lock lock(tray_mutex);
+      if (tray_init(&tray) < 0) {
+        BOOST_LOG(warning) << "Failed to create system tray"sv;
+        return 1;
+      }
+
+      tray_initialized = true;
     }
 
     BOOST_LOG(info) << "System tray created"sv;
-    tray_initialized = true;
     return 0;
   }
 
@@ -341,6 +629,7 @@ namespace system_tray {
   }
 
   int end_tray() {
+    const std::scoped_lock lock(tray_mutex);
     if (tray_initialized) {
       tray_initialized = false;
       tray_exit();
@@ -349,6 +638,7 @@ namespace system_tray {
   }
 
   void update_tray_playing(std::string app_name) {
+    const std::scoped_lock lock(tray_mutex);
     if (!tray_initialized) {
       return;
     }
@@ -357,19 +647,20 @@ namespace system_tray {
     tray.notification_text = nullptr;
     tray.notification_cb = nullptr;
     tray.notification_icon = nullptr;
-    tray.icon = TRAY_ICON_PLAYING;
+    tray.icon = tray.allIconPaths[2];
     tray_update(&tray);
-    tray.icon = TRAY_ICON_PLAYING;
+    tray.icon = tray.allIconPaths[2];
     tray.notification_title = "Stream Started";
 
     static std::string msg = std::format("Streaming started for {}", app_name);
     tray.notification_text = msg.c_str();
     tray.tooltip = msg.c_str();
-    tray.notification_icon = TRAY_ICON_PLAYING;
+    tray.notification_icon = tray.allIconPaths[2];
     tray_update(&tray);
   }
 
   void update_tray_pausing(std::string app_name) {
+    const std::scoped_lock lock(tray_mutex);
     if (!tray_initialized) {
       return;
     }
@@ -378,19 +669,20 @@ namespace system_tray {
     tray.notification_text = nullptr;
     tray.notification_cb = nullptr;
     tray.notification_icon = nullptr;
-    tray.icon = TRAY_ICON_PAUSING;
+    tray.icon = tray.allIconPaths[3];
     tray_update(&tray);
 
     static std::string msg = std::format("Streaming paused for {}", app_name);
-    tray.icon = TRAY_ICON_PAUSING;
+    tray.icon = tray.allIconPaths[3];
     tray.notification_title = "Stream Paused";
     tray.notification_text = msg.c_str();
     tray.tooltip = msg.c_str();
-    tray.notification_icon = TRAY_ICON_PAUSING;
+    tray.notification_icon = tray.allIconPaths[3];
     tray_update(&tray);
   }
 
   void update_tray_stopped(std::string app_name) {
+    const std::scoped_lock lock(tray_mutex);
     if (!tray_initialized) {
       return;
     }
@@ -399,12 +691,12 @@ namespace system_tray {
     tray.notification_text = nullptr;
     tray.notification_cb = nullptr;
     tray.notification_icon = nullptr;
-    tray.icon = TRAY_ICON;
+    tray.icon = tray.allIconPaths[0];
     tray_update(&tray);
 
     static std::string msg = std::format("Application {} successfully stopped", app_name);
-    tray.icon = TRAY_ICON;
-    tray.notification_icon = TRAY_ICON;
+    tray.icon = tray.allIconPaths[0];
+    tray.notification_icon = tray.allIconPaths[0];
     tray.notification_title = "Application Stopped";
     tray.notification_text = msg.c_str();
     tray.tooltip = PROJECT_NAME;
@@ -412,6 +704,7 @@ namespace system_tray {
   }
 
   void update_tray_require_pin() {
+    const std::scoped_lock lock(tray_mutex);
     if (!tray_initialized) {
       return;
     }
@@ -420,12 +713,12 @@ namespace system_tray {
     tray.notification_text = nullptr;
     tray.notification_cb = nullptr;
     tray.notification_icon = nullptr;
-    tray.icon = TRAY_ICON;
+    tray.icon = tray.allIconPaths[0];
     tray_update(&tray);
-    tray.icon = TRAY_ICON;
+    tray.icon = tray.allIconPaths[0];
     tray.notification_title = "Incoming Pairing Request";
     tray.notification_text = "Click here to complete the pairing process";
-    tray.notification_icon = TRAY_ICON_LOCKED;
+    tray.notification_icon = tray.allIconPaths[1];
     tray.tooltip = PROJECT_NAME;
     tray.notification_cb = []() {
       launch_ui("/pin");

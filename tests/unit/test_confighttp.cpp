@@ -11,12 +11,14 @@
 #include "../tests_common.h"
 
 // standard includes
+#include <array>
 #include <chrono>
 #include <filesystem>
 #include <format>
 #include <fstream>
 #include <iostream>
 #include <thread>
+#include <utility>
 
 // lib imports
 #include <Simple-Web-Server/client_https.hpp>
@@ -1187,6 +1189,122 @@ TEST_F(BrowseDirectoryTest, BrowseUnixRootParentEqualsSelf) {
   ASSERT_EQ(parent, "/");
 }
 #endif
+
+// ============================================================
+// Direct unit tests for virtual input driver status helpers
+// ============================================================
+
+// Test: empty minimum driver versions accept any detected version
+TEST(ConfigHttpDriverStatusTest, IsDriverVersionSupported_EmptyMinimum_ReturnsTrue) {
+  ASSERT_TRUE(confighttp::is_driver_version_supported("", ""));
+  ASSERT_TRUE(confighttp::is_driver_version_supported("1.0.0.0", ""));
+}
+
+// Test: equal and newer numeric driver versions are supported
+TEST(ConfigHttpDriverStatusTest, IsDriverVersionSupported_EqualOrNewerVersion_ReturnsTrue) {
+  ASSERT_TRUE(confighttp::is_driver_version_supported("1.17.0.0", "1.17.0.0"));
+  ASSERT_TRUE(confighttp::is_driver_version_supported("1.18.0.0", "1.17.0.0"));
+  ASSERT_TRUE(confighttp::is_driver_version_supported("2.0", "1.17.0.0"));
+}
+
+// Test: older numeric driver versions are unsupported
+TEST(ConfigHttpDriverStatusTest, IsDriverVersionSupported_OlderVersion_ReturnsFalse) {
+  ASSERT_FALSE(confighttp::is_driver_version_supported("1.16.9.9", "1.17.0.0"));
+  ASSERT_FALSE(confighttp::is_driver_version_supported("1.16", "1.17.0.0"));
+}
+
+// Test: invalid driver versions are unsupported when a minimum is required
+TEST(ConfigHttpDriverStatusTest, IsDriverVersionSupported_InvalidVersion_ReturnsFalse) {
+  ASSERT_FALSE(confighttp::is_driver_version_supported("", "1.17.0.0"));
+  ASSERT_FALSE(confighttp::is_driver_version_supported("1.17.beta", "1.17.0.0"));
+  ASSERT_FALSE(confighttp::is_driver_version_supported("1.17.", "1.17.0.0"));
+}
+
+// Test: driver status JSON includes compatibility and supported version metadata
+TEST(ConfigHttpDriverStatusTest, BuildDriverStatus_IncludesExpectedFields) {
+  const auto status = confighttp::build_driver_status(true, "1.17.0.0", "1.17.0.0");  // NOSONAR(cpp:S1313): not an IP address
+
+  ASSERT_TRUE(status["installed"].get<bool>());
+  ASSERT_EQ(status["version"].get<std::string>(), "1.17.0.0");
+  ASSERT_EQ(status["minimum_version"].get<std::string>(), "1.17.0.0");
+  ASSERT_EQ(status["supported_versions"].get<std::string>(), ">= 1.17.0.0");
+  ASSERT_TRUE(status["version_compatible"].get<bool>());
+}
+
+// Test: missing drivers are not compatible even when any version would be accepted
+TEST(ConfigHttpDriverStatusTest, BuildDriverStatus_NotInstalledIsNotCompatible) {
+  const auto status = confighttp::build_driver_status(false, "", "");
+
+  ASSERT_FALSE(status["installed"].get<bool>());
+  ASSERT_EQ(status["supported_versions"].get<std::string>(), "Any");
+  ASSERT_FALSE(status["version_compatible"].get<bool>());
+}
+
+// Test: every public license state maps to a stable Web UI state string
+TEST(ConfigHttpLicenseStatusTest, BuildVirtualHidLicenseStatus_MapsEveryState) {
+  using enum lvh::LicenseState;
+
+  const std::array states {
+    std::pair {unavailable, "unavailable"s},
+    std::pair {unlicensed, "unlicensed"s},
+    std::pair {licensed, "licensed"s},
+    std::pair {expired, "expired"s},
+    std::pair {disabled, "disabled"s},
+    std::pair {invalid, "invalid"s},
+  };
+
+  for (const auto &[state, expected] : states) {
+    lvh::LicenseStatus license;
+    license.state = state;
+    const auto output = confighttp::build_virtualhid_license_status({lvh::OperationStatus::success(), license});
+    EXPECT_EQ(output["state"].get<std::string>(), expected);
+    EXPECT_EQ(output["licensed"].get<bool>(), state == licensed);
+  }
+}
+
+// Test: license status JSON includes all customer-visible metadata without a key field
+TEST(ConfigHttpLicenseStatusTest, BuildVirtualHidLicenseStatus_IncludesExpectedFields) {
+  lvh::LicenseStatus license;
+  license.service_available = true;
+  license.state = lvh::LicenseState::licensed;
+  license.active_devices = 2;
+  license.activation_limit = 5;
+  license.activation_usage = 3;
+  license.plan_name = "Yearly";
+  license.customer_email = "customer@example.com";
+  license.expires_at = "2027-08-10T00:00:00Z";
+  license.message = "License is active";
+  license.purchase_url = "https://example.com/buy";
+  license.manage_account_url = "https://example.com/manage";
+
+  const auto output = confighttp::build_virtualhid_license_status({lvh::OperationStatus::success(), license});
+  EXPECT_TRUE(output["operation_ok"].get<bool>());
+  EXPECT_TRUE(output["service_available"].get<bool>());
+  EXPECT_EQ(output["active_devices"].get<unsigned int>(), 2U);
+  EXPECT_EQ(output["activation_limit"].get<unsigned int>(), 5U);
+  EXPECT_EQ(output["activation_usage"].get<unsigned int>(), 3U);
+  EXPECT_EQ(output["plan_name"].get<std::string>(), "Yearly");
+  EXPECT_EQ(output["customer_email"].get<std::string>(), "customer@example.com");
+  EXPECT_EQ(output["expires_at"].get<std::string>(), "2027-08-10T00:00:00Z");
+  EXPECT_EQ(output["message"].get<std::string>(), "License is active");
+  EXPECT_EQ(output["purchase_url"].get<std::string>(), "https://example.com/buy");
+  EXPECT_EQ(output["manage_account_url"].get<std::string>(), "https://example.com/manage");
+  EXPECT_EQ(output["error"].get<std::string>(), "");
+  EXPECT_FALSE(output.contains("license_key"));
+}
+
+// Test: failed license operations preserve the latest status and expose only the safe error message
+TEST(ConfigHttpLicenseStatusTest, BuildVirtualHidLicenseStatus_IncludesOperationFailure) {
+  lvh::LicenseStatus license;
+  license.service_available = true;
+  license.state = lvh::LicenseState::invalid;
+  const auto operation = lvh::OperationStatus::failure(lvh::ErrorCode::license_invalid, "License is invalid");
+
+  const auto output = confighttp::build_virtualhid_license_status({operation, license});
+  EXPECT_FALSE(output["operation_ok"].get<bool>());
+  EXPECT_EQ(output["state"].get<std::string>(), "invalid");
+  EXPECT_EQ(output["error"].get<std::string>(), "License is invalid");
+}
 
 // ============================================================
 // Direct unit tests for browseDirectory helper functions
