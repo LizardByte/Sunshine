@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <string_view>
 
 // lib includes
 #include <nlohmann/json.hpp>
@@ -74,6 +75,28 @@ namespace confighttp {
   void browseDirectory(const resp_https_t &response, const req_https_t &request);
   void getLocale(const resp_https_t &response, const req_https_t &request);
   void getCSRFToken(const resp_https_t &response, const req_https_t &request);
+
+  /**
+   * @brief Check whether a detected driver version satisfies a minimum version.
+   *
+   * Empty minimum versions accept any detected version. Non-empty minimum versions
+   * require a fully numeric dotted version string.
+   *
+   * @param version Detected driver version.
+   * @param minimum_version Minimum supported driver version, or empty for any version.
+   * @return True when the driver version is supported.
+   */
+  bool is_driver_version_supported(std::string_view version, std::string_view minimum_version);
+
+  /**
+   * @brief Build a standard driver status response.
+   *
+   * @param installed Whether the driver was detected.
+   * @param version Detected driver version.
+   * @param minimum_version Minimum supported driver version, or empty for any version.
+   * @return Driver status JSON object.
+   */
+  nlohmann::json build_driver_status(bool installed, const std::string &version, std::string_view minimum_version);
 
   // Browse helper functions (also exposed for unit testing)
   /**

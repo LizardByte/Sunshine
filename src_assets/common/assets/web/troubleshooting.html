@@ -9,43 +9,44 @@
   <Navbar></Navbar>
   <div id="content" class="container">
     <h1 class="my-4">{{ $t('troubleshooting.troubleshooting') }}</h1>
-    <!-- ViGEmBus Installation -->
+    <!-- Virtual gamepad -->
     <div class="card my-4" v-if="platform === 'windows' && controllerEnabled">
       <div class="card-body">
-        <h2 id="vigembus">{{ $t('troubleshooting.vigembus_install') }}</h2>
-        <p style="white-space: pre-line">{{ $t('troubleshooting.vigembus_desc') }}</p>
-        <div v-if="vigembus.installed && vigembus.version">
-          <p><strong>{{ $t('troubleshooting.vigembus_current_version') }}:</strong> {{ vigembus.version }}</p>
-          <div class="alert alert-success" v-if="vigembus.version_compatible">
-            <check-circle :size="18" class="icon"></check-circle>
-            {{ $t('troubleshooting.vigembus_compatible') }}
-          </div>
-          <div class="alert alert-danger" v-if="!vigembus.version_compatible">
-            <alert-circle :size="18" class="icon"></alert-circle>
-            {{ $t('troubleshooting.vigembus_incompatible') }}
-          </div>
-        </div>
-        <div class="alert alert-warning" v-else-if="!vigembus.installed">
-          <alert-triangle :size="18" class="icon"></alert-triangle>
-          {{ $t('troubleshooting.vigembus_not_installed') }}
-        </div>
-        <div class="alert alert-success" v-if="vigemBusInstallStatus === true">
-          <check-circle :size="18" class="icon"></check-circle>
-          {{ $t('troubleshooting.vigembus_install_success') }}
-        </div>
-        <div class="alert alert-danger" v-if="vigemBusInstallStatus === false">
-          <alert-circle :size="18" class="icon"></alert-circle>
-          {{ vigemBusInstallError || $t('troubleshooting.vigembus_install_error') }}
-        </div>
-        <div>
-          <button
-            :class="vigembus.installed && vigembus.version === vigembus.packaged_version ? 'btn btn-danger' : 'btn btn-primary'"
-            :disabled="vigemBusInstallPressed"
-            @click="installViGEmBus">
-            <download :size="18" class="icon" v-if="!(vigembus.installed && vigembus.version === vigembus.packaged_version)"></download>
-            <refresh-cw :size="18" class="icon" v-else></refresh-cw>
-            {{ vigembus.installed && vigembus.version === vigembus.packaged_version ? $t('troubleshooting.vigembus_force_reinstall_button', { version: vigembus.packaged_version }) : $t('troubleshooting.vigembus_install_button', { version: vigembus.packaged_version }) }}
-          </button>
+        <h2 id="virtualhid">{{ $t('troubleshooting.virtual_gamepad') }}</h2>
+        <p style="white-space: pre-line">{{ $t('troubleshooting.virtual_gamepad_desc') }}</p>
+        <div class="table-responsive">
+          <table class="table align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">{{ $t('troubleshooting.driver_name') }}</th>
+                <th scope="col">{{ $t('troubleshooting.driver_installed_version') }}</th>
+                <th scope="col">{{ $t('troubleshooting.driver_supported_versions') }}</th>
+                <th scope="col">{{ $t('troubleshooting.driver_status') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">{{ $t('troubleshooting.virtualhid_driver') }}</th>
+                <td>{{ driverVersion(virtualhid) }}</td>
+                <td>{{ virtualhid.supported_versions }}</td>
+                <td>
+                  <span :class="driverStatusClass(virtualhid)">
+                    {{ driverStatusText(virtualhid) }}
+                  </span>
+                </td>
+              </tr>
+              <tr id="vigembus">
+                <th scope="row">{{ $t('troubleshooting.vigembus_driver') }}</th>
+                <td>{{ driverVersion(vigembus) }}</td>
+                <td>{{ vigembus.supported_versions }}</td>
+                <td>
+                  <span :class="driverStatusClass(vigembus)">
+                    {{ driverStatusText(vigembus) }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -213,7 +214,6 @@
       ChevronsDown,
       ChevronsUp,
       Copy,
-      Download,
       RefreshCw,
       RotateCcw,
       Search,
@@ -233,7 +233,6 @@
         ChevronsDown,
         ChevronsUp,
         Copy,
-        Download,
         RefreshCw,
         RotateCcw,
         Search,
@@ -257,15 +256,20 @@
           controllerEnabled: false,
           unpairAllPressed: false,
           unpairAllStatus: null,
+          virtualhid: {
+            installed: false,
+            version: '',
+            version_compatible: false,
+            minimum_version: '',
+            supported_versions: '',
+          },
           vigembus: {
             installed: false,
             version: '',
             version_compatible: false,
-            packaged_version: '',
+            minimum_version: '',
+            supported_versions: '',
           },
-          vigemBusInstallPressed: false,
-          vigemBusInstallStatus: null,
-          vigemBusInstallError: null,
           currentLogIndex: -1,
           logLines: [],
         };
@@ -395,9 +399,9 @@
           .then((r) => {
             this.platform = r.platform;
             this.controllerEnabled = r.controller !== "disabled";
-            // Fetch ViGEmBus status only on Windows when gamepad is enabled
+            // Fetch virtual input driver status only on Windows when gamepad is enabled
             if (this.platform === 'windows' && this.controllerEnabled) {
-              this.refreshViGEmBusStatus();
+              this.refreshVirtualInputStatus();
             }
           });
 
@@ -538,54 +542,51 @@
               }, 5000);
             });
         },
-        refreshViGEmBusStatus() {
-          fetch("/api/vigembus/status")
+        refreshVirtualInputStatus() {
+          fetch("/api/virtual-input/status")
             .then((r) => r.json())
             .then((r) => {
+              const virtualhid = r.virtualhid || {};
+              const vigembus = r.vigembus || {};
+              this.virtualhid = {
+                installed: virtualhid.installed || false,
+                version: virtualhid.version || '',
+                version_compatible: virtualhid.version_compatible || false,
+                minimum_version: virtualhid.minimum_version || '',
+                supported_versions: virtualhid.supported_versions || '',
+              };
               this.vigembus = {
-                installed: r.installed || false,
-                version: r.version || '',
-                version_compatible: r.version_compatible || false,
-                packaged_version: r.packaged_version,
+                installed: vigembus.installed || false,
+                version: vigembus.version || '',
+                version_compatible: vigembus.version_compatible || false,
+                minimum_version: vigembus.minimum_version || '',
+                supported_versions: vigembus.supported_versions || '',
               };
             })
             .catch((err) => {
-              console.error("Failed to fetch ViGEmBus status:", err);
+              console.error("Failed to fetch virtual input driver status:", err);
             });
         },
-        installViGEmBus() {
-          this.vigemBusInstallPressed = true;
-          this.vigemBusInstallStatus = null;
-          this.vigemBusInstallError = null;
-          apiFetch("/api/vigembus/install", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            }
-          })
-            .then((r) => r.json())
-            .then((r) => {
-              this.vigemBusInstallPressed = false;
-              this.vigemBusInstallStatus = r.status;
-              if (!r.status && r.error) {
-                this.vigemBusInstallError = r.error;
-              }
-              setTimeout(() => {
-                this.vigemBusInstallStatus = null;
-                this.vigemBusInstallError = null;
-              }, 10000);
-              // Refresh status after installation attempt
-              this.refreshViGEmBusStatus();
-            })
-            .catch((err) => {
-              this.vigemBusInstallPressed = false;
-              this.vigemBusInstallStatus = false;
-              this.vigemBusInstallError = err.message;
-              setTimeout(() => {
-                this.vigemBusInstallStatus = null;
-                this.vigemBusInstallError = null;
-              }, 10000);
-            });
+        driverVersion(driver) {
+          if (!driver.installed) {
+            return this.$t('troubleshooting.driver_not_installed');
+          }
+          return driver.version || this.$t('troubleshooting.driver_version_unknown');
+        },
+        driverStatusClass(driver) {
+          if (!driver.installed) {
+            return 'badge text-bg-secondary';
+          }
+          return driver.version_compatible ? 'badge text-bg-success' : 'badge text-bg-danger';
+        },
+        driverStatusText(driver) {
+          if (!driver.installed) {
+            return this.$t('troubleshooting.driver_status_not_installed');
+          }
+          if (driver.version_compatible) {
+            return this.$t('troubleshooting.driver_status_compatible');
+          }
+          return this.$t('troubleshooting.driver_status_unsupported');
         },
         navigateToLog(direction) {
           const indices = this.errorWarningEntries;
