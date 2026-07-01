@@ -31,6 +31,7 @@
 #include "src/globals.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
+#include "src/platform/virtualhid_input.h"
 
 namespace platf {
   using namespace std::literals;
@@ -269,7 +270,8 @@ namespace platf {
       VIGEM_ERROR status = vigem_connect(client.get());
       if (!VIGEM_SUCCESS(status)) {
         // Log a special fatal message for this case to show the error in the web UI
-        BOOST_LOG(fatal) << "ViGEmBus is not installed or running. You must install ViGEmBus for gamepad support!"sv;
+        BOOST_LOG(fatal) << "libvirtualhid gamepad support is unavailable and ViGEmBus fallback is not installed or running"sv;
+        return -1;
       } else {
         vigem_disconnect(client.get());
       }
@@ -501,13 +503,14 @@ namespace platf {
   }
 
   /**
-   * @brief Global inputtino device handles shared by clients.
+   * @brief Global virtual input device handles shared by clients.
    */
   struct input_raw_t {
     ~input_raw_t() {
       delete vigem;
     }
 
+    virtualhid::input_context_t virtualhid;  ///< libvirtualhid input context.
     vigem_t *vigem;  ///< Vigem.
 
     decltype(CreateSyntheticPointerDevice) *fnCreateSyntheticPointerDevice;  ///< Fn create synthetic pointer device.
@@ -519,10 +522,13 @@ namespace platf {
     input_t result {new input_raw_t {}};
     auto &raw = *(input_raw_t *) result.get();
 
-    raw.vigem = new vigem_t {};
-    if (raw.vigem->init()) {
-      delete raw.vigem;
-      raw.vigem = nullptr;
+    raw.vigem = nullptr;
+    if (!raw.virtualhid.runtime || !raw.virtualhid.runtime->capabilities().supports_gamepad) {
+      raw.vigem = new vigem_t {};
+      if (raw.vigem->init()) {
+        delete raw.vigem;
+        raw.vigem = nullptr;
+      }
     }
 
     // Get pointers to virtual touch/pen input functions (Win10 1809+)
@@ -531,6 +537,38 @@ namespace platf {
     raw.fnDestroySyntheticPointerDevice = (decltype(DestroySyntheticPointerDevice) *) GetProcAddress(GetModuleHandleA("user32.dll"), "DestroySyntheticPointerDevice");
 
     return result;
+  }
+
+  /**
+   * @brief Check whether the configured virtual gamepad can fall back to ViGEm.
+   *
+   * @return True when the ViGEm fallback can satisfy the configured profile.
+   */
+  bool vigem_fallback_allowed() {
+    return config::input.gamepad == "auto"sv ||
+           config::input.gamepad == "x360"sv ||
+           config::input.gamepad == "ds4"sv;
+  }
+
+  /**
+   * @brief Create the ViGEm fallback context if it is not already available.
+   *
+   * @param raw Platform input context.
+   * @return True when ViGEm fallback is available.
+   */
+  bool ensure_vigem(input_raw_t *raw) {
+    if (raw->vigem) {
+      return true;
+    }
+
+    raw->vigem = new vigem_t {};
+    if (raw->vigem->init()) {
+      delete raw->vigem;
+      raw->vigem = nullptr;
+      return false;
+    }
+
+    return true;
   }
 
   /**
@@ -726,7 +764,7 @@ namespace platf {
   }
 
   /**
-   * @brief Per-client inputtino devices for touch and pen input.
+   * @brief Per-client virtual devices for touch and pen input.
    */
   struct client_input_raw_t: public client_input_t {
     /**
@@ -754,7 +792,7 @@ namespace platf {
       }
     }
 
-    input_raw_t *global;
+    input_raw_t *global;  ///< Global input context shared by this client context.
 
     // Device state and handles for pen and touch input must be stored in the per-client
     // input context, because each connected client may be sending their own independent
@@ -1248,8 +1286,17 @@ namespace platf {
   int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
     auto raw = (input_raw_t *) input.get();
 
-    if (!raw->vigem) {
+    if (virtualhid::alloc_gamepad(raw->virtualhid, id, metadata, feedback_queue) == 0) {
       return 0;
+    }
+
+    if (!vigem_fallback_allowed()) {
+      BOOST_LOG(warning) << "libvirtualhid could not create the requested gamepad profile, and ViGEm fallback cannot emulate "sv << config::input.gamepad;
+      return -1;
+    }
+
+    if (!ensure_vigem(raw)) {
+      return -1;
     }
 
     VIGEM_TARGET_TYPE selectedGamepadType;
@@ -1301,6 +1348,11 @@ namespace platf {
 
   void free_gamepad(input_t &input, int nr) {
     auto raw = (input_raw_t *) input.get();
+
+    if (virtualhid::has_gamepad(raw->virtualhid, nr)) {
+      virtualhid::free_gamepad(raw->virtualhid, nr);
+      return;
+    }
 
     if (!raw->vigem) {
       return;
@@ -1560,7 +1612,13 @@ namespace platf {
    * @param gamepad_state The gamepad button/axis state sent from the client.
    */
   void gamepad_update(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
-    auto vigem = ((input_raw_t *) input.get())->vigem;
+    auto raw = (input_raw_t *) input.get();
+    if (virtualhid::has_gamepad(raw->virtualhid, nr)) {
+      virtualhid::gamepad_update(raw->virtualhid, nr, gamepad_state);
+      return;
+    }
+
+    auto vigem = raw->vigem;
 
     // If there is no gamepad support
     if (!vigem) {
@@ -1592,7 +1650,13 @@ namespace platf {
    * @param touch The touch event.
    */
   void gamepad_touch(input_t &input, const gamepad_touch_t &touch) {
-    auto vigem = ((input_raw_t *) input.get())->vigem;
+    auto raw = (input_raw_t *) input.get();
+    if (virtualhid::has_gamepad(raw->virtualhid, touch.id.globalIndex)) {
+      virtualhid::gamepad_touch(raw->virtualhid, touch);
+      return;
+    }
+
+    auto vigem = raw->vigem;
 
     // If there is no gamepad support
     if (!vigem) {
@@ -1698,7 +1762,13 @@ namespace platf {
    * @param motion The motion event.
    */
   void gamepad_motion(input_t &input, const gamepad_motion_t &motion) {
-    auto vigem = ((input_raw_t *) input.get())->vigem;
+    auto raw = (input_raw_t *) input.get();
+    if (virtualhid::has_gamepad(raw->virtualhid, motion.id.globalIndex)) {
+      virtualhid::gamepad_motion(raw->virtualhid, motion);
+      return;
+    }
+
+    auto vigem = raw->vigem;
 
     // If there is no gamepad support
     if (!vigem) {
@@ -1725,7 +1795,13 @@ namespace platf {
    * @param battery The battery event.
    */
   void gamepad_battery(input_t &input, const gamepad_battery_t &battery) {
-    auto vigem = ((input_raw_t *) input.get())->vigem;
+    auto raw = (input_raw_t *) input.get();
+    if (virtualhid::has_gamepad(raw->virtualhid, battery.id.globalIndex)) {
+      virtualhid::gamepad_battery(raw->virtualhid, battery);
+      return;
+    }
+
+    auto vigem = raw->vigem;
 
     // If there is no gamepad support
     if (!vigem) {
@@ -1799,33 +1875,14 @@ namespace platf {
   }
 
   std::vector<supported_gamepad_t> &supported_gamepads(input_t *input) {
-    if (!input) {
-      static std::vector gps {
-        supported_gamepad_t {"auto", true, ""},
-        supported_gamepad_t {"x360", false, ""},
-        supported_gamepad_t {"ds4", false, ""},
-      };
-
+    static std::vector<supported_gamepad_t> gps;
+    if (!input || !input->get()) {
+      gps = virtualhid::static_supported_gamepads();
       return gps;
     }
 
-    auto vigem = ((input_raw_t *) input)->vigem;
-    auto enabled = vigem != nullptr;
-    auto reason = enabled ? "" : "gamepads.vigem-not-available";
-
-    // ds4 == ps4
-    static std::vector gps {
-      supported_gamepad_t {"auto", true, reason},
-      supported_gamepad_t {"x360", enabled, reason},
-      supported_gamepad_t {"ds4", enabled, reason}
-    };
-
-    for (auto &[name, is_enabled, reason_disabled] : gps) {
-      if (!is_enabled) {
-        BOOST_LOG(warning) << "Gamepad " << name << " is disabled due to " << reason_disabled;
-      }
-    }
-
+    const auto raw = (input_raw_t *) input->get();
+    gps = virtualhid::supported_gamepads(raw->virtualhid.runtime.get(), raw->vigem != nullptr);
     return gps;
   }
 
@@ -1836,8 +1893,7 @@ namespace platf {
   platform_caps::caps_t get_capabilities() {
     platform_caps::caps_t caps = 0;
 
-    // We support controller touchpad input as long as we're not emulating X360
-    if (config::input.gamepad != "x360"sv) {
+    if (virtualhid::configured_gamepad_supports_touchpad()) {
       caps |= platform_caps::controller_touch;
     }
 

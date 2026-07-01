@@ -474,7 +474,8 @@ and enter its device name in the [audio_sink](configuration.md#audio_sink) field
 > Gamepads are not currently supported.
 
 ### Windows
-In order for virtual gamepads to work, you must install ViGEmBus. You can do this from the troubleshooting tab
+Sunshine uses libvirtualhid for virtual gamepads on Windows. ViGEmBus is only used as a fallback for Xbox 360
+and DualShock 4 gamepads when libvirtualhid is unavailable. You can install ViGEmBus from the troubleshooting tab
 in the web UI, as long as you are running Sunshine as a service or as an administrator. After installation, it is
 recommended to restart your computer.
 

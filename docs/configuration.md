@@ -332,30 +332,40 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @endcode</td>
     </tr>
     <tr>
-        <td rowspan="6">Choices</td>
+        <td rowspan="7">Choices</td>
+        <td>generic</td>
+        <td>Generic HID gamepad
+            @note{This option applies to FreeBSD, Linux, and Windows.}</td>
+    </tr>
+    <tr>
         <td>ds4</td>
         <td>DualShock 4 controller (PS4)
-            @note{This option applies to Windows only.}</td>
+            @note{This option applies to FreeBSD, Linux, and Windows.}</td>
     </tr>
     <tr>
         <td>ds5</td>
         <td>DualShock 5 controller (PS5)
-            @note{This option applies to FreeBSD and Linux only.}</td>
+            @note{This option applies to FreeBSD, Linux, and Windows.}</td>
     </tr>
     <tr>
         <td>switch</td>
         <td>Switch Pro controller
-            @note{This option applies to FreeBSD and Linux only.}</td>
+            @note{This option applies to FreeBSD, Linux, and Windows.}</td>
     </tr>
     <tr>
         <td>x360</td>
         <td>Xbox 360 controller
-            @note{This option applies to Windows only.}</td>
+            @note{This option applies to FreeBSD, Linux, and Windows.}</td>
     </tr>
     <tr>
         <td>xone</td>
         <td>Xbox One controller
-            @note{This option applies to FreeBSD and Linux only.}</td>
+            @note{This option applies to FreeBSD, Linux, and Windows.}</td>
+    </tr>
+    <tr>
+        <td>xseries</td>
+        <td>Xbox Series controller
+            @note{This option applies to FreeBSD, Linux, and Windows.}</td>
     </tr>
 </table>
 
@@ -440,14 +450,13 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### ds5_inputtino_randomize_mac
+### virtualhid_randomize_mac
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Randomize the MAC-Address for the generated virtual controller.
-            @hint{Only applies on linux for gamepads created as PS5-style controllers}
+            Randomize the MAC address for PlayStation-style virtual controllers created by libvirtualhid.
         </td>
     </tr>
     <tr>
@@ -459,7 +468,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Example</td>
         <td colspan="2">@code{}
-            ds5_inputtino_randomize_mac = enabled
+            virtualhid_randomize_mac = enabled
             @endcode</td>
     </tr>
 </table>

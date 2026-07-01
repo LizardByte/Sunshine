@@ -278,7 +278,7 @@ namespace config {
     bool ds4_back_as_touchpad_click;  ///< Map the DS4 Back button to a touchpad click.
     bool motion_as_ds4;  ///< Expose motion controls through the DS4 protocol.
     bool touchpad_as_ds4;  ///< Expose touchpad input through the DS4 protocol.
-    bool ds5_inputtino_randomize_mac;  ///< Randomize the inputtino DualSense MAC address.
+    bool virtualhid_randomize_mac;  ///< Randomize the libvirtualhid virtual controller MAC address.
 
     bool keyboard;  ///< Enable keyboard input from clients.
     bool key_rightalt_to_key_win;  ///< Map the client Right Alt key to the Windows key.

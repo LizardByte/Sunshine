@@ -15,8 +15,8 @@ struct MouseHIDTest: PlatformTestSuite, testing::WithParamInterface<util::point_
     //       but I'm not sure about real work
     GTEST_SKIP() << "TODO Windows";
 #elif defined(__linux__) || defined(__FreeBSD__)
-    // TODO: Inputtino waiting https://github.com/games-on-whales/inputtino/issues/6 is resolved.
-    GTEST_SKIP() << "TODO Inputtino";
+    // TODO: Absolute virtual mouse location validation is not implemented for Unix backends yet.
+    GTEST_SKIP() << "TODO Unix virtual mouse";
 #endif
   }
 
