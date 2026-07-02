@@ -124,6 +124,18 @@ namespace pipewire {
   };
 
   /**
+   * @brief Pipewire image assembled for encoding.
+   */
+  struct img_descriptor_t: public egl::img_descriptor_t {
+    ~img_descriptor_t() override {
+      if (data) {
+        delete[] data;
+        data = nullptr;
+      }
+    }
+  };
+
+  /**
    * @brief PipeWire core, context, and stream setup used for screencast capture.
    */
   class pipewire_t {
@@ -916,7 +928,7 @@ namespace pipewire {
      */
     std::shared_ptr<platf::img_t> alloc_img() override {
       // Note: this img_t type is also used for memory buffers
-      auto img = std::make_shared<egl::img_descriptor_t>();
+      auto img = std::make_shared<img_descriptor_t>();
 
       img->width = width;
       img->height = height;
