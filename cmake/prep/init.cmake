@@ -12,6 +12,14 @@ elseif (UNIX)
         set(SUNSHINE_EXECUTABLE_PATH "sunshine")
     endif()
 
+    # Auto-detect init system for desktop file
+    find_package(Systemd QUIET)
+    if(SYSTEMD_FOUND)
+        set(SUNSHINE_DESKTOP_EXEC "/usr/bin/env systemctl start --u app-${PROJECT_FQDN}")
+    else()
+        set(SUNSHINE_DESKTOP_EXEC "${CMAKE_INSTALL_FULL_BINDIR}/${SUNSHINE_EXECUTABLE_PATH}")
+    endif()
+
     if(SUNSHINE_BUILD_FLATPAK)
         set(SUNSHINE_SERVICE_START_COMMAND "ExecStart=flatpak run --command=sunshine ${PROJECT_FQDN}")
         set(SUNSHINE_SERVICE_STOP_COMMAND "ExecStop=flatpak kill ${PROJECT_FQDN}")
