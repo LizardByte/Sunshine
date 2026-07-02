@@ -120,6 +120,14 @@ bool is_gamestream_enabled();
  */
 namespace service_ctrl {
   /**
+   * @brief Signal the Windows service wrapper that Sunshine is ready.
+   * @examples
+   * signal_ready();
+   * @examples_end
+   */
+  void signal_ready();
+
+  /**
    * @brief Check if the service is running.
    * @examples
    * is_service_running();
