@@ -92,6 +92,8 @@
     "no_covers_found": "No covers found",
     "no_search_results": "No applications match your search",
     "output_desc": "The file where the output of the command is stored, if it is not specified, the output is ignored",
+    "output_display": "Display Id",
+    "output_display_desc": "Override the display output for this application. Leave empty to use the global setting.",
     "output_name": "Output",
     "run_as_desc": "This can be necessary for some applications that require administrator permissions to run properly.",
     "search_placeholder": "Search applications...",

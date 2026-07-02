@@ -690,6 +690,7 @@ namespace proc {
         auto name = parse_env_val(this_env, app_node.get<std::string>("name"s));
         auto cmd = app_node.get_optional<std::string>("cmd"s);
         auto image_path = app_node.get_optional<std::string>("image-path"s);
+        auto output_name = app_node.get_optional<std::string>("output-name"s);
         auto working_dir = app_node.get_optional<std::string>("working-dir"s);
         auto elevated = app_node.get_optional<bool>("elevated"s);
         auto auto_detach = app_node.get_optional<bool>("auto-detach"s);
@@ -758,6 +759,10 @@ namespace proc {
 
         if (image_path) {
           ctx.image_path = parse_env_val(this_env, *image_path);
+        }
+
+        if (output_name) {
+          ctx.output_name = parse_env_val(this_env, *output_name);
         }
 
         ctx.elevated = elevated.value_or(false);

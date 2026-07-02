@@ -1037,6 +1037,14 @@ namespace nvhttp {
     host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
     auto launch_session = make_launch_session(host_audio, args);
 
+    // Per-app output_name override
+    for (auto &app : proc::proc.get_apps()) {
+      if (app.id == std::to_string(appid) && !app.output_name.empty()) {
+        config::video.output_name = app.output_name;
+        break;
+      }
+    }
+
     if (rtsp_stream::session_count() == 0) {
       // The display should be restored in case something fails as there are no other sessions.
       revert_display_configuration = true;

@@ -319,6 +319,14 @@
               </div>
               <div id="appImagePathHelp" class="form-text">{{ $t('apps.image_desc') }}</div>
             </div>
+            <!-- output-name -->
+            <div class="mb-3">
+              <label for="appOutputName" class="form-label">{{ $t('apps.output_display') }}</label>
+              <input type="text" class="form-control monospace" id="appOutputName"
+                aria-describedby="appOutputNameHelp" v-model="editForm['output-name']"
+                placeholder="e.g. virtmon" />
+              <div id="appOutputNameHelp" class="form-text">{{ $t('apps.output_display_desc') }}</div>
+            </div>
             <div class="env-hint alert alert-info">
               <div class="form-text">
                 <h4>{{ $t('apps.env_vars_about') }}</h4>
@@ -739,7 +747,8 @@
           "exit-timeout": 5,
           "prep-cmd": [],
           detached: [],
-          "image-path": ""
+          "image-path": "",
+          "output-name": ""
         };
         this.openEditModal();
       },
