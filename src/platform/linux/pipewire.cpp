@@ -1049,12 +1049,7 @@ namespace pipewire {
      * @return Capture status reported to the streaming pipeline.
      */
     int dummy_img(platf::img_t *img) override {
-      if (!img) {
-        return -1;
-      }
-
-      img->data = new std::uint8_t[img->height * img->row_pitch];
-      std::fill_n(img->data, img->height * img->row_pitch, 0);
+      // Empty images are recognized as dummies by the zero sequence number
       return 0;
     }
 
