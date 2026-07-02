@@ -178,8 +178,8 @@ namespace nvhttp {
   std::string last_verified_client_cert;  ///< Last client certificate accepted by the TLS verify callback.  // NOSONAR(cpp:S5421) - intentionally mutable global
 
   // Saved originals for per-app config overrides
-  std::string saved_output_name;  ///< Original config::video.output_name before per-app override.
-  bool saved_stream_audio {true};  ///< Original config::audio.stream before per-app override.
+  std::string saved_output_name;  ///< Original config::video.output_name before per-app override.  // NOSONAR(cpp:S5421) - intentionally mutable global
+  bool saved_stream_audio {true};  ///< Original config::audio.stream before per-app override.  // NOSONAR(cpp:S5421) - intentionally mutable global
 
   /**
    * @brief Case-insensitive map used for HTTP headers and query parameters.
