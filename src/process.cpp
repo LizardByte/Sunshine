@@ -696,6 +696,7 @@ namespace proc {
         auto auto_detach = app_node.get_optional<bool>("auto-detach"s);
         auto wait_all = app_node.get_optional<bool>("wait-all"s);
         auto exit_timeout = app_node.get_optional<int>("exit-timeout"s);
+        auto stream_audio = app_node.get_optional<bool>("stream-audio"s);
 
         std::vector<proc::cmd_t> prep_cmds;
         if (!exclude_global_prep.value_or(false)) {
@@ -763,6 +764,10 @@ namespace proc {
 
         if (output_name) {
           ctx.output_name = parse_env_val(this_env, *output_name);
+        }
+
+        if (stream_audio) {
+          ctx.stream_audio = *stream_audio;
         }
 
         ctx.elevated = elevated.value_or(false);

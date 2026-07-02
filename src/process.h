@@ -76,6 +76,7 @@ namespace proc {
     std::string working_dir;  ///< Working dir.
     std::string output;  ///< Captured output from the launched process.
     std::string output_name;  ///< Display output name override for this app.
+    std::optional<bool> stream_audio;  ///< Audio streaming override for this app (std::nullopt = use global config).
     std::string image_path;  ///< Image path.
     std::string id;  ///< Stable identifier for the configured application.
     bool elevated;  ///< Whether the process should be launched elevated.

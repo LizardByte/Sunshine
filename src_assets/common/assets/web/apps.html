@@ -327,6 +327,14 @@
                 placeholder="e.g. virtmon" />
               <div id="appOutputNameHelp" class="form-text">{{ $t('apps.output_display_desc') }}</div>
             </div>
+            <!-- stream-audio -->
+            <Checkbox class="mb-3"
+                      id="streamAudio"
+                      label="apps.stream_audio"
+                      desc="apps.stream_audio_desc"
+                      v-model="editForm['stream-audio']"
+                      default="true"
+            ></Checkbox>
             <div class="env-hint alert alert-info">
               <div class="form-text">
                 <h4>{{ $t('apps.env_vars_about') }}</h4>
@@ -748,7 +756,8 @@
           "prep-cmd": [],
           detached: [],
           "image-path": "",
-          "output-name": ""
+          "output-name": "",
+          "stream-audio": true
         };
         this.openEditModal();
       },
@@ -772,6 +781,9 @@
         }
         if (this.editForm["exit-timeout"] === undefined) {
           this.editForm["exit-timeout"] = 5;
+        }
+        if (this.editForm["stream-audio"] === undefined) {
+          this.editForm["stream-audio"] = true;
         }
         this.openEditModal();
       },

@@ -97,6 +97,8 @@
     "output_name": "Output",
     "run_as_desc": "This can be necessary for some applications that require administrator permissions to run properly.",
     "search_placeholder": "Search applications...",
+    "stream_audio": "Stream Audio",
+    "stream_audio_desc": "Override audio streaming for this application. When unchecked, audio will not be streamed to the client.",
     "searching_covers": "Searching for covers...",
     "sort_ascending": "Ascending",
     "sort_by_name": "Sort by Name",
