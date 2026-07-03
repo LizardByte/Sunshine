@@ -13,6 +13,9 @@
   #include <mach-o/dyld.h>
 #endif
 
+// lib includes
+#include <rs.h>
+
 // local includes
 #include "confighttp.h"
 #include "display_device.h"
@@ -26,10 +29,6 @@
 #include "system_tray.h"
 #include "upnp.h"
 #include "video.h"
-
-extern "C" {
-#include "rswrapper.h"
-}
 
 using namespace std::literals;
 
