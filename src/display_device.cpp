@@ -141,11 +141,13 @@ namespace display_device {
       return (int) result;
     }
 
+#ifdef __APPLE__
     bool is_unsigned_integer(std::string_view value) {
       return !value.empty() && std::ranges::all_of(value, [](unsigned char character) {
         return std::isdigit(character);
       });
     }
+#endif
 
     std::string_view apply_result_name(SettingsManagerInterface::ApplyResult result) {
       using enum SettingsManagerInterface::ApplyResult;
