@@ -4,15 +4,14 @@
  */
 
 // standard includes
-#include <cstdlib>
-#include <sstream>
-#include <thread>
-
-// platform includes
-#include <IOKit/pwr_mgt/IOPMLib.h>
+#include <charconv>
+#include <chrono>
+#include <optional>
+#include <string_view>
 
 // local includes
 #include "src/config.h"
+#include "src/display_device.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/platform/macos/av_img_t.h"
@@ -29,188 +28,29 @@
 #include "src/video.h"
 #undef AVMediaType
 
-namespace fs = std::filesystem;
-
 namespace platf {
   using namespace std::literals;
 
   namespace {
-    const char *cg_error_name(CGError error) {
-      switch (error) {
-        case kCGErrorSuccess:
-          return "success";
-        case kCGErrorFailure:
-          return "failure";
-        case kCGErrorIllegalArgument:
-          return "illegal argument";
-        case kCGErrorInvalidConnection:
-          return "invalid connection";
-        case kCGErrorInvalidContext:
-          return "invalid context";
-        case kCGErrorCannotComplete:
-          return "cannot complete";
-        case kCGErrorNotImplemented:
-          return "not implemented";
-        case kCGErrorRangeCheck:
-          return "range check";
-        case kCGErrorTypeCheck:
-          return "type check";
-        case kCGErrorInvalidOperation:
-          return "invalid operation";
-        case kCGErrorNoneAvailable:
-          return "none available";
-        default:
-          return "unknown";
-      }
-    }
-
-    std::string format_rect(CGRect rect) {
-      std::ostringstream formatted;
-      formatted << '(' << rect.origin.x << ',' << rect.origin.y << ") "
-                << rect.size.width << 'x' << rect.size.height;
-      return formatted.str();
-    }
-
-    std::string display_mode_summary(CGDisplayModeRef mode) {
-      if (!mode) {
-        return "<none>";
-      }
-
-      std::ostringstream formatted;
-      formatted << CGDisplayModeGetWidth(mode) << 'x' << CGDisplayModeGetHeight(mode)
-                << " points, " << CGDisplayModeGetPixelWidth(mode) << 'x'
-                << CGDisplayModeGetPixelHeight(mode) << " pixels";
-
-      const auto refresh_rate = CGDisplayModeGetRefreshRate(mode);
-      if (refresh_rate > 0) {
-        formatted << ", " << refresh_rate << " Hz";
-      }
-
-      return formatted.str();
-    }
-
-    void log_display_diagnostic(CGDirectDisplayID display_id, const char *source) {
-      NSString *display_name = [AVVideo getDisplayName:display_id];
-      const char *display_name_utf8 = display_name ? display_name.UTF8String : "<unknown>";
-      CGDisplayModeRef mode = CGDisplayCopyDisplayMode(display_id);
-
-      BOOST_LOG(info) << "Display diagnostic ["sv << source << "]: id: "sv << display_id
-                      << ", name: "sv << display_name_utf8
-                      << ", main: "sv << (display_id == CGMainDisplayID())
-                      << ", active: "sv << CGDisplayIsActive(display_id)
-                      << ", online: "sv << CGDisplayIsOnline(display_id)
-                      << ", asleep: "sv << CGDisplayIsAsleep(display_id)
-                      << ", built-in: "sv << CGDisplayIsBuiltin(display_id)
-                      << ", bounds: "sv << format_rect(CGDisplayBounds(display_id))
-                      << ", framebuffer pixels: "sv << CGDisplayPixelsWide(display_id) << 'x' << CGDisplayPixelsHigh(display_id)
-                      << ", mode: "sv << display_mode_summary(mode);
-
-      if (mode) {
-        CFRelease(mode);
-      }
-    }
-
-    void log_nsscreen_diagnostics() {
-      NSArray<NSScreen *> *screens = [NSScreen screens];
-
-      BOOST_LOG(info) << "NSScreen diagnostics: count: "sv << [screens count];
-
-      for (NSScreen *screen in screens) {
-        NSNumber *display_id = screen.deviceDescription[@"NSScreenNumber"];
-        NSString *screen_name = screen.localizedName;
-
-        BOOST_LOG(info) << "NSScreen diagnostic: id: "sv << (display_id ? [display_id unsignedIntValue] : 0)
-                        << ", name: "sv << (screen_name ? screen_name.UTF8String : "<unknown>")
-                        << ", frame: "sv << format_rect(screen.frame)
-                        << ", backing scale: "sv << screen.backingScaleFactor;
-      }
-    }
-
-    void log_display_list_diagnostics(const char *list_name, CGError error, const CGDirectDisplayID *displays, uint32_t count) {
-      BOOST_LOG(info) << list_name << ": status: "sv << cg_error_name(error)
-                      << " ("sv << error << "), count: "sv << count;
-
-      if (error != kCGErrorSuccess) {
-        return;
-      }
-
-      for (uint32_t i = 0; i < count; ++i) {
-        log_display_diagnostic(displays[i], list_name);
-      }
-    }
-
-    void log_display_environment_diagnostics() {
-      CGDirectDisplayID active_displays[kMaxDisplays];
-      CGDirectDisplayID online_displays[kMaxDisplays];
-      uint32_t active_display_count = 0;
-      uint32_t online_display_count = 0;
-
-      const auto active_error = CGGetActiveDisplayList(kMaxDisplays, active_displays, &active_display_count);
-      const auto online_error = CGGetOnlineDisplayList(kMaxDisplays, online_displays, &online_display_count);
-
-      BOOST_LOG(info) << "Main display diagnostic: id: "sv << CGMainDisplayID();
-      log_display_list_diagnostics("CGGetActiveDisplayList", active_error, active_displays, active_display_count);
-      log_display_list_diagnostics("CGGetOnlineDisplayList", online_error, online_displays, online_display_count);
-      log_nsscreen_diagnostics();
-    }
-
-    bool has_required_active_display(const std::string &display_name) {
-      CGDirectDisplayID displays[kMaxDisplays];
-      uint32_t display_count = 0;
-
-      if (CGGetActiveDisplayList(kMaxDisplays, displays, &display_count) != kCGErrorSuccess) {
-        return false;
-      }
-
+    std::optional<CGDirectDisplayID> parse_display_id(std::string_view display_name) {
       if (display_name.empty()) {
-        return display_count > 0;
+        return std::nullopt;
       }
 
-      char *end = nullptr;
-      const auto selected_display_id = std::strtoul(display_name.c_str(), &end, 10);
-      if (!end || *end != '\0') {
-        return display_count > 0;
+      CGDirectDisplayID display_id {};
+      const auto *const begin {display_name.data()};
+      const auto *const end {display_name.data() + display_name.size()};
+      const auto [ptr, ec] {std::from_chars(begin, end, display_id)};
+      if (ec != std::errc {} || ptr != end) {
+        return std::nullopt;
       }
 
-      for (uint32_t i = 0; i < display_count; ++i) {
-        if (displays[i] == selected_display_id) {
-          return true;
-        }
-      }
-
-      return false;
+      return display_id;
     }
 
-    void wake_displays_for_detection(const std::string &display_name) {
-      IOPMAssertionID wake_assertion = kIOPMNullAssertionID;
-      const auto result = IOPMAssertionDeclareUserActivity(
-        CFSTR("Sunshine display detection"),
-        kIOPMUserActiveRemote,
-        &wake_assertion
-      );
-
-      if (result != kIOReturnSuccess) {
-        BOOST_LOG(warning) << "Unable to declare remote user activity to wake displays, IOReturn: "sv << result;
-        return;
-      }
-
-      BOOST_LOG(info) << "Declared remote user activity to wake displays, assertion id: "sv << wake_assertion;
-
-      for (int attempt = 0; attempt < 10 && !has_required_active_display(display_name); ++attempt) {
-        std::this_thread::sleep_for(100ms);
-      }
-
-      if (!has_required_active_display(display_name)) {
-        BOOST_LOG(warning) << "Display wake attempt did not expose the requested display ["sv
-                           << display_name << "] in the active display list."sv;
-      }
-
-      if (wake_assertion != kIOPMNullAssertionID) {
-        const auto release_result = IOPMAssertionRelease(wake_assertion);
-        if (release_result != kIOReturnSuccess) {
-          BOOST_LOG(warning) << "Unable to release display wake assertion, IOReturn: "sv << release_result;
-        }
-      }
+    OSType videotoolbox_pixel_format(const video::config_t &config) {
+      const auto colorspace {video::colorspace_from_client_config(config, false)};
+      return colorspace.bit_depth == 10 ? kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange : kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange;
     }
   }  // namespace
 
@@ -220,41 +60,10 @@ namespace platf {
   struct av_display_t: public display_t {
     AVVideo *av_capture {};  ///< AV capture.
     CGDirectDisplayID display_id {};  ///< Display ID.
-    IOPMAssertionID display_sleep_assertion {kIOPMNullAssertionID};  ///< Display sleep assertion.
+    std::unique_ptr<display_device::DisplayPowerGuardInterface> display_power_guard;  ///< Display power guard.
 
     ~av_display_t() override {
       [av_capture release];
-
-      if (display_sleep_assertion != kIOPMNullAssertionID) {
-        const auto result = IOPMAssertionRelease(display_sleep_assertion);
-        if (result != kIOReturnSuccess) {
-          BOOST_LOG(warning) << "Unable to release display sleep assertion, IOReturn: "sv << result;
-        }
-      }
-    }
-
-    /**
-     * @brief Prevent macOS from sleeping the captured display while streaming.
-     */
-    void prevent_display_sleep() {
-      if (display_sleep_assertion != kIOPMNullAssertionID) {
-        return;
-      }
-
-      const auto result = IOPMAssertionCreateWithName(
-        kIOPMAssertPreventUserIdleDisplaySleep,
-        kIOPMAssertionLevelOn,
-        CFSTR("Sunshine display capture"),
-        &display_sleep_assertion
-      );
-
-      if (result == kIOReturnSuccess) {
-        BOOST_LOG(info) << "Created display sleep prevention assertion, assertion id: "sv << display_sleep_assertion;
-        return;
-      }
-
-      display_sleep_assertion = kIOPMNullAssertionID;
-      BOOST_LOG(warning) << "Unable to create display sleep prevention assertion, IOReturn: "sv << result;
     }
 
     capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
@@ -412,37 +221,41 @@ namespace platf {
     }
 
     auto display = std::make_shared<av_display_t>();
-    display->prevent_display_sleep();
-    wake_displays_for_detection(display_name);
+
+    BOOST_LOG(debug) << "Waking display for capture selector ["sv << display_name << ']';
+    if (!display_device::wake_display(display_name, 1s)) {
+      BOOST_LOG(debug) << "Display wake attempt did not expose the requested display ["sv << display_name << ']';
+    }
+
+    display->display_power_guard = display_device::keep_display_awake("Sunshine display capture");
+    if (display->display_power_guard) {
+      BOOST_LOG(debug) << "Keeping display awake for capture"sv;
+    } else {
+      BOOST_LOG(debug) << "Unable to create display sleep prevention assertion"sv;
+    }
 
     // Default to main display
     display->display_id = CGMainDisplayID();
 
-    // Print all displays available with it's name and id
-    BOOST_LOG(info) << "Detecting displays"sv;
-    log_display_environment_diagnostics();
-
-    auto display_array = [AVVideo displayNames];
-    bool matched_configured_display = display_name.empty();
-    for (NSDictionary *item in display_array) {
-      NSNumber *display_id = item[@"id"];
-      // We need show display's product name and corresponding display number given by user
-      NSString *name = item[@"displayName"];
-      // We are using CGGetActiveDisplayList that only returns active displays so hardcoded connected value in log to true
-      BOOST_LOG(info) << "Detected display: "sv << name.UTF8String << " (id: "sv << [NSString stringWithFormat:@"%@", display_id].UTF8String << ") connected: true"sv;
-      if (!display_name.empty() && std::atoi(display_name.c_str()) == [display_id unsignedIntValue]) {
-        display->display_id = [display_id unsignedIntValue];
-        matched_configured_display = true;
-      }
-    }
-
-    if (!matched_configured_display) {
+    if (const auto configured_display_id {parse_display_id(display_name)}) {
+      display->display_id = *configured_display_id;
+    } else if (!display_name.empty()) {
       BOOST_LOG(warning) << "Configured display ["sv << display_name
-                         << "] was not found in the active display list. Falling back to main display ["sv
+                         << "] is not a valid macOS capture display id. Falling back to main display ["sv
                          << display->display_id << "]."sv;
     }
 
-    log_display_diagnostic(display->display_id, "selected for AVFoundation capture");
+    // Print all displays available with their names and ids
+    BOOST_LOG(debug) << "Detecting displays"sv;
+    for (const auto &device : display_device::enumerate_devices()) {
+      if (device.m_display_name.empty()) {
+        continue;
+      }
+
+      BOOST_LOG(debug) << "Detected display: "sv << device.m_friendly_name
+                       << " (id: "sv << device.m_display_name << ") connected: true"sv;
+    }
+
     BOOST_LOG(info) << "Configuring selected display ("sv << display->display_id << ") to stream"sv;
 
     display->av_capture = [[AVVideo alloc] initWithDisplay:display->display_id frameRate:config.framerate];
@@ -458,19 +271,28 @@ namespace platf {
     display->env_width = display->width;
     display->env_height = display->height;
 
+    if (hwdevice_type == platf::mem_type_e::videotoolbox) {
+      const auto pixel_format {videotoolbox_pixel_format(config)};
+      [display->av_capture setFrameWidth:config.width frameHeight:config.height];
+      display->av_capture.pixelFormat = pixel_format;
+    }
+
     return display;
   }
 
   std::vector<std::string> display_names(mem_type_e hwdevice_type) {
-    __block std::vector<std::string> display_names;
+    std::vector<std::string> display_names;
+    if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::videotoolbox) {
+      return display_names;
+    }
 
-    auto display_array = [AVVideo displayNames];
-
-    display_names.reserve([display_array count]);
-    [display_array enumerateObjectsUsingBlock:^(NSDictionary *_Nonnull obj, NSUInteger idx, BOOL *_Nonnull stop) {
-      NSString *name = obj[@"name"];
-      display_names.emplace_back(name.UTF8String);
-    }];
+    const auto devices {display_device::enumerate_devices()};
+    display_names.reserve(devices.size());
+    for (const auto &device : devices) {
+      if (!device.m_display_name.empty()) {
+        display_names.emplace_back(device.m_display_name);
+      }
+    }
 
     return display_names;
   }
