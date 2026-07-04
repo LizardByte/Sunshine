@@ -11,11 +11,11 @@
 // lib includes
 #include <boost/endian/arithmetic.hpp>
 #include <openssl/err.h>
+#include <rs.h>
 
 extern "C" {
   // clang-format off
 #include <moonlight-common-c/src/Limelight-internal.h>
-#include "rswrapper.h"
   // clang-format on
 }
 
