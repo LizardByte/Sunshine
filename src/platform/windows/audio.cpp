@@ -663,7 +663,14 @@ namespace platf::audio {
 
       REFERENCE_TIME default_latency;
       audio_client->GetDevicePeriod(&default_latency, nullptr);
-      default_latency_ms = default_latency / 1000;
+      // GetDevicePeriod returns REFERENCE_TIME (100ns units), i.e. 10000 units
+      // per millisecond. Dividing by 1000 yielded tenths of a millisecond, so
+      // the fallback wait during capture silence (and thus default-device-change
+      // / reinit detection) ran ~10x longer than intended. Clamp to a small floor.
+      default_latency_ms = default_latency / 10000;
+      if (default_latency_ms < 3) {
+        default_latency_ms = 3;
+      }
       continuous_audio = continuous;
 
       std::uint32_t frames;
@@ -830,7 +837,7 @@ namespace platf::audio {
     audio_notification_t endpt_notification;  ///< Endpoint notification callback registered with Windows.
     std::optional<std::function<void()>> default_endpt_changed_cb;  ///< Callback invoked when the default endpoint changes.
 
-    REFERENCE_TIME default_latency_ms;  ///< WASAPI default device period used as capture latency.
+    DWORD default_latency_ms;  ///< WASAPI default device period (ms) used as the capture event-wait timeout.
 
     util::buffer_t<float> sample_buf;  ///< Floating-point sample buffer filled from WASAPI packets.
     float *sample_buf_pos;  ///< Current write position in `sample_buf`.
