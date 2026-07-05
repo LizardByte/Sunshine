@@ -290,12 +290,9 @@ launchctl load -w /Library/LaunchAgents/org.freedesktop.dbus-session.plist
 ## Windows
 
 ### No gamepad detected
-Sunshine uses libvirtualhid for virtual gamepads on Windows. ViGEmBus is only needed as a fallback for Xbox 360
-and DualShock 4 gamepads when libvirtualhid is unavailable. You can install ViGEmBus from the troubleshooting tab
-of the web UI.
-
-Alternatively, you can manually install it from
-[ViGEmBus releases](https://github.com/nefarius/ViGEmBus/releases/latest). You must use version 1.17 or newer.
+Sunshine uses libvirtualhid for virtual gamepads on Windows. Install the libvirtualhid Windows driver separately
+for full virtual gamepad support. ViGEmBus is detected only as a limited fallback for Xbox 360 and DualShock 4
+gamepads when libvirtualhid is unavailable. If you use ViGEmBus fallback, you must use version 1.17 or newer.
 
 After installation, it is recommended to restart your computer.
 

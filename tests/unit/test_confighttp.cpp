@@ -1189,6 +1189,56 @@ TEST_F(BrowseDirectoryTest, BrowseUnixRootParentEqualsSelf) {
 #endif
 
 // ============================================================
+// Direct unit tests for virtual input driver status helpers
+// ============================================================
+
+// Test: empty minimum driver versions accept any detected version
+TEST(ConfigHttpDriverStatusTest, IsDriverVersionSupported_EmptyMinimum_ReturnsTrue) {
+  ASSERT_TRUE(confighttp::is_driver_version_supported("", ""));
+  ASSERT_TRUE(confighttp::is_driver_version_supported("1.0.0.0", ""));
+}
+
+// Test: equal and newer numeric driver versions are supported
+TEST(ConfigHttpDriverStatusTest, IsDriverVersionSupported_EqualOrNewerVersion_ReturnsTrue) {
+  ASSERT_TRUE(confighttp::is_driver_version_supported("1.17.0.0", "1.17.0.0"));
+  ASSERT_TRUE(confighttp::is_driver_version_supported("1.18.0.0", "1.17.0.0"));
+  ASSERT_TRUE(confighttp::is_driver_version_supported("2.0", "1.17.0.0"));
+}
+
+// Test: older numeric driver versions are unsupported
+TEST(ConfigHttpDriverStatusTest, IsDriverVersionSupported_OlderVersion_ReturnsFalse) {
+  ASSERT_FALSE(confighttp::is_driver_version_supported("1.16.9.9", "1.17.0.0"));
+  ASSERT_FALSE(confighttp::is_driver_version_supported("1.16", "1.17.0.0"));
+}
+
+// Test: invalid driver versions are unsupported when a minimum is required
+TEST(ConfigHttpDriverStatusTest, IsDriverVersionSupported_InvalidVersion_ReturnsFalse) {
+  ASSERT_FALSE(confighttp::is_driver_version_supported("", "1.17.0.0"));
+  ASSERT_FALSE(confighttp::is_driver_version_supported("1.17.beta", "1.17.0.0"));
+  ASSERT_FALSE(confighttp::is_driver_version_supported("1.17.", "1.17.0.0"));
+}
+
+// Test: driver status JSON includes compatibility and supported version metadata
+TEST(ConfigHttpDriverStatusTest, BuildDriverStatus_IncludesExpectedFields) {
+  const auto status = confighttp::build_driver_status(true, "1.17.0.0", "1.17.0.0");
+
+  ASSERT_TRUE(status["installed"].get<bool>());
+  ASSERT_EQ(status["version"].get<std::string>(), "1.17.0.0");
+  ASSERT_EQ(status["minimum_version"].get<std::string>(), "1.17.0.0");
+  ASSERT_EQ(status["supported_versions"].get<std::string>(), ">= 1.17.0.0");
+  ASSERT_TRUE(status["version_compatible"].get<bool>());
+}
+
+// Test: missing drivers are not compatible even when any version would be accepted
+TEST(ConfigHttpDriverStatusTest, BuildDriverStatus_NotInstalledIsNotCompatible) {
+  const auto status = confighttp::build_driver_status(false, "", "");
+
+  ASSERT_FALSE(status["installed"].get<bool>());
+  ASSERT_EQ(status["supported_versions"].get<std::string>(), "Any");
+  ASSERT_FALSE(status["version_compatible"].get<bool>());
+}
+
+// ============================================================
 // Direct unit tests for browseDirectory helper functions
 // ============================================================
 

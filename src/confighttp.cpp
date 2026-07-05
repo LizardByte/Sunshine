@@ -8,10 +8,13 @@
 
 // standard includes
 #include <algorithm>
+#include <charconv>
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <optional>
 #include <string_view>
+#include <vector>
 
 // lib includes
 #include <boost/algorithm/string.hpp>
@@ -22,9 +25,10 @@
 #include <Simple-Web-Server/server_https.hpp>
 
 #ifdef _WIN32
+  #include "platform/virtualhid_input.h"
   #include "platform/windows/misc.h"
+  #include "platform/windows/utf_utils.h"
 
-  #include <vector>
   #include <Windows.h>
 #endif
 
@@ -101,6 +105,246 @@ namespace confighttp {
    * @brief Amount of time a generated CSRF token remains valid.
    */
   constexpr auto CSRF_TOKEN_LIFETIME = std::chrono::hours(1);  // Tokens valid for 1 hour
+
+  constexpr auto LIBVIRTUALHID_MINIMUM_VERSION = ""sv;  ///< Minimum supported libvirtualhid driver version; empty means any version.
+  constexpr auto VIGEMBUS_MINIMUM_VERSION = "1.17.0.0"sv;  ///< Minimum supported ViGEmBus fallback driver version.
+
+  /**
+   * @brief Parse one dotted driver-version component.
+   *
+   * @param part Version component text.
+   * @return Parsed component value, or empty when invalid.
+   */
+  std::optional<unsigned int> parse_driver_version_part(std::string_view part) {
+    if (part.empty()) {
+      return std::nullopt;
+    }
+
+    unsigned int value = 0;
+    const auto *begin = part.data();
+    const auto *end = part.data() + part.size();
+    const auto [ptr, ec] = std::from_chars(begin, end, value);
+    if (ec != std::errc {} || ptr != end) {
+      return std::nullopt;
+    }
+
+    return value;
+  }
+
+  /**
+   * @brief Parse a dotted driver version into numeric components.
+   *
+   * @param version Driver version text.
+   * @return Parsed version parts, or empty when invalid.
+   */
+  std::optional<std::vector<unsigned int>> parse_driver_version(std::string_view version) {
+    if (version.empty()) {
+      return std::nullopt;
+    }
+
+    std::vector<unsigned int> parts;
+    std::size_t start = 0;
+    while (start <= version.size()) {
+      const auto dot = version.find('.', start);
+      const auto length = dot == std::string_view::npos ? std::string_view::npos : dot - start;
+      const auto part = parse_driver_version_part(version.substr(start, length));
+      if (!part) {
+        return std::nullopt;
+      }
+
+      parts.push_back(*part);
+      if (dot == std::string_view::npos) {
+        break;
+      }
+      start = dot + 1;
+    }
+
+    return parts;
+  }
+
+  bool is_driver_version_supported(std::string_view version, std::string_view minimum_version) {
+    if (minimum_version.empty()) {
+      return true;
+    }
+
+    const auto version_parts = parse_driver_version(version);
+    const auto minimum_parts = parse_driver_version(minimum_version);
+    if (!version_parts || !minimum_parts) {
+      return false;
+    }
+
+    const auto part_count = std::max(version_parts->size(), minimum_parts->size());
+    for (std::size_t i = 0; i < part_count; ++i) {
+      const auto version_part = i < version_parts->size() ? (*version_parts)[i] : 0U;
+      const auto minimum_part = i < minimum_parts->size() ? (*minimum_parts)[i] : 0U;
+      if (version_part != minimum_part) {
+        return version_part > minimum_part;
+      }
+    }
+
+    return true;
+  }
+
+  nlohmann::json build_driver_status(bool installed, const std::string &version, std::string_view minimum_version) {
+    const auto minimum_version_text = std::string {minimum_version};
+
+    nlohmann::json output_tree;
+    output_tree["installed"] = installed;
+    output_tree["version"] = version;
+    output_tree["minimum_version"] = minimum_version_text;
+    output_tree["supported_versions"] = minimum_version.empty() ? "Any" : std::format(">= {}", minimum_version_text);
+    output_tree["version_compatible"] = installed && is_driver_version_supported(version, minimum_version);
+
+    return output_tree;
+  }
+
+#ifdef _WIN32
+  /**
+   * @brief RAII wrapper for a Windows registry key handle.
+   */
+  class registry_key_t {
+  public:
+    /**
+     * @brief Construct an empty registry key wrapper.
+     */
+    registry_key_t() = default;
+
+    /**
+     * @brief Copy construction is disabled because the wrapper owns a handle.
+     */
+    registry_key_t(const registry_key_t &) = delete;
+
+    /**
+     * @brief Copy assignment is disabled because the wrapper owns a handle.
+     *
+     * @return This registry key wrapper.
+     */
+    registry_key_t &operator=(const registry_key_t &) = delete;
+
+    /**
+     * @brief Close the owned registry key handle.
+     */
+    ~registry_key_t() {
+      close();
+    }
+
+    /**
+     * @brief Get the owned registry key handle.
+     *
+     * @return Registry key handle.
+     */
+    HKEY get() const {
+      return handle;
+    }
+
+    /**
+     * @brief Prepare the wrapper to receive a registry key handle.
+     *
+     * @return Address of the wrapped handle.
+     */
+    HKEY *put() {
+      close();
+      return &handle;
+    }
+
+  private:
+    /**
+     * @brief Close the owned registry key handle if one is open.
+     */
+    void close() {
+      if (handle) {
+        RegCloseKey(handle);
+        handle = nullptr;
+      }
+    }
+
+    HKEY handle = nullptr;  ///< Owned Windows registry key handle.
+  };
+
+  /**
+   * @brief Read a string value from a Windows registry key.
+   *
+   * @param key Registry key to query.
+   * @param value_name Registry value name.
+   * @return Registry string value, or empty when unavailable.
+   */
+  std::optional<std::wstring> read_registry_string_value(HKEY key, const wchar_t *value_name) {
+    DWORD value_type = 0;
+    DWORD value_size = 0;
+    if (RegGetValueW(key, nullptr, value_name, RRF_RT_REG_SZ, &value_type, nullptr, &value_size) != ERROR_SUCCESS ||
+        value_size == 0) {
+      return std::nullopt;
+    }
+
+    std::wstring value(value_size / sizeof(wchar_t), L'\0');
+    if (RegGetValueW(key, nullptr, value_name, RRF_RT_REG_SZ, &value_type, value.data(), &value_size) != ERROR_SUCCESS) {
+      return std::nullopt;
+    }
+
+    while (!value.empty() && value.back() == L'\0') {
+      value.pop_back();
+    }
+    return value;
+  }
+
+  /**
+   * @brief Read the installed libvirtualhid driver version from the Windows device registry.
+   *
+   * @return Driver version string, or empty when unavailable.
+   */
+  std::string read_libvirtualhid_driver_version() {
+    registry_key_t root_key;
+    if (RegOpenKeyExW(
+          HKEY_LOCAL_MACHINE,
+          L"SYSTEM\\CurrentControlSet\\Enum\\ROOT\\LIBVIRTUALHID",
+          0,
+          KEY_READ,
+          root_key.put()
+        ) != ERROR_SUCCESS) {
+      return {};
+    }
+
+    for (DWORD index = 0;; ++index) {
+      wchar_t subkey_name[256] = {};
+      DWORD subkey_name_size = _countof(subkey_name);
+      const auto enum_status = RegEnumKeyExW(root_key.get(), index, subkey_name, &subkey_name_size, nullptr, nullptr, nullptr, nullptr);
+      if (enum_status == ERROR_NO_MORE_ITEMS) {
+        break;
+      }
+      if (enum_status != ERROR_SUCCESS) {
+        continue;
+      }
+
+      std::wstring device_key_path = L"SYSTEM\\CurrentControlSet\\Enum\\ROOT\\LIBVIRTUALHID\\";
+      device_key_path.append(subkey_name, subkey_name_size);
+
+      registry_key_t device_key;
+      if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, device_key_path.c_str(), 0, KEY_READ, device_key.put()) != ERROR_SUCCESS) {
+        continue;
+      }
+
+      const auto driver_key_suffix = read_registry_string_value(device_key.get(), L"Driver");
+      if (!driver_key_suffix) {
+        continue;
+      }
+
+      std::wstring driver_key_path = L"SYSTEM\\CurrentControlSet\\Control\\Class\\";
+      driver_key_path += *driver_key_suffix;
+
+      registry_key_t driver_key;
+      if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, driver_key_path.c_str(), 0, KEY_READ, driver_key.put()) != ERROR_SUCCESS) {
+        continue;
+      }
+
+      if (const auto version = read_registry_string_value(driver_key.get(), L"DriverVersion")) {
+        return utf_utils::to_utf8(*version);
+      }
+    }
+
+    return {};
+  }
+
+#endif
 
   /**
    * @brief Log the request details.
@@ -1431,130 +1675,87 @@ namespace confighttp {
   }
 
   /**
-   * @brief Get ViGEmBus driver version and installation status.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
+   * @brief Build libvirtualhid driver version and installation status.
    *
-   * @api_examples{/api/vigembus/status| GET| null}
+   * @return libvirtualhid driver status JSON.
    */
-  void getViGEmBusStatus(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
-      return;
-    }
-
-    print_req(request);
-
-    nlohmann::json output_tree;
-
+  nlohmann::json get_virtualhid_driver_status() {
 #ifdef _WIN32
-    std::string version_str;
-    bool installed = false;
-    bool version_compatible = false;
+    const auto version_str = read_libvirtualhid_driver_version();
+    auto output_tree = build_driver_status(false, version_str, LIBVIRTUALHID_MINIMUM_VERSION);
+    bool requires_installed_driver = true;
+    std::string backend_name;
+    std::string error;
 
-    // Check if ViGEmBus driver exists
-    std::filesystem::path driver_path = std::filesystem::path(std::getenv("SystemRoot") ? std::getenv("SystemRoot") : "C:\\Windows") / "System32" / "drivers" / "ViGEmBus.sys";
-
-    if (std::filesystem::exists(driver_path)) {
-      installed = platf::getFileVersionInfo(driver_path, version_str);
-      if (installed) {
-        // Parse version string to check compatibility (>= 1.17.0.0)
-        std::vector<std::string> version_parts;
-        std::stringstream ss(version_str);
-        std::string part;
-        while (std::getline(ss, part, '.')) {
-          version_parts.push_back(part);
-        }
-
-        if (version_parts.size() >= 2) {
-          int major = std::stoi(version_parts[0]);
-          int minor = std::stoi(version_parts[1]);
-          version_compatible = (major > 1) || (major == 1 && minor >= 17);
-        }
+    try {
+      const auto runtime = platf::virtualhid::create_runtime();
+      if (runtime) {
+        const auto &capabilities = runtime->capabilities();
+        backend_name = capabilities.backend_name;
+        requires_installed_driver = capabilities.requires_installed_driver;
+        output_tree = build_driver_status(capabilities.supports_gamepad, version_str, LIBVIRTUALHID_MINIMUM_VERSION);
       }
+    } catch (const std::exception &e) {
+      error = e.what();
     }
 
-    output_tree["installed"] = installed;
-    output_tree["version"] = version_str;
-    output_tree["version_compatible"] = version_compatible;
-    output_tree["packaged_version"] = VIGEMBUS_PACKAGED_VERSION;
+    output_tree["backend_name"] = backend_name;
+    output_tree["requires_installed_driver"] = requires_installed_driver;
+    if (!error.empty()) {
+      output_tree["error"] = error;
+    }
 #else
-    output_tree["error"] = "ViGEmBus is only available on Windows";
-    output_tree["installed"] = false;
-    output_tree["version"] = "";
-    output_tree["version_compatible"] = false;
-    output_tree["packaged_version"] = "";
+    auto output_tree = build_driver_status(false, "", LIBVIRTUALHID_MINIMUM_VERSION);
+    output_tree["error"] = "libvirtualhid driver status is only available on Windows";
+    output_tree["backend_name"] = "";
+    output_tree["requires_installed_driver"] = false;
 #endif
 
-    send_response(response, output_tree);
+    return output_tree;
   }
 
   /**
-   * @brief Install ViGEmBus driver with elevated permissions.
+   * @brief Build ViGEmBus fallback driver version and installation status.
+   *
+   * @return ViGEmBus fallback driver status JSON.
+   */
+  nlohmann::json get_vigembus_driver_status() {
+#ifdef _WIN32
+    std::string version_str;
+
+    // Check if ViGEmBus driver exists
+    const std::filesystem::path driver_path = std::filesystem::path(std::getenv("SystemRoot") ? std::getenv("SystemRoot") : "C:\\Windows") / "System32" / "drivers" / "ViGEmBus.sys";
+    const auto installed = std::filesystem::exists(driver_path);
+    if (installed) {
+      platf::getFileVersionInfo(driver_path, version_str);
+    }
+
+    auto output_tree = build_driver_status(installed, version_str, VIGEMBUS_MINIMUM_VERSION);
+#else
+    auto output_tree = build_driver_status(false, "", VIGEMBUS_MINIMUM_VERSION);
+    output_tree["error"] = "ViGEmBus is only available on Windows";
+#endif
+
+    return output_tree;
+  }
+
+  /**
+   * @brief Get virtual input driver version and installation status.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    *
-   * @api_examples{/api/vigembus/install| POST| null}
+   * @api_examples{/api/virtual-input/status| GET| null}
    */
-  void installViGEmBus(const resp_https_t &response, const req_https_t &request) {
+  void getVirtualInputStatus(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
-      return;
-    }
-
-    std::string client_id = get_client_id(request);
-    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
     print_req(request);
 
     nlohmann::json output_tree;
-
-#ifdef _WIN32
-    // Get the path to the packaged ViGEmBus installer.
-    const std::filesystem::path installer_path = platf::appdata().parent_path() / "third-party" / "vigembus_installer.exe";
-
-    if (!std::filesystem::exists(installer_path)) {
-      output_tree["status"] = false;
-      output_tree["error"] = "ViGEmBus installer not found";
-      send_response(response, output_tree);
-      return;
-    }
-
-    // Run the installer with elevated permissions
-    std::error_code ec;
-    boost::filesystem::path working_dir = boost::filesystem::path(installer_path.string()).parent_path();
-    boost::process::v1::environment env = boost::this_process::environment();
-
-    // Run with elevated permissions, non-interactive
-    const std::string install_cmd = std::format("{} /quiet", installer_path.string());
-    auto child = platf::run_command(true, false, install_cmd, working_dir, env, nullptr, ec, nullptr);
-
-    if (ec) {
-      output_tree["status"] = false;
-      output_tree["error"] = "Failed to start installer: " + ec.message();
-      send_response(response, output_tree);
-      return;
-    }
-
-    // Wait for the installer to complete
-    child.wait(ec);
-
-    if (ec) {
-      output_tree["status"] = false;
-      output_tree["error"] = "Installer failed: " + ec.message();
-    } else {
-      int exit_code = child.exit_code();
-      output_tree["status"] = (exit_code == 0);
-      output_tree["exit_code"] = exit_code;
-      if (exit_code != 0) {
-        output_tree["error"] = std::format("Installer exited with code {}", exit_code);
-      }
-    }
-#else
-    output_tree["status"] = false;
-    output_tree["error"] = "ViGEmBus installation is only available on Windows";
-#endif
-
+    output_tree["virtualhid"] = get_virtualhid_driver_status();
+    output_tree["vigembus"] = get_vigembus_driver_status();
     send_response(response, output_tree);
   }
 
@@ -1812,8 +2013,7 @@ namespace confighttp {
     server.resource["^/api/logs$"]["GET"] = getLogs;
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
     server.resource["^/api/restart$"]["POST"] = restart;
-    server.resource["^/api/vigembus/status$"]["GET"] = getViGEmBusStatus;
-    server.resource["^/api/vigembus/install$"]["POST"] = installViGEmBus;
+    server.resource["^/api/virtual-input/status$"]["GET"] = getVirtualInputStatus;
 
     // static/dynamic resources
     server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
