@@ -220,7 +220,6 @@ if(WAYLAND_FOUND)
     include_directories(
             SYSTEM
             ${WAYLAND_INCLUDE_DIRS}
-            ${CMAKE_BINARY_DIR}/generated-src
     )
 
     list(APPEND PLATFORM_LIBRARIES ${WAYLAND_LIBRARIES} gbm)
@@ -323,6 +322,9 @@ endif ()
 if (${SUNSHINE_BUILD_FLATPAK})
     list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_BUILD_FLATPAK=1)
 endif ()
+
+include_directories(SYSTEM
+        ${CMAKE_BINARY_DIR}/generated-src)
 
 list(APPEND PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/linux/publish.cpp"
