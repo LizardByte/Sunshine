@@ -134,15 +134,39 @@
 
             <!-- Action Buttons -->
             <div class="d-flex gap-2 flex-wrap">
-              <a
-                v-if="app.links && app.links.download"
-                :href="app.links.download"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="btn btn-primary btn-sm flex-fill">
-                <arrow-down-circle :size="16" class="icon"></arrow-down-circle>
-                {{ $t('featured.get') }}
-              </a>
+              <template v-if="app.downloads && app.downloads.length > 0">
+                <a
+                  v-for="(download, index) in app.downloads"
+                  :key="index"
+                  :href="download.url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  :class="download.img ? 'flex-fill text-center d-inline-flex align-items-center justify-content-center' : 'btn btn-primary btn-sm flex-fill'">
+                  
+                  <img v-if="download.img" 
+                       :src="download.img" 
+                       :alt="download.label" 
+                       :height="getDownloadHeight(download.img)"
+                       :style="getDownloadStyle(download.img)" />
+                       
+                  <template v-else>
+                    <simple-icon v-if="download.url && download.url.includes('github.com')" icon="GitHub" :size="16" class="icon"></simple-icon>
+                    <arrow-down-circle v-else :size="16" class="icon"></arrow-down-circle>
+                    {{ download.label }}
+                  </template>
+                </a>
+              </template>
+              <template v-else>
+                <a
+                  v-if="app.links && app.links.download"
+                  :href="app.links.download"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="btn btn-primary btn-sm flex-fill">
+                  <arrow-down-circle :size="16" class="icon"></arrow-down-circle>
+                  {{ $t('featured.get') }}
+                </a>
+              </template>
               <a
                 v-if="app.links && app.links.documentation"
                 :href="app.links.documentation"
@@ -438,6 +462,20 @@
         const relative = formatDistanceToNow(date, { addSuffix: true });
 
         return { relative, absolute };
+      },
+      getDownloadHeight(img) {
+        if (!img) return '40';
+        if (img.includes('play.google.com') || img.includes('amazon-appstore') || img.includes('fdroid')) {
+            return '60';
+        }
+        return '40';
+      },
+      getDownloadStyle(img) {
+        if (!img) return '';
+        if (img.includes('amazon-appstore')) {
+            return 'padding: 10px;';
+        }
+        return '';
       }
     },
   });
