@@ -308,8 +308,30 @@ namespace va {
         BOOST_LOG(info) << "Using normal encoding mode"sv;
       }
 
+      // When the compression_level AVOption is set, vaapi_encode.c assigns the value to VAEncMiscParameterBufferQualityLevel
+      VAConfigAttrib quality_attr = {VAConfigAttribEncQualityRange};
+      auto status = vaGetConfigAttributes(va_display, va_profile, va_entrypoint, &quality_attr, 1);
+      if (status != VA_STATUS_SUCCESS) {
+        quality_attr.value = 0;
+      }
+      switch (config::video.vaapi.quality) {
+        case 0:  // auto or probe failed
+        default:
+          break;
+        case 1:  // low quality (highest value in range)
+        case 2:  // med quality (middle value in range)
+          ctx->compression_level = quality_attr.value / config::video.vaapi.quality;
+          break;
+        case 3:  // high quality (1)
+          ctx->compression_level = 1;
+          break;
+      }
+      if (ctx->compression_level > 0) {
+        BOOST_LOG(info) << "[VAAPI] Quality level set to "sv << ctx->compression_level << " (fastest level: "sv << quality_attr.value << ")"sv;
+      }
+
       VAConfigAttrib rc_attr = {VAConfigAttribRateControl};
-      auto status = vaGetConfigAttributes(va_display, va_profile, va_entrypoint, &rc_attr, 1);
+      status = vaGetConfigAttributes(va_display, va_profile, va_entrypoint, &rc_attr, 1);
       if (status != VA_STATUS_SUCCESS) {
         // Stick to the default rate control (CQP)
         rc_attr.value = 0;
@@ -337,26 +359,30 @@ namespace va {
       // When we have to resort to the default 1 second VBV for encoding quality reasons,
       // we stick to CBR in order to avoid encoding huge frames after bitrate undershoots
       // leave headroom available in the RC window.
+      auto rc_msg = "with standard VBV size";
+      auto rc_mode = "CQP";
+
       if (config::video.vaapi.strict_rc_buffer ||
           (vendor && strstr(vendor, "Intel")) ||
           ctx->codec_id == AV_CODEC_ID_AV1) {
         ctx->rc_buffer_size = ctx->bit_rate * ctx->framerate.den / ctx->framerate.num;
+        rc_msg = "with single frame VBV size";
+      }
 
-        if (rc_attr.value & VA_RC_VBR) {
-          BOOST_LOG(info) << "Using VBR with single frame VBV size"sv;
-          av_dict_set(options, "rc_mode", "VBR", 0);
-        } else if (rc_attr.value & VA_RC_CBR) {
-          BOOST_LOG(info) << "Using CBR with single frame VBV size"sv;
-          av_dict_set(options, "rc_mode", "CBR", 0);
-        } else {
-          BOOST_LOG(warning) << "Using CQP with single frame VBV size"sv;
-          av_dict_set_int(options, "qp", config::video.qp, 0);
-        }
-      } else if (!(rc_attr.value & (VA_RC_CBR | VA_RC_VBR))) {
-        BOOST_LOG(warning) << "Using CQP rate control"sv;
+      if (rc_attr.value & VA_RC_VBR && config::video.vaapi.allow_vbr) {
+        rc_mode = "VBR";
+      } else if (rc_attr.value & VA_RC_CBR) {
+        rc_mode = "CBR";
+      } else {
+        rc_mode = "CQP";
+      }
+
+      av_dict_set(options, "rc_mode", rc_mode, 0);
+      if (std::string_view(rc_mode) == "CQP"sv) {
+        BOOST_LOG(warning) << "[VAAPI] Using CQP rate control (QP value: "sv << config::video.qp << ")"sv;
         av_dict_set_int(options, "qp", config::video.qp, 0);
       } else {
-        BOOST_LOG(info) << "Using default rate control"sv;
+        BOOST_LOG(info) << "[VAAPI] Using "sv << rc_mode << " rate control "sv << rc_msg;
       }
     }
 

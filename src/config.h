@@ -105,6 +105,9 @@ namespace config {
     } vt;  ///< VideoToolbox encoder options.
 
     struct {
+      bool allow_vbr;
+      int blbrc;
+      int quality;
       bool strict_rc_buffer;
     } vaapi;  ///< VA-API encoder options.
 
