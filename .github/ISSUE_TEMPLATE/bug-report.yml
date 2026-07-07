@@ -7,7 +7,9 @@ body:
       value: >
         **THIS IS NOT THE PLACE TO ASK FOR SUPPORT!**
         Please use our [Support Center](https://app.lizardbyte.dev/support) for support issues.
-        Non actionable bug reports will be LOCKED and CLOSED!
+        Before creating an issue, please review our
+        [AI Community Rules](https://docs.lizardbyte.dev/latest/community/community_rules.html#ai-generated-content).
+        AI generated issues and non actionable bug reports will be LOCKED and CLOSED!
   - type: checkboxes
     attributes:
       label: Is there an existing issue for this?
