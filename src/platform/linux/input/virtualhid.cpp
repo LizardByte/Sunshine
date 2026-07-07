@@ -79,20 +79,20 @@ namespace platf {
    * @param release Whether the key or button event is a release.
    * @param flags Bit flags that modify the requested operation; ignored by this backend.
    */
-  void keyboard_update(input_t &input, std::uint16_t modcode, bool release, [[maybe_unused]] std::uint8_t flags) {
-    virtualhid::keyboard_update(((input_raw_t *) input.get())->virtualhid, modcode, release);
+  void keyboard_update(input_t &input, std::uint16_t modcode, bool release, std::uint8_t flags) {
+    virtualhid::keyboard_update(((input_raw_t *) input.get())->virtualhid, modcode, release, flags);
   }
 
   void unicode(input_t &input, char *utf8, int size) {
     virtualhid::unicode(((input_raw_t *) input.get())->virtualhid, utf8, size);
   }
 
-  void touch_update(client_input_t *input, const touch_port_t & /*touch_port*/, const touch_input_t &touch) {
-    virtualhid::touch_update(((client_input_raw_t *) input)->virtualhid, touch);
+  void touch_update(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch) {
+    virtualhid::touch_update(((client_input_raw_t *) input)->virtualhid, touch_port, touch);
   }
 
-  void pen_update(client_input_t *input, const touch_port_t & /*touch_port*/, const pen_input_t &pen) {
-    virtualhid::pen_update(((client_input_raw_t *) input)->virtualhid, pen);
+  void pen_update(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen) {
+    virtualhid::pen_update(((client_input_raw_t *) input)->virtualhid, touch_port, pen);
   }
 
   int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {

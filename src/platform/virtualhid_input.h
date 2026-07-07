@@ -186,8 +186,9 @@ namespace platf::virtualhid {
    * @param context Input context.
    * @param modcode Portable key code.
    * @param release Whether the key was released.
+   * @param flags Bit flags that modify the requested operation.
    */
-  void keyboard_update(input_context_t &context, std::uint16_t modcode, bool release);
+  void keyboard_update(input_context_t &context, std::uint16_t modcode, bool release, std::uint8_t flags);
 
   /**
    * @brief Submit UTF-8 text input.
@@ -202,17 +203,19 @@ namespace platf::virtualhid {
    * @brief Submit a touchscreen event.
    *
    * @param context Client context.
+   * @param touch_port Touch coordinate bounds used for scaling.
    * @param touch Touch event.
    */
-  void touch_update(client_context_t &context, const touch_input_t &touch);
+  void touch_update(client_context_t &context, const touch_port_t &touch_port, const touch_input_t &touch);
 
   /**
    * @brief Submit a pen event.
    *
    * @param context Client context.
+   * @param touch_port Touch coordinate bounds used for scaling.
    * @param pen Pen event.
    */
-  void pen_update(client_context_t &context, const pen_input_t &pen);
+  void pen_update(client_context_t &context, const touch_port_t &touch_port, const pen_input_t &pen);
 
   /**
    * @brief Return whether the configured gamepad profile can expose touchpad input.

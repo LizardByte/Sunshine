@@ -286,6 +286,30 @@ namespace platf::virtualhid {
       return adjusted;
     }
 
+    lvh::PointerViewport pointer_viewport(const touch_port_t &touch_port) {
+      return {
+        .offset_x = touch_port.offset_x,
+        .offset_y = touch_port.offset_y,
+        .width = touch_port.width,
+        .height = touch_port.height,
+      };
+    }
+
+    lvh::KeyboardEvent keyboard_event(std::uint16_t modcode, bool release, std::uint8_t flags) {
+      lvh::KeyboardEvent event {
+        .key_code = modcode,
+        .pressed = !release,
+      };
+
+#ifdef _WIN32
+      event.uses_normalized_key_code = !(flags & SS_KBE_FLAG_NON_NORMALIZED);
+      event.prefer_native_scan_code = config::input.always_send_scancodes;
+#else
+      (void) flags;
+#endif
+      return event;
+    }
+
     lvh::PenToolType pen_tool(std::uint8_t tool) {
       switch (tool) {
         case LI_TOOL_TYPE_PEN:
@@ -349,13 +373,13 @@ namespace platf::virtualhid {
       }
     }
 
-    void release_all_touches(client_context_t &context) {
+    void cancel_all_touches(client_context_t &context) {
       if (!context.touch) {
         return;
       }
 
       for (const auto id : context.active_touches) {
-        log_failure("release libvirtualhid touch contact"sv, context.touch->release_contact(id));
+        log_failure("cancel libvirtualhid touch contact"sv, context.touch->cancel_contact(id));
       }
       context.active_touches.clear();
     }
@@ -667,9 +691,9 @@ namespace platf::virtualhid {
     }
   }
 
-  void keyboard_update(input_context_t &context, std::uint16_t modcode, bool release) {
+  void keyboard_update(input_context_t &context, std::uint16_t modcode, bool release, std::uint8_t flags) {
     if (context.keyboard) {
-      log_failure("submit libvirtualhid keyboard input"sv, context.keyboard->submit({.key_code = modcode, .pressed = !release}));
+      log_failure("submit libvirtualhid keyboard input"sv, context.keyboard->submit(keyboard_event(modcode, release, flags)));
     }
   }
 
@@ -679,19 +703,25 @@ namespace platf::virtualhid {
     }
   }
 
-  void touch_update(client_context_t &context, const touch_input_t &touch) {
+  void touch_update(client_context_t &context, const touch_port_t &touch_port, const touch_input_t &touch) {
     if (!context.touch) {
       return;
     }
 
     switch (touch.eventType) {
       case LI_TOUCH_EVENT_CANCEL_ALL:
-        release_all_touches(context);
+        cancel_all_touches(context);
         return;
       case LI_TOUCH_EVENT_UP:
-      case LI_TOUCH_EVENT_CANCEL:
-      case LI_TOUCH_EVENT_HOVER_LEAVE:
         log_failure("release libvirtualhid touch contact"sv, context.touch->release_contact(static_cast<std::int32_t>(touch.pointerId)));
+        context.active_touches.erase(static_cast<std::int32_t>(touch.pointerId));
+        return;
+      case LI_TOUCH_EVENT_CANCEL:
+        log_failure("cancel libvirtualhid touch contact"sv, context.touch->cancel_contact(static_cast<std::int32_t>(touch.pointerId)));
+        context.active_touches.erase(static_cast<std::int32_t>(touch.pointerId));
+        return;
+      case LI_TOUCH_EVENT_HOVER_LEAVE:
+        log_failure("leave libvirtualhid touch contact"sv, context.touch->leave_contact(static_cast<std::int32_t>(touch.pointerId)));
         context.active_touches.erase(static_cast<std::int32_t>(touch.pointerId));
         return;
       case LI_TOUCH_EVENT_HOVER:
@@ -704,6 +734,10 @@ namespace platf::virtualhid {
           contact.y = std::clamp(touch.y, 0.0F, 1.0F);
           contact.pressure = std::clamp(touch.pressureOrDistance, 0.0F, 1.0F);
           contact.orientation = touch_orientation(touch.rotation);
+          contact.touching = touch.eventType != LI_TOUCH_EVENT_HOVER;
+          contact.viewport = pointer_viewport(touch_port);
+          contact.contact_major_axis = touch.contactAreaMajor;
+          contact.contact_minor_axis = touch.contactAreaMinor;
           log_failure("submit libvirtualhid touch contact"sv, context.touch->place_contact(contact));
           context.active_touches.insert(contact.id);
           return;
@@ -713,7 +747,7 @@ namespace platf::virtualhid {
     }
   }
 
-  void pen_update(client_context_t &context, const pen_input_t &pen) {
+  void pen_update(client_context_t &context, const touch_port_t &touch_port, const pen_input_t &pen) {
     if (!context.pen) {
       return;
     }
@@ -742,7 +776,22 @@ namespace platf::virtualhid {
         log_failure("release libvirtualhid pen button"sv, context.pen->button(button, false));
       }
       context.pressed_pen_buttons.clear();
-      return;
+    }
+
+    auto transition = lvh::PointerTransition::update;
+    switch (pen.eventType) {
+      case LI_TOUCH_EVENT_CANCEL:
+      case LI_TOUCH_EVENT_CANCEL_ALL:
+        transition = lvh::PointerTransition::cancel;
+        break;
+      case LI_TOUCH_EVENT_UP:
+        transition = lvh::PointerTransition::release;
+        break;
+      case LI_TOUCH_EVENT_HOVER_LEAVE:
+        transition = lvh::PointerTransition::leave;
+        break;
+      default:
+        break;
     }
 
     auto rotation = pen.rotation;
@@ -762,7 +811,8 @@ namespace platf::virtualhid {
       tilt_y = std::atan2(std::cos(-rotation_rads) * r, z) * 180.0F / std::numbers::pi_v<float>;
     }
 
-    const auto is_touching = pen.eventType == LI_TOUCH_EVENT_DOWN || pen.eventType == LI_TOUCH_EVENT_MOVE;
+    const auto is_touching = transition == lvh::PointerTransition::update &&
+                             (pen.eventType == LI_TOUCH_EVENT_DOWN || pen.eventType == LI_TOUCH_EVENT_MOVE);
     lvh::PenToolState state;
     state.tool = pen_tool(pen.toolType);
     state.x = std::clamp(pen.x, 0.0F, 1.0F);
@@ -771,6 +821,8 @@ namespace platf::virtualhid {
     state.distance = is_touching ? -1.0F : std::clamp(pen.pressureOrDistance, 0.0F, 1.0F);
     state.tilt_x = tilt_x;
     state.tilt_y = tilt_y;
+    state.transition = transition;
+    state.viewport = pointer_viewport(touch_port);
     log_failure("submit libvirtualhid pen state"sv, context.pen->place_tool(state));
   }
 
