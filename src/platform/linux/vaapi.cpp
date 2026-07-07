@@ -311,22 +311,24 @@ namespace va {
       // When the compression_level AVOption is set, vaapi_encode.c assigns the value to VAEncMiscParameterBufferQualityLevel
       VAConfigAttrib quality_attr = {VAConfigAttribEncQualityRange};
       auto status = vaGetConfigAttributes(va_display, va_profile, va_entrypoint, &quality_attr, 1);
-      if (status != VA_STATUS_SUCCESS) {
+      if (status != VA_STATUS_SUCCESS || quality_attr.value == VA_ATTRIB_NOT_SUPPORTED) {
         quality_attr.value = 0;
       }
+      auto target_quality = 0;
       switch (config::video.vaapi.quality) {
         case 0:  // auto or probe failed
         default:
           break;
         case 1:  // low quality (highest value in range)
         case 2:  // med quality (middle value in range)
-          ctx->compression_level = quality_attr.value / config::video.vaapi.quality;
+          target_quality = quality_attr.value / config::video.vaapi.quality;
           break;
         case 3:  // high quality (1)
-          ctx->compression_level = 1;
+          target_quality = 1;
           break;
       }
-      if (ctx->compression_level > 0) {
+      if (quality_attr.value > 0) {
+        ctx->compression_level = target_quality;
         BOOST_LOG(info) << "[VAAPI] Quality level set to "sv << ctx->compression_level << " (fastest level: "sv << quality_attr.value << ")"sv;
       }
 
