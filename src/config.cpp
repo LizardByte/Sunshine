@@ -670,7 +670,7 @@ namespace config {
 
     {
       false,  // allow vbr
-      0,  // blbrc
+      false,  // blbrc
       0,  // quality
       false,  // strict_rc_buffer
     },  // vaapi
@@ -1555,7 +1555,7 @@ namespace config {
     int_f(vars, "vt_realtime", video.vt.vt_realtime, vt::rt_from_view);
 
     bool_f(vars, "vaapi_allow_vbr", video.vaapi.allow_vbr);
-    int_f(vars, "vaapi_blbrc", video.vaapi.blbrc);
+    bool_f(vars, "vaapi_blbrc", video.vaapi.blbrc);
     int_f(vars, "vaapi_quality", video.vaapi.quality);
     bool_f(vars, "vaapi_strict_rc_buffer", video.vaapi.strict_rc_buffer);
 

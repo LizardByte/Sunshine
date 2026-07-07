@@ -106,7 +106,7 @@ namespace config {
 
     struct {
       bool allow_vbr;
-      int blbrc;
+      bool blbrc;
       int quality;
       bool strict_rc_buffer;
     } vaapi;  ///< VA-API encoder options.
