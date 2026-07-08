@@ -453,7 +453,7 @@ namespace config {
     }
 
     /**
-     * @brief Parse a VAAPI rate-control mode while preserving the current value on invalid input.
+     * @brief Parse a VA-API rate-control mode while preserving the current value on invalid input.
      *
      * @param rc Rate-control mode selected in the configuration.
      * @param original Original text value used when reporting a parsing failure.
