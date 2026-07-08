@@ -38,6 +38,11 @@
   #include <ffnvcodec/nvEncodeAPI.h>
 #endif
 
+#if (defined(linux) || defined(__FreeBSD__) && !defined(DOXYGEN))
+  // For VAAPI rate control types
+  #include <va/va.h>
+#endif
+
 namespace fs = std::filesystem;
 using namespace std::literals;
 
@@ -398,9 +403,7 @@ namespace config {
   }  // namespace qsv
 
   namespace vaapi {
-#if (defined(linux) || defined(__FreeBSD__) && !defined(DOXYGEN))
-  #include <va/va.h>
-#else
+#if !(defined(linux) || defined(__FreeBSD__) || defined(DOXYGEN))
     constexpr int VA_RC_CBR = 0x00000002;
     constexpr int VA_RC_VBR = 0x00000004;
     constexpr int VA_RC_CQP = 0x00000010;
