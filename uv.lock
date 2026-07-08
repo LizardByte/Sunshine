@@ -564,15 +564,6 @@ wheels = [
 ]
 
 [[package]]
-name = "setuptools"
-version = "81.0.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/0d/1c/73e719955c59b8e424d015ab450f51c0af856ae46ea2da83eba51cc88de1/setuptools-81.0.0.tar.gz", hash = "sha256:487b53915f52501f0a79ccfd0c02c165ffe06631443a886740b91af4b7a5845a", size = 1198299, upload-time = "2026-02-06T21:10:39.601Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e1/e3/c164c88b2e5ce7b24d667b9bd83589cf4f3520d97cad01534cd3c4f55fdb/setuptools-81.0.0-py3-none-any.whl", hash = "sha256:fdd925d5c5d9f62e4b74b30d6dd7828ce236fd6ed998a08d81de62ce5a6310d6", size = 1062021, upload-time = "2026-02-06T21:10:37.175Z" },
-]
-
-[[package]]
 name = "six"
 version = "1.17.0"
 source = { registry = "https://pypi.org/simple" }
@@ -596,7 +587,6 @@ flatpak = [
 ]
 glad = [
     { name = "glad2" },
-    { name = "setuptools" },
 ]
 
 [package.metadata]
@@ -607,10 +597,7 @@ flatpak = [
     { name = "flatpak-node-generator", directory = "packaging/linux/flatpak/deps/flatpak-builder-tools/node" },
     { name = "flatpak-pip-generator", directory = "packaging/linux/flatpak/deps/flatpak-builder-tools/pip" },
 ]
-glad = [
-    { name = "glad2", directory = "third-party/glad" },
-    { name = "setuptools", specifier = "<82" },
-]
+glad = [{ name = "glad2", directory = "third-party/glad" }]
 
 [[package]]
 name = "yarl"
