@@ -381,13 +381,13 @@ namespace va {
         // override whitelist if the user-specified RC is supported
         auto_whitelist = false;
       } else if (rc_attr.value & VA_RC_VBR && auto_whitelist) {
-        rc_mode = "VBR";
+        rc_mode = "vbr";
         rc_val = VA_RC_VBR;
       } else if (rc_attr.value & VA_RC_CBR) {
-        rc_mode = "CBR";
+        rc_mode = "cbr";
         rc_val = VA_RC_CBR;
       } else {
-        rc_mode = "CQP";
+        rc_mode = "cqp";
         rc_val = VA_RC_CQP;
       }
 
@@ -397,12 +397,11 @@ namespace va {
       }
 
       av_dict_set_int(options, "rc_mode", rc_val, 0);
-      if (std::string_view(rc_mode) == "CQP"sv) {
-        BOOST_LOG(warning) << "[VAAPI] Using CQP rate control (QP value: "sv << config::video.qp << ")"sv;
+      if (rc_val == VA_RC_CQP || rc_val == VA_RC_ICQ || rc_val == VA_RC_QVBR) {
+        BOOST_LOG(warning) << "[VAAPI] Applying QP for compatible rate control method (QP value: "sv << config::video.qp << ")"sv;
         av_dict_set_int(options, "qp", config::video.qp, 0);
-      } else {
-        BOOST_LOG(info) << "[VAAPI] Using "sv << rc_mode << " rate control "sv << rc_msg;
       }
+      BOOST_LOG(info) << "[VAAPI] Using "sv << rc_mode << " rate control "sv << rc_msg;
     }
 
     /**
