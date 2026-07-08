@@ -366,19 +366,22 @@ namespace va {
       // If a user-supplied rate control is detected, override the whitelist logic to allow
       // full user control of both the rate control and strict VBV settings.
       auto auto_whitelist = false;
-      auto rc_msg = "with standard VBV size";
       auto rc_mode = config::video.vaapi.vaapi_rc_str;
+      auto rc_vbv = "with standard VBV size";
+      auto rc_whitelist = "";
       auto rc_val = config::video.vaapi.vaapi_rc.value_or(0);
 
       // Detect whitelisted configurations
       if ((vendor && std::string_view(vendor).contains("Intel") == true) || ctx->codec_id == AV_CODEC_ID_AV1) {
         auto_whitelist = true;
+        rc_whitelist = " (whitelist override)";
       }
 
       // First try user config, else fall back to auto-detection that respects whitelist
       if (rc_val > 0 && rc_attr.value & rc_val) {
         // override whitelist if the user-specified RC is supported
         auto_whitelist = false;
+        rc_whitelist = "";
       } else if (rc_attr.value & VA_RC_VBR && auto_whitelist) {
         rc_mode = "vbr";
         rc_val = VA_RC_VBR;
@@ -392,11 +395,7 @@ namespace va {
 
       if (config::video.vaapi.strict_rc_buffer || auto_whitelist) {
         ctx->rc_buffer_size = ctx->bit_rate * ctx->framerate.den / ctx->framerate.num;
-        rc_msg = "with single frame VBV size";
-      }
-
-      if (auto_whitelist) {
-        BOOST_LOG(warning) << "[VAAPI] Rate control and VBV size overridden by built-in whitelist"sv;
+        rc_vbv = "with single frame VBV size";
       }
 
       // ffmpeg's rc_mode values don't align with VAAPI's rc_val values, so transform string to uppercase
@@ -408,7 +407,7 @@ namespace va {
         BOOST_LOG(warning) << "[VAAPI] Applying QP for compatible rate control method (QP value: "sv << config::video.qp << ")"sv;
         av_dict_set_int(options, "qp", config::video.qp, 0);
       }
-      BOOST_LOG(info) << "[VAAPI] Using "sv << rc_mode << " rate control "sv << rc_msg;
+      BOOST_LOG(info) << "[VAAPI] Using "sv << rc_mode << " rate control "sv << rc_vbv << rc_whitelist;
     }
 
     /**
