@@ -128,6 +128,9 @@ jobs:
         env:
           INPUT_RELEASE_VERSION: ${{ inputs.release_version }}
           INPUT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          PR_CLONE_URL: ${{ github.event.pull_request.head.repo.clone_url }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           REPOSITORY_CLONE_URL: ${{ github.event.repository.clone_url }}
         run: |
           # variables for manifest
@@ -139,6 +142,11 @@ jobs:
           if [ "${GITHUB_EVENT_NAME}" == "push" ]; then
             echo "This is a PUSH event"
             branch="${GITHUB_REF_NAME}"
+          elif [ "${GITHUB_EVENT_NAME}" == "pull_request" ]; then
+            echo "This is a PR event"
+            branch="${PR_HEAD_REF}"
+            commit="${PR_HEAD_SHA}"
+            clone_url="${PR_CLONE_URL}"
           fi
 
           echo "Branch: ${branch}"
