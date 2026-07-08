@@ -21,8 +21,13 @@ jobs:
       _support_headless_testing: true
       BRANCH: ${{ github.head_ref || github.ref_name }}
       BUILD_VERSION: ${{ inputs.release_version }}
-      CLONE_URL: ${{ github.event.repository.clone_url }}
-      COMMIT: ${{ inputs.release_commit }}
+      CLONE_URL: >-
+        ${{
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.clone_url ||
+          github.event.repository.clone_url
+        }}
+      COMMIT: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.release_commit }}
     permissions:
       contents: read
     runs-on: ubuntu-latest

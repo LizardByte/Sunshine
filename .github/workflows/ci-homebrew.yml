@@ -110,6 +110,7 @@ jobs:
           MATRIX_RELEASE: ${{ matrix.release }}
           PR_CLONE_URL: ${{ github.event.pull_request.head.repo.clone_url }}
           PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_DEFAULT_BRANCH: ${{ github.event.pull_request.head.repo.default_branch }}
           REPOSITORY_CLONE_URL: ${{ github.event.repository.clone_url }}
           REPOSITORY_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -132,6 +133,7 @@ jobs:
             echo "This is a PR event"
             clone_url=${PR_CLONE_URL}
             branch="${PR_HEAD_REF}"
+            commit="${PR_HEAD_SHA}"
             default_branch="${PR_DEFAULT_BRANCH}"
             tag="${PR_HEAD_REF}"
           fi
