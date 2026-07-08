@@ -753,7 +753,7 @@ namespace config {
       false,  // blbrc
       (int) vaapi::quality_e::_auto,  // quality
       (int) vaapi::rc_e::_auto,  // rate control
-      {}, // rate control string
+      {},  // rate control string
       false,  // strict_rc_buffer
     },  // vaapi
 

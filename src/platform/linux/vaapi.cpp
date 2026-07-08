@@ -377,7 +377,7 @@ namespace va {
       }
 
       // First try user config, else fall back to auto-detection that respects whitelist
-      if(rc_val > 0 && rc_attr.value & rc_val) {
+      if (rc_val > 0 && rc_attr.value & rc_val) {
         // override whitelist if the user-specified RC is supported
         auto_whitelist = false;
       } else if (rc_attr.value & VA_RC_VBR && auto_whitelist) {
@@ -396,7 +396,11 @@ namespace va {
         rc_msg = "with single frame VBV size";
       }
 
-      av_dict_set_int(options, "rc_mode", rc_val, 0);
+      // ffmpeg's rc_mode values don't align with VAAPI's rc_val values, so transform string to uppercase
+      std::transform(rc_mode.begin(), rc_mode.end(), rc_mode.begin(), [](unsigned char c) {
+        return std::toupper(c);
+      });
+      av_dict_set(options, "rc_mode", rc_mode.c_str(), 0);
       if (rc_val == VA_RC_CQP || rc_val == VA_RC_ICQ || rc_val == VA_RC_QVBR) {
         BOOST_LOG(warning) << "[VAAPI] Applying QP for compatible rate control method (QP value: "sv << config::video.qp << ")"sv;
         av_dict_set_int(options, "qp", config::video.qp, 0);
