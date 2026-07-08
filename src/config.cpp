@@ -398,7 +398,7 @@ namespace config {
   }  // namespace qsv
 
   namespace vaapi {
-#if defined(linux) || defined(__FreeBSD__)
+#if (defined(linux) || defined(__FreeBSD__) && !defined(DOXYGEN))
   #include <va/va.h>
 #else
     constexpr int VA_RC_CBR = 0x00000002;
