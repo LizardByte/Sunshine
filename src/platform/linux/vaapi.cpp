@@ -314,14 +314,15 @@ namespace va {
       if (status != VA_STATUS_SUCCESS || quality_attr.value == VA_ATTRIB_NOT_SUPPORTED) {
         quality_attr.value = 0;
       }
+      auto vaapi_quality = config::video.vaapi.vaapi_quality.value_or(0);
       auto target_quality = 0;
-      switch (config::video.vaapi.quality) {
-        case 0:  // auto or probe failed
+      switch (vaapi_quality) {
+        case 0:  // auto or unset
         default:
           break;
         case 1:  // low quality (highest value in range)
         case 2:  // med quality (middle value in range)
-          target_quality = quality_attr.value / config::video.vaapi.quality;
+          target_quality = quality_attr.value / vaapi_quality;
           break;
         case 3:  // high quality (1)
           target_quality = 1;
@@ -361,31 +362,41 @@ namespace va {
       // When we have to resort to the default 1 second VBV for encoding quality reasons,
       // we stick to CBR in order to avoid encoding huge frames after bitrate undershoots
       // leave headroom available in the RC window.
+      //
+      // If a user-supplied rate control is detected, override the whitelist logic to allow
+      // full user control of both the rate control and strict VBV settings.
+      auto auto_whitelist = false;
       auto rc_msg = "with standard VBV size";
-      auto rc_mode = "CQP";
-      auto vbr_whitelist = false;
+      auto rc_mode = config::video.vaapi.vaapi_rc_str;
+      auto rc_val = config::video.vaapi.vaapi_rc.value_or(0);
 
-      // Treat specific good cases as separate from strict rc buffer config
+      // Detect whitelisted configurations
       if ((vendor && strstr(vendor, "Intel")) || ctx->codec_id == AV_CODEC_ID_AV1) {
-        BOOST_LOG(warning) << "[VAAPI] Rate control and VBV size overridden by built-in whitelist";
-        vbr_whitelist = true;
+        BOOST_LOG(warning) << "[VAAPI] Rate control and VBV size may be overridden by built-in whitelist on this device";
+        auto_whitelist = true;
       }
 
-      if (config::video.vaapi.strict_rc_buffer || vbr_whitelist) {
+      // First try user config, else fall back to auto-detection that respects whitelist
+      if(rc_val > 0 && rc_attr.value & rc_val) {
+        // override whitelist if the user-specified RC is supported
+        auto_whitelist = false;
+      } else if (rc_attr.value & VA_RC_VBR && auto_whitelist) {
+        rc_mode = "VBR";
+        rc_val = VA_RC_VBR;
+      } else if (rc_attr.value & VA_RC_CBR) {
+        rc_mode = "CBR";
+        rc_val = VA_RC_CBR;
+      } else {
+        rc_mode = "CQP";
+        rc_val = VA_RC_CQP;
+      }
+
+      if (config::video.vaapi.strict_rc_buffer || auto_whitelist) {
         ctx->rc_buffer_size = ctx->bit_rate * ctx->framerate.den / ctx->framerate.num;
         rc_msg = "with single frame VBV size";
       }
 
-      auto vbr_allowed = (config::video.vaapi.allow_vbr || vbr_whitelist);
-      if (rc_attr.value & VA_RC_VBR && vbr_allowed) {
-        rc_mode = "VBR";
-      } else if (rc_attr.value & VA_RC_CBR) {
-        rc_mode = "CBR";
-      } else {
-        rc_mode = "CQP";
-      }
-
-      av_dict_set(options, "rc_mode", rc_mode, 0);
+      av_dict_set_int(options, "rc_mode", rc_val, 0);
       if (std::string_view(rc_mode) == "CQP"sv) {
         BOOST_LOG(warning) << "[VAAPI] Using CQP rate control (QP value: "sv << config::video.qp << ")"sv;
         av_dict_set_int(options, "qp", config::video.qp, 0);

@@ -397,6 +397,87 @@ namespace config {
 
   }  // namespace qsv
 
+  namespace vaapi {
+#if defined(linux) || defined(__FreeBSD__)
+  #include <va/va.h>
+#else
+  #define VA_RC_CBR 0x00000002
+  #define VA_RC_VBR 0x00000004
+  #define VA_RC_CQP 0x00000010
+  #define VA_RC_ICQ 0x00000040
+  #define VA_RC_QVBR 0x00000400
+  #define VA_RC_AVBR 0x00000800
+#endif
+    /**
+     * @brief Enumerates supported VA-API quality options.
+     */
+    enum class quality_e : int {
+      _auto = 0,
+      speed = 1,
+      balanced = 2,
+      quality = 3
+    };
+
+    /**
+     * @brief Enumerates supported VA-API rc options.
+     */
+    enum class rc_e : int {
+      _auto = 0,
+      avbr = VA_RC_AVBR,
+      cbr = VA_RC_CBR,
+      cqp = VA_RC_CQP,
+      icq = VA_RC_ICQ,
+      qvbr = VA_RC_QVBR,
+      vbr = VA_RC_VBR
+    };
+
+    /**
+     * @brief Parse a VA-API quality preset while preserving the current value on invalid input.
+     *
+     * @param quality_type Configuration text naming the VA-API quality preset.
+     * @param original Original text value used when reporting a parsing failure.
+     * @return Parsed enum value, or the setting-specific default when the text is unknown.
+     */
+    template<class T>
+    ::std::optional<int> quality_from_view(const ::std::string_view &quality_type, const ::std::optional<int>(&original)) {
+#ifndef DOXYGEN
+  #define _CONVERT_(x) \
+    if (quality_type == #x##sv) \
+    return (int) T::x
+#endif
+      _CONVERT_(balanced);
+      _CONVERT_(quality);
+      _CONVERT_(speed);
+#undef _CONVERT_
+      return original;
+    }
+
+    /**
+     * @brief Parse a VAAPI rate-control mode while preserving the current value on invalid input.
+     *
+     * @param rc Rate-control mode selected in the configuration.
+     * @param original Original text value used when reporting a parsing failure.
+     * @return Parsed enum value, or the setting-specific default when the text is unknown.
+     */
+    template<class T>
+    ::std::optional<int> rc_from_view(const ::std::string_view &rc, const ::std::optional<int>(&original)) {
+#ifndef DOXYGEN
+  #define _CONVERT_(x) \
+    if (rc == #x##sv) \
+    return (int) T::x
+#endif
+      _CONVERT_(avbr);
+      _CONVERT_(cbr);
+      _CONVERT_(cqp);
+      _CONVERT_(icq);
+      _CONVERT_(qvbr);
+      _CONVERT_(vbr);
+#undef _CONVERT_
+      return original;
+    }
+
+  }  // namespace vaapi
+
   namespace vt {
 
     /**
@@ -669,9 +750,10 @@ namespace config {
     },  // vt
 
     {
-      false,  // allow vbr
       false,  // blbrc
-      0,  // quality
+      (int) vaapi::quality_e::_auto,  // quality
+      (int) vaapi::rc_e::_auto,  // rate control
+      {}, // rate control string
       false,  // strict_rc_buffer
     },  // vaapi
 
@@ -1554,9 +1636,16 @@ namespace config {
     int_f(vars, "vt_software", video.vt.vt_require_sw, vt::force_software_from_view);
     int_f(vars, "vt_realtime", video.vt.vt_realtime, vt::rt_from_view);
 
-    bool_f(vars, "vaapi_allow_vbr", video.vaapi.allow_vbr);
+    std::string vaapi_quality;
+    string_f(vars, "vaapi_quality", vaapi_quality);
+    if (!vaapi_quality.empty()) {
+      video.vaapi.vaapi_quality = vaapi::quality_from_view<vaapi::quality_e>(vaapi_quality, video.vaapi.vaapi_quality);
+    }
+    string_f(vars, "vaapi_rc", video.vaapi.vaapi_rc_str);
+    if (!video.vaapi.vaapi_rc_str.empty()) {
+      video.vaapi.vaapi_rc = vaapi::rc_from_view<vaapi::rc_e>(video.vaapi.vaapi_rc_str, video.vaapi.vaapi_rc);
+    }
     bool_f(vars, "vaapi_blbrc", video.vaapi.blbrc);
-    int_f(vars, "vaapi_quality", video.vaapi.quality);
     bool_f(vars, "vaapi_strict_rc_buffer", video.vaapi.strict_rc_buffer);
 
     int_f(vars, "vk_tune", video.vk.tune);
