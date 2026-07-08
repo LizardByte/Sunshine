@@ -3006,6 +3006,71 @@ editing the `conf` file in a text editor. Use the examples as reference.
 
 ## VA-API Encoder
 
+### vaapi_blbrc
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Block level based bitrate control (BLBRC) can assign different bitrate on a per-block basis. May improve quality on supported devices.
+            @note{This option only applies when using the VA-API [encoder](#encoder).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vaapi_blbrc = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### vaapi_quality
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            The quality profile controls the tradeoff between speed and quality of encoding.
+            @note{This option only applies when using the VA-API [encoder](#encoder).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            auto
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vaapi_quality = auto
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="4">Choices</td>
+        <td>auto</td>
+        <td>driver default quality</td>
+    </tr>
+    <tr>
+        <td>speed</td>
+        <td>prefer speed</td>
+    </tr>
+    <tr>
+        <td>balanced</td>
+        <td>balanced</td>
+    </tr>
+    <tr>
+        <td>quality</td>
+        <td>prefer quality</td>
+    </tr>
+</table>
+
 ### vaapi_rc
 
 <table>
@@ -3057,71 +3122,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <tr>
         <td>vbr</td>
         <td>variable bitrate</td>
-    </tr>
-</table>
-
-### vaapi_quality
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            The quality profile controls the tradeoff between speed and quality of encoding.
-            @note{This option only applies when using the VA-API [encoder](#encoder).}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            auto
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            vaapi_quality = auto
-            @endcode</td>
-    </tr>
-    <tr>
-        <td rowspan="4">Choices</td>
-        <td>auto</td>
-        <td>driver default quality</td>
-    </tr>
-    <tr>
-        <td>speed</td>
-        <td>prefer speed</td>
-    </tr>
-    <tr>
-        <td>balanced</td>
-        <td>balanced</td>
-    </tr>
-    <tr>
-        <td>quality</td>
-        <td>prefer quality</td>
-    </tr>
-</table>
-
-### vaapi_blbrc
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Block level based bitrate control (BLBRC) can assign different bitrate on a per-block basis. May improve quality on supported devices.
-            @note{This option only applies when using the VA-API [encoder](#encoder).}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            disabled
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            vaapi_blbrc = enabled
-            @endcode</td>
     </tr>
 </table>
 
