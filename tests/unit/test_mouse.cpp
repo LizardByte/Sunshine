@@ -4,21 +4,63 @@
  */
 #include "../tests_common.h"
 
+#include <algorithm>
+#include <chrono>
+#include <cmath>
 #include <src/input.h>
+#include <thread>
+
+#ifdef _WIN32
+  #include <Windows.h>
+#endif
 
 #if defined(__APPLE__) && defined(__MACH__)
   #include <ApplicationServices/ApplicationServices.h>
 #endif
 
 namespace {
+  constexpr double mouse_position_tolerance = 1.0;
+  constexpr auto mouse_input_wait = std::chrono::milliseconds(500);
+  constexpr auto mouse_input_poll_interval = std::chrono::milliseconds(10);
+
+  bool is_near(double actual, double expected) {
+    return std::abs(actual - expected) <= mouse_position_tolerance;
+  }
+
+  bool is_relative_axis_moved(double actual_delta, double requested_delta) {
+    if (requested_delta > 0.0) {
+      return actual_delta > 0.0;
+    }
+    if (requested_delta < 0.0) {
+      return actual_delta < 0.0;
+    }
+
+    return is_near(actual_delta, 0.0);
+  }
+
+  void expect_relative_axis_moved(double actual_delta, double requested_delta) {
+    EXPECT_TRUE(is_relative_axis_moved(actual_delta, requested_delta));
+  }
+
+  template<typename Predicate>
+  util::point_t wait_for_mouse_location(platf::input_t &input, Predicate predicate) {
+    const auto deadline = std::chrono::steady_clock::now() + mouse_input_wait;
+    auto location = platf::get_mouse_loc(input);
+    while (!predicate(location) && std::chrono::steady_clock::now() < deadline) {
+      std::this_thread::sleep_for(mouse_input_poll_interval);
+      location = platf::get_mouse_loc(input);
+    }
+
+    return location;
+  }
 
   platf::touch_port_t absolute_mouse_test_port() {
 #ifdef _WIN32
     return platf::touch_port_t {
-      .offset_x = 0,
-      .offset_y = 0,
-      .width = 65535,
-      .height = 65535,
+      .offset_x = GetSystemMetrics(SM_XVIRTUALSCREEN),
+      .offset_y = GetSystemMetrics(SM_YVIRTUALSCREEN),
+      .width = std::max(1, GetSystemMetrics(SM_CXVIRTUALSCREEN)),
+      .height = std::max(1, GetSystemMetrics(SM_CYVIRTUALSCREEN)),
     };
 #elif defined(__APPLE__) && defined(__MACH__)
     const auto display_bounds = CGDisplayBounds(CGMainDisplayID());
@@ -52,15 +94,6 @@ namespace {
 struct MouseHIDTest: PlatformTestSuite, testing::WithParamInterface<util::point_t> {
   void SetUp() override {
     BaseTest::SetUp();
-#ifdef _WIN32
-    // TODO: Windows tests are failing, `get_mouse_loc` seems broken and `platf::abs_mouse` too
-    //       the alternative `platf::abs_mouse` method seem to work better during tests,
-    //       but I'm not sure about real work
-    GTEST_SKIP() << "TODO Windows";
-#elif defined(__linux__) || defined(__FreeBSD__)
-    // TODO: Absolute virtual mouse location validation is not implemented for Unix backends yet.
-    GTEST_SKIP() << "TODO Unix virtual mouse";
-#endif
   }
 
   void TearDown() override {
@@ -93,11 +126,13 @@ TEST_P(MouseHIDTest, MoveInputTest) {
 
   BOOST_LOG(tests) << "MoveInputTest:: move: " << mouse_delta;
   platf::move_mouse(input, mouse_delta.x, mouse_delta.y);
-  std::this_thread::sleep_for(std::chrono::milliseconds(200));
   BOOST_LOG(tests) << "MoveInputTest:: moved: " << mouse_delta;
 
   BOOST_LOG(tests) << "MoveInputTest:: get updated mouse loc";
-  auto new_loc = platf::get_mouse_loc(input);
+  auto new_loc = wait_for_mouse_location(input, [&old_loc, &mouse_delta](const auto &location) {
+    return is_relative_axis_moved(location.x - old_loc.x, mouse_delta.x) &&
+           is_relative_axis_moved(location.y - old_loc.y, mouse_delta.y);
+  });
   BOOST_LOG(tests) << "MoveInputTest:: got updated mouse loc: " << new_loc;
 
   bool has_input_moved = old_loc.x != new_loc.x && old_loc.y != new_loc.y;
@@ -110,9 +145,9 @@ TEST_P(MouseHIDTest, MoveInputTest) {
 
   EXPECT_TRUE(has_input_moved);
 
-  // Verify we moved as much as we requested
-  EXPECT_EQ(new_loc.x - old_loc.x, mouse_delta.x);
-  EXPECT_EQ(new_loc.y - old_loc.y, mouse_delta.y);
+  // Verify the OS moved in the requested direction. Relative pointer input can be accelerated by host settings.
+  expect_relative_axis_moved(new_loc.x - old_loc.x, mouse_delta.x);
+  expect_relative_axis_moved(new_loc.y - old_loc.y, mouse_delta.y);
 }
 
 TEST_P(MouseHIDTest, AbsMoveInputTest) {
@@ -128,13 +163,15 @@ TEST_P(MouseHIDTest, AbsMoveInputTest) {
 
   const auto abs_port = absolute_mouse_test_port();
   const auto expected_pos = expected_absolute_mouse_location(mouse_pos, abs_port);
+  BOOST_LOG(tests) << "AbsMoveInputTest:: touch port: " << abs_port.offset_x << 'x' << abs_port.offset_y << ' ' << abs_port.width << 'x' << abs_port.height;
   BOOST_LOG(tests) << "AbsMoveInputTest:: move: " << mouse_pos;
   platf::abs_mouse(input, abs_port, mouse_pos.x, mouse_pos.y);
-  std::this_thread::sleep_for(std::chrono::milliseconds(200));
   BOOST_LOG(tests) << "AbsMoveInputTest:: moved: " << mouse_pos;
 
   BOOST_LOG(tests) << "AbsMoveInputTest:: get updated mouse loc";
-  auto new_loc = platf::get_mouse_loc(input);
+  auto new_loc = wait_for_mouse_location(input, [&expected_pos](const auto &location) {
+    return is_near(location.x, expected_pos.x) && is_near(location.y, expected_pos.y);
+  });
   BOOST_LOG(tests) << "AbsMoveInputTest:: got updated mouse loc: " << new_loc;
 
   bool has_input_moved = old_loc.x != new_loc.x || old_loc.y != new_loc.y;
@@ -146,6 +183,6 @@ TEST_P(MouseHIDTest, AbsMoveInputTest) {
   }
 
   // Verify we moved to the absolute coordinate
-  EXPECT_EQ(new_loc.x, expected_pos.x);
-  EXPECT_EQ(new_loc.y, expected_pos.y);
+  EXPECT_NEAR(new_loc.x, expected_pos.x, mouse_position_tolerance);
+  EXPECT_NEAR(new_loc.y, expected_pos.y, mouse_position_tolerance);
 }

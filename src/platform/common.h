@@ -1102,9 +1102,14 @@ namespace platf {
    */
   input_t input();
   /**
-   * @brief Get the current mouse position on screen
+   * @brief Get the current mouse position for platform input tests.
+   *
    * @param input The input_t instance to use.
    * @return Screen coordinates of the mouse.
+   *
+   * @note This helper exists only so tests can observe virtual mouse movement. Production input paths should submit
+   * mouse events through `move_mouse()` or `abs_mouse()` instead of reading the host cursor location.
+   *
    * @examples
    * auto [x, y] = get_mouse_loc(input);
    * @examples_end

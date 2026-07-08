@@ -556,9 +556,7 @@ namespace platf {
     virtualhid::move_mouse(((input_raw_t *) input.get())->virtualhid, deltaX, deltaY);
   }
 
-  util::point_t get_mouse_loc(input_t &input) {
-    throw std::runtime_error("not implemented yet, has to pass tests");
-    // TODO: Tests are failing, something wrong here?
+  util::point_t get_mouse_loc(input_t & /*input*/) {
     POINT p;
     if (!GetCursorPos(&p)) {
       return util::point_t {0.0, 0.0};
