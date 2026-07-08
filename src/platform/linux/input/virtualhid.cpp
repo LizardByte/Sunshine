@@ -142,11 +142,11 @@ namespace platf {
     return caps;
   }
 
-  util::point_t get_mouse_loc(input_t & /*input*/) {
+  std::optional<util::point_t> get_mouse_loc(input_t & /*input*/) {
 #ifdef SUNSHINE_BUILD_X11
     auto *display = XOpenDisplay(nullptr);
     if (!display) {
-      return {0, 0};
+      return std::nullopt;
     }
 
     const auto root = DefaultRootWindow(display);
@@ -161,15 +161,15 @@ namespace platf {
     XCloseDisplay(display);
 
     if (!queried) {
-      return {0, 0};
+      return std::nullopt;
     }
 
-    return {
+    return util::point_t {
       static_cast<double>(root_x),
       static_cast<double>(root_y)
     };
 #else
-    return {0, 0};
+    return std::nullopt;
 #endif
   }
 

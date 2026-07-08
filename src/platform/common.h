@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <string>
 
 // lib includes
@@ -1105,16 +1106,18 @@ namespace platf {
    * @brief Get the current mouse position for platform input tests.
    *
    * @param input The input_t instance to use.
-   * @return Screen coordinates of the mouse.
+   * @return Screen coordinates of the mouse, or `std::nullopt` when the platform cannot observe the cursor.
    *
    * @note This helper exists only so tests can observe virtual mouse movement. Production input paths should submit
    * mouse events through `move_mouse()` or `abs_mouse()` instead of reading the host cursor location.
    *
    * @examples
-   * auto [x, y] = get_mouse_loc(input);
+   * if (auto location = get_mouse_loc(input)) {
+   *   auto [x, y] = *location;
+   * }
    * @examples_end
    */
-  util::point_t get_mouse_loc(input_t &input);
+  std::optional<util::point_t> get_mouse_loc(input_t &input);
   /**
    * @brief Move mouse using the backend coordinate system.
    *

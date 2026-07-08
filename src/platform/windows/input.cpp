@@ -556,10 +556,10 @@ namespace platf {
     virtualhid::move_mouse(((input_raw_t *) input.get())->virtualhid, deltaX, deltaY);
   }
 
-  util::point_t get_mouse_loc(input_t & /*input*/) {
+  std::optional<util::point_t> get_mouse_loc(input_t & /*input*/) {
     POINT p;
     if (!GetCursorPos(&p)) {
-      return util::point_t {0.0, 0.0};
+      return std::nullopt;
     }
 
     return util::point_t {

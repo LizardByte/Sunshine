@@ -113,15 +113,15 @@ namespace platf {
     virtualhid::gamepad_battery(((input_raw_t *) input.get())->virtualhid, battery);
   }
 
-  util::point_t get_mouse_loc(input_t & /*input*/) {
+  std::optional<util::point_t> get_mouse_loc(input_t & /*input*/) {
     const auto event = CGEventCreate(nullptr);
     if (!event) {
-      return {0.0, 0.0};
+      return std::nullopt;
     }
 
     const auto current = CGEventGetLocation(event);
     CFRelease(event);
-    return {current.x, current.y};
+    return util::point_t {current.x, current.y};
   }
 
   platform_caps::caps_t get_capabilities() {
