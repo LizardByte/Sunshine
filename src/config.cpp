@@ -401,12 +401,12 @@ namespace config {
 #if defined(linux) || defined(__FreeBSD__)
   #include <va/va.h>
 #else
-  #define VA_RC_CBR 0x00000002
-  #define VA_RC_VBR 0x00000004
-  #define VA_RC_CQP 0x00000010
-  #define VA_RC_ICQ 0x00000040
-  #define VA_RC_QVBR 0x00000400
-  #define VA_RC_AVBR 0x00000800
+    constexpr int VA_RC_CBR = 0x00000002;
+    constexpr int VA_RC_VBR = 0x00000004;
+    constexpr int VA_RC_CQP = 0x00000010;
+    constexpr int VA_RC_ICQ = 0x00000040;
+    constexpr int VA_RC_QVBR = 0x00000400;
+    constexpr int VA_RC_AVBR = 0x00000800;
 #endif
     /**
      * @brief Enumerates supported VA-API quality options.
@@ -751,8 +751,8 @@ namespace config {
 
     {
       false,  // blbrc
-      (int) vaapi::quality_e::_auto,  // quality
-      (int) vaapi::rc_e::_auto,  // rate control
+      std::to_underlying(vaapi::quality_e::_auto),  // quality
+      std::to_underlying(vaapi::rc_e::_auto),  // rate control
       {},  // rate control string
       false,  // strict_rc_buffer
     },  // vaapi

@@ -317,8 +317,8 @@ namespace va {
       auto vaapi_quality = config::video.vaapi.vaapi_quality.value_or(0);
       auto target_quality = 0;
       switch (vaapi_quality) {
-        case 0:  // auto or unset
         default:
+        case 0:  // auto or unset
           break;
         case 1:  // low quality (highest value in range)
         case 2:  // med quality (middle value in range)
@@ -371,7 +371,7 @@ namespace va {
       auto rc_val = config::video.vaapi.vaapi_rc.value_or(0);
 
       // Detect whitelisted configurations
-      if ((vendor && strstr(vendor, "Intel")) || ctx->codec_id == AV_CODEC_ID_AV1) {
+      if ((vendor && std::string_view(vendor).contains("Intel") == true) || ctx->codec_id == AV_CODEC_ID_AV1) {
         BOOST_LOG(warning) << "[VAAPI] Rate control and VBV size may be overridden by built-in whitelist on this device";
         auto_whitelist = true;
       }
