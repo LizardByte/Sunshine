@@ -448,7 +448,9 @@ namespace config {
       _CONVERT_(balanced);
       _CONVERT_(quality);
       _CONVERT_(speed);
-#undef _CONVERT_
+#ifdef _CONVERT_
+  #undef _CONVERT_
+#endif
       return original;
     }
 
@@ -472,7 +474,9 @@ namespace config {
       _CONVERT_(icq);
       _CONVERT_(qvbr);
       _CONVERT_(vbr);
-#undef _CONVERT_
+#ifdef _CONVERT_
+  #undef _CONVERT_
+#endif
       return original;
     }
 
