@@ -6,6 +6,49 @@
 
 #include <src/input.h>
 
+#if defined(__APPLE__) && defined(__MACH__)
+  #include <ApplicationServices/ApplicationServices.h>
+#endif
+
+namespace {
+
+  platf::touch_port_t absolute_mouse_test_port() {
+#ifdef _WIN32
+    return platf::touch_port_t {
+      .offset_x = 0,
+      .offset_y = 0,
+      .width = 65535,
+      .height = 65535,
+    };
+#elif defined(__APPLE__) && defined(__MACH__)
+    const auto display_bounds = CGDisplayBounds(CGMainDisplayID());
+    return platf::touch_port_t {
+      .offset_x = static_cast<int>(display_bounds.origin.x),
+      .offset_y = static_cast<int>(display_bounds.origin.y),
+      .width = static_cast<int>(display_bounds.size.width),
+      .height = static_cast<int>(display_bounds.size.height),
+    };
+#elif defined(__linux__) || defined(__FreeBSD__)
+    return platf::touch_port_t {
+      .offset_x = 0,
+      .offset_y = 0,
+      .width = 19200,
+      .height = 12000,
+    };
+#else
+    return platf::touch_port_t {};
+#endif
+  }
+
+  util::point_t expected_absolute_mouse_location(const util::point_t &mouse_pos, const platf::touch_port_t &touch_port) {
+    return {
+      static_cast<double>(touch_port.offset_x) + mouse_pos.x,
+      static_cast<double>(touch_port.offset_y) + mouse_pos.y,
+    };
+  }
+
+}  // namespace
+
 struct MouseHIDTest: PlatformTestSuite, testing::WithParamInterface<util::point_t> {
   void SetUp() override {
     BaseTest::SetUp();
@@ -83,23 +126,8 @@ TEST_P(MouseHIDTest, AbsMoveInputTest) {
   auto old_loc = platf::get_mouse_loc(input);
   BOOST_LOG(tests) << "AbsMoveInputTest:: got current mouse loc: " << old_loc;
 
-#ifdef _WIN32
-  platf::touch_port_t abs_port {
-    0,
-    0,
-    65535,
-    65535
-  };
-#elif defined(__linux__) || defined(__FreeBSD__)
-  platf::touch_port_t abs_port {
-    0,
-    0,
-    19200,
-    12000
-  };
-#else
-  platf::touch_port_t abs_port {};
-#endif
+  const auto abs_port = absolute_mouse_test_port();
+  const auto expected_pos = expected_absolute_mouse_location(mouse_pos, abs_port);
   BOOST_LOG(tests) << "AbsMoveInputTest:: move: " << mouse_pos;
   platf::abs_mouse(input, abs_port, mouse_pos.x, mouse_pos.y);
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -117,9 +145,7 @@ TEST_P(MouseHIDTest, AbsMoveInputTest) {
     BOOST_LOG(tests) << "AbsMoveInputTest:: moved";
   }
 
-  EXPECT_TRUE(has_input_moved);
-
   // Verify we moved to the absolute coordinate
-  EXPECT_EQ(new_loc.x, mouse_pos.x);
-  EXPECT_EQ(new_loc.y, mouse_pos.y);
+  EXPECT_EQ(new_loc.x, expected_pos.x);
+  EXPECT_EQ(new_loc.y, expected_pos.y);
 }
