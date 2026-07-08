@@ -296,21 +296,12 @@ if(NOT ${CUDA_FOUND}
     message(FATAL_ERROR "Couldn't find either cuda, libdrm, libva, kwin, pipewire, portal, wayland or x11")
 endif()
 
-# These need to be set before adding the libvirtualhid subdirectory in order for them to be picked up
+# These need to be set before common.cmake adds the libvirtualhid subdirectory in order for them to be picked up
 set(LIBEVDEV_CUSTOM_INCLUDE_DIR "${EVDEV_INCLUDE_DIR}")
 set(LIBEVDEV_CUSTOM_LIBRARY "${EVDEV_LIBRARY}")
 
-add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/libvirtualhid")
-list(APPEND SUNSHINE_EXTERNAL_LIBRARIES libvirtualhid::libvirtualhid)
 list(APPEND PLATFORM_TARGET_FILES
-        "${CMAKE_SOURCE_DIR}/src/platform/virtualhid_input.h"
-        "${CMAKE_SOURCE_DIR}/src/platform/virtualhid_input.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/input/virtualhid.cpp")
-
-# build libevdev before the libvirtualhid target when using the ExternalProject fallback
-if(EXTERNAL_PROJECT_LIBEVDEV_USED AND TARGET libvirtualhid)
-    add_dependencies(libvirtualhid libevdev)
-endif()
 
 # AppImage and Flatpak
 if (${SUNSHINE_BUILD_APPIMAGE})

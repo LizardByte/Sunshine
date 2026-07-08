@@ -25,10 +25,7 @@ if(NOT BOOST_USE_STATIC AND NOT FETCH_CONTENT_BOOST_USED)
     ADD_DEFINITIONS(-DBOOST_LOG_DYN_LINK)
 endif()
 
-add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/libvirtualhid")
-
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
-        libvirtualhid::libvirtualhid
         ${APP_KIT_LIBRARY}
         ${APP_SERVICES_LIBRARY}
         ${AUDIO_TOOLBOX_LIBRARY}
@@ -59,8 +56,6 @@ set(PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/macos/nv12_zero_device.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/nv12_zero_device.h"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/publish.cpp"
-        "${CMAKE_SOURCE_DIR}/src/platform/virtualhid_input.h"
-        "${CMAKE_SOURCE_DIR}/src/platform/virtualhid_input.cpp"
         "${CMAKE_SOURCE_DIR}/third-party/TPCircularBuffer/TPCircularBuffer.c"
         "${CMAKE_SOURCE_DIR}/third-party/TPCircularBuffer/TPCircularBuffer.h"
         ${APPLE_PLIST_FILE})
