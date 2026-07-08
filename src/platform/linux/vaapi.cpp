@@ -372,7 +372,6 @@ namespace va {
 
       // Detect whitelisted configurations
       if ((vendor && std::string_view(vendor).contains("Intel") == true) || ctx->codec_id == AV_CODEC_ID_AV1) {
-        BOOST_LOG(warning) << "[VAAPI] Rate control and VBV size may be overridden by built-in whitelist on this device";
         auto_whitelist = true;
       }
 
@@ -394,6 +393,10 @@ namespace va {
       if (config::video.vaapi.strict_rc_buffer || auto_whitelist) {
         ctx->rc_buffer_size = ctx->bit_rate * ctx->framerate.den / ctx->framerate.num;
         rc_msg = "with single frame VBV size";
+      }
+
+      if (auto_whitelist) {
+        BOOST_LOG(warning) << "[VAAPI] Rate control and VBV size overridden by built-in whitelist"sv;
       }
 
       // ffmpeg's rc_mode values don't align with VAAPI's rc_val values, so transform string to uppercase
