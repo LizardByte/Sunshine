@@ -92,7 +92,6 @@ BuildRequires: libpulse-devel
 BuildRequires: npm
 BuildRequires: python311
 BuildRequires: python311-Jinja2
-BuildRequires: python311-setuptools
 %if !0%{?sle_version}
 BuildRequires: shaderc
 %endif
@@ -250,7 +249,7 @@ cmake_args+=("-DPython_EXECUTABLE=%{_builddir}/Sunshine/.venv/bin/python")
 %endif
 
 %if 0%{?suse_version}
-# Use the Python interpreter that owns the python311-Jinja2/python311-setuptools BuildRequires.
+# Use the Python interpreter that owns the python311-Jinja2 BuildRequires.
 cmake_args+=("-DGLAD_SKIP_PIP_INSTALL=ON")
 cmake_args+=("-DPython_EXECUTABLE=/usr/bin/python3.11")
 %endif
