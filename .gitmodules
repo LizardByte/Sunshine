@@ -29,10 +29,6 @@
 	path = third-party/moonlight-common-c
 	url = https://github.com/moonlight-stream/moonlight-common-c.git
 	branch = master
-[submodule "third-party/nanors"]
-	path = third-party/nanors
-	url = https://github.com/sleepybishop/nanors.git
-	branch = master
 [submodule "third-party/nv-codec-headers"]
 	path = third-party/nv-codec-headers
 	url = https://github.com/FFmpeg/nv-codec-headers.git
