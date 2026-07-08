@@ -412,23 +412,23 @@ namespace config {
      * @brief Enumerates supported VA-API quality options.
      */
     enum class quality_e : int {
-      _auto = 0,
-      speed = 1,
-      balanced = 2,
-      quality = 3
+      _auto = 0,  ///< Auto quality level
+      speed = 1,  ///< Speed level
+      balanced = 2,  ///< Balanced level
+      quality = 3  ///< Quality level
     };
 
     /**
      * @brief Enumerates supported VA-API rc options.
      */
     enum class rc_e : int {
-      _auto = 0,
-      avbr = VA_RC_AVBR,
-      cbr = VA_RC_CBR,
-      cqp = VA_RC_CQP,
-      icq = VA_RC_ICQ,
-      qvbr = VA_RC_QVBR,
-      vbr = VA_RC_VBR
+      _auto = 0,  ///< Auto rate control
+      avbr = VA_RC_AVBR,  ///< AVBR - average variable bitrate
+      cbr = VA_RC_CBR,  ///< CBR - constant bitrate
+      cqp = VA_RC_CQP,  ///< CQP - constant QP
+      icq = VA_RC_ICQ,  ///< ICQ - intelligent QP
+      qvbr = VA_RC_QVBR,  ///< QVBR - quality-defined variable bitrate
+      vbr = VA_RC_VBR  ///< VBR - variable bitrate
     };
 
     /**
