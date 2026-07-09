@@ -436,10 +436,8 @@ namespace platf {
        */
       int init(const char *path) {
         cap_sys_admin admin;
-        fd.el = open(path, O_RDWR);
-
+        fd.el = open_drm_card_fd(path);
         if (fd.el < 0) {
-          BOOST_LOG(error) << "Couldn't open: "sv << path << ": "sv << strerror(errno);
           return -1;
         }
 

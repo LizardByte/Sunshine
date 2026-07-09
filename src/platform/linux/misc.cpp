@@ -13,6 +13,8 @@
 #endif
 
 // standard includes
+#include <cerrno>
+#include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -153,6 +155,80 @@ namespace platf {
    * @brief Owning pointer for `getifaddrs` results.
    */
   using ifaddr_t = util::safe_ptr<ifaddrs, freeifaddrs>;
+
+  /**
+   * @brief Open a DRM card node, dropping implicit DRM master when possible.
+   *
+   * See `misc.h` for full documentation. Master check/drop failures are logged
+   * as warnings but do not fail the call.
+   */
+  int open_drm_card_fd(const std::filesystem::path &path, int flags) {
+#ifdef SUNSHINE_BUILD_DRM
+    int fd = open(path.c_str(), flags | O_CLOEXEC);
+    if (fd < 0) {
+      BOOST_LOG(error) << "Couldn't open: "sv << path.string() << ": "sv << strerror(errno);
+      return -1;
+    }
+
+    auto is_master = [&]() -> int {
+      drm_auth_t auth {};
+      auth.magic = 0;
+
+      errno = 0;
+      if (drmIoctl(fd, DRM_IOCTL_AUTH_MAGIC, &auth) == 0) {
+        return 1;  ///< AUTH_MAGIC succeeded, so we are master.
+      }
+
+      auto err = errno;
+      if (err == EACCES) {
+        return 0;  ///< Kernel rejected the ioctl because we are not master.
+      }
+
+      if (err == EINVAL || err == ENOENT) {
+        return 1;  ///< Ioctl reached the master path but the magic (0) was invalid; we are master.
+      }
+
+      BOOST_LOG(warning) << "Couldn't determine DRM master state for "sv << path.string() << ": "sv << strerror(err);
+      return -1;
+    };
+
+    auto master = is_master();
+    if (master < 0) {
+      BOOST_LOG(warning) << "Proceeding without dropping DRM master for "sv << path.string()
+                         << "; compositor VT switches may fail."sv;
+      return fd;
+    }
+
+    if (master) {
+      if (drmDropMaster(fd)) {
+        auto err = errno;
+        BOOST_LOG(warning) << "Couldn't drop DRM master for "sv << path.string() << ": "sv << strerror(err)
+                           << ", Compositor VT switches may fail."sv;
+        return fd;
+      }
+
+      BOOST_LOG(info) << "Dropped DRM master for "sv << path.string();
+
+      master = is_master();
+      if (master < 0) {
+        BOOST_LOG(warning) << "Could not re-verify DRM master state after drop for "sv << path.string() << "."sv;
+        return fd;
+      }
+
+      if (master) {
+        BOOST_LOG(warning) << "Still DRM master after drop for "sv << path.string() << "."sv;
+        return fd;
+      }
+    }
+
+    return fd;
+#else
+  #ifndef __FreeBSD__
+    BOOST_LOG(info) << "Sunshine compiled without DRM support. Cannot control Linux DRM master state for "sv << path.string();
+  #endif
+    return open(path.c_str(), flags | O_CLOEXEC);
+#endif
+  }
 
   /**
    * @brief Read the local interface address list.
