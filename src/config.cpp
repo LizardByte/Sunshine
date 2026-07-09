@@ -757,7 +757,7 @@ namespace config {
     },  // vt
 
     {
-      false,  // blbrc
+      0,  // blbrc
       std::to_underlying(vaapi::quality_e::_auto),  // quality
       std::to_underlying(vaapi::rc_e::_auto),  // rate control
       {},  // rate control string
@@ -1652,7 +1652,7 @@ namespace config {
     if (!video.vaapi.vaapi_rc_str.empty()) {
       video.vaapi.vaapi_rc = vaapi::rc_from_view<vaapi::rc_e>(video.vaapi.vaapi_rc_str, video.vaapi.vaapi_rc);
     }
-    bool_f(vars, "vaapi_blbrc", video.vaapi.blbrc);
+    bool_f(vars, "vaapi_blbrc", (bool &) video.vaapi.blbrc);
     bool_f(vars, "vaapi_strict_rc_buffer", video.vaapi.strict_rc_buffer);
 
     int_f(vars, "vk_tune", video.vk.tune);
