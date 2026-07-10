@@ -17,7 +17,7 @@ env:
   BUILD_VERSION: ${{ inputs.release_version }}
   PYTHON_VERSION: '3.14'
   COMMIT: ${{ inputs.release_commit }}
-  FREEBSD_CLANG_VERSION: 19
+  FREEBSD_CLANG_VERSION: 22
 
 jobs:
   setup-matrix:

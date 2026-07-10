@@ -1349,7 +1349,7 @@ namespace rtsp_stream {
       return;
     }
 
-    std::thread rtsp_thread {[&shutdown_event] {
+    std::jthread rtsp_thread {[&shutdown_event] {
       platf::set_thread_name("rtsp::handler");
       auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
 

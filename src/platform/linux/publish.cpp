@@ -529,14 +529,14 @@ namespace platf::publish {
    */
   class deinit_t: public ::platf::deinit_t {
   public:
-    std::thread poll_thread;  ///< Poll thread.
+    std::jthread poll_thread;  ///< Poll thread.
 
     /**
      * @brief Store the Avahi polling thread for shutdown on destruction.
      *
      * @param poll_thread Poll thread.
      */
-    deinit_t(std::thread poll_thread):
+    deinit_t(std::jthread poll_thread):
         poll_thread {std::move(poll_thread)} {
     }
 
@@ -581,6 +581,6 @@ namespace platf::publish {
       return nullptr;
     }
 
-    return std::make_unique<deinit_t>(std::thread {avahi::simple_poll_loop, poll.get()});
+    return std::make_unique<deinit_t>(std::jthread {avahi::simple_poll_loop, poll.get()});
   }
 }  // namespace platf::publish

@@ -28,6 +28,7 @@ pkg install -y \
   devel/git \
   devel/libevdev \
   devel/libnotify \
+  devel/llvm22 \
   devel/ninja \
   devel/pkgconf \
   devel/qt6-base \
@@ -46,6 +47,13 @@ pkg install -y \
   x11/libXfixes \
   x11/libXrandr \
   x11/libXtst
+```
+
+Use LLVM 22 when configuring a local FreeBSD build:
+
+```sh
+export CC=clang22
+export CXX=clang++22
 ```
 
 #### Linux

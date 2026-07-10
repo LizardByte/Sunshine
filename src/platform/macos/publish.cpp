@@ -42,7 +42,7 @@ namespace platf::publish {
        */
       deinit_t(DNSServiceRef serviceRef):
           unique_ptr(serviceRef) {
-        _thread = std::thread {[serviceRef, &_stopRequested = std::as_const(_stopRequested)]() {
+        _thread = std::jthread {[serviceRef, &_stopRequested = std::as_const(_stopRequested)]() {
           platf::set_thread_name("publish::mdns");
           const auto socket = DNSServiceRefSockFD(serviceRef);
           while (!_stopRequested) {
@@ -74,7 +74,7 @@ namespace platf::publish {
       deinit_t &operator=(const deinit_t &) = delete;
 
     private:
-      std::thread _thread;  ///< Thread for polling the mDNS service for a response.
+      std::jthread _thread;  ///< Thread for polling the mDNS service for a response.
       std::atomic<bool> _stopRequested = false;  ///< Whether to stop polling the mDNS service.
     };
 
