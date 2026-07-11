@@ -34,6 +34,7 @@ if(CUDA_INHERIT_COMPILE_OPTIONS)
 endif()
 
 target_compile_options(sunshine PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)  # cmake-lint: disable=C0301
+target_link_options(sunshine PRIVATE ${SUNSHINE_LINK_OPTIONS})
 
 # Homebrew build fails the vite build if we set these environment variables
 if(${SUNSHINE_BUILD_HOMEBREW})

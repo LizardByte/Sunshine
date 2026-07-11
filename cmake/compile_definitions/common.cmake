@@ -31,8 +31,8 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
     # Clang doesn't actually complain about this this, so disabling for now
     # list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-uninitialized)
 
-    # libc++ guarded std::jthread behind this flag before LLVM 20.
-    if((APPLE OR CMAKE_SYSTEM_NAME STREQUAL "FreeBSD") AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 20)
+    # Some libc++ versions on Apple and FreeBSD guard std::jthread behind this flag.
+    if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
         list(APPEND SUNSHINE_COMPILE_OPTIONS -fexperimental-library)
         list(APPEND SUNSHINE_LINK_OPTIONS -fexperimental-library)
     endif()
