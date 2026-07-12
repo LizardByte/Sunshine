@@ -42,7 +42,7 @@ INSTANTIATE_TEST_SUITE_P(
 );
 
 TEST_P(AudioTest, TestEncode) {
-  std::thread timer([&] {
+  std::jthread timer([&] {
     // Terminate the audio capture after 100 ms
     std::this_thread::sleep_for(100ms);
     const auto shutdown_event = m_mail->event<bool>(mail::shutdown);
@@ -50,7 +50,7 @@ TEST_P(AudioTest, TestEncode) {
     shutdown_event->raise(true);
     audio_packets->stop();
   });
-  std::thread capture([&] {
+  std::jthread capture([&] {
     const auto packets = m_mail->queue<packet_t>(mail::audio_packets);
     const auto shutdown_event = m_mail->event<bool>(mail::shutdown);
     while (const auto packet = packets->pop()) {

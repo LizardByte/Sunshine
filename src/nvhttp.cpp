@@ -1401,8 +1401,8 @@ namespace nvhttp {
         return;
       }
     };
-    std::thread ssl {accept_and_run, &https_server};
-    std::thread tcp {accept_and_run, &http_server};
+    std::jthread ssl {accept_and_run, &https_server};
+    std::jthread tcp {accept_and_run, &http_server};
 
     // Wait for any event
     shutdown_event->view();

@@ -23,7 +23,7 @@ namespace thread_pool_util {
     typedef TaskPool::__task __task;
 
   private:
-    std::vector<std::thread> _thread;
+    std::vector<std::jthread> _thread;
 
     std::condition_variable _cv;
     std::mutex _lock;
@@ -44,7 +44,7 @@ namespace thread_pool_util {
         _thread(threads),
         _continue {true} {
       for (auto &t : _thread) {
-        t = std::thread(&ThreadPool::_main, this);
+        t = std::jthread(&ThreadPool::_main, this);
       }
     }
 
@@ -113,7 +113,7 @@ namespace thread_pool_util {
       _thread.resize(threads);
 
       for (auto &t : _thread) {
-        t = std::thread(&ThreadPool::_main, this);
+        t = std::jthread(&ThreadPool::_main, this);
       }
     }
 

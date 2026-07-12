@@ -302,7 +302,7 @@ namespace platf {
       std::unique_ptr<safe::event_t<ctx_event_e>> events;  ///< Event queue receiving PulseAudio context state changes.
       std::unique_ptr<std::function<void(ctx_t::pointer)>> events_cb;  ///< Callback that translates PulseAudio context updates into events.
 
-      std::thread worker;  ///< Thread running the PulseAudio mainloop.
+      std::jthread worker;  ///< Thread running the PulseAudio mainloop.
 
       /**
        * @brief Initialize PulseAudio mainloop, context, and Sunshine null sinks.
@@ -344,7 +344,7 @@ namespace platf {
           return -1;
         }
 
-        worker = std::thread {
+        worker = std::jthread {
           [](loop_t::pointer loop) {
             int retval;
             platf::set_thread_name("audio::pulseaudio");

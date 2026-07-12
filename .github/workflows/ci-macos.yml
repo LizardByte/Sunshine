@@ -74,6 +74,10 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Select Xcode 16.2
+        if: matrix.os == 'macos-14'
+        run: sudo xcode-select --switch /Applications/Xcode_16.2.app
+
       - name: Install dependencies
         timeout-minutes: 5
         run: |

@@ -61,6 +61,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
+      - name: Select Xcode 16.2
+        if: matrix.os_name == 'macos' && matrix.os_version == '14'
+        run: sudo xcode-select --switch /Applications/Xcode_16.2.app
+
       - name: Seed additional macOS TCC permissions
         if: runner.os == 'macOS'
         run: |

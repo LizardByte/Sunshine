@@ -234,7 +234,7 @@ namespace audio {
     platf::adjust_thread_priority(platf::thread_priority_e::critical);
 
     auto samples = std::make_shared<sample_queue_t::element_type>(30);
-    std::thread thread {encodeThread, samples, config, channel_data};
+    std::jthread thread {encodeThread, samples, config, channel_data};
 
     auto fg = util::fail_guard([&]() {
       samples->stop();

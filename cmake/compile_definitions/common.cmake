@@ -25,11 +25,17 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15)
         list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-uninitialized)
     endif()
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
     # Clang specific compile options
 
     # Clang doesn't actually complain about this this, so disabling for now
     # list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-uninitialized)
+
+    # Some libc++ versions on Apple and FreeBSD guard std::jthread behind this flag.
+    if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+        list(APPEND SUNSHINE_COMPILE_OPTIONS -fexperimental-library)
+        list(APPEND SUNSHINE_LINK_OPTIONS -fexperimental-library)
+    endif()
 endif()
 if(BUILD_WERROR)
     list(APPEND SUNSHINE_COMPILE_OPTIONS -Werror)

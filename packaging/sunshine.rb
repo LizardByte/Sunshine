@@ -59,6 +59,10 @@ class Sunshine < Formula
   depends_on "openssl@3"
   depends_on "opus"
 
+  on_sonoma do
+    depends_on xcode: ["16.2", :build] # required for jthreads on macos-14
+  end
+
   on_linux do
     depends_on GCC_FORMULA => [:build, :test]
     depends_on "gcovr" => [:build, :test]
