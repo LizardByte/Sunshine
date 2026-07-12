@@ -318,14 +318,12 @@ jobs:
           cd build
 
           # package
-          cpack -G NSIS
           cpack -G WIX
           cpack -G ZIP
 
           # move
-          mv ./cpack_artifacts/Sunshine.exe ../artifacts/Sunshine-${{ matrix.name }}-installer.exe
           mv ./cpack_artifacts/Sunshine.msi ../artifacts/Sunshine-${{ matrix.name }}-installer.msi
-          mv ./cpack_artifacts/Sunshine.zip ../artifacts/Sunshine-${{ matrix.name }}-portable.zip
+          mv ./cpack_artifacts/Sunshine.zip ../artifacts/Sunshine-${{ matrix.name }}-lite.zip
 
       - name: Sign Windows installers
         # ARM64 is not currently supported, see https://github.com/Azure/artifact-signing-action/issues/92
@@ -338,14 +336,9 @@ jobs:
           certificate-profile-name: ${{ inputs.azure_signing_cert_profile }}
           endpoint: ${{ inputs.azure_signing_endpoint }}
           files-folder: artifacts
-          files-folder-filter: exe,msi
+          files-folder-filter: msi
           files-folder-recurse: false
           signing-account-name: ${{ inputs.azure_signing_account }}
-
-      - name: Debug nsis
-        if: always()
-        shell: msys2 {0}
-        run: cat ./build/cpack_artifacts/_CPack_Packages/win64/NSIS/NSISOutput.log || true
 
       - name: Debug wix
         if: always()
