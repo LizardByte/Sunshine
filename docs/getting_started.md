@@ -363,16 +363,11 @@ brew uninstall sunshine
    | Architecture          | Installer                                                                                                                                    |
    |-----------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
    | AMD64/x64 (Intel/AMD) | [Sunshine-Windows-AMD64-installer.msi](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-AMD64-installer.msi) |
-   | AMD64/x64 (Intel/AMD) | [Sunshine-Windows-AMD64-installer.exe](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-AMD64-installer.exe) |
    | ARM64                 | [Sunshine-Windows-ARM64-installer.msi](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-ARM64-installer.msi) |
-   | ARM64                 | [Sunshine-Windows-ARM64-installer.exe](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-ARM64-installer.exe) |
 
 > [!TIP]
-> Installer logs can be found in the following locations.<br>
-> | File | log paths |
-> | ---- | --------- |
-> | .exe | `%%PROGRAMFILES%/Sunshine/install.log` (AMD64 only)<br>`%%TEMP%/Sunshine/logs/install/` |
-> | .msi | `%%TEMP%/Sunshine/logs/install/` |
+> Installer logs can be found in the following directory:
+> `%%TEMP%/Sunshine/logs/install/`
 
 > [!CAUTION]
 > You should carefully select or unselect the options you want to install. Do not blindly install or
@@ -389,10 +384,10 @@ overflow menu. Different versions of Windows may provide slightly different step
 
 1. Download and extract based on your architecture:
 
-   | Architecture          | Installer                                                                                                                                  |
-   |-----------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-   | AMD64/x64 (Intel/AMD) | [Sunshine-Windows-AMD64-portable.zip](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-AMD64-portable.zip) |
-   | ARM64                 | [Sunshine-Windows-ARM64-portable.zip](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-ARM64-portable.zip) |
+   | Architecture          | Installer                                                                                                                          |
+   |-----------------------|------------------------------------------------------------------------------------------------------------------------------------|
+   | AMD64/x64 (Intel/AMD) | [Sunshine-Windows-AMD64-lite.zip](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-AMD64-lite.zip) |
+   | ARM64                 | [Sunshine-Windows-ARM64-lite.zip](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-ARM64lite.zip)  |
 
 2. Open command prompt as administrator
 3. Firewall rules
