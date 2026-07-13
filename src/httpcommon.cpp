@@ -207,8 +207,7 @@ namespace http {
    * @brief Send a static file response for a Web UI request.
    */
   bool download_file(const std::string &url, const std::string &file, long ssl_version) {
-    // sonar complains about weak ssl and tls versions; however sonar cannot detect the fix
-    CURL *curl = curl_easy_init();  // NOSONAR
+    CURL *curl = curl_easy_init();
     if (!curl) {
       BOOST_LOG(error) << "Couldn't create CURL instance";
       return false;
@@ -227,7 +226,7 @@ namespace http {
       return false;
     }
 
-    curl_easy_setopt(curl, CURLOPT_SSLVERSION, ssl_version);  // NOSONAR
+    curl_easy_setopt(curl, CURLOPT_SSLVERSION, ssl_version);
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, fwrite);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
