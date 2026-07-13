@@ -959,8 +959,7 @@ namespace platf::audio {
         return nullptr;
       }
 
-      DWORD device_state {};
-      if (FAILED(device->GetState(&device_state)) || device_state != DEVICE_STATE_ACTIVE) {
+      if (DWORD device_state {}; FAILED(device->GetState(&device_state)) || device_state != DEVICE_STATE_ACTIVE) {
         return nullptr;
       }
 
