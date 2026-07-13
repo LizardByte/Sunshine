@@ -1220,7 +1220,7 @@ TEST(ConfigHttpDriverStatusTest, IsDriverVersionSupported_InvalidVersion_Returns
 
 // Test: driver status JSON includes compatibility and supported version metadata
 TEST(ConfigHttpDriverStatusTest, BuildDriverStatus_IncludesExpectedFields) {
-  const auto status = confighttp::build_driver_status(true, "1.17.0.0", "1.17.0.0");
+  const auto status = confighttp::build_driver_status(true, "1.17.0.0", "1.17.0.0");  // NOSONAR(cpp:S1313): not an IP address
 
   ASSERT_TRUE(status["installed"].get<bool>());
   ASSERT_EQ(status["version"].get<std::string>(), "1.17.0.0");

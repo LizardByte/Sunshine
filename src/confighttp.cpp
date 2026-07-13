@@ -107,7 +107,7 @@ namespace confighttp {
   constexpr auto CSRF_TOKEN_LIFETIME = std::chrono::hours(1);  // Tokens valid for 1 hour
 
   constexpr auto LIBVIRTUALHID_MINIMUM_VERSION = ""sv;  ///< Minimum supported libvirtualhid driver version; empty means any version.
-  constexpr auto VIGEMBUS_MINIMUM_VERSION = "1.17.0.0"sv;  ///< Minimum supported ViGEmBus fallback driver version.
+  constexpr auto VIGEMBUS_MINIMUM_VERSION = "1.17.0.0"sv;  ///< Minimum supported ViGEmBus fallback driver version.  // NOSONAR(cpp:S1313): not an IP address
 
   /**
    * @brief Parse one dotted driver-version component.
