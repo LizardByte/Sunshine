@@ -175,7 +175,7 @@ namespace nvhttp {
   std::atomic<uint32_t> session_id_counter;  ///< Monotonic counter used to allocate GameStream session IDs.
 
   // Set by TLS verify callback, read by launch/resume handler (single-threaded HTTPS server)
-  std::string last_verified_client_cert;  ///< Last client certificate accepted by the TLS verify callback.  // NOSONAR(cpp:S5421) - intentionally mutable global
+  std::string last_verified_client_cert;  ///< Last client certificate accepted by the TLS verify callback.  // NOSONAR(cpp:S5421): intentionally mutable global
 
   /**
    * @brief Case-insensitive map used for HTTP headers and query parameters.
