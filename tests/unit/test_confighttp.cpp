@@ -89,7 +89,7 @@ X4wnh1bwdiidqpcgyuKossLOPxbS786WmsesaAWPnpoY6M8aija+ALwNNuWWmyMg
  *
  * This fixture creates a real server to test the actual confighttp functions.
  */
-class ConfigHttpTest: public BaseTest {  // NOSONAR(cpp:S3656) - protected members are intentional for test fixture subclassing
+class ConfigHttpTest: public BaseTest {  // NOSONAR(cpp:S3656): protected members are intentional for test fixture subclassing
 protected:
   std::unique_ptr<SimpleWeb::Server<SimpleWeb::HTTPS>> server;
   std::unique_ptr<SimpleWeb::Client<SimpleWeb::HTTPS>> client;
@@ -132,7 +132,7 @@ protected:
     };
 
     // Create test web directory in temp
-    test_web_dir = std::filesystem::temp_directory_path() / "sunshine_test_confighttp";  // NOSONAR(cpp:S5443) - safe for tests
+    test_web_dir = std::filesystem::temp_directory_path() / "sunshine_test_confighttp";  // NOSONAR(cpp:S5443): safe for tests
     std::filesystem::create_directories(test_web_dir / "web");
 
     // Create test HTML file in WEB_DIR, creating parent directories with proper permissions
@@ -753,14 +753,14 @@ TEST_F(ConfigHttpTest, GetLocaleReturnsJson) {
  *   ├── file_beta.txt
  *   └── test_exec[.exe]   (executable file)
  */
-class BrowseDirectoryTest: public ConfigHttpTest {  // NOSONAR(cpp:S3656) - protected members are intentional for test fixture subclassing
+class BrowseDirectoryTest: public ConfigHttpTest {  // NOSONAR(cpp:S3656): protected members are intentional for test fixture subclassing
 protected:
   std::filesystem::path browse_test_dir;
 
   void SetUp() override {
     ConfigHttpTest::SetUp();
 
-    browse_test_dir = std::filesystem::temp_directory_path() / "sunshine_browse_test";  // NOSONAR(cpp:S5443) - safe for tests
+    browse_test_dir = std::filesystem::temp_directory_path() / "sunshine_browse_test";  // NOSONAR(cpp:S5443): safe for tests
 
     // Remove any leftover directory from a previous interrupted run
     if (std::filesystem::exists(browse_test_dir)) {

@@ -19,7 +19,7 @@ protected:
   void SetUp() override {
     BaseTest::SetUp();
     // Create test directory
-    test_dir = fs::temp_directory_path() / "sunshine_process_png_test";  // NOSONAR(cpp:S5443) - safe for tests
+    test_dir = fs::temp_directory_path() / "sunshine_process_png_test";  // NOSONAR(cpp:S5443): safe for tests
     fs::create_directories(test_dir);
   }
 
