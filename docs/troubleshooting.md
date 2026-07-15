@@ -129,7 +129,7 @@ resort suggestion.
 ## Linux
 
 ### Hardware Encoders throttle/drop FPS during high GPU load
-Capture methods (`nvenc`, `wlgrab`) or encoders (`vaapi`) that utilize EGL contexts may exhibit FPS drops
+Capture methods (`wlgrab`) or encoders (`nvenc`, `vaapi`) that utilize EGL contexts may exhibit FPS drops
 in conjunction with a Sunshine installation that runs in a sandboxed or reduced permissions state
 (Flatpak, AppImage, or when using Portal capture) due to the lack of active CAP_SYS_NICE process permissions
 needed to set up high priority EGL contexts.
@@ -140,8 +140,8 @@ Warning: EGL: context priority set to HIGH but CAP_SYS_NICE capability is missin
 ```
 
 > [!IMPORTANT]
-> Switching to Vulkan encoding should resolve the issue for the majority of configurations, but refer to this table
-> of recommended configurations (especially if Vulkan encoding is not supported on your system):
+> Switching to Vulkan encoding should resolve the issue for the majority of configurations, but refer to this
+> table for recommended configurations (especially if Vulkan encoding is not supported on your system):
 > | Desktop Environment | Vulkan Supported? | Recommended Sunshine Install Type | Recommended Capture & Encoder Configuration       |
 > |:--------------------|-------------------|-----------------------------------|--------------------------------------------------:|
 > | KDE Plasma          | Yes               | Any                               | `portal` or `kwin` capture with `vulkan` encoding |
