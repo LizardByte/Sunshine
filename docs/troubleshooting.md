@@ -173,7 +173,7 @@ If you see the above error in the Sunshine logs, compiling *Mesa* manually may b
 ### Portal token issues
 When using Portal capture, you are required to manually approve the Remote Desktop request on the host before a
 connection is allowed. When this occurs, a portal token is saved which is automaticaly re-used on subsequent reconnects,
-but under some circumstances (a Sunshine crash, switching to another desktop environent, or if a monitor hotplug event occurs)
+but under some circumstances (a Sunshine crash, switching to another desktop environment, or if a monitor hotplug event occurs)
 the portal token may become lost or invalid, thus necessitating a manual re-approval of the remote desktop capture permissions.
 
 If you are using the KDE Plasma desktop, you can bypass this issue entirely either by switching to `kwin` capture, or
