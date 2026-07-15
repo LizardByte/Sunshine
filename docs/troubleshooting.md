@@ -136,7 +136,7 @@ needed to set up high priority EGL contexts.
 
 To check if you are affected by this issue, look out for this message in your Sunshine log:
 ```
-Warning: EGL: context priority set to HIGH but CAP_SYS_NICE capability is missing"
+Warning: EGL: context priority set to HIGH but CAP_SYS_NICE capability is missing
 ```
 
 > [!IMPORTANT]
@@ -171,13 +171,13 @@ If you see the above error in the Sunshine logs, compiling *Mesa* manually may b
 > [meson options](https://gitlab.freedesktop.org/mesa/mesa/-/blob/main/meson_options.txt) file.
 
 ### Portal token issues
-When using Portal capture, you are required to manually approve the Remote Desktop request on the host before a
-connection is allowed. When this occurs, a portal token is saved which is automaticaly re-used on subsequent reconnects,
-but under some circumstances (a Sunshine crash, switching to another desktop environment, or if a monitor hotplug event occurs)
-the portal token may become lost or invalid, thus necessitating a manual re-approval of the remote desktop capture permissions.
+Portal capture requires you to manually approve Remote Desktop permissions via an on-screen prompt on the host.
+This creates a portal token which is used to automaticaly reauthorize on subsequent reconnects, but under certain
+circumstances (a Sunshine crash, switching to another desktop environment, or if a monitor hotplug event occurs)
+the portal token may become lost or invalid, necessitating manual re-approval of capture permissions.
 
-If you are using the KDE Plasma desktop, you can bypass this issue entirely either by switching to `kwin` capture, or
-by setting the following configuration to enable permanent capture permission for Sunshine via Portal capture:
+Users of the KDE Plasma desktop can bypass this issue either by switching to `kwin` capture or setting the following
+configuration to enable permanent capture autorization for Sunshine via Portal capture:
 ```
 flatpak permission-set kde-authorized remote-desktop dev.lizardbyte.app.Sunshine yes
 ```
