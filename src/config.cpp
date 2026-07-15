@@ -404,12 +404,12 @@ namespace config {
 
   namespace vaapi {
 #if !(defined(linux) || defined(__FreeBSD__)) || defined(DOXYGEN)
-    constexpr int VA_RC_CBR = 0x00000002;
-    constexpr int VA_RC_VBR = 0x00000004;
-    constexpr int VA_RC_CQP = 0x00000010;
-    constexpr int VA_RC_ICQ = 0x00000040;
-    constexpr int VA_RC_QVBR = 0x00000400;
-    constexpr int VA_RC_AVBR = 0x00000800;
+    constexpr int VA_RC_CBR = 0x00000002;  ///< CBR rate control
+    constexpr int VA_RC_VBR = 0x00000004;  ///< VBR rate control
+    constexpr int VA_RC_CQP = 0x00000010;  ///< CQP rate control
+    constexpr int VA_RC_ICQ = 0x00000040;  ///< ICQ rate control
+    constexpr int VA_RC_QVBR = 0x00000400;  ///< QVBR rate control
+    constexpr int VA_RC_AVBR = 0x00000800;  ///< AVBR rate control
 #endif
     /**
      * @brief Enumerates supported VA-API quality options.
