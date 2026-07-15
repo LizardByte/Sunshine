@@ -3006,6 +3006,125 @@ editing the `conf` file in a text editor. Use the examples as reference.
 
 ## VA-API Encoder
 
+### vaapi_blbrc
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Block level based bitrate control (BLBRC) can assign different bitrate on a per-block basis. May improve quality on supported devices.
+            @note{This option only applies when using the VA-API [encoder](#encoder).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vaapi_blbrc = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### vaapi_quality
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            The quality profile controls the tradeoff between speed and quality of encoding.
+            @note{This option only applies when using the VA-API [encoder](#encoder).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            auto
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vaapi_quality = auto
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="4">Choices</td>
+        <td>auto</td>
+        <td>driver default quality</td>
+    </tr>
+    <tr>
+        <td>speed</td>
+        <td>prefer speed</td>
+    </tr>
+    <tr>
+        <td>balanced</td>
+        <td>balanced</td>
+    </tr>
+    <tr>
+        <td>quality</td>
+        <td>prefer quality</td>
+    </tr>
+</table>
+
+### vaapi_rc
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            The encoder rate control.
+            @note{This option only applies when using the VA-API [encoder](#encoder).}
+            @warning{The automatic setting may override the driver-default rate control method to VBR and force [vaapi_strict_rc_buffer](#vaapi_strict_rc_buffer) enabled on certain configurations. Selecting another rate control manually will override this behaviour.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            auto
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vaapi_rc = vbr
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="7">Choices</td>
+        <td>auto</td>
+        <td>driver default (or whitelisted override)</td>
+    </tr>
+        <tr>
+        <td>avbr</td>
+        <td>average variable bitrate</td>
+    </tr>
+    <tr>
+        <td>cbr</td>
+        <td>constant bitrate</td>
+    </tr>
+        <tr>
+        <td>cqp</td>
+        <td>constant qp mode</td>
+    </tr>
+    <tr>
+        <td>icq</td>
+        <td>intelligent qp mode</td>
+    </tr>
+    <tr>
+        <td>qvbr</td>
+        <td>quality-defined variable bitrate</td>
+    </tr>
+        <tr>
+        <td>vbr</td>
+        <td>variable bitrate</td>
+    </tr>
+</table>
+
 ### vaapi_strict_rc_buffer
 
 <table>
@@ -3014,7 +3133,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">
             Enabling this option can avoid dropped frames over the network during scene changes, but video quality may
             be reduced during motion.
-            @note{This option only applies for H.264 and HEVC when using VA-API [encoder](#encoder) on AMD GPUs.}
+            @note{This option only applies for H.264 and HEVC when using VA-API [encoder](#encoder) on AMD GPUs (or when overriding the default rate control on other devices).}
         </td>
     </tr>
     <tr>
