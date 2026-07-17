@@ -79,6 +79,8 @@ if(WIN32)
             "${CMAKE_SOURCE_DIR}/src/nvenc/nvenc_d3d11_native.cpp"
             "${CMAKE_SOURCE_DIR}/src/nvenc/nvenc_d3d11_on_cuda.cpp"
             "${CMAKE_SOURCE_DIR}/src/nvenc/nvenc_dynamic_factory_impl.cpp"
+            "${CMAKE_SOURCE_DIR}/src/nvenc/nvenc_reconfigure.cpp"
+            "${CMAKE_SOURCE_DIR}/src/nvenc/nvenc_reconfigure.h"
             "${CMAKE_SOURCE_DIR}/src/nvenc/nvenc_utils.cpp"
     )
 

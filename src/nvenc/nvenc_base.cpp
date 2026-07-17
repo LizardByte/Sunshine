@@ -633,6 +633,8 @@ namespace NVENC_NAMESPACE {
     if (!validate_encoder_capabilities(init_params.encodeGUID, buffer_format)) {
       return false;
     }
+    const bool supports_dynamic_bitrate =
+      get_encoder_cap(init_params.encodeGUID, NV_ENC_CAPS_SUPPORT_DYN_BITRATE_CHANGE);
 
     init_params.presetGUID = quality_preset_guid_from_number(config.quality_preset);
     init_params.tuningInfo = NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY;
@@ -666,6 +668,7 @@ namespace NVENC_NAMESPACE {
     if (!initialize_encoder_resources(init_params)) {
       return false;
     }
+    bitrate_reconfigure_state_.initialize(supports_dynamic_bitrate, init_params, enc_config);
 
     auto frame_size_format = stat_trackers::two_digits_after_decimal();
     BOOST_LOG(debug) << "NvEnc: requested encoded frame size "
@@ -678,6 +681,7 @@ namespace NVENC_NAMESPACE {
   }
 
   void nvenc_base::destroy_encoder() {
+    bitrate_reconfigure_state_.reset();
     if (output_bitstream) {
       if (nvenc_failed(nvenc->nvEncDestroyBitstreamBuffer(encoder, output_bitstream))) {
         BOOST_LOG(error) << "NvEnc: NvEncDestroyBitstreamBuffer() failed: " << last_nvenc_error_string;
@@ -706,6 +710,33 @@ namespace NVENC_NAMESPACE {
 
     encoder_state = {};
     encoder_params = {};
+  }
+
+  video::bitrate_reconfigure_result_t nvenc_base::reconfigure_bitrate(std::uint32_t target_kbps) {
+    auto result = bitrate_reconfigure_state_.reconfigure(
+      target_kbps,
+      [this](NV_ENC_RECONFIGURE_PARAMS *params) {
+        NVENCSTATUS status;
+        if (!encoder || !nvenc || !nvenc->nvEncReconfigureEncoder) {
+          status = NV_ENC_ERR_ENCODER_NOT_INITIALIZED;
+        } else {
+          status = nvenc->nvEncReconfigureEncoder(encoder, params);
+        }
+        nvenc_failed(status);
+        return status;
+      }
+    );
+
+    if (result.status == video::bitrate_reconfigure_status_e::failed) {
+      BOOST_LOG(warning)
+        << "NvEnc: bitrate reconfiguration failed"
+        << " old_target_kbps=" << result.old_target_kbps
+        << " requested_target_kbps=" << result.requested_target_kbps
+        << " effective_target_kbps=" << result.effective_target_kbps
+        << " error=" << last_nvenc_error_string;
+    }
+
+    return result;
   }
 
   ::nvenc::nvenc_encoded_frame nvenc_base::encode_frame(uint64_t frame_index, bool force_idr) {

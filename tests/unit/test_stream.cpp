@@ -5,7 +5,10 @@
 
 #include <cstdint>
 #include <functional>
+#include <src/rtsp.h>
+#include <src/stream.h>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace stream {
@@ -36,4 +39,41 @@ TEST(ConcatAndInsertTests, ConcatSmallStrideTest) {
   auto res = stream::concat_and_insert(1, 1, std::string_view {b1, sizeof(b1)}, std::string_view {b2, sizeof(b2)});
   auto expected = std::vector<uint8_t> {0, 'a', 0, 'b', 0, 'c', 0, 'd', 0, 'e'};
   ASSERT_EQ(res, expected);
+}
+
+TEST(StreamSessionBitrateRequestTests, PublishesRequestAcrossThreads) {
+  stream::config_t config {};
+  rtsp_stream::launch_session_t launch_session {};
+  launch_session.gcm_key.resize(16);
+  launch_session.iv.resize(16);
+  auto session = stream::session::alloc(config, launch_session);
+  auto requests = stream::session::testing::video_bitrate_requests(*session);
+
+  std::jthread producer {[&session] {
+    stream::session::request_video_bitrate(*session, 15'000, "network-window");
+  }};
+  producer.join();
+
+  const auto request = requests->try_pop();
+  ASSERT_TRUE(request);
+  EXPECT_EQ(15'000U, request->target_kbps);
+  EXPECT_EQ("network-window", request->reason);
+}
+
+TEST(StreamSessionBitrateRequestTests, RetainsOnlyLatestPendingRequest) {
+  stream::config_t config {};
+  rtsp_stream::launch_session_t launch_session {};
+  launch_session.gcm_key.resize(16);
+  launch_session.iv.resize(16);
+  auto session = stream::session::alloc(config, launch_session);
+  auto requests = stream::session::testing::video_bitrate_requests(*session);
+
+  stream::session::request_video_bitrate(*session, 25'000, "initial");
+  stream::session::request_video_bitrate(*session, 40'000, "latest");
+
+  const auto request = requests->try_pop();
+  ASSERT_TRUE(request);
+  EXPECT_EQ(40'000U, request->target_kbps);
+  EXPECT_EQ("latest", request->reason);
+  EXPECT_FALSE(requests->try_pop());
 }

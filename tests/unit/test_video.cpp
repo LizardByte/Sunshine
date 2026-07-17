@@ -16,6 +16,112 @@
 
 using namespace std::literals;
 
+namespace {
+
+  class bitrate_test_session_t: public video::encode_session_t {
+  public:
+    explicit bitrate_test_session_t(std::uint32_t initial_target_kbps = 0):
+        last_target_kbps {initial_target_kbps} {
+    }
+
+    int convert(platf::img_t &) override {
+      return 0;
+    }
+
+    void request_idr_frame() override {
+    }
+
+    void request_normal_frame() override {
+    }
+
+    void invalidate_ref_frames(int64_t, int64_t) override {
+    }
+
+    video::bitrate_reconfigure_result_t reconfigure_bitrate(std::uint32_t target_kbps) override {
+      last_target_kbps = target_kbps;
+      return {
+        video::bitrate_reconfigure_status_e::applied,
+        25'000,
+        target_kbps,
+        target_kbps,
+      };
+    }
+
+    std::uint32_t last_target_kbps = 0;
+  };
+
+  class unsupported_bitrate_test_session_t: public video::encode_session_t {
+  public:
+    int convert(platf::img_t &) override {
+      return 0;
+    }
+
+    void request_idr_frame() override {
+    }
+
+    void request_normal_frame() override {
+    }
+
+    void invalidate_ref_frames(int64_t, int64_t) override {
+    }
+  };
+
+}  // namespace
+
+TEST(VideoBitrateReconfigureTest, StatusNamesAreStable) {
+  EXPECT_EQ("applied", video::bitrate_reconfigure_status_name(video::bitrate_reconfigure_status_e::applied));
+  EXPECT_EQ("unchanged", video::bitrate_reconfigure_status_name(video::bitrate_reconfigure_status_e::unchanged));
+  EXPECT_EQ("invalid", video::bitrate_reconfigure_status_name(video::bitrate_reconfigure_status_e::invalid));
+  EXPECT_EQ("unsupported", video::bitrate_reconfigure_status_name(video::bitrate_reconfigure_status_e::unsupported));
+  EXPECT_EQ("failed", video::bitrate_reconfigure_status_name(video::bitrate_reconfigure_status_e::failed));
+  EXPECT_EQ("unknown", video::bitrate_reconfigure_status_name(static_cast<video::bitrate_reconfigure_status_e>(99)));
+}
+
+TEST(VideoBitrateReconfigureTest, LatestPendingRequestWins) {
+  auto mail = std::make_shared<safe::mail_raw_t>();
+  auto bitrate_events = mail->event<video::bitrate_reconfigure_request_t>("test-video-bitrate");
+  bitrate_test_session_t session;
+  video::config_t config {};
+  config.bitrate = 25'000;
+
+  EXPECT_FALSE(video::apply_pending_bitrate_reconfiguration(bitrate_events, session, config).has_value());
+  bitrate_events->raise(video::bitrate_reconfigure_request_t {25'000, "first"});
+  bitrate_events->raise(video::bitrate_reconfigure_request_t {40'000, "latest"});
+
+  const auto result = video::apply_pending_bitrate_reconfiguration(bitrate_events, session, config);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(video::bitrate_reconfigure_status_e::applied, result->status);
+  EXPECT_EQ(40'000U, session.last_target_kbps);
+  EXPECT_EQ(40'000, config.bitrate);
+  EXPECT_FALSE(video::apply_pending_bitrate_reconfiguration(bitrate_events, session, config).has_value());
+}
+
+TEST(VideoBitrateReconfigureTest, SuccessfulRequestPersistsAcrossEncoderReinitialization) {
+  auto mail = std::make_shared<safe::mail_raw_t>();
+  auto bitrate_events = mail->event<video::bitrate_reconfigure_request_t>("test-video-bitrate-reinit");
+  bitrate_test_session_t initial_session;
+  video::config_t config {};
+  config.bitrate = 25'000;
+
+  bitrate_events->raise(video::bitrate_reconfigure_request_t {40'000, "network-window"});
+  const auto result = video::apply_pending_bitrate_reconfiguration(bitrate_events, initial_session, config);
+  ASSERT_TRUE(result.has_value());
+  ASSERT_EQ(video::bitrate_reconfigure_status_e::applied, result->status);
+
+  bitrate_test_session_t reinitialized_session {static_cast<std::uint32_t>(config.bitrate)};
+  EXPECT_EQ(40'000U, reinitialized_session.last_target_kbps);
+}
+
+TEST(VideoBitrateReconfigureTest, UnsupportedBackendKeepsFixedBehavior) {
+  unsupported_bitrate_test_session_t session;
+  const auto result = session.reconfigure_bitrate(40'000);
+
+  EXPECT_EQ(video::bitrate_reconfigure_status_e::unsupported, result.status);
+  EXPECT_EQ(0U, result.old_target_kbps);
+  EXPECT_EQ(40'000U, result.requested_target_kbps);
+  EXPECT_EQ(0U, result.effective_target_kbps);
+}
+
 struct EncoderTest: PlatformTestSuite, testing::WithParamInterface<video::encoder_t *> {
   void SetUp() override {
     BaseTest::SetUp();
