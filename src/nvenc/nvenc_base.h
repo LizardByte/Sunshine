@@ -10,6 +10,7 @@
 #include "nvenc_encoded_frame.h"
 #include "nvenc_encoder.h"
 #include "nvenc_sdk.h"
+#include "nvenc_reconfigure.h"
 #include "src/logging.h"
 #include "src/video.h"
 #include "src/video_colorspace.h"
@@ -74,6 +75,14 @@ namespace NVENC_NAMESPACE {
      *         After error next frame must be encoded with `force_idr = true`.
      */
     bool invalidate_ref_frames(uint64_t first_frame, uint64_t last_frame) override;
+
+    /**
+     * @brief Reconfigure bitrate on the active NVENC session without recreating it.
+     *
+     * @param target_kbps Requested bitrate in kilobits per second.
+     * @return Detailed result of the driver-backed bitrate update.
+     */
+    video::bitrate_reconfigure_result_t reconfigure_bitrate(std::uint32_t target_kbps) override;
 
   protected:
     /**
@@ -329,6 +338,7 @@ namespace NVENC_NAMESPACE {
     ) const;
 
     NV_ENC_OUTPUT_PTR output_bitstream = nullptr;
+    bitrate_reconfigure_state_t bitrate_reconfigure_state_;  ///< Cached last-success state for atomic bitrate updates.
 
     struct {
       uint64_t last_encoded_frame_index = 0;

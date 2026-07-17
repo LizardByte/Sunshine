@@ -503,6 +503,7 @@ namespace stream {
 
       safe::mail_raw_t::event_t<bool> idr_events;
       safe::mail_raw_t::event_t<std::pair<int64_t, int64_t>> invalidate_ref_frames_events;
+      safe::mail_raw_t::event_t<video::bitrate_reconfigure_request_t> bitrate_events;
 
       std::unique_ptr<platf::deinit_t> qos;
     } video;  ///< Video worker thread state for the active stream.
@@ -2219,6 +2220,27 @@ namespace stream {
     }
 
     /**
+     * @brief Request a runtime video bitrate change for this session.
+     */
+    void request_video_bitrate(session_t &session, std::uint32_t target_kbps, std::string diagnostic_reason) {
+      session.video.bitrate_events->raise(video::bitrate_reconfigure_request_t {
+        target_kbps,
+        std::move(diagnostic_reason),
+      });
+    }
+
+#ifdef SUNSHINE_TESTS
+    namespace testing {
+      /**
+       * @brief Return the runtime video bitrate event attached to a test session.
+       */
+      safe::mail_raw_t::event_t<video::bitrate_reconfigure_request_t> video_bitrate_requests(session_t &session) {
+        return session.video.bitrate_events;
+      }
+    }  // namespace testing
+#endif
+
+    /**
      * @brief Stop the active streaming session and prevent new packets from being queued.
      */
     void stop(session_t &session) {
@@ -2354,6 +2376,7 @@ namespace stream {
 
       session->video.idr_events = mail->event<bool>(mail::idr);
       session->video.invalidate_ref_frames_events = mail->event<std::pair<int64_t, int64_t>>(mail::invalidate_ref_frames);
+      session->video.bitrate_events = mail->event<video::bitrate_reconfigure_request_t>(mail::video_bitrate);
       session->video.lowseq = 0;
       session->video.ping_payload = launch_session.av_ping_payload;
       if (config.encryptionFlagsEnabled & SS_ENC_VIDEO) {

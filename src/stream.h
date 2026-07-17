@@ -5,7 +5,9 @@
 #pragma once
 
 // standard includes
+#include <cstdint>
 #include <optional>
+#include <string>
 #include <utility>
 
 // lib includes
@@ -104,5 +106,29 @@ namespace stream {
      * @return Stable per-session snapshot, or no value before the first active window completes.
      */
     std::optional<network_metrics::snapshot_t> network_metrics_snapshot(session_t &session);
+
+    /**
+     * @brief Request a runtime video bitrate change for an active stream session.
+     *
+     * The request is delivered asynchronously to the encoder-owning thread. When several
+     * requests are pending, only the latest request is retained.
+     *
+     * @param session Active streaming session that owns the video encoder.
+     * @param target_kbps Requested encoder target in kilobits per second.
+     * @param diagnostic_reason Stable diagnostic reason recorded with the request.
+     */
+    void request_video_bitrate(session_t &session, std::uint32_t target_kbps, std::string diagnostic_reason);
+
+#ifdef SUNSHINE_TESTS
+    namespace testing {
+      /**
+       * @brief Return the runtime video bitrate event attached to a test session.
+       *
+       * @param session Streaming session allocated by the test.
+       * @return Latest-wins bitrate request event used by the encoder thread.
+       */
+      safe::mail_raw_t::event_t<video::bitrate_reconfigure_request_t> video_bitrate_requests(session_t &session);
+    }  // namespace testing
+#endif
   }  // namespace session
 }  // namespace stream
