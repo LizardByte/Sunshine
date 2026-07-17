@@ -5,6 +5,7 @@
 #pragma once
 
 // standard includes
+#include <optional>
 #include <utility>
 
 // lib includes
@@ -13,6 +14,7 @@
 // local includes
 #include "audio.h"
 #include "crypto.h"
+#include "network_metrics.h"
 #include "video.h"
 
 namespace stream {
@@ -31,7 +33,7 @@ namespace stream {
 
     int packetsize;  ///< Maximum payload size for network packets.
     int minRequiredFecPackets;  ///< Minimum recovery packets required before FEC is emitted.
-    int mlFeatureFlags;  ///< Moonlight feature flags negotiated for this session.
+    int mlFeatureFlags;  ///< Moonlight feature flags advertised by the client for this session.
     int controlProtocolType;  ///< GameStream control protocol variant selected by the client.
     int audioQosType;  ///< Audio QoS type.
     int videoQosType;  ///< Video QoS type.
@@ -94,5 +96,13 @@ namespace stream {
      * @return PEM certificate associated with the session's client.
      */
     const std::string &client_cert(session_t &session);
+
+    /**
+     * @brief Return the latest completed Moonlight network telemetry window.
+     *
+     * @param session Active streaming session to inspect.
+     * @return Stable per-session snapshot, or no value before the first active window completes.
+     */
+    std::optional<network_metrics::snapshot_t> network_metrics_snapshot(session_t &session);
   }  // namespace session
 }  // namespace stream

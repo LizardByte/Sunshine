@@ -26,6 +26,7 @@ extern "C" {
 #include "input.h"
 #include "logging.h"
 #include "network.h"
+#include "network_metrics.h"
 #include "platform/common.h"
 #include "process.h"
 #include "stream.h"
@@ -76,6 +77,11 @@ using asio::ip::tcp;
 using asio::ip::udp;
 
 using namespace std::literals;
+
+static_assert(
+  sizeof(SS_FRAME_FEC_STATUS) == stream::network_metrics::frame_fec_status_payload_size,
+  "Moonlight SS_FRAME_FEC_STATUS wire layout must remain 21 bytes"
+);
 
 namespace stream {
 
@@ -533,6 +539,11 @@ namespace stream {
       platf::feedback_queue_t feedback_queue;
       safe::mail_raw_t::event_t<video::hdr_info_t> hdr_queue;
     } control;  ///< Runtime state for the encrypted GameStream control channel.
+
+    struct {
+      network_metrics::tracker_t tracker;  ///< Control-thread aggregator for Moonlight FEC reports.
+      sync_util::sync_t<std::optional<network_metrics::snapshot_t>> latest_snapshot;  ///< Latest stable window for future consumers.
+    } network_metrics;  ///< Per-session network telemetry state.
 
     std::uint32_t launch_session_id;  ///< RTSP launch-session ID associated with this stream.
     std::string client_cert;  ///< PEM certificate for the paired client owning the stream.
@@ -1103,6 +1114,50 @@ namespace stream {
   }
 
   /**
+   * @brief Publish an elapsed network telemetry window for one session.
+   *
+   * @param session Active streaming session whose control peer supplies RTT data.
+   * @param now Monotonic publication time.
+   */
+  void publish_network_metrics(session_t *session, const network_metrics::time_point_t now) {
+    if (!session->control.peer) {
+      return;
+    }
+
+    auto snapshot = session->network_metrics.tracker.poll(
+      now,
+      session->control.peer->roundTripTime,
+      session->control.peer->roundTripTimeVariance
+    );
+    if (!snapshot) {
+      return;
+    }
+
+    {
+      auto lock = session->network_metrics.latest_snapshot.lock();
+      *session->network_metrics.latest_snapshot = *snapshot;
+    }
+
+    BOOST_LOG(debug)
+      << "network_metrics"
+      << " session_id=" << session->launch_session_id
+      << " sequence=" << snapshot->sequence
+      << " window_ms=" << snapshot->window_duration_ms
+      << " fec_reports=" << snapshot->fec_reports
+      << " missing_packets=" << snapshot->missing_packets
+      << " unrecovered_data_packets=" << snapshot->unrecovered_data_packets
+      << " received_data_packets=" << snapshot->received_data_packets
+      << " received_parity_packets=" << snapshot->received_parity_packets
+      << " fec_recovered_data_packets=" << snapshot->fec_recovered_data_packets
+      << " idr_requests=" << snapshot->idr_requests
+      << " malformed_reports=" << snapshot->malformed_reports
+      << " protocol_mismatch_reports=" << snapshot->protocol_mismatch_reports
+      << " rate_limited_reports=" << snapshot->rate_limited_reports
+      << " rtt_ms=" << snapshot->rtt_ms
+      << " rtt_variance_ms=" << snapshot->rtt_variance_ms;
+  }
+
+  /**
    * @brief Run the broadcast control-channel worker thread.
    *
    * @param server RTSP server instance handling the request.
@@ -1136,9 +1191,22 @@ namespace stream {
         << "---end stats---";
     });
 
+    // Moonlight sends SS_FRAME_FEC_STATUS as 0x5502 from client to host. Sunshine
+    // also uses 0x5502 in the opposite direction for RGB LED feedback, so keep
+    // this receive-only mapping separate from packetTypes[IDX_SET_RGB_LED].
+    server->map(SS_FRAME_FEC_PTYPE, [&](session_t *session, const std::string_view &payload) {
+      publish_network_metrics(session, std::chrono::steady_clock::now());
+      session->network_metrics.tracker.ingest(
+        payload,
+        (session->config.mlFeatureFlags & ML_FF_FEC_STATUS) != 0
+      );
+    });
+
     server->map(packetTypes[IDX_REQUEST_IDR_FRAME], [&](session_t *session, const std::string_view &payload) {
       BOOST_LOG(debug) << "type [IDX_REQUEST_IDR_FRAME]"sv;
 
+      publish_network_metrics(session, std::chrono::steady_clock::now());
+      session->network_metrics.tracker.record_idr_request();
       session->video.idr_events->raise(true);
     });
 
@@ -1300,6 +1368,8 @@ namespace stream {
           if (!session->control.peer) {
             has_session_awaiting_peer = true;
           } else {
+            publish_network_metrics(session, now);
+
             auto &feedback_queue = session->control.feedback_queue;
             while (feedback_queue->peek()) {
               auto feedback_msg = feedback_queue->pop();
@@ -2138,6 +2208,14 @@ namespace stream {
      */
     const std::string &client_cert(session_t &session) {
       return session.client_cert;
+    }
+
+    /**
+     * @brief Return the latest completed network telemetry window for this session.
+     */
+    std::optional<network_metrics::snapshot_t> network_metrics_snapshot(session_t &session) {
+      auto lock = session.network_metrics.latest_snapshot.lock();
+      return *session.network_metrics.latest_snapshot;
     }
 
     /**
