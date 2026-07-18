@@ -94,8 +94,8 @@ TEST(VideoBitrateReconfigureTest, LatestPendingRequestWins) {
   config.bitrate = 25'000;
 
   EXPECT_FALSE(video::apply_pending_bitrate_reconfiguration(bitrate_events, session, config).has_value());
-  bitrate_events->raise(video::bitrate_reconfigure_request_t {25'000, "first"});
-  bitrate_events->raise(video::bitrate_reconfigure_request_t {40'000, "latest"});
+  bitrate_events->raise(video::bitrate_reconfigure_request_t {25'000});
+  bitrate_events->raise(video::bitrate_reconfigure_request_t {40'000});
 
   const auto result = video::apply_pending_bitrate_reconfiguration(bitrate_events, session, config);
   ASSERT_TRUE(result.has_value());
@@ -112,7 +112,7 @@ TEST(VideoBitrateReconfigureTest, SuccessfulRequestPersistsAcrossEncoderReinitia
   video::config_t config {};
   config.bitrate = 25'000;
 
-  bitrate_events->raise(video::bitrate_reconfigure_request_t {40'000, "network-window"});
+  bitrate_events->raise(video::bitrate_reconfigure_request_t {40'000});
   const auto result = video::apply_pending_bitrate_reconfiguration(bitrate_events, initial_session, config);
   ASSERT_TRUE(result.has_value());
   ASSERT_EQ(video::bitrate_reconfigure_status_e::applied, result->status);

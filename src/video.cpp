@@ -79,7 +79,6 @@ namespace video {
       << " old_target_kbps=" << result.old_target_kbps
       << " requested_target_kbps=" << result.requested_target_kbps
       << " effective_target_kbps=" << result.effective_target_kbps
-      << " reason=" << request->reason
       << " result=" << bitrate_reconfigure_status_name(result.status);
 
     if (

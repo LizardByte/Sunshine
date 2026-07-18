@@ -18,8 +18,14 @@ namespace stream::network_metrics {
   /** Size of the current SS_FRAME_FEC_STATUS wire payload. */
   inline constexpr std::size_t frame_fec_status_payload_size = 21;
 
-  /** Maximum number of FEC reports processed for one session in one window. */
-  inline constexpr std::uint32_t max_reports_per_window = 512;
+  /** Default and minimum number of FEC reports processed per session window. */
+  inline constexpr std::uint32_t default_report_limit_per_window = 512;
+
+  /** Protocol maximum number of FEC blocks emitted for one video frame. */
+  inline constexpr std::uint32_t max_fec_blocks_per_frame = 4;
+
+  /** Hard upper bound for a configured per-session report limit. */
+  inline constexpr std::uint32_t hard_max_reports_per_window = 4096;
 
   /** Monotonic time point used to delimit aggregation windows. */
   using time_point_t = std::chrono::steady_clock::time_point;
@@ -62,12 +68,13 @@ namespace stream::network_metrics {
     std::uint64_t sequence;  ///< Per-session snapshot sequence number.
     std::uint64_t window_duration_ms;  ///< Actual monotonic window duration in milliseconds.
     std::uint64_t fec_reports;  ///< Valid FEC reports accepted in the window.
+    std::uint64_t incomplete_fec_reports;  ///< Reports emitted for a missing FEC block before counters were initialized.
     std::uint64_t missing_packets;  ///< Client-reported gaps before the highest received packets.
     std::uint64_t unrecovered_data_packets;  ///< Missing data shards from blocks that could not be decoded.
     std::uint64_t received_data_packets;  ///< Data shards received across all accepted reports.
     std::uint64_t received_parity_packets;  ///< Parity shards received across all accepted reports.
     std::uint64_t fec_recovered_data_packets;  ///< Missing data shards reconstructed by decodable FEC blocks.
-    std::uint64_t idr_requests;  ///< IDR requests received in the window.
+    std::uint64_t frame_loss_requests;  ///< IDR or reference-frame invalidation requests received in the window.
     std::uint64_t malformed_reports;  ///< Reports rejected because their payload was invalid.
     std::uint64_t protocol_mismatch_reports;  ///< Reports received without advertised FEC status support.
     std::uint64_t rate_limited_reports;  ///< Reports skipped after the processing limit was reached.
@@ -84,6 +91,19 @@ namespace stream::network_metrics {
   std::optional<frame_fec_status_t> parse_frame_fec_status(std::string_view payload);
 
   /**
+   * @brief Derive a bounded telemetry report limit from the requested frame rate.
+   *
+   * The estimate allows four FEC blocks per frame during the 500 ms aggregation
+   * window, plus 25 percent headroom for reports arriving in short bursts. The
+   * result is rounded up, never falls below default_report_limit_per_window,
+   * and never exceeds hard_max_reports_per_window.
+   *
+   * @param frames_per_second Requested stream frame rate.
+   * @return Safe per-session FEC report limit for one aggregation window.
+   */
+  [[nodiscard]] std::uint32_t report_limit_for_framerate(std::uint32_t frames_per_second);
+
+  /**
    * @brief Aggregates Moonlight FEC reports for one stream session.
    *
    * The tracker is owned by the control thread. Call poll() before ingest() when
@@ -98,8 +118,13 @@ namespace stream::network_metrics {
      * @brief Create a tracker whose first window starts at the supplied time.
      *
      * @param window_start Start of the first aggregation window.
+     * @param report_limit Maximum reports admitted in each aggregation window.
+     * Values outside the supported range are clamped.
      */
-    explicit tracker_t(time_point_t window_start = std::chrono::steady_clock::now());
+    explicit tracker_t(
+      time_point_t window_start = std::chrono::steady_clock::now(),
+      std::uint32_t report_limit = default_report_limit_per_window
+    );
 
     /**
      * @brief Validate and add one client FEC report to the current window.
@@ -111,9 +136,9 @@ namespace stream::network_metrics {
     ingest_result_e ingest(std::string_view payload, bool feature_advertised);
 
     /**
-     * @brief Count one IDR request in the current window.
+     * @brief Count one client frame-loss recovery request in the current window.
      */
-    void record_idr_request();
+    void record_frame_loss_request();
 
     /**
      * @brief Publish and reset an elapsed non-empty aggregation window.
@@ -132,18 +157,19 @@ namespace stream::network_metrics {
     struct accumulator_t {
       std::uint32_t processed_reports = 0;  ///< Reports admitted to validation in this window.
       std::uint64_t fec_reports = 0;  ///< Valid FEC reports.
+      std::uint64_t incomplete_fec_reports = 0;  ///< Reports for a skipped block with uninitialized counters.
       std::uint64_t missing_packets = 0;  ///< Client-reported packet gaps.
       std::uint64_t unrecovered_data_packets = 0;  ///< Data shards that remained unrecovered.
       std::uint64_t received_data_packets = 0;  ///< Data shards received.
       std::uint64_t received_parity_packets = 0;  ///< Parity shards received.
       std::uint64_t fec_recovered_data_packets = 0;  ///< Data shards recovered through FEC.
-      std::uint64_t idr_requests = 0;  ///< IDR requests.
+      std::uint64_t frame_loss_requests = 0;  ///< IDR or reference-frame invalidation requests.
       std::uint64_t malformed_reports = 0;  ///< Invalid payloads.
       std::uint64_t protocol_mismatch_reports = 0;  ///< Reports without advertised support.
       std::uint64_t rate_limited_reports = 0;  ///< Reports skipped by the processing limit.
 
       /**
-       * @brief Return whether this window contains any report or IDR activity.
+       * @brief Return whether this window contains any report or frame-loss activity.
        *
        * @return `true` when publishing the window would expose useful telemetry.
        */
@@ -151,6 +177,7 @@ namespace stream::network_metrics {
     };
 
     time_point_t window_start_;  ///< Monotonic start of the active window.
+    std::uint32_t report_limit_;  ///< Maximum reports admitted in one window.
     std::uint64_t next_sequence_ = 1;  ///< Sequence assigned to the next published snapshot.
     accumulator_t accumulator_;  ///< Counters for the active window.
   };
