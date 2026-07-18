@@ -148,7 +148,7 @@ namespace stream::adaptive_bitrate {
 
     if (snapshot.fec_reports != 0) {
       telemetry_seen_ = true;
-    } else if (!telemetry_seen_) {
+    } else if (!telemetry_seen_ && snapshot.frame_loss_requests == 0) {
       return;
     }
 
