@@ -101,14 +101,16 @@ namespace stream::adaptive_bitrate {
     floor_kbps_ = std::min(minimum_target_kbps, ceiling_kbps_);
     target_kbps_ = ceiling_kbps_;
     pending_target_kbps_ = 0;
-    pending_reason_ = decision_reason_e::capability_probe;
+    pending_reason_ = decision_reason_e::capability_check;
     baseline_rtt_ms_ = 0;
+    last_control_liveness_token_ = 0;
     last_snapshot_sequence_ = 0;
     consecutive_bad_windows_ = 0;
     candidate_degradation_ = degradation_e::none;
     pending_degradation_ = degradation_e::none;
     telemetry_seen_ = false;
     fallback_after_acknowledgement_ = false;
+    recovery_blocked_by_rate_limit_ = false;
     last_decision_direction_ = decision_direction_e::none;
     first_bad_window_at_.reset();
     stable_since_.reset();
@@ -124,14 +126,23 @@ namespace stream::adaptive_bitrate {
     }
     last_snapshot_sequence_ = snapshot.sequence;
 
-    if (snapshot.malformed_reports != 0 || snapshot.protocol_mismatch_reports != 0 ||
-        snapshot.rate_limited_reports != 0) {
+    if (snapshot.malformed_reports != 0 || snapshot.protocol_mismatch_reports != 0) {
       if (state_ == state_e::pending) {
         fallback_after_acknowledgement_ = true;
         return;
       }
       state_ = state_e::fixed_fallback;
       pending_target_kbps_ = 0;
+      return;
+    }
+
+    if (snapshot.rate_limited_reports != 0) {
+      consecutive_bad_windows_ = 0;
+      candidate_degradation_ = degradation_e::none;
+      pending_degradation_ = degradation_e::none;
+      first_bad_window_at_.reset();
+      stable_since_.reset();
+      recovery_blocked_by_rate_limit_ = true;
       return;
     }
 
@@ -149,7 +160,8 @@ namespace stream::adaptive_bitrate {
     const auto recovered_ratio = data_ratio(snapshot.fec_recovered_data_packets, snapshot);
     const auto high_latency = latency_is_high(snapshot.rtt_ms, snapshot.rtt_variance_ms, baseline_rtt_ms_);
     const auto severe_loss = unrecovered_ratio >= unrecovered_loss_threshold ||
-                             (snapshot.idr_requests != 0 && snapshot.unrecovered_data_packets != 0);
+                             snapshot.incomplete_fec_reports != 0 ||
+                             snapshot.frame_loss_requests != 0;
     const auto fec_pressure = recovered_ratio >= fec_pressure_threshold && high_latency;
 
     degradation_e degradation = degradation_e::none;
@@ -193,11 +205,19 @@ namespace stream::adaptive_bitrate {
     first_bad_window_at_.reset();
 
     const auto stable_window = snapshot.unrecovered_data_packets == 0 &&
-                               snapshot.idr_requests == 0 &&
+                               snapshot.incomplete_fec_reports == 0 &&
+                               snapshot.frame_loss_requests == 0 &&
                                recovered_ratio < stable_fec_threshold &&
                                !high_latency;
     if (!stable_window || !stable_since_) {
       stable_since_ = now;
+    }
+
+    if (stable_window && snapshot.fec_reports != 0) {
+      if (recovery_blocked_by_rate_limit_) {
+        stable_since_ = now;
+      }
+      recovery_blocked_by_rate_limit_ = false;
     }
 
     if (stable_window && snapshot.rtt_ms != 0 &&
@@ -209,8 +229,15 @@ namespace stream::adaptive_bitrate {
   std::optional<decision_t> controller_t::tick(
     const time_point_t now,
     const std::uint32_t live_rtt_ms,
-    const std::uint32_t live_rtt_variance_ms
+    const std::uint32_t live_rtt_variance_ms,
+    const std::uint32_t control_liveness_token
   ) {
+    const auto fresh_control_liveness = control_liveness_token != 0 &&
+                                        control_liveness_token != last_control_liveness_token_;
+    if (fresh_control_liveness) {
+      last_control_liveness_token_ = control_liveness_token;
+    }
+
     const auto emit = [&](const std::uint32_t target_kbps, const decision_reason_e reason) {
       auto direction = decision_direction_e::none;
       if (target_kbps < target_kbps_) {
@@ -239,7 +266,7 @@ namespace stream::adaptive_bitrate {
     }
 
     if (state_ == state_e::probing) {
-      return emit(ceiling_kbps_, decision_reason_e::capability_probe);
+      return emit(ceiling_kbps_, decision_reason_e::capability_check);
     }
 
     if (state_ == state_e::pending) {
@@ -276,6 +303,7 @@ namespace stream::adaptive_bitrate {
     }
 
     if (!telemetry_seen_ || !stable_since_ || target_kbps_ >= ceiling_kbps_ || live_latency_high ||
+        !fresh_control_liveness || recovery_blocked_by_rate_limit_ ||
         !elapsed(now, *stable_since_, stable_recovery_delay) ||
         (last_increase_at_ && !elapsed(now, *last_increase_at_, recovery_increase_interval)) ||
         !decision_allowed) {

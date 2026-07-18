@@ -52,7 +52,6 @@ namespace video {
    */
   struct bitrate_reconfigure_request_t {
     std::uint32_t target_kbps;  ///< Requested encoder target in kilobits per second.
-    std::string reason;  ///< Stable diagnostic reason for the request.
   };
 
   /**

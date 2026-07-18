@@ -9,6 +9,9 @@
 #include <optional>
 #include <string>
 #include <utility>
+#ifdef SUNSHINE_TESTS
+  #include <string_view>
+#endif
 
 // lib includes
 #include <boost/asio.hpp>
@@ -16,8 +19,10 @@
 // local includes
 #include "audio.h"
 #include "crypto.h"
-#include "network_metrics.h"
 #include "video.h"
+#ifdef SUNSHINE_TESTS
+  #include "network_metrics.h"
+#endif
 
 namespace stream {
   constexpr auto VIDEO_STREAM_PORT = 9;  ///< GameStream base-port offset used for the video UDP stream.
@@ -99,26 +104,6 @@ namespace stream {
      */
     const std::string &client_cert(session_t &session);
 
-    /**
-     * @brief Return the latest completed Moonlight network telemetry window.
-     *
-     * @param session Active streaming session to inspect.
-     * @return Stable per-session snapshot, or no value before the first active window completes.
-     */
-    std::optional<network_metrics::snapshot_t> network_metrics_snapshot(session_t &session);
-
-    /**
-     * @brief Request a runtime video bitrate change for an active stream session.
-     *
-     * The request is delivered asynchronously to the encoder-owning thread. When several
-     * requests are pending, only the latest request is retained.
-     *
-     * @param session Active streaming session that owns the video encoder.
-     * @param target_kbps Requested encoder target in kilobits per second.
-     * @param diagnostic_reason Stable diagnostic reason recorded with the request.
-     */
-    void request_video_bitrate(session_t &session, std::uint32_t target_kbps, std::string diagnostic_reason);
-
 #ifdef SUNSHINE_TESTS
     namespace testing {
       /**
@@ -136,6 +121,96 @@ namespace stream {
        * @return Effective video bitrate in kilobits per second.
        */
       std::uint32_t configured_video_bitrate(session_t &session);
+
+      /**
+       * @brief Ingest one FEC report through the control-thread orchestration path.
+       *
+       * @param session Streaming session allocated by the test.
+       * @param payload Raw SS_FRAME_FEC_STATUS payload.
+       * @param now Monotonic arrival time.
+       * @param rtt_ms Test ENet round-trip time used if an elapsed window is published first.
+       * @param rtt_variance_ms Test ENet round-trip-time variance.
+       * @return Tracker disposition for the supplied report.
+       */
+      network_metrics::ingest_result_e ingest_frame_fec_status(
+        session_t &session,
+        std::string_view payload,
+        network_metrics::time_point_t now,
+        std::uint32_t rtt_ms,
+        std::uint32_t rtt_variance_ms
+      );
+
+      /**
+       * @brief Record one IDR or reference-frame invalidation request through production orchestration.
+       *
+       * @param session Streaming session allocated by the test.
+       * @param now Monotonic request arrival time.
+       * @param rtt_ms Test ENet round-trip time.
+       * @param rtt_variance_ms Test ENet round-trip-time variance.
+       */
+      void record_frame_loss_request(
+        session_t &session,
+        network_metrics::time_point_t now,
+        std::uint32_t rtt_ms,
+        std::uint32_t rtt_variance_ms
+      );
+
+      /**
+       * @brief Publish an elapsed telemetry window through the production observation path.
+       *
+       * @param session Streaming session allocated by the test.
+       * @param now Monotonic publication time.
+       * @param rtt_ms Test ENet round-trip time.
+       * @param rtt_variance_ms Test ENet round-trip-time variance.
+       * @return `true` when a window was published and observed by the controller.
+       */
+      bool publish_network_metrics(
+        session_t &session,
+        network_metrics::time_point_t now,
+        std::uint32_t rtt_ms,
+        std::uint32_t rtt_variance_ms
+      );
+
+      /**
+       * @brief Run pending-result acknowledgement and decision dispatch as the control thread would.
+       *
+       * @param session Streaming session allocated by the test.
+       * @param now Monotonic control-loop time.
+       * @param rtt_ms Test ENet round-trip time.
+       * @param rtt_variance_ms Test ENet round-trip-time variance.
+       * @param control_liveness_token Test token that changes with a fresh control-channel RTT sample.
+       */
+      void process_adaptive_bitrate(
+        session_t &session,
+        network_metrics::time_point_t now,
+        std::uint32_t rtt_ms,
+        std::uint32_t rtt_variance_ms,
+        std::uint32_t control_liveness_token
+      );
+
+      /**
+       * @brief Publish one encoder result into the control-thread acknowledgement mailbox.
+       *
+       * @param session Streaming session allocated by the test.
+       * @param result Encoder result to acknowledge on the next orchestration pass.
+       */
+      void publish_video_bitrate_result(session_t &session, video::bitrate_reconfigure_result_t result);
+
+      /**
+       * @brief Return whether the adaptive controller consumed valid FEC telemetry.
+       *
+       * @param session Streaming session allocated by the test.
+       * @return `true` after at least one valid report was published.
+       */
+      bool adaptive_bitrate_telemetry_seen(session_t &session);
+
+      /**
+       * @brief Return whether the adaptive controller entered fixed fallback.
+       *
+       * @param session Streaming session allocated by the test.
+       * @return `true` when adaptation stopped after an invalid encoder result or telemetry window.
+       */
+      bool adaptive_bitrate_in_fallback(session_t &session);
     }  // namespace testing
 #endif
   }  // namespace session

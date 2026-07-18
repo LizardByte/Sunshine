@@ -117,8 +117,8 @@ namespace stream {
    */
   std::string_view adaptive_bitrate_reason_name(const adaptive_bitrate::decision_reason_e reason) {
     switch (reason) {
-      case adaptive_bitrate::decision_reason_e::capability_probe:
-        return "capability_probe"sv;
+      case adaptive_bitrate::decision_reason_e::capability_check:
+        return "capability_check"sv;
       case adaptive_bitrate::decision_reason_e::unrecovered_loss:
         return "unrecovered_loss"sv;
       case adaptive_bitrate::decision_reason_e::fec_pressure:
@@ -589,7 +589,6 @@ namespace stream {
 
     struct {
       network_metrics::tracker_t tracker;  ///< Control-thread aggregator for Moonlight FEC reports.
-      sync_util::sync_t<std::optional<network_metrics::snapshot_t>> latest_snapshot;  ///< Latest stable window for future consumers.
     } network_metrics;  ///< Per-session network telemetry state.
 
     adaptive_bitrate::controller_t adaptive_bitrate_controller;  ///< Per-session controller owned by the control thread.
@@ -1164,55 +1163,179 @@ namespace stream {
   /**
    * @brief Publish an elapsed network telemetry window for one session.
    *
-   * @param session Active streaming session whose control peer supplies RTT data.
+   * The caller must be the session's control thread so tracker and controller
+   * ownership remain single-threaded.
+   *
+   * @param session Active streaming session to update.
    * @param now Monotonic publication time.
+   * @param rtt_ms Current ENet smoothed round-trip time.
+   * @param rtt_variance_ms Current ENet round-trip-time variance.
+   * @return `true` when a completed window was published to the controller.
    */
-  void publish_network_metrics(session_t *session, const network_metrics::time_point_t now) {
-    if (!session->control.peer) {
-      return;
-    }
-
-    auto snapshot = session->network_metrics.tracker.poll(
+  static bool publish_network_metrics(
+    session_t &session,
+    const network_metrics::time_point_t now,
+    const std::uint32_t rtt_ms,
+    const std::uint32_t rtt_variance_ms
+  ) {
+    auto snapshot = session.network_metrics.tracker.poll(
       now,
-      session->control.peer->roundTripTime,
-      session->control.peer->roundTripTimeVariance
+      rtt_ms,
+      rtt_variance_ms
     );
     if (!snapshot) {
-      return;
+      return false;
     }
 
-    {
-      auto lock = session->network_metrics.latest_snapshot.lock();
-      *session->network_metrics.latest_snapshot = *snapshot;
-    }
-
-    const auto adaptive_state_before_observe = session->adaptive_bitrate_controller.state();
-    session->adaptive_bitrate_controller.observe(*snapshot, now);
+    const auto adaptive_state_before_observe = session.adaptive_bitrate_controller.state();
+    session.adaptive_bitrate_controller.observe(*snapshot, now);
     if (adaptive_state_before_observe != adaptive_bitrate::state_e::fixed_fallback &&
-        session->adaptive_bitrate_controller.state() == adaptive_bitrate::state_e::fixed_fallback) {
+        session.adaptive_bitrate_controller.state() == adaptive_bitrate::state_e::fixed_fallback) {
       BOOST_LOG(warning)
         << "adaptive_bitrate_fallback"
-        << " session_id=" << session->launch_session_id
+        << " session_id=" << session.launch_session_id
         << " reason=invalid_telemetry";
     }
 
     BOOST_LOG(debug)
       << "network_metrics"
-      << " session_id=" << session->launch_session_id
+      << " session_id=" << session.launch_session_id
       << " sequence=" << snapshot->sequence
       << " window_ms=" << snapshot->window_duration_ms
       << " fec_reports=" << snapshot->fec_reports
+      << " incomplete_fec_reports=" << snapshot->incomplete_fec_reports
       << " missing_packets=" << snapshot->missing_packets
       << " unrecovered_data_packets=" << snapshot->unrecovered_data_packets
       << " received_data_packets=" << snapshot->received_data_packets
       << " received_parity_packets=" << snapshot->received_parity_packets
       << " fec_recovered_data_packets=" << snapshot->fec_recovered_data_packets
-      << " idr_requests=" << snapshot->idr_requests
+      << " frame_loss_requests=" << snapshot->frame_loss_requests
       << " malformed_reports=" << snapshot->malformed_reports
       << " protocol_mismatch_reports=" << snapshot->protocol_mismatch_reports
       << " rate_limited_reports=" << snapshot->rate_limited_reports
       << " rtt_ms=" << snapshot->rtt_ms
       << " rtt_variance_ms=" << snapshot->rtt_variance_ms;
+    return true;
+  }
+
+  /**
+   * @brief Poll an elapsed window before ingesting one control-channel FEC report.
+   *
+   * The caller must be the session's control thread. Polling first ensures the
+   * new report starts the next window after an elapsed window is published.
+   *
+   * @param session Active streaming session to update.
+   * @param payload Raw SS_FRAME_FEC_STATUS payload.
+   * @param now Monotonic report arrival time.
+   * @param rtt_ms Current ENet smoothed round-trip time.
+   * @param rtt_variance_ms Current ENet round-trip-time variance.
+   * @return Tracker disposition for the supplied report.
+   */
+  static network_metrics::ingest_result_e ingest_frame_fec_status(
+    session_t &session,
+    const std::string_view payload,
+    const network_metrics::time_point_t now,
+    const std::uint32_t rtt_ms,
+    const std::uint32_t rtt_variance_ms
+  ) {
+    publish_network_metrics(session, now, rtt_ms, rtt_variance_ms);
+    return session.network_metrics.tracker.ingest(
+      payload,
+      (session.config.mlFeatureFlags & ML_FF_FEC_STATUS) != 0
+    );
+  }
+
+  /**
+   * @brief Record one client request caused by a lost or unusable video frame.
+   *
+   * The caller must be the session's control thread. Polling first keeps the
+   * request in the window that begins at its arrival time.
+   *
+   * @param session Active streaming session to update.
+   * @param now Monotonic request arrival time.
+   * @param rtt_ms Current ENet smoothed round-trip time.
+   * @param rtt_variance_ms Current ENet round-trip-time variance.
+   */
+  static void record_frame_loss_request(
+    session_t &session,
+    const network_metrics::time_point_t now,
+    const std::uint32_t rtt_ms,
+    const std::uint32_t rtt_variance_ms
+  ) {
+    publish_network_metrics(session, now, rtt_ms, rtt_variance_ms);
+    session.network_metrics.tracker.record_frame_loss_request();
+  }
+
+  /**
+   * @brief Deliver a latest-wins adaptive bitrate command to the encoder thread.
+   *
+   * @param session Active streaming session that owns the encoder mailbox.
+   * @param target_kbps Requested encoder target in kilobits per second.
+   */
+  static void request_video_bitrate(session_t &session, const std::uint32_t target_kbps) {
+    session.video.bitrate_events->raise(video::bitrate_reconfigure_request_t {target_kbps});
+  }
+
+  /**
+   * @brief Acknowledge encoder results and dispatch one adaptive bitrate decision.
+   *
+   * The caller must be the session's control thread. Encoder results cross the
+   * mailbox boundary before the controller is ticked, preserving controller
+   * ownership and allowing a new command only after acknowledgement.
+   *
+   * @param session Active streaming session to update.
+   * @param now Monotonic control-loop time.
+   * @param rtt_ms Current ENet smoothed round-trip time.
+   * @param rtt_variance_ms Current ENet round-trip-time variance.
+   * @param control_liveness_token ENet receive token refreshed with the RTT by a reliable acknowledgement.
+   */
+  static void process_adaptive_bitrate(
+    session_t &session,
+    const network_metrics::time_point_t now,
+    const std::uint32_t rtt_ms,
+    const std::uint32_t rtt_variance_ms,
+    const std::uint32_t control_liveness_token
+  ) {
+    while (auto result = session.video.bitrate_result_events->try_pop()) {
+      const auto adaptive_state_before_acknowledge = session.adaptive_bitrate_controller.state();
+      session.adaptive_bitrate_controller.acknowledge(
+        adaptive_bitrate_apply_status(result->status),
+        result->effective_target_kbps,
+        now
+      );
+      BOOST_LOG(info)
+        << "adaptive_bitrate_feedback"
+        << " session_id=" << session.launch_session_id
+        << " status=" << video::bitrate_reconfigure_status_name(result->status)
+        << " requested_kbps=" << result->requested_target_kbps
+        << " effective_kbps=" << result->effective_target_kbps;
+      if (adaptive_state_before_acknowledge == adaptive_bitrate::state_e::pending &&
+          session.adaptive_bitrate_controller.state() == adaptive_bitrate::state_e::fixed_fallback) {
+        const auto successful_result =
+          result->status == video::bitrate_reconfigure_status_e::applied ||
+          result->status == video::bitrate_reconfigure_status_e::unchanged;
+        BOOST_LOG(warning)
+          << "adaptive_bitrate_fallback"
+          << " session_id=" << session.launch_session_id
+          << " reason=" << (successful_result ? "invalid_telemetry"sv : "encoder_result"sv)
+          << " status=" << video::bitrate_reconfigure_status_name(result->status);
+      }
+    }
+
+    if (auto decision = session.adaptive_bitrate_controller.tick(
+          now,
+          rtt_ms,
+          rtt_variance_ms,
+          control_liveness_token
+        )) {
+      const auto reason = adaptive_bitrate_reason_name(decision->reason);
+      BOOST_LOG(info)
+        << "adaptive_bitrate_decision"
+        << " session_id=" << session.launch_session_id
+        << " target_kbps=" << decision->target_kbps
+        << " reason=" << reason;
+      request_video_bitrate(session, decision->target_kbps);
+    }
   }
 
   /**
@@ -1253,18 +1376,25 @@ namespace stream {
     // also uses 0x5502 in the opposite direction for RGB LED feedback, so keep
     // this receive-only mapping separate from packetTypes[IDX_SET_RGB_LED].
     server->map(SS_FRAME_FEC_PTYPE, [&](session_t *session, const std::string_view &payload) {
-      publish_network_metrics(session, std::chrono::steady_clock::now());
-      session->network_metrics.tracker.ingest(
+      const auto now = std::chrono::steady_clock::now();
+      ingest_frame_fec_status(
+        *session,
         payload,
-        (session->config.mlFeatureFlags & ML_FF_FEC_STATUS) != 0
+        now,
+        session->control.peer->roundTripTime,
+        session->control.peer->roundTripTimeVariance
       );
     });
 
     server->map(packetTypes[IDX_REQUEST_IDR_FRAME], [&](session_t *session, const std::string_view &payload) {
       BOOST_LOG(debug) << "type [IDX_REQUEST_IDR_FRAME]"sv;
 
-      publish_network_metrics(session, std::chrono::steady_clock::now());
-      session->network_metrics.tracker.record_idr_request();
+      record_frame_loss_request(
+        *session,
+        std::chrono::steady_clock::now(),
+        session->control.peer->roundTripTime,
+        session->control.peer->roundTripTimeVariance
+      );
       session->video.idr_events->raise(true);
     });
 
@@ -1278,6 +1408,12 @@ namespace stream {
         << "firstFrame [" << firstFrame << ']' << std::endl
         << "lastFrame [" << lastFrame << ']';
 
+      record_frame_loss_request(
+        *session,
+        std::chrono::steady_clock::now(),
+        session->control.peer->roundTripTime,
+        session->control.peer->roundTripTimeVariance
+      );
       session->video.invalidate_ref_frames_events->raise(std::make_pair(firstFrame, lastFrame));
     });
 
@@ -1426,47 +1562,19 @@ namespace stream {
           if (!session->control.peer) {
             has_session_awaiting_peer = true;
           } else {
-            publish_network_metrics(session, now);
-
-            while (auto result = session->video.bitrate_result_events->try_pop()) {
-              const auto adaptive_state_before_acknowledge = session->adaptive_bitrate_controller.state();
-              session->adaptive_bitrate_controller.acknowledge(
-                adaptive_bitrate_apply_status(result->status),
-                result->effective_target_kbps,
-                now
-              );
-              BOOST_LOG(info)
-                << "adaptive_bitrate_feedback"
-                << " session_id=" << session->launch_session_id
-                << " status=" << video::bitrate_reconfigure_status_name(result->status)
-                << " requested_kbps=" << result->requested_target_kbps
-                << " effective_kbps=" << result->effective_target_kbps;
-              if (adaptive_state_before_acknowledge == adaptive_bitrate::state_e::pending &&
-                  session->adaptive_bitrate_controller.state() == adaptive_bitrate::state_e::fixed_fallback) {
-                const auto successful_result =
-                  result->status == video::bitrate_reconfigure_status_e::applied ||
-                  result->status == video::bitrate_reconfigure_status_e::unchanged;
-                BOOST_LOG(warning)
-                  << "adaptive_bitrate_fallback"
-                  << " session_id=" << session->launch_session_id
-                  << " reason=" << (successful_result ? "invalid_telemetry"sv : "encoder_result"sv)
-                  << " status=" << video::bitrate_reconfigure_status_name(result->status);
-              }
-            }
-
-            if (auto decision = session->adaptive_bitrate_controller.tick(
-                  now,
-                  session->control.peer->roundTripTime,
-                  session->control.peer->roundTripTimeVariance
-                )) {
-              const auto reason = adaptive_bitrate_reason_name(decision->reason);
-              session::request_video_bitrate(*session, decision->target_kbps, std::string {reason});
-              BOOST_LOG(info)
-                << "adaptive_bitrate_decision"
-                << " session_id=" << session->launch_session_id
-                << " target_kbps=" << decision->target_kbps
-                << " reason=" << reason;
-            }
+            publish_network_metrics(
+              *session,
+              now,
+              session->control.peer->roundTripTime,
+              session->control.peer->roundTripTimeVariance
+            );
+            process_adaptive_bitrate(
+              *session,
+              now,
+              session->control.peer->roundTripTime,
+              session->control.peer->roundTripTimeVariance,
+              session->control.peer->lastReceiveTime
+            );
 
             auto &feedback_queue = session->control.feedback_queue;
             while (feedback_queue->peek()) {
@@ -2308,24 +2416,6 @@ namespace stream {
       return session.client_cert;
     }
 
-    /**
-     * @brief Return the latest completed network telemetry window for this session.
-     */
-    std::optional<network_metrics::snapshot_t> network_metrics_snapshot(session_t &session) {
-      auto lock = session.network_metrics.latest_snapshot.lock();
-      return *session.network_metrics.latest_snapshot;
-    }
-
-    /**
-     * @brief Request a runtime video bitrate change for this session.
-     */
-    void request_video_bitrate(session_t &session, std::uint32_t target_kbps, std::string diagnostic_reason) {
-      session.video.bitrate_events->raise(video::bitrate_reconfigure_request_t {
-        target_kbps,
-        std::move(diagnostic_reason),
-      });
-    }
-
 #ifdef SUNSHINE_TESTS
     namespace testing {
       /**
@@ -2340,6 +2430,77 @@ namespace stream {
        */
       std::uint32_t configured_video_bitrate(session_t &session) {
         return static_cast<std::uint32_t>(std::max(0, session.config.monitor.bitrate));
+      }
+
+      /**
+       * @brief Ingest one FEC report through the control-thread orchestration path.
+       */
+      network_metrics::ingest_result_e ingest_frame_fec_status(
+        session_t &session,
+        const std::string_view payload,
+        const network_metrics::time_point_t now,
+        const std::uint32_t rtt_ms,
+        const std::uint32_t rtt_variance_ms
+      ) {
+        return stream::ingest_frame_fec_status(session, payload, now, rtt_ms, rtt_variance_ms);
+      }
+
+      /**
+       * @brief Record one frame-loss request through the control-thread orchestration path.
+       */
+      void record_frame_loss_request(
+        session_t &session,
+        const network_metrics::time_point_t now,
+        const std::uint32_t rtt_ms,
+        const std::uint32_t rtt_variance_ms
+      ) {
+        stream::record_frame_loss_request(session, now, rtt_ms, rtt_variance_ms);
+      }
+
+      /**
+       * @brief Publish an elapsed telemetry window through the production observation path.
+       */
+      bool publish_network_metrics(
+        session_t &session,
+        const network_metrics::time_point_t now,
+        const std::uint32_t rtt_ms,
+        const std::uint32_t rtt_variance_ms
+      ) {
+        return stream::publish_network_metrics(session, now, rtt_ms, rtt_variance_ms);
+      }
+
+      /**
+       * @brief Run pending-result acknowledgement and decision dispatch as the control thread would.
+       */
+      void process_adaptive_bitrate(
+        session_t &session,
+        const network_metrics::time_point_t now,
+        const std::uint32_t rtt_ms,
+        const std::uint32_t rtt_variance_ms,
+        const std::uint32_t control_liveness_token
+      ) {
+        stream::process_adaptive_bitrate(session, now, rtt_ms, rtt_variance_ms, control_liveness_token);
+      }
+
+      /**
+       * @brief Publish one encoder result into the control-thread acknowledgement mailbox.
+       */
+      void publish_video_bitrate_result(session_t &session, video::bitrate_reconfigure_result_t result) {
+        session.video.bitrate_result_events->raise(std::move(result));
+      }
+
+      /**
+       * @brief Return whether the adaptive controller consumed valid FEC telemetry.
+       */
+      bool adaptive_bitrate_telemetry_seen(session_t &session) {
+        return session.adaptive_bitrate_controller.telemetry_seen();
+      }
+
+      /**
+       * @brief Return whether the adaptive controller entered fixed fallback.
+       */
+      bool adaptive_bitrate_in_fallback(session_t &session) {
+        return session.adaptive_bitrate_controller.state() == adaptive_bitrate::state_e::fixed_fallback;
       }
     }  // namespace testing
 #endif
@@ -2481,13 +2642,13 @@ namespace stream {
       session->video.bitrate_events = mail->event<video::bitrate_reconfigure_request_t>(mail::video_bitrate);
       session->video.bitrate_result_events = mail->event<video::bitrate_reconfigure_result_t>(mail::video_bitrate_result);
 
+      const auto client_supports_fec_status = (config.mlFeatureFlags & ML_FF_FEC_STATUS) != 0;
+      const auto adaptive_bitrate_enabled = ::config::video.adaptive_bitrate && client_supports_fec_status;
       auto bitrate_ceiling_kbps = static_cast<std::uint32_t>(std::max(0, config.monitor.bitrate));
       if (::config::video.max_bitrate > 0) {
         bitrate_ceiling_kbps = std::min(bitrate_ceiling_kbps, static_cast<std::uint32_t>(::config::video.max_bitrate));
       }
       session->config.monitor.bitrate = static_cast<int>(bitrate_ceiling_kbps);
-      const auto client_supports_fec_status = (config.mlFeatureFlags & ML_FF_FEC_STATUS) != 0;
-      const auto adaptive_bitrate_enabled = ::config::video.adaptive_bitrate && client_supports_fec_status;
       session->adaptive_bitrate_controller.initialize(
         {
           adaptive_bitrate_enabled,
@@ -2501,6 +2662,11 @@ namespace stream {
         << " fec_status_supported=" << client_supports_fec_status
         << " enabled=" << adaptive_bitrate_enabled
         << " ceiling_kbps=" << bitrate_ceiling_kbps;
+      const auto requested_fps = static_cast<std::uint32_t>(std::max(0, config.monitor.framerate));
+      session->network_metrics.tracker = network_metrics::tracker_t {
+        std::chrono::steady_clock::now(),
+        network_metrics::report_limit_for_framerate(requested_fps),
+      };
       session->video.lowseq = 0;
       session->video.ping_payload = launch_session.av_ping_payload;
       if (config.encryptionFlagsEnabled & SS_ENC_VIDEO) {

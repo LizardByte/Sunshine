@@ -24,7 +24,7 @@ namespace stream::adaptive_bitrate {
    */
   enum class state_e {
     fixed_disabled,  ///< Adaptation is disabled and the client target is left unchanged.
-    probing,  ///< The controller is waiting to send its no-op capability probe.
+    probing,  ///< The controller is waiting to send its no-op backend capability check.
     monitoring,  ///< Telemetry is monitored and bitrate decisions may be emitted.
     pending,  ///< One encoder request is awaiting acknowledgement.
     fixed_fallback,  ///< Adaptation stopped and the last effective target is retained.
@@ -34,7 +34,7 @@ namespace stream::adaptive_bitrate {
    * @brief Stable reason attached to an emitted bitrate decision.
    */
   enum class decision_reason_e {
-    capability_probe,  ///< Verify runtime support without changing the initial target.
+    capability_check,  ///< Check backend support without changing the initial target.
     unrecovered_loss,  ///< Reduce after consecutive windows with unrecovered loss.
     fec_pressure,  ///< Reduce after consecutive FEC-heavy windows corroborated by latency.
     stable_recovery,  ///< Increase after a sustained stable recovery period.
@@ -73,7 +73,7 @@ namespace stream::adaptive_bitrate {
   /**
    * @brief Pure O(1), per-session adaptive bitrate state machine.
    *
-   * The owner feeds every published Gate A telemetry snapshot to observe(),
+   * The owner feeds every published FEC telemetry snapshot to observe(),
    * calls tick() from its control loop, and returns encoder results through
    * acknowledge(). The class performs no I/O, allocation, locking, or clock
    * reads of its own.
@@ -92,12 +92,16 @@ namespace stream::adaptive_bitrate {
     void initialize(settings_t settings);
 
     /**
-     * @brief Consume one newly published Gate A telemetry window.
+     * @brief Consume one newly published FEC telemetry window.
      *
      * Duplicate or out-of-order snapshot sequence numbers are ignored.
-     * Malformed, mismatched, or rate-limited telemetry moves an active
-     * controller to fixed fallback at its last effective target, after any
-     * in-flight encoder command is acknowledged.
+     * Malformed or protocol-mismatched telemetry moves an active controller to
+     * fixed fallback at its last effective target, after any in-flight encoder
+     * command is acknowledged. A rate-limited window instead holds the current
+     * target and clears accumulated degradation and recovery evidence. Recovery
+     * remains blocked until a later valid, stable FEC report makes event silence
+     * trustworthy again. An already outstanding command remains pending and may
+     * still be acknowledged.
      *
      * @param snapshot Immutable network telemetry aggregate.
      * @param now Monotonic observation time.
@@ -110,17 +114,24 @@ namespace stream::adaptive_bitrate {
      * At most one command is emitted per second and at most one command may be
      * outstanding until the synchronous encoder result is acknowledged. RTT by
      * itself never causes a decrease, but elevated live RTT or variance prevents
-     * an increase.
+     * an increase. Recovery also requires a nonzero control-liveness token that
+     * differs from the most recently observed token. Sunshine supplies ENet's
+     * last-receive time, which is refreshed in the same acknowledgement handler
+     * as the smoothed RTT sample. Consequently, elapsed wall-clock time and stale
+     * RTT values cannot cause upward recovery without a newly received RTT sample.
      *
      * @param now Monotonic control-loop time.
      * @param live_rtt_ms Current ENet smoothed round-trip time.
      * @param live_rtt_variance_ms Current ENet round-trip-time variance.
+     * @param control_liveness_token Latest control-channel receive token, such
+     * as ENet's peer last-receive time. Zero means no valid liveness sample.
      * @return A command to send to the encoder, or no value.
      */
     [[nodiscard]] std::optional<decision_t> tick(
       time_point_t now,
       std::uint32_t live_rtt_ms,
-      std::uint32_t live_rtt_variance_ms
+      std::uint32_t live_rtt_variance_ms,
+      std::uint32_t control_liveness_token
     );
 
     /**
@@ -184,14 +195,16 @@ namespace stream::adaptive_bitrate {
     std::uint32_t ceiling_kbps_ = 0;  ///< Immutable effective client ceiling.
     std::uint32_t target_kbps_ = 0;  ///< Last known effective target.
     std::uint32_t pending_target_kbps_ = 0;  ///< Target awaiting encoder acknowledgement.
-    decision_reason_e pending_reason_ = decision_reason_e::capability_probe;  ///< Outstanding command reason.
+    decision_reason_e pending_reason_ = decision_reason_e::capability_check;  ///< Outstanding command reason.
     std::uint32_t baseline_rtt_ms_ = 0;  ///< Stable-path RTT floor used only as corroboration.
-    std::uint64_t last_snapshot_sequence_ = 0;  ///< Last consumed Gate A snapshot sequence.
+    std::uint32_t last_control_liveness_token_ = 0;  ///< Most recently consumed control-channel RTT sample token.
+    std::uint64_t last_snapshot_sequence_ = 0;  ///< Last consumed FEC telemetry snapshot sequence.
     std::uint8_t consecutive_bad_windows_ = 0;  ///< Consecutive degraded windows awaiting confirmation.
     degradation_e candidate_degradation_ = degradation_e::none;  ///< Strongest unconfirmed degradation.
     degradation_e pending_degradation_ = degradation_e::none;  ///< Confirmed degradation awaiting a decision.
     bool telemetry_seen_ = false;  ///< Whether a valid FEC report has been observed.
     bool fallback_after_acknowledgement_ = false;  ///< Defer invalid-telemetry fallback while an encoder command is in flight.
+    bool recovery_blocked_by_rate_limit_ = false;  ///< Require a valid stable FEC report after telemetry overload.
     decision_direction_e last_decision_direction_ = decision_direction_e::none;  ///< Latest non-probe command direction.
     std::optional<time_point_t> first_bad_window_at_;  ///< Time of the first consecutive bad window.
     std::optional<time_point_t> stable_since_;  ///< Start of the current no-new-pressure period.

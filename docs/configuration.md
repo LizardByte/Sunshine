@@ -1403,10 +1403,12 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Allow supported Moonlight sessions and encoder backends to reduce the video bitrate during sustained
-            network loss and recover it gradually after the connection stabilizes. The controller never exceeds the
-            bitrate requested by Moonlight or the configured `max_bitrate` ceiling. Unsupported clients and encoders
-            continue to use the fixed requested bitrate.
+            Allow supported Moonlight sessions to reduce the video bitrate during sustained network loss. Runtime
+            bitrate changes are currently supported by the Windows native NVENC backend. Recovery is gradual and
+            requires both a quiet period without new loss pressure and a fresh, healthy ENet RTT sample from Moonlight's
+            reliable control ping; the absence of FEC reports alone never permits an increase. The controller never
+            exceeds the bitrate requested by Moonlight or the configured `max_bitrate` ceiling. Unsupported clients and
+            encoders continue to use their fixed effective bitrate.
         </td>
     </tr>
     <tr>

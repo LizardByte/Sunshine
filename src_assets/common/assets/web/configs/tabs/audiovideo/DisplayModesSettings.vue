@@ -13,7 +13,8 @@ const config = ref(props.config)
 
 <template>
   <!--adaptive_bitrate-->
-  <Checkbox class="mb-3"
+  <Checkbox v-if="platform === 'windows'"
+            class="mb-3"
             id="adaptive_bitrate"
             locale-prefix="config"
             v-model="config.adaptive_bitrate"
