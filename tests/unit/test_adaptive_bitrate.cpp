@@ -291,15 +291,14 @@ TEST(AdaptiveBitrateControllerTest, DoesNotDecreaseForFecRecoveryWithoutLatencyC
   EXPECT_EQ(controller.target_kbps(), 25'000U);
 }
 
-TEST(AdaptiveBitrateControllerTest, RepeatedFrameLossRequestsUseSevereDecreasePath) {
+TEST(AdaptiveBitrateControllerTest, RepeatedFrameLossRequestsBeforeFecTelemetryUseSevereDecreasePath) {
   const adaptive::time_point_t start {};
   adaptive::controller_t controller;
   activate(controller, start);
 
-  controller.observe(make_snapshot(1, 10'000, 0, 0), start + 100ms);
-  auto first_loss_request = make_snapshot(2, 0, 0, 0, 20, 2, 1);
+  auto first_loss_request = make_snapshot(1, 0, 0, 0, 20, 2, 1);
   first_loss_request.fec_reports = 0;
-  auto second_loss_request = make_snapshot(3, 0, 0, 0, 20, 2, 1);
+  auto second_loss_request = make_snapshot(2, 0, 0, 0, 20, 2, 1);
   second_loss_request.fec_reports = 0;
   controller.observe(first_loss_request, start + 500ms);
   controller.observe(second_loss_request, start + 1s);
