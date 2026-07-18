@@ -128,6 +128,14 @@ namespace stream {
        * @return Latest-wins bitrate request event used by the encoder thread.
        */
       safe::mail_raw_t::event_t<video::bitrate_reconfigure_request_t> video_bitrate_requests(session_t &session);
+
+      /**
+       * @brief Return the video bitrate copied into a test session after host ceiling enforcement.
+       *
+       * @param session Streaming session allocated by the test.
+       * @return Effective video bitrate in kilobits per second.
+       */
+      std::uint32_t configured_video_bitrate(session_t &session);
     }  // namespace testing
 #endif
   }  // namespace session

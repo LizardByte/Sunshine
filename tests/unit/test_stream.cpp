@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <src/config.h>
 #include <src/rtsp.h>
 #include <src/stream.h>
 #include <string>
@@ -76,4 +77,20 @@ TEST(StreamSessionBitrateRequestTests, RetainsOnlyLatestPendingRequest) {
   EXPECT_EQ(40'000U, request->target_kbps);
   EXPECT_EQ("latest", request->reason);
   EXPECT_FALSE(requests->try_pop());
+}
+
+TEST(StreamSessionBitrateRequestTests, AppliesHostCeilingToNativeEncoderSessionConfig) {
+  const auto saved_max_bitrate = ::config::video.max_bitrate;
+  ::config::video.max_bitrate = 15'000;
+
+  stream::config_t stream_config {};
+  stream_config.monitor.bitrate = 25'000;
+  rtsp_stream::launch_session_t launch_session {};
+  launch_session.gcm_key.resize(16);
+  launch_session.iv.resize(16);
+  auto session = stream::session::alloc(stream_config, launch_session);
+
+  ::config::video.max_bitrate = saved_max_bitrate;
+  ASSERT_TRUE(session);
+  EXPECT_EQ(stream::session::testing::configured_video_bitrate(*session), 15'000U);
 }
