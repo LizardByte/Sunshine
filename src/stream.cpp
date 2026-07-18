@@ -20,6 +20,7 @@ extern "C" {
 }
 
 // local includes
+#include "adaptive_bitrate.h"
 #include "config.h"
 #include "display_device.h"
 #include "globals.h"
@@ -84,6 +85,50 @@ static_assert(
 );
 
 namespace stream {
+
+  /**
+   * @brief Map an encoder reconfiguration result into the controller's backend-neutral status.
+   *
+   * @param status Encoder result status.
+   * @return Equivalent adaptive bitrate acknowledgement status.
+   */
+  adaptive_bitrate::apply_status_e adaptive_bitrate_apply_status(const video::bitrate_reconfigure_status_e status) {
+    switch (status) {
+      case video::bitrate_reconfigure_status_e::applied:
+        return adaptive_bitrate::apply_status_e::applied;
+      case video::bitrate_reconfigure_status_e::unchanged:
+        return adaptive_bitrate::apply_status_e::unchanged;
+      case video::bitrate_reconfigure_status_e::invalid:
+        return adaptive_bitrate::apply_status_e::invalid;
+      case video::bitrate_reconfigure_status_e::unsupported:
+        return adaptive_bitrate::apply_status_e::unsupported;
+      case video::bitrate_reconfigure_status_e::failed:
+        return adaptive_bitrate::apply_status_e::failed;
+    }
+
+    return adaptive_bitrate::apply_status_e::failed;
+  }
+
+  /**
+   * @brief Convert an adaptive bitrate decision reason to a stable log and request label.
+   *
+   * @param reason Controller decision reason.
+   * @return Stable lower-case diagnostic label.
+   */
+  std::string_view adaptive_bitrate_reason_name(const adaptive_bitrate::decision_reason_e reason) {
+    switch (reason) {
+      case adaptive_bitrate::decision_reason_e::capability_probe:
+        return "capability_probe"sv;
+      case adaptive_bitrate::decision_reason_e::unrecovered_loss:
+        return "unrecovered_loss"sv;
+      case adaptive_bitrate::decision_reason_e::fec_pressure:
+        return "fec_pressure"sv;
+      case adaptive_bitrate::decision_reason_e::stable_recovery:
+        return "stable_recovery"sv;
+    }
+
+    return "unknown"sv;
+  }
 
   /**
    * @brief Enumerates supported socket options.
@@ -504,6 +549,7 @@ namespace stream {
       safe::mail_raw_t::event_t<bool> idr_events;
       safe::mail_raw_t::event_t<std::pair<int64_t, int64_t>> invalidate_ref_frames_events;
       safe::mail_raw_t::event_t<video::bitrate_reconfigure_request_t> bitrate_events;
+      safe::mail_raw_t::event_t<video::bitrate_reconfigure_result_t> bitrate_result_events;
 
       std::unique_ptr<platf::deinit_t> qos;
     } video;  ///< Video worker thread state for the active stream.
@@ -545,6 +591,8 @@ namespace stream {
       network_metrics::tracker_t tracker;  ///< Control-thread aggregator for Moonlight FEC reports.
       sync_util::sync_t<std::optional<network_metrics::snapshot_t>> latest_snapshot;  ///< Latest stable window for future consumers.
     } network_metrics;  ///< Per-session network telemetry state.
+
+    adaptive_bitrate::controller_t adaptive_bitrate_controller;  ///< Per-session controller owned by the control thread.
 
     std::uint32_t launch_session_id;  ///< RTSP launch-session ID associated with this stream.
     std::string client_cert;  ///< PEM certificate for the paired client owning the stream.
@@ -1139,6 +1187,16 @@ namespace stream {
       *session->network_metrics.latest_snapshot = *snapshot;
     }
 
+    const auto adaptive_state_before_observe = session->adaptive_bitrate_controller.state();
+    session->adaptive_bitrate_controller.observe(*snapshot, now);
+    if (adaptive_state_before_observe != adaptive_bitrate::state_e::fixed_fallback &&
+        session->adaptive_bitrate_controller.state() == adaptive_bitrate::state_e::fixed_fallback) {
+      BOOST_LOG(warning)
+        << "adaptive_bitrate_fallback"
+        << " session_id=" << session->launch_session_id
+        << " reason=invalid_telemetry";
+    }
+
     BOOST_LOG(debug)
       << "network_metrics"
       << " session_id=" << session->launch_session_id
@@ -1370,6 +1428,46 @@ namespace stream {
             has_session_awaiting_peer = true;
           } else {
             publish_network_metrics(session, now);
+
+            while (auto result = session->video.bitrate_result_events->try_pop()) {
+              const auto adaptive_state_before_acknowledge = session->adaptive_bitrate_controller.state();
+              session->adaptive_bitrate_controller.acknowledge(
+                adaptive_bitrate_apply_status(result->status),
+                result->effective_target_kbps,
+                now
+              );
+              BOOST_LOG(info)
+                << "adaptive_bitrate_feedback"
+                << " session_id=" << session->launch_session_id
+                << " status=" << video::bitrate_reconfigure_status_name(result->status)
+                << " requested_kbps=" << result->requested_target_kbps
+                << " effective_kbps=" << result->effective_target_kbps;
+              if (adaptive_state_before_acknowledge == adaptive_bitrate::state_e::pending &&
+                  session->adaptive_bitrate_controller.state() == adaptive_bitrate::state_e::fixed_fallback) {
+                const auto successful_result =
+                  result->status == video::bitrate_reconfigure_status_e::applied ||
+                  result->status == video::bitrate_reconfigure_status_e::unchanged;
+                BOOST_LOG(warning)
+                  << "adaptive_bitrate_fallback"
+                  << " session_id=" << session->launch_session_id
+                  << " reason=" << (successful_result ? "invalid_telemetry"sv : "encoder_result"sv)
+                  << " status=" << video::bitrate_reconfigure_status_name(result->status);
+              }
+            }
+
+            if (auto decision = session->adaptive_bitrate_controller.tick(
+                  now,
+                  session->control.peer->roundTripTime,
+                  session->control.peer->roundTripTimeVariance
+                )) {
+              const auto reason = adaptive_bitrate_reason_name(decision->reason);
+              session::request_video_bitrate(*session, decision->target_kbps, std::string {reason});
+              BOOST_LOG(info)
+                << "adaptive_bitrate_decision"
+                << " session_id=" << session->launch_session_id
+                << " target_kbps=" << decision->target_kbps
+                << " reason=" << reason;
+            }
 
             auto &feedback_queue = session->control.feedback_queue;
             while (feedback_queue->peek()) {
@@ -2237,6 +2335,13 @@ namespace stream {
       safe::mail_raw_t::event_t<video::bitrate_reconfigure_request_t> video_bitrate_requests(session_t &session) {
         return session.video.bitrate_events;
       }
+
+      /**
+       * @brief Return the video bitrate copied into a test session.
+       */
+      std::uint32_t configured_video_bitrate(session_t &session) {
+        return static_cast<std::uint32_t>(std::max(0, session.config.monitor.bitrate));
+      }
     }  // namespace testing
 #endif
 
@@ -2377,6 +2482,28 @@ namespace stream {
       session->video.idr_events = mail->event<bool>(mail::idr);
       session->video.invalidate_ref_frames_events = mail->event<std::pair<int64_t, int64_t>>(mail::invalidate_ref_frames);
       session->video.bitrate_events = mail->event<video::bitrate_reconfigure_request_t>(mail::video_bitrate);
+      session->video.bitrate_result_events = mail->event<video::bitrate_reconfigure_result_t>(mail::video_bitrate_result);
+
+      auto bitrate_ceiling_kbps = static_cast<std::uint32_t>(std::max(0, config.monitor.bitrate));
+      if (::config::video.max_bitrate > 0) {
+        bitrate_ceiling_kbps = std::min(bitrate_ceiling_kbps, static_cast<std::uint32_t>(::config::video.max_bitrate));
+      }
+      session->config.monitor.bitrate = static_cast<int>(bitrate_ceiling_kbps);
+      const auto client_supports_fec_status = (config.mlFeatureFlags & ML_FF_FEC_STATUS) != 0;
+      const auto adaptive_bitrate_enabled = ::config::video.adaptive_bitrate && client_supports_fec_status;
+      session->adaptive_bitrate_controller.initialize(
+        {
+          adaptive_bitrate_enabled,
+          bitrate_ceiling_kbps,
+        }
+      );
+      BOOST_LOG(debug)
+        << "adaptive_bitrate_session"
+        << " session_id=" << session->launch_session_id
+        << " configured=" << ::config::video.adaptive_bitrate
+        << " fec_status_supported=" << client_supports_fec_status
+        << " enabled=" << adaptive_bitrate_enabled
+        << " ceiling_kbps=" << bitrate_ceiling_kbps;
       session->video.lowseq = 0;
       session->video.ping_payload = launch_session.av_ping_payload;
       if (config.encryptionFlagsEnabled & SS_ENC_VIDEO) {

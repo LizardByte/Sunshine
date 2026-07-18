@@ -1400,6 +1400,32 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### adaptive_bitrate
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Allow supported Moonlight sessions and encoder backends to reduce the video bitrate during sustained
+            network loss and recover it gradually after the connection stabilizes. The controller never exceeds the
+            bitrate requested by Moonlight or the configured `max_bitrate` ceiling. Unsupported clients and encoders
+            continue to use the fixed requested bitrate.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            adaptive_bitrate = enabled
+            @endcode</td>
+    </tr>
+</table>
+
 ### max_bitrate
 
 <table>

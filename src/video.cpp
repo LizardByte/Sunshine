@@ -2450,6 +2450,7 @@ namespace video {
     auto idr_events = mail->event<bool>(mail::idr);
     auto invalidate_ref_frames_events = mail->event<std::pair<int64_t, int64_t>>(mail::invalidate_ref_frames);
     auto bitrate_events = mail->event<bitrate_reconfigure_request_t>(mail::video_bitrate);
+    auto bitrate_result_events = mail->event<bitrate_reconfigure_result_t>(mail::video_bitrate_result);
 
     {
       // Load a dummy image into the AVFrame to ensure we have something to encode
@@ -2509,7 +2510,9 @@ namespace video {
         break;
       }
 
-      apply_pending_bitrate_reconfiguration(bitrate_events, *session, config);
+      if (auto result = apply_pending_bitrate_reconfiguration(bitrate_events, *session, config)) {
+        bitrate_result_events->raise(*result);
+      }
 
       if (encode(frame_nr++, *session, packets, channel_data, frame_timestamp)) {
         BOOST_LOG(error) << "Could not encode video packet"sv;
