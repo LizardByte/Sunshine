@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <format>
 #include <limits>
@@ -87,22 +88,23 @@ namespace platf::virtualhid {
     }
 
     lvh::ClientControllerType client_controller_type(std::uint8_t type) {
+      using enum lvh::ClientControllerType;
+
       switch (type) {
         case LI_CTYPE_XBOX:
-          return lvh::ClientControllerType::xbox;
+          return xbox;
         case LI_CTYPE_PS:
-          return lvh::ClientControllerType::playstation;
+          return playstation;
         case LI_CTYPE_NINTENDO:
-          return lvh::ClientControllerType::nintendo;
+          return nintendo;
         case LI_CTYPE_UNKNOWN:
         default:
-          return lvh::ClientControllerType::unknown;
+          return unknown;
       }
     }
 
     const gamepad_profile_t &profile_for_name(std::string_view name) {
-      const auto iter = std::ranges::find(gamepad_profiles, name, &gamepad_profile_t::name);
-      if (iter != gamepad_profiles.end()) {
+      if (const auto iter = std::ranges::find(gamepad_profiles, name, &gamepad_profile_t::name); iter != gamepad_profiles.end()) {
         return *iter;
       }
 
@@ -198,29 +200,31 @@ namespace platf::virtualhid {
     }
 
     lvh::GamepadState make_gamepad_state(const gamepad_state_t &state, const lvh::GamepadProfileSupport &support) {
+      using enum lvh::GamepadButton;
+
       lvh::GamepadState result;
       const auto flags = state.buttonFlags;
 
-      result.buttons.set(lvh::GamepadButton::dpad_up, flags & DPAD_UP);
-      result.buttons.set(lvh::GamepadButton::dpad_down, flags & DPAD_DOWN);
-      result.buttons.set(lvh::GamepadButton::dpad_left, flags & DPAD_LEFT);
-      result.buttons.set(lvh::GamepadButton::dpad_right, flags & DPAD_RIGHT);
-      result.buttons.set(lvh::GamepadButton::start, flags & START);
-      result.buttons.set(lvh::GamepadButton::back, flags & BACK);
-      result.buttons.set(lvh::GamepadButton::left_stick, flags & LEFT_STICK);
-      result.buttons.set(lvh::GamepadButton::right_stick, flags & RIGHT_STICK);
-      result.buttons.set(lvh::GamepadButton::left_shoulder, flags & LEFT_BUTTON);
-      result.buttons.set(lvh::GamepadButton::right_shoulder, flags & RIGHT_BUTTON);
-      result.buttons.set(lvh::GamepadButton::guide, flags & HOME);
-      result.buttons.set(lvh::GamepadButton::a, flags & A);
-      result.buttons.set(lvh::GamepadButton::b, flags & B);
-      result.buttons.set(lvh::GamepadButton::x, flags & X);
-      result.buttons.set(lvh::GamepadButton::y, flags & Y);
-      result.buttons.set(lvh::GamepadButton::misc1, support.supports_misc1_button && (flags & MISC_BUTTON));
-      result.buttons.set(lvh::GamepadButton::touchpad, support.supports_touchpad_button && (flags & TOUCHPAD_BUTTON));
+      result.buttons.set(dpad_up, flags & DPAD_UP);
+      result.buttons.set(dpad_down, flags & DPAD_DOWN);
+      result.buttons.set(dpad_left, flags & DPAD_LEFT);
+      result.buttons.set(dpad_right, flags & DPAD_RIGHT);
+      result.buttons.set(start, flags & START);
+      result.buttons.set(back, flags & BACK);
+      result.buttons.set(left_stick, flags & LEFT_STICK);
+      result.buttons.set(right_stick, flags & RIGHT_STICK);
+      result.buttons.set(left_shoulder, flags & LEFT_BUTTON);
+      result.buttons.set(right_shoulder, flags & RIGHT_BUTTON);
+      result.buttons.set(guide, flags & HOME);
+      result.buttons.set(a, flags & A);
+      result.buttons.set(b, flags & B);
+      result.buttons.set(x, flags & X);
+      result.buttons.set(y, flags & Y);
+      result.buttons.set(misc1, support.supports_misc1_button && (flags & MISC_BUTTON));
+      result.buttons.set(touchpad, support.supports_touchpad_button && (flags & TOUCHPAD_BUTTON));
 
       if (support.supports_touchpad_button && config::input.ds4_back_as_touchpad_click && configured_gamepad_supports_touchpad() && (flags & BACK)) {
-        result.buttons.set(lvh::GamepadButton::touchpad);
+        result.buttons.set(touchpad);
       }
 
       result.left_stick = {.x = normalize_axis(state.lsX), .y = normalize_axis(state.lsY)};
@@ -231,17 +235,19 @@ namespace platf::virtualhid {
     }
 
     std::optional<lvh::MouseButton> mouse_button(int button) {
+      using enum lvh::MouseButton;
+
       switch (button) {
         case BUTTON_LEFT:
-          return lvh::MouseButton::left;
+          return left;
         case BUTTON_MIDDLE:
-          return lvh::MouseButton::middle;
+          return middle;
         case BUTTON_RIGHT:
-          return lvh::MouseButton::right;
+          return right;
         case BUTTON_X1:
-          return lvh::MouseButton::side;
+          return side;
         case BUTTON_X2:
-          return lvh::MouseButton::extra;
+          return extra;
         default:
           BOOST_LOG(warning) << "Unknown mouse button: "sv << button;
           return std::nullopt;
@@ -249,19 +255,21 @@ namespace platf::virtualhid {
     }
 
     lvh::GamepadBatteryState battery_state(std::uint8_t state) {
+      using enum lvh::GamepadBatteryState;
+
       switch (state) {
         case LI_BATTERY_STATE_DISCHARGING:
-          return lvh::GamepadBatteryState::discharging;
+          return discharging;
         case LI_BATTERY_STATE_CHARGING:
-          return lvh::GamepadBatteryState::charging;
+          return charging;
         case LI_BATTERY_STATE_FULL:
-          return lvh::GamepadBatteryState::full;
+          return full;
         case LI_BATTERY_STATE_NOT_PRESENT:
         case LI_BATTERY_STATE_NOT_CHARGING:
-          return lvh::GamepadBatteryState::charging_error;
+          return charging_error;
         case LI_BATTERY_STATE_UNKNOWN:
         default:
-          return lvh::GamepadBatteryState::unknown;
+          return unknown;
       }
     }
 
@@ -299,7 +307,7 @@ namespace platf::virtualhid {
       };
 
 #ifdef _WIN32
-      event.uses_normalized_key_code = !(flags & SS_KBE_FLAG_NON_NORMALIZED);
+      event.uses_normalized_key_code = (static_cast<std::byte>(flags) & static_cast<std::byte>(SS_KBE_FLAG_NON_NORMALIZED)) == std::byte {};
       event.prefer_native_scan_code = config::input.always_send_scancodes;
 #else
       (void) flags;
@@ -308,14 +316,16 @@ namespace platf::virtualhid {
     }
 
     lvh::PenToolType pen_tool(std::uint8_t tool) {
+      using enum lvh::PenToolType;
+
       switch (tool) {
         case LI_TOOL_TYPE_PEN:
-          return lvh::PenToolType::pen;
+          return pen;
         case LI_TOOL_TYPE_ERASER:
-          return lvh::PenToolType::eraser;
+          return eraser;
         case LI_TOOL_TYPE_UNKNOWN:
         default:
-          return lvh::PenToolType::unchanged;
+          return unchanged;
       }
     }
 
@@ -384,8 +394,7 @@ namespace platf::virtualhid {
   }  // namespace
 
   input_context_t::input_context_t():
-      runtime {create_runtime()},
-      gamepads(MAX_GAMEPADS) {
+      runtime {create_runtime()} {
     if (!runtime) {
       BOOST_LOG(warning) << "Unable to create libvirtualhid runtime"sv;
       return;
@@ -458,7 +467,7 @@ namespace platf::virtualhid {
       supported_gamepad_t {"auto", true, ""},
     };
     for (const auto &profile : gamepad_profiles) {
-      gamepads.push_back({std::string {profile.name}, false, ""});
+      gamepads.emplace_back(std::string {profile.name}, false, "");
     }
 
     return gamepads;
@@ -479,7 +488,7 @@ namespace platf::virtualhid {
     for (const auto &profile : gamepad_profiles) {
       const auto fallback_supported = fallback_vigem_available && (profile.name == "x360"sv || profile.name == "ds4"sv);
       const auto enabled = libvirtualhid_available || fallback_supported;
-      gamepads.push_back({std::string {profile.name}, enabled, enabled ? "" : reason});
+      gamepads.emplace_back(std::string {profile.name}, enabled, enabled ? "" : reason);
     }
 
     for (auto &[name, is_enabled, reason_disabled] : gamepads) {
@@ -569,7 +578,7 @@ namespace platf::virtualhid {
 
     if (touch.eventType == LI_TOUCH_EVENT_CANCEL_ALL) {
       for (std::size_t index = 0; index < gamepad->touch_ids.size(); ++index) {
-        if (gamepad->touch_ids[index]) {
+        if (gamepad->touch_ids[index].has_value()) {
           log_failure("release libvirtualhid gamepad touch"sv, gamepad->adapter->clear_touchpad_contact(index));
           gamepad->touch_ids[index].reset();
         }
@@ -750,10 +759,11 @@ namespace platf::virtualhid {
       return;
     }
 
+    const auto pen_buttons = static_cast<std::byte>(pen.penButtons);
     const std::array button_states {
-      std::pair {lvh::PenButton::primary, (pen.penButtons & LI_PEN_BUTTON_PRIMARY) != 0},
-      std::pair {lvh::PenButton::secondary, (pen.penButtons & LI_PEN_BUTTON_SECONDARY) != 0},
-      std::pair {lvh::PenButton::tertiary, (pen.penButtons & LI_PEN_BUTTON_TERTIARY) != 0},
+      std::pair {lvh::PenButton::primary, (pen_buttons & static_cast<std::byte>(LI_PEN_BUTTON_PRIMARY)) != std::byte {}},
+      std::pair {lvh::PenButton::secondary, (pen_buttons & static_cast<std::byte>(LI_PEN_BUTTON_SECONDARY)) != std::byte {}},
+      std::pair {lvh::PenButton::tertiary, (pen_buttons & static_cast<std::byte>(LI_PEN_BUTTON_TERTIARY)) != std::byte {}},
     };
     for (const auto &[button, pressed] : button_states) {
       const auto was_pressed = context.pressed_pen_buttons.contains(button);
@@ -776,17 +786,18 @@ namespace platf::virtualhid {
       context.pressed_pen_buttons.clear();
     }
 
-    auto transition = lvh::PointerTransition::update;
+    using enum lvh::PointerTransition;
+    auto transition = update;
     switch (pen.eventType) {
       case LI_TOUCH_EVENT_CANCEL:
       case LI_TOUCH_EVENT_CANCEL_ALL:
-        transition = lvh::PointerTransition::cancel;
+        transition = cancel;
         break;
       case LI_TOUCH_EVENT_UP:
-        transition = lvh::PointerTransition::release;
+        transition = release;
         break;
       case LI_TOUCH_EVENT_HOVER_LEAVE:
-        transition = lvh::PointerTransition::leave;
+        transition = leave;
         break;
       default:
         break;
@@ -809,7 +820,7 @@ namespace platf::virtualhid {
       tilt_y = std::atan2(std::cos(-rotation_rads) * r, z) * 180.0F / std::numbers::pi_v<float>;
     }
 
-    const auto is_touching = transition == lvh::PointerTransition::update &&
+    const auto is_touching = transition == update &&
                              (pen.eventType == LI_TOUCH_EVENT_DOWN || pen.eventType == LI_TOUCH_EVENT_MOVE);
     lvh::PenToolState state;
     state.tool = pen_tool(pen.toolType);
@@ -834,3 +845,117 @@ namespace platf::virtualhid {
   }
 
 }  // namespace platf::virtualhid
+
+namespace platf {
+
+#ifndef _WIN32
+  /**
+   * @brief Global libvirtualhid devices shared by clients.
+   */
+  struct input_raw_t {
+    virtualhid::input_context_t virtualhid;  ///< libvirtualhid input context.
+  };
+
+  namespace {
+
+    /**
+     * @brief Per-client libvirtualhid devices.
+     */
+    struct client_input_raw_t: client_input_t {
+      /**
+       * @brief Create per-client libvirtualhid devices.
+       *
+       * @param input Platform input backend that receives the event.
+       */
+      explicit client_input_raw_t(input_t &input):
+          virtualhid {input->virtualhid} {}
+
+      virtualhid::client_context_t virtualhid;  ///< libvirtualhid client context.
+    };
+
+  }  // namespace
+
+  input_t input() {
+    return {new input_raw_t {}};
+  }
+
+  std::unique_ptr<client_input_t> allocate_client_input_context(input_t &input) {
+    return std::make_unique<client_input_raw_t>(input);
+  }
+
+  void freeInput(input_raw_t *input) {
+    std::default_delete<input_raw_t> {}(input);
+  }
+
+  virtualhid::input_context_t &virtualhid::get_input_context(input_t &input) {
+    return input->virtualhid;
+  }
+
+  virtualhid::client_context_t &virtualhid::get_client_context(client_input_t *input) {
+    return static_cast<client_input_raw_t *>(input)->virtualhid;
+  }
+#endif
+
+  void move_mouse(input_t &input, int deltaX, int deltaY) {
+    virtualhid::move_mouse(virtualhid::get_input_context(input), deltaX, deltaY);
+  }
+
+  void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
+    virtualhid::abs_mouse(virtualhid::get_input_context(input), touch_port, x, y);
+  }
+
+  void button_mouse(input_t &input, int button, bool release) {
+    virtualhid::button_mouse(virtualhid::get_input_context(input), button, release);
+  }
+
+  void scroll(input_t &input, int high_res_distance) {
+    virtualhid::scroll(virtualhid::get_input_context(input), high_res_distance);
+  }
+
+  void hscroll(input_t &input, int high_res_distance) {
+    virtualhid::hscroll(virtualhid::get_input_context(input), high_res_distance);
+  }
+
+  void keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
+    virtualhid::keyboard_update(virtualhid::get_input_context(input), modcode, release, flags);
+  }
+
+  void unicode(input_t &input, const char *utf8, int size) {
+    virtualhid::unicode(virtualhid::get_input_context(input), utf8, size);
+  }
+
+  void touch_update(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch) {
+    virtualhid::touch_update(virtualhid::get_client_context(input), touch_port, touch);
+  }
+
+  void pen_update(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen) {
+    virtualhid::pen_update(virtualhid::get_client_context(input), touch_port, pen);
+  }
+
+#ifndef _WIN32
+  int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
+    return virtualhid::alloc_gamepad(virtualhid::get_input_context(input), id, metadata, std::move(feedback_queue));
+  }
+
+  void free_gamepad(input_t &input, int nr) {
+    virtualhid::free_gamepad(virtualhid::get_input_context(input), nr);
+  }
+
+  void gamepad_update(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
+    virtualhid::gamepad_update(virtualhid::get_input_context(input), nr, gamepad_state);
+  }
+
+  void gamepad_touch(input_t &input, const gamepad_touch_t &touch) {
+    virtualhid::gamepad_touch(virtualhid::get_input_context(input), touch);
+  }
+
+  void gamepad_motion(input_t &input, const gamepad_motion_t &motion) {
+    virtualhid::gamepad_motion(virtualhid::get_input_context(input), motion);
+  }
+
+  void gamepad_battery(input_t &input, const gamepad_battery_t &battery) {
+    virtualhid::gamepad_battery(virtualhid::get_input_context(input), battery);
+  }
+#endif
+
+}  // namespace platf

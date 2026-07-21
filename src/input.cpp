@@ -188,7 +188,7 @@ namespace input {
     ~gamepad_t() {
       if (id >= 0) {
         task_pool.push([id = this->id]() {
-          free_gamepad(platf_input, id);
+          ::input::free_gamepad(platf_input, id);
         });
       }
     }
@@ -1039,7 +1039,7 @@ namespace input {
    *
    * @param packet Protocol packet being processed.
    */
-  void passthrough(PNV_UNICODE_PACKET packet) {
+  void passthrough(const NV_UNICODE_PACKET *packet) {
     if (!config::input.keyboard) {
       return;
     }
@@ -1347,7 +1347,7 @@ namespace input {
       gamepad.id = id;
     } else if (!(packet->activeGamepadMask & (1 << packet->controllerNumber)) && gamepad.id >= 0) {
       // If this is the final event for a gamepad being removed, free the gamepad and return.
-      free_gamepad(platf_input, gamepad.id);
+      ::input::free_gamepad(platf_input, gamepad.id);
       gamepad.id = -1;
       return;
     }
@@ -1789,7 +1789,7 @@ namespace input {
         passthrough(input, (PNV_KEYBOARD_PACKET) payload);
         break;
       case UTF8_TEXT_EVENT_MAGIC:
-        passthrough((PNV_UNICODE_PACKET) payload);
+        passthrough(static_cast<const NV_UNICODE_PACKET *>(static_cast<const void *>(payload)));
         break;
       case MULTI_CONTROLLER_MAGIC_GEN5:
         passthrough(input, (PNV_MULTI_CONTROLLER_PACKET) payload);

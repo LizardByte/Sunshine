@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <new>
 #include <optional>
 #include <string_view>
 #include <vector>
@@ -20,6 +21,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <boost/filesystem.hpp>
+#include <lizardbyte/common/env.h>
 #include <nlohmann/json.hpp>
 #include <Simple-Web-Server/crypto.hpp>
 #include <Simple-Web-Server/server_https.hpp>
@@ -148,7 +150,7 @@ namespace confighttp {
       const auto dot = version.find('.', start);
       const auto length = dot == std::string_view::npos ? std::string_view::npos : dot - start;
       const auto part = parse_driver_version_part(version.substr(start, length));
-      if (!part) {
+      if (!part.has_value()) {
         return std::nullopt;
       }
 
@@ -305,9 +307,9 @@ namespace confighttp {
     }
 
     for (DWORD index = 0;; ++index) {
-      wchar_t subkey_name[256] = {};
-      DWORD subkey_name_size = _countof(subkey_name);
-      const auto enum_status = RegEnumKeyExW(root_key.get(), index, subkey_name, &subkey_name_size, nullptr, nullptr, nullptr, nullptr);
+      std::wstring subkey_name(256, L'\0');
+      auto subkey_name_size = static_cast<DWORD>(subkey_name.size());
+      const auto enum_status = RegEnumKeyExW(root_key.get(), index, subkey_name.data(), &subkey_name_size, nullptr, nullptr, nullptr, nullptr);
       if (enum_status == ERROR_NO_MORE_ITEMS) {
         break;
       }
@@ -316,7 +318,7 @@ namespace confighttp {
       }
 
       std::wstring device_key_path = L"SYSTEM\\CurrentControlSet\\Enum\\ROOT\\LIBVIRTUALHID\\";
-      device_key_path.append(subkey_name, subkey_name_size);
+      device_key_path.append(subkey_name, 0, subkey_name_size);
 
       registry_key_t device_key;
       if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, device_key_path.c_str(), 0, KEY_READ, device_key.put()) != ERROR_SUCCESS) {
@@ -1685,7 +1687,7 @@ namespace confighttp {
     auto output_tree = build_driver_status(false, version_str, LIBVIRTUALHID_MINIMUM_VERSION);
     bool requires_installed_driver = true;
     std::string backend_name;
-    std::string error;
+    std::string runtime_error_message;
 
     try {
       const auto runtime = platf::virtualhid::create_runtime();
@@ -1695,14 +1697,14 @@ namespace confighttp {
         requires_installed_driver = capabilities.requires_installed_driver;
         output_tree = build_driver_status(capabilities.supports_gamepad, version_str, LIBVIRTUALHID_MINIMUM_VERSION);
       }
-    } catch (const std::exception &e) {
-      error = e.what();
+    } catch (const std::bad_alloc &exception) {
+      runtime_error_message = exception.what();
     }
 
     output_tree["backend_name"] = backend_name;
     output_tree["requires_installed_driver"] = requires_installed_driver;
-    if (!error.empty()) {
-      output_tree["error"] = error;
+    if (!runtime_error_message.empty()) {
+      output_tree["error"] = runtime_error_message;
     }
 #else
     auto output_tree = build_driver_status(false, "", LIBVIRTUALHID_MINIMUM_VERSION);
@@ -1724,7 +1726,11 @@ namespace confighttp {
     std::string version_str;
 
     // Check if ViGEmBus driver exists
-    const std::filesystem::path driver_path = std::filesystem::path(std::getenv("SystemRoot") ? std::getenv("SystemRoot") : "C:\\Windows") / "System32" / "drivers" / "ViGEmBus.sys";
+    std::string system_root;
+    if (!lizardbyte::common::get_env("SystemRoot", system_root)) {
+      system_root = "C:\\Windows";
+    }
+    const std::filesystem::path driver_path = std::filesystem::path(system_root) / "System32" / "drivers" / "ViGEmBus.sys";
     const auto installed = std::filesystem::exists(driver_path);
     if (installed) {
       platf::getFileVersionInfo(driver_path, version_str);

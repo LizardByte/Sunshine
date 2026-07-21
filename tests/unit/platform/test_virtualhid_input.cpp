@@ -44,6 +44,7 @@ namespace {
       config::input.gamepad = std::move(original_gamepad);
     }
 
+  private:
     std::string original_gamepad;  ///< Configured gamepad restored after each test.
   };
 

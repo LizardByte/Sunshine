@@ -17,6 +17,7 @@
 #include <Windows.h>
 
 // standard includes
+#include <memory>
 #include <thread>
 #include <vector>
 
@@ -492,24 +493,17 @@ namespace platf {
    * @brief Global virtual input device handles shared by clients.
    */
   struct input_raw_t {
-    ~input_raw_t() {
-      delete vigem;
-    }
-
     virtualhid::input_context_t virtualhid;  ///< libvirtualhid input context.
-    vigem_t *vigem;  ///< Vigem.
+    std::unique_ptr<vigem_t> vigem;  ///< ViGEm fallback context.
   };
 
   input_t input() {
     input_t result {new input_raw_t {}};
-    auto &raw = *(input_raw_t *) result.get();
 
-    raw.vigem = nullptr;
-    if (!raw.virtualhid.runtime || !raw.virtualhid.runtime->capabilities().supports_gamepad) {
-      raw.vigem = new vigem_t {};
-      if (raw.vigem->init()) {
-        delete raw.vigem;
-        raw.vigem = nullptr;
+    if (auto &raw = *result; !raw.virtualhid.runtime || !raw.virtualhid.runtime->capabilities().supports_gamepad) {
+      auto vigem = std::make_unique<vigem_t>();
+      if (!vigem->init()) {
+        raw.vigem = std::move(vigem);
       }
     }
 
@@ -538,22 +532,17 @@ namespace platf {
       return true;
     }
 
-    raw->vigem = new vigem_t {};
-    if (raw->vigem->init()) {
-      delete raw->vigem;
-      raw->vigem = nullptr;
+    auto vigem = std::make_unique<vigem_t>();
+    if (vigem->init()) {
       return false;
     }
 
+    raw->vigem = std::move(vigem);
     return true;
   }
 
-  void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
-    virtualhid::abs_mouse(((input_raw_t *) input.get())->virtualhid, touch_port, x, y);
-  }
-
-  void move_mouse(input_t &input, int deltaX, int deltaY) {
-    virtualhid::move_mouse(((input_raw_t *) input.get())->virtualhid, deltaX, deltaY);
+  virtualhid::input_context_t &virtualhid::get_input_context(input_t &input) {
+    return input->virtualhid;
   }
 
   std::optional<util::point_t> get_mouse_loc(input_t & /*input*/) {
@@ -568,22 +557,6 @@ namespace platf {
     };
   }
 
-  void button_mouse(input_t &input, int button, bool release) {
-    virtualhid::button_mouse(((input_raw_t *) input.get())->virtualhid, button, release);
-  }
-
-  void scroll(input_t &input, int distance) {
-    virtualhid::scroll(((input_raw_t *) input.get())->virtualhid, distance);
-  }
-
-  void hscroll(input_t &input, int distance) {
-    virtualhid::hscroll(((input_raw_t *) input.get())->virtualhid, distance);
-  }
-
-  void keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
-    virtualhid::keyboard_update(((input_raw_t *) input.get())->virtualhid, modcode, release, flags);
-  }
-
   /**
    * @brief Per-client virtual devices for touch and pen input.
    */
@@ -594,7 +567,7 @@ namespace platf {
      * @param input Platform input backend that receives the event.
      */
     explicit client_input_raw_t(input_t &input):
-        virtualhid {((input_raw_t *) input.get())->virtualhid} {}
+        virtualhid {input->virtualhid} {}
 
     virtualhid::client_context_t virtualhid;  ///< libvirtualhid client context.
   };
@@ -608,16 +581,8 @@ namespace platf {
     return std::make_unique<client_input_raw_t>(input);
   }
 
-  void touch_update(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch) {
-    virtualhid::touch_update(((client_input_raw_t *) input)->virtualhid, touch_port, touch);
-  }
-
-  void pen_update(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen) {
-    virtualhid::pen_update(((client_input_raw_t *) input)->virtualhid, touch_port, pen);
-  }
-
-  void unicode(input_t &input, char *utf8, int size) {
-    virtualhid::unicode(((input_raw_t *) input.get())->virtualhid, utf8, size);
+  virtualhid::client_context_t &virtualhid::get_client_context(client_input_t *input) {
+    return static_cast<client_input_raw_t *>(input)->virtualhid;
   }
 
   int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
@@ -955,7 +920,7 @@ namespace platf {
       return;
     }
 
-    auto vigem = raw->vigem;
+    auto *vigem = raw->vigem.get();
 
     // If there is no gamepad support
     if (!vigem) {
@@ -993,7 +958,7 @@ namespace platf {
       return;
     }
 
-    auto vigem = raw->vigem;
+    auto *vigem = raw->vigem.get();
 
     // If there is no gamepad support
     if (!vigem) {
@@ -1105,7 +1070,7 @@ namespace platf {
       return;
     }
 
-    auto vigem = raw->vigem;
+    auto *vigem = raw->vigem.get();
 
     // If there is no gamepad support
     if (!vigem) {
@@ -1138,7 +1103,7 @@ namespace platf {
       return;
     }
 
-    auto vigem = raw->vigem;
+    auto *vigem = raw->vigem.get();
 
     // If there is no gamepad support
     if (!vigem) {
@@ -1205,10 +1170,8 @@ namespace platf {
     ds4_update_ts_and_send(vigem, battery.id.globalIndex);
   }
 
-  void freeInput(void *p) {
-    auto input = (input_raw_t *) p;
-
-    delete input;
+  void freeInput(input_raw_t *input) {
+    std::default_delete<input_raw_t> {}(input);
   }
 
   std::vector<supported_gamepad_t> &supported_gamepads(input_t *input) {

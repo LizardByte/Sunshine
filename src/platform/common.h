@@ -839,16 +839,21 @@ namespace platf {
   };
 
   /**
+   * @brief Platform-specific input backend context.
+   */
+  struct input_raw_t;
+
+  /**
    * @brief Release a platform input backend created by input().
    *
-   * @param p Pointer passed to the deleter or conversion helper.
+   * @param input Platform input backend to release.
    */
-  void freeInput(void *);
+  void freeInput(input_raw_t *input);
 
   /**
    * @brief Owning pointer for a platform input backend.
    */
-  using input_t = util::safe_ptr<void, freeInput>;
+  using input_t = util::safe_ptr<input_raw_t, &freeInput>;
 
   std::filesystem::path appdata();
 
@@ -1174,7 +1179,7 @@ namespace platf {
    * @param utf8 UTF-8 text submitted by the client.
    * @param size Number of bytes or elements requested.
    */
-  void unicode(input_t &input, char *utf8, int size);
+  void unicode(input_t &input, const char *utf8, int size);
 
   /**
    * @brief Per-client input context allocated by a platform backend.

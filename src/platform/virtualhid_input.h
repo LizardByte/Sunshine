@@ -31,7 +31,7 @@ namespace platf::virtualhid {
     std::unique_ptr<lvh::Runtime> runtime;  ///< libvirtualhid runtime.
     std::unique_ptr<lvh::Keyboard> keyboard;  ///< Shared virtual keyboard.
     std::unique_ptr<lvh::Mouse> mouse;  ///< Shared virtual mouse.
-    std::vector<std::shared_ptr<struct gamepad_context_t>> gamepads;  ///< Virtual gamepad slots.
+    std::vector<std::shared_ptr<struct gamepad_context_t>> gamepads {static_cast<std::size_t>(MAX_GAMEPADS)};  ///< Virtual gamepad slots.
   };
 
   /**
@@ -51,6 +51,22 @@ namespace platf::virtualhid {
     std::set<std::int32_t> active_touches;  ///< Active touchscreen contacts.
     std::set<lvh::PenButton> pressed_pen_buttons;  ///< Active pen tablet buttons.
   };
+
+  /**
+   * @brief Return the shared libvirtualhid context from a platform input backend.
+   *
+   * @param input Platform input backend.
+   * @return Shared libvirtualhid input context.
+   */
+  input_context_t &get_input_context(input_t &input);
+
+  /**
+   * @brief Return the per-client libvirtualhid context from a platform input backend.
+   *
+   * @param input Per-client platform input backend.
+   * @return Per-client libvirtualhid input context.
+   */
+  client_context_t &get_client_context(client_input_t *input);
 
   /**
    * @brief Create a platform-default libvirtualhid runtime.
