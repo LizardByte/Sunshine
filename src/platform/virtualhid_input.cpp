@@ -219,10 +219,7 @@ namespace platf::virtualhid {
       result.buttons.set(lvh::GamepadButton::misc1, support.supports_misc1_button && (flags & MISC_BUTTON));
       result.buttons.set(lvh::GamepadButton::touchpad, support.supports_touchpad_button && (flags & TOUCHPAD_BUTTON));
 
-      if (support.supports_touchpad_button &&
-          config::input.ds4_back_as_touchpad_click &&
-          (config::input.gamepad == "ds4"sv || config::input.gamepad == "ds5"sv) &&
-          (flags & BACK)) {
+      if (support.supports_touchpad_button && config::input.ds4_back_as_touchpad_click && configured_gamepad_supports_touchpad() && (flags & BACK)) {
         result.buttons.set(lvh::GamepadButton::touchpad);
       }
 

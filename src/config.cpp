@@ -847,9 +847,9 @@ namespace config {
       platf::supported_gamepads(nullptr).front().name.data(),
       platf::supported_gamepads(nullptr).front().name.size(),
     },  // Default gamepad
-    true,  // back as touchpad click enabled (manual DS4 only)
-    true,  // client gamepads with motion events are emulated as DS4
-    true,  // client gamepads with touchpads are emulated as DS4
+    true,  // back as touchpad click enabled for PlayStation-style gamepads
+    true,  // client gamepads with motion events use PlayStation-style emulation
+    true,  // client gamepads with touchpads use PlayStation-style emulation
     true,  // virtualhid_randomize_mac
 
     true,  // keyboard enabled

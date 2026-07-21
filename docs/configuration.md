@@ -375,9 +375,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Allow Select/Back inputs to also trigger DS4 touchpad click. Useful for clients looking to
-            emulate touchpad click on Xinput devices.
-            @hint{Only applies when gamepad is set to ds4 manually. Unused in other gamepad modes.}
+            Allow Select/Back inputs to also trigger a PlayStation-style gamepad touchpad click. Useful
+            for clients looking to emulate touchpad click on XInput devices.
+            @hint{Applies to ds4, ds5, and automatically selected PlayStation-style gamepads.}
         </td>
     </tr>
     <tr>
@@ -401,7 +401,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td>Description</td>
         <td colspan="2">
             If a client reports that a connected gamepad has motion sensor support, emulate it on the
-            host as a DS4 controller.
+            host as a PlayStation-style controller.
             <br>
             <br>
             When disabled, motion sensors will not be taken into account during gamepad type selection.
@@ -428,8 +428,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            If a client reports that a connected gamepad has a touchpad, emulate it on the host
-            as a DS4 controller.
+            If a client reports that a connected gamepad has a touchpad, emulate it on the host as a
+            PlayStation-style controller.
             <br>
             <br>
             When disabled, touchpad presence will not be taken into account during gamepad type selection.
