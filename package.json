@@ -14,7 +14,7 @@
     "date-fns": "4.4.0",
     "marked": "18.0.7",
     "vue": "3.5.39",
-    "vue-i18n": "11.4.6",
+    "vue-i18n": "11.4.7",
     "vue3-simple-icons": "16.10.0"
   },
   "devDependencies": {
