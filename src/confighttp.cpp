@@ -33,6 +33,7 @@
 #include "confighttp.h"
 #include "crypto.h"
 #include "display_device.h"
+#include "entry_handler.h"
 #include "file_handler.h"
 #include "globals.h"
 #include "httpcommon.h"
@@ -1833,6 +1834,9 @@ namespace confighttp {
         platf::set_thread_name("confighttp::tcp");
         server->start([&display_addr](const unsigned short port) {
           BOOST_LOG(info) << "Configuration UI available at [https://"sv << display_addr << ":" << port << "]";
+#ifdef _WIN32
+          service_ctrl::signal_ready();
+#endif
         });
       } catch (boost::system::system_error &err) {
         // It's possible the exception gets thrown after calling server->stop() from a different thread
