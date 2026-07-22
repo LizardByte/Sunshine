@@ -333,6 +333,7 @@
     "origin_web_ui_allowed_pc": "Sólo localhost puede acceder a la Web UI",
     "origin_web_ui_allowed_wan": "Cualquiera puede acceder a Web UI",
     "output_name": "Mostrar Id",
+    "output_name_desc_macos": "Durante el arranque de Sunshine, debería ver la lista de pantallas detectadas. Nota: Necesita usar el valor id dentro del paréntesis. A continuación se muestra un ejemplo; la salida real se puede encontrar en la pestaña de solución de problemas.",
     "output_name_desc_unix": "Durante el arranque de Sunshine, debería ver la lista de pantallas detectadas. Nota: Necesita usar el valor id dentro del paréntesis.",
     "output_name_desc_windows": "Especifique manualmente una pantalla a usar para capturar. Si no está activada, se captura la pantalla principal. Nota: Si ha especificado un GPU arriba, esta pantalla debe estar conectada a esa GPU. Los valores apropiados se pueden encontrar usando el siguiente comando:",
     "packetsize": "Límite de tamaño del paquete",
