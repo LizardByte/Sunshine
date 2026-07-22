@@ -333,6 +333,7 @@
     "origin_web_ui_allowed_pc": "Csak a localhost férhet hozzá a webes felülethez",
     "origin_web_ui_allowed_wan": "Bárki hozzáférhet a webes felülethez",
     "output_name": "Kijelző azonosító",
+    "output_name_desc_macos": "A Sunshine indításakor megjelenik az észlelt kijelzők listája. Megjegyzés: A zárójelben szereplő azonosító értéket kell használnia. Az alábbiakban egy példát láthat; a tényleges kimenet a „Hibaelhárítás” fülön található.",
     "output_name_desc_unix": "A Sunshine indulásakor láthatod az észlelt kijelzők listáját. Megjegyzés: A zárójelben lévő azonosítót kell használnod. Alább egy példa látható; a tényleges kimenet a Hibaelhárítás lapon található.",
     "output_name_desc_windows": "Kézileg megadható egy kijelzőeszköz azonosító a rögzítéshez. Ha nincs beállítva, az elsődleges kijelző kerül rögzítésre. Megjegyzés: Ha fent megadtál egy GPU-t, ennek a kijelzőnek ahhoz a GPU-hoz kell csatlakoznia. A Sunshine indulásakor láthatod az észlelt kijelzők listáját. Alább egy példa látható; a tényleges kimenet a Hibaelhárítás lapon található.",
     "packetsize": "Csomagméret-korlátozás",
