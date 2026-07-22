@@ -333,6 +333,7 @@
     "origin_web_ui_allowed_pc": "Chỉ máy chủ cục bộ (localhost) mới có thể truy cập giao diện người dùng web (Web UI).",
     "origin_web_ui_allowed_wan": "Bất kỳ ai cũng có thể truy cập giao diện người dùng web (Web UI).",
     "output_name": "ID hiển thị",
+    "output_name_desc_macos": "Trong quá trình khởi động Sunshine, bạn sẽ thấy danh sách các màn hình được phát hiện. Lưu ý: Bạn cần sử dụng giá trị id nằm trong ngoặc đơn. Dưới đây là một ví dụ; kết quả hiển thị thực tế có thể được tìm thấy trong tab “Khắc phục sự cố”.",
     "output_name_desc_unix": "Trong quá trình khởi động Sunshine, bạn sẽ thấy danh sách các màn hình được phát hiện. Lưu ý: Bạn cần sử dụng giá trị ID bên trong dấu ngoặc đơn. Dưới đây là một ví dụ; kết quả thực tế có thể được tìm thấy trong tab Khắc phục sự cố.",
     "output_name_desc_windows": "Chỉ định thủ công ID thiết bị hiển thị để sử dụng cho việc ghi hình. Nếu không được thiết lập, thiết bị hiển thị chính sẽ được ghi hình. Lưu ý: Nếu bạn đã chỉ định GPU ở trên, thiết bị hiển thị này phải được kết nối với GPU đó. Trong quá trình khởi động Sunshine, bạn sẽ thấy danh sách các thiết bị hiển thị được phát hiện. Dưới đây là một ví dụ; kết quả thực tế có thể được tìm thấy trong tab Khắc phục sự cố.",
     "packetsize": "Giới hạn kích thước gói tin",
