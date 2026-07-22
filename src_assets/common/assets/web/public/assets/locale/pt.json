@@ -333,6 +333,7 @@
     "origin_web_ui_allowed_pc": "Somente localhost pode acessar a Web UI",
     "origin_web_ui_allowed_wan": "Alguém pode acessar a interface web",
     "output_name": "ID de exibição",
+    "output_name_desc_macos": "Durante a inicialização do sol, você deve ver a lista de telas detectadas. Nota: Você precisa usar o valor do id dentro dos parênteses. Abaixo está um exemplo; a saída real pode ser encontrada na aba de solução de problemas.",
     "output_name_desc_unix": "Durante a inicialização do sol, você deve ver a lista de telas detectadas. Nota: Você precisa usar o valor do id dentro dos parênteses.",
     "output_name_desc_windows": "Especifique manualmente um display a ser usado para captura. Se não for definido, o display primário é capturado. Nota: Se você especificou uma GPU acima, essa tela deve estar conectada à GPU. Os valores apropriados podem ser encontrados usando o seguinte comando:",
     "packetsize": "Tamanho Limite do Pacote",
