@@ -333,6 +333,7 @@
     "origin_web_ui_allowed_pc": "只有 localhost 可以存取 Web UI",
     "origin_web_ui_allowed_wan": "任何人都可以存取 Web UI",
     "output_name": "顯示 ID",
+    "output_name_desc_macos": "在啟動 Sunshine 時，您應會看到已偵測到的顯示器清單。注意：您需要使用括號內的 id 值。以下為範例；實際輸出內容可於「疑難排解」分頁中查看。",
     "output_name_desc_unix": "在 Sunshine 啟動時，您應該會看到檢測到的顯示器清單。請注意：需要使用括弧內的 ID 值。以下是範例，實際輸出可以在「故障排除」分頁中找到。",
     "output_name_desc_windows": "手動指定要用於擷取的顯示器設備 ID。如果未設定，則擷取主要顯示器。注意：如果您在上方指定了 GPU，則此顯示器必須連接到該 GPU。在 Sunshine 啟動時，您應該會看到檢測到的顯示器清單。以下是範例，實際輸出可以在「故障排除」分頁中找到。",
     "packetsize": "封包大小限制",
