@@ -333,6 +333,7 @@
     "origin_web_ui_allowed_pc": "Sadece localhost Web UI'a erişebilir",
     "origin_web_ui_allowed_wan": "Herkes Web UI'a erişebilir",
     "output_name": "Ekran Kimliği",
+    "output_name_desc_macos": "Sunshine başlatılırken, algılanan ekranların listesini görmelisiniz. Not: Parantez içindeki id değerini kullanmanız gerekir. Aşağıda bir örnek verilmiştir; gerçek çıktı ise Sorun Giderme sekmesinde bulunabilir.",
     "output_name_desc_unix": "Sunshine başlangıcı sırasında, algılanan ekranların listesini görmelisiniz. Not: Parantez içindeki id değerini kullanmanız gerekir.",
     "output_name_desc_windows": "Yakalama için kullanılacak bir ekranı manuel olarak belirleyin. Ayarlanmamışsa, birincil ekran yakalanır. Not: Yukarıda bir GPU belirttiyseniz, bu ekranın o GPU'ya bağlı olması gerekir. Uygun değerler aşağıdaki komut kullanılarak bulunabilir:",
     "packetsize": "Paket Boyutu Sınırı",
