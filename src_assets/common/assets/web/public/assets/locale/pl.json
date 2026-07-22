@@ -333,6 +333,7 @@
     "origin_web_ui_allowed_pc": "Tylko localhost może uzyskać dostęp do Web UI",
     "origin_web_ui_allowed_wan": "Każdy może uzyskać dostęp do Web UI",
     "output_name": "Wyświetl Id",
+    "output_name_desc_macos": "Podczas uruchamiania Sunshine powinieneś zobaczyć listę wykrytych wyświetlaczy. Uwaga: musisz użyć wartości id wewnątrz nawiasu. Poniżej znajduje się przykład; rzeczywiste dane wyjściowe można znaleźć w zakładce Rozwiązywanie problemów.",
     "output_name_desc_unix": "Podczas uruchamiania Sunshine powinieneś zobaczyć listę wykrytych wyświetlaczy. Uwaga: Należy użyć wartości id wewnątrz nawiasu. Poniżej znajduje się przykład; rzeczywiste dane wyjściowe można znaleźć w zakładce Rozwiązywanie problemów.",
     "output_name_desc_windows": "Ręczne określenie identyfikatora urządzenia wyświetlającego, które ma być używane do przechwytywania. Jeśli nie zostanie ustawione, przechwytywany będzie główny wyświetlacz. Uwaga: Jeśli powyżej określono procesor graficzny, ten wyświetlacz musi być do niego podłączony. Podczas uruchamiania Sunshine powinna zostać wyświetlona lista wykrytych wyświetlaczy. Poniżej znajduje się przykład; rzeczywisty wynik można znaleźć w zakładce Rozwiązywanie problemów.",
     "packetsize": "Limit rozmiaru pakietu",
