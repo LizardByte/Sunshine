@@ -333,6 +333,7 @@
     "origin_web_ui_allowed_pc": "Nur localhost kann auf Web-UI zugreifen",
     "origin_web_ui_allowed_wan": "Jeder kann auf Web-UI zugreifen",
     "output_name": "Id anzeigen",
+    "output_name_desc_macos": "Während des Starts von Sunshine sollten Sie die Liste der erkannten Anzeigen sehen. Hinweis: Sie müssen den Id-Wert innerhalb der Klammer verwenden. Unten finden Sie ein Beispiel. Die tatsächliche Ausgabe finden Sie im Reiter Fehlerbehebung.",
     "output_name_desc_unix": "Während des Starts von Sunshine sollten Sie die Liste der erkannten Anzeigen sehen. Hinweis: Sie müssen den Id-Wert innerhalb der Klammer verwenden.",
     "output_name_desc_windows": "Legen Sie eine Anzeige für die Aufnahme manuell fest. Wenn diese nicht aktiviert ist, wird die primäre Anzeige aufgenommen. Hinweis: Wenn Sie eine GPU oben angegeben haben, muss diese Anzeige mit dieser GPU verbunden sein. Die entsprechenden Werte finden Sie mit dem folgenden Befehl:",
     "packetsize": "Paketgrößenlimit",
