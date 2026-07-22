@@ -333,6 +333,7 @@
     "origin_web_ui_allowed_pc": "Somente o localhost pode acessar a interface do usuário da Web",
     "origin_web_ui_allowed_wan": "Qualquer pessoa pode acessar a Web UI",
     "output_name": "ID de exibição",
+    "output_name_desc_macos": "Durante a inicialização do sol, você deve ver a lista de telas detectadas. Nota: Você precisa usar o valor do id dentro dos parênteses. Abaixo está um exemplo; a saída real pode ser encontrada na aba de solução de problemas.",
     "output_name_desc_unix": "Durante a inicialização do Sunshine, você deverá ver a lista de monitores detectados. Observação: você precisa usar o valor de id dentro do parêntese. Abaixo está um exemplo; a saída real pode ser encontrada na guia Solução de problemas.",
     "output_name_desc_windows": "Especifique manualmente um ID de dispositivo de exibição a ser usado para captura. Se não for definido, a tela principal será capturada. Observação: se você especificou uma GPU acima, esse monitor deverá estar conectado a essa GPU. Durante a inicialização do Sunshine, você deverá ver a lista de monitores detectados. Abaixo está um exemplo; a saída real pode ser encontrada na guia Solução de problemas.",
     "packetsize": "Tamanho Limite do Pacote",
