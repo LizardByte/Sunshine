@@ -333,6 +333,7 @@
     "origin_web_ui_allowed_pc": "Solo localhost può accedere all'interfaccia Web",
     "origin_web_ui_allowed_wan": "Chiunque può accedere all'interfaccia Web",
     "output_name": "Id Visualizzazione",
+    "output_name_desc_macos": "Durante l'avvio di Sunshine, dovresti vedere l'elenco dei display rilevati. Nota: devi usare il valore id all'interno della parentesi. Di seguito è riportato un esempio; l'output effettivo può essere trovato nella scheda Risoluzione dei problemi.",
     "output_name_desc_unix": "Durante l'avvio di Sunshine, dovresti vedere l'elenco dei display rilevati. Nota: devi usare il valore id all'interno della parentesi. Quello in basso è un esempio, la lista effettiva può essere trovata in \"Risoluzione dei Problemi\".",
     "output_name_desc_windows": "Specifica manualmente un display id da usare per la cattura. Se lasciato vuoto, viene catturato il display primario. Nota: Se hai specificato una GPU sopra, questo display deve essere collegato a quella GPU. Durante l'avvio di Sunshine dovresti vedere la lista dei display individuati. Esempio sotto; l'output può essere trovato nella pagina di Troubleshooting.",
     "packetsize": "Limite Dimensione Pacchetto",
