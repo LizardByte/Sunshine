@@ -333,6 +333,7 @@
     "origin_web_ui_allowed_pc": "Seul localhost peut accéder à l'interface Web",
     "origin_web_ui_allowed_wan": "N'importe qui peut accéder à l'interface Web",
     "output_name": "Identifiant de l'affichage",
+    "output_name_desc_macos": "Lors du démarrage de Sunshine, vous devriez voir la liste des affichages détectés. Note : Vous devez utiliser la valeur de l'id entre parenthèses. Ci-dessous est un exemple ; la sortie réelle peut être trouvée dans l'onglet Dépannage.",
     "output_name_desc_unix": "Lors du démarrage de Sunshine, vous devriez voir la liste des affichages détectés. Note : Vous devez utiliser la valeur de l'id entre parenthèses.",
     "output_name_desc_windows": "Spécifiez manuellement un identifiant de périphérique d'affichage à utiliser pour la capture. Si ce champ est vide, l'affichage principal sera capturé. Remarque : Si vous avez spécifié un GPU ci-dessus, cet affichage doit être connecté à ce GPU. Lors du démarrage de Sunshine, vous devriez voir la liste des affichages détectés. Ci-dessous un exemple ; la sortie réelle peut être consultée dans l'onglet Dépannage.",
     "packetsize": "Limite de taille de paquet",
