@@ -333,6 +333,7 @@
     "origin_web_ui_allowed_pc": "K webovému uživatelskému rozhraní může přistupovat pouze localhost",
     "origin_web_ui_allowed_wan": "K webovému uživatelskému rozhraní může přistupovat kdokoli",
     "output_name": "Zobrazit ID",
+    "output_name_desc_macos": "Při spuštění pomocí slunečního svitu byste měli vidět seznam rozpoznaných displejů. Poznámka: Je třeba použít id hodnotu uvnitř závorky. Níže je příklad; skutečný výstup lze nalézt v záložce řešení problémů.",
     "output_name_desc_unix": "Při spuštění Sunshine by se měl zobrazit seznam zjištěných displejů. Poznámka: Musíte použít hodnotu id uvnitř závorky. Níže je uveden příklad; skutečný výstup naleznete na kartě Odstraňování problémů.",
     "output_name_desc_windows": "Ruční zadání id zobrazovacího zařízení, které se má použít pro zachycení. Pokud není nastaveno, zachytí se primární displej. Poznámka: Pokud jste výše zadali grafický procesor, musí být tento displej připojen k tomuto grafickému procesoru. Během spuštění Sunshine by se měl zobrazit seznam zjištěných displejů. Níže je uveden příklad; skutečný výstup naleznete na kartě Odstraňování problémů.",
     "packetsize": "Omezení velikosti paketu",
