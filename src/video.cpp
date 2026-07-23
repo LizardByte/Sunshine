@@ -143,6 +143,19 @@ namespace video {
 
   }  // namespace qsv
 
+  namespace amf {
+
+    /**
+     * @brief Enumerates supported coder options for AMF encoder.
+     */
+    enum class coder_e : int {
+      auto_ = 0,  ///< Auto coder mode
+      cabac = 1,  ///< CABAC entropy coding
+      cavlc = 2,  ///< CAVLC entropy coding
+    };
+
+  }  // namespace amf
+
   /**
    * @brief Create an FFmpeg hardware device buffer for D3D11VA input.
    *
@@ -1022,9 +1035,22 @@ namespace video {
         {"rc"s, &config::video.amd.amd_rc_h264},
         {"usage"s, &config::video.amd.amd_usage_h264},
         {"vbaq"s, &config::video.amd.amd_vbaq},
+        {"coder"s, &config::video.amd.amd_coder},
         {"enforce_hrd"s, &config::video.amd.amd_enforce_hrd},
       },
-      {},  // SDR-specific options
+      {
+        // SDR-specific options
+        {"profile"s, [](const config_t &) {
+           switch (config::video.amd.amd_coder) {
+             case (int) amf::coder_e::cavlc:
+               return "constrained_baseline"s;
+             case (int) amf::coder_e::cabac:
+               return "high"s;
+             default:
+               return "main"s;
+           }
+         }},
+      },
       {},  // HDR-specific options
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
