@@ -10,7 +10,8 @@ if(PC_EVDEV_FOUND)
     find_path(EVDEV_INCLUDE_DIR libevdev/libevdev.h
             HINTS ${PC_EVDEV_INCLUDE_DIRS} ${PC_EVDEV_INCLUDEDIR})
     find_library(EVDEV_LIBRARY
-            NAMES evdev libevdev)
+            NAMES ${PC_EVDEV_LIBRARIES} evdev libevdev
+            HINTS ${PC_EVDEV_LIBRARY_DIRS} ${PC_EVDEV_LIBDIR})
 else()
     include(ExternalProject)
 
