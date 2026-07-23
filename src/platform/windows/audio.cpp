@@ -601,9 +601,10 @@ namespace platf::audio {
      * @param frame_size Number of samples captured per audio frame.
      * @param channels_out Channels out.
      * @param continuous Whether silent audio should continue to be emitted.
+     * @param capture_device Endpoint device to capture from; the default render device is used when empty.
      * @return 0 on success; nonzero or negative platform status on failure.
      */
-    int init(std::uint32_t sample_rate, std::uint32_t frame_size, std::uint32_t channels_out, bool continuous) {
+    int init(std::uint32_t sample_rate, std::uint32_t frame_size, std::uint32_t channels_out, bool continuous, device_t capture_device) {
       audio_event.reset(CreateEventA(nullptr, FALSE, FALSE, nullptr));
       if (!audio_event) {
         BOOST_LOG(error) << "Couldn't create Event handle"sv;
@@ -634,7 +635,13 @@ namespace platf::audio {
         return -1;
       }
 
-      auto device = default_device(device_enum);
+      follows_default_device = !capture_device;
+      if (follows_default_device) {
+        device = default_device(device_enum);
+      } else {
+        device = std::move(capture_device);
+      }
+
       if (!device) {
         return -1;
       }
@@ -746,8 +753,11 @@ namespace platf::audio {
           (*default_endpt_changed_cb)();
         }
 
-        // Reinitialize to pick up the new default device
-        return capture_e::reinit;
+        // Reinitialize to pick up the new default device, unless capture is
+        // pinned to an explicitly requested sink
+        if (follows_default_device) {
+          return capture_e::reinit;
+        }
       }
 
       status = WaitForSingleObjectEx(audio_event.get(), default_latency_ms, FALSE);
@@ -836,6 +846,7 @@ namespace platf::audio {
     float *sample_buf_pos;  ///< Current write position in `sample_buf`.
     int channels;  ///< Number of channels in the capture format.
     bool continuous_audio;  ///< Whether audio packets continue during silence.
+    bool follows_default_device;  ///< Whether capture follows the default render device rather than an explicit sink.
 
     HANDLE mmcss_task_handle = nullptr;  ///< MMCSS task handle for the audio capture thread.
   };
@@ -928,6 +939,34 @@ namespace platf::audio {
     }
 
     /**
+     * @brief Resolve a sink name to the audio endpoint device it refers to.
+     *
+     * @param sink Sink name, virtual sink descriptor, or device identifier.
+     * @return Endpoint device to capture from, or an empty pointer if the sink couldn't be resolved.
+     */
+    device_t get_sink_device(const std::string &sink) {
+      std::wstring device_id;
+      if (auto virtual_sink_info = extract_virtual_sink_info(sink)) {
+        device_id = virtual_sink_info->first;
+      } else if (auto matched = find_device_id(match_all_fields(utf_utils::from_utf8(sink)))) {
+        device_id = matched->second;
+      } else {
+        return nullptr;
+      }
+
+      device_t device;
+      if (FAILED(device_enum->GetDevice(device_id.c_str(), &device))) {
+        return nullptr;
+      }
+
+      if (DWORD device_state {}; FAILED(device->GetState(&device_state)) || device_state != DEVICE_STATE_ACTIVE) {
+        return nullptr;
+      }
+
+      return device;
+    }
+
+    /**
      * @brief Create a microphone capture stream for the requested layout.
      *
      * @param mapping Opus channel mapping table for the requested layout.
@@ -941,7 +980,25 @@ namespace platf::audio {
     std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, bool continuous_audio, [[maybe_unused]] bool host_audio_enabled) override {
       auto mic = std::make_unique<mic_wasapi_t>();
 
-      if (mic->init(sample_rate, frame_size, channels, continuous_audio)) {
+      // Prefer the sink that was assigned to this capture session since it accounts
+      // for the priority between virtual and configured sinks.
+      const auto &requested_sink = assigned_sink.empty() ? config::audio.sink : assigned_sink;
+
+      // Capture the requested sink directly instead of relying on it being the default
+      // render device, so that capture keeps working when the default device differs
+      // from the sink or changes during the session.
+      device_t capture_device;
+      if (!requested_sink.empty()) {
+        capture_device = get_sink_device(requested_sink);
+        if (!capture_device) {
+          BOOST_LOG(error) << "Couldn't resolve audio sink ["sv << requested_sink << "] to a capture device"sv;
+          return nullptr;
+        }
+
+        BOOST_LOG(info) << "Capturing audio from sink ["sv << requested_sink << ']';
+      }
+
+      if (mic->init(sample_rate, frame_size, channels, continuous_audio, std::move(capture_device))) {
         return nullptr;
       }
 
@@ -1359,7 +1416,7 @@ namespace platf::audio {
 
     policy_t policy;  ///< Windows policy configuration interface used to switch default audio devices.
     audio::device_enum_t device_enum;  ///< Device enumerator used to query and watch audio endpoints.
-    std::string assigned_sink;  ///< Virtual sink assigned while Sunshine captures host audio.
+    std::string assigned_sink;  ///< Sink assigned while Sunshine captures host audio, captured directly by the microphone.
   };
 }  // namespace platf::audio
 
