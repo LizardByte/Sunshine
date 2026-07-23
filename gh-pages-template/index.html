@@ -216,28 +216,31 @@ cover-img:
           });
         }
 
-        const typeBadge = app.official 
-            ? '<span class="badge text-bg-info rounded-pill">Official</span>' 
+        const typeBadge = app.official
+            ? '<span class="badge text-bg-info rounded-pill">Official</span>'
             : '<span class="badge text-bg-warning rounded-pill">Community</span>';
 
         let downloadsHtml = '';
-        
+
         // Dynamic generation from JSON downloads array
         if (app.downloads && Array.isArray(app.downloads)) {
           app.downloads.forEach((download, index) => {
             const isLast = index === app.downloads.length - 1;
             const pbClass = isLast ? '' : ' pb-3';
-            
+
             if (download.img) {
               let styleAttr = '';
               let heightAttr = '40';
-              if (download.img.includes('play.google.com') || download.img.includes('amazon-appstore') || download.img.includes('fdroid')) {
+              let imgHost = '';
+              try { imgHost = new URL(download.img).hostname; } catch (e) {}
+
+              if (imgHost === 'play.google.com' || imgHost.endsWith('.ssl-images-amazon.com') || imgHost === 'fdroid.gitlab.io') {
                   heightAttr = '60';
               }
-              if (download.img.includes('amazon-appstore')) {
+              if (imgHost.endsWith('.ssl-images-amazon.com')) {
                   styleAttr = 'style="padding: 10px;"';
               }
-              
+
               downloadsHtml += `
                   <div class="${pbClass.trim()}">
                       <a href="${download.url}" target="_blank">
@@ -251,7 +254,10 @@ cover-img:
             } else {
               let btnClass = 'btn btn-info';
               let iconHtml = '<i class="fas fa-download"></i> ';
-              if (download.url && download.url.includes('github.com')) {
+              let urlHost = '';
+              try { urlHost = new URL(download.url).hostname; } catch (e) {}
+
+              if (urlHost === 'github.com') {
                   iconHtml = '<i class="fab fa-github"></i> ';
               }
               downloadsHtml += `

@@ -133,7 +133,7 @@
             </div>
 
             <!-- Action Buttons -->
-            <div class="d-flex gap-2 flex-wrap">
+            <div class="d-flex gap-2 flex-wrap align-items-center">
               <template v-if="app.downloads && app.downloads.length > 0">
                 <a
                   v-for="(download, index) in app.downloads"
@@ -141,16 +141,16 @@
                   :href="download.url"
                   target="_blank"
                   rel="noopener noreferrer"
-                  :class="download.img ? 'flex-fill text-center d-inline-flex align-items-center justify-content-center' : 'btn btn-primary btn-sm flex-fill'">
-                  
-                  <img v-if="download.img" 
-                       :src="download.img" 
-                       :alt="download.label" 
+                  :class="download.img ? 'flex-fill text-center d-inline-flex align-items-center justify-content-center' : 'btn btn-primary btn-sm flex-fill d-inline-flex align-items-center justify-content-center gap-1'">
+
+                  <img v-if="download.img"
+                       :src="download.img"
+                       :alt="download.label"
                        :height="getDownloadHeight(download.img)"
                        :style="getDownloadStyle(download.img)" />
-                       
+
                   <template v-else>
-                    <simple-icon v-if="download.url && download.url.includes('github.com')" icon="GitHub" :size="16" class="icon"></simple-icon>
+                    <simple-icon v-if="isGithubUrl(download.url)" icon="GitHub" :size="16" class="icon"></simple-icon>
                     <arrow-down-circle v-else :size="16" class="icon"></arrow-down-circle>
                     {{ download.label }}
                   </template>
@@ -162,7 +162,7 @@
                   :href="app.links.download"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="btn btn-primary btn-sm flex-fill">
+                  class="btn btn-primary btn-sm flex-fill d-inline-flex align-items-center justify-content-center gap-1">
                   <arrow-down-circle :size="16" class="icon"></arrow-down-circle>
                   {{ $t('featured.get') }}
                 </a>
@@ -172,7 +172,7 @@
                 :href="app.links.documentation"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="btn btn-outline-primary btn-sm"
+                class="btn btn-outline-primary btn-sm d-inline-flex align-items-center justify-content-center gap-1"
                 :title="$t('featured.documentation')">
                 <external-link :size="16" class="icon"></external-link>
                 {{ $t('featured.docs') }}
@@ -182,7 +182,7 @@
                 :href="app.links.website"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="btn btn-outline-secondary btn-sm"
+                class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center"
                 :title="$t('featured.website')">
                 <external-link :size="16" class="icon"></external-link>
               </a>
@@ -191,7 +191,7 @@
                 :href="app.links.github"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="btn btn-outline-secondary btn-sm"
+                class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center"
                 :title="$t('featured.github')">
                 <simple-icon icon="GitHub" :size="16" class="icon"></simple-icon>
               </a>
@@ -465,17 +465,29 @@
       },
       getDownloadHeight(img) {
         if (!img) return '40';
-        if (img.includes('play.google.com') || img.includes('amazon-appstore') || img.includes('fdroid')) {
+        let imgHost = '';
+        try { imgHost = new URL(img).hostname; } catch (e) {}
+        if (imgHost === 'play.google.com' || imgHost.endsWith('.ssl-images-amazon.com') || imgHost === 'fdroid.gitlab.io') {
             return '60';
         }
         return '40';
       },
       getDownloadStyle(img) {
         if (!img) return '';
-        if (img.includes('amazon-appstore')) {
+        let imgHost = '';
+        try { imgHost = new URL(img).hostname; } catch (e) {}
+        if (imgHost.endsWith('.ssl-images-amazon.com')) {
             return 'padding: 10px;';
         }
         return '';
+      },
+      isGithubUrl(url) {
+        if (!url) return false;
+        try {
+          return new URL(url).hostname === 'github.com';
+        } catch (e) {
+          return false;
+        }
       }
     },
   });
