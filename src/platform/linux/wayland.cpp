@@ -167,11 +167,23 @@ namespace wl {
     viewport.height = height;
 
     BOOST_LOG(info) << "[wayland] Resolution: "sv << width << 'x' << height;
+
+    // Assign these only if xdg_output hasn't done so already
+    if (viewport.logical_width <= 0) {
+        viewport.logical_width = viewport.width;
+    }
+    if (viewport.logical_height <= 0) {
+        viewport.logical_height = viewport.height;
+    }
   }
 
   void monitor_t::listen(zxdg_output_manager_v1 *output_manager) {
     auto xdg_output = zxdg_output_manager_v1_get_xdg_output(output_manager, output);
     zxdg_output_v1_add_listener(xdg_output, &xdg_listener, this);
+    wl_output_add_listener(output, &wl_listener, this);
+  }
+
+  void monitor_t::listen_fallback() {
     wl_output_add_listener(output, &wl_listener, this);
   }
 
@@ -568,13 +580,15 @@ namespace wl {
 
     display.roundtrip();
 
-    if (!interface[interface_t::XDG_OUTPUT]) {
-      BOOST_LOG(error) << "[wayland] Missing Wayland wire XDG_OUTPUT"sv;
-      return {};
-    }
-
-    for (auto &monitor : interface.monitors) {
-      monitor->listen(interface.output_manager);
+    if (interface[interface_t::XDG_OUTPUT]) {
+      for (auto &monitor : interface.monitors) {
+        monitor->listen(interface.output_manager);
+      }
+    } else {
+      BOOST_LOG(warning) << "[wayland] Missing Wayland wire XDG_OUTPUT, falling back to wl_output only"sv;
+      for (auto &monitor : interface.monitors) {
+        monitor->listen_fallback();
+      }
     }
 
     display.roundtrip();
