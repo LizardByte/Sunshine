@@ -948,7 +948,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
             Info: Detected display: DP-1 (id: 3) connected: false
             Info: Detected display: DVI-D-1 (id: 4) connected: false
             @endcode
-            You need to use the id value inside the parenthesis, e.g. `1`.
+            It is recommended to use the stable display connector name (text right before the parenthesis, e.g. DP-0) for this value.
+            For wlgrab/x11grab and kmsgrab the numeric id value can also be used.
             <br>
             <br>
             **macOS:**

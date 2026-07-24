@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <filesystem>
+#include <ranges>
 #include <thread>
 #include <unistd.h>
 
@@ -849,6 +850,38 @@ namespace platf {
     }
 
     /**
+     * @brief Map display name to monitor index
+     *
+     * @param display_name Name of the display to determine monitor index for (or monitor index string value)
+     * @return monitor's display index
+     */
+    static int64_t map_display_name_to_monitor_index(const std::string_view &display_name) {
+      // Handle (legacy) monitor index strings by converting them to integer
+      if (display_name.empty() || std::ranges::all_of(display_name, ::isdigit)) {
+        return util::from_view(display_name);
+      }
+      // display_name is a connector name (not empty and containing non-digits) try to resolve correct monitor index like correlate_wayland does
+      auto index_begin = display_name.find_last_of('-');
+      std::int64_t index;
+      if (index_begin == std::string_view::npos) {
+        index = 1;
+      } else {
+        index = std::max<int64_t>(1, util::from_view(display_name.substr(index_begin + 1)));
+      }
+      auto type = kms::from_view(display_name.substr(0, index_begin));
+      for (auto &card_descriptor : kms::card_descriptors) {
+        for (const auto &monitor_descriptor : card_descriptor.crtc_to_monitor | std::views::values) {
+          if (monitor_descriptor.type == type && monitor_descriptor.index == index) {
+            BOOST_LOG(debug) << "Mapped '"sv << display_name << "' to a monitor index " << monitor_descriptor.monitor_index;
+            return monitor_descriptor.monitor_index;
+          }
+        }
+      }
+      BOOST_LOG(warning) << "Couldn't map '"sv << display_name << "' to a monitor index. Falling back to first monitor in list (index=0).";
+      return 0;  // Fallback to first index if nothing can be matched
+    }
+
+    /**
      * @brief Base KMS display capture backend shared by RAM and VRAM paths.
      */
     class display_t: public platf::display_t {
@@ -873,7 +906,7 @@ namespace platf {
       int init(const std::string &display_name, const ::video::config_t &config) {
         delay = ::video::capture_frame_interval(config);
 
-        int monitor_index = util::from_view(display_name);
+        int monitor_index = map_display_name_to_monitor_index(display_name);
         int monitor = 0;
 
         fs::path card_dir {"/dev/dri"sv};
@@ -2099,8 +2132,8 @@ namespace platf {
         kms::env_height = std::max(kms::env_height, (int) (crtc->y + crtc->height));
 
         kms::print(plane.get(), fb.get(), crtc.get());
-
-        display_names.emplace_back(std::to_string(count++));
+        display_names.emplace_back(std::format("{}-{}", drmModeGetConnectorTypeName(it->second.type), it->second.index));
+        count++;
       }
 
       cds.emplace_back(kms::card_descriptor_t {

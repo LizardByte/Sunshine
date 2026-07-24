@@ -59,57 +59,8 @@ cover-img:
 <section class="py-5" id="Clients">
     <div class="container px-auto">
         <h2 class="text-center fw-bolder my-5">Clients</h2>
-        <div class="row gx-5">
-            {% for client in site.data.clients %}
-            <div class="col-md-6 col-lg-4 mb-5">
-                <div class="card-custom h-100 shadow border-0 rounded-0 d-flex flex-column">
-                    <div class="card-body p-4">
-                        <div class="d-flex align-items-center">
-                            <div class="icon">
-                                {% for icon in client.icons %}
-                                <img {% if icon.invert %}class="invert"{% endif %} src="{{ icon.src }}" alt="{{ icon.alt }}"/>
-                                {% endfor %}
-                            </div>
-                            <div class="ms-3">
-                                <h5 class="fw-bolder mb-0">
-                                    <a href="{{ client.github }}" target="_blank" class="text-decoration-none project-card-link crowdin-ignore">
-                                        {{ client.name }}
-                                    </a>
-                                </h5>
-                            </div>
-                            <div class="ms-auto">
-                                {% if client.type == "official" %}
-                                <span class="badge text-bg-info rounded-pill">Official</span>
-                                {% elsif client.type == "community" %}
-                                <span class="badge text-bg-warning rounded-pill">Community</span>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                    {% if client.downloads %}
-                    <div class="card-footer p-3 px-4">
-                        {% for download in client.downloads %}
-                        <div class="{% unless forloop.last %}pb-3{% endunless %}">
-                            {% if download.img_src %}
-                            <a href="{{ download.url }}" target="_blank"{% if download.btn_class %} class="{{ download.btn_class }}"{% endif %}>
-                                <img alt="{{ download.label }}"
-                                     src="{{ download.img_src }}"
-                                     height="{{ download.img_height }}"
-                                     {% if download.img_style %}style="{{ download.img_style }}"{% endif %}/>
-                            </a>
-                            {% else %}
-                            <a href="{{ download.url }}" target="_blank" class="{{ download.btn_class | default: 'btn btn-info' }}">
-                                {% if download.icon_fa %}<i class="{{ download.icon_fa }}"></i>{% endif %}
-                                {{ download.label }}
-                            </a>
-                            {% endif %}
-                        </div>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-            {% endfor %}
+        <div class="row gx-5" id="clients-container">
+            <!-- Dynamically populated from sunshine.json -->
         </div>
     </div>
 </section>
@@ -244,5 +195,112 @@ cover-img:
           betaButton.classList.add('d-none');
         }
       }
+    });
+
+  // Fetch clients from app directory
+  fetch('https://app.lizardbyte.dev/app-directory/sunshine.json')
+    .then(response => response.json())
+    .then(data => {
+      const clientsContainer = document.getElementById('clients-container');
+      if (!clientsContainer) return;
+
+      const apps = data.apps || [];
+
+      apps.forEach(app => {
+        let iconsHtml = '';
+
+        // Dynamic generation from JSON icons array
+        if (app.icons && Array.isArray(app.icons)) {
+          app.icons.forEach(icon => {
+            iconsHtml += `<img ${icon.invert ? 'class="invert"' : ''} src="${icon.src}" alt="${icon.alt}"/>`;
+          });
+        }
+
+        const typeBadge = app.official
+            ? '<span class="badge text-bg-info rounded-pill">Official</span>'
+            : '<span class="badge text-bg-warning rounded-pill">Community</span>';
+
+        let downloadsHtml = '';
+
+        // Dynamic generation from JSON downloads array
+        if (app.downloads && Array.isArray(app.downloads)) {
+          app.downloads.forEach((download, index) => {
+            const isLast = index === app.downloads.length - 1;
+            const pbClass = isLast ? '' : ' pb-3';
+
+            if (download.img) {
+              let styleAttr = '';
+              let heightAttr = '40';
+              let imgHost = '';
+              try { imgHost = new URL(download.img).hostname; } catch (e) {}
+
+              if (imgHost === 'play.google.com' || imgHost.endsWith('.ssl-images-amazon.com') || imgHost === 'fdroid.gitlab.io') {
+                  heightAttr = '60';
+              }
+              if (imgHost.endsWith('.ssl-images-amazon.com')) {
+                  styleAttr = 'style="padding: 10px;"';
+              }
+
+              downloadsHtml += `
+                  <div class="${pbClass.trim()}">
+                      <a href="${download.url}" target="_blank">
+                          <img alt="${download.label}"
+                               src="${download.img}"
+                               height="${heightAttr}"
+                               ${styleAttr}/>
+                      </a>
+                  </div>
+              `;
+            } else {
+              let btnClass = 'btn btn-info';
+              let iconHtml = '<i class="fas fa-download"></i> ';
+              let urlHost = '';
+              try { urlHost = new URL(download.url).hostname; } catch (e) {}
+
+              if (urlHost === 'github.com') {
+                  iconHtml = '<i class="fab fa-github"></i> ';
+              }
+              downloadsHtml += `
+                  <div class="${pbClass.trim()}">
+                      <a href="${download.url}" target="_blank" class="${btnClass}">
+                          ${iconHtml}${download.label}
+                      </a>
+                  </div>
+              `;
+            }
+          });
+        }
+
+        const projectLink = (app.links && app.links.github) || (app.links && app.links.website) || '#';
+
+        const clientHtml = `
+            <div class="col-md-6 col-lg-4 mb-5">
+                <div class="card-custom h-100 shadow border-0 rounded-0 d-flex flex-column">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center">
+                            <div class="icon">
+                                ${iconsHtml}
+                            </div>
+                            <div class="ms-3">
+                                <h5 class="fw-bolder mb-0">
+                                    <a href="${projectLink}" target="_blank" class="text-decoration-none project-card-link crowdin-ignore">
+                                        ${app.name}
+                                    </a>
+                                </h5>
+                            </div>
+                            <div class="ms-auto">
+                                ${typeBadge}
+                            </div>
+                        </div>
+                    </div>
+                    ${downloadsHtml ? `
+                    <div class="card-footer p-3 px-4">
+                        ${downloadsHtml}
+                    </div>` : ''}
+                </div>
+            </div>
+        `;
+        clientsContainer.innerHTML += clientHtml;
+      });
     });
 </script>

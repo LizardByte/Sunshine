@@ -4,6 +4,7 @@
  */
 // standard includes
 #include <fstream>
+#include <ranges>
 #include <thread>
 
 // plaform includes
@@ -506,47 +507,41 @@ namespace platf {
       refresh();
 
       int streamedMonitor = -1;
-      if (!display_name.empty()) {
+      if (!display_name.empty() && std::ranges::all_of(display_name, ::isdigit)) {
+        // Resolve (legacy) monitor index from display_name
         streamedMonitor = (int) util::from_view(display_name);
       }
 
-      if (streamedMonitor != -1) {
-        BOOST_LOG(info) << "Configuring selected display ("sv << streamedMonitor << ") to stream"sv;
-        screen_res_t screenr {x11::rr::GetScreenResources(xdisplay.get(), xwindow)};
-        int output = screenr->noutput;
+      screen_res_t screenr {x11::rr::GetScreenResources(xdisplay.get(), xwindow)};
+      int output = screenr->noutput;
 
-        output_info_t result;
-        int monitor = 0;
-        for (int x = 0; x < output; ++x) {
-          output_info_t out_info {x11::rr::GetOutputInfo(xdisplay.get(), screenr.get(), screenr->outputs[x])};
-          if (out_info) {
-            if (monitor++ == streamedMonitor) {
-              result = std::move(out_info);
-              break;
-            }
+      output_info_t result;
+      bool result_found = false;
+      int monitor = 0;
+      for (int x = 0; x < output; ++x) {
+        output_info_t out_info {x11::rr::GetOutputInfo(xdisplay.get(), screenr.get(), screenr->outputs[x])};
+        if (out_info) {
+          // Match monitor by index if a valid one is present, otherwise try to resolve by matching output name to display_name
+          if ((streamedMonitor >= 0 && monitor == streamedMonitor) || (streamedMonitor < 0 && out_info->name == display_name)) {
+            result = std::move(out_info);
+            result_found = true;
+            break;
           }
+          monitor++;
         }
+      }
 
-        if (!result) {
-          BOOST_LOG(error) << "Could not stream display number ["sv << streamedMonitor << "], there are only ["sv << monitor << "] displays."sv;
-          return -1;
-        }
+      if (result_found && result->crtc) {
+        crtc_info_t crt_info {x11::rr::GetCrtcInfo(xdisplay.get(), screenr.get(), result->crtc)};
+        BOOST_LOG(info)
+          << "Streaming display: "sv << result->name << " with res "sv << crt_info->width << 'x' << crt_info->height << " offset by "sv << crt_info->x << 'x' << crt_info->y;
 
-        if (result->crtc) {
-          crtc_info_t crt_info {x11::rr::GetCrtcInfo(xdisplay.get(), screenr.get(), result->crtc)};
-          BOOST_LOG(info)
-            << "Streaming display: "sv << result->name << " with res "sv << crt_info->width << 'x' << crt_info->height << " offset by "sv << crt_info->x << 'x' << crt_info->y;
-
-          width = crt_info->width;
-          height = crt_info->height;
-          offset_x = crt_info->x;
-          offset_y = crt_info->y;
-        } else {
-          BOOST_LOG(warning) << "Couldn't get requested display info, defaulting to recording entire virtual desktop"sv;
-          width = xattr.width;
-          height = xattr.height;
-        }
+        width = crt_info->width;
+        height = crt_info->height;
+        offset_x = crt_info->x;
+        offset_y = crt_info->y;
       } else {
+        BOOST_LOG(warning) << "Couldn't get info for requested display ["sv << display_name << "], defaulting to recording entire virtual desktop"sv;
         width = xattr.width;
         height = xattr.height;
       }
@@ -971,20 +966,14 @@ namespace platf {
     screen_res_t screenr {x11::rr::GetScreenResources(xdisplay.get(), xwindow)};
     int output = screenr->noutput;
 
+    std::vector<std::string> names;
     int monitor = 0;
     for (int x = 0; x < output; ++x) {
       output_info_t out_info {x11::rr::GetOutputInfo(xdisplay.get(), screenr.get(), screenr->outputs[x])};
       if (out_info) {
-        BOOST_LOG(info) << "Detected display: "sv << out_info->name << " (id: "sv << monitor << ")"sv << out_info->name << " connected: "sv << (out_info->connection == RR_Connected);
-        ++monitor;
+        BOOST_LOG(info) << "Detected display: "sv << out_info->name << " (id: "sv << monitor++ << ")"sv << out_info->name << " connected: "sv << (out_info->connection == RR_Connected);
+        names.emplace_back(out_info->name);
       }
-    }
-
-    std::vector<std::string> names;
-    names.reserve(monitor);
-
-    for (auto x = 0; x < monitor; ++x) {
-      names.emplace_back(std::to_string(x));
     }
 
     return names;
