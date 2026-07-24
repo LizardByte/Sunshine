@@ -296,24 +296,12 @@ if(NOT ${CUDA_FOUND}
     message(FATAL_ERROR "Couldn't find either cuda, libdrm, libva, kwin, pipewire, portal, wayland or x11")
 endif()
 
-# These need to be set before adding the inputtino subdirectory in order for them to be picked up
+# These need to be set before common.cmake adds the libvirtualhid subdirectory in order for them to be picked up
 set(LIBEVDEV_CUSTOM_INCLUDE_DIR "${EVDEV_INCLUDE_DIR}")
 set(LIBEVDEV_CUSTOM_LIBRARY "${EVDEV_LIBRARY}")
-if(FREEBSD)
-    set(USE_UHID OFF)
-endif()
 
-add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/inputtino")
-list(APPEND SUNSHINE_EXTERNAL_LIBRARIES inputtino::libinputtino)
-file(GLOB_RECURSE INPUTTINO_SOURCES
-        ${CMAKE_SOURCE_DIR}/src/platform/linux/input/inputtino*.h
-        ${CMAKE_SOURCE_DIR}/src/platform/linux/input/inputtino*.cpp)
-list(APPEND PLATFORM_TARGET_FILES ${INPUTTINO_SOURCES})
-
-# build libevdev before the libinputtino target
-if(EXTERNAL_PROJECT_LIBEVDEV_USED)
-    add_dependencies(libinputtino libevdev)
-endif()
+list(APPEND PLATFORM_TARGET_FILES
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/input/virtualhid.cpp")
 
 # AppImage and Flatpak
 if (${SUNSHINE_BUILD_APPIMAGE})

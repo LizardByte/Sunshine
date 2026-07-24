@@ -59,6 +59,18 @@ elseif(UNIX)
     endif()
 endif()
 
+# libvirtualhid
+add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/libvirtualhid")
+list(APPEND SUNSHINE_EXTERNAL_LIBRARIES libvirtualhid::libvirtualhid)
+list(APPEND PLATFORM_TARGET_FILES
+        "${CMAKE_SOURCE_DIR}/src/platform/virtualhid_input.h"
+        "${CMAKE_SOURCE_DIR}/src/platform/virtualhid_input.cpp")
+
+# build libevdev before the libvirtualhid target when using the ExternalProject fallback
+if(EXTERNAL_PROJECT_LIBEVDEV_USED AND TARGET libvirtualhid)
+    add_dependencies(libvirtualhid libevdev)
+endif()
+
 include_directories(BEFORE SYSTEM "${CMAKE_SOURCE_DIR}/third-party/nv-codec-headers/include")
 file(GLOB NVENC_SOURCES CONFIGURE_DEPENDS "src/nvenc/*.cpp" "src/nvenc/*.h")
 list(APPEND PLATFORM_TARGET_FILES ${NVENC_SOURCES})

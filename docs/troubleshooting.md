@@ -205,7 +205,7 @@ If needed, you can override it manually in your systemd service file or shell en
 When the seat is not `seat0`, Sunshine appends the seat name to its virtual device names, for example:
 
 - Keyboard passthrough (seat1)
-- Sunshine PS5 (virtual) pad (seat1)
+- Sunshine (libvirtualhid) PS5 Controller (seat1)
 
 Sunshine creates two mouse devices: a relative one and an absolute one.
 
@@ -290,10 +290,9 @@ launchctl load -w /Library/LaunchAgents/org.freedesktop.dbus-session.plist
 ## Windows
 
 ### No gamepad detected
-You must install ViGEmBus to use virtual gamepads. You can install this from the troubleshooting tab of the web UI.
-
-Alternatively, you can manually install it from
-[ViGEmBus releases](https://github.com/nefarius/ViGEmBus/releases/latest). You must use version 1.17 or newer.
+Sunshine uses libvirtualhid for virtual gamepads on Windows. Install the libvirtualhid Windows driver separately
+for full virtual gamepad support. ViGEmBus is detected only as a limited fallback for Xbox 360 and DualShock 4
+gamepads when libvirtualhid is unavailable. If you use ViGEmBus fallback, you must use version 1.17 or newer.
 
 After installation, it is recommended to restart your computer.
 

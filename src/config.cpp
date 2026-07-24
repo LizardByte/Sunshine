@@ -847,10 +847,10 @@ namespace config {
       platf::supported_gamepads(nullptr).front().name.data(),
       platf::supported_gamepads(nullptr).front().name.size(),
     },  // Default gamepad
-    true,  // back as touchpad click enabled (manual DS4 only)
-    true,  // client gamepads with motion events are emulated as DS4
-    true,  // client gamepads with touchpads are emulated as DS4
-    true,  // ds5_inputtino_randomize_mac
+    true,  // back as touchpad click enabled for PlayStation-style gamepads
+    true,  // client gamepads with motion events use PlayStation-style emulation
+    true,  // client gamepads with touchpads use PlayStation-style emulation
+    true,  // virtualhid_randomize_mac
 
     true,  // keyboard enabled
     true,  // mouse enabled
@@ -1792,7 +1792,7 @@ namespace config {
     bool_f(vars, "ds4_back_as_touchpad_click", input.ds4_back_as_touchpad_click);
     bool_f(vars, "motion_as_ds4", input.motion_as_ds4);
     bool_f(vars, "touchpad_as_ds4", input.touchpad_as_ds4);
-    bool_f(vars, "ds5_inputtino_randomize_mac", input.ds5_inputtino_randomize_mac);
+    bool_f(vars, "virtualhid_randomize_mac", input.virtualhid_randomize_mac);
 
     bool_f(vars, "mouse", input.mouse);
     bool_f(vars, "keyboard", input.keyboard);

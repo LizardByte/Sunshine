@@ -59,7 +59,8 @@ jobs:
             libwayland-dev \
             libx11-xcb-dev \
             libxcb-dri3-dev \
-            libxfixes-dev
+            libxfixes-dev \
+            libxtst-dev
 
       - name: Build latest libva
         env:
@@ -175,9 +176,14 @@ jobs:
 
       - name: Sync Python tools
         run: |
-          uv sync --locked \
-            --python "${PYTHON_VERSION}" \
-            --no-python-downloads --no-install-project
+          uv_sync_args=(
+            --locked
+            --python "${PYTHON_VERSION}"
+            --no-python-downloads
+            --no-install-project
+          )
+          # uv.lock pins external artifacts; reviewed local build hooks are required for gcovr.
+          uv sync "${uv_sync_args[@]}"  # NOSONAR(githubactions:S8541)
 
       - name: Run tests
         id: test

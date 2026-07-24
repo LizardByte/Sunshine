@@ -13,6 +13,7 @@ extern "C" {
 #include <chrono>
 #include <cmath>
 #include <list>
+#include <memory>
 #include <thread>
 #include <unordered_map>
 
@@ -187,7 +188,7 @@ namespace input {
     ~gamepad_t() {
       if (id >= 0) {
         task_pool.push([id = this->id]() {
-          free_gamepad(platf_input, id);
+          ::input::free_gamepad(platf_input, id);
         });
       }
     }
@@ -610,8 +611,8 @@ namespace input {
     This final operation is a bit weird and has been brought about with lots of trial and error. A better
     way to do this may exist.
 
-    Basically, this is what makes the touchscreen map to the coordinates inputtino expects properly.
-    Since inputtino's dimensions are now logical (because scaling breaks everything otherwise), using the previous
+    Basically, this is what makes the touchscreen map to the logical virtual input coordinates properly.
+    Since the virtual input dimensions are logical (because scaling breaks everything otherwise), using the previous
     x and y coordinates would be incorrect when screens are scaled, because the touch port is smaller (or larger)
     by a factor (that factor is touch_port.scalar_tpcoords), and that factor must be used to account for that difference
     when moving the cursor. Otherwise, it will move either slower or faster than your finger proportionally to
@@ -1038,7 +1039,7 @@ namespace input {
    *
    * @param packet Protocol packet being processed.
    */
-  void passthrough(PNV_UNICODE_PACKET packet) {
+  void passthrough(const NV_UNICODE_PACKET *packet) {
     if (!config::input.keyboard) {
       return;
     }
@@ -1346,7 +1347,7 @@ namespace input {
       gamepad.id = id;
     } else if (!(packet->activeGamepadMask & (1 << packet->controllerNumber)) && gamepad.id >= 0) {
       // If this is the final event for a gamepad being removed, free the gamepad and return.
-      free_gamepad(platf_input, gamepad.id);
+      ::input::free_gamepad(platf_input, gamepad.id);
       gamepad.id = -1;
       return;
     }
@@ -1788,7 +1789,7 @@ namespace input {
         passthrough(input, (PNV_KEYBOARD_PACKET) payload);
         break;
       case UTF8_TEXT_EVENT_MAGIC:
-        passthrough((PNV_UNICODE_PACKET) payload);
+        passthrough(static_cast<const NV_UNICODE_PACKET *>(static_cast<const void *>(payload)));
         break;
       case MULTI_CONTROLLER_MAGIC_GEN5:
         passthrough(input, (PNV_MULTI_CONTROLLER_PACKET) payload);
@@ -1880,8 +1881,7 @@ namespace input {
    * @brief Probe connected gamepads and update input capability state.
    */
   bool probe_gamepads() {
-    auto input = static_cast<platf::input_t *>(platf_input.get());
-    const auto gamepads = platf::supported_gamepads(input);
+    const auto gamepads = platf::supported_gamepads(std::addressof(platf_input));
     for (auto &gamepad : gamepads) {
       if (gamepad.is_enabled && gamepad.name != "auto") {
         return false;
