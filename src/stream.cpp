@@ -11,11 +11,11 @@
 // lib includes
 #include <boost/endian/arithmetic.hpp>
 #include <openssl/err.h>
+#include <rs.h>
 
 extern "C" {
   // clang-format off
 #include <moonlight-common-c/src/Limelight-internal.h>
-#include "rswrapper.h"
   // clang-format on
 }
 
@@ -454,10 +454,10 @@ namespace stream {
   struct broadcast_ctx_t {
     message_queue_queue_t message_queue_queue;  ///< Queues carrying encoded video and audio packets to sender threads.
 
-    std::thread recv_thread;  ///< Thread that receives incoming control-channel messages.
-    std::thread video_thread;  ///< Thread that sends encoded video packets.
-    std::thread audio_thread;  ///< Thread that sends encoded audio packets.
-    std::thread control_thread;  ///< Thread that runs the ENet control server.
+    std::jthread recv_thread;  ///< Thread that receives incoming control-channel messages.
+    std::jthread video_thread;  ///< Thread that sends encoded video packets.
+    std::jthread audio_thread;  ///< Thread that sends encoded audio packets.
+    std::jthread control_thread;  ///< Thread that runs the ENet control server.
 
     asio::io_context io_context;  ///< Asio context used by the UDP broadcast sockets.
 
@@ -477,8 +477,8 @@ namespace stream {
 
     std::shared_ptr<input::input_t> input;  ///< Platform input device state for this stream.
 
-    std::thread audioThread;  ///< Audio thread.
-    std::thread videoThread;  ///< Video thread.
+    std::jthread audioThread;  ///< Audio thread.
+    std::jthread videoThread;  ///< Video thread.
 
     std::chrono::steady_clock::time_point pingTimeout;  ///< Deadline for receiving the next client ping.
 
@@ -1960,11 +1960,11 @@ namespace stream {
 
     ctx.message_queue_queue = std::make_shared<message_queue_queue_t::element_type>(30);
 
-    ctx.video_thread = std::thread {videoBroadcastThread, std::ref(ctx.video_sock)};
-    ctx.audio_thread = std::thread {audioBroadcastThread, std::ref(ctx.audio_sock)};
-    ctx.control_thread = std::thread {controlBroadcastThread, &ctx.control_server};
+    ctx.video_thread = std::jthread {videoBroadcastThread, std::ref(ctx.video_sock)};
+    ctx.audio_thread = std::jthread {audioBroadcastThread, std::ref(ctx.audio_sock)};
+    ctx.control_thread = std::jthread {controlBroadcastThread, &ctx.control_server};
 
-    ctx.recv_thread = std::thread {recvThread, std::ref(ctx)};
+    ctx.recv_thread = std::jthread {recvThread, std::ref(ctx)};
 
     return 0;
   }
@@ -2234,8 +2234,8 @@ namespace stream {
 
       session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
-      session.audioThread = std::thread {audioThread, &session};
-      session.videoThread = std::thread {videoThread, &session};
+      session.audioThread = std::jthread {audioThread, &session};
+      session.videoThread = std::jthread {videoThread, &session};
 
       session.state.store(state_e::RUNNING, std::memory_order_relaxed);
 

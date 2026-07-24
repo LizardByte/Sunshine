@@ -44,18 +44,18 @@ jobs:
           clean-all: true
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           submodules: recursive
 
       - name: Setup python
         id: python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
           enable-cache: true
 
@@ -128,6 +128,9 @@ jobs:
         env:
           INPUT_RELEASE_VERSION: ${{ inputs.release_version }}
           INPUT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          PR_CLONE_URL: ${{ github.event.pull_request.head.repo.clone_url }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           REPOSITORY_CLONE_URL: ${{ github.event.repository.clone_url }}
         run: |
           # variables for manifest
@@ -139,6 +142,11 @@ jobs:
           if [ "${GITHUB_EVENT_NAME}" == "push" ]; then
             echo "This is a PUSH event"
             branch="${GITHUB_REF_NAME}"
+          elif [ "${GITHUB_EVENT_NAME}" == "pull_request" ]; then
+            echo "This is a PR event"
+            branch="${PR_HEAD_REF}"
+            commit="${PR_HEAD_SHA}"
+            clone_url="${PR_CLONE_URL}"
           fi
 
           echo "Branch: ${branch}"

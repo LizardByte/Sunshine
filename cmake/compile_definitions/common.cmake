@@ -25,11 +25,17 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15)
         list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-uninitialized)
     endif()
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
     # Clang specific compile options
 
     # Clang doesn't actually complain about this this, so disabling for now
     # list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-uninitialized)
+
+    # Some libc++ versions on Apple and FreeBSD guard std::jthread behind this flag.
+    if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+        list(APPEND SUNSHINE_COMPILE_OPTIONS -fexperimental-library)
+        list(APPEND SUNSHINE_LINK_OPTIONS -fexperimental-library)
+    endif()
 endif()
 if(BUILD_WERROR)
     list(APPEND SUNSHINE_COMPILE_OPTIONS -Werror)
@@ -62,6 +68,9 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/src/Rtsp.h"
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/src/RtspParser.c"
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/src/Video.h"
+        "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/nanors/deps/obl/oblas_common.c"
+        "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/nanors/deps/obl/oblas_lite.c"
+        "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/nanors/rs.c"
         "${CMAKE_SOURCE_DIR}/src/upnp.cpp"
         "${CMAKE_SOURCE_DIR}/src/upnp.h"
         "${CMAKE_SOURCE_DIR}/src/cbs.cpp"
@@ -116,8 +125,6 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/round_robin.h"
         "${CMAKE_SOURCE_DIR}/src/stat_trackers.h"
         "${CMAKE_SOURCE_DIR}/src/stat_trackers.cpp"
-        "${CMAKE_SOURCE_DIR}/src/rswrapper.h"
-        "${CMAKE_SOURCE_DIR}/src/rswrapper.c"
         ${PLATFORM_TARGET_FILES})
 
 if(NOT SUNSHINE_ASSETS_DIR_DEF)
@@ -137,8 +144,8 @@ include_directories(
         SYSTEM
         "${CMAKE_SOURCE_DIR}/third-party"
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/enet/include"
-        "${CMAKE_SOURCE_DIR}/third-party/nanors"
-        "${CMAKE_SOURCE_DIR}/third-party/nanors/deps/obl"
+        "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/nanors"
+        "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/nanors/deps/obl"
         ${OPENSSL_INCLUDE_DIR}
         ${Opus_INCLUDE_DIR}
         ${FFMPEG_INCLUDE_DIRS}

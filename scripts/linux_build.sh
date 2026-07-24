@@ -299,7 +299,6 @@ function add_arch_deps() {
     'openssl'
     'opus'
     'python-jinja'  # glad OpenGL/EGL loader generator
-    'python-setuptools'  # glad OpenGL/EGL loader generated, v2.0.0
     'qt6-base'
     'qt6-svg'
     'shaderc'
@@ -364,7 +363,6 @@ function add_debian_based_deps() {
     "ninja-build"
     "npm"  # web-ui
     "python3-jinja2"  # glad OpenGL/EGL loader generator
-    "python3-setuptools"  # glad OpenGL/EGL loader generated, v2.0.0
     "qt6-base-dev"
     "systemd"
     "udev"
@@ -470,7 +468,6 @@ function add_fedora_deps() {
     "pipewire-devel"
     "pulseaudio-libs-devel"
     "python3-jinja2"  # glad OpenGL/EGL loader generator
-    "python3-setuptools"  # glad OpenGL/EGL loader generated, v2.0.0
     "qt6-qtbase-devel"
     "qt6-qtsvg-devel"
     "rpm-build"  # if you want to build an RPM binary package

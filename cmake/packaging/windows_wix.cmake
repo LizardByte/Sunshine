@@ -64,6 +64,10 @@ set(CPACK_WIX_HELP_LINK "https://docs.lizardbyte.dev/projects/sunshine/latest/md
 set(CPACK_WIX_PRODUCT_ICON "${SUNSHINE_ICON_PATH}")
 set(CPACK_WIX_PRODUCT_URL "${CMAKE_PROJECT_HOMEPAGE_URL}")
 set(CPACK_WIX_PROGRAM_MENU_FOLDER "LizardByte")
+# Force package files to replace existing files when switching between release
+# and PR builds, regardless of their embedded file versions.
+# https://learn.microsoft.com/en-us/windows/win32/msi/reinstallmode
+set(CPACK_WIX_PROPERTY_REINSTALLMODE "amus")
 
 set(CPACK_WIX_EXTENSIONS
         "WixToolset.UI.wixext"
@@ -81,6 +85,12 @@ set(CPACK_WIX_EXTRA_SOURCES
 )
 set(CPACK_WIX_PATCH_FILE
         "${WIX_BUILD_PARENT_DIRECTORY}/patch.xml"
+)
+# CPack's default WiX template blocks downgrades. Sunshine users commonly switch
+# between release and PR builds, so allow any build to replace the installed one.
+# https://docs.firegiant.com/wix/schema/wxs/majorupgrade/#allowdowngrades
+set(CPACK_WIX_TEMPLATE
+        "${WIX_BUILD_PARENT_DIRECTORY}/wix.template.in"
 )
 
 # Copy root LICENSE and rename to have .txt extension

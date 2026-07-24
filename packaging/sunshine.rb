@@ -59,6 +59,10 @@ class Sunshine < Formula
   depends_on "openssl@3"
   depends_on "opus"
 
+  on_sonoma do
+    depends_on xcode: ["16.2", :build] # required for jthreads on macos-14
+  end
+
   on_linux do
     depends_on GCC_FORMULA => [:build, :test]
     depends_on "gcovr" => [:build, :test]
@@ -108,13 +112,6 @@ class Sunshine < Formula
     resource "jinja2" do
       url "https://files.pythonhosted.org/packages/df/bf/f7da0350254c0ed7c72f3e33cef02e048281fec7ecec5f032d4aac52226b/jinja2-3.1.6.tar.gz"
       sha256 "0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d"
-    end
-
-    # setuptools provides pkg_resources which glad's plugin.py imports at build time.
-    # setuptools >= 81 removed pkg_resources; this is the last release that still ships it.
-    resource "setuptools" do
-      url "https://files.pythonhosted.org/packages/76/95/faf61eb8363f26aa7e1d762267a8d602a1b26d4f3a1e758e92cb3cb8b054/setuptools-80.10.2.tar.gz"
-      sha256 "8b0e9d10c784bf7d262c4e5ec5d4ec94127ce206e8738f29a437945fbc219b70"
     end
   end
 

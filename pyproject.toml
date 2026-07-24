@@ -21,9 +21,6 @@ dependencies = [
 # The platform marker limits this to Linux where the glad generator is actually used.
 glad = [
     "glad2",
-    # setuptools provides pkg_resources which glad's plugin.py imports.
-    # setuptools 82 removes pkg_resources; pin to the last series that includes it.
-    "setuptools<82",
 ]
 
 flatpak = [

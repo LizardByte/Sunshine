@@ -38,6 +38,11 @@
   #include <ffnvcodec/nvEncodeAPI.h>
 #endif
 
+#if (defined(linux) || defined(__FreeBSD__)) && !defined(DOXYGEN)
+  // For VAAPI rate control types
+  #include <va/va.h>
+#endif
+
 namespace fs = std::filesystem;
 using namespace std::literals;
 
@@ -397,6 +402,89 @@ namespace config {
 
   }  // namespace qsv
 
+  namespace vaapi {
+#if !(defined(linux) || defined(__FreeBSD__)) || defined(DOXYGEN)
+    constexpr int VA_RC_CBR = 0x00000002;  ///< CBR rate control
+    constexpr int VA_RC_VBR = 0x00000004;  ///< VBR rate control
+    constexpr int VA_RC_CQP = 0x00000010;  ///< CQP rate control
+    constexpr int VA_RC_ICQ = 0x00000040;  ///< ICQ rate control
+    constexpr int VA_RC_QVBR = 0x00000400;  ///< QVBR rate control
+    constexpr int VA_RC_AVBR = 0x00000800;  ///< AVBR rate control
+#endif
+    /**
+     * @brief Enumerates supported VA-API quality options.
+     */
+    enum class quality_e : int {
+      _auto = 0,  ///< Auto quality level
+      speed = 1,  ///< Speed level
+      balanced = 2,  ///< Balanced level
+      quality = 3  ///< Quality level
+    };
+
+    /**
+     * @brief Enumerates supported VA-API rc options.
+     */
+    enum class rc_e : int {
+      _auto = 0,  ///< Auto rate control
+      avbr = VA_RC_AVBR,  ///< AVBR - average variable bitrate
+      cbr = VA_RC_CBR,  ///< CBR - constant bitrate
+      cqp = VA_RC_CQP,  ///< CQP - constant QP
+      icq = VA_RC_ICQ,  ///< ICQ - intelligent QP
+      qvbr = VA_RC_QVBR,  ///< QVBR - quality-defined variable bitrate
+      vbr = VA_RC_VBR  ///< VBR - variable bitrate
+    };
+
+    /**
+     * @brief Parse a VA-API quality preset while preserving the current value on invalid input.
+     *
+     * @param quality_type Configuration text naming the VA-API quality preset.
+     * @param original Original text value used when reporting a parsing failure.
+     * @return Parsed enum value, or the setting-specific default when the text is unknown.
+     */
+    template<class T>
+    ::std::optional<int> quality_from_view(const ::std::string_view &quality_type, const ::std::optional<int>(&original)) {
+#ifndef DOXYGEN
+  #define _CONVERT_(x) \
+    if (quality_type == #x##sv) \
+    return (int) T::x
+#endif
+      _CONVERT_(balanced);
+      _CONVERT_(quality);
+      _CONVERT_(speed);
+#ifdef _CONVERT_
+  #undef _CONVERT_
+#endif
+      return original;
+    }
+
+    /**
+     * @brief Parse a VA-API rate-control mode while preserving the current value on invalid input.
+     *
+     * @param rc Rate-control mode selected in the configuration.
+     * @param original Original text value used when reporting a parsing failure.
+     * @return Parsed enum value, or the setting-specific default when the text is unknown.
+     */
+    template<class T>
+    ::std::optional<int> rc_from_view(const ::std::string_view &rc, const ::std::optional<int>(&original)) {
+#ifndef DOXYGEN
+  #define _CONVERT_(x) \
+    if (rc == #x##sv) \
+    return (int) T::x
+#endif
+      _CONVERT_(avbr);
+      _CONVERT_(cbr);
+      _CONVERT_(cqp);
+      _CONVERT_(icq);
+      _CONVERT_(qvbr);
+      _CONVERT_(vbr);
+#ifdef _CONVERT_
+  #undef _CONVERT_
+#endif
+      return original;
+    }
+
+  }  // namespace vaapi
+
   namespace vt {
 
     /**
@@ -669,6 +757,10 @@ namespace config {
     },  // vt
 
     {
+      0,  // blbrc
+      std::to_underlying(vaapi::quality_e::_auto),  // quality
+      std::to_underlying(vaapi::rc_e::_auto),  // rate control
+      {},  // rate control string
       false,  // strict_rc_buffer
     },  // vaapi
 
@@ -1004,7 +1096,7 @@ namespace config {
    * @param name Setting name.
    * @param output Parsed string list.
    */
-  void string_list_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<std::string> &output) {  // NOSONAR(cpp:S6045) - transparent hasher not available for unordered_map in this codebase
+  void string_list_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<std::string> &output) {  // NOSONAR(cpp:S6045): transparent hasher not available for unordered_map in this codebase
     std::string temp;
     string_f(vars, name, temp);
 
@@ -1551,6 +1643,16 @@ namespace config {
     int_f(vars, "vt_software", video.vt.vt_require_sw, vt::force_software_from_view);
     int_f(vars, "vt_realtime", video.vt.vt_realtime, vt::rt_from_view);
 
+    std::string vaapi_quality;
+    string_f(vars, "vaapi_quality", vaapi_quality);
+    if (!vaapi_quality.empty()) {
+      video.vaapi.vaapi_quality = vaapi::quality_from_view<vaapi::quality_e>(vaapi_quality, video.vaapi.vaapi_quality);
+    }
+    string_f(vars, "vaapi_rc", video.vaapi.vaapi_rc_str);
+    if (!video.vaapi.vaapi_rc_str.empty()) {
+      video.vaapi.vaapi_rc = vaapi::rc_from_view<vaapi::rc_e>(video.vaapi.vaapi_rc_str, video.vaapi.vaapi_rc);
+    }
+    bool_f(vars, "vaapi_blbrc", (bool &) video.vaapi.blbrc);
     bool_f(vars, "vaapi_strict_rc_buffer", video.vaapi.strict_rc_buffer);
 
     int_f(vars, "vk_tune", video.vk.tune);

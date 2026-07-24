@@ -445,7 +445,7 @@ namespace system_tray {
 
   int init_tray_threaded() {
     try {
-      auto tray_thread = std::thread(tray_thread_worker);
+      auto tray_thread = std::jthread(tray_thread_worker);
 
       // The tray thread doesn't require strong lifetime management.
       // It will exit asynchronously when tray_exit() is called.

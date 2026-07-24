@@ -31,6 +31,7 @@ fi
 depends=(
   'avahi'
   'curl'
+  'gcc-libs'
   'gtk3'
   'hicolor-icon-theme'
   'libayatana-appindicator'
@@ -69,7 +70,6 @@ makedepends=(
   'nodejs'
   'npm'
   'python-jinja'  # required by the glad OpenGL/EGL loader generator
-  'python-setuptools'  # required for glad OpenGL/EGL loader generated, v2.0.0
   'shaderc'
 )
 
