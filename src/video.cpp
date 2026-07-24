@@ -8,6 +8,7 @@
 #include <bitset>
 #include <list>
 #include <thread>
+#include <utility>
 
 // lib includes
 #include <boost/pointer_cast.hpp>
@@ -143,6 +144,18 @@ namespace video {
 
   }  // namespace qsv
 
+  int select_h264_profile(std::string_view encoder_name, const config_t &config, int amd_coder) {
+    if (config.chromaSamplingType == 1) {
+      return AV_PROFILE_H264_HIGH_444_PREDICTIVE;
+    }
+
+    if (encoder_name == "h264_amf"sv && amd_coder == std::to_underlying(amf::coder_e::cavlc)) {
+      return AV_PROFILE_H264_CONSTRAINED_BASELINE;
+    }
+
+    return AV_PROFILE_H264_HIGH;
+  }
+
   /**
    * @brief Create an FFmpeg hardware device buffer for D3D11VA input.
    *
@@ -207,8 +220,8 @@ namespace video {
 
       // If we require aspect ratio padding, copy the output frame into the final padded frame
       if (requires_padding) {
-        auto fmt_desc = av_pix_fmt_desc_get((AVPixelFormat) sws_output_frame->format);
-        auto planes = av_pix_fmt_count_planes((AVPixelFormat) sws_output_frame->format);
+        auto fmt_desc = av_pix_fmt_desc_get(static_cast<AVPixelFormat>(sws_output_frame->format));
+        auto planes = av_pix_fmt_count_planes(static_cast<AVPixelFormat>(sws_output_frame->format));
         for (int plane = 0; plane < planes; plane++) {
           auto shift_h = plane == 0 ? 0 : fmt_desc->log2_chroma_h;
           auto shift_w = plane == 0 ? 0 : fmt_desc->log2_chroma_w;
@@ -216,7 +229,7 @@ namespace video {
 
           // Copy line-by-line to preserve leading padding for each row
           for (int line = 0; line < sws_output_frame->height >> shift_h; line++) {
-            memcpy(sw_frame->data[plane] + offset + (line * sw_frame->linesize[plane]), sws_output_frame->data[plane] + (line * sws_output_frame->linesize[plane]), (size_t) (sws_output_frame->width >> shift_w) * fmt_desc->comp[plane].step);
+            memcpy(sw_frame->data[plane] + offset + (line * sw_frame->linesize[plane]), sws_output_frame->data[plane] + (line * sws_output_frame->linesize[plane]), static_cast<std::size_t>(sws_output_frame->width >> shift_w) * fmt_desc->comp[plane].step);
           }
         }
       }
@@ -275,7 +288,7 @@ namespace video {
       av_frame_get_buffer(frame, 0);
       av_frame_make_writable(frame);
       ptrdiff_t linesize[4] = {frame->linesize[0], frame->linesize[1], frame->linesize[2], frame->linesize[3]};
-      av_image_fill_black(frame->data, linesize, (AVPixelFormat) frame->format, frame->color_range, frame->width, frame->height);
+      av_image_fill_black(frame->data, linesize, static_cast<AVPixelFormat>(frame->format), frame->color_range, frame->width, frame->height);
     }
 
     /**
@@ -307,7 +320,7 @@ namespace video {
       auto out_height = frame->height;
 
       // Ensure aspect ratio is maintained
-      auto scalar = std::fminf((float) out_width / in_width, (float) out_height / in_height);
+      auto scalar = std::fminf(static_cast<float>(out_width) / in_width, static_cast<float>(out_height) / in_height);
       out_width = in_width * scalar;
       out_height = in_height * scalar;
 
@@ -777,11 +790,11 @@ namespace video {
       },
       {
         // SDR-specific options
-        {"profile"s, (int) nv::profile_hevc_e::main},
+        {"profile"s, std::to_underlying(nv::profile_hevc_e::main)},
       },
       {
         // HDR-specific options
-        {"profile"s, (int) nv::profile_hevc_e::main_10},
+        {"profile"s, std::to_underlying(nv::profile_hevc_e::main_10)},
       },
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
@@ -804,7 +817,7 @@ namespace video {
       },
       {
         // SDR-specific options
-        {"profile"s, (int) nv::profile_h264_e::high},
+        {"profile"s, std::to_underlying(nv::profile_h264_e::high)},
       },
       {},  // HDR-specific options
       {},  // YUV444 SDR-specific options
@@ -843,19 +856,19 @@ namespace video {
       },
       {
         // SDR-specific options
-        {"profile"s, (int) qsv::profile_av1_e::main},
+        {"profile"s, std::to_underlying(qsv::profile_av1_e::main)},
       },
       {
         // HDR-specific options
-        {"profile"s, (int) qsv::profile_av1_e::main},
+        {"profile"s, std::to_underlying(qsv::profile_av1_e::main)},
       },
       {
         // YUV444 SDR-specific options
-        {"profile"s, (int) qsv::profile_av1_e::high},
+        {"profile"s, std::to_underlying(qsv::profile_av1_e::high)},
       },
       {
         // YUV444 HDR-specific options
-        {"profile"s, (int) qsv::profile_av1_e::high},
+        {"profile"s, std::to_underlying(qsv::profile_av1_e::high)},
       },
       {},  // Fallback options
       "av1_qsv"s,
@@ -873,19 +886,19 @@ namespace video {
       },
       {
         // SDR-specific options
-        {"profile"s, (int) qsv::profile_hevc_e::main},
+        {"profile"s, std::to_underlying(qsv::profile_hevc_e::main)},
       },
       {
         // HDR-specific options
-        {"profile"s, (int) qsv::profile_hevc_e::main_10},
+        {"profile"s, std::to_underlying(qsv::profile_hevc_e::main_10)},
       },
       {
         // YUV444 SDR-specific options
-        {"profile"s, (int) qsv::profile_hevc_e::rext},
+        {"profile"s, std::to_underlying(qsv::profile_hevc_e::rext)},
       },
       {
         // YUV444 HDR-specific options
-        {"profile"s, (int) qsv::profile_hevc_e::rext},
+        {"profile"s, std::to_underlying(qsv::profile_hevc_e::rext)},
       },
       {
         // Fallback options
@@ -911,12 +924,12 @@ namespace video {
       },
       {
         // SDR-specific options
-        {"profile"s, (int) qsv::profile_h264_e::high},
+        {"profile"s, std::to_underlying(qsv::profile_h264_e::high)},
       },
       {},  // HDR-specific options
       {
         // YUV444 SDR-specific options
-        {"profile"s, (int) qsv::profile_h264_e::high_444p},
+        {"profile"s, std::to_underlying(qsv::profile_h264_e::high_444p)},
       },
       {},  // YUV444 HDR-specific options
       {
@@ -1022,6 +1035,7 @@ namespace video {
         {"rc"s, &config::video.amd.amd_rc_h264},
         {"usage"s, &config::video.amd.amd_usage_h264},
         {"vbaq"s, &config::video.amd.amd_vbaq},
+        {"coder"s, &config::video.amd.amd_coder},
         {"enforce_hrd"s, &config::video.amd.amd_enforce_hrd},
       },
       {},  // SDR-specific options
@@ -1719,7 +1733,7 @@ namespace video {
 
               // Process any pending display switch with the new list of displays
               if (switch_display_event->peek()) {
-                display_p = std::clamp(*switch_display_event->pop(), 0, (int) display_names.size() - 1);
+                display_p = std::clamp(*switch_display_event->pop(), 0, static_cast<int>(display_names.size()) - 1);
               }
 
               // reset_display() will sleep between retries
@@ -1743,7 +1757,7 @@ namespace video {
         case platf::capture_e::interrupted:
           return;
         default:
-          BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
+          BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
           return;
       }
     }
@@ -1808,16 +1822,16 @@ namespace video {
           vps = std::move(hevc.vps);
 
           session.replacements.emplace_back(
-            std::string_view((char *) std::begin(vps.old), vps.old.size()),
-            std::string_view((char *) std::begin(vps._new), vps._new.size())
+            std::string_view(reinterpret_cast<const char *>(std::begin(vps.old)), vps.old.size()),
+            std::string_view(reinterpret_cast<const char *>(std::begin(vps._new)), vps._new.size())
           );
         }
 
         session.inject = 0;
 
         session.replacements.emplace_back(
-          std::string_view((char *) std::begin(sps.old), sps.old.size()),
-          std::string_view((char *) std::begin(sps._new), sps._new.size())
+          std::string_view(reinterpret_cast<const char *>(std::begin(sps.old)), sps.old.size()),
+          std::string_view(reinterpret_cast<const char *>(std::begin(sps._new)), sps._new.size())
         );
       }
 
@@ -1965,7 +1979,7 @@ namespace video {
         case 0:
           // 10-bit h264 encoding is not supported by our streaming protocol
           assert(!config.dynamicRange);
-          ctx->profile = (config.chromaSamplingType == 1) ? AV_PROFILE_H264_HIGH_444_PREDICTIVE : AV_PROFILE_H264_HIGH;
+          ctx->profile = select_h264_profile(video_format.name, config, config::video.amd.amd_coder);
           break;
 
         case 1:
@@ -2276,7 +2290,7 @@ namespace video {
       std::move(encode_device_final),
 
       // 0 ==> don't inject, 1 ==> inject for h264, 2 ==> inject for hevc
-      config.videoFormat <= 1 ? (1 - (int) video_format[encoder_t::VUI_PARAMETERS]) * (1 + config.videoFormat) : 0
+      config.videoFormat <= 1 ? (1 - static_cast<int>(video_format[encoder_t::VUI_PARAMETERS])) * (1 + config.videoFormat) : 0
     );
 
     return session;
@@ -2643,7 +2657,7 @@ namespace video {
 
       // Process any pending display switch with the new list of displays
       if (switch_display_event->peek()) {
-        display_p = std::clamp(*switch_display_event->pop(), 0, (int) display_names.size() - 1);
+        display_p = std::clamp(*switch_display_event->pop(), 0, static_cast<int>(display_names.size()) - 1);
       }
 
       // reset_display() will sleep between retries
@@ -3381,7 +3395,7 @@ namespace video {
 
     BOOST_LOG(debug) << "------  h264 ------"sv;
     for (int x = 0; x < encoder_t::MAX_FLAGS; ++x) {
-      auto flag = (encoder_t::flag_e) x;
+      auto flag = static_cast<encoder_t::flag_e>(x);
       BOOST_LOG(debug) << encoder_t::from_flag(flag) << (encoder.h264[flag] ? ": supported"sv : ": unsupported"sv);
     }
     BOOST_LOG(debug) << "-------------------"sv;
@@ -3390,7 +3404,7 @@ namespace video {
     if (encoder.hevc[encoder_t::PASSED]) {
       BOOST_LOG(debug) << "------  hevc ------"sv;
       for (int x = 0; x < encoder_t::MAX_FLAGS; ++x) {
-        auto flag = (encoder_t::flag_e) x;
+        auto flag = static_cast<encoder_t::flag_e>(x);
         BOOST_LOG(debug) << encoder_t::from_flag(flag) << (encoder.hevc[flag] ? ": supported"sv : ": unsupported"sv);
       }
       BOOST_LOG(debug) << "-------------------"sv;
@@ -3401,7 +3415,7 @@ namespace video {
     if (encoder.av1[encoder_t::PASSED]) {
       BOOST_LOG(debug) << "------  av1 ------"sv;
       for (int x = 0; x < encoder_t::MAX_FLAGS; ++x) {
-        auto flag = (encoder_t::flag_e) x;
+        auto flag = static_cast<encoder_t::flag_e>(x);
         BOOST_LOG(debug) << encoder_t::from_flag(flag) << (encoder.av1[flag] ? ": supported"sv : ": unsupported"sv);
       }
       BOOST_LOG(debug) << "-------------------"sv;
@@ -3566,7 +3580,7 @@ namespace video {
 
     std::fill_n((std::uint8_t *) ctx, sizeof(AVD3D11VADeviceContext), 0);
 
-    auto device = (ID3D11Device *) encode_device->data;
+    auto device = static_cast<ID3D11Device *>(encode_device->data);
 
     device->AddRef();
     ctx->device = device;
