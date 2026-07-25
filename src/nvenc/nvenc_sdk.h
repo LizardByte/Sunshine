@@ -15,7 +15,8 @@
    * @def NVENC_SDK_VERSION
    * @brief NVENC SDK version used while generating documentation.
    */
-  #define NVENC_SDK_VERSION 1300
+  // Doxygen must select the same preprocessor interface used by versioned build targets.
+  #define NVENC_SDK_VERSION 1300  // NOSONAR(cpp:S5028)
 #endif
 
 #ifndef NVENC_NAMESPACE
@@ -31,10 +32,11 @@
 #include <cstdint>
 
 #ifdef _WIN32
-  #include <windows.h>
+  #include <Windows.h>
 #endif
 
-namespace NVENC_NAMESPACE {
+// The version-specific namespace is populated by the SDK headers included below.
+namespace NVENC_NAMESPACE {  // NOSONAR(cpp:S3261)
 #ifndef DOXYGEN
   #include <ffnvcodec/dynlink_cuda.h>
   #include <ffnvcodec/nvEncodeAPI.h>

@@ -5,7 +5,8 @@
 #pragma once
 #ifdef _WIN32
 
-  // standard includes
+// standard includes
+  #include <functional>
   #include <memory>
 
   // local includes
@@ -20,6 +21,23 @@ namespace nvenc {
    */
   class nvenc_dynamic_factory {
   public:
+    using create_encoder_fn = std::function<std::unique_ptr<nvenc_d3d11_interface>(ID3D11Device *, shared_dll)>;  ///< SDK-specific encoder constructor.
+
+    /**
+     * @brief Construct a factory bound to one NVENC SDK implementation.
+     *
+     * @param dll Shared NVENC driver module.
+     * @param sdk_version Selected SDK version.
+     * @param create_native Native Direct3D11 encoder constructor.
+     * @param create_on_cuda CUDA-interoperability encoder constructor.
+     */
+    nvenc_dynamic_factory(
+      shared_dll dll,
+      nvenc_sdk_version sdk_version,
+      create_encoder_fn create_native,
+      create_encoder_fn create_on_cuda
+    );
+
     /**
      * @brief Load the NVENC driver and select a compatible SDK implementation.
      *
@@ -51,15 +69,6 @@ namespace nvenc {
     nvenc_sdk_version sdk_version() const;
 
   private:
-    using create_encoder_fn = std::unique_ptr<nvenc_d3d11_interface> (*)(ID3D11Device *, shared_dll);
-
-    nvenc_dynamic_factory(
-      shared_dll dll,
-      nvenc_sdk_version sdk_version,
-      create_encoder_fn create_native,
-      create_encoder_fn create_on_cuda
-    );
-
     shared_dll dll;
     nvenc_sdk_version selected_sdk_version;
     create_encoder_fn create_native;

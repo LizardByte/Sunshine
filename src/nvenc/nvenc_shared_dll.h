@@ -10,7 +10,7 @@
   #include <type_traits>
 
   // platform includes
-  #include <windows.h>
+  #include <Windows.h>
 
 namespace nvenc {
 

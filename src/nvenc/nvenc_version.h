@@ -6,6 +6,7 @@
 
 // standard includes
 #include <cstdint>
+#include <utility>
 
 namespace nvenc {
 
@@ -36,16 +37,17 @@ namespace nvenc {
    * @return Selected SDK implementation, or `unsupported` when the driver is too old.
    */
   constexpr nvenc_sdk_version select_nvenc_sdk_version(std::uint32_t max_version) {
-    if (max_version >= static_cast<std::uint32_t>(nvenc_sdk_version::sdk_13_0)) {
-      return nvenc_sdk_version::sdk_13_0;
+    using enum nvenc_sdk_version;
+    if (max_version >= std::to_underlying(sdk_13_0)) {
+      return sdk_13_0;
     }
-    if (max_version >= static_cast<std::uint32_t>(nvenc_sdk_version::sdk_12_0)) {
-      return nvenc_sdk_version::sdk_12_0;
+    if (max_version >= std::to_underlying(sdk_12_0)) {
+      return sdk_12_0;
     }
-    if (max_version >= static_cast<std::uint32_t>(nvenc_sdk_version::sdk_11_0)) {
-      return nvenc_sdk_version::sdk_11_0;
+    if (max_version >= std::to_underlying(sdk_11_0)) {
+      return sdk_11_0;
     }
-    return nvenc_sdk_version::unsupported;
+    return unsupported;
   }
 
 }  // namespace nvenc

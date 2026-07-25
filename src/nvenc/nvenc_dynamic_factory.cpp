@@ -8,6 +8,7 @@
   #include "nvenc_dynamic_factory.h"
 
   // standard includes
+  #include <bit>
   #include <utility>
 
   // local includes
@@ -38,8 +39,8 @@ namespace nvenc {
   ):
       dll(std::move(dll)),
       selected_sdk_version(sdk_version),
-      create_native(create_native),
-      create_on_cuda(create_on_cuda) {
+      create_native(std::move(create_native)),
+      create_on_cuda(std::move(create_on_cuda)) {
   }
 
   std::shared_ptr<nvenc_dynamic_factory> nvenc_dynamic_factory::get() {
@@ -49,7 +50,7 @@ namespace nvenc {
       return {};
     }
 
-    auto get_max_version = reinterpret_cast<get_max_supported_version_fn>(
+    const auto get_max_version = std::bit_cast<get_max_supported_version_fn>(
       GetProcAddress(dll.get(), "NvEncodeAPIGetMaxSupportedVersion")
     );
     if (!get_max_version) {
@@ -67,28 +68,28 @@ namespace nvenc {
     const auto sdk_version = select_nvenc_sdk_version(max_version);
     switch (sdk_version) {
       case nvenc_sdk_version::sdk_13_0:
-        return std::shared_ptr<nvenc_dynamic_factory>(new nvenc_dynamic_factory(
+        return std::make_shared<nvenc_dynamic_factory>(
           std::move(dll),
           sdk_version,
           detail::create_nvenc_d3d11_native_1300,
           detail::create_nvenc_d3d11_on_cuda_1300
-        ));
+        );
 
       case nvenc_sdk_version::sdk_12_0:
-        return std::shared_ptr<nvenc_dynamic_factory>(new nvenc_dynamic_factory(
+        return std::make_shared<nvenc_dynamic_factory>(
           std::move(dll),
           sdk_version,
           detail::create_nvenc_d3d11_native_1200,
           detail::create_nvenc_d3d11_on_cuda_1200
-        ));
+        );
 
       case nvenc_sdk_version::sdk_11_0:
-        return std::shared_ptr<nvenc_dynamic_factory>(new nvenc_dynamic_factory(
+        return std::make_shared<nvenc_dynamic_factory>(
           std::move(dll),
           sdk_version,
           detail::create_nvenc_d3d11_native_1100,
           detail::create_nvenc_d3d11_on_cuda_1100
-        ));
+        );
 
       case nvenc_sdk_version::unsupported:
         BOOST_LOG(error) << "NvEnc: minimum required driver version is " << minimum_driver_version;

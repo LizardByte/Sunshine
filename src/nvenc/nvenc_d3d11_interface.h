@@ -16,7 +16,8 @@ namespace nvenc {
   /**
    * @brief SDK-neutral Direct3D11 NVENC encoder interface.
    */
-  class nvenc_d3d11_interface: virtual public nvenc_encoder {
+  // Virtual inheritance is required because concrete encoders also inherit their SDK-specific implementation.
+  class nvenc_d3d11_interface: public virtual nvenc_encoder {  // NOSONAR(cpp:S1011)
   public:
     /**
      * @brief Destroy the SDK-neutral Direct3D11 encoder interface.

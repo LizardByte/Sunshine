@@ -44,7 +44,7 @@ namespace NVENC_NAMESPACE {
    * @brief Abstract Direct3D11 NVENC encoder.
    *        Encapsulates common code used by native and interop implementations.
    */
-  class nvenc_d3d11: public nvenc_base, virtual public ::nvenc::nvenc_d3d11_interface {
+  class nvenc_d3d11: public nvenc_base, public ::nvenc::nvenc_d3d11_interface {
   public:
     /**
      * @brief Initialize an NVENC session wrapper for D3D11 input textures.
@@ -59,7 +59,7 @@ namespace NVENC_NAMESPACE {
      * @brief Get input surface texture.
      * @return Input surface texture.
      */
-    virtual ID3D11Texture2D *get_input_texture() override = 0;
+    ID3D11Texture2D *get_input_texture() override = 0;
 
   protected:
     bool init_library() override;
