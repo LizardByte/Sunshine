@@ -1929,12 +1929,7 @@ namespace video {
       return nullptr;
     }
 
-    // Local, possibly-downgraded copy of the client's dynamic range request. Some capture/encode
-    // device combinations (e.g. NvFBC's CUDA path, which only ever produces NV12/YUV444P frames)
-    // cannot deliver HDR even when the encoder itself supports Main10, and this mismatch isn't known
-    // until we get here. Rather than failing the whole session (which the client just retries
-    // identically forever, since it never learns the request was downgraded), fall back to SDR for
-    // this session the same way H.264 always does, and keep going.
+    // may be downgraded below if the device can't deliver HDR (e.g. NvFBC's CUDA path is NV12/YUV444P only)
     bool dynamicRange = config.dynamicRange;
 
     if (config.chromaSamplingType == 1) {
