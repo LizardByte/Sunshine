@@ -29,10 +29,6 @@
 	path = third-party/moonlight-common-c
 	url = https://github.com/moonlight-stream/moonlight-common-c.git
 	branch = master
-[submodule "third-party/nv-codec-headers"]
-	path = third-party/nv-codec-headers
-	url = https://github.com/FFmpeg/nv-codec-headers.git
-	branch = master
 [submodule "third-party/nvapi"]
 	path = third-party/nvapi
 	url = https://github.com/NVIDIA/nvapi.git
