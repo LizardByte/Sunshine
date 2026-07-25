@@ -860,19 +860,11 @@ namespace platf {
       if (display_name.empty() || std::ranges::all_of(display_name, ::isdigit)) {
         return util::from_view(display_name);
       }
-      // display_name is a connector name (not empty and containing non-digits) try to resolve correct monitor index like correlate_wayland does
-      auto index_begin = display_name.find_last_of('-');
-      std::int64_t index;
-      if (index_begin == std::string_view::npos) {
-        index = 1;
-      } else {
-        index = std::max<int64_t>(1, util::from_view(display_name.substr(index_begin + 1)));
-      }
-      auto type = kms::from_view(display_name.substr(0, index_begin));
+      // display_name is a connector name (not empty and containing non-digits)
       for (auto &card_descriptor : kms::card_descriptors) {
         for (const auto &monitor_descriptor : card_descriptor.crtc_to_monitor | std::views::values) {
-          if (monitor_descriptor.type == type && monitor_descriptor.index == index) {
-            BOOST_LOG(debug) << "Mapped '"sv << display_name << "' to a monitor index " << monitor_descriptor.monitor_index;
+          if (display_name == std::format("{}-{}", drmModeGetConnectorTypeName(monitor_descriptor.type), monitor_descriptor.index)) {
+            BOOST_LOG(info) << "Mapped '"sv << display_name << "' to kmsgrab monitor index " << monitor_descriptor.monitor_index;
             return monitor_descriptor.monitor_index;
           }
         }
@@ -2171,6 +2163,7 @@ namespace platf {
 
     kms::card_descriptors = std::move(cds);
 
+    BOOST_LOG(debug) << "Final KMS display_names return list: " << (display_names | std::views::join_with(' ') | std::ranges::to<std::string>());
     return display_names;
   }
 
