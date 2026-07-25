@@ -4,32 +4,32 @@
  */
 #pragma once
 
-// lib includes
-#include <ffnvcodec/nvEncodeAPI.h>
-
 // local includes
 #include "nvenc_colorspace.h"
 #include "nvenc_config.h"
 #include "nvenc_encoded_frame.h"
+#include "nvenc_encoder.h"
+#include "nvenc_sdk.h"
 #include "src/logging.h"
 #include "src/video.h"
+#include "src/video_colorspace.h"
 
 /**
  * @brief Standalone NVENC encoder
  */
-namespace nvenc {
+namespace NVENC_NAMESPACE {
 
   /**
    * @brief Abstract platform-agnostic base of standalone NVENC encoder.
    *        Derived classes perform platform-specific operations.
    */
-  class nvenc_base {
+  class nvenc_base: virtual public ::nvenc::nvenc_encoder {
   public:
     /**
      * @param device_type Underlying device type used by derived class.
      */
     explicit nvenc_base(NV_ENC_DEVICE_TYPE device_type);
-    virtual ~nvenc_base();
+    ~nvenc_base() override;
 
     nvenc_base(const nvenc_base &) = delete;
     nvenc_base &operator=(const nvenc_base &) = delete;
@@ -42,13 +42,18 @@ namespace nvenc {
      * @param buffer_format Platform-agnostic input surface format.
      * @return `true` on success, `false` on error
      */
-    bool create_encoder(const nvenc_config &config, const video::config_t &client_config, const nvenc_colorspace_t &colorspace, NV_ENC_BUFFER_FORMAT buffer_format);
+    bool create_encoder(
+      const ::nvenc::nvenc_config &config,
+      const video::config_t &client_config,
+      const video::sunshine_colorspace_t &colorspace,
+      platf::pix_fmt_e buffer_format
+    ) override;
 
     /**
      * @brief Destroy the encoder.
      *        Derived classes classes call it in the destructor.
      */
-    void destroy_encoder();
+    void destroy_encoder() override;
 
     /**
      * @brief Encode the next frame using platform-specific input surface.
@@ -58,7 +63,7 @@ namespace nvenc {
      * @param force_idr Whether to encode frame as forced IDR.
      * @return Encoded frame.
      */
-    nvenc_encoded_frame encode_frame(uint64_t frame_index, bool force_idr);
+    ::nvenc::nvenc_encoded_frame encode_frame(uint64_t frame_index, bool force_idr) override;
 
     /**
      * @brief Perform reference frame invalidation (RFI) procedure.
@@ -67,7 +72,7 @@ namespace nvenc {
      * @return `true` on success, `false` on error.
      *         After error next frame must be encoded with `force_idr = true`.
      */
-    bool invalidate_ref_frames(uint64_t first_frame, uint64_t last_frame);
+    bool invalidate_ref_frames(uint64_t first_frame, uint64_t last_frame) override;
 
   protected:
     /**
@@ -147,4 +152,4 @@ namespace nvenc {
     } encoder_state;
   };
 
-}  // namespace nvenc
+}  // namespace NVENC_NAMESPACE

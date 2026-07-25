@@ -9,26 +9,14 @@
 #include <format>
 
 // local includes
+#include "nvenc_utils.h"
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/utility.h"
 
-/**
- * @def MAKE_NVENC_VER(major, minor)
- * @brief Macro for MAKE NVENC VER.
- */
-#define MAKE_NVENC_VER(major, minor) ((major) | ((minor) << 24))
-
-// Make sure we check backwards compatibility when bumping the Video Codec SDK version
-// Things to look out for:
-// - NV_ENC_*_VER definitions where the value inside NVENCAPI_STRUCT_VERSION() was increased
-// - Incompatible struct changes in nvEncodeAPI.h (fields removed, semantics changed, etc.)
-// - Test both old and new drivers with all supported codecs
-#if NVENCAPI_VERSION != MAKE_NVENC_VER(13U, 0U)
-  #error Check and update NVENC code for backwards compatibility!
-#endif
-
 namespace {
+
+  using namespace NVENC_NAMESPACE;
 
   GUID quality_preset_guid_from_number(unsigned number) {
     if (number > 7) {
@@ -91,7 +79,7 @@ namespace {
 
 }  // namespace
 
-namespace nvenc {
+namespace NVENC_NAMESPACE {
 
   nvenc_base::nvenc_base(NV_ENC_DEVICE_TYPE device_type):
       device_type(device_type) {
@@ -101,7 +89,12 @@ namespace nvenc {
     // Use destroy_encoder() instead
   }
 
-  bool nvenc_base::create_encoder(const nvenc_config &config, const video::config_t &client_config, const nvenc_colorspace_t &colorspace, NV_ENC_BUFFER_FORMAT buffer_format) {
+  bool nvenc_base::create_encoder(
+    const ::nvenc::nvenc_config &config,
+    const video::config_t &client_config,
+    const video::sunshine_colorspace_t &sunshine_colorspace,
+    platf::pix_fmt_e sunshine_buffer_format
+  ) {
     if (!nvenc && !init_library()) {
       return false;
     }
@@ -112,6 +105,13 @@ namespace nvenc {
     auto fail_guard = util::fail_guard([this] {
       destroy_encoder();
     });
+
+    const auto colorspace = nvenc_colorspace_from_sunshine_colorspace(sunshine_colorspace);
+    const auto buffer_format = nvenc_format_from_sunshine_format(sunshine_buffer_format);
+    if (buffer_format == NV_ENC_BUFFER_FORMAT_UNDEFINED) {
+      BOOST_LOG(error) << "NvEnc: unsupported input pixel format";
+      return false;
+    }
 
     encoder_params.width = client_config.width;
     encoder_params.height = client_config.height;
@@ -152,10 +152,12 @@ namespace nvenc {
         init_params.encodeGUID = NV_ENC_CODEC_HEVC_GUID;
         break;
 
+#if NVENC_SDK_VERSION >= 1200
       case 2:
         // AV1
         init_params.encodeGUID = NV_ENC_CODEC_AV1_GUID;
         break;
+#endif
 
       default:
         BOOST_LOG(error) << "NvEnc: unknown video format " << client_config.videoFormat;
@@ -230,9 +232,10 @@ namespace nvenc {
     init_params.frameRateNum = fps.num;
     init_params.frameRateDen = fps.den;
 
+#if NVENC_SDK_VERSION >= 1300
     if (client_config.videoFormat > 0 && get_encoder_cap(NV_ENC_CAPS_NUM_ENCODER_ENGINES) > 1) {
       // SFE supports HEVC/AV1 if you have more than 1 nvenc block
-      using enum nvenc_split_frame_encoding;
+      using enum ::nvenc::nvenc_split_frame_encoding;
       NV_ENC_SPLIT_ENCODE_MODE split_mode;
       if (config.split_frame_encoding == disabled) {
         split_mode = NV_ENC_SPLIT_DISABLE_MODE;
@@ -243,6 +246,11 @@ namespace nvenc {
       }
       init_params.splitEncodeMode = split_mode;
     }
+#else
+    if (config.split_frame_encoding == ::nvenc::nvenc_split_frame_encoding::force_enabled) {
+      BOOST_LOG(warning) << "NvEnc: split-frame encoding requires NVENC API 13.0; ignoring forced mode";
+    }
+#endif
 
     NV_ENC_PRESET_CONFIG preset_config = {
       .version = NV_ENC_PRESET_CONFIG_VER,
@@ -261,9 +269,9 @@ namespace nvenc {
     enc_config.rcParams.zeroReorderDelay = 1;
     enc_config.rcParams.enableLookahead = 0;
     enc_config.rcParams.lowDelayKeyFrameScale = 1;
-    enc_config.rcParams.multiPass = config.two_pass == nvenc_two_pass::quarter_resolution ? NV_ENC_TWO_PASS_QUARTER_RESOLUTION :
-                                    config.two_pass == nvenc_two_pass::full_resolution    ? NV_ENC_TWO_PASS_FULL_RESOLUTION :
-                                                                                            NV_ENC_MULTI_PASS_DISABLED;
+    enc_config.rcParams.multiPass = config.two_pass == ::nvenc::nvenc_two_pass::quarter_resolution ? NV_ENC_TWO_PASS_QUARTER_RESOLUTION :
+                                    config.two_pass == ::nvenc::nvenc_two_pass::full_resolution    ? NV_ENC_TWO_PASS_FULL_RESOLUTION :
+                                                                                                     NV_ENC_MULTI_PASS_DISABLED;
 
     enc_config.rcParams.enableAQ = config.adaptive_quantization;
     enc_config.rcParams.averageBitRate = client_config.bitrate * 1000;
@@ -346,11 +354,13 @@ namespace nvenc {
               format_config.intraRefreshPeriod = 300;
               format_config.intraRefreshCnt = 299;
               format_config.outputRecoveryPointSEI = 1;
+#if NVENC_SDK_VERSION >= 1200
               if (get_encoder_cap(NV_ENC_CAPS_SINGLE_SLICE_INTRA_REFRESH)) {
                 format_config.singleSliceIntraRefresh = 1;
               } else {
                 BOOST_LOG(warning) << "NvEnc: Single Slice Intra Refresh not supported";
               }
+#endif
             } else {
               BOOST_LOG(error) << "NvEnc: Client asked for intra-refresh but the encoder does not support intra-refresh";
             }
@@ -364,8 +374,12 @@ namespace nvenc {
           auto &format_config = enc_config.encodeCodecConfig.hevcConfig;
           set_h264_hevc_common_format_config(format_config);
           if (buffer_is_10bit()) {
+#if NVENC_SDK_VERSION >= 1300
             format_config.inputBitDepth = NV_ENC_BIT_DEPTH_10;
             format_config.outputBitDepth = NV_ENC_BIT_DEPTH_10;
+#else
+            format_config.pixelBitDepthMinus8 = 2;
+#endif
           }
           set_ref_frames(format_config.maxNumRefFramesInDPB, format_config.numRefL0, 5);
           set_minqp_if_enabled(config.min_qp_hevc);
@@ -375,12 +389,14 @@ namespace nvenc {
               format_config.enableIntraRefresh = 1;
               format_config.intraRefreshPeriod = 300;
               format_config.intraRefreshCnt = 299;
+#if NVENC_SDK_VERSION >= 1200
               format_config.outputRecoveryPointSEI = 1;
               if (get_encoder_cap(NV_ENC_CAPS_SINGLE_SLICE_INTRA_REFRESH)) {
                 format_config.singleSliceIntraRefresh = 1;
               } else {
                 BOOST_LOG(warning) << "NvEnc: Single Slice Intra Refresh not supported";
               }
+#endif
             } else {
               BOOST_LOG(error) << "NvEnc: Client asked for intra-refresh but the encoder does not support intra-refresh";
             }
@@ -388,6 +404,7 @@ namespace nvenc {
           break;
         }
 
+#if NVENC_SDK_VERSION >= 1200
       case 2:
         {
           // AV1
@@ -399,8 +416,13 @@ namespace nvenc {
           }
           format_config.enableBitstreamPadding = config.insert_filler_data;
           if (buffer_is_10bit()) {
+  #if NVENC_SDK_VERSION >= 1300
             format_config.inputBitDepth = NV_ENC_BIT_DEPTH_10;
             format_config.outputBitDepth = NV_ENC_BIT_DEPTH_10;
+  #else
+            format_config.inputPixelBitDepthMinus8 = 2;
+            format_config.pixelBitDepthMinus8 = 2;
+  #endif
           }
           format_config.colorPrimaries = colorspace.primaries;
           format_config.transferCharacteristics = colorspace.tranfer_function;
@@ -418,6 +440,7 @@ namespace nvenc {
           }
           break;
         }
+#endif
     }
 
     init_params.encodeConfig = &enc_config;
@@ -488,6 +511,7 @@ namespace nvenc {
       if (config.insert_filler_data) {
         extra += " filler-data";
       }
+#if NVENC_SDK_VERSION >= 1300
       if (client_config.videoFormat > 0 && get_encoder_cap(NV_ENC_CAPS_NUM_ENCODER_ENGINES) > 1) {
         if (init_params.splitEncodeMode == NV_ENC_SPLIT_AUTO_MODE) {
           extra += " sfe-auto";
@@ -495,8 +519,9 @@ namespace nvenc {
           extra += " sfe";
         }
       }
+#endif
 
-      BOOST_LOG(info) << "NvEnc: created encoder " << video_format_string << quality_preset_string_from_guid(init_params.presetGUID) << extra;
+      BOOST_LOG(info) << "NvEnc: created encoder v" << NVENC_SDK_VERSION << " " << video_format_string << quality_preset_string_from_guid(init_params.presetGUID) << extra;
     }
 
     encoder_state = {};
@@ -535,7 +560,7 @@ namespace nvenc {
     encoder_params = {};
   }
 
-  nvenc_encoded_frame nvenc_base::encode_frame(uint64_t frame_index, bool force_idr) {
+  ::nvenc::nvenc_encoded_frame nvenc_base::encode_frame(uint64_t frame_index, bool force_idr) {
     if (!encoder) {
       return {};
     }
@@ -592,7 +617,7 @@ namespace nvenc {
     }
 
     auto data_pointer = (uint8_t *) lock_bitstream.bitstreamBufferPtr;
-    nvenc_encoded_frame encoded_frame {
+    ::nvenc::nvenc_encoded_frame encoded_frame {
       {data_pointer, data_pointer + lock_bitstream.bitstreamSizeInBytes},
       lock_bitstream.outputTimeStamp,
       lock_bitstream.pictureType == NV_ENC_PIC_TYPE_IDR,
@@ -712,4 +737,4 @@ namespace nvenc {
     return false;
   }
 
-}  // namespace nvenc
+}  // namespace NVENC_NAMESPACE

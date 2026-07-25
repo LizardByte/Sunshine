@@ -18,6 +18,9 @@ extern "C" {
 #include <libavutil/mastering_display_metadata.h>
 #include <libavutil/opt.h>
 #include <libavutil/pixdesc.h>
+#if !defined(_WIN32) && !defined(__APPLE__)
+  #include <ffnvcodec/nvEncodeAPI.h>
+#endif
 }
 
 // local includes
@@ -27,7 +30,7 @@ extern "C" {
 #include "globals.h"
 #include "input.h"
 #include "logging.h"
-#include "nvenc/nvenc_base.h"
+#include "nvenc/nvenc_encoder.h"
 #include "platform/common.h"
 #include "sync.h"
 #include "video.h"

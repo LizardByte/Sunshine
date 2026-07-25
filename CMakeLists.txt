@@ -38,6 +38,10 @@ endif()
 # set the module path, used for includes
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
+# CPM
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/cpm/CPM.cmake)
+CPMUsePackageLock(package-lock.cmake)
+
 # export compile_commands.json
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 

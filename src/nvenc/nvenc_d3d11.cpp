@@ -8,62 +8,47 @@
 #ifdef _WIN32
   #include "nvenc_d3d11.h"
 
-namespace nvenc {
+namespace NVENC_NAMESPACE {
 
-  nvenc_d3d11::nvenc_d3d11(NV_ENC_DEVICE_TYPE device_type):
-      nvenc_base(device_type) {
+  nvenc_d3d11::nvenc_d3d11(NV_ENC_DEVICE_TYPE device_type, ::nvenc::shared_dll dll):
+      nvenc_base(device_type),
+      dll(std::move(dll)) {
     async_event_handle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
   }
 
   nvenc_d3d11::~nvenc_d3d11() {
-    if (dll) {
-      FreeLibrary(dll);
-      dll = nullptr;
-    }
     if (async_event_handle) {
       CloseHandle(async_event_handle);
     }
   }
 
   bool nvenc_d3d11::init_library() {
-    if (dll) {
+    if (nvenc) {
       return true;
     }
 
-  #ifdef _WIN64
-    constexpr auto dll_name = "nvEncodeAPI64.dll";
-  #else
-    constexpr auto dll_name = "nvEncodeAPI.dll";
-  #endif
-
-    if ((dll = LoadLibraryEx(dll_name, nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32))) {
-      if (auto create_instance = (decltype(NvEncodeAPICreateInstance) *) GetProcAddress(dll, "NvEncodeAPICreateInstance")) {
-        auto new_nvenc = std::make_unique<NV_ENCODE_API_FUNCTION_LIST>();
-        new_nvenc->version = NV_ENCODE_API_FUNCTION_LIST_VER;
-        if (nvenc_failed(create_instance(new_nvenc.get()))) {
-          BOOST_LOG(error) << "NvEnc: NvEncodeAPICreateInstance() failed: " << last_nvenc_error_string;
-        } else {
-          nvenc = std::move(new_nvenc);
-          return true;
-        }
-      } else {
-        BOOST_LOG(error) << "NvEnc: No NvEncodeAPICreateInstance() in " << dll_name;
-      }
-    } else {
-      BOOST_LOG(debug) << "NvEnc: Couldn't load NvEnc library " << dll_name;
+    auto create_instance = reinterpret_cast<decltype(NvEncodeAPICreateInstance) *>(
+      GetProcAddress(dll.get(), "NvEncodeAPICreateInstance")
+    );
+    if (!create_instance) {
+      BOOST_LOG(error) << "NvEnc: No NvEncodeAPICreateInstance() in NVENC driver library";
+      return false;
     }
 
-    if (dll) {
-      FreeLibrary(dll);
-      dll = nullptr;
+    auto new_nvenc = std::make_unique<NV_ENCODE_API_FUNCTION_LIST>();
+    new_nvenc->version = NV_ENCODE_API_FUNCTION_LIST_VER;
+    if (nvenc_failed(create_instance(new_nvenc.get()))) {
+      BOOST_LOG(error) << "NvEnc: NvEncodeAPICreateInstance() failed: " << last_nvenc_error_string;
+      return false;
     }
 
-    return false;
+    nvenc = std::move(new_nvenc);
+    return true;
   }
 
   bool nvenc_d3d11::wait_for_async_event(uint32_t timeout_ms) {
     return WaitForSingleObject(async_event_handle, timeout_ms) == WAIT_OBJECT_0;
   }
 
-}  // namespace nvenc
+}  // namespace NVENC_NAMESPACE
 #endif
