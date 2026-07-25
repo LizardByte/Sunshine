@@ -35,7 +35,7 @@ jobs:
           matrix='{
             "include": [
               {
-                "bsd_release": "14.4",
+                "bsd_release": "15.1",
                 "arch": "x86_64",
                 "cmake_processor": "amd64",
                 "runner": "ubuntu-latest"
@@ -46,7 +46,7 @@ jobs:
           # Add aarch64 build only if not a pull request event
           if [[ "${{ github.event_name }}" != "pull_request" ]]; then
             matrix=$(echo "$matrix" | jq '.include += [{
-              "bsd_release": "14.4",
+              "bsd_release": "15.1",
               "arch": "aarch64",
               "cmake_processor": "aarch64",
               "runner": "ubuntu-latest"
