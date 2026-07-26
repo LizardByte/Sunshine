@@ -17,11 +17,30 @@
 namespace nvenc {
 
   /**
+   * @brief Windows runtime operations used to discover the installed NVENC API.
+   */
+  struct nvenc_runtime_api {
+    using load_driver_fn = std::function<shared_dll()>;  ///< Load the NVENC driver module.
+
+    /**
+     * @brief Resolve an export from the loaded NVENC driver module.
+     */
+    using get_symbol_fn = std::function<FARPROC(HMODULE, const char *)>;
+
+    load_driver_fn load_driver;  ///< Function that loads the NVENC driver module.
+    get_symbol_fn get_symbol;  ///< Resolve a driver export.
+  };
+
+  /**
    * @brief Factory bound to the newest NVENC SDK supported by the installed driver.
    */
   class nvenc_dynamic_factory {
   public:
-    using create_encoder_fn = std::function<std::unique_ptr<nvenc_d3d11_interface>(ID3D11Device *, shared_dll)>;  ///< SDK-specific encoder constructor.
+    /**
+     * @brief SDK-specific encoder constructor.
+     */
+    using create_encoder_fn =
+      std::function<std::unique_ptr<nvenc_d3d11_interface>(ID3D11Device *, shared_dll)>;
 
     /**
      * @brief Construct a factory bound to one NVENC SDK implementation.
@@ -44,6 +63,14 @@ namespace nvenc {
      * @return Initialized factory, or an empty pointer when NVENC is unavailable.
      */
     static std::shared_ptr<nvenc_dynamic_factory> get();
+
+    /**
+     * @brief Select a compatible SDK implementation using the supplied runtime operations.
+     *
+     * @param runtime_api Runtime operations used to load and query the NVENC driver.
+     * @return Initialized factory, or an empty pointer when NVENC is unavailable.
+     */
+    static std::shared_ptr<nvenc_dynamic_factory> get(const nvenc_runtime_api &runtime_api);
 
     /**
      * @brief Create a native Direct3D11 NVENC encoder.

@@ -44,14 +44,25 @@ namespace nvenc {
   }
 
   std::shared_ptr<nvenc_dynamic_factory> nvenc_dynamic_factory::get() {
-    auto dll = make_shared_dll(LoadLibraryEx(nvenc_dll_name, nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32));
+    return get({
+      []() {
+        return make_shared_dll(LoadLibraryEx(nvenc_dll_name, nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32));
+      },
+      [](HMODULE dll, const char *symbol) {
+        return GetProcAddress(dll, symbol);
+      },
+    });
+  }
+
+  std::shared_ptr<nvenc_dynamic_factory> nvenc_dynamic_factory::get(const nvenc_runtime_api &runtime_api) {
+    auto dll = runtime_api.load_driver();
     if (!dll) {
       BOOST_LOG(debug) << "NvEnc: Couldn't load NvEnc library " << nvenc_dll_name;
       return {};
     }
 
     const auto get_max_version = std::bit_cast<get_max_supported_version_fn>(
-      GetProcAddress(dll.get(), "NvEncodeAPIGetMaxSupportedVersion")
+      runtime_api.get_symbol(dll.get(), "NvEncodeAPIGetMaxSupportedVersion")
     );
     if (!get_max_version) {
       BOOST_LOG(error) << "NvEnc: No NvEncodeAPIGetMaxSupportedVersion() in " << nvenc_dll_name;
@@ -92,18 +103,21 @@ namespace nvenc {
         );
 
       case nvenc_sdk_version::unsupported:
+      default:
         BOOST_LOG(error) << "NvEnc: minimum required driver version is " << minimum_driver_version;
         return {};
     }
-
-    return {};
   }
 
-  std::unique_ptr<nvenc_d3d11_interface> nvenc_dynamic_factory::create_nvenc_d3d11_native(ID3D11Device *d3d_device) const {
+  std::unique_ptr<nvenc_d3d11_interface> nvenc_dynamic_factory::create_nvenc_d3d11_native(
+    ID3D11Device *d3d_device
+  ) const {
     return create_native(d3d_device, dll);
   }
 
-  std::unique_ptr<nvenc_d3d11_interface> nvenc_dynamic_factory::create_nvenc_d3d11_on_cuda(ID3D11Device *d3d_device) const {
+  std::unique_ptr<nvenc_d3d11_interface> nvenc_dynamic_factory::create_nvenc_d3d11_on_cuda(
+    ID3D11Device *d3d_device
+  ) const {
     return create_on_cuda(d3d_device, dll);
   }
 
