@@ -5,6 +5,7 @@ let container
 let org_name = "LizardByte"
 let base_url = `https://app.${org_name.toLowerCase()}.dev`
 let cache_repo = "dashboard"
+let shared_web_url = "https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@v2026.726.204939"
 
 
 function onDocumentReady(callback) {
@@ -217,7 +218,7 @@ function loadLanguageIcons(repo, card_footer) {
                 let language_file = encodeURIComponent(`${language}.svg`)
                 let language_icon = document.createElement("img")
                 language_icon.className = "language-logo crowdin-ignore"
-                language_icon.src = `${base_url}/uno/language-icons/${language_file}`
+                language_icon.src = `${shared_web_url}/dist/language-icons/${language_file}`
                 language_icon.alt = language
                 language_icon.title = language
                 language_data_row.append(language_icon)
