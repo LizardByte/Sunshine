@@ -9,15 +9,13 @@
   #include <dxgiformat.h>
 #endif
 
-// lib includes
-#include <ffnvcodec/nvEncodeAPI.h>
-
 // local includes
 #include "nvenc_colorspace.h"
+#include "nvenc_sdk.h"
 #include "src/platform/common.h"
 #include "src/video_colorspace.h"
 
-namespace nvenc {
+namespace NVENC_NAMESPACE {
 
 #ifdef _WIN32
   /**
@@ -45,4 +43,4 @@ namespace nvenc {
    */
   nvenc_colorspace_t nvenc_colorspace_from_sunshine_colorspace(const video::sunshine_colorspace_t &sunshine_colorspace);
 
-}  // namespace nvenc
+}  // namespace NVENC_NAMESPACE

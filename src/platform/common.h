@@ -69,7 +69,7 @@ namespace video {
 }  // namespace video
 
 namespace nvenc {
-  class nvenc_base;
+  class nvenc_encoder;
 }
 
 namespace platf {
@@ -638,7 +638,7 @@ namespace platf {
      */
     virtual bool init_encoder(const video::config_t &client_config, const video::sunshine_colorspace_t &colorspace) = 0;
 
-    nvenc::nvenc_base *nvenc = nullptr;  ///< NVENC encoder instance owned by the encode device.
+    nvenc::nvenc_encoder *nvenc = nullptr;  ///< NVENC encoder instance owned by the encode device.
   };
 
   /**

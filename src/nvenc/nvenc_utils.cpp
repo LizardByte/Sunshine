@@ -8,7 +8,7 @@
 // local includes
 #include "nvenc_utils.h"
 
-namespace nvenc {
+namespace NVENC_NAMESPACE {
 
 #ifdef _WIN32
   /**
@@ -102,4 +102,4 @@ namespace nvenc {
     return colorspace;
   }
 
-}  // namespace nvenc
+}  // namespace NVENC_NAMESPACE

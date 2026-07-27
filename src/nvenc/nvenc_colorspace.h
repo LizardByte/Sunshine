@@ -4,10 +4,10 @@
  */
 #pragma once
 
-// lib includes
-#include <ffnvcodec/nvEncodeAPI.h>
+// local includes
+#include "nvenc_sdk.h"
 
-namespace nvenc {
+namespace NVENC_NAMESPACE {
 
   /**
    * @brief YUV colorspace and color range.
@@ -19,4 +19,4 @@ namespace nvenc {
     bool full_range;  ///< Whether the video range is full-range instead of limited.
   };
 
-}  // namespace nvenc
+}  // namespace NVENC_NAMESPACE
