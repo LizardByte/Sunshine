@@ -29,11 +29,16 @@ else()
         set(CMAKE_MODULE_PATH "${_sunshine_module_path}")
         unset(_sunshine_module_path)
 
-        qt6_generate_deploy_app_script(
+        qt6_generate_deploy_script(
             TARGET sunshine
             OUTPUT_SCRIPT SUNSHINE_QT_DEPLOY_SCRIPT
-            NO_TRANSLATIONS
-            DEPLOY_TOOL_OPTIONS -no-codesign)
+            CONTENT "
+qt6_deploy_runtime_dependencies(
+    EXECUTABLE \"$<TARGET_FILE_NAME:sunshine>.app\"
+    NO_APP_STORE_COMPLIANCE
+    NO_TRANSLATIONS
+    DEPLOY_TOOL_OPTIONS -no-codesign
+)")
         install(SCRIPT "${SUNSHINE_QT_DEPLOY_SCRIPT}" COMPONENT Runtime)
     endif()
 
@@ -59,6 +64,18 @@ else()
         message(STATUS \"Running fixup_bundle for: \${_app}\")
         include(BundleUtilities)
         set(BU_CHMOD_BUNDLE_ITEMS TRUE)
+
+        # Resolve @rpath items that Qt already deployed into the app bundle.
+        function(gp_resolve_item_override context item exepath dirs resolved_item_var resolved_var)
+          if(\"\${item}\" MATCHES \"^@rpath/(.+)$\")
+            set(_embedded_item \"\${_app}/Contents/Frameworks/\${CMAKE_MATCH_1}\")
+            if(EXISTS \"\${_embedded_item}\")
+              set(\${resolved_item_var} \"\${_embedded_item}\" PARENT_SCOPE)
+              set(\${resolved_var} TRUE PARENT_SCOPE)
+            endif()
+          endif()
+        endfunction()
+
         fixup_bundle(\"\${_app}\" \"\" \"\")
 
         # Remove Finder/resource-fork metadata that breaks codesign.
