@@ -22,6 +22,21 @@ else()
         BUNDLE DESTINATION .
         COMPONENT Runtime)
 
+    if(SUNSHINE_ENABLE_TRAY)
+        # Import Qt in this directory so its deployment commands and targets are visible here.
+        set(_sunshine_module_path "${CMAKE_MODULE_PATH}")
+        find_package(Qt6 REQUIRED COMPONENTS Core)
+        set(CMAKE_MODULE_PATH "${_sunshine_module_path}")
+        unset(_sunshine_module_path)
+
+        qt6_generate_deploy_app_script(
+            TARGET sunshine
+            OUTPUT_SCRIPT SUNSHINE_QT_DEPLOY_SCRIPT
+            NO_TRANSLATIONS
+            DEPLOY_TOOL_OPTIONS -no-codesign)
+        install(SCRIPT "${SUNSHINE_QT_DEPLOY_SCRIPT}" COMPONENT Runtime)
+    endif()
+
     install(FILES "${APPLE_PLIST_FILE}"
             DESTINATION "${MAC_BUNDLE_CONTENTS}"
             COMPONENT Runtime)
@@ -61,12 +76,13 @@ else()
 
         # SHOULD_SIGN is set only when publish_release is true or when manually building
         if(\"\$ENV{SHOULD_SIGN}\" STREQUAL \"true\")
-          # Sign anything inside Contents/Frameworks
+          # Sign bundled frameworks and plugins before signing the app itself.
           set(_fw_dir \"\${_app}/Contents/Frameworks\")
           if(EXISTS \"\${_fw_dir}\")
               file(GLOB_RECURSE _sign_items
                   \"\${_fw_dir}/*.framework\"
                   \"\${_fw_dir}/*.dylib\"
+                  \"\${_app}/Contents/PlugIns/*.dylib\"
               )
 
               foreach(item IN LISTS _sign_items)

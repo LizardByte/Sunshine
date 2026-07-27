@@ -177,8 +177,7 @@ dependencies=(
   "mingw-w64-${TOOLCHAIN}-openssl"
   "mingw-w64-${TOOLCHAIN}-opus"
   "mingw-w64-${TOOLCHAIN}-toolchain"
-  "mingw-w64-${TOOLCHAIN}-qt6-base"
-  "mingw-w64-${TOOLCHAIN}-qt6-svg"
+  "mingw-w64-${TOOLCHAIN}-qt6-static"
 )
 if [[ "${MSYSTEM}" == "UCRT64" ]]; then
   dependencies+=(
@@ -188,6 +187,14 @@ if [[ "${MSYSTEM}" == "UCRT64" ]]; then
   )
 fi
 pacman -S "${dependencies[@]}"
+```
+
+The static Qt package is installed under a separate prefix. Add the following options when configuring a Windows
+build so Sunshine and Qt's third-party dependencies are linked statically:
+
+```bash
+-DCMAKE_PREFIX_PATH="${MINGW_PREFIX}/qt6-static" \
+-DSUNSHINE_USE_STATIC_QT=ON
 ```
 
 To create a WiX installer, you also need to install [.NET](https://dotnet.microsoft.com/download).
