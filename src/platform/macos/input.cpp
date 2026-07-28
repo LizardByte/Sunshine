@@ -272,8 +272,7 @@ const KeyCodeMap kKeyCodesMap[] = {
       key_map
     );
 
-    if (temp_map >= kKeyCodesMap + sizeof(kKeyCodesMap) / sizeof(kKeyCodesMap[0]) ||
-        temp_map->win_keycode != keycode || temp_map->mac_keycode == -1) {
+    if (temp_map >= kKeyCodesMap + sizeof(kKeyCodesMap) / sizeof(kKeyCodesMap[0]) || temp_map->win_keycode != keycode || temp_map->mac_keycode == -1) {
       return -1;
     }
 

@@ -377,9 +377,7 @@ namespace platf::audio {
       }
 
       // Prefer the native channel layout of captured audio device when channel counts match
-      if (mixer_waveformat->nChannels == format.channel_count &&
-          mixer_waveformat->wFormatTag == WAVE_FORMAT_EXTENSIBLE &&
-          mixer_waveformat->cbSize >= 22) {
+      if (mixer_waveformat->nChannels == format.channel_count && mixer_waveformat->wFormatTag == WAVE_FORMAT_EXTENSIBLE && mixer_waveformat->cbSize >= 22) {
         auto waveformatext_pointer = reinterpret_cast<const WAVEFORMATEXTENSIBLE *>(mixer_waveformat.get());
         capture_waveformat.dwChannelMask = waveformatext_pointer->dwChannelMask;
       }
@@ -765,8 +763,7 @@ namespace platf::audio {
       for (
         status = audio_capture->GetNextPacketSize(&packet_size);
         SUCCEEDED(status) && packet_size > 0;
-        status = audio_capture->GetNextPacketSize(&packet_size)
-      ) {
+        status = audio_capture->GetNextPacketSize(&packet_size)) {
         DWORD buffer_flags;
         status = audio_capture->GetBuffer(
           (BYTE **) &sample_aligned.samples,

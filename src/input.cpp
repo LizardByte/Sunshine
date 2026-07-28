@@ -935,8 +935,7 @@ namespace input {
 
     // Right-alt maps to meta, so it must not also register as ALT
     int modifiers = packet->modifiers;
-    if (config::input.key_rightalt_to_key_win &&
-        input->right_alt_pressed && !input->left_alt_pressed) {
+    if (config::input.key_rightalt_to_key_win && input->right_alt_pressed && !input->left_alt_pressed) {
       modifiers &= ~MODIFIER_ALT;
     }
 
@@ -1557,14 +1556,12 @@ namespace input {
    */
   batch_result_e batch(PSS_TOUCH_PACKET dest, PSS_TOUCH_PACKET src) {
     // Only batch hover or move events
-    if (dest->eventType != LI_TOUCH_EVENT_MOVE &&
-        dest->eventType != LI_TOUCH_EVENT_HOVER) {
+    if (dest->eventType != LI_TOUCH_EVENT_MOVE && dest->eventType != LI_TOUCH_EVENT_HOVER) {
       return batch_result_e::terminate_batch;
     }
 
     // Don't batch beyond state changing events
-    if (src->eventType != LI_TOUCH_EVENT_MOVE &&
-        src->eventType != LI_TOUCH_EVENT_HOVER) {
+    if (src->eventType != LI_TOUCH_EVENT_MOVE && src->eventType != LI_TOUCH_EVENT_HOVER) {
       return batch_result_e::terminate_batch;
     }
 
@@ -1591,8 +1588,7 @@ namespace input {
    */
   batch_result_e batch(PSS_PEN_PACKET dest, PSS_PEN_PACKET src) {
     // Only batch hover or move events
-    if (dest->eventType != LI_TOUCH_EVENT_MOVE &&
-        dest->eventType != LI_TOUCH_EVENT_HOVER) {
+    if (dest->eventType != LI_TOUCH_EVENT_MOVE && dest->eventType != LI_TOUCH_EVENT_HOVER) {
       return batch_result_e::terminate_batch;
     }
 
@@ -1624,8 +1620,7 @@ namespace input {
    */
   batch_result_e batch(PSS_CONTROLLER_TOUCH_PACKET dest, PSS_CONTROLLER_TOUCH_PACKET src) {
     // Only batch hover or move events
-    if (dest->eventType != LI_TOUCH_EVENT_MOVE &&
-        dest->eventType != LI_TOUCH_EVENT_HOVER) {
+    if (dest->eventType != LI_TOUCH_EVENT_MOVE && dest->eventType != LI_TOUCH_EVENT_HOVER) {
       return batch_result_e::terminate_batch;
     }
 
@@ -1636,8 +1631,7 @@ namespace input {
     }
 
     // Don't batch beyond state changing events
-    if (src->eventType != LI_TOUCH_EVENT_MOVE &&
-        src->eventType != LI_TOUCH_EVENT_HOVER) {
+    if (src->eventType != LI_TOUCH_EVENT_MOVE && src->eventType != LI_TOUCH_EVENT_HOVER) {
       return batch_result_e::terminate_batch;
     }
 

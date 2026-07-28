@@ -61,8 +61,7 @@ namespace log_checker {
 
     for (std::string line; std::getline(input, line);) {
       line = remove_timestamp_prefix(line);
-      if (line.size() >= end_str.size() &&
-          line.compare(line.size() - end_str.size(), end_str.size(), end_str) == 0) {
+      if (line.size() >= end_str.size() && line.compare(line.size() - end_str.size(), end_str.size(), end_str) == 0) {
         return true;
       }
     }

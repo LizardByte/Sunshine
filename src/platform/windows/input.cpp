@@ -401,8 +401,7 @@ namespace platf {
           uint16_t normalizedSmallMotor = smallMotor << 8;
 
           // Don't resend duplicate rumble data
-          if (normalizedSmallMotor != gamepad.last_rumble.data.rumble.highfreq ||
-              normalizedLargeMotor != gamepad.last_rumble.data.rumble.lowfreq) {
+          if (normalizedSmallMotor != gamepad.last_rumble.data.rumble.highfreq || normalizedLargeMotor != gamepad.last_rumble.data.rumble.lowfreq) {
             // We have to use the client-relative index when communicating back to the client
             gamepad_feedback_msg_t msg = gamepad_feedback_msg_t::make_rumble(
               gamepad.client_relative_index,
@@ -430,9 +429,7 @@ namespace platf {
 
         if (gamepad.gp.get() == target) {
           // Don't resend duplicate RGB data
-          if (r != gamepad.last_rgb_led.data.rgb_led.r ||
-              g != gamepad.last_rgb_led.data.rgb_led.g ||
-              b != gamepad.last_rgb_led.data.rgb_led.b) {
+          if (r != gamepad.last_rgb_led.data.rgb_led.r || g != gamepad.last_rgb_led.data.rgb_led.g || b != gamepad.last_rgb_led.data.rgb_led.b) {
             // We have to use the client-relative index when communicating back to the client
             gamepad_feedback_msg_t msg = gamepad_feedback_msg_t::make_rgb_led(gamepad.client_relative_index, r, g, b);
             gamepad.feedback_queue->raise(msg);
@@ -822,8 +819,7 @@ namespace platf {
 
     // Try to find a matching pointer ID
     for (UINT32 i = 0; i < ARRAYSIZE(raw->touchInfo); i++) {
-      if (raw->touchInfo[i].touchInfo.pointerInfo.pointerId == pointerId &&
-          raw->touchInfo[i].touchInfo.pointerInfo.pointerFlags != POINTER_FLAG_NONE) {
+      if (raw->touchInfo[i].touchInfo.pointerInfo.pointerId == pointerId && raw->touchInfo[i].touchInfo.pointerInfo.pointerFlags != POINTER_FLAG_NONE) {
         if (eventType == LI_TOUCH_EVENT_DOWN && (raw->touchInfo[i].touchInfo.pointerInfo.pointerFlags & POINTER_FLAG_INCONTACT)) {
           BOOST_LOG(warning) << "Pointer "sv << pointerId << " already down. Did the client drop an up/cancel event?"sv;
         }
@@ -982,9 +978,7 @@ namespace platf {
     auto raw = (client_input_raw_t *) input;
 
     // Bail if we're not running on an OS that supports virtual touch input
-    if (!raw->global->fnCreateSyntheticPointerDevice ||
-        !raw->global->fnInjectSyntheticPointerInput ||
-        !raw->global->fnDestroySyntheticPointerDevice) {
+    if (!raw->global->fnCreateSyntheticPointerDevice || !raw->global->fnInjectSyntheticPointerInput || !raw->global->fnDestroySyntheticPointerDevice) {
       BOOST_LOG(warning) << "Touch input requires Windows 10 1809 or later"sv;
       return;
     }
@@ -1108,9 +1102,7 @@ namespace platf {
     auto raw = (client_input_raw_t *) input;
 
     // Bail if we're not running on an OS that supports virtual pen input
-    if (!raw->global->fnCreateSyntheticPointerDevice ||
-        !raw->global->fnInjectSyntheticPointerInput ||
-        !raw->global->fnDestroySyntheticPointerDevice) {
+    if (!raw->global->fnCreateSyntheticPointerDevice || !raw->global->fnInjectSyntheticPointerInput || !raw->global->fnDestroySyntheticPointerDevice) {
       BOOST_LOG(warning) << "Pen input requires Windows 10 1809 or later"sv;
       return;
     }

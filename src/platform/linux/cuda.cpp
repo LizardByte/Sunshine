@@ -190,8 +190,7 @@ namespace cuda {
 
       auto hwframe_ctx = (AVHWFramesContext *) hw_frames_ctx->data;
 
-      if (hwframe_ctx->sw_format != AV_PIX_FMT_NV12 &&
-          hwframe_ctx->sw_format != AV_PIX_FMT_YUV444P) {
+      if (hwframe_ctx->sw_format != AV_PIX_FMT_NV12 && hwframe_ctx->sw_format != AV_PIX_FMT_YUV444P) {
         BOOST_LOG(error) << "cuda::cuda_t doesn't support any format other than AV_PIX_FMT_NV12 and AV_PIX_FMT_YUV444P"sv;
         return -1;
       }
@@ -469,10 +468,7 @@ namespace cuda {
 
       auto hw_frames_ctx = (AVHWFramesContext *) hw_frames_ctx_buf->data;
 
-      if (hw_frames_ctx->sw_format != AV_PIX_FMT_NV12 &&
-          hw_frames_ctx->sw_format != AV_PIX_FMT_YUV444P &&
-          hw_frames_ctx->sw_format != AV_PIX_FMT_P010LE &&
-          hw_frames_ctx->sw_format != AV_PIX_FMT_YUV444P16LE) {
+      if (hw_frames_ctx->sw_format != AV_PIX_FMT_NV12 && hw_frames_ctx->sw_format != AV_PIX_FMT_YUV444P && hw_frames_ctx->sw_format != AV_PIX_FMT_P010LE && hw_frames_ctx->sw_format != AV_PIX_FMT_YUV444P16LE) {
         BOOST_LOG(error) << "cuda::gl_cuda_vram_t doesn't support any format other than AV_PIX_FMT_NV12, AV_PIX_FMT_P010LE, AV_PIX_FMT_YUV444P and AV_PIX_FMT_YUV444P16LE"sv;
         return -1;
       }

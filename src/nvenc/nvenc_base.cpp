@@ -604,12 +604,7 @@ namespace NVENC_NAMESPACE {
       return false;
     }
     std::vector<GUID> encode_guids(encode_guid_count);
-    if (nvenc_failed(nvenc->nvEncGetEncodeGUIDs(
-          encoder,
-          encode_guids.data(),
-          static_cast<std::uint32_t>(encode_guids.size()),
-          &encode_guid_count
-        ))) {
+    if (nvenc_failed(nvenc->nvEncGetEncodeGUIDs(encoder, encode_guids.data(), static_cast<std::uint32_t>(encode_guids.size()), &encode_guid_count))) {
       BOOST_LOG(error) << "NvEnc: NvEncGetEncodeGUIDs() failed: " << last_nvenc_error_string;
       return false;
     }
@@ -658,13 +653,7 @@ namespace NVENC_NAMESPACE {
       .version = NV_ENC_PRESET_CONFIG_VER,
       .presetCfg = {.version = NV_ENC_CONFIG_VER},
     };
-    if (nvenc_failed(nvenc->nvEncGetEncodePresetConfigEx(
-          encoder,
-          init_params.encodeGUID,
-          init_params.presetGUID,
-          init_params.tuningInfo,
-          &preset_config
-        ))) {
+    if (nvenc_failed(nvenc->nvEncGetEncodePresetConfigEx(encoder, init_params.encodeGUID, init_params.presetGUID, init_params.tuningInfo, &preset_config))) {
       BOOST_LOG(error) << "NvEnc: NvEncGetEncodePresetConfigEx() failed: " << last_nvenc_error_string;
       return false;
     }
