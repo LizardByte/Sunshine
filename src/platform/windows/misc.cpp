@@ -100,8 +100,7 @@ namespace {
   bool nt_set_timer_resolution_max() {
     ULONG maximum;
     ULONG minimum;
-    if (ULONG current; !NT_SUCCESS(NtQueryTimerResolution(&minimum, &maximum, &current)) ||
-                       !NT_SUCCESS(NtSetTimerResolution(maximum, TRUE, &current))) {
+    if (ULONG current; !NT_SUCCESS(NtQueryTimerResolution(&minimum, &maximum, &current)) || !NT_SUCCESS(NtSetTimerResolution(maximum, TRUE, &current))) {
       return false;
     }
     return true;
@@ -110,8 +109,7 @@ namespace {
   bool nt_set_timer_resolution_min() {
     ULONG maximum;
     ULONG minimum;
-    if (ULONG current; !NT_SUCCESS(NtQueryTimerResolution(&minimum, &maximum, &current)) ||
-                       !NT_SUCCESS(NtSetTimerResolution(minimum, TRUE, &current))) {
+    if (ULONG current; !NT_SUCCESS(NtQueryTimerResolution(&minimum, &maximum, &current)) || !NT_SUCCESS(NtSetTimerResolution(minimum, TRUE, &current))) {
       return false;
     }
     return true;

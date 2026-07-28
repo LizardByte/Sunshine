@@ -535,13 +535,11 @@ namespace display_device {
     std::optional<parsed_remapping_entry_t> parse_remapping_entry(const config::video_t::dd_t::mode_remapping_entry_t &entry, const remapping_type_e type) {
       parsed_remapping_entry_t result {};
 
-      if (is_resolution_mapped(type) && (!parse_resolution_string(entry.requested_resolution, result.requested_resolution) ||
-                                         !parse_resolution_string(entry.final_resolution, result.final_resolution))) {
+      if (is_resolution_mapped(type) && (!parse_resolution_string(entry.requested_resolution, result.requested_resolution) || !parse_resolution_string(entry.final_resolution, result.final_resolution))) {
         return std::nullopt;
       }
 
-      if (is_fps_mapped(type) && (!parse_refresh_rate_string(entry.requested_fps, result.requested_fps, false) ||
-                                  !parse_refresh_rate_string(entry.final_refresh_rate, result.final_refresh_rate))) {
+      if (is_fps_mapped(type) && (!parse_refresh_rate_string(entry.requested_fps, result.requested_fps, false) || !parse_refresh_rate_string(entry.final_refresh_rate, result.final_refresh_rate))) {
         return std::nullopt;
       }
 
