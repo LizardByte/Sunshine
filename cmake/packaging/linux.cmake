@@ -145,9 +145,6 @@ set(CPACK_RPM_PACKAGE_AUTOREQ ON)
 install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/apps"
         RENAME "${PROJECT_FQDN}.svg")
-install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
-        DESTINATION "${SUNSHINE_ASSETS_DIR}/web/images"
-        RENAME "logo-sunshine.svg")
 
 # tray icon
 if(${SUNSHINE_TRAY} STREQUAL 1)

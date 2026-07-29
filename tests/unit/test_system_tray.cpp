@@ -336,6 +336,15 @@ TEST_F(SystemTrayVisualTest, CapturesIconTooltipNotificationsAndMenu) {
   if (!screenshot::is_available(&unavailable_reason)) {
     GTEST_SKIP() << "Screenshot tooling is unavailable: " << unavailable_reason;
   }
+
+  const auto &tray_data = system_tray::tray_data_for_testing();
+  ASSERT_EQ(tray_data.iconPathCount, 4);
+  for (int icon_index = 0; icon_index < tray_data.iconPathCount; ++icon_index) {
+    ASSERT_NE(tray_data.allIconPaths[icon_index], nullptr);
+    ASSERT_TRUE(std::filesystem::is_regular_file(tray_data.allIconPaths[icon_index]))
+      << "Missing system tray test icon: " << tray_data.allIconPaths[icon_index];
+  }
+
   if (const int result = initialize_visual_tray(); result != 0) {
     GTEST_SKIP() << "System tray is unavailable in this environment (code " << result << ")";
   }
