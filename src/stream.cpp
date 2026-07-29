@@ -116,14 +116,16 @@ namespace stream {
    * @return Stable lower-case diagnostic label.
    */
   std::string_view adaptive_bitrate_reason_name(const adaptive_bitrate::decision_reason_e reason) {
+    using enum adaptive_bitrate::decision_reason_e;
+
     switch (reason) {
-      case adaptive_bitrate::decision_reason_e::capability_check:
+      case capability_check:
         return "capability_check"sv;
-      case adaptive_bitrate::decision_reason_e::unrecovered_loss:
+      case unrecovered_loss:
         return "unrecovered_loss"sv;
-      case adaptive_bitrate::decision_reason_e::fec_pressure:
+      case fec_pressure:
         return "fec_pressure"sv;
-      case adaptive_bitrate::decision_reason_e::stable_recovery:
+      case stable_recovery:
         return "stable_recovery"sv;
     }
 

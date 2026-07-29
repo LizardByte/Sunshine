@@ -46,16 +46,18 @@ using namespace std::literals;
 namespace video {
 
   std::string_view bitrate_reconfigure_status_name(bitrate_reconfigure_status_e status) {
+    using enum bitrate_reconfigure_status_e;
+
     switch (status) {
-      case bitrate_reconfigure_status_e::applied:
+      case applied:
         return "applied";
-      case bitrate_reconfigure_status_e::unchanged:
+      case unchanged:
         return "unchanged";
-      case bitrate_reconfigure_status_e::invalid:
+      case invalid:
         return "invalid";
-      case bitrate_reconfigure_status_e::unsupported:
+      case unsupported:
         return "unsupported";
-      case bitrate_reconfigure_status_e::failed:
+      case failed:
         return "failed";
     }
 

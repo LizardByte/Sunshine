@@ -29,12 +29,15 @@ namespace {
     }
 
     void request_idr_frame() override {
+      // Frame request side effects are outside this bitrate-only test double.
     }
 
     void request_normal_frame() override {
+      // Frame request side effects are outside this bitrate-only test double.
     }
 
     void invalidate_ref_frames(int64_t, int64_t) override {
+      // Reference-frame invalidation is outside this bitrate-only test double.
     }
 
     video::bitrate_reconfigure_result_t reconfigure_bitrate(std::uint32_t target_kbps) override {
@@ -57,12 +60,15 @@ namespace {
     }
 
     void request_idr_frame() override {
+      // Frame request side effects are outside this unsupported-backend test double.
     }
 
     void request_normal_frame() override {
+      // Frame request side effects are outside this unsupported-backend test double.
     }
 
     void invalidate_ref_frames(int64_t, int64_t) override {
+      // Reference-frame invalidation is outside this unsupported-backend test double.
     }
   };
 

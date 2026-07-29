@@ -80,7 +80,7 @@ namespace NVENC_NAMESPACE {
     next_config.rcParams.maxBitRate = target_bps;
     if (baseline_vbv_buffer_size_ != 0) {
       auto scaled_vbv = scaled_from_baseline(baseline_vbv_buffer_size_);
-      if (!scaled_vbv) {
+      if (!scaled_vbv.has_value()) {
         result.status = video::bitrate_reconfigure_status_e::invalid;
         return result;
       }
@@ -88,7 +88,7 @@ namespace NVENC_NAMESPACE {
     }
     if (baseline_vbv_initial_delay_ != 0) {
       auto scaled_delay = scaled_from_baseline(baseline_vbv_initial_delay_);
-      if (!scaled_delay) {
+      if (!scaled_delay.has_value()) {
         result.status = video::bitrate_reconfigure_status_e::invalid;
         return result;
       }
