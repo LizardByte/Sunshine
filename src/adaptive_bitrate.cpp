@@ -156,16 +156,18 @@ namespace stream::adaptive_bitrate {
     const long double recovered_ratio,
     const bool high_latency
   ) {
-    const auto severe_loss = unrecovered_ratio >= unrecovered_loss_threshold ||
-                             snapshot.incomplete_fec_reports != 0 ||
-                             snapshot.frame_loss_requests != 0;
-    if (severe_loss) {
-      return degradation_e::unrecovered_loss;
+    using enum degradation_e;
+
+    if (const auto severe_loss = unrecovered_ratio >= unrecovered_loss_threshold ||
+                                 snapshot.incomplete_fec_reports != 0 ||
+                                 snapshot.frame_loss_requests != 0;
+        severe_loss) {
+      return unrecovered_loss;
     }
     if (recovered_ratio >= fec_pressure_threshold && high_latency) {
-      return degradation_e::fec_pressure;
+      return fec_pressure;
     }
-    return degradation_e::none;
+    return none;
   }
 
   void controller_t::reset_degradation_confirmation() {
@@ -175,6 +177,8 @@ namespace stream::adaptive_bitrate {
   }
 
   void controller_t::observe_degradation(const degradation_e degradation, const time_point_t now) {
+    using enum degradation_e;
+
     stable_since_ = now;
 
     if (!first_bad_window_at_ || now < *first_bad_window_at_ ||
@@ -186,18 +190,18 @@ namespace stream::adaptive_bitrate {
     }
 
     ++consecutive_bad_windows_;
-    if (degradation == degradation_e::unrecovered_loss) {
-      candidate_degradation_ = degradation_e::unrecovered_loss;
+    if (degradation == unrecovered_loss) {
+      candidate_degradation_ = unrecovered_loss;
     }
 
     if (consecutive_bad_windows_ < 2) {
       return;
     }
 
-    if (candidate_degradation_ == degradation_e::unrecovered_loss || degradation == degradation_e::unrecovered_loss) {
-      pending_degradation_ = degradation_e::unrecovered_loss;
-    } else if (pending_degradation_ == degradation_e::none) {
-      pending_degradation_ = degradation_e::fec_pressure;
+    if (candidate_degradation_ == unrecovered_loss || degradation == unrecovered_loss) {
+      pending_degradation_ = unrecovered_loss;
+    } else if (pending_degradation_ == none) {
+      pending_degradation_ = fec_pressure;
     }
     reset_degradation_confirmation();
   }
@@ -252,8 +256,8 @@ namespace stream::adaptive_bitrate {
     const auto unrecovered_ratio = data_ratio(snapshot.unrecovered_data_packets, snapshot);
     const auto recovered_ratio = data_ratio(snapshot.fec_recovered_data_packets, snapshot);
     const auto high_latency = latency_is_high(snapshot.rtt_ms, snapshot.rtt_variance_ms, baseline_rtt_ms_);
-    const auto degradation = classify_degradation(snapshot, unrecovered_ratio, recovered_ratio, high_latency);
-    if (degradation != degradation_e::none) {
+    if (const auto degradation = classify_degradation(snapshot, unrecovered_ratio, recovered_ratio, high_latency);
+        degradation != degradation_e::none) {
       observe_degradation(degradation, now);
       return;
     }
