@@ -166,7 +166,7 @@ if(${SUNSHINE_TRAY} STREQUAL 1)
                     qt6-qtsvg"
         )
         list(APPEND CPACK_FREEBSD_PACKAGE_DEPS
-                x11-toolkits/qt6-widgets
+                devel/qt6-base
                 graphics/qt6-svg
         )
     else()
