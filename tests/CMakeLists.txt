@@ -245,7 +245,7 @@ target_compile_options(${PROJECT_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSH
 target_link_options(${PROJECT_NAME} PRIVATE ${SUNSHINE_LINK_OPTIONS})
 
 if (WIN32)
-    target_include_directories(${PROJECT_NAME} PRIVATE "${NV_CODEC_HEADERS_13_INCLUDE_DIR}")
+    target_include_directories(${PROJECT_NAME} BEFORE PRIVATE "${NV_CODEC_HEADERS_13_INCLUDE_DIR}")
 
     # prefer static libraries since we're linking statically
     # this fixes libcurl linking errors when using non MSYS2 version of CMake
