@@ -108,6 +108,7 @@ jobs:
             "mingw-w64-${TOOLCHAIN}-openssl"
             "mingw-w64-${TOOLCHAIN}-opus"
             "mingw-w64-${TOOLCHAIN}-toolchain"
+            "mingw-w64-${TOOLCHAIN}-qt6-static"
           )
 
           if [[ "${MATRIX_MSYSTEM}" == "ucrt64" ]]; then
@@ -239,10 +240,12 @@ jobs:
             -S . \
             -DBUILD_WERROR=ON \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_PREFIX_PATH="${MINGW_PREFIX}/qt6-static" \
             -DSUNSHINE_ASSETS_DIR=assets \
             -DSUNSHINE_PUBLISHER_NAME="${GITHUB_REPOSITORY_OWNER}" \
             -DSUNSHINE_PUBLISHER_WEBSITE="https://app.lizardbyte.dev" \
-            -DSUNSHINE_PUBLISHER_ISSUE_URL="https://app.lizardbyte.dev/support"
+            -DSUNSHINE_PUBLISHER_ISSUE_URL="https://app.lizardbyte.dev/support" \
+            -DSUNSHINE_USE_STATIC_QT=ON
           echo "::add-matcher::.github/matchers/gcc.json"
           ninja -C build
           echo "::remove-matcher owner=gcc::"

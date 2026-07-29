@@ -154,17 +154,6 @@ if(${SUNSHINE_TRAY} STREQUAL 1)
     # Icons used by the Qt tray backend are no longer installed to the hicolor icon theme,
     # because Qt6 will not allow icons not part of the theme... so we will use icons from our web directory instead
 
-    set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
-                ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \
-                libnotify4"
-    )
-    set(CPACK_RPM_PACKAGE_REQUIRES "\
-                ${CPACK_RPM_PACKAGE_REQUIRES}, \
-                libnotify >= 0.8.0"
-    )
-    list(APPEND CPACK_FREEBSD_PACKAGE_DEPS
-            devel/libnotify
-    )
     if(TRAY_QT_VERSION EQUAL 6)
         set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
                     ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \

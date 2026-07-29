@@ -39,7 +39,6 @@ apt-get install -y --no-install-recommends \
   libevdev-dev \
   libgbm-dev \
   libminiupnpc-dev \
-  libnotify-dev \
   libnuma-dev \
   libopus-dev \
   libpulse-dev \
