@@ -6,11 +6,11 @@
 
 #ifdef _WIN32
 
-#include <limits>
+  #include <limits>
 
-#define NVENC_NAMESPACE nvenc_1300
-#define NVENC_SDK_VERSION 1300
-#include <src/nvenc/nvenc_reconfigure.h>
+  #define NVENC_NAMESPACE nvenc_1300
+  #define NVENC_SDK_VERSION 1300
+  #include <src/nvenc/nvenc_reconfigure.h>
 
 using namespace nvenc_1300;
 
