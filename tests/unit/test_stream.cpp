@@ -27,6 +27,10 @@ namespace {
   /** Moonlight feature bit that advertises SS_FRAME_FEC_STATUS support. */
   constexpr int fec_status_feature = 0x01;
 
+  /** Fixed-size Moonlight control payload used by stream integration tests. */
+  using frame_fec_status_payload_t =
+    std::array<char, stream::network_metrics::frame_fec_status_payload_size>;
+
   /**
    * @brief Restore global video settings changed by one stream integration test.
    */
@@ -35,10 +39,12 @@ namespace {
     /**
      * @brief Save the global adaptive bitrate settings.
      */
-    video_config_guard_t():
-        adaptive_bitrate_ {::config::video.adaptive_bitrate},
-        max_bitrate_ {::config::video.max_bitrate} {
-    }
+    video_config_guard_t() = default;
+
+    video_config_guard_t(const video_config_guard_t &) = delete;
+    video_config_guard_t &operator=(const video_config_guard_t &) = delete;
+    video_config_guard_t(video_config_guard_t &&) = delete;
+    video_config_guard_t &operator=(video_config_guard_t &&) = delete;
 
     /**
      * @brief Restore the saved global adaptive bitrate settings.
@@ -49,8 +55,8 @@ namespace {
     }
 
   private:
-    bool adaptive_bitrate_;  ///< Saved adaptive bitrate switch.
-    int max_bitrate_;  ///< Saved host bitrate ceiling.
+    bool adaptive_bitrate_ = ::config::video.adaptive_bitrate;  ///< Saved adaptive bitrate switch.
+    int max_bitrate_ = ::config::video.max_bitrate;  ///< Saved host bitrate ceiling.
   };
 
   /**
@@ -61,12 +67,12 @@ namespace {
    * @param value Host-endian value.
    */
   void put_u16_be(
-    std::array<std::uint8_t, stream::network_metrics::frame_fec_status_payload_size> &payload,
+    frame_fec_status_payload_t &payload,
     const std::size_t offset,
     const std::uint16_t value
   ) {
-    payload[offset] = static_cast<std::uint8_t>(value >> 8);
-    payload[offset + 1] = static_cast<std::uint8_t>(value);
+    payload[offset] = static_cast<char>(value >> 8);
+    payload[offset + 1] = static_cast<char>(value);
   }
 
   /**
@@ -74,8 +80,8 @@ namespace {
    *
    * @return Big-endian SS_FRAME_FEC_STATUS payload with one recoverable loss.
    */
-  std::array<std::uint8_t, stream::network_metrics::frame_fec_status_payload_size> make_fec_payload() {
-    std::array<std::uint8_t, stream::network_metrics::frame_fec_status_payload_size> payload {};
+  frame_fec_status_payload_t make_fec_payload() {
+    frame_fec_status_payload_t payload {};
     payload[3] = 42;
     put_u16_be(payload, 4, 120);
     put_u16_be(payload, 6, 115);
@@ -95,8 +101,8 @@ namespace {
    *
    * @return Big-endian SS_FRAME_FEC_STATUS payload with zero shard counters.
    */
-  std::array<std::uint8_t, stream::network_metrics::frame_fec_status_payload_size> make_incomplete_fec_payload() {
-    std::array<std::uint8_t, stream::network_metrics::frame_fec_status_payload_size> payload {};
+  frame_fec_status_payload_t make_incomplete_fec_payload() {
+    frame_fec_status_payload_t payload {};
     payload[20] = 1;
     return payload;
   }
@@ -108,8 +114,8 @@ namespace {
    * @return String view spanning the payload bytes.
    */
   template<std::size_t Size>
-  std::string_view payload_view(const std::array<std::uint8_t, Size> &payload) {
-    return {reinterpret_cast<const char *>(payload.data()), payload.size()};
+  std::string_view payload_view(const std::array<char, Size> &payload) {
+    return {payload.data(), payload.size()};
   }
 
   /**
@@ -123,6 +129,21 @@ namespace {
     launch_session.gcm_key.resize(16);
     launch_session.iv.resize(16);
     return stream::session::alloc(config, launch_session);
+  }
+
+  /**
+   * @brief Allocate a session with adaptive bitrate and FEC telemetry enabled.
+   *
+   * @return Allocated adaptive bitrate stream session.
+   */
+  std::shared_ptr<stream::session_t> make_adaptive_session() {
+    ::config::video.adaptive_bitrate = true;
+
+    stream::config_t config {};
+    config.monitor.bitrate = 25'000;
+    config.monitor.framerate = 60;
+    config.mlFeatureFlags = fec_status_feature;
+    return make_session(config);
   }
 }  // namespace
 
@@ -189,13 +210,7 @@ TEST(StreamSessionAdaptiveBitrateTests, AppliesHostCeilingIndependentlyOfAdaptiv
 
 TEST(StreamSessionAdaptiveBitrateTests, IngestsAndPublishesFecTelemetryThroughControlOrchestration) {
   video_config_guard_t guard;
-  ::config::video.adaptive_bitrate = true;
-
-  stream::config_t config {};
-  config.monitor.bitrate = 25'000;
-  config.monitor.framerate = 60;
-  config.mlFeatureFlags = fec_status_feature;
-  auto session = make_session(config);
+  auto session = make_adaptive_session();
   ASSERT_TRUE(session);
   const auto now = std::chrono::steady_clock::now();
   const auto payload = make_fec_payload();
@@ -213,13 +228,7 @@ TEST(StreamSessionAdaptiveBitrateTests, IngestsAndPublishesFecTelemetryThroughCo
 
 TEST(StreamSessionAdaptiveBitrateTests, IncompleteFecReportsTriggerConservativeDecrease) {
   video_config_guard_t guard;
-  ::config::video.adaptive_bitrate = true;
-
-  stream::config_t config {};
-  config.monitor.bitrate = 25'000;
-  config.monitor.framerate = 60;
-  config.mlFeatureFlags = fec_status_feature;
-  auto session = make_session(config);
+  auto session = make_adaptive_session();
   ASSERT_TRUE(session);
   auto requests = stream::session::testing::video_bitrate_requests(*session);
   const auto now = std::chrono::steady_clock::now();
@@ -258,13 +267,7 @@ TEST(StreamSessionAdaptiveBitrateTests, IncompleteFecReportsTriggerConservativeD
 
 TEST(StreamSessionAdaptiveBitrateTests, AcknowledgesEncoderFailureAndStopsDispatching) {
   video_config_guard_t guard;
-  ::config::video.adaptive_bitrate = true;
-
-  stream::config_t config {};
-  config.monitor.bitrate = 25'000;
-  config.monitor.framerate = 60;
-  config.mlFeatureFlags = fec_status_feature;
-  auto session = make_session(config);
+  auto session = make_adaptive_session();
   ASSERT_TRUE(session);
   auto requests = stream::session::testing::video_bitrate_requests(*session);
   const auto now = std::chrono::steady_clock::now();

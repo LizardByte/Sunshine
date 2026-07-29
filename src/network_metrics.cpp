@@ -153,8 +153,9 @@ namespace stream::network_metrics {
     const auto missing_data_packets = status->total_data_packets > status->received_data_packets ?
                                         static_cast<std::uint64_t>(status->total_data_packets - status->received_data_packets) :
                                         0;
-    const auto received_shards = static_cast<std::uint32_t>(status->received_data_packets) + status->received_parity_packets;
-    if (received_shards >= status->total_data_packets) {
+    if (const auto received_shards =
+          static_cast<std::uint32_t>(status->received_data_packets) + status->received_parity_packets;
+        received_shards >= status->total_data_packets) {
       accumulator_.fec_recovered_data_packets += missing_data_packets;
     } else {
       accumulator_.unrecovered_data_packets += missing_data_packets;

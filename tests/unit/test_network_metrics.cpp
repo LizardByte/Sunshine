@@ -19,6 +19,9 @@ namespace {
   using namespace std::chrono_literals;
   using stream::network_metrics::frame_fec_status_payload_size;
 
+  /** Fixed-size control payload used by the parser tests. */
+  using frame_fec_status_payload_t = std::array<char, frame_fec_status_payload_size>;
+
   /**
    * @brief Write a big-endian 16-bit integer into a test payload.
    *
@@ -26,9 +29,9 @@ namespace {
    * @param offset Byte offset to write.
    * @param value Host-endian value.
    */
-  void put_u16_be(std::array<std::uint8_t, frame_fec_status_payload_size> &payload, const std::size_t offset, const std::uint16_t value) {
-    payload[offset] = static_cast<std::uint8_t>(value >> 8);
-    payload[offset + 1] = static_cast<std::uint8_t>(value);
+  void put_u16_be(frame_fec_status_payload_t &payload, const std::size_t offset, const std::uint16_t value) {
+    payload[offset] = static_cast<char>(value >> 8);
+    payload[offset + 1] = static_cast<char>(value);
   }
 
   /**
@@ -38,11 +41,11 @@ namespace {
    * @param offset Byte offset to write.
    * @param value Host-endian value.
    */
-  void put_u32_be(std::array<std::uint8_t, frame_fec_status_payload_size> &payload, const std::size_t offset, const std::uint32_t value) {
-    payload[offset] = static_cast<std::uint8_t>(value >> 24);
-    payload[offset + 1] = static_cast<std::uint8_t>(value >> 16);
-    payload[offset + 2] = static_cast<std::uint8_t>(value >> 8);
-    payload[offset + 3] = static_cast<std::uint8_t>(value);
+  void put_u32_be(frame_fec_status_payload_t &payload, const std::size_t offset, const std::uint32_t value) {
+    payload[offset] = static_cast<char>(value >> 24);
+    payload[offset + 1] = static_cast<char>(value >> 16);
+    payload[offset + 2] = static_cast<char>(value >> 8);
+    payload[offset + 3] = static_cast<char>(value);
   }
 
   /**
@@ -56,7 +59,7 @@ namespace {
    * @param fec_percentage Sender FEC percentage encoded in the frame header.
    * @return Big-endian SS_FRAME_FEC_STATUS payload.
    */
-  std::array<std::uint8_t, frame_fec_status_payload_size> make_payload(
+  frame_fec_status_payload_t make_payload(
     const std::uint16_t total_data,
     const std::uint16_t total_parity,
     const std::uint16_t received_data,
@@ -64,7 +67,7 @@ namespace {
     const std::uint16_t missing,
     const std::uint8_t fec_percentage = 30
   ) {
-    std::array<std::uint8_t, frame_fec_status_payload_size> payload {};
+    frame_fec_status_payload_t payload {};
     put_u32_be(payload, 0, 42);
     put_u16_be(payload, 4, 120);
     put_u16_be(payload, 6, 115);
@@ -73,7 +76,7 @@ namespace {
     put_u16_be(payload, 12, total_parity);
     put_u16_be(payload, 14, received_data);
     put_u16_be(payload, 16, received_parity);
-    payload[18] = fec_percentage;
+    payload[18] = static_cast<char>(fec_percentage);
     payload[19] = 0;
     payload[20] = 1;
     return payload;
@@ -86,8 +89,8 @@ namespace {
    * @return String view spanning the payload bytes.
    */
   template<std::size_t Size>
-  std::string_view payload_view(const std::array<std::uint8_t, Size> &payload) {
-    return {reinterpret_cast<const char *>(payload.data()), payload.size()};
+  std::string_view payload_view(const std::array<char, Size> &payload) {
+    return {payload.data(), payload.size()};
   }
 }  // namespace
 
@@ -116,8 +119,8 @@ TEST(FrameFecStatusTests, ParsesCurrentBigEndianWireFormat) {
 }
 
 TEST(FrameFecStatusTests, RejectsPayloadWithWrongVersionSize) {
-  std::array<std::uint8_t, frame_fec_status_payload_size - 1> short_payload {};
-  std::array<std::uint8_t, frame_fec_status_payload_size + 1> long_payload {};
+  std::array<char, frame_fec_status_payload_size - 1> short_payload {};
+  std::array<char, frame_fec_status_payload_size + 1> long_payload {};
 
   EXPECT_FALSE(stream::network_metrics::parse_frame_fec_status(payload_view(short_payload)));
   EXPECT_FALSE(stream::network_metrics::parse_frame_fec_status(payload_view(long_payload)));
@@ -198,7 +201,7 @@ TEST(NetworkMetricsTrackerTests, RequiresAdvertisedFeature) {
 TEST(NetworkMetricsTrackerTests, CountsMalformedPayloads) {
   const auto start = stream::network_metrics::time_point_t {};
   stream::network_metrics::tracker_t tracker {start};
-  std::array<std::uint8_t, frame_fec_status_payload_size - 1> payload {};
+  std::array<char, frame_fec_status_payload_size - 1> payload {};
 
   EXPECT_EQ(
     tracker.ingest(payload_view(payload), true),

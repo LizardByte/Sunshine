@@ -190,6 +190,153 @@ namespace stream::adaptive_bitrate {
       unrecovered_loss,
     };
 
+    /**
+     * @brief Timing and direction retained across encoder decisions.
+     */
+    struct decision_history_t {
+      decision_direction_e direction = decision_direction_e::none;  ///< Latest non-probe command direction.
+      std::optional<time_point_t> last_decision_at;  ///< Time of the last emitted encoder command.
+      std::optional<time_point_t> last_increase_at;  ///< Time of the last recovery increase.
+      std::optional<time_point_t> last_direction_reversal_at;  ///< Latest non-probe command direction reversal.
+    };
+
+    /**
+     * @brief Handle malformed or protocol-mismatched telemetry.
+     *
+     * @param snapshot Telemetry snapshot to inspect.
+     * @return `true` when the snapshot was handled and observation must stop.
+     */
+    bool handle_invalid_telemetry(const network_metrics::snapshot_t &snapshot);
+
+    /**
+     * @brief Hold adaptation after telemetry report limiting.
+     *
+     * @param snapshot Telemetry snapshot to inspect.
+     * @return `true` when rate limiting was observed and observation must stop.
+     */
+    bool handle_rate_limited_telemetry(const network_metrics::snapshot_t &snapshot);
+
+    /**
+     * @brief Record whether a snapshot carries actionable loss telemetry.
+     *
+     * @param snapshot Telemetry snapshot to inspect.
+     * @return `true` when the snapshot can update controller evidence.
+     */
+    bool accept_telemetry_signal(const network_metrics::snapshot_t &snapshot);
+
+    /**
+     * @brief Classify the strongest degradation present in one telemetry window.
+     *
+     * @param snapshot Telemetry snapshot to classify.
+     * @param unrecovered_ratio Ratio of unrecovered data shards.
+     * @param recovered_ratio Ratio of FEC-recovered data shards.
+     * @param high_latency Whether latency corroborates recovery pressure.
+     * @return Classified degradation, or `none` for a healthy window.
+     */
+    static degradation_e classify_degradation(
+      const network_metrics::snapshot_t &snapshot,
+      long double unrecovered_ratio,
+      long double recovered_ratio,
+      bool high_latency
+    );
+
+    /**
+     * @brief Accumulate one degraded telemetry window.
+     *
+     * @param degradation Degradation observed in the window.
+     * @param now Monotonic observation time.
+     */
+    void observe_degradation(degradation_e degradation, time_point_t now);
+
+    /**
+     * @brief Update recovery evidence from one non-degraded telemetry window.
+     *
+     * @param snapshot Telemetry snapshot to observe.
+     * @param recovered_ratio Ratio of FEC-recovered data shards.
+     * @param high_latency Whether latency remains elevated.
+     * @param now Monotonic observation time.
+     */
+    void observe_stability(
+      const network_metrics::snapshot_t &snapshot,
+      long double recovered_ratio,
+      bool high_latency,
+      time_point_t now
+    );
+
+    /**
+     * @brief Clear unconfirmed degraded-window evidence.
+     */
+    void reset_degradation_confirmation();
+
+    /**
+     * @brief Consume a fresh control-channel liveness sample.
+     *
+     * @param control_liveness_token Latest control-channel receive token.
+     * @return `true` when the token is valid and was not previously consumed.
+     */
+    bool consume_control_liveness(std::uint32_t control_liveness_token);
+
+    /**
+     * @brief Update the stable RTT floor from live control-channel telemetry.
+     *
+     * @param now Monotonic control-loop time.
+     * @param live_rtt_ms Current smoothed RTT.
+     * @param live_rtt_variance_ms Current RTT variance.
+     * @return `true` when live latency is materially elevated.
+     */
+    bool observe_live_latency(time_point_t now, std::uint32_t live_rtt_ms, std::uint32_t live_rtt_variance_ms);
+
+    /**
+     * @brief Check whether the encoder command spacing interval has elapsed.
+     *
+     * @param now Monotonic control-loop time.
+     * @return `true` when another decision may be emitted.
+     */
+    bool decision_is_allowed(time_point_t now) const;
+
+    /**
+     * @brief Record and return one encoder decision.
+     *
+     * @param target_kbps Requested encoder target.
+     * @param reason Stable diagnostic reason for the command.
+     * @param now Monotonic decision time.
+     * @return Recorded encoder decision.
+     */
+    decision_t emit_decision(std::uint32_t target_kbps, decision_reason_e reason, time_point_t now);
+
+    /**
+     * @brief Emit a decrease for confirmed degradation when possible.
+     *
+     * @param now Monotonic control-loop time.
+     * @param decision_allowed Whether command spacing permits a decision.
+     * @return A decrease command, or no value.
+     */
+    std::optional<decision_t> reduce_for_pending_degradation(time_point_t now, bool decision_allowed);
+
+    /**
+     * @brief Check all stable recovery prerequisites.
+     *
+     * @param now Monotonic control-loop time.
+     * @param live_latency_high Whether live latency remains elevated.
+     * @param fresh_control_liveness Whether a new reliable acknowledgement was observed.
+     * @param decision_allowed Whether command spacing permits a decision.
+     * @return `true` when recovery may increase the bitrate.
+     */
+    bool recovery_is_allowed(
+      time_point_t now,
+      bool live_latency_high,
+      bool fresh_control_liveness,
+      bool decision_allowed
+    ) const;
+
+    /**
+     * @brief Check whether an upward direction reversal remains in cooldown.
+     *
+     * @param now Monotonic control-loop time.
+     * @return `true` while another upward reversal is blocked.
+     */
+    bool upward_reversal_is_cooling_down(time_point_t now) const;
+
     state_e state_ = state_e::fixed_disabled;  ///< Current lifecycle state.
     std::uint32_t floor_kbps_ = 0;  ///< Session floor, capped by the client ceiling.
     std::uint32_t ceiling_kbps_ = 0;  ///< Immutable effective client ceiling.
@@ -205,11 +352,8 @@ namespace stream::adaptive_bitrate {
     bool telemetry_seen_ = false;  ///< Whether a valid FEC report has been observed.
     bool fallback_after_acknowledgement_ = false;  ///< Defer invalid-telemetry fallback while an encoder command is in flight.
     bool recovery_blocked_by_rate_limit_ = false;  ///< Require a valid stable FEC report after telemetry overload.
-    decision_direction_e last_decision_direction_ = decision_direction_e::none;  ///< Latest non-probe command direction.
     std::optional<time_point_t> first_bad_window_at_;  ///< Time of the first consecutive bad window.
     std::optional<time_point_t> stable_since_;  ///< Start of the current no-new-pressure period.
-    std::optional<time_point_t> last_decision_at_;  ///< Time of the last emitted encoder command.
-    std::optional<time_point_t> last_increase_at_;  ///< Time of the last recovery increase.
-    std::optional<time_point_t> last_direction_reversal_at_;  ///< Latest non-probe command direction reversal.
+    decision_history_t decision_history_;  ///< Timing and direction of prior encoder decisions.
   };
 }  // namespace stream::adaptive_bitrate
