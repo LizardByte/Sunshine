@@ -1258,7 +1258,7 @@ namespace nvhttp {
    * @brief Check whether a paired client certificate is allowed to connect and retrieve its friendly name.
    *
    * @param cert_pem PEM-encoded client certificate to look up.
-   * @return Pair of (bool enabled, string name) where "enabled" is True when the client certificate belongs to an 
+   * @return Pair of (bool enabled, string name) where "enabled" is True when the client certificate belongs to an
              enabled device and "name" is the friendly client name set during pairing.
    */
   std::pair<bool, std::string> get_client_status(const std::string_view cert_pem);
