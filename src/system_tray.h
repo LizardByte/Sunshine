@@ -96,4 +96,25 @@ namespace system_tray {
    * @return 0 if initialization was successful, non-zero otherwise.
    */
   int init_tray_threaded();
+
+#ifdef SUNSHINE_TESTS
+  /**
+   * @brief Get the tray data used by the system tray implementation.
+   *
+   * @return Read-only tray data for unit-test assertions.
+   */
+  const struct tray &tray_data_for_testing();
+
+  /**
+   * @brief Check whether the system tray is initialized.
+   *
+   * @return true if the system tray is initialized; otherwise, false.
+   */
+  bool tray_initialized_for_testing();
+
+  /**
+   * @brief Restore the persistent tray data to its initial state between tests.
+   */
+  void reset_tray_data_for_testing();
+#endif
 }  // namespace system_tray

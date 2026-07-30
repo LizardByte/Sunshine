@@ -151,16 +151,19 @@ jobs:
 
           ./appimagelint-x86_64.AppImage ./artifacts/sunshine.AppImage
 
-      - name: Install test deps
+      - name: Install screenshot dependency
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y \
-            x11-xserver-utils \
-            xvfb
+          sudo apt-get install -y imagemagick
 
           # clean apt cache
           sudo apt-get clean
           sudo rm -rf /var/lib/apt/lists/*
+
+      - name: Setup virtual desktop
+        uses: LizardByte/actions/actions/virtual_desktop@d0ae7f82215a479fe2b74f4088c53ee6460513dd  # v2026.728.214955
+        with:
+          environment: mate
 
       - name: Setup python
         id: python
@@ -182,12 +185,17 @@ jobs:
       - name: Run tests
         id: test
         working-directory: build/tests
-        run: |
-          export DISPLAY=:1
-          Xvfb ${DISPLAY} -screen 0 1024x768x24 &
-          sleep 5  # give Xvfb time to start
+        run: ./test_sunshine --gtest_color=yes --gtest_output=xml:test_results.xml
 
-          ./test_sunshine --gtest_color=yes --gtest_output=xml:test_results.xml
+      - name: Upload system tray screenshots
+        if: >-
+          always() &&
+          (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: sunshine-screenshots-${{ matrix.name }}
+          path: build/tests/screenshots
+          if-no-files-found: error
 
       - name: Generate gcov report
         id: test_report

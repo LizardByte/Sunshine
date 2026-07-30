@@ -74,6 +74,7 @@ BuildRequires: systemd-udev
 BuildRequires: uv
 %{?sysusers_requires_compat}
 # for unit tests
+BuildRequires: ImageMagick
 BuildRequires: xorg-x11-server-Xvfb
 %endif
 
@@ -99,6 +100,7 @@ BuildRequires: udev
 BuildRequires: vulkan-devel
 %endif
 # for unit tests
+BuildRequires: ImageMagick
 BuildRequires: xvfb-run
 %endif
 

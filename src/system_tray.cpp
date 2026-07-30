@@ -5,6 +5,27 @@
 // macros
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
 
+  /**
+   * @def TRAY_ICON
+   * @brief Path to the default system tray icon.
+   */
+  #define TRAY_ICON WEB_DIR "images/logo-sunshine.svg"
+  /**
+   * @def TRAY_ICON_PLAYING
+   * @brief Path to the system tray icon used while streaming.
+   */
+  #define TRAY_ICON_PLAYING WEB_DIR "images/sunshine-playing.svg"
+  /**
+   * @def TRAY_ICON_PAUSING
+   * @brief Path to the system tray icon used while streaming is paused.
+   */
+  #define TRAY_ICON_PAUSING WEB_DIR "images/sunshine-pausing.svg"
+  /**
+   * @def TRAY_ICON_LOCKED
+   * @brief Path to the system tray icon used for pairing requests.
+   */
+  #define TRAY_ICON_LOCKED WEB_DIR "images/sunshine-locked.svg"
+
   #if defined(_WIN32)
     /**
      * @def WIN32_LEAN_AND_MEAN
@@ -13,36 +34,7 @@
     #define WIN32_LEAN_AND_MEAN
     #include <accctrl.h>
     #include <aclapi.h>
-    /**
-     * @def TRAY_ICON
-     * @brief Macro for TRAY ICON.
-     */
-    #define TRAY_ICON WEB_DIR "images/sunshine.ico"
-    /**
-     * @def TRAY_ICON_PLAYING
-     * @brief Macro for TRAY ICON PLAYING.
-     */
-    #define TRAY_ICON_PLAYING WEB_DIR "images/sunshine-playing.ico"
-    /**
-     * @def TRAY_ICON_PAUSING
-     * @brief Macro for TRAY ICON PAUSING.
-     */
-    #define TRAY_ICON_PAUSING WEB_DIR "images/sunshine-pausing.ico"
-    /**
-     * @def TRAY_ICON_LOCKED
-     * @brief Macro for TRAY ICON LOCKED.
-     */
-    #define TRAY_ICON_LOCKED WEB_DIR "images/sunshine-locked.ico"
-  #elif defined(__linux__) || defined(linux) || defined(__linux) || defined(__FreeBSD__)
-    #define TRAY_ICON WEB_DIR "images/logo-sunshine.svg"
-    #define TRAY_ICON_PLAYING WEB_DIR "images/sunshine-playing.svg"
-    #define TRAY_ICON_PAUSING WEB_DIR "images/sunshine-pausing.svg"
-    #define TRAY_ICON_LOCKED WEB_DIR "images/sunshine-locked.svg"
   #elif defined(__APPLE__) || defined(__MACH__)
-    #define TRAY_ICON WEB_DIR "images/logo-sunshine-16.png"
-    #define TRAY_ICON_PLAYING WEB_DIR "images/sunshine-playing-16.png"
-    #define TRAY_ICON_PAUSING WEB_DIR "images/sunshine-pausing-16.png"
-    #define TRAY_ICON_LOCKED WEB_DIR "images/sunshine-locked-16.png"
     #include <CoreFoundation/CoreFoundation.h>
     #include <dispatch/dispatch.h>
     #include <unordered_map>
@@ -175,6 +167,25 @@ namespace system_tray {
     .iconPathCount = 4,
     .allIconPaths = {TRAY_ICON, TRAY_ICON_LOCKED, TRAY_ICON_PLAYING, TRAY_ICON_PAUSING},
   };
+
+  #ifdef SUNSHINE_TESTS
+  const struct tray &tray_data_for_testing() {
+    return tray;
+  }
+
+  bool tray_initialized_for_testing() {
+    return tray_initialized;
+  }
+
+  void reset_tray_data_for_testing() {
+    tray.icon = tray.allIconPaths[0];
+    tray.tooltip = PROJECT_NAME;
+    tray.notification_icon = nullptr;
+    tray.notification_text = nullptr;
+    tray.notification_title = nullptr;
+    tray.notification_cb = nullptr;
+  }
+  #endif
 
   /**
    * @brief Get resource path.
