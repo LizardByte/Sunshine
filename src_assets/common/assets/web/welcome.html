@@ -58,6 +58,9 @@
   import { initApp } from './init'
   import { apiFetch } from './fetch_utils'
   import Notification from './Notification.vue'
+  import { loadAutoTheme } from './theme'
+
+  loadAutoTheme();
 
   let app = createApp({
     components: {
@@ -109,3 +112,5 @@
 
   initApp(app);
 </script>
+
+</html>
