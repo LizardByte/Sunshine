@@ -6,7 +6,7 @@
 </head>
 
 <body id="app" v-cloak>
-  <Navbar-Brand></Navbar-Brand>
+  <Navbar-Simple></Navbar-Simple>
   <Notification></Notification>
   <main id="content" class="container" role="main">
     <h1 class="my-4">{{ $t('welcome.greeting') }}</h1>
@@ -57,7 +57,7 @@
   import { initApp } from './init'
   import { apiFetch } from './fetch_utils'
   import Notification from './Notification.vue'
-  import NavbarBrand from './NavbarBrand.vue'
+  import NavbarSimple from './NavbarSimple.vue'
   import { loadAutoTheme } from './theme'
   import { LogIn } from '@lucide/vue'
 
@@ -67,7 +67,7 @@
     components: {
       ResourceCard,
       Notification,
-      NavbarBrand,
+      NavbarSimple,
       LogIn,
     },
     data() {

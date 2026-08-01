@@ -6,7 +6,7 @@
 </head>
 
 <body id="app" v-cloak>
-  <Navbar-Brand></Navbar-Brand>
+  <Navbar-Simple></Navbar-Simple>
   <div class="container py-5">
     <div class="row justify-content-center">
       <div class="col-md-8 col-lg-6">
@@ -29,14 +29,14 @@
   import { initApp } from './init'
   import { loadAutoTheme } from './theme'
   import { LogIn } from '@lucide/vue'
-  import NavbarBrand from './NavbarBrand.vue'
+  import NavbarSimple from './NavbarSimple.vue'
 
   loadAutoTheme();
 
   const app = createApp({
     components: {
       LogIn,
-      NavbarBrand,
+      NavbarSimple,
     },
   });
 
