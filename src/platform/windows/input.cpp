@@ -120,16 +120,18 @@ namespace platf {
   }
 
   win_input::touch_rotation_e win_input::parse_touch_rotation(std::string_view rotation) {
+    using enum touch_rotation_e;
+
     if (rotation == "90"sv) {
-      return touch_rotation_e::clockwise_90;
+      return clockwise_90;
     }
     if (rotation == "180"sv) {
-      return touch_rotation_e::clockwise_180;
+      return clockwise_180;
     }
     if (rotation == "270"sv) {
-      return touch_rotation_e::clockwise_270;
+      return clockwise_270;
     }
-    return touch_rotation_e::none;
+    return none;
   }
 
   win_input::touch_rotation_e win_input::select_touch_rotation(
@@ -148,14 +150,16 @@ namespace platf {
     float normalized_y,
     win_input::touch_rotation_e rotation
   ) {
+    using enum touch_rotation_e;
+
     switch (rotation) {
-      case touch_rotation_e::clockwise_90:
+      case clockwise_90:
         return {1.0f - normalized_y, normalized_x};
-      case touch_rotation_e::clockwise_180:
+      case clockwise_180:
         return {1.0f - normalized_x, 1.0f - normalized_y};
-      case touch_rotation_e::clockwise_270:
+      case clockwise_270:
         return {normalized_y, 1.0f - normalized_x};
-      case touch_rotation_e::none:
+      case none:
       default:
         return {normalized_x, normalized_y};
     }
