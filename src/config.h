@@ -289,6 +289,7 @@ namespace config {
 
     bool high_resolution_scrolling;  ///< Enable high-resolution mouse-wheel events.
     bool native_pen_touch;  ///< Enable native pen and touch injection.
+    bool touch_send_to_primary_display {false};  ///< Map streaming-client touch input to the Windows primary display.
   };
 
   namespace flag {

@@ -17,7 +17,10 @@
 #include <Windows.h>
 
 // standard includes
+#include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <limits>
 #include <thread>
 #include <vector>
 
@@ -25,6 +28,7 @@
 #include <ViGEm/Client.h>
 
 // local includes
+#include "input_utils.h"
 #include "keylayout.h"
 #include "misc.h"
 #include "src/config.h"
@@ -46,6 +50,188 @@ namespace platf {
     65535,
     65535
   };
+
+  /**
+   * @brief Windows pointer flags that are valid only for the frame in which they are injected.
+   */
+  constexpr auto EDGE_TRIGGERED_POINTER_FLAGS =
+    POINTER_FLAG_DOWN |
+    POINTER_FLAG_UP |
+    POINTER_FLAG_CANCELED |
+    POINTER_FLAG_UPDATE;
+
+  std::optional<touch_port_t> win_input::make_primary_display_touch_port(std::span<const display_bounds_t> displays) {
+    if (displays.empty()) {
+      return std::nullopt;
+    }
+
+    const display_bounds_t *primary_display = nullptr;
+    auto virtual_origin_x = std::numeric_limits<int>::max();
+    auto virtual_origin_y = std::numeric_limits<int>::max();
+
+    for (const auto &display : displays) {
+      if (display.width <= 0 || display.height <= 0) {
+        return std::nullopt;
+      }
+
+      virtual_origin_x = std::min(virtual_origin_x, display.offset_x);
+      virtual_origin_y = std::min(virtual_origin_y, display.offset_y);
+
+      if (display.is_primary) {
+        if (primary_display) {
+          return std::nullopt;
+        }
+        primary_display = &display;
+      }
+    }
+
+    if (!primary_display) {
+      return std::nullopt;
+    }
+
+    // Windows positions displays relative to the primary display and may report negative coordinates. Sunshine's
+    // touch ports are relative to the top-left of the virtual desktop, so translate to that nonnegative space.
+    const auto primary_offset_x = static_cast<std::int64_t>(primary_display->offset_x) - virtual_origin_x;
+    const auto primary_offset_y = static_cast<std::int64_t>(primary_display->offset_y) - virtual_origin_y;
+    if (primary_offset_x > std::numeric_limits<int>::max() || primary_offset_y > std::numeric_limits<int>::max()) {
+      return std::nullopt;
+    }
+
+    return touch_port_t {
+      static_cast<int>(primary_offset_x),
+      static_cast<int>(primary_offset_y),
+      primary_display->width,
+      primary_display->height,
+      0,
+      0
+    };
+  }
+
+  touch_port_t win_input::select_touch_port(
+    const touch_port_t &streamed_touch_port,
+    bool send_to_primary_display,
+    const std::optional<touch_port_t> &primary_touch_port
+  ) {
+    if (!send_to_primary_display || !primary_touch_port) {
+      return streamed_touch_port;
+    }
+
+    return *primary_touch_port;
+  }
+
+  std::pair<int, int> win_input::map_normalized_touch_position(
+    const touch_port_t &touch_port,
+    float normalized_x,
+    float normalized_y
+  ) {
+    const auto map_axis = [](float normalized_coordinate, int offset, int extent) {
+      if (extent <= 0) {
+        return offset;
+      }
+
+      if (!std::isfinite(normalized_coordinate)) {
+        normalized_coordinate = 0.0f;
+      }
+
+      normalized_coordinate = std::clamp(normalized_coordinate, 0.0f, 1.0f);
+      // A normalized coordinate of 1.0 is the far edge of this display. Select its final pixel rather than the first
+      // pixel of a neighboring display.
+      const auto pixel_offset = std::min(static_cast<int>(normalized_coordinate * extent), extent - 1);
+      return offset + pixel_offset;
+    };
+
+    return std::pair {
+      map_axis(normalized_x, touch_port.offset_x, touch_port.width),
+      map_axis(normalized_y, touch_port.offset_y, touch_port.height)
+    };
+  }
+
+  std::uint32_t win_input::apply_touch_pointer_event_flags(
+    std::uint32_t pointer_flags,
+    std::uint8_t event_type,
+    bool designate_primary
+  ) {
+    switch (event_type) {
+      case LI_TOUCH_EVENT_DOWN:
+      case LI_TOUCH_EVENT_MOVE:
+        pointer_flags |= POINTER_FLAG_FIRSTBUTTON;
+        break;
+      case LI_TOUCH_EVENT_HOVER:
+      case LI_TOUCH_EVENT_UP:
+      case LI_TOUCH_EVENT_CANCEL:
+      case LI_TOUCH_EVENT_CANCEL_ALL:
+      case LI_TOUCH_EVENT_HOVER_LEAVE:
+        pointer_flags &= ~POINTER_FLAG_FIRSTBUTTON;
+        break;
+      default:
+        break;
+    }
+
+    if (event_type == LI_TOUCH_EVENT_DOWN && designate_primary) {
+      pointer_flags |= POINTER_FLAG_PRIMARY;
+    }
+
+    return pointer_flags;
+  }
+
+  std::uint32_t win_input::finish_touch_pointer_frame(std::uint32_t pointer_flags) {
+    pointer_flags &= ~EDGE_TRIGGERED_POINTER_FLAGS;
+    if (!(pointer_flags & POINTER_FLAG_INCONTACT)) {
+      pointer_flags &= ~(POINTER_FLAG_FIRSTBUTTON | POINTER_FLAG_PRIMARY);
+    }
+    return pointer_flags;
+  }
+
+  bool win_input::touch_pointer_blocks_primary_designation(std::uint32_t pointer_flags) {
+    return pointer_flags & (POINTER_FLAG_INCONTACT | POINTER_FLAG_PRIMARY);
+  }
+
+  namespace {
+    /**
+     * @brief Query physical bounds for attached Windows displays and build the primary-display touch port.
+     *
+     * @return Primary-display touch port, or `std::nullopt` when the current topology cannot be queried.
+     */
+    std::optional<touch_port_t> query_primary_display_touch_port() {
+      std::vector<win_input::display_bounds_t> displays;
+
+      for (DWORD display_index = 0;; ++display_index) {
+        DISPLAY_DEVICEW display_device {};
+        display_device.cb = sizeof(display_device);
+        if (!EnumDisplayDevicesW(nullptr, display_index, &display_device, 0)) {
+          break;
+        }
+
+        if (!(display_device.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) ||
+            (display_device.StateFlags & DISPLAY_DEVICE_MIRRORING_DRIVER)) {
+          continue;
+        }
+
+        DEVMODEW display_mode {};
+        display_mode.dmSize = sizeof(display_mode);
+        if (!EnumDisplaySettingsExW(display_device.DeviceName, ENUM_CURRENT_SETTINGS, &display_mode, 0)) {
+          return std::nullopt;
+        }
+
+        constexpr DWORD required_fields = DM_POSITION | DM_PELSWIDTH | DM_PELSHEIGHT;
+        if ((display_mode.dmFields & required_fields) != required_fields ||
+            display_mode.dmPelsWidth > static_cast<DWORD>(std::numeric_limits<int>::max()) ||
+            display_mode.dmPelsHeight > static_cast<DWORD>(std::numeric_limits<int>::max())) {
+          return std::nullopt;
+        }
+
+        displays.push_back({
+          static_cast<int>(display_mode.dmPosition.x),
+          static_cast<int>(display_mode.dmPosition.y),
+          static_cast<int>(display_mode.dmPelsWidth),
+          static_cast<int>(display_mode.dmPelsHeight),
+          (display_device.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) != 0
+        });
+      }
+
+      return win_input::make_primary_display_touch_port(displays);
+    }
+  }  // namespace
 
   /**
    * @brief ViGEm client pointer released with `vigem_free`.
@@ -766,6 +952,7 @@ namespace platf {
     POINTER_TYPE_INFO touchInfo[10] {};  ///< Touch info.
     UINT32 activeTouchSlots {};  ///< Active touch slots.
     thread_pool_util::ThreadPool::task_id_t touchRepeatTask {};  ///< Touch repeat task.
+    bool primaryTouchPortWarningLogged {};  ///< Whether invalid primary-display metrics have already been logged.
   };
 
   /**
@@ -845,36 +1032,29 @@ namespace platf {
   }
 
   /**
-   * @brief Populate common `POINTER_INFO` members shared between pen and touch events.
-   * @param pointerInfo The pointer info to populate.
-   * @param touchPort The current viewport for translating to screen coordinates.
-   * @param eventType The type of touch/pen event.
-   * @param x The normalized 0.0-1.0 X coordinate.
-   * @param y The normalized 0.0-1.0 Y coordinate.
+   * @brief Apply common pointer flags for a pen or touch event.
+   *
+   * @param pointerInfo Pointer state to update.
+   * @param eventType Moonlight touch or pen event type.
+   * @return `true` when the event also requires an updated pixel location.
    */
-  void populate_common_pointer_info(POINTER_INFO &pointerInfo, const touch_port_t &touchPort, uint8_t eventType, float x, float y) {
+  [[nodiscard]] bool apply_common_pointer_event(POINTER_INFO &pointerInfo, uint8_t eventType) {
     switch (eventType) {
       case LI_TOUCH_EVENT_HOVER:
         pointerInfo.pointerFlags &= ~POINTER_FLAG_INCONTACT;
         pointerInfo.pointerFlags |= POINTER_FLAG_INRANGE | POINTER_FLAG_UPDATE;
-        pointerInfo.ptPixelLocation.x = x * touchPort.width + touchPort.offset_x;
-        pointerInfo.ptPixelLocation.y = y * touchPort.height + touchPort.offset_y;
-        break;
+        return true;
       case LI_TOUCH_EVENT_DOWN:
         pointerInfo.pointerFlags |= POINTER_FLAG_INRANGE | POINTER_FLAG_INCONTACT | POINTER_FLAG_DOWN;
-        pointerInfo.ptPixelLocation.x = x * touchPort.width + touchPort.offset_x;
-        pointerInfo.ptPixelLocation.y = y * touchPort.height + touchPort.offset_y;
-        break;
+        return true;
       case LI_TOUCH_EVENT_UP:
         // We expect to get another LI_TOUCH_EVENT_HOVER if the pointer remains in range
         pointerInfo.pointerFlags &= ~(POINTER_FLAG_INCONTACT | POINTER_FLAG_INRANGE);
         pointerInfo.pointerFlags |= POINTER_FLAG_UP;
-        break;
+        return false;
       case LI_TOUCH_EVENT_MOVE:
         pointerInfo.pointerFlags |= POINTER_FLAG_INRANGE | POINTER_FLAG_INCONTACT | POINTER_FLAG_UPDATE;
-        pointerInfo.ptPixelLocation.x = x * touchPort.width + touchPort.offset_x;
-        pointerInfo.ptPixelLocation.y = y * touchPort.height + touchPort.offset_y;
-        break;
+        return true;
       case LI_TOUCH_EVENT_CANCEL:
       case LI_TOUCH_EVENT_CANCEL_ALL:
         // If we were in contact with the touch surface at the time of the cancellation,
@@ -886,20 +1066,20 @@ namespace platf {
         }
         pointerInfo.pointerFlags &= ~(POINTER_FLAG_INCONTACT | POINTER_FLAG_INRANGE);
         pointerInfo.pointerFlags |= POINTER_FLAG_CANCELED;
-        break;
+        return false;
       case LI_TOUCH_EVENT_HOVER_LEAVE:
         pointerInfo.pointerFlags &= ~(POINTER_FLAG_INCONTACT | POINTER_FLAG_INRANGE);
         pointerInfo.pointerFlags |= POINTER_FLAG_UPDATE;
-        break;
+        return false;
       case LI_TOUCH_EVENT_BUTTON_ONLY:
         // On Windows, we can only pass buttons if we have an active pointer
         if (pointerInfo.pointerFlags != POINTER_FLAG_NONE) {
           pointerInfo.pointerFlags |= POINTER_FLAG_UPDATE;
         }
-        break;
+        return false;
       default:
         BOOST_LOG(warning) << "Unknown touch event: "sv << (uint32_t) eventType;
-        break;
+        return false;
     }
   }
 
@@ -951,7 +1131,15 @@ namespace platf {
     // If we have active slots, cancel them all
     if (raw->activeTouchSlots > 0) {
       for (UINT32 i = 0; i < raw->activeTouchSlots; i++) {
-        populate_common_pointer_info(raw->touchInfo[i].touchInfo.pointerInfo, {}, LI_TOUCH_EVENT_CANCEL_ALL, 0.0f, 0.0f);
+        static_cast<void>(apply_common_pointer_event(
+          raw->touchInfo[i].touchInfo.pointerInfo,
+          LI_TOUCH_EVENT_CANCEL_ALL
+        ));
+        raw->touchInfo[i].touchInfo.pointerInfo.pointerFlags = win_input::apply_touch_pointer_event_flags(
+          raw->touchInfo[i].touchInfo.pointerInfo.pointerFlags,
+          LI_TOUCH_EVENT_CANCEL_ALL,
+          false
+        );
         raw->touchInfo[i].touchInfo.touchMask = TOUCH_MASK_NONE;
       }
       if (!inject_synthetic_pointer_input(raw->global, raw->touch, raw->touchInfo, raw->activeTouchSlots)) {
@@ -964,9 +1152,6 @@ namespace platf {
     std::memset(raw->touchInfo, 0, sizeof(raw->touchInfo));
     raw->activeTouchSlots = 0;
   }
-
-  // These are edge-triggered pointer state flags that should always be cleared next frame
-  constexpr auto EDGE_TRIGGERED_POINTER_FLAGS = POINTER_FLAG_DOWN | POINTER_FLAG_UP | POINTER_FLAG_CANCELED | POINTER_FLAG_UPDATE;  ///< Protocol or platform constant for edge triggered pointer flags.
 
   /**
    * @brief Sends a touch event to the OS.
@@ -1011,6 +1196,42 @@ namespace platf {
       return;
     }
 
+    const bool send_to_primary_display = config::input.touch_send_to_primary_display;
+    std::optional<touch_port_t> primary_touch_port;
+    if (send_to_primary_display) {
+      primary_touch_port = query_primary_display_touch_port();
+
+      if (!primary_touch_port && !raw->primaryTouchPortWarningLogged) {
+        BOOST_LOG(warning)
+          << "Unable to target the primary display for touch input due to an invalid physical display topology; "sv
+          << "using the streamed display instead"sv;
+        raw->primaryTouchPortWarningLogged = true;
+      } else if (primary_touch_port) {
+        raw->primaryTouchPortWarningLogged = false;
+      }
+    } else {
+      raw->primaryTouchPortWarningLogged = false;
+    }
+
+    // Keep this selection local to native touch injection so pen and mouse input
+    // continue using the streamed display's touch port.
+    const auto selected_touch_port = win_input::select_touch_port(
+      touch_port,
+      send_to_primary_display,
+      primary_touch_port
+    );
+
+    bool designate_primary_touch = touch.eventType == LI_TOUCH_EVENT_DOWN;
+    if (designate_primary_touch) {
+      // Windows permits only one primary pointer during an active touch interaction.
+      for (const auto &active_pointer : raw->touchInfo) {
+        if (win_input::touch_pointer_blocks_primary_designation(active_pointer.touchInfo.pointerInfo.pointerFlags)) {
+          designate_primary_touch = false;
+          break;
+        }
+      }
+    }
+
     // Find or allocate an entry for this touch pointer ID
     auto pointer = pointer_by_id(raw, touch.pointerId, touch.eventType);
     if (!pointer) {
@@ -1024,8 +1245,17 @@ namespace platf {
     auto &touchInfo = pointer->touchInfo;
     touchInfo.pointerInfo.pointerType = PT_TOUCH;
 
-    // Populate shared pointer info fields
-    populate_common_pointer_info(touchInfo.pointerInfo, touch_port, touch.eventType, touch.x, touch.y);
+    // Apply shared pointer state and constrain native touch coordinates to the selected display.
+    if (apply_common_pointer_event(touchInfo.pointerInfo, touch.eventType)) {
+      const auto [pixel_x, pixel_y] = win_input::map_normalized_touch_position(selected_touch_port, touch.x, touch.y);
+      touchInfo.pointerInfo.ptPixelLocation.x = pixel_x;
+      touchInfo.pointerInfo.ptPixelLocation.y = pixel_y;
+    }
+    touchInfo.pointerInfo.pointerFlags = win_input::apply_touch_pointer_event_flags(
+      touchInfo.pointerInfo.pointerFlags,
+      touch.eventType,
+      designate_primary_touch
+    );
 
     touchInfo.touchMask = TOUCH_MASK_NONE;
 
@@ -1058,10 +1288,22 @@ namespace platf {
         float contactHeight = (std::sin(majorAxisAngle) * touch.contactAreaMajor) + (std::sin(minorAxisAngle) * touch.contactAreaMinor);
 
         // Convert into screen coordinates centered at the touch location and constrained by screen dimensions
-        touchInfo.rcContact.left = std::max<LONG>(touch_port.offset_x, touchInfo.pointerInfo.ptPixelLocation.x - std::floor(contactWidth / 2));
-        touchInfo.rcContact.right = std::min<LONG>(touch_port.offset_x + touch_port.width, touchInfo.pointerInfo.ptPixelLocation.x + std::ceil(contactWidth / 2));
-        touchInfo.rcContact.top = std::max<LONG>(touch_port.offset_y, touchInfo.pointerInfo.ptPixelLocation.y - std::floor(contactHeight / 2));
-        touchInfo.rcContact.bottom = std::min<LONG>(touch_port.offset_y + touch_port.height, touchInfo.pointerInfo.ptPixelLocation.y + std::ceil(contactHeight / 2));
+        touchInfo.rcContact.left = std::max<LONG>(
+          selected_touch_port.offset_x,
+          touchInfo.pointerInfo.ptPixelLocation.x - std::floor(contactWidth / 2)
+        );
+        touchInfo.rcContact.right = std::min<LONG>(
+          selected_touch_port.offset_x + selected_touch_port.width,
+          touchInfo.pointerInfo.ptPixelLocation.x + std::ceil(contactWidth / 2)
+        );
+        touchInfo.rcContact.top = std::max<LONG>(
+          selected_touch_port.offset_y,
+          touchInfo.pointerInfo.ptPixelLocation.y - std::floor(contactHeight / 2)
+        );
+        touchInfo.rcContact.bottom = std::min<LONG>(
+          selected_touch_port.offset_y + selected_touch_port.height,
+          touchInfo.pointerInfo.ptPixelLocation.y + std::ceil(contactHeight / 2)
+        );
 
         touchInfo.touchMask |= TOUCH_MASK_CONTACTAREA;
       }
@@ -1084,7 +1326,7 @@ namespace platf {
     }
 
     // Clear pointer flags that should only remain set for one frame
-    touchInfo.pointerInfo.pointerFlags &= ~EDGE_TRIGGERED_POINTER_FLAGS;
+    touchInfo.pointerInfo.pointerFlags = win_input::finish_touch_pointer_frame(touchInfo.pointerInfo.pointerFlags);
 
     // If we still have an active touch, refresh the touch state periodically
     if (raw->activeTouchSlots > 1 || touchInfo.pointerInfo.pointerFlags != POINTER_FLAG_NONE) {
@@ -1135,8 +1377,11 @@ namespace platf {
     penInfo.pointerInfo.pointerType = PT_PEN;
     penInfo.pointerInfo.pointerId = 0;
 
-    // Populate shared pointer info fields
-    populate_common_pointer_info(penInfo.pointerInfo, touch_port, pen.eventType, pen.x, pen.y);
+    // Apply shared pointer state while preserving the existing pen coordinate path.
+    if (apply_common_pointer_event(penInfo.pointerInfo, pen.eventType)) {
+      penInfo.pointerInfo.ptPixelLocation.x = pen.x * touch_port.width + touch_port.offset_x;
+      penInfo.pointerInfo.ptPixelLocation.y = pen.y * touch_port.height + touch_port.offset_y;
+    }
 
     // Windows only supports a single pen button, so send all buttons as the barrel button
     if (pen.penButtons) {

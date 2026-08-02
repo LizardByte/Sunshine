@@ -181,6 +181,15 @@ const config = ref(props.config)
               v-model="config.native_pen_touch"
               default="true"
     ></Checkbox>
+
+    <!-- Send native touch input to the Windows primary display -->
+    <Checkbox v-if="platform === 'windows' && config.mouse === 'enabled' && config.native_pen_touch === 'enabled'"
+              class="mb-3"
+              id="touch_send_to_primary_display"
+              locale-prefix="config"
+              v-model="config.touch_send_to_primary_display"
+              default="false"
+    ></Checkbox>
   </div>
 </template>
 
