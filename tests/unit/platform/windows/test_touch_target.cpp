@@ -111,6 +111,85 @@ TEST(WindowsTouchTargetTest, ExactVideoEdgeDoesNotReachAdjacentDesktop) {
   EXPECT_EQ(bottom, 2159);
 }
 
+TEST(WindowsTouchRotationTest, ParsesSupportedClockwiseRotations) {
+  EXPECT_EQ(platf::win_input::parse_touch_rotation("0"), platf::win_input::touch_rotation_e::none);
+  EXPECT_EQ(platf::win_input::parse_touch_rotation("90"), platf::win_input::touch_rotation_e::clockwise_90);
+  EXPECT_EQ(platf::win_input::parse_touch_rotation("180"), platf::win_input::touch_rotation_e::clockwise_180);
+  EXPECT_EQ(platf::win_input::parse_touch_rotation("270"), platf::win_input::touch_rotation_e::clockwise_270);
+  EXPECT_EQ(platf::win_input::parse_touch_rotation("invalid"), platf::win_input::touch_rotation_e::none);
+}
+
+TEST(WindowsTouchRotationTest, RotationRequiresASelectedPrimaryDisplay) {
+  EXPECT_EQ(
+    platf::win_input::select_touch_rotation(false, "90"),
+    platf::win_input::touch_rotation_e::none
+  );
+  EXPECT_EQ(
+    platf::win_input::select_touch_rotation(true, "90"),
+    platf::win_input::touch_rotation_e::clockwise_90
+  );
+}
+
+TEST(WindowsTouchRotationTest, Clockwise90MapsAllDisplayCorners) {
+  constexpr platf::touch_port_t primary_touch_port {0, 0, 1920, 1080, 0, 0};
+  constexpr auto rotation = platf::win_input::touch_rotation_e::clockwise_90;
+
+  const auto map_rotated_corner = [&](float x, float y) {
+    const auto [rotated_x, rotated_y] = platf::win_input::rotate_normalized_touch_position(x, y, rotation);
+    return platf::win_input::map_normalized_touch_position(primary_touch_port, rotated_x, rotated_y);
+  };
+
+  EXPECT_EQ(map_rotated_corner(0.0f, 0.0f), std::pair(1919, 0));
+  EXPECT_EQ(map_rotated_corner(0.0f, 1.0f), std::pair(0, 0));
+  EXPECT_EQ(map_rotated_corner(1.0f, 0.0f), std::pair(1919, 1079));
+  EXPECT_EQ(map_rotated_corner(1.0f, 1.0f), std::pair(0, 1079));
+}
+
+TEST(WindowsTouchRotationTest, Clockwise90CompensatesForCounterclockwiseApplicationTransform) {
+  constexpr float client_x = 0.2f;
+  constexpr float client_y = 0.7f;
+
+  const auto [injected_x, injected_y] = platf::win_input::rotate_normalized_touch_position(
+    client_x,
+    client_y,
+    platf::win_input::touch_rotation_e::clockwise_90
+  );
+
+  // An application applying (y, 1-x) receives the original point after Sunshine applies the inverse rotation.
+  const auto application_x = injected_y;
+  const auto application_y = 1.0f - injected_x;
+  EXPECT_FLOAT_EQ(application_x, client_x);
+  EXPECT_FLOAT_EQ(application_y, client_y);
+}
+
+TEST(WindowsTouchRotationTest, OtherRotationsTransformNormalizedCoordinates) {
+  const auto unchanged = platf::win_input::rotate_normalized_touch_position(
+    0.25f,
+    0.75f,
+    platf::win_input::touch_rotation_e::none
+  );
+  const auto clockwise_180 = platf::win_input::rotate_normalized_touch_position(
+    0.25f,
+    0.75f,
+    platf::win_input::touch_rotation_e::clockwise_180
+  );
+  const auto clockwise_270 = platf::win_input::rotate_normalized_touch_position(
+    0.25f,
+    0.75f,
+    platf::win_input::touch_rotation_e::clockwise_270
+  );
+  const auto unsupported = platf::win_input::rotate_normalized_touch_position(
+    0.25f,
+    0.75f,
+    static_cast<platf::win_input::touch_rotation_e>(45)
+  );
+
+  EXPECT_EQ(unchanged, std::pair(0.25f, 0.75f));
+  EXPECT_EQ(clockwise_180, std::pair(0.75f, 0.25f));
+  EXPECT_EQ(clockwise_270, std::pair(0.75f, 0.75f));
+  EXPECT_EQ(unsupported, unchanged);
+}
+
 TEST(WindowsTouchTargetTest, InvalidExtentAndNonFiniteCoordinatesStayAtDisplayOrigin) {
   constexpr platf::touch_port_t invalid_touch_port {640, 360, 0, -1, 0, 0};
   constexpr platf::touch_port_t valid_touch_port {640, 360, 1280, 768, 0, 0};

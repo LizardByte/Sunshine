@@ -8,12 +8,23 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string_view>
 #include <utility>
 
 // local includes
 #include "src/platform/common.h"
 
 namespace platf::win_input {
+  /**
+   * @brief Clockwise rotation applied to normalized native-touch coordinates.
+   */
+  enum class touch_rotation_e : std::uint16_t {
+    none = 0,  ///< Preserve client touch coordinates.
+    clockwise_90 = 90,  ///< Rotate coordinates 90 degrees clockwise.
+    clockwise_180 = 180,  ///< Rotate coordinates 180 degrees clockwise.
+    clockwise_270 = 270  ///< Rotate coordinates 270 degrees clockwise.
+  };
+
   /**
    * @brief Physical bounds of an attached Windows display.
    */
@@ -47,6 +58,37 @@ namespace platf::win_input {
     const touch_port_t &streamed_touch_port,
     bool send_to_primary_display,
     const std::optional<touch_port_t> &primary_touch_port
+  );
+
+  /**
+   * @brief Parse a configured clockwise native-touch rotation.
+   *
+   * @param rotation Rotation expressed as `0`, `90`, `180`, or `270` degrees.
+   * @return Parsed rotation, or `touch_rotation_e::none` for an unsupported value.
+   */
+  touch_rotation_e parse_touch_rotation(std::string_view rotation);
+
+  /**
+   * @brief Select the native-touch rotation for the active target.
+   *
+   * @param primary_display_selected Whether a valid primary-display touch port was selected.
+   * @param configured_rotation Configured clockwise rotation in degrees.
+   * @return Configured rotation for a primary-display target, otherwise `touch_rotation_e::none`.
+   */
+  touch_rotation_e select_touch_rotation(bool primary_display_selected, std::string_view configured_rotation);
+
+  /**
+   * @brief Rotate normalized native-touch coordinates around the center of their target display.
+   *
+   * @param normalized_x Horizontal coordinate in normalized video coordinates.
+   * @param normalized_y Vertical coordinate in normalized video coordinates.
+   * @param rotation Clockwise rotation to apply before mapping to display pixels.
+   * @return Rotated normalized coordinates.
+   */
+  std::pair<float, float> rotate_normalized_touch_position(
+    float normalized_x,
+    float normalized_y,
+    touch_rotation_e rotation
   );
 
   /**

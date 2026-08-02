@@ -16,4 +16,5 @@ TEST(ConfigDefaultsTest, InputDefaultsKeepNativeTouchEnabled) {
   EXPECT_TRUE(config::input.high_resolution_scrolling);
   EXPECT_TRUE(config::input.native_pen_touch);
   EXPECT_FALSE(config::input.touch_send_to_primary_display);
+  EXPECT_EQ(config::input.touch_primary_display_rotation, "0");
 }

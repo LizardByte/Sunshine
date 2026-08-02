@@ -190,6 +190,19 @@ const config = ref(props.config)
               v-model="config.touch_send_to_primary_display"
               default="false"
     ></Checkbox>
+
+    <!-- Rotate native touch coordinates before mapping them to the Windows primary display -->
+    <div class="mb-3"
+         v-if="platform === 'windows' && config.mouse === 'enabled' && config.native_pen_touch === 'enabled' && config.touch_send_to_primary_display === 'enabled'">
+      <label for="touch_primary_display_rotation" class="form-label">{{ $t('config.touch_primary_display_rotation') }}</label>
+      <select id="touch_primary_display_rotation" class="form-select" v-model="config.touch_primary_display_rotation">
+        <option value="0">{{ $t('config.touch_primary_display_rotation_0') }}</option>
+        <option value="90">{{ $t('config.touch_primary_display_rotation_90') }}</option>
+        <option value="180">{{ $t('config.touch_primary_display_rotation_180') }}</option>
+        <option value="270">{{ $t('config.touch_primary_display_rotation_270') }}</option>
+      </select>
+      <div class="form-text">{{ $t('config.touch_primary_display_rotation_desc') }}</div>
+    </div>
   </div>
 </template>
 

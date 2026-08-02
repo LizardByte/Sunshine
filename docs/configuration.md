@@ -717,6 +717,36 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### touch_primary_display_rotation
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            On Windows, rotates native touch coordinates clockwise before mapping them to the primary display.
+            This option only applies when @code{touch_send_to_primary_display} is enabled and does not affect pen
+            or mouse input. Select the rotation that compensates for applications that interpret touchscreen
+            coordinates in a different display orientation.
+        </td>
+    </tr>
+    <tr>
+        <td>Allowed values</td>
+        <td colspan="2">@code{0}, @code{90}, @code{180}, or @code{270}</td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            touch_primary_display_rotation = 90
+            @endcode</td>
+    </tr>
+</table>
+
 ### keybindings
 
 <table>

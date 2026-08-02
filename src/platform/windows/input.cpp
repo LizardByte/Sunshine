@@ -119,6 +119,48 @@ namespace platf {
     return *primary_touch_port;
   }
 
+  win_input::touch_rotation_e win_input::parse_touch_rotation(std::string_view rotation) {
+    if (rotation == "90"sv) {
+      return touch_rotation_e::clockwise_90;
+    }
+    if (rotation == "180"sv) {
+      return touch_rotation_e::clockwise_180;
+    }
+    if (rotation == "270"sv) {
+      return touch_rotation_e::clockwise_270;
+    }
+    return touch_rotation_e::none;
+  }
+
+  win_input::touch_rotation_e win_input::select_touch_rotation(
+    bool primary_display_selected,
+    std::string_view configured_rotation
+  ) {
+    if (!primary_display_selected) {
+      return touch_rotation_e::none;
+    }
+
+    return parse_touch_rotation(configured_rotation);
+  }
+
+  std::pair<float, float> win_input::rotate_normalized_touch_position(
+    float normalized_x,
+    float normalized_y,
+    win_input::touch_rotation_e rotation
+  ) {
+    switch (rotation) {
+      case touch_rotation_e::clockwise_90:
+        return {1.0f - normalized_y, normalized_x};
+      case touch_rotation_e::clockwise_180:
+        return {1.0f - normalized_x, 1.0f - normalized_y};
+      case touch_rotation_e::clockwise_270:
+        return {normalized_y, 1.0f - normalized_x};
+      case touch_rotation_e::none:
+      default:
+        return {normalized_x, normalized_y};
+    }
+  }
+
   std::pair<int, int> win_input::map_normalized_touch_position(
     const touch_port_t &touch_port,
     float normalized_x,
@@ -1220,6 +1262,10 @@ namespace platf {
       send_to_primary_display,
       primary_touch_port
     );
+    const auto touch_rotation = win_input::select_touch_rotation(
+      send_to_primary_display && primary_touch_port.has_value(),
+      config::input.touch_primary_display_rotation
+    );
 
     bool designate_primary_touch = touch.eventType == LI_TOUCH_EVENT_DOWN;
     if (designate_primary_touch) {
@@ -1247,7 +1293,10 @@ namespace platf {
 
     // Apply shared pointer state and constrain native touch coordinates to the selected display.
     if (apply_common_pointer_event(touchInfo.pointerInfo, touch.eventType)) {
-      const auto [pixel_x, pixel_y] = win_input::map_normalized_touch_position(selected_touch_port, touch.x, touch.y);
+      const auto [normalized_x, normalized_y] =
+        win_input::rotate_normalized_touch_position(touch.x, touch.y, touch_rotation);
+      const auto [pixel_x, pixel_y] =
+        win_input::map_normalized_touch_position(selected_touch_port, normalized_x, normalized_y);
       touchInfo.pointerInfo.ptPixelLocation.x = pixel_x;
       touchInfo.pointerInfo.ptPixelLocation.y = pixel_y;
     }

@@ -860,6 +860,7 @@ namespace config {
     true,  // high resolution scrolling
     true,  // native pen/touch support
     false,  // send touch input to the primary display
+    "0",  // primary display touch map rotation
   };
 
   /**
@@ -1805,6 +1806,12 @@ namespace config {
     bool_f(vars, "high_resolution_scrolling", input.high_resolution_scrolling);
     bool_f(vars, "native_pen_touch", input.native_pen_touch);
     bool_f(vars, "touch_send_to_primary_display", input.touch_send_to_primary_display);
+    string_restricted_f(
+      vars,
+      "touch_primary_display_rotation",
+      input.touch_primary_display_rotation,
+      {"0"sv, "90"sv, "180"sv, "270"sv}
+    );
 
     bool_f(vars, "notify_pre_releases", sunshine.notify_pre_releases);
     bool_f(vars, "system_tray", sunshine.system_tray);
