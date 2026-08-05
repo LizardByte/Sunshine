@@ -213,31 +213,63 @@ namespace wl {
           return platf::capture_e::interrupted;
         }
 
-        auto src = static_cast<const uint8_t *>(current_frame->shm_data);
+        auto src = current_frame->shm_data.data();
         auto dst = static_cast<uint8_t *>(img_out->data);
-        int shm_bpp = current_frame->shm_stride / width;
 
-        if (shm_bpp == 4) {
-          // XRGB8888/ARGB8888: direct copy, strides may differ
-          auto copy_bytes = std::min(static_cast<uint32_t>(img_out->row_pitch), current_frame->shm_stride);
-          for (int y = 0; y < height; y++) {
-            std::memcpy(dst + y * img_out->row_pitch, src + y * current_frame->shm_stride, copy_bytes);
-          }
-        } else if (shm_bpp == 3) {
-          // BGR888/RGB888: convert to BGRA8888 (add 0xFF alpha)
-          for (int y = 0; y < height; y++) {
-            auto row_src = src + y * current_frame->shm_stride;
-            auto row_dst = dst + y * img_out->row_pitch;
-            for (int x = 0; x < width; x++) {
-              row_dst[x * 4 + 0] = row_src[x * 3 + 2];  // B (from src R position)
-              row_dst[x * 4 + 1] = row_src[x * 3 + 1];  // G
-              row_dst[x * 4 + 2] = row_src[x * 3 + 0];  // R (from src B position)
-              row_dst[x * 4 + 3] = 0xFF;  // A
+        switch (current_frame->shm_format) {
+          case WL_SHM_FORMAT_XRGB8888:
+          case WL_SHM_FORMAT_ARGB8888: {
+            // Already BGRA byte order: direct copy, strides may differ
+            auto copy_bytes = std::min(static_cast<std::uint32_t>(img_out->row_pitch), current_frame->shm_stride);
+            for (int y = 0; y < height; y++) {
+              std::memcpy(dst + y * img_out->row_pitch, src + y * current_frame->shm_stride, copy_bytes);
             }
+            break;
           }
-        } else {
-          BOOST_LOG(error) << "[wlgrab] Unsupported SHM bytes per pixel: "sv << shm_bpp;
-          return platf::capture_e::reinit;
+          case WL_SHM_FORMAT_XBGR8888:
+          case WL_SHM_FORMAT_ABGR8888: {
+            for (int y = 0; y < height; y++) {
+              auto row_src = src + y * current_frame->shm_stride;
+              auto row_dst = dst + y * img_out->row_pitch;
+              for (int x = 0; x < width; x++) {
+                row_dst[x * 4 + 0] = row_src[x * 4 + 2];
+                row_dst[x * 4 + 1] = row_src[x * 4 + 1];
+                row_dst[x * 4 + 2] = row_src[x * 4 + 0];
+                row_dst[x * 4 + 3] = 0xFF;
+              }
+            }
+            break;
+          }
+          case WL_SHM_FORMAT_BGR888: {
+            for (int y = 0; y < height; y++) {
+              auto row_src = src + y * current_frame->shm_stride;
+              auto row_dst = dst + y * img_out->row_pitch;
+              for (int x = 0; x < width; x++) {
+                row_dst[x * 4 + 0] = row_src[x * 3 + 2];
+                row_dst[x * 4 + 1] = row_src[x * 3 + 1];
+                row_dst[x * 4 + 2] = row_src[x * 3 + 0];
+                row_dst[x * 4 + 3] = 0xFF;
+              }
+            }
+            break;
+          }
+          case WL_SHM_FORMAT_RGB888: {
+            for (int y = 0; y < height; y++) {
+              auto row_src = src + y * current_frame->shm_stride;
+              auto row_dst = dst + y * img_out->row_pitch;
+              for (int x = 0; x < width; x++) {
+                row_dst[x * 4 + 0] = row_src[x * 3 + 0];
+                row_dst[x * 4 + 1] = row_src[x * 3 + 1];
+                row_dst[x * 4 + 2] = row_src[x * 3 + 2];
+                row_dst[x * 4 + 3] = 0xFF;
+              }
+            }
+            break;
+          }
+          default:
+            BOOST_LOG(error) << "[wlgrab] Unsupported SHM format: 0x"sv
+                             << std::hex << current_frame->shm_format << std::dec;
+            return platf::capture_e::reinit;
         }
 
         img_out->frame_timestamp = current_frame->frame_timestamp;

@@ -6,6 +6,7 @@
 
 // standard includes
 #include <bitset>
+#include <vector>
 
 #ifdef SUNSHINE_BUILD_WAYLAND
   #include <linux-dmabuf-unstable-v1.h>
@@ -32,8 +33,9 @@ namespace wl {
 
     egl::surface_descriptor_t sd;
     std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
-    void *shm_data = nullptr;
-    uint32_t shm_stride = 0;
+    std::vector<std::uint8_t> shm_data;
+    std::uint32_t shm_stride = 0;
+    std::uint32_t shm_format = 0;
     bool is_shm = false;
   };
 

@@ -4,6 +4,7 @@
  */
 // standard includes
 #include <cstdlib>
+#include <mutex>
 
 // platform includes
 #include <drm_fourcc.h>
@@ -335,7 +336,7 @@ namespace wl {
   }
 
   void dmabuf_t::create_and_copy_shm(zwlr_screencopy_frame_v1 *frame) {
-    size_t needed = (size_t) shm_info.stride * shm_info.height;
+    size_t needed = static_cast<size_t>(shm_info.stride) * shm_info.height;
 
     if (!init_shm(needed)) {
       zwlr_screencopy_frame_v1_destroy(frame);
@@ -372,14 +373,13 @@ namespace wl {
 
     shm_mode = true;
 
-    static bool shm_format_logged = false;
-    if (!shm_format_logged) {
+    static std::once_flag shm_format_log_flag;
+    std::call_once(shm_format_log_flag, [&] {
       BOOST_LOG(info) << "[wayland] SHM capture: "sv
                       << shm_info.width << "x"sv << shm_info.height
                       << " stride="sv << shm_info.stride
                       << " format=0x"sv << std::hex << shm_info.format << std::dec;
-      shm_format_logged = true;
-    }
+    });
 
     // Tell compositor to copy the frame into our SHM buffer
     zwlr_screencopy_frame_v1_copy(frame, shm_wl_buffer);
@@ -637,11 +637,17 @@ namespace wl {
       // SHM frame: populate dimensions for wlr_t::snapshot() check
       current_frame->sd.width = shm_info.width;
       current_frame->sd.height = shm_info.height;
-      current_frame->shm_data = shm_mmap;
+      // Copy out: the mmap is reused by the next capture cycle
+      {
+        auto *src = static_cast<const std::uint8_t *>(shm_mmap);
+        size_t size = static_cast<size_t>(shm_info.stride) * shm_info.height;
+        current_frame->shm_data.assign(src, src + size);
+      }
       current_frame->shm_stride = shm_info.stride;
+      current_frame->shm_format = shm_info.format;
       current_frame->is_shm = true;
 
-      // Destroy Wayland objects, keep memfd+mmap for next frame
+      // Safe to destroy — data has been copied
       cleanup_shm();
     } else {
       current_frame->is_shm = false;
