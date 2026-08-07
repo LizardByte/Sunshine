@@ -4,6 +4,13 @@
  */
 #pragma once
 
+// standard includes
+#include <cstddef>
+#include <filesystem>
+#include <format>
+#include <string>
+#include <system_error>
+
 // lib includes
 #include <boost/log/common.hpp>
 #include <boost/log/sinks.hpp>
@@ -30,6 +37,47 @@ extern boost::log::sources::severity_logger<int> tests;
  * @brief Handles the initialization and deinitialization of the logging system.
  */
 namespace logging {
+  /**
+   * @brief The number of previous log files retained during rotation.
+   */
+  inline constexpr std::size_t retained_log_file_count {5};
+
+  /**
+   * @brief Rotate a log file while retaining up to five previous logs.
+   *
+   * The current log is renamed with a `.1` suffix, existing rotated logs are
+   * advanced by one generation, and the previous `.5` log is removed.
+   *
+   * @param log_file Path to the current log file.
+   * @return An error code when rotation fails, or a clear error code on success.
+   */
+  inline std::error_code rotate_log_file(const std::filesystem::path &log_file) noexcept {
+    const auto rotated_log_path = [&log_file](std::size_t generation) {
+      auto rotated_path = log_file;
+      rotated_path += std::format(".{}", generation);
+      return rotated_path;
+    };
+
+    try {
+      std::filesystem::remove(rotated_log_path(retained_log_file_count));
+
+      for (auto generation = retained_log_file_count; generation > 1; --generation) {
+        const auto previous_path = rotated_log_path(generation - 1);
+        if (std::filesystem::exists(previous_path)) {
+          std::filesystem::rename(previous_path, rotated_log_path(generation));
+        }
+      }
+
+      if (std::filesystem::exists(log_file)) {
+        std::filesystem::rename(log_file, rotated_log_path(1));
+      }
+
+      return {};
+    } catch (const std::filesystem::filesystem_error &filesystem_error) {
+      return filesystem_error.code();
+    }
+  }
+
   /**
    * @brief RAII helper that runs shutdown cleanup when destroyed.
    */
@@ -58,7 +106,7 @@ namespace logging {
   void formatter(const boost::log::record_view &view, boost::log::formatting_ostream &os);
 
   /**
-   * @brief Initialize the logging system.
+   * @brief Rotate the current log file and initialize the logging system.
    * @param min_log_level The minimum log level to output.
    * @param log_file The log file to write to.
    * @return An object that will deinitialize the logging system when it goes out of scope.
