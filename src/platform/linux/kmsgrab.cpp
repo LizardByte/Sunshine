@@ -21,6 +21,7 @@
 // local includes
 #include "cuda.h"
 #include "graphics.h"
+#include "kmsgrab.h"
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
@@ -227,29 +228,6 @@ namespace platf {
       std::uint32_t connector_id;  ///< Connector ID.
 
       bool connected;  ///< Whether the DRM connector is connected.
-    };
-
-    /**
-     * @brief KMS monitor capture state and DRM resources.
-     */
-    struct monitor_t {
-      // Connector attributes
-      std::uint32_t type;  ///< Type.
-      std::uint32_t index;  ///< Index.
-
-      // Monitor index in the global list
-      std::uint32_t monitor_index;  ///< Monitor index.
-
-      platf::touch_port_t viewport;  ///< Viewport.
-    };
-
-    /**
-     * @brief DRM card, device path, and render-node metadata.
-     */
-    struct card_descriptor_t {
-      std::string path;  ///< Path.
-
-      std::map<std::uint32_t, monitor_t> crtc_to_monitor;  ///< Crtc to monitor.
     };
 
     static std::vector<card_descriptor_t> card_descriptors;
@@ -979,18 +957,6 @@ namespace platf {
 
             BOOST_LOG(info) << "Found monitor for DRM screencasting"sv;
 
-            // We need to find the correct /dev/dri/card{nr} to correlate the crtc_id with the monitor descriptor
-            auto pos = std::find_if(std::begin(card_descriptors), std::end(card_descriptors), [&](card_descriptor_t &cd) {
-              return cd.path == filestring;
-            });
-
-            if (pos == std::end(card_descriptors)) {
-              // This code path shouldn't happen, but it's there just in case.
-              // card_descriptors is part of the guesswork after all.
-              BOOST_LOG(error) << "Couldn't find ["sv << entry.path() << "]: This shouldn't have happened :/"sv;
-              return -1;
-            }
-
             // TODO: surf_sd = fb->to_sd();
 
             kms::print(plane.get(), fb.get(), crtc.get());
@@ -1006,40 +972,44 @@ namespace platf {
             this->env_logical_width = ::platf::kms::env_logical_width;
             this->env_logical_height = ::platf::kms::env_logical_height;
 
-            auto monitor = pos->crtc_to_monitor.find(plane->crtc_id);
-            if (monitor != std::end(pos->crtc_to_monitor)) {
-              auto &viewport = monitor->second.viewport;
-
-              width = viewport.width;
-              height = viewport.height;
-
-              logical_width = viewport.logical_width;
-              logical_height = viewport.logical_height;
-
-              switch (card.get_panel_orientation(plane->plane_id)) {
-                case DRM_MODE_ROTATE_270:
-                  BOOST_LOG(debug) << "Detected panel orientation at 90, swapping width and height.";
-                  width = viewport.height;
-                  height = viewport.width;
-                  break;
-                case DRM_MODE_ROTATE_90:
-                case DRM_MODE_ROTATE_180:
-                  BOOST_LOG(warning) << "Panel orientation is unsupported, screen capture may not work correctly.";
-                  break;
-              }
-
-              offset_x = viewport.offset_x;
-              offset_y = viewport.offset_y;
+            const platf::touch_port_t live_crtc_viewport {
+              (int) crtc->x,
+              (int) crtc->y,
+              (int) crtc->width,
+              (int) crtc->height,
+              (int) crtc->width,
+              (int) crtc->height,
+            };
+            const auto resolved_viewport = resolve_monitor_viewport(card_descriptors, filestring, plane->crtc_id, live_crtc_viewport);
+            switch (resolved_viewport.source) {
+              case monitor_viewport_source_e::live_crtc_missing_card:
+                BOOST_LOG(warning) << "DRM card ["sv << entry.path() << "] was absent from the cached monitor list; using live CRTC geometry."sv;
+                break;
+              case monitor_viewport_source_e::live_crtc_missing_monitor:
+                BOOST_LOG(warning) << "CRTC ["sv << plane->crtc_id << "] was absent from the cached monitor list; using live CRTC geometry."sv;
+                break;
+              case monitor_viewport_source_e::cached:
+                break;
             }
 
-            // This code path shouldn't happen, but it's there just in case.
-            // crtc_to_monitor is part of the guesswork after all.
-            else {
-              BOOST_LOG(warning) << "Couldn't find crtc_id, this shouldn't have happened :\\"sv;
-              width = crtc->width;
-              height = crtc->height;
-              offset_x = crtc->x;
-              offset_y = crtc->y;
+            const auto &viewport = resolved_viewport.viewport;
+            width = viewport.width;
+            height = viewport.height;
+            logical_width = viewport.logical_width;
+            logical_height = viewport.logical_height;
+            offset_x = viewport.offset_x;
+            offset_y = viewport.offset_y;
+
+            switch (card.get_panel_orientation(plane->plane_id)) {
+              case DRM_MODE_ROTATE_270:
+                BOOST_LOG(debug) << "Detected panel orientation at 90, swapping width and height.";
+                width = viewport.height;
+                height = viewport.width;
+                break;
+              case DRM_MODE_ROTATE_90:
+              case DRM_MODE_ROTATE_180:
+                BOOST_LOG(warning) << "Panel orientation is unsupported, screen capture may not work correctly.";
+                break;
             }
 
             plane_id = plane->plane_id;
