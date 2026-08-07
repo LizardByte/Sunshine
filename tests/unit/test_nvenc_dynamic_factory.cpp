@@ -17,6 +17,7 @@
 
   // local includes
   #include "src/nvenc/nvenc_dynamic_factory.h"
+  #include "src/video.h"
 
 namespace {
 
@@ -57,6 +58,15 @@ namespace {
 
     bool invalidate_ref_frames(std::uint64_t, std::uint64_t) override {
       return true;
+    }
+
+    video::bitrate_reconfigure_result_t reconfigure_bitrate(std::uint32_t target_kbps) override {
+      return {
+        video::bitrate_reconfigure_status_e::unsupported,
+        0,
+        target_kbps,
+        0,
+      };
     }
 
     ID3D11Texture2D *get_input_texture() override {
