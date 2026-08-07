@@ -11,6 +11,7 @@
 #include <map>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 // local includes
@@ -36,6 +37,47 @@ namespace platf::kms {
    * @brief DRM card, device path, and monitor metadata.
    */
   struct card_descriptor_t {
+    /**
+     * @brief Construct a DRM card descriptor.
+     *
+     * @param card_path DRM card filename.
+     * @param monitors CRTC-to-monitor lookup.
+     */
+    card_descriptor_t(std::string card_path, std::map<std::uint32_t, monitor_t> monitors):
+        path {std::move(card_path)},
+        crtc_to_monitor {std::move(monitors)} {
+    }
+
+    /**
+     * @brief Copy a DRM card descriptor.
+     *
+     * @param other Descriptor to copy.
+     */
+    card_descriptor_t(const card_descriptor_t &other) = default;
+
+    /**
+     * @brief Move a DRM card descriptor without throwing.
+     *
+     * @param other Descriptor to move.
+     */
+    card_descriptor_t(card_descriptor_t &&other) noexcept = default;
+
+    /**
+     * @brief Copy-assign a DRM card descriptor.
+     *
+     * @param other Descriptor to copy.
+     * @return Reference to this descriptor.
+     */
+    card_descriptor_t &operator=(const card_descriptor_t &other) = default;
+
+    /**
+     * @brief Move-assign a DRM card descriptor without throwing.
+     *
+     * @param other Descriptor to move.
+     * @return Reference to this descriptor.
+     */
+    card_descriptor_t &operator=(card_descriptor_t &&other) noexcept = default;
+
     std::string path;  ///< DRM card filename.
     std::map<std::uint32_t, monitor_t> crtc_to_monitor;  ///< CRTC-to-monitor lookup.
   };
@@ -72,17 +114,19 @@ namespace platf::kms {
     const std::uint32_t crtc_id,
     const platf::touch_port_t &live_crtc_viewport
   ) {
+    using enum monitor_viewport_source_e;
+
     const auto card = std::ranges::find(card_descriptors, card_path, &card_descriptor_t::path);
     if (card == std::end(card_descriptors)) {
-      return {live_crtc_viewport, monitor_viewport_source_e::live_crtc_missing_card};
+      return {live_crtc_viewport, live_crtc_missing_card};
     }
 
     const auto monitor = card->crtc_to_monitor.find(crtc_id);
     if (monitor == std::end(card->crtc_to_monitor)) {
-      return {live_crtc_viewport, monitor_viewport_source_e::live_crtc_missing_monitor};
+      return {live_crtc_viewport, live_crtc_missing_monitor};
     }
 
-    return {monitor->second.viewport, monitor_viewport_source_e::cached};
+    return {monitor->second.viewport, cached};
   }
 
 }  // namespace platf::kms

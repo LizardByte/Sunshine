@@ -982,13 +982,15 @@ namespace platf {
             };
             const auto resolved_viewport = resolve_monitor_viewport(card_descriptors, filestring, plane->crtc_id, live_crtc_viewport);
             switch (resolved_viewport.source) {
-              case monitor_viewport_source_e::live_crtc_missing_card:
+              using enum monitor_viewport_source_e;
+
+              case live_crtc_missing_card:
                 BOOST_LOG(warning) << "DRM card ["sv << entry.path() << "] was absent from the cached monitor list; using live CRTC geometry."sv;
                 break;
-              case monitor_viewport_source_e::live_crtc_missing_monitor:
+              case live_crtc_missing_monitor:
                 BOOST_LOG(warning) << "CRTC ["sv << plane->crtc_id << "] was absent from the cached monitor list; using live CRTC geometry."sv;
                 break;
-              case monitor_viewport_source_e::cached:
+              case cached:
                 break;
             }
 
