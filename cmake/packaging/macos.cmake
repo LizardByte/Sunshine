@@ -97,6 +97,8 @@ qt6_deploy_runtime_dependencies(
           set(_fw_dir \"\${_app}/Contents/Frameworks\")
           if(EXISTS \"\${_fw_dir}\")
               file(GLOB_RECURSE _sign_items
+                  # Include framework directories; GLOB_RECURSE omits them.
+                  LIST_DIRECTORIES true
                   \"\${_fw_dir}/*.framework\"
                   \"\${_fw_dir}/*.dylib\"
                   \"\${_app}/Contents/PlugIns/*.dylib\"
