@@ -518,12 +518,11 @@
   "resource_card": {
     "documentation": "Documentation",
     "github_discussions": "Discussions GitHub",
-    "legal": "Légal",
+    "legal": "Mentions légales",
     "legal_desc": "En continuant à utiliser ce logiciel, vous acceptez les termes et conditions des documents suivants.",
     "license": "Licence",
     "lizardbyte_website": "Site web de LizardByte",
     "resources": "Ressources",
-    "resources_desc": "Ressources pour Sunshine !",
     "third_party_notice": "Avis aux tiers"
   },
   "troubleshooting": {
