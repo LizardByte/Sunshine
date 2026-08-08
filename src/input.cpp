@@ -1086,28 +1086,43 @@ namespace input {
     input->gamepads[packet->controllerNumber].id = id;
   }
 
-  /**
-   * @brief Normalizes coordinates to monitor-local logical touch dimensions.
-   * @param touch_port The current touch port metadata.
-   * @param coords The in/out coordinate pair to normalize.
-   * @return The monitor-local touch port, or std::nullopt if dimensions are invalid.
-   */
-  std::optional<platf::touch_port_t> monitor_touch_port(const input::touch_port_t &touch_port, std::pair<float, float> &coords) {
-    const float monitor_logical_w = (touch_port.width * touch_port.scalar_inv) / touch_port.scalar_tpcoords;
-    const float monitor_logical_h = (touch_port.height * touch_port.scalar_inv) / touch_port.scalar_tpcoords;
-    if (monitor_logical_w <= 0.0f || monitor_logical_h <= 0.0f) {
+  std::optional<platf::touch_port_t> monitor_touch_port(
+    const input::touch_port_t &touch_port,
+    std::pair<float, float> &coords,
+    bool use_effective_content
+  ) {
+    // client_to_touchport() has already subtracted the leading client padding from the coordinates. Remove padding
+    // from both sides of the encoded extent here so effective-content coordinates still normalize to 0.0-1.0.
+    const float frame_logical_w = (touch_port.width * touch_port.scalar_inv) / touch_port.scalar_tpcoords;
+    const float frame_logical_h = (touch_port.height * touch_port.scalar_inv) / touch_port.scalar_tpcoords;
+    const float content_width = touch_port.width - (2.0f * touch_port.client_offsetX);
+    const float content_height = touch_port.height - (2.0f * touch_port.client_offsetY);
+    const float monitor_logical_w = (content_width * touch_port.scalar_inv) / touch_port.scalar_tpcoords;
+    const float monitor_logical_h = (content_height * touch_port.scalar_inv) / touch_port.scalar_tpcoords;
+    const float normalization_width = use_effective_content ? monitor_logical_w : frame_logical_w;
+    const float normalization_height = use_effective_content ? monitor_logical_h : frame_logical_h;
+    if (!std::isfinite(normalization_width) ||
+        !std::isfinite(normalization_height) ||
+        normalization_width <= 0.0f ||
+        normalization_height <= 0.0f) {
       BOOST_LOG(warning) << "Ignoring touch/pen input due to invalid logical touch dimensions"sv;
       return std::nullopt;
     }
 
-    coords.first = (coords.first - touch_port.offset_x) / monitor_logical_w;
-    coords.second = (coords.second - touch_port.offset_y) / monitor_logical_h;
+    coords.first = (coords.first - touch_port.offset_x) / normalization_width;
+    coords.second = (coords.second - touch_port.offset_y) / normalization_height;
+    if (use_effective_content) {
+      // client_to_touchport() maps encoded padding to the content edges. Keep those edge coordinates inside the
+      // normalized target so native touch cannot escape onto an adjacent display.
+      coords.first = std::clamp(coords.first, 0.0f, 1.0f);
+      coords.second = std::clamp(coords.second, 0.0f, 1.0f);
+    }
 
     return platf::touch_port_t {
       touch_port.offset_x,
       touch_port.offset_y,
-      static_cast<int>(monitor_logical_w),
-      static_cast<int>(monitor_logical_h)
+      static_cast<int>(normalization_width),
+      static_cast<int>(normalization_height)
     };
   }
 
@@ -1129,7 +1144,12 @@ namespace input {
 
     auto &touch_port = input->touch_port;
 
-    auto abs_port = monitor_touch_port(touch_port, *coords);
+#ifdef _WIN32
+    const bool use_effective_touch_content = config::input.touch_send_to_primary_display;
+#else
+    constexpr bool use_effective_touch_content = false;
+#endif
+    auto abs_port = monitor_touch_port(touch_port, *coords, use_effective_touch_content);
     if (!abs_port) {
       return;
     }
@@ -1180,7 +1200,7 @@ namespace input {
 
     auto &touch_port = input->touch_port;
 
-    auto abs_port = monitor_touch_port(touch_port, *coords);
+    auto abs_port = monitor_touch_port(touch_port, *coords, false);
     if (!abs_port) {
       return;
     }

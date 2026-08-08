@@ -6,6 +6,7 @@
 
 // standard includes
 #include <functional>
+#include <optional>
 
 // local includes
 #include "platform/common.h"
@@ -78,6 +79,22 @@ namespace input {
       return width != 0 && height != 0 && env_width != 0 && env_height != 0;
     }
   };
+
+  /**
+   * @brief Normalize host coordinates against the encoded frame or its effective display content.
+   * @details When effective content is selected, symmetric letterbox or pillarbox padding is removed from the
+   * encoded extent and coordinates in that padding are clamped to the nearest content edge.
+   *
+   * @param touch_port Touch-port metadata for the active stream and captured display.
+   * @param coords Host-relative coordinates to normalize in place.
+   * @param use_effective_content Whether to exclude encoded letterbox or pillarbox regions from normalization.
+   * @return The selected logical touch port, or `std::nullopt` when dimensions are invalid.
+   */
+  std::optional<platf::touch_port_t> monitor_touch_port(
+    const touch_port_t &touch_port,
+    std::pair<float, float> &coords,
+    bool use_effective_content
+  );
 
   /**
    * @brief Scale the ellipse axes according to the provided size.
