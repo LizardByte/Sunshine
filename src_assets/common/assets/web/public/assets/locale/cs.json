@@ -278,7 +278,7 @@
     "locale": "Místní prostředí",
     "locale_desc": "Místní jazyk používaný pro uživatelské rozhraní Sunshine.",
     "log_path": "Cesta k logu",
-    "log_path_desc": "Soubor, ve kterém jsou uloženy aktuální logy Sunshine.",
+    "log_path_desc": "Soubor, ve kterém je uložen aktuální protokol Sunshine. Při spuštění se uchovává až pět předchozích protokolů s příponami .1 až .5.",
     "max_bitrate": "Maximální bitrate",
     "max_bitrate_desc": "Maximální bitrate (v Kb/s), kterým bude Sunshine kódovat datový tok. Pokud je nastaven na 0, bude vždy použit bitrate požadovaný aplikací Moonlight.",
     "minimum_fps_target": "Minimální cílová hodnota FPS",
