@@ -96,11 +96,17 @@ qt6_deploy_runtime_dependencies(
           # Sign bundled frameworks and plugins before signing the app itself.
           set(_fw_dir \"\${_app}/Contents/Frameworks\")
           if(EXISTS \"\${_fw_dir}\")
-              file(GLOB_RECURSE _sign_items
+              # Framework bundles are top-level directories.
+              file(GLOB _framework_items
+                  LIST_DIRECTORIES true
                   \"\${_fw_dir}/*.framework\"
+              )
+              # Recursively collect only library files.
+              file(GLOB_RECURSE _sign_items
                   \"\${_fw_dir}/*.dylib\"
                   \"\${_app}/Contents/PlugIns/*.dylib\"
               )
+              list(APPEND _sign_items \${_framework_items})
 
               foreach(item IN LISTS _sign_items)
                   execute_process(COMMAND /usr/bin/codesign --verbose=2

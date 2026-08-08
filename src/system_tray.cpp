@@ -84,7 +84,6 @@ namespace system_tray {
     platf::open_url("https://www.paypal.com/paypalme/ReenigneArcher");
   }
 
-  #if defined(__linux__) || defined(linux) || defined(__linux) || defined(__FreeBSD__)
   /**
    * @brief Forwards Qt log messages to Sunshine's BOOST_LOG logger.
    * @param level Log level: 0=debug, 1=info, 2=warning, 3=error.
@@ -109,7 +108,6 @@ namespace system_tray {
         break;
     }
   }
-  #endif
 
   void tray_reset_display_device_config_cb([[maybe_unused]] struct tray_menu *item) {
     BOOST_LOG(info) << "Resetting display device config from system tray"sv;
@@ -318,9 +316,7 @@ namespace system_tray {
     tray.icon = tray.allIconPaths[0];
   #endif
 
-  #if defined(__linux__) || defined(linux) || defined(__linux) || defined(__FreeBSD__)
     tray_set_log_callback(qt_log_to_boost);
-  #endif
 
     tray_set_app_info(PROJECT_NAME, PROJECT_NAME, PROJECT_FQDN);
 

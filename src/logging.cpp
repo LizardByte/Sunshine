@@ -156,6 +156,11 @@ namespace logging {
       deinit();
     }
 
+    const auto log_path = std::filesystem::path {std::u8string {log_file.begin(), log_file.end()}};
+    if (const auto rotation_error = rotate_log_file(log_path)) {
+      std::cerr << "Failed to rotate log file '" << log_file << "': " << rotation_error.message() << '\n';
+    }
+
 #ifndef __ANDROID__
     setup_av_logging(min_log_level);
     setup_libdisplaydevice_logging(min_log_level);

@@ -199,6 +199,11 @@ include_directories(
 
 if(WIN32)
     include_directories(BEFORE SYSTEM "${NV_CODEC_HEADERS_13_INCLUDE_DIR}")
+else()
+    include_directories(
+            BEFORE SYSTEM
+            "${CMAKE_SOURCE_DIR}/third-party/build-deps/third-party/FFmpeg/nv-codec-headers/include"
+    )
 endif()
 
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
