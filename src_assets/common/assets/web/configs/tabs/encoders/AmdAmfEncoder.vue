@@ -56,6 +56,14 @@ const config = ref(props.config)
                       v-model="config.amd_enforce_hrd"
                       default="false"
             ></Checkbox>
+
+            <!-- AMF Max AU Size -->
+            <div class="mb-3">
+              <label for="amd_max_au_size" class="form-label">{{ $t('config.amd_max_au_size') }}</label>
+              <input type="number" class="form-control" id="amd_max_au_size"
+                     placeholder="-1" min="-1" v-model="config.amd_max_au_size" />
+              <div class="form-text">{{ $t('config.amd_max_au_size_desc') }}</div>
+            </div>
           </div>
         </div>
       </div>
