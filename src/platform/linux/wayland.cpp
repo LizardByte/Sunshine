@@ -2,6 +2,11 @@
  * @file src/platform/linux/wayland.cpp
  * @brief Definitions for Wayland capture.
  */
+// standard includes
+#include <algorithm>
+#include <iterator>
+#include <vector>
+
 // platform includes
 #include <drm_fourcc.h>
 #include <fcntl.h>
@@ -382,7 +387,19 @@ namespace wl {
     if (supported_modifiers) {
       auto it = supported_modifiers->find(dmabuf_info.format);
       if (it != supported_modifiers->end() && !it->second.empty()) {
-        current_bo = gbm_bo_create_with_modifiers(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, it->second.data(), it->second.size());
+        // DRM_FORMAT_MOD_INVALID requests an implicit-modifier allocation and is not a valid
+        // entry in an explicit modifier list, so drop it before handing the list to GBM.
+        std::vector<std::uint64_t> modifiers;
+        modifiers.reserve(it->second.size());
+        std::copy_if(it->second.begin(), it->second.end(), std::back_inserter(modifiers), [](std::uint64_t modifier) {
+          return modifier != DRM_FORMAT_MOD_INVALID;
+        });
+
+        if (!modifiers.empty()) {
+          // Use the flag-taking variant, otherwise the GBM_BO_USE_RENDERING usage hint passed
+          // by the implicit-modifier path below would be silently dropped.
+          current_bo = gbm_bo_create_with_modifiers2(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, modifiers.data(), modifiers.size(), GBM_BO_USE_RENDERING);
+        }
       }
     }
 
@@ -397,10 +414,17 @@ namespace wl {
       return;
     }
 
-    // Get buffer info
-    int fd = gbm_bo_get_fd(current_bo);
-    if (fd < 0) {
-      BOOST_LOG(error) << "Failed to get buffer FD"sv;
+    // Get buffer info. An explicit modifier may describe a multi-planar layout (for example
+    // AMD DCC, where a second plane holds the compression metadata). Every plane has to be
+    // exported, otherwise the compositor rejects the import with EGL_BAD_MATCH.
+    uint64_t modifier = gbm_bo_get_modifier(current_bo);
+    int planes = gbm_bo_get_plane_count(current_bo);
+
+    auto next_frame = get_next_frame();
+    next_frame->sd.modifier = modifier;
+
+    if (planes < 1 || planes > 4) {
+      BOOST_LOG(error) << "Unsupported DMA-BUF plane count: "sv << planes;
       gbm_bo_destroy(current_bo);
       current_bo = nullptr;
       zwlr_screencopy_frame_v1_destroy(frame);
@@ -408,19 +432,32 @@ namespace wl {
       return;
     }
 
-    uint32_t stride = gbm_bo_get_stride(current_bo);
-    uint64_t modifier = gbm_bo_get_modifier(current_bo);
-
-    // Store in surface descriptor for later use
-    auto next_frame = get_next_frame();
-    next_frame->sd.fds[0] = fd;
-    next_frame->sd.pitches[0] = stride;
-    next_frame->sd.offsets[0] = 0;
-    next_frame->sd.modifier = modifier;
-
     // Create linux-dmabuf buffer
     auto params = zwp_linux_dmabuf_v1_create_params(dmabuf_interface);
-    zwp_linux_buffer_params_v1_add(params, fd, 0, 0, stride, modifier >> 32, modifier & 0xffffffff);
+
+    for (int plane = 0; plane < planes; ++plane) {
+      int fd = gbm_bo_get_fd_for_plane(current_bo, plane);
+      if (fd < 0) {
+        BOOST_LOG(error) << "Failed to get buffer FD for plane "sv << plane;
+        zwp_linux_buffer_params_v1_destroy(params);
+        next_frame->destroy();  // Closes the FDs exported so far
+        gbm_bo_destroy(current_bo);
+        current_bo = nullptr;
+        zwlr_screencopy_frame_v1_destroy(frame);
+        status = REINIT;
+        return;
+      }
+
+      uint32_t stride = gbm_bo_get_stride_for_plane(current_bo, plane);
+      uint32_t offset = gbm_bo_get_offset(current_bo, plane);
+
+      // Store in surface descriptor for later use
+      next_frame->sd.fds[plane] = fd;
+      next_frame->sd.pitches[plane] = stride;
+      next_frame->sd.offsets[plane] = offset;
+
+      zwp_linux_buffer_params_v1_add(params, fd, plane, offset, stride, modifier >> 32, modifier & 0xffffffff);
+    }
 
     // Add listener for buffer creation
     zwp_linux_buffer_params_v1_add_listener(params, &params_listener, frame);
