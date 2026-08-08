@@ -28,26 +28,36 @@
       </div>
     </div>
 
-    <!-- ViGEmBus Warning -->
-    <div class="alert alert-warning my-4" v-if="platform === 'windows' && controllerEnabled && vigembus && (!vigembus.installed || !vigembus.version_compatible)">
+    <!-- libvirtualhid Warning -->
+    <div class="alert alert-warning my-4" v-if="platform === 'windows' && controllerEnabled && virtualhid && (!virtualhid.installed || !virtualhid.version_compatible)">
       <div>
         <div class="d-flex align-items-center mb-3">
           <alert-triangle :size="32" class="icon-lg me-3"></alert-triangle>
           <div>
-            <div v-if="!vigembus.installed">
-              <p class="mb-1"><strong>{{ $t('index.vigembus_not_installed_title') }}</strong></p>
-              <p class="mb-0">{{ $t('index.vigembus_not_installed_desc') }}</p>
+            <div v-if="!virtualhid.installed">
+              <p class="mb-1"><strong>{{ $t('index.virtualhid_not_installed_title') }}</strong></p>
+              <p class="mb-0">{{ $t('index.virtualhid_not_installed_desc') }}</p>
             </div>
-            <div v-else-if="!vigembus.version_compatible">
-              <p class="mb-1"><strong>{{ $t('index.vigembus_outdated_title') }}</strong></p>
-              <p class="mb-0">{{ $t('index.vigembus_outdated_desc', { version: vigembus.version }) }}</p>
+            <div v-else-if="!virtualhid.version_compatible">
+              <p class="mb-1"><strong>{{ $t('index.virtualhid_outdated_title') }}</strong></p>
+              <p class="mb-0">{{ $t('index.virtualhid_outdated_desc', { version: virtualhid.version, supported_versions: virtualhid.supported_versions }) }}</p>
             </div>
           </div>
         </div>
-        <a class="btn btn-warning" href="./troubleshooting#vigembus">
+        <a class="btn btn-warning" href="./troubleshooting#virtualhid">
           <wrench :size="18" class="icon"></wrench>
           {{ $t('index.fix_now') }}
         </a>
+      </div>
+    </div>
+
+    <div class="alert alert-warning my-4" v-if="platform === 'windows' && controllerEnabled && virtualhid && vigembus && !virtualhid.installed && vigembus.installed">
+      <div class="d-flex align-items-center">
+        <alert-triangle :size="32" class="icon-lg me-3"></alert-triangle>
+        <div>
+          <p class="mb-1"><strong>{{ $t('index.virtualhid_missing_vigembus_installed_title') }}</strong></p>
+          <p class="mb-0">{{ $t('index.virtualhid_missing_vigembus_installed_desc') }}</p>
+        </div>
       </div>
     </div>
 
@@ -177,6 +187,7 @@
         logs: null,
         platform: "",
         controllerEnabled: false,
+        virtualhid: null,
         vigembus: null,
       }
     },
@@ -193,12 +204,14 @@
         this.preReleaseVersion = new SunshineVersion((await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases").then((r) => r.json())).find(release => release.prerelease), null);
         console.log("Pre-Release Version: ", this.preReleaseVersion.version)
 
-        // Fetch ViGEmBus status only on Windows when controller is enabled
+        // Fetch virtual input driver status only on Windows when controller is enabled
         if (this.platform === 'windows' && this.controllerEnabled) {
           try {
-            this.vigembus = await fetch("./api/vigembus/status").then((r) => r.json());
+            const virtualInputStatus = await fetch("./api/virtual-input/status").then((r) => r.json());
+            this.virtualhid = virtualInputStatus.virtualhid;
+            this.vigembus = virtualInputStatus.vigembus;
           } catch (e) {
-            console.error("Failed to fetch ViGEmBus status:", e);
+            console.error("Failed to fetch virtual input driver status:", e);
           }
         }
       } catch (e) {

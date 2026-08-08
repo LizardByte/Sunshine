@@ -13,13 +13,13 @@
 [submodule "third-party/glad"]
 	path = third-party/glad
 	url = https://github.com/Dav1dde/glad.git
-[submodule "third-party/inputtino"]
-	path = third-party/inputtino
-	url = https://github.com/games-on-whales/inputtino.git
-	branch = stable
 [submodule "third-party/libdisplaydevice"]
 	path = third-party/libdisplaydevice
 	url = https://github.com/LizardByte/libdisplaydevice.git
+	branch = master
+[submodule "third-party/libvirtualhid"]
+	path = third-party/libvirtualhid
+	url = https://github.com/LizardByte/libvirtualhid.git
 	branch = master
 [submodule "third-party/lizardbyte-common"]
 	path = third-party/lizardbyte-common
