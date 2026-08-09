@@ -1473,6 +1473,8 @@ namespace video {
   int active_av1_mode;  ///< AV1 mode selected by the most recent encoder probe.
   bool last_encoder_probe_supported_ref_frames_invalidation = false;  ///< Whether the last probe found reference-frame invalidation support.
   std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec = {};  ///< YUV444 support discovered for each probed codec.
+  std::array<bool, 3> last_encoder_probe_supported_dynamic_range_for_codec = {};  ///< 10-bit 4:2:0 support discovered for each probed codec.
+  std::array<bool, 3> last_encoder_probe_supported_dynamic_range_yuv444_for_codec = {};  ///< 10-bit YUV444 support discovered for each probed codec.
 
   /**
    * @brief Recreate a display capture object after a capture failure.
@@ -3264,6 +3266,8 @@ namespace video {
   void reset_encoder_probe_results() {
     last_encoder_probe_supported_ref_frames_invalidation = false;
     last_encoder_probe_supported_yuv444_for_codec = {};
+    last_encoder_probe_supported_dynamic_range_for_codec = {};
+    last_encoder_probe_supported_dynamic_range_yuv444_for_codec = {};
   }
 
   void record_encoder_probe_results(const encoder_t &encoder) {
@@ -3274,6 +3278,18 @@ namespace video {
                                                        encoder.hevc[encoder_t::YUV444];
     last_encoder_probe_supported_yuv444_for_codec[2] = encoder.av1[encoder_t::PASSED] &&
                                                        encoder.av1[encoder_t::YUV444];
+    last_encoder_probe_supported_dynamic_range_for_codec[0] = encoder.h264[encoder_t::PASSED] &&
+                                                              encoder.h264[encoder_t::DYNAMIC_RANGE];
+    last_encoder_probe_supported_dynamic_range_for_codec[1] = encoder.hevc[encoder_t::PASSED] &&
+                                                              encoder.hevc[encoder_t::DYNAMIC_RANGE];
+    last_encoder_probe_supported_dynamic_range_for_codec[2] = encoder.av1[encoder_t::PASSED] &&
+                                                              encoder.av1[encoder_t::DYNAMIC_RANGE];
+    last_encoder_probe_supported_dynamic_range_yuv444_for_codec[0] = encoder.h264[encoder_t::PASSED] &&
+                                                                     encoder.h264[encoder_t::DYNAMIC_RANGE_YUV444];
+    last_encoder_probe_supported_dynamic_range_yuv444_for_codec[1] = encoder.hevc[encoder_t::PASSED] &&
+                                                                     encoder.hevc[encoder_t::DYNAMIC_RANGE_YUV444];
+    last_encoder_probe_supported_dynamic_range_yuv444_for_codec[2] = encoder.av1[encoder_t::PASSED] &&
+                                                                     encoder.av1[encoder_t::DYNAMIC_RANGE_YUV444];
   }
 
   int probe_encoders() {
