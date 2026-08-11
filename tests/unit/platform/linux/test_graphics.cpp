@@ -6,9 +6,16 @@
 
 #if defined(__linux__)
   #include <algorithm>
-  #include <stdexcept>
+  #include <exception>
 
   #include <src/platform/linux/graphics.h>
+
+namespace {
+  /**
+   * @brief Test-only failure raised by a capture-buffer release callback.
+   */
+  class capture_buffer_release_error: public std::exception {};
+}  // namespace
 
 TEST(EglImageDescriptorTest, ReleasesCaptureBufferOnlyOnce) {
   egl::img_descriptor_t descriptor;
@@ -45,7 +52,7 @@ TEST(EglImageDescriptorTest, ContainsCaptureBufferReleaseExceptions) {
   std::ranges::fill(descriptor.sd.fds, -1);
 
   descriptor.capture_buffer_consumed_cb = []() {
-    throw std::runtime_error("release failed");
+    throw capture_buffer_release_error {};
   };
 
   EXPECT_NO_THROW(descriptor.mark_capture_buffer_consumed());
