@@ -50,6 +50,7 @@ include(${CMAKE_MODULE_PATH}/prep/build_version.cmake)
 
 # cmake build flags
 include(${CMAKE_MODULE_PATH}/prep/options.cmake)
+include(${CMAKE_MODULE_PATH}/prep/static_qt.cmake)
 
 # initial prep
 include(${CMAKE_MODULE_PATH}/prep/init.cmake)
