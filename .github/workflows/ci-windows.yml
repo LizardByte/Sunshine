@@ -240,12 +240,10 @@ jobs:
             -S . \
             -DBUILD_WERROR=ON \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DCMAKE_PREFIX_PATH="${MINGW_PREFIX}/qt6-static" \
             -DSUNSHINE_ASSETS_DIR=assets \
             -DSUNSHINE_PUBLISHER_NAME="${GITHUB_REPOSITORY_OWNER}" \
             -DSUNSHINE_PUBLISHER_WEBSITE="https://app.lizardbyte.dev" \
-            -DSUNSHINE_PUBLISHER_ISSUE_URL="https://app.lizardbyte.dev/support" \
-            -DSUNSHINE_USE_STATIC_QT=ON
+            -DSUNSHINE_PUBLISHER_ISSUE_URL="https://app.lizardbyte.dev/support"
           echo "::add-matcher::.github/matchers/gcc.json"
           ninja -C build
           echo "::remove-matcher owner=gcc::"

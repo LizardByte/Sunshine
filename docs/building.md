@@ -189,13 +189,13 @@ fi
 pacman -S "${dependencies[@]}"
 ```
 
-The static Qt package is installed under a separate prefix. Add the following options when configuring a Windows
-build so Sunshine and Qt's third-party dependencies are linked statically:
+Static Qt is enabled by default on Windows. Sunshine automatically adds the MSYS2 static Qt prefix at
+`${MINGW_PREFIX}/qt6-static` when that package is installed. If an IDE does not inherit `MINGW_PREFIX`, Sunshine
+derives the same prefix from the selected compiler. If static Qt is installed in a custom location, specify it with
+`-DCMAKE_PREFIX_PATH=/path/to/qt6-static`.
 
-```bash
--DCMAKE_PREFIX_PATH="${MINGW_PREFIX}/qt6-static" \
--DSUNSHINE_USE_STATIC_QT=ON
-```
+To use dynamic Qt instead, configure with `-DSUNSHINE_USE_STATIC_QT=OFF` and ensure the dynamic Qt package is
+available through the normal toolchain prefix.
 
 To create a WiX installer, you also need to install [.NET](https://dotnet.microsoft.com/download).
 
