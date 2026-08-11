@@ -88,6 +88,53 @@ namespace pipewire {
   };
 
   /**
+   * @brief Safely returns retained PipeWire buffers from Sunshine's conversion
+   * thread while preventing use after stream teardown.
+   */
+  struct buffer_release_state_t {
+    /**
+     * @brief Make buffer releases target the active PipeWire stream.
+     *
+     * @param new_loop PipeWire thread loop that owns the stream.
+     * @param new_stream PipeWire stream that owns captured buffers.
+     */
+    void activate(struct pw_thread_loop *new_loop, struct pw_stream *new_stream) {
+      std::scoped_lock lock(mutex);
+      loop = new_loop;
+      stream = new_stream;
+    }
+
+    /**
+     * @brief Ignore future buffer releases before stream teardown.
+     */
+    void deactivate() {
+      std::scoped_lock lock(mutex);
+      loop = nullptr;
+      stream = nullptr;
+    }
+
+    /**
+     * @brief Return a retained buffer to the active PipeWire stream.
+     *
+     * @param buffer PipeWire buffer whose capture contents are no longer used.
+     */
+    void release(struct pw_buffer *buffer) {
+      std::scoped_lock lock(mutex);
+      if (!loop || !stream || !buffer) {
+        return;
+      }
+
+      pw_thread_loop_lock(loop);
+      pw_stream_queue_buffer(stream, buffer);
+      pw_thread_loop_unlock(loop);
+    }
+
+    std::mutex mutex;  ///< Protects stream lifetime and serialized buffer release.
+    struct pw_thread_loop *loop = nullptr;  ///< Thread loop that owns `stream`.
+    struct pw_stream *stream = nullptr;  ///< Active stream that owns retained buffers.
+  };
+
+  /**
    * @brief PipeWire stream handle, format, and shared state pointer.
    */
   struct stream_data_t {
@@ -148,6 +195,7 @@ namespace pipewire {
 
     ~pipewire_t() {
       BOOST_LOG(debug) << "[pipewire] Destroying pipewire_t"sv;
+      buffer_release_state->deactivate();
       pw_thread_loop_lock(loop);
 
       // Lock the frame mutex to stop fill_img
@@ -293,6 +341,7 @@ namespace pipewire {
 
         BOOST_LOG(debug) << "[pipewire] Create PW stream"sv;
         stream_data.stream = pw_stream_new(core, "Sunshine Video Capture", props);
+        buffer_release_state->activate(loop, stream_data.stream);
         pw_stream_add_listener(stream_data.stream, &stream_data.stream_listener, &stream_events, &stream_data);
 
         std::array<uint8_t, SPA_POD_BUFFER_SIZE> buffer;
@@ -308,6 +357,7 @@ namespace pipewire {
         bool use_dmabuf = n_dmabuf_infos > 0 && (mem_type == platf::mem_type_e::vaapi ||
                                                  mem_type == platf::mem_type_e::vulkan ||
                                                  (mem_type == platf::mem_type_e::cuda && display_is_nvidia));
+        retain_dmabuf_for_cuda_ = use_dmabuf && mem_type == platf::mem_type_e::cuda;
         if (use_dmabuf) {
           for (int i = 0; i < n_dmabuf_infos; i++) {
             auto format_param = build_format_parameter(&pod_builder, width, height, refresh_rate, dmabuf_infos[i].format, dmabuf_infos[i].modifiers, dmabuf_infos[i].n_modifiers);
@@ -434,6 +484,20 @@ namespace pipewire {
         fill_img_metadata(img_descriptor, buf);
         if (buf->datas[0].type == SPA_DATA_DmaBuf) {
           fill_img_dmabuf(img_descriptor, buf, stream_data);
+
+          if (retain_dmabuf_for_cuda_) {
+            // Transfer ownership of this PipeWire buffer to the captured image.
+            // The GL/CUDA conversion path returns it only after it has finished
+            // reading the imported DMA-BUF.
+            const auto retained_buffer = stream_data.current_buffer;
+            std::weak_ptr<buffer_release_state_t> weak_release_state = buffer_release_state;
+            img_descriptor->capture_buffer_consumed_cb = [weak_release_state, retained_buffer]() {
+              if (auto release_state = weak_release_state.lock()) {
+                release_state->release(retained_buffer);
+              }
+            };
+            stream_data.current_buffer = nullptr;
+          }
         } else {
           img->data = stream_data.front_buffer->data();
           img->row_pitch = stream_data.local_stride;
@@ -458,10 +522,12 @@ namespace pipewire {
     struct pw_core *core;
     struct spa_hook core_listener;
     struct stream_data_t stream_data;
+    std::shared_ptr<buffer_release_state_t> buffer_release_state = std::make_shared<buffer_release_state_t>();
     int fd;
     uint32_t node;
     uint64_t object_serial;
     bool negotiate_maxframerate_ = true;
+    bool retain_dmabuf_for_cuda_ = false;  ///< Retain producer buffers until GL/CUDA conversion consumes them.
 
     struct spa_pod *build_format_parameter(struct spa_pod_builder *b, uint32_t width, uint32_t height, uint32_t refresh_rate, int32_t format, uint64_t *modifiers, int n_modifiers) {
       struct spa_pod_frame object_frame;
