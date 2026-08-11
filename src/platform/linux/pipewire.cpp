@@ -4,6 +4,7 @@
  */
 // standard includes
 #include <fstream>
+#include <utility>
 
 // lib includes
 #include <gio/gio.h>
@@ -486,17 +487,7 @@ namespace pipewire {
           fill_img_dmabuf(img_descriptor, buf, stream_data);
 
           if (retain_dmabuf_for_cuda_) {
-            // Transfer ownership of this PipeWire buffer to the captured image.
-            // The GL/CUDA conversion path returns it only after it has finished
-            // reading the imported DMA-BUF.
-            const auto retained_buffer = stream_data.current_buffer;
-            std::weak_ptr<buffer_release_state_t> weak_release_state = buffer_release_state;
-            img_descriptor->capture_buffer_consumed_cb = [weak_release_state, retained_buffer]() {
-              if (auto release_state = weak_release_state.lock()) {
-                release_state->release(retained_buffer);
-              }
-            };
-            stream_data.current_buffer = nullptr;
+            retain_current_buffer_until_conversion(img_descriptor);
           }
         } else {
           img->data = stream_data.front_buffer->data();
@@ -517,6 +508,24 @@ namespace pipewire {
     }
 
   private:
+    /**
+     * @brief Transfer the current PipeWire buffer to an image until conversion completes.
+     *
+     * @param img_descriptor Captured image that will release the buffer after conversion.
+     */
+    void retain_current_buffer_until_conversion(egl::img_descriptor_t *img_descriptor) {
+      const auto retained_buffer = std::exchange(stream_data.current_buffer, nullptr);
+      const std::weak_ptr<buffer_release_state_t> weak_release_state = buffer_release_state;
+      img_descriptor->capture_buffer_consumed_cb = [weak_release_state, retained_buffer]() {
+        const auto release_state = weak_release_state.lock();
+        if (!release_state) {
+          return;
+        }
+
+        release_state->release(retained_buffer);
+      };
+    }
+
     struct pw_thread_loop *loop;
     struct pw_context *context;
     struct pw_core *core;

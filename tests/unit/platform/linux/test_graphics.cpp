@@ -6,13 +6,13 @@
 
 #if defined(__linux__)
   #include <algorithm>
-  #include <iterator>
+  #include <stdexcept>
 
   #include <src/platform/linux/graphics.h>
 
 TEST(EglImageDescriptorTest, ReleasesCaptureBufferOnlyOnce) {
   egl::img_descriptor_t descriptor;
-  std::fill(std::begin(descriptor.sd.fds), std::end(descriptor.sd.fds), -1);
+  std::ranges::fill(descriptor.sd.fds, -1);
 
   int release_count = 0;
   descriptor.capture_buffer_consumed_cb = [&release_count]() {
@@ -28,7 +28,7 @@ TEST(EglImageDescriptorTest, ReleasesCaptureBufferOnlyOnce) {
 
 TEST(EglImageDescriptorTest, ResetReleasesCaptureBuffer) {
   egl::img_descriptor_t descriptor;
-  std::fill(std::begin(descriptor.sd.fds), std::end(descriptor.sd.fds), -1);
+  std::ranges::fill(descriptor.sd.fds, -1);
 
   bool released = false;
   descriptor.capture_buffer_consumed_cb = [&released]() {
@@ -38,5 +38,17 @@ TEST(EglImageDescriptorTest, ResetReleasesCaptureBuffer) {
   descriptor.reset();
 
   EXPECT_TRUE(released);
+}
+
+TEST(EglImageDescriptorTest, ContainsCaptureBufferReleaseExceptions) {
+  egl::img_descriptor_t descriptor;
+  std::ranges::fill(descriptor.sd.fds, -1);
+
+  descriptor.capture_buffer_consumed_cb = []() {
+    throw std::runtime_error("release failed");
+  };
+
+  EXPECT_NO_THROW(descriptor.mark_capture_buffer_consumed());
+  EXPECT_FALSE(descriptor.capture_buffer_consumed_cb);
 }
 #endif
