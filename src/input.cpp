@@ -9,6 +9,7 @@ extern "C" {
 }
 
 // standard includes
+#include <algorithm>
 #include <bitset>
 #include <chrono>
 #include <cmath>
@@ -1113,54 +1114,81 @@ namespace input {
   }
 
   /**
-   * @brief Called to pass a touch message to the platform backend.
-   * @param input The input context pointer.
-   * @param packet The touch packet.
+   * @brief Shared normalized data prepared for a touch or pen event.
    */
-  void passthrough(std::shared_ptr<input_t> &input, PSS_TOUCH_PACKET packet) {
+  struct absolute_pointer_data_t {
+    platf::touch_port_t touch_port;  ///< Monitor-local touch port.
+    std::pair<float, float> coords;  ///< Normalized monitor-local coordinates.
+    std::uint16_t rotation;  ///< Normalized rotation in degrees.
+    std::pair<float, float> contact_area;  ///< Scaled major and minor contact axes.
+  };
+
+  /**
+   * @brief Normalize the fields shared by touch and pen packets.
+   *
+   * @tparam Packet Pointer type for a Moonlight touch or pen packet.
+   * @param input Input context that supplies the current touch-port metadata.
+   * @param packet Touch or pen packet to normalize.
+   * @return Normalized pointer data, or `std::nullopt` when input is disabled or dimensions are invalid.
+   */
+  template<typename Packet>
+  std::optional<absolute_pointer_data_t> prepare_absolute_pointer_data(std::shared_ptr<input_t> &input, Packet packet) {
     if (!config::input.mouse) {
-      return;
+      return std::nullopt;
     }
 
-    // Convert the client normalized coordinates to touchport coordinates
-    auto coords = client_to_touchport(input, {from_clamped_netfloat(packet->x, 0.0f, 1.0f) * 65535.f, from_clamped_netfloat(packet->y, 0.0f, 1.0f) * 65535.f}, {65535.f, 65535.f});
+    auto coords = client_to_touchport(
+      input,
+      {from_clamped_netfloat(packet->x, 0.0f, 1.0f) * 65535.f, from_clamped_netfloat(packet->y, 0.0f, 1.0f) * 65535.f},
+      {65535.f, 65535.f}
+    );
     if (!coords) {
-      return;
+      return std::nullopt;
     }
 
-    auto &touch_port = input->touch_port;
-
-    auto abs_port = monitor_touch_port(touch_port, *coords);
-    if (!abs_port) {
-      return;
+    auto touch_port = monitor_touch_port(input->touch_port, *coords);
+    if (!touch_port) {
+      return std::nullopt;
     }
 
-    // Normalize rotation value to 0-359 degree range
     auto rotation = util::endian::little(packet->rotation);
     if (rotation != LI_ROT_UNKNOWN) {
       rotation %= 360;
     }
 
-    // Normalize the contact area based on the touchport
-    auto contact_area = scale_client_contact_area(
+    const auto contact_area = scale_client_contact_area(
       {from_clamped_netfloat(packet->contactAreaMajor, 0.0f, 1.0f) * 65535.f,
        from_clamped_netfloat(packet->contactAreaMinor, 0.0f, 1.0f) * 65535.f},
       rotation,
-      {abs_port->width / 65535.f, abs_port->height / 65535.f}
+      {touch_port->width / 65535.f, touch_port->height / 65535.f}
     );
+
+    return absolute_pointer_data_t {*touch_port, *coords, rotation, contact_area};
+  }
+
+  /**
+   * @brief Called to pass a touch message to the platform backend.
+   * @param input The input context pointer.
+   * @param packet The touch packet.
+   */
+  void passthrough(std::shared_ptr<input_t> &input, PSS_TOUCH_PACKET packet) {
+    const auto pointer_data = prepare_absolute_pointer_data(input, packet);
+    if (!pointer_data) {
+      return;
+    }
 
     platf::touch_input_t touch {
       packet->eventType,
-      rotation,
+      pointer_data->rotation,
       util::endian::little(packet->pointerId),
-      coords->first,
-      coords->second,
+      pointer_data->coords.first,
+      pointer_data->coords.second,
       from_clamped_netfloat(packet->pressureOrDistance, 0.0f, 1.0f),
-      contact_area.first,
-      contact_area.second,
+      pointer_data->contact_area.first,
+      pointer_data->contact_area.second,
     };
 
-    platf::touch_update(input->client_context.get(), *abs_port, touch);
+    platf::touch_update(input->client_context.get(), pointer_data->touch_port, touch);
   }
 
   /**
@@ -1169,51 +1197,25 @@ namespace input {
    * @param packet The pen packet.
    */
   void passthrough(std::shared_ptr<input_t> &input, PSS_PEN_PACKET packet) {
-    if (!config::input.mouse) {
+    const auto pointer_data = prepare_absolute_pointer_data(input, packet);
+    if (!pointer_data) {
       return;
     }
-
-    // Convert the client normalized coordinates to touchport coordinates
-    auto coords = client_to_touchport(input, {from_clamped_netfloat(packet->x, 0.0f, 1.0f) * 65535.f, from_clamped_netfloat(packet->y, 0.0f, 1.0f) * 65535.f}, {65535.f, 65535.f});
-    if (!coords) {
-      return;
-    }
-
-    auto &touch_port = input->touch_port;
-
-    auto abs_port = monitor_touch_port(touch_port, *coords);
-    if (!abs_port) {
-      return;
-    }
-
-    // Normalize rotation value to 0-359 degree range
-    auto rotation = util::endian::little(packet->rotation);
-    if (rotation != LI_ROT_UNKNOWN) {
-      rotation %= 360;
-    }
-
-    // Normalize the contact area based on the touchport
-    auto contact_area = scale_client_contact_area(
-      {from_clamped_netfloat(packet->contactAreaMajor, 0.0f, 1.0f) * 65535.f,
-       from_clamped_netfloat(packet->contactAreaMinor, 0.0f, 1.0f) * 65535.f},
-      rotation,
-      {abs_port->width / 65535.f, abs_port->height / 65535.f}
-    );
 
     platf::pen_input_t pen {
       packet->eventType,
       packet->toolType,
       packet->penButtons,
       packet->tilt,
-      rotation,
-      coords->first,
-      coords->second,
+      pointer_data->rotation,
+      pointer_data->coords.first,
+      pointer_data->coords.second,
       from_clamped_netfloat(packet->pressureOrDistance, 0.0f, 1.0f),
-      contact_area.first,
-      contact_area.second,
+      pointer_data->contact_area.first,
+      pointer_data->contact_area.second,
     };
 
-    platf::pen_update(input->client_context.get(), *abs_port, pen);
+    platf::pen_update(input->client_context.get(), pointer_data->touch_port, pen);
   }
 
   /**
@@ -1875,13 +1877,10 @@ namespace input {
    * @brief Probe connected gamepads and update input capability state.
    */
   bool probe_gamepads() {
-    const auto gamepads = platf::supported_gamepads(std::addressof(platf_input));
-    for (auto &gamepad : gamepads) {
-      if (gamepad.is_enabled && gamepad.name != "auto") {
-        return false;
-      }
-    }
-    return true;
+    const auto &gamepads = platf::supported_gamepads(std::addressof(platf_input));
+    return std::ranges::none_of(gamepads, [](const auto &gamepad) {
+      return gamepad.is_enabled && gamepad.name != "auto";
+    });
   }
 
   /**

@@ -386,7 +386,10 @@ namespace platf::virtualhid {
   }  // namespace
 
   input_context_t::input_context_t():
-      runtime {create_runtime()} {
+      input_context_t {lvh::BackendKind::platform_default} {}
+
+  input_context_t::input_context_t(lvh::BackendKind backend):
+      runtime {create_runtime(backend)} {
     if (!runtime) {
       BOOST_LOG(warning) << "Unable to create libvirtualhid runtime"sv;
       return;
@@ -448,14 +451,14 @@ namespace platf::virtualhid {
     }
   }
 
-  std::unique_ptr<lvh::Runtime> create_runtime() {
+  std::unique_ptr<lvh::Runtime> create_runtime(lvh::BackendKind backend) {
     lvh::RuntimeOptions options;
-    options.backend = lvh::BackendKind::platform_default;
+    options.backend = backend;
     return lvh::Runtime::create(options);
   }
 
   std::vector<supported_gamepad_t> static_supported_gamepads() {
-    std::vector<supported_gamepad_t> gamepads {
+    std::vector gamepads {
       supported_gamepad_t {"auto", true, ""},
     };
     for (const auto &profile : gamepad_profiles) {
@@ -473,7 +476,7 @@ namespace platf::virtualhid {
     const auto libvirtualhid_available = runtime->capabilities().supports_gamepad;
     const auto reason = libvirtualhid_available ? "" : "gamepads.virtualhid-not-available";
     const auto auto_enabled = libvirtualhid_available || fallback_vigem_available;
-    std::vector<supported_gamepad_t> gamepads {
+    std::vector gamepads {
       supported_gamepad_t {"auto", auto_enabled, auto_enabled ? "" : reason},
     };
 
@@ -542,6 +545,12 @@ namespace platf::virtualhid {
   bool has_gamepad(const input_context_t &context, int nr) {
     return nr >= 0 && nr < context.gamepads.size() && context.gamepads[nr] && context.gamepads[nr]->adapter;
   }
+
+#ifdef SUNSHINE_TESTS
+  lvh::GamepadStateAdapter *gamepad_adapter_for_testing(input_context_t &context, int nr) {
+    return has_gamepad(context, nr) ? context.gamepads[nr]->adapter.get() : nullptr;
+  }
+#endif
 
   void free_gamepad(input_context_t &context, int nr) {
     if (has_gamepad(context, nr)) {

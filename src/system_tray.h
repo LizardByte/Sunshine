@@ -162,5 +162,10 @@ namespace system_tray {
    * @return Stable resource path used by the tray backend.
    */
   const char *resource_path_for_testing(const char *relative_path);
+
+  /**
+   * @brief Resolve all tray icon paths using the production platform logic.
+   */
+  void resolve_tray_icon_paths_for_testing();
 #endif
 }  // namespace system_tray

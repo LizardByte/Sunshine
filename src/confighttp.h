@@ -6,6 +6,7 @@
 
 // standard includes
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -106,6 +107,49 @@ namespace confighttp {
    * @return License status JSON object without the submitted license key.
    */
   nlohmann::json build_virtualhid_license_status(const lvh::LicenseResult &result);
+
+  /**
+   * @brief Build libvirtualhid driver version and installation status.
+   *
+   * @return libvirtualhid driver status JSON.
+   */
+  nlohmann::json get_virtualhid_driver_status();
+
+  /**
+   * @brief Build ViGEmBus fallback driver version and installation status.
+   *
+   * @return ViGEmBus fallback driver status JSON.
+   */
+  nlohmann::json get_vigembus_driver_status();
+
+  void getVirtualInputStatus(const resp_https_t &response, const req_https_t &request);
+
+  void getVirtualInputLicense(const resp_https_t &response, const req_https_t &request);
+
+  void updateVirtualInputLicense(const resp_https_t &response, const req_https_t &request);
+
+#ifdef SUNSHINE_TESTS
+  using virtual_input_license_status_provider_t = std::function<lvh::LicenseResult()>;  ///< Test provider for current libvirtualhid license status.
+
+  /**
+   * @brief Replace the virtual-input license status provider for unit tests.
+   *
+   * @param status_provider Provider returning the license status for the response.
+   */
+  void set_virtual_input_license_status_provider_for_testing(virtual_input_license_status_provider_t status_provider);
+
+  /**
+   * @brief Restore the production virtual-input license status provider after a unit test.
+   */
+  void reset_virtual_input_license_status_provider_for_testing();
+
+  /**
+   * @brief Exercise request-local sensitive string clearing for unit tests.
+   *
+   * @param value Mutable sensitive string to overwrite and clear.
+   */
+  void clear_sensitive_string_for_testing(std::string &value);
+#endif
 
   // Browse helper functions (also exposed for unit testing)
   /**

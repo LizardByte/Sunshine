@@ -15,6 +15,7 @@
 #include <new>
 #include <optional>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 // lib includes
@@ -79,6 +80,28 @@ namespace confighttp {
    */
   using https_handler_t = std::function<void(resp_https_t, req_https_t)>;
 
+  namespace {
+    using license_status_provider_t = std::function<lvh::LicenseResult()>;  ///< Provider for the current libvirtualhid license status.
+
+    /**
+     * @brief Return the current libvirtualhid license status provider.
+     *
+     * Unit-test builds expose a mutable provider so the HTTP fixture can avoid
+     * contacting an installed Windows broker. Production builds keep the
+     * provider const and always call libvirtualhid directly.
+     *
+     * @return License status provider for the current build.
+     */
+    auto &virtual_input_license_status_provider() {
+#ifdef SUNSHINE_TESTS
+      static license_status_provider_t status_provider = lvh::get_license_status;
+#else
+      static const license_status_provider_t status_provider = lvh::get_license_status;
+#endif
+      return status_provider;
+    }
+  }  // namespace
+
   /**
    * @brief Client certificate operations accepted by the configuration API.
    */
@@ -114,6 +137,20 @@ namespace confighttp {
   private:
     std::string &value_;  ///< Sensitive request-local string.
   };
+
+#ifdef SUNSHINE_TESTS
+  void set_virtual_input_license_status_provider_for_testing(virtual_input_license_status_provider_t status_provider) {
+    virtual_input_license_status_provider() = std::move(status_provider);
+  }
+
+  void reset_virtual_input_license_status_provider_for_testing() {
+    virtual_input_license_status_provider() = lvh::get_license_status;
+  }
+
+  void clear_sensitive_string_for_testing(std::string &value) {
+    const scoped_sensitive_string_clear_t clear_value {value};
+  }
+#endif
 
   // CSRF token management
   /**
@@ -274,6 +311,23 @@ namespace confighttp {
     output_tree["error"] = result.status.ok() ? "" : result.status.message();
     return output_tree;
   }
+
+  namespace {
+    /**
+     * @brief Handle a virtual-input license request using the configured status provider.
+     *
+     * @param response HTTP response object.
+     * @param request Authenticated HTTP request.
+     */
+    void get_virtual_input_license(const resp_https_t &response, const req_https_t &request) {
+      if (!authenticate(response, request)) {
+        return;
+      }
+
+      print_req(request);
+      send_response(response, build_virtualhid_license_status(virtual_input_license_status_provider()()));
+    }
+  }  // namespace
 
 #ifdef _WIN32
   /**
@@ -1842,12 +1896,7 @@ namespace confighttp {
    * @api_examples{/api/virtual-input/license| GET| null}
    */
   void getVirtualInputLicense(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
-      return;
-    }
-
-    print_req(request);
-    send_response(response, build_virtualhid_license_status(lvh::get_license_status()));
+    get_virtual_input_license(response, request);
   }
 
   /**

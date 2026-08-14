@@ -268,14 +268,14 @@ namespace platf {
     /**
      * @brief Moonlight speaker order for stereo audio.
      */
-    constexpr std::uint8_t map_stereo[] {
+    constexpr std::array<std::uint8_t, 2> map_stereo {
       FRONT_LEFT,
       FRONT_RIGHT
     };
     /**
      * @brief Moonlight speaker order for 5.1 surround audio.
      */
-    constexpr std::uint8_t map_surround51[] {
+    constexpr std::array<std::uint8_t, 6> map_surround51 {
       FRONT_LEFT,
       FRONT_RIGHT,
       FRONT_CENTER,
@@ -286,7 +286,7 @@ namespace platf {
     /**
      * @brief Moonlight speaker order for 7.1 surround audio.
      */
-    constexpr std::uint8_t map_surround71[] {
+    constexpr std::array<std::uint8_t, 8> map_surround71 {
       FRONT_LEFT,
       FRONT_RIGHT,
       FRONT_CENTER,

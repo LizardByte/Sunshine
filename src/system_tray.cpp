@@ -37,8 +37,8 @@
      * @brief Macro for WIN32 LEAN AND MEAN.
      */
     #define WIN32_LEAN_AND_MEAN
-    #include <accctrl.h>
-    #include <aclapi.h>
+    #include <AccCtrl.h>
+    #include <AclAPI.h>
   #elif defined(__APPLE__) || defined(__MACH__)
     #include <CoreFoundation/CoreFoundation.h>
     #include <dispatch/dispatch.h>
@@ -49,11 +49,15 @@
   #include <atomic>
   #include <chrono>
   #include <csignal>
+  #include <cstddef>
   #include <filesystem>
   #include <format>
+  #include <functional>
   #include <mutex>
   #include <optional>
   #include <string>
+  #include <string_view>
+  #include <system_error>
   #include <thread>
   #include <unordered_map>
   #include <utility>
@@ -82,12 +86,69 @@ using namespace std::literals;
 
 // system_tray namespace
 namespace system_tray {
-  static std::atomic tray_initialized = false;
-  static std::mutex tray_mutex;  ///< Serializes tray data changes and UI updates.
+  namespace {
+    /**
+     * @brief Access the process-wide tray initialization state.
+     *
+     * @return Atomic initialization flag shared by tray operations.
+     */
+    std::atomic_bool &tray_initialized_state() {
+      static std::atomic_bool initialized {false};
+      return initialized;
+    }
+
+    /**
+     * @brief Access the mutex that serializes tray data and UI changes.
+     *
+     * @return Mutex shared by tray operations.
+     */
+    std::mutex &tray_state_mutex() {
+      static std::mutex mutex;
+      return mutex;
+    }
+
+    /**
+     * @brief Access the owned tray worker thread.
+     *
+     * @return Worker thread used by the threaded tray lifecycle.
+     */
+    std::jthread &tray_worker_thread() {
+      static std::jthread worker;
+      return worker;
+    }
+
+    /**
+     * @brief Hash string-like resource paths without allocating temporary strings.
+     */
+    struct transparent_string_hash_t {
+      using is_transparent = void;  ///< Enable heterogeneous unordered-map lookup.
+
+      /**
+       * @brief Hash a string view.
+       *
+       * @param value String view to hash.
+       * @return Hash value for the supplied text.
+       */
+      std::size_t operator()(const std::string_view value) const noexcept {
+        return std::hash<std::string_view> {}(value);
+      }
+    };
+
+  #ifdef _WIN32
+    /**
+     * @brief Access storage for dynamic Virtual HID Driver license menu labels.
+     *
+     * @return Persistent string storage backing the tray menu label pointers.
+     */
+    std::array<std::string, 11> &virtualhid_license_menu_text_storage() {
+      static std::array<std::string, 11> menu_text;
+      return menu_text;
+    }
+  #endif
+  }  // namespace
 
   #ifdef _WIN32
   constexpr auto LIBVIRTUALHID_RELEASES_URL = "https://github.com/LizardByte/libvirtualhid/releases/latest"sv;  ///< Latest Virtual HID Driver release.
-  static std::array<std::string, 11> virtualhid_license_menu_text;  ///< Storage for dynamic license menu labels.
   static std::array<struct tray_menu, 6> virtualhid_benefits_menu {{
     {.text = "Xbox One, Xbox Series, DualSense (DS5), Switch Pro, and Generic", .disabled = 1},
     {.text = "Motion, touchpads, LEDs, and adaptive triggers where supported", .disabled = 1},
@@ -204,7 +265,7 @@ namespace system_tray {
     .tooltip = PROJECT_NAME,
     .menu =
       (struct tray_menu[]) {
-        // todo - use boost/locale to translate menu strings
+        // Tray menu labels currently use the project's English source strings.
         {.text = "Open Sunshine", .cb = tray_open_ui_cb},
         {.text = "-"},
   #ifdef _WIN32
@@ -243,11 +304,11 @@ namespace system_tray {
   }
 
   bool tray_initialized_for_testing() {
-    return tray_initialized;
+    return tray_initialized_state().load();
   }
 
   void reset_tray_data_for_testing() {
-    const std::scoped_lock lock(tray_mutex);
+    const std::scoped_lock lock(tray_state_mutex());
     tray.icon = tray.allIconPaths[0];
     tray.tooltip = PROJECT_NAME;
     tray.notification_icon = nullptr;
@@ -255,7 +316,7 @@ namespace system_tray {
     tray.notification_title = nullptr;
     tray.notification_cb = nullptr;
     #ifdef _WIN32
-    virtualhid_license_menu_text = {};
+    virtualhid_license_menu_text_storage() = {};
     virtualhid_license_menu = initial_virtualhid_license_menu();
     #endif
   }
@@ -317,20 +378,23 @@ namespace system_tray {
   /**
    * @brief Assign text and behavior to one Virtual HID Driver submenu item.
    *
+   * @tparam Callback Callback type accepted by the tray library.
    * @param index Submenu index to populate.
    * @param text User-visible menu text.
    * @param disabled Whether the item is informational rather than actionable.
    * @param callback Callback invoked for actionable items.
    */
+  template<typename Callback = std::nullptr_t>
   void set_virtualhid_license_menu_item(
     const std::size_t index,
     std::string text,
     const bool disabled,
-    void (*callback)(struct tray_menu *) = nullptr
+    Callback callback = nullptr
   ) {
-    virtualhid_license_menu_text[index] = std::move(text);
+    auto &menu_text = virtualhid_license_menu_text_storage();
+    menu_text[index] = std::move(text);
     virtualhid_license_menu[index] = {
-      .text = virtualhid_license_menu_text[index].c_str(),
+      .text = menu_text[index].c_str(),
       .disabled = disabled,
       .cb = callback,
     };
@@ -343,7 +407,7 @@ namespace system_tray {
    */
   void rebuild_virtualhid_license_menu(const lvh::LicenseStatus &license) {
     virtualhid_license_menu = {};
-    virtualhid_license_menu_text = {};
+    virtualhid_license_menu_text_storage() = {};
 
     set_virtualhid_license_menu_item(0, std::format("Status: {}", virtualhid_license_state_label(license.state)), true);
     if (license.licensed()) {
@@ -400,7 +464,7 @@ namespace system_tray {
   }
 
   void update_tray_virtualhid_license(const lvh::LicenseStatus &license, const bool notify_if_unlicensed) {
-    const std::scoped_lock lock(tray_mutex);
+    const std::scoped_lock lock(tray_state_mutex());
     clear_tray_notification();
     rebuild_virtualhid_license_menu(license);
 
@@ -414,7 +478,7 @@ namespace system_tray {
       };
     }
 
-    if (tray_initialized) {
+    if (tray_initialized_state().load()) {
       tray_update(&tray);
     }
   }
@@ -442,8 +506,8 @@ namespace system_tray {
 
   #if defined(_WIN32) || defined(__APPLE__)
     // Simple cache ensures our string pointers live forever.
-    static std::unordered_map<std::string, std::string> g_cache;
-    auto search = g_cache.find(relativePath);
+    static std::unordered_map<std::string, std::string, transparent_string_hash_t, std::equal_to<>> g_cache;
+    auto search = g_cache.find(std::string_view {relativePath});
     if (search != g_cache.end()) {
       return search->second.c_str();
     }
@@ -462,7 +526,7 @@ namespace system_tray {
 
     BOOST_LOG(debug) << "System Tray: using " << full << " for icon path";
 
-    auto [it, inserted] = g_cache.emplace(relativePath, std::move(full));
+    const auto it = g_cache.try_emplace(relativePath, std::move(full)).first;
     return it->second.c_str();
   #elif defined(__APPLE__)
     // If we're running from an .app bundle, get the internal Resources dir
@@ -497,7 +561,7 @@ namespace system_tray {
 
     BOOST_LOG(debug) << "System Tray: using " << full << " for icon path";
 
-    auto [it, inserted] = g_cache.emplace(relativePath, std::move(full));
+    const auto it = g_cache.try_emplace(relativePath, std::move(full)).first;
     return it->second.c_str();
   #else
     return relativePath;
@@ -533,9 +597,19 @@ namespace system_tray {
   const char *resource_path_for_testing(const char *relative_path) {
     return GetResourcePath(relative_path);
   }
+
+  void resolve_tray_icon_paths_for_testing() {
+    resolve_tray_icon_paths();
+  }
   #endif
 
-  int init_tray() {
+  /**
+   * @brief Initialize the tray, optionally observing an owning thread's stop request.
+   *
+   * @param stop_token Stop token supplied by the managed tray worker, or an empty token for direct initialization.
+   * @return Zero when initialization succeeds; otherwise, a non-zero error code.
+   */
+  int init_tray_with_stop_token(const std::stop_token stop_token) {
   #ifdef _WIN32
     // If we're running as SYSTEM, Explorer.exe will not have permission to open our thread handle
     // to monitor for thread termination. If Explorer fails to open our thread, our tray icon
@@ -544,9 +618,9 @@ namespace system_tray {
     {
       PACL old_dacl;
       PSECURITY_DESCRIPTOR sd;
-      auto error = GetSecurityInfo(GetCurrentThread(), SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, nullptr, nullptr, &old_dacl, nullptr, &sd);
-      if (error != ERROR_SUCCESS) {
-        BOOST_LOG(warning) << "GetSecurityInfo() failed: "sv << error;
+      auto security_error = GetSecurityInfo(GetCurrentThread(), SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, nullptr, nullptr, &old_dacl, nullptr, &sd);
+      if (security_error != ERROR_SUCCESS) {
+        BOOST_LOG(warning) << "GetSecurityInfo() failed: "sv << security_error;
         return 1;
       }
 
@@ -557,8 +631,8 @@ namespace system_tray {
       SID_IDENTIFIER_AUTHORITY sid_authority = SECURITY_WORLD_SID_AUTHORITY;
       PSID world_sid;
       if (!AllocateAndInitializeSid(&sid_authority, 1, SECURITY_WORLD_RID, 0, 0, 0, 0, 0, 0, 0, &world_sid)) {
-        error = GetLastError();
-        BOOST_LOG(warning) << "AllocateAndInitializeSid() failed: "sv << error;
+        security_error = GetLastError();
+        BOOST_LOG(warning) << "AllocateAndInitializeSid() failed: "sv << security_error;
         return 1;
       }
 
@@ -574,9 +648,9 @@ namespace system_tray {
       ea.Trustee.ptstrName = (LPSTR) world_sid;
 
       PACL new_dacl;
-      error = SetEntriesInAcl(1, &ea, old_dacl, &new_dacl);
-      if (error != ERROR_SUCCESS) {
-        BOOST_LOG(warning) << "SetEntriesInAcl() failed: "sv << error;
+      security_error = SetEntriesInAcl(1, &ea, old_dacl, &new_dacl);
+      if (security_error != ERROR_SUCCESS) {
+        BOOST_LOG(warning) << "SetEntriesInAcl() failed: "sv << security_error;
         return 1;
       }
 
@@ -584,17 +658,20 @@ namespace system_tray {
         LocalFree(new_dacl);
       });
 
-      error = SetSecurityInfo(GetCurrentThread(), SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, nullptr, nullptr, new_dacl, nullptr);
-      if (error != ERROR_SUCCESS) {
-        BOOST_LOG(warning) << "SetSecurityInfo() failed: "sv << error;
+      security_error = SetSecurityInfo(GetCurrentThread(), SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, nullptr, nullptr, new_dacl, nullptr);
+      if (security_error != ERROR_SUCCESS) {
+        BOOST_LOG(warning) << "SetSecurityInfo() failed: "sv << security_error;
         return 1;
       }
     }
 
     // Wait for the shell to be initialized before registering the tray icon.
     // This ensures the tray icon works reliably after a logoff/logon cycle.
-    while (GetShellWindow() == nullptr) {
+    while (GetShellWindow() == nullptr && !stop_token.stop_requested()) {
       Sleep(1000);
+    }
+    if (stop_token.stop_requested()) {
+      return 1;
     }
   #endif
 
@@ -605,21 +682,28 @@ namespace system_tray {
     tray_set_app_info(PROJECT_NAME, PROJECT_NAME, PROJECT_FQDN);
 
     {
-      const std::scoped_lock lock(tray_mutex);
+      const std::scoped_lock lock(tray_state_mutex());
+      if (stop_token.stop_requested()) {
+        return 1;
+      }
       if (tray_init(&tray) < 0) {
         BOOST_LOG(warning) << "Failed to create system tray"sv;
         return 1;
       }
 
-      tray_initialized = true;
+      tray_initialized_state().store(true);
     }
 
     BOOST_LOG(info) << "System tray created"sv;
     return 0;
   }
 
+  int init_tray() {
+    return init_tray_with_stop_token({});
+  }
+
   int process_tray_events() {
-    if (!tray_initialized) {
+    if (!tray_initialized_state().load()) {
       BOOST_LOG(error) << "System tray is not initialized"sv;
       return 1;
     }
@@ -629,17 +713,25 @@ namespace system_tray {
   }
 
   int end_tray() {
-    const std::scoped_lock lock(tray_mutex);
-    if (tray_initialized) {
-      tray_initialized = false;
-      tray_exit();
+    auto &worker = tray_worker_thread();
+    worker.request_stop();
+
+    {
+      const std::scoped_lock lock(tray_state_mutex());
+      if (tray_initialized_state().exchange(false)) {
+        tray_exit();
+      }
+    }
+
+    if (worker.joinable() && worker.get_id() != std::this_thread::get_id()) {
+      worker.join();
     }
     return 0;
   }
 
   void update_tray_playing(std::string app_name) {
-    const std::scoped_lock lock(tray_mutex);
-    if (!tray_initialized) {
+    const std::scoped_lock lock(tray_state_mutex());
+    if (!tray_initialized_state().load()) {
       return;
     }
 
@@ -660,8 +752,8 @@ namespace system_tray {
   }
 
   void update_tray_pausing(std::string app_name) {
-    const std::scoped_lock lock(tray_mutex);
-    if (!tray_initialized) {
+    const std::scoped_lock lock(tray_state_mutex());
+    if (!tray_initialized_state().load()) {
       return;
     }
 
@@ -682,8 +774,8 @@ namespace system_tray {
   }
 
   void update_tray_stopped(std::string app_name) {
-    const std::scoped_lock lock(tray_mutex);
-    if (!tray_initialized) {
+    const std::scoped_lock lock(tray_state_mutex());
+    if (!tray_initialized_state().load()) {
       return;
     }
 
@@ -704,8 +796,8 @@ namespace system_tray {
   }
 
   void update_tray_require_pin() {
-    const std::scoped_lock lock(tray_mutex);
-    if (!tray_initialized) {
+    const std::scoped_lock lock(tray_state_mutex());
+    if (!tray_initialized_state().load()) {
       return;
     }
 
@@ -727,33 +819,48 @@ namespace system_tray {
   }
 
   // Threading functions available on all platforms
-  static void tray_thread_worker() {
+  /**
+   * @brief Run the managed system tray event loop.
+   *
+   * @param stop_token Stop token owned by the tray worker thread.
+   */
+  static void tray_thread_worker(const std::stop_token stop_token) {
     platf::set_thread_name("system_tray");
     BOOST_LOG(info) << "System tray thread started"sv;
 
     // Initialize the tray in this thread
-    if (init_tray() != 0) {
-      BOOST_LOG(error) << "Failed to initialize tray in thread"sv;
+    if (init_tray_with_stop_token(stop_token) != 0) {
+      if (!stop_token.stop_requested()) {
+        BOOST_LOG(error) << "Failed to initialize tray in thread"sv;
+      }
       return;
     }
 
     // Main tray event loop
-    while (process_tray_events() == 0);
+    while (!stop_token.stop_requested() && process_tray_events() == 0) {
+      // Continue until the tray requests shutdown or event processing stops.
+    }
+
+    {
+      const std::scoped_lock lock(tray_state_mutex());
+      tray_initialized_state().store(false);
+    }
 
     BOOST_LOG(info) << "System tray thread ended"sv;
   }
 
   int init_tray_threaded() {
     try {
-      auto tray_thread = std::jthread(tray_thread_worker);
-
-      // The tray thread doesn't require strong lifetime management.
-      // It will exit asynchronously when tray_exit() is called.
-      tray_thread.detach();
+      auto &worker = tray_worker_thread();
+      if (worker.joinable()) {
+        BOOST_LOG(error) << "System tray thread is already running"sv;
+        return 1;
+      }
+      worker = std::jthread(tray_thread_worker);
 
       BOOST_LOG(info) << "System tray thread initialized successfully"sv;
       return 0;
-    } catch (const std::exception &e) {
+    } catch (const std::system_error &e) {
       BOOST_LOG(error) << "Failed to create tray thread: " << e.what();
       return 1;
     }

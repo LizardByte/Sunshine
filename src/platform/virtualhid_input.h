@@ -24,9 +24,16 @@ namespace platf::virtualhid {
    */
   struct input_context_t {
     /**
-     * @brief Construct the libvirtualhid input context.
+     * @brief Construct the libvirtualhid input context using the platform-default backend.
      */
     input_context_t();
+
+    /**
+     * @brief Construct the libvirtualhid input context using a selected backend.
+     *
+     * @param backend Backend used to create the libvirtualhid runtime.
+     */
+    explicit input_context_t(lvh::BackendKind backend);
 
     std::unique_ptr<lvh::Runtime> runtime;  ///< libvirtualhid runtime.
     std::unique_ptr<lvh::Keyboard> keyboard;  ///< Shared virtual keyboard.
@@ -71,9 +78,10 @@ namespace platf::virtualhid {
   /**
    * @brief Create a platform-default libvirtualhid runtime.
    *
+   * @param backend Backend used to create the runtime.
    * @return Runtime instance.
    */
-  std::unique_ptr<lvh::Runtime> create_runtime();
+  std::unique_ptr<lvh::Runtime> create_runtime(lvh::BackendKind backend = lvh::BackendKind::platform_default);
 
   /**
    * @brief Return static gamepad choices for config validation.
@@ -110,6 +118,17 @@ namespace platf::virtualhid {
    * @return True when a virtual gamepad is active.
    */
   bool has_gamepad(const input_context_t &context, int nr);
+
+#ifdef SUNSHINE_TESTS
+  /**
+   * @brief Return the adapter allocated in a gamepad slot for unit testing.
+   *
+   * @param context Input context.
+   * @param nr Gamepad slot index.
+   * @return Allocated adapter, or `nullptr` when the slot is inactive.
+   */
+  lvh::GamepadStateAdapter *gamepad_adapter_for_testing(input_context_t &context, int nr);
+#endif
 
   /**
    * @brief Release a libvirtualhid gamepad slot.

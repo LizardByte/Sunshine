@@ -110,6 +110,15 @@ protected:
 
   void SetUp() override {
     BaseTest::SetUp();
+    confighttp::set_virtual_input_license_status_provider_for_testing([]() {
+      lvh::LicenseStatus license;
+      license.service_available = true;
+      license.state = lvh::LicenseState::licensed;
+      license.active_devices = 2;
+      license.message = "Test license status";
+      return lvh::LicenseResult {lvh::OperationStatus::success(), std::move(license)};
+    });
+
     // Save current config
     saved_username = config::sunshine.username;
     saved_password = config::sunshine.password;
@@ -311,6 +320,10 @@ protected:
       confighttp::browseDirectory(response, request);
     };
 
+    server->resource["^/virtual-input-status-test$"]["GET"] = confighttp::getVirtualInputStatus;
+    server->resource["^/virtual-input-license-test$"]["GET"] = confighttp::getVirtualInputLicense;
+    server->resource["^/virtual-input-license-test$"]["POST"] = confighttp::updateVirtualInputLicense;
+
     // Start server
     server_thread = std::jthread([this]() {
       server->start([this](const unsigned short assigned_port) {
@@ -342,6 +355,7 @@ protected:
     if (server_thread.joinable()) {
       server_thread.join();
     }
+    confighttp::reset_virtual_input_license_status_provider_for_testing();
 
     config::sunshine.username = saved_username;
     config::sunshine.password = saved_password;
@@ -386,6 +400,126 @@ protected:
     ASSERT_TRUE(body.find(expected_status_code) != std::string::npos);
   }
 };
+
+namespace {
+  /**
+   * @brief HTTP request used to verify a shared endpoint contract.
+   */
+  struct endpoint_request_t {
+    const char *name;  ///< Stable parameter name.
+    const char *method;  ///< HTTP method.
+    const char *path;  ///< Test-server route.
+    const char *body;  ///< Request body.
+  };
+
+  /**
+   * @brief Invalid virtual-input license request and expected error.
+   */
+  struct invalid_license_request_t {
+    const char *name;  ///< Stable parameter name.
+    const char *body;  ///< Invalid request body.
+    const char *expected_error;  ///< Expected response error.
+  };
+
+  /**
+   * @brief Return the stable name for an endpoint request parameter.
+   *
+   * @param param_info Parameter information supplied by GoogleTest.
+   * @return Stable test suffix.
+   */
+  std::string endpoint_request_name(const testing::TestParamInfo<endpoint_request_t> &param_info) {
+    return param_info.param.name;
+  }
+
+  /**
+   * @brief Return the stable name for an invalid license request parameter.
+   *
+   * @param param_info Parameter information supplied by GoogleTest.
+   * @return Stable test suffix.
+   */
+  std::string invalid_license_request_name(const testing::TestParamInfo<invalid_license_request_t> &param_info) {
+    return param_info.param.name;
+  }
+}  // namespace
+
+/**
+ * @brief Parameterized fixture for endpoints that require authentication.
+ */
+class AuthenticatedConfigHttpEndpointTest: public ConfigHttpTest, public testing::WithParamInterface<endpoint_request_t> {};
+
+/**
+ * @brief Parameterized fixture for endpoints protected from cross-origin requests.
+ */
+class CsrfProtectedConfigHttpEndpointTest: public ConfigHttpTest, public testing::WithParamInterface<endpoint_request_t> {};
+
+/**
+ * @brief Parameterized fixture for invalid virtual-input license requests.
+ */
+class InvalidVirtualInputLicenseRequestTest: public ConfigHttpTest, public testing::WithParamInterface<invalid_license_request_t> {};
+
+TEST_P(AuthenticatedConfigHttpEndpointTest, RejectsUnauthenticatedRequest) {
+  const auto &request = GetParam();
+  const auto response = client->request(request.method, request.path, request.body);
+  ASSERT_EQ(response->status_code, "401 Unauthorized");
+  EXPECT_NE(response->header.find("WWW-Authenticate"), response->header.end());
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  ConfigHttpEndpoints,
+  AuthenticatedConfigHttpEndpointTest,
+  testing::Values(
+    endpoint_request_t {"Page", "GET", "/page-test", ""},
+    endpoint_request_t {"CsrfToken", "GET", "/csrf-token-test", ""},
+    endpoint_request_t {"BrowseDirectory", "GET", "/browse-test", ""},
+    endpoint_request_t {"VirtualInputStatus", "GET", "/virtual-input-status-test", ""},
+    endpoint_request_t {"VirtualInputLicense", "GET", "/virtual-input-license-test", ""},
+    endpoint_request_t {"VirtualInputLicenseUpdate", "POST", "/virtual-input-license-test", R"({"action":"validate"})"}
+  ),
+  endpoint_request_name
+);
+
+TEST_P(CsrfProtectedConfigHttpEndpointTest, RejectsCrossOriginRequestWithoutToken) {
+  const auto &request = GetParam();
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Origin", "https://example.invalid");
+
+  const auto response = client->request(request.method, request.path, request.body, headers);
+  ASSERT_EQ(response->status_code, "400 Bad Request");
+  EXPECT_TRUE(response->content.string().contains("Missing CSRF token"));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  ConfigHttpEndpoints,
+  CsrfProtectedConfigHttpEndpointTest,
+  testing::Values(
+    endpoint_request_t {"CsrfValidation", "POST", "/csrf-validate-test", ""},
+    endpoint_request_t {"VirtualInputLicenseUpdate", "POST", "/virtual-input-license-test", R"({"action":"validate"})"}
+  ),
+  endpoint_request_name
+);
+
+TEST_P(InvalidVirtualInputLicenseRequestTest, ReturnsExpectedError) {
+  const auto &request = GetParam();
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Origin", std::format("https://localhost:{}", port));
+
+  const auto response = client->request("POST", "/virtual-input-license-test", request.body, headers);
+  ASSERT_EQ(response->status_code, "400 Bad Request");
+  EXPECT_TRUE(response->content.string().contains(request.expected_error));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  InvalidRequests,
+  InvalidVirtualInputLicenseRequestTest,
+  testing::Values(
+    invalid_license_request_t {"InvalidJson", "not-json", "Invalid license request"},
+    invalid_license_request_t {"UnknownAction", R"({"action":"unknown"})", "Unknown license action"},
+    invalid_license_request_t {"MissingActivationKey", R"({"action":"activate","license_key":""})", "License key is required"}
+  ),
+  invalid_license_request_name
+);
 
 // Test: confighttp::authenticate() rejects requests without auth header
 TEST_F(ConfigHttpTest, AuthenticateRejectsNoAuth) {
@@ -677,16 +811,6 @@ TEST_F(ConfigHttpTest, GetPageWithAuth) {
   ASSERT_TRUE(body.find("</html>") != std::string::npos);
 }
 
-// Test: confighttp::getPage() requires authentication when require_auth=true
-TEST_F(ConfigHttpTest, GetPageRequiresAuth) {
-  const auto response = client->request("GET", "/page-test");
-  ASSERT_EQ(response->status_code, "401 Unauthorized");
-
-  // Should have WWW-Authenticate header since auth is required
-  const auto www_auth = response->header.find("WWW-Authenticate");
-  ASSERT_NE(www_auth, response->header.end());
-}
-
 // Test: confighttp::getPage() works without authentication when require_auth=false
 TEST_F(ConfigHttpTest, GetPageWithoutAuthRequired) {
   const auto response = client->request("GET", "/page-noauth-test");
@@ -838,12 +962,6 @@ protected:
     });
   }
 };
-
-// Test: browseDirectory requires authentication
-TEST_F(BrowseDirectoryTest, BrowseRequiresAuthentication) {
-  const auto response = client->request("GET", browse_url(browse_test_dir.string()));
-  ASSERT_EQ(response->status_code, "401 Unauthorized");
-}
 
 // Test: browseDirectory returns 200 with valid JSON for a real directory
 TEST_F(BrowseDirectoryTest, BrowseListsValidDirectory) {
@@ -1238,6 +1356,55 @@ TEST(ConfigHttpDriverStatusTest, BuildDriverStatus_NotInstalledIsNotCompatible) 
   ASSERT_FALSE(status["installed"].get<bool>());
   ASSERT_EQ(status["supported_versions"].get<std::string>(), "Any");
   ASSERT_FALSE(status["version_compatible"].get<bool>());
+}
+
+TEST(ConfigHttpDriverStatusTest, BuildsLiveVirtualInputDriverStatus) {
+  const auto virtualhid = confighttp::get_virtualhid_driver_status();
+  EXPECT_TRUE(virtualhid.contains("installed"));
+  EXPECT_TRUE(virtualhid.contains("version"));
+  EXPECT_TRUE(virtualhid.contains("version_compatible"));
+  EXPECT_TRUE(virtualhid.contains("backend_name"));
+  EXPECT_TRUE(virtualhid.contains("requires_installed_driver"));
+
+  const auto vigembus = confighttp::get_vigembus_driver_status();
+  EXPECT_TRUE(vigembus.contains("installed"));
+  EXPECT_TRUE(vigembus.contains("version"));
+  EXPECT_TRUE(vigembus.contains("minimum_version"));
+  EXPECT_TRUE(vigembus.contains("version_compatible"));
+}
+
+TEST(ConfigHttpLicenseStatusTest, ClearsSensitiveRequestString) {
+  std::string sensitive_value = "license-key";
+  confighttp::clear_sensitive_string_for_testing(sensitive_value);
+  EXPECT_TRUE(sensitive_value.empty());
+}
+
+TEST_F(ConfigHttpTest, VirtualInputStatusReturnsBothBackends) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", "/virtual-input-status-test", "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+  const auto body = nlohmann::json::parse(response->content.string());
+  ASSERT_TRUE(body.contains("virtualhid"));
+  ASSERT_TRUE(body.contains("vigembus"));
+  EXPECT_TRUE(body.at("virtualhid").contains("installed"));
+  EXPECT_TRUE(body.at("vigembus").contains("installed"));
+}
+
+TEST_F(ConfigHttpTest, VirtualInputLicenseReturnsCurrentStatus) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", "/virtual-input-license-test", "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+  const auto body = nlohmann::json::parse(response->content.string());
+  EXPECT_TRUE(body.at("operation_ok").get<bool>());
+  EXPECT_TRUE(body.at("service_available").get<bool>());
+  EXPECT_EQ(body.at("state").get<std::string>(), "licensed");
+  EXPECT_TRUE(body.at("licensed").get<bool>());
+  EXPECT_EQ(body.at("active_devices").get<unsigned int>(), 2U);
+  EXPECT_EQ(body.at("message").get<std::string>(), "Test license status");
 }
 
 // Test: every public license state maps to a stable Web UI state string

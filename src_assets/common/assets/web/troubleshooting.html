@@ -176,28 +176,28 @@
             <span>{{ virtualhidLicense.message || $t('troubleshooting.virtualhid_license_unavailable') }}</span>
           </div>
 
-          <dl class="virtualhid-license-stats">
-            <div class="virtualhid-license-stat" v-if="virtualhidLicense.plan_name">
+          <div class="virtualhid-license-stats">
+            <dl class="virtualhid-license-stat" v-if="virtualhidLicense.plan_name">
               <dt>{{ $t('troubleshooting.virtualhid_license_plan') }}</dt>
               <dd>{{ virtualhidLicense.plan_name }}</dd>
-            </div>
-            <div class="virtualhid-license-stat">
+            </dl>
+            <dl class="virtualhid-license-stat">
               <dt>{{ $t('troubleshooting.virtualhid_license_activations') }}</dt>
               <dd>{{ licenseActivationText() }}</dd>
-            </div>
-            <div class="virtualhid-license-stat">
+            </dl>
+            <dl class="virtualhid-license-stat">
               <dt>{{ $t('troubleshooting.virtualhid_license_active_devices') }}</dt>
               <dd>{{ virtualhidLicense.active_devices }}</dd>
-            </div>
-            <div class="virtualhid-license-stat" v-if="virtualhidLicense.customer_email">
+            </dl>
+            <dl class="virtualhid-license-stat" v-if="virtualhidLicense.customer_email">
               <dt>{{ $t('troubleshooting.virtualhid_license_customer') }}</dt>
               <dd>{{ virtualhidLicense.customer_email }}</dd>
-            </div>
-            <div class="virtualhid-license-stat" v-if="virtualhidLicense.expires_at">
+            </dl>
+            <dl class="virtualhid-license-stat" v-if="virtualhidLicense.expires_at">
               <dt>{{ $t('troubleshooting.virtualhid_license_expires') }}</dt>
               <dd>{{ virtualhidLicense.expires_at }}</dd>
-            </div>
-          </dl>
+            </dl>
+          </div>
 
           <p class="virtualhid-license-message"
              v-if="virtualhidLicense.message && virtualhidLicense.service_available">

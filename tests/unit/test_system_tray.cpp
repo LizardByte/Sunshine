@@ -93,6 +93,21 @@ namespace {
     EXPECT_NE(benefits_menu[4].cb, nullptr);
     EXPECT_EQ(benefits_menu[5].text, nullptr);
   }
+
+  /**
+   * @brief Verify the shared action entries in a populated Virtual HID Driver menu.
+   *
+   * @param license_menu License submenu to verify.
+   */
+  void verify_virtualhid_actions_menu(const struct tray_menu *license_menu) {
+    ASSERT_NE(license_menu, nullptr);
+    EXPECT_STREQ(license_menu[8].text, "Benefits over ViGEmBus");
+    EXPECT_EQ(license_menu[8].cb, nullptr);
+    verify_virtualhid_benefits_menu(license_menu[8].submenu);
+    EXPECT_STREQ(license_menu[9].text, "Download Virtual HID Driver");
+    EXPECT_NE(license_menu[9].cb, nullptr);
+    EXPECT_EQ(license_menu[10].text, nullptr);
+  }
   #endif
 
   /**
@@ -283,15 +298,28 @@ TEST_F(SystemTrayTest, UpdatesAreIgnoredBeforeInitialization) {
 
   #ifdef _WIN32
 TEST_F(SystemTrayTest, ResolvesDevelopmentTrayIconsFromExecutableDirectory) {
+  EXPECT_EQ(system_tray::resource_path_for_testing(nullptr), nullptr);
+  EXPECT_EQ(system_tray::resource_path_for_testing(""), nullptr);
+
   const auto *sunshine_icon = system_tray::resource_path_for_testing("test_assets/web/images/logo-sunshine.svg");
   ASSERT_NE(sunshine_icon, nullptr);
   EXPECT_TRUE(std::filesystem::path {sunshine_icon}.is_absolute());
   EXPECT_TRUE(std::filesystem::exists(sunshine_icon));
+  EXPECT_EQ(system_tray::resource_path_for_testing("test_assets/web/images/logo-sunshine.svg"), sunshine_icon);
 
   const auto *virtualhid_icon = system_tray::resource_path_for_testing("test_assets/web/images/logo-libvirtualhid.svg");
   ASSERT_NE(virtualhid_icon, nullptr);
   EXPECT_TRUE(std::filesystem::path {virtualhid_icon}.is_absolute());
   EXPECT_TRUE(std::filesystem::exists(virtualhid_icon));
+}
+
+TEST_F(SystemTrayTest, PreparesVirtualHidMenuFromCurrentLicenseStatus) {
+  system_tray::prepare_tray_virtualhid_license();
+
+  const auto &tray_data = system_tray::tray_data_for_testing();
+  ASSERT_NE(tray_data.menu[2].submenu, nullptr);
+  ASSERT_NE(tray_data.menu[2].submenu[0].text, nullptr);
+  EXPECT_STRNE(tray_data.menu[2].submenu[0].text, "Status: Checking");
 }
 
 TEST_F(SystemTrayTest, PreparesLicensedVirtualHidMenuBeforeInitialization) {
@@ -319,12 +347,7 @@ TEST_F(SystemTrayTest, PreparesLicensedVirtualHidMenuBeforeInitialization) {
   EXPECT_NE(license_menu[6].cb, nullptr);
   EXPECT_STREQ(license_menu[7].text, "Manage License");
   EXPECT_NE(license_menu[7].cb, nullptr);
-  EXPECT_STREQ(license_menu[8].text, "Benefits over ViGEmBus");
-  EXPECT_EQ(license_menu[8].cb, nullptr);
-  verify_virtualhid_benefits_menu(license_menu[8].submenu);
-  EXPECT_STREQ(license_menu[9].text, "Download Virtual HID Driver");
-  EXPECT_NE(license_menu[9].cb, nullptr);
-  EXPECT_EQ(license_menu[10].text, nullptr);
+  verify_virtualhid_actions_menu(license_menu);
   EXPECT_EQ(tray_data.notification_title, nullptr);
   EXPECT_EQ(tray_data.notification_text, nullptr);
   EXPECT_EQ(tray_data.notification_cb, nullptr);
@@ -350,7 +373,7 @@ class UnlicensedVirtualHidTrayTest:
     public testing::WithParamInterface<std::tuple<lvh::LicenseState, const char *, const char *, bool>> {};
 
 TEST_P(UnlicensedVirtualHidTrayTest, PreparesMenuAndStartupNotification) {
-  const auto [state, state_label, state_detail, service_available] = GetParam();
+  const auto &[state, state_label, state_detail, service_available] = GetParam();
   lvh::LicenseStatus license;
   license.service_available = service_available;
   license.state = state;
@@ -370,12 +393,7 @@ TEST_P(UnlicensedVirtualHidTrayTest, PreparesMenuAndStartupNotification) {
   EXPECT_NE(license_menu[6].cb, nullptr);
   EXPECT_STREQ(license_menu[7].text, "Buy License");
   EXPECT_NE(license_menu[7].cb, nullptr);
-  EXPECT_STREQ(license_menu[8].text, "Benefits over ViGEmBus");
-  EXPECT_EQ(license_menu[8].cb, nullptr);
-  verify_virtualhid_benefits_menu(license_menu[8].submenu);
-  EXPECT_STREQ(license_menu[9].text, "Download Virtual HID Driver");
-  EXPECT_NE(license_menu[9].cb, nullptr);
-  EXPECT_EQ(license_menu[10].text, nullptr);
+  verify_virtualhid_actions_menu(license_menu);
   EXPECT_STREQ(tray_data.notification_title, "Activate Virtual HID Driver");
   EXPECT_STREQ(
     tray_data.notification_text,
@@ -383,6 +401,9 @@ TEST_P(UnlicensedVirtualHidTrayTest, PreparesMenuAndStartupNotification) {
   );
   EXPECT_STREQ(tray_data.notification_icon, tray_data.allIconPaths[4]);
   EXPECT_NE(tray_data.notification_cb, nullptr);
+
+  system_tray::resolve_tray_icon_paths_for_testing();
+  EXPECT_STREQ(tray_data.notification_icon, tray_data.allIconPaths[4]);
 
   system_tray::update_tray_virtualhid_license(license, false);
   EXPECT_EQ(tray_data.notification_title, nullptr);
@@ -425,7 +446,8 @@ TEST_F(SystemTrayTest, LifecycleMenuAndStateTransitions) {
 
   #ifdef _WIN32
 TEST_F(SystemTrayTest, InitializesTrayForWorkflowConfiguration) {
-  if (std::getenv("SUNSHINE_CONFIGURE_TRAY_ICONS") == nullptr) {
+  std::string configure_tray_icons;
+  if (!lizardbyte::common::get_env("SUNSHINE_CONFIGURE_TRAY_ICONS", configure_tray_icons)) {
     GTEST_SKIP() << "Only required while configuring Windows runner tray icon visibility";
   }
 

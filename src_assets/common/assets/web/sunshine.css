@@ -1624,13 +1624,9 @@ p {
 .driver-refresh-button,
 .driver-download-button {
     flex: 0 0 auto;
-    white-space: nowrap;
-}
-
-.driver-refresh-button,
-.driver-download-button {
     font-size: 0.875rem;
     padding: 0.45rem 0.75rem;
+    white-space: nowrap;
 }
 
 .driver-table-shell {
@@ -1713,6 +1709,7 @@ p {
     background-color: var(--color-bg-subtle);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
+    margin: 0;
     min-width: 0;
     padding: var(--spacing-md);
 }
