@@ -103,6 +103,8 @@ function run_step_cmake() {
     "-DICU_ROOT=$(brew --prefix icu4c@78 2>/dev/null)"
     "-DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3 2>/dev/null)"
     "-DOpus_ROOT_DIR=$(brew --prefix opus 2>/dev/null)"
+    "-DQt6_DIR=$(brew --prefix qtbase 2>/dev/null)/lib/cmake/Qt6"
+    "-DQt6Svg_DIR=$(brew --prefix qtsvg 2>/dev/null)/lib/cmake/Qt6Svg"
     "-DSUNSHINE_ENABLE_TRAY=ON"
   )
 
