@@ -52,6 +52,27 @@ namespace platf {
       const auto colorspace {video::colorspace_from_client_config(config, false)};
       return colorspace.bit_depth == 10 ? kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange : kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange;
     }
+
+    /**
+     * @brief Derive a steady_clock capture timestamp from a sample buffer's presentation timestamp.
+     *
+     * The PTS is on the mach host clock, so back-dating steady_clock::now() by the frame's age on
+     * that clock includes AVFoundation's internal queueing delay in the reported frame latency.
+     * @param sample_buffer Sample buffer received from AVFoundation.
+     * @return Capture timestamp for the frame.
+     */
+    std::chrono::steady_clock::time_point frame_timestamp_from_pts(CMSampleBufferRef sample_buffer) {
+      auto timestamp = std::chrono::steady_clock::now();
+      const CMTime pts = CMSampleBufferGetPresentationTimeStamp(sample_buffer);
+      if (CMTIME_IS_NUMERIC(pts)) {
+        const CMTime frame_age = CMTimeSubtract(CMClockGetTime(CMClockGetHostTimeClock()), pts);
+        const double frame_age_s = CMTimeGetSeconds(frame_age);
+        if (frame_age_s > 0) {
+          timestamp -= std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(frame_age_s));
+        }
+      }
+      return timestamp;
+    }
   }  // namespace
 
   /**
@@ -68,6 +89,7 @@ namespace platf {
 
     capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       auto signal = [av_capture capture:^(CMSampleBufferRef sampleBuffer) {
+        const auto frame_timestamp = frame_timestamp_from_pts(sampleBuffer);
         auto new_sample_buffer = std::make_shared<av_sample_buf_t>(sampleBuffer);
         auto new_pixel_buffer = std::make_shared<av_pixel_buf_t>(new_sample_buffer->buf);
 
@@ -93,6 +115,7 @@ namespace platf {
         img_out->height = (int) CVPixelBufferGetHeight(new_pixel_buffer->buf);
         img_out->row_pitch = (int) CVPixelBufferGetBytesPerRow(new_pixel_buffer->buf);
         img_out->pixel_pitch = img_out->row_pitch / img_out->width;
+        img_out->frame_timestamp = frame_timestamp;
 
         old_data_retainer = nullptr;
 
