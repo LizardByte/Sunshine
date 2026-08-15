@@ -6,6 +6,7 @@
 #include <array>
 #include <atomic>
 #include <bitset>
+#include <deque>
 #include <list>
 #include <thread>
 #include <utility>
@@ -458,6 +459,7 @@ namespace video {
       replacements = std::move(other.replacements);
       sps = std::move(other.sps);
       vps = std::move(other.vps);
+      frame_timestamps = std::move(other.frame_timestamps);
 
       inject = other.inject;
 
@@ -520,6 +522,8 @@ namespace video {
 
     // inject sps/vps data into idr pictures
     int inject;  ///< Number of upcoming IDR frames that should receive rewritten parameter sets.
+
+    std::deque<std::pair<int64_t, std::chrono::steady_clock::time_point>> frame_timestamps;  ///< Capture timestamps of in-flight frames keyed by pts, awaiting their encoded packets.
   };
 
   /**
@@ -1780,6 +1784,15 @@ namespace video {
     auto &frame = session.device->frame;
     frame->pts = frame_nr;
 
+    if (frame_timestamp) {
+      // Encoders may deliver packets one or more frames behind submission, so remember
+      // each frame's capture timestamp until the corresponding packet arrives.
+      session.frame_timestamps.emplace_back(frame_nr, *frame_timestamp);
+      if (session.frame_timestamps.size() > 128) {
+        session.frame_timestamps.pop_front();
+      }
+    }
+
     auto &ctx = session.avcodec_ctx;
 
     auto &sps = session.sps;
@@ -1838,8 +1851,17 @@ namespace video {
         );
       }
 
-      if (av_packet && av_packet->pts == frame_nr) {
-        packet->frame_timestamp = frame_timestamp;
+      if (av_packet) {
+        // Match the packet to the capture timestamp of the frame it encodes; entries for
+        // older frames whose packets never surfaced (e.g. dropped by the encoder) are discarded.
+        auto &timestamps = session.frame_timestamps;
+        while (!timestamps.empty() && timestamps.front().first < av_packet->pts) {
+          timestamps.pop_front();
+        }
+        if (!timestamps.empty() && timestamps.front().first == av_packet->pts) {
+          packet->frame_timestamp = timestamps.front().second;
+          timestamps.pop_front();
+        }
       }
 
       packet->replacements = &session.replacements;
