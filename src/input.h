@@ -6,6 +6,7 @@
 
 // standard includes
 #include <functional>
+#include <string_view>
 
 // local includes
 #include "platform/common.h"
@@ -26,6 +27,21 @@ namespace input {
    * @param input Shared stream input state to reset.
    */
   void reset(std::shared_ptr<input_t> &input);
+
+  /**
+   * @brief Destroy every retained virtual gamepad session.
+   *
+   * Retained gamepads survive a paused transport connection so they can be reused on resume. Call this when the
+   * streamed application or all streaming sessions are explicitly terminated.
+   */
+  void terminate_gamepads();
+
+  /**
+   * @brief Destroy virtual gamepads retained for one paired client.
+   *
+   * @param session_id Stable paired-client identity used by alloc().
+   */
+  void terminate_gamepads(std::string_view session_id);
 
   /**
    * @brief Queue a raw input message for platform passthrough.
@@ -50,9 +66,40 @@ namespace input {
    * @brief Allocate and initialize platform input state for a stream.
    *
    * @param mail Mailbox used to exchange messages with worker threads.
+   * @param session_id Stable paired-client identity shared by launch and resume connections.
    * @return Shared input state bound to the stream mailbox.
    */
-  std::shared_ptr<input_t> alloc(safe::mail_t mail);
+  std::shared_ptr<input_t> alloc(safe::mail_t mail, std::string session_id);
+
+#ifdef SUNSHINE_TESTS
+  namespace testing {
+    /**
+     * @brief Replace the global platform input backend for a unit test.
+     *
+     * @param input Test-owned platform input backend.
+     */
+    void set_platform_input(platf::input_t input);
+
+    /**
+     * @brief Allocate a gamepad directly in retained input state for a unit test.
+     *
+     * @param input Retained input state.
+     * @param client_index Client-relative controller index.
+     * @param metadata Client-reported controller metadata.
+     * @return Assigned global gamepad slot, or -1 on failure.
+     */
+    int alloc_gamepad(std::shared_ptr<input_t> &input, std::uint8_t client_index, const platf::gamepad_arrival_t &metadata);
+
+    /**
+     * @brief Return the global gamepad slot stored for a test controller.
+     *
+     * @param input Retained input state.
+     * @param client_index Client-relative controller index.
+     * @return Assigned global gamepad slot, or -1 when unallocated.
+     */
+    int gamepad_id(const std::shared_ptr<input_t> &input, std::uint8_t client_index);
+  }  // namespace testing
+#endif
 
   /**
    * @brief Touchscreen coordinate bounds used to scale absolute input.

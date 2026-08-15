@@ -247,15 +247,18 @@ TEST_F(VirtualHidDeviceTest, RejectsUnavailableAndInvalidGamepadSlots) {
   EXPECT_FALSE(platf::virtualhid::has_gamepad(*context(), -1));
   EXPECT_FALSE(platf::virtualhid::has_gamepad(*context(), static_cast<int>(context()->gamepads.size())));
   EXPECT_EQ(platf::virtualhid::gamepad_adapter_for_testing(*context(), 0), nullptr);
+  EXPECT_EQ(platf::virtualhid::rebind_gamepad(*context(), valid_id, feedback_queue()), -1);
 }
 
 TEST_F(VirtualHidDeviceTest, AllocatesManualProfileAndTranslatesFullState) {
+  const auto active_devices_before_gamepad = context()->runtime->active_device_count();
   config::input.ds4_back_as_touchpad_click = true;
   config::input.virtualhid_randomize_mac = false;
   const auto capabilities = static_cast<std::uint16_t>(LI_CCAP_ACCEL | LI_CCAP_GYRO | LI_CCAP_TOUCHPAD | LI_CCAP_RGB_LED | LI_CCAP_BATTERY_STATE);
   auto *adapter = allocate_gamepad("ds5"sv, LI_CTYPE_PS, capabilities, 1, 4);
   ASSERT_NE(adapter, nullptr);
   ASSERT_NE(adapter->gamepad(), nullptr);
+  EXPECT_EQ(context()->runtime->active_device_count(), active_devices_before_gamepad + 1);
 
   EXPECT_EQ(adapter->gamepad()->profile().gamepad_kind, lvh::GamepadProfileKind::dualsense);
   EXPECT_TRUE(adapter->gamepad()->profile().name.starts_with("Sunshine "));
@@ -301,6 +304,7 @@ TEST_F(VirtualHidDeviceTest, AllocatesManualProfileAndTranslatesFullState) {
 
   platf::virtualhid::free_gamepad(*context(), 1);
   EXPECT_FALSE(platf::virtualhid::has_gamepad(*context(), 1));
+  EXPECT_EQ(context()->runtime->active_device_count(), active_devices_before_gamepad);
   platf::virtualhid::free_gamepad(*context(), 1);
   platf::virtualhid::gamepad_update(*context(), 1, input_state);
 }
@@ -413,6 +417,18 @@ TEST_F(VirtualHidDeviceTest, RoutesAndDeduplicatesGamepadFeedback) {
   EXPECT_EQ(feedback->data.adaptive_triggers.type_right, 7);
   EXPECT_EQ(feedback->data.adaptive_triggers.left, output.left_trigger_effect);
   EXPECT_EQ(feedback->data.adaptive_triggers.right, output.right_trigger_effect);
+
+  auto resumed_feedback = mail::man->queue<platf::gamepad_feedback_msg_t>("virtualhid-input-test-resumed-feedback");
+  ASSERT_EQ(platf::virtualhid::rebind_gamepad(*context(), {0, 7}, resumed_feedback), 0);
+  output.kind = lvh::GamepadOutputKind::rumble;
+  output.low_frequency_rumble = 100;
+  output.high_frequency_rumble = 201;
+  ASSERT_TRUE(adapter->dispatch_output(output).ok());
+  feedback = resumed_feedback->pop(10ms);
+  ASSERT_TRUE(feedback);
+  EXPECT_EQ(feedback->type, platf::gamepad_feedback_e::rumble);
+  EXPECT_EQ(feedback->id, 7);
+  EXPECT_FALSE(feedback_queue()->pop(0ms));
 
   output.kind = lvh::GamepadOutputKind::raw_report;
   ASSERT_TRUE(adapter->dispatch_output(output).ok());

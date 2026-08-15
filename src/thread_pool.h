@@ -136,6 +136,16 @@ namespace thread_pool_util {
       }
     }
 
+    /**
+     * @brief Check whether worker threads are available to execute queued tasks.
+     *
+     * @return True while the thread pool is running.
+     */
+    bool running() {
+      std::lock_guard lg(_lock);
+      return _continue;
+    }
+
   public:
     /**
      * @brief Run the main application or worker loop.

@@ -111,6 +111,16 @@ namespace platf::virtualhid {
   int alloc_gamepad(input_context_t &context, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue);
 
   /**
+   * @brief Rebind an existing libvirtualhid gamepad to a resumed client session.
+   *
+   * @param context Input context.
+   * @param id Sunshine gamepad identifiers for the resumed client.
+   * @param feedback_queue Queue used to return gamepad feedback to the resumed client.
+   * @return 0 when the gamepad exists and was rebound; otherwise -1.
+   */
+  int rebind_gamepad(input_context_t &context, const gamepad_id_t &id, feedback_queue_t feedback_queue);
+
+  /**
    * @brief Check whether a libvirtualhid gamepad exists in a slot.
    *
    * @param context Input context.

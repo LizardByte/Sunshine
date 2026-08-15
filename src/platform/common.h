@@ -1240,6 +1240,15 @@ namespace platf {
    */
   int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue);
   /**
+   * @brief Rebind an existing virtual gamepad to a resumed client session.
+   *
+   * @param input Platform input backend that owns the virtual gamepad.
+   * @param id Global and client-relative identifiers for the resumed controller.
+   * @param feedback_queue Queue used to return gamepad feedback to the resumed client.
+   * @return 0 when the gamepad exists and was rebound; otherwise -1.
+   */
+  int rebind_gamepad(input_t &input, const gamepad_id_t &id, feedback_queue_t feedback_queue);
+  /**
    * @brief Release gamepad resources.
    *
    * @param input Platform input backend that receives the event.

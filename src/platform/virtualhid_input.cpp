@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <format>
 #include <limits>
+#include <mutex>
 #include <numbers>
 #include <optional>
 #include <random>
@@ -30,6 +31,7 @@ namespace platf::virtualhid {
    */
   struct gamepad_context_t {
     std::unique_ptr<lvh::GamepadStateAdapter> adapter;  ///< State adapter for the virtual gamepad.
+    std::mutex feedback_mutex;  ///< Synchronizes feedback routing with session rebinding.
     feedback_queue_t feedback_queue;  ///< Feedback queue for client output events.
     std::array<std::optional<std::uint32_t>, 2> touch_ids;  ///< Client touch IDs assigned to libvirtualhid slots.
     std::uint8_t client_relative_index = 0;  ///< Client-relative controller index.
@@ -328,13 +330,37 @@ namespace platf::virtualhid {
       }
     }
 
-    void raise_feedback(const std::shared_ptr<gamepad_context_t> &gamepad, const gamepad_feedback_msg_t &message) {
+    /**
+     * @brief Raise gamepad feedback while the caller owns the feedback lock.
+     *
+     * @param gamepad Gamepad receiving output from the virtual device.
+     * @param message Feedback message to deliver to the client.
+     */
+    void raise_feedback_unlocked(const std::shared_ptr<gamepad_context_t> &gamepad, const gamepad_feedback_msg_t &message) {
       if (gamepad->feedback_queue) {
         gamepad->feedback_queue->raise(message);
       }
     }
 
+    /**
+     * @brief Raise gamepad feedback using the current client routing.
+     *
+     * @param gamepad Gamepad receiving output from the virtual device.
+     * @param message Feedback message to deliver to the client.
+     */
+    void raise_feedback(const std::shared_ptr<gamepad_context_t> &gamepad, const gamepad_feedback_msg_t &message) {
+      std::lock_guard lock {gamepad->feedback_mutex};
+      raise_feedback_unlocked(gamepad, message);
+    }
+
+    /**
+     * @brief Translate a libvirtualhid output event into Moonlight feedback.
+     *
+     * @param gamepad Gamepad that emitted the output event.
+     * @param output Output event reported by libvirtualhid.
+     */
     void handle_output(const std::shared_ptr<gamepad_context_t> &gamepad, const lvh::GamepadOutput &output) {
+      std::lock_guard lock {gamepad->feedback_mutex};
       switch (output.kind) {
         case lvh::GamepadOutputKind::rumble:
           if (gamepad->has_last_rumble && gamepad->last_low_frequency_rumble == output.low_frequency_rumble && gamepad->last_high_frequency_rumble == output.high_frequency_rumble) {
@@ -343,7 +369,7 @@ namespace platf::virtualhid {
           gamepad->has_last_rumble = true;
           gamepad->last_low_frequency_rumble = output.low_frequency_rumble;
           gamepad->last_high_frequency_rumble = output.high_frequency_rumble;
-          raise_feedback(gamepad, gamepad_feedback_msg_t::make_rumble(gamepad->client_relative_index, output.low_frequency_rumble, output.high_frequency_rumble));
+          raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_rumble(gamepad->client_relative_index, output.low_frequency_rumble, output.high_frequency_rumble));
           break;
         case lvh::GamepadOutputKind::trigger_rumble:
           if (gamepad->has_last_trigger_rumble && gamepad->last_left_trigger_rumble == output.left_trigger_rumble && gamepad->last_right_trigger_rumble == output.right_trigger_rumble) {
@@ -352,7 +378,7 @@ namespace platf::virtualhid {
           gamepad->has_last_trigger_rumble = true;
           gamepad->last_left_trigger_rumble = output.left_trigger_rumble;
           gamepad->last_right_trigger_rumble = output.right_trigger_rumble;
-          raise_feedback(gamepad, gamepad_feedback_msg_t::make_rumble_triggers(gamepad->client_relative_index, output.left_trigger_rumble, output.right_trigger_rumble));
+          raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_rumble_triggers(gamepad->client_relative_index, output.left_trigger_rumble, output.right_trigger_rumble));
           break;
         case lvh::GamepadOutputKind::rgb_led:
           if (gamepad->has_last_rgb && gamepad->last_red == output.red && gamepad->last_green == output.green && gamepad->last_blue == output.blue) {
@@ -362,10 +388,10 @@ namespace platf::virtualhid {
           gamepad->last_red = output.red;
           gamepad->last_green = output.green;
           gamepad->last_blue = output.blue;
-          raise_feedback(gamepad, gamepad_feedback_msg_t::make_rgb_led(gamepad->client_relative_index, output.red, output.green, output.blue));
+          raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_rgb_led(gamepad->client_relative_index, output.red, output.green, output.blue));
           break;
         case lvh::GamepadOutputKind::adaptive_triggers:
-          raise_feedback(gamepad, gamepad_feedback_msg_t::make_adaptive_triggers(gamepad->client_relative_index, output.adaptive_trigger_flags, output.left_trigger_effect_type, output.right_trigger_effect_type, output.left_trigger_effect, output.right_trigger_effect));
+          raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_adaptive_triggers(gamepad->client_relative_index, output.adaptive_trigger_flags, output.left_trigger_effect_type, output.right_trigger_effect_type, output.left_trigger_effect, output.right_trigger_effect));
           break;
         case lvh::GamepadOutputKind::raw_report:
           break;
@@ -526,8 +552,10 @@ namespace platf::virtualhid {
     gamepad->adapter = std::move(created.adapter);
     gamepad->feedback_queue = std::move(feedback_queue);
     gamepad->client_relative_index = id.clientRelativeIndex;
-    gamepad->adapter->set_output_callback([gamepad](const lvh::GamepadOutput &output) {
-      handle_output(gamepad, output);
+    gamepad->adapter->set_output_callback([weak_gamepad = std::weak_ptr {gamepad}](const lvh::GamepadOutput &output) {
+      if (const auto gamepad = weak_gamepad.lock()) {
+        handle_output(gamepad, output);
+      }
     });
 
     const auto &support = gamepad->adapter->support();
@@ -539,6 +567,27 @@ namespace platf::virtualhid {
     }
 
     context.gamepads[id.globalIndex] = std::move(gamepad);
+    return 0;
+  }
+
+  int rebind_gamepad(input_context_t &context, const gamepad_id_t &id, feedback_queue_t feedback_queue) {
+    if (!has_gamepad(context, id.globalIndex)) {
+      return -1;
+    }
+
+    const auto &gamepad = context.gamepads[id.globalIndex];
+    std::lock_guard lock {gamepad->feedback_mutex};
+    gamepad->feedback_queue = std::move(feedback_queue);
+    gamepad->client_relative_index = id.clientRelativeIndex;
+    gamepad->has_last_rumble = false;
+    gamepad->has_last_trigger_rumble = false;
+    gamepad->has_last_rgb = false;
+
+    if (gamepad->adapter->support().supports_motion) {
+      raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_motion_event_state(id.clientRelativeIndex, LI_MOTION_TYPE_ACCEL, 100));
+      raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_motion_event_state(id.clientRelativeIndex, LI_MOTION_TYPE_GYRO, 100));
+    }
+
     return 0;
   }
 
@@ -936,6 +985,10 @@ namespace platf {
 #ifndef _WIN32
   int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
     return virtualhid::alloc_gamepad(virtualhid::get_input_context(input), id, metadata, std::move(feedback_queue));
+  }
+
+  int rebind_gamepad(input_t &input, const gamepad_id_t &id, feedback_queue_t feedback_queue) {
+    return virtualhid::rebind_gamepad(virtualhid::get_input_context(input), id, std::move(feedback_queue));
   }
 
   void free_gamepad(input_t &input, int nr) {

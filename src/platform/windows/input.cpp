@@ -339,6 +339,36 @@ namespace platf {
     }
 
     /**
+     * @brief Route an existing ViGEm gamepad's feedback to a resumed client.
+     *
+     * @param id Global and client-relative identifiers for the resumed controller.
+     * @param feedback_queue Queue used to return gamepad feedback to the resumed client.
+     * @return 0 when the target exists and was rebound; otherwise -1.
+     */
+    int rebind_gamepad(const gamepad_id_t &id, feedback_queue_t feedback_queue) {
+      if (id.globalIndex < 0 || id.globalIndex >= static_cast<int>(gamepads.size())) {
+        return -1;
+      }
+
+      auto &gamepad = gamepads[id.globalIndex];
+      if (!gamepad.gp || !vigem_target_is_attached(gamepad.gp.get())) {
+        return -1;
+      }
+
+      gamepad.client_relative_index = id.clientRelativeIndex;
+      gamepad.feedback_queue = std::move(feedback_queue);
+      gamepad.last_rumble = {};
+      gamepad.last_rgb_led = {};
+
+      if (gamepad.feedback_queue && vigem_target_get_type(gamepad.gp.get()) == DualShock4Wired) {
+        gamepad.feedback_queue->raise(gamepad_feedback_msg_t::make_motion_event_state(id.clientRelativeIndex, LI_MOTION_TYPE_ACCEL, 100));
+        gamepad.feedback_queue->raise(gamepad_feedback_msg_t::make_motion_event_state(id.clientRelativeIndex, LI_MOTION_TYPE_GYRO, 100));
+      }
+
+      return 0;
+    }
+
+    /**
      * @brief Detaches the specified gamepad
      * @param nr The gamepad.
      */
@@ -643,6 +673,20 @@ namespace platf {
     }
 
     return raw->vigem->alloc_gamepad_internal(id, feedback_queue, selectedGamepadType);
+  }
+
+  int rebind_gamepad(input_t &input, const gamepad_id_t &id, feedback_queue_t feedback_queue) {
+    auto raw = (input_raw_t *) input.get();
+
+    if (virtualhid::has_gamepad(raw->virtualhid, id.globalIndex)) {
+      return virtualhid::rebind_gamepad(raw->virtualhid, id, std::move(feedback_queue));
+    }
+
+    if (!raw->vigem) {
+      return -1;
+    }
+
+    return raw->vigem->rebind_gamepad(id, std::move(feedback_queue));
   }
 
   void free_gamepad(input_t &input, int nr) {
