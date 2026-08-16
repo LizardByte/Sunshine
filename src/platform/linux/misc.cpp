@@ -264,8 +264,15 @@ namespace platf {
         homedir = getpwuid(geteuid())->pw_dir;
       }
 
+      // Custom isolated config directory override for embedded instances (e.g. Monitorize)
+      if (std::string dir; lizardbyte::common::get_env("SUNSHINE_CONFIG_DIR", dir) && !dir.empty()) {
+        found = true;
+        migrate_config = false;
+        config_path = fs::path(dir);
+      }
+
       // May be set if running under a systemd service with the ConfigurationDirectory= option set.
-      if (std::string dir; lizardbyte::common::get_env("CONFIGURATION_DIRECTORY", dir) && !dir.empty()) {
+      if (std::string dir; !found && lizardbyte::common::get_env("CONFIGURATION_DIRECTORY", dir) && !dir.empty()) {
         found = true;
         config_path = fs::path(dir) / "sunshine"sv;
       }
