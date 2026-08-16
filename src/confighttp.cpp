@@ -187,11 +187,17 @@ namespace confighttp {
    */
   bool authenticate(const resp_https_t &response, const req_https_t &request) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
+    const auto ip_type = net::from_address(address);
 
-    if (const auto ip_type = net::from_address(address); ip_type > http::origin_web_ui_allowed) {
+    if (ip_type > http::origin_web_ui_allowed) {
       BOOST_LOG(info) << "Web UI: ["sv << address << "] -- denied"sv;
       response->write(SimpleWeb::StatusCode::client_error_forbidden);
       return false;
+    }
+
+    // Bypass authentication for localhost / PC connections
+    if (ip_type == net::PC) {
+      return true;
     }
 
     // If credentials are shown, redirect the user to a /welcome page
@@ -473,8 +479,8 @@ namespace confighttp {
    * @param redirect_if_username If true, redirect to "/" when the username is set (for welcome page).
    */
   void getPage(const resp_https_t &response, const req_https_t &request, const char *html_file, const bool require_auth, const bool redirect_if_username) {
-    // Special handling for welcome page: redirect if the username is already set
-    if (redirect_if_username && !config::sunshine.username.empty()) {
+    // Special handling for welcome page: redirect if the username is already set or on localhost
+    if (redirect_if_username && (!config::sunshine.username.empty() || net::from_address(net::addr_to_normalized_string(request->remote_endpoint().address())) == net::PC)) {
       send_redirect(response, request, "/");
       return;
     }
