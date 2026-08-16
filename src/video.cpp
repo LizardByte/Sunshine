@@ -61,6 +61,7 @@ namespace video {
         return true;
       }
 
+#ifdef _WIN32
       // Since Windows 11 24H2, it is possible that there will be no active devices present
       // for some reason (probably a bug). Trying to probe encoders in such a state locks/breaks the DXGI
       // and also the display device for Windows. So we must have at least 1 active device.
@@ -75,6 +76,11 @@ namespace video {
 
       BOOST_LOG(error) << "No display devices are active at the moment! Cannot probe the encoders.";
       return false;
+#else
+      // A sleeping display enumerates as inactive on other platforms, and the wake-up call
+      // lives in platf::display(), which probing must reach for the display to ever wake.
+      return true;
+#endif
     }
   }  // namespace
 
