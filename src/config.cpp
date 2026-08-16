@@ -878,7 +878,7 @@ namespace config {
     {},  // Bind address
     platf::appdata().string() + "/sunshine.log",  // log file
     false,  // notify_pre_releases
-    true,  // system_tray
+    false,  // system_tray
     {},  // prep commands
   };
 
