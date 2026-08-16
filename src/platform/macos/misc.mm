@@ -307,8 +307,6 @@ namespace platf {
     }
 
     // ASIO doesn't use O_CLOEXEC, so we have to close all fds ourselves.
-    // This also releases the process lock file (flock), allowing the
-    // new instance to acquire it.
     int openmax = (int) sysconf(_SC_OPEN_MAX);
     for (int fd = STDERR_FILENO + 1; fd < openmax; fd++) {
       close(fd);

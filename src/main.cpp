@@ -9,10 +9,6 @@
 #include <fstream>
 #include <iostream>
 
-#ifndef _WIN32
-  #include <fcntl.h>
-  #include <sys/file.h>
-#endif
 #ifdef __APPLE__
   #include <mach-o/dyld.h>
 #endif
@@ -187,30 +183,6 @@ int main(int argc, char *argv[]) {
 #endif
 
   lifetime::argv = argv;
-
-#ifndef _WIN32
-  {
-    // Acquire an exclusive lock to prevent multiple Sunshine instances.
-    // This is critical on macOS where restart uses fork() and launchd
-    // may attempt to respawn the old process if KeepAlive is configured.
-    auto lock_dir = platf::appdata();
-    std::filesystem::create_directories(lock_dir);
-    auto lock_path = (lock_dir / "sunshine.lock").string();
-
-    int lock_fd = open(lock_path.c_str(), O_CREAT | O_RDWR, 0600);
-    if (lock_fd >= 0) {
-      if (flock(lock_fd, LOCK_EX | LOCK_NB) < 0) {
-        if (errno == EWOULDBLOCK) {
-          std::cerr << "Another instance of Sunshine is already running." << std::endl;
-          return 1;
-        }
-      }
-      // Lock acquired. The fd is intentionally kept open (never closed)
-      // so the lock persists for the process lifetime. The kernel releases
-      // it automatically when the process exits.
-    }
-  }
-#endif
 
   task_pool_util::TaskPool::task_id_t force_shutdown = nullptr;
 
