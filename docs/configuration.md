@@ -1420,6 +1420,31 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### max_stream_resolution
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            The maximum resolution (formatted as WIDTHxHEIGHT) that Sunshine will stream at. Larger client requests
+            are downscaled, preserving aspect ratio. Lowering this reduces encoding latency on hosts where the
+            encoder cannot keep up with the requested resolution. If empty, the resolution requested by Moonlight
+            is used.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            max_stream_resolution = 2560x1440
+            @endcode</td>
+    </tr>
+</table>
+
 ### minimum_fps_target
 
 <table>

@@ -56,6 +56,9 @@ namespace config {
 
     int min_threads;  ///< Minimum number of threads or slices for CPU encoding.
 
+    int max_stream_width;  ///< Maximum streamed video width; larger client requests are downscaled. 0 disables the cap.
+    int max_stream_height;  ///< Maximum streamed video height; larger client requests are downscaled. 0 disables the cap.
+
     struct {
       std::string sw_preset;
       std::string sw_tune;
@@ -398,4 +401,14 @@ namespace config {
    * @return Parsed configuration key-value entries.
    */
   std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content);
+  /**
+   * @brief Apply the configured stream resolution cap to a client-requested resolution.
+   *
+   * The result preserves the aspect ratio of the request and is rounded down to even
+   * dimensions as required by encoders and decoders.
+   * @param width Client-requested width, updated in place when the cap applies.
+   * @param height Client-requested height, updated in place when the cap applies.
+   * @return `true` when the resolution was capped.
+   */
+  bool cap_stream_resolution(int &width, int &height);
 }  // namespace config
