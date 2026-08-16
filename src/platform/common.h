@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <string>
 
 // lib includes
@@ -267,14 +268,14 @@ namespace platf {
     /**
      * @brief Moonlight speaker order for stereo audio.
      */
-    constexpr std::uint8_t map_stereo[] {
+    constexpr std::array<std::uint8_t, 2> map_stereo {
       FRONT_LEFT,
       FRONT_RIGHT
     };
     /**
      * @brief Moonlight speaker order for 5.1 surround audio.
      */
-    constexpr std::uint8_t map_surround51[] {
+    constexpr std::array<std::uint8_t, 6> map_surround51 {
       FRONT_LEFT,
       FRONT_RIGHT,
       FRONT_CENTER,
@@ -285,7 +286,7 @@ namespace platf {
     /**
      * @brief Moonlight speaker order for 7.1 surround audio.
      */
-    constexpr std::uint8_t map_surround71[] {
+    constexpr std::array<std::uint8_t, 8> map_surround71 {
       FRONT_LEFT,
       FRONT_RIGHT,
       FRONT_CENTER,
@@ -838,16 +839,21 @@ namespace platf {
   };
 
   /**
+   * @brief Platform-specific input backend context.
+   */
+  struct input_raw_t;
+
+  /**
    * @brief Release a platform input backend created by input().
    *
-   * @param p Pointer passed to the deleter or conversion helper.
+   * @param input Platform input backend to release.
    */
-  void freeInput(void *);
+  void freeInput(input_raw_t *input);
 
   /**
    * @brief Owning pointer for a platform input backend.
    */
-  using input_t = util::safe_ptr<void, freeInput>;
+  using input_t = util::safe_ptr<input_raw_t, &freeInput>;
 
   std::filesystem::path appdata();
 
@@ -1102,14 +1108,21 @@ namespace platf {
    */
   input_t input();
   /**
-   * @brief Get the current mouse position on screen
+   * @brief Get the current mouse position for platform input tests.
+   *
    * @param input The input_t instance to use.
-   * @return Screen coordinates of the mouse.
+   * @return Screen coordinates of the mouse, or `std::nullopt` when the platform cannot observe the cursor.
+   *
+   * @note This helper exists only so tests can observe virtual mouse movement. Production input paths should submit
+   * mouse events through `move_mouse()` or `abs_mouse()` instead of reading the host cursor location.
+   *
    * @examples
-   * auto [x, y] = get_mouse_loc(input);
+   * if (auto location = get_mouse_loc(input)) {
+   *   auto [x, y] = *location;
+   * }
    * @examples_end
    */
-  util::point_t get_mouse_loc(input_t &input);
+  std::optional<util::point_t> get_mouse_loc(input_t &input);
   /**
    * @brief Move mouse using the backend coordinate system.
    *
@@ -1166,7 +1179,7 @@ namespace platf {
    * @param utf8 UTF-8 text submitted by the client.
    * @param size Number of bytes or elements requested.
    */
-  void unicode(input_t &input, char *utf8, int size);
+  void unicode(input_t &input, const char *utf8, int size);
 
   /**
    * @brief Per-client input context allocated by a platform backend.
@@ -1226,6 +1239,15 @@ namespace platf {
    * @return 0 on success.
    */
   int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue);
+  /**
+   * @brief Rebind an existing virtual gamepad to a resumed client session.
+   *
+   * @param input Platform input backend that owns the virtual gamepad.
+   * @param id Global and client-relative identifiers for the resumed controller.
+   * @param feedback_queue Queue used to return gamepad feedback to the resumed client.
+   * @return 0 when the gamepad exists and was rebound; otherwise -1.
+   */
+  int rebind_gamepad(input_t &input, const gamepad_id_t &id, feedback_queue_t feedback_queue);
   /**
    * @brief Release gamepad resources.
    *

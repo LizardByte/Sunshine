@@ -20,7 +20,7 @@ option(SUNSHINE_ENABLE_TRAY "Enable system tray icon." ON)
 
 if(WIN32)
     option(SUNSHINE_USE_STATIC_QT
-            "Require static Qt libraries and their static third-party dependencies." OFF)
+            "Require static Qt libraries and their static third-party dependencies." ON)
 endif()
 
 option(SUNSHINE_SYSTEM_VULKAN_HEADERS "Use system installation of vulkan-headers rather than the submodule." OFF)

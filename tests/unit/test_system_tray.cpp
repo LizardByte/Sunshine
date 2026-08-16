@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <format>
 #include <optional>
 #include <string>
 #include <thread>
@@ -19,6 +20,9 @@
 
   // lib includes
   #include <tray.h>
+  #ifdef _WIN32
+    #include <libvirtualhid/license.hpp>
+  #endif
 
   // local includes
   #include <src/system_tray.h>
@@ -70,6 +74,42 @@ namespace {
   }
   #endif
 
+  #ifdef _WIN32
+  /**
+   * @brief Verify the persistent Virtual HID Driver benefits submenu.
+   *
+   * @param benefits_menu Benefits submenu to verify.
+   */
+  void verify_virtualhid_benefits_menu(const struct tray_menu *benefits_menu) {
+    ASSERT_NE(benefits_menu, nullptr);
+    EXPECT_STREQ(benefits_menu[0].text, "Xbox One, Xbox Series, DualSense (DS5), Switch Pro, and Generic");
+    EXPECT_EQ(benefits_menu[0].disabled, 1);
+    EXPECT_STREQ(benefits_menu[1].text, "Motion, touchpads, LEDs, and adaptive triggers where supported");
+    EXPECT_EQ(benefits_menu[1].disabled, 1);
+    EXPECT_STREQ(benefits_menu[2].text, "Actively developed and supported by LizardByte");
+    EXPECT_EQ(benefits_menu[2].disabled, 1);
+    EXPECT_STREQ(benefits_menu[3].text, "-");
+    EXPECT_STREQ(benefits_menu[4].text, "Open License Settings");
+    EXPECT_NE(benefits_menu[4].cb, nullptr);
+    EXPECT_EQ(benefits_menu[5].text, nullptr);
+  }
+
+  /**
+   * @brief Verify the shared action entries in a populated Virtual HID Driver menu.
+   *
+   * @param license_menu License submenu to verify.
+   */
+  void verify_virtualhid_actions_menu(const struct tray_menu *license_menu) {
+    ASSERT_NE(license_menu, nullptr);
+    EXPECT_STREQ(license_menu[8].text, "Benefits over ViGEmBus");
+    EXPECT_EQ(license_menu[8].cb, nullptr);
+    verify_virtualhid_benefits_menu(license_menu[8].submenu);
+    EXPECT_STREQ(license_menu[9].text, "Download Virtual HID Driver");
+    EXPECT_NE(license_menu[9].cb, nullptr);
+    EXPECT_EQ(license_menu[10].text, nullptr);
+  }
+  #endif
+
   /**
    * @brief Verify the persistent menu exposed by Sunshine.
    */
@@ -81,6 +121,37 @@ namespace {
     EXPECT_NE(tray_data.menu[0].cb, nullptr);
     EXPECT_STREQ(tray_data.menu[1].text, "-");
     EXPECT_EQ(tray_data.menu[1].cb, nullptr);
+
+  #ifdef _WIN32
+    EXPECT_STREQ(tray_data.menu[2].text, "Virtual HID Driver");
+    ASSERT_NE(tray_data.menu[2].submenu, nullptr);
+    EXPECT_STREQ(tray_data.menu[2].submenu[0].text, "Status: Checking");
+    EXPECT_EQ(tray_data.menu[2].submenu[0].disabled, 1);
+    EXPECT_STREQ(tray_data.menu[2].submenu[1].text, "-");
+    EXPECT_STREQ(tray_data.menu[2].submenu[2].text, "Open License Settings");
+    EXPECT_NE(tray_data.menu[2].submenu[2].cb, nullptr);
+    EXPECT_STREQ(tray_data.menu[2].submenu[3].text, "Benefits over ViGEmBus");
+    EXPECT_EQ(tray_data.menu[2].submenu[3].cb, nullptr);
+    verify_virtualhid_benefits_menu(tray_data.menu[2].submenu[3].submenu);
+    EXPECT_STREQ(tray_data.menu[2].submenu[4].text, "Download Virtual HID Driver");
+    EXPECT_NE(tray_data.menu[2].submenu[4].cb, nullptr);
+    EXPECT_EQ(tray_data.menu[2].submenu[5].text, nullptr);
+    EXPECT_STREQ(tray_data.menu[3].text, "-");
+    EXPECT_STREQ(tray_data.menu[4].text, "Donate");
+    ASSERT_NE(tray_data.menu[4].submenu, nullptr);
+    EXPECT_STREQ(tray_data.menu[4].submenu[0].text, "GitHub Sponsors");
+    EXPECT_STREQ(tray_data.menu[4].submenu[1].text, "Patreon");
+    EXPECT_STREQ(tray_data.menu[4].submenu[2].text, "PayPal");
+    EXPECT_EQ(tray_data.menu[4].submenu[3].text, nullptr);
+    EXPECT_STREQ(tray_data.menu[5].text, "-");
+    EXPECT_STREQ(tray_data.menu[6].text, "Reset Display Device Config");
+    EXPECT_NE(tray_data.menu[6].cb, nullptr);
+    EXPECT_STREQ(tray_data.menu[7].text, "Restart");
+    EXPECT_NE(tray_data.menu[7].cb, nullptr);
+    EXPECT_STREQ(tray_data.menu[8].text, "Quit");
+    EXPECT_NE(tray_data.menu[8].cb, nullptr);
+    EXPECT_EQ(tray_data.menu[9].text, nullptr);
+  #else
     EXPECT_STREQ(tray_data.menu[2].text, "Donate");
     ASSERT_NE(tray_data.menu[2].submenu, nullptr);
     EXPECT_STREQ(tray_data.menu[2].submenu[0].text, "GitHub Sponsors");
@@ -88,16 +159,6 @@ namespace {
     EXPECT_STREQ(tray_data.menu[2].submenu[2].text, "PayPal");
     EXPECT_EQ(tray_data.menu[2].submenu[3].text, nullptr);
     EXPECT_STREQ(tray_data.menu[3].text, "-");
-
-  #ifdef _WIN32
-    EXPECT_STREQ(tray_data.menu[4].text, "Reset Display Device Config");
-    EXPECT_NE(tray_data.menu[4].cb, nullptr);
-    EXPECT_STREQ(tray_data.menu[5].text, "Restart");
-    EXPECT_NE(tray_data.menu[5].cb, nullptr);
-    EXPECT_STREQ(tray_data.menu[6].text, "Quit");
-    EXPECT_NE(tray_data.menu[6].cb, nullptr);
-    EXPECT_EQ(tray_data.menu[7].text, nullptr);
-  #else
     EXPECT_STREQ(tray_data.menu[4].text, "Restart");
     EXPECT_NE(tray_data.menu[4].cb, nullptr);
     EXPECT_STREQ(tray_data.menu[5].text, "Quit");
@@ -235,6 +296,134 @@ TEST_F(SystemTrayTest, UpdatesAreIgnoredBeforeInitialization) {
   EXPECT_EQ(system_tray::end_tray(), 0);
 }
 
+  #ifdef _WIN32
+TEST_F(SystemTrayTest, ResolvesDevelopmentTrayIconsFromExecutableDirectory) {
+  EXPECT_EQ(system_tray::resource_path_for_testing(nullptr), nullptr);
+  EXPECT_EQ(system_tray::resource_path_for_testing(""), nullptr);
+
+  const auto *sunshine_icon = system_tray::resource_path_for_testing("test_assets/web/images/logo-sunshine.svg");
+  ASSERT_NE(sunshine_icon, nullptr);
+  EXPECT_TRUE(std::filesystem::path {sunshine_icon}.is_absolute());
+  EXPECT_TRUE(std::filesystem::exists(sunshine_icon));
+  EXPECT_EQ(system_tray::resource_path_for_testing("test_assets/web/images/logo-sunshine.svg"), sunshine_icon);
+
+  const auto *virtualhid_icon = system_tray::resource_path_for_testing("test_assets/web/images/logo-libvirtualhid.svg");
+  ASSERT_NE(virtualhid_icon, nullptr);
+  EXPECT_TRUE(std::filesystem::path {virtualhid_icon}.is_absolute());
+  EXPECT_TRUE(std::filesystem::exists(virtualhid_icon));
+}
+
+TEST_F(SystemTrayTest, PreparesVirtualHidMenuFromCurrentLicenseStatus) {
+  system_tray::prepare_tray_virtualhid_license();
+
+  const auto &tray_data = system_tray::tray_data_for_testing();
+  ASSERT_NE(tray_data.menu[2].submenu, nullptr);
+  ASSERT_NE(tray_data.menu[2].submenu[0].text, nullptr);
+  EXPECT_STRNE(tray_data.menu[2].submenu[0].text, "Status: Checking");
+}
+
+TEST_F(SystemTrayTest, PreparesLicensedVirtualHidMenuBeforeInitialization) {
+  lvh::LicenseStatus license;
+  license.service_available = true;
+  license.state = lvh::LicenseState::licensed;
+  license.plan_name = "Yearly";
+  license.customer_email = "customer@example.com";
+  license.expires_at = "2027-08-10T00:00:00Z";
+  license.activation_usage = 2;
+  license.activation_limit = 5;
+
+  system_tray::update_tray_virtualhid_license(license, true);
+
+  const auto &tray_data = system_tray::tray_data_for_testing();
+  const auto *license_menu = tray_data.menu[2].submenu;
+  ASSERT_NE(license_menu, nullptr);
+  EXPECT_STREQ(license_menu[0].text, "Status: Licensed");
+  EXPECT_STREQ(license_menu[1].text, "Plan: Yearly");
+  EXPECT_STREQ(license_menu[2].text, "Customer: customer@example.com");
+  EXPECT_STREQ(license_menu[3].text, "Expires: 2027-08-10T00:00:00Z");
+  EXPECT_STREQ(license_menu[4].text, "Machine activations: 2 / 5");
+  EXPECT_STREQ(license_menu[5].text, "-");
+  EXPECT_STREQ(license_menu[6].text, "View License Details");
+  EXPECT_NE(license_menu[6].cb, nullptr);
+  EXPECT_STREQ(license_menu[7].text, "Manage License");
+  EXPECT_NE(license_menu[7].cb, nullptr);
+  verify_virtualhid_actions_menu(license_menu);
+  EXPECT_EQ(tray_data.notification_title, nullptr);
+  EXPECT_EQ(tray_data.notification_text, nullptr);
+  EXPECT_EQ(tray_data.notification_cb, nullptr);
+
+  license.plan_name.clear();
+  license.customer_email.clear();
+  license.expires_at.clear();
+  license.activation_usage = 0;
+  license.activation_limit = 0;
+  system_tray::update_tray_virtualhid_license(license, false);
+
+  EXPECT_STREQ(license_menu[1].text, "This machine is activated");
+  EXPECT_STREQ(license_menu[2].text, "Customer: Not reported");
+  EXPECT_STREQ(license_menu[3].text, "Expiration: Not reported");
+  EXPECT_STREQ(license_menu[4].text, "Machine activations: Not reported");
+}
+
+/**
+ * @brief License-state fixture for the Windows Virtual HID Driver tray menu.
+ */
+class UnlicensedVirtualHidTrayTest:
+    public SystemTrayTest,
+    public testing::WithParamInterface<std::tuple<lvh::LicenseState, const char *, const char *, bool>> {};
+
+TEST_P(UnlicensedVirtualHidTrayTest, PreparesMenuAndStartupNotification) {
+  const auto &[state, state_label, state_detail, service_available] = GetParam();
+  lvh::LicenseStatus license;
+  license.service_available = service_available;
+  license.state = state;
+
+  system_tray::update_tray_virtualhid_license(license, true);
+
+  const auto &tray_data = system_tray::tray_data_for_testing();
+  const auto *license_menu = tray_data.menu[2].submenu;
+  ASSERT_NE(license_menu, nullptr);
+  EXPECT_STREQ(license_menu[0].text, std::format("Status: {}", state_label).c_str());
+  EXPECT_STREQ(license_menu[1].text, state_detail);
+  EXPECT_STREQ(license_menu[2].text, "Full virtual gamepad support is locked");
+  EXPECT_STREQ(license_menu[3].text, service_available ? "License service: Available" : "License service: Unavailable");
+  EXPECT_STREQ(license_menu[4].text, "Activate this machine to use Virtual HID Driver");
+  EXPECT_STREQ(license_menu[5].text, "-");
+  EXPECT_STREQ(license_menu[6].text, "Activate License");
+  EXPECT_NE(license_menu[6].cb, nullptr);
+  EXPECT_STREQ(license_menu[7].text, "Buy License");
+  EXPECT_NE(license_menu[7].cb, nullptr);
+  verify_virtualhid_actions_menu(license_menu);
+  EXPECT_STREQ(tray_data.notification_title, "Activate Virtual HID Driver");
+  EXPECT_STREQ(
+    tray_data.notification_text,
+    "Adds Xbox One/Series, DualSense (DS5), Switch Pro, and Generic gamepads beyond ViGEmBus. Actively maintained by LizardByte. Click to activate or buy a license; details remain in the tray menu."
+  );
+  EXPECT_STREQ(tray_data.notification_icon, tray_data.allIconPaths[4]);
+  EXPECT_NE(tray_data.notification_cb, nullptr);
+
+  system_tray::resolve_tray_icon_paths_for_testing();
+  EXPECT_STREQ(tray_data.notification_icon, tray_data.allIconPaths[4]);
+
+  system_tray::update_tray_virtualhid_license(license, false);
+  EXPECT_EQ(tray_data.notification_title, nullptr);
+  EXPECT_EQ(tray_data.notification_text, nullptr);
+  EXPECT_EQ(tray_data.notification_cb, nullptr);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  LicenseStates,
+  UnlicensedVirtualHidTrayTest,
+  testing::Values(
+    std::tuple {lvh::LicenseState::unavailable, "Unavailable", "The local license service is unavailable", false},
+    std::tuple {lvh::LicenseState::unlicensed, "Not Activated", "No license is active on this machine", true},
+    std::tuple {lvh::LicenseState::expired, "Expired", "The license on this machine has expired", true},
+    std::tuple {lvh::LicenseState::disabled, "Disabled", "The license on this machine is disabled", true},
+    std::tuple {lvh::LicenseState::invalid, "Invalid", "The license on this machine is invalid", true}
+  )
+);
+  #endif
+
   #ifndef _WIN32
 TEST_F(SystemTrayTest, LifecycleMenuAndStateTransitions) {
   if (const int result = initialize_tray(); result != 0) {
@@ -257,7 +446,8 @@ TEST_F(SystemTrayTest, LifecycleMenuAndStateTransitions) {
 
   #ifdef _WIN32
 TEST_F(SystemTrayTest, InitializesTrayForWorkflowConfiguration) {
-  if (std::getenv("SUNSHINE_CONFIGURE_TRAY_ICONS") == nullptr) {
+  std::string configure_tray_icons;
+  if (!lizardbyte::common::get_env("SUNSHINE_CONFIGURE_TRAY_ICONS", configure_tray_icons)) {
     GTEST_SKIP() << "Only required while configuring Windows runner tray icon visibility";
   }
 
@@ -338,7 +528,11 @@ TEST_F(SystemTrayVisualTest, CapturesIconTooltipNotificationsAndMenu) {
   }
 
   const auto &tray_data = system_tray::tray_data_for_testing();
+    #ifdef _WIN32
+  ASSERT_EQ(tray_data.iconPathCount, 5);
+    #else
   ASSERT_EQ(tray_data.iconPathCount, 4);
+    #endif
   for (int icon_index = 0; icon_index < tray_data.iconPathCount; ++icon_index) {
     ASSERT_NE(tray_data.allIconPaths[icon_index], nullptr);
     ASSERT_TRUE(std::filesystem::is_regular_file(tray_data.allIconPaths[icon_index]))

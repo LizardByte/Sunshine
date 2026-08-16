@@ -655,12 +655,12 @@ namespace platf {
             }
           }
 
-          auto index = ++conn_type_count[conn->connector_type];
+          ++conn_type_count[conn->connector_type];
 
           monitors.emplace_back(connector_t {
             conn->connector_type,
             crtc_id,
-            index,
+            conn->connector_type_id,
             conn->connector_id,
             conn->connection == DRM_MODE_CONNECTED,
           });

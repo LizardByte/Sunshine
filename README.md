@@ -53,41 +53,58 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
         </td>
     </tr>
     <tr>
+        <td>Generic</td>
+        <td>🟡<sup>1</sup></td>
+        <td>✅</td>
+        <td>❌</td>
+        <td>✅</td>
+    </tr>
+    <tr>
         <td>DualShock / DS4 (PlayStation 4)</td>
-        <td>➖</td>
-        <td>➖</td>
+        <td>🟡<sup>1</sup></td>
+        <td>✅</td>
         <td>❌</td>
         <td>✅</td>
     </tr>
     <tr>
         <td>DualSense / DS5 (PlayStation 5)</td>
-        <td>❌</td>
+        <td>🟡<sup>1</sup></td>
         <td>✅</td>
         <td>❌</td>
-        <td>❌</td>
+        <td>✅</td>
     </tr>
     <tr>
         <td>Nintendo Switch Pro</td>
-        <td>✅</td>
+        <td>🟡<sup>1</sup></td>
         <td>✅</td>
         <td>❌</td>
-        <td>❌</td>
+        <td>✅</td>
     </tr>
     <tr>
         <td>Xbox 360</td>
-        <td>➖</td>
-        <td>➖</td>
+        <td>🟡<sup>1</sup></td>
+        <td>✅</td>
         <td>❌</td>
         <td>✅</td>
     </tr>
     <tr>
-        <td>Xbox One/Series</td>
-        <td>✅</td>
+        <td>Xbox One</td>
+        <td>🟡<sup>1</sup></td>
         <td>✅</td>
         <td>❌</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td>Xbox Series</td>
+        <td>🟡<sup>1</sup></td>
+        <td>✅</td>
         <td>❌</td>
+        <td>✅</td>
     </tr>
 </table>
+
+> [!NOTE]
+> <sup>1</sup> Missing motion, touchpad input, battery state, RGB LEDs, adaptive triggers, and raw HID output reports.
 
 <table>
     <caption id="encoding_api">Encoding API</caption>
@@ -381,7 +398,7 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
     </tr>
     <tr>
         <td rowspan="6">OS</td>
-        <td>FreeBSD: 14.4+</td>
+        <td>FreeBSD: 15.1+</td>
     </tr>
     <tr>
         <td>Linux/Debian: 13+ (trixie)</td>
@@ -396,7 +413,7 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
         <td>macOS: 14.2+</td>
     </tr>
     <tr>
-        <td>Windows: 11+ (Windows Server does not support virtual gamepads)</td>
+        <td>Windows: 11+</td>
     </tr>
     <tr>
         <td rowspan="2">Network</td>

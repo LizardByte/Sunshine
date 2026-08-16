@@ -9,24 +9,6 @@ if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64" AND DEFINED _MINHOOK_DLL)
     install(FILES "${_MINHOOK_DLL}" DESTINATION "." COMPONENT application)
 endif()
 
-# ViGEmBus installer
-set(SUNSHINE_THIRD_PARTY_DIR "third-party")
-set(VIGEMBUS_INSTALLER "${CMAKE_BINARY_DIR}/${SUNSHINE_THIRD_PARTY_DIR}/vigembus_installer.exe")
-set(VIGEMBUS_DOWNLOAD_URL_1 "https://github.com/nefarius/ViGEmBus/releases/download")
-set(VIGEMBUS_DOWNLOAD_URL_2 "v${VIGEMBUS_PACKAGED_V_2}/ViGEmBus_${VIGEMBUS_PACKAGED_V}_x64_x86_arm64.exe")
-file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/${SUNSHINE_THIRD_PARTY_DIR}")
-file(DOWNLOAD
-        "${VIGEMBUS_DOWNLOAD_URL_1}/${VIGEMBUS_DOWNLOAD_URL_2}"
-        ${VIGEMBUS_INSTALLER}
-        SHOW_PROGRESS
-        EXPECTED_HASH SHA256=155c50f1eec07bdc28d2f61a3e3c2c6c132fee7328412de224695f89143316bc
-        TIMEOUT 60
-)
-install(FILES ${VIGEMBUS_INSTALLER}
-        DESTINATION "${SUNSHINE_THIRD_PARTY_DIR}"
-        RENAME "vigembus_installer.exe"
-        COMPONENT gamepad)
-
 # Adding tools
 install(TARGETS dxgi-info RUNTIME DESTINATION "tools" COMPONENT dxgi)
 install(TARGETS audio-info RUNTIME DESTINATION "tools" COMPONENT audio)
@@ -80,8 +62,6 @@ set(CPACK_PACKAGE_INSTALL_DIRECTORY "${CPACK_PACKAGE_NAME}")
 
 # Setting components groups and dependencies
 set(CPACK_COMPONENT_GROUP_CORE_EXPANDED true)
-set(CPACK_COMPONENT_GROUP_THIRDPARTY_DISPLAY_NAME "Third Party")
-set(CPACK_COMPONENT_GROUP_THIRDPARTY_DESCRIPTION "Bundled third-party installers and optional components.")
 
 # sunshine binary
 set(CPACK_COMPONENT_APPLICATION_DISPLAY_NAME "${CMAKE_PROJECT_NAME}")
@@ -115,11 +95,6 @@ set(CPACK_COMPONENT_DXGI_GROUP "Tools")
 set(CPACK_COMPONENT_FIREWALL_DISPLAY_NAME "Add Firewall Exclusions")
 set(CPACK_COMPONENT_FIREWALL_DESCRIPTION "Scripts to enable or disable firewall rules.")
 set(CPACK_COMPONENT_FIREWALL_GROUP "Scripts")
-
-# gamepad third-party installer
-set(CPACK_COMPONENT_GAMEPAD_DISPLAY_NAME "Virtual Gamepad")
-set(CPACK_COMPONENT_GAMEPAD_DESCRIPTION "ViGEmBus installer for virtual gamepad support.")
-set(CPACK_COMPONENT_GAMEPAD_GROUP "ThirdParty")
 
 # include specific packaging
 include(${CMAKE_MODULE_PATH}/packaging/windows_nsis.cmake)
