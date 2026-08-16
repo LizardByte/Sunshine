@@ -329,6 +329,34 @@ namespace video {
   };
 
   /**
+   * @brief Native VideoToolbox-specific pixel formats supported by a platform.
+   */
+  struct encoder_platform_formats_vt: encoder_platform_formats_t {
+    /**
+     * @brief Construct VideoToolbox platform format mappings.
+     *
+     * @param dev_type Platform memory type.
+     * @param pix_fmt_8bit Platform 8-bit pixel format.
+     * @param pix_fmt_10bit Platform 10-bit pixel format.
+     * @param pix_fmt_yuv444_8bit Platform 8-bit YUV444 pixel format.
+     * @param pix_fmt_yuv444_10bit Platform 10-bit YUV444 pixel format.
+     */
+    encoder_platform_formats_vt(
+      const platf::mem_type_e &dev_type,
+      const platf::pix_fmt_e &pix_fmt_8bit,
+      const platf::pix_fmt_e &pix_fmt_10bit,
+      const platf::pix_fmt_e &pix_fmt_yuv444_8bit,
+      const platf::pix_fmt_e &pix_fmt_yuv444_10bit
+    ) {
+      encoder_platform_formats_t::dev_type = dev_type;
+      encoder_platform_formats_t::pix_fmt_8bit = pix_fmt_8bit;
+      encoder_platform_formats_t::pix_fmt_10bit = pix_fmt_10bit;
+      encoder_platform_formats_t::pix_fmt_yuv444_8bit = pix_fmt_yuv444_8bit;
+      encoder_platform_formats_t::pix_fmt_yuv444_10bit = pix_fmt_yuv444_10bit;
+    }
+  };
+
+  /**
    * @brief Encoder name and feature flags advertised by Sunshine.
    */
   struct encoder_t {
@@ -515,6 +543,7 @@ namespace video {
 #endif
 
 #ifdef __APPLE__
+  extern encoder_t videotoolbox_native;
   extern encoder_t videotoolbox;
 #endif
 

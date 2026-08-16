@@ -116,6 +116,7 @@ const auto encoder_variants = std::to_array<video::encoder_t *>({
   &video::vaapi,
 #endif
 #ifdef __APPLE__
+  &video::videotoolbox_native,
   &video::videotoolbox,
 #endif
   &video::software

@@ -623,6 +623,79 @@ namespace video {
   };
 
   /**
+   * @brief Native VideoToolbox encode session and device state for hardware encoding.
+   */
+  class vt_encode_session_t: public encode_session_t {
+  public:
+    /**
+     * @brief Initialize a VideoToolbox encode session and take ownership of its device.
+     *
+     * @param encode_device Encode device.
+     */
+    vt_encode_session_t(std::unique_ptr<platf::vt_encode_device_t> encode_device):
+        device(std::move(encode_device)) {
+    }
+
+    /**
+     * @brief Supply the next captured image to the encode device.
+     *
+     * @param img Image or frame object to read from or populate.
+     * @return Conversion status.
+     */
+    int convert(platf::img_t &img) override {
+      if (!device) {
+        return -1;
+      }
+      return device->convert(img);
+    }
+
+    /**
+     * @brief Mark the frame as a request for an IDR frame.
+     */
+    void request_idr_frame() override {
+      force_idr = true;
+    }
+
+    /**
+     * @brief Mark the frame as a request for a normal inter frame.
+     */
+    void request_normal_frame() override {
+      force_idr = false;
+    }
+
+    /**
+     * @brief Mark the frame range whose references must be invalidated.
+     * @note VideoToolbox has no reference frame invalidation; recover with an IDR frame instead.
+     *
+     * @param first_frame First frame.
+     * @param last_frame Last frame.
+     */
+    void invalidate_ref_frames(int64_t first_frame, int64_t last_frame) override {
+      force_idr = true;
+    }
+
+    /**
+     * @brief Submit the next frame to VideoToolbox and return the encoded payload.
+     *
+     * @param frame_index Monotonic frame index assigned by the video pipeline.
+     * @return Encoded frame payload and frame metadata.
+     */
+    platf::vt_encoded_frame encode_frame(uint64_t frame_index) {
+      if (!device) {
+        return {};
+      }
+
+      auto result = device->encode_frame(frame_index, force_idr);
+      force_idr = false;
+      return result;
+    }
+
+  private:
+    std::unique_ptr<platf::vt_encode_device_t> device;
+    bool force_idr = false;
+  };
+
+  /**
    * @brief Context object used while synchronizing encode sessions.
    */
   struct sync_session_ctx_t {
@@ -1375,6 +1448,51 @@ namespace video {
 
 #ifdef __APPLE__
   /**
+   * @brief Native VideoToolbox.
+   */
+  encoder_t videotoolbox_native {
+    "videotoolbox_native"sv,
+    std::make_unique<encoder_platform_formats_vt>(
+      platf::mem_type_e::videotoolbox,
+      platf::pix_fmt_e::nv12,
+      platf::pix_fmt_e::p010,
+      platf::pix_fmt_e::unknown,
+      platf::pix_fmt_e::unknown
+    ),
+    {
+      // Common options
+      {},
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
+      {},  // Fallback options
+      "av1_vt"s,
+    },
+    {
+      // Common options
+      {},
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
+      {},  // Fallback options
+      "hevc_vt"s,
+    },
+    {
+      // Common options
+      {},
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
+      {},  // Fallback options
+      "h264_vt"s,
+    },
+    PARALLEL_ENCODING
+  };
+
+  /**
    * @brief Videotoolbox.
    */
   encoder_t videotoolbox {
@@ -1467,6 +1585,7 @@ namespace video {
     &vaapi,
 #endif
 #ifdef __APPLE__
+    &videotoolbox_native,
     &videotoolbox,
 #endif
     &software
@@ -1961,6 +2080,35 @@ namespace video {
   }
 
   /**
+   * @brief Encode one frame through VideoToolbox and queue the resulting packet.
+   *
+   * @param frame_nr Monotonic frame index assigned by the video pipeline.
+   * @param session Active VideoToolbox encoder session.
+   * @param packets Output queue that receives the encoded packet.
+   * @param channel_data Platform or protocol state attached to the packet.
+   * @param frame_timestamp Capture timestamp associated with the encoded frame.
+   * @return 0 when packets are queued; nonzero when VideoToolbox encoding fails.
+   */
+  int encode_vt(int64_t frame_nr, vt_encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
+    auto encoded_frame = session.encode_frame(frame_nr);
+    if (encoded_frame.data.empty()) {
+      BOOST_LOG(error) << "VideoToolbox returned empty packet";
+      return -1;
+    }
+
+    if (frame_nr != encoded_frame.frame_index) {
+      BOOST_LOG(error) << "VideoToolbox frame index mismatch " << frame_nr << " " << encoded_frame.frame_index;
+    }
+
+    auto packet = std::make_unique<packet_raw_generic>(std::move(encoded_frame.data), encoded_frame.frame_index, encoded_frame.idr);
+    packet->channel_data = channel_data;
+    packet->frame_timestamp = frame_timestamp;
+    packets->raise(std::move(packet));
+
+    return 0;
+  }
+
+  /**
    * @brief Encode one captured frame and queue packets for transmission.
    *
    * @param frame_nr Frame nr.
@@ -1975,6 +2123,8 @@ namespace video {
       return encode_avcodec(frame_nr, *avcodec_session, packets, channel_data, frame_timestamp);
     } else if (auto nvenc_session = dynamic_cast<nvenc_encode_session_t *>(&session)) {
       return encode_nvenc(frame_nr, *nvenc_session, packets, channel_data, frame_timestamp);
+    } else if (auto vt_session = dynamic_cast<vt_encode_session_t *>(&session)) {
+      return encode_vt(frame_nr, *vt_session, packets, channel_data, frame_timestamp);
     }
 
     return -1;
@@ -2395,6 +2545,21 @@ namespace video {
   }
 
   /**
+   * @brief Create native VideoToolbox encode session.
+   *
+   * @param client_config Client stream configuration negotiated for this session.
+   * @param encode_device Encode device.
+   * @return Constructed VideoToolbox encode session object.
+   */
+  std::unique_ptr<vt_encode_session_t> make_vt_encode_session(const config_t &client_config, std::unique_ptr<platf::vt_encode_device_t> encode_device) {
+    if (!encode_device->init_encoder(client_config, encode_device->colorspace)) {
+      return nullptr;
+    }
+
+    return std::make_unique<vt_encode_session_t>(std::move(encode_device));
+  }
+
+  /**
    * @brief Create encode session.
    *
    * @param disp Display connection or display handle.
@@ -2412,6 +2577,9 @@ namespace video {
     } else if (dynamic_cast<platf::nvenc_encode_device_t *>(encode_device.get())) {
       auto nvenc_encode_device = boost::dynamic_pointer_cast<platf::nvenc_encode_device_t>(std::move(encode_device));
       return make_nvenc_encode_session(config, std::move(nvenc_encode_device));
+    } else if (dynamic_cast<platf::vt_encode_device_t *>(encode_device.get())) {
+      auto vt_encode_device = boost::dynamic_pointer_cast<platf::vt_encode_device_t>(std::move(encode_device));
+      return make_vt_encode_session(config, std::move(vt_encode_device));
     }
 
     return nullptr;
@@ -2638,6 +2806,8 @@ namespace video {
       result = disp.make_avcodec_encode_device(pix_fmt);
     } else if (dynamic_cast<const encoder_platform_formats_nvenc *>(encoder.platform_formats.get())) {
       result = disp.make_nvenc_encode_device(pix_fmt);
+    } else if (dynamic_cast<const encoder_platform_formats_vt *>(encoder.platform_formats.get())) {
+      result = disp.make_vt_encode_device(pix_fmt);
     }
 
     if (result) {
