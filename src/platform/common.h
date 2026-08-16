@@ -5,6 +5,7 @@
 #pragma once
 
 // standard includes
+#include <array>
 #include <bitset>
 #include <filesystem>
 #include <functional>
@@ -1123,6 +1124,23 @@ namespace platf {
    * @examples_end
    */
   std::optional<util::point_t> get_mouse_loc(input_t &input);
+
+  /**
+   * @brief Where the pointer is, as a fraction of the display being streamed.
+   *
+   * Unlike `get_mouse_loc()` this takes no input backend and is meant to be read outside a
+   * session, and it answers in fractions rather than screen coordinates so a caller can use it
+   * without knowing the host's resolution.
+   *
+   * Every implementation measures against the primary display rather than resolving the one a
+   * session was configured to capture. That is the default in every case, and a pointer on any
+   * other display reports nothing rather than a number the client would misplace.
+   *
+   * @return `{x, y}` in 0..1, or `std::nullopt` when the pointer is on another display or the
+   *         platform cannot observe it.
+   */
+  std::optional<std::array<double, 2>> pointer_location();
+
   /**
    * @brief Move mouse using the backend coordinate system.
    *
