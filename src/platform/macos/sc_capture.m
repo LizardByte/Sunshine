@@ -28,11 +28,25 @@ static BOOL isUsableImageSampleBuffer(CMSampleBufferRef sampleBuffer) {
   return sampleBuffer && CMSampleBufferIsValid(sampleBuffer) && CMSampleBufferGetImageBuffer(sampleBuffer);
 }
 
+/**
+ * @brief Private state and helpers for the screenshot capture loop.
+ */
 API_AVAILABLE(macos(14.0))
 @interface SCCapture ()
 
+/**
+ * @brief Whether a screenshot request is currently awaiting completion.
+ */
 @property (nonatomic, assign) BOOL screenshotInFlight;
 
+/**
+ * @brief Handle a completed screenshot request and schedule the next one.
+ *
+ * @param sampleBuffer Sample buffer delivered by the screenshot request, or nil on failure.
+ * @param error Error delivered by the screenshot request, or nil on success.
+ * @param filter Content filter the screenshot was captured with.
+ * @param config Stream configuration the screenshot was captured with.
+ */
 - (void)finishScreenshotSampleBuffer:(CMSampleBufferRef)sampleBuffer
                                error:(NSError *)error
                               filter:(SCContentFilter *)filter
