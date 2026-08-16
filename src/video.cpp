@@ -1791,16 +1791,6 @@ namespace video {
   }
 
   /**
-   * @brief Drain encoded packets from an FFmpeg encoder session.
-   *
-   * @param frame_nr Monotonic frame index assigned by the video pipeline.
-   * @param session Active FFmpeg encoder session.
-   * @param packets Output queue that receives encoded packets.
-   * @param channel_data Platform or protocol state attached to each packet.
-   * @param frame_timestamp Capture timestamp associated with the encoded frame.
-   * @return 0 when packets are queued; nonzero when encoding or packetization fails.
-   */
-  /**
    * @brief Remember a submitted frame's capture timestamp until its encoded packet surfaces.
    *
    * Encoders may deliver packets one or more frames behind submission, so the timestamp is
@@ -1844,6 +1834,16 @@ namespace video {
     return std::nullopt;
   }
 
+  /**
+   * @brief Drain encoded packets from an FFmpeg encoder session.
+   *
+   * @param frame_nr Monotonic frame index assigned by the video pipeline.
+   * @param session Active FFmpeg encoder session.
+   * @param packets Output queue that receives encoded packets.
+   * @param channel_data Platform or protocol state attached to each packet.
+   * @param frame_timestamp Capture timestamp associated with the encoded frame.
+   * @return 0 when packets are queued; nonzero when encoding or packetization fails.
+   */
   int encode_avcodec(int64_t frame_nr, avcodec_encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
     auto &frame = session.device->frame;
     frame->pts = frame_nr;
