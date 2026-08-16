@@ -5,7 +5,7 @@ let container
 let org_name = "LizardByte"
 let base_url = `https://app.${org_name.toLowerCase()}.dev`
 let cache_repo = "dashboard"
-let shared_web_url = "https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@v2026.726.204939"
+let shared_web_url = "https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@2026.812.190302"
 
 
 function onDocumentReady(callback) {
@@ -198,7 +198,7 @@ function addDocsLink(repo, readthedocs, repo_data_row) {
 
         let docs_link_image = document.createElement("img")
         docs_link_image.className = "readthedocs-icon"
-        docs_link_image.src = "https://cdn.jsdelivr.net/npm/simple-icons@v15/icons/readthedocs.svg"
+        docs_link_image.src = "https://cdn.jsdelivr.net/npm/simple-icons@16/icons/readthedocs.svg"
         docs_link_image.alt = "ReadTheDocs"
         docs_link_image.title = "ReadTheDocs"
         docs_link_image.style.width = "24px"
