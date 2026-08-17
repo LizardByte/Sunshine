@@ -594,7 +594,6 @@
     "virtualhid_license_customer": "Khách hàng",
     "virtualhid_license_deactivate": "Vô hiệu hóa máy này",
     "virtualhid_license_desc": "Cần có giấy phép còn hiệu lực trước khi Sunshine có thể tạo các bộ điều khiển trò chơi libvirtualhid. Quá trình kích hoạt được thực hiện bởi dịch vụ libvirtualhid cục bộ; Sunshine không lưu trữ khóa giấy phép của bạn.",
-    "virtualhid_license_expires": "Hết hạn",
     "virtualhid_license_key": "Mã bản quyền",
     "virtualhid_license_key_desc": "Khóa này chỉ được gửi đến dịch vụ libvirtualhid cục bộ và sẽ bị xóa khỏi trang này sau khi kích hoạt thành công.",
     "virtualhid_license_key_placeholder": "Nhập mã sản phẩm của bạn",
