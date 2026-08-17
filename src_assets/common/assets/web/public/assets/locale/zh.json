@@ -594,7 +594,6 @@
     "virtualhid_license_customer": "客户",
     "virtualhid_license_deactivate": "停用此机",
     "virtualhid_license_desc": "Sunshine 创建libvirtualhid gamepad之前需要活动的许可证。 激活由本地的 libvirtualhid 服务处理；Sunshine 不保存您的许可证密钥。",
-    "virtualhid_license_expires": "过期时间",
     "virtualhid_license_key": "许可证密钥",
     "virtualhid_license_key_desc": "密钥仅发送到本地 libvirtualhid 服务，并在激活成功后从此页面被清除。",
     "virtualhid_license_key_placeholder": "输入您的产品密钥",
