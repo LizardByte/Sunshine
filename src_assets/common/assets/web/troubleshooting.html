@@ -193,10 +193,6 @@
               <dt>{{ $t('troubleshooting.virtualhid_license_customer') }}</dt>
               <dd>{{ virtualhidLicense.customer_email }}</dd>
             </dl>
-            <dl class="virtualhid-license-stat" v-if="virtualhidLicense.expires_at">
-              <dt>{{ $t('troubleshooting.virtualhid_license_expires') }}</dt>
-              <dd>{{ virtualhidLicense.expires_at }}</dd>
-            </dl>
           </div>
 
           <p class="virtualhid-license-message"
@@ -511,7 +507,6 @@
             activation_usage: 0,
             plan_name: '',
             customer_email: '',
-            expires_at: '',
             message: '',
             purchase_url: '',
             manage_account_url: '',

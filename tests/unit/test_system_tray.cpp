@@ -98,15 +98,16 @@ namespace {
    * @brief Verify the shared action entries in a populated Virtual HID Driver menu.
    *
    * @param license_menu License submenu to verify.
+   * @param benefits_index Index of the shared benefits action.
    */
-  void verify_virtualhid_actions_menu(const struct tray_menu *license_menu) {
+  void verify_virtualhid_actions_menu(const struct tray_menu *license_menu, std::size_t benefits_index) {
     ASSERT_NE(license_menu, nullptr);
-    EXPECT_STREQ(license_menu[8].text, "Benefits over ViGEmBus");
-    EXPECT_EQ(license_menu[8].cb, nullptr);
-    verify_virtualhid_benefits_menu(license_menu[8].submenu);
-    EXPECT_STREQ(license_menu[9].text, "Download Virtual HID Driver");
-    EXPECT_NE(license_menu[9].cb, nullptr);
-    EXPECT_EQ(license_menu[10].text, nullptr);
+    EXPECT_STREQ(license_menu[benefits_index].text, "Benefits over ViGEmBus");
+    EXPECT_EQ(license_menu[benefits_index].cb, nullptr);
+    verify_virtualhid_benefits_menu(license_menu[benefits_index].submenu);
+    EXPECT_STREQ(license_menu[benefits_index + 1U].text, "Download Virtual HID Driver");
+    EXPECT_NE(license_menu[benefits_index + 1U].cb, nullptr);
+    EXPECT_EQ(license_menu[benefits_index + 2U].text, nullptr);
   }
   #endif
 
@@ -328,7 +329,6 @@ TEST_F(SystemTrayTest, PreparesLicensedVirtualHidMenuBeforeInitialization) {
   license.state = lvh::LicenseState::licensed;
   license.plan_name = "Yearly";
   license.customer_email = "customer@example.com";
-  license.expires_at = "2027-08-10T00:00:00Z";
   license.activation_usage = 2;
   license.activation_limit = 5;
 
@@ -340,29 +340,26 @@ TEST_F(SystemTrayTest, PreparesLicensedVirtualHidMenuBeforeInitialization) {
   EXPECT_STREQ(license_menu[0].text, "Status: Licensed");
   EXPECT_STREQ(license_menu[1].text, "Plan: Yearly");
   EXPECT_STREQ(license_menu[2].text, "Customer: customer@example.com");
-  EXPECT_STREQ(license_menu[3].text, "Expires: 2027-08-10T00:00:00Z");
-  EXPECT_STREQ(license_menu[4].text, "Machine activations: 2 / 5");
-  EXPECT_STREQ(license_menu[5].text, "-");
-  EXPECT_STREQ(license_menu[6].text, "View License Details");
+  EXPECT_STREQ(license_menu[3].text, "Machine activations: 2 / 5");
+  EXPECT_STREQ(license_menu[4].text, "-");
+  EXPECT_STREQ(license_menu[5].text, "View License Details");
+  EXPECT_NE(license_menu[5].cb, nullptr);
+  EXPECT_STREQ(license_menu[6].text, "Manage License");
   EXPECT_NE(license_menu[6].cb, nullptr);
-  EXPECT_STREQ(license_menu[7].text, "Manage License");
-  EXPECT_NE(license_menu[7].cb, nullptr);
-  verify_virtualhid_actions_menu(license_menu);
+  verify_virtualhid_actions_menu(license_menu, 7U);
   EXPECT_EQ(tray_data.notification_title, nullptr);
   EXPECT_EQ(tray_data.notification_text, nullptr);
   EXPECT_EQ(tray_data.notification_cb, nullptr);
 
   license.plan_name.clear();
   license.customer_email.clear();
-  license.expires_at.clear();
   license.activation_usage = 0;
   license.activation_limit = 0;
   system_tray::update_tray_virtualhid_license(license, false);
 
   EXPECT_STREQ(license_menu[1].text, "This machine is activated");
   EXPECT_STREQ(license_menu[2].text, "Customer: Not reported");
-  EXPECT_STREQ(license_menu[3].text, "Expiration: Not reported");
-  EXPECT_STREQ(license_menu[4].text, "Machine activations: Not reported");
+  EXPECT_STREQ(license_menu[3].text, "Machine activations: Not reported");
 }
 
 /**
@@ -393,7 +390,7 @@ TEST_P(UnlicensedVirtualHidTrayTest, PreparesMenuAndStartupNotification) {
   EXPECT_NE(license_menu[6].cb, nullptr);
   EXPECT_STREQ(license_menu[7].text, "Buy License");
   EXPECT_NE(license_menu[7].cb, nullptr);
-  verify_virtualhid_actions_menu(license_menu);
+  verify_virtualhid_actions_menu(license_menu, 8U);
   EXPECT_STREQ(tray_data.notification_title, "Activate Virtual HID Driver");
   EXPECT_STREQ(
     tray_data.notification_text,

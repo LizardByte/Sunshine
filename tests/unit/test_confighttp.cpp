@@ -1439,7 +1439,6 @@ TEST(ConfigHttpLicenseStatusTest, BuildVirtualHidLicenseStatus_IncludesExpectedF
   license.activation_usage = 3;
   license.plan_name = "Yearly";
   license.customer_email = "customer@example.com";
-  license.expires_at = "2027-08-10T00:00:00Z";
   license.message = "License is active";
   license.purchase_url = "https://example.com/buy";
   license.manage_account_url = "https://example.com/manage";
@@ -1452,7 +1451,7 @@ TEST(ConfigHttpLicenseStatusTest, BuildVirtualHidLicenseStatus_IncludesExpectedF
   EXPECT_EQ(output["activation_usage"].get<unsigned int>(), 3U);
   EXPECT_EQ(output["plan_name"].get<std::string>(), "Yearly");
   EXPECT_EQ(output["customer_email"].get<std::string>(), "customer@example.com");
-  EXPECT_EQ(output["expires_at"].get<std::string>(), "2027-08-10T00:00:00Z");
+  EXPECT_FALSE(output.contains("expires_at"));
   EXPECT_EQ(output["message"].get<std::string>(), "License is active");
   EXPECT_EQ(output["purchase_url"].get<std::string>(), "https://example.com/buy");
   EXPECT_EQ(output["manage_account_url"].get<std::string>(), "https://example.com/manage");
