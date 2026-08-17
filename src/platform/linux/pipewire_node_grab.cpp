@@ -167,19 +167,34 @@ namespace pipewire_node {
         } catch (...) {}
       }
 
-      for (const auto &monitor : wl::monitors()) {
-        if (monitor->name.rfind("Meta", 0) == 0 || monitor->name.rfind("Virtual", 0) == 0 || monitor->name == display_name) {
-          this->offset_x = monitor->viewport.offset_x;
-          this->offset_y = monitor->viewport.offset_y;
-          this->width = monitor->viewport.width;
-          this->height = monitor->viewport.height;
-          this->logical_width = monitor->viewport.logical_width;
-          this->logical_height = monitor->viewport.logical_height;
-          BOOST_LOG(info) << "[pipewire_node] Matched Wayland monitor "sv << monitor->name 
-                          << " at offset "sv << this->offset_x << "x"sv << this->offset_y 
-                          << " size "sv << this->width << "x"sv << this->height;
-          break;
+      const wl::monitor_t *matched_monitor = nullptr;
+      if (!display_name.empty()) {
+        for (const auto &monitor : wl::monitors()) {
+          if (monitor->name == display_name) {
+            matched_monitor = monitor.get();
+            break;
+          }
         }
+      }
+      if (!matched_monitor) {
+        for (const auto &monitor : wl::monitors()) {
+          if (monitor->name.rfind("Meta", 0) == 0 || monitor->name.rfind("Virtual", 0) == 0) {
+            matched_monitor = monitor.get();
+            break;
+          }
+        }
+      }
+
+      if (matched_monitor) {
+        this->offset_x = matched_monitor->viewport.offset_x;
+        this->offset_y = matched_monitor->viewport.offset_y;
+        this->width = matched_monitor->viewport.width;
+        this->height = matched_monitor->viewport.height;
+        this->logical_width = matched_monitor->viewport.logical_width;
+        this->logical_height = matched_monitor->viewport.logical_height;
+        BOOST_LOG(info) << "[pipewire_node] Matched Wayland monitor "sv << matched_monitor->name 
+                        << " at offset "sv << this->offset_x << "x"sv << this->offset_y 
+                        << " size "sv << this->width << "x"sv << this->height;
       }
 
       if (this->width <= 0) {
