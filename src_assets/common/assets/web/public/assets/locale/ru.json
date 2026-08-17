@@ -594,7 +594,6 @@
     "virtualhid_license_customer": "Покупатель",
     "virtualhid_license_deactivate": "Деактивировать этот Автомат",
     "virtualhid_license_desc": "Требуется активная лицензия, прежде чем Sunshine сможет создать libvirtualhid gamepads. Активация осуществляется локальной службой libvirtualhid; Sunshine не сохраняет лицензионный ключ.",
-    "virtualhid_license_expires": "Истекает",
     "virtualhid_license_key": "Лицензионный ключ",
     "virtualhid_license_key_desc": "Ключ отправляется только локальной службе libvirtualhid и удаляется с этой страницы после успешной активации.",
     "virtualhid_license_key_placeholder": "Введите ваш ключ продукта",
