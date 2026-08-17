@@ -367,11 +367,20 @@ class Sunshine < Formula
     source_index = lines.index { |line| line.start_with?("SF:") }
     return unless source_index
 
-    source_path = lines[source_index].delete_prefix("SF:").strip
-    source_prefix = source_prefixes.find { |prefix| source_path.start_with?(prefix) }
-    return unless source_prefix
+    source_path = Pathname.new(lines[source_index].delete_prefix("SF:").strip).cleanpath.to_s
+    # Homebrew remaps the formula build path to ".". LLVM may then resolve that
+    # relative path from CMake's compilation directory at "build/tests".
+    relative_source_path = if source_path.start_with?("build/tests/src/")
+      source_path.delete_prefix("build/tests/")
+    elsif source_path.start_with?("src/")
+      source_path
+    else
+      source_prefix = source_prefixes.find { |prefix| source_path.start_with?(prefix) }
+      "src/#{source_path.delete_prefix(source_prefix)}" if source_prefix
+    end
+    return unless relative_source_path
 
-    lines[source_index] = "SF:src/#{source_path.delete_prefix(source_prefix)}\n"
+    lines[source_index] = "SF:#{relative_source_path}\n"
     "#{lines.join}end_of_record\n"
   end
 
@@ -476,6 +485,42 @@ class Sunshine < Formula
         run_test_suite testpath
         generate_coverage_report testpath, ENV.fetch("HOMEBREW_BUILDPATH", "")
       end
+
+      lcov = <<~LCOV
+        SF:./src/remapped.cpp
+        DA:1,1
+        end_of_record
+        SF:build/tests/src/remapped_from_compile_dir.cpp
+        DA:1,1
+        end_of_record
+        SF:src/relative.cpp
+        DA:1,1
+        end_of_record
+        SF:#{testpath}/src/absolute.cpp
+        DA:1,1
+        end_of_record
+        SF:./tests/excluded.cpp
+        DA:1,1
+        end_of_record
+        SF:build/tests/tests/excluded_from_compile_dir.cpp
+        DA:1,1
+        end_of_record
+      LCOV
+      expected_lcov = <<~LCOV
+        SF:src/remapped.cpp
+        DA:1,1
+        end_of_record
+        SF:src/remapped_from_compile_dir.cpp
+        DA:1,1
+        end_of_record
+        SF:src/relative.cpp
+        DA:1,1
+        end_of_record
+        SF:src/absolute.cpp
+        DA:1,1
+        end_of_record
+      LCOV
+      assert_equal expected_lcov, lcov_for_source_files(lcov, testpath)
     end
   end
 end
