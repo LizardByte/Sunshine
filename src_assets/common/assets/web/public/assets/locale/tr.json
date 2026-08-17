@@ -594,7 +594,6 @@
     "virtualhid_license_customer": "Müşteri",
     "virtualhid_license_deactivate": "Bu Makineyi Devre Dışı Bırak",
     "virtualhid_license_desc": "Sunshine'ın libvirtualhid oyun kumandalarını oluşturabilmesi için aktif bir lisans gereklidir. Etkinleştirme işlemi yerel libvirtualhid hizmeti tarafından gerçekleştirilir; Sunshine, lisans anahtarınızı kaydetmez.",
-    "virtualhid_license_expires": "Son kullanma tarihi",
     "virtualhid_license_key": "Lisans Anahtarı",
     "virtualhid_license_key_desc": "Anahtar yalnızca yerel libvirtualhid hizmetine gönderilir ve etkinleştirme işlemi başarıyla tamamlandıktan sonra bu sayfadan silinir.",
     "virtualhid_license_key_placeholder": "Ürün anahtarınızı girin",
