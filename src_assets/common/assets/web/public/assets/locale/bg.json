@@ -594,7 +594,6 @@
     "virtualhid_license_customer": "Клиент",
     "virtualhid_license_deactivate": "Деактивиране на тази машина",
     "virtualhid_license_desc": "Необходим е активен лиценз, за да може Sunshine да създава контролери чрез libvirtualhid. Активирането се извършва от локалната услуга на libvirtualhid; Sunshine не запазва лицензионния ключ никъде.",
-    "virtualhid_license_expires": "Изтича",
     "virtualhid_license_key": "Лицензионен ключ",
     "virtualhid_license_key_desc": "Ключът се изпраща единствено до локалната услуга на libvirtualhid и се изтрива от тази страница след успешно активиране.",
     "virtualhid_license_key_placeholder": "Въведете продуктовия си ключ",
