@@ -363,16 +363,11 @@ brew uninstall sunshine
    | Architecture          | Installer                                                                                                                                    |
    |-----------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
    | AMD64/x64 (Intel/AMD) | [Sunshine-Windows-AMD64-installer.msi](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-AMD64-installer.msi) |
-   | AMD64/x64 (Intel/AMD) | [Sunshine-Windows-AMD64-installer.exe](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-AMD64-installer.exe) |
    | ARM64                 | [Sunshine-Windows-ARM64-installer.msi](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-ARM64-installer.msi) |
-   | ARM64                 | [Sunshine-Windows-ARM64-installer.exe](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-ARM64-installer.exe) |
 
 > [!TIP]
-> Installer logs can be found in the following locations.<br>
-> | File | log paths |
-> | ---- | --------- |
-> | .exe | `%%PROGRAMFILES%/Sunshine/install.log` (AMD64 only)<br>`%%TEMP%/Sunshine/logs/install/` |
-> | .msi | `%%TEMP%/Sunshine/logs/install/` |
+> Installer logs can be found in the following directory:
+> `%%TEMP%/Sunshine/logs/install/`
 
 > [!CAUTION]
 > You should carefully select or unselect the options you want to install. Do not blindly install or
@@ -389,10 +384,10 @@ overflow menu. Different versions of Windows may provide slightly different step
 
 1. Download and extract based on your architecture:
 
-   | Architecture          | Installer                                                                                                                                  |
-   |-----------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-   | AMD64/x64 (Intel/AMD) | [Sunshine-Windows-AMD64-portable.zip](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-AMD64-portable.zip) |
-   | ARM64                 | [Sunshine-Windows-ARM64-portable.zip](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-ARM64-portable.zip) |
+   | Architecture          | Installer                                                                                                                          |
+   |-----------------------|------------------------------------------------------------------------------------------------------------------------------------|
+   | AMD64/x64 (Intel/AMD) | [Sunshine-Windows-AMD64-lite.zip](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-AMD64-lite.zip) |
+   | ARM64                 | [Sunshine-Windows-ARM64-lite.zip](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-ARM64lite.zip)  |
 
 2. Open command prompt as administrator
 3. Firewall rules
@@ -479,11 +474,21 @@ and enter its device name in the [audio_sink](configuration.md#audio_sink) field
 > Gamepads are not currently supported.
 
 ### Windows
-In order for virtual gamepads to work, you must install ViGEmBus. You can do this from the troubleshooting tab
-in the web UI, as long as you are running Sunshine as a service or as an administrator. After installation, it is
-recommended to restart your computer.
+Sunshine uses libvirtualhid for virtual gamepads on Windows. You must install the
+[Virtual HID Driver](https://github.com/LizardByte/libvirtualhid/releases/latest) separately for full virtual gamepad
+support. ViGEmBus is detected only as a limited fallback for Xbox 360 and DualShock 4 gamepads when libvirtualhid is
+unavailable.
 
-![ViGEmBus Installation](images/vigembus-installer.png)
+Compared with the ViGEmBus fallback, Virtual HID Driver can create Xbox One, Xbox Series, DualSense, Nintendo Switch
+Pro, and Generic gamepads in addition to Xbox 360 and DualShock 4. It can also expose controller-specific features such
+as motion, touchpads, LEDs, and adaptive triggers when supported. Virtual HID Driver is actively developed and
+supported by the LizardByte team.
+
+The Virtual HID Driver also requires an active machine license. Sunshine shows the current license status and actions
+on the Web UI Troubleshooting page and in the **Virtual HID Driver** system tray submenu. When Sunshine starts on an
+unactivated machine, select its tray notification to open the activation and purchase options in the Web UI.
+
+After installing or updating virtual input drivers, it is recommended to restart your computer.
 
 ## Usage
 
@@ -617,7 +622,8 @@ All shortcuts start with `Ctrl+Alt+Shift`, just like Moonlight.
   The following are known limitations.
 
   * Only X11 and Wayland capture are supported
-  * DualSense/DS5 emulation is not available due to missing uhid features
+  * Gamepads use libvirtualhid's uinput backend, so descriptor-driven features such as motion, touchpad input,
+    battery state, RGB LEDs, adaptive triggers, and raw HID output reports are unavailable
 
 
 ### HDR Support

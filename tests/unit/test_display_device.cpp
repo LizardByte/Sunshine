@@ -102,8 +102,13 @@ INSTANTIATE_TEST_SUITE_P(
   testing::Values(
     std::make_pair(std::make_pair(hdr_option_e::disabled, client_wants_hdr_t {true}), std::nullopt),
     std::make_pair(std::make_pair(hdr_option_e::disabled, client_wants_hdr_t {false}), std::nullopt),
+#ifdef __APPLE__
+    std::make_pair(std::make_pair(hdr_option_e::automatic, client_wants_hdr_t {true}), std::nullopt),
+    std::make_pair(std::make_pair(hdr_option_e::automatic, client_wants_hdr_t {false}), std::nullopt)
+#else
     std::make_pair(std::make_pair(hdr_option_e::automatic, client_wants_hdr_t {true}), hdr_state_e::Enabled),
     std::make_pair(std::make_pair(hdr_option_e::automatic, client_wants_hdr_t {false}), hdr_state_e::Disabled)
+#endif
   )
 );
 

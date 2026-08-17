@@ -31,7 +31,6 @@ BuildRequires: libcap-devel
 BuildRequires: libcurl-devel
 BuildRequires: libdrm-devel
 BuildRequires: libevdev-devel
-BuildRequires: libnotify-devel >= 0.8.0
 BuildRequires: libva-devel
 BuildRequires: libX11-devel
 BuildRequires: libxcb-devel
@@ -75,6 +74,7 @@ BuildRequires: systemd-udev
 BuildRequires: uv
 %{?sysusers_requires_compat}
 # for unit tests
+BuildRequires: ImageMagick
 BuildRequires: xorg-x11-server-Xvfb
 %endif
 
@@ -92,7 +92,6 @@ BuildRequires: libpulse-devel
 BuildRequires: npm
 BuildRequires: python311
 BuildRequires: python311-Jinja2
-BuildRequires: python311-setuptools
 %if !0%{?sle_version}
 BuildRequires: shaderc
 %endif
@@ -101,6 +100,7 @@ BuildRequires: udev
 BuildRequires: vulkan-devel
 %endif
 # for unit tests
+BuildRequires: ImageMagick
 BuildRequires: xvfb-run
 %endif
 
@@ -153,7 +153,6 @@ BuildRequires: libqt6-qtsvg-devel
 %global cuda_dir %{_builddir}/cuda
 
 # Common runtime requirements
-Requires: libnotify >= 0.8.0
 Requires: miniupnpc >= 2.2.4
 Requires: which >= 2.21
 
@@ -250,7 +249,7 @@ cmake_args+=("-DPython_EXECUTABLE=%{_builddir}/Sunshine/.venv/bin/python")
 %endif
 
 %if 0%{?suse_version}
-# Use the Python interpreter that owns the python311-Jinja2/python311-setuptools BuildRequires.
+# Use the Python interpreter that owns the python311-Jinja2 BuildRequires.
 cmake_args+=("-DGLAD_SKIP_PIP_INSTALL=ON")
 cmake_args+=("-DPython_EXECUTABLE=/usr/bin/python3.11")
 %endif

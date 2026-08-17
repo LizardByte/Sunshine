@@ -94,7 +94,7 @@ namespace upnp {
       }
 
       // Start the mapping thread
-      upnp_thread = std::thread {&deinit_t::upnp_thread_proc, this};
+      upnp_thread = std::jthread {&deinit_t::upnp_thread_proc, this};
     }
 
     /**
@@ -373,7 +373,7 @@ namespace upnp {
     }
 
     std::vector<mapping_t> mappings;  ///< Port mappings Sunshine should keep registered with the gateway.
-    std::thread upnp_thread;  ///< Worker thread that refreshes mappings until shutdown.
+    std::jthread upnp_thread;  ///< Worker thread that refreshes mappings until shutdown.
   };
 
   /**

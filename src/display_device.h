@@ -5,10 +5,13 @@
 #pragma once
 
 // standard includes
+#include <chrono>
 #include <filesystem>
 #include <memory>
+#include <string>
 
 // lib includes
+#include <display_device/display_power_interface.h>
 #include <display_device/types.h>
 
 // forward declarations
@@ -49,6 +52,21 @@ namespace display_device {
    * @examples_end
    */
   [[nodiscard]] std::string map_output_name(const std::string &output_name);
+
+  /**
+   * @brief Ask the platform to wake displays before detection or capture.
+   * @param display_name Platform capture selector.
+   * @param timeout Maximum time to wait for platform-specific wake detection.
+   * @returns True if the display was already available or the wake request succeeded.
+   */
+  [[nodiscard]] bool wake_display(const std::string &display_name, std::chrono::milliseconds timeout);
+
+  /**
+   * @brief Keep displays awake until the returned guard is destroyed.
+   * @param reason Short human-readable reason for the power assertion.
+   * @returns A guard owning the platform assertion, or nullptr if unsupported or unavailable.
+   */
+  [[nodiscard]] std::unique_ptr<DisplayPowerGuardInterface> keep_display_awake(const std::string &reason);
 
   /**
    * @brief Configure the display device based on the user configuration and the session information.

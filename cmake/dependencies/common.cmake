@@ -25,10 +25,53 @@ add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/lizardbyte-common")
 add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/libdisplaydevice")
 
 if(SUNSHINE_ENABLE_TRAY)
+    if(SUNSHINE_USE_STATIC_QT)
+        set(_sunshine_find_library_suffixes "${CMAKE_FIND_LIBRARY_SUFFIXES}")
+        set(_sunshine_import_library_suffix "${CMAKE_IMPORT_LIBRARY_SUFFIX}")
+        set(_sunshine_pkg_config_argn "${PKG_CONFIG_ARGN}")
+        set(_sunshine_disable_find_package_harfbuzz "${CMAKE_DISABLE_FIND_PACKAGE_harfbuzz}")
+        set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+        set(CMAKE_IMPORT_LIBRARY_SUFFIX ".a")
+        set(PKG_CONFIG_ARGN --static)
+
+        # HarfBuzz's config-file target omits dependencies needed by its static archive.
+        # Use Qt's pkg-config fallback so --static supplies the complete link interface.
+        set(CMAKE_DISABLE_FIND_PACKAGE_harfbuzz TRUE)
+
+        # CMake's FindTIFF module does not propagate dependencies of the static archive.
+        # Provide its standard target from pkg-config before Qt imports the TIFF plugin.
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(SUNSHINE_STATIC_TIFF REQUIRED IMPORTED_TARGET libtiff-4)
+        add_library(TIFF::TIFF INTERFACE IMPORTED)
+        target_link_libraries(TIFF::TIFF INTERFACE PkgConfig::SUNSHINE_STATIC_TIFF)
+
+        set(_sunshine_module_path "${CMAKE_MODULE_PATH}")
+        find_package(Qt6 REQUIRED COMPONENTS Widgets Svg)
+        get_target_property(_sunshine_qt_core_type Qt6::Core TYPE)
+        if(NOT _sunshine_qt_core_type STREQUAL "STATIC_LIBRARY")
+            message(FATAL_ERROR "SUNSHINE_USE_STATIC_QT requires a static Qt 6 installation.")
+        endif()
+        set(CMAKE_MODULE_PATH "${_sunshine_module_path}")
+    endif()
+
     add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/tray")
+
+    if(SUNSHINE_USE_STATIC_QT)
+        set(CMAKE_FIND_LIBRARY_SUFFIXES "${_sunshine_find_library_suffixes}")
+        set(CMAKE_IMPORT_LIBRARY_SUFFIX "${_sunshine_import_library_suffix}")
+        set(PKG_CONFIG_ARGN "${_sunshine_pkg_config_argn}")
+        set(CMAKE_DISABLE_FIND_PACKAGE_harfbuzz "${_sunshine_disable_find_package_harfbuzz}")
+        unset(_sunshine_disable_find_package_harfbuzz)
+        unset(_sunshine_find_library_suffixes)
+        unset(_sunshine_import_library_suffix)
+        unset(_sunshine_module_path)
+        unset(_sunshine_pkg_config_argn)
+        unset(_sunshine_qt_core_type)
+    endif()
 endif()
 
 # common dependencies
+include("${CMAKE_MODULE_PATH}/dependencies/nv_codec_headers.cmake")
 include("${CMAKE_MODULE_PATH}/dependencies/nlohmann_json.cmake")
 find_package(PkgConfig REQUIRED)
 find_package(Threads REQUIRED)

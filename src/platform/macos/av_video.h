@@ -5,8 +5,8 @@
 #pragma once
 
 // platform includes
-#import <AppKit/AppKit.h>
 #import <AVFoundation/AVFoundation.h>
+#import <CoreGraphics/CoreGraphics.h>
 
 /**
  * @brief macOS capture session and video output handles.
@@ -15,8 +15,6 @@ struct CaptureSession {
   AVCaptureVideoDataOutput *output;  ///< Output.
   NSCondition *captureStopped;  ///< Capture stopped.
 };
-
-static const int kMaxDisplays = 32;
 
 /**
  * @brief AVFoundation video capture controller used by the macOS backend.
@@ -65,20 +63,6 @@ typedef bool (^FrameCallbackBlock)(CMSampleBufferRef);
  * @brief Capture signals property.
  */
 @property (nonatomic, assign) NSMapTable<AVCaptureConnection *, dispatch_semaphore_t> *captureSignals;
-
-/**
- * @brief List display names accepted by the selected capture backend.
- *
- * @return Display names accepted by the selected capture backend.
- */
-+ (NSArray<NSDictionary *> *)displayNames;
-/**
- * @brief Return the user-visible name for a CoreGraphics display.
- *
- * @param displayID Display ID.
- * @return Display name for the supplied CoreGraphics display ID.
- */
-+ (NSString *)getDisplayName:(CGDirectDisplayID)displayID;
 
 /**
  * @brief Initialize AVFoundation capture for a display and frame rate.

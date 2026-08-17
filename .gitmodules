@@ -13,13 +13,13 @@
 [submodule "third-party/glad"]
 	path = third-party/glad
 	url = https://github.com/Dav1dde/glad.git
-[submodule "third-party/inputtino"]
-	path = third-party/inputtino
-	url = https://github.com/games-on-whales/inputtino.git
-	branch = stable
 [submodule "third-party/libdisplaydevice"]
 	path = third-party/libdisplaydevice
 	url = https://github.com/LizardByte/libdisplaydevice.git
+	branch = master
+[submodule "third-party/libvirtualhid"]
+	path = third-party/libvirtualhid
+	url = https://github.com/LizardByte/libvirtualhid.git
 	branch = master
 [submodule "third-party/lizardbyte-common"]
 	path = third-party/lizardbyte-common
@@ -28,14 +28,6 @@
 [submodule "third-party/moonlight-common-c"]
 	path = third-party/moonlight-common-c
 	url = https://github.com/moonlight-stream/moonlight-common-c.git
-	branch = master
-[submodule "third-party/nanors"]
-	path = third-party/nanors
-	url = https://github.com/sleepybishop/nanors.git
-	branch = master
-[submodule "third-party/nv-codec-headers"]
-	path = third-party/nv-codec-headers
-	url = https://github.com/FFmpeg/nv-codec-headers.git
 	branch = master
 [submodule "third-party/nvapi"]
 	path = third-party/nvapi

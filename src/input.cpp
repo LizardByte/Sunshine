@@ -9,10 +9,16 @@ extern "C" {
 }
 
 // standard includes
+#include <algorithm>
 #include <bitset>
 #include <chrono>
 #include <cmath>
+#include <functional>
 #include <list>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <string_view>
 #include <thread>
 #include <unordered_map>
 
@@ -186,9 +192,13 @@ namespace input {
 
     ~gamepad_t() {
       if (id >= 0) {
-        task_pool.push([id = this->id]() {
-          free_gamepad(platf_input, id);
-        });
+        if (task_pool.running()) {
+          task_pool.push([id = this->id]() {
+            ::input::free_gamepad(platf_input, id);
+          });
+        } else {
+          ::input::free_gamepad(platf_input, id);
+        }
       }
     }
 
@@ -263,6 +273,117 @@ namespace input {
     int32_t accumulated_vscroll_delta;  ///< Accumulated vscroll delta.
     int32_t accumulated_hscroll_delta;  ///< Accumulated hscroll delta.
   };
+
+  /**
+   * @brief Hash string-like session identifiers without allocating temporary strings.
+   */
+  struct transparent_string_hash_t {
+    using is_transparent = void;  ///< Enable heterogeneous unordered-map lookup.
+
+    /**
+     * @brief Hash a string view.
+     *
+     * @param value Session identifier to hash.
+     * @return Hash value for the supplied identifier.
+     */
+    std::size_t operator()(const std::string_view value) const noexcept {
+      return std::hash<std::string_view> {}(value);
+    }
+  };
+
+  using retained_input_map_t = std::unordered_map<
+    std::string,
+    std::shared_ptr<input_t>,
+    transparent_string_hash_t,
+    std::equal_to<>>;  ///< Retained inputs keyed by paired-client identity.
+
+  /**
+   * @brief Synchronized storage for retained input sessions.
+   */
+  struct retained_input_state_t {
+    std::mutex mutex;  ///< Synchronizes retained session access across transport threads.
+    retained_input_map_t inputs;  ///< Paused input sessions keyed by paired-client identity.
+  };
+
+  /**
+   * @brief Access process-wide retained input session storage.
+   *
+   * @return Mutable retained input session state.
+   */
+  retained_input_state_t &retained_input_state() {
+    static retained_input_state_t state;
+    return state;
+  }
+
+  /**
+   * @brief Execute lifecycle work on the input task thread when it is running.
+   *
+   * @tparam Function Callable type.
+   * @param function Lifecycle operation to execute.
+   */
+  template<typename Function>
+  void dispatch_input_task(Function &&function) {
+    if (task_pool.running()) {
+      task_pool.push(std::forward<Function>(function));
+    } else {
+      std::forward<Function>(function)();
+    }
+  }
+
+  /**
+   * @brief Destroy the virtual gamepads owned by retained input sessions.
+   *
+   * @param input Retained input session whose gamepads should be destroyed.
+   */
+  void destroy_gamepads(const std::shared_ptr<input_t> &input) {
+    for (auto &gamepad : input->gamepads) {
+      if (gamepad.back_timeout_id) {
+        task_pool.cancel(gamepad.back_timeout_id);
+        gamepad.back_timeout_id = nullptr;
+      }
+      if (gamepad.id >= 0) {
+        ::input::free_gamepad(platf_input, gamepad.id);
+        gamepad.id = -1;
+      }
+      gamepad.gamepad_state = {};
+      gamepad.back_button_state = button_state_e::NONE;
+    }
+  }
+
+  /**
+   * @brief Destroy the virtual gamepads owned by retained input sessions.
+   *
+   * @param inputs Retained input sessions whose gamepads should be destroyed.
+   */
+  void destroy_gamepads(const retained_input_map_t &inputs) {
+    for (const auto &[session_id, input] : inputs) {
+      static_cast<void>(session_id);
+      destroy_gamepads(input);
+    }
+  }
+
+  /**
+   * @brief Rebind retained input state to a resumed stream mailbox.
+   *
+   * @param input Retained input state.
+   * @param mail Mailbox for the resumed stream connection.
+   */
+  void rebind_input(const std::shared_ptr<input_t> &input, const safe::mail_t &mail) {
+    input->touch_port_event = mail->event<input::touch_port_t>(mail::touch_port);
+    input->feedback_queue = mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback);
+
+    for (int client_index = 0; client_index < input->gamepads.size(); ++client_index) {
+      auto &gamepad = input->gamepads[client_index];
+      if (gamepad.id < 0) {
+        continue;
+      }
+
+      if (platf::rebind_gamepad(platf_input, {gamepad.id, static_cast<std::uint8_t>(client_index)}, input->feedback_queue) != 0) {
+        free_id(gamepadMask, gamepad.id);
+        gamepad.id = -1;
+      }
+    }
+  }
 
   /**
    * @brief Apply shortcut based on VKEY
@@ -610,8 +731,8 @@ namespace input {
     This final operation is a bit weird and has been brought about with lots of trial and error. A better
     way to do this may exist.
 
-    Basically, this is what makes the touchscreen map to the coordinates inputtino expects properly.
-    Since inputtino's dimensions are now logical (because scaling breaks everything otherwise), using the previous
+    Basically, this is what makes the touchscreen map to the logical virtual input coordinates properly.
+    Since the virtual input dimensions are logical (because scaling breaks everything otherwise), using the previous
     x and y coordinates would be incorrect when screens are scaled, because the touch port is smaller (or larger)
     by a factor (that factor is touch_port.scalar_tpcoords), and that factor must be used to account for that difference
     when moving the cursor. Otherwise, it will move either slower or faster than your finger proportionally to
@@ -935,8 +1056,7 @@ namespace input {
 
     // Right-alt maps to meta, so it must not also register as ALT
     int modifiers = packet->modifiers;
-    if (config::input.key_rightalt_to_key_win &&
-        input->right_alt_pressed && !input->left_alt_pressed) {
+    if (config::input.key_rightalt_to_key_win && input->right_alt_pressed && !input->left_alt_pressed) {
       modifiers &= ~MODIFIER_ALT;
     }
 
@@ -1038,13 +1158,47 @@ namespace input {
    *
    * @param packet Protocol packet being processed.
    */
-  void passthrough(PNV_UNICODE_PACKET packet) {
+  void passthrough(const NV_UNICODE_PACKET *packet) {
     if (!config::input.keyboard) {
       return;
     }
 
     int size = util::endian::big(packet->header.size) - sizeof(packet->header.magic);
     platf::unicode(platf_input, packet->text, size);
+  }
+
+  /**
+   * @brief Allocate a virtual gamepad for a client-relative controller slot.
+   *
+   * @param input Stream input state.
+   * @param client_index Client-relative controller index.
+   * @param arrival Client-reported controller metadata.
+   * @return Assigned global gamepad slot, or -1 when allocation fails.
+   */
+  int alloc_gamepad(std::shared_ptr<input_t> &input, int client_index, const platf::gamepad_arrival_t &arrival) {
+    if (client_index < 0 || client_index >= input->gamepads.size()) {
+      BOOST_LOG(warning) << "ControllerNumber out of range ["sv << client_index << ']';
+      return -1;
+    }
+
+    auto &gamepad = input->gamepads[client_index];
+    if (gamepad.id >= 0) {
+      BOOST_LOG(warning) << "ControllerNumber already allocated ["sv << client_index << ']';
+      return gamepad.id;
+    }
+
+    const auto id = alloc_id(gamepadMask);
+    if (id < 0) {
+      return -1;
+    }
+
+    if (platf::alloc_gamepad(platf_input, {id, static_cast<std::uint8_t>(client_index)}, arrival, input->feedback_queue)) {
+      free_id(gamepadMask, id);
+      return -1;
+    }
+
+    gamepad.id = id;
+    return id;
   }
 
   /**
@@ -1057,34 +1211,12 @@ namespace input {
       return;
     }
 
-    if (packet->controllerNumber < 0 || packet->controllerNumber >= input->gamepads.size()) {
-      BOOST_LOG(warning) << "ControllerNumber out of range ["sv << packet->controllerNumber << ']';
-      return;
-    }
-
-    if (input->gamepads[packet->controllerNumber].id >= 0) {
-      BOOST_LOG(warning) << "ControllerNumber already allocated ["sv << packet->controllerNumber << ']';
-      return;
-    }
-
     platf::gamepad_arrival_t arrival {
       packet->type,
       util::endian::little(packet->capabilities),
       util::endian::little(packet->supportedButtonFlags),
     };
-
-    auto id = alloc_id(gamepadMask);
-    if (id < 0) {
-      return;
-    }
-
-    // Allocate a new gamepad
-    if (platf::alloc_gamepad(platf_input, {id, packet->controllerNumber}, arrival, input->feedback_queue)) {
-      free_id(gamepadMask, id);
-      return;
-    }
-
-    input->gamepads[packet->controllerNumber].id = id;
+    static_cast<void>(alloc_gamepad(input, packet->controllerNumber, arrival));
   }
 
   /**
@@ -1113,54 +1245,81 @@ namespace input {
   }
 
   /**
-   * @brief Called to pass a touch message to the platform backend.
-   * @param input The input context pointer.
-   * @param packet The touch packet.
+   * @brief Shared normalized data prepared for a touch or pen event.
    */
-  void passthrough(std::shared_ptr<input_t> &input, PSS_TOUCH_PACKET packet) {
+  struct absolute_pointer_data_t {
+    platf::touch_port_t touch_port;  ///< Monitor-local touch port.
+    std::pair<float, float> coords;  ///< Normalized monitor-local coordinates.
+    std::uint16_t rotation;  ///< Normalized rotation in degrees.
+    std::pair<float, float> contact_area;  ///< Scaled major and minor contact axes.
+  };
+
+  /**
+   * @brief Normalize the fields shared by touch and pen packets.
+   *
+   * @tparam Packet Pointer type for a Moonlight touch or pen packet.
+   * @param input Input context that supplies the current touch-port metadata.
+   * @param packet Touch or pen packet to normalize.
+   * @return Normalized pointer data, or `std::nullopt` when input is disabled or dimensions are invalid.
+   */
+  template<typename Packet>
+  std::optional<absolute_pointer_data_t> prepare_absolute_pointer_data(std::shared_ptr<input_t> &input, Packet packet) {
     if (!config::input.mouse) {
-      return;
+      return std::nullopt;
     }
 
-    // Convert the client normalized coordinates to touchport coordinates
-    auto coords = client_to_touchport(input, {from_clamped_netfloat(packet->x, 0.0f, 1.0f) * 65535.f, from_clamped_netfloat(packet->y, 0.0f, 1.0f) * 65535.f}, {65535.f, 65535.f});
+    auto coords = client_to_touchport(
+      input,
+      {from_clamped_netfloat(packet->x, 0.0f, 1.0f) * 65535.f, from_clamped_netfloat(packet->y, 0.0f, 1.0f) * 65535.f},
+      {65535.f, 65535.f}
+    );
     if (!coords) {
-      return;
+      return std::nullopt;
     }
 
-    auto &touch_port = input->touch_port;
-
-    auto abs_port = monitor_touch_port(touch_port, *coords);
-    if (!abs_port) {
-      return;
+    auto touch_port = monitor_touch_port(input->touch_port, *coords);
+    if (!touch_port) {
+      return std::nullopt;
     }
 
-    // Normalize rotation value to 0-359 degree range
     auto rotation = util::endian::little(packet->rotation);
     if (rotation != LI_ROT_UNKNOWN) {
       rotation %= 360;
     }
 
-    // Normalize the contact area based on the touchport
-    auto contact_area = scale_client_contact_area(
+    const auto contact_area = scale_client_contact_area(
       {from_clamped_netfloat(packet->contactAreaMajor, 0.0f, 1.0f) * 65535.f,
        from_clamped_netfloat(packet->contactAreaMinor, 0.0f, 1.0f) * 65535.f},
       rotation,
-      {abs_port->width / 65535.f, abs_port->height / 65535.f}
+      {touch_port->width / 65535.f, touch_port->height / 65535.f}
     );
+
+    return absolute_pointer_data_t {*touch_port, *coords, rotation, contact_area};
+  }
+
+  /**
+   * @brief Called to pass a touch message to the platform backend.
+   * @param input The input context pointer.
+   * @param packet The touch packet.
+   */
+  void passthrough(std::shared_ptr<input_t> &input, PSS_TOUCH_PACKET packet) {
+    const auto pointer_data = prepare_absolute_pointer_data(input, packet);
+    if (!pointer_data) {
+      return;
+    }
 
     platf::touch_input_t touch {
       packet->eventType,
-      rotation,
+      pointer_data->rotation,
       util::endian::little(packet->pointerId),
-      coords->first,
-      coords->second,
+      pointer_data->coords.first,
+      pointer_data->coords.second,
       from_clamped_netfloat(packet->pressureOrDistance, 0.0f, 1.0f),
-      contact_area.first,
-      contact_area.second,
+      pointer_data->contact_area.first,
+      pointer_data->contact_area.second,
     };
 
-    platf::touch_update(input->client_context.get(), *abs_port, touch);
+    platf::touch_update(input->client_context.get(), pointer_data->touch_port, touch);
   }
 
   /**
@@ -1169,51 +1328,25 @@ namespace input {
    * @param packet The pen packet.
    */
   void passthrough(std::shared_ptr<input_t> &input, PSS_PEN_PACKET packet) {
-    if (!config::input.mouse) {
+    const auto pointer_data = prepare_absolute_pointer_data(input, packet);
+    if (!pointer_data) {
       return;
     }
-
-    // Convert the client normalized coordinates to touchport coordinates
-    auto coords = client_to_touchport(input, {from_clamped_netfloat(packet->x, 0.0f, 1.0f) * 65535.f, from_clamped_netfloat(packet->y, 0.0f, 1.0f) * 65535.f}, {65535.f, 65535.f});
-    if (!coords) {
-      return;
-    }
-
-    auto &touch_port = input->touch_port;
-
-    auto abs_port = monitor_touch_port(touch_port, *coords);
-    if (!abs_port) {
-      return;
-    }
-
-    // Normalize rotation value to 0-359 degree range
-    auto rotation = util::endian::little(packet->rotation);
-    if (rotation != LI_ROT_UNKNOWN) {
-      rotation %= 360;
-    }
-
-    // Normalize the contact area based on the touchport
-    auto contact_area = scale_client_contact_area(
-      {from_clamped_netfloat(packet->contactAreaMajor, 0.0f, 1.0f) * 65535.f,
-       from_clamped_netfloat(packet->contactAreaMinor, 0.0f, 1.0f) * 65535.f},
-      rotation,
-      {abs_port->width / 65535.f, abs_port->height / 65535.f}
-    );
 
     platf::pen_input_t pen {
       packet->eventType,
       packet->toolType,
       packet->penButtons,
       packet->tilt,
-      rotation,
-      coords->first,
-      coords->second,
+      pointer_data->rotation,
+      pointer_data->coords.first,
+      pointer_data->coords.second,
       from_clamped_netfloat(packet->pressureOrDistance, 0.0f, 1.0f),
-      contact_area.first,
-      contact_area.second,
+      pointer_data->contact_area.first,
+      pointer_data->contact_area.second,
     };
 
-    platf::pen_update(input->client_context.get(), *abs_port, pen);
+    platf::pen_update(input->client_context.get(), pointer_data->touch_port, pen);
   }
 
   /**
@@ -1333,20 +1466,12 @@ namespace input {
     // If this is an event for a new gamepad, create the gamepad now. Ideally, the client would
     // send a controller arrival instead of this but it's still supported for legacy clients.
     if ((packet->activeGamepadMask & (1 << packet->controllerNumber)) && gamepad.id < 0) {
-      auto id = alloc_id(gamepadMask);
-      if (id < 0) {
+      if (alloc_gamepad(input, packet->controllerNumber, {}) < 0) {
         return;
       }
-
-      if (platf::alloc_gamepad(platf_input, {id, (uint8_t) packet->controllerNumber}, {}, input->feedback_queue)) {
-        free_id(gamepadMask, id);
-        return;
-      }
-
-      gamepad.id = id;
     } else if (!(packet->activeGamepadMask & (1 << packet->controllerNumber)) && gamepad.id >= 0) {
       // If this is the final event for a gamepad being removed, free the gamepad and return.
-      free_gamepad(platf_input, gamepad.id);
+      ::input::free_gamepad(platf_input, gamepad.id);
       gamepad.id = -1;
       return;
     }
@@ -1557,14 +1682,12 @@ namespace input {
    */
   batch_result_e batch(PSS_TOUCH_PACKET dest, PSS_TOUCH_PACKET src) {
     // Only batch hover or move events
-    if (dest->eventType != LI_TOUCH_EVENT_MOVE &&
-        dest->eventType != LI_TOUCH_EVENT_HOVER) {
+    if (dest->eventType != LI_TOUCH_EVENT_MOVE && dest->eventType != LI_TOUCH_EVENT_HOVER) {
       return batch_result_e::terminate_batch;
     }
 
     // Don't batch beyond state changing events
-    if (src->eventType != LI_TOUCH_EVENT_MOVE &&
-        src->eventType != LI_TOUCH_EVENT_HOVER) {
+    if (src->eventType != LI_TOUCH_EVENT_MOVE && src->eventType != LI_TOUCH_EVENT_HOVER) {
       return batch_result_e::terminate_batch;
     }
 
@@ -1591,8 +1714,7 @@ namespace input {
    */
   batch_result_e batch(PSS_PEN_PACKET dest, PSS_PEN_PACKET src) {
     // Only batch hover or move events
-    if (dest->eventType != LI_TOUCH_EVENT_MOVE &&
-        dest->eventType != LI_TOUCH_EVENT_HOVER) {
+    if (dest->eventType != LI_TOUCH_EVENT_MOVE && dest->eventType != LI_TOUCH_EVENT_HOVER) {
       return batch_result_e::terminate_batch;
     }
 
@@ -1624,8 +1746,7 @@ namespace input {
    */
   batch_result_e batch(PSS_CONTROLLER_TOUCH_PACKET dest, PSS_CONTROLLER_TOUCH_PACKET src) {
     // Only batch hover or move events
-    if (dest->eventType != LI_TOUCH_EVENT_MOVE &&
-        dest->eventType != LI_TOUCH_EVENT_HOVER) {
+    if (dest->eventType != LI_TOUCH_EVENT_MOVE && dest->eventType != LI_TOUCH_EVENT_HOVER) {
       return batch_result_e::terminate_batch;
     }
 
@@ -1636,8 +1757,7 @@ namespace input {
     }
 
     // Don't batch beyond state changing events
-    if (src->eventType != LI_TOUCH_EVENT_MOVE &&
-        src->eventType != LI_TOUCH_EVENT_HOVER) {
+    if (src->eventType != LI_TOUCH_EVENT_MOVE && src->eventType != LI_TOUCH_EVENT_HOVER) {
       return batch_result_e::terminate_batch;
     }
 
@@ -1788,7 +1908,7 @@ namespace input {
         passthrough(input, (PNV_KEYBOARD_PACKET) payload);
         break;
       case UTF8_TEXT_EVENT_MAGIC:
-        passthrough((PNV_UNICODE_PACKET) payload);
+        passthrough(static_cast<const NV_UNICODE_PACKET *>(static_cast<const void *>(payload)));
         break;
       case MULTI_CONTROLLER_MAGIC_GEN5:
         passthrough(input, (PNV_MULTI_CONTROLLER_PACKET) payload);
@@ -1828,6 +1948,65 @@ namespace input {
   }
 
   /**
+   * @brief Release every pressed mouse button tracked by Sunshine.
+   */
+  void reset_mouse_buttons() {
+    for (int button = 0; button < mouse_press.size(); ++button) {
+      if (mouse_press[button]) {
+        platf::button_mouse(platf_input, button, true);
+        mouse_press[button] = false;
+      }
+    }
+  }
+
+  /**
+   * @brief Release every pressed keyboard key tracked by Sunshine.
+   */
+  void reset_keyboard_keys() {
+    for (auto &[key, pressed] : key_press) {
+      if (pressed) {
+        platf::keyboard_update(platf_input, vk_from_kpid(key) & 0x00FF, true, flags_from_kpid(key));
+        pressed = false;
+      }
+    }
+  }
+
+  /**
+   * @brief Neutralize retained gamepads without destroying their virtual devices.
+   *
+   * @param input Retained stream input state to neutralize.
+   */
+  void reset_gamepads(const std::shared_ptr<input_t> &input) {
+    for (int client_index = 0; client_index < input->gamepads.size(); ++client_index) {
+      auto &gamepad = input->gamepads[client_index];
+      if (gamepad.back_timeout_id) {
+        task_pool.cancel(gamepad.back_timeout_id);
+        gamepad.back_timeout_id = nullptr;
+      }
+      if (gamepad.id >= 0) {
+        platf::gamepad_update(platf_input, gamepad.id, {});
+        platf::gamepad_touch(
+          platf_input,
+          {{gamepad.id, static_cast<std::uint8_t>(client_index)}, LI_TOUCH_EVENT_CANCEL_ALL, 0, 0.0F, 0.0F, 0.0F}
+        );
+      }
+      gamepad.gamepad_state = {};
+      gamepad.back_button_state = button_state_e::NONE;
+    }
+  }
+
+  /**
+   * @brief Reset all pressed input state for a disconnected stream.
+   *
+   * @param input Retained stream input state to reset.
+   */
+  void reset_input_state(const std::shared_ptr<input_t> &input) {
+    reset_mouse_buttons();
+    reset_keyboard_keys();
+    reset_gamepads(input);
+  }
+
+  /**
    * @brief Reset the object to its initial empty state.
    */
   void reset(std::shared_ptr<input_t> &input) {
@@ -1835,22 +2014,40 @@ namespace input {
     task_pool.cancel(input->mouse_left_button_timeout);
 
     // Ensure input is synchronous, by using the task_pool
-    task_pool.push([]() {
-      for (int x = 0; x < mouse_press.size(); ++x) {
-        if (mouse_press[x]) {
-          platf::button_mouse(platf_input, x, true);
-          mouse_press[x] = false;
-        }
+    task_pool.push(reset_input_state, input);
+  }
+
+  void terminate_gamepads() {
+    retained_input_map_t inputs;
+    {
+      auto &state = retained_input_state();
+      std::lock_guard lock {state.mutex};
+      state.inputs.swap(inputs);
+    }
+
+    if (!inputs.empty()) {
+      dispatch_input_task([inputs = std::move(inputs)]() {
+        destroy_gamepads(inputs);
+      });
+    }
+  }
+
+  void terminate_gamepads(const std::string_view session_id) {
+    std::shared_ptr<input_t> input;
+    {
+      auto &state = retained_input_state();
+      std::lock_guard lock {state.mutex};
+      const auto iter = state.inputs.find(session_id);
+      if (iter == state.inputs.end()) {
+        return;
       }
 
-      for (auto &kp : key_press) {
-        if (!kp.second) {
-          // already released
-          continue;
-        }
-        platf::keyboard_update(platf_input, vk_from_kpid(kp.first) & 0x00FF, true, flags_from_kpid(kp.first));
-        key_press[kp.first] = false;
-      }
+      input = std::move(iter->second);
+      state.inputs.erase(iter);
+    }
+
+    dispatch_input_task([input = std::move(input)]() {
+      destroy_gamepads(input);
     });
   }
 
@@ -1863,6 +2060,13 @@ namespace input {
      * @brief Destroy the input subsystem deinitializer.
      */
     ~deinit_t() override {
+      retained_input_map_t inputs;
+      {
+        auto &state = retained_input_state();
+        std::lock_guard lock {state.mutex};
+        state.inputs.swap(inputs);
+      }
+      destroy_gamepads(inputs);
       platf_input.reset();
     }
   };
@@ -1880,24 +2084,39 @@ namespace input {
    * @brief Probe connected gamepads and update input capability state.
    */
   bool probe_gamepads() {
-    auto input = static_cast<platf::input_t *>(platf_input.get());
-    const auto gamepads = platf::supported_gamepads(input);
-    for (auto &gamepad : gamepads) {
-      if (gamepad.is_enabled && gamepad.name != "auto") {
-        return false;
-      }
-    }
-    return true;
+    const auto &gamepads = platf::supported_gamepads(std::addressof(platf_input));
+    return std::ranges::none_of(gamepads, [](const auto &gamepad) {
+      return gamepad.is_enabled && gamepad.name != "auto";
+    });
   }
 
   /**
    * @brief Allocate and initialize platform input state for a stream.
    */
-  std::shared_ptr<input_t> alloc(safe::mail_t mail) {
-    auto input = std::make_shared<input_t>(
-      mail->event<input::touch_port_t>(mail::touch_port),
-      mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback)
-    );
+  std::shared_ptr<input_t> alloc(safe::mail_t mail, std::string session_id) {
+    std::shared_ptr<input_t> input;
+    bool resumed = false;
+    {
+      auto &state = retained_input_state();
+      std::lock_guard lock {state.mutex};
+      const auto iter = state.inputs.find(session_id);
+      if (iter != state.inputs.end()) {
+        input = iter->second;
+        resumed = true;
+      } else {
+        input = std::make_shared<input_t>(
+          mail->event<input::touch_port_t>(mail::touch_port),
+          mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback)
+        );
+        state.inputs.try_emplace(std::move(session_id), input);
+      }
+    }
+
+    if (resumed) {
+      dispatch_input_task([input, mail = std::move(mail)]() {
+        rebind_input(input, mail);
+      });
+    }
 
     // Workaround to ensure new frames will be captured when a client connects
     task_pool.pushDelayed([]() {
@@ -1908,4 +2127,25 @@ namespace input {
 
     return input;
   }
+
+#ifdef SUNSHINE_TESTS
+  namespace testing {
+    void set_platform_input(platf::input_t input) {
+      terminate_gamepads();
+      platf_input = std::move(input);
+      gamepadMask.reset();
+    }
+
+    int alloc_gamepad(std::shared_ptr<input_t> &input, std::uint8_t client_index, const platf::gamepad_arrival_t &metadata) {
+      return ::input::alloc_gamepad(input, client_index, metadata);
+    }
+
+    int gamepad_id(const std::shared_ptr<input_t> &input, std::uint8_t client_index) {
+      if (!input || client_index >= input->gamepads.size()) {
+        return -1;
+      }
+      return input->gamepads[client_index].id;
+    }
+  }  // namespace testing
+#endif
 }  // namespace input

@@ -35,7 +35,7 @@ jobs:
           matrix='{
             "include": [
               {
-                "bsd_release": "14.4",
+                "bsd_release": "15.1",
                 "arch": "x86_64",
                 "cmake_processor": "amd64",
                 "runner": "ubuntu-latest"
@@ -46,7 +46,7 @@ jobs:
           # Add aarch64 build only if not a pull request event
           if [[ "${{ github.event_name }}" != "pull_request" ]]; then
             matrix=$(echo "$matrix" | jq '.include += [{
-              "bsd_release": "14.4",
+              "bsd_release": "15.1",
               "arch": "aarch64",
               "cmake_processor": "aarch64",
               "runner": "ubuntu-latest"
@@ -74,7 +74,7 @@ jobs:
       matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           submodules: recursive
 
@@ -87,7 +87,7 @@ jobs:
           echo "PROCESSOR_COUNT: $PROCESSOR_COUNT"
 
       - name: Setup FreeBSD
-        uses: vmactions/freebsd-vm@5a72679103d223925653750faa878a143340fbd0  # v1.5.0
+        uses: vmactions/freebsd-vm@83b151f58c6047089f4c80eb5ba2039d158ce093  # v1.5.3
         with:
           arch: ${{ matrix.arch }}
           cpu: ${{ steps.processor_count.outputs.PROCESSOR_COUNT }}
@@ -107,7 +107,6 @@ jobs:
               devel/evdev-proto \
               devel/git \
               devel/libevdev \
-              devel/libnotify \
               devel/llvm${{ env.FREEBSD_CLANG_VERSION }} \
               devel/ninja \
               devel/pkgconf \

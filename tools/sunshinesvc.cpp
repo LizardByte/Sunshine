@@ -12,6 +12,9 @@
 #include <Windows.h>
 #include <WtsApi32.h>
 
+// local includes
+#include "src/logging.h"
+
 // PROC_THREAD_ATTRIBUTE_JOB_LIST is currently missing from MinGW headers
 #ifndef PROC_THREAD_ATTRIBUTE_JOB_LIST
   #define PROC_THREAD_ATTRIBUTE_JOB_LIST ProcThreadAttributeValue(13, FALSE, TRUE, FALSE)
@@ -182,10 +185,13 @@ HANDLE OpenLogFileHandle() {
   GetTempPathW(_countof(log_file_name), log_file_name);
   wcscat_s(log_file_name, L"sunshine.log");
 
+  // Preserve previous service output before opening the current log.
+  logging::rotate_log_file(log_file_name);
+
   // The file handle must be inheritable for our child process to use it
   SECURITY_ATTRIBUTES security_attributes = {sizeof(security_attributes), nullptr, TRUE};
 
-  // Overwrite the old sunshine.log
+  // Create the current sunshine.log
   return CreateFileW(log_file_name, GENERIC_WRITE, FILE_SHARE_READ, &security_attributes, CREATE_ALWAYS, 0, nullptr);
 }
 
@@ -553,7 +559,11 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
           // Fall-through to terminate Sunshine.exe and start it again.
         case WAIT_OBJECT_0:
           // The service is shutting down, so try to gracefully terminate Sunshine.exe.
-          TerminateSunshineProcess(console_token, process_info);
+          // If it doesn't terminate in 20 seconds, we will forcefully terminate it.
+          if (!RunTerminationHelper(console_token, process_info.dwProcessId) || WaitForSingleObject(process_info.hProcess, 20000) != WAIT_OBJECT_0) {
+            // If it won't terminate gracefully, kill it now
+            TerminateProcess(process_info.hProcess, ERROR_PROCESS_ABORTED);
+          }
           still_running = false;
           break;
 

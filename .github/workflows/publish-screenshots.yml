@@ -1,0 +1,23 @@
+---
+name: Publish Screenshots
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+
+permissions: {}
+
+jobs:
+  publish:
+    if: github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure'
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+      statuses: write
+    uses: LizardByte/tray/.github/workflows/_publish-screenshots.yml@master
+    with:
+      artifact-name-prefix: sunshine-screenshots-
+      source-run-id: ${{ github.event.workflow_run.id }}

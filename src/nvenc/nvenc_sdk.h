@@ -1,0 +1,125 @@
+/**
+ * @file src/nvenc/nvenc_sdk.h
+ * @brief Imports one NVENC SDK into its version-specific implementation namespace.
+ */
+#pragma once
+
+#ifdef DOXYGEN
+  /**
+   * @def NVENC_NAMESPACE
+   * @brief Namespace used for the documented NVENC implementation.
+   */
+  #define NVENC_NAMESPACE nvenc
+
+  /**
+   * @def NVENC_SDK_VERSION
+   * @brief NVENC SDK version used while generating documentation.
+   */
+  // Doxygen must select the same preprocessor interface used by versioned build targets.
+  #define NVENC_SDK_VERSION 1300  // NOSONAR(cpp:S5028)
+#endif
+
+#ifndef NVENC_NAMESPACE
+  #error NVENC_NAMESPACE must identify the version-specific implementation namespace
+#endif
+
+#ifndef NVENC_SDK_VERSION
+  #error NVENC_SDK_VERSION must identify the version-specific NVENC SDK
+#endif
+
+// Include common platform and integer declarations outside the SDK namespace.
+#include <cstddef>
+#include <cstdint>
+
+#ifdef _WIN32
+  #include <Windows.h>
+#endif
+
+// The version-specific namespace is populated by the SDK headers included below.
+namespace NVENC_NAMESPACE {  // NOSONAR(cpp:S3261)
+#ifndef DOXYGEN
+  #include <ffnvcodec/dynlink_cuda.h>
+  #include <ffnvcodec/nvEncodeAPI.h>
+
+  #if NVENCAPI_MAJOR_VERSION * 100 + NVENCAPI_MINOR_VERSION != NVENC_SDK_VERSION
+    #error NVENC_SDK_VERSION does not match the selected nv-codec-headers package
+  #endif
+#endif
+
+#if NVENC_SDK_VERSION < 1200
+  /**
+   * @brief Video format values added as named types after SDK 11.0.
+   */
+  enum NV_ENC_VUI_VIDEO_FORMAT {
+    NV_ENC_VUI_VIDEO_FORMAT_COMPONENT = 0,
+    NV_ENC_VUI_VIDEO_FORMAT_PAL = 1,
+    NV_ENC_VUI_VIDEO_FORMAT_NTSC = 2,
+    NV_ENC_VUI_VIDEO_FORMAT_SECAM = 3,
+    NV_ENC_VUI_VIDEO_FORMAT_MAC = 4,
+    NV_ENC_VUI_VIDEO_FORMAT_UNSPECIFIED = 5,
+  };
+
+  /**
+   * @brief Color-primary values added as named types after SDK 11.0.
+   */
+  enum NV_ENC_VUI_COLOR_PRIMARIES {
+    NV_ENC_VUI_COLOR_PRIMARIES_UNDEFINED = 0,
+    NV_ENC_VUI_COLOR_PRIMARIES_BT709 = 1,
+    NV_ENC_VUI_COLOR_PRIMARIES_UNSPECIFIED = 2,
+    NV_ENC_VUI_COLOR_PRIMARIES_RESERVED = 3,
+    NV_ENC_VUI_COLOR_PRIMARIES_BT470M = 4,
+    NV_ENC_VUI_COLOR_PRIMARIES_BT470BG = 5,
+    NV_ENC_VUI_COLOR_PRIMARIES_SMPTE170M = 6,
+    NV_ENC_VUI_COLOR_PRIMARIES_SMPTE240M = 7,
+    NV_ENC_VUI_COLOR_PRIMARIES_FILM = 8,
+    NV_ENC_VUI_COLOR_PRIMARIES_BT2020 = 9,
+    NV_ENC_VUI_COLOR_PRIMARIES_SMPTE428 = 10,
+    NV_ENC_VUI_COLOR_PRIMARIES_SMPTE431 = 11,
+    NV_ENC_VUI_COLOR_PRIMARIES_SMPTE432 = 12,
+    NV_ENC_VUI_COLOR_PRIMARIES_JEDEC_P22 = 22,
+  };
+
+  /**
+   * @brief Transfer-characteristic values added as named types after SDK 11.0.
+   */
+  enum NV_ENC_VUI_TRANSFER_CHARACTERISTIC {
+    NV_ENC_VUI_TRANSFER_CHARACTERISTIC_UNDEFINED = 0,
+    NV_ENC_VUI_TRANSFER_CHARACTERISTIC_BT709 = 1,
+    NV_ENC_VUI_TRANSFER_CHARACTERISTIC_UNSPECIFIED = 2,
+    NV_ENC_VUI_TRANSFER_CHARACTERISTIC_RESERVED = 3,
+    NV_ENC_VUI_TRANSFER_CHARACTERISTIC_BT470M = 4,
+    NV_ENC_VUI_TRANSFER_CHARACTERISTIC_BT470BG = 5,
+    NV_ENC_VUI_TRANSFER_CHARACTERISTIC_SMPTE170M = 6,
+    NV_ENC_VUI_TRANSFER_CHARACTERISTIC_SMPTE240M = 7,
+    NV_ENC_VUI_TRANSFER_CHARACTERISTIC_LINEAR = 8,
+    NV_ENC_VUI_TRANSFER_CHARACTERISTIC_LOG = 9,
+    NV_ENC_VUI_TRANSFER_CHARACTERISTIC_LOG_SQRT = 10,
+    NV_ENC_VUI_TRANSFER_CHARACTERISTIC_IEC61966_2_4 = 11,
+    NV_ENC_VUI_TRANSFER_CHARACTERISTIC_BT1361_ECG = 12,
+    NV_ENC_VUI_TRANSFER_CHARACTERISTIC_SRGB = 13,
+    NV_ENC_VUI_TRANSFER_CHARACTERISTIC_BT2020_10 = 14,
+    NV_ENC_VUI_TRANSFER_CHARACTERISTIC_BT2020_12 = 15,
+    NV_ENC_VUI_TRANSFER_CHARACTERISTIC_SMPTE2084 = 16,
+    NV_ENC_VUI_TRANSFER_CHARACTERISTIC_SMPTE428 = 17,
+    NV_ENC_VUI_TRANSFER_CHARACTERISTIC_ARIB_STD_B67 = 18,
+  };
+
+  /**
+   * @brief Matrix-coefficient values added as named types after SDK 11.0.
+   */
+  enum NV_ENC_VUI_MATRIX_COEFFS {
+    NV_ENC_VUI_MATRIX_COEFFS_RGB = 0,
+    NV_ENC_VUI_MATRIX_COEFFS_BT709 = 1,
+    NV_ENC_VUI_MATRIX_COEFFS_UNSPECIFIED = 2,
+    NV_ENC_VUI_MATRIX_COEFFS_RESERVED = 3,
+    NV_ENC_VUI_MATRIX_COEFFS_FCC = 4,
+    NV_ENC_VUI_MATRIX_COEFFS_BT470BG = 5,
+    NV_ENC_VUI_MATRIX_COEFFS_SMPTE170M = 6,
+    NV_ENC_VUI_MATRIX_COEFFS_SMPTE240M = 7,
+    NV_ENC_VUI_MATRIX_COEFFS_YCGCO = 8,
+    NV_ENC_VUI_MATRIX_COEFFS_BT2020_NCL = 9,
+    NV_ENC_VUI_MATRIX_COEFFS_BT2020_CL = 10,
+    NV_ENC_VUI_MATRIX_COEFFS_SMPTE2085 = 11,
+  };
+#endif
+}  // namespace NVENC_NAMESPACE

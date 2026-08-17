@@ -283,7 +283,6 @@ function add_arch_deps() {
     'libdrm'
     'libevdev'
     'libmfx'
-    'libnotify'
     'libpulse'
     'libva'
     'libx11'
@@ -299,7 +298,6 @@ function add_arch_deps() {
     'openssl'
     'opus'
     'python-jinja'  # glad OpenGL/EGL loader generator
-    'python-setuptools'  # glad OpenGL/EGL loader generated, v2.0.0
     'qt6-base'
     'qt6-svg'
     'shaderc'
@@ -338,13 +336,13 @@ function add_debian_based_deps() {
     "git"
     "glslang-tools"  # Vulkan shader compiler
     "graphviz"
+    "imagemagick"  # necessary for system tray screenshots in unit tests
     "libcap-dev"  # KMS
     "libcurl4-openssl-dev"
     "libdrm-dev"  # KMS
     "libevdev-dev"
     "libgbm-dev"
     "libminiupnpc-dev"
-    "libnotify-dev"
     "libnuma-dev"
     "libopus-dev"
     "libpipewire-0.3-dev"
@@ -364,7 +362,6 @@ function add_debian_based_deps() {
     "ninja-build"
     "npm"  # web-ui
     "python3-jinja2"  # glad OpenGL/EGL loader generator
-    "python3-setuptools"  # glad OpenGL/EGL loader generated, v2.0.0
     "qt6-base-dev"
     "systemd"
     "udev"
@@ -445,12 +442,12 @@ function add_fedora_deps() {
     "git"
     "glslc"
     "graphviz"
+    "ImageMagick"  # necessary for system tray screenshots in unit tests
     "libappstream-glib"
     "libcap-devel"
     "libcurl-devel"
     "libdrm-devel"
     "libevdev-devel"
-    "libnotify-devel"
     "libX11-devel"  # X11
     "libxcb-devel"  # X11
     "libXcursor-devel"  # X11
@@ -470,7 +467,6 @@ function add_fedora_deps() {
     "pipewire-devel"
     "pulseaudio-libs-devel"
     "python3-jinja2"  # glad OpenGL/EGL loader generator
-    "python3-setuptools"  # glad OpenGL/EGL loader generated, v2.0.0
     "qt6-qtbase-devel"
     "qt6-qtsvg-devel"
     "rpm-build"  # if you want to build an RPM binary package
