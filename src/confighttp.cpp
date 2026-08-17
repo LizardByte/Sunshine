@@ -304,7 +304,6 @@ namespace confighttp {
     output_tree["activation_usage"] = license.activation_usage;
     output_tree["plan_name"] = license.plan_name;
     output_tree["customer_email"] = license.customer_email;
-    output_tree["expires_at"] = license.expires_at;
     output_tree["message"] = license.message;
     output_tree["purchase_url"] = license.purchase_url;
     output_tree["manage_account_url"] = license.manage_account_url;

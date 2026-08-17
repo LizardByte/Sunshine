@@ -410,6 +410,7 @@ namespace system_tray {
     virtualhid_license_menu_text_storage() = {};
 
     set_virtualhid_license_menu_item(0, std::format("Status: {}", virtualhid_license_state_label(license.state)), true);
+    auto separator_index = 5U;
     if (license.licensed()) {
       set_virtualhid_license_menu_item(
         1,
@@ -423,18 +424,14 @@ namespace system_tray {
       );
       set_virtualhid_license_menu_item(
         3,
-        license.expires_at.empty() ? "Expiration: Not reported" : std::format("Expires: {}", license.expires_at),
-        true
-      );
-      set_virtualhid_license_menu_item(
-        4,
         license.activation_limit == 0 ?
           "Machine activations: Not reported" :
           std::format("Machine activations: {} / {}", license.activation_usage, license.activation_limit),
         true
       );
-      set_virtualhid_license_menu_item(6, "View License Details", false, tray_virtualhid_license_cb);
-      set_virtualhid_license_menu_item(7, "Manage License", false, tray_virtualhid_license_cb);
+      separator_index = 4U;
+      set_virtualhid_license_menu_item(5, "View License Details", false, tray_virtualhid_license_cb);
+      set_virtualhid_license_menu_item(6, "Manage License", false, tray_virtualhid_license_cb);
     } else {
       set_virtualhid_license_menu_item(1, std::string {virtualhid_license_state_detail(license.state)}, true);
       set_virtualhid_license_menu_item(2, "Full virtual gamepad support is locked", true);
@@ -447,10 +444,11 @@ namespace system_tray {
       set_virtualhid_license_menu_item(6, "Activate License", false, tray_virtualhid_license_cb);
       set_virtualhid_license_menu_item(7, "Buy License", false, tray_virtualhid_license_cb);
     }
-    virtualhid_license_menu[5] = {.text = "-"};
-    set_virtualhid_license_menu_item(8, "Benefits over ViGEmBus", false);
-    virtualhid_license_menu[8].submenu = virtualhid_benefits_menu.data();
-    set_virtualhid_license_menu_item(9, "Download Virtual HID Driver", false, tray_virtualhid_download_cb);
+    virtualhid_license_menu[separator_index] = {.text = "-"};
+    const auto benefits_index = separator_index + 3U;
+    set_virtualhid_license_menu_item(benefits_index, "Benefits over ViGEmBus", false);
+    virtualhid_license_menu[benefits_index].submenu = virtualhid_benefits_menu.data();
+    set_virtualhid_license_menu_item(benefits_index + 1U, "Download Virtual HID Driver", false, tray_virtualhid_download_cb);
   }
 
   /**
