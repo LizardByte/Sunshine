@@ -594,7 +594,6 @@
     "virtualhid_license_customer": "고객",
     "virtualhid_license_deactivate": "이 기기를 비활성화하세요",
     "virtualhid_license_desc": "Sunshine이 libvirtualhid 게임패드를 생성하려면 유효한 라이선스가 필요합니다. 활성화는 로컬 libvirtualhid 서비스에서 처리되며, Sunshine은 사용자의 라이선스 키를 저장하지 않습니다.",
-    "virtualhid_license_expires": "만료일",
     "virtualhid_license_key": "라이선스 키",
     "virtualhid_license_key_desc": "이 키는 로컬 libvirtualhid 서비스로만 전송되며, 활성화가 성공적으로 완료되면 이 페이지에서 삭제됩니다.",
     "virtualhid_license_key_placeholder": "제품 키를 입력하세요",
