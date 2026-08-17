@@ -286,6 +286,13 @@ elseif(${SUNSHINE_ENABLE_KWIN} AND NOT WAYLAND_FOUND)
     message(FATAL_ERROR "SUNSHINE_ENABLE_KWIN requires SUNSHINE_ENABLE_WAYLAND — KWin capture disabled")
 endif()
 
+# Direct PipeWire Node Grabber (e.g. for GNOME Mutter virtual displays)
+if(PIPEWIRE_FOUND)
+    add_compile_definitions(SUNSHINE_BUILD_PIPEWIRE_NODE)
+    list(APPEND PLATFORM_TARGET_FILES
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/pipewire_node_grab.cpp")
+endif()
+
 if(NOT ${CUDA_FOUND}
         AND NOT ${LIBDRM_FOUND}
         AND NOT ${LIBVA_FOUND}

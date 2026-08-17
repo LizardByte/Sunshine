@@ -46,7 +46,7 @@ constexpr bool SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL = false;  ///< Whether PipeWi
 
 namespace {
   // Buffer and limit constants
-  constexpr int SPA_POD_BUFFER_SIZE = 4096;
+  constexpr int SPA_POD_BUFFER_SIZE = 65536;
   constexpr int MAX_PARAMS = 200;
   constexpr int MAX_DMABUF_FORMATS = 200;
   constexpr int MAX_DMABUF_MODIFIERS = 200;
@@ -63,7 +63,7 @@ namespace pipewire {
     int32_t pw_format;  ///< Matching PipeWire SPA video format.
   };
 
-  static constexpr std::array<format_map_t, 7> format_map = {{
+  static constexpr std::array<format_map_t, 9> format_map = {{
     {DRM_FORMAT_XBGR2101010, SPA_VIDEO_FORMAT_xBGR_210LE},
     {DRM_FORMAT_BGRA1010102, SPA_VIDEO_FORMAT_ARGB_210LE},
     {DRM_FORMAT_RGBA1010102, SPA_VIDEO_FORMAT_ABGR_210LE},
@@ -71,6 +71,8 @@ namespace pipewire {
     {DRM_FORMAT_ARGB2101010, SPA_VIDEO_FORMAT_BGRA_102LE},
     {DRM_FORMAT_ARGB8888, SPA_VIDEO_FORMAT_BGRA},
     {DRM_FORMAT_XRGB8888, SPA_VIDEO_FORMAT_BGRx},
+    {DRM_FORMAT_ABGR8888, SPA_VIDEO_FORMAT_RGBA},
+    {DRM_FORMAT_XBGR8888, SPA_VIDEO_FORMAT_RGBx},
   }};
 
   /**
@@ -290,6 +292,15 @@ namespace pipewire {
         }
 
         struct pw_properties *props = pw_properties_new(PW_KEY_MEDIA_TYPE, "Video", PW_KEY_MEDIA_CATEGORY, "Capture", PW_KEY_MEDIA_ROLE, "Screen", nullptr);
+        if (object_serial != 0 && (object_serial & SPA_ID_INVALID) != SPA_ID_INVALID) {
+          pw_properties_setf(props, PW_KEY_TARGET_OBJECT, "%" PRIu64, object_serial);
+          pw_properties_setf(props, "node.target", "%" PRIu64, object_serial);
+          BOOST_LOG(info) << "[pipewire] Targeting PipeWire object serial: "sv << object_serial;
+        } else if (node != PW_ID_ANY && node != 0) {
+          pw_properties_setf(props, PW_KEY_TARGET_OBJECT, "%u", node);
+          pw_properties_setf(props, "node.target", "%u", node);
+          BOOST_LOG(info) << "[pipewire] Targeting PipeWire node id: "sv << node;
+        }
 
         BOOST_LOG(debug) << "[pipewire] Create PW stream"sv;
         stream_data.stream = pw_stream_new(core, "Sunshine Video Capture", props);
@@ -302,12 +313,7 @@ namespace pipewire {
         std::array<const struct spa_pod *, MAX_PARAMS> params;
 
         // Add preferred parameters for DMA-BUF with modifiers
-        // Use DMA-BUF for VAAPI, or for CUDA when the display GPU is NVIDIA (pure NVIDIA system).
-        // On hybrid GPU systems (Intel+NVIDIA), DMA-BUFs come from the Intel GPU and cannot
-        // be imported into CUDA, so we fall back to memory buffers in that case.
-        bool use_dmabuf = n_dmabuf_infos > 0 && (mem_type == platf::mem_type_e::vaapi ||
-                                                 mem_type == platf::mem_type_e::vulkan ||
-                                                 (mem_type == platf::mem_type_e::cuda && display_is_nvidia));
+        bool use_dmabuf = n_dmabuf_infos > 0;
         if (use_dmabuf) {
           for (int i = 0; i < n_dmabuf_infos; i++) {
             auto format_param = build_format_parameter(&pod_builder, width, height, refresh_rate, dmabuf_infos[i].format, dmabuf_infos[i].modifiers, dmabuf_infos[i].n_modifiers);
@@ -323,23 +329,9 @@ namespace pipewire {
           n_params++;
         }
 
-        // Connection via pipewire object serial if it is supported and the serial is valid (lower 32-bits != SPA_ID_INVALID, see also PW_KEY_OBJECT_SERIAL docs)
-        if (SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL && (object_serial & SPA_ID_INVALID) != SPA_ID_INVALID) {
-          pw_properties_setf(props, PW_KEY_TARGET_OBJECT, "%" PRIu64, object_serial);
-          BOOST_LOG(debug) << "[pipewire] Connect PW stream - fd: "sv << fd << " object serial: "sv << object_serial;
-          result = pw_stream_connect(stream_data.stream, PW_DIRECTION_INPUT, PW_ID_ANY, (enum pw_stream_flags)(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params.data(), n_params);
-          if (result < 0) {
-            // Unset object serial for retry with node id
-            pw_properties_set(props, PW_KEY_TARGET_OBJECT, nullptr);
-          }
-        } else {
-          result = -1;  // Mark failed so we try to connect via node id
-        }
-        // Connection via legacy (and deprecated) pipewire node id
-        if (result < 0) {
-          BOOST_LOG(debug) << "[pipewire] Connect PW stream - fd: "sv << fd << " node: "sv << node;
-          result = pw_stream_connect(stream_data.stream, PW_DIRECTION_INPUT, node, (enum pw_stream_flags)(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params.data(), n_params);
-        }
+        BOOST_LOG(debug) << "[pipewire] Connect PW stream - fd: "sv << fd << " node: "sv << node << " object serial: "sv << object_serial;
+        uint32_t target_id = (object_serial != 0 && (object_serial & SPA_ID_INVALID) != SPA_ID_INVALID) ? PW_ID_ANY : node;
+        result = pw_stream_connect(stream_data.stream, PW_DIRECTION_INPUT, target_id, (enum pw_stream_flags)(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params.data(), n_params);
       }
 
       pw_thread_loop_unlock(loop);
@@ -473,16 +465,16 @@ namespace pipewire {
       sizes[1] = SPA_RECTANGLE(1, 1);
       sizes[2] = SPA_RECTANGLE(8192, 4096);
 
-      framerates[0] = SPA_FRACTION(0, 1);  // default; we only want variable rate, thus bypassing compositor pacing
-      framerates[1] = SPA_FRACTION(0, 1);  // min
-      framerates[2] = SPA_FRACTION(0, 1);  // max
+      framerates[0] = SPA_FRACTION(0, 1);  // default: variable rate
+      framerates[1] = SPA_FRACTION(0, 1);  // min: 0 fps
+      framerates[2] = SPA_FRACTION(1000, 1);  // max: allow compositor fixed rates (60/1, 120/1, etc.)
 
       spa_pod_builder_push_object(b, &object_frame, SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat);
       spa_pod_builder_add(b, SPA_FORMAT_mediaType, SPA_POD_Id(SPA_MEDIA_TYPE_video), 0);
       spa_pod_builder_add(b, SPA_FORMAT_mediaSubtype, SPA_POD_Id(SPA_MEDIA_SUBTYPE_raw), 0);
       spa_pod_builder_add(b, SPA_FORMAT_VIDEO_format, SPA_POD_Id(format), 0);
       spa_pod_builder_add(b, SPA_FORMAT_VIDEO_size, SPA_POD_CHOICE_RANGE_Rectangle(&sizes[0], &sizes[1], &sizes[2]), 0);
-      spa_pod_builder_add(b, SPA_FORMAT_VIDEO_framerate, SPA_POD_Fraction(&framerates[0]), 0);
+      spa_pod_builder_add(b, SPA_FORMAT_VIDEO_framerate, SPA_POD_CHOICE_RANGE_Fraction(&framerates[0], &framerates[1], &framerates[2]), 0);
       if (negotiate_maxframerate_) {
         spa_pod_builder_add(b, SPA_FORMAT_VIDEO_maxFramerate, SPA_POD_CHOICE_RANGE_Fraction(&framerates[0], &framerates[1], &framerates[2]), 0);
       }
@@ -1168,7 +1160,9 @@ namespace pipewire {
     void query_dmabuf_formats(EGLDisplay egl_display) {
       EGLint num_dmabuf_formats = 0;
       std::array<EGLint, MAX_DMABUF_FORMATS> dmabuf_formats = {0};
-      eglQueryDmaBufFormatsEXT(egl_display, MAX_DMABUF_FORMATS, dmabuf_formats.data(), &num_dmabuf_formats);
+      if (eglQueryDmaBufFormatsEXT) {
+        eglQueryDmaBufFormatsEXT(egl_display, MAX_DMABUF_FORMATS, dmabuf_formats.data(), &num_dmabuf_formats);
+      }
 
       if (num_dmabuf_formats > MAX_DMABUF_FORMATS) {
         BOOST_LOG(warning) << "[pipewire] Some DMA-BUF formats are being ignored"sv;
@@ -1179,22 +1173,27 @@ namespace pipewire {
           break;
         }
 
-        if (!pw_format_supported(fmt.fourcc, dmabuf_formats)) {
-          continue;
-        }
-
         EGLint num_modifiers = 0;
         std::array<EGLuint64KHR, MAX_DMABUF_MODIFIERS> mods = {0};
-        eglQueryDmaBufModifiersEXT(egl_display, fmt.fourcc, MAX_DMABUF_MODIFIERS, mods.data(), nullptr, &num_modifiers);
+        if (eglQueryDmaBufModifiersEXT && pw_format_supported(fmt.fourcc, dmabuf_formats)) {
+          eglQueryDmaBufModifiersEXT(egl_display, fmt.fourcc, MAX_DMABUF_MODIFIERS, mods.data(), nullptr, &num_modifiers);
+        }
 
-        if (num_modifiers > MAX_DMABUF_MODIFIERS) {
-          BOOST_LOG(warning) << "[pipewire] Some DMA-BUF modifiers are being ignored"sv;
+        std::vector<uint64_t> mod_list;
+        for (int m = 0; m < MIN(num_modifiers, MAX_DMABUF_MODIFIERS); ++m) {
+          mod_list.push_back(mods[m]);
+        }
+        if (std::find(mod_list.begin(), mod_list.end(), DRM_FORMAT_MOD_INVALID) == mod_list.end()) {
+          mod_list.push_back(DRM_FORMAT_MOD_INVALID);
+        }
+        if (std::find(mod_list.begin(), mod_list.end(), DRM_FORMAT_MOD_LINEAR) == mod_list.end()) {
+          mod_list.push_back(DRM_FORMAT_MOD_LINEAR);
         }
 
         dmabuf_infos[n_dmabuf_infos].format = fmt.pw_format;
-        dmabuf_infos[n_dmabuf_infos].n_modifiers = MIN(num_modifiers, MAX_DMABUF_MODIFIERS);
+        dmabuf_infos[n_dmabuf_infos].n_modifiers = mod_list.size();
         dmabuf_infos[n_dmabuf_infos].modifiers =
-          static_cast<uint64_t *>(g_memdup2(mods.data(), sizeof(uint64_t) * dmabuf_infos[n_dmabuf_infos].n_modifiers));
+          static_cast<uint64_t *>(g_memdup2(mod_list.data(), sizeof(uint64_t) * dmabuf_infos[n_dmabuf_infos].n_modifiers));
         ++n_dmabuf_infos;
       }
     }
@@ -1240,9 +1239,7 @@ namespace pipewire {
         }
       }
 
-      if (eglQueryDmaBufFormatsEXT && eglQueryDmaBufModifiersEXT) {
-        query_dmabuf_formats(egl_display.get());
-      }
+      query_dmabuf_formats(egl_display.get());
 
       return 0;
     }

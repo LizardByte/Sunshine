@@ -1130,6 +1130,9 @@ namespace platf {
 #ifdef SUNSHINE_BUILD_PORTAL
       PORTAL,  ///< XDG PORTAL
 #endif
+#ifdef SUNSHINE_BUILD_PIPEWIRE_NODE
+      PIPEWIRE_NODE,  ///< Direct PipeWire Node Grabber
+#endif
       MAX_FLAGS  ///< The maximum number of flags
     };
   }  // namespace source
@@ -1210,10 +1213,25 @@ namespace platf {
   }
 #endif
 
+#ifdef SUNSHINE_BUILD_PIPEWIRE_NODE
+  bool pipewire_node_available();
+  std::vector<std::string> pipewire_node_display_names();
+  std::shared_ptr<display_t> pipewire_node_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
+
+  bool verify_pipewire_node() {
+    return pipewire_node_available();
+  }
+#endif
+
   /**
    * @brief List display names accepted by the selected capture backend.
    */
   std::vector<std::string> display_names(mem_type_e hwdevice_type) {
+#ifdef SUNSHINE_BUILD_PIPEWIRE_NODE
+    if (sources[source::PIPEWIRE_NODE]) {
+      return pipewire_node_display_names();
+    }
+#endif
 #ifdef SUNSHINE_BUILD_CUDA
     // display using NvFBC only supports mem_type_e::cuda
     if (sources[source::NVFBC] && hwdevice_type == mem_type_e::cuda) {
@@ -1267,6 +1285,13 @@ namespace platf {
   }
 
   std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
+#ifdef SUNSHINE_BUILD_PIPEWIRE_NODE
+    if (sources[source::PIPEWIRE_NODE]) {
+      BOOST_LOG(info) << "Screencasting with Direct PipeWire Node"sv;
+      return pipewire_node_display(hwdevice_type, display_name, config);
+    }
+#endif
+
     // Keep KMS as first element to check before dropping CAP_SYS_ADMIN
 #ifdef SUNSHINE_BUILD_DRM
     if (sources[source::KMS]) {
@@ -1346,6 +1371,11 @@ namespace platf {
     }
 #endif
 
+#ifdef SUNSHINE_BUILD_PIPEWIRE_NODE
+    if ((config::video.capture.empty() || config::video.capture == "pipewire_node" || config::video.capture == "pipewire") && verify_pipewire_node()) {
+      sources[source::PIPEWIRE_NODE] = true;
+    }
+#endif
 #ifdef SUNSHINE_BUILD_CUDA
     if (((config::video.capture.empty() && sources.none()) || config::video.capture == "nvfbc") && verify_nvfbc()) {
       sources[source::NVFBC] = true;
