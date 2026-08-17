@@ -594,7 +594,6 @@
     "virtualhid_license_customer": "Ügyfél",
     "virtualhid_license_deactivate": "A gép kikapcsolása",
     "virtualhid_license_desc": "Ahhoz, hogy a Sunshine létrehozhassa a libvirtualhid játékvezérlőket, érvényes licencre van szükség. Az aktiválást a helyi libvirtualhid szolgáltatás végzi; a Sunshine nem menti el a licenckulcsodat.",
-    "virtualhid_license_expires": "Lejár",
     "virtualhid_license_key": "Licenckulcs",
     "virtualhid_license_key_desc": "A kulcsot kizárólag a helyi libvirtualhid szolgáltatásnak küldik el, és a sikeres aktiválás után törlésre kerül erről az oldalról.",
     "virtualhid_license_key_placeholder": "Írd be a termékkulcsot",
