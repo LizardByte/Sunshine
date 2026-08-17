@@ -594,7 +594,6 @@
     "virtualhid_license_customer": "Kunde",
     "virtualhid_license_deactivate": "Diese Maschine deaktivieren",
     "virtualhid_license_desc": "Eine aktive Lizenz ist erforderlich, bevor Sunshine libvirtualhid Gamepads erstellen kann. Die Aktivierung wird vom lokalen libvirtualhid Dienst verwaltet; Sunshine speichert Ihren Lizenzschlüssel nicht.",
-    "virtualhid_license_expires": "Gültig bis",
     "virtualhid_license_key": "Lizenzschlüssel",
     "virtualhid_license_key_desc": "Der Schlüssel wird nur an den lokalen libvirtualhid Dienst gesendet und nach erfolgreicher Aktivierung von dieser Seite entfernt.",
     "virtualhid_license_key_placeholder": "Produktschlüssel eingeben",
