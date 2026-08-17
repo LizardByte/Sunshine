@@ -594,7 +594,6 @@
     "virtualhid_license_customer": "顧客",
     "virtualhid_license_deactivate": "このマシンを無効にする",
     "virtualhid_license_desc": "Sunshineがlibvirtualhidゲームパッドを作成する前にアクティブなライセンスが必要です。 アクティベーションはローカルの libvirtualhid サービスによって処理されます。Sunshine はライセンスキーを保存しません。",
-    "virtualhid_license_expires": "期限切れ",
     "virtualhid_license_key": "ライセンス キー",
     "virtualhid_license_key_desc": "キーはローカルの libvirtualhid サービスにのみ送信され、有効化に成功した後にこのページから消去されます。",
     "virtualhid_license_key_placeholder": "製品キーを入力してください",
