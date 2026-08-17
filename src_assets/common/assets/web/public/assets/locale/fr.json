@@ -594,7 +594,6 @@
     "virtualhid_license_customer": "Client",
     "virtualhid_license_deactivate": "Désactiver cette machine",
     "virtualhid_license_desc": "Une licence active est requise avant que Sunshine puisse créer des manettes libvirtualhid. L'activation est gérée par le service local libvirtualhid ; Sunshine n'enregistre pas votre clé de licence.",
-    "virtualhid_license_expires": "Expire",
     "virtualhid_license_key": "Clé de licence",
     "virtualhid_license_key_desc": "La clé est envoyée uniquement au service local libvirtualhid et est effacée de cette page après l'activation réussie.",
     "virtualhid_license_key_placeholder": "Entrez votre clé de produit",
