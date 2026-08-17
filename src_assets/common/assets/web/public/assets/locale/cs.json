@@ -594,7 +594,6 @@
     "virtualhid_license_customer": "Zákazník",
     "virtualhid_license_deactivate": "Deaktivovat tento stroj",
     "virtualhid_license_desc": "Před vytvořením libvirtualhid je vyžadována aktivní licence. Aktivace je řízena lokální libvirtualhid službou. Sunshine neukládá váš licenční klíč.",
-    "virtualhid_license_expires": "Vyprší",
     "virtualhid_license_key": "Licenční klíč",
     "virtualhid_license_key_desc": "Klíč je odeslán pouze na místní libvirtualhid službu a po úspěšné aktivaci je vymazán z této stránky.",
     "virtualhid_license_key_placeholder": "Zadejte svůj produktový klíč",
