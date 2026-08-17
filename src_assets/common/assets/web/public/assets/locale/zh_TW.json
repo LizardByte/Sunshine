@@ -594,7 +594,6 @@
     "virtualhid_license_customer": "客戶",
     "virtualhid_license_deactivate": "停用這台機器",
     "virtualhid_license_desc": "Sunshine 必須先取得有效的授權，才能建立 libvirtualhid 遊戲控制器。授權啟用由本機的 libvirtualhid 服務負責處理；Sunshine 不會儲存您的授權金鑰。",
-    "virtualhid_license_expires": "有效期至",
     "virtualhid_license_key": "授權金鑰",
     "virtualhid_license_key_desc": "該金鑰僅會傳送至本機的 libvirtualhid 服務，並會在成功啟用後從此頁面中移除。",
     "virtualhid_license_key_placeholder": "請輸入您的產品金鑰",
