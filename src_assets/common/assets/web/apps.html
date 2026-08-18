@@ -124,6 +124,8 @@
               :aria-label="$t('_common.close')"></button>
           </div>
           <div class="modal-body">
+            <!-- Error -->
+            <div v-if="editFormError" class="alert alert-danger py-2 small">{{ editFormError }}</div>
             <!-- Application Name -->
             <div class="mb-3">
               <label for="appName" class="form-label">{{ $t('apps.app_name') }}</label>
@@ -621,6 +623,7 @@
       return {
         apps: [],
         editForm: null,
+        editFormError: "",
         detachedCmd: "",
         coverSearching: false,
         coverFinderBusy: false,
@@ -742,6 +745,7 @@
           detached: [],
           "image-path": ""
         };
+        this.editFormError = "";
         this.openEditModal();
       },
       editApp(id) {
@@ -765,6 +769,7 @@
         if (this.editForm["exit-timeout"] === undefined) {
           this.editForm["exit-timeout"] = 5;
         }
+        this.editFormError = "";
         this.openEditModal();
       },
       showDeleteModal(id) {
@@ -994,7 +999,17 @@
         });
       },
       save() {
+        this.editFormError = "";
         this.editForm["image-path"] = this.editForm["image-path"].toString().replace(/"/g, '');
+        
+        const imagePath = this.editForm["image-path"];
+        if (imagePath && !imagePath.toLowerCase().endsWith('.png')) {
+          this.editFormError = this.$t('file_browser.error_invalid_extension', { extensions: '.png' });
+          const modalBody = this.$refs.editModal.querySelector('.modal-body');
+          if (modalBody) modalBody.scrollTop = 0;
+          return;
+        }
+
         apiFetch("./api/apps", {
           method: "POST",
           headers: {
