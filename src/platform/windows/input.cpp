@@ -18,6 +18,7 @@
 
 // standard includes
 #include <memory>
+#include <optional>
 #include <string_view>
 #include <thread>
 #include <vector>
@@ -524,24 +525,34 @@ namespace platf {
   struct input_raw_t {
     virtualhid::input_context_t virtualhid;  ///< libvirtualhid input context.
     std::unique_ptr<vigem_t> vigem;  ///< ViGEm fallback context.
-    std::unique_ptr<ib_input_simulator::runtime_t> ib_input_simulator;  ///< Optional Logitech G HUB input runtime.
-    bool use_ghub_keyboard = false;  ///< Route keyboard transitions through IbInputSimulator.
-    bool use_ghub_mouse = false;  ///< Route supported mouse transitions through IbInputSimulator.
+    std::unique_ptr<ib_input_simulator::runtime_t> ib_input_simulator;  ///< Optional IbInputSimulator input runtime.
+    bool use_ib_keyboard = false;  ///< Route keyboard transitions through IbInputSimulator.
+    bool use_ib_mouse = false;  ///< Route supported mouse transitions through IbInputSimulator.
   };
 
   input_t input() {
     input_t result {new input_raw_t {}};
 
     auto &raw = *result;
-    const auto request_ghub_keyboard = config::input.keyboard_backend == "logitech_ghub"sv;
-    const auto request_ghub_mouse = config::input.mouse_backend == "logitech_ghub"sv;
-    if (request_ghub_keyboard || request_ghub_mouse) {
-      raw.ib_input_simulator = ib_input_simulator::runtime_t::create();
+    const auto keyboard_driver = ib_input_simulator::backend_for_value(config::input.keyboard_backend);
+    const auto mouse_driver = ib_input_simulator::backend_for_value(config::input.mouse_backend);
+    if (keyboard_driver && mouse_driver && *keyboard_driver != *mouse_driver) {
+      BOOST_LOG(warning) << "keyboard_backend and mouse_backend select different IbInputSimulator drivers; using the keyboard backend and falling back to libvirtualhid for the mouse"sv;
+    }
+
+    std::optional<ib_input_simulator::backend> selected_driver;
+    if (keyboard_driver) {
+      selected_driver = keyboard_driver;
+    } else if (mouse_driver) {
+      selected_driver = mouse_driver;
+    }
+    if (selected_driver) {
+      raw.ib_input_simulator = ib_input_simulator::runtime_t::create(*selected_driver);
       if (raw.ib_input_simulator) {
-        raw.use_ghub_keyboard = request_ghub_keyboard;
-        raw.use_ghub_mouse = request_ghub_mouse;
+        raw.use_ib_keyboard = keyboard_driver.has_value() && *keyboard_driver == *selected_driver;
+        raw.use_ib_mouse = mouse_driver.has_value() && *mouse_driver == *selected_driver;
       } else {
-        BOOST_LOG(warning) << "Falling back to libvirtualhid for requested Logitech G HUB input backends"sv;
+        BOOST_LOG(warning) << "Falling back to libvirtualhid for requested IbInputSimulator backends"sv;
       }
     }
 
@@ -592,15 +603,15 @@ namespace platf {
 
   namespace {
     /**
-     * @brief Submit one record to G HUB and disable the selected route on failure.
+     * @brief Submit one record to IbInputSimulator and disable the selected route on failure.
      *
      * @param input Platform input context.
      * @param record Windows input record.
      * @param enabled Effective backend flag for this device class.
      * @param device_name Device class used in the fallback log.
-     * @return True when G HUB accepted the record.
+     * @return True when IbInputSimulator accepted the record.
      */
-    bool send_ghub(input_t &input, const INPUT &record, bool &enabled, std::string_view device_name) {
+    bool send_ib(input_t &input, const INPUT &record, bool &enabled, std::string_view device_name) {
       auto &raw = *input;
       if (!enabled || !raw.ib_input_simulator) {
         return false;
@@ -611,7 +622,7 @@ namespace platf {
       }
 
       enabled = false;
-      BOOST_LOG(warning) << "Logitech G HUB "sv << device_name << " submission failed; falling back to libvirtualhid"sv;
+      BOOST_LOG(warning) << "IbInputSimulator "sv << device_name << " submission failed; falling back to libvirtualhid"sv;
       return false;
     }
 
@@ -654,7 +665,7 @@ namespace platf {
     record.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_MOVE_NOCOALESCE;
 
     auto &raw = *input;
-    if (!send_ghub(input, record, raw.use_ghub_mouse, "mouse"sv)) {
+    if (!send_ib(input, record, raw.use_ib_mouse, "mouse"sv)) {
       virtualhid::move_mouse(raw.virtualhid, deltaX, deltaY);
     }
   }
@@ -665,7 +676,7 @@ namespace platf {
 
   void button_mouse(input_t &input, int button, bool release) {
     auto &raw = *input;
-    if (!send_ghub(input, mouse_button_input(button, release), raw.use_ghub_mouse, "mouse"sv)) {
+    if (!send_ib(input, mouse_button_input(button, release), raw.use_ib_mouse, "mouse"sv)) {
       virtualhid::button_mouse(raw.virtualhid, button, release);
     }
   }
@@ -676,7 +687,7 @@ namespace platf {
     record.mi.dwFlags = MOUSEEVENTF_WHEEL;
 
     auto &raw = *input;
-    if (!send_ghub(input, record, raw.use_ghub_mouse, "mouse"sv)) {
+    if (!send_ib(input, record, raw.use_ib_mouse, "mouse"sv)) {
       virtualhid::scroll(raw.virtualhid, high_res_distance);
     }
   }
@@ -691,7 +702,7 @@ namespace platf {
     record.ki.dwFlags = release ? KEYEVENTF_KEYUP : 0;
 
     auto &raw = *input;
-    if (!send_ghub(input, record, raw.use_ghub_keyboard, "keyboard"sv)) {
+    if (!send_ib(input, record, raw.use_ib_keyboard, "keyboard"sv)) {
       virtualhid::keyboard_update(raw.virtualhid, modcode, release, flags);
     }
   }

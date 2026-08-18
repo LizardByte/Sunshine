@@ -18,9 +18,25 @@ namespace platf::ib_input_simulator {
   using namespace std::literals;
 
   namespace {
-    constexpr std::uint32_t LOGITECH_G_HUB_NEW = 6;  ///< IbInputSimulator `LogitechGHubNew` send type.
     constexpr std::uint32_t SUCCESS = 0;  ///< IbInputSimulator success status.
     constexpr auto DLL_NAME = L"IbInputSimulator.dll"sv;  ///< Optional runtime filename.
+
+    /**
+     * @brief Human-readable backend label used in logs.
+     *
+     * @param selected Backend.
+     * @return Backend label.
+     */
+    std::string_view backend_name(backend selected) {
+      switch (selected) {
+        case backend::logitech_ghub:
+          return "Logitech G HUB"sv;
+        case backend::razer:
+          return "Razer"sv;
+      }
+
+      return "unknown"sv;
+    }
 
     /**
      * @brief Resolve the absolute optional DLL path beside the running executable.
@@ -84,7 +100,18 @@ namespace platf::ib_input_simulator {
       module_ {module},
       api_ {api} {}
 
-  std::unique_ptr<runtime_t> runtime_t::create() {
+  std::optional<backend> backend_for_value(std::string_view value) {
+    if (value == "logitech_ghub"sv) {
+      return backend::logitech_ghub;
+    }
+    if (value == "razer"sv) {
+      return backend::razer;
+    }
+
+    return std::nullopt;
+  }
+
+  std::unique_ptr<runtime_t> runtime_t::create(backend selected) {
     auto path = dll_path();
 #ifdef SUNSHINE_TESTS
     const auto &override_path = dll_path_override();
@@ -118,14 +145,14 @@ namespace platf::ib_input_simulator {
       return nullptr;
     }
 
-    const auto error = api.init(LOGITECH_G_HUB_NEW, 0, nullptr);
+    const auto error = api.init(static_cast<std::uint32_t>(selected), 0, nullptr);
     if (error != SUCCESS) {
-      BOOST_LOG(warning) << "Unable to initialize the Logitech G HUB input backend: "sv << error_name(error) << " ("sv << error << ')';
+      BOOST_LOG(warning) << "Unable to initialize the IbInputSimulator "sv << backend_name(selected) << " backend: "sv << error_name(error) << " ("sv << error << ')';
       FreeLibrary(module);
       return nullptr;
     }
 
-    BOOST_LOG(info) << "Logitech G HUB input backend initialized from "sv << path.string();
+    BOOST_LOG(info) << "IbInputSimulator "sv << backend_name(selected) << " backend initialized from "sv << path.string();
     return std::unique_ptr<runtime_t> {new runtime_t {module, api}};
   }
 

@@ -522,10 +522,11 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td>Description</td>
         <td colspan="2">
             Selects the Windows keyboard input backend. @code{virtualhid} preserves the default behavior.
-            @code{logitech_ghub} securely loads @code{IbInputSimulator.dll} from the Sunshine application directory
-            and initializes its @code{LogitechGHubNew} backend. Sunshine automatically falls back to
-            @code{virtualhid} if loading, initialization, or submission fails. Unicode text input always uses
-            @code{virtualhid} because IbInputSimulator does not support Unicode reports.
+            @code{logitech_ghub} and @code{razer} securely load @code{IbInputSimulator.dll} from the Sunshine
+            application directory and initialize the corresponding IbInputSimulator driver. Sunshine automatically
+            falls back to @code{virtualhid} if loading, initialization, or submission fails. Keyboard and mouse
+            backends must select the same driver. Unicode text input always uses @code{virtualhid} because
+            IbInputSimulator does not support Unicode reports.
             @caution{Applies to Windows only. This option does not guarantee compatibility with anti-cheat software.}
         </td>
     </tr>
@@ -675,9 +676,10 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td>Description</td>
         <td colspan="2">
             Selects the Windows mouse input backend. @code{virtualhid} preserves the default behavior.
-            @code{logitech_ghub} routes relative movement, buttons, and vertical scrolling through
+            @code{logitech_ghub} and @code{razer} route relative movement, buttons, and vertical scrolling through
             @code{IbInputSimulator.dll}; absolute movement and horizontal scrolling remain on @code{virtualhid}.
-            Sunshine automatically falls back to @code{virtualhid} if loading, initialization, or submission fails.
+            Keyboard and mouse backends must select the same driver. Sunshine automatically falls back to
+            @code{virtualhid} if loading, initialization, or submission fails.
             @warning{Some Logitech G HUB releases stop processing mouse reports after the first reboot even though
             the driver call reports success. Validate this backend with the IbInputSimulator G HUB probe before use.}
             @caution{Applies to Windows only. This option does not guarantee compatibility with anti-cheat software.}

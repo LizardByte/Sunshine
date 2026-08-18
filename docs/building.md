@@ -234,6 +234,14 @@ cmake -B build -G Ninja -S . -DSUNSHINE_IBINPUTSIMULATOR_DLL=/path/to/IbInputSim
 The backend is opt-in at runtime through the `keyboard_backend` and
 `mouse_backend` settings; the default remains `virtualhid`.
 
+To bundle the legacy ViGEmBus driver installer into the Windows `scripts`
+directory (as older official releases did), point CMake at the executable
+downloaded from the [ViGEmBus releases](https://github.com/nefarius/ViGEmBus/releases/latest):
+
+```bash
+cmake -B build -G Ninja -S . -DSUNSHINE_VIGEMBUS_INSTALLER=/path/to/vigembus_installer.exe
+```
+
 ### Package
 
 @tabs{

@@ -129,4 +129,37 @@ TEST(IbInputSimulatorRuntimeTest, MissingRuntimeReturnsNullptr) {
   platf::ib_input_simulator::runtime_t::clear_dll_path_override_for_testing();
 }
 
+TEST(IbInputSimulatorRuntimeTest, BackendTypeValuesMatchIbInputSimulator) {
+  using platf::ib_input_simulator::backend;
+  EXPECT_EQ(static_cast<std::uint32_t>(backend::logitech_ghub), 6);
+  EXPECT_EQ(static_cast<std::uint32_t>(backend::razer), 3);
+}
+
+TEST(IbInputSimulatorRuntimeTest, BackendForValueParsesSettings) {
+  using platf::ib_input_simulator::backend;
+  EXPECT_EQ(platf::ib_input_simulator::backend_for_value("virtualhid"), std::nullopt);
+  EXPECT_EQ(platf::ib_input_simulator::backend_for_value("logitech_ghub"), backend::logitech_ghub);
+  EXPECT_EQ(platf::ib_input_simulator::backend_for_value("razer"), backend::razer);
+  EXPECT_EQ(platf::ib_input_simulator::backend_for_value("unknown"), std::nullopt);
+}
+
+TEST(IbInputSimulatorRuntimeTest, LoadsConfiguredRazerRuntime) {
+  std::vector<wchar_t> buffer(32768);
+  const auto length = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+  if (length == 0 || length >= buffer.size()) {
+    GTEST_SKIP() << "Unable to locate the test executable";
+  }
+
+  const auto dll = std::filesystem::path {std::wstring_view {buffer.data(), length}}.parent_path() / L"IbInputSimulator.dll";
+  if (!std::filesystem::exists(dll)) {
+    GTEST_SKIP() << "Optional IbInputSimulator runtime is not configured for this build";
+  }
+
+  auto runtime = platf::ib_input_simulator::runtime_t::create(platf::ib_input_simulator::backend::razer);
+  if (!runtime) {
+    GTEST_SKIP() << "Razer driver is not available on this host";
+  }
+  EXPECT_NE(runtime, nullptr);
+}
+
 #endif

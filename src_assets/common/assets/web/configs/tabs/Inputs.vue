@@ -141,6 +141,7 @@ const config = ref(props.config)
       <select id="keyboard_backend" class="form-select" v-model="config.keyboard_backend">
         <option value="virtualhid">{{ $t('config.input_backend_virtualhid') }}</option>
         <option value="logitech_ghub">{{ $t('config.input_backend_logitech_ghub') }}</option>
+        <option value="razer">{{ $t('config.input_backend_razer') }}</option>
       </select>
       <div class="form-text">{{ $t('config.keyboard_backend_desc') }}</div>
     </div>
@@ -194,6 +195,7 @@ const config = ref(props.config)
       <select id="mouse_backend" class="form-select" v-model="config.mouse_backend">
         <option value="virtualhid">{{ $t('config.input_backend_virtualhid') }}</option>
         <option value="logitech_ghub">{{ $t('config.input_backend_logitech_ghub') }}</option>
+        <option value="razer">{{ $t('config.input_backend_razer') }}</option>
       </select>
       <div class="form-text">{{ $t('config.mouse_backend_desc') }}</div>
     </div>

@@ -61,6 +61,18 @@ install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/firewall/"
         DESTINATION "scripts"
         COMPONENT firewall)
 
+# Optional ViGEmBus driver installer bundled into scripts for legacy compatibility
+set(SUNSHINE_VIGEMBUS_INSTALLER "" CACHE FILEPATH
+        "Optional vigembus_installer.exe to bundle into the scripts directory")
+if(SUNSHINE_VIGEMBUS_INSTALLER)
+    if(NOT EXISTS "${SUNSHINE_VIGEMBUS_INSTALLER}")
+        message(FATAL_ERROR "SUNSHINE_VIGEMBUS_INSTALLER does not exist: ${SUNSHINE_VIGEMBUS_INSTALLER}")
+    endif()
+    install(FILES "${SUNSHINE_VIGEMBUS_INSTALLER}"
+            DESTINATION "scripts"
+            COMPONENT assets)
+endif()
+
 # Sunshine assets
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/assets/"
         DESTINATION "${SUNSHINE_ASSETS_DIR}"

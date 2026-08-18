@@ -12,9 +12,27 @@
 #include <filesystem>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <span>
+#include <string_view>
 
 namespace platf::ib_input_simulator {
+  /**
+   * @brief IbInputSimulator send types supported by Sunshine.
+   */
+  enum class backend : std::uint32_t {
+    logitech_ghub = 6,  ///< `LogitechGHubNew`.
+    razer = 3,  ///< `Razer`.
+  };
+
+  /**
+   * @brief Map a configured backend name to an IbInputSimulator send type.
+   *
+   * @param value Configured `keyboard_backend` or `mouse_backend` value.
+   * @return Matching backend, or `std::nullopt` for `virtualhid`/unknown values.
+   */
+  std::optional<backend> backend_for_value(std::string_view value);
+
   /**
    * @brief C ABI functions exported by IbInputSimulator.
    */
@@ -29,7 +47,7 @@ namespace platf::ib_input_simulator {
   };
 
   /**
-   * @brief Loaded and initialized Logitech G HUB input simulator.
+   * @brief Loaded and initialized IbInputSimulator backend.
    */
   class runtime_t {
   public:
@@ -39,11 +57,13 @@ namespace platf::ib_input_simulator {
     runtime_t &operator=(runtime_t &&) = delete;
 
     /**
-     * @brief Load `IbInputSimulator.dll` from the Sunshine application directory.
+     * @brief Load `IbInputSimulator.dll` and initialize the selected backend.
+     *
+     * @param selected Backend to initialize.
      *
      * @return Initialized runtime, or `nullptr` when loading or initialization fails.
      */
-    static std::unique_ptr<runtime_t> create();
+    static std::unique_ptr<runtime_t> create(backend selected = backend::logitech_ghub);
 
     /**
      * @brief Release simulator state and unload the optional DLL.
