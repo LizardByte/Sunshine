@@ -128,11 +128,17 @@ namespace pipewire {
    */
   struct img_descriptor_t: public egl::img_descriptor_t {
     ~img_descriptor_t() override {
-      if (data) {
+      // Only free buffers this image actually owns. The memory-buffer capture
+      // path points img->data at the PipeWire staging vector (front_buffer),
+      // which is owned by pipewire_t -- deleting it here corrupts the heap.
+      if (data && data_owned) {
         delete[] data;
-        data = nullptr;
       }
+      data = nullptr;
+      data_owned = false;
     }
+
+    bool data_owned = false;  ///< Whether img->data is owned by this image and must be freed.
   };
 
   /**
@@ -430,13 +436,17 @@ namespace pipewire {
 
       struct spa_buffer *buf = stream_data.current_buffer->buffer;
       if (buf->datas[0].chunk->size != 0) {
-        auto *img_descriptor = static_cast<egl::img_descriptor_t *>(img);
+        auto *img_descriptor = static_cast<img_descriptor_t *>(img);
         fill_img_metadata(img_descriptor, buf);
         if (buf->datas[0].type == SPA_DATA_DmaBuf) {
           fill_img_dmabuf(img_descriptor, buf, stream_data);
         } else {
           img->data = stream_data.front_buffer->data();
+          img_descriptor->data_owned = false;
           img->row_pitch = stream_data.local_stride;
+          // NV12 is the only 1-byte-per-pixel format delivered on the memory
+          // path; every other negotiated format is packed 4 bytes per pixel.
+          img->pixel_pitch = (stream_data.format.info.raw.format == SPA_VIDEO_FORMAT_NV12) ? 1 : 4;
         }
       }
 
@@ -937,6 +947,7 @@ namespace pipewire {
       img->sequence = 0;
       img->serial = std::numeric_limits<decltype(img->serial)>::max();
       img->data = nullptr;
+      img->data_owned = false;
       std::fill_n(img->sd.fds, 4, -1);
 
       return img;
@@ -1061,7 +1072,20 @@ namespace pipewire {
      * @return Capture status reported to the streaming pipeline.
      */
     int dummy_img(platf::img_t *img) override {
-      // Empty images are recognized as dummies by the zero sequence number
+      // Software encoders convert the dummy image immediately; provide a valid
+      // (black) buffer instead of leaving img->data null, which makes sws fail
+      // with EINVAL. The buffer is new[]-allocated and marked as owned so the
+      // destructor releases it.
+      if (img->data == nullptr) {
+        const auto w = img->width;
+        const auto h = img->height;
+        if (w > 0 && h > 0) {
+          img->data = new uint8_t[static_cast<size_t>(w) * h * 4]();  // NOSONAR(cpp:S5025) - buffer is owned by the image and freed by img_descriptor_t's destructor
+          static_cast<img_descriptor_t *>(img)->data_owned = true;
+          img->row_pitch = w * 4;
+          img->pixel_pitch = 4;
+        }
+      }
       return 0;
     }
 

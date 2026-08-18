@@ -9,6 +9,13 @@
 #include <algorithm>
 #include <tuple>
 #include <utility>
+#include <vector>
+
+// ffmpeg includes
+extern "C" {
+#include <libavutil/frame.h>
+#include <libavutil/pixfmt.h>
+}
 
 // local includes
 #include <src/config.h>
@@ -167,3 +174,72 @@ INSTANTIATE_TEST_SUITE_P(
     std::make_tuple(120, 11988, std::chrono::nanoseconds {8341666})  // 1e9 * 1001 / 120000
   )
 );
+
+/**
+ * @brief Software encoder converts BGR0 and NV12 frames, including padded strides and
+ *        backends that don't report the pixel pitch.
+ */
+TEST(SoftwareEncoderConversion, Bgr0AndNv12) {
+  constexpr int w = 320;
+  constexpr int h = 240;
+
+  AVFrame *frame = av_frame_alloc();
+  ASSERT_NE(frame, nullptr);
+  frame->width = w;
+  frame->height = h;
+  frame->format = AV_PIX_FMT_YUV420P;
+
+  video::avcodec_software_encode_device_t device;
+  ASSERT_EQ(device.init(w, h, frame, AV_PIX_FMT_YUV420P, false), 0);
+  // set_frame() takes ownership of the frame; the device frees it on destruction.
+  ASSERT_EQ(device.set_frame(frame, nullptr), 0);
+
+  // BGR0 frame (4 bytes per pixel) -- the classic KMS/DMABUF capture layout.
+  std::vector<uint8_t> bgr0_buffer(static_cast<size_t>(w) * h * 4);
+  platf::img_t bgr0_img {};
+  bgr0_img.data = bgr0_buffer.data();
+  bgr0_img.width = w;
+  bgr0_img.height = h;
+  bgr0_img.row_pitch = w * 4;
+  bgr0_img.pixel_pitch = 4;
+  EXPECT_EQ(device.convert(bgr0_img), 0);
+
+  // NV12 frame (1 byte per pixel row pitch, Y plane + interleaved UV) -- the
+  // layout delivered by PipeWire-based captures (KWin screencast / portal).
+  std::vector<uint8_t> nv12_buffer(static_cast<size_t>(w) * h + static_cast<size_t>(w) * h / 2);
+  platf::img_t nv12_img {};
+  nv12_img.data = nv12_buffer.data();
+  nv12_img.width = w;
+  nv12_img.height = h;
+  nv12_img.row_pitch = w;
+  nv12_img.pixel_pitch = 1;
+  EXPECT_EQ(device.convert(nv12_img), 0);
+
+  // Padded-stride NV12 (alignment padding) -- the case the old row_pitch ==
+  // width heuristic misdetected as BGR0, causing out-of-bounds reads.
+  constexpr int padded_stride = w + 32;
+  std::vector<uint8_t> padded_nv12_buffer(static_cast<size_t>(padded_stride) * h + static_cast<size_t>(padded_stride) * h / 2);
+  platf::img_t padded_nv12_img {};
+  padded_nv12_img.data = padded_nv12_buffer.data();
+  padded_nv12_img.width = w;
+  padded_nv12_img.height = h;
+  padded_nv12_img.row_pitch = padded_stride;
+  padded_nv12_img.pixel_pitch = 1;
+  EXPECT_EQ(device.convert(padded_nv12_img), 0);
+
+  // Capture backends that don't report pixel_pitch fall back to deriving it
+  // from the row pitch (1 byte per pixel = NV12, 4 = BGR0).
+  platf::img_t fallback_bgr0_img {};
+  fallback_bgr0_img.data = bgr0_buffer.data();
+  fallback_bgr0_img.width = w;
+  fallback_bgr0_img.height = h;
+  fallback_bgr0_img.row_pitch = w * 4;
+  EXPECT_EQ(device.convert(fallback_bgr0_img), 0);
+
+  platf::img_t fallback_nv12_img {};
+  fallback_nv12_img.data = nv12_buffer.data();
+  fallback_nv12_img.width = w;
+  fallback_nv12_img.height = h;
+  fallback_nv12_img.row_pitch = w;
+  EXPECT_EQ(device.convert(fallback_nv12_img), 0);
+}
