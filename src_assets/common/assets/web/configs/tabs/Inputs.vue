@@ -29,19 +29,33 @@ const config = ref(props.config)
 
         <PlatformLayout :platform="platform">
           <template #freebsd>
-            <option value="switch">{{ $t("config.gamepad_switch") }}</option>
+            <option value="generic">{{ $t("config.gamepad_generic") }}</option>
+            <option value="x360">{{ $t('config.gamepad_x360') }}</option>
             <option value="xone">{{ $t("config.gamepad_xone") }}</option>
+            <option value="xseries">{{ $t("config.gamepad_xseries") }}</option>
+            <option value="ds4">{{ $t('config.gamepad_ds4') }}</option>
+            <option value="ds5">{{ $t("config.gamepad_ds5") }}</option>
+            <option value="switch">{{ $t("config.gamepad_switch") }}</option>
           </template>
 
           <template #linux>
+            <option value="generic">{{ $t("config.gamepad_generic") }}</option>
+            <option value="x360">{{ $t('config.gamepad_x360') }}</option>
+            <option value="xone">{{ $t("config.gamepad_xone") }}</option>
+            <option value="xseries">{{ $t("config.gamepad_xseries") }}</option>
+            <option value="ds4">{{ $t('config.gamepad_ds4') }}</option>
             <option value="ds5">{{ $t("config.gamepad_ds5") }}</option>
             <option value="switch">{{ $t("config.gamepad_switch") }}</option>
-            <option value="xone">{{ $t("config.gamepad_xone") }}</option>
           </template>
 
           <template #windows>
-            <option value="ds4">{{ $t('config.gamepad_ds4') }}</option>
+            <option value="generic">{{ $t("config.gamepad_generic") }}</option>
             <option value="x360">{{ $t('config.gamepad_x360') }}</option>
+            <option value="xone">{{ $t("config.gamepad_xone") }}</option>
+            <option value="xseries">{{ $t("config.gamepad_xseries") }}</option>
+            <option value="ds4">{{ $t('config.gamepad_ds4') }}</option>
+            <option value="ds5">{{ $t("config.gamepad_ds5") }}</option>
+            <option value="switch">{{ $t("config.gamepad_switch") }}</option>
           </template>
         </PlatformLayout>
       </select>
@@ -56,22 +70,22 @@ const config = ref(props.config)
             <h2 class="accordion-header">
               <button class="accordion-button" type="button" data-bs-toggle="collapse"
                       data-bs-target="#panelsStayOpen-collapseOne">
-                {{ $t(config.gamepad === 'ds4' ? 'config.gamepad_ds4_manual' : (config.gamepad === 'ds5' ? 'config.gamepad_ds5_manual' : 'config.gamepad_auto')) }}
+                {{ $t(config.gamepad === 'auto' ? 'config.gamepad_auto' : 'config.gamepad_ds4_manual') }}
               </button>
             </h2>
             <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
                  aria-labelledby="panelsStayOpen-headingOne">
               <div class="accordion-body">
-                <!-- Automatic detection options (for Windows and Linux) -->
+                <!-- Automatic PlayStation-style detection options -->
                 <template v-if="config.gamepad === 'auto' && (platform === 'windows' || platform === 'linux')">
-                  <!-- Gamepad with motion-capability as DS4(Windows)/DS5(Linux) -->
+                  <!-- Gamepad with motion capability as a PlayStation-style controller -->
                   <Checkbox class="mb-3"
                             id="motion_as_ds4"
                             locale-prefix="config"
                             v-model="config.motion_as_ds4"
                             default="true"
                   ></Checkbox>
-                  <!-- Gamepad with touch-capability as DS4(Windows)/DS5(Linux) -->
+                  <!-- Gamepad with touch capability as a PlayStation-style controller -->
                   <Checkbox class="mb-3"
                             id="touchpad_as_ds4"
                             locale-prefix="config"
@@ -79,8 +93,8 @@ const config = ref(props.config)
                             default="true"
                   ></Checkbox>
                 </template>
-                <!-- DS4 option: DS4 back button as touchpad click (on Automatic: Windows only) -->
-                <template v-if="config.gamepad === 'ds4' || (config.gamepad === 'auto' && platform === 'windows')">
+                <!-- PlayStation-style option: Back/Select as touchpad click -->
+                <template v-if="config.gamepad === 'ds4' || config.gamepad === 'ds5' || config.gamepad === 'auto'">
                   <Checkbox class="mb-3"
                             id="ds4_back_as_touchpad_click"
                             locale-prefix="config"
@@ -88,12 +102,12 @@ const config = ref(props.config)
                             default="true"
                   ></Checkbox>
                 </template>
-                <!-- DS5 Option: Controller MAC randomization (on Automatic: Linux only) -->
-                <template v-if="config.gamepad === 'ds5' || (config.gamepad === 'auto' && platform === 'linux')">
+                <!-- Virtual HID option: Controller MAC randomization -->
+                <template v-if="config.gamepad === 'ds4' || config.gamepad === 'ds5' || (config.gamepad === 'auto' && platform !== 'macos')">
                   <Checkbox class="mb-3"
-                            id="ds5_inputtino_randomize_mac"
+                            id="virtualhid_randomize_mac"
                             locale-prefix="config"
-                            v-model="config.ds5_inputtino_randomize_mac"
+                            v-model="config.virtualhid_randomize_mac"
                             default="true"
                   ></Checkbox>
                 </template>

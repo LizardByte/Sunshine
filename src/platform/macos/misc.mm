@@ -279,8 +279,7 @@ namespace platf {
    *
    * @param sig The signal number to forward.
    */
-  static void
-  forward_signal_to_child(int sig) {
+  static void forward_signal_to_child(int sig) {
     if (g_restart_child_pid > 0) {
       kill(g_restart_child_pid, sig);
     }
