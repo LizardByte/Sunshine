@@ -33,6 +33,15 @@
   #include <shellapi.h>
 #endif
 
+#if defined(_WIN32) && !defined(DOXYGEN)
+  #ifdef _GLIBCXX_USE_C99_INTTYPES
+    #undef _GLIBCXX_USE_C99_INTTYPES
+  #endif
+  #include <AMF/components/VideoEncoderAV1.h>
+  #include <AMF/components/VideoEncoderHEVC.h>
+  #include <AMF/components/VideoEncoderVCE.h>
+#endif
+
 #if !defined(__ANDROID__) && !defined(__APPLE__)
   // For NVENC legacy constants
   #include <ffnvcodec/nvEncodeAPI.h>
@@ -140,13 +149,6 @@ namespace config {
     constexpr int AMF_VIDEO_ENCODER_UNDEFINED = 0;  ///< Fallback AMF enum value for undefined.
     constexpr int AMF_VIDEO_ENCODER_CABAC = 1;  ///< Fallback AMF enum value for cabac.
     constexpr int AMF_VIDEO_ENCODER_CALV = 2;  ///< Fallback AMF enum value for calv.
-#else
-  #ifdef _GLIBCXX_USE_C99_INTTYPES
-    #undef _GLIBCXX_USE_C99_INTTYPES
-  #endif
-  #include <AMF/components/VideoEncoderAV1.h>
-  #include <AMF/components/VideoEncoderHEVC.h>
-  #include <AMF/components/VideoEncoderVCE.h>
 #endif
 
     /**
@@ -847,10 +849,10 @@ namespace config {
       platf::supported_gamepads(nullptr).front().name.data(),
       platf::supported_gamepads(nullptr).front().name.size(),
     },  // Default gamepad
-    true,  // back as touchpad click enabled (manual DS4 only)
-    true,  // client gamepads with motion events are emulated as DS4
-    true,  // client gamepads with touchpads are emulated as DS4
-    true,  // ds5_inputtino_randomize_mac
+    true,  // back as touchpad click enabled for PlayStation-style gamepads
+    true,  // client gamepads with motion events use PlayStation-style emulation
+    true,  // client gamepads with touchpads use PlayStation-style emulation
+    true,  // virtualhid_randomize_mac
 
     true,  // keyboard enabled
     true,  // mouse enabled
@@ -1164,6 +1166,23 @@ namespace config {
   }
 
   /**
+   * @brief Parse a decimal or hexadecimal integer configuration value.
+   *
+   * @param value Raw configuration value, optionally surrounded by quotes.
+   * @return Parsed integer value.
+   */
+  int parse_config_integer(std::string_view value) {
+    if (value.size() >= 2 && value.front() == '"') {
+      value = value.substr(1, value.size() - 2);
+    }
+
+    if (value.starts_with("0x"sv)) {
+      return util::from_hex<int>(value.substr(2));
+    }
+    return static_cast<int>(util::from_view(value));
+  }
+
+  /**
    * @brief Consume an integer setting from decimal or hexadecimal configuration text.
    *
    * @param vars Parsed configuration entries; consumed keys are erased.
@@ -1177,20 +1196,7 @@ namespace config {
       return;
     }
 
-    std::string_view val = it->second;
-
-    // If value is something like: "756" instead of 756
-    if (val.size() >= 2 && val[0] == '"') {
-      val = val.substr(1, val.size() - 2);
-    }
-
-    // If that integer is in hexadecimal
-    if (val.size() >= 2 && val.substr(0, 2) == "0x"sv) {
-      input = util::from_hex<int>(val.substr(2));
-    } else {
-      input = (int) util::from_view(val);
-    }
-
+    input = parse_config_integer(it->second);
     vars.erase(it);
   }
 
@@ -1208,20 +1214,7 @@ namespace config {
       return;
     }
 
-    std::string_view val = it->second;
-
-    // If value is something like: "756" instead of 756
-    if (val.size() >= 2 && val[0] == '"') {
-      val = val.substr(1, val.size() - 2);
-    }
-
-    // If that integer is in hexadecimal
-    if (val.size() >= 2 && val.substr(0, 2) == "0x"sv) {
-      input = util::from_hex<int>(val.substr(2));
-    } else {
-      input = util::from_view(val);
-    }
-
+    input = parse_config_integer(it->second);
     vars.erase(it);
   }
 
@@ -1792,7 +1785,7 @@ namespace config {
     bool_f(vars, "ds4_back_as_touchpad_click", input.ds4_back_as_touchpad_click);
     bool_f(vars, "motion_as_ds4", input.motion_as_ds4);
     bool_f(vars, "touchpad_as_ds4", input.touchpad_as_ds4);
-    bool_f(vars, "ds5_inputtino_randomize_mac", input.ds5_inputtino_randomize_mac);
+    bool_f(vars, "virtualhid_randomize_mac", input.virtualhid_randomize_mac);
 
     bool_f(vars, "mouse", input.mouse);
     bool_f(vars, "keyboard", input.keyboard);

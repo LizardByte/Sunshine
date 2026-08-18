@@ -205,7 +205,7 @@ If needed, you can override it manually in your systemd service file or shell en
 When the seat is not `seat0`, Sunshine appends the seat name to its virtual device names, for example:
 
 - Keyboard passthrough (seat1)
-- Sunshine PS5 (virtual) pad (seat1)
+- Sunshine (libvirtualhid) PS5 Controller (seat1)
 
 Sunshine creates two mouse devices: a relative one and an absolute one.
 
@@ -290,10 +290,19 @@ launchctl load -w /Library/LaunchAgents/org.freedesktop.dbus-session.plist
 ## Windows
 
 ### No gamepad detected
-You must install ViGEmBus to use virtual gamepads. You can install this from the troubleshooting tab of the web UI.
+Sunshine uses libvirtualhid for virtual gamepads on Windows. Install the
+[Virtual HID Driver](https://github.com/LizardByte/libvirtualhid/releases/latest) separately for full virtual gamepad
+support. ViGEmBus is detected only as a limited fallback for Xbox 360 and DualShock 4 gamepads when libvirtualhid is
+unavailable. If you use the [ViGEmBus fallback](https://github.com/nefarius/ViGEmBus/releases/latest), you must use
+version 1.17 or newer.
 
-Alternatively, you can manually install it from
-[ViGEmBus releases](https://github.com/nefarius/ViGEmBus/releases/latest). You must use version 1.17 or newer.
+Virtual HID Driver adds Xbox One, Xbox Series, DualSense, Nintendo Switch Pro, and Generic gamepads, plus advanced
+controller features such as motion, touchpads, LEDs, and adaptive triggers when supported. Unlike the discontinued
+ViGEmBus project, Virtual HID Driver is actively developed and supported by the LizardByte team.
+
+An active Virtual HID Driver machine license is required before Sunshine can create libvirtualhid gamepads. Follow
+the warning on the Web UI home page, the startup tray notification, or the **Virtual HID Driver** tray submenu to open
+the license section on the Troubleshooting page, where you can activate a key or follow the purchase link.
 
 After installation, it is recommended to restart your computer.
 
