@@ -1241,6 +1241,16 @@ namespace nvhttp {
     auto app_image = proc::proc.get_app_image((int) util::from_view(get_arg(args, "appid")));
 
     std::ifstream in(app_image, std::ios::binary);
+    if (!in.is_open()) {
+      std::error_code ec;
+      if (std::filesystem::exists(app_image, ec)) {
+        response->write(SimpleWeb::StatusCode::server_error_internal_server_error);
+      } else {
+        response->write(SimpleWeb::StatusCode::client_error_not_found);
+      }
+      response->close_connection_after_response = true;
+      return;
+    }
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "image/png");
     response->write(SimpleWeb::StatusCode::success_ok, in, headers);
