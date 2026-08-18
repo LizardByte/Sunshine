@@ -515,6 +515,35 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### keyboard_backend
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Selects the Windows keyboard input backend. @code{virtualhid} preserves the default behavior.
+            @code{logitech_ghub} and @code{razer} securely load @code{IbInputSimulator.dll} from the Sunshine
+            application directory and initialize the corresponding IbInputSimulator driver. Sunshine automatically
+            falls back to @code{virtualhid} if loading, initialization, or submission fails. Keyboard and mouse
+            backends must select the same driver. Unicode text input always uses @code{virtualhid} because
+            IbInputSimulator does not support Unicode reports.
+            @caution{Applies to Windows only. This option does not guarantee compatibility with anti-cheat software.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            virtualhid
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            keyboard_backend = logitech_ghub
+            @endcode</td>
+    </tr>
+</table>
+
 ### key_repeat_delay
 
 <table>
@@ -636,6 +665,36 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td>Example</td>
         <td colspan="2">@code{}
             mouse = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### mouse_backend
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Selects the Windows mouse input backend. @code{virtualhid} preserves the default behavior.
+            @code{logitech_ghub} and @code{razer} route relative movement, buttons, and vertical scrolling through
+            @code{IbInputSimulator.dll}; absolute movement and horizontal scrolling remain on @code{virtualhid}.
+            Keyboard and mouse backends must select the same driver. Sunshine automatically falls back to
+            @code{virtualhid} if loading, initialization, or submission fails.
+            @warning{Some Logitech G HUB releases stop processing mouse reports after the first reboot even though
+            the driver call reports success. Validate this backend with the IbInputSimulator G HUB probe before use.}
+            @caution{Applies to Windows only. This option does not guarantee compatibility with anti-cheat software.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            virtualhid
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            mouse_backend = logitech_ghub
             @endcode</td>
     </tr>
 </table>

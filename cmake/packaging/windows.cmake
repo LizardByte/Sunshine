@@ -1,6 +1,27 @@
 # windows specific packaging
 install(TARGETS sunshine RUNTIME DESTINATION "." COMPONENT application)
 
+set(SUNSHINE_IBINPUTSIMULATOR_DLL "" CACHE FILEPATH
+        "Optional IbInputSimulator.dll to copy beside sunshine.exe and include in Windows packages")
+if(SUNSHINE_IBINPUTSIMULATOR_DLL)
+    if(NOT EXISTS "${SUNSHINE_IBINPUTSIMULATOR_DLL}")
+        message(FATAL_ERROR "SUNSHINE_IBINPUTSIMULATOR_DLL does not exist: ${SUNSHINE_IBINPUTSIMULATOR_DLL}")
+    endif()
+
+    add_custom_command(TARGET sunshine POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${SUNSHINE_IBINPUTSIMULATOR_DLL}"
+                    "$<TARGET_FILE_DIR:sunshine>/IbInputSimulator.dll"
+            COMMENT "Copying optional IbInputSimulator runtime")
+    install(FILES "${SUNSHINE_IBINPUTSIMULATOR_DLL}"
+            DESTINATION "."
+            RENAME "IbInputSimulator.dll"
+            COMPONENT application)
+    install(FILES "${CMAKE_SOURCE_DIR}/third-party/IbInputSimulator-LICENSE.txt"
+            DESTINATION "licenses"
+            COMPONENT application)
+endif()
+
 # Hardening: include zlib1.dll (loaded via LoadLibrary() in openssl's libcrypto.a)
 install(FILES "${ZLIB}" DESTINATION "." COMPONENT application)
 
@@ -39,6 +60,18 @@ install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/autostart/"
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/firewall/"
         DESTINATION "scripts"
         COMPONENT firewall)
+
+# Optional ViGEmBus driver installer bundled into scripts for legacy compatibility
+set(SUNSHINE_VIGEMBUS_INSTALLER "" CACHE FILEPATH
+        "Optional vigembus_installer.exe to bundle into the scripts directory")
+if(SUNSHINE_VIGEMBUS_INSTALLER)
+    if(NOT EXISTS "${SUNSHINE_VIGEMBUS_INSTALLER}")
+        message(FATAL_ERROR "SUNSHINE_VIGEMBUS_INSTALLER does not exist: ${SUNSHINE_VIGEMBUS_INSTALLER}")
+    endif()
+    install(FILES "${SUNSHINE_VIGEMBUS_INSTALLER}"
+            DESTINATION "scripts"
+            COMPONENT assets)
+endif()
 
 # Sunshine assets
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/assets/"

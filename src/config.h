@@ -275,6 +275,8 @@ namespace config {
     std::chrono::duration<double> key_repeat_period;  ///< Interval between repeated keyboard key events.
 
     std::string gamepad;  ///< Virtual controller backend selected by configuration.
+    std::string keyboard_backend;  ///< Windows keyboard injection backend selected by configuration.
+    std::string mouse_backend;  ///< Windows mouse injection backend selected by configuration.
     bool ds4_back_as_touchpad_click;  ///< Map Back/Select to touchpad click for PlayStation-style gamepads.
     bool motion_as_ds4;  ///< Prefer PlayStation-style emulation for client gamepads with motion controls.
     bool touchpad_as_ds4;  ///< Prefer PlayStation-style emulation for client gamepads with touchpad input.

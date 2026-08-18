@@ -18,6 +18,8 @@
 
 // standard includes
 #include <memory>
+#include <optional>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -31,6 +33,7 @@
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/platform/virtualhid_input.h"
+#include "src/platform/windows/ib_input_simulator.h"
 
 namespace platf {
   using namespace std::literals;
@@ -522,12 +525,38 @@ namespace platf {
   struct input_raw_t {
     virtualhid::input_context_t virtualhid;  ///< libvirtualhid input context.
     std::unique_ptr<vigem_t> vigem;  ///< ViGEm fallback context.
+    std::unique_ptr<ib_input_simulator::runtime_t> ib_input_simulator;  ///< Optional IbInputSimulator input runtime.
+    bool use_ib_keyboard = false;  ///< Route keyboard transitions through IbInputSimulator.
+    bool use_ib_mouse = false;  ///< Route supported mouse transitions through IbInputSimulator.
   };
 
   input_t input() {
     input_t result {new input_raw_t {}};
 
-    if (auto &raw = *result; !raw.virtualhid.runtime || !raw.virtualhid.runtime->capabilities().supports_gamepad) {
+    auto &raw = *result;
+    const auto keyboard_driver = ib_input_simulator::backend_for_value(config::input.keyboard_backend);
+    const auto mouse_driver = ib_input_simulator::backend_for_value(config::input.mouse_backend);
+    if (keyboard_driver && mouse_driver && *keyboard_driver != *mouse_driver) {
+      BOOST_LOG(warning) << "keyboard_backend and mouse_backend select different IbInputSimulator drivers; using the keyboard backend and falling back to libvirtualhid for the mouse"sv;
+    }
+
+    std::optional<ib_input_simulator::backend> selected_driver;
+    if (keyboard_driver) {
+      selected_driver = keyboard_driver;
+    } else if (mouse_driver) {
+      selected_driver = mouse_driver;
+    }
+    if (selected_driver) {
+      raw.ib_input_simulator = ib_input_simulator::runtime_t::create(*selected_driver);
+      if (raw.ib_input_simulator) {
+        raw.use_ib_keyboard = keyboard_driver.has_value() && *keyboard_driver == *selected_driver;
+        raw.use_ib_mouse = mouse_driver.has_value() && *mouse_driver == *selected_driver;
+      } else {
+        BOOST_LOG(warning) << "Falling back to libvirtualhid for requested IbInputSimulator backends"sv;
+      }
+    }
+
+    if (!raw.virtualhid.runtime || !raw.virtualhid.runtime->capabilities().supports_gamepad) {
       auto vigem = std::make_unique<vigem_t>();
       if (!vigem->init()) {
         raw.vigem = std::move(vigem);
@@ -570,6 +599,116 @@ namespace platf {
 
   virtualhid::input_context_t &virtualhid::get_input_context(input_t &input) {
     return input->virtualhid;
+  }
+
+  namespace {
+    /**
+     * @brief Submit one record to IbInputSimulator and disable the selected route on failure.
+     *
+     * @param input Platform input context.
+     * @param record Windows input record.
+     * @param enabled Effective backend flag for this device class.
+     * @param device_name Device class used in the fallback log.
+     * @return True when IbInputSimulator accepted the record.
+     */
+    bool send_ib(input_t &input, const INPUT &record, bool &enabled, std::string_view device_name) {
+      auto &raw = *input;
+      if (!enabled || !raw.ib_input_simulator) {
+        return false;
+      }
+
+      if (raw.ib_input_simulator->send(record)) {
+        return true;
+      }
+
+      enabled = false;
+      BOOST_LOG(warning) << "IbInputSimulator "sv << device_name << " submission failed; falling back to libvirtualhid"sv;
+      return false;
+    }
+
+    /**
+     * @brief Convert a Moonlight mouse button into Windows input flags.
+     *
+     * @param button Moonlight mouse button number.
+     * @param release Whether the button was released.
+     * @return Windows mouse input record.
+     */
+    INPUT mouse_button_input(int button, bool release) {
+      INPUT input {.type = INPUT_MOUSE};
+      switch (button) {
+        case 1:
+          input.mi.dwFlags = release ? MOUSEEVENTF_LEFTUP : MOUSEEVENTF_LEFTDOWN;
+          break;
+        case 2:
+          input.mi.dwFlags = release ? MOUSEEVENTF_MIDDLEUP : MOUSEEVENTF_MIDDLEDOWN;
+          break;
+        case 3:
+          input.mi.dwFlags = release ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_RIGHTDOWN;
+          break;
+        case 4:
+          input.mi.dwFlags = release ? MOUSEEVENTF_XUP : MOUSEEVENTF_XDOWN;
+          input.mi.mouseData = XBUTTON1;
+          break;
+        default:
+          input.mi.dwFlags = release ? MOUSEEVENTF_XUP : MOUSEEVENTF_XDOWN;
+          input.mi.mouseData = XBUTTON2;
+          break;
+      }
+      return input;
+    }
+  }  // namespace
+
+  void move_mouse(input_t &input, int deltaX, int deltaY) {
+    INPUT record {.type = INPUT_MOUSE};
+    record.mi.dx = deltaX;
+    record.mi.dy = deltaY;
+    record.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_MOVE_NOCOALESCE;
+
+    auto &raw = *input;
+    if (!send_ib(input, record, raw.use_ib_mouse, "mouse"sv)) {
+      virtualhid::move_mouse(raw.virtualhid, deltaX, deltaY);
+    }
+  }
+
+  void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
+    virtualhid::abs_mouse(input->virtualhid, touch_port, x, y);
+  }
+
+  void button_mouse(input_t &input, int button, bool release) {
+    auto &raw = *input;
+    if (!send_ib(input, mouse_button_input(button, release), raw.use_ib_mouse, "mouse"sv)) {
+      virtualhid::button_mouse(raw.virtualhid, button, release);
+    }
+  }
+
+  void scroll(input_t &input, int high_res_distance) {
+    INPUT record {.type = INPUT_MOUSE};
+    record.mi.mouseData = static_cast<DWORD>(high_res_distance);
+    record.mi.dwFlags = MOUSEEVENTF_WHEEL;
+
+    auto &raw = *input;
+    if (!send_ib(input, record, raw.use_ib_mouse, "mouse"sv)) {
+      virtualhid::scroll(raw.virtualhid, high_res_distance);
+    }
+  }
+
+  void hscroll(input_t &input, int high_res_distance) {
+    virtualhid::hscroll(input->virtualhid, high_res_distance);
+  }
+
+  void keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
+    INPUT record {.type = INPUT_KEYBOARD};
+    record.ki.wVk = modcode;
+    record.ki.dwFlags = release ? KEYEVENTF_KEYUP : 0;
+
+    auto &raw = *input;
+    if (!send_ib(input, record, raw.use_ib_keyboard, "keyboard"sv)) {
+      virtualhid::keyboard_update(raw.virtualhid, modcode, release, flags);
+    }
+  }
+
+  void unicode(input_t &input, const char *utf8, int size) {
+    virtualhid::unicode(input->virtualhid, utf8, size);
   }
 
   std::optional<util::point_t> get_mouse_loc(input_t & /*input*/) {
