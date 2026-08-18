@@ -7,6 +7,12 @@
 Sunshine is licensed under the GPL-3.0 license, which allows for free use and modification of the software.
 The full text of the license can be reviewed [here](https://github.com/LizardByte/Sunshine/blob/master/LICENSE).
 
+## Optional Components
+
+When the optional `IbInputSimulator` runtime is bundled, it is distributed under the MIT License.
+The license text is retained at `third-party/IbInputSimulator-LICENSE.txt` and installed under `licenses`
+in packaged builds.
+
 ## Commercial Use
 Sunshine can be used in commercial applications without any limitations. This means that businesses and organizations
 can use Sunshine to create and sell products or services without needing to seek permission or pay a fee.

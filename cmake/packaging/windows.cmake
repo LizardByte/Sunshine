@@ -1,6 +1,27 @@
 # windows specific packaging
 install(TARGETS sunshine RUNTIME DESTINATION "." COMPONENT application)
 
+set(SUNSHINE_IBINPUTSIMULATOR_DLL "" CACHE FILEPATH
+        "Optional IbInputSimulator.dll to copy beside sunshine.exe and include in Windows packages")
+if(SUNSHINE_IBINPUTSIMULATOR_DLL)
+    if(NOT EXISTS "${SUNSHINE_IBINPUTSIMULATOR_DLL}")
+        message(FATAL_ERROR "SUNSHINE_IBINPUTSIMULATOR_DLL does not exist: ${SUNSHINE_IBINPUTSIMULATOR_DLL}")
+    endif()
+
+    add_custom_command(TARGET sunshine POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${SUNSHINE_IBINPUTSIMULATOR_DLL}"
+                    "$<TARGET_FILE_DIR:sunshine>/IbInputSimulator.dll"
+            COMMENT "Copying optional IbInputSimulator runtime")
+    install(FILES "${SUNSHINE_IBINPUTSIMULATOR_DLL}"
+            DESTINATION "."
+            RENAME "IbInputSimulator.dll"
+            COMPONENT application)
+    install(FILES "${CMAKE_SOURCE_DIR}/third-party/IbInputSimulator-LICENSE.txt"
+            DESTINATION "licenses"
+            COMPONENT application)
+endif()
+
 # Hardening: include zlib1.dll (loaded via LoadLibrary() in openssl's libcrypto.a)
 install(FILES "${ZLIB}" DESTINATION "." COMPONENT application)
 

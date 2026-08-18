@@ -256,6 +256,17 @@ if (WIN32)
     # this fixes libcurl linking errors when using non MSYS2 version of CMake
     set_target_properties(${PROJECT_NAME} PROPERTIES LINK_SEARCH_START_STATIC 1)
 
+    # Copy the optional IbInputSimulator runtime so loader integration tests can run end to end
+    if(SUNSHINE_IBINPUTSIMULATOR_DLL)
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${SUNSHINE_IBINPUTSIMULATOR_DLL}"
+                "${CMAKE_CURRENT_BINARY_DIR}/IbInputSimulator.dll"
+            COMMENT "Copying optional IbInputSimulator runtime for loader tests"
+            VERBATIM
+        )
+    endif()
+
     # Copy minhook-detours DLL to test binary directory for ARM64
     if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64" AND DEFINED _MINHOOK_DLL)
         add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD

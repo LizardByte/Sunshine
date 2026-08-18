@@ -135,6 +135,16 @@ const config = ref(props.config)
               default="true"
     ></Checkbox>
 
+    <!-- Keyboard input backend -->
+    <div class="mb-3" v-if="config.keyboard === 'enabled' && platform === 'windows'">
+      <label for="keyboard_backend" class="form-label">{{ $t('config.keyboard_backend') }}</label>
+      <select id="keyboard_backend" class="form-select" v-model="config.keyboard_backend">
+        <option value="virtualhid">{{ $t('config.input_backend_virtualhid') }}</option>
+        <option value="logitech_ghub">{{ $t('config.input_backend_logitech_ghub') }}</option>
+      </select>
+      <div class="form-text">{{ $t('config.keyboard_backend_desc') }}</div>
+    </div>
+
     <!-- Key Repeat Delay-->
     <div class="mb-3" v-if="config.keyboard === 'enabled' && platform === 'windows'">
       <label for="key_repeat_delay" class="form-label">{{ $t('config.key_repeat_delay') }}</label>
@@ -177,6 +187,16 @@ const config = ref(props.config)
               v-model="config.mouse"
               default="true"
     ></Checkbox>
+
+    <!-- Mouse input backend -->
+    <div class="mb-3" v-if="config.mouse === 'enabled' && platform === 'windows'">
+      <label for="mouse_backend" class="form-label">{{ $t('config.mouse_backend') }}</label>
+      <select id="mouse_backend" class="form-select" v-model="config.mouse_backend">
+        <option value="virtualhid">{{ $t('config.input_backend_virtualhid') }}</option>
+        <option value="logitech_ghub">{{ $t('config.input_backend_logitech_ghub') }}</option>
+      </select>
+      <div class="form-text">{{ $t('config.mouse_backend_desc') }}</div>
+    </div>
 
     <!-- High resolution scrolling support -->
     <Checkbox v-if="config.mouse === 'enabled'"
