@@ -491,7 +491,7 @@ namespace confighttp {
 
     print_req(request);
 
-    const std::string content = file_handler::read_file((std::string(WEB_DIR) + html_file).c_str());
+    const std::string content = file_handler::read_file((get_web_dir() + html_file).c_str());
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
 
@@ -512,7 +512,7 @@ namespace confighttp {
   void getFaviconImage(const resp_https_t &response, const req_https_t &request) {
     print_req(request);
 
-    std::ifstream in(WEB_DIR "images/sunshine.ico", std::ios::binary);
+    std::ifstream in(get_web_dir() + "images/sunshine.ico", std::ios::binary);
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "image/x-icon");
     headers.emplace("X-Frame-Options", "DENY");
@@ -530,7 +530,7 @@ namespace confighttp {
   void getSunshineLogoImage(const resp_https_t &response, const req_https_t &request) {
     print_req(request);
 
-    std::ifstream in(WEB_DIR "images/logo-sunshine-45.png", std::ios::binary);
+    std::ifstream in(get_web_dir() + "images/logo-sunshine-45.png", std::ios::binary);
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "image/png");
     headers.emplace("X-Frame-Options", "DENY");
@@ -556,7 +556,7 @@ namespace confighttp {
    */
   void getAsset(const resp_https_t &response, const req_https_t &request) {
     print_req(request);
-    fs::path webDirPath(WEB_DIR);
+    fs::path webDirPath(get_web_dir());
     fs::path nodeModulesPath(webDirPath / "assets");
 
     // .relative_path is needed to shed any leading slash that might exist in the request path

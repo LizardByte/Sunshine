@@ -265,11 +265,6 @@ namespace wl {
 
   // Cleanup GBM
   void dmabuf_t::cleanup_gbm() {
-    if (current_bo) {
-      gbm_bo_destroy(current_bo);
-      current_bo = nullptr;
-    }
-
     if (current_wl_buffer) {
       wl_buffer_destroy(current_wl_buffer);
       current_wl_buffer = nullptr;
@@ -378,19 +373,34 @@ namespace wl {
       return;
     }
 
-    // Create GBM buffer
+    auto next_frame = get_next_frame();
+    next_frame->destroy();
+
+    // Create GBM buffer (prefer LINEAR modifier for single-plane EGL/VAAPI compatibility)
+    uint64_t linear_mod = DRM_FORMAT_MOD_LINEAR;
+    struct gbm_bo *bo = nullptr;
     if (supported_modifiers) {
       auto it = supported_modifiers->find(dmabuf_info.format);
       if (it != supported_modifiers->end() && !it->second.empty()) {
-        current_bo = gbm_bo_create_with_modifiers(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, it->second.data(), it->second.size());
+        bool has_linear = std::find(it->second.begin(), it->second.end(), DRM_FORMAT_MOD_LINEAR) != it->second.end();
+        if (has_linear) {
+          bo = gbm_bo_create_with_modifiers(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, &linear_mod, 1);
+        }
+        if (!bo) {
+          bo = gbm_bo_create_with_modifiers(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, it->second.data(), it->second.size());
+        }
       }
     }
 
-    if (!current_bo) {
-      current_bo = gbm_bo_create(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, GBM_BO_USE_RENDERING);
+    if (!bo) {
+      bo = gbm_bo_create(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, GBM_BO_USE_RENDERING | GBM_BO_USE_LINEAR);
     }
 
-    if (!current_bo) {
+    if (!bo) {
+      bo = gbm_bo_create(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, GBM_BO_USE_RENDERING);
+    }
+
+    if (!bo) {
       BOOST_LOG(error) << "Failed to create GBM buffer"sv;
       zwlr_screencopy_frame_v1_destroy(frame);
       status = REINIT;
@@ -398,21 +408,23 @@ namespace wl {
     }
 
     // Get buffer info
-    int fd = gbm_bo_get_fd(current_bo);
+    int fd = gbm_bo_get_fd(bo);
     if (fd < 0) {
       BOOST_LOG(error) << "Failed to get buffer FD"sv;
-      gbm_bo_destroy(current_bo);
-      current_bo = nullptr;
+      gbm_bo_destroy(bo);
       zwlr_screencopy_frame_v1_destroy(frame);
       status = REINIT;
       return;
     }
 
-    uint32_t stride = gbm_bo_get_stride(current_bo);
-    uint64_t modifier = gbm_bo_get_modifier(current_bo);
+    uint32_t stride = gbm_bo_get_stride(bo);
+    uint64_t modifier = gbm_bo_get_modifier(bo);
 
     // Store in surface descriptor for later use
-    auto next_frame = get_next_frame();
+    next_frame->bo = bo;
+    next_frame->sd.width = dmabuf_info.width;
+    next_frame->sd.height = dmabuf_info.height;
+    next_frame->sd.fourcc = dmabuf_info.format;
     next_frame->sd.fds[0] = fd;
     next_frame->sd.pitches[0] = stride;
     next_frame->sd.offsets[0] = 0;
@@ -495,7 +507,6 @@ namespace wl {
     std::uint32_t tv_nsec
   ) {
     // Frame is ready for use, GBM buffer now contains screen content
-    current_frame->destroy();
     current_frame = get_next_frame();
 
     std::uint64_t sec = (std::uint64_t(tv_sec_hi) << 32) | tv_sec_lo;
@@ -504,13 +515,11 @@ namespace wl {
       std::chrono::duration_cast<std::chrono::steady_clock::duration>(ready_ts)
     };
 
-    // Keep the GBM buffer alive but destroy the Wayland objects
+    // Keep the GBM buffer alive but destroy the temporary Wayland buffer wrapper
     if (current_wl_buffer) {
       wl_buffer_destroy(current_wl_buffer);
       current_wl_buffer = nullptr;
     }
-
-    cleanup_gbm();
 
     zwlr_screencopy_frame_v1_destroy(frame);
     status = READY;
@@ -545,6 +554,10 @@ namespace wl {
 
         sd.fds[x] = -1;
       }
+    }
+    if (bo) {
+      gbm_bo_destroy(bo);
+      bo = nullptr;
     }
   }
 

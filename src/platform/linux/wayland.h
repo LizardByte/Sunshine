@@ -44,6 +44,7 @@ namespace wl {
 
     egl::surface_descriptor_t sd;  ///< DMA-BUF surface descriptor received from the compositor.
     std::optional<std::chrono::steady_clock::time_point> frame_timestamp;  ///< Capture timestamp associated with the frame.
+    struct gbm_bo *bo {nullptr};  ///< Backing GBM buffer object for the frame DMA-BUF.
   };
 
   /**
@@ -189,7 +190,6 @@ namespace wl {
     } dmabuf_info;
 
     struct gbm_device *gbm_device {nullptr};
-    struct gbm_bo *current_bo {nullptr};
     struct wl_buffer *current_wl_buffer {nullptr};
     bool y_invert {false};
   };

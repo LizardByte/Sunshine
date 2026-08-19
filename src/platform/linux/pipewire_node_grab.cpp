@@ -154,8 +154,8 @@ namespace pipewire_node {
 
       this->offset_x = 0;
       this->offset_y = 0;
-      this->width = 0;
-      this->height = 0;
+      this->width = 1920;
+      this->height = 1080;
       this->logical_width = 0;
       this->logical_height = 0;
 
@@ -167,42 +167,21 @@ namespace pipewire_node {
         } catch (...) {}
       }
 
-      const wl::monitor_t *matched_monitor = nullptr;
-      if (!display_name.empty()) {
-        for (const auto &monitor : wl::monitors()) {
-          if (monitor->name == display_name) {
-            matched_monitor = monitor.get();
-            break;
-          }
-        }
+      std::string x_str, y_str;
+      if (lizardbyte::common::get_env("SUNSHINE_PIPEWIRE_OFFSET_X", x_str)) {
+        try {
+          this->offset_x = std::stoi(x_str);
+        } catch (...) {}
       }
-      if (!matched_monitor) {
-        for (const auto &monitor : wl::monitors()) {
-          if (monitor->name.rfind("Meta", 0) == 0 || monitor->name.rfind("Virtual", 0) == 0) {
-            matched_monitor = monitor.get();
-            break;
-          }
-        }
+      if (lizardbyte::common::get_env("SUNSHINE_PIPEWIRE_OFFSET_Y", y_str)) {
+        try {
+          this->offset_y = std::stoi(y_str);
+        } catch (...) {}
       }
 
-      if (matched_monitor) {
-        this->offset_x = matched_monitor->viewport.offset_x;
-        this->offset_y = matched_monitor->viewport.offset_y;
-        this->width = matched_monitor->viewport.width;
-        this->height = matched_monitor->viewport.height;
-        this->logical_width = matched_monitor->viewport.logical_width;
-        this->logical_height = matched_monitor->viewport.logical_height;
-        BOOST_LOG(info) << "[pipewire_node] Matched Wayland monitor "sv << matched_monitor->name 
-                        << " at offset "sv << this->offset_x << "x"sv << this->offset_y 
-                        << " size "sv << this->width << "x"sv << this->height;
-      }
-
-      if (this->width <= 0) {
-        this->width = 1920;
-      }
-      if (this->height <= 0) {
-        this->height = 1080;
-      }
+      BOOST_LOG(info) << "[pipewire_node] Direct stream node: "sv << target_node 
+                      << " resolution: "sv << this->width << "x"sv << this->height
+                      << " offset: "sv << this->offset_x << "x"sv << this->offset_y;
 
       return 0;
     }

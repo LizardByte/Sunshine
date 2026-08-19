@@ -7,6 +7,8 @@
 // standard includes
 #include <algorithm>
 #include <condition_variable>
+#include <cstdlib>
+#include <filesystem>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -1874,4 +1876,28 @@ namespace util {
       return endian_helper<T>::big(x);
     }
   }  // namespace endian
+
+  /**
+   * @brief Get the Sunshine assets directory, checking env var and user paths before compile-time default.
+   */
+  inline std::string get_assets_dir() {
+    if (const char *env_dir = std::getenv("SUNSHINE_ASSETS_DIR")) {
+      if (std::filesystem::exists(env_dir)) {
+        return env_dir;
+      }
+    }
+    if (const char *home = std::getenv("HOME")) {
+      auto user_assets = std::filesystem::path(home) / ".local/share/sunshine/assets";
+      if (std::filesystem::exists(user_assets)) {
+        return user_assets.string();
+      }
+    }
+    if (std::filesystem::exists("./assets")) {
+      return "./assets";
+    }
+    if (std::filesystem::exists("../assets")) {
+      return "../assets";
+    }
+    return SUNSHINE_ASSETS_DIR;
+  }
 }  // namespace util

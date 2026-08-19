@@ -6,6 +6,7 @@
 #include <thread>
 
 // local includes
+#include <gbm.h>
 #include "cuda.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
@@ -435,6 +436,15 @@ namespace wl {
 
       img->sd = current_frame->sd;
       img->frame_timestamp = current_frame->frame_timestamp;
+
+      // Transfer ownership of the GBM buffer to the image descriptor
+      auto bo = current_frame->bo;
+      current_frame->bo = nullptr;
+      if (bo) {
+        img->on_destroy = [bo]() {
+          gbm_bo_destroy(bo);
+        };
+      }
 
       // Prevent dmabuf from closing the file descriptors.
       std::fill_n(current_frame->sd.fds, 4, -1);

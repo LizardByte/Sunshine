@@ -15,14 +15,17 @@
 
 // local includes
 #include "thread_safe.h"
-
-/**
- * @def WEB_DIR
- * @brief Macro for WEB DIR.
- */
-#define WEB_DIR SUNSHINE_ASSETS_DIR "/web/"
+#include "utility.h"
 
 namespace confighttp {
+  inline std::string get_web_dir() {
+    auto base = util::get_assets_dir();
+    if (base.empty() || base.back() != '/') {
+      base += '/';
+    }
+    return base + "web/";
+  }
+
   constexpr auto PORT_HTTPS = 1;  ///< GameStream port offset for port https.
 
   // Type aliases for HTTPS server components

@@ -9,6 +9,7 @@
 #include "graphics.h"
 #include "src/file_handler.h"
 #include "src/logging.h"
+#include "src/utility.h"
 #include "src/video.h"
 
 // platform includes
@@ -40,13 +41,13 @@ extern "C" {
  */
 #define DRM_FORMAT_MOD_INVALID fourcc_mod_code(0, ((1ULL << 56) - 1))
 
-#if !defined(SUNSHINE_SHADERS_DIR)  // for testing this needs to be defined in cmake as we don't do an install
-  /**
-   * @def SUNSHINE_SHADERS_DIR
-   * @brief Macro for SUNSHINE SHADERS DIR.
-   */
-  #define SUNSHINE_SHADERS_DIR SUNSHINE_ASSETS_DIR "/shaders/opengl"
-#endif
+inline std::string get_shaders_dir() {
+  auto base = util::get_assets_dir();
+  if (base.empty() || base.back() != '/') {
+    base += '/';
+  }
+  return base + "shaders/opengl";
+}
 
 using namespace std::literals;
 
@@ -1020,12 +1021,17 @@ namespace egl {
     auto width_i = 1.0f / sws.out_width;
 
     {
-      constexpr std::array<const char *, 5> sources {{
-        SUNSHINE_SHADERS_DIR "/ConvertUV.frag",
-        SUNSHINE_SHADERS_DIR "/ConvertUV.vert",
-        SUNSHINE_SHADERS_DIR "/ConvertY.frag",
-        SUNSHINE_SHADERS_DIR "/Scene.vert",
-        SUNSHINE_SHADERS_DIR "/Scene.frag",
+      const std::string s_cuv_f = get_shaders_dir() + "/ConvertUV.frag";
+      const std::string s_cuv_v = get_shaders_dir() + "/ConvertUV.vert";
+      const std::string s_cy_f = get_shaders_dir() + "/ConvertY.frag";
+      const std::string s_sc_v = get_shaders_dir() + "/Scene.vert";
+      const std::string s_sc_f = get_shaders_dir() + "/Scene.frag";
+      const std::array<const char *, 5> sources {{
+        s_cuv_f.c_str(),
+        s_cuv_v.c_str(),
+        s_cy_f.c_str(),
+        s_sc_v.c_str(),
+        s_sc_f.c_str(),
       }};
 
       constexpr std::array<GLenum, 2> shader_type {{
@@ -1124,12 +1130,17 @@ namespace egl {
     sws.offsetY = offsetY_f;
 
     {
-      constexpr std::array<const char *, 5> sources {{
-        SUNSHINE_SHADERS_DIR "/Scene.vert",
-        SUNSHINE_SHADERS_DIR "/ConvertV.frag",
-        SUNSHINE_SHADERS_DIR "/ConvertU.frag",
-        SUNSHINE_SHADERS_DIR "/ConvertY.frag",
-        SUNSHINE_SHADERS_DIR "/Scene.frag",
+      const std::string s_sc_v2 = get_shaders_dir() + "/Scene.vert";
+      const std::string s_cv_f = get_shaders_dir() + "/ConvertV.frag";
+      const std::string s_cu_f = get_shaders_dir() + "/ConvertU.frag";
+      const std::string s_cy_f2 = get_shaders_dir() + "/ConvertY.frag";
+      const std::string s_sc_f2 = get_shaders_dir() + "/Scene.frag";
+      const std::array<const char *, 5> sources {{
+        s_sc_v2.c_str(),
+        s_cv_f.c_str(),
+        s_cu_f.c_str(),
+        s_cy_f2.c_str(),
+        s_sc_f2.c_str(),
       }};
 
       constexpr std::array<GLenum, 2> shader_type {{

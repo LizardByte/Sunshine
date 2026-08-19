@@ -617,9 +617,15 @@ namespace egl {
           sd.fds[x] = -1;
         }
       }
+      if (on_destroy) {
+        on_destroy();
+        on_destroy = nullptr;
+      }
     }
 
     surface_descriptor_t sd;  ///< DMA-BUF surface descriptor for the captured image.
+
+    std::function<void()> on_destroy;  ///< Custom destructor callback to hold buffer ownership.
 
     // Increment sequence when new rgb_t needs to be created
     std::uint64_t sequence;  ///< Monotonic value used to detect when GL resources must be recreated.
