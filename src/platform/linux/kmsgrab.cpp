@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <filesystem>
 #include <ranges>
+#include <set>
 #include <thread>
 #include <unistd.h>
 
@@ -932,6 +933,7 @@ namespace platf {
             continue;
           }
 
+          std::set<std::uint32_t> counted_crtcs;
           auto end = std::end(card);
           for (auto plane = std::begin(card); plane != end; ++plane) {
             // Skip unused planes
@@ -943,8 +945,15 @@ namespace platf {
               continue;
             }
 
+            // A CRTC can have more than one simultaneously-active plane (e.g. gamescope's
+            // base + overlay layers). Count each CRTC once so this matches kms_display_names().
+            if (counted_crtcs.count(plane->crtc_id)) {
+              continue;
+            }
+
             if (monitor != monitor_index) {
               ++monitor;
+              counted_crtcs.insert(plane->crtc_id);
               continue;
             }
 
@@ -2075,6 +2084,7 @@ namespace platf {
       }
 
       auto crtc_to_monitor = kms::map_crtc_to_monitor(card.monitors(conn_type_count));
+      std::set<std::uint32_t> counted_crtcs;
 
       auto end = std::end(card);
       for (auto plane = std::begin(card); plane != end; ++plane) {
@@ -2084,6 +2094,12 @@ namespace platf {
         }
 
         if (card.is_cursor(plane->plane_id)) {
+          continue;
+        }
+
+        // A CRTC can have more than one simultaneously-active plane (e.g. gamescope's
+        // base + overlay layers). Count each CRTC once, not once per active plane.
+        if (counted_crtcs.count(plane->crtc_id)) {
           continue;
         }
 
@@ -2126,6 +2142,7 @@ namespace platf {
         kms::print(plane.get(), fb.get(), crtc.get());
         display_names.emplace_back(std::format("{}-{}", drmModeGetConnectorTypeName(it->second.type), it->second.index));
         count++;
+        counted_crtcs.insert(plane->crtc_id);
       }
 
       cds.emplace_back(kms::card_descriptor_t {
