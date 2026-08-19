@@ -1700,7 +1700,27 @@ namespace platf {
           return platf::capture_e::interrupted;
         }
 
-        gl::ctx.GetTextureSubImage(rgb->tex[0], 0, img_offset_x, img_offset_y, 0, width, height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out->height * img_out->row_pitch, img_out->data);
+        // The plane's backing texture can be smaller than the configured capture
+        // resolution when the display controller hardware-scales it up at scanout time
+        // (e.g. a game's native-resolution exclusive-fullscreen swapchain stretched to
+        // fill the output). Reading past the texture's real bounds triggers
+        // GL_INVALID_VALUE, so clamp the read to what's actually there. GL_PACK_ROW_LENGTH
+        // keeps the destination stride matching the full-size image buffer so the read
+        // lands correctly in its top-left corner instead of shearing across rows.
+        // Note this does not reproduce the hardware scaling itself: the rest of the frame
+        // is left as whatever the buffer previously contained.
+        int read_width = std::max(0, std::min(width, w - img_offset_x));
+        int read_height = std::max(0, std::min(height, h - img_offset_y));
+        bool clamped = read_width != width || read_height != height;
+        if (clamped) {
+          gl::ctx.PixelStorei(GL_PACK_ROW_LENGTH, width);
+        }
+
+        gl::ctx.GetTextureSubImage(rgb->tex[0], 0, img_offset_x, img_offset_y, 0, read_width, read_height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out->height * img_out->row_pitch, img_out->data);
+
+        if (clamped) {
+          gl::ctx.PixelStorei(GL_PACK_ROW_LENGTH, 0);
+        }
 
         img_out->frame_timestamp = frame_timestamp;
 
