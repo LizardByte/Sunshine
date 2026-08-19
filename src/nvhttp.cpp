@@ -1175,10 +1175,10 @@ namespace nvhttp {
         codec_mode_flags |= SCM_HEVC_REXT8_444;
       }
     }
-    if (video::active_hevc_mode == 3 || video::active_hevc_mode == 5) {
+    if ((video::active_hevc_mode == 3 || video::active_hevc_mode == 5) && video::last_encoder_probe_supported_dynamic_range_for_codec[1]) {
       codec_mode_flags |= SCM_HEVC_MAIN10;
     }
-    if ((video::active_hevc_mode == 4 || video::active_hevc_mode == 5) && video::last_encoder_probe_supported_yuv444_for_codec[1]) {
+    if ((video::active_hevc_mode == 4 || video::active_hevc_mode == 5) && video::last_encoder_probe_supported_dynamic_range_yuv444_for_codec[1]) {
       codec_mode_flags |= SCM_HEVC_REXT10_444;
     }
 
@@ -1188,10 +1188,10 @@ namespace nvhttp {
         codec_mode_flags |= SCM_AV1_HIGH8_444;
       }
     }
-    if (video::active_av1_mode == 3 || video::active_av1_mode == 5) {
+    if ((video::active_av1_mode == 3 || video::active_av1_mode == 5) && video::last_encoder_probe_supported_dynamic_range_for_codec[2]) {
       codec_mode_flags |= SCM_AV1_MAIN10;
     }
-    if ((video::active_av1_mode == 4 || video::active_av1_mode == 5) && video::last_encoder_probe_supported_yuv444_for_codec[2]) {
+    if ((video::active_av1_mode == 4 || video::active_av1_mode == 5) && video::last_encoder_probe_supported_dynamic_range_yuv444_for_codec[2]) {
       codec_mode_flags |= SCM_AV1_HIGH10_444;
     }
     return codec_mode_flags;
