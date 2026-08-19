@@ -36,6 +36,14 @@ configure_file(
         "${CMAKE_CURRENT_BINARY_DIR}/assets/web/images/logo-sunshine.svg"
         COPYONLY)
 
+# Copy the Virtual HID Driver icon for Windows tray notifications.
+if(WIN32)
+    configure_file(
+            "${CMAKE_SOURCE_DIR}/third-party/libvirtualhid/libvirtualhid.svg"
+            "${CMAKE_CURRENT_BINARY_DIR}/assets/web/images/logo-libvirtualhid.svg"
+            COPYONLY)
+endif()
+
 # install built vite assets
 install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/assets/web"
         DESTINATION "${SUNSHINE_ASSETS_DIR}")

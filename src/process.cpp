@@ -25,6 +25,7 @@
 #include "config.h"
 #include "crypto.h"
 #include "display_device.h"
+#include "input.h"
 #include "logging.h"
 #include "platform/common.h"
 #include "process.h"
@@ -318,6 +319,7 @@ namespace proc {
   }
 
   void proc_t::terminate() {
+    input::terminate_gamepads();
     std::error_code ec;
     placebo = false;
     terminate_process_group(_process, _process_group, _app.exit_timeout);

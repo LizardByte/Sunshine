@@ -59,7 +59,8 @@ jobs:
             libwayland-dev \
             libx11-xcb-dev \
             libxcb-dri3-dev \
-            libxfixes-dev
+            libxfixes-dev \
+            libxtst-dev
 
       - name: Build latest libva
         env:
@@ -172,15 +173,20 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
         with:
           enable-cache: true
 
       - name: Sync Python tools
         run: |
-          uv sync --locked \
-            --python "${PYTHON_VERSION}" \
-            --no-python-downloads --no-install-project
+          uv_sync_args=(
+            --locked
+            --python "${PYTHON_VERSION}"
+            --no-python-downloads
+            --no-install-project
+          )
+          # uv.lock pins external artifacts; reviewed local build hooks are required for gcovr.
+          uv sync "${uv_sync_args[@]}"  # NOSONAR(githubactions:S8541)
 
       - name: Run tests
         id: test
