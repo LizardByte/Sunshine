@@ -1703,24 +1703,53 @@ namespace platf {
         // The plane's backing texture can be smaller than the configured capture
         // resolution when the display controller hardware-scales it up at scanout time
         // (e.g. a game's native-resolution exclusive-fullscreen swapchain stretched to
-        // fill the output). Reading past the texture's real bounds triggers
-        // GL_INVALID_VALUE, so clamp the read to what's actually there. GL_PACK_ROW_LENGTH
-        // keeps the destination stride matching the full-size image buffer so the read
-        // lands correctly in its top-left corner instead of shearing across rows.
-        // Note this does not reproduce the hardware scaling itself: the rest of the frame
-        // is left as whatever the buffer previously contained.
-        int read_width = std::max(0, std::min(width, w - img_offset_x));
-        int read_height = std::max(0, std::min(height, h - img_offset_y));
-        bool clamped = read_width != width || read_height != height;
-        if (clamped) {
-          gl::ctx.PixelStorei(GL_PACK_ROW_LENGTH, width);
+        // fill the output) -- kmsgrab imports the plane's raw pre-scale buffer via
+        // DMA-BUF, bypassing that hardware scaler entirely. Reproduce the same upscale
+        // with a linear-filtered GL blit into a full-resolution scratch texture before
+        // reading it back, so the captured frame matches what the display actually shows
+        // instead of being cropped to the plane's native corner.
+        GLuint read_tex = rgb->tex[0];
+        int read_offset_x = img_offset_x;
+        int read_offset_y = img_offset_y;
+
+        if (w != width || h != height) {
+          if (!scale_tex.size()) {
+            scale_tex = gl::tex_t::make(1);
+            gl::ctx.BindTexture(GL_TEXTURE_2D, scale_tex[0]);
+            gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, width, height);
+            gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
+
+            scale_dst_fb = gl::frame_buf_t::make(1);
+            scale_dst_fb.bind(&scale_tex[0], &scale_tex[0] + 1);
+
+            scale_src_fb = gl::frame_buf_t::make(1);
+          }
+
+          gl::ctx.BindFramebuffer(GL_READ_FRAMEBUFFER, scale_src_fb[0]);
+          gl::ctx.FramebufferTexture(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, rgb->tex[0], 0);
+          gl::ctx.ReadBuffer(GL_COLOR_ATTACHMENT0);
+
+          gl::ctx.BindFramebuffer(GL_DRAW_FRAMEBUFFER, scale_dst_fb[0]);
+          GLenum draw_buf = GL_COLOR_ATTACHMENT0;
+          gl::ctx.DrawBuffers(1, &draw_buf);
+
+#ifndef NDEBUG
+          auto status = gl::ctx.CheckFramebufferStatus(GL_READ_FRAMEBUFFER);
+          if (status != GL_FRAMEBUFFER_COMPLETE) {
+            BOOST_LOG(error) << "Scale blit: source CheckFramebufferStatus() --> [0x"sv << util::hex(status).to_string_view() << ']';
+          }
+#endif
+
+          gl::ctx.BlitFramebuffer(0, 0, w, h, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+
+          gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
+
+          read_tex = scale_tex[0];
+          read_offset_x = 0;
+          read_offset_y = 0;
         }
 
-        gl::ctx.GetTextureSubImage(rgb->tex[0], 0, img_offset_x, img_offset_y, 0, read_width, read_height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out->height * img_out->row_pitch, img_out->data);
-
-        if (clamped) {
-          gl::ctx.PixelStorei(GL_PACK_ROW_LENGTH, 0);
-        }
+        gl::ctx.GetTextureSubImage(read_tex, 0, read_offset_x, read_offset_y, 0, width, height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out->height * img_out->row_pitch, img_out->data);
 
         img_out->frame_timestamp = frame_timestamp;
 
@@ -1761,6 +1790,15 @@ namespace platf {
       egl::display_t display;  ///< EGL display created from the GBM device.
       egl::ctx_t ctx;  ///< EGL context used to copy KMS frames into RAM.
       bool import_failed_last_frame = false;  ///< Whether the previous frame's plane import failed, to avoid log spam.
+
+      // Lazily created the first time a captured plane's native size differs from the
+      // configured capture resolution (i.e. the display controller is hardware-scaling
+      // it). scale_tex is sized to the full capture resolution; scale_src_fb/scale_dst_fb
+      // wrap the per-frame imported texture and scale_tex respectively so BlitFramebuffer
+      // can scale between them.
+      gl::tex_t scale_tex;  ///< Scratch texture holding the upscaled frame, when needed.
+      gl::frame_buf_t scale_src_fb;  ///< FBO used to bind the per-frame imported texture as the blit source.
+      gl::frame_buf_t scale_dst_fb;  ///< FBO wrapping scale_tex as the blit destination.
     };
 
     /**
