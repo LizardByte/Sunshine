@@ -1668,7 +1668,21 @@ namespace platf {
         auto rgb_opt = egl::import_source(display.get(), sd);
 
         if (!rgb_opt) {
-          return capture_e::error;
+          // The plane's current format/modifier can't be imported (e.g. a game switched to a
+          // 10bpc swapchain in exclusive fullscreen that this driver won't bind to a GL texture).
+          // Skip this frame rather than tearing down the whole capture thread for every client,
+          // and only log once per failure streak to avoid flooding the log every frame.
+          if (!import_failed_last_frame) {
+            BOOST_LOG(warning) << "Skipping frame(s): plane format (fourcc: "sv << util::hex(sd.fourcc).to_string_view()
+                                << ") failed to import; will resume automatically if the format changes back"sv;
+            import_failed_last_frame = true;
+          }
+          return capture_e::timeout;
+        }
+
+        if (import_failed_last_frame) {
+          BOOST_LOG(info) << "Resumed capture after plane format import failure"sv;
+          import_failed_last_frame = false;
         }
 
         auto &rgb = *rgb_opt;
@@ -1726,6 +1740,7 @@ namespace platf {
       gbm::gbm_t gbm;  ///< GBM device used for buffer allocation.
       egl::display_t display;  ///< EGL display created from the GBM device.
       egl::ctx_t ctx;  ///< EGL context used to copy KMS frames into RAM.
+      bool import_failed_last_frame = false;  ///< Whether the previous frame's plane import failed, to avoid log spam.
     };
 
     /**

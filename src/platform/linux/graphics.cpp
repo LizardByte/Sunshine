@@ -655,9 +655,22 @@ namespace egl {
     gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
     if (!gl::egl_image_target_texture_2d()) {
       BOOST_LOG(error) << "glEGLImageTargetTexture2DOES is not available; cannot import RGB DMA-BUF"sv;
+      gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
       return std::nullopt;
     }
     gl::egl_image_target_texture_2d()(GL_TEXTURE_2D, rgb->xrgb8);
+
+    // Some drivers accept an EGLImage of a given DRM format/modifier from eglCreateImage()
+    // but then reject binding it to a GL texture, e.g. Mesa/RADV rejecting a 10bpc format
+    // like DRM_FORMAT_XBGR2101010. When that happens, the texture is left with stale or
+    // incomplete contents, so this must be treated as an import failure rather than
+    // silently streaming whatever ends up in the texture.
+    if (auto err = gl::ctx.GetError(); err != GL_NO_ERROR) {
+      BOOST_LOG(error) << "Failed to bind EGLImage (DRM fourcc: "sv << util::hex(xrgb.fourcc).to_string_view()
+                        << ") to GL texture: "sv << util::hex(err).to_string_view();
+      gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
+      return std::nullopt;
+    }
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
 
