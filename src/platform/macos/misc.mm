@@ -252,8 +252,9 @@ namespace platf {
     pthread_set_qos_class_self_np(mac_priority, 0);
   }
 
-  void set_thread_name(const std::string &name) {
-    pthread_setname_np(name.c_str());
+  void set_thread_name(std::string_view name) {
+    std::string thread_name {name};
+    pthread_setname_np(thread_name.c_str());
   }
 
   void enable_mouse_keys() {
