@@ -540,6 +540,38 @@ TEST_F(VirtualHidDeviceTest, TranslatesGamepadTouchMotionAndBattery) {
   EXPECT_EQ(unsupported->gamepad()->submit_count(), unsupported_count);
 }
 
+TEST_F(VirtualHidDeviceTest, PreservesAuxiliaryGamepadStateAcrossControlUpdates) {
+  const auto capabilities = static_cast<std::uint16_t>(LI_CCAP_ACCEL | LI_CCAP_GYRO | LI_CCAP_TOUCHPAD | LI_CCAP_BATTERY_STATE);
+  auto *adapter = allocate_gamepad("ds5"sv, LI_CTYPE_PS, capabilities);
+  ASSERT_NE(adapter, nullptr);
+  EXPECT_TRUE(feedback_queue()->pop(10ms));
+  EXPECT_TRUE(feedback_queue()->pop(10ms));
+
+  platf::virtualhid::gamepad_motion(*context(), {{0, 3}, LI_MOTION_TYPE_ACCEL, 0.0F, 9.80665F, 0.0F});
+  platf::virtualhid::gamepad_motion(*context(), {{0, 3}, LI_MOTION_TYPE_GYRO, -0.2F, -0.5F, 0.0F});
+  platf::virtualhid::gamepad_touch(*context(), {{0, 3}, LI_TOUCH_EVENT_DOWN, 10, 0.25F, 0.75F, 1.0F});
+  platf::virtualhid::gamepad_battery(*context(), {{0, 3}, LI_BATTERY_STATE_DISCHARGING, 75});
+
+  platf::virtualhid::gamepad_update(*context(), 0, {platf::A, 255, 0, 0, 0, 0, 0});
+
+  const auto &state = adapter->state();
+  EXPECT_TRUE(state.buttons.test(lvh::GamepadButton::a));
+  ASSERT_TRUE(state.acceleration);
+  EXPECT_FLOAT_EQ(state.acceleration->x, 0.0F);
+  EXPECT_FLOAT_EQ(state.acceleration->y, 9.80665F);
+  EXPECT_FLOAT_EQ(state.acceleration->z, 0.0F);
+  ASSERT_TRUE(state.gyroscope);
+  EXPECT_FLOAT_EQ(state.gyroscope->x, -0.2F);
+  EXPECT_FLOAT_EQ(state.gyroscope->y, -0.5F);
+  EXPECT_FLOAT_EQ(state.gyroscope->z, 0.0F);
+  EXPECT_TRUE(state.touchpad_contacts[0].active);
+  EXPECT_FLOAT_EQ(state.touchpad_contacts[0].x, 0.25F);
+  EXPECT_FLOAT_EQ(state.touchpad_contacts[0].y, 0.75F);
+  ASSERT_TRUE(state.battery);
+  EXPECT_EQ(state.battery->state, lvh::GamepadBatteryState::discharging);
+  EXPECT_EQ(state.battery->percentage, 75);
+}
+
 TEST_F(VirtualHidDeviceTest, TranslatesMouseAndKeyboardInput) {
   platf::virtualhid::move_mouse(*context(), -4, 7);
   auto mouse_event = context()->mouse->last_submitted_event();
