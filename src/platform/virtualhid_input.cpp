@@ -45,6 +45,10 @@ namespace platf::virtualhid {
     std::uint8_t last_red = 0;  ///< Last red LED value.
     std::uint8_t last_green = 0;  ///< Last green LED value.
     std::uint8_t last_blue = 0;  ///< Last blue LED value.
+    bool has_last_player_led = false;  ///< Whether the last player-LED value is valid.
+    std::uint8_t last_player_led = 0;  ///< Last player-indicator LED bitmask.
+    bool has_last_mic_led = false;  ///< Whether the last mic-LED state is valid.
+    std::uint8_t last_mic_led = 0;  ///< Last mic-mute LED state.
   };
 
   namespace {
@@ -389,6 +393,22 @@ namespace platf::virtualhid {
           gamepad->last_green = output.green;
           gamepad->last_blue = output.blue;
           raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_rgb_led(gamepad->client_relative_index, output.red, output.green, output.blue));
+          break;
+        case lvh::GamepadOutputKind::player_led:
+          if (gamepad->has_last_player_led && gamepad->last_player_led == output.player_led) {
+            return;
+          }
+          gamepad->has_last_player_led = true;
+          gamepad->last_player_led = output.player_led;
+          raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_player_led(gamepad->client_relative_index, output.player_led));
+          break;
+        case lvh::GamepadOutputKind::mic_led:
+          if (gamepad->has_last_mic_led && gamepad->last_mic_led == output.mic_led) {
+            return;
+          }
+          gamepad->has_last_mic_led = true;
+          gamepad->last_mic_led = output.mic_led;
+          raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_mic_led(gamepad->client_relative_index, output.mic_led));
           break;
         case lvh::GamepadOutputKind::adaptive_triggers:
           raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_adaptive_triggers(gamepad->client_relative_index, output.adaptive_trigger_flags, output.left_trigger_effect_type, output.right_trigger_effect_type, output.left_trigger_effect, output.right_trigger_effect));
