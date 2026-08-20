@@ -1130,8 +1130,8 @@ namespace platf {
     }
   }
 
-  void set_thread_name(const std::string &name) {
-    std::wstring wname = utf_utils::from_utf8(name);
+  void set_thread_name(std::string_view name) {
+    std::wstring wname = utf_utils::from_utf8(std::string {name});
     HRESULT hr = SetThreadDescription(GetCurrentThread(), wname.c_str());
     if (FAILED(hr)) {
       BOOST_LOG(error) << "SetThreadDescription failed: " << hr;
