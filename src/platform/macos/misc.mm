@@ -269,6 +269,35 @@ namespace platf {
     // Nothing to do
   }
 
+  static pid_t g_restart_child_pid = 0;  ///< PID of the restarted child process for signal forwarding.
+
+  /**
+   * @brief Forward a signal to the restarted child process.
+   *
+   * This handler is installed in the parent (supervisor) process after forking
+   * the new Sunshine instance. It ensures that signals like SIGINT (Ctrl+C)
+   * are delivered to the child.
+   *
+   * @param sig The signal number to forward.
+   */
+  static void forward_signal_to_child(int sig) {
+    if (g_restart_child_pid > 0) {
+      kill(g_restart_child_pid, sig);
+    }
+  }
+
+  /**
+   * @brief Request a Sunshine process restart on exit.
+   *
+   * This is registered as an atexit handler by restart(). It forks a child
+   * process with a fresh PID so that macOS WindowServer treats it as a new
+   * application (required for the system tray icon to reinitialize).
+   *
+   * The parent process stays alive as a transparent supervisor: it forwards
+   * signals (SIGINT, SIGTERM, SIGHUP) to the child and blocks in waitpid().
+   * This keeps the shell tracking the original PID as its foreground job,
+   * preserving Ctrl+C and terminal log output.
+   */
   void restart_on_exit() {
     char executable[2048];
     uint32_t size = sizeof(executable);
@@ -277,17 +306,54 @@ namespace platf {
       return;
     }
 
-    // ASIO doesn't use O_CLOEXEC, so we have to close all fds ourselves
+    // ASIO doesn't use O_CLOEXEC, so we have to close all fds ourselves.
     int openmax = (int) sysconf(_SC_OPEN_MAX);
     for (int fd = STDERR_FILENO + 1; fd < openmax; fd++) {
       close(fd);
     }
 
-    // Re-exec ourselves with the same arguments
-    if (execv(executable, lifetime::get_argv()) < 0) {
-      BOOST_LOG(fatal) << "execv() failed: "sv << errno;
+    // Fork a child process to get a fresh PID.
+    // A new PID is required on macOS because WindowServer associates GUI state
+    // (tray icons, activation policy) with the PID. After execv with the same PID,
+    // WindowServer retains stale state and silently refuses to show new tray icons.
+    pid_t child = fork();
+    if (child < 0) {
+      BOOST_LOG(fatal) << "fork() failed: "sv << errno;
       return;
     }
+
+    if (child == 0) {
+      // Child: create a new process group so that the parent's signal
+      // forwarding targets only this child, not the parent itself.
+      setpgid(0, 0);
+
+      // Replace this child with the new Sunshine instance
+      execv(executable, lifetime::get_argv());
+
+      // If execv fails, exit the child immediately without running atexit handlers
+      _exit(1);
+    }
+
+    // Parent: become a transparent supervisor.
+    // The parent stays alive so the shell continues to track it as the
+    // foreground job, keeping Ctrl+C and terminal output working.
+    g_restart_child_pid = child;
+
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = forward_signal_to_child;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, nullptr);
+    sigaction(SIGTERM, &sa, nullptr);
+    sigaction(SIGHUP, &sa, nullptr);
+
+    int status;
+    waitpid(child, &status, 0);
+
+    // Exit immediately without running additional atexit handlers or
+    // static destructors. The child has already taken over.
+    _exit(WIFEXITED(status) ? WEXITSTATUS(status) : 1);
   }
 
   void restart() {
