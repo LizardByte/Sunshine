@@ -2780,6 +2780,40 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### amd_max_au_size
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Maximum Access Unit (frame) size for rate control, in bits. This is a last-resort
+            control for capping oversized encoded frames that would otherwise exceed Sunshine's
+            four-block FEC capacity and be sent without FEC protection.
+            @note{This option only applies to H.264 and HEVC when using amdvce [encoder](#encoder).
+            AV1 does not support this option.}
+            @note{The FEC ceiling depends on the negotiated packet size and [fec_percentage](#fec_percentage),
+            not the average bitrate or frame rate. The approximate encoded-payload ceiling is
+            `4 * floor(25500 / (100 + fec_percentage)) * (packet_size - 16) * 8` bits, before
+            allowing for the short frame header or codec-header replacements. With 20% FEC and
+            1024-byte packets, 6400000 bits provides conservative headroom.}
+            @warning{Setting this unnecessarily low can reduce image quality, especially for
+            keyframes. Leave it empty unless oversized frames are actually causing FEC to be skipped.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            amd_max_au_size = 6400000
+            @endcode</td>
+    </tr>
+</table>
+
 ### amd_quality
 
 <table>
