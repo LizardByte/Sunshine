@@ -695,13 +695,19 @@ namespace config {
       std::stringstream json_stream;
       json_stream << "{\"dd_mode_remapping\":" << value << "}";
 
-      boost::property_tree::ptree json_tree;
-      boost::property_tree::read_json(json_stream, json_tree);
-
       video_t::dd_t::mode_remapping_t output;
-      parse_entry_list(json_tree.get_child("dd_mode_remapping.mixed"), output.mixed);
-      parse_entry_list(json_tree.get_child("dd_mode_remapping.resolution_only"), output.resolution_only);
-      parse_entry_list(json_tree.get_child("dd_mode_remapping.refresh_rate_only"), output.refresh_rate_only);
+      try {
+        boost::property_tree::ptree json_tree;
+        boost::property_tree::read_json(json_stream, json_tree);
+
+        parse_entry_list(json_tree.get_child("dd_mode_remapping.mixed"), output.mixed);
+        parse_entry_list(json_tree.get_child("dd_mode_remapping.resolution_only"), output.resolution_only);
+        parse_entry_list(json_tree.get_child("dd_mode_remapping.refresh_rate_only"), output.refresh_rate_only);
+      } catch (const boost::property_tree::ptree_error &err) {
+        // don't let bad json kill startup, skip remapping
+        BOOST_LOG(warning) << "Ignoring invalid dd_mode_remapping configuration: "sv << err.what();
+        return {};
+      }
 
       return output;
     }
@@ -1419,15 +1425,21 @@ namespace config {
     // We need to add a wrapping object to make it valid JSON, otherwise ptree cannot parse it.
     jsonStream << "{\"prep_cmd\":" << string << "}";
 
-    boost::property_tree::ptree jsonTree;
-    boost::property_tree::read_json(jsonStream, jsonTree);
+    try {
+      boost::property_tree::ptree jsonTree;
+      boost::property_tree::read_json(jsonStream, jsonTree);
 
-    for (auto &[_, prep_cmd] : jsonTree.get_child("prep_cmd"s)) {
-      auto do_cmd = prep_cmd.get_optional<std::string>("do"s);
-      auto undo_cmd = prep_cmd.get_optional<std::string>("undo"s);
-      auto elevated = prep_cmd.get_optional<bool>("elevated"s);
+      for (auto &[_, prep_cmd] : jsonTree.get_child("prep_cmd"s)) {
+        auto do_cmd = prep_cmd.get_optional<std::string>("do"s);
+        auto undo_cmd = prep_cmd.get_optional<std::string>("undo"s);
+        auto elevated = prep_cmd.get_optional<bool>("elevated"s);
 
-      input.emplace_back(do_cmd.value_or(""), undo_cmd.value_or(""), elevated.value_or(false));
+        input.emplace_back(do_cmd.value_or(""), undo_cmd.value_or(""), elevated.value_or(false));
+      }
+    } catch (const boost::property_tree::ptree_error &err) {
+      // don't let bad json kill startup, skip this setting
+      BOOST_LOG(warning) << "Ignoring invalid "sv << name << " configuration: "sv << err.what();
+      input.clear();
     }
   }
 
