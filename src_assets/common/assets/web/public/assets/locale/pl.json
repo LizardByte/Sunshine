@@ -123,6 +123,8 @@
     "amd_coder_desc": "Umożliwia wybór kodowania entropijnego w celu nadania priorytetu jakości lub szybkości kodowania. Tylko H.264.",
     "amd_enforce_hrd": "Wymuszanie AMF Hypothetical Reference Decoder (HRD)",
     "amd_enforce_hrd_desc": "Zwiększa ograniczenia kontroli szybkości, aby spełnić wymagania modelu HRD. Zmniejsza to znacznie przepełnienie bitrate, ale może powodować artefakty kodowania lub obniżenie jakości na niektórych kartach.",
+    "amd_max_au_size": "AMF Max AU Size (bits)",
+    "amd_max_au_size_desc": "Maksymalny zakodowany rozmiar jednostki dostępu H.264 lub HEVC w bitach. Pusty lub -1 pozostawia domyślny AMF. Używać tylko do ograniczenia przeskalowanych ram, które przekraczają pojemność FEC Sunshine'a. Limit zależy od wielkości pakietu i FEC procent, a nie od przepływności lub szybkości ramki. Zobacz dokumentację dla wielkości.",
     "amd_preanalysis": "Wstępna analiza AMF",
     "amd_preanalysis_desc": "Umożliwia to wstępną analizę kontroli szybkości, która może zwiększyć jakość kosztem zwiększonego opóźnienia kodowania.",
     "amd_quality": "Jakość AMF",
