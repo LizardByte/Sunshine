@@ -123,6 +123,8 @@
     "amd_coder_desc": "Låter dig välja entropikodning för att prioritera kvalitet eller kodningshastighet. H.264 endast.",
     "amd_enforce_hrd": "AMF Hypotetisk referensavkodare (HRD) verkställighet",
     "amd_enforce_hrd_desc": "Ökar begränsningarna för hastighetskontroll för att uppfylla kraven i HRD-modellen. Detta minskar kraftigt bithastighetsöverflöden, men kan orsaka kodning artefakter eller minskad kvalitet på vissa kort.",
+    "amd_max_au_size": "AMF Max AU Size (bits)",
+    "amd_max_au_size_desc": "Maximal kodad H.264 eller HEVC Access Unit storlek i bitar. Tom eller -1 lämnar AMF standard. Använd endast för att kapsla överdimensionerade ramar som överstiger Sunshines FEC-kapacitet. Gränsen beror på paketets storlek och FEC-procent, inte bithastighet eller bildhastighet. Se dokumentationen för dimensionering.",
     "amd_preanalysis": "AMF Föranalys",
     "amd_preanalysis_desc": "Detta möjliggör föranalys av hastighetskontroll, vilket kan öka kvaliteten på bekostnad av ökad kodningstid.",
     "amd_quality": "AMF Kvalitet",
