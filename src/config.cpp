@@ -1273,24 +1273,6 @@ namespace config {
   }
 
   /**
-   * @brief Consume an optional integer setting only when it meets a minimum value.
-   *
-   * @param vars Parsed configuration entries; consumed keys are erased.
-   * @param name Configuration key to consume.
-   * @param input Destination field updated when the setting exists and meets the minimum.
-   * @param minimum Lowest accepted value.
-   */
-  void int_at_least_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::optional<int> &input, int minimum) {
-    auto temp = input;
-
-    int_f(vars, name, temp);
-
-    if (!temp || *temp >= minimum) {
-      input = temp;
-    }
-  }
-
-  /**
    * @brief Convert common textual boolean forms to a boolean value.
    *
    * @param boolean Configuration string to classify as enabled or disabled.
@@ -1649,7 +1631,13 @@ namespace config {
     bool_f(vars, "amd_preanalysis", (bool &) video.amd.amd_preanalysis);
     bool_f(vars, "amd_vbaq", (bool &) video.amd.amd_vbaq);
     bool_f(vars, "amd_enforce_hrd", (bool &) video.amd.amd_enforce_hrd);
-    int_at_least_f(vars, "amd_max_au_size", video.amd.amd_max_au_size, -1);
+    {
+      auto max_au_size = video.amd.amd_max_au_size;
+      int_f(vars, "amd_max_au_size", max_au_size);
+      if (!max_au_size || *max_au_size >= -1) {
+        video.amd.amd_max_au_size = max_au_size;
+      }
+    }
 
     int_f(vars, "vt_coder", video.vt.vt_coder, vt::coder_from_view);
     int_f(vars, "vt_software", video.vt.vt_allow_sw, vt::allow_software_from_view);
@@ -1905,6 +1893,17 @@ namespace config {
       }
     }
   }
+
+#ifdef SUNSHINE_TESTS
+  /**
+   * @brief Parse and apply serialized configuration text for unit tests.
+   *
+   * @param file_content Raw configuration text to parse and apply.
+   */
+  void apply_config_for_test(const std::string_view file_content) {
+    apply_config(parse_config(file_content));
+  }
+#endif
 
   /**
    * @brief Parse serialized text into the corresponding runtime representation.

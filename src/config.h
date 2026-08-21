@@ -386,11 +386,11 @@ namespace config {
 
 #ifdef SUNSHINE_TESTS
   /**
-   * @brief Apply parsed configuration entries to the global runtime configuration for testing.
+   * @brief Parse and apply serialized configuration text for unit tests.
    *
-   * @param vars Parsed configuration entries to consume.
+   * @param file_content Raw configuration text to parse and apply.
    */
-  void apply_config(std::unordered_map<std::string, std::string> &&vars);
+  void apply_config_for_test(std::string_view file_content);
 #endif
 
   /**

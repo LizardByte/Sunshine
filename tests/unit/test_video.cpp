@@ -142,7 +142,7 @@ struct AmfMaxAuSizeConfigTest: BaseTest, testing::WithParamInterface<AmfMaxAuSiz
   void SetUp() override {
     BaseTest::SetUp();
     config::video.amd.amd_max_au_size.reset();
-    config::stream.file_apps = __FILE__;
+    config::stream.file_apps = SUNSHINE_SOURCE_DIR "/tests/unit/test_video.cpp";
   }
 
   void TearDown() override {
@@ -167,9 +167,7 @@ struct AmfMaxAuSizeConfigTest: BaseTest, testing::WithParamInterface<AmfMaxAuSiz
 
 TEST_P(AmfMaxAuSizeConfigTest, AcceptsOnlyFfmpegSupportedRange) {
   const auto &[setting, expected] = GetParam();
-  auto vars = config::parse_config(setting);
-
-  config::apply_config(std::move(vars));
+  config::apply_config_for_test(setting);
 
   EXPECT_EQ(expected, config::video.amd.amd_max_au_size);
 }
