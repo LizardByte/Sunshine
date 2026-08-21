@@ -123,6 +123,8 @@
     "amd_coder_desc": "Erlaubt es Ihnen, die Entropy-Kodierung auszuwählen, um die Qualität oder die Kodierungsgeschwindigkeit zu priorisieren. H.264 nur.",
     "amd_enforce_hrd": "Hypothetische Referenz-Decodierer (HRD) durchsetzen",
     "amd_enforce_hrd_desc": "Steigern Sie die Einschränkungen bei der Ratensteuerung, um die Anforderungen des HRD-Modells zu erfüllen. Dies reduziert die Bitratenüberläufe erheblich, kann jedoch zu Kodierungsartefakten oder zu geringerer Qualität auf bestimmten Karten führen.",
+    "amd_max_au_size": "AMF Max AU Size (bits)",
+    "amd_max_au_size_desc": "Maximal codierte H.264 oder HEVC Access Unit Größe in Bits. Leer oder -1 lässt den AMF Standard. Verwende nur, um übergroße Rahmen zu kappen, die die FEC-Kapazität von Sunshine übersteigen. Das Limit hängt von der Paketgröße und vom FEC-Prozentsatz ab, nicht von der Bitrate oder der Framerate.",
     "amd_preanalysis": "AMF-Voranalyse",
     "amd_preanalysis_desc": "Dies ermöglicht die Vorabanalyse der Rate, wodurch die Qualität auf Kosten einer erhöhten Encoding-Latenz erhöht werden kann.",
     "amd_quality": "AMF-Qualität",

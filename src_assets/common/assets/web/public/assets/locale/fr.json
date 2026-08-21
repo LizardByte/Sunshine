@@ -123,6 +123,8 @@
     "amd_coder_desc": "Permet de sélectionner l'encodage de l'entropie pour prioriser la qualité ou la vitesse d'encodage. H.264 seulement.",
     "amd_enforce_hrd": "Enforcement du Décodeur Hypothetical Reference Decoder (HRD) de l'AMF",
     "amd_enforce_hrd_desc": "Augmente les contraintes sur le contrôle du débit pour répondre aux exigences du modèle HRD. Cela réduit considérablement les débordements de débit, mais peut causer des artefacts d'encodage ou une qualité réduite sur certaines cartes.",
+    "amd_max_au_size": "AMF Max AU Size (bits)",
+    "amd_max_au_size_desc": "Taille maximale de l'unité d'accès HEVC H.264 ou HEVC en bits. Vider ou -1 laisse l'AMF par défaut. Utilisé uniquement pour plafonner les cadres surdimensionnés qui dépassent la capacité FEC de Sunshine. La limite dépend de la taille des paquets et du pourcentage de FEC, et non du débit ou du débit d'images. Voir la documentation pour la taille.",
     "amd_preanalysis": "Pré-analyse AMF",
     "amd_preanalysis_desc": "Cela permet une préanalyse de contrôle de débit, ce qui peut augmenter la qualité au détriment d'une latence d'encodage accrue.",
     "amd_quality": "Qualité AMF",

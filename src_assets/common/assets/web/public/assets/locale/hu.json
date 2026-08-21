@@ -123,6 +123,8 @@
     "amd_coder_desc": "Lehetővé teszi, hogy kiválaszd az entrópia kódolást a minőség vagy a kódolási sebesség érdekében. Csak H.264-nél.",
     "amd_enforce_hrd": "AMF hipotetikus referenciadekóder (HRD) kikényszerítés",
     "amd_enforce_hrd_desc": "Növeli a bitráta-szabályozás korlátozásait, hogy megfeleljen a HRD modell követelményeinek. Ez nagyban csökkenti a bitráta túlcsordulást, de kódolási hibákat vagy csökkent minőséget okozhat bizonyos kártyákon.",
+    "amd_max_au_size": "AMF Max AU méret (bit)",
+    "amd_max_au_size_desc": "A kódolt H.264 vagy HEVC hozzáférési egység maximális mérete bitben kifejezve. Ha üresen hagyja vagy -1-et ad meg, az AMF alapértelmezett értéke marad érvényben. Kizárólag a Sunshine FEC-kapacitását meghaladó túlméretezett képkockák korlátozására használható. A korlát a csomagmérettől és az FEC-százaléktól függ, nem pedig a bitrátától vagy a képkockasebességtől. A méretezéssel kapcsolatos információkat a dokumentációban találja.",
     "amd_preanalysis": "AMF előelemzés",
     "amd_preanalysis_desc": "Ez engedélyezi a bitráta szabályozás előelemzését, ami javíthatja a minőséget a megnövekedett kódolási késleltetés árán.",
     "amd_quality": "AMF minőség",

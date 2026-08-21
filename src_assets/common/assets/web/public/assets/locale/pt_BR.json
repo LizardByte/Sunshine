@@ -123,6 +123,8 @@
     "amd_coder_desc": "Permite que você selecione a codificação de entropia para priorizar a qualidade ou a velocidade de codificação. Somente H.264.",
     "amd_enforce_hrd": "Aplicação do decodificador de referência hipotético (HRD) da AMF",
     "amd_enforce_hrd_desc": "Aumenta as restrições do controle de taxa para atender aos requisitos do modelo HRD. Isso reduz bastante os excessos de taxa de bits, mas pode causar artefatos de codificação ou qualidade reduzida em determinadas placas.",
+    "amd_max_au_size": "AMF Max AU Size (bits)",
+    "amd_max_au_size_desc": "Tamanho máximo da unidade de acesso H.264 ou HEVC em bits. Vazio ou -1 deixa o AMF padrão. Use apenas para captar quadros superdimensionados que excedam a capacidade de FEC do Sunshine. O limite depende do tamanho do pacote e porcentagem FEC, não taxa de bits ou taxa de quadros. Consulte a documentação para dimensionamento.",
     "amd_preanalysis": "Pré-análise da AMF",
     "amd_preanalysis_desc": "Isso permite a pré-análise de controle de taxa, que pode aumentar a qualidade às custas de uma maior latência de codificação.",
     "amd_quality": "Qualidade AMF",

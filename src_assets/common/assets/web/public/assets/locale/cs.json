@@ -123,6 +123,8 @@
     "amd_coder_desc": "Umožňuje vybrat entropie kódování pro upřednostnění kvality nebo rychlosti kódování. Pouze H.264.",
     "amd_enforce_hrd": "Vymáhání hypotetického referenčního dekodéru (HRD) AMF",
     "amd_enforce_hrd_desc": "Zvyšuje omezení regulace rychlosti, aby splňovala požadavky modelu HRD. To výrazně snižuje bitrate přetečení, ale může způsobit kódování artefaktů nebo nižší kvalitu na některých kartách.",
+    "amd_max_au_size": "AMF Max AU Size (bits)",
+    "amd_max_au_size_desc": "Maximální velikost přístupové jednotky H.264 nebo HEVC v bitech. Prázdná nebo -1 ponechává AMF výchozí. Používejte pouze k ukotvení nadrozměrných rámů, které překračují kapacitu sunshineových FEC. Limit závisí na velikosti paketů a procentuálním podílu FEC, nikoli na rychlosti bitrate nebo snímku.",
     "amd_preanalysis": "Předběžná analýza AMF",
     "amd_preanalysis_desc": "To umožňuje předběžnou analýzu kontroly sazeb, která může zvýšit kvalitu na úkor zvýšené latence kódování.",
     "amd_quality": "Kvalita AMF",
