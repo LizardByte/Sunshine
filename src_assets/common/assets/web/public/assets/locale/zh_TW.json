@@ -123,6 +123,8 @@
     "amd_coder_desc": "允許您選擇熵編碼，以優先品質或編碼速度。僅限 H.264。",
     "amd_enforce_hrd": "AMF 假想參考解碼器 (HRD) 強制執行",
     "amd_enforce_hrd_desc": "增加速率控制的限制，以符合 HRD 模型的要求。這可大幅減少比特率溢出，但可能會在某些卡上造成編碼假象或降低品質。",
+    "amd_max_au_size": "AMF Max AU 尺寸（位元）",
+    "amd_max_au_size_desc": "H.264 或 HEVC 存取單元的最大編碼大小（以位元為單位）。若留空或設定為 -1，則採用 AMF 預設值。僅用於限制超過 Sunshine FEC 容量的超大幀。此限制取決於封包大小與 FEC 百分比，而非位元率或幀率。有關尺寸設定的詳細資訊，請參閱相關文件。",
     "amd_preanalysis": "AMF 預分析",
     "amd_preanalysis_desc": "這可進行速率控制預分析，以增加編碼延遲為代價來提高品質。",
     "amd_quality": "AMF 品質",
