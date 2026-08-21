@@ -94,7 +94,7 @@ namespace config {
       std::optional<int> amd_quality_av1;
       std::optional<int> amd_preanalysis;
       std::optional<int> amd_vbaq;
-      std::optional<int> amd_max_au_size;
+      std::optional<int> amd_max_au_size;  ///< Maximum AMF H.264/HEVC access unit size in bits; unset uses the encoder default.
       int amd_coder;
     } amd;  ///< AMD AMF encoder options.
 
@@ -383,6 +383,15 @@ namespace config {
   extern nvhttp_t nvhttp;
   extern input_t input;
   extern sunshine_t sunshine;
+
+#ifdef SUNSHINE_TESTS
+  /**
+   * @brief Apply parsed configuration entries to the global runtime configuration for testing.
+   *
+   * @param vars Parsed configuration entries to consume.
+   */
+  void apply_config(std::unordered_map<std::string, std::string> &&vars);
+#endif
 
   /**
    * @brief Parse serialized text into the corresponding runtime representation.
