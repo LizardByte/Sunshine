@@ -114,7 +114,7 @@ namespace wl {
     return wl_display_get_registry(display_internal.get());
   }
 
-  inline monitor_t::monitor_t(wl_output *output):
+  monitor_t::monitor_t(wl_output *output):
       output {output},
       wl_listener {
         &CLASS_CALL(monitor_t, wl_geometry),
