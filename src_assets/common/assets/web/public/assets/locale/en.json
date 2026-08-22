@@ -636,6 +636,7 @@
   },
   "file_browser": {
     "empty": "No items to display",
+    "error_invalid_extension": "Selected file must have one of the following extensions: {extensions}",
     "root": "Root",
     "select": "Select",
     "select_directory": "Select Directory",
