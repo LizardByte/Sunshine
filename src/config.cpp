@@ -1756,7 +1756,7 @@ namespace config {
     }
 #endif
 
-    int_between_f(vars, "fec_percentage", stream.fec_percentage, {1, 255});
+    int_between_f(vars, "fec_percentage", stream.fec_percentage, {0, 100});
 
     map_int_int_f(vars, "keybindings"s, input.keybindings);
 
