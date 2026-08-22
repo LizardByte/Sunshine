@@ -117,6 +117,8 @@ namespace platf {
     set_motion_event_state,  ///< Set motion event state
     set_rgb_led,  ///< Set RGB LED
     set_adaptive_triggers,  ///< Set adaptive triggers
+    set_player_led,  ///< Set player-indicator LEDs (DualSense)
+    set_mic_led,  ///< Set mic-mute LED (DualSense)
   };
 
   /**
@@ -208,6 +210,36 @@ namespace platf {
       return msg;
     }
 
+    /**
+     * @brief Create a player-LED (player-indicator) feedback command (DualSense).
+     *
+     * @param id Identifier for the controller.
+     * @param ledValue Raw 5-bit player-indicator bitmask (forwarded verbatim from the game's report).
+     * @return Constructed player-LED object.
+     */
+    static gamepad_feedback_msg_t make_player_led(std::uint16_t id, std::uint8_t ledValue) {
+      gamepad_feedback_msg_t msg;
+      msg.type = gamepad_feedback_e::set_player_led;
+      msg.id = id;
+      msg.data.player_led = {ledValue};
+      return msg;
+    }
+
+    /**
+     * @brief Create a mic-mute-LED feedback command (DualSense).
+     *
+     * @param id Identifier for the controller.
+     * @param ledState Mic-LED state (0 = off, 1 = on, 2 = pulse).
+     * @return Constructed mic-LED object.
+     */
+    static gamepad_feedback_msg_t make_mic_led(std::uint16_t id, std::uint8_t ledState) {
+      gamepad_feedback_msg_t msg;
+      msg.type = gamepad_feedback_e::set_mic_led;
+      msg.id = id;
+      msg.data.mic_led = {ledState};
+      return msg;
+    }
+
     gamepad_feedback_e type;  ///< Feedback command type stored in the union payload.
     std::uint16_t id;  ///< Controller identifier associated with this message.
 
@@ -232,6 +264,14 @@ namespace platf {
         std::uint8_t g;
         std::uint8_t b;
       } rgb_led;
+
+      struct {
+        std::uint8_t value;  ///< Raw 5-bit player-indicator bitmask.
+      } player_led;
+
+      struct {
+        std::uint8_t state;  ///< 0 = off, 1 = on, 2 = pulse.
+      } mic_led;
 
       struct {
         uint16_t controllerNumber;

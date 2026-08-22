@@ -49,6 +49,8 @@ constexpr int IDX_RUMBLE_TRIGGER_DATA = 12;  ///< Control-stream message index f
 constexpr int IDX_SET_MOTION_EVENT = 13;  ///< Control-stream message index for set motion event.
 constexpr int IDX_SET_RGB_LED = 14;  ///< Control-stream message index for set rgb led.
 constexpr int IDX_SET_ADAPTIVE_TRIGGERS = 15;  ///< Control-stream message index for set adaptive triggers.
+constexpr int IDX_SET_PLAYER_LED = 16;  ///< Control-stream message index for set player LED (DualSense).
+constexpr int IDX_SET_MIC_LED = 17;  ///< Control-stream message index for set mic LED (DualSense).
 
 static const short packetTypes[] = {
   0x0305,  // Start A
@@ -67,6 +69,8 @@ static const short packetTypes[] = {
   0x5501,  // Set motion event (Sunshine protocol extension)
   0x5502,  // Set RGB LED (Sunshine protocol extension)
   0x5503,  // Set Adaptive triggers (Sunshine protocol extension)
+  0x5504,  // Set Player LED (Sunshine protocol extension, DualSense)
+  0x5505,  // Set Mic LED (Sunshine protocol extension, DualSense)
 };
 
 namespace asio = boost::asio;
@@ -237,6 +241,26 @@ namespace stream {
     std::uint8_t r;  ///< Red LED channel.
     std::uint8_t g;  ///< Green LED channel.
     std::uint8_t b;  ///< Blue LED channel.
+  };
+
+  /**
+   * @brief Control payload that sets the DualSense player-indicator LEDs.
+   */
+  struct control_set_player_led_t {
+    control_header_v2 header;  ///< Control message header preceding this payload.
+
+    std::uint16_t id;  ///< Controller identifier associated with this message.
+    std::uint8_t value;  ///< Raw 5-bit player-indicator bitmask.
+  };
+
+  /**
+   * @brief Control payload that sets the DualSense mic-mute LED.
+   */
+  struct control_set_mic_led_t {
+    control_header_v2 header;  ///< Control message header preceding this payload.
+
+    std::uint16_t id;  ///< Controller identifier associated with this message.
+    std::uint8_t state;  ///< Mic-LED state (0 = off, 1 = on, 2 = pulse).
   };
 
   /**
@@ -1047,6 +1071,32 @@ namespace stream {
       plaintext.type_right = msg.data.adaptive_triggers.type_right;
       std::ranges::copy(msg.data.adaptive_triggers.right, plaintext.right);
 
+      std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
+        encrypted_payload;
+
+      payload = encode_control(session, util::view(plaintext), encrypted_payload);
+    } else if (msg.type == platf::gamepad_feedback_e::set_player_led) {
+      control_set_player_led_t plaintext;
+      plaintext.header.type = packetTypes[IDX_SET_PLAYER_LED];
+      plaintext.header.payloadLength = sizeof(plaintext) - sizeof(control_header_v2);
+
+      plaintext.id = util::endian::little(msg.id);
+      plaintext.value = msg.data.player_led.value;
+
+      BOOST_LOG(verbose) << "Player LED: "sv << msg.id << " :: "sv << util::hex(msg.data.player_led.value).to_string_view();
+      std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
+        encrypted_payload;
+
+      payload = encode_control(session, util::view(plaintext), encrypted_payload);
+    } else if (msg.type == platf::gamepad_feedback_e::set_mic_led) {
+      control_set_mic_led_t plaintext;
+      plaintext.header.type = packetTypes[IDX_SET_MIC_LED];
+      plaintext.header.payloadLength = sizeof(plaintext) - sizeof(control_header_v2);
+
+      plaintext.id = util::endian::little(msg.id);
+      plaintext.state = msg.data.mic_led.state;
+
+      BOOST_LOG(verbose) << "Mic LED: "sv << msg.id << " :: "sv << util::hex(msg.data.mic_led.state).to_string_view();
       std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
         encrypted_payload;
 
