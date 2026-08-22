@@ -202,6 +202,7 @@ namespace config {
       workarounds_t wa;  ///< Display-device compatibility workarounds.
     } dd;  ///< Display-device integration settings.
 
+    bool adaptive_bitrate;  ///< Allow supported Moonlight sessions to lower and recover the encoder bitrate from network telemetry.
     int max_bitrate;  ///< Maximum bitrate ceiling in kbps for bitrate requested from the client.
     double minimum_fps_target;  ///< Lowest framerate that will be used when streaming. Range 0-1000, 0 = half of client's requested framerate.
   };

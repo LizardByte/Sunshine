@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { $tp } from '../../../platform-i18n'
 import PlatformLayout from '../../../PlatformLayout.vue'
+import Checkbox from '../../../Checkbox.vue'
 
 const props = defineProps([
   'platform',
@@ -11,6 +12,15 @@ const config = ref(props.config)
 </script>
 
 <template>
+  <!--adaptive_bitrate-->
+  <Checkbox v-if="platform === 'windows'"
+            class="mb-3"
+            id="adaptive_bitrate"
+            locale-prefix="config"
+            v-model="config.adaptive_bitrate"
+            default="false"
+  ></Checkbox>
+
   <!--max_bitrate-->
   <div class="mb-3">
     <label for="max_bitrate" class="form-label">{{ $t("config.max_bitrate") }}</label>

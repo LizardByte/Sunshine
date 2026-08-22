@@ -46,6 +46,52 @@ using namespace std::literals;
 
 namespace video {
 
+  std::string_view bitrate_reconfigure_status_name(bitrate_reconfigure_status_e status) {
+    using enum bitrate_reconfigure_status_e;
+
+    switch (status) {
+      case applied:
+        return "applied";
+      case unchanged:
+        return "unchanged";
+      case invalid:
+        return "invalid";
+      case unsupported:
+        return "unsupported";
+      case failed:
+        return "failed";
+    }
+
+    return "unknown";
+  }
+
+  std::optional<bitrate_reconfigure_result_t> apply_pending_bitrate_reconfiguration(
+    const safe::mail_raw_t::event_t<bitrate_reconfigure_request_t> &bitrate_events,
+    encode_session_t &session,
+    config_t &config
+  ) {
+    auto request = bitrate_events->try_pop();
+    if (!request) {
+      return std::nullopt;
+    }
+
+    auto result = session.reconfigure_bitrate(request->target_kbps);
+    BOOST_LOG(info)
+      << "video_bitrate_reconfigure"
+      << " old_target_kbps=" << result.old_target_kbps
+      << " requested_target_kbps=" << result.requested_target_kbps
+      << " effective_target_kbps=" << result.effective_target_kbps
+      << " result=" << bitrate_reconfigure_status_name(result.status);
+
+    if (
+      result.status == bitrate_reconfigure_status_e::applied ||
+      result.status == bitrate_reconfigure_status_e::unchanged
+    ) {
+      config.bitrate = static_cast<int>(result.effective_target_kbps);
+    }
+    return result;
+  }
+
   namespace {
     /**
      * @brief Check if we can allow probing for the encoders.
@@ -539,6 +585,24 @@ namespace video {
         return -1;
       }
       return device->convert(img);
+    }
+
+    /**
+     * @brief Reconfigure bitrate on the active native NVENC encoder.
+     *
+     * @param target_kbps Requested bitrate in kilobits per second.
+     * @return Detailed result of the NVENC request.
+     */
+    bitrate_reconfigure_result_t reconfigure_bitrate(std::uint32_t target_kbps) override {
+      if (!device || !device->nvenc) {
+        return {
+          bitrate_reconfigure_status_e::failed,
+          0,
+          target_kbps,
+          0,
+        };
+      }
+      return device->nvenc->reconfigure_bitrate(target_kbps);
     }
 
     /**
@@ -2337,7 +2401,7 @@ namespace video {
    * @param frame_nr Frame counter updated as frames are encoded.
    * @param mail Session mail bus.
    * @param images Captured image event source.
-   * @param config Video configuration.
+   * @param config Mutable video configuration retained across encoder reinitialization.
    * @param disp Display being encoded.
    * @param encode_device Platform encode device.
    * @param reinit_event Signal raised while the encoder/display is reinitializing.
@@ -2348,7 +2412,7 @@ namespace video {
     int &frame_nr,  // Store progress of the frame number
     safe::mail_t mail,
     img_event_t images,
-    config_t config,
+    config_t &config,
     std::shared_ptr<platf::display_t> disp,
     std::unique_ptr<platf::encode_device_t> encode_device,
     safe::signal_t &reinit_event,
@@ -2386,6 +2450,8 @@ namespace video {
     auto packets = mail::man->queue<packet_t>(mail::video_packets);
     auto idr_events = mail->event<bool>(mail::idr);
     auto invalidate_ref_frames_events = mail->event<std::pair<int64_t, int64_t>>(mail::invalidate_ref_frames);
+    auto bitrate_events = mail->event<bitrate_reconfigure_request_t>(mail::video_bitrate);
+    auto bitrate_result_events = mail->event<bitrate_reconfigure_result_t>(mail::video_bitrate_result);
 
     {
       // Load a dummy image into the AVFrame to ensure we have something to encode
@@ -2443,6 +2509,10 @@ namespace video {
       // in flight after encoder teardown.
       if (shutdown_event->peek() || !images->running() || (reinit_event.peek() && frame_nr > 1)) {
         break;
+      }
+
+      if (auto result = apply_pending_bitrate_reconfiguration(bitrate_events, *session, config)) {
+        bitrate_result_events->raise(*result);
       }
 
       if (encode(frame_nr++, *session, packets, channel_data, frame_timestamp)) {
