@@ -796,12 +796,27 @@ namespace proc {
 
   /**
    * @brief Refresh cached platform state from the operating system.
+   * 
+   * This function compares the current last modified time of the file to the time it was last parsed. 
+   * If the file has been modified since it was last parsed (or if it has never been parsed), 
+   * it will be re-parsed to update the app list.
    */
   void refresh(const std::string &file_name) {
+    static std::filesystem::file_time_type last_apps_file_update;  ///< Timestamp of the last time apps.json was parsed.
+    
+    std::error_code ec;
+    auto current_time = std::filesystem::last_write_time(file_name, ec);
+    
+    // Only parse the file if there were no errors reading the timestamp and it has been updated
+    if (!ec && current_time <= last_apps_file_update) {
+      return;
+    }
+
     auto proc_opt = proc::parse(file_name);
 
     if (proc_opt) {
       proc = std::move(*proc_opt);
+      last_apps_file_update = current_time;
     }
   }
 }  // namespace proc
