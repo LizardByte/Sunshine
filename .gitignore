@@ -45,6 +45,9 @@ docs/doxyconfig*
 # npm
 node_modules/
 
+# local Vite dev server overrides
+.env
+
 # Translations
 *.mo
 *.pot

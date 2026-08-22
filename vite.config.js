@@ -1,19 +1,13 @@
-import { fileURLToPath, URL } from 'node:url'
 import fs from 'fs';
 import { resolve } from 'path'
-import { defineConfig } from 'vite'
-import { ViteEjsPlugin } from "vite-plugin-ejs";
+import { defineConfig, loadEnv } from 'vite'
 import { codecovVitePlugin } from "@codecov/vite-plugin";
 import vue from '@vitejs/plugin-vue'
+import vueJsx from '@vitejs/plugin-vue-jsx'
+import vueDevTools from 'vite-plugin-vue-devtools'
+import basicSsl from '@vitejs/plugin-basic-ssl'
 import process from 'process'
 
-/**
- * Before actually building the pages with Vite, we do an intermediate build step using ejs
- * Importing this separately and joining them using ejs
- * allows us to split some repeating HTML that cannot be added
- * by Vue itself (e.g. style/script loading, common meta head tags, Widgetbot)
- * The vite-plugin-ejs handles this automatically
- */
 let assetsSrcPath = 'src_assets/common/assets/web';
 let assetsDstPath = 'build/assets/web';
 
@@ -40,42 +34,62 @@ else {
     }
 }
 
-let header = fs.readFileSync(resolve(assetsSrcPath, "template_header.html"))
-
 // https://vitejs.dev/config/
-export default defineConfig({
-    resolve: {
-        alias: {
-            vue: 'vue/dist/vue.esm-bundler.js'
-        }
-    },
-    base: './',
-    plugins: [
-        vue(),
-        ViteEjsPlugin({ header }),
-        // The Codecov vite plugin should be after all other plugins
-        codecovVitePlugin({
-            enableBundleAnalysis: true,
-            bundleName: "sunshine",
-            uploadToken: process.env.CODECOV_TOKEN,
-            gitService: "github",
-        }),
-    ],
-    root: resolve(assetsSrcPath),
-    build: {
-        outDir: resolve(assetsDstPath),
-        rollupOptions: {
-            input: {
-                apps: resolve(assetsSrcPath, 'apps.html'),
-                config: resolve(assetsSrcPath, 'config.html'),
-                featured: resolve(assetsSrcPath, 'featured.html'),
-                index: resolve(assetsSrcPath, 'index.html'),
-                logout: resolve(assetsSrcPath, 'logout.html'),
-                password: resolve(assetsSrcPath, 'password.html'),
-                pin: resolve(assetsSrcPath, 'pin.html'),
-                troubleshooting: resolve(assetsSrcPath, 'troubleshooting.html'),
-                welcome: resolve(assetsSrcPath, 'welcome.html'),
+export default defineConfig(({ command, mode }) => {
+    const env = loadEnv(mode, process.cwd(), 'VITE_');
+    const backendUrl = env.VITE_BACKEND_URL;
+
+    return {
+        resolve: {
+            alias: {
+                vue: 'vue/dist/vue.esm-bundler.js',
+                // Frontend `src/`, not the repo-root C++ `src/` directory.
+                '@': resolve(assetsSrcPath, 'src'),
+            }
+        },
+        base: './',
+        plugins: [
+            // Files like /images/*.png live in public/, and Vite forbids importing publicDir
+            // contents as JS modules in dev, so don't let Vue's compiler turn
+            // <img src="/images/..."> into a build-time import.
+            vue({ template: { transformAssetUrls: false } }),
+            vueJsx(),
+            vueDevTools(),
+            // HTTPS only matters for `vite dev`; the production build is served by the backend.
+            ...(command === 'serve' ? [basicSsl()] : []),
+            // The Codecov vite plugin should be after all other plugins
+            codecovVitePlugin({
+                enableBundleAnalysis: true,
+                bundleName: "sunshine",
+                uploadToken: process.env.CODECOV_TOKEN,
+                gitService: "github",
+            }),
+        ],
+        root: resolve(assetsSrcPath),
+        server: {
+            // Bind address/port for `vite dev`; override via VITE_DEV_HOST / VITE_DEV_PORT in .env
+            // (e.g. VITE_DEV_HOST=0.0.0.0 for devcontainer/Codespaces port forwarding).
+            host: env.VITE_DEV_HOST,
+            port: Number(env.VITE_DEV_PORT) ?? 5173,
+            // WSL2/devcontainer bind mounts don't reliably propagate inotify events, so poll instead.
+            watch: {
+                usePolling: true,
+            },
+            proxy: {
+                '/api': {
+                    target: backendUrl,
+                    changeOrigin: true,
+                    secure: false, // the backend uses a self-signed certificate
+                },
             },
         },
-    },
+        build: {
+            outDir: resolve(assetsDstPath),
+            rollupOptions: {
+                input: {
+                    index: resolve(assetsSrcPath, 'index.html'),
+                },
+            },
+        },
+    };
 })
