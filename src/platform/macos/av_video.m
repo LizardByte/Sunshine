@@ -93,6 +93,32 @@
   }
 }
 
+- (void)stopCapture:(dispatch_semaphore_t)signal {
+  @synchronized(self) {
+    AVCaptureConnection *target = nil;
+    for (AVCaptureConnection *connection in self.captureSignals) {
+      if ([self.captureSignals objectForKey:connection] == signal) {
+        target = connection;
+        break;
+      }
+    }
+
+    if (target == nil) {
+      return;
+    }
+
+    // Same teardown the frame callback performs when it returns false. Leaving the output
+    // in the session while the map tables release it over-releases it once this object is
+    // deallocated, so the entries have to go before the caller drops us.
+    [self.session stopRunning];
+    [self.captureCallbacks removeObjectForKey:target];
+    [self.session removeOutput:[self.videoOutputs objectForKey:target]];
+    [self.videoOutputs removeObjectForKey:target];
+    [self.captureSignals removeObjectForKey:target];
+    [self.session startRunning];
+  }
+}
+
 - (void)captureOutput:(AVCaptureOutput *)captureOutput
   didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
          fromConnection:(AVCaptureConnection *)connection {
