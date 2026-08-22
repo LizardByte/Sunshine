@@ -270,6 +270,12 @@ namespace input {
 
     input::touch_port_t touch_port;  ///< Touch coordinate bounds for the current stream.
 
+    bool abs_mouse_initialized = false;  ///< Whether the absolute mouse baseline is set.
+    float last_abs_x = 0;                ///< Last absolute mouse X in host coordinates.
+    float last_abs_y = 0;                ///< Last absolute mouse Y in host coordinates.
+    float abs_mouse_frac_x = 0;          ///< Accumulated fractional X delta.
+    float abs_mouse_frac_y = 0;          ///< Accumulated fractional Y delta.
+
     int32_t accumulated_vscroll_delta;  ///< Accumulated vscroll delta.
     int32_t accumulated_hscroll_delta;  ///< Accumulated hscroll delta.
   };
@@ -830,7 +836,34 @@ namespace input {
       touch_port_dim_y
     };
 
-    platf::abs_mouse(platf_input, abs_port, tpcoords->first, tpcoords->second);
+    // Emulate relative mouse movement from absolute coordinates.
+    // Absolute motion arrives as PointerMotionAbsolute in the compositor, which
+    // moves the cursor but does NOT update the screen magnifier focal point
+    // (pop-os/cosmic-comp #2760). The first event still places the cursor
+    // absolutely; subsequent events are converted to relative deltas so the
+    // magnifier tracks the cursor.
+    if (input->abs_mouse_initialized) {
+      // Accumulate fractional deltas so slow (sub-pixel) motion still produces
+      // cursor movement on both axes instead of being truncated to zero.
+      input->abs_mouse_frac_x += tpcoords->first - input->last_abs_x;
+      input->abs_mouse_frac_y += tpcoords->second - input->last_abs_y;
+
+      auto delta_x = (int)input->abs_mouse_frac_x;
+      auto delta_y = (int)input->abs_mouse_frac_y;
+
+      input->abs_mouse_frac_x -= delta_x;
+      input->abs_mouse_frac_y -= delta_y;
+
+      if (delta_x || delta_y) {
+        platf::move_mouse(platf_input, delta_x, delta_y);
+      }
+    } else {
+      platf::abs_mouse(platf_input, abs_port, tpcoords->first, tpcoords->second);
+      input->abs_mouse_initialized = true;
+    }
+
+    input->last_abs_x = tpcoords->first;
+    input->last_abs_y = tpcoords->second;
   }
 
   /**
