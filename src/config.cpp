@@ -748,6 +748,7 @@ namespace config {
       (int) amd::quality_av1_e::balanced,  // quality (av1)
       0,  // preanalysis
       1,  // vbaq
+      {},  // max_au_size (disabled by default)
       (int) amd::coder_e::_auto,  // coder
     },  // amd
 
@@ -1630,6 +1631,13 @@ namespace config {
     bool_f(vars, "amd_preanalysis", (bool &) video.amd.amd_preanalysis);
     bool_f(vars, "amd_vbaq", (bool &) video.amd.amd_vbaq);
     bool_f(vars, "amd_enforce_hrd", (bool &) video.amd.amd_enforce_hrd);
+    {
+      auto max_au_size = video.amd.amd_max_au_size;
+      int_f(vars, "amd_max_au_size", max_au_size);
+      if (!max_au_size || *max_au_size >= -1) {
+        video.amd.amd_max_au_size = max_au_size;
+      }
+    }
 
     int_f(vars, "vt_coder", video.vt.vt_coder, vt::coder_from_view);
     int_f(vars, "vt_software", video.vt.vt_allow_sw, vt::allow_software_from_view);
@@ -1885,6 +1893,17 @@ namespace config {
       }
     }
   }
+
+#ifdef SUNSHINE_TESTS
+  /**
+   * @brief Parse and apply serialized configuration text for unit tests.
+   *
+   * @param file_content Raw configuration text to parse and apply.
+   */
+  void apply_config_for_test(const std::string_view file_content) {
+    apply_config(parse_config(file_content));
+  }
+#endif
 
   /**
    * @brief Parse serialized text into the corresponding runtime representation.

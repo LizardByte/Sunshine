@@ -7,6 +7,8 @@
 
 // standard includes
 #include <algorithm>
+#include <limits>
+#include <optional>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -100,7 +102,88 @@ TEST(AmfH264OptionsTest, CoderUsesConfiguredValue) {
   ASSERT_TRUE(std::holds_alternative<int *>(coder_option->value));
   EXPECT_EQ(&config::video.amd.amd_coder, std::get<int *>(coder_option->value));
 }
+
+/**
+ * @brief Parameterized coverage for the AMF maximum access-unit-size option mappings.
+ */
+struct AmfMaxAuSizeOptionsTest: testing::TestWithParam<std::tuple<const video::encoder_t::codec_t *, bool>> {};
+
+TEST_P(AmfMaxAuSizeOptionsTest, UsesConfiguredValueForSupportedCodecsOnly) {
+  const auto &[codec, supported] = GetParam();
+  const auto option = std::ranges::find(codec->common_options, "max_au_size"sv, &video::encoder_t::option_t::name);
+
+  if (!supported) {
+    EXPECT_EQ(codec->common_options.end(), option);
+    return;
+  }
+
+  ASSERT_NE(codec->common_options.end(), option);
+  ASSERT_TRUE(std::holds_alternative<std::optional<int> *>(option->value));
+  EXPECT_EQ(&config::video.amd.amd_max_au_size, std::get<std::optional<int> *>(option->value));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  AmfCodecOptions,
+  AmfMaxAuSizeOptionsTest,
+  testing::Values(
+    std::make_tuple(&video::amdvce.h264, true),
+    std::make_tuple(&video::amdvce.hevc, true),
+    std::make_tuple(&video::amdvce.av1, false)
+  )
+);
 #endif
+
+using AmfMaxAuSizeConfigParam = std::tuple<std::string_view, std::optional<int>>;
+
+/**
+ * @brief Parameterized coverage for parsing and validating the AMF maximum access-unit size.
+ */
+struct AmfMaxAuSizeConfigTest: BaseTest, testing::WithParamInterface<AmfMaxAuSizeConfigParam> {
+  void SetUp() override {
+    BaseTest::SetUp();
+    config::video.amd.amd_max_au_size.reset();
+    config::stream.file_apps = SUNSHINE_SOURCE_DIR "/tests/unit/test_video.cpp";
+  }
+
+  void TearDown() override {
+    config::video = original_video;
+    config::audio = original_audio;
+    config::stream = original_stream;
+    config::nvhttp = original_nvhttp;
+    config::input = original_input;
+    config::sunshine = original_sunshine;
+    config::modified_config_settings = original_modified_config_settings;
+    BaseTest::TearDown();
+  }
+
+  config::video_t original_video {config::video};  ///< Video configuration restored after each parameterized test.
+  config::audio_t original_audio {config::audio};  ///< Audio configuration restored after each parameterized test.
+  config::stream_t original_stream {config::stream};  ///< Stream configuration restored after each parameterized test.
+  config::nvhttp_t original_nvhttp {config::nvhttp};  ///< HTTP configuration restored after each parameterized test.
+  config::input_t original_input {config::input};  ///< Input configuration restored after each parameterized test.
+  config::sunshine_t original_sunshine {config::sunshine};  ///< Core configuration restored after each parameterized test.
+  decltype(config::modified_config_settings) original_modified_config_settings {config::modified_config_settings};  ///< Modified settings restored after each parameterized test.
+};
+
+TEST_P(AmfMaxAuSizeConfigTest, AcceptsOnlyFfmpegSupportedRange) {
+  const auto &[setting, expected] = GetParam();
+  config::apply_config_for_test(setting);
+
+  EXPECT_EQ(expected, config::video.amd.amd_max_au_size);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  AmfMaxAuSizeValues,
+  AmfMaxAuSizeConfigTest,
+  testing::Values(
+    AmfMaxAuSizeConfigParam {""sv, std::nullopt},
+    AmfMaxAuSizeConfigParam {"amd_max_au_size = -2\n"sv, std::nullopt},
+    AmfMaxAuSizeConfigParam {"amd_max_au_size = -1\n"sv, -1},
+    AmfMaxAuSizeConfigParam {"amd_max_au_size = 0\n"sv, 0},
+    AmfMaxAuSizeConfigParam {"amd_max_au_size = 800000\n"sv, 800000},
+    AmfMaxAuSizeConfigParam {"amd_max_au_size = 2147483647\n"sv, std::numeric_limits<int>::max()}
+  )
+);
 
 struct FramerateX100Test: BaseTest, testing::WithParamInterface<std::tuple<std::int32_t, AVRational>> {};
 

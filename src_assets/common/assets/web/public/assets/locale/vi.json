@@ -123,6 +123,8 @@
     "amd_coder_desc": "Cho phép bạn chọn mã hóa entropy để ưu tiên chất lượng hoặc tốc độ mã hóa. Chỉ hỗ trợ H.264.",
     "amd_enforce_hrd": "Thiết bị giải mã tham chiếu giả định AMF (HRD)",
     "amd_enforce_hrd_desc": "Tăng cường các giới hạn kiểm soát tốc độ để đáp ứng yêu cầu của mô hình HRD. Điều này giúp giảm đáng kể hiện tượng tràn bitrate, nhưng có thể gây ra các lỗi mã hóa hoặc giảm chất lượng trên một số thẻ.",
+    "amd_max_au_size": "Kích thước AMF Max AU (bit)",
+    "amd_max_au_size_desc": "Kích thước tối đa (tính bằng bit) của Đơn vị Truy cập (Access Unit) được mã hóa theo tiêu chuẩn H.264 hoặc HEVC. Nếu để trống hoặc nhập -1, giá trị mặc định của AMF sẽ được giữ nguyên. Chỉ sử dụng để giới hạn các khung hình có kích thước quá lớn, vượt quá dung lượng FEC của Sunshine. Giới hạn này phụ thuộc vào kích thước gói tin và tỷ lệ phần trăm FEC, chứ không phụ thuộc vào tốc độ bit hay tốc độ khung hình. Xem tài liệu hướng dẫn để biết thêm thông tin về cách xác định kích thước.",
     "amd_preanalysis": "Phân tích tiền xử lý AMF",
     "amd_preanalysis_desc": "Điều này cho phép thực hiện phân tích trước để kiểm soát tốc độ, có thể cải thiện chất lượng nhưng đồng thời làm tăng độ trễ mã hóa.",
     "amd_quality": "Chất lượng AMF",

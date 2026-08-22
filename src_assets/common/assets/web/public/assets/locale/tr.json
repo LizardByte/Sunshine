@@ -123,6 +123,8 @@
     "amd_coder_desc": "Kaliteye veya kodlama hızına öncelik vermek için entropi kodlamasını seçmenizi sağlar. Yalnızca H.264.",
     "amd_enforce_hrd": "AMF Varsayımsal Referans Kod Çözücü (HRD) Uygulaması",
     "amd_enforce_hrd_desc": "HRD modeli gereksinimlerini karşılamak için hız kontrolü üzerindeki kısıtlamaları artırır. Bu, bit hızı taşmalarını büyük ölçüde azaltır, ancak bazı kartlarda kodlama artefaktlarına veya düşük kaliteye neden olabilir.",
+    "amd_max_au_size": "AMF Max AU Boyutu (bit)",
+    "amd_max_au_size_desc": "Bit cinsinden kodlanmış H.264 veya HEVC Erişim Birimi için maksimum boyut. Boş bırakıldığında veya -1 girildiğinde AMF varsayılan değeri kullanılır. Yalnızca Sunshine’ın FEC kapasitesini aşan aşırı büyük kareleri sınırlamak için kullanın. Sınır, bit hızına veya kare hızına değil, paket boyutuna ve FEC yüzdesine bağlıdır. Boyutlandırma konusunda belgeleri inceleyin.",
     "amd_preanalysis": "AMF Ön Analizi",
     "amd_preanalysis_desc": "Bu, artan kodlama gecikmesi pahasına kaliteyi artırabilecek hız kontrolü ön analizini mümkün kılar.",
     "amd_quality": "AMF Kalitesi",

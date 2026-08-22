@@ -613,7 +613,13 @@ namespace platf::virtualhid {
     }
 
     auto &gamepad = context.gamepads[nr];
-    log_failure("submit libvirtualhid gamepad state"sv, gamepad->adapter->set_state(make_gamepad_state(state, gamepad->adapter->support())));
+    auto updated_state = make_gamepad_state(state, gamepad->adapter->support());
+    const auto &cached_state = gamepad->adapter->state();
+    updated_state.acceleration = cached_state.acceleration;
+    updated_state.gyroscope = cached_state.gyroscope;
+    updated_state.battery = cached_state.battery;
+    updated_state.touchpad_contacts = cached_state.touchpad_contacts;
+    log_failure("submit libvirtualhid gamepad state"sv, gamepad->adapter->set_state(updated_state));
   }
 
   void gamepad_touch(input_context_t &context, const gamepad_touch_t &touch) {

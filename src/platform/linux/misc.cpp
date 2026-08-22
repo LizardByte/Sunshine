@@ -521,8 +521,10 @@ namespace platf {
     }
   }
 
-  void set_thread_name(const std::string &name) {
-    pthread_setname_np(pthread_self(), name.c_str());
+  void set_thread_name(std::string_view name) {
+    // Truncate name to fit in Linux/FreeBSD kernel's 16 byte limit
+    std::string tr_name {name.substr(0, 15)};
+    pthread_setname_np(pthread_self(), tr_name.c_str());
   }
 
   /**

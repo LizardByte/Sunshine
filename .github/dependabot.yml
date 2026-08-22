@@ -15,4 +15,9 @@ updates:
       interval: "cron"
       cronjob: "30 2 * * *"
       timezone: "America/New_York"
+    groups:
+      vulkan:
+        patterns:
+          - "third-party/Vulkan-*"
+          - "third-party/*/Vulkan-*"
     open-pull-requests-limit: 10

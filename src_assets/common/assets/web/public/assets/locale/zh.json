@@ -123,6 +123,8 @@
     "amd_coder_desc": "允许您选择用于优先质量或编码速度的缠绕编码。 H.264。",
     "amd_enforce_hrd": "AMF 推测参考解码器 (HRD)",
     "amd_enforce_hrd_desc": "增强对码率控制的限制，以满足假想参考解码器（HRD）模型的要求。 这可以大大降低超过指定码率限制的可能，但可能导致编码伪影或降低在某些显卡上的编码质量。",
+    "amd_max_au_size": "AMF Max AU Size (bits)",
+    "amd_max_au_size_desc": "最大编码的 H.264 或 HEVC 访问单位大小以比特为单位。空或 -1 离开AMF 默认值。 仅用于超过SunshineFEC容量的超大帧上限。 限制取决于包大小和FEC百分比，而不是比特率或帧率。请参阅文档以获取大小。",
     "amd_preanalysis": "AMF 预分析",
     "amd_preanalysis_desc": "启用码率控制预分析，可能会以增加编码延迟为代价提高质量。",
     "amd_quality": "AMF 质量",
