@@ -583,6 +583,8 @@
     "virtualhid_benefit_features_title": "現代控制器功能",
     "virtualhid_benefit_gamepads": "除了 Xbox 360 和 DualShock 4 之外，還可建立 Xbox One、Xbox Series、DualSense、Nintendo Switch Pro 以及通用型遊戲手把。",
     "virtualhid_benefit_gamepads_title": "更多遊戲手把類型",
+    "virtualhid_benefit_mouse": "將相對位移、按鈕及捲動功能以真實 HID 滑鼠的形式呈現，以便使用 Raw Input 的遊戲能夠接收這些訊號。",
+    "virtualhid_benefit_mouse_title": "原始輸入滑鼠",
     "virtualhid_benefit_maintained": "由 LizardByte 團隊積極開發與維護，而非僅依賴已停止維護的 ViGEmBus 專案。",
     "virtualhid_benefit_maintained_title": "積極支援",
     "virtualhid_benefits_title": "相較於 ViGEmBus 的優勢",
