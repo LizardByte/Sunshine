@@ -433,16 +433,23 @@ namespace platf::virtualhid {
         log_failure("create libvirtualhid keyboard"sv, created.status);
       }
     }
-    if (capabilities.supports_mouse) {
-      lvh::CreateMouseOptions options;
-      options.profile = lvh::profiles::mouse();
-      options.stable_id = "sunshine-mouse";
-      auto created = runtime->create_mouse(options);
-      if (created) {
-        mouse = std::move(created.mouse);
-      } else {
-        log_failure("create libvirtualhid mouse"sv, created.status);
-      }
+    refresh_mouse();
+  }
+
+  void input_context_t::refresh_mouse() {
+    mouse.reset();
+    if (!runtime || !runtime->capabilities().supports_mouse) {
+      return;
+    }
+
+    lvh::CreateMouseOptions options;
+    options.profile = lvh::profiles::mouse();
+    options.stable_id = "sunshine-mouse";
+    auto created = runtime->create_mouse(options);
+    if (created) {
+      mouse = std::move(created.mouse);
+    } else {
+      log_failure("create libvirtualhid mouse"sv, created.status);
     }
   }
 

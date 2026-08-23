@@ -35,6 +35,11 @@ namespace platf::virtualhid {
      */
     explicit input_context_t(lvh::BackendKind backend);
 
+    /**
+     * @brief Recreate the shared mouse using the runtime's current driver and license state.
+     */
+    void refresh_mouse();
+
     std::unique_ptr<lvh::Runtime> runtime;  ///< libvirtualhid runtime.
     std::unique_ptr<lvh::Keyboard> keyboard;  ///< Shared virtual keyboard.
     std::unique_ptr<lvh::Mouse> mouse;  ///< Shared virtual mouse.

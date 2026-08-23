@@ -82,7 +82,8 @@ namespace confighttp {
    * @brief Check whether a detected driver version satisfies a minimum version.
    *
    * Empty minimum versions accept any detected version. Non-empty minimum versions
-   * require a fully numeric dotted version string.
+   * require a fully numeric dotted version string. Development versions whose
+   * first three components are `0.0.0` are always accepted.
    *
    * @param version Detected driver version.
    * @param minimum_version Minimum supported driver version, or empty for any version.

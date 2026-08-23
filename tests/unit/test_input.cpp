@@ -31,6 +31,7 @@ namespace {
       ASSERT_TRUE(platform_input);
       auto &context = platf::virtualhid::get_input_context(platform_input);
       context = platf::virtualhid::input_context_t {lvh::BackendKind::fake};
+      context_ = &context;
       runtime_ = context.runtime.get();
       ASSERT_NE(runtime_, nullptr);
       input::testing::set_platform_input(std::move(platform_input));
@@ -42,6 +43,7 @@ namespace {
     void TearDown() override {
       input::terminate_gamepads();
       input::testing::set_platform_input({});
+      context_ = nullptr;
       runtime_ = nullptr;
       config::input = std::move(original_input_);
     }
@@ -55,7 +57,17 @@ namespace {
       return *runtime_;
     }
 
+    /**
+     * @brief Access the shared libvirtualhid input context installed for the test.
+     *
+     * @return Fake input context.
+     */
+    platf::virtualhid::input_context_t &context() const {
+      return *context_;
+    }
+
   private:
+    platf::virtualhid::input_context_t *context_ = nullptr;  ///< Fake input context installed in the global backend.
     lvh::Runtime *runtime_ = nullptr;  ///< Fake runtime installed in the global input backend.
     config::input_t original_input_;  ///< Input configuration restored after each test.
   };
@@ -91,4 +103,16 @@ TEST_F(InputGamepadSessionTest, ReusesGamepadsAcrossPauseAndDestroysThemOnTermin
 
   auto replacement = input::alloc(std::make_shared<safe::mail_raw_t>(), session_id);
   EXPECT_NE(replacement, resumed);
+}
+
+TEST_F(InputGamepadSessionTest, RefreshesSharedMouseAfterLicenseStateChanges) {
+  ASSERT_NE(context().mouse, nullptr);
+  const auto original_mouse_id = context().mouse->device_id();
+  const auto active_devices = runtime().active_device_count();
+
+  input::refresh_virtual_mouse();
+
+  ASSERT_NE(context().mouse, nullptr);
+  EXPECT_NE(context().mouse->device_id(), original_mouse_id);
+  EXPECT_EQ(runtime().active_device_count(), active_devices);
 }
