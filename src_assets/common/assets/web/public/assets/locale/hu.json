@@ -583,6 +583,8 @@
     "virtualhid_benefit_features_title": "A modern vezérlők jellemzői",
     "virtualhid_benefit_gamepads": "Az Xbox 360 és a DualShock 4 mellett Xbox One, Xbox Series, DualSense, Nintendo Switch Pro és általános játékvezérlőket is létrehoz.",
     "virtualhid_benefit_gamepads_title": "További gamepad-típusok",
+    "virtualhid_benefit_mouse": "A relatív mozgást, a gombokat és a görgetést valódi HID-egérként jeleníti meg, így a Raw Input-ot használó játékok is feldolgozhatják ezeket.",
+    "virtualhid_benefit_mouse_title": "Nyers bemeneti egér",
     "virtualhid_benefit_maintained": "A LizardByte-csapat aktívan fejleszti és támogatja, ahelyett, hogy kizárólag a már megszűnt ViGEmBus-projektre támaszkodna.",
     "virtualhid_benefit_maintained_title": "Aktívan támogatott",
     "virtualhid_benefits_title": "Előnyök a ViGEmBus-szal szemben",
