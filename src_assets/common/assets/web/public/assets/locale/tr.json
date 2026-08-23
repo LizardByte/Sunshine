@@ -583,6 +583,8 @@
     "virtualhid_benefit_features_title": "Modern Kontrol Cihazlarının Özellikleri",
     "virtualhid_benefit_gamepads": "Xbox 360 ve DualShock 4’ün yanı sıra Xbox One, Xbox Series, DualSense, Nintendo Switch Pro ve genel amaçlı oyun kumandaları oluşturur.",
     "virtualhid_benefit_gamepads_title": "Diğer Gamepad Türleri",
+    "virtualhid_benefit_mouse": "Göreceli hareketleri, düğmeleri ve kaydırma işlemlerini gerçek bir HID fare gibi gösterir; böylece Raw Input kullanan oyunlar bu verileri alabilir.",
+    "virtualhid_benefit_mouse_title": "İşlenmemiş Giriş Faresi",
     "virtualhid_benefit_maintained": "Artık devam ettirilmeyen ViGEmBus projesine sadece güvenmek yerine, LizardByte ekibi tarafından aktif olarak geliştirilmekte ve desteklenmektedir.",
     "virtualhid_benefit_maintained_title": "Aktif Olarak Desteklenen",
     "virtualhid_benefits_title": "ViGEmBus’a göre avantajları",
