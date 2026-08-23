@@ -26,7 +26,8 @@
       <p class="mb-1"><strong>{{ $t('index.virtualhid_outdated_title') }}</strong></p>
       <p class="mb-0">{{ $t('index.virtualhid_outdated_desc', {
         version: virtualhid.version, supported_versions:
-          virtualhid.supported_versions }) }}</p>
+          virtualhid.supported_versions
+      }) }}</p>
     </div>
   </AlertBox>
 
@@ -75,14 +76,32 @@
             <span>{{ $t(release.labelKey) }}</span>
             <h5 class="mb-0">{{ release.version.release.name }}</h5>
           </div>
-          <a class="btn btn-success flex-shrink-0" :href="release.version.release.html_url" target="_blank">
-            <download :size="18" class="icon"></download>
-            {{ $t('index.download') }}
-          </a>
+          <div class="d-flex align-items-center gap-2 flex-shrink-0">
+            <a class="btn btn-success" :href="release.version.release.html_url" target="_blank">
+              <download :size="18" class="icon"></download>
+              {{ $t('index.download') }}
+            </a>
+          </div>
         </div>
-
-        <!-- body row (full width) -->
-        <div class="markdown-body release-notes" v-html="convertMarkdownToHtml(release.version.release.body)"></div>
+        <div class="accordion release-notes-accordion">
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button type="button" class="accordion-button collapsed release-notes-toggle" data-bs-toggle="collapse"
+                :data-bs-target="`#release-notes-${release.key}`" aria-expanded="false"
+                :aria-controls="`release-notes-${release.key}`">
+                {{ $t('index.release_notes') }}
+                <chevron-left :size="18" class="icon ms-auto"></chevron-left>
+              </button>
+            </h2>
+            <!-- body row (full width, collapsible + scrollable) -->
+            <div class="accordion-collapse collapse" :id="`release-notes-${release.key}`">
+              <div class="accordion-body">
+                <div class="markdown-body release-notes" v-html="convertMarkdownToHtml(release.version.release.body)">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -100,6 +119,7 @@ import ResourceCard from '../components/ResourceCard.vue'
 import SunshineVersion from '../utils/sunshine_version'
 import {
   AlertCircle,
+  ChevronLeft,
   FileText,
   Wrench,
   Package,
@@ -119,6 +139,7 @@ export default {
     AlertBox,
     ResourceCard,
     AlertCircle,
+    ChevronLeft,
     Download
   },
   data() {

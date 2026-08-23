@@ -1052,6 +1052,23 @@ body {
     color: var(--color-text-base) !important;
 }
 
+.release-notes-toggle::after {
+    display: none;
+}
+
+.release-notes-toggle .icon {
+    transition: transform var(--transition-fast, 0.2s);
+}
+
+.release-notes-toggle[aria-expanded="true"] .icon {
+    transform: rotate(-90deg);
+}
+
+.release-notes-accordion .accordion-body {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
 .offcanvas {
     background-color: var(--color-surface) !important;
 }
