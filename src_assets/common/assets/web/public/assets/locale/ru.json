@@ -583,6 +583,8 @@
     "virtualhid_benefit_features_title": "Современные возможности контроллера",
     "virtualhid_benefit_gamepads": "Создает Xbox One, Xbox Series, DualSense, Nintendo Switch Pro и Generic gamepads в дополнение к Xbox 360 и DualShock 4.",
     "virtualhid_benefit_gamepads_title": "Другие типы геймпадов",
+    "virtualhid_benefit_mouse": "Относительное движение, кнопки и прокрутка как реальная HID мышь, поэтому игры, использующие Raw Input могут получить их.",
+    "virtualhid_benefit_mouse_title": "Сырье ввода мыши",
     "virtualhid_benefit_maintained": "Активно разрабатывается и поддерживается LizardByte командой вместо того, чтобы полагаться только на прекращенный проект ViGEmBus.",
     "virtualhid_benefit_maintained_title": "Активная поддержка",
     "virtualhid_benefits_title": "Преимущества над ViGEmBus",
