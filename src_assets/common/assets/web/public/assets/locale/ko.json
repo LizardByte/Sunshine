@@ -583,6 +583,8 @@
     "virtualhid_benefit_features_title": "최신 컨트롤러의 기능",
     "virtualhid_benefit_gamepads": "Xbox 360 및 DualShock 4 외에도 Xbox One, Xbox Series, DualSense, Nintendo Switch Pro 및 일반 게임패드를 생성합니다.",
     "virtualhid_benefit_gamepads_title": "기타 게임패드 종류",
+    "virtualhid_benefit_mouse": "상대적 이동, 버튼, 스크롤을 실제 HID 마우스처럼 노출하여 Raw Input을 사용하는 게임에서 이를 수신할 수 있도록 합니다.",
+    "virtualhid_benefit_mouse_title": "원시 입력 마우스",
     "virtualhid_benefit_maintained": "단종된 ViGEmBus 프로젝트에만 의존하는 대신, LizardByte 팀이 적극적으로 개발하고 지원하고 있습니다.",
     "virtualhid_benefit_maintained_title": "적극적으로 지원됨",
     "virtualhid_benefits_title": "ViGEmBus 대비 장점",

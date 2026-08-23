@@ -583,6 +583,8 @@
     "virtualhid_benefit_features_title": "现代控制器功能",
     "virtualhid_benefit_gamepads": "除Xbox One、Xbox Series、DualSense、Nintendo Switch Pro、通用游戏和Xbox 360和DualShock 4外，创建Xbox One、Xbox Series。",
     "virtualhid_benefit_gamepads_title": "更多游戏板类型",
+    "virtualhid_benefit_mouse": "显示相对移动、 按钮和滚动作为真正的HID 鼠标，所以使用 Raw 输入的游戏可以接收它们。",
+    "virtualhid_benefit_mouse_title": "原始输入鼠标。",
     "virtualhid_benefit_maintained": "由LizardByte小组积极发展和支持，而不是仅仅依靠已经停止的ViGEmBus项目。",
     "virtualhid_benefit_maintained_title": "积极支持",
     "virtualhid_benefits_title": "ViGEmBus 的福利",

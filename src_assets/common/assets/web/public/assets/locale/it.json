@@ -583,6 +583,8 @@
     "virtualhid_benefit_features_title": "Funzioni Moderne Del Controllore",
     "virtualhid_benefit_gamepads": "Crea Xbox One, Xbox Series, DualSense, Nintendo Switch Pro e gamepad generici oltre a Xbox 360 e DualShock 4.",
     "virtualhid_benefit_gamepads_title": "Più Tipi Di Gamepad",
+    "virtualhid_benefit_mouse": "Espone relativi movimenti, pulsanti e scorrimento come un vero mouse HID in modo che i giochi utilizzando Raw Input possano riceverli.",
+    "virtualhid_benefit_mouse_title": "Mouse In Ingresso Grezzo",
     "virtualhid_benefit_maintained": "Sviluppato e supportato attivamente dal team LizardByte invece di affidarsi solo al progetto ViGEmBus interrotto.",
     "virtualhid_benefit_maintained_title": "Sostenuto Attivamente",
     "virtualhid_benefits_title": "Vantaggi su ViGEmBus",

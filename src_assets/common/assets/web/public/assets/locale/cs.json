@@ -583,6 +583,8 @@
     "virtualhid_benefit_features_title": "Možnosti moderního ovladače",
     "virtualhid_benefit_gamepads": "Kromě ovladačů Xbox 360 a DualShock 4 podporuje také ovladače Xbox One, Xbox Series, DualSense, Nintendo Switch Pro a generické herní ovladače.",
     "virtualhid_benefit_gamepads_title": "Další typy gamepadů",
+    "virtualhid_benefit_mouse": "Odhaluje relativní pohyb, tlačítka a posouvání jako skutečné HID myši, takže hry pomocí Syw Input je mohou přijmout.",
+    "virtualhid_benefit_mouse_title": "Syrové vstupní myši",
     "virtualhid_benefit_maintained": "Aktivně vyvíjen a podporován týmem LizardByte, namísto spoléhání se pouze na již ukončený projekt ViGEmBus.",
     "virtualhid_benefit_maintained_title": "Aktivně podporováno",
     "virtualhid_benefits_title": "Výhody oproti ViGEmBus",

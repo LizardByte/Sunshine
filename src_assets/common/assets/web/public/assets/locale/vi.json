@@ -583,6 +583,8 @@
     "virtualhid_benefit_features_title": "Các tính năng của bộ điều khiển hiện đại",
     "virtualhid_benefit_gamepads": "Hỗ trợ các loại tay cầm Xbox One, Xbox Series, DualSense, Nintendo Switch Pro và các loại tay cầm thông dụng khác, bên cạnh Xbox 360 và DualShock 4.",
     "virtualhid_benefit_gamepads_title": "Các loại gamepad khác",
+    "virtualhid_benefit_mouse": "Hiển thị các chuyển động tương đối, các nút bấm và thao tác cuộn giống như một con chuột HID thực sự, để các trò chơi sử dụng Raw Input có thể nhận được các tín hiệu này.",
+    "virtualhid_benefit_mouse_title": "Chuột đầu vào thô",
     "virtualhid_benefit_maintained": "Được đội ngũ LizardByte tích cực phát triển và hỗ trợ, thay vì chỉ dựa vào dự án ViGEmBus đã ngừng hoạt động.",
     "virtualhid_benefit_maintained_title": "Được hỗ trợ tích cực",
     "virtualhid_benefits_title": "Ưu điểm so với ViGEmBus",

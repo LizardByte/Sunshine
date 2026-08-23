@@ -583,6 +583,8 @@
     "virtualhid_benefit_features_title": "最新のコントローラーの機能",
     "virtualhid_benefit_gamepads": "Xbox 360とDualShock 4に加え、Xbox One、Xbox Series、Dualsense、Nintendo Switch Pro、および汎用ゲームパッドを作成します。",
     "virtualhid_benefit_gamepads_title": "ゲームパッドの種類",
+    "virtualhid_benefit_mouse": "Raw入力を使用してゲームがそれらを受け取ることができるように、相対的な動き、ボタン、およびスクロールをHIDマウスとして公開します。",
+    "virtualhid_benefit_mouse_title": "未加工入力マウス",
     "virtualhid_benefit_maintained": "ViGemBusプロジェクトのみに頼らず、積極的に開発され、LizardByteチームによってサポートされています。",
     "virtualhid_benefit_maintained_title": "積極的にサポート",
     "virtualhid_benefits_title": "ViGEmBusを超えた利点",
