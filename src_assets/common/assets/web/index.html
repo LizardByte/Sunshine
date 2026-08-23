@@ -29,7 +29,7 @@
     </div>
 
     <!-- libvirtualhid Warning -->
-    <div class="alert alert-warning my-4" v-if="platform === 'windows' && controllerEnabled && virtualhid && (!virtualhid.installed || !virtualhid.version_compatible)">
+    <div class="alert alert-warning my-4" v-if="platform === 'windows' && virtualhid && (!virtualhid.installed || !virtualhid.version_compatible)">
       <div>
         <div class="d-flex align-items-center mb-3">
           <alert-triangle :size="32" class="icon-lg me-3"></alert-triangle>
@@ -62,7 +62,7 @@
     </div>
 
     <!-- Virtual HID Driver license warning -->
-    <div class="alert alert-warning my-4" v-if="platform === 'windows' && controllerEnabled && virtualhidLicense && !virtualhidLicense.licensed">
+    <div class="alert alert-warning my-4" v-if="platform === 'windows' && virtualhidLicense && !virtualhidLicense.licensed">
       <div>
         <div class="d-flex align-items-center mb-3">
           <alert-triangle :size="32" class="icon-lg me-3"></alert-triangle>
@@ -222,8 +222,8 @@
         this.preReleaseVersion = new SunshineVersion((await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases").then((r) => r.json())).find(release => release.prerelease), null);
         console.log("Pre-Release Version: ", this.preReleaseVersion.version)
 
-        // Fetch virtual input driver status only on Windows when controller is enabled
-        if (this.platform === 'windows' && this.controllerEnabled) {
+        // The Virtual HID Driver also backs relative mouse input when controllers are disabled.
+        if (this.platform === 'windows') {
           try {
             const virtualInputStatus = await fetch("./api/virtual-input/status").then((r) => r.json());
             this.virtualhid = virtualInputStatus.virtualhid;

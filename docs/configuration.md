@@ -1522,9 +1522,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>Default</td>
-        <td colspan="2">@code{}
-            (empty - bind to all interfaces)
-            @endcode</td>
+        <td colspan="2">
+            Empty, binds to all interfaces
+            </td>
     </tr>
     <tr>
         <td>Example (IPv4)</td>
@@ -1626,10 +1626,10 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>Default</td>
-        <td colspan="2">@code{}
-            (empty - uses built-in defaults: https://localhost, https://127.0.0.1, https://[::1],
-            with configured UI port variants)
-            @endcode</td>
+        <td colspan="2">
+            Empty, uses built-in defaults: https://localhost, https://127.0.0.1, https://[::1],
+            with configured UI port variants
+            </td>
     </tr>
     <tr>
         <td>Example</td>
@@ -2802,9 +2802,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>Default</td>
-        <td colspan="2">@code{}
-
-            @endcode</td>
+        <td colspan="2">
+            Empty, uses encoder default.
+            </td>
     </tr>
     <tr>
         <td>Example</td>

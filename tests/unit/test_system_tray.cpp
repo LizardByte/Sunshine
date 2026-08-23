@@ -84,14 +84,16 @@ namespace {
     ASSERT_NE(benefits_menu, nullptr);
     EXPECT_STREQ(benefits_menu[0].text, "Xbox One, Xbox Series, DualSense (DS5), Switch Pro, and Generic");
     EXPECT_EQ(benefits_menu[0].disabled, 1);
-    EXPECT_STREQ(benefits_menu[1].text, "Motion, touchpads, LEDs, and adaptive triggers where supported");
+    EXPECT_STREQ(benefits_menu[1].text, "Raw Input mouse for relative movement, buttons, and scrolling");
     EXPECT_EQ(benefits_menu[1].disabled, 1);
-    EXPECT_STREQ(benefits_menu[2].text, "Actively developed and supported by LizardByte");
+    EXPECT_STREQ(benefits_menu[2].text, "Motion, touchpads, LEDs, and adaptive triggers where supported");
     EXPECT_EQ(benefits_menu[2].disabled, 1);
-    EXPECT_STREQ(benefits_menu[3].text, "-");
-    EXPECT_STREQ(benefits_menu[4].text, "Open License Settings");
-    EXPECT_NE(benefits_menu[4].cb, nullptr);
-    EXPECT_EQ(benefits_menu[5].text, nullptr);
+    EXPECT_STREQ(benefits_menu[3].text, "Actively developed and supported by LizardByte");
+    EXPECT_EQ(benefits_menu[3].disabled, 1);
+    EXPECT_STREQ(benefits_menu[4].text, "-");
+    EXPECT_STREQ(benefits_menu[5].text, "Open License Settings");
+    EXPECT_NE(benefits_menu[5].cb, nullptr);
+    EXPECT_EQ(benefits_menu[6].text, nullptr);
   }
 
   /**
@@ -102,7 +104,7 @@ namespace {
    */
   void verify_virtualhid_actions_menu(const struct tray_menu *license_menu, std::size_t benefits_index) {
     ASSERT_NE(license_menu, nullptr);
-    EXPECT_STREQ(license_menu[benefits_index].text, "Benefits over ViGEmBus");
+    EXPECT_STREQ(license_menu[benefits_index].text, "Virtual HID Driver Benefits");
     EXPECT_EQ(license_menu[benefits_index].cb, nullptr);
     verify_virtualhid_benefits_menu(license_menu[benefits_index].submenu);
     EXPECT_STREQ(license_menu[benefits_index + 1U].text, "Download Virtual HID Driver");
@@ -131,7 +133,7 @@ namespace {
     EXPECT_STREQ(tray_data.menu[2].submenu[1].text, "-");
     EXPECT_STREQ(tray_data.menu[2].submenu[2].text, "Open License Settings");
     EXPECT_NE(tray_data.menu[2].submenu[2].cb, nullptr);
-    EXPECT_STREQ(tray_data.menu[2].submenu[3].text, "Benefits over ViGEmBus");
+    EXPECT_STREQ(tray_data.menu[2].submenu[3].text, "Virtual HID Driver Benefits");
     EXPECT_EQ(tray_data.menu[2].submenu[3].cb, nullptr);
     verify_virtualhid_benefits_menu(tray_data.menu[2].submenu[3].submenu);
     EXPECT_STREQ(tray_data.menu[2].submenu[4].text, "Download Virtual HID Driver");
@@ -382,7 +384,7 @@ TEST_P(UnlicensedVirtualHidTrayTest, PreparesMenuAndStartupNotification) {
   ASSERT_NE(license_menu, nullptr);
   EXPECT_STREQ(license_menu[0].text, std::format("Status: {}", state_label).c_str());
   EXPECT_STREQ(license_menu[1].text, state_detail);
-  EXPECT_STREQ(license_menu[2].text, "Full virtual gamepad support is locked");
+  EXPECT_STREQ(license_menu[2].text, "Driver-backed gamepads and Raw Input mouse are locked");
   EXPECT_STREQ(license_menu[3].text, service_available ? "License service: Available" : "License service: Unavailable");
   EXPECT_STREQ(license_menu[4].text, "Activate this machine to use Virtual HID Driver");
   EXPECT_STREQ(license_menu[5].text, "-");
@@ -394,7 +396,7 @@ TEST_P(UnlicensedVirtualHidTrayTest, PreparesMenuAndStartupNotification) {
   EXPECT_STREQ(tray_data.notification_title, "Activate Virtual HID Driver");
   EXPECT_STREQ(
     tray_data.notification_text,
-    "Adds Xbox One/Series, DualSense (DS5), Switch Pro, and Generic gamepads beyond ViGEmBus. Actively maintained by LizardByte. Click to activate or buy a license; details remain in the tray menu."
+    "Adds a Raw Input mouse plus Xbox One/Series, DualSense (DS5), Switch Pro, and Generic gamepads. Actively maintained by LizardByte. Click to activate or buy a license; details remain in the tray menu."
   );
   EXPECT_STREQ(tray_data.notification_icon, tray_data.allIconPaths[4]);
   EXPECT_NE(tray_data.notification_cb, nullptr);

@@ -9,7 +9,7 @@
   <Navbar></Navbar>
   <div id="content" class="container">
     <h1 class="my-4">{{ $t('troubleshooting.troubleshooting') }}</h1>
-    <!-- Virtual gamepad and Virtual HID Driver license -->
+    <!-- Virtual input driver and license -->
     <div class="card my-4 virtual-gamepad-card" v-if="platform === 'windows'">
       <div class="card-body">
         <header class="virtual-gamepad-hero">
@@ -34,6 +34,15 @@
           </article>
           <article class="virtual-gamepad-feature">
             <div class="virtual-gamepad-feature-icon" aria-hidden="true">
+              <mouse-pointer-2 :size="21"></mouse-pointer-2>
+            </div>
+            <div>
+              <h3>{{ $t('troubleshooting.virtualhid_benefit_mouse_title') }}</h3>
+              <p>{{ $t('troubleshooting.virtualhid_benefit_mouse') }}</p>
+            </div>
+          </article>
+          <article class="virtual-gamepad-feature">
+            <div class="virtual-gamepad-feature-icon" aria-hidden="true">
               <sparkles :size="21"></sparkles>
             </div>
             <div>
@@ -52,7 +61,7 @@
           </article>
         </div>
 
-        <section class="virtual-gamepad-section" v-if="controllerEnabled">
+        <section class="virtual-gamepad-section">
           <div class="virtual-gamepad-section-heading">
             <div>
               <h3 class="h4 mb-1">{{ $t('troubleshooting.virtual_gamepad_drivers') }}</h3>
@@ -436,6 +445,7 @@
       ExternalLink,
       Gamepad2,
       KeyRound,
+      MousePointer2,
       RefreshCw,
       RotateCcw,
       Search,
@@ -461,6 +471,7 @@
         ExternalLink,
         Gamepad2,
         KeyRound,
+        MousePointer2,
         RefreshCw,
         RotateCcw,
         Search,
@@ -657,7 +668,7 @@
         },
 
         showVigembus() {
-          return this.virtualInputStatusLoaded && (!this.virtualhid.installed || this.vigembus.installed);
+          return this.controllerEnabled && this.virtualInputStatusLoaded && (!this.virtualhid.installed || this.vigembus.installed);
         }
       },
       created() {
@@ -667,11 +678,9 @@
           .then((r) => {
             this.platform = r.platform;
             this.controllerEnabled = r.controller !== "disabled";
-            // Fetch virtual input driver status only on Windows when gamepad is enabled
-            if (this.platform === 'windows' && this.controllerEnabled) {
-              this.refreshDriverInformation();
-            }
+            // The Virtual HID Driver also backs relative mouse input when gamepads are disabled.
             if (this.platform === 'windows') {
+              this.refreshDriverInformation();
               this.refreshLicenseStatus();
             }
           });
@@ -821,7 +830,7 @@
           this.refreshDriverReleases();
         },
         /**
-         * @brief Refresh the latest stable release metadata for both Windows gamepad drivers.
+         * @brief Refresh the latest stable release metadata for the Windows virtual input drivers.
          */
         refreshDriverReleases() {
           this.updateLatestRelease(

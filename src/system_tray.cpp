@@ -149,8 +149,9 @@ namespace system_tray {
 
   #ifdef _WIN32
   constexpr auto LIBVIRTUALHID_RELEASES_URL = "https://github.com/LizardByte/libvirtualhid/releases/latest"sv;  ///< Latest Virtual HID Driver release.
-  static std::array<struct tray_menu, 6> virtualhid_benefits_menu {{
+  static std::array<struct tray_menu, 7> virtualhid_benefits_menu {{
     {.text = "Xbox One, Xbox Series, DualSense (DS5), Switch Pro, and Generic", .disabled = 1},
+    {.text = "Raw Input mouse for relative movement, buttons, and scrolling", .disabled = 1},
     {.text = "Motion, touchpads, LEDs, and adaptive triggers where supported", .disabled = 1},
     {.text = "Actively developed and supported by LizardByte", .disabled = 1},
     {.text = "-"},
@@ -251,7 +252,7 @@ namespace system_tray {
     menu[0] = {.text = "Status: Checking", .disabled = 1};
     menu[1] = {.text = "-"};
     menu[2] = {.text = "Open License Settings", .cb = tray_virtualhid_license_cb};
-    menu[3] = {.text = "Benefits over ViGEmBus", .submenu = virtualhid_benefits_menu.data()};
+    menu[3] = {.text = "Virtual HID Driver Benefits", .submenu = virtualhid_benefits_menu.data()};
     menu[4] = {.text = "Download Virtual HID Driver", .cb = tray_virtualhid_download_cb};
     return menu;
   }
@@ -434,7 +435,7 @@ namespace system_tray {
       set_virtualhid_license_menu_item(6, "Manage License", false, tray_virtualhid_license_cb);
     } else {
       set_virtualhid_license_menu_item(1, std::string {virtualhid_license_state_detail(license.state)}, true);
-      set_virtualhid_license_menu_item(2, "Full virtual gamepad support is locked", true);
+      set_virtualhid_license_menu_item(2, "Driver-backed gamepads and Raw Input mouse are locked", true);
       set_virtualhid_license_menu_item(
         3,
         license.service_available ? "License service: Available" : "License service: Unavailable",
@@ -446,7 +447,7 @@ namespace system_tray {
     }
     virtualhid_license_menu[separator_index] = {.text = "-"};
     const auto benefits_index = separator_index + 3U;
-    set_virtualhid_license_menu_item(benefits_index, "Benefits over ViGEmBus", false);
+    set_virtualhid_license_menu_item(benefits_index, "Virtual HID Driver Benefits", false);
     virtualhid_license_menu[benefits_index].submenu = virtualhid_benefits_menu.data();
     set_virtualhid_license_menu_item(benefits_index + 1U, "Download Virtual HID Driver", false, tray_virtualhid_download_cb);
   }
@@ -469,7 +470,7 @@ namespace system_tray {
     if (notify_if_unlicensed && !license.licensed()) {
       tray.notification_title = "Activate Virtual HID Driver";
       tray.notification_text =
-        "Adds Xbox One/Series, DualSense (DS5), Switch Pro, and Generic gamepads beyond ViGEmBus. Actively maintained by LizardByte. Click to activate or buy a license; details remain in the tray menu.";
+        "Adds a Raw Input mouse plus Xbox One/Series, DualSense (DS5), Switch Pro, and Generic gamepads. Actively maintained by LizardByte. Click to activate or buy a license; details remain in the tray menu.";
       tray.notification_icon = tray.allIconPaths[4];
       tray.notification_cb = []() {
         launch_ui("/troubleshooting#virtualhid-license");

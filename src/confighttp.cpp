@@ -43,6 +43,7 @@
 #include "file_handler.h"
 #include "globals.h"
 #include "httpcommon.h"
+#include "input.h"
 #include "logging.h"
 #include "network.h"
 #include "nvhttp.h"
@@ -174,7 +175,7 @@ namespace confighttp {
    */
   constexpr auto CSRF_TOKEN_LIFETIME = std::chrono::hours(1);  // Tokens valid for 1 hour
 
-  constexpr auto LIBVIRTUALHID_MINIMUM_VERSION = ""sv;  ///< Minimum supported libvirtualhid driver version; empty means any version.
+  constexpr auto LIBVIRTUALHID_MINIMUM_VERSION = "2026.823.352.3"sv;  ///< Minimum supported libvirtualhid driver version.  // NOSONAR(cpp:S1313): not an IP address
   constexpr auto VIGEMBUS_MINIMUM_VERSION = "1.17.0.0"sv;  ///< Minimum supported ViGEmBus fallback driver version.  // NOSONAR(cpp:S1313): not an IP address
 
   /**
@@ -239,6 +240,10 @@ namespace confighttp {
     const auto minimum_parts = parse_driver_version(minimum_version);
     if (!version_parts || !minimum_parts) {
       return false;
+    }
+
+    if (version_parts->size() >= 3U && (*version_parts)[0] == 0U && (*version_parts)[1] == 0U && (*version_parts)[2] == 0U) {
+      return true;
     }
 
     const auto part_count = std::max(version_parts->size(), minimum_parts->size());
@@ -1805,7 +1810,8 @@ namespace confighttp {
   nlohmann::json get_virtualhid_driver_status() {
 #ifdef _WIN32
     const auto version_str = read_libvirtualhid_driver_version();
-    auto output_tree = build_driver_status(false, version_str, LIBVIRTUALHID_MINIMUM_VERSION);
+    const auto driver_detected = !version_str.empty();
+    auto output_tree = build_driver_status(driver_detected, version_str, LIBVIRTUALHID_MINIMUM_VERSION);
     bool requires_installed_driver = true;
     std::string backend_name;
     std::string runtime_error_message;
@@ -1816,7 +1822,7 @@ namespace confighttp {
         const auto &capabilities = runtime->capabilities();
         backend_name = capabilities.backend_name;
         requires_installed_driver = capabilities.requires_installed_driver;
-        output_tree = build_driver_status(capabilities.supports_gamepad, version_str, LIBVIRTUALHID_MINIMUM_VERSION);
+        output_tree = build_driver_status(driver_detected || capabilities.supports_gamepad, version_str, LIBVIRTUALHID_MINIMUM_VERSION);
       }
     } catch (const std::bad_alloc &exception) {
       runtime_error_message = exception.what();
@@ -1949,6 +1955,11 @@ namespace confighttp {
 
 #if defined(_WIN32) && defined(SUNSHINE_TRAY) && SUNSHINE_TRAY >= 1
       system_tray::update_tray_virtualhid_license(result.license, false);
+#endif
+#ifdef _WIN32
+      if (result.status.ok()) {
+        input::refresh_virtual_mouse();
+      }
 #endif
       send_response(response, build_virtualhid_license_status(result));
     } catch (const nlohmann::json::exception &) {
