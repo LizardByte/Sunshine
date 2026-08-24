@@ -2805,7 +2805,10 @@ p {
     right: var(--spacing-lg);
     z-index: 3;
     background: rgba(0, 0, 0, 0.5);
+    border: none;
     border-radius: 50%;
+    color: white;
+    cursor: pointer;
     padding: var(--spacing-sm);
     transition: background var(--transition-fast), transform var(--transition-fast);
 }
