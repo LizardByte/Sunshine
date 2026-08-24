@@ -1,9 +1,9 @@
 <template>
   <div class="alert" :class="`alert-${variant}`">
-    <template v-if="compact">
-      <component :is="resolvedIcon" :size="18" class="icon"></component>
+    <div v-if="compact" class="d-flex align-items-center">
+      <component :is="resolvedIcon" :size="18" class="icon me-3"></component>
       <slot></slot>
-    </template>
+    </div>
     <div v-else>
       <div class="d-flex align-items-center" :class="{ 'mb-3': $slots.body || action }">
         <component :is="resolvedIcon" :size="32" class="icon-lg me-3"></component>
