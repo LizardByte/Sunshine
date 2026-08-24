@@ -3,7 +3,9 @@
     <div class="modal-dialog" :class="dialogClass">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title"><slot name="title"></slot></h5>
+          <h5 class="modal-title">
+            <slot name="title"></slot>
+          </h5>
           <button type="button" class="btn-close" :aria-label="$t('_common.close')" @click="close"></button>
         </div>
         <div class="modal-body">
@@ -37,6 +39,11 @@ export default {
     keyboard: {
       type: Boolean,
       default: true
+    },
+    // Raises this modal above any already-open modal instead of sharing z-index.
+    stacked: {
+      type: Boolean,
+      default: false
     }
   },
   emits: ['update:modelValue', 'close'],
@@ -60,12 +67,16 @@ export default {
       keyboard: this.keyboard
     })
     this.$refs.modalEl.addEventListener('hidden.bs.modal', this.handleHidden)
+    if (this.stacked) {
+      this.$refs.modalEl.addEventListener('show.bs.modal', this.raiseZIndex)
+    }
     if (this.modelValue) {
       this.bsModal.show()
     }
   },
   beforeUnmount() {
     this.$refs.modalEl.removeEventListener('hidden.bs.modal', this.handleHidden)
+    this.$refs.modalEl.removeEventListener('show.bs.modal', this.raiseZIndex)
     this.bsModal?.dispose()
   },
   methods: {
@@ -75,6 +86,18 @@ export default {
     handleHidden() {
       this.$emit('update:modelValue', false)
       this.$emit('close')
+    },
+    raiseZIndex() {
+      const modalEl = this.$refs.modalEl
+      const openCount = document.querySelectorAll('.modal.show').length
+      const z = 1055 + (openCount + 1) * 20
+      modalEl.style.zIndex = z
+
+      requestAnimationFrame(() => {
+        const backdrops = document.querySelectorAll('.modal-backdrop')
+        const backdrop = backdrops[backdrops.length - 1]
+        if (backdrop) backdrop.style.zIndex = z - 10
+      })
     }
   }
 }
