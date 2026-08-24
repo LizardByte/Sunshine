@@ -1,12 +1,12 @@
 <script setup>
 import {ref} from 'vue'
-import {$tp} from '../../platform-i18n'
-import PlatformLayout from '../../PlatformLayout.vue'
-import AdapterNameSelector from './audiovideo/AdapterNameSelector.vue'
-import DisplayOutputSelector from './audiovideo/DisplayOutputSelector.vue'
-import DisplayDeviceOptions from "./audiovideo/DisplayDeviceOptions.vue";
-import DisplayModesSettings from "./audiovideo/DisplayModesSettings.vue";
-import Checkbox from "../../Checkbox.vue";
+import {$tp} from '@/utils/platform-i18n'
+import PlatformLayout from '@/components/PlatformLayout.vue'
+import AdapterNameSelector from '@/components/configs/tabs/audiovideo/AdapterNameSelector.vue'
+import DisplayOutputSelector from '@/components/configs/tabs/audiovideo/DisplayOutputSelector.vue'
+import DisplayDeviceOptions from "@/components/configs/tabs/audiovideo/DisplayDeviceOptions.vue";
+import DisplayModesSettings from "@/components/configs/tabs/audiovideo/DisplayModesSettings.vue";
+import Checkbox from "@/components/Checkbox.vue";
 
 const props = defineProps([
   'platform',

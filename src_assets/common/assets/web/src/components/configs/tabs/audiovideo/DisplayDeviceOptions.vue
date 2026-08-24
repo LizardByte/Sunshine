@@ -1,8 +1,8 @@
 <script setup>
 import { ref } from 'vue'
 import { Trash2 } from '@lucide/vue'
-import PlatformLayout from '../../../PlatformLayout.vue'
-import Checkbox from "../../../Checkbox.vue";
+import PlatformLayout from '@/components/PlatformLayout.vue'
+import Checkbox from "@/components/Checkbox.vue";
 
 const props = defineProps({
   platform: String,

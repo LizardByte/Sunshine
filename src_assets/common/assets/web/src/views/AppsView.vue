@@ -465,12 +465,12 @@
 </template>
 
 <script>
-import Modal from '../components/Modal.vue'
-import FormGroup from '../components/FormGroup.vue'
-import LoadingSpinner from '../components/LoadingSpinner.vue'
-import Checkbox from '../components/Checkbox.vue'
-import { apiFetch } from '../utils/fetch_utils'
-import SunshineVersion from '../utils/sunshine_version'
+import Modal from '@/components/Modal.vue'
+import FormGroup from '@/components/FormGroup.vue'
+import LoadingSpinner from '@/components/LoadingSpinner.vue'
+import Checkbox from '@/components/Checkbox.vue'
+import { apiFetch } from '@/utils/fetch_utils'
+import SunshineVersion from '@/utils/sunshine_version'
 import {
   ArrowDown,
   ArrowRight,

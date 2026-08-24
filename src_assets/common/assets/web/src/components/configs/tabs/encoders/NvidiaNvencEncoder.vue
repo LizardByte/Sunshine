@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue'
-import Checkbox from "../../../Checkbox.vue";
+import Checkbox from "@/components/Checkbox.vue";
 
 const props = defineProps([
   'platform',

@@ -50,7 +50,7 @@ import {
   FileText,
   Globe,
 } from '@lucide/vue'
-import SimpleIcon from './SimpleIcon.vue'
+import SimpleIcon from '@/components/SimpleIcon.vue'
 
 export default {
   props: {

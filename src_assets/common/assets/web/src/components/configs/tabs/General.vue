@@ -1,5 +1,5 @@
 <script setup>
-import Checkbox from '../../Checkbox.vue'
+import Checkbox from '@/components/Checkbox.vue'
 import { ref } from 'vue'
 import {
   Play,

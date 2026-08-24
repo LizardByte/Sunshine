@@ -1,12 +1,12 @@
 <script setup>
 import { ref } from 'vue'
-import NvidiaNvencEncoder from './encoders/NvidiaNvencEncoder.vue'
-import IntelQuickSyncEncoder from './encoders/IntelQuickSyncEncoder.vue'
-import AmdAmfEncoder from './encoders/AmdAmfEncoder.vue'
-import VideotoolboxEncoder from './encoders/VideotoolboxEncoder.vue'
-import SoftwareEncoder from './encoders/SoftwareEncoder.vue'
-import VAAPIEncoder from './encoders/VAAPIEncoder.vue'
-import VulkanEncoder from './encoders/VulkanEncoder.vue'
+import NvidiaNvencEncoder from '@/components/configs/tabs/encoders/NvidiaNvencEncoder.vue'
+import IntelQuickSyncEncoder from '@/components/configs/tabs/encoders/IntelQuickSyncEncoder.vue'
+import AmdAmfEncoder from '@/components/configs/tabs/encoders/AmdAmfEncoder.vue'
+import VideotoolboxEncoder from '@/components/configs/tabs/encoders/VideotoolboxEncoder.vue'
+import SoftwareEncoder from '@/components/configs/tabs/encoders/SoftwareEncoder.vue'
+import VAAPIEncoder from '@/components/configs/tabs/encoders/VAAPIEncoder.vue'
+import VulkanEncoder from '@/components/configs/tabs/encoders/VulkanEncoder.vue'
 
 const props = defineProps([
   'platform',

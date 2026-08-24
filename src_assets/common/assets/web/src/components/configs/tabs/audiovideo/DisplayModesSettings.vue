@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue'
-import { $tp } from '../../../platform-i18n'
-import PlatformLayout from '../../../PlatformLayout.vue'
+import { $tp } from '@/utils/platform-i18n'
+import PlatformLayout from '@/components/PlatformLayout.vue'
 
 const props = defineProps([
   'platform',

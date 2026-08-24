@@ -1,4 +1,4 @@
-import { notifyKey } from '../components/Notification.vue'
+import { notifyKey } from '@/components/Notification.vue'
 
 /**
  * The set of error messages that indicate a CSRF validation failure.

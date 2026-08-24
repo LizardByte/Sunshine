@@ -36,10 +36,10 @@
 </template>
 
 <script>
-import ResourceCard from '../components/ResourceCard.vue'
-import FormGroup from '../components/FormGroup.vue'
-import StatusAlert from '../components/StatusAlert.vue'
-import { apiFetch } from '../utils/fetch_utils'
+import ResourceCard from '@/components/ResourceCard.vue'
+import FormGroup from '@/components/FormGroup.vue'
+import StatusAlert from '@/components/StatusAlert.vue'
+import { apiFetch } from '@/utils/fetch_utils'
 import { LogIn } from '@lucide/vue'
 
 export default {

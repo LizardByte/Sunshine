@@ -61,7 +61,7 @@
 
 <script>
 import { CircleUserRound, LogOut, Shield } from '@lucide/vue'
-import ThemeToggle from './ThemeToggle.vue'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 
 export default {
   components: {

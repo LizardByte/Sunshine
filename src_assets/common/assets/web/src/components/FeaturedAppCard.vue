@@ -113,7 +113,7 @@
 
 <script>
 import { formatDistanceToNow, format } from 'date-fns'
-import SimpleIcon from './SimpleIcon.vue'
+import SimpleIcon from '@/components/SimpleIcon.vue'
 import {
   ArrowDownCircle,
   Box,

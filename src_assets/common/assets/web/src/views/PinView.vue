@@ -28,8 +28,8 @@
 </template>
 
 <script>
-import StatusAlert from '../components/StatusAlert.vue'
-import { apiFetch } from '../utils/fetch_utils'
+import StatusAlert from '@/components/StatusAlert.vue'
+import { apiFetch } from '@/utils/fetch_utils'
 import { Forward, Hash, Monitor } from '@lucide/vue'
 
 export default {

@@ -114,9 +114,9 @@
 
 <script>
 import { marked } from 'marked'
-import AlertBox from '../components/AlertBox.vue'
-import ResourceCard from '../components/ResourceCard.vue'
-import SunshineVersion from '../utils/sunshine_version'
+import AlertBox from '@/components/AlertBox.vue'
+import ResourceCard from '@/components/ResourceCard.vue'
+import SunshineVersion from '@/utils/sunshine_version'
 import {
   AlertCircle,
   ChevronLeft,

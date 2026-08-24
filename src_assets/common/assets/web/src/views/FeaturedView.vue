@@ -49,10 +49,10 @@
 </template>
 
 <script>
-import AlertBox from '../components/AlertBox.vue'
-import FeaturedAppCard from '../components/FeaturedAppCard.vue'
-import LoadingSpinner from '../components/LoadingSpinner.vue'
-import ScreenshotModal from '../components/ScreenshotModal.vue'
+import AlertBox from '@/components/AlertBox.vue'
+import FeaturedAppCard from '@/components/FeaturedAppCard.vue'
+import LoadingSpinner from '@/components/LoadingSpinner.vue'
+import ScreenshotModal from '@/components/ScreenshotModal.vue'
 
 export default {
   components: {

@@ -1,5 +1,5 @@
 <script setup>
-import { loadAutoTheme, setupThemeToggleListener } from '../utils/theme'
+import { loadAutoTheme, setupThemeToggleListener } from '@/utils/theme'
 import { onMounted } from 'vue'
 import {
   CloudMoon,
