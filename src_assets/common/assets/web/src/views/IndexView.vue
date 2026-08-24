@@ -15,7 +15,7 @@
 
   <!-- libvirtualhid Warning -->
   <AlertBox
-    v-if="platform === 'windows' && controllerEnabled && virtualhid && (!virtualhid.installed || !virtualhid.version_compatible)"
+    v-if="platform === 'windows' && virtualhid && (!virtualhid.installed || !virtualhid.version_compatible)"
     variant="warning" class="my-4"
     :action="{ to: { path: '/troubleshooting', hash: '#virtualhid' }, icon: Wrench, label: $t('index.fix_now') }">
     <div v-if="!virtualhid.installed">
@@ -39,7 +39,7 @@
   </AlertBox>
 
   <!-- Virtual HID Driver license warning -->
-  <AlertBox v-if="platform === 'windows' && controllerEnabled && virtualhidLicense && !virtualhidLicense.licensed"
+  <AlertBox v-if="platform === 'windows' && virtualhidLicense && !virtualhidLicense.licensed"
     variant="warning" class="my-4"
     :action="{ to: { path: '/troubleshooting', hash: '#virtualhid-license' }, icon: Wrench, label: $t('index.fix_now') }">
     <p class="mb-1"><strong>{{ $t('index.virtualhid_license_required_title') }}</strong></p>
@@ -170,8 +170,8 @@ export default {
       this.githubVersion = new SunshineVersion(await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest").then((r) => r.json()), null);
       this.preReleaseVersion = new SunshineVersion((await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases").then((r) => r.json())).find(release => release.prerelease), null);
 
-      // Fetch virtual input driver status only on Windows when controller is enabled
-      if (this.platform === 'windows' && this.controllerEnabled) {
+      // The Virtual HID Driver also backs relative mouse input when controllers are disabled.
+      if (this.platform === 'windows') {
         try {
           const virtualInputStatus = await fetch("./api/virtual-input/status").then((r) => r.json());
           this.virtualhid = virtualInputStatus.virtualhid;

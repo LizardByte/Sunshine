@@ -1,6 +1,6 @@
 <template>
   <h1 class="my-4">{{ $t('troubleshooting.troubleshooting') }}</h1>
-  <!-- Virtual gamepad and Virtual HID Driver license -->
+  <!-- Virtual input driver and license -->
   <div class="card my-4 virtual-gamepad-card" v-if="platform === 'windows'">
     <div class="card-body">
       <header class="virtual-gamepad-hero">
@@ -16,13 +16,15 @@
       <div class="virtual-gamepad-feature-grid" :aria-label="$t('troubleshooting.virtualhid_benefits_title')">
         <FeatureCard :icon="Gamepad2" :title="$t('troubleshooting.virtualhid_benefit_gamepads_title')"
           :description="$t('troubleshooting.virtualhid_benefit_gamepads')" />
+        <FeatureCard :icon="MousePointer2" :title="$t('troubleshooting.virtualhid_benefit_mouse_title')"
+          :description="$t('troubleshooting.virtualhid_benefit_mouse')" />
         <FeatureCard :icon="Sparkles" :title="$t('troubleshooting.virtualhid_benefit_features_title')"
           :description="$t('troubleshooting.virtualhid_benefit_features')" />
         <FeatureCard :icon="ShieldCheck" :title="$t('troubleshooting.virtualhid_benefit_maintained_title')"
           :description="$t('troubleshooting.virtualhid_benefit_maintained')" />
       </div>
 
-      <section class="virtual-gamepad-section" v-if="controllerEnabled">
+      <section class="virtual-gamepad-section">
         <div class="virtual-gamepad-section-heading">
           <div>
             <h3 class="h4 mb-1">{{ $t('troubleshooting.virtual_gamepad_drivers') }}</h3>
@@ -364,6 +366,7 @@ import {
   ExternalLink,
   Gamepad2,
   KeyRound,
+  MousePointer2,
   RefreshCw,
   RotateCcw,
   Search,
@@ -390,6 +393,7 @@ export default {
     ExternalLink,
     Gamepad2,
     KeyRound,
+    MousePointer2,
     RefreshCw,
     RotateCcw,
     Search,
@@ -401,6 +405,7 @@ export default {
   data() {
     return {
       Gamepad2,
+      MousePointer2,
       Sparkles,
       ShieldCheck,
       clients: [],
@@ -589,7 +594,7 @@ export default {
     },
 
     showVigembus() {
-      return this.virtualInputStatusLoaded && (!this.virtualhid.installed || this.vigembus.installed);
+      return this.controllerEnabled && this.virtualInputStatusLoaded && (!this.virtualhid.installed || this.vigembus.installed);
     }
   },
   created() {
@@ -599,11 +604,9 @@ export default {
       .then((r) => {
         this.platform = r.platform;
         this.controllerEnabled = r.controller !== "disabled";
-        // Fetch virtual input driver status only on Windows when gamepad is enabled
-        if (this.platform === 'windows' && this.controllerEnabled) {
-          this.refreshDriverInformation();
-        }
+        // The Virtual HID Driver also backs relative mouse input when gamepads are disabled.
         if (this.platform === 'windows') {
+          this.refreshDriverInformation();
           this.refreshLicenseStatus();
         }
       });
@@ -753,7 +756,7 @@ export default {
       this.refreshDriverReleases();
     },
     /**
-     * @brief Refresh the latest stable release metadata for both Windows gamepad drivers.
+     * @brief Refresh the latest stable release metadata for the Windows virtual input drivers.
      */
     refreshDriverReleases() {
       this.updateLatestRelease(
