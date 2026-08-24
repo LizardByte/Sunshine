@@ -28,7 +28,7 @@ const config = ref(props.config)
             <div class="mb-3">
               <label for="vaapi_rc" class="form-label">{{ $t('config.vaapi_rc') }}</label>
               <select id="vaapi_rc" class="form-select" v-model="config.vaapi_rc">
-                <option value="auto">{{ $t('auto') }}</option>
+                <option value="auto">{{ $t('_common.auto') }}</option>
                 <option value="avbr">{{ $t('config.vaapi_rc_avbr') }}</option>
                 <option value="vbr">{{ $t('config.vaapi_rc_vbr') }}</option>
                 <option value="cbr">{{ $t('config.vaapi_rc_cbr') }}</option>
@@ -75,7 +75,7 @@ const config = ref(props.config)
             <div class="mb-3">
               <label for="vaapi_quality" class="form-label">{{ $t('config.vaapi_quality') }}</label>
               <select id="vaapi_quality" class="form-select" v-model="config.vaapi_quality">
-                <option value="auto">{{ $t('auto') }}</option>
+                <option value="auto">{{ $t('_common.auto') }}</option>
                 <option value="speed">{{ $t('config.vaapi_quality_speed') }}</option>
                 <option value="balanced">{{ $t('config.vaapi_quality_balanced') }}</option>
                 <option value="quality">{{ $t('config.vaapi_quality_quality') }}</option>
