@@ -5,10 +5,7 @@ import 'bootstrap/dist/css/bootstrap.min.css'
 // Makes themes load and style correctly.
 import '../assets/sunshine.css'
 
-// must import even if not implicitly using here
-// https://github.com/aurelia/skeleton-navigation/issues/894
-// https://discourse.aurelia.io/t/bootstrap-import-bootstrap-breaks-dropdown-menu-in-navbar/641/9
-import 'bootstrap/dist/js/bootstrap'
+import 'bootstrap'
 
 export function initApp(app, config) {
     //Wait for locale initialization, then render
