@@ -1,3 +1,5 @@
+import { ref } from 'vue'
+
 const getStoredTheme = () => localStorage.getItem('theme')
 const setStoredTheme = theme => localStorage.setItem('theme', theme)
 
@@ -9,6 +11,11 @@ export const getPreferredTheme = () => {
 
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
+
+// The active theme, kept reactive so components render theme-dependent UI
+// (active icon, active menu item, toggle label) through Vue instead of
+// querying/mutating the DOM directly.
+export const currentTheme = ref(getPreferredTheme())
 
 // Define which themes are dark (for Bootstrap compatibility)
 const darkThemes = new Set([
@@ -28,7 +35,6 @@ const setTheme = theme => {
         const preferredTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
         document.documentElement.dataset.bsTheme = preferredTheme
         document.documentElement.dataset.theme = preferredTheme
-        console.log(`Theme set to auto (resolved to: ${preferredTheme})`)
     } else {
         // Set Bootstrap's data-bs-theme to 'light' or 'dark' for Bootstrap's own styles
         const bsTheme = darkThemes.has(theme) ? 'dark' : 'light'
@@ -36,95 +42,29 @@ const setTheme = theme => {
 
         // Set our custom data-theme attribute for our color schemes
         document.documentElement.dataset.theme = theme
-        console.log(`Theme set to: ${theme} (Bootstrap: ${bsTheme})`)
     }
 }
 
-export const showActiveTheme = (theme, focus = false) => {
-    const themeSwitcher = document.querySelector('#bd-theme')
-
-    if (!themeSwitcher) {
-        return
-    }
-
-    const themeSwitcherText = document.querySelector('#bd-theme-text')
-    const activeThemeIcon = document.querySelector('.theme-icon-active svg')
-    const btnToActive = document.querySelector(`[data-bs-theme-value="${theme}"]`)
-
-    if (!btnToActive) {
-        return
-    }
-
-    const btnIcon = btnToActive.querySelector('svg')
-
-    if (!activeThemeIcon || !btnIcon) {
-        return
-    }
-
-    document.querySelectorAll('[data-bs-theme-value]').forEach(element => {
-        element.classList.remove('active')
-        element.setAttribute('aria-pressed', 'false')
-    })
-
-    btnToActive.classList.add('active')
-    btnToActive.setAttribute('aria-pressed', 'true')
-
-    // Clone the SVG icon from the active button to the theme switcher
-    const clonedIcon = btnIcon.cloneNode(true)
-    activeThemeIcon.parentNode.replaceChild(clonedIcon, activeThemeIcon)
-
-    const themeSwitcherLabel = `${themeSwitcherText.textContent} (${btnToActive.textContent.trim()})`
-    themeSwitcher.setAttribute('aria-label', themeSwitcherLabel)
-
-    if (focus) {
-        themeSwitcher.focus()
-    }
-}
-
-const applyTheme = theme => {
+export function selectTheme(theme) {
     setStoredTheme(theme)
     setTheme(theme)
-    showActiveTheme(theme, true)
+    currentTheme.value = theme
 }
 
-const pickRandomTheme = () => {
+export function pickRandomTheme(themeValues) {
     const current = getStoredTheme()
-    const values = Array.from(document.querySelectorAll('[data-bs-theme-value]'))
-        .map(el => el.dataset.bsThemeValue)
-        .filter(value => value !== 'auto' && value !== current)
+    const values = themeValues.filter(value => value !== current)
     return values[Math.floor(Math.random() * values.length)]  // NOSONAR(javascript:S2245) random not used for cryptography here
 }
 
-export function setupThemeToggleListener() {
-    document.querySelectorAll('[data-bs-theme-value]')
-        .forEach(toggle => {
-            toggle.addEventListener('click', () => applyTheme(toggle.dataset.bsThemeValue))
-        })
-
-    const randomToggle = document.querySelector('#bd-theme-random')
-    if (randomToggle) {
-        randomToggle.addEventListener('click', () => applyTheme(pickRandomTheme()))
-    }
-
-    showActiveTheme(getPreferredTheme(), false)
-}
-
 export function loadAutoTheme() {
-    (() => {
-        'use strict'
+    setTheme(getPreferredTheme())
 
-        setTheme(getPreferredTheme())
-
-        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-            const storedTheme = getStoredTheme()
-            // Only auto-switch if theme is set to 'auto'
-            if (storedTheme === 'auto' || !storedTheme) {
-                setTheme(getPreferredTheme())
-            }
-        })
-
-        window.addEventListener('DOMContentLoaded', () => {
-            showActiveTheme(getPreferredTheme())
-        })
-    })()
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        const storedTheme = getStoredTheme()
+        // Only auto-switch if theme is set to 'auto'
+        if (storedTheme === 'auto' || !storedTheme) {
+            setTheme(getPreferredTheme())
+        }
+    })
 }
