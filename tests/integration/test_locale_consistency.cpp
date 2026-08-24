@@ -51,7 +51,7 @@ protected:
   // Extract locale options from General.vue
   static std::map<std::string, std::string, std::less<>> extractGeneralVueLocales() {
     std::map<std::string, std::string, std::less<>> locales;
-    const std::string content = file_handler::read_file("src_assets/common/assets/web/configs/tabs/General.vue");
+    const std::string content = file_handler::read_file("src_assets/common/assets/web/src/components/configs/tabs/General.vue");
 
     // Find the locale select section specifically
     const std::regex localeSelectPattern("id=\"locale\"[^>]*>([^<]*(?:<option[^>]*>[^<]*</option>[^<]*)*)</select>");

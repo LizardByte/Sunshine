@@ -500,10 +500,15 @@
     "toggle_theme": "Theme",
     "troubleshoot": "Troubleshooting"
   },
+  "login": {
+    "description": "Sign in to access the Web UI.",
+    "error": "Incorrect username or password.",
+    "submit": "Log In",
+    "title": "Log In"
+  },
   "logout": {
     "logged_out": "Logged Out",
-    "logged_out_desc": "You have successfully logged out.",
-    "login": "Log In"
+    "logged_out_desc": "You have successfully logged out."
   },
   "password": {
     "confirm_password": "Confirm Password",

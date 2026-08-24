@@ -277,30 +277,38 @@ protected:
       // If validation fails, validate_csrf_token already sent an error response
     };
 
-    // Add a route to test getPage (requires auth)
+    // Add a route to test getPage
     server->resource["^/page-test$"]["GET"] = [](
                                                 const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                 const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                               ) {
       // Call the actual confighttp::getPage function
       // Note: This will read from WEB_DIR, so we need to ensure the file exists there
-      confighttp::getPage(response, request, "test_page.html", true, false);
+      confighttp::getPage(response, request, "test_page.html");
     };
 
-    // Add a route to test getPage without auth requirement
-    server->resource["^/page-noauth-test$"]["GET"] = [](
+    // Add a route to test login
+    server->resource["^/login-test$"]["POST"] = [](
+                                                  const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
+                                                  const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
+                                                ) {
+      confighttp::login(response, request);
+    };
+
+    // Add a route to test logout
+    server->resource["^/logout-test$"]["POST"] = [](
+                                                   const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
+                                                   const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
+                                                 ) {
+      confighttp::logout(response, request);
+    };
+
+    // Add a route to test getAuthStatus
+    server->resource["^/auth-status-test$"]["GET"] = [](
                                                        const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                        const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                      ) {
-      confighttp::getPage(response, request, "test_page.html", false, false);
-    };
-
-    // Add a route to test getPage with redirect_if_username
-    server->resource["^/page-redirect-test$"]["GET"] = [](
-                                                         const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
-                                                         const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
-                                                       ) {
-      confighttp::getPage(response, request, "test_page.html", false, true);
+      confighttp::getAuthStatus(response, request);
     };
 
     // Add a route to test getLocale
@@ -376,6 +384,18 @@ protected:
 
   static std::string create_auth_header(const std::string &username, const std::string &password) {
     return "Basic " + SimpleWeb::Crypto::Base64::encode(username + ":" + password);
+  }
+
+  // Returns the "name=value" pair from a Set-Cookie response header, ready to send back
+  // as a Cookie request header. Empty if no matching cookie was set.
+  static std::string extract_cookie(const std::shared_ptr<SimpleWeb::Client<SimpleWeb::HTTPS>::Response> &response, const std::string &cookie_name) {
+    const auto set_cookie = response->header.find("Set-Cookie");
+    if (set_cookie == response->header.end() || set_cookie->second.rfind(cookie_name + "=", 0) != 0) {
+      return "";
+    }
+    const auto &value = set_cookie->second;
+    const auto semicolon = value.find(';');
+    return semicolon == std::string::npos ? value : value.substr(0, semicolon);
   }
 
   static void assert_security_headers(const std::shared_ptr<SimpleWeb::Client<SimpleWeb::HTTPS>::Response> &response) {
@@ -468,7 +488,6 @@ INSTANTIATE_TEST_SUITE_P(
   ConfigHttpEndpoints,
   AuthenticatedConfigHttpEndpointTest,
   testing::Values(
-    endpoint_request_t {"Page", "GET", "/page-test", ""},
     endpoint_request_t {"CsrfToken", "GET", "/csrf-token-test", ""},
     endpoint_request_t {"BrowseDirectory", "GET", "/browse-test", ""},
     endpoint_request_t {"VirtualInputStatus", "GET", "/virtual-input-status-test", ""},
@@ -787,12 +806,10 @@ TEST_F(ConfigHttpTest, CSRFSameOriginExemptionWithReferer) {
   ASSERT_EQ(body, "csrf-valid");
 }
 
-// Test: confighttp::getPage() serves HTML with authentication
-TEST_F(ConfigHttpTest, GetPageWithAuth) {
-  SimpleWeb::CaseInsensitiveMultimap headers;
-  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
-
-  const auto response = client->request("GET", "/page-test", "", headers);
+// Test: confighttp::getPage() serves HTML without requiring authentication
+// (the SPA shell is always public; real access control happens per-API-call)
+TEST_F(ConfigHttpTest, GetPageServesHtml) {
+  const auto response = client->request("GET", "/page-test");
   ASSERT_EQ(response->status_code, "200 OK");
 
   // Check Content-Type
@@ -811,38 +828,167 @@ TEST_F(ConfigHttpTest, GetPageWithAuth) {
   ASSERT_TRUE(body.find("</html>") != std::string::npos);
 }
 
-// Test: confighttp::getPage() works without authentication when require_auth=false
-TEST_F(ConfigHttpTest, GetPageWithoutAuthRequired) {
-  const auto response = client->request("GET", "/page-noauth-test");
-  ASSERT_EQ(response->status_code, "200 OK");
-
-  // Check HTML content is served
-  const std::string body = response->content.string();
-  ASSERT_TRUE(body.find("Test Page Content") != std::string::npos);
-}
-
-// Test: confighttp::getPage() redirects when redirect_if_username=true and username is set
-TEST_F(ConfigHttpTest, GetPageRedirectsWhenUsernameSet) {
-  // Username is set in SetUp(), so redirect_if_username should trigger redirect
-  const auto response = client->request("GET", "/page-redirect-test");
-  ASSERT_EQ(response->status_code, "307 Temporary Redirect");
-
-  // Check redirect location
-  const auto location = response->header.find("Location");
-  ASSERT_NE(location, response->header.end());
-  ASSERT_EQ(location->second, "/");
-}
-
-// Test: confighttp::getPage() doesn't redirect when username is empty
-TEST_F(ConfigHttpTest, GetPageNoRedirectWhenUsernameEmpty) {
-  // Temporarily clear username
+// Test: confighttp::authenticate() rejects without a WWW-Authenticate challenge when
+// no admin account is configured yet (avoids a native Basic Auth popup pre-/welcome)
+TEST_F(ConfigHttpTest, AuthenticateRejectsWhenUnconfigured) {
   const std::string saved = config::sunshine.username;
   config::sunshine.username = "";
 
-  const auto response = client->request("GET", "/page-redirect-test");
+  const auto response = client->request("GET", "/auth-test");
+  ASSERT_EQ(response->status_code, "401 Unauthorized");
+  ASSERT_EQ(response->header.find("WWW-Authenticate"), response->header.end());
+
+  config::sunshine.username = saved;
+}
+
+// Test: confighttp::login() establishes a session on valid credentials
+TEST_F(ConfigHttpTest, LoginSucceedsWithValidCredentials) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Content-Type", "application/json");
+  headers.emplace("Origin", std::format("https://localhost:{}", port));
+
+  const auto response = client->request("POST", "/login-test", R"({"username":"testuser","password":"testpass"})", headers);
   ASSERT_EQ(response->status_code, "200 OK");
 
-  // Restore username
+  const std::string body = response->content.string();
+  nlohmann::json json_body = nlohmann::json::parse(body);
+  ASSERT_TRUE(json_body.value("status", false));
+
+  const auto set_cookie = response->header.find("Set-Cookie");
+  ASSERT_NE(set_cookie, response->header.end());
+  EXPECT_TRUE(set_cookie->second.find("sunshine_session=") != std::string::npos);
+  EXPECT_TRUE(set_cookie->second.find("HttpOnly") != std::string::npos);
+  EXPECT_TRUE(set_cookie->second.find("Secure") != std::string::npos);
+  EXPECT_TRUE(set_cookie->second.find("SameSite=Strict") != std::string::npos);
+}
+
+// Test: confighttp::login() rejects invalid credentials without a WWW-Authenticate
+// challenge (the user already has our own login form open)
+TEST_F(ConfigHttpTest, LoginRejectsInvalidCredentials) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Content-Type", "application/json");
+  headers.emplace("Origin", std::format("https://localhost:{}", port));
+
+  const auto response = client->request("POST", "/login-test", R"({"username":"testuser","password":"wrongpass"})", headers);
+  ASSERT_EQ(response->status_code, "401 Unauthorized");
+  ASSERT_EQ(response->header.find("WWW-Authenticate"), response->header.end());
+
+  const std::string body = response->content.string();
+  nlohmann::json json_body = nlohmann::json::parse(body);
+  ASSERT_FALSE(json_body.value("status", true));
+}
+
+// Test: confighttp::login() rejects malformed JSON
+TEST_F(ConfigHttpTest, LoginRejectsMalformedJson) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Content-Type", "application/json");
+  headers.emplace("Origin", std::format("https://localhost:{}", port));
+
+  const auto response = client->request("POST", "/login-test", "not json", headers);
+  ASSERT_EQ(response->status_code, "400 Bad Request");
+}
+
+// Test: a session cookie from confighttp::login() is accepted by confighttp::authenticate()
+TEST_F(ConfigHttpTest, AuthenticateAcceptsSessionCookie) {
+  SimpleWeb::CaseInsensitiveMultimap login_headers;
+  login_headers.emplace("Content-Type", "application/json");
+  login_headers.emplace("Origin", std::format("https://localhost:{}", port));
+  const auto login_response = client->request("POST", "/login-test", R"({"username":"testuser","password":"testpass"})", login_headers);
+  ASSERT_EQ(login_response->status_code, "200 OK");
+
+  const std::string cookie = extract_cookie(login_response, "sunshine_session");
+  ASSERT_FALSE(cookie.empty());
+
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Cookie", cookie);
+  const auto response = client->request("GET", "/auth-test", "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+  ASSERT_EQ(response->content.string(), "authenticated");
+}
+
+// Test: confighttp::logout() destroys an active session
+TEST_F(ConfigHttpTest, LogoutClearsSession) {
+  SimpleWeb::CaseInsensitiveMultimap login_headers;
+  login_headers.emplace("Content-Type", "application/json");
+  login_headers.emplace("Origin", std::format("https://localhost:{}", port));
+  const auto login_response = client->request("POST", "/login-test", R"({"username":"testuser","password":"testpass"})", login_headers);
+  const std::string cookie = extract_cookie(login_response, "sunshine_session");
+  ASSERT_FALSE(cookie.empty());
+
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Cookie", cookie);
+  headers.emplace("Origin", std::format("https://localhost:{}", port));
+
+  // Session works before logout
+  ASSERT_EQ(client->request("GET", "/auth-test", "", headers)->status_code, "200 OK");
+
+  const auto logout_response = client->request("POST", "/logout-test", "", headers);
+  ASSERT_EQ(logout_response->status_code, "200 OK");
+
+  // Same cookie no longer works after logout
+  ASSERT_EQ(client->request("GET", "/auth-test", "", headers)->status_code, "401 Unauthorized");
+}
+
+// Test: confighttp::logout() is a no-op success when there is no session to clear
+TEST_F(ConfigHttpTest, LogoutWithoutSessionSucceeds) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Origin", std::format("https://localhost:{}", port));
+
+  const auto response = client->request("POST", "/logout-test", "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  const std::string body = response->content.string();
+  nlohmann::json json_body = nlohmann::json::parse(body);
+  ASSERT_TRUE(json_body.value("status", false));
+}
+
+// Test: confighttp::getAuthStatus() reflects an unauthenticated, configured install
+TEST_F(ConfigHttpTest, GetAuthStatusReflectsUnauthenticated) {
+  const auto response = client->request("GET", "/auth-status-test");
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  nlohmann::json json_body = nlohmann::json::parse(response->content.string());
+  ASSERT_TRUE(json_body.value("configured", false));
+  ASSERT_FALSE(json_body.value("authenticated", true));
+}
+
+// Test: confighttp::getAuthStatus() reflects a session-authenticated caller
+TEST_F(ConfigHttpTest, GetAuthStatusReflectsSessionAuthenticated) {
+  SimpleWeb::CaseInsensitiveMultimap login_headers;
+  login_headers.emplace("Content-Type", "application/json");
+  login_headers.emplace("Origin", std::format("https://localhost:{}", port));
+  const auto login_response = client->request("POST", "/login-test", R"({"username":"testuser","password":"testpass"})", login_headers);
+  const std::string cookie = extract_cookie(login_response, "sunshine_session");
+  ASSERT_FALSE(cookie.empty());
+
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Cookie", cookie);
+  const auto response = client->request("GET", "/auth-status-test", "", headers);
+
+  nlohmann::json json_body = nlohmann::json::parse(response->content.string());
+  ASSERT_TRUE(json_body.value("configured", false));
+  ASSERT_TRUE(json_body.value("authenticated", false));
+}
+
+// Test: confighttp::getAuthStatus() reflects a Basic Auth-authenticated caller
+TEST_F(ConfigHttpTest, GetAuthStatusReflectsBasicAuthAuthenticated) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", "/auth-status-test", "", headers);
+  nlohmann::json json_body = nlohmann::json::parse(response->content.string());
+  ASSERT_TRUE(json_body.value("authenticated", false));
+}
+
+// Test: confighttp::getAuthStatus() reflects an unconfigured install
+TEST_F(ConfigHttpTest, GetAuthStatusReflectsUnconfigured) {
+  const std::string saved = config::sunshine.username;
+  config::sunshine.username = "";
+
+  const auto response = client->request("GET", "/auth-status-test");
+  nlohmann::json json_body = nlohmann::json::parse(response->content.string());
+  ASSERT_FALSE(json_body.value("configured", true));
+
   config::sunshine.username = saved;
 }
 

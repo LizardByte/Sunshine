@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { Home, Info, Layers, Lock, Settings, Star } from '@lucide/vue'
+import { authState, refreshAuthStatus } from '@/utils/auth'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -48,9 +49,9 @@ const router = createRouter({
       component: () => import('@/views/PasswordView.vue'),
     },
     {
-      path: '/logout',
-      name: 'logout',
-      component: () => import('@/views/LogoutView.vue'),
+      path: '/login',
+      name: 'login',
+      component: () => import('@/views/LoginView.vue'),
       meta: { public: true },
     },
     {
@@ -60,6 +61,27 @@ const router = createRouter({
       meta: { public: true },
     },
   ],
+})
+
+router.beforeEach(async (to) => {
+  await refreshAuthStatus()
+
+  if (!authState.configured) {
+    return to.name === 'welcome' ? true : { path: '/welcome' }
+  }
+  if (to.name === 'welcome') {
+    return { path: '/' }
+  }
+  if (to.name === 'login' && authState.authenticated) {
+    return { path: '/' }
+  }
+  if (to.meta.public) {
+    return true
+  }
+  if (!authState.authenticated) {
+    return { path: '/login', query: { redirect: to.fullPath } }
+  }
+  return true
 })
 
 export default router

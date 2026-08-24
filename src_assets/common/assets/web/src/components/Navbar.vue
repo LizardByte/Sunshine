@@ -8,7 +8,7 @@
       <template v-if="!isPublic">
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent"
           aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-          <span class="navbar-toggler-icon"></span>
+          <Menu :size="18" class="icon"></Menu>
         </button>
         <div class="collapse navbar-collapse" id="navbarSupportedContent">
           <ul class="navbar-nav me-auto mb-2 mb-lg-0">
@@ -61,15 +61,18 @@
 </template>
 
 <script>
-import { CircleUserRound, LogOut, Shield } from '@lucide/vue'
+import { CircleUserRound, LogOut, Menu, Shield } from '@lucide/vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
+import { apiFetch } from '@/utils/fetch_utils'
+import { notifyKey } from '@/components/Notification.vue'
 
 export default {
   components: {
     ThemeToggle,
     Shield,
     CircleUserRound,
-    LogOut
+    LogOut,
+    Menu
   },
   computed: {
     isPublic() {
@@ -81,32 +84,27 @@ export default {
   },
   methods: {
     logout() {
-      const cacheBuster = Date.now().toString()
-      const logoutPageUrl = new URL('/logout', globalThis.location.href)
-      const request = new XMLHttpRequest()
-      const finish = () => {
-        globalThis.location.replace(logoutPageUrl.toString())
-      }
+      apiFetch('/api/logout', { method: 'POST' }).catch(() => { }).finally(() => {
+        // No real "log out" for Fallback Basic Auth, so force the browser to forget cached credentials.
+        const cacheBuster = Date.now().toString()
+        const request = new XMLHttpRequest()
+        const finish = () => {
+          notifyKey.success('logout.logged_out_desc', 'logout.logged_out')
+          this.$router.push('/login')
+        }
 
-      request.open('GET', '/', true, 'sunshine-logout', cacheBuster)
-      request.setRequestHeader('Cache-Control', 'no-store')
-      request.onload = finish
-      request.onerror = finish
-      request.ontimeout = finish
-      request.timeout = 5000
-      request.send()
+        // Must target a route that still requires auth (unlike '/', the public SPA shell) so the
+        // browser actually gets a 401 challenge and evicts its cached credentials.
+        // TODO: remove this whole fallback once the Basic Auth browser prompt is no longer needed.
+        request.open('GET', '/api/apps', true, 'sunshine-logout', cacheBuster)
+        request.setRequestHeader('Cache-Control', 'no-store')
+        request.onload = finish
+        request.onerror = finish
+        request.ontimeout = finish
+        request.timeout = 5000
+        request.send()
+      })
     }
   }
 }
 </script>
-
-<style>
-/* Navbar toggler icon for dark text on light background */
-.navbar-sunshine .navbar-toggler-icon {
-  --bs-navbar-toggler-icon-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.9%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
-}
-
-.navbar-sunshine .navbar-brand span {
-  color: var(--navbar-text-muted);
-}
-</style>

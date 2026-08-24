@@ -38,7 +38,7 @@ namespace confighttp {
 
   void print_req(const req_https_t &request);
   void send_response(const resp_https_t &response, const nlohmann::json &output_tree);
-  void send_unauthorized(const resp_https_t &response, const req_https_t &request);
+  void send_unauthorized(const resp_https_t &response, const req_https_t &request, bool challenge = true);
   void send_redirect(const resp_https_t &response, const req_https_t &request, const char *path);
   bool authenticate(const resp_https_t &response, const req_https_t &request);
   void not_found(const resp_https_t &response, const req_https_t &request, const std::string &error_message = "Not Found");
@@ -72,11 +72,14 @@ namespace confighttp {
    * @return True when the request passes validation and processing may continue.
    */
   bool check_app_index(const resp_https_t &response, const req_https_t &request, int index);
-  void getPage(const resp_https_t &response, const req_https_t &request, const char *html_file, bool require_auth = true, bool redirect_if_username = false);
+  void getPage(const resp_https_t &response, const req_https_t &request, const char *html_file);
   void getAsset(const resp_https_t &response, const req_https_t &request);
   void browseDirectory(const resp_https_t &response, const req_https_t &request);
   void getLocale(const resp_https_t &response, const req_https_t &request);
   void getCSRFToken(const resp_https_t &response, const req_https_t &request);
+  void getAuthStatus(const resp_https_t &response, const req_https_t &request);
+  void login(const resp_https_t &response, const req_https_t &request);
+  void logout(const resp_https_t &response, const req_https_t &request);
 
   /**
    * @brief Check whether a detected driver version satisfies a minimum version.

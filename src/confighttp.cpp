@@ -175,6 +175,142 @@ namespace confighttp {
    */
   constexpr auto CSRF_TOKEN_LIFETIME = std::chrono::hours(1);  // Tokens valid for 1 hour
 
+  // Session management
+  /**
+   * @brief Session identity and its expiration deadline.
+   */
+  struct session_t {
+    std::string username;  ///< The authenticated username this session belongs to.
+    std::chrono::steady_clock::time_point expiration;  ///< Monotonic deadline after which the session is rejected.
+  };
+
+  std::map<std::string, session_t, std::less<>> sessions;  ///< Sessions by token. NOSONAR(cpp:S5421) - intentionally mutable global
+  std::mutex sessions_mutex;  ///< Mutex protecting session storage. NOSONAR(cpp:S5421) - intentionally mutable global
+
+  // Session configuration
+  /**
+   * @brief Number of random bytes used when generating a session token.
+   */
+  constexpr auto SESSION_TOKEN_SIZE = 32;  // 32 bytes = 256 bits
+  /**
+   * @brief Amount of time a generated session remains valid.
+   */
+  constexpr auto SESSION_LIFETIME = std::chrono::hours(24);
+  /**
+   * @brief Name of the cookie used to carry the session token.
+   */
+  constexpr std::string_view SESSION_COOKIE_NAME = "sunshine_session"sv;
+  /**
+   * @brief Alphabet used for session tokens.
+   *
+   * Deliberately alphanumeric-only (unlike CSRF tokens' default alphabet, which includes '%')
+   * because session tokens are round-tripped through a percent-decoding cookie parser; a
+   * literal '%' in the token would corrupt it on read.
+   */
+  constexpr std::string_view SESSION_TOKEN_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"sv;
+
+  /**
+   * @brief Read the session token from the request's Cookie header, if present.
+   * @param request The HTTP request object.
+   * @return The session token, or nullopt if no session cookie is present.
+   */
+  std::optional<std::string> get_session_token(const req_https_t &request) {
+    const auto cookie_header = request->header.find("cookie");
+    if (cookie_header == request->header.end()) {
+      return std::nullopt;
+    }
+    auto cookies = SimpleWeb::HttpHeader::FieldValue::SemicolonSeparatedAttributes::parse(cookie_header->second);
+    const auto it = cookies.find(std::string(SESSION_COOKIE_NAME));
+    if (it == cookies.end()) {
+      return std::nullopt;
+    }
+    return it->second;
+  }
+
+  /**
+   * @brief Validate the session cookie on a request.
+   * @param request The HTTP request object.
+   * @return The session's username, or nullopt if there is no valid session.
+   */
+  std::optional<std::string> validate_session(const req_https_t &request) {
+    const auto token = get_session_token(request);
+    if (!token) {
+      return std::nullopt;
+    }
+
+    std::scoped_lock lock(sessions_mutex);
+    const auto it = sessions.find(*token);
+    if (it == sessions.end()) {
+      return std::nullopt;
+    }
+    if (it->second.expiration < std::chrono::steady_clock::now()) {
+      sessions.erase(it);
+      return std::nullopt;
+    }
+    return it->second.username;
+  }
+
+  /**
+   * @brief Create a new session for a username.
+   * @param username The username the session belongs to.
+   * @return The new session token.
+   */
+  std::string create_session(const std::string &username) {
+    std::string token = crypto::rand_alphabet(SESSION_TOKEN_SIZE, SESSION_TOKEN_ALPHABET);
+
+    std::scoped_lock lock(sessions_mutex);
+
+    // Clean up expired sessions first
+    const auto now = std::chrono::steady_clock::now();
+    std::erase_if(sessions, [&now](const auto &entry) {
+      return entry.second.expiration < now;
+    });
+
+    sessions[token] = session_t {
+      username,
+      now + SESSION_LIFETIME
+    };
+
+    return token;
+  }
+
+  /**
+   * @brief Destroy the session referenced by a request's session cookie, if any.
+   * @param request The HTTP request object.
+   */
+  void destroy_session(const req_https_t &request) {
+    if (const auto token = get_session_token(request)) {
+      std::scoped_lock lock(sessions_mutex);
+      sessions.erase(*token);
+    }
+  }
+
+  /**
+   * @brief Add a Set-Cookie header establishing a session.
+   * @param headers The response headers to add to.
+   * @param token The session token.
+   */
+  void set_session_cookie(SimpleWeb::CaseInsensitiveMultimap &headers, const std::string &token) {
+    using namespace std::chrono;
+    headers.emplace(
+      "Set-Cookie",
+      std::format(
+        "{}={}; Path=/; Max-Age={}; HttpOnly; Secure; SameSite=Strict",
+        SESSION_COOKIE_NAME,
+        token,
+        duration_cast<seconds>(SESSION_LIFETIME).count()
+      )
+    );
+  }
+
+  /**
+   * @brief Add a Set-Cookie header clearing the session cookie.
+   * @param headers The response headers to add to.
+   */
+  void clear_session_cookie(SimpleWeb::CaseInsensitiveMultimap &headers) {
+    headers.emplace("Set-Cookie", std::string(SESSION_COOKIE_NAME) + "=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict");
+  }
+
   constexpr auto LIBVIRTUALHID_MINIMUM_VERSION = "2026.823.352.3"sv;  ///< Minimum supported libvirtualhid driver version.  // NOSONAR(cpp:S1313): not an IP address
   constexpr auto VIGEMBUS_MINIMUM_VERSION = "1.17.0.0"sv;  ///< Minimum supported ViGEmBus fallback driver version.  // NOSONAR(cpp:S1313): not an IP address
 
@@ -512,8 +648,10 @@ namespace confighttp {
    * @brief Send a 401 Unauthorized response.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
+   * @param challenge Pass true to initiate the browser's native Basic Auth prompt, false to
+   *                  use the login UI and session auth instead.
    */
-  void send_unauthorized(const resp_https_t &response, const req_https_t &request) {
+  void send_unauthorized(const resp_https_t &response, const req_https_t &request, bool challenge) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
     BOOST_LOG(info) << "Web UI: ["sv << address << "] -- not authorized"sv;
 
@@ -524,12 +662,14 @@ namespace confighttp {
     tree["status"] = false;
     tree["error"] = "Unauthorized";
 
-    const SimpleWeb::CaseInsensitiveMultimap headers {
+    SimpleWeb::CaseInsensitiveMultimap headers {
       {"Content-Type", "application/json"},
-      {"WWW-Authenticate", R"(Basic realm="Sunshine Gamestream Host", charset="UTF-8")"},
       {"X-Frame-Options", "DENY"},
       {"Content-Security-Policy", "frame-ancestors 'none';"}
     };
+    if (challenge) {
+      headers.emplace("WWW-Authenticate", R"(Basic realm="Sunshine Gamestream Host", charset="UTF-8")");
+    }
 
     response->write(code, tree.dump(), headers);
   }
@@ -552,52 +692,81 @@ namespace confighttp {
   }
 
   /**
-   * @brief Authenticate the user.
+   * @brief Check the caller's IP against the web UI's origin allowlist.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
-   * @return True if the user is authenticated, false otherwise.
+   * @return True if allowed, false if a 403 was sent.
    */
-  bool authenticate(const resp_https_t &response, const req_https_t &request) {
+  bool check_origin_allowed(const resp_https_t &response, const req_https_t &request) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
-
     if (const auto ip_type = net::from_address(address); ip_type > http::origin_web_ui_allowed) {
       BOOST_LOG(info) << "Web UI: ["sv << address << "] -- denied"sv;
       response->write(SimpleWeb::StatusCode::client_error_forbidden);
       return false;
     }
+    return true;
+  }
 
-    // If credentials are shown, redirect the user to a /welcome page
+  /**
+   * @brief Validate HTTP Basic Auth credentials on a request.
+   * @param request The HTTP request object.
+   * @return The authenticated username, or nullopt if missing/invalid credentials.
+   */
+  std::optional<std::string> validate_basic_auth(const req_https_t &request) {
     if (config::sunshine.username.empty()) {
-      send_redirect(response, request, "/welcome");
-      return false;
+      return std::nullopt;
     }
-
-    auto fg = util::fail_guard([&]() {
-      send_unauthorized(response, request);
-    });
 
     const auto auth = request->header.find("authorization");
     if (auth == request->header.end()) {
-      return false;
+      return std::nullopt;
     }
 
     const auto &rawAuth = auth->second;
-    auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr("Basic "sv.length()));
+    if (rawAuth.rfind("Basic "sv, 0) != 0) {
+      return std::nullopt;
+    }
+
+    const auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr("Basic "sv.length()));
 
     const auto index = static_cast<int>(authData.find(':'));
     if (index >= authData.size() - 1) {
-      return false;
+      return std::nullopt;
     }
 
     const auto username = authData.substr(0, index);
     const auto password = authData.substr(index + 1);
 
     if (const auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string(); !boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
+      return std::nullopt;
+    }
+
+    return username;
+  }
+
+  /**
+   * @brief Authenticate the user.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * @return True if the user is authenticated, false otherwise.
+   */
+  bool authenticate(const resp_https_t &response, const req_https_t &request) {
+    if (!check_origin_allowed(response, request)) {
       return false;
     }
 
-    fg.disable();
-    return true;
+    if (config::sunshine.username.empty()) {
+      // Nothing to log into yet; the frontend routes to /welcome based on /api/auth/status.
+      send_unauthorized(response, request, false);
+      return false;
+    }
+
+    if (validate_session(request) || validate_basic_auth(request)) {
+      return true;
+    }
+
+    send_unauthorized(response, request);
+    return false;
   }
 
   /**
@@ -678,17 +847,14 @@ namespace confighttp {
    * @return A unique identifier based on username or IP address.
    */
   std::string get_client_id(const req_https_t &request) {
-    // Try to use the authenticated username as client ID
-    if (const auto auth = request->header.find("authorization"); !config::sunshine.username.empty() && auth != request->header.end()) {
-      if (const auto &rawAuth = auth->second; rawAuth.rfind("Basic "sv, 0) == 0) {
-        auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr("Basic "sv.length()));
-        if (const auto index = static_cast<int>(authData.find(':')); index < authData.size() - 1) {
-          return authData.substr(0, index);  // Return username
-        }
-      }
+    if (const auto session_user = validate_session(request)) {
+      return *session_user;
+    }
+    if (const auto basic_user = validate_basic_auth(request)) {
+      return *basic_user;
     }
 
-    // Fall back to IP address if no username
+    // Fall back to IP address if no session or Basic Auth credentials
     return net::addr_to_normalized_string(request->remote_endpoint().address());
   }
 
@@ -841,20 +1007,8 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    * @param html_file The HTML file to serve (relative to WEB_DIR).
-   * @param require_auth Whether to require authentication (default: true).
-   * @param redirect_if_username If true, redirect to "/" when the username is set (for welcome page).
    */
-  void getPage(const resp_https_t &response, const req_https_t &request, const char *html_file, const bool require_auth, const bool redirect_if_username) {
-    // Special handling for welcome page: redirect if the username is already set
-    if (redirect_if_username && !config::sunshine.username.empty()) {
-      send_redirect(response, request, "/");
-      return;
-    }
-
-    if (require_auth && !authenticate(response, request)) {
-      return;
-    }
-
+  void getPage(const resp_https_t &response, const req_https_t &request, const char *html_file) {
     print_req(request);
 
     const std::string content = file_handler::read_file((std::string(WEB_DIR) + html_file).c_str());
@@ -978,6 +1132,112 @@ namespace confighttp {
     nlohmann::json output_tree;
     output_tree["csrf_token"] = token;
     send_response(response, output_tree);
+  }
+
+  /**
+   * @brief Get whether the web UI is configured and the caller is authenticated.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * Unauthenticated by design: the frontend polls this to decide whether to route to
+   * /welcome, /login, or the requested page, without ever risking a native Basic Auth
+   * prompt (this never sends a WWW-Authenticate challenge).
+   *
+   * @api_examples{/api/auth/status| GET| null}
+   */
+  void getAuthStatus(const resp_https_t &response, const req_https_t &request) {
+    if (!check_origin_allowed(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    nlohmann::json output_tree;
+    output_tree["configured"] = !config::sunshine.username.empty();
+    output_tree["authenticated"] = validate_session(request).has_value() || validate_basic_auth(request).has_value();
+
+    // Should never be cached.
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "application/json");
+    headers.emplace("X-Frame-Options", "DENY");
+    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+    headers.emplace("Cache-Control", "no-store");
+    response->write(output_tree.dump(), headers);
+  }
+
+  /**
+   * @brief Log in and establish a session cookie.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/login| POST| {"username":"admin","password":"password"}}
+   */
+  void login(const resp_https_t &response, const req_https_t &request) {
+    if (!check_origin_allowed(response, request)) {
+      return;
+    }
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
+
+    const std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
+      return;
+    }
+
+    print_req(request);
+
+    std::stringstream ss;
+    ss << request->content.rdbuf();
+    try {
+      const nlohmann::json input_tree = nlohmann::json::parse(ss);
+      const std::string username = input_tree.value("username", "");
+      const std::string password = input_tree.value("password", "");
+      const auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
+
+      if (config::sunshine.username.empty() || !boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
+        // No challenge here: the user already has our own login form open.
+        send_unauthorized(response, request, false);
+        return;
+      }
+
+      const std::string token = create_session(config::sunshine.username);
+
+      nlohmann::json output_tree;
+      output_tree["status"] = true;
+
+      SimpleWeb::CaseInsensitiveMultimap headers;
+      headers.emplace("Content-Type", "application/json");
+      set_session_cookie(headers, token);
+      response->write(output_tree.dump(), headers);
+    } catch (const nlohmann::json::exception &) {
+      bad_request(response, request, "Invalid JSON");
+    }
+  }
+
+  /**
+   * @brief Log out and destroy the current session.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/logout| POST| null}
+   */
+  void logout(const resp_https_t &response, const req_https_t &request) {
+    const std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
+      return;
+    }
+
+    print_req(request);
+    destroy_session(request);
+
+    nlohmann::json output_tree;
+    output_tree["status"] = true;
+
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "application/json");
+    clear_session_cookie(headers);
+    response->write(output_tree.dump(), headers);
   }
 
   /**
@@ -2167,9 +2427,9 @@ namespace confighttp {
     https_server_t server {config::nvhttp.cert, config::nvhttp.pkey};
 
     // Helper to create page handler lambdas without repeating the signature
-    auto page_handler = [](const char *file, bool require_auth = true, bool redirect_if_username = false) {
-      return [file, require_auth, redirect_if_username](const resp_https_t &response, const req_https_t &request) {
-        getPage(response, request, file, require_auth, redirect_if_username);
+    auto page_handler = [](const char *file) {
+      return [file](const resp_https_t &response, const req_https_t &request) {
+        getPage(response, request, file);
       };
     };
 
@@ -2188,17 +2448,9 @@ namespace confighttp {
     server.default_resource["PUT"] = bad_request_handler;
     server.default_resource["GET"] = not_found_handler;
 
-    // web pages
-    server.resource["^/$"]["GET"] = page_handler("index.html");
-    server.resource["^/apps/?$"]["GET"] = page_handler("apps.html");
-    server.resource["^/clients/?$"]["GET"] = page_handler("clients.html");
-    server.resource["^/config/?$"]["GET"] = page_handler("config.html");
-    server.resource["^/featured/?$"]["GET"] = page_handler("featured.html");
-    server.resource["^/logout/?$"]["GET"] = page_handler("logout.html", false);
-    server.resource["^/password/?$"]["GET"] = page_handler("password.html");
-    server.resource["^/pin/?$"]["GET"] = page_handler("pin.html");
-    server.resource["^/troubleshooting/?$"]["GET"] = page_handler("troubleshooting.html");
-    server.resource["^/welcome/?$"]["GET"] = page_handler("welcome.html", false, true);
+    // web pages: the frontend is a single-page app, so any GET not under /api,
+    // /assets, or /images falls back to index.html and vue-router takes over.
+    server.resource["^/(?!api/|assets/|images/).*$"]["GET"] = page_handler("index.html");
 
     // rest api
     server.resource["^/api/browse$"]["GET"] = browseDirectory;
@@ -2216,6 +2468,9 @@ namespace confighttp {
     server.resource["^/api/covers/([0-9]+)$"]["GET"] = getCover;
     server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
     server.resource["^/api/csrf-token$"]["GET"] = getCSRFToken;
+    server.resource["^/api/auth/status$"]["GET"] = getAuthStatus;
+    server.resource["^/api/login$"]["POST"] = login;
+    server.resource["^/api/logout$"]["POST"] = logout;
     server.resource["^/api/password$"]["POST"] = savePassword;
     server.resource["^/api/pin$"]["POST"] = savePin;
     server.resource["^/api/logs$"]["GET"] = getLogs;
