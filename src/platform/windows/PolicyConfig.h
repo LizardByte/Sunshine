@@ -24,8 +24,22 @@ DEFINE_GUID(CLSID_CPolicyConfigClient, 0x870af99c, 0x171d, 0x4f9e, 0xaf, 0x0d, 0
 
 #endif
 
+/**
+ * @brief Policy configuration COM interface.
+ */
+#ifdef DOXYGEN
+class IPolicyConfig;
+#else
 interface DECLSPEC_UUID("f8679f50-850a-41cf-9c72-430f290290c8") IPolicyConfig;
+#endif
+/**
+ * @brief Policy configuration COM class.
+ */
+#ifdef DOXYGEN
+class CPolicyConfigClient;
+#else
 class DECLSPEC_UUID("870af99c-171d-4f9e-af0d-e63df40c2bc9") CPolicyConfigClient;
+#endif
 // ----------------------------------------------------------------------------
 // class CPolicyConfigClient
 // {870af99c-171d-4f9e-af0d-e63df40c2bc9}
@@ -41,21 +55,41 @@ class DECLSPEC_UUID("870af99c-171d-4f9e-af0d-e63df40c2bc9") CPolicyConfigClient;
 // ----------------------------------------------------------------------------
 interface IPolicyConfig: public IUnknown {
 public:
+  /**
+   * @brief Get the mix format for an endpoint.
+   *
+   * @return HRESULT or platform status returned by the wrapped API.
+   */
   virtual HRESULT GetMixFormat(
     PCWSTR,
     WAVEFORMATEX **
   );
 
+  /**
+   * @brief Get the device format for an endpoint.
+   *
+   * @return HRESULT or platform status returned by the wrapped API.
+   */
   virtual HRESULT STDMETHODCALLTYPE GetDeviceFormat(
     PCWSTR,
     INT,
     WAVEFORMATEX **
   );
 
+  /**
+   * @brief Reset the device format for an endpoint.
+   *
+   * @return HRESULT or platform status returned by the wrapped API.
+   */
   virtual HRESULT STDMETHODCALLTYPE ResetDeviceFormat(
     PCWSTR
   );
 
+  /**
+   * @brief Set the device format for an endpoint.
+   *
+   * @return HRESULT or platform status returned by the wrapped API.
+   */
   virtual HRESULT STDMETHODCALLTYPE
     SetDeviceFormat(
       PCWSTR,
@@ -63,6 +97,11 @@ public:
       WAVEFORMATEX *
     );
 
+  /**
+   * @brief Get the processing period for an endpoint.
+   *
+   * @return HRESULT or platform status returned by the wrapped API.
+   */
   virtual HRESULT STDMETHODCALLTYPE GetProcessingPeriod(
     PCWSTR,
     INT,
@@ -70,38 +109,75 @@ public:
     PINT64
   );
 
+  /**
+   * @brief Set the processing period for an endpoint.
+   *
+   * @return HRESULT or platform status returned by the wrapped API.
+   */
   virtual HRESULT STDMETHODCALLTYPE SetProcessingPeriod(
     PCWSTR,
     PINT64
   );
 
+  /**
+   * @brief Get the share mode for an endpoint.
+   *
+   * @return HRESULT or platform status returned by the wrapped API.
+   */
   virtual HRESULT STDMETHODCALLTYPE GetShareMode(
     PCWSTR,
     struct DeviceShareMode *
   );
 
+  /**
+   * @brief Set the share mode for an endpoint.
+   *
+   * @return HRESULT or platform status returned by the wrapped API.
+   */
   virtual HRESULT STDMETHODCALLTYPE SetShareMode(
     PCWSTR,
     struct DeviceShareMode *
   );
 
+  /**
+   * @brief Get a property value for an endpoint.
+   *
+   * @return HRESULT or platform status returned by the wrapped API.
+   */
   virtual HRESULT STDMETHODCALLTYPE GetPropertyValue(
     PCWSTR,
     const PROPERTYKEY &,
     PROPVARIANT *
   );
 
+  /**
+   * @brief Set a property value for an endpoint.
+   *
+   * @return HRESULT or platform status returned by the wrapped API.
+   */
   virtual HRESULT STDMETHODCALLTYPE SetPropertyValue(
     PCWSTR,
     const PROPERTYKEY &,
     PROPVARIANT *
   );
 
+  /**
+   * @brief Set the default endpoint for a role.
+   *
+   * @param wszDeviceId Endpoint device identifier.
+   * @param eRole Endpoint role.
+   * @return HRESULT or platform status returned by the wrapped API.
+   */
   virtual HRESULT STDMETHODCALLTYPE SetDefaultEndpoint(
     PCWSTR wszDeviceId,
     ERole eRole
   );
 
+  /**
+   * @brief Set endpoint visibility.
+   *
+   * @return HRESULT or platform status returned by the wrapped API.
+   */
   virtual HRESULT STDMETHODCALLTYPE SetEndpointVisibility(
     PCWSTR,
     INT

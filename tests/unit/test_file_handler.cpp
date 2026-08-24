@@ -7,7 +7,7 @@
 #include <format>
 #include <src/file_handler.h>
 
-struct FileHandlerParentDirectoryTest: testing::TestWithParam<std::tuple<std::string, std::string>> {};
+struct FileHandlerParentDirectoryTest: BaseTest, testing::WithParamInterface<std::tuple<std::string, std::string>> {};
 
 TEST_P(FileHandlerParentDirectoryTest, Run) {
   auto [input, expected] = GetParam();
@@ -24,7 +24,7 @@ INSTANTIATE_TEST_SUITE_P(
   )
 );
 
-struct FileHandlerMakeDirectoryTest: testing::TestWithParam<std::tuple<std::string, bool, bool>> {};
+struct FileHandlerMakeDirectoryTest: BaseTest, testing::WithParamInterface<std::tuple<std::string, bool, bool>> {};
 
 TEST_P(FileHandlerMakeDirectoryTest, Run) {
   auto [input, expected, remove] = GetParam();
@@ -52,7 +52,7 @@ INSTANTIATE_TEST_SUITE_P(
   )
 );
 
-struct FileHandlerTests: testing::TestWithParam<std::tuple<int, std::string>> {};
+struct FileHandlerTests: BaseTest, testing::WithParamInterface<std::tuple<int, std::string>> {};
 
 INSTANTIATE_TEST_SUITE_P(
   TestFiles,

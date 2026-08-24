@@ -15,65 +15,27 @@ on:
 env:
   BRANCH: ${{ github.head_ref || github.ref_name }}
   BUILD_VERSION: ${{ inputs.release_version }}
+  PYTHON_VERSION: '3.14'
   COMMIT: ${{ inputs.release_commit }}
   FREEBSD_CLANG_VERSION: 19
 
 jobs:
-  setup-matrix:
-    name: Setup Build Matrix
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.generate-matrix.outputs.matrix }}
-    permissions: {}
-    steps:
-      - name: Generate Matrix
-        id: generate-matrix
-        shell: bash
-        run: |
-          # Base matrix with amd64 build
-          matrix='{
-            "include": [
-              {
-                "bsd_release": "14.4",
-                "arch": "x86_64",
-                "cmake_processor": "amd64",
-                "runner": "ubuntu-latest"
-              }
-            ]
-          }'
-
-          # Add aarch64 build only if not a pull request event
-          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
-            matrix=$(echo "$matrix" | jq '.include += [{
-              "bsd_release": "14.4",
-              "arch": "aarch64",
-              "cmake_processor": "aarch64",
-              "runner": "ubuntu-latest"
-            }]')
-          fi
-
-          # Use heredoc for multiline JSON output
-          {
-            echo "matrix<<EOF"
-            echo "$matrix"
-            echo "EOF"
-          } >> "${GITHUB_OUTPUT}"
-
-          echo "Generated matrix:"
-          echo "$matrix" | jq .
-
   build_freebsd:
     name: ${{ matrix.cmake_processor }}
-    runs-on: ubuntu-latest
-    needs: setup-matrix
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix) }}
+      matrix:
+        include:
+          - bsd_release: '15.1'
+            arch: x86_64
+            cmake_processor: amd64
+            runner: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           submodules: recursive
 
@@ -86,11 +48,11 @@ jobs:
           echo "PROCESSOR_COUNT: $PROCESSOR_COUNT"
 
       - name: Setup FreeBSD
-        uses: vmactions/freebsd-vm@a6de9343ef5747433d9c25784c90e84998b9d69a  # v1.4.6
+        uses: vmactions/freebsd-vm@d0518f912576ae759075aa00fb9fe27037940271  # v1.5.4
         with:
           arch: ${{ matrix.arch }}
           cpu: ${{ steps.processor_count.outputs.PROCESSOR_COUNT }}
-          envs: 'BRANCH BUILD_VERSION COMMIT'
+          envs: 'BRANCH BUILD_VERSION COMMIT PYTHON_VERSION'
           # TODO: there is no libcap for freebsd... we need graphics/libdrm if we find a way to use libcap
           # TODO: docs are off because doxygen is too old: https://www.freshports.org/devel/doxygen/ must be >= 1.10
           prepare: |
@@ -106,7 +68,6 @@ jobs:
               devel/evdev-proto \
               devel/git \
               devel/libevdev \
-              devel/libnotify \
               devel/llvm${{ env.FREEBSD_CLANG_VERSION }} \
               devel/ninja \
               devel/pkgconf \
@@ -142,7 +103,12 @@ jobs:
           release: ${{ matrix.bsd_release }}
           run: |
             set -e
-            uv sync --locked --group glad --group test --python /usr/local/bin/python3.14 \
+            # Keep FreeBSD off Sunshine's default dependency path: lizardbyte-common[c]
+            # includes clang-format, which has no FreeBSD wheel and is slow to build.
+            uv sync --locked --only-group glad --python "/usr/local/bin/python${PYTHON_VERSION}" \
+              --no-python-downloads --no-install-project
+            uv sync --project third-party/lizardbyte-common --locked --only-group test-c \
+              --python "/usr/local/bin/python${PYTHON_VERSION}" \
               --no-python-downloads --no-install-project
 
             # fix git safe.directory issues
@@ -255,7 +221,8 @@ jobs:
         shell: freebsd {0}
         run: |
           cd "${GITHUB_WORKSPACE}/build"
-          uv run --locked --no-sync python -m gcovr . -r ../src \
+          uv run --project "${GITHUB_WORKSPACE}/third-party/lizardbyte-common" \
+            --locked --only-group test-c --no-sync gcovr . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \

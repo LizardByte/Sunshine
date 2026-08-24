@@ -7,14 +7,14 @@
 
 <body id="app" v-cloak>
   <Navbar></Navbar>
-  <div class="container">
+  <div id="content" class="container">
     <div class="my-4">
       <h1>{{ $t('apps.applications_title') }}<span v-if="apps.length"> ({{ appCountLabel }})</span></h1>
       <p>{{ $t('apps.applications_desc') }}</p>
     </div>
 
     <!-- Actions toolbar -->
-    <div class="apps-toolbar d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div class="toolbar apps-toolbar d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
       <!-- Left side actions -->
       <div class="d-flex align-items-center gap-2">
         <!-- Add new application -->
@@ -63,19 +63,26 @@
             <div v-else class="app-poster-placeholder">
               <span class="app-initial">{{ app.name.charAt(0).toUpperCase() }}</span>
             </div>
-          </div>
-          <div class="card-body d-flex flex-column">
-            <h5 class="card-title mb-2">{{ app.name }}</h5>
-            <div class="app-details text-muted small mb-3">
-              <div v-if="app.output" class="text-truncate">
-                <file-text :size="14" class="icon me-1"></file-text>
-                {{ app.output }}
-              </div>
-              <div v-if="app.cmd" class="text-truncate">
+            <div class="app-poster-overlay">
+              <div v-if="app.cmd" class="app-overlay-row" :title="app.cmd">
                 <terminal :size="14" class="icon me-1"></terminal>
-                {{ app.cmd }}
+                <span class="app-detail-text">{{ app.cmd }}</span>
+              </div>
+              <div v-if="app['working-dir']" class="app-overlay-row" :title="app['working-dir']">
+                <folder :size="14" class="icon me-1"></folder>
+                <span class="app-detail-text">{{ app['working-dir'] }}</span>
+              </div>
+              <div class="app-overlay-badges">
+                <span v-if="app.elevated" class="badge app-flag-badge">{{ $t('apps.badge_admin') }}</span>
+                <span v-if="app.detached && app.detached.length" class="badge app-flag-badge">{{ $t('apps.badge_detached') }}</span>
+                <span v-if="app['prep-cmd'] && app['prep-cmd'].length" class="badge app-flag-badge">{{ $t('apps.badge_app_prep') }}</span>
+                <span v-if="app['exclude-global-prep-cmd']" class="badge app-flag-badge">{{ $t('apps.badge_no_global_prep') }}</span>
+                <span v-if="app['auto-detach']" class="badge app-flag-badge">{{ $t('apps.badge_auto_detach') }}</span>
               </div>
             </div>
+          </div>
+          <div class="card-body d-flex flex-column">
+            <h5 class="card-title mb-3">{{ app.name }}</h5>
             <div class="mt-auto d-flex gap-2">
               <button class="btn btn-sm btn-primary flex-fill" @click="editApp(index)">
                 <edit :size="16" class="icon"></edit>

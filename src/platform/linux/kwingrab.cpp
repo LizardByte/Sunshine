@@ -21,6 +21,7 @@
 #include <thread>
 
 // lib includes
+#include <lizardbyte/common/env.h>
 #include <pipewire/pipewire.h>
 #include <poll.h>
 #include <unistd.h>
@@ -49,10 +50,18 @@ namespace kwin {
    */
   class screencast_permission_helper_t {
   public:
+    /**
+     * @brief Check whether permission system deactivated.
+     *
+     * @return True when KWin reports that the permission system is disabled.
+     */
     static bool is_permission_system_deactivated() {
-      return getenvstr("KWIN_WAYLAND_NO_PERMISSION_CHECKS") == "1";
+      return lizardbyte::common::get_env("KWIN_WAYLAND_NO_PERMISSION_CHECKS") == "1";
     }
 
+    /**
+     * @brief Configure the KWin screencast session.
+     */
     static void setup() {
       if (initialized) {
         return;
@@ -139,6 +148,11 @@ namespace kwin {
       initialized = true;
     }
 
+    /**
+     * @brief Check whether newly initialized.
+     *
+     * @return True when KWin was initialized during this check.
+     */
     static bool is_newly_initialized() {
       return create_file;
     }
@@ -147,17 +161,9 @@ namespace kwin {
     static inline bool initialized = false;
     static inline bool create_file = true;
 
-    static std::string getenvstr(std::string const &key) {
-      char const *val = std::getenv(key.c_str());
-      if (!val) {
-        return "";
-      }
-      return val;
-    }
-
     static std::filesystem::path get_home_dir() {
       // Check HOME environment variable
-      if (std::string homedir = getenvstr("HOME"); !homedir.empty()) {
+      if (std::string homedir = lizardbyte::common::get_env("HOME"); !homedir.empty()) {
         return homedir;
       }
       // Fall back to home directory from NSS passwd
@@ -169,7 +175,7 @@ namespace kwin {
       // Follow the XDG base directory specification for user data home:
       // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
       std::filesystem::path xdg_data_home;
-      if (std::string dir = getenvstr("XDG_DATA_HOME"); !dir.empty()) {
+      if (std::string dir = lizardbyte::common::get_env("XDG_DATA_HOME"); !dir.empty()) {
         xdg_data_home = std::filesystem::path(dir);
       } else {
         const auto homedir = get_home_dir();
@@ -209,7 +215,7 @@ namespace kwin {
     static bool check_kwin_system_permissions(const std::string_view &filenameprefix, const std::string_view &executablepath) {
       // Find data dirs to check from XDG_DATA_DIRS
       std::vector<std::string> xdg_data_dirs;
-      if (const std::string e = getenvstr("XDG_DATA_DIRS"); !e.empty()) {
+      if (const std::string e = lizardbyte::common::get_env("XDG_DATA_DIRS"); !e.empty()) {
         std::stringstream ss(e);
         std::string item;
 
@@ -238,13 +244,19 @@ namespace kwin {
   };
 
   // Output parameters
+  /**
+   * @brief KWin screencast output name and geometry.
+   */
   struct output_parameter_t {
-    std::string name = "";
-    int width = 0;
-    int height = 0;
-    int pos_x = 0;
-    int pos_y = 0;
+    std::string name;  ///< KWin output name.
+    int width = 0;  ///< Output width in pixels.
+    int height = 0;  ///< Output height in pixels.
+    int pos_x = 0;  ///< Output X position in the compositor layout.
+    int pos_y = 0;  ///< Output Y position in the compositor layout.
     // order is needed to get a sorted output list and should be updated before sorting to have current values
+    /**
+     * @brief Order.
+     */
     size_t order = SIZE_MAX;  // Use high number to keep monitors with uninitialized order value to the back
   };
 
@@ -260,6 +272,7 @@ namespace kwin {
     screencast_t &operator=(screencast_t &&) = delete;  // Do not allow to copying
 
     ~screencast_t() {
+      // Release KDE screencast wayland extensions and reset pointers
       if (kde_screencast_stream_v1_) {
         zkde_screencast_stream_unstable_v1_close(kde_screencast_stream_v1_);
         kde_screencast_stream_v1_ = nullptr;
@@ -268,23 +281,30 @@ namespace kwin {
         zkde_screencast_unstable_v1_destroy(kde_screencast_v1_);
         kde_screencast_v1_ = nullptr;
       }
-
       if (kde_output_order) {
         kde_output_order_v1_destroy(kde_output_order);
         kde_output_order = nullptr;
       }
 
+      // Clear output order list
+      output_order.clear();
+      // Clear current output parameters
+      out_params.reset();
+      out_params = nullptr;
+
       // wl_output is owned by the registry, released on disconnect
-      for (const auto &out : outputs | std::views::keys) {
-        wl_output_destroy(out);
+      // also cleanup associated output parameters and clear output list when done
+      for (auto &[output, params] : outputs) {
+        wl_output_destroy(output);
+        params.reset();
       }
       outputs.clear();
 
+      // Release wayland registry, display and reset pointers
       if (wl_registry) {
         wl_registry_destroy(wl_registry);
         wl_registry = nullptr;
       }
-
       if (wl_display) {
         wl_display_disconnect(wl_display);
         wl_display = nullptr;
@@ -303,13 +323,13 @@ namespace kwin {
         screencast_permission_helper_t::setup();
       }
 
-      const char *wl_name = std::getenv("WAYLAND_DISPLAY");
-      if (!wl_name) {
+      std::string wl_name;
+      if (!lizardbyte::common::get_env("WAYLAND_DISPLAY", wl_name)) {
         BOOST_LOG(error) << "[kwingrab] WAYLAND_DISPLAY not set"sv;
         return -1;
       }
 
-      wl_display = wl_display_connect(wl_name);
+      wl_display = wl_display_connect(wl_name.c_str());
       if (!wl_display) {
         BOOST_LOG(error) << "[kwingrab] cannot connect to Wayland display: "sv << wl_name;
         return -1;
@@ -425,7 +445,11 @@ namespace kwin {
         return -1;
       }
 
-      BOOST_LOG(info) << "[kwingrab] stream created, PipeWire node "sv << out_node_id;
+      if ((out_objectserial & SPA_ID_INVALID) == SPA_ID_INVALID) {
+        BOOST_LOG(info) << "[kwingrab] Pipewire stream created: node="sv << out_node_id;
+      } else {
+        BOOST_LOG(info) << "[kwingrab] Pipewire stream created: objectserial="sv << out_objectserial << " (node="sv << out_node_id << ")"sv;
+      }
 
       if (out_params->width == 0 || out_params->height == 0) {
         BOOST_LOG(error) << "[kwingrab] could not determine output dimensions"sv;
@@ -439,9 +463,9 @@ namespace kwin {
       return 0;
     }
 
-    uint32_t out_node_id = PW_ID_ANY;
-    uint64_t out_objectserial = SPA_ID_INVALID;
-    std::shared_ptr<output_parameter_t> out_params = nullptr;
+    uint32_t out_node_id = PW_ID_ANY;  ///< Out node ID.
+    uint64_t out_objectserial = SPA_ID_INVALID;  ///< Out objectserial.
+    std::shared_ptr<output_parameter_t> out_params = nullptr;  ///< Out params.
 
   private:
     // Wayland objects
@@ -684,12 +708,20 @@ namespace kwin {
       return -1;
     }
 
-    std::unique_ptr<screencast_t> screencast;
+    std::unique_ptr<screencast_t> screencast;  ///< Screencast.
   };
 }  // namespace kwin
 
 // Public API for misc.cpp
 namespace platf {
+  /**
+   * @brief Create a KWin screencast display backend.
+   *
+   * @param hwdevice_type Hardware device type requested for capture or encode.
+   * @param display_name Display name.
+   * @param config Configuration values to apply.
+   * @return KWin/PipeWire display backend, or nullptr when initialization fails.
+   */
   std::shared_ptr<display_t> kwin_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     if (!pipewire::pipewire_display_t::init_pipewire_and_check_hwdevice_type(hwdevice_type)) {
       BOOST_LOG(error) << "[kwingrab] Could not initialize pipewire-based display with the given hw device type."sv;
@@ -704,6 +736,11 @@ namespace platf {
     return display;
   }
 
+  /**
+   * @brief Enumerate KWin screencast display names.
+   *
+   * @return KWin display names, or an empty list when KWin capture is unavailable.
+   */
   std::vector<std::string> kwin_display_names() {
     if (has_elevated_privileges(false)) {
       // We're still in the probing phase of Sunshine startup. Dropping portal security early will break KMS.
@@ -720,6 +757,11 @@ namespace platf {
     return screencast->get_output_names();
   }
 
+  /**
+   * @brief Check whether KWin screencast capture is available.
+   *
+   * @return True when KWin capture support is available.
+   */
   bool kwin_available() {
     // Init screencast without permission setup (to not cause unneeded logs / temporary desktop files) and check KWin availability
     if (const auto screencast = std::make_unique<kwin::screencast_t>(); screencast->init(false) < 0 || !screencast->kwin_available()) {

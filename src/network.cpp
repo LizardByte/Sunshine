@@ -17,9 +17,15 @@ using namespace std::literals;
 namespace ip = boost::asio::ip;
 
 namespace net {
+  /**
+   * @brief Pc ips v4.
+   */
   std::vector<ip::network_v4> pc_ips_v4 {
     ip::make_network_v4("127.0.0.0/8"sv),
   };
+  /**
+   * @brief Lan ips v4.
+   */
   std::vector<ip::network_v4> lan_ips_v4 {
     ip::make_network_v4("192.168.0.0/16"sv),
     ip::make_network_v4("172.16.0.0/12"sv),
@@ -28,14 +34,23 @@ namespace net {
     ip::make_network_v4("169.254.0.0/16"sv),
   };
 
+  /**
+   * @brief Pc ips v6.
+   */
   std::vector<ip::network_v6> pc_ips_v6 {
     ip::make_network_v6("::1/128"sv),
   };
+  /**
+   * @brief Lan ips v6.
+   */
   std::vector<ip::network_v6> lan_ips_v6 {
     ip::make_network_v6("fc00::/7"sv),
     ip::make_network_v6("fe80::/64"sv),
   };
 
+  /**
+   * @brief Convert configuration text to a network enum value.
+   */
   net_e from_enum_string(const std::string_view &view) {
     if (view == "wan") {
       return WAN;
@@ -47,6 +62,9 @@ namespace net {
     return PC;
   }
 
+  /**
+   * @brief Convert a Boost address family to Sunshine network enum value.
+   */
   net_e from_address(const std::string_view &view) {
     auto addr = normalize_address(ip::make_address(view));
 
@@ -79,6 +97,9 @@ namespace net {
     return WAN;
   }
 
+  /**
+   * @brief Convert a network enum value to configuration text.
+   */
   std::string_view to_enum_string(net_e net) {
     switch (net) {
       case PC:
@@ -163,6 +184,9 @@ namespace net {
     }
   }
 
+  /**
+   * @brief Create an ENet host with the requested address family.
+   */
   host_t host_create(af_e af, ENetAddress &addr, std::uint16_t port) {
     static std::once_flag enet_init_flag;
     std::call_once(enet_init_flag, []() {
@@ -182,6 +206,9 @@ namespace net {
     return host;
   }
 
+  /**
+   * @brief Destroy an ENet host allocated by host_create().
+   */
   void free_host(ENetHost *host) {
     std::for_each(host->peers, host->peers + host->peerCount, [](ENetPeer &peer_ref) {
       ENetPeer *peer = &peer_ref;

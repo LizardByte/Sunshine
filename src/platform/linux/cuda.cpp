@@ -26,13 +26,29 @@ extern "C" {
 #include "src/video.h"
 #include "wayland.h"
 
+/**
+ * @def SUNSHINE_STRINGVIEW_HELPER(x)
+ * @brief Macro for SUNSHINE STRINGVIEW HELPER.
+ */
 #define SUNSHINE_STRINGVIEW_HELPER(x) x##sv
+/**
+ * @def SUNSHINE_STRINGVIEW(x)
+ * @brief Macro for SUNSHINE STRINGVIEW.
+ */
 #define SUNSHINE_STRINGVIEW(x) SUNSHINE_STRINGVIEW_HELPER(x)
 
+/**
+ * @def CU_CHECK(x, y)
+ * @brief Macro for CU CHECK.
+ */
 #define CU_CHECK(x, y) \
   if (check((x), SUNSHINE_STRINGVIEW(y ": "))) \
   return -1
 
+/**
+ * @def CU_CHECK_IGNORE(x, y)
+ * @brief Macro for CU CHECK IGNORE.
+ */
 #define CU_CHECK_IGNORE(x, y) \
   check((x), SUNSHINE_STRINGVIEW(y ": "))
 
@@ -41,17 +57,32 @@ namespace fs = std::filesystem;
 using namespace std::literals;
 
 namespace cuda {
-  constexpr auto cudaDevAttrMaxThreadsPerBlock = (CUdevice_attribute) 1;
-  constexpr auto cudaDevAttrMaxThreadsPerMultiProcessor = (CUdevice_attribute) 39;
+  constexpr auto cudaDevAttrMaxThreadsPerBlock = (CUdevice_attribute) 1;  ///< CUDA dev attr max threads per block.
+  constexpr auto cudaDevAttrMaxThreadsPerMultiProcessor = (CUdevice_attribute) 39;  ///< CUDA dev attr max threads per multi processor.
 
+  /**
+   * @brief Convert a CUDA result code into Sunshine's capture status.
+   *
+   * @param sv String view containing the text to inspect.
+   * @param name Human-readable name to assign.
+   * @param description Human-readable description used in log output.
+   */
   void pass_error(const std::string_view &sv, const char *name, const char *description) {
     BOOST_LOG(error) << sv << name << ':' << description;
   }
 
+  /**
+   * @brief Release a Core Foundation object when the wrapper is destroyed.
+   *
+   * @param cf Core Foundation object passed to the scoped releaser.
+   */
   void cff(CudaFunctions *cf) {
     cuda_free_functions(&cf);
   }
 
+  /**
+   * @brief Handle to a CUDA dynamic-library function table.
+   */
   using cdf_t = util::safe_ptr<CudaFunctions, cff>;
 
   static cdf_t cdf;
@@ -71,21 +102,42 @@ namespace cuda {
     return 0;
   }
 
+  /**
+   * @brief Release stream resources.
+   *
+   * @param stream CUDA stream or PipeWire stream involved in the operation.
+   */
   void freeStream(CUstream stream) {
     CU_CHECK_IGNORE(cdf->cuStreamDestroy(stream), "Couldn't destroy cuda stream");
   }
 
+  /**
+   * @brief Unregister a CUDA graphics resource if it is still registered.
+   *
+   * @param resource CUDA graphics resource being mapped or unmapped.
+   */
   void unregisterResource(CUgraphicsResource resource) {
     CU_CHECK_IGNORE(cdf->cuGraphicsUnregisterResource(resource), "Couldn't unregister resource");
   }
 
+  /**
+   * @brief CUDA graphics resource pointer released with `cuGraphicsUnregisterResource`.
+   */
   using registered_resource_t = util::safe_ptr<CUgraphicsResource_st, unregisterResource>;
 
+  /**
+   * @brief CUDA image wrapper that owns mapped graphics resources for one frame.
+   */
   class img_t: public platf::img_t {
   public:
-    tex_t tex;
+    tex_t tex;  ///< CUDA texture object used as the conversion source.
   };
 
+  /**
+   * @brief Map CUDA graphics resources for use as an image.
+   *
+   * @return 0 on success; nonzero or negative platform status on failure.
+   */
   int init() {
     auto status = cuda_load_functions(&cdf, nullptr);
     if (status) {
@@ -99,8 +151,18 @@ namespace cuda {
     return 0;
   }
 
+  /**
+   * @brief CUDA encode device that imports captured frames into CUDA memory.
+   */
   class cuda_t: public platf::avcodec_encode_device_t {
   public:
+    /**
+     * @brief Initialize the CUDA device context used for frame conversion.
+     *
+     * @param in_width In width.
+     * @param in_height In height.
+     * @return 0 on success; nonzero or negative platform status on failure.
+     */
     int init(int in_width, int in_height) {
       if (!cdf) {
         BOOST_LOG(warning) << "cuda not initialized"sv;
@@ -115,13 +177,21 @@ namespace cuda {
       return 0;
     }
 
+    /**
+     * @brief Attach frame resources used by the next conversion or encode operation.
+     *
+     * @param frame Video or graphics frame being processed.
+     * @param hw_frames_ctx FFmpeg hardware frames context associated with the frame.
+     * @return Status from updating frame.
+     */
     int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
       this->hwframe.reset(frame);
       this->frame = frame;
 
       auto hwframe_ctx = (AVHWFramesContext *) hw_frames_ctx->data;
-      if (hwframe_ctx->sw_format != AV_PIX_FMT_NV12) {
-        BOOST_LOG(error) << "cuda::cuda_t doesn't support any format other than AV_PIX_FMT_NV12"sv;
+
+      if (hwframe_ctx->sw_format != AV_PIX_FMT_NV12 && hwframe_ctx->sw_format != AV_PIX_FMT_YUV444P) {
+        BOOST_LOG(error) << "cuda::cuda_t doesn't support any format other than AV_PIX_FMT_NV12 and AV_PIX_FMT_YUV444P"sv;
         return -1;
       }
 
@@ -131,6 +201,8 @@ namespace cuda {
           return -1;
         }
       }
+
+      is_yuv444 = (hwframe_ctx->sw_format == AV_PIX_FMT_YUV444P);
 
       auto cuda_ctx = (AVCUDADeviceContext *) hwframe_ctx->device_ctx->hwctx;
 
@@ -153,6 +225,9 @@ namespace cuda {
       return 0;
     }
 
+    /**
+     * @brief Apply the configured colorspace metadata to the active frame.
+     */
     void apply_colorspace() override {
       sws.apply_colorspace(colorspace);
 
@@ -178,31 +253,62 @@ namespace cuda {
         return;
       }
 
-      sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex->texture.linear, stream.get(), {frame->width, frame->height, 0, 0});
+      if (is_yuv444) {
+        sws.convert_yuv444(frame->data[0], frame->data[1], frame->data[2], frame->linesize[0], tex->texture.linear, stream.get(), {frame->width, frame->height, 0, 0});
+      } else {
+        sws.convert_nv12(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex->texture.linear, stream.get(), {frame->width, frame->height, 0, 0});
+      }
     }
 
+    /**
+     * @brief Select the CUDA texture object for the configured filtering mode.
+     *
+     * @param tex Texture resource used by the converter.
+     * @return CUDA texture object using linear or point sampling.
+     */
     cudaTextureObject_t tex_obj(const tex_t &tex) const {
       return linear_interpolation ? tex.texture.linear : tex.texture.point;
     }
 
-    stream_t stream;
-    frame_t hwframe;
+    stream_t stream;  ///< CUDA stream used for asynchronous conversion work.
+    frame_t hwframe;  ///< FFmpeg hardware frame backed by CUDA resources.
 
-    int height;
-    int width;
+    int height;  ///< Frame or display height in pixels.
+    int width;  ///< Frame or display width in pixels.
 
     // When height and width don't change, it's not necessary to use linear interpolation
-    bool linear_interpolation;
+    bool linear_interpolation;  ///< Whether the CUDA converter uses linear interpolation.
 
-    sws_t sws;
+    bool is_yuv444;  ///< Whether the CUDA converter outputs YUV 4:4:4.
+
+    sws_t sws;  ///< Software scaler used for CUDA frame conversion fallback paths.
   };
 
+  /**
+   * @brief CUDA encode device path that converts frames through system memory.
+   */
   class cuda_ram_t: public cuda_t {
   public:
+    /**
+     * @brief Convert a captured frame through CUDA into system-memory encoder input.
+     *
+     * @param img Image or frame object to read from or populate.
+     * @return Conversion status.
+     */
     int convert(platf::img_t &img) override {
-      return sws.load_ram(img, tex.array) || sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex_obj(tex), stream.get());
+      if (is_yuv444) {
+        return sws.load_ram(img, tex.array) || sws.convert_yuv444(frame->data[0], frame->data[1], frame->data[2], frame->linesize[0], tex_obj(tex), stream.get());
+      }
+      return sws.load_ram(img, tex.array) || sws.convert_nv12(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex_obj(tex), stream.get());
     }
 
+    /**
+     * @brief Attach frame resources used by the next conversion or encode operation.
+     *
+     * @param frame Video or graphics frame being processed.
+     * @param hw_frames_ctx FFmpeg hardware frames context associated with the frame.
+     * @return Status from updating frame.
+     */
     int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
       if (cuda_t::set_frame(frame, hw_frames_ctx)) {
         return -1;
@@ -218,13 +324,25 @@ namespace cuda {
       return 0;
     }
 
-    tex_t tex;
+    tex_t tex;  ///< CUDA texture object used as the conversion source.
   };
 
+  /**
+   * @brief CUDA encode device path that keeps converted frames in GPU memory.
+   */
   class cuda_vram_t: public cuda_t {
   public:
+    /**
+     * @brief Convert a captured frame through CUDA into GPU encoder input.
+     *
+     * @param img Image or frame object to read from or populate.
+     * @return Conversion status.
+     */
     int convert(platf::img_t &img) override {
-      return sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex_obj(((img_t *) &img)->tex), stream.get());
+      if (is_yuv444) {
+        return sws.convert_yuv444(frame->data[0], frame->data[1], frame->data[2], frame->linesize[0], tex_obj(((img_t *) &img)->tex), stream.get());
+      }
+      return sws.convert_nv12(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex_obj(((img_t *) &img)->tex), stream.get());
     }
   };
 
@@ -264,7 +382,7 @@ namespace cuda {
 
         fs::path dri_path {"/dev/dri"sv};
         auto device_path = dri_path / file;
-        return open(device_path.c_str(), O_RDWR);
+        return platf::open_drm_card_fd(device_path);
       }
     } catch (const std::filesystem::filesystem_error &err) {
       BOOST_LOG(error) << "Failed to read sysfs: "sv << err.what();
@@ -274,6 +392,19 @@ namespace cuda {
     return -1;
   }
 
+  /**
+   * @brief CUDA frame resources registered for interop conversion.
+   */
+  struct cu_resources {
+    registered_resource_t y_res;  ///< Y res.
+    registered_resource_t u_res;  ///< U res.
+    registered_resource_t v_res;  ///< V res.
+    registered_resource_t uv_res;  ///< Uv res.
+  };
+
+  /**
+   * @brief OpenGL/CUDA interop resources used for GPU-side frame conversion.
+   */
   class gl_cuda_vram_t: public platf::avcodec_encode_device_t {
   public:
     /**
@@ -335,28 +466,43 @@ namespace cuda {
       this->hwframe.reset(frame);
       this->frame = frame;
 
+      auto hw_frames_ctx = (AVHWFramesContext *) hw_frames_ctx_buf->data;
+
+      if (hw_frames_ctx->sw_format != AV_PIX_FMT_NV12 && hw_frames_ctx->sw_format != AV_PIX_FMT_YUV444P && hw_frames_ctx->sw_format != AV_PIX_FMT_P010LE && hw_frames_ctx->sw_format != AV_PIX_FMT_YUV444P16LE) {
+        BOOST_LOG(error) << "cuda::gl_cuda_vram_t doesn't support any format other than AV_PIX_FMT_NV12, AV_PIX_FMT_P010LE, AV_PIX_FMT_YUV444P and AV_PIX_FMT_YUV444P16LE"sv;
+        return -1;
+      }
+
       if (!frame->buf[0]) {
         if (av_hwframe_get_buffer(hw_frames_ctx_buf, frame, 0)) {
-          BOOST_LOG(error) << "Couldn't get hwframe for VAAPI"sv;
+          BOOST_LOG(error) << "Couldn't get hwframe for NVENC_GL"sv;
           return -1;
         }
       }
 
-      auto hw_frames_ctx = (AVHWFramesContext *) hw_frames_ctx_buf->data;
       sw_format = hw_frames_ctx->sw_format;
+      is_yuv444 = (sw_format == AV_PIX_FMT_YUV444P || sw_format == AV_PIX_FMT_YUV444P16LE);
 
-      auto nv12_opt = egl::create_target(frame->width, frame->height, sw_format);
-      if (!nv12_opt) {
-        return -1;
-      }
-
-      auto sws_opt = egl::sws_t::make(width, height, frame->width, frame->height, sw_format);
+      auto sws_opt = egl::sws_t::make(width, height, frame->width, frame->height, sw_format, is_yuv444);
       if (!sws_opt) {
         return -1;
       }
 
       this->sws = std::move(*sws_opt);
-      this->nv12 = std::move(*nv12_opt);
+
+      if (is_yuv444) {
+        auto yuv444_opt = egl::create_yuv444_target(frame->width, frame->height, sw_format);
+        if (!yuv444_opt) {
+          return -1;
+        }
+        this->yuv444 = std::move(*yuv444_opt);
+      } else {
+        auto nv12_opt = egl::create_nv12_target(frame->width, frame->height, sw_format);
+        if (!nv12_opt) {
+          return -1;
+        }
+        this->nv12 = std::move(*nv12_opt);
+      }
 
       auto cuda_ctx = (AVCUDADeviceContext *) hw_frames_ctx->device_ctx->hwctx;
 
@@ -367,9 +513,14 @@ namespace cuda {
 
       cuda_ctx->stream = stream.get();
 
-      CU_CHECK(cdf->cuGraphicsGLRegisterImage(&y_res, nv12->tex[0], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register Y plane texture");
-      CU_CHECK(cdf->cuGraphicsGLRegisterImage(&uv_res, nv12->tex[1], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register UV plane texture");
-
+      if (is_yuv444) {
+        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.y_res, yuv444->tex[0], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register Y texture");
+        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.u_res, yuv444->tex[1], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register U texture");
+        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.v_res, yuv444->tex[2], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register V texture");
+      } else {
+        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.y_res, nv12->tex[0], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register Y plane texture");
+        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.uv_res, nv12->tex[1], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register UV plane texture");
+      }
       return 0;
     }
 
@@ -398,33 +549,61 @@ namespace cuda {
         rgb = std::move(*rgb_opt);
       }
 
-      // Perform the color conversion and scaling in GL
-      sws.load_vram(descriptor, offset_x, offset_y, rgb->tex[0]);
-      sws.convert(nv12->buf);
-
       auto fmt_desc = av_pix_fmt_desc_get(sw_format);
 
-      // Map the GL textures to read for CUDA
-      CUgraphicsResource resources[2] = {y_res.get(), uv_res.get()};
-      CU_CHECK(cdf->cuGraphicsMapResources(2, resources, stream.get()), "Couldn't map GL textures in CUDA");
+      sws.load_vram(descriptor, offset_x, offset_y, rgb->tex[0], is_yuv444);
 
-      // Copy from the GL textures to the target CUDA frame
-      for (int i = 0; i < 2; i++) {
-        CUDA_MEMCPY2D cpy = {};
-        cpy.srcMemoryType = CU_MEMORYTYPE_ARRAY;
-        CU_CHECK(cdf->cuGraphicsSubResourceGetMappedArray(&cpy.srcArray, resources[i], 0, 0), "Couldn't get mapped plane array");
+      if (is_yuv444) {
+        // Perform the color conversion and scaling in GL
+        sws.convert_yuv444(yuv444->buf);
 
-        cpy.dstMemoryType = CU_MEMORYTYPE_DEVICE;
-        cpy.dstDevice = (CUdeviceptr) frame->data[i];
-        cpy.dstPitch = frame->linesize[i];
-        cpy.WidthInBytes = (frame->width * fmt_desc->comp[i].step) >> (i ? fmt_desc->log2_chroma_w : 0);
-        cpy.Height = frame->height >> (i ? fmt_desc->log2_chroma_h : 0);
+        // Map the GL textures to read for CUDA
+        std::array<CUgraphicsResource, 3> resources = {{cu_res.y_res.get(), cu_res.u_res.get(), cu_res.v_res.get()}};
+        CU_CHECK(cdf->cuGraphicsMapResources(resources.size(), resources.data(), stream.get()), "Couldn't map GL textures in CUDA");
 
-        CU_CHECK_IGNORE(cdf->cuMemcpy2DAsync(&cpy, stream.get()), "Couldn't copy texture to CUDA frame");
+        // Copy from the GL textures to the target CUDA frame
+        for (int i = 0; i < 3; i++) {
+          CUDA_MEMCPY2D cpy = {};
+          cpy.srcMemoryType = CU_MEMORYTYPE_ARRAY;
+          CU_CHECK(cdf->cuGraphicsSubResourceGetMappedArray(&cpy.srcArray, resources[i], 0, 0), "Couldn't get mapped plane array");
+
+          cpy.dstMemoryType = CU_MEMORYTYPE_DEVICE;
+          cpy.dstDevice = (CUdeviceptr) frame->data[i];
+          cpy.dstPitch = frame->linesize[i];
+          cpy.WidthInBytes = (frame->width * fmt_desc->comp[i].step);
+          cpy.Height = frame->height;
+
+          CU_CHECK_IGNORE(cdf->cuMemcpy2DAsync(&cpy, stream.get()), "Couldn't copy texture to CUDA frame");
+        }
+        // Unmap the textures to allow modification from GL again
+        CU_CHECK(cdf->cuGraphicsUnmapResources(resources.size(), resources.data(), stream.get()), "Couldn't unmap GL textures from CUDA");
+
+      } else {
+        // Perform the color conversion and scaling in GL
+        sws.convert_nv12(nv12->buf);
+
+        // Map the GL textures to read for CUDA
+        std::array<CUgraphicsResource, 2> resources = {{cu_res.y_res.get(), cu_res.uv_res.get()}};
+        CU_CHECK(cdf->cuGraphicsMapResources(resources.size(), resources.data(), stream.get()), "Couldn't map GL textures in CUDA");
+
+        // Copy from the GL textures to the target CUDA frame
+        for (int i = 0; i < 2; i++) {
+          CUDA_MEMCPY2D cpy = {};
+          cpy.srcMemoryType = CU_MEMORYTYPE_ARRAY;
+          CU_CHECK(cdf->cuGraphicsSubResourceGetMappedArray(&cpy.srcArray, resources[i], 0, 0), "Couldn't get mapped plane array");
+
+          cpy.dstMemoryType = CU_MEMORYTYPE_DEVICE;
+          cpy.dstDevice = (CUdeviceptr) frame->data[i];
+          cpy.dstPitch = frame->linesize[i];
+          cpy.WidthInBytes = (frame->width * fmt_desc->comp[i].step) >> (i ? fmt_desc->log2_chroma_w : 0);
+          cpy.Height = frame->height >> (i ? fmt_desc->log2_chroma_h : 0);
+
+          CU_CHECK_IGNORE(cdf->cuMemcpy2DAsync(&cpy, stream.get()), "Couldn't copy texture to CUDA frame");
+        }
+        // Unmap the textures to allow modification from GL again
+        CU_CHECK(cdf->cuGraphicsUnmapResources(resources.size(), resources.data(), stream.get()), "Couldn't unmap GL textures from CUDA");
       }
 
-      // Unmap the textures to allow modification from GL again
-      CU_CHECK(cdf->cuGraphicsUnmapResources(2, resources, stream.get()), "Couldn't unmap GL textures from CUDA");
       return 0;
     }
 
@@ -432,35 +611,45 @@ namespace cuda {
      * @brief Configures shader parameters for the specified colorspace.
      */
     void apply_colorspace() override {
-      sws.apply_colorspace(colorspace);
+      sws.apply_colorspace(colorspace, is_yuv444);
     }
 
-    file_t file;
-    gbm::gbm_t gbm;
-    egl::display_t display;
-    egl::ctx_t ctx;
+    file_t file;  ///< File descriptor for the imported DMA-BUF.
+    gbm::gbm_t gbm;  ///< GBM device used for buffer allocation..
+    egl::display_t display;  ///< EGL display used to import captured frames.
+    egl::ctx_t ctx;  ///< EGL context used to import captured frames.
 
     // This must be destroyed before display_t
-    stream_t stream;
-    frame_t hwframe;
+    stream_t stream;  ///< CUDA stream used for asynchronous conversion work.
+    frame_t hwframe;  ///< FFmpeg hardware frame backed by CUDA resources.
 
-    egl::sws_t sws;
-    egl::nv12_t nv12;
-    AVPixelFormat sw_format;
+    egl::sws_t sws;  ///< Software scaler used for CUDA frame conversion fallback paths.
+    egl::nv12_t nv12;  ///< EGL/OpenGL resources used for NV12 output frames.
+    egl::yuv444_t yuv444;  ///< EGL/OpenGL resources used for YUV444 output frames.
+    AVPixelFormat sw_format;  ///< FFmpeg software pixel format produced by conversion.
 
-    int height;
-    int width;
+    int height;  ///< Frame or display height in pixels.
+    int width;  ///< Frame or display width in pixels.
 
-    std::uint64_t sequence;
-    egl::rgb_t rgb;
+    std::uint64_t sequence;  ///< Capture sequence number associated with the frame.
+    egl::rgb_t rgb;  ///< Imported RGB source image used before CUDA conversion.
 
-    registered_resource_t y_res;
-    registered_resource_t uv_res;
+    cu_resources cu_res;  ///< CUDA graphics resources registered for the current frame.
 
-    int offset_x;
-    int offset_y;
+    int offset_x;  ///< Horizontal offset in physical pixels.
+    int offset_y;  ///< Vertical offset in physical pixels.
+
+    bool is_yuv444;  ///< Whether the CUDA converter outputs YUV 4:4:4.
   };
 
+  /**
+   * @brief Create AVCodec encode device.
+   *
+   * @param width Frame or display width in pixels.
+   * @param height Frame or display height in pixels.
+   * @param vram Whether the image should use GPU memory instead of system memory.
+   * @return Constructed AVCodec encode device object.
+   */
   std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(int width, int height, bool vram) {
     if (init()) {
       return nullptr;
@@ -513,6 +702,11 @@ namespace cuda {
 
     static void *handle {nullptr};
 
+    /**
+     * @brief Load NvFBC and create the CUDA capture helper.
+     *
+     * @return 0 on success; nonzero or negative platform status on failure.
+     */
     int init() {
       static bool funcs_loaded = false;
 
@@ -551,8 +745,16 @@ namespace cuda {
       return 0;
     }
 
+    /**
+     * @brief NvFBC CUDA context selected for a capture session.
+     */
     class ctx_t {
     public:
+      /**
+       * @brief Create an NvFBC session context for a native capture handle.
+       *
+       * @param handle Native library or object handle used by the operation.
+       */
       ctx_t(NVFBC_SESSION_HANDLE handle) {
         NVFBC_BIND_CONTEXT_PARAMS params {NVFBC_BIND_CONTEXT_PARAMS_VER};
 
@@ -570,9 +772,12 @@ namespace cuda {
         }
       }
 
-      NVFBC_SESSION_HANDLE handle;
+      NVFBC_SESSION_HANDLE handle;  ///< NVIDIA FBC capture session handle.
     };
 
+    /**
+     * @brief NvFBC dynamic-library handle and function table.
+     */
     class handle_t {
       enum flag_e {
         SESSION_HANDLE,
@@ -583,12 +788,23 @@ namespace cuda {
     public:
       handle_t() = default;
 
+      /**
+       * @brief Move an NvFBC API handle and its resolved function table.
+       *
+       * @param other Source object whose state is copied or moved into this object.
+       */
       handle_t(handle_t &&other):
           handle_flags {other.handle_flags},
           handle {other.handle} {
         other.handle_flags.reset();
       }
 
+      /**
+       * @brief Assign state from another instance while preserving ownership semantics.
+       *
+       * @param other Source object whose state is copied or moved into this object.
+       * @return Reference or value produced by the operator.
+       */
       handle_t &operator=(handle_t &&other) {
         std::swap(handle_flags, other.handle_flags);
         std::swap(handle, other.handle);
@@ -596,6 +812,11 @@ namespace cuda {
         return *this;
       }
 
+      /**
+       * @brief Allocate the underlying object and wrap it in the owning handle.
+       *
+       * @return Created backend object, or null when creation fails.
+       */
       static std::optional<handle_t> make() {
         NVFBC_CREATE_HANDLE_PARAMS params {NVFBC_CREATE_HANDLE_PARAMS_VER};
 
@@ -618,10 +839,20 @@ namespace cuda {
         return handle;
       }
 
+      /**
+       * @brief Read the last error string from the active NvFBC session.
+       *
+       * @return Human-readable NvFBC error string.
+       */
       const char *last_error() {
         return func.nvFBCGetLastErrorStr(handle);
       }
 
+      /**
+       * @brief Return or update the current status value.
+       *
+       * @return Status status.
+       */
       std::optional<NVFBC_GET_STATUS_PARAMS> status() {
         NVFBC_GET_STATUS_PARAMS params {NVFBC_GET_STATUS_PARAMS_VER};
 
@@ -635,6 +866,12 @@ namespace cuda {
         return params;
       }
 
+      /**
+       * @brief Run the capture loop for this backend.
+       *
+       * @param capture_params Capture params.
+       * @return Capture status reported to the streaming pipeline.
+       */
       int capture(NVFBC_CREATE_CAPTURE_SESSION_PARAMS &capture_params) {
         if (func.nvFBCCreateCaptureSession(handle, &capture_params)) {
           BOOST_LOG(error) << "Failed to start capture session: "sv << last_error();
@@ -655,6 +892,11 @@ namespace cuda {
         return 0;
       }
 
+      /**
+       * @brief Release the NvFBC capture session and wait for capture work to stop.
+       *
+       * @return Stop status.
+       */
       int stop() {
         if (!handle_flags[SESSION_CAPTURE]) {
           return 0;
@@ -673,6 +915,11 @@ namespace cuda {
         return 0;
       }
 
+      /**
+       * @brief Reset the object to its initial empty state.
+       *
+       * @return Reset status.
+       */
       int reset() {
         if (!handle_flags[SESSION_HANDLE]) {
           return 0;
@@ -696,13 +943,23 @@ namespace cuda {
         reset();
       }
 
-      std::bitset<MAX_FLAGS> handle_flags;
+      std::bitset<MAX_FLAGS> handle_flags;  ///< Handle flags.
 
-      NVFBC_SESSION_HANDLE handle;
+      NVFBC_SESSION_HANDLE handle;  ///< NVIDIA FBC capture session handle.
     };
 
+    /**
+     * @brief NvFBC display capture backend that produces CUDA frames.
+     */
     class display_t: public platf::display_t {
     public:
+      /**
+       * @brief Initialize NvFBC capture for the selected display.
+       *
+       * @param display_name Display name.
+       * @param config Configuration values to apply.
+       * @return 0 on success; nonzero or negative platform status on failure.
+       */
       int init(const std::string_view &display_name, const ::video::config_t &config) {
         auto handle = handle_t::make();
         if (!handle) {
@@ -731,7 +988,7 @@ namespace cuda {
           }
         }
 
-        delay = std::chrono::nanoseconds {1s} / config.framerate;
+        delay = ::video::capture_frame_interval(config);
 
         capture_params = NVFBC_CREATE_CAPTURE_SESSION_PARAMS {NVFBC_CREATE_CAPTURE_SESSION_PARAMS_VER};
 
@@ -824,6 +1081,12 @@ namespace cuda {
       }
 
       // Reinitialize the capture session.
+      /**
+       * @brief Reinitialize NvFBC capture after a recoverable failure.
+       *
+       * @param cursor Cursor image or visibility state to composite.
+       * @return Reinit status.
+       */
       platf::capture_e reinit(bool cursor) {
         if (handle.stop()) {
           return platf::capture_e::error;
@@ -892,6 +1155,15 @@ namespace cuda {
         return platf::capture_e::ok;
       }
 
+      /**
+       * @brief Capture a display frame into the provided image object.
+       *
+       * @param pull_free_image_cb Callback that provides an available image buffer.
+       * @param img_out Captured CUDA image returned to the streaming pipeline.
+       * @param timeout Maximum time to wait for the operation.
+       * @param cursor Cursor image or visibility state to composite.
+       * @return Capture status reported to the streaming pipeline.
+       */
       platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
         if (cursor != cursor_visible) {
           auto status = reinit(cursor);
@@ -932,10 +1204,21 @@ namespace cuda {
         return platf::capture_e::ok;
       }
 
+      /**
+       * @brief Create AVCodec encode device.
+       *
+       * @param pix_fmt Sunshine pixel format to convert or allocate for.
+       * @return Constructed AVCodec encode device object.
+       */
       std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(platf::pix_fmt_e pix_fmt) override {
         return ::cuda::make_avcodec_encode_device(width, height, true);
       }
 
+      /**
+       * @brief Allocate an image buffer compatible with this display backend.
+       *
+       * @return Allocated img object, or null when unavailable.
+       */
       std::shared_ptr<platf::img_t> alloc_img() override {
         auto img = std::make_shared<cuda::img_t>();
 
@@ -955,21 +1238,34 @@ namespace cuda {
         return img;
       };
 
+      /**
+       * @brief Populate a fallback image when real capture data is unavailable.
+       *
+       * @return Capture status reported to the streaming pipeline.
+       */
       int dummy_img(platf::img_t *) override {
         return 0;
       }
 
-      std::chrono::nanoseconds delay;
+      std::chrono::nanoseconds delay;  ///< Delay before the timer task becomes eligible to run.
 
-      bool cursor_visible;
-      handle_t handle;
+      bool cursor_visible;  ///< Whether the cursor should be included in the capture.
+      handle_t handle;  ///< NvFBC capture handle owning the active capture session.
 
-      NVFBC_CREATE_CAPTURE_SESSION_PARAMS capture_params;
+      NVFBC_CREATE_CAPTURE_SESSION_PARAMS capture_params;  ///< NvFBC capture-session parameters used for frame grabs.
     };
   }  // namespace nvfbc
 }  // namespace cuda
 
 namespace platf {
+  /**
+   * @brief Create an NvFBC CUDA display capture backend.
+   *
+   * @param hwdevice_type Hardware device type requested for capture or encode.
+   * @param display_name Display name.
+   * @param config Configuration values to apply.
+   * @return Display backend, or nullptr when NvFBC/CUDA initialization fails.
+   */
   std::shared_ptr<display_t> nvfbc_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     if (hwdevice_type != mem_type_e::cuda) {
       BOOST_LOG(error) << "Could not initialize nvfbc display with the given hw device type"sv;
@@ -985,6 +1281,11 @@ namespace platf {
     return display;
   }
 
+  /**
+   * @brief Enumerate display names exposed by NvFBC.
+   *
+   * @return NvFBC display names, or an empty list when enumeration fails.
+   */
   std::vector<std::string> nvfbc_display_names() {
     if (cuda::init() || cuda::nvfbc::init()) {
       return {};

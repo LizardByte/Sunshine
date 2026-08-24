@@ -15,16 +15,24 @@ include_directories("${CMAKE_SOURCE_DIR}")
 enable_testing()
 
 # Add GoogleTest directory to the project
-set(GTEST_SOURCE_DIR "${CMAKE_SOURCE_DIR}/third-party/googletest")
+set(GTEST_SOURCE_DIR "${CMAKE_SOURCE_DIR}/third-party/lizardbyte-common/third-party/googletest")
 set(INSTALL_GTEST OFF)
 set(INSTALL_GMOCK OFF)
-add_subdirectory("${GTEST_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/googletest")
+if(NOT TARGET gtest)
+    add_subdirectory("${GTEST_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/googletest")
+endif()
 include_directories("${GTEST_SOURCE_DIR}/googletest/include" "${GTEST_SOURCE_DIR}")
 
 # coverage
 # https://gcovr.com/en/stable/guide/compiling.html#compiler-options
-set(CMAKE_CXX_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
-set(CMAKE_C_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
+option(SUNSHINE_LLVM_COVERAGE "Use LLVM source-based coverage" OFF)
+if(SUNSHINE_LLVM_COVERAGE)
+    add_compile_options(-fprofile-instr-generate -fcoverage-mapping -ggdb -O0)
+    add_link_options(-fprofile-instr-generate)
+else()
+    set(CMAKE_CXX_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
+    set(CMAKE_C_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
+endif()
 
 # Find the correct libgcov library path matching the gcc compiler version
 # This ensures the test executable links against the same libgcov version used during compilation
@@ -102,6 +110,65 @@ endif()
 file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS
         ${CMAKE_SOURCE_DIR}/tests/*.h
         ${CMAKE_SOURCE_DIR}/tests/*.cpp)
+if(SUNSHINE_ENABLE_TRAY AND (WIN32 OR APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux"))
+    set(SUNSHINE_TRAY_TEST_ICON_SOURCE_DIR
+            "${CMAKE_SOURCE_DIR}/src_assets/common/assets/web/public/images")
+    set(SUNSHINE_TRAY_TEST_ICON_DESTINATION_DIR
+            "${CMAKE_CURRENT_BINARY_DIR}/test_assets/web/images")
+    file(MAKE_DIRECTORY "${SUNSHINE_TRAY_TEST_ICON_DESTINATION_DIR}")
+
+    configure_file(
+            "${CMAKE_SOURCE_DIR}/sunshine.svg"
+            "${SUNSHINE_TRAY_TEST_ICON_DESTINATION_DIR}/logo-sunshine.svg"
+            COPYONLY)
+
+    if(WIN32)
+        configure_file(
+                "${CMAKE_SOURCE_DIR}/third-party/libvirtualhid/libvirtualhid.svg"
+                "${SUNSHINE_TRAY_TEST_ICON_DESTINATION_DIR}/logo-libvirtualhid.svg"
+                COPYONLY)
+    endif()
+
+    set(SUNSHINE_TRAY_TEST_ICONS
+            sunshine-locked.svg
+            sunshine-playing.svg
+            sunshine-pausing.svg)
+
+    foreach(icon IN LISTS SUNSHINE_TRAY_TEST_ICONS)
+        configure_file(
+                "${SUNSHINE_TRAY_TEST_ICON_SOURCE_DIR}/${icon}"
+                "${SUNSHINE_TRAY_TEST_ICON_DESTINATION_DIR}/${icon}"
+                COPYONLY)
+    endforeach()
+
+    add_library(sunshine_tray_test_helpers STATIC
+            ${CMAKE_SOURCE_DIR}/third-party/tray/tests/notification_utils.cpp
+            ${CMAKE_SOURCE_DIR}/third-party/tray/tests/screenshot_utils.cpp)
+    set_target_properties(sunshine_tray_test_helpers PROPERTIES
+            CXX_STANDARD 17
+            CXX_STANDARD_REQUIRED ON)
+    target_include_directories(sunshine_tray_test_helpers PRIVATE
+            ${CMAKE_SOURCE_DIR}/third-party/tray)
+    target_link_libraries(sunshine_tray_test_helpers PRIVATE
+            lizardbyte::common)
+
+    if(WIN32)
+        target_link_libraries(sunshine_tray_test_helpers PRIVATE
+                gdi32
+                gdiplus)
+    else()
+        find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Gui)
+        find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Gui)
+        set(SUNSHINE_TRAY_TEST_QT_GUI_TARGET Qt${QT_VERSION_MAJOR}::Gui)
+
+        target_link_libraries(sunshine_tray_test_helpers PRIVATE
+                ${SUNSHINE_TRAY_TEST_QT_GUI_TARGET})
+        if(APPLE)
+            target_link_libraries(sunshine_tray_test_helpers PRIVATE
+                    "-framework Cocoa")
+        endif()
+    endif()
+endif()
 # Add macOS-specific test files only when building tests for macOS
 if (APPLE)
     file(GLOB_RECURSE MACOS_TEST_SOURCES CONFIGURE_DEPENDS
@@ -161,9 +228,18 @@ add_dependencies(${PROJECT_NAME} sync_locale_files)
 # Build the list of libraries to link
 set(TEST_LINK_LIBRARIES
     ${SUNSHINE_EXTERNAL_LIBRARIES}
-    gtest
+    lizardbyte::test_support
     ${PLATFORM_LIBRARIES}
 )
+
+if(SUNSHINE_ENABLE_TRAY AND (WIN32 OR APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux"))
+    list(APPEND TEST_LINK_LIBRARIES
+            sunshine_tray_test_helpers)
+    if(SUNSHINE_TRAY_TEST_QT_GUI_TARGET)
+        list(APPEND TEST_LINK_LIBRARIES
+                ${SUNSHINE_TRAY_TEST_QT_GUI_TARGET})
+    endif()
+endif()
 
 # Add the specific libgcov library if found
 if(GCOV_LINK_LIBRARY)
@@ -173,7 +249,7 @@ endif()
 target_link_libraries(${PROJECT_NAME} ${TEST_LINK_LIBRARIES})
 target_compile_definitions(${PROJECT_NAME} PUBLIC ${SUNSHINE_DEFINITIONS} ${TEST_DEFINITIONS})
 target_compile_options(${PROJECT_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)  # cmake-lint: disable=C0301
-target_link_options(${PROJECT_NAME} PRIVATE)
+target_link_options(${PROJECT_NAME} PRIVATE ${SUNSHINE_LINK_OPTIONS})
 
 if (WIN32)
     # prefer static libraries since we're linking statically

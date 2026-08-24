@@ -16,15 +16,24 @@ extern "C" {
 
 namespace platf {
 
+  /**
+   * @brief Release an FFmpeg frame allocated by the capture or conversion backend.
+   */
   void free_frame(AVFrame *frame) {
     av_frame_free(&frame);
   }
 
+  /**
+   * @brief Release a backend buffer allocated for capture or conversion.
+   *
+   * @param opaque Opaque user pointer provided to the callback.
+   * @param data Payload or state data to serialize, deserialize, or forward.
+   */
   void free_buffer(void *opaque, uint8_t *data) {
     CVPixelBufferRelease((CVPixelBufferRef) data);
   }
 
-  util::safe_ptr<AVFrame, free_frame> av_frame;
+  util::safe_ptr<AVFrame, free_frame> av_frame;  ///< AV frame.
 
   int nv12_zero_device::convert(platf::img_t &img) {
     auto *av_img = (av_img_t *) &img;

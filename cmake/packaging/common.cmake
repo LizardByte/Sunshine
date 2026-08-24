@@ -29,6 +29,21 @@ foreach(asset ${ALL_ASSETS})  # Copy assets to build directory, excluding the we
             DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/assets")
 endforeach()
 
+# Copy the primary application icon into the built web assets for the system tray.
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/assets/web/images")
+configure_file(
+        "${CMAKE_SOURCE_DIR}/sunshine.svg"
+        "${CMAKE_CURRENT_BINARY_DIR}/assets/web/images/logo-sunshine.svg"
+        COPYONLY)
+
+# Copy the Virtual HID Driver icon for Windows tray notifications.
+if(WIN32)
+    configure_file(
+            "${CMAKE_SOURCE_DIR}/third-party/libvirtualhid/libvirtualhid.svg"
+            "${CMAKE_CURRENT_BINARY_DIR}/assets/web/images/logo-libvirtualhid.svg"
+            COPYONLY)
+endif()
+
 # install built vite assets
 install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/assets/web"
         DESTINATION "${SUNSHINE_ASSETS_DIR}")

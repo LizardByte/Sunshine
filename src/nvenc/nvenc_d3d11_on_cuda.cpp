@@ -9,10 +9,10 @@
   // local includes
   #include "nvenc_utils.h"
 
-namespace nvenc {
+namespace NVENC_NAMESPACE {
 
-  nvenc_d3d11_on_cuda::nvenc_d3d11_on_cuda(ID3D11Device *d3d_device):
-      nvenc_d3d11(NV_ENC_DEVICE_TYPE_CUDA),
+  nvenc_d3d11_on_cuda::nvenc_d3d11_on_cuda(ID3D11Device *d3d_device, ::nvenc::shared_dll dll):
+      nvenc_d3d11(NV_ENC_DEVICE_TYPE_CUDA, std::move(dll)),
       d3d_device(d3d_device) {
   }
 
@@ -68,20 +68,7 @@ namespace nvenc {
         location = (T) GetProcAddress(cuda_functions.dll, symbol);
         return location != nullptr;
       };
-      if (!load_function(cuda_functions.cuInit, "cuInit") ||
-          !load_function(cuda_functions.cuD3D11GetDevice, "cuD3D11GetDevice") ||
-          !load_function(cuda_functions.cuCtxCreate, "cuCtxCreate_v2") ||
-          !load_function(cuda_functions.cuCtxDestroy, "cuCtxDestroy_v2") ||
-          !load_function(cuda_functions.cuCtxPushCurrent, "cuCtxPushCurrent_v2") ||
-          !load_function(cuda_functions.cuCtxPopCurrent, "cuCtxPopCurrent_v2") ||
-          !load_function(cuda_functions.cuMemAllocPitch, "cuMemAllocPitch_v2") ||
-          !load_function(cuda_functions.cuMemFree, "cuMemFree_v2") ||
-          !load_function(cuda_functions.cuGraphicsD3D11RegisterResource, "cuGraphicsD3D11RegisterResource") ||
-          !load_function(cuda_functions.cuGraphicsUnregisterResource, "cuGraphicsUnregisterResource") ||
-          !load_function(cuda_functions.cuGraphicsMapResources, "cuGraphicsMapResources") ||
-          !load_function(cuda_functions.cuGraphicsUnmapResources, "cuGraphicsUnmapResources") ||
-          !load_function(cuda_functions.cuGraphicsSubResourceGetMappedArray, "cuGraphicsSubResourceGetMappedArray") ||
-          !load_function(cuda_functions.cuMemcpy2D, "cuMemcpy2D_v2")) {
+      if (!load_function(cuda_functions.cuInit, "cuInit") || !load_function(cuda_functions.cuD3D11GetDevice, "cuD3D11GetDevice") || !load_function(cuda_functions.cuCtxCreate, "cuCtxCreate_v2") || !load_function(cuda_functions.cuCtxDestroy, "cuCtxDestroy_v2") || !load_function(cuda_functions.cuCtxPushCurrent, "cuCtxPushCurrent_v2") || !load_function(cuda_functions.cuCtxPopCurrent, "cuCtxPopCurrent_v2") || !load_function(cuda_functions.cuMemAllocPitch, "cuMemAllocPitch_v2") || !load_function(cuda_functions.cuMemFree, "cuMemFree_v2") || !load_function(cuda_functions.cuGraphicsD3D11RegisterResource, "cuGraphicsD3D11RegisterResource") || !load_function(cuda_functions.cuGraphicsUnregisterResource, "cuGraphicsUnregisterResource") || !load_function(cuda_functions.cuGraphicsMapResources, "cuGraphicsMapResources") || !load_function(cuda_functions.cuGraphicsUnmapResources, "cuGraphicsUnmapResources") || !load_function(cuda_functions.cuGraphicsSubResourceGetMappedArray, "cuGraphicsSubResourceGetMappedArray") || !load_function(cuda_functions.cuMemcpy2D, "cuMemcpy2D_v2")) {
         BOOST_LOG(error) << "NvEnc: missing CUDA functions in " << dll_name;
         FreeLibrary(cuda_functions.dll);
         cuda_functions = {};
@@ -93,14 +80,9 @@ namespace nvenc {
     if (cuda_functions.dll) {
       IDXGIDevicePtr dxgi_device;
       IDXGIAdapterPtr dxgi_adapter;
-      if (d3d_device &&
-          SUCCEEDED(d3d_device->QueryInterface(IID_PPV_ARGS(&dxgi_device))) &&
-          SUCCEEDED(dxgi_device->GetAdapter(&dxgi_adapter))) {
+      if (d3d_device && SUCCEEDED(d3d_device->QueryInterface(IID_PPV_ARGS(&dxgi_device))) && SUCCEEDED(dxgi_device->GetAdapter(&dxgi_adapter))) {
         CUdevice cuda_device;
-        if (cuda_succeeded(cuda_functions.cuInit(0)) &&
-            cuda_succeeded(cuda_functions.cuD3D11GetDevice(&cuda_device, dxgi_adapter)) &&
-            cuda_succeeded(cuda_functions.cuCtxCreate(&cuda_context, CU_CTX_SCHED_BLOCKING_SYNC, cuda_device)) &&
-            cuda_succeeded(cuda_functions.cuCtxPopCurrent(&cuda_context))) {
+        if (cuda_succeeded(cuda_functions.cuInit(0)) && cuda_succeeded(cuda_functions.cuD3D11GetDevice(&cuda_device, dxgi_adapter)) && cuda_succeeded(cuda_functions.cuCtxCreate(&cuda_context, CU_CTX_SCHED_BLOCKING_SYNC, cuda_device)) && cuda_succeeded(cuda_functions.cuCtxPopCurrent(&cuda_context))) {
           device = cuda_context;
         } else {
           BOOST_LOG(error) << "NvEnc: couldn't create CUDA interop context: error " << last_cuda_error;
@@ -143,25 +125,18 @@ namespace nvenc {
       }
 
       if (!cuda_d3d_input_texture) {
-        if (cuda_failed(cuda_functions.cuGraphicsD3D11RegisterResource(
-              &cuda_d3d_input_texture,
-              d3d_input_texture,
-              CU_GRAPHICS_REGISTER_FLAGS_NONE
-            ))) {
+        if (cuda_failed(cuda_functions.cuGraphicsD3D11RegisterResource(&cuda_d3d_input_texture, d3d_input_texture, CU_GRAPHICS_REGISTER_FLAGS_NONE))) {
           BOOST_LOG(error) << "NvEnc: cuGraphicsD3D11RegisterResource() failed: error " << last_cuda_error;
           return false;
         }
       }
 
       if (!cuda_surface) {
-        if (cuda_failed(cuda_functions.cuMemAllocPitch(
-              &cuda_surface,
-              &cuda_surface_pitch,
-              // Planar 16-bit YUV
-              encoder_params.width * 2,
-              encoder_params.height * 3,
-              16
-            ))) {
+        if (cuda_failed(cuda_functions.cuMemAllocPitch(&cuda_surface, &cuda_surface_pitch,
+                                                       // Planar 16-bit YUV
+                                                       encoder_params.width * 2,
+                                                       encoder_params.height * 3,
+                                                       16))) {
           BOOST_LOG(error) << "NvEnc: cuMemAllocPitch() failed: error " << last_cuda_error;
           return false;
         }
@@ -256,8 +231,7 @@ namespace nvenc {
   }
 
   nvenc_d3d11_on_cuda::autopop_context nvenc_d3d11_on_cuda::push_context() {
-    if (cuda_context &&
-        cuda_succeeded(cuda_functions.cuCtxPushCurrent(cuda_context))) {
+    if (cuda_context && cuda_succeeded(cuda_functions.cuCtxPushCurrent(cuda_context))) {
       return {*this, cuda_context};
     } else {
       BOOST_LOG(error) << "NvEnc: cuCtxPushCurrent() failed: error " << last_cuda_error;
@@ -265,5 +239,5 @@ namespace nvenc {
     }
   }
 
-}  // namespace nvenc
+}  // namespace NVENC_NAMESPACE
 #endif

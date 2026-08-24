@@ -20,16 +20,28 @@ namespace vk {
 
   /**
    * @brief Create a Vulkan encode device for RAM capture.
+   *
+   * @param width Frame or display width in pixels.
+   * @param height Frame or display height in pixels.
+   * @return Constructed AVCodec encode device ram object.
    */
   std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device_ram(int width, int height);
 
   /**
    * @brief Create a Vulkan encode device for VRAM capture.
+   *
+   * @param width Frame or display width in pixels.
+   * @param height Frame or display height in pixels.
+   * @param offset_x Offset x.
+   * @param offset_y Offset y.
+   * @return Constructed AVCodec encode device VRAM object.
    */
   std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device_vram(int width, int height, int offset_x, int offset_y);
 
   /**
    * @brief Check if FFmpeg Vulkan Video encoding is available.
+   *
+   * @return True when FFmpeg Vulkan Video encoding is available.
    */
   bool validate();
 

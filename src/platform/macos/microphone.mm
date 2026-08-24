@@ -11,13 +11,22 @@
 namespace platf {
   using namespace std::literals;
 
+  /**
+   * @brief macOS microphone capture device and audio format state.
+   */
   struct av_mic_t: public mic_t {
-    AVAudio *av_audio_capture {};
+    AVAudio *av_audio_capture {};  ///< AV audio capture.
 
     ~av_mic_t() override {
       [av_audio_capture release];
     }
 
+    /**
+     * @brief Deliver a captured audio sample to Sunshine's audio pipeline.
+     *
+     * @param sample_in Sample in.
+     * @return Capture status reported to the streaming pipeline.
+     */
     capture_e sample(std::vector<float> &sample_in) override {
       const uint32_t neededBytes = static_cast<uint32_t>(sample_in.size() * sizeof(float));
       uint8_t *dst = reinterpret_cast<uint8_t *>(sample_in.data());
@@ -54,15 +63,35 @@ namespace platf {
     }
   };
 
+  /**
+   * @brief macOS audio control state used to create microphone streams.
+   */
   struct macos_audio_control_t: public audio_control_t {
-    AVCaptureDevice *audio_capture_device {};
+    AVCaptureDevice *audio_capture_device {};  ///< Audio capture device.
 
   public:
+    /**
+     * @brief Update the sink value on the backend.
+     *
+     * @param sink Audio sink name to route or capture.
+     * @return Status from updating sink.
+     */
     int set_sink(const std::string &sink) override {
       BOOST_LOG(warning) << "audio_control_t::set_sink() unimplemented: "sv << sink;
       return 0;
     }
 
+    /**
+     * @brief Create a microphone capture stream for the requested layout.
+     *
+     * @param mapping Opus channel mapping table for the requested layout.
+     * @param channels Number of audio channels in the stream.
+     * @param sample_rate Audio sample rate in hertz.
+     * @param frame_size Number of samples captured per audio frame.
+     * @param continuous_audio Continuous audio.
+     * @param host_audio_enabled Whether host playback should remain enabled during capture.
+     * @return Microphone capture object for the requested audio layout.
+     */
     std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, bool continuous_audio, bool host_audio_enabled) override {
       auto mic = std::make_unique<av_mic_t>();
       mic->av_audio_capture = [[AVAudio alloc] init];
@@ -110,6 +139,11 @@ namespace platf {
       return true;
     }
 
+    /**
+     * @brief Query host and virtual sink names available to Sunshine.
+     *
+     * @return Host and virtual sink names when the backend can report them.
+     */
     std::optional<sink_t> sink_info() override {
       sink_t sink;
 

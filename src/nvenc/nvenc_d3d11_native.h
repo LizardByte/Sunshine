@@ -11,7 +11,7 @@
   // local includes
   #include "nvenc_d3d11.h"
 
-namespace nvenc {
+namespace NVENC_NAMESPACE {
 
   /**
    * @brief Native Direct3D11 NVENC encoder.
@@ -20,9 +20,10 @@ namespace nvenc {
   public:
     /**
      * @param d3d_device Direct3D11 device used for encoding.
+     * @param dll Shared NVENC driver module.
      */
-    explicit nvenc_d3d11_native(ID3D11Device *d3d_device);
-    ~nvenc_d3d11_native();
+    explicit nvenc_d3d11_native(ID3D11Device *d3d_device, ::nvenc::shared_dll dll);
+    ~nvenc_d3d11_native() override;
 
     ID3D11Texture2D *get_input_texture() override;
 
@@ -33,5 +34,5 @@ namespace nvenc {
     ID3D11Texture2DPtr d3d_input_texture;
   };
 
-}  // namespace nvenc
+}  // namespace NVENC_NAMESPACE
 #endif

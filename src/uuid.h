@@ -11,12 +11,21 @@
  * @brief UUID utilities.
  */
 namespace uuid_util {
+  /**
+   * @brief UUID value exposed through multiple integer views.
+   */
   union uuid_t {
-    std::uint8_t b8[16];
-    std::uint16_t b16[8];
-    std::uint32_t b32[4];
-    std::uint64_t b64[2];
+    std::uint8_t b8[16];  ///< UUID bytes.
+    std::uint16_t b16[8];  ///< UUID viewed as 16-bit words.
+    std::uint32_t b32[4];  ///< UUID viewed as 32-bit words.
+    std::uint64_t b64[2];  ///< UUID viewed as 64-bit words.
 
+    /**
+     * @brief Generate a UUID value.
+     *
+     * @param engine Random-number engine used to generate UUID bytes.
+     * @return Random UUID generated from the supplied engine.
+     */
     static uuid_t generate(std::default_random_engine &engine) {
       std::uniform_int_distribution<std::uint8_t> dist(0, std::numeric_limits<std::uint8_t>::max());
 
@@ -31,6 +40,11 @@ namespace uuid_util {
       return buf;
     }
 
+    /**
+     * @brief Generate a UUID value.
+     *
+     * @return Random UUID generated from std::random_device seeding.
+     */
     static uuid_t generate() {
       std::random_device r;
 
@@ -39,6 +53,11 @@ namespace uuid_util {
       return generate(engine);
     }
 
+    /**
+     * @brief Format the UUID using canonical text form.
+     *
+     * @return Canonical lowercase UUID string.
+     */
     [[nodiscard]] std::string string() const {
       std::string result;
 
@@ -66,14 +85,32 @@ namespace uuid_util {
       return result;
     }
 
+    /**
+     * @brief Compare two UUID values for equality.
+     *
+     * @param other UUID value to compare against.
+     * @return True when both UUID values contain identical bytes.
+     */
     constexpr bool operator==(const uuid_t &other) const {
       return b64[0] == other.b64[0] && b64[1] == other.b64[1];
     }
 
+    /**
+     * @brief Order UUID values by their 64-bit word representation.
+     *
+     * @param other UUID value to compare against.
+     * @return True when this UUID sorts before `other`.
+     */
     constexpr bool operator<(const uuid_t &other) const {
       return (b64[0] < other.b64[0] || (b64[0] == other.b64[0] && b64[1] < other.b64[1]));
     }
 
+    /**
+     * @brief Order UUID values by their 64-bit word representation.
+     *
+     * @param other UUID value to compare against.
+     * @return True when this UUID sorts after `other`.
+     */
     constexpr bool operator>(const uuid_t &other) const {
       return (b64[0] > other.b64[0] || (b64[0] == other.b64[0] && b64[1] > other.b64[1]));
     }

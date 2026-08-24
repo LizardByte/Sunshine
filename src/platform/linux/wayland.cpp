@@ -2,9 +2,6 @@
  * @file src/platform/linux/wayland.cpp
  * @brief Definitions for Wayland capture.
  */
-// standard includes
-#include <cstdlib>
-
 // platform includes
 #include <drm_fourcc.h>
 #include <fcntl.h>
@@ -15,6 +12,9 @@
 #include <wayland-util.h>
 #include <xf86drm.h>
 
+// lib includes
+#include <lizardbyte/common/env.h>
+
 // local includes
 #include "graphics.h"
 #include "src/logging.h"
@@ -23,7 +23,7 @@
 #include "src/utility.h"
 #include "wayland.h"
 
-extern const wl_interface wl_output_interface;
+extern const wl_interface wl_output_interface;  ///< Wayland output interface.
 
 using namespace std::literals;
 
@@ -40,6 +40,10 @@ namespace wl {
     return ((*reinterpret_cast<T *>(data)).*m)(params...);
   }
 
+/**
+ * @def CLASS_CALL(c, m)
+ * @brief Macro for CLASS CALL.
+ */
 #define CLASS_CALL(c, m) classCall<c, decltype(&c::m), &c::m>
 
   // Define buffer params listener
@@ -49,8 +53,11 @@ namespace wl {
   };
 
   int display_t::init(const char *display_name) {
+    std::string env_display_name;
     if (!display_name) {
-      display_name = std::getenv("WAYLAND_DISPLAY");
+      if (lizardbyte::common::get_env("WAYLAND_DISPLAY", env_display_name)) {
+        display_name = env_display_name.c_str();
+      }
     }
 
     if (!display_name) {
@@ -107,7 +114,7 @@ namespace wl {
     return wl_display_get_registry(display_internal.get());
   }
 
-  inline monitor_t::monitor_t(wl_output *output):
+  monitor_t::monitor_t(wl_output *output):
       output {output},
       wl_listener {
         &CLASS_CALL(monitor_t, wl_geometry),
@@ -156,10 +163,14 @@ namespace wl {
     std::int32_t height,
     std::int32_t refresh
   ) {
+    BOOST_LOG(info) << "[wayland] Resolution: "sv << width << 'x' << height;
+
+    if (!(flags & WL_OUTPUT_MODE_CURRENT)) {
+      return;
+    }
+
     viewport.width = width;
     viewport.height = height;
-
-    BOOST_LOG(info) << "[wayland] Resolution: "sv << width << 'x' << height;
   }
 
   void monitor_t::listen(zxdg_output_manager_v1 *output_manager) {
@@ -176,11 +187,23 @@ namespace wl {
       listener {
         &CLASS_CALL(interface_t, add_interface),
         &CLASS_CALL(interface_t, del_interface)
+      },
+      dmabuf_listener {
+        &CLASS_CALL(interface_t, dmabuf_format),
+        &CLASS_CALL(interface_t, dmabuf_modifier)
       } {
   }
 
   void interface_t::listen(wl_registry *registry) {
     wl_registry_add_listener(registry, &listener, this);
+  }
+
+  void interface_t::dmabuf_format(zwp_linux_dmabuf_v1 *zwp_linux_dmabuf, uint32_t format) {
+  }
+
+  void interface_t::dmabuf_modifier(zwp_linux_dmabuf_v1 *zwp_linux_dmabuf, uint32_t format, uint32_t modifier_hi, uint32_t modifier_lo) {
+    uint64_t modifier = ((uint64_t) modifier_hi << 32) | modifier_lo;
+    supported_modifiers[format].push_back(modifier);
   }
 
   void interface_t::add_interface(
@@ -210,7 +233,8 @@ namespace wl {
       this->interface[WLR_EXPORT_DMABUF] = true;
     } else if (!std::strcmp(interface, zwp_linux_dmabuf_v1_interface.name)) {
       BOOST_LOG(info) << "[wayland] Found interface: "sv << interface << '(' << id << ") version "sv << version;
-      dmabuf_interface = (zwp_linux_dmabuf_v1 *) wl_registry_bind(registry, id, &zwp_linux_dmabuf_v1_interface, version);
+      dmabuf_interface = (zwp_linux_dmabuf_v1 *) wl_registry_bind(registry, id, &zwp_linux_dmabuf_v1_interface, std::min(version, 3u));
+      zwp_linux_dmabuf_v1_add_listener(dmabuf_interface, &dmabuf_listener, this);
 
       this->interface[LINUX_DMABUF] = true;
     }
@@ -275,10 +299,12 @@ namespace wl {
   void dmabuf_t::listen(
     zwlr_screencopy_manager_v1 *screencopy_manager,
     zwp_linux_dmabuf_v1 *dmabuf_interface,
+    const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers,
     wl_output *output,
     bool blend_cursor
   ) {
     this->dmabuf_interface = dmabuf_interface;
+    this->supported_modifiers = supported_modifiers;
     // Reset state
     shm_info.supported = false;
     dmabuf_info.supported = false;
@@ -357,7 +383,17 @@ namespace wl {
     }
 
     // Create GBM buffer
-    current_bo = gbm_bo_create(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, GBM_BO_USE_RENDERING);
+    if (supported_modifiers) {
+      auto it = supported_modifiers->find(dmabuf_info.format);
+      if (it != supported_modifiers->end() && !it->second.empty()) {
+        current_bo = gbm_bo_create_with_modifiers(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, it->second.data(), it->second.size());
+      }
+    }
+
+    if (!current_bo) {
+      current_bo = gbm_bo_create(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, GBM_BO_USE_RENDERING);
+    }
+
     if (!current_bo) {
       BOOST_LOG(error) << "Failed to create GBM buffer"sv;
       zwlr_screencopy_frame_v1_destroy(frame);
@@ -521,6 +557,9 @@ namespace wl {
     std::fill_n(sd.fds, 4, -1);
   };
 
+  /**
+   * @brief Refresh the monitor list reported by the display server.
+   */
   std::vector<std::unique_ptr<monitor_t>> monitors(const char *display_name) {
     display_t display;
 
@@ -553,6 +592,9 @@ namespace wl {
     return display.init() == 0;
   }
 
+  /**
+   * @brief Initialize Wayland registry interfaces required for capture.
+   */
   int init() {
     static bool validated = validate();
 

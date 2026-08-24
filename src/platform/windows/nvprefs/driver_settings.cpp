@@ -270,8 +270,7 @@ namespace nvprefs {
     status = NvAPI_DRS_GetSetting(session_handle, profile_handle, PREFERRED_PSTATE_ID, &setting);
 
     if (!get_nvprefs_options().sunshine_high_power_mode) {
-      if (status == NVAPI_OK &&
-          setting.settingLocation == NVDRS_CURRENT_PROFILE_LOCATION) {
+      if (status == NVAPI_OK && setting.settingLocation == NVDRS_CURRENT_PROFILE_LOCATION) {
         // User requested to not use high power mode for sunshine.exe,
         // remove the setting from application profile if it's been set previously
 
@@ -285,9 +284,7 @@ namespace nvprefs {
 
         info_message(std::wstring(L"Removed PREFERRED_PSTATE for ") + sunshine_application_path);
       }
-    } else if (status != NVAPI_OK ||
-               setting.settingLocation != NVDRS_CURRENT_PROFILE_LOCATION ||
-               setting.u32CurrentValue != PREFERRED_PSTATE_PREFER_MAX) {
+    } else if (status != NVAPI_OK || setting.settingLocation != NVDRS_CURRENT_PROFILE_LOCATION || setting.u32CurrentValue != PREFERRED_PSTATE_PREFER_MAX) {
       // Set power setting if needed
       setting = {};
       setting.version = NVDRS_SETTING_VER1;

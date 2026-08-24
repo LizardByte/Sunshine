@@ -5,8 +5,13 @@ class Sunshine < Formula
 
   CUDA_VERSION = "13.1".freeze
   CUDA_FORMULA = "cuda@#{CUDA_VERSION}".freeze
+  COVERAGE_LCOV = "coverage.lcov".freeze
+  COVERAGE_PROFDATA = "coverage.profdata".freeze
+  COVERAGE_XML = "coverage.xml".freeze
   GCC_VERSION = "14".freeze
   GCC_FORMULA = "gcc@#{GCC_VERSION}".freeze
+  LLVM_PROFILE_FILE_ENV = "LLVM_PROFILE_FILE".freeze
+  TEST_BINARY = "test_sunshine".freeze
   IS_UPSTREAM_REPO = ENV.fetch("GITHUB_REPOSITORY", "") == "LizardByte/Sunshine"
 
   desc "@PROJECT_DESCRIPTION@"
@@ -38,7 +43,6 @@ class Sunshine < Formula
     sha256 x86_64_linux:  "0000000000000000000000000000000000000000000000000000000000000000"
   end
 
-  option "with-cuda", "Enable CUDA support (Linux only)"
   option "with-docs", "Enable docs build"
   option "with-static-boost", "Enable static link of Boost libraries"
   option "without-static-boost", "Disable static link of Boost libraries" # default option
@@ -48,22 +52,25 @@ class Sunshine < Formula
   depends_on "graphviz" => :build if build.with? "docs"
   depends_on "node" => :build
   depends_on "pkgconf" => :build
-  depends_on "gcovr" => :test
   depends_on "boost"
   depends_on "curl"
   depends_on "icu4c@78"
   depends_on "miniupnpc"
   depends_on "openssl@3"
   depends_on "opus"
+  depends_on "qtbase"
+  depends_on "qtsvg"
 
-  on_macos do
-    depends_on "llvm" => [:build, :test]
+  on_sonoma do
+    depends_on xcode: ["16.2", :build] # required for jthreads on macos-14
   end
 
   on_linux do
     depends_on GCC_FORMULA => [:build, :test]
-    depends_on "lizardbyte/homebrew/#{CUDA_FORMULA}" => :build if build.with? "cuda"
+    depends_on "gcovr" => [:build, :test]
+    depends_on "lizardbyte/homebrew/#{CUDA_FORMULA}" => :build
     depends_on "python3" => :build
+    depends_on "imagemagick" => :test
     depends_on "at-spi2-core"
     depends_on "avahi"
     depends_on "cairo"
@@ -74,7 +81,6 @@ class Sunshine < Formula
     depends_on "libcap"
     depends_on "libdrm"
     depends_on "libice"
-    depends_on "libnotify"
     depends_on "libsm"
     depends_on "libva"
     depends_on "libx11"
@@ -91,8 +97,6 @@ class Sunshine < Formula
     depends_on "pango"
     depends_on "pipewire"
     depends_on "pulseaudio"
-    depends_on "qtbase"
-    depends_on "qtsvg"
     depends_on "shaderc"
     depends_on "systemd"
     depends_on "vulkan-loader"
@@ -108,13 +112,6 @@ class Sunshine < Formula
     resource "jinja2" do
       url "https://files.pythonhosted.org/packages/df/bf/f7da0350254c0ed7c72f3e33cef02e048281fec7ecec5f032d4aac52226b/jinja2-3.1.6.tar.gz"
       sha256 "0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d"
-    end
-
-    # setuptools provides pkg_resources which glad's plugin.py imports at build time.
-    # setuptools >= 81 removed pkg_resources; this is the last release that still ships it.
-    resource "setuptools" do
-      url "https://files.pythonhosted.org/packages/76/95/faf61eb8363f26aa7e1d762267a8d602a1b26d4f3a1e758e92cb3cb8b054/setuptools-80.10.2.tar.gz"
-      sha256 "8b0e9d10c784bf7d262c4e5ec5d4ec94127ce206e8738f29a437945fbc219b70"
     end
   end
 
@@ -167,7 +164,7 @@ class Sunshine < Formula
       -DCMAKE_INSTALL_PREFIX=#{prefix}
       -DGLAD_SKIP_PIP_INSTALL=ON
       -DHOMEBREW_ALLOW_FETCHCONTENT=ON
-      -DOPENSSL_ROOT_DIR=#{Formula["openssl"].opt_prefix}
+      -DOPENSSL_ROOT_DIR=#{formula_opt_prefix("openssl")}
       -DSUNSHINE_ASSETS_DIR=sunshine/assets
       -DSUNSHINE_BUILD_HOMEBREW=ON
       -DSUNSHINE_PUBLISHER_NAME='LizardByte'
@@ -183,6 +180,7 @@ class Sunshine < Formula
   def add_test_args(args)
     if IS_UPSTREAM_REPO
       args << "-DBUILD_TESTS=ON"
+      args << "-DSUNSHINE_LLVM_COVERAGE=ON" if OS.mac?
       ohai "Building tests: enabled"
     else
       args << "-DBUILD_TESTS=OFF"
@@ -213,14 +211,14 @@ class Sunshine < Formula
     args << "-DBOOST_USE_STATIC=ON"
     ohai "Enabled statically linking Boost libraries"
 
-    unless Formula["icu4c"].any_version_installed?
+    unless formula_any_version_installed?("icu4c")
       odie <<~EOS
         icu4c must be installed to link against static Boost libraries,
         either install icu4c or use brew install sunshine --with-static-boost instead
       EOS
     end
-    ENV.append "CXXFLAGS", "-I#{Formula["icu4c"].opt_include}"
-    icu4c_lib_path = Formula["icu4c"].opt_lib.to_s
+    ENV.append "CXXFLAGS", "-I#{formula_opt_include("icu4c")}"
+    icu4c_lib_path = formula_opt_lib("icu4c").to_s
     ENV.append "LDFLAGS", "-L#{icu4c_lib_path}"
     ENV["LIBRARY_PATH"] = icu4c_lib_path
     ohai "Linking against ICU libraries at: #{icu4c_lib_path}"
@@ -229,23 +227,186 @@ class Sunshine < Formula
   def add_cuda_args(args)
     return unless OS.linux?
 
-    if build.with?(CUDA_FORMULA)
-      configure_cuda(args)
-    else
-      args << "-DSUNSHINE_ENABLE_CUDA=OFF"
-      ohai "CUDA disabled"
-    end
+    configure_cuda(args)
   end
 
   def configure_cuda(args)
     cuda_path = Formula["lizardbyte/homebrew/#{CUDA_FORMULA}"]
-    nvcc_path = "#{cuda_path.opt_bin}/nvcc"
+    nvcc_path = "#{cuda_path.opt_libexec}/homebrew/bin/nvcc"
     gcc_path = Formula[GCC_FORMULA]
 
     args << "-DSUNSHINE_ENABLE_CUDA=ON"
     args << "-DCMAKE_CUDA_COMPILER:PATH=#{nvcc_path}"
+    args << "-DCMAKE_CUDA_TOOLKIT_ROOT_DIR:PATH=#{cuda_path.opt_libexec}"
     args << "-DCMAKE_CUDA_HOST_COMPILER=#{gcc_path.opt_bin}/gcc-#{GCC_VERSION}"
     ohai "CUDA enabled with nvcc at: #{nvcc_path}"
+  end
+
+  def release_homebrew_testpath
+    testpath_value = ENV.fetch("HOMEBREW_TEST_ARTIFACTS_DIR", "")
+    return Pathname.new(testpath_value) unless testpath_value.empty?
+
+    return if ENV.fetch("HOMEBREW_TEST_BOT", "") != "1"
+
+    temp_path = ENV.fetch("HOMEBREW_TEMP", "")
+    return if temp_path.empty?
+
+    Pathname.new(temp_path)/name/"test"
+  end
+
+  def ensure_artifact_exists(path)
+    odie "#{path} was not created" unless path.exist?
+  end
+
+  def run_test_suite(artifact_dir)
+    mkdir_p artifact_dir/"tests"
+    test_results = artifact_dir/"tests/test_results.xml"
+
+    if OS.mac?
+      with_llvm_profile_file(artifact_dir) do
+        system bin/TEST_BINARY, "--gtest_color=yes", "--gtest_output=xml:#{test_results}"
+      end
+    else
+      system bin/TEST_BINARY, "--gtest_color=yes", "--gtest_output=xml:#{test_results}"
+    end
+
+    ensure_artifact_exists test_results
+  end
+
+  def with_llvm_profile_file(artifact_dir)
+    original_profile_file = ENV.fetch(LLVM_PROFILE_FILE_ENV, nil)
+    ENV[LLVM_PROFILE_FILE_ENV] = "#{artifact_dir}/sunshine-%p.profraw"
+    yield
+  ensure
+    if original_profile_file
+      ENV[LLVM_PROFILE_FILE_ENV] = original_profile_file
+    else
+      ENV.delete(LLVM_PROFILE_FILE_ENV)
+    end
+  end
+
+  def coverage_gcov_options
+    gcc_path = Formula[GCC_FORMULA]
+    ["--gcov-executable", "#{gcc_path.opt_bin}/gcov-#{GCC_VERSION}"]
+  end
+
+  def llvm_profdata_executable
+    Utils.safe_popen_read("xcrun", "--find", "llvm-profdata").strip
+  end
+
+  def llvm_cov_executable
+    Utils.safe_popen_read("xcrun", "--find", "llvm-cov").strip
+  end
+
+  def coverage_report_path(artifact_dir)
+    artifact_dir/(OS.mac? ? COVERAGE_LCOV : COVERAGE_XML)
+  end
+
+  def coverage_common_options(coverage_report)
+    [
+      "--exclude-noncode-lines",
+      "--exclude-throw-branches",
+      "--exclude-unreachable-branches",
+      "--xml-pretty",
+      "-o=#{coverage_report}",
+    ]
+  end
+
+  def generate_coverage_report(artifact_dir, coverage_buildpath)
+    return if coverage_buildpath.to_s.empty?
+
+    coverage_report = coverage_report_path(artifact_dir)
+
+    if OS.mac?
+      generate_llvm_coverage_report artifact_dir, coverage_buildpath, coverage_report
+    else
+      generate_gcov_coverage_report coverage_report, coverage_buildpath
+    end
+
+    ensure_artifact_exists coverage_report
+  end
+
+  def generate_llvm_coverage_report(artifact_dir, coverage_buildpath, coverage_report)
+    profile_files = Dir["#{artifact_dir}/*.profraw"]
+    odie "No LLVM profile data was created" if profile_files.empty?
+
+    profile_data = artifact_dir/COVERAGE_PROFDATA
+    system llvm_profdata_executable, "merge", "--sparse", "-o", profile_data.to_s, *profile_files
+    lcov = Utils.safe_popen_read(
+      llvm_cov_executable,
+      "export",
+      "-format=lcov",
+      "-instr-profile=#{profile_data}",
+      (bin/TEST_BINARY).to_s,
+    )
+    coverage_report.write lcov_for_source_files(lcov, coverage_buildpath)
+    ensure_lcov_report_has_lines coverage_report
+  end
+
+  def generate_gcov_coverage_report(coverage_report, coverage_buildpath)
+    cd "#{coverage_buildpath}/build" do
+      system "gcovr", ".",
+        "-r", "../src",
+        *coverage_gcov_options,
+        *coverage_common_options(coverage_report)
+    end
+
+    ensure_cobertura_report_has_lines coverage_report
+  end
+
+  def coverage_source_prefixes(coverage_buildpath)
+    paths = [
+      coverage_buildpath.to_s,
+      Pathname.new(coverage_buildpath.to_s).realpath.to_s,
+    ]
+    paths.uniq.map { |path| "#{path}/src/" }
+  end
+
+  def relative_lcov_record(record, source_prefixes)
+    lines = record.lines
+    source_index = lines.index { |line| line.start_with?("SF:") }
+    return unless source_index
+
+    source_path = Pathname.new(lines[source_index].delete_prefix("SF:").strip).cleanpath.to_s
+    # Homebrew remaps the formula build path to ".". LLVM may then resolve that
+    # relative path from CMake's compilation directory at "build/tests".
+    relative_source_path = if source_path.start_with?("build/tests/src/")
+      source_path.delete_prefix("build/tests/")
+    elsif source_path.start_with?("src/")
+      source_path
+    else
+      source_prefix = source_prefixes.find { |prefix| source_path.start_with?(prefix) }
+      "src/#{source_path.delete_prefix(source_prefix)}" if source_prefix
+    end
+    return unless relative_source_path
+
+    lines[source_index] = "SF:#{relative_source_path}\n"
+    "#{lines.join}end_of_record\n"
+  end
+
+  def lcov_for_source_files(lcov, coverage_buildpath)
+    source_prefixes = coverage_source_prefixes(coverage_buildpath)
+    records = lcov.split("end_of_record\n")
+    records.filter_map { |record| relative_lcov_record(record, source_prefixes) }.join
+  end
+
+  def ensure_cobertura_report_has_lines(path)
+    lines_valid = path.read[/lines-valid="(\d+)"/, 1].to_i
+    odie "#{path} does not contain any source lines" if lines_valid.zero?
+  end
+
+  def ensure_lcov_report_has_lines(path)
+    has_lines = path.read.lines.any? { |line| line.start_with?("DA:") }
+    odie "#{path} does not contain any source lines" unless has_lines
+  end
+
+  def collect_test_artifacts
+    artifact_dir = release_homebrew_testpath
+    return unless IS_UPSTREAM_REPO
+    return unless artifact_dir
+
+    run_test_suite artifact_dir
+    generate_coverage_report artifact_dir, buildpath
   end
 
   def build_cmake_args
@@ -267,7 +428,7 @@ class Sunshine < Formula
   end
 
   def install_platform_specific_files
-    bin.install "build/tests/test_sunshine" if IS_UPSTREAM_REPO
+    bin.install "build/tests/#{TEST_BINARY}" if IS_UPSTREAM_REPO
 
     # codesign the binary on intel macs
     system "codesign", "-s", "-", "--force", "--deep", bin/"sunshine" if OS.mac? && Hardware::CPU.intel?
@@ -279,6 +440,7 @@ class Sunshine < Formula
     setup_build_environment
     build_and_install_project
     install_platform_specific_files
+    collect_test_artifacts
   end
 
   service do
@@ -314,34 +476,51 @@ class Sunshine < Formula
     # test that the binary runs at all
     system bin/"sunshine", "--version"
 
-    if IS_UPSTREAM_REPO && ENV.fetch("HOMEBREW_BOTTLE_BUILD", "false") != "true"
-      # run the test suite
-      system bin/"test_sunshine", "--gtest_color=yes", "--gtest_output=xml:tests/test_results.xml"
-      assert_path_exists File.join(testpath, "tests", "test_results.xml")
-
-      # create gcovr report
-      buildpath = ENV.fetch("HOMEBREW_BUILDPATH", "")
-      unless buildpath.empty?
-        # Change to the source directory for gcovr to work properly
-        cd "#{buildpath}/build" do
-          # Use GCC version to match what was used during compilation
-          if OS.linux?
-            gcc_path = Formula[GCC_FORMULA]
-            gcov_executable = "#{gcc_path.opt_bin}/gcov-#{GCC_VERSION}"
-
-            system "gcovr", ".",
-              "-r", "../src",
-              "--gcov-executable", gcov_executable,
-              "--exclude-noncode-lines",
-              "--exclude-throw-branches",
-              "--exclude-unreachable-branches",
-              "--xml-pretty",
-              "-o=#{testpath}/coverage.xml"
-
-            assert_path_exists File.join(testpath, "coverage.xml")
-          end
-        end
+    if IS_UPSTREAM_REPO
+      artifact_dir = release_homebrew_testpath
+      if artifact_dir
+        assert_path_exists artifact_dir/"tests/test_results.xml"
+        assert_path_exists coverage_report_path(artifact_dir)
+      elsif ENV.fetch("HOMEBREW_BOTTLE_BUILD", "false") != "true"
+        run_test_suite testpath
+        generate_coverage_report testpath, ENV.fetch("HOMEBREW_BUILDPATH", "")
       end
+
+      lcov = <<~LCOV
+        SF:./src/remapped.cpp
+        DA:1,1
+        end_of_record
+        SF:build/tests/src/remapped_from_compile_dir.cpp
+        DA:1,1
+        end_of_record
+        SF:src/relative.cpp
+        DA:1,1
+        end_of_record
+        SF:#{testpath}/src/absolute.cpp
+        DA:1,1
+        end_of_record
+        SF:./tests/excluded.cpp
+        DA:1,1
+        end_of_record
+        SF:build/tests/tests/excluded_from_compile_dir.cpp
+        DA:1,1
+        end_of_record
+      LCOV
+      expected_lcov = <<~LCOV
+        SF:src/remapped.cpp
+        DA:1,1
+        end_of_record
+        SF:src/remapped_from_compile_dir.cpp
+        DA:1,1
+        end_of_record
+        SF:src/relative.cpp
+        DA:1,1
+        end_of_record
+        SF:src/absolute.cpp
+        DA:1,1
+        end_of_record
+      LCOV
+      assert_equal expected_lcov, lcov_for_source_files(lcov, testpath)
     end
   end
 end

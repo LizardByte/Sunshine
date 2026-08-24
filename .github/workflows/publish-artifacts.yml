@@ -1,0 +1,25 @@
+---
+name: Publish Artifacts
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+
+permissions: {}
+
+jobs:
+  publish:
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
+    permissions:
+      actions: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish PR artifacts
+        uses: LizardByte/actions/actions/artifact_comment@f2409e3fffa358332f00b0004d181973754b64b3  # master
+        with:
+          artifact_patterns: build-*

@@ -1,7 +1,8 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.24)
 # `CMAKE_CUDA_ARCHITECTURES` requires 3.18
 # `set_source_files_properties` requires 3.18
 # `cmake_path(CONVERT ... TO_NATIVE_PATH_LIST ...)` requires 3.20
+# `third-party/libvirtualhid` requires 3.24
 # todo - set this conditionally
 
 project(Sunshine VERSION 0.0.0
@@ -38,6 +39,10 @@ endif()
 # set the module path, used for includes
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
+# CPM
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/cpm/CPM.cmake)
+CPMUsePackageLock(package-lock.cmake)
+
 # export compile_commands.json
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -46,6 +51,7 @@ include(${CMAKE_MODULE_PATH}/prep/build_version.cmake)
 
 # cmake build flags
 include(${CMAKE_MODULE_PATH}/prep/options.cmake)
+include(${CMAKE_MODULE_PATH}/prep/static_qt.cmake)
 
 # initial prep
 include(${CMAKE_MODULE_PATH}/prep/init.cmake)

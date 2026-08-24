@@ -317,6 +317,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td>Description</td>
         <td colspan="2">
             The type of gamepad to emulate on the host.
+            @note{This option applies to FreeBSD, Linux, and Windows.}
         </td>
     </tr>
     <tr>
@@ -332,30 +333,33 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @endcode</td>
     </tr>
     <tr>
-        <td rowspan="6">Choices</td>
+        <td rowspan="7">Choices</td>
+        <td>generic</td>
+        <td>Generic HID gamepad</td>
+    </tr>
+    <tr>
         <td>ds4</td>
-        <td>DualShock 4 controller (PS4)
-            @note{This option applies to Windows only.}</td>
+        <td>DualShock 4 controller (PS4)</td>
     </tr>
     <tr>
         <td>ds5</td>
-        <td>DualShock 5 controller (PS5)
-            @note{This option applies to FreeBSD and Linux only.}</td>
+        <td>DualShock 5 controller (PS5)</td>
     </tr>
     <tr>
         <td>switch</td>
-        <td>Switch Pro controller
-            @note{This option applies to FreeBSD and Linux only.}</td>
+        <td>Switch Pro controller</td>
     </tr>
     <tr>
         <td>x360</td>
-        <td>Xbox 360 controller
-            @note{This option applies to Windows only.}</td>
+        <td>Xbox 360 controller</td>
     </tr>
     <tr>
         <td>xone</td>
-        <td>Xbox One controller
-            @note{This option applies to FreeBSD and Linux only.}</td>
+        <td>Xbox One controller</td>
+    </tr>
+    <tr>
+        <td>xseries</td>
+        <td>Xbox Series controller</td>
     </tr>
 </table>
 
@@ -365,9 +369,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Allow Select/Back inputs to also trigger DS4 touchpad click. Useful for clients looking to
-            emulate touchpad click on Xinput devices.
-            @hint{Only applies when gamepad is set to ds4 manually. Unused in other gamepad modes.}
+            Allow Select/Back inputs to also trigger a PlayStation-style gamepad touchpad click. Useful
+            for clients looking to emulate touchpad click on XInput devices.
+            @hint{Applies to ds4, ds5, and automatically selected PlayStation-style gamepads.}
         </td>
     </tr>
     <tr>
@@ -391,7 +395,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td>Description</td>
         <td colspan="2">
             If a client reports that a connected gamepad has motion sensor support, emulate it on the
-            host as a DS4 controller.
+            host as a PlayStation-style controller.
             <br>
             <br>
             When disabled, motion sensors will not be taken into account during gamepad type selection.
@@ -418,8 +422,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            If a client reports that a connected gamepad has a touchpad, emulate it on the host
-            as a DS4 controller.
+            If a client reports that a connected gamepad has a touchpad, emulate it on the host as a
+            PlayStation-style controller.
             <br>
             <br>
             When disabled, touchpad presence will not be taken into account during gamepad type selection.
@@ -440,14 +444,13 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### ds5_inputtino_randomize_mac
+### virtualhid_randomize_mac
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Randomize the MAC-Address for the generated virtual controller.
-            @hint{Only applies on linux for gamepads created as PS5-style controllers}
+            Randomize the MAC address for PlayStation-style virtual controllers created by libvirtualhid.
         </td>
     </tr>
     <tr>
@@ -459,7 +462,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Example</td>
         <td colspan="2">@code{}
-            ds5_inputtino_randomize_mac = enabled
+            virtualhid_randomize_mac = enabled
             @endcode</td>
     </tr>
 </table>
@@ -948,7 +951,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
             Info: Detected display: DP-1 (id: 3) connected: false
             Info: Detected display: DVI-D-1 (id: 4) connected: false
             @endcode
-            You need to use the id value inside the parenthesis, e.g. `1`.
+            It is recommended to use the stable display connector name (text right before the parenthesis, e.g. DP-0) for this value.
+            For wlgrab/x11grab and kmsgrab the numeric id value can also be used.
             <br>
             <br>
             **macOS:**
@@ -1518,9 +1522,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>Default</td>
-        <td colspan="2">@code{}
-            (empty - bind to all interfaces)
-            @endcode</td>
+        <td colspan="2">
+            Empty, binds to all interfaces
+            </td>
     </tr>
     <tr>
         <td>Example (IPv4)</td>
@@ -1622,10 +1626,10 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>Default</td>
-        <td colspan="2">@code{}
-            (empty - uses built-in defaults: https://localhost, https://127.0.0.1, https://[::1],
-            with configured UI port variants)
-            @endcode</td>
+        <td colspan="2">
+            Empty, uses built-in defaults: https://localhost, https://127.0.0.1, https://[::1],
+            with configured UI port variants
+            </td>
     </tr>
     <tr>
         <td>Example</td>
@@ -1869,7 +1873,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            The path where the Sunshine log is stored.
+            The path where the current Sunshine log is stored. Each time Sunshine starts, up to five previous
+            logs are retained by appending <code>.1</code> through <code>.5</code> to this path.
         </td>
     </tr>
     <tr>
@@ -2775,6 +2780,40 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### amd_max_au_size
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Maximum Access Unit (frame) size for rate control, in bits. This is a last-resort
+            control for capping oversized encoded frames that would otherwise exceed Sunshine's
+            four-block FEC capacity and be sent without FEC protection.
+            @note{This option only applies to H.264 and HEVC when using amdvce [encoder](#encoder).
+            AV1 does not support this option.}
+            @note{The FEC ceiling depends on the negotiated packet size and [fec_percentage](#fec_percentage),
+            not the average bitrate or frame rate. The approximate encoded-payload ceiling is
+            `4 * floor(25500 / (100 + fec_percentage)) * (packet_size - 16) * 8` bits, before
+            allowing for the short frame header or codec-header replacements. With 20% FEC and
+            1024-byte packets, 6400000 bits provides conservative headroom.}
+            @warning{Setting this unnecessarily low can reduce image quality, especially for
+            keyframes. Leave it empty unless oversized frames are actually causing FEC to be skipped.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">
+            Empty, uses encoder default.
+            </td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            amd_max_au_size = 6400000
+            @endcode</td>
+    </tr>
+</table>
+
 ### amd_quality
 
 <table>
@@ -3006,6 +3045,125 @@ editing the `conf` file in a text editor. Use the examples as reference.
 
 ## VA-API Encoder
 
+### vaapi_blbrc
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Block level based bitrate control (BLBRC) can assign different bitrate on a per-block basis. May improve quality on supported devices.
+            @note{This option only applies when using the VA-API [encoder](#encoder).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vaapi_blbrc = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### vaapi_quality
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            The quality profile controls the tradeoff between speed and quality of encoding.
+            @note{This option only applies when using the VA-API [encoder](#encoder).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            auto
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vaapi_quality = auto
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="4">Choices</td>
+        <td>auto</td>
+        <td>driver default quality</td>
+    </tr>
+    <tr>
+        <td>speed</td>
+        <td>prefer speed</td>
+    </tr>
+    <tr>
+        <td>balanced</td>
+        <td>balanced</td>
+    </tr>
+    <tr>
+        <td>quality</td>
+        <td>prefer quality</td>
+    </tr>
+</table>
+
+### vaapi_rc
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            The encoder rate control.
+            @note{This option only applies when using the VA-API [encoder](#encoder).}
+            @warning{The automatic setting may override the driver-default rate control method to VBR and force [vaapi_strict_rc_buffer](#vaapi_strict_rc_buffer) enabled on certain configurations. Selecting another rate control manually will override this behaviour.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            auto
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vaapi_rc = vbr
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="7">Choices</td>
+        <td>auto</td>
+        <td>driver default (or whitelisted override)</td>
+    </tr>
+        <tr>
+        <td>avbr</td>
+        <td>average variable bitrate</td>
+    </tr>
+    <tr>
+        <td>cbr</td>
+        <td>constant bitrate</td>
+    </tr>
+        <tr>
+        <td>cqp</td>
+        <td>constant qp mode</td>
+    </tr>
+    <tr>
+        <td>icq</td>
+        <td>intelligent qp mode</td>
+    </tr>
+    <tr>
+        <td>qvbr</td>
+        <td>quality-defined variable bitrate</td>
+    </tr>
+        <tr>
+        <td>vbr</td>
+        <td>variable bitrate</td>
+    </tr>
+</table>
+
 ### vaapi_strict_rc_buffer
 
 <table>
@@ -3014,7 +3172,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">
             Enabling this option can avoid dropped frames over the network during scene changes, but video quality may
             be reduced during motion.
-            @note{This option only applies for H.264 and HEVC when using VA-API [encoder](#encoder) on AMD GPUs.}
+            @note{This option only applies for H.264 and HEVC when using VA-API [encoder](#encoder) on AMD GPUs (or when overriding the default rate control on other devices).}
         </td>
     </tr>
     <tr>

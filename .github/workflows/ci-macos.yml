@@ -70,9 +70,13 @@ jobs:
           p12-password: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_P12_PASSWORD }}
 
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           submodules: recursive
+
+      - name: Select Xcode 16.2
+        if: matrix.os == 'macos-14'
+        run: sudo xcode-select --switch /Applications/Xcode_16.2.app
 
       - name: Install dependencies
         timeout-minutes: 5
@@ -86,20 +90,28 @@ jobs:
             icu4c@78 \
             miniupnpc \
             openssl@3 \
-            opus
+            opus \
+            qtbase \
+            qtsvg
+
+      - name: Configure macOS screen recording
+        uses: LizardByte/tray/.github/actions/configure-macos-screen-recording@master
 
       - name: Setup Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
         with:
           enable-cache: true
 
       - name: Sync Python tools
-        run: uv sync --locked --only-group test --python "${PYTHON_VERSION}" --no-python-downloads --no-install-project
+        run: |
+          uv sync --locked \
+            --python "${PYTHON_VERSION}" \
+            --no-python-downloads --no-install-project
 
       - name: Configure
         env:
@@ -114,6 +126,8 @@ jobs:
             -DICU_ROOT="$(brew --prefix icu4c@78 2>/dev/null)" \
             -DOPENSSL_ROOT_DIR="$(brew --prefix openssl@3 2>/dev/null)" \
             -DOpus_ROOT_DIR="$(brew --prefix opus 2>/dev/null)" \
+            -DQt6_DIR="$(brew --prefix qtbase 2>/dev/null)/lib/cmake/Qt6" \
+            -DQt6Svg_DIR="$(brew --prefix qtsvg 2>/dev/null)/lib/cmake/Qt6Svg" \
             -DSUNSHINE_PUBLISHER_NAME="${GITHUB_REPOSITORY_OWNER}" \
             -DSUNSHINE_PUBLISHER_WEBSITE="https://app.lizardbyte.dev" \
             -DSUNSHINE_PUBLISHER_ISSUE_URL="https://app.lizardbyte.dev/support" \
@@ -173,6 +187,16 @@ jobs:
         working-directory: build/tests
         run: ./test_sunshine --gtest_color=yes --gtest_output=xml:test_results.xml
 
+      - name: Upload system tray screenshots
+        if: >-
+          always() &&
+          (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: sunshine-screenshots-${{ matrix.name }}
+          path: build/tests/screenshots
+          if-no-files-found: error
+
       - name: Generate gcov report
         id: test_report
         # any except canceled or skipped
@@ -181,7 +205,7 @@ jobs:
           (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
         working-directory: build
         run: |
-          uv run --locked --no-sync python -m gcovr . -r ../src \
+          uv run --project .. --locked --no-sync gcovr . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \

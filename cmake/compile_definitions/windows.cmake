@@ -14,6 +14,13 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64")
     list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-dll-attribute-on-redeclaration)  # Boost
     list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-unknown-warning-option)  # ViGEmClient
     list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-unused-variable)  # Boost
+
+    # Qt's static qwindows plugin and MinGW's Windowsapp import library both provide the
+    # UiaRaiseNotificationEvent import thunk on ARM64. Keep both required libraries while
+    # permitting lld to coalesce their identical definitions.
+    if(SUNSHINE_USE_STATIC_QT AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        list(APPEND SUNSHINE_LINK_OPTIONS -Wl,--allow-multiple-definition)
+    endif()
 endif()
 
 # see gcc bug 98723
@@ -54,11 +61,6 @@ set_target_properties(sunshine_rc_object PROPERTIES
     COMPILE_DEFINITIONS "PROJECT_ICON_PATH=${SUNSHINE_ICON_PATH};PROJECT_NAME=${PROJECT_NAME};PROJECT_VENDOR=${SUNSHINE_PUBLISHER_NAME};PROJECT_VERSION=${PROJECT_VERSION};PROJECT_VERSION_MAJOR=${PROJECT_VERSION_MAJOR};PROJECT_VERSION_MINOR=${PROJECT_VERSION_MINOR};PROJECT_VERSION_PATCH=${PROJECT_VERSION_PATCH};RC_VERSION_BUILD=${RC_VERSION_BUILD};RC_VERSION_REVISION=${RC_VERSION_REVISION}"  # cmake-lint: disable=C0301
     INCLUDE_DIRECTORIES ""
 )
-
-# ViGEmBus version
-set(VIGEMBUS_PACKAGED_V "1.21.442")
-set(VIGEMBUS_PACKAGED_V_2 "${VIGEMBUS_PACKAGED_V}.0")
-list(APPEND SUNSHINE_DEFINITIONS VIGEMBUS_PACKAGED_VERSION="${VIGEMBUS_PACKAGED_V_2}")
 
 set(PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/windows/publish.cpp"

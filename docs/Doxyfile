@@ -26,7 +26,7 @@ DOCSET_BUNDLE_ID = dev.lizardbyte.Sunshine
 DOCSET_PUBLISHER_ID = dev.lizardbyte.Sunshine.documentation
 PROJECT_BRIEF = "Self-hosted game stream host for Moonlight."
 PROJECT_ICON = ../sunshine.ico
-PROJECT_LOGO = ../sunshine.png
+PROJECT_LOGO = ../sunshine.svg
 PROJECT_NAME = Sunshine
 
 # project specific settings
@@ -34,9 +34,6 @@ DOT_GRAPH_MAX_NODES = 60
 IMAGE_PATH = ../docs/images
 PREDEFINED += SUNSHINE_BUILD_WAYLAND
 PREDEFINED += SUNSHINE_TRAY=1
-
-# TODO: Enable this when we have complete documentation
-WARN_IF_UNDOCUMENTED = NO
 
 # files and directories to process
 USE_MDFILE_AS_MAINPAGE = ../README.md

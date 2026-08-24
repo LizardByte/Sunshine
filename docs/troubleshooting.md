@@ -128,6 +128,27 @@ resort suggestion.
 
 ## Linux
 
+### Hardware Encoders throttle/drop FPS during high GPU load
+Capture methods (`wlgrab`) or encoders (`nvenc`, `vaapi`) that utilize EGL contexts may exhibit FPS drops
+in conjunction with a Sunshine installation that runs in a sandboxed or reduced permissions state
+(Flatpak, AppImage, or when using Portal capture) due to the lack of active CAP_SYS_NICE process permissions
+needed to set up high priority EGL contexts.
+
+To check if you are affected by this issue, look out for this message in your Sunshine log:
+```
+Warning: EGL: context priority set to HIGH but CAP_SYS_NICE capability is missing
+```
+
+> [!IMPORTANT]
+> Switching to Vulkan encoding should resolve the issue for the majority of configurations, but refer to this
+> table for recommended configurations (especially if Vulkan encoding is not supported on your system):
+> | Desktop Environment | Vulkan Supported? | Recommended Sunshine Install Type | Recommended Capture & Encoder Configuration       |
+> |:--------------------|-------------------|-----------------------------------|--------------------------------------------------:|
+> | KDE Plasma          | Yes               | Any                               | `portal` or `kwin` capture with `vulkan` encoding |
+> | KDE Plasma          | No                | Non-Sandboxed                     | `kwin` capture with `vaapi`/`nvenc` encoding      |
+> | GNOME / other       | Yes               | Any                               | `portal` capture with `vulkan` encoding           |
+> | GNOME / other       | No                | Non-Sandboxed                     | `kms` capture with `vaapi`/`nvenc` encoding       |
+
 ### Hardware Encoding fails
 Due to legal concerns, Mesa has disabled hardware decoding and encoding by default.
 
@@ -148,6 +169,20 @@ If you see the above error in the Sunshine logs, compiling *Mesa* manually may b
 > [!NOTE]
 > Other build options are listed in the
 > [meson options](https://gitlab.freedesktop.org/mesa/mesa/-/blob/main/meson_options.txt) file.
+
+### Portal token issues
+Portal capture requires you to manually approve Remote Desktop permissions via an on-screen prompt on the host.
+This creates a portal token which is used to automaticaly reauthorize on subsequent reconnects, but under certain
+circumstances (a Sunshine crash, switching to another desktop environment, or if a monitor hotplug event occurs)
+the portal token may become lost or invalid, necessitating manual re-approval of capture permissions.
+
+Users of the KDE Plasma desktop can bypass this issue either by switching to `kwin` capture or setting the following
+configuration to enable permanent capture autorization for Sunshine via Portal capture:
+```
+flatpak permission-set kde-authorized remote-desktop dev.lizardbyte.app.Sunshine yes
+```
+> [!NOTE]
+> Although this configuration is plumbed through Flatpak, it will work with any supported Sunshine installation type.
 
 ### Input not working
 After installation, the `udev` rules need to be reloaded. Our post-install script tries to do this for you
@@ -170,7 +205,7 @@ If needed, you can override it manually in your systemd service file or shell en
 When the seat is not `seat0`, Sunshine appends the seat name to its virtual device names, for example:
 
 - Keyboard passthrough (seat1)
-- Sunshine PS5 (virtual) pad (seat1)
+- Sunshine (libvirtualhid) PS5 Controller (seat1)
 
 Sunshine creates two mouse devices: a relative one and an absolute one.
 
@@ -255,12 +290,36 @@ launchctl load -w /Library/LaunchAgents/org.freedesktop.dbus-session.plist
 ## Windows
 
 ### No gamepad detected
-You must install ViGEmBus to use virtual gamepads. You can install this from the troubleshooting tab of the web UI.
+Sunshine uses libvirtualhid for virtual input on Windows. Install the
+[Virtual HID Driver](https://github.com/LizardByte/libvirtualhid/releases/latest) separately for a driver-backed Raw
+Input mouse and full virtual gamepad support. ViGEmBus is detected only as a limited fallback for Xbox 360 and
+DualShock 4 gamepads when libvirtualhid is unavailable. If you use the
+[ViGEmBus fallback](https://github.com/nefarius/ViGEmBus/releases/latest), you must use version 1.17 or newer.
 
-Alternatively, you can manually install it from
-[ViGEmBus releases](https://github.com/nefarius/ViGEmBus/releases/latest). You must use version 1.17 or newer.
+Sunshine requires Virtual HID Driver version `2026.823.352.3` or newer. Earlier releases use incompatible Windows
+control and broker protocols. The Troubleshooting page reports an older installed package as unsupported and links
+to the current driver release. Local development driver builds using a `0.0.0.*` version remain supported.
+
+Virtual HID Driver adds Xbox One, Xbox Series, DualSense, Nintendo Switch Pro, and Generic gamepads, plus advanced
+controller features such as motion, touchpads, LEDs, and adaptive triggers when supported. Unlike the discontinued
+ViGEmBus project, Virtual HID Driver is actively developed and supported by the LizardByte team.
+
+An active Virtual HID Driver machine license is required before Sunshine can create driver-backed libvirtualhid
+devices, including gamepads and the Raw Input mouse. Follow the warning on the Web UI home page, the startup tray
+notification, or the **Virtual HID Driver** tray submenu to open the license section on the Troubleshooting page, where
+you can activate a key or follow the purchase link.
 
 After installation, it is recommended to restart your computer.
+
+### Games do not detect mouse input
+With a compatible Virtual HID Driver and active license, Sunshine sends relative mouse movement, buttons, and scrolling
+through a real HID device so games using Raw Input can receive them. Absolute positioning still uses Windows input
+injection. When the driver-backed mouse cannot be created, libvirtualhid falls back to SendInput; the Windows cursor may
+still move even though a game that listens only for Raw Input receives nothing.
+
+Check the Virtual HID Driver version and license sections on the Web UI Troubleshooting page even when controller input
+is disabled. Sunshine recreates the shared mouse after a successful license activation, validation, or deactivation, so
+you do not need to restart Sunshine merely to switch between the HID and SendInput paths.
 
 ### Permission denied
 Since Sunshine runs as a service on Windows, it may not have the same level of access that your regular user account

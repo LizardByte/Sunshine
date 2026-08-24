@@ -5,41 +5,27 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "Sunshine"
 version = "0.0.0"
-description = "Helper scripts for Sunshine"
+description = "Python tooling for Sunshine"
 requires-python = ">=3.14"
 license = {text = "GPL-3.0-only"}
 authors = [
     {name = "LizardByte", email = "lizardbyte@users.noreply.github.com"}
 ]
 
-dependencies = []
+dependencies = [
+    "lizardbyte-common[c]",
+]
 
 [dependency-groups]
 # glad2 declares Jinja2>=2.7,<4.0 as a dependency, so installing it pulls in jinja2 transitively.
 # The platform marker limits this to Linux where the glad generator is actually used.
 glad = [
     "glad2",
-    # setuptools provides pkg_resources which glad's plugin.py imports.
-    # setuptools 82 removes pkg_resources; pin to the last series that includes it.
-    "setuptools<82",
 ]
 
 flatpak = [
     "flatpak_node_generator",
     "flatpak_pip_generator",
-]
-
-lint = [
-    "clang-format==20.*",
-    "flake8==7.3.0",
-]
-
-locale = [
-    "Babel==2.18.0",
-]
-
-test = [
-    "gcovr==8.6",
 ]
 
 [project.urls]
@@ -54,3 +40,4 @@ py-modules = []
 flatpak_node_generator = { path = "packaging/linux/flatpak/deps/flatpak-builder-tools/node" }
 flatpak_pip_generator = { path = "packaging/linux/flatpak/deps/flatpak-builder-tools/pip" }
 glad2 = { path = "third-party/glad" }
+lizardbyte-common = { path = "third-party/lizardbyte-common" }

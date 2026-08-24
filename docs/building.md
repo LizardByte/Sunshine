@@ -27,7 +27,7 @@ pkg install -y \
   devel/evdev-proto \
   devel/git \
   devel/libevdev \
-  devel/libnotify \
+  devel/llvm19 \
   devel/ninja \
   devel/pkgconf \
   devel/qt6-base \
@@ -46,6 +46,13 @@ pkg install -y \
   x11/libXfixes \
   x11/libXrandr \
   x11/libXtst
+```
+
+Use LLVM 19 when configuring a local FreeBSD build:
+
+```sh
+export CC=clang19
+export CXX=clang++19
 ```
 
 #### Linux
@@ -94,6 +101,8 @@ dependencies=(
   "openssl@3"
   "opus"
   "pkg-config"
+  "qtbase"
+  "qtsvg"
 )
 brew install "${dependencies[@]}"
 ```
@@ -122,6 +131,8 @@ dependencies=(
   "ninja"
   "npm9"
   "pkgconfig"
+  "qt6-qtbase"
+  "qt6-qtsvg"
 )
 sudo port install "${dependencies[@]}"
 ```
@@ -166,6 +177,7 @@ dependencies=(
   "mingw-w64-${TOOLCHAIN}-openssl"
   "mingw-w64-${TOOLCHAIN}-opus"
   "mingw-w64-${TOOLCHAIN}-toolchain"
+  "mingw-w64-${TOOLCHAIN}-qt6-static"
 )
 if [[ "${MSYSTEM}" == "UCRT64" ]]; then
   dependencies+=(
@@ -176,6 +188,14 @@ if [[ "${MSYSTEM}" == "UCRT64" ]]; then
 fi
 pacman -S "${dependencies[@]}"
 ```
+
+Static Qt is enabled by default on Windows. Sunshine automatically adds the MSYS2 static Qt prefix at
+`${MINGW_PREFIX}/qt6-static` when that package is installed. If an IDE does not inherit `MINGW_PREFIX`, Sunshine
+derives the same prefix from the selected compiler. If static Qt is installed in a custom location, specify it with
+`-DCMAKE_PREFIX_PATH=/path/to/qt6-static`.
+
+To use dynamic Qt instead, configure with `-DSUNSHINE_USE_STATIC_QT=OFF` and ensure the dynamic Qt package is
+available through the normal toolchain prefix.
 
 To create a WiX installer, you also need to install [.NET](https://dotnet.microsoft.com/download).
 

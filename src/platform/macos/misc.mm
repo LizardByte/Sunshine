@@ -5,6 +5,10 @@
 
 // Required for IPV6_PKTINFO with Darwin headers
 #ifndef __APPLE_USE_RFC_3542  // NOLINT(bugprone-reserved-identifier)
+  /**
+   * @def __APPLE_USE_RFC_3542
+   * @brief Macro for APPLE USE RFC 3542.
+   */
   #define __APPLE_USE_RFC_3542 1
 #endif
 
@@ -43,7 +47,17 @@ namespace platf {
 #if __MAC_OS_X_VERSION_MAX_ALLOWED < 110000  // __MAC_11_0
   // If they're not in the SDK then we can use our own function definitions.
   // Need to use weak import so that this will link in macOS 10.14 and earlier
+  /**
+   * @brief Query macOS screen-capture permission without prompting the user.
+   *
+   * @return True when screen-capture permission is granted.
+   */
   extern "C" bool CGPreflightScreenCaptureAccess(void) __attribute__((weak_import));
+  /**
+   * @brief Request macOS screen-capture permission from the user.
+   *
+   * @return True when screen-capture permission is granted.
+   */
   extern "C" bool CGRequestScreenCaptureAccess(void) __attribute__((weak_import));
 #endif
 
@@ -52,6 +66,9 @@ namespace platf {
   }  // namespace
 
   // Return whether screen capture is allowed for this process.
+  /**
+   * @brief Check whether screen capture allowed.
+   */
   bool is_screen_capture_allowed() {
     return screen_capture_allowed;
   }
@@ -73,8 +90,7 @@ namespace platf {
 #pragma clang diagnostic ignored "-Wtautological-pointer-compare"
     if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:((NSOperatingSystemVersion) {10, 15, 0})] &&
         // Double check that these weakly-linked symbols have been loaded:
-        CGPreflightScreenCaptureAccess != nullptr && CGRequestScreenCaptureAccess != nullptr &&
-        !CGPreflightScreenCaptureAccess()) {
+        CGPreflightScreenCaptureAccess != nullptr && CGRequestScreenCaptureAccess != nullptr && !CGPreflightScreenCaptureAccess()) {
       BOOST_LOG(error) << "No screen capture permission!"sv;
       BOOST_LOG(error) << "Please activate it in 'System Preferences' -> 'Privacy' -> 'Screen Recording'"sv;
       CGRequestScreenCaptureAccess();
@@ -236,8 +252,9 @@ namespace platf {
     pthread_set_qos_class_self_np(mac_priority, 0);
   }
 
-  void set_thread_name(const std::string &name) {
-    pthread_setname_np(name.c_str());
+  void set_thread_name(std::string_view name) {
+    std::string thread_name {name};
+    pthread_setname_np(thread_name.c_str());
   }
 
   void enable_mouse_keys() {
@@ -252,6 +269,35 @@ namespace platf {
     // Nothing to do
   }
 
+  static pid_t g_restart_child_pid = 0;  ///< PID of the restarted child process for signal forwarding.
+
+  /**
+   * @brief Forward a signal to the restarted child process.
+   *
+   * This handler is installed in the parent (supervisor) process after forking
+   * the new Sunshine instance. It ensures that signals like SIGINT (Ctrl+C)
+   * are delivered to the child.
+   *
+   * @param sig The signal number to forward.
+   */
+  static void forward_signal_to_child(int sig) {
+    if (g_restart_child_pid > 0) {
+      kill(g_restart_child_pid, sig);
+    }
+  }
+
+  /**
+   * @brief Request a Sunshine process restart on exit.
+   *
+   * This is registered as an atexit handler by restart(). It forks a child
+   * process with a fresh PID so that macOS WindowServer treats it as a new
+   * application (required for the system tray icon to reinitialize).
+   *
+   * The parent process stays alive as a transparent supervisor: it forwards
+   * signals (SIGINT, SIGTERM, SIGHUP) to the child and blocks in waitpid().
+   * This keeps the shell tracking the original PID as its foreground job,
+   * preserving Ctrl+C and terminal log output.
+   */
   void restart_on_exit() {
     char executable[2048];
     uint32_t size = sizeof(executable);
@@ -260,31 +306,60 @@ namespace platf {
       return;
     }
 
-    // ASIO doesn't use O_CLOEXEC, so we have to close all fds ourselves
+    // ASIO doesn't use O_CLOEXEC, so we have to close all fds ourselves.
     int openmax = (int) sysconf(_SC_OPEN_MAX);
     for (int fd = STDERR_FILENO + 1; fd < openmax; fd++) {
       close(fd);
     }
 
-    // Re-exec ourselves with the same arguments
-    if (execv(executable, lifetime::get_argv()) < 0) {
-      BOOST_LOG(fatal) << "execv() failed: "sv << errno;
+    // Fork a child process to get a fresh PID.
+    // A new PID is required on macOS because WindowServer associates GUI state
+    // (tray icons, activation policy) with the PID. After execv with the same PID,
+    // WindowServer retains stale state and silently refuses to show new tray icons.
+    pid_t child = fork();
+    if (child < 0) {
+      BOOST_LOG(fatal) << "fork() failed: "sv << errno;
       return;
     }
+
+    if (child == 0) {
+      // Child: create a new process group so that the parent's signal
+      // forwarding targets only this child, not the parent itself.
+      setpgid(0, 0);
+
+      // Replace this child with the new Sunshine instance
+      execv(executable, lifetime::get_argv());
+
+      // If execv fails, exit the child immediately without running atexit handlers
+      _exit(1);
+    }
+
+    // Parent: become a transparent supervisor.
+    // The parent stays alive so the shell continues to track it as the
+    // foreground job, keeping Ctrl+C and terminal output working.
+    g_restart_child_pid = child;
+
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = forward_signal_to_child;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, nullptr);
+    sigaction(SIGTERM, &sa, nullptr);
+    sigaction(SIGHUP, &sa, nullptr);
+
+    int status;
+    waitpid(child, &status, 0);
+
+    // Exit immediately without running additional atexit handlers or
+    // static destructors. The child has already taken over.
+    _exit(WIFEXITED(status) ? WEXITSTATUS(status) : 1);
   }
 
   void restart() {
     // Gracefully clean up and restart ourselves instead of exiting
     atexit(restart_on_exit);
     lifetime::exit_sunshine(0, true);
-  }
-
-  int set_env(const std::string &name, const std::string &value) {
-    return setenv(name.c_str(), value.c_str(), 1);
-  }
-
-  int unset_env(const std::string &name) {
-    return unsetenv(name.c_str());
   }
 
   bool request_process_group_exit(std::uintptr_t native_handle) {
@@ -436,8 +511,17 @@ namespace platf {
   // are disconnected.
   static std::atomic<int> qos_ref_count = 0;
 
+  /**
+   * @brief Owns platform QoS state that is restored during cleanup.
+   */
   class qos_t: public deinit_t {
   public:
+    /**
+     * @brief Apply macOS socket QoS settings for scoped cleanup.
+     *
+     * @param sockfd Native socket descriptor whose options are updated.
+     * @param options Request options or socket options to apply.
+     */
     qos_t(int sockfd, std::vector<std::tuple<int, int, int>> options):
         sockfd(sockfd),
         options(options) {
@@ -462,11 +546,6 @@ namespace platf {
 
   /**
    * @brief Enables QoS on the given socket for traffic to the specified destination.
-   * @param native_socket The native socket handle.
-   * @param address The destination address for traffic sent on this socket.
-   * @param port The destination port for traffic sent on this socket.
-   * @param data_type The type of traffic sent on this socket.
-   * @param dscp_tagging Specifies whether to enable DSCP tagging on outgoing traffic.
    */
   std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
     int sockfd = (int) native_socket;
@@ -546,6 +625,9 @@ namespace platf {
     }
   }
 
+  /**
+   * @brief macOS high-precision timer implementation backed by a worker thread.
+   */
   class macos_high_precision_timer: public high_precision_timer {
   public:
     void sleep_for(const std::chrono::nanoseconds &duration) override {

@@ -12,13 +12,25 @@ namespace platf {
 }
 
 namespace platf::dxgi {
+  /**
+   * @brief Captured frame buffer shared between capture and encode stages.
+   */
   struct img_t: public ::platf::img_t {
+    /**
+     * @brief Destroy the RAM-backed DXGI image.
+     */
     ~img_t() override {
       delete[] data;
       data = nullptr;
     }
   };
 
+  /**
+   * @brief Blend a monochrome cursor shape into a RAM frame.
+   *
+   * @param cursor Cursor image or visibility state to composite.
+   * @param img Image or frame object to read from or populate.
+   */
   void blend_cursor_monochrome(const cursor_t &cursor, img_t &img) {
     int height = cursor.shape_info.Height / 2;
     int width = cursor.shape_info.Width;
@@ -81,6 +93,12 @@ namespace platf::dxgi {
     }
   }
 
+  /**
+   * @brief Alpha-blend a color cursor pixel into a captured RAM frame.
+   *
+   * @param img_pixel_p Pixel in the destination frame.
+   * @param cursor_pixel ARGB cursor pixel to blend.
+   */
   void apply_color_alpha(int *img_pixel_p, int cursor_pixel) {
     auto colors_out = (std::uint8_t *) &cursor_pixel;
     auto colors_in = (std::uint8_t *) img_pixel_p;
@@ -96,6 +114,12 @@ namespace platf::dxgi {
     }
   }
 
+  /**
+   * @brief Apply a masked-color cursor pixel into a captured RAM frame.
+   *
+   * @param img_pixel_p Pixel in the destination frame.
+   * @param cursor_pixel ARGB cursor pixel with masked-cursor semantics.
+   */
   void apply_color_masked(int *img_pixel_p, int cursor_pixel) {
     // TODO: When use of IDXGIOutput5 is implemented, support different color formats
     auto alpha = ((std::uint8_t *) &cursor_pixel)[3];
@@ -106,6 +130,13 @@ namespace platf::dxgi {
     }
   }
 
+  /**
+   * @brief Blend a color cursor shape into a RAM frame.
+   *
+   * @param cursor Cursor image or visibility state to composite.
+   * @param img Image or frame object to read from or populate.
+   * @param masked Whether the cursor image uses an AND/XOR mask.
+   */
   void blend_cursor_color(const cursor_t &cursor, img_t &img, const bool masked) {
     int height = cursor.shape_info.Height;
     int width = cursor.shape_info.Width;
@@ -152,6 +183,12 @@ namespace platf::dxgi {
     }
   }
 
+  /**
+   * @brief Blend the current cursor image into a RAM frame.
+   *
+   * @param cursor Cursor image or visibility state to composite.
+   * @param img Image or frame object to read from or populate.
+   */
   void blend_cursor(const cursor_t &cursor, img_t &img) {
     switch (cursor.shape_info.Type) {
       case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR:

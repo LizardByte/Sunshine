@@ -19,13 +19,16 @@ namespace {
 
 namespace nvprefs {
 
+  /**
+   * @brief Private state owned by the NVIDIA preferences interface.
+   */
   struct nvprefs_interface::impl {
-    bool loaded = false;
-    driver_settings_t driver_settings;
-    std::filesystem::path undo_folder_path;
-    std::filesystem::path undo_file_path;
-    std::optional<undo_data_t> undo_data;
-    std::optional<undo_file_t> undo_file;
+    bool loaded = false;  ///< Whether NVIDIA preference state has been loaded.
+    driver_settings_t driver_settings;  ///< Driver settings.
+    std::filesystem::path undo_folder_path;  ///< Undo folder path.
+    std::filesystem::path undo_file_path;  ///< Undo file path.
+    std::optional<undo_data_t> undo_data;  ///< Undo data.
+    std::optional<undo_file_t> undo_file;  ///< Undo file.
   };
 
   nvprefs_interface::nvprefs_interface():
@@ -201,8 +204,7 @@ namespace nvprefs {
     }
 
     // Restore global profile settings with undo data
-    if (pimpl->driver_settings.restore_global_profile_to_undo(*pimpl->undo_data) &&
-        pimpl->driver_settings.save_settings()) {
+    if (pimpl->driver_settings.restore_global_profile_to_undo(*pimpl->undo_data) && pimpl->driver_settings.save_settings()) {
       // Global profile settings sucessfully restored, can delete undo file
       if (!pimpl->undo_file->delete_file()) {
         error_message("Couldn't delete undo file");

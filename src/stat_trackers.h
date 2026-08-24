@@ -14,15 +14,38 @@
 
 namespace stat_trackers {
 
+  /**
+   * @brief Create a formatter for values with one digit after the decimal point.
+   *
+   * @return Boost format configured for one fractional digit.
+   */
   boost::format one_digit_after_decimal();
 
+  /**
+   * @brief Create a formatter for values with two digits after the decimal point.
+   *
+   * @return Boost format configured for two fractional digits.
+   */
   boost::format two_digits_after_decimal();
 
+  /**
+   * @brief Accumulates minimum, maximum, and average values between periodic callbacks.
+   */
   template<typename T>
   class min_max_avg_tracker {
   public:
+    /**
+     * @brief Callback invoked with the minimum, maximum, and average for one interval.
+     */
     using callback_function = std::function<void(T stat_min, T stat_max, double stat_avg)>;
 
+    /**
+     * @brief Add one statistic sample and invoke the callback when the interval elapses.
+     *
+     * @param stat Statistic value used to update the tracker.
+     * @param callback Callback invoked with the calculated statistic.
+     * @param interval_in_seconds Minimum time between callback invocations.
+     */
     void collect_and_callback_on_interval(T stat, const callback_function &callback, std::chrono::seconds interval_in_seconds) {
       if (data.calls == 0) {
         data.last_callback_time = std::chrono::steady_clock::now();
@@ -36,6 +59,9 @@ namespace stat_trackers {
       data.calls += 1;
     }
 
+    /**
+     * @brief Reset the object to its initial empty state.
+     */
     void reset() {
       data = {};
     }

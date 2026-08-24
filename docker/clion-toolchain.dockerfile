@@ -39,7 +39,6 @@ apt-get install -y --no-install-recommends \
   libevdev-dev \
   libgbm-dev \
   libminiupnpc-dev \
-  libnotify-dev \
   libnuma-dev \
   libopus-dev \
   libpulse-dev \
@@ -74,7 +73,7 @@ RUN <<_INSTALL_CUDA
 set -e
 cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
 cuda_suffix=""
-if [[ "${TARGETPLATFORM}" == 'linux/arm64' ]]; then
+if [ "${TARGETPLATFORM}" = 'linux/arm64' ]; then
   cuda_suffix="_sbsa"
 fi
 url="${cuda_prefix}${CUDA_VERSION}/local_installers/cuda_${CUDA_VERSION}_${CUDA_BUILD}_linux${cuda_suffix}.run"

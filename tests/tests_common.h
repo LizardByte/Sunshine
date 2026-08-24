@@ -12,7 +12,7 @@
   #pragma GCC diagnostic ignored "-Wstringop-overflow"
 #endif
 
-#include <gtest/gtest.h>
+#include <lizardbyte/common/testing.h>
 #include <src/globals.h>
 #include <src/logging.h>
 #include <src/platform/common.h>
@@ -146,7 +146,7 @@ namespace test_utils {
   #define IS_FREEBSD false
 #endif
 
-struct PlatformTestSuite: testing::Test {
+struct PlatformTestSuite: BaseTest {
   static void SetUpTestSuite() {
     ASSERT_FALSE(platf_deinit);
     BOOST_LOG(tests) << "Setting up platform test suite";
