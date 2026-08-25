@@ -165,6 +165,9 @@ namespace input {
   static std::array<std::uint8_t, 5> mouse_press {};
 
   static platf::input_t platf_input;
+#ifdef SUNSHINE_TESTS
+  static std::function<void(const testing::keyboard_event_t &)> keyboard_sink {};
+#endif
   static std::bitset<platf::MAX_GAMEPADS> gamepadMask {};
 
   /**
@@ -979,6 +982,25 @@ namespace input {
   }
 
   /**
+   * @brief Deliver one keyboard event to the platform backend.
+   *
+   * Test builds can divert the event to a recorder so unit tests never type into the host.
+   *
+   * @param key_code Platform keycode to emit.
+   * @param release Whether the key event is a release.
+   * @param flags Bit flags that modify the requested operation.
+   */
+  void emit_keyboard_update(uint16_t key_code, bool release, uint8_t flags) {
+#ifdef SUNSHINE_TESTS
+    if (keyboard_sink) {
+      keyboard_sink(testing::keyboard_event_t {key_code, release, flags});
+      return;
+    }
+#endif
+    platf::keyboard_update(platf_input, key_code, release, flags);
+  }
+
+  /**
    * @brief Send key and modifiers.
    *
    * @param key_code Moonlight keyboard packet key code.
@@ -990,28 +1012,28 @@ namespace input {
     if (!release) {
       // Press any synthetic modifiers required for this key
       if (synthetic_modifiers & MODIFIER_SHIFT) {
-        platf::keyboard_update(platf_input, VKEY_SHIFT, false, flags);
+        emit_keyboard_update(VKEY_SHIFT, false, flags);
       }
       if (synthetic_modifiers & MODIFIER_CTRL) {
-        platf::keyboard_update(platf_input, VKEY_CONTROL, false, flags);
+        emit_keyboard_update(VKEY_CONTROL, false, flags);
       }
       if (synthetic_modifiers & MODIFIER_ALT) {
-        platf::keyboard_update(platf_input, VKEY_MENU, false, flags);
+        emit_keyboard_update(VKEY_MENU, false, flags);
       }
     }
 
-    platf::keyboard_update(platf_input, map_keycode(key_code), release, flags);
+    emit_keyboard_update(map_keycode(key_code), release, flags);
 
     if (!release) {
       // Raise any synthetic modifier keys we pressed
       if (synthetic_modifiers & MODIFIER_SHIFT) {
-        platf::keyboard_update(platf_input, VKEY_SHIFT, true, flags);
+        emit_keyboard_update(VKEY_SHIFT, true, flags);
       }
       if (synthetic_modifiers & MODIFIER_CTRL) {
-        platf::keyboard_update(platf_input, VKEY_CONTROL, true, flags);
+        emit_keyboard_update(VKEY_CONTROL, true, flags);
       }
       if (synthetic_modifiers & MODIFIER_ALT) {
-        platf::keyboard_update(platf_input, VKEY_MENU, true, flags);
+        emit_keyboard_update(VKEY_MENU, true, flags);
       }
     }
   }
@@ -1105,7 +1127,10 @@ namespace input {
 
     send_key_and_modifiers(keyCode, release, packet->flags, synthetic_modifiers);
 
-    update_shortcutFlags(&input->shortcutFlags, map_keycode(keyCode), release);
+    // Track the modifier state the client is holding, not the remapped host key.
+    // This is compared against packet->modifiers above, which is client-side, so a
+    // keybinding that moves Alt off VKEY_*MENU must not clear the ALT bit here.
+    update_shortcutFlags(&input->shortcutFlags, keyCode, release);
   }
 
   /**
@@ -1966,7 +1991,10 @@ namespace input {
   void reset_keyboard_keys() {
     for (auto &[key, pressed] : key_press) {
       if (pressed) {
-        platf::keyboard_update(platf_input, vk_from_kpid(key) & 0x00FF, true, flags_from_kpid(key));
+        // key_press is keyed on the client's unmapped virtual-key code, but the press was
+        // emitted through map_keycode(). Release the host key that actually went down,
+        // otherwise a remapped modifier stays latched after the client disconnects.
+        emit_keyboard_update(map_keycode(vk_from_kpid(key) & 0x00FF), true, flags_from_kpid(key));
         pressed = false;
       }
     }
@@ -2155,6 +2183,34 @@ namespace input {
         return -1;
       }
       return input->gamepads[client_index].id;
+    }
+
+    void set_keyboard_sink(std::function<void(const keyboard_event_t &)> sink) {
+      keyboard_sink = std::move(sink);
+    }
+
+    void send_keyboard_packet(std::shared_ptr<input_t> &input, std::uint16_t key_code, std::uint8_t modifiers, std::uint8_t flags, bool release) {
+      const std::uint32_t magic = release ? KEY_UP_EVENT_MAGIC : KEY_DOWN_EVENT_MAGIC;
+
+      NV_KEYBOARD_PACKET packet {};
+      packet.header.size = util::endian::big<std::uint32_t>(sizeof(packet) - sizeof(packet.header.size));
+      packet.header.magic = util::endian::little(magic);
+      packet.keyCode = static_cast<short>(key_code);
+      packet.modifiers = static_cast<char>(modifiers);
+      packet.flags = static_cast<char>(flags);
+
+      // Keyboard packets are never batched, so this matches passthrough_next_message().
+      ::input::passthrough(input, &packet);
+    }
+
+    void reset_keyboard_state() {
+      task_pool.cancel(key_press_repeat_id);
+      key_press_repeat_id = nullptr;
+      key_press.clear();
+    }
+
+    void release_held_keys() {
+      reset_keyboard_keys();
     }
   }  // namespace testing
 #endif
