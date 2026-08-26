@@ -5,6 +5,7 @@
 #pragma once
 
 // standard includes
+#include <atomic>
 #include <bitset>
 #include <filesystem>
 #include <functional>
@@ -74,6 +75,29 @@ namespace nvenc {
 }
 
 namespace platf {
+  // Real cursor position feedback published by the capture pipeline.
+  // The KMS backend reads the cursor plane position once per captured frame and
+  // publishes it here so the input path can close the loop of the abs->rel
+  // mouse conversion (see config: absolute_mouse_as_relative). Coordinates are
+  // in desktop physical pixels; the logical extents allow rescaling to the
+  // compositor's logical space. seq starts at 0 and is bumped on every update,
+  // so consumers can tell fresh values from stale ones.
+  struct kms_cursor_feedback_t {
+    std::atomic_int32_t x { -1 };
+    std::atomic_int32_t y { -1 };
+    std::atomic_int32_t desktop_w { 0 };  ///< Physical width of the streamed output.
+    std::atomic_int32_t desktop_h { 0 };  ///< Physical height of the streamed output.
+    std::atomic_int32_t logical_w { 0 };  ///< Logical width of the streamed output.
+    std::atomic_int32_t logical_h { 0 };  ///< Logical height of the streamed output.
+    std::atomic_uint64_t seq { 0 };
+  };
+
+  /**
+   * @brief Access the process-wide cursor feedback instance.
+   */
+  kms_cursor_feedback_t&
+  kms_cursor_feedback();
+
   // Limited by bits in activeGamepadMask
   constexpr auto MAX_GAMEPADS = 16;  ///< Maximum number of simultaneously tracked gamepads.
 
