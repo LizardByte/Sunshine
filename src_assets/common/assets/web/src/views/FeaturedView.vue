@@ -6,7 +6,7 @@
 
   <!-- Category Filter -->
   <div class="toolbar mb-4">
-    <div class="btn-group" role="group" aria-label="Category filter">
+    <fieldset class="btn-group border-0 p-0 m-0" aria-label="Category filter">
       <button type="button" class="btn btn-outline-primary" :class="{ active: selectedCategory === null }"
         @click="selectedCategory = null">
         {{ $t('_common.all') }}
@@ -15,7 +15,7 @@
         :class="{ active: selectedCategory === category.id }" @click="selectedCategory = category.id">
         {{ $t(`featured.categories.${category.originalId}`) }}
       </button>
-    </div>
+    </fieldset>
   </div>
 
   <!-- Loading State -->

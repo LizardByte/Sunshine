@@ -1,7 +1,7 @@
 <template>
-  <div class="spinner-border" :class="{ 'spinner-border-sm': small }" role="status">
+  <output class="spinner-border" :class="{ 'spinner-border-sm': small }">
     <span class="visually-hidden">{{ label }}</span>
-  </div>
+  </output>
 </template>
 
 <script>

@@ -6,11 +6,11 @@
           <h1 class="h3 mb-3 text-center">{{ $t('login.title') }}</h1>
           <p class="text-muted text-center mb-4">{{ $t('login.description') }}</p>
           <form @submit.prevent="login">
-            <FormGroup id="username" :label="$t('_common.username')">
+            <FormGroup field-id="username" :label="$t('_common.username')">
               <input required type="text" class="form-control" id="username" autocomplete="username"
                 v-model="credentials.username" />
             </FormGroup>
-            <FormGroup id="password" :label="$t('_common.password')">
+            <FormGroup field-id="password" :label="$t('_common.password')">
               <input required type="password" class="form-control" id="password" autocomplete="current-password"
                 v-model="credentials.password" />
             </FormGroup>

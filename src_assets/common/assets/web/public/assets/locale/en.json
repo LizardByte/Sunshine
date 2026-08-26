@@ -644,6 +644,7 @@
   },
   "file_browser": {
     "empty": "No items to display",
+    "path": "Path",
     "root": "Root",
     "select": "Select",
     "select_directory": "Select Directory",

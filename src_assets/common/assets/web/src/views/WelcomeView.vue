@@ -8,15 +8,15 @@
           {{ $t('welcome.create_creds_alert') }}
         </div>
         <form @submit.prevent="save">
-          <FormGroup id="usernameInput" :label="$t('_common.username')">
+          <FormGroup field-id="usernameInput" :label="$t('_common.username')">
             <input type="text" class="form-control" id="usernameInput" autocomplete="username"
               v-model="passwordData.newUsername" />
           </FormGroup>
-          <FormGroup id="passwordInput" :label="$t('_common.password')">
+          <FormGroup field-id="passwordInput" :label="$t('_common.password')">
             <input type="password" class="form-control" id="passwordInput" autocomplete="new-password"
               v-model="passwordData.newPassword" required />
           </FormGroup>
-          <FormGroup id="confirmPasswordInput" :label="$t('welcome.confirm_password')">
+          <FormGroup field-id="confirmPasswordInput" :label="$t('welcome.confirm_password')">
             <input type="password" class="form-control" id="confirmPasswordInput" autocomplete="new-password"
               v-model="passwordData.confirmNewPassword" required />
           </FormGroup>

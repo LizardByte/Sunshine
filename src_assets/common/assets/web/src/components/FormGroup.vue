@@ -1,6 +1,6 @@
 <template>
   <div class="mb-3">
-    <label :for="id" class="form-label">{{ label }}</label>
+    <label :for="fieldId" class="form-label">{{ label }}</label>
     <slot></slot>
     <div class="form-text" v-if="description">{{ description }}</div>
   </div>
@@ -9,7 +9,7 @@
 <script>
 export default {
   props: {
-    id: {
+    fieldId: {
       type: String,
       default: null
     },

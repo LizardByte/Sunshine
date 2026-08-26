@@ -218,7 +218,7 @@
         {{ $t('troubleshooting.force_close_error') }}
       </AlertBox>
       <div>
-        <button class="btn btn-warning" :disabled="closeAppPressed" @click="closeApp">
+        <button type="button" class="btn btn-warning" :disabled="closeAppPressed" @click="closeApp">
           <x-circle :size="18" class="icon"></x-circle>
           {{ $t('troubleshooting.force_close') }}
         </button>
@@ -234,7 +234,7 @@
         {{ $t('troubleshooting.restart_sunshine_success') }}
       </AlertBox>
       <div>
-        <button class="btn btn-warning" :disabled="restartPressed" @click="restart">
+        <button type="button" class="btn btn-warning" :disabled="restartPressed" @click="restart">
           <refresh-cw :size="18" class="icon"></refresh-cw>
           {{ $t('troubleshooting.restart_sunshine') }}
         </button>
@@ -253,7 +253,7 @@
         {{ $t('troubleshooting.dd_reset_error') }}
       </AlertBox>
       <div>
-        <button class="btn btn-warning" :disabled="ddResetPressed" @click="ddResetPersistence">
+        <button type="button" class="btn btn-warning" :disabled="ddResetPressed" @click="ddResetPersistence">
           <rotate-ccw :size="18" class="icon"></rotate-ccw>
           {{ $t('troubleshooting.dd_reset') }}
         </button>
@@ -268,7 +268,7 @@
       <div class="alert alert-success d-flex align-items-center" v-if="showApplyMessage">
         <check-circle :size="18" class="icon"></check-circle>
         <div><b>{{ $t('_common.success') }}</b> {{ $t('troubleshooting.unpair_single_success') }}</div>
-        <button class="btn btn-success ms-auto" @click="clickedApplyBanner">{{ $t('_common.dismiss') }}</button>
+        <button type="button" class="btn btn-success ms-auto" @click="clickedApplyBanner">{{ $t('_common.dismiss') }}</button>
       </div>
       <AlertBox v-if="unpairAllStatus === true" variant="success" compact>
         {{ $t('troubleshooting.unpair_all_success') }}
@@ -277,7 +277,7 @@
         {{ $t('troubleshooting.unpair_all_error') }}
       </AlertBox>
       <div>
-        <button class="btn btn-danger" :disabled="unpairAllPressed" @click="unpairAll">
+        <button type="button" class="btn btn-danger" :disabled="unpairAllPressed" @click="unpairAll">
           <trash-2 :size="18" class="icon"></trash-2>
           {{ $t('troubleshooting.unpair_all') }}
         </button>
@@ -293,7 +293,7 @@
             :checked="client.enabled" :aria-checked="client.enabled.toString()"
             @change="toggleClient(client.uuid, !client.enabled)">
         </div>
-        <button class="btn btn-danger btn-sm ms-2" @click="unpairSingle(client.uuid)">
+        <button type="button" class="btn btn-danger btn-sm ms-2" @click="unpairSingle(client.uuid)">
           <trash-2 :size="18" class="icon"></trash-2>
         </button>
       </li>
@@ -314,28 +314,29 @@
           <span class="input-group-text">
             <search :size="18" class="icon"></search>
           </span>
-          <input type="text" class="form-control" v-model="logFilter" :placeholder="$t('troubleshooting.logs_find')" />
+          <input type="text" class="form-control" v-model="logFilter" :placeholder="$t('troubleshooting.logs_find')"
+            :aria-label="$t('troubleshooting.logs_find')" />
         </div>
       </div>
       <div>
         <div class="troubleshooting-logs" ref="logsContainer">
           <div class="log-nav-overlay">
             <div class="log-nav-controls">
-              <button class="log-nav-btn" @click="scrollLogsTo('top')" title="Jump to Top">
+              <button type="button" class="log-nav-btn" @click="scrollLogsTo('top')" title="Jump to Top">
                 <chevrons-up :size="18" class="icon"></chevrons-up>
               </button>
-              <button class="log-nav-btn" @click="navigateToLog('prev')" :disabled="!hasPrevLog"
+              <button type="button" class="log-nav-btn" @click="navigateToLog('prev')" :disabled="!hasPrevLog"
                 title="Previous Warning/Error">
                 <chevron-up :size="18" class="icon"></chevron-up>
               </button>
-              <button class="log-nav-btn" @click="navigateToLog('next')" :disabled="!hasNextLog"
+              <button type="button" class="log-nav-btn" @click="navigateToLog('next')" :disabled="!hasNextLog"
                 title="Next Warning/Error">
                 <chevron-down :size="18" class="icon"></chevron-down>
               </button>
-              <button class="log-nav-btn" @click="scrollLogsTo('bottom')" title="Jump to Bottom">
+              <button type="button" class="log-nav-btn" @click="scrollLogsTo('bottom')" title="Jump to Bottom">
                 <chevrons-down :size="18" class="icon"></chevrons-down>
               </button>
-              <button class="log-nav-btn" @click="copyLogs" title="Copy Logs">
+              <button type="button" class="log-nav-btn" @click="copyLogs" title="Copy Logs">
                 <check :size="18" class="icon text-success" v-if="logsCopied"></check>
                 <copy :size="18" class="icon" v-else></copy>
               </button>
@@ -689,7 +690,6 @@ export default {
       fetch("./api/clients/list")
         .then((response) => response.json())
         .then((response) => {
-          const clientList = document.querySelector("#client-list");
           if (response.status === true && response.named_certs && response.named_certs.length) {
             this.clients = response.named_certs.sort((a, b) => {
               return (a.name.toLowerCase() > b.name.toLowerCase() || a.name === "" ? 1 : -1)

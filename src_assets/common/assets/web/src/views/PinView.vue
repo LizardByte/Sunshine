@@ -6,16 +6,17 @@
         <span class="input-group-text">
           <hash :size="18" class="icon"></hash>
         </span>
-        <input type="text" pattern="\d*" :placeholder="$t('navbar.pin')" autofocus class="form-control" required
-          v-model="pin" />
+        <input type="text" pattern="\d*" :placeholder="$t('navbar.pin')" :aria-label="$t('navbar.pin')" autofocus
+          class="form-control" required v-model="pin" />
       </div>
       <div class="input-group my-4">
         <span class="input-group-text">
           <monitor :size="18" class="icon"></monitor>
         </span>
-        <input type="text" :placeholder="$t('pin.device_name')" class="form-control" required v-model="name" />
+        <input type="text" :placeholder="$t('pin.device_name')" :aria-label="$t('pin.device_name')"
+          class="form-control" required v-model="name" />
       </div>
-      <button class="btn btn-primary">
+      <button type="submit" class="btn btn-primary">
         <forward :size="18" class="icon"></forward>
         {{ $t('pin.send') }}
       </button>

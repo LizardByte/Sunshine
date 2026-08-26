@@ -11,7 +11,7 @@
         <search :size="18" class="icon"></search>
       </span>
       <input type="text" class="form-control" v-model="searchQuery" :placeholder="$t('config.search_options')"
-        @input="handleSearch" list="config-options" />
+        :aria-label="$t('config.search_options')" @input="handleSearch" list="config-options" />
     </div>
     <datalist id="config-options">
       <option v-for="option in allConfigOptions" :key="option.key" :value="option.label">
@@ -51,11 +51,11 @@
         </template>
 
         <div class="config-actions">
-          <button class="btn btn-primary" @click="save">
+          <button type="button" class="btn btn-primary" @click="save">
             <save :size="18" class="icon"></save>
             {{ $t('_common.save') }}
           </button>
-          <button class="btn btn-success" @click="apply" v-if="saved && !restarted">
+          <button type="button" class="btn btn-success" @click="apply" v-if="saved && !restarted">
             <check :size="18" class="icon"></check>
             {{ $t('_common.apply') }}
           </button>
@@ -370,7 +370,6 @@ export default {
         this.config = r;
         this.platform = this.config.platform;
 
-        var app = document.getElementById("app");
         if (this.platform === "windows") {
           this.tabs = this.tabs.filter((el) => {
             return el.id !== "vt" && el.id !== "vaapi" && el.id !== "vulkan";
@@ -407,7 +406,7 @@ export default {
           Object.keys(tab.options).forEach(optionKey => {
             if (this.config[optionKey] === undefined) {
               // Make sure to copy by value
-              this.config[optionKey] = JSON.parse(JSON.stringify(tab.options[optionKey]));
+              this.config[optionKey] = structuredClone(tab.options[optionKey]);
             }
           });
         });
@@ -436,7 +435,7 @@ export default {
       this.$forceUpdate()
     },
     serialize() {
-      return JSON.parse(JSON.stringify(this.config));
+      return structuredClone(this.config);
     },
     save() {
       this.saved = false;

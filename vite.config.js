@@ -55,7 +55,7 @@ export default defineConfig(({ command, mode }) => {
             vue({ template: { transformAssetUrls: false } }),
             vueJsx(),
             vueDevTools(),
-            // HTTPS only matters for `vite dev`; the production build is served by the backend.
+            // HTTPS for vite dev.
             ...(command === 'serve' ? [basicSsl()] : []),
             // The Codecov vite plugin should be after all other plugins
             codecovVitePlugin({
@@ -67,11 +67,10 @@ export default defineConfig(({ command, mode }) => {
         ],
         root: resolve(assetsSrcPath),
         server: {
-            // Bind address/port for `vite dev`; override via VITE_DEV_HOST / VITE_DEV_PORT in .env
-            // (e.g. VITE_DEV_HOST=0.0.0.0 for devcontainer/Codespaces port forwarding).
-            host: env.VITE_DEV_HOST,
-            port: Number(env.VITE_DEV_PORT) ?? 5173,
-            // WSL2/devcontainer bind mounts don't reliably propagate inotify events, so poll instead.
+            // Override via VITE_DEV_HOST/VITE_DEV_PORT in .env (e.g. VITE_DEV_HOST=0.0.0.0 for devcontainers).
+            host: env.VITE_DEV_HOST || 'localhost',
+            port: Number(env.VITE_DEV_PORT || 5173),
+            // WSL2/devcontainers don't propagate changes reliably, so use polling.
             watch: {
                 usePolling: true,
             },

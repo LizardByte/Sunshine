@@ -9,7 +9,7 @@
     <!-- Left side actions -->
     <div class="d-flex align-items-center gap-2">
       <!-- Add new application -->
-      <button class="btn btn-primary" @click="newApp">
+      <button type="button" class="btn btn-primary" @click="newApp">
         <layers-plus :size="18" class="icon"></layers-plus>
         {{ $t('apps.add_new') }}
       </button>
@@ -27,7 +27,8 @@
       </button>
       <!-- Search box -->
       <div class="input-group">
-        <input type="text" class="form-control" v-model="searchQuery" :placeholder="$t('apps.search_placeholder')" />
+        <input type="text" class="form-control" v-model="searchQuery" :placeholder="$t('apps.search_placeholder')"
+          :aria-label="$t('apps.search_placeholder')" />
         <button v-if="searchQuery" class="btn btn-outline-secondary" type="button" @click="resetSearchQuery"
           :aria-label="$t('_common.close')">
           <x :size="16" class="icon"></x>
@@ -73,11 +74,11 @@
         <div class="card-body d-flex flex-column">
           <h5 class="card-title mb-3">{{ app.name }}</h5>
           <div class="mt-auto d-flex gap-2">
-            <button class="btn btn-sm btn-primary flex-fill" @click="editApp(index)">
+            <button type="button" class="btn btn-sm btn-primary flex-fill" @click="editApp(index)">
               <edit :size="16" class="icon"></edit>
               {{ $t('apps.edit') }}
             </button>
-            <button class="btn btn-sm btn-danger" @click="showDeleteModal(index)">
+            <button type="button" class="btn btn-sm btn-danger" @click="showDeleteModal(index)">
               <trash-2 :size="16" class="icon"></trash-2>
             </button>
           </div>
@@ -106,11 +107,11 @@
     <template #title>{{ editModalTitle }}</template>
     <template v-if="editForm">
       <!-- Application Name -->
-      <FormGroup id="appName" :label="$t('apps.app_name')" :description="$t('apps.app_name_desc')">
+      <FormGroup field-id="appName" :label="$t('apps.app_name')" :description="$t('apps.app_name_desc')">
         <input type="text" class="form-control" id="appName" v-model="editForm.name" />
       </FormGroup>
       <!-- output -->
-      <FormGroup id="appOutput" :label="$t('apps.output_name')" :description="$t('apps.output_desc')">
+      <FormGroup field-id="appOutput" :label="$t('apps.output_name')" :description="$t('apps.output_desc')">
         <div class="input-group">
           <input type="text" class="form-control monospace" id="appOutput" v-model="editForm.output" />
           <button class="btn btn-secondary" type="button"
@@ -123,7 +124,7 @@
       <Checkbox class="mb-3" id="excludeGlobalPrep" label="apps.global_prep_name" desc="apps.global_prep_desc"
         v-model="editForm['exclude-global-prep-cmd']" default="true" inverse-values></Checkbox>
       <div class="mb-3">
-        <label class="form-label">{{ $t('apps.cmd_prep_name') }}</label>
+        <div class="form-label">{{ $t('apps.cmd_prep_name') }}</div>
         <div class="form-text">{{ $t('apps.cmd_prep_desc') }}</div>
         <div class="row g-2 align-items-center mx-0 my-2" v-if="editForm['prep-cmd'].length > 0">
           <div class="col-12 col-md text-muted small text-uppercase fw-semibold ps-3 d-flex align-items-center">
@@ -138,7 +139,7 @@
           </div>
           <div class="col-auto" style="height: 0;">
             <div class="invisible">
-              <button class="btn btn-danger btn-sm" tabindex="-1" aria-hidden="true">
+              <button type="button" class="btn btn-danger btn-sm" tabindex="-1" aria-hidden="true">
                 <trash-2 :size="16" class="icon"></trash-2>
               </button>
             </div>
@@ -150,7 +151,8 @@
               <span class="input-group-text">
                 <play :size="14" class="icon"></play>
               </span>
-              <input type="text" class="form-control monospace" v-model="cmd.do" :placeholder="$t('_common.do_cmd')" />
+              <input type="text" class="form-control monospace" v-model="cmd.do" :placeholder="$t('_common.do_cmd')"
+                :aria-label="$t('_common.do_cmd')" />
               <button class="btn btn-secondary" type="button" @click="browsePrep(index, 'do')">
                 <folder-open :size="14" class="icon"></folder-open>
               </button>
@@ -160,7 +162,7 @@
             <div class="input-group">
               <span class="input-group-text"><rotate-ccw :size="14" class="icon"></rotate-ccw></span>
               <input type="text" class="form-control monospace" v-model="cmd.undo"
-                :placeholder="$t('_common.undo_cmd')" />
+                :placeholder="$t('_common.undo_cmd')" :aria-label="$t('_common.undo_cmd')" />
               <button class="btn btn-secondary" type="button" @click="browsePrep(index, 'undo')">
                 <folder-open :size="14" class="icon"></folder-open>
               </button>
@@ -171,13 +173,13 @@
             </Checkbox>
           </div>
           <div class="col-auto">
-            <button class="btn btn-danger btn-sm" @click="deletePrepCmd(index)">
+            <button type="button" class="btn btn-danger btn-sm" @click="deletePrepCmd(index)">
               <trash-2 :size="16" class="icon"></trash-2>
             </button>
           </div>
         </div>
         <div class="d-flex justify-content-start my-3">
-          <button class="btn btn-success" @click="addPrepCmd">
+          <button type="button" class="btn btn-success" @click="addPrepCmd">
             <plus :size="18" class="icon"></plus>
             {{ $t('apps.add_cmds') }}
           </button>
@@ -185,29 +187,30 @@
       </div>
       <!-- detached -->
       <div class="mb-3">
-        <label class="form-label">{{ $t('apps.detached_cmds') }}</label>
+        <div class="form-label">{{ $t('apps.detached_cmds') }}</div>
         <div class="form-text">
           {{ $t('apps.detached_cmds_desc') }}<br>
           <b>{{ $t('_common.note') }}</b> {{ $t('apps.detached_cmds_note') }}
         </div>
         <div v-for="(_, index) in editForm.detached" :key="index" class="d-flex align-items-center gap-2 my-2">
-          <input type="text" v-model="editForm.detached[index]" class="form-control monospace">
-          <button class="btn btn-secondary btn-sm" @click="browseDetached(index)">
+          <input type="text" v-model="editForm.detached[index]" class="form-control monospace"
+            :aria-label="$t('apps.detached_cmds')">
+          <button type="button" class="btn btn-secondary btn-sm" @click="browseDetached(index)">
             <folder-open :size="14" class="icon"></folder-open>
           </button>
-          <button class="btn btn-danger btn-sm" @click="editForm.detached.splice(index, 1)">
+          <button type="button" class="btn btn-danger btn-sm" @click="editForm.detached.splice(index, 1)">
             <trash-2 :size="16" class="icon"></trash-2>
           </button>
         </div>
         <div class="d-flex justify-content-start mb-3 mt-3">
-          <button class="btn btn-success" @click="addDetached">
+          <button type="button" class="btn btn-success" @click="addDetached">
             <plus :size="18" class="icon"></plus>
             {{ $t('apps.detached_cmds_add') }}
           </button>
         </div>
       </div>
       <!-- command -->
-      <FormGroup id="appCmd" :label="$t('apps.cmd')">
+      <FormGroup field-id="appCmd" :label="$t('apps.cmd')">
         <div class="input-group">
           <input type="text" class="form-control monospace" id="appCmd" v-model="editForm.cmd" />
           <button class="btn btn-secondary" type="button"
@@ -221,7 +224,7 @@
         </div>
       </FormGroup>
       <!-- working dir -->
-      <FormGroup id="appWorkingDir" :label="$t('apps.working_dir')" :description="$t('apps.working_dir_desc')">
+      <FormGroup field-id="appWorkingDir" :label="$t('apps.working_dir')" :description="$t('apps.working_dir_desc')">
         <div class="input-group">
           <input type="text" class="form-control monospace" id="appWorkingDir" v-model="editForm['working-dir']" />
           <button class="btn btn-secondary" type="button"
@@ -240,11 +243,11 @@
       <Checkbox class="mb-3" id="waitAll" label="apps.wait_all" desc="apps.wait_all_desc" v-model="editForm['wait-all']"
         default="true"></Checkbox>
       <!-- exit timeout -->
-      <FormGroup id="exitTimeout" :label="$t('apps.exit_timeout')" :description="$t('apps.exit_timeout_desc')">
+      <FormGroup field-id="exitTimeout" :label="$t('apps.exit_timeout')" :description="$t('apps.exit_timeout_desc')">
         <input type="number" class="form-control monospace" id="exitTimeout" v-model="editForm['exit-timeout']" min="0"
           placeholder="5" />
       </FormGroup>
-      <FormGroup id="appImagePath" :label="$t('apps.image')" :description="$t('apps.image_desc')">
+      <FormGroup field-id="appImagePath" :label="$t('apps.image')" :description="$t('apps.image_desc')">
         <div class="input-group">
           <input type="text" class="form-control monospace" id="appImagePath" v-model="editForm['image-path']" />
           <button class="btn btn-secondary" type="button"
@@ -265,8 +268,8 @@
         <table class="env-table">
           <thead>
             <tr>
-              <td><b>{{ $t('apps.env_var_name') }}</b></td>
-              <td><b></b></td>
+              <th scope="col"><b>{{ $t('apps.env_var_name') }}</b></th>
+              <th scope="col"><b></b></th>
             </tr>
           </thead>
           <tbody>
@@ -327,11 +330,11 @@
       </div>
     </template>
     <template #footer>
-      <button @click="editModalOpen = false" class="btn btn-secondary">
+      <button type="button" @click="editModalOpen = false" class="btn btn-secondary">
         <x :size="18" class="icon"></x>
         {{ $t('_common.cancel') }}
       </button>
-      <button class="btn btn-primary" @click="save">
+      <button type="button" class="btn btn-primary" @click="save">
         <save :size="18" class="icon"></save>
         {{ $t('_common.save') }}
       </button>
@@ -349,7 +352,7 @@
     <div class="mb-3">
       <div class="input-group">
         <input type="text" class="form-control" v-model="coverSearchQuery" :placeholder="editForm?.name"
-          @keyup.enter="performCoverSearch" />
+          :aria-label="$t('_common.search')" @keyup.enter="performCoverSearch" />
         <button class="btn btn-primary" type="button" @click="performCoverSearch">
           <search :size="18" class="icon"></search>
           {{ $t('_common.search') }}
@@ -370,11 +373,11 @@
         <div v-for="cover in coverCandidates" :key="cover.url" class="col-12 col-sm-6 col-lg-3 mb-3"
           @click="useCover(cover)">
           <div class="cover-container result">
-            <img class="rounded" :src="cover.url" />
+            <img class="rounded" :src="cover.url" :alt="cover.name" />
           </div>
-          <label class="d-block text-nowrap text-center text-truncate">
+          <div class="d-block text-nowrap text-center text-truncate">
             {{ cover.name }}
-          </label>
+          </div>
         </div>
       </div>
     </div>
@@ -411,7 +414,7 @@
     <!-- Path input -->
     <div class="input-group mb-2">
       <input type="text" class="form-control monospace" v-model="fileBrowserTypedPath" @input="fileBrowserOnTypedInput"
-        @keyup.enter="fileBrowserNavigate(fileBrowserTypedPath)" />
+        :aria-label="$t('file_browser.path')" @keyup.enter="fileBrowserNavigate(fileBrowserTypedPath)" />
       <button class="btn btn-secondary" type="button" @click="fileBrowserNavigate(fileBrowserTypedPath)">
         <arrow-right :size="16" class="icon"></arrow-right>
       </button>
@@ -494,6 +497,14 @@ import {
   Trash2,
   X,
 } from '@lucide/vue'
+
+function getSearchBucket(name) {
+  let bucket = name.substring(0, Math.min(name.length, 2)).toLowerCase().replaceAll(/[^a-z\d]/g, '');
+  if (!bucket) {
+    return '@';
+  }
+  return bucket;
+}
 
 export default {
   components: {
@@ -653,7 +664,7 @@ export default {
       this.editModalOpen = true;
     },
     editApp(id) {
-      this.editForm = JSON.parse(JSON.stringify(this.apps[id]));
+      this.editForm = structuredClone(this.apps[id]);
       this.editForm.index = id;
       if (this.editForm["prep-cmd"] === undefined)
         this.editForm["prep-cmd"] = [];
@@ -731,14 +742,6 @@ export default {
       // Use search query if provided, otherwise fall back to app name
       const searchTerm = this.coverSearchQuery.trim() || this.editForm["name"].toString();
 
-      function getSearchBucket(name) {
-        let bucket = name.substring(0, Math.min(name.length, 2)).toLowerCase().replaceAll(/[^a-z\d]/g, '');
-        if (!bucket) {
-          return '@';
-        }
-        return bucket;
-      }
-
       function searchCovers(name) {
         if (!name) {
           return Promise.resolve([]);
@@ -759,7 +762,7 @@ export default {
             }).catch(() => null);
           }
           return null;
-        }).filter(item => item)))
+        }).filter(Boolean)))
           .then(results => results
             .filter(item => item && item.cover && item.cover.url)
             .map(game => {
@@ -776,7 +779,7 @@ export default {
                 url: `https://images.igdb.com/igdb/image/upload/t_cover_big/${slug}.jpg`,
                 saveUrl: `https://images.igdb.com/igdb/image/upload/t_cover_big_2x/${slug}.png`,
               }
-            }).filter(item => item));
+            }).filter(Boolean));
       }
 
       searchCovers(searchTerm)
@@ -879,7 +882,7 @@ export default {
       });
     },
     save() {
-      this.editForm["image-path"] = this.editForm["image-path"].toString().replace(/"/g, '');
+      this.editForm["image-path"] = this.editForm["image-path"].toString().replaceAll('"', '');
       apiFetch("./api/apps", {
         method: "POST",
         headers: {

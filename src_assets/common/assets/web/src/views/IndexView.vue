@@ -3,12 +3,12 @@
   <p>{{ $t('index.description') }}</p>
 
   <!-- Fatal Errors Alert -->
-  <AlertBox v-if="fancyLogs.find(x => x.level === 'Fatal')" variant="danger" class="my-4"
+  <AlertBox v-if="fancyLogs.some(x => x.level === 'Fatal')" variant="danger" class="my-4"
     :action="{ to: { path: '/troubleshooting', hash: '#logs' }, icon: FileText, label: 'View Logs' }">
     <div v-html="$t('index.startup_errors')"></div>
     <template #body>
       <ul class="mb-3">
-        <li v-for="v in fancyLogs.filter(x => x.level === 'Fatal')">{{ v.value }}</li>
+        <li v-for="v in fancyLogs.filter(x => x.level === 'Fatal')" :key="v.timestamp">{{ v.value }}</li>
       </ul>
     </template>
   </AlertBox>
@@ -216,7 +216,7 @@ export default {
     },
     buildVersionIsDirty() {
       return this.version.version?.split(".").length === 5 &&
-        this.version.version.indexOf("dirty") !== -1
+        this.version.version.includes("dirty")
     },
     releaseAnnouncements() {
       const list = [];
