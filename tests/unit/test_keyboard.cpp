@@ -22,10 +22,9 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
-#include <iomanip>
+#include <format>
 #include <memory>
 #include <set>
-#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -192,7 +191,7 @@ namespace {
    * @brief One modifier the client can report, with the keys that hold it down.
    */
   struct modifier_t {
-    std::uint8_t bit;  ///< Modifier bit carried in the keyboard packet.
+    unsigned bit;  ///< Modifier bit carried in the keyboard packet.
     std::uint16_t left;  ///< Left-hand virtual-key code.
     std::uint16_t right;  ///< Right-hand virtual-key code.
     std::uint16_t generic;  ///< Side-agnostic virtual-key code.
@@ -224,15 +223,49 @@ namespace {
    * @return Virtual-key code the client sends.
    */
   std::uint16_t key_for_side(const modifier_t &modifier, side_e side) {
+    using enum side_e;
     switch (side) {
-      case side_e::left:
+      case left:
         return modifier.left;
-      case side_e::right:
+      case right:
         return modifier.right;
-      case side_e::generic:
+      case generic:
       default:
         return modifier.generic;
     }
+  }
+
+  /**
+   * @brief One modifier combination the client holds down, in press order.
+   */
+  struct held_modifiers_t {
+    std::vector<std::pair<std::uint16_t, unsigned>> keys;  ///< Key code and the mask reported with it.
+    unsigned claimed = 0;  ///< Full mask once every key is down.
+    std::string label;  ///< Combination name for assertion traces.
+  };
+
+  /**
+   * @brief Select the modifier keys named by a combination bitmask.
+   *
+   * Each key carries the mask accumulated so far, which matches a client that presses the
+   * modifiers one at a time.
+   *
+   * @param combination Bit per entry of the modifier table.
+   * @param side Which physical side the client reports.
+   * @return Keys to hold, the resulting mask, and a trace label.
+   */
+  held_modifiers_t select_modifiers(unsigned combination, side_e side) {
+    held_modifiers_t held;
+    for (std::size_t index = 0; index < modifiers.size(); ++index) {
+      if (!(combination & (1u << index))) {
+        continue;
+      }
+      held.claimed |= modifiers[index].bit;
+      held.keys.emplace_back(key_for_side(modifiers[index], side), held.claimed);
+      held.label += (held.label.empty() ? "" : "+");
+      held.label += modifiers[index].name;
+    }
+    return held;
   }
 
   /**
@@ -242,9 +275,7 @@ namespace {
    * @return Hexadecimal literal.
    */
   std::string hex(unsigned value) {
-    std::ostringstream out;
-    out << "0x" << std::uppercase << std::hex << value;
-    return out.str();
+    return std::format("0x{:X}", value);
   }
 
   /**
@@ -258,11 +289,7 @@ namespace {
    * @return Token describing the event.
    */
   std::string describe(const input::testing::keyboard_event_t &event) {
-    std::ostringstream token;
-    token << (event.release ? '-' : '+')
-          << "0x" << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
-          << event.key_code;
-    return token.str();
+    return std::format("{}0x{:02X}", event.release ? '-' : '+', event.key_code);
   }
 
   /**
@@ -315,7 +342,7 @@ namespace {
       });
 
       static int session = 0;
-      stream_ = input::alloc(std::make_shared<safe::mail_raw_t>(), "keyboard-test-" + std::to_string(++session));
+      stream_ = input::alloc(std::make_shared<safe::mail_raw_t>(), std::format("keyboard-test-{}", ++session));
       ASSERT_NE(stream_, nullptr);
     }
 
@@ -338,8 +365,14 @@ namespace {
      * @param client_modifiers Modifier bitmask the client reports as held.
      * @param flags Bit flags carried by the packet.
      */
-    void press(std::uint16_t key_code, std::uint8_t client_modifiers = 0, std::uint8_t flags = 0) {
-      input::testing::send_keyboard_packet(stream_, key_code, client_modifiers, flags, false);
+    void press(std::uint16_t key_code, unsigned client_modifiers = 0, unsigned flags = 0) {
+      input::testing::send_keyboard_packet(
+        stream_,
+        key_code,
+        static_cast<std::uint8_t>(client_modifiers),
+        static_cast<std::uint8_t>(flags),
+        false
+      );
     }
 
     /**
@@ -349,8 +382,14 @@ namespace {
      * @param client_modifiers Modifier bitmask the client reports as held.
      * @param flags Bit flags carried by the packet.
      */
-    void release(std::uint16_t key_code, std::uint8_t client_modifiers = 0, std::uint8_t flags = 0) {
-      input::testing::send_keyboard_packet(stream_, key_code, client_modifiers, flags, true);
+    void release(std::uint16_t key_code, unsigned client_modifiers = 0, unsigned flags = 0) {
+      input::testing::send_keyboard_packet(
+        stream_,
+        key_code,
+        static_cast<std::uint8_t>(client_modifiers),
+        static_cast<std::uint8_t>(flags),
+        true
+      );
     }
 
     /**
@@ -386,9 +425,8 @@ namespace {
       return *context_->keyboard;
     }
 
-    std::shared_ptr<input::input_t> stream_;  ///< Stream input state under test.
-
   private:
+    std::shared_ptr<input::input_t> stream_;  ///< Stream input state under test.
     std::vector<input::testing::keyboard_event_t> events_;  ///< Keyboard output recorded for the current test.
     platf::virtualhid::input_context_t *context_ = nullptr;  ///< Fake input context installed in the global backend.
     config::input_t original_input_;  ///< Input configuration restored after each test.
@@ -469,35 +507,22 @@ TEST_F(KeyboardPassthroughTest, HoldsEveryModifierCombinationWithoutSyntheticInj
     // Bit 0 selects shift, bit 1 ctrl, bit 2 alt, bit 3 meta: all 15 non-empty combinations of
     // single modifiers, pairs, triples, and the full quad.
     for (unsigned combination = 1; combination < (1u << modifiers.size()); ++combination) {
-      // Each held key is reported with the modifiers accumulated so far, matching a client
-      // that presses them one at a time.
-      std::vector<std::pair<std::uint16_t, std::uint8_t>> held;
-      std::uint8_t claimed = 0;
-      std::string label;
-      for (std::size_t index = 0; index < modifiers.size(); ++index) {
-        if (!(combination & (1u << index))) {
-          continue;
-        }
-        claimed |= modifiers[index].bit;
-        held.emplace_back(key_for_side(modifiers[index], side), claimed);
-        label += (label.empty() ? "" : "+");
-        label += modifiers[index].name;
-      }
-      SCOPED_TRACE(label + " (side " + std::to_string(static_cast<int>(side)) + ")");
+      const auto held = select_modifiers(combination, side);
+      SCOPED_TRACE(std::format("{} (side {})", held.label, static_cast<int>(side)));
 
       std::vector<std::string> expected;
-      for (const auto &[key_code, reported] : held) {
+      for (const auto &[key_code, reported] : held.keys) {
         press(key_code, reported);
         expected.push_back(pressed(key_code));
       }
 
-      press(VKEY_A, claimed);
-      release(VKEY_A, claimed);
+      press(VKEY_A, held.claimed);
+      release(VKEY_A, held.claimed);
       expected.push_back(pressed(VKEY_A));
       expected.push_back(released(VKEY_A));
 
-      for (auto key = held.rbegin(); key != held.rend(); ++key) {
-        release(key->first, claimed);
+      for (auto key = held.keys.rbegin(); key != held.keys.rend(); ++key) {
+        release(key->first, held.claimed);
         expected.push_back(released(key->first));
       }
 
@@ -510,7 +535,7 @@ TEST_F(KeyboardPassthroughTest, InjectsSyntheticModifiersTheClientHoldsWithoutSe
   // Moonlight can report a modifier without ever sending its key event, for example when the
   // client's own compositor swallowed it. Sunshine wraps the key in a real modifier press.
   struct injectable_t {
-    std::uint8_t bit;
+    unsigned bit;
     std::uint16_t key_code;
   };
 
@@ -522,7 +547,7 @@ TEST_F(KeyboardPassthroughTest, InjectsSyntheticModifiersTheClientHoldsWithoutSe
 
   for (unsigned combination = 1; combination < (1u << injectable.size()); ++combination) {
     std::vector<std::string> expected;
-    std::uint8_t claimed = 0;
+    unsigned claimed = 0;
     for (std::size_t index = 0; index < injectable.size(); ++index) {
       if (combination & (1u << index)) {
         claimed |= injectable[index].bit;
@@ -799,9 +824,9 @@ TEST_F(KeyboardPassthroughTest, ReleasesHeldKeysAsThemselvesWithoutKeybindings) 
 
   // key_press is an unordered_map, so the release order is unspecified.
   auto released_keys = taken();
-  std::sort(released_keys.begin(), released_keys.end());
-  std::vector<std::string> expected {released(VKEY_LMENU), released(VKEY_A)};
-  std::sort(expected.begin(), expected.end());
+  std::ranges::sort(released_keys);
+  std::vector expected {released(VKEY_LMENU), released(VKEY_A)};
+  std::ranges::sort(expected);
   EXPECT_EQ(released_keys, expected);
 }
 

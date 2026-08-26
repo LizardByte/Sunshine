@@ -166,7 +166,15 @@ namespace input {
 
   static platf::input_t platf_input;
 #ifdef SUNSHINE_TESTS
-  static std::function<void(const testing::keyboard_event_t &)> keyboard_sink {};
+  /**
+   * @brief Recorder that unit tests install in place of the platform keyboard.
+   *
+   * @return Mutable reference to the recorder, empty when no test installed one.
+   */
+  std::function<void(const testing::keyboard_event_t &)> &keyboard_sink() {
+    static std::function<void(const testing::keyboard_event_t &)> sink;
+    return sink;
+  }
 #endif
   static std::bitset<platf::MAX_GAMEPADS> gamepadMask {};
 
@@ -992,8 +1000,8 @@ namespace input {
    */
   void emit_keyboard_update(uint16_t key_code, bool release, uint8_t flags) {
 #ifdef SUNSHINE_TESTS
-    if (keyboard_sink) {
-      keyboard_sink(testing::keyboard_event_t {key_code, release, flags});
+    if (keyboard_sink()) {
+      keyboard_sink()(testing::keyboard_event_t {key_code, release, flags});
       return;
     }
 #endif
@@ -2186,7 +2194,7 @@ namespace input {
     }
 
     void set_keyboard_sink(std::function<void(const keyboard_event_t &)> sink) {
-      keyboard_sink = std::move(sink);
+      keyboard_sink() = std::move(sink);
     }
 
     void send_keyboard_packet(std::shared_ptr<input_t> &input, std::uint16_t key_code, std::uint8_t modifiers, std::uint8_t flags, bool release) {
