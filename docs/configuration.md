@@ -2129,6 +2129,44 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### chroma_supersample
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            When the stream resolution is an exact, even integer multiple of the capture resolution (2x, 4x, ...) in
+            both axes, use nearest-neighbour (point) sampling for the capture-to-stream upscale instead of the
+            default bilinear filter.
+            @note{This makes 4:2:0 chroma subsampling exact: every captured pixel is replicated into an identical
+            NxN block, so the encoder's 2x2 chroma averaging reproduces the capture's own chroma bit-for-bit, prior
+            to quantisation. This is a practical alternative to 4:4:4 encoding on GPUs whose hardware encoder has no
+            4:4:4 profile at all (e.g. AMD VCN, Intel Quick Sync). See
+            [Moonlight issue #1671](https://github.com/moonlight-stream/moonlight-qt/issues/1671) for the
+            protocol-level version of the same idea; this option makes the existing supersampling workaround
+            exact without any client-side changes.}
+            @note{The client (Moonlight) must present the stream at exactly 1/N of the stream resolution for the
+            property to hold end to end — fullscreen playback is the reliable way to get this; a window with
+            decorations, or any non-integer client-side scaling, silently breaks it.}
+            @note{Only applies on Linux, where the capture-to-stream scale is a single GL blit. When the geometry
+            does not qualify (non-integer or odd ratio, mismatched axes), Sunshine logs a warning and falls back to
+            the existing bilinear scaling — the stream still works, just without the exactness property.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            chroma_supersample = enabled
+            @endcode</td>
+    </tr>
+</table>
+
 ### capture
 
 <table>
