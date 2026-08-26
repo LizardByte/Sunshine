@@ -587,7 +587,7 @@
     "virtualhid_benefit_mouse_title": "Мишка чрез сурови входни данни",
     "virtualhid_benefit_maintained": "Активно разработван и поддържан от екипа на LizardByte, вместо да се разчита само на прекратения проект ViGEmBus.",
     "virtualhid_benefit_maintained_title": "Активно поддържан",
-    "virtualhid_benefits_title": "Предимства спрямо ViGEmBus",
+    "virtualhid_benefits_title": "Предимства на драйвера Virtual HID спрямо ViGEmBus",
     "virtualhid_download": "Сваляне на драйвера за виртуални контролери",
     "virtualhid_driver": "Драйвер libvirtualhid",
     "virtualhid_license": "Лиценз за драйвера за виртуални устройства",
