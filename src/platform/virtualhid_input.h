@@ -279,4 +279,14 @@ namespace platf::virtualhid {
    */
   bool configured_gamepad_supports_touchpad();
 
+  /**
+   * @brief Return whether the configured gamepad profile needs Moonlight controller extensions.
+   *
+   * Moonlight uses the controller-touch feature flag to authorize both controller
+   * touchpad and motion packets.
+   *
+   * @return True when controller touchpad or motion input should be advertised.
+   */
+  bool configured_gamepad_supports_controller_extensions();
+
 }  // namespace platf::virtualhid

@@ -45,6 +45,9 @@ namespace platf::virtualhid {
     std::uint8_t last_red = 0;  ///< Last red LED value.
     std::uint8_t last_green = 0;  ///< Last green LED value.
     std::uint8_t last_blue = 0;  ///< Last blue LED value.
+    bool has_last_player_leds = false;  ///< Whether last player indicator LED values are valid.
+    std::uint8_t last_solid_player_leds = 0;  ///< Last solid player indicator mask.
+    std::uint8_t last_flashing_player_leds = 0;  ///< Last flashing player indicator mask.
   };
 
   namespace {
@@ -316,6 +319,22 @@ namespace platf::virtualhid {
       return event;
     }
 
+    /**
+     * @brief Pack four player indicator states into a protocol bit mask.
+     *
+     * @param leds Player indicator states ordered from player one through four.
+     * @return Four-bit player indicator mask.
+     */
+    std::uint8_t player_led_mask(const std::array<bool, 4> &leds) {
+      std::byte mask {};
+      for (std::size_t index = 0; index < leds.size(); ++index) {
+        if (leds[index]) {
+          mask |= std::byte {1} << index;
+        }
+      }
+      return std::to_integer<std::uint8_t>(mask);
+    }
+
     lvh::PenToolType pen_tool(std::uint8_t tool) {
       using enum lvh::PenToolType;
 
@@ -390,6 +409,19 @@ namespace platf::virtualhid {
           gamepad->last_blue = output.blue;
           raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_rgb_led(gamepad->client_relative_index, output.red, output.green, output.blue));
           break;
+        case lvh::GamepadOutputKind::player_leds:
+          {
+            const auto solid = player_led_mask(output.player_leds);
+            const auto flashing = player_led_mask(output.flashing_player_leds);
+            if (gamepad->has_last_player_leds && gamepad->last_solid_player_leds == solid && gamepad->last_flashing_player_leds == flashing) {
+              return;
+            }
+            gamepad->has_last_player_leds = true;
+            gamepad->last_solid_player_leds = solid;
+            gamepad->last_flashing_player_leds = flashing;
+            raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_player_leds(gamepad->client_relative_index, solid, flashing));
+            break;
+          }
         case lvh::GamepadOutputKind::adaptive_triggers:
           raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_adaptive_triggers(gamepad->client_relative_index, output.adaptive_trigger_flags, output.left_trigger_effect_type, output.right_trigger_effect_type, output.left_trigger_effect, output.right_trigger_effect));
           break;
@@ -595,6 +627,7 @@ namespace platf::virtualhid {
     gamepad->has_last_rumble = false;
     gamepad->has_last_trigger_rumble = false;
     gamepad->has_last_rgb = false;
+    gamepad->has_last_player_leds = false;
 
     if (gamepad->adapter->support().supports_motion) {
       raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_motion_event_state(id.clientRelativeIndex, LI_MOTION_TYPE_ACCEL, 100));
@@ -911,6 +944,16 @@ namespace platf::virtualhid {
 
     const auto profile = profile_for_name(config::input.gamepad).profile();
     return lvh::gamepad_profile_support(profile).supports_touchpad;
+  }
+
+  bool configured_gamepad_supports_controller_extensions() {
+    if (config::input.gamepad == "auto"sv) {
+      return true;
+    }
+
+    const auto profile = profile_for_name(config::input.gamepad).profile();
+    const auto &support = lvh::gamepad_profile_support(profile);
+    return support.supports_touchpad || support.supports_motion;
   }
 
 }  // namespace platf::virtualhid

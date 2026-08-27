@@ -116,6 +116,7 @@ namespace platf {
     rumble_triggers,  ///< Rumble triggers
     set_motion_event_state,  ///< Set motion event state
     set_rgb_led,  ///< Set RGB LED
+    set_player_leds,  ///< Set player indicator LEDs
     set_adaptive_triggers,  ///< Set adaptive triggers
   };
 
@@ -190,6 +191,22 @@ namespace platf {
     }
 
     /**
+     * @brief Create player indicator LED state.
+     *
+     * @param id Identifier for the controller, session, display, or resource.
+     * @param solid Four-bit mask of solid player indicators.
+     * @param flashing Four-bit mask of flashing player indicators.
+     * @return Constructed player indicator LED object.
+     */
+    static gamepad_feedback_msg_t make_player_leds(std::uint16_t id, std::uint8_t solid, std::uint8_t flashing) {
+      gamepad_feedback_msg_t msg;
+      msg.type = gamepad_feedback_e::set_player_leds;
+      msg.id = id;
+      msg.data.player_leds = {solid, flashing};
+      return msg;
+    }
+
+    /**
      * @brief Create adaptive triggers.
      *
      * @param id Identifier for the controller, session, display, or resource.
@@ -232,6 +249,11 @@ namespace platf {
         std::uint8_t g;
         std::uint8_t b;
       } rgb_led;
+
+      struct {
+        std::uint8_t solid;
+        std::uint8_t flashing;
+      } player_leds;
 
       struct {
         uint16_t controllerNumber;
@@ -380,9 +402,9 @@ namespace platf {
      */
     constexpr caps_t pen_touch = 0x01;  // Pen and touch events
     /**
-     * @brief Capability bit indicating controller touchpad support.
+     * @brief Capability bit indicating controller touchpad and motion support.
      */
-    constexpr caps_t controller_touch = 0x02;  // Controller touch events
+    constexpr caps_t controller_touch = 0x02;  // Controller touch and motion events
   };  // namespace platform_caps
 
   /**

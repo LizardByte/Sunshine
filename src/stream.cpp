@@ -49,6 +49,7 @@ constexpr int IDX_RUMBLE_TRIGGER_DATA = 12;  ///< Control-stream message index f
 constexpr int IDX_SET_MOTION_EVENT = 13;  ///< Control-stream message index for set motion event.
 constexpr int IDX_SET_RGB_LED = 14;  ///< Control-stream message index for set rgb led.
 constexpr int IDX_SET_ADAPTIVE_TRIGGERS = 15;  ///< Control-stream message index for set adaptive triggers.
+constexpr int IDX_SET_PLAYER_LEDS = 16;  ///< Control-stream message index for set player indicator LEDs.
 
 static const short packetTypes[] = {
   0x0305,  // Start A
@@ -67,6 +68,7 @@ static const short packetTypes[] = {
   0x5501,  // Set motion event (Sunshine protocol extension)
   0x5502,  // Set RGB LED (Sunshine protocol extension)
   0x5503,  // Set Adaptive triggers (Sunshine protocol extension)
+  0x5504,  // Set player indicator LEDs (Sunshine protocol extension)
 };
 
 namespace asio = boost::asio;
@@ -237,6 +239,17 @@ namespace stream {
     std::uint8_t r;  ///< Red LED channel.
     std::uint8_t g;  ///< Green LED channel.
     std::uint8_t b;  ///< Blue LED channel.
+  };
+
+  /**
+   * @brief Control payload that sets controller player indicator LEDs.
+   */
+  struct control_set_player_leds_t {
+    control_header_v2 header;  ///< Control message header preceding this payload.
+
+    std::uint16_t id;  ///< Controller identifier associated with this message.
+    std::uint8_t solid;  ///< Four-bit mask of solid player indicators.
+    std::uint8_t flashing;  ///< Four-bit mask of flashing player indicators.
   };
 
   /**
@@ -1031,6 +1044,22 @@ namespace stream {
       plaintext.b = data.b;
 
       BOOST_LOG(verbose) << "RGB: "sv << msg.id << " :: "sv << util::hex(data.r).to_string_view() << util::hex(data.g).to_string_view() << util::hex(data.b).to_string_view();
+      std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
+        encrypted_payload;
+
+      payload = encode_control(session, util::view(plaintext), encrypted_payload);
+    } else if (msg.type == platf::gamepad_feedback_e::set_player_leds) {
+      control_set_player_leds_t plaintext;
+      plaintext.header.type = packetTypes[IDX_SET_PLAYER_LEDS];
+      plaintext.header.payloadLength = sizeof(plaintext) - sizeof(control_header_v2);
+
+      auto &data = msg.data.player_leds;
+
+      plaintext.id = util::endian::little(msg.id);
+      plaintext.solid = data.solid;
+      plaintext.flashing = data.flashing;
+
+      BOOST_LOG(verbose) << "Player LEDs: "sv << msg.id << " :: solid "sv << util::hex(data.solid).to_string_view() << " :: flashing "sv << util::hex(data.flashing).to_string_view();
       std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
         encrypted_payload;
 
