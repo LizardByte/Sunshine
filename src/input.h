@@ -63,12 +63,12 @@ namespace input {
   bool probe_gamepads();
 
   /**
-   * @brief Recreate the shared libvirtualhid mouse after a license-state change.
+   * @brief Recreate shared libvirtualhid keyboard and mouse devices after a license-state change.
    *
-   * The work is serialized with streamed input so the mouse backend can switch
+   * The work is serialized with streamed input so both backends can switch
    * safely between the Windows HID and SendInput paths.
    */
-  void refresh_virtual_mouse();
+  void refresh_virtual_input();
 
   /**
    * @brief Allocate and initialize platform input state for a stream.

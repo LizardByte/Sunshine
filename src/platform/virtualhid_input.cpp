@@ -421,19 +421,25 @@ namespace platf::virtualhid {
       return;
     }
 
-    const auto &capabilities = runtime->capabilities();
-    if (capabilities.supports_keyboard) {
-      lvh::CreateKeyboardOptions options;
-      options.profile = lvh::profiles::keyboard();
-      options.stable_id = "sunshine-keyboard";
-      auto created = runtime->create_keyboard(options);
-      if (created) {
-        keyboard = std::move(created.keyboard);
-      } else {
-        log_failure("create libvirtualhid keyboard"sv, created.status);
-      }
-    }
+    refresh_keyboard();
     refresh_mouse();
+  }
+
+  void input_context_t::refresh_keyboard() {
+    keyboard.reset();
+    if (!runtime || !runtime->capabilities().supports_keyboard) {
+      return;
+    }
+
+    lvh::CreateKeyboardOptions options;
+    options.profile = lvh::profiles::keyboard();
+    options.stable_id = "sunshine-keyboard";
+    auto created = runtime->create_keyboard(options);
+    if (created) {
+      keyboard = std::move(created.keyboard);
+    } else {
+      log_failure("create libvirtualhid keyboard"sv, created.status);
+    }
   }
 
   void input_context_t::refresh_mouse() {

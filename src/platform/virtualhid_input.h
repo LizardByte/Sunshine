@@ -36,6 +36,11 @@ namespace platf::virtualhid {
     explicit input_context_t(lvh::BackendKind backend);
 
     /**
+     * @brief Recreate the shared keyboard using the runtime's current driver and license state.
+     */
+    void refresh_keyboard();
+
+    /**
      * @brief Recreate the shared mouse using the runtime's current driver and license state.
      */
     void refresh_mouse();

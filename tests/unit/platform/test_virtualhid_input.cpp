@@ -240,6 +240,10 @@ TEST_F(VirtualHidDeviceTest, RejectsUnavailableAndInvalidGamepadSlots) {
 
   platf::virtualhid::input_context_t no_runtime {lvh::BackendKind::fake};
   no_runtime.runtime.reset();
+  no_runtime.refresh_keyboard();
+  no_runtime.refresh_mouse();
+  EXPECT_EQ(no_runtime.keyboard, nullptr);
+  EXPECT_EQ(no_runtime.mouse, nullptr);
   EXPECT_EQ(platf::virtualhid::alloc_gamepad(no_runtime, valid_id, metadata, nullptr), -1);
 
   EXPECT_EQ(platf::virtualhid::alloc_gamepad(*context(), {-1, 0}, metadata, nullptr), -1);
