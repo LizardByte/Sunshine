@@ -3,10 +3,17 @@
  * @brief Definitions for entry handling functions.
  */
 // standard includes
+#include <bit>
+#include <charconv>
 #include <csignal>
+#include <cstdint>
 #include <format>
 #include <iostream>
+#include <string>
 #include <thread>
+
+// lib includes
+#include <lizardbyte/common/env.h>
 
 // local includes
 #include "config.h"
@@ -121,6 +128,33 @@ bool is_gamestream_enabled() {
 }
 
 namespace service_ctrl {
+  /// Environment variable used to pass the inherited service readiness event handle.
+  constexpr auto SERVICE_READY_EVENT_ENV = "SUNSHINE_SERVICE_READY_EVENT";
+
+  void signal_ready() {
+    std::string event_handle_text;
+    if (!lizardbyte::common::get_env(SERVICE_READY_EVENT_ENV, event_handle_text)) {
+      return;
+    }
+
+    std::uintptr_t ready_event_value {};
+    const auto [end, error] = std::from_chars(event_handle_text.data(), event_handle_text.data() + event_handle_text.size(), ready_event_value);
+    if (error != std::errc {} || end != event_handle_text.data() + event_handle_text.size() || ready_event_value == 0) {
+      BOOST_LOG(warning) << "Ignoring invalid service ready event handle";
+      static_cast<void>(lizardbyte::common::unset_env(SERVICE_READY_EVENT_ENV));
+      return;
+    }
+
+    auto ready_event = std::bit_cast<HANDLE>(ready_event_value);
+    if (!SetEvent(ready_event)) {
+      auto winerr = GetLastError();
+      BOOST_LOG(warning) << "Failed to signal service ready event: "sv << winerr;
+    }
+
+    CloseHandle(ready_event);
+    static_cast<void>(lizardbyte::common::unset_env(SERVICE_READY_EVENT_ENV));
+  }
+
   /**
    * @brief Owns Windows service-manager handles for the Sunshine service.
    */
