@@ -80,9 +80,9 @@ namespace platf {
       return timestamp;
     }
 
-    // Upper bound on how long the ScreenCaptureKit capture loop waits for a screenshot
+    // Upper bound on how long the ScreenCaptureKit capture loop waits for a frame
     // before checking for interrupt requests again.
-    constexpr auto SCKIT_SCREENSHOT_POLL_INTERVAL_NS = NSEC_PER_SEC / 60;
+    constexpr auto SCKIT_FRAME_POLL_INTERVAL_NS = NSEC_PER_SEC / 60;
 
     /**
      * @brief Wrap a captured sample buffer into a Sunshine image.
@@ -403,19 +403,10 @@ namespace platf {
         dispatch_release(signal);
       });
 
-      const auto frame_interval = std::chrono::nanoseconds(NSEC_PER_SEC / std::max(sc_capture.frameRate, 1));
-      auto next_frame_slot = std::chrono::steady_clock::now();
-
       while (true) {
-        // Pace the polling to the capture frame rate and keep exactly one request in flight.
-        std::this_thread::sleep_until(next_frame_slot);
-        next_frame_slot += frame_interval;
-        if (next_frame_slot < std::chrono::steady_clock::now()) {
-          next_frame_slot = std::chrono::steady_clock::now();
-        }
-        [sc_capture requestScreenshotSampleBuffer];
-
-        auto frame_status = dispatch_semaphore_wait(frame_signal, dispatch_time(DISPATCH_TIME_NOW, SCKIT_SCREENSHOT_POLL_INTERVAL_NS));
+        // The stream pushes frames on its own; wait for the next one, waking periodically
+        // to check for interrupt requests.
+        auto frame_status = dispatch_semaphore_wait(frame_signal, dispatch_time(DISPATCH_TIME_NOW, SCKIT_FRAME_POLL_INTERVAL_NS));
         (void) frame_status;
         if (dispatch_semaphore_wait(signal, DISPATCH_TIME_NOW) == 0) {
           break;
