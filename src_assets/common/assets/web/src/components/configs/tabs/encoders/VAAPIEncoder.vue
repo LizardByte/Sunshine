@@ -1,13 +1,48 @@
 <script setup>
-import { ref } from 'vue'
 import Checkbox from "@/components/Checkbox.vue";
+import Select from '@/components/Select.vue'
+import { useConfigTab } from '@/composables/useConfigTab'
+import { useI18n } from 'vue-i18n'
 
-const props = defineProps([
-  'platform',
-  'config',
-])
+const { t } = useI18n()
 
-const config = ref(props.config)
+const props = defineProps({
+  platform: String,
+  config: {
+    type: Object,
+    default: () => structuredClone(OPTIONS)
+  }
+})
+
+const { config, getOwnConfigOptions } = useConfigTab(props.config, OPTIONS)
+
+defineExpose({ getOwnConfigOptions })
+
+const RC_OPTIONS = [
+  { value: 'auto', label: t('_common.auto') },
+  { value: 'avbr', label: t('config.vaapi_rc_avbr') },
+  { value: 'vbr', label: t('config.vaapi_rc_vbr') },
+  { value: 'cbr', label: t('config.vaapi_rc_cbr') },
+  { value: 'cqp', label: t('config.vaapi_rc_cqp') },
+  { value: 'icq', label: t('config.vaapi_rc_icq') },
+  { value: 'qvbr', label: t('config.vaapi_rc_qvbr') },
+]
+
+const QUALITY_OPTIONS = [
+  { value: 'auto', label: t('_common.auto') },
+  { value: 'speed', label: t('config.vaapi_quality_speed') },
+  { value: 'balanced', label: t('config.vaapi_quality_balanced') },
+  { value: 'quality', label: t('config.vaapi_quality_quality') },
+]
+</script>
+
+<script>
+export const OPTIONS = {
+  "vaapi_blbrc": "disabled",
+  "vaapi_quality": "auto",
+  "vaapi_rc": "auto",
+  "vaapi_strict_rc_buffer": "disabled",
+}
 </script>
 
 <template>
@@ -25,19 +60,8 @@ const config = ref(props.config)
              aria-labelledby="panelsStayOpen-headingOne">
           <div class="accordion-body">
             <!-- VAAPI Rate Control -->
-            <div class="mb-3">
-              <label for="vaapi_rc" class="form-label">{{ $t('config.vaapi_rc') }}</label>
-              <select id="vaapi_rc" class="form-select" v-model="config.vaapi_rc">
-                <option value="auto">{{ $t('_common.auto') }}</option>
-                <option value="avbr">{{ $t('config.vaapi_rc_avbr') }}</option>
-                <option value="vbr">{{ $t('config.vaapi_rc_vbr') }}</option>
-                <option value="cbr">{{ $t('config.vaapi_rc_cbr') }}</option>
-                <option value="cqp">{{ $t('config.vaapi_rc_cqp') }}</option>
-                <option value="icq">{{ $t('config.vaapi_rc_icq') }}</option>
-                <option value="qvbr">{{ $t('config.vaapi_rc_qvbr') }}</option>
-              </select>
-              <div class="form-text">{{ $t('config.vaapi_rc_desc') }}</div>
-            </div>
+            <Select id="vaapi_rc" v-model="config.vaapi_rc" :label="$t('config.vaapi_rc')"
+              :desc="$t('config.vaapi_rc_desc')" :options="RC_OPTIONS" />
 
             <!-- BLBRC -->
             <Checkbox class="mb-3"
@@ -72,16 +96,8 @@ const config = ref(props.config)
              aria-labelledby="panelsStayOpen-headingTwo">
           <div class="accordion-body">
             <!-- VAAPI Quality -->
-            <div class="mb-3">
-              <label for="vaapi_quality" class="form-label">{{ $t('config.vaapi_quality') }}</label>
-              <select id="vaapi_quality" class="form-select" v-model="config.vaapi_quality">
-                <option value="auto">{{ $t('_common.auto') }}</option>
-                <option value="speed">{{ $t('config.vaapi_quality_speed') }}</option>
-                <option value="balanced">{{ $t('config.vaapi_quality_balanced') }}</option>
-                <option value="quality">{{ $t('config.vaapi_quality_quality') }}</option>
-              </select>
-              <div class="form-text">{{ $t('config.vaapi_quality_desc') }}</div>
-            </div>
+            <Select id="vaapi_quality" v-model="config.vaapi_quality" :label="$t('config.vaapi_quality')"
+              :desc="$t('config.vaapi_quality_desc')" :options="QUALITY_OPTIONS" />
           </div>
         </div>
       </div>

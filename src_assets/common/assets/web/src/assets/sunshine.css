@@ -1467,10 +1467,6 @@ p {
     width: 14rem;
 }
 
-.config-search {
-    flex: 0 1 28rem;
-}
-
 /* ==========================================================================
    Form Styles
    ========================================================================== */
@@ -1889,8 +1885,26 @@ p {
     gap: var(--spacing-lg);
 }
 
+.config-search-toolbar .config-search-wrapper {
+    max-width: 28rem;
+}
+
+.config-search-wrapper {
+    position: relative;
+}
+
+.config-search-results {
+    width: 100%;
+    max-height: 20rem;
+    overflow-y: auto;
+}
+
+.config-search-results .dropdown-item {
+    white-space: normal;
+}
+
 .config-nav {
-    flex: 0 0 15rem;
+    flex: 0 0 18rem;
     position: sticky;
     top: var(--spacing-lg);
 }

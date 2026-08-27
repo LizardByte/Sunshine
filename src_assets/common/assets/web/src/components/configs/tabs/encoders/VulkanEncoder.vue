@@ -1,38 +1,52 @@
 <script setup>
-import { ref } from 'vue'
+import Select from '@/components/Select.vue'
+import { useConfigTab } from '@/composables/useConfigTab'
+import { useI18n } from 'vue-i18n'
 
-const props = defineProps([
-  'platform',
-  'config',
-])
+const { t } = useI18n()
 
-const config = ref(props.config)
+const props = defineProps({
+  platform: String,
+  config: {
+    type: Object,
+    default: () => structuredClone(OPTIONS)
+  }
+})
+
+const { config, getOwnConfigOptions } = useConfigTab(props.config, OPTIONS)
+
+defineExpose({ getOwnConfigOptions })
+
+const TUNE_OPTIONS = [
+  { value: '0', label: t('_common.auto') },
+  { value: '1', label: t('config.vk_tune_hq') },
+  { value: '2', label: t('config.vk_tune_ll') },
+  { value: '3', label: t('config.vk_tune_ull') },
+]
+
+const RC_MODE_OPTIONS = [
+  { value: '0', label: t('_common.auto') },
+  { value: '1', label: t('config.vk_rc_cqp') },
+  { value: '2', label: t('config.vk_rc_cbr') },
+  { value: '4', label: t('config.vk_rc_vbr') },
+]
+</script>
+
+<script>
+export const OPTIONS = {
+  "vk_tune": 2,
+  "vk_rc_mode": 2,
+}
 </script>
 
 <template>
   <div id="vulkan-encoder" class="config-page">
     <!-- Tuning -->
-    <div class="mb-3">
-      <label for="vk_tune" class="form-label">{{ $t('config.vk_tune') }}</label>
-      <select id="vk_tune" class="form-select" v-model="config.vk_tune">
-        <option value="0">{{ $t('_common.auto') }}</option>
-        <option value="1">{{ $t('config.vk_tune_hq') }}</option>
-        <option value="2">{{ $t('config.vk_tune_ll') }}</option>
-        <option value="3">{{ $t('config.vk_tune_ull') }}</option>
-      </select>
-      <div class="form-text">{{ $t('config.vk_tune_desc') }}</div>
-    </div>
+    <Select id="vk_tune" v-model="config.vk_tune" :label="$t('config.vk_tune')" :desc="$t('config.vk_tune_desc')"
+      :options="TUNE_OPTIONS" />
 
     <!-- Rate Control -->
-    <div class="mb-3">
-      <label for="vk_rc_mode" class="form-label">{{ $t('config.vk_rc_mode') }}</label>
-      <select id="vk_rc_mode" class="form-select" v-model="config.vk_rc_mode">
-        <option value="0">{{ $t('_common.auto') }}</option>
-        <option value="1">{{ $t('config.vk_rc_cqp') }}</option>
-        <option value="2">{{ $t('config.vk_rc_cbr') }}</option>
-        <option value="4">{{ $t('config.vk_rc_vbr') }}</option>
-      </select>
-      <div class="form-text">{{ $t('config.vk_rc_mode_desc') }}</div>
-    </div>
+    <Select id="vk_rc_mode" v-model="config.vk_rc_mode" :label="$t('config.vk_rc_mode')"
+      :desc="$t('config.vk_rc_mode_desc')" :options="RC_MODE_OPTIONS" />
   </div>
 </template>

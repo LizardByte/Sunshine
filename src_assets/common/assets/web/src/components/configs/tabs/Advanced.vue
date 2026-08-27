@@ -1,14 +1,88 @@
 <script setup>
-import { ref } from 'vue'
-import PlatformLayout from '@/components/PlatformLayout.vue'
+import Select from '@/components/Select.vue'
+import { useConfigTab } from '@/composables/useConfigTab'
+import { useI18n } from 'vue-i18n'
 
-const props = defineProps([
-  'platform',
-  'config',
-  'global_prep_cmd'
-])
+const { t } = useI18n()
 
-const config = ref(props.config)
+const props = defineProps({
+  platform: String,
+  config: {
+    type: Object,
+    default: () => structuredClone(OPTIONS)
+  },
+  global_prep_cmd: Array
+})
+
+const { config, getOwnConfigOptions } = useConfigTab(props.config, OPTIONS)
+
+defineExpose({ getOwnConfigOptions })
+
+const HEVC_MODE_OPTIONS = [
+  { value: '0', label: t('config.hevc_mode_0') },
+  { value: '1', label: t('config.hevc_mode_1') },
+  { value: '2', label: t('config.hevc_mode_2') },
+  { value: '3', label: t('config.hevc_mode_3') },
+]
+
+const AV1_MODE_OPTIONS = [
+  { value: '0', label: t('config.av1_mode_0') },
+  { value: '1', label: t('config.av1_mode_1') },
+  { value: '2', label: t('config.av1_mode_2') },
+  { value: '3', label: t('config.av1_mode_3') },
+]
+
+const CAPTURE_OPTIONS = {
+  freebsd: [
+    { value: 'wlr', label: 'wlroots' },
+    { value: 'x11', label: 'X11' },
+    { value: 'portal', label: 'XDG Portal' },
+  ],
+  linux: [
+    { value: 'nvfbc', label: 'NvFBC' },
+    { value: 'wlr', label: 'wlroots' },
+    { value: 'kms', label: 'KMS' },
+    { value: 'x11', label: 'X11' },
+    { value: 'kwin', label: 'KWin Screencast' },
+    { value: 'portal', label: 'XDG Portal' },
+  ],
+  windows: [
+    { value: 'ddx', label: 'Desktop Duplication API' },
+    { value: 'wgc', label: `Windows.Graphics.Capture ${t('_common.beta')}` },
+  ],
+}
+
+const ENCODER_OPTIONS = {
+  windows: [
+    { value: 'nvenc', label: 'NVIDIA NVENC' },
+    { value: 'quicksync', label: 'Intel QuickSync' },
+    { value: 'amdvce', label: 'AMD AMF/VCE' },
+  ],
+  freebsd: [
+    { value: 'vulkan', label: 'Vulkan' },
+    { value: 'vaapi', label: 'VA-API' },
+  ],
+  linux: [
+    { value: 'nvenc', label: 'NVIDIA NVENC' },
+    { value: 'vaapi', label: 'VA-API' },
+    { value: 'vulkan', label: 'Vulkan' },
+  ],
+  macos: [
+    { value: 'videotoolbox', label: 'VideoToolbox' },
+  ],
+}
+</script>
+
+<script>
+export const OPTIONS = {
+  "fec_percentage": 20,
+  "qp": 28,
+  "min_threads": 2,
+  "hevc_mode": 0,
+  "av1_mode": 0,
+  "capture": "",
+  "encoder": "",
+}
 </script>
 
 <template>
@@ -35,89 +109,31 @@ const config = ref(props.config)
     </div>
 
     <!-- HEVC Support -->
-    <div class="mb-3">
-      <label for="hevc_mode" class="form-label">{{ $t('config.hevc_mode') }}</label>
-      <select id="hevc_mode" class="form-select" v-model="config.hevc_mode">
-        <option value="0">{{ $t('config.hevc_mode_0') }}</option>
-        <option value="1">{{ $t('config.hevc_mode_1') }}</option>
-        <option value="2">{{ $t('config.hevc_mode_2') }}</option>
-        <option value="3">{{ $t('config.hevc_mode_3') }}</option>
-      </select>
-      <div class="form-text">{{ $t('config.hevc_mode_desc') }}</div>
-    </div>
+    <Select id="hevc_mode" v-model="config.hevc_mode" :label="$t('config.hevc_mode')"
+      :desc="$t('config.hevc_mode_desc')" :options="HEVC_MODE_OPTIONS" />
 
     <!-- AV1 Support -->
-    <div class="mb-3">
-      <label for="av1_mode" class="form-label">{{ $t('config.av1_mode') }}</label>
-      <select id="av1_mode" class="form-select" v-model="config.av1_mode">
-        <option value="0">{{ $t('config.av1_mode_0') }}</option>
-        <option value="1">{{ $t('config.av1_mode_1') }}</option>
-        <option value="2">{{ $t('config.av1_mode_2') }}</option>
-        <option value="3">{{ $t('config.av1_mode_3') }}</option>
-      </select>
-      <div class="form-text">{{ $t('config.av1_mode_desc') }}</div>
-    </div>
+    <Select id="av1_mode" v-model="config.av1_mode" :label="$t('config.av1_mode')" :desc="$t('config.av1_mode_desc')"
+      :options="AV1_MODE_OPTIONS" />
 
     <!-- Capture -->
-    <div class="mb-3" v-if="platform !== 'macos'">
-      <label for="capture" class="form-label">{{ $t('config.capture') }}</label>
-      <select id="capture" class="form-select" v-model="config.capture">
+    <Select v-if="platform !== 'macos'" id="capture" v-model="config.capture" :label="$t('config.capture')"
+      :desc="$t('config.capture_desc')" :options="CAPTURE_OPTIONS">
+      <template #prepend>
         <option value="">{{ $t('_common.autodetect') }}</option>
-        <PlatformLayout :platform="platform">
-          <template #freebsd>
-            <option value="wlr">wlroots</option>
-            <option value="x11">X11</option>
-            <option value="portal">XDG Portal</option>
-          </template>
-          <template #linux>
-            <option value="nvfbc">NvFBC</option>
-            <option value="wlr">wlroots</option>
-            <option value="kms">KMS</option>
-            <option value="x11">X11</option>
-            <option value="kwin">KWin Screencast</option>
-            <option value="portal">XDG Portal</option>
-          </template>
-          <template #windows>
-            <option value="ddx">Desktop Duplication API</option>
-            <option value="wgc">Windows.Graphics.Capture {{ $t('_common.beta') }}</option>
-          </template>
-        </PlatformLayout>
-      </select>
-      <div class="form-text">{{ $t('config.capture_desc') }}</div>
-    </div>
+      </template>
+    </Select>
 
     <!-- Encoder -->
-    <div class="mb-3">
-      <label for="encoder" class="form-label">{{ $t('config.encoder') }}</label>
-      <select id="encoder" class="form-select" v-model="config.encoder">
+    <Select id="encoder" v-model="config.encoder" :label="$t('config.encoder')" :desc="$t('config.encoder_desc')"
+      :options="ENCODER_OPTIONS">
+      <template #prepend>
         <option value="">{{ $t('_common.autodetect') }}</option>
-        <PlatformLayout :platform="platform">
-          <template #windows>
-            <option value="nvenc">NVIDIA NVENC</option>
-            <option value="quicksync">Intel QuickSync</option>
-            <option value="amdvce">AMD AMF/VCE</option>
-          </template>
-          <template #freebsd>
-            <option value="vulkan">Vulkan</option>
-            <option value="vaapi">VA-API</option>
-          </template>
-          <template #linux>
-            <option value="nvenc">NVIDIA NVENC</option>
-            <option value="vaapi">VA-API</option>
-            <option value="vulkan">Vulkan</option>
-          </template>
-          <template #macos>
-            <option value="videotoolbox">VideoToolbox</option>
-          </template>
-        </PlatformLayout>
+      </template>
+      <template #append>
         <option value="software">{{ $t('config.encoder_software') }}</option>
-      </select>
-      <div class="form-text">{{ $t('config.encoder_desc') }}</div>
-    </div>
+      </template>
+    </Select>
 
   </div>
 </template>
-
-<style scoped>
-
-</style>

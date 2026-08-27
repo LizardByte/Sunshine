@@ -4,26 +4,9 @@
     <p>{{ $t('config.configuration_desc') }}</p>
   </div>
 
-  <!-- Search Bar with Autocomplete -->
-  <div class="toolbar mb-3 d-flex flex-wrap align-items-center gap-3">
-    <div class="input-group config-search">
-      <span class="input-group-text">
-        <search :size="18" class="icon"></search>
-      </span>
-      <input type="text" class="form-control" v-model="searchQuery" :placeholder="$t('config.search_options')"
-        :aria-label="$t('config.search_options')" @input="handleSearch" list="config-options" />
-    </div>
-    <datalist id="config-options">
-      <option v-for="option in allConfigOptions" :key="option.key" :value="option.label">
-        {{ option.tab }} - {{ option.label }}
-      </option>
-    </datalist>
-    <span v-if="searchQuery && searchResults.length === 0" class="text-muted small flex-shrink-0">
-      No results found for "{{ searchQuery }}"
-    </span>
-    <span v-else-if="searchQuery" class="text-muted small flex-shrink-0">
-      Found {{ searchResults.length }} result(s)
-    </span>
+  <!-- Search toolbar -->
+  <div class="toolbar config-search-toolbar mb-3">
+    <ConfigSearch :options="getAllConfigOptions" @select="onSearchSelect" />
   </div>
 
   <div class="form" v-if="config">
@@ -31,19 +14,19 @@
       <!-- Sidebar navigation -->
       <nav class="config-nav">
         <ul class="nav config-nav-list">
-          <li class="nav-item" v-for="tab in generalTabs" :key="tab.id">
+          <li class="nav-item" v-for="tab in tabs.general" :key="tab.id">
             <a class="nav-link" :class="{ active: tab.id === currentTab }" href="#" @click="currentTab = tab.id">
-              <component :is="getTabIcon(tab.id)" :size="18" class="icon"></component>
+              <component :is="tab.icon" :size="18" class="icon"></component>
               {{ tab.name }}
             </a>
           </li>
         </ul>
-        <template v-if="encoderTabs.length">
+        <template v-if="tabs.encoders.length">
           <div class="config-nav-heading">{{ $t('config.encoders') }}</div>
           <ul class="nav config-nav-list">
-            <li class="nav-item" v-for="tab in encoderTabs" :key="tab.id">
+            <li class="nav-item" v-for="tab in tabs.encoders" :key="tab.id">
               <a class="nav-link" :class="{ active: tab.id === currentTab }" href="#" @click="currentTab = tab.id">
-                <component :is="getTabIcon(tab.id)" :size="18" class="icon"></component>
+                <component :is="tab.icon" :size="18" class="icon"></component>
                 {{ tab.name }}
               </a>
             </li>
@@ -68,24 +51,25 @@
         <StatusAlert v-if="restarted" success :success-message="$t('config.restart_note')" alert-class="mb-4" />
 
         <!-- General Tab -->
-        <general v-if="currentTab === 'general'" :config="config" :platform="platform"></general>
+        <general ref="general" v-show="currentTab === 'general'" :config="config" :platform="platform"></general>
 
         <!-- Input Tab -->
-        <inputs v-if="currentTab === 'input'" :config="config" :platform="platform"></inputs>
+        <inputs ref="input" v-show="currentTab === 'input'" :config="config" :platform="platform"></inputs>
 
         <!-- Audio/Video Tab -->
-        <audio-video v-if="currentTab === 'av'" :config="config" :platform="platform"></audio-video>
+        <audio-video ref="av" v-show="currentTab === 'av'" :config="config" :platform="platform"></audio-video>
 
         <!-- Network Tab -->
-        <network v-if="currentTab === 'network'" :config="config" :platform="platform"></network>
+        <network ref="network" v-show="currentTab === 'network'" :config="config" :platform="platform"></network>
 
         <!-- Files Tab -->
-        <files v-if="currentTab === 'files'" :config="config" :platform="platform"></files>
+        <files ref="files" v-show="currentTab === 'files'" :config="config" :platform="platform"></files>
 
         <!-- Advanced Tab -->
-        <advanced v-if="currentTab === 'advanced'" :config="config" :platform="platform"></advanced>
+        <advanced ref="advanced" v-show="currentTab === 'advanced'" :config="config" :platform="platform"></advanced>
 
-        <container-encoders :current-tab="currentTab" :config="config" :platform="platform"></container-encoders>
+        <container-encoders ref="containerEncoders" :current-tab="currentTab" :config="config"
+          :platform="platform"></container-encoders>
       </div>
     </div>
   </div>
@@ -93,6 +77,7 @@
 
 <script>
 import { computed } from 'vue'
+import ConfigSearch from '@/components/ConfigSearch.vue'
 import General from '@/components/configs/tabs/General.vue'
 import Inputs from '@/components/configs/tabs/Inputs.vue'
 import Network from '@/components/configs/tabs/Network.vue'
@@ -110,16 +95,14 @@ import {
   Gpu,
   Network as NetworkIcon,
   Save,
-  Search,
   Settings,
   Sliders,
   Volume2,
 } from '@lucide/vue'
 
-const ENCODER_TAB_IDS = new Set(["nv", "amd", "qsv", "vaapi", "vt", "vulkan", "sw"]);
-
 export default {
   components: {
+    ConfigSearch,
     General,
     Inputs,
     Network,
@@ -130,17 +113,8 @@ export default {
     ContainerEncoders,
     StatusAlert,
     // icons
-    Cpu,
     Check,
-    FileCog,
-    Gamepad2,
-    Gpu,
-    NetworkIcon,
     Save,
-    Search,
-    Settings,
-    Sliders,
-    Volume2,
   },
   data() {
     return {
@@ -149,219 +123,70 @@ export default {
       restarted: false,
       config: null,
       currentTab: "general",
-      searchQuery: "",
-      tabs: [ // TODO: Move the options to each Component instead, encapsulate.
-        {
-          id: "general",
-          name: "General",
-          options: {
-            "locale": "en",
-            "sunshine_name": "",
-            "min_log_level": 2,
-            "global_prep_cmd": [],
-            "notify_pre_releases": "disabled",
-            "system_tray": "enabled",
-          },
-        },
-        {
-          id: "input",
-          name: "Input",
-          options: {
-            "controller": "enabled",
-            "gamepad": "auto",
-            "ds4_back_as_touchpad_click": "enabled",
-            "motion_as_ds4": "enabled",
-            "touchpad_as_ds4": "enabled",
-            "virtualhid_randomize_mac": "enabled",
-            "back_button_timeout": -1,
-            "keyboard": "enabled",
-            "key_repeat_delay": 500,
-            "key_repeat_frequency": 24.9,
-            "always_send_scancodes": "enabled",
-            "key_rightalt_to_key_win": "disabled",
-            "mouse": "enabled",
-            "high_resolution_scrolling": "enabled",
-            "native_pen_touch": "enabled",
-            "keybindings": "[0x10,0xA0,0x11,0xA2,0x12,0xA4]",  // todo: add this to UI
-          },
-        },
-        {
-          id: "av",
-          name: "Audio/Video",
-          options: {
-            "audio_sink": "",
-            "virtual_sink": "",
-            "stream_audio": "enabled",
-            "install_steam_audio_drivers": "enabled",
-            "adapter_name": "",
-            "output_name": "",
-            "dd_configuration_option": "disabled",
-            "dd_resolution_option": "auto",
-            "dd_manual_resolution": "",
-            "dd_refresh_rate_option": "auto",
-            "dd_manual_refresh_rate": "",
-            "dd_hdr_option": "auto",
-            "dd_wa_hdr_toggle_delay": 0,
-            "dd_config_revert_delay": 3000,
-            "dd_config_revert_on_disconnect": "disabled",
-            "dd_mode_remapping": { "mixed": [], "resolution_only": [], "refresh_rate_only": [] },
-            "max_bitrate": 0,
-            "minimum_fps_target": 0
-          },
-        },
-        {
-          id: "network",
-          name: "Network",
-          options: {
-            "upnp": "disabled",
-            "address_family": "ipv4",
-            "bind_address": "",
-            "port": 47989,
-            "origin_web_ui_allowed": "lan",
-            "csrf_allowed_origins": "",
-            "external_ip": "",
-            "lan_encryption_mode": 0,
-            "wan_encryption_mode": 1,
-            "ping_timeout": 10000,
-            "packetsize": 0,
-          },
-        },
-        {
-          id: "files",
-          name: "Config Files",
-          options: {
-            "file_apps": "",
-            "credentials_file": "",
-            "log_path": "",
-            "pkey": "",
-            "cert": "",
-            "file_state": "",
-          },
-        },
-        {
-          id: "advanced",
-          name: "Advanced",
-          options: {
-            "fec_percentage": 20,
-            "qp": 28,
-            "min_threads": 2,
-            "hevc_mode": 0,
-            "av1_mode": 0,
-            "capture": "",
-            "encoder": "",
-          },
-        },
-        {
-          id: "nv",
-          name: "NVIDIA NVENC Encoder",
-          options: {
-            "nvenc_preset": 1,
-            "nvenc_twopass": "quarter_res",
-            "nvenc_spatial_aq": "disabled",
-            "nvenc_vbv_increase": 0,
-            "nvenc_realtime_hags": "enabled",
-            "nvenc_split_encode": "driver_decides",
-            "nvenc_latency_over_power": "enabled",
-            "nvenc_opengl_vulkan_on_dxgi": "enabled",
-            "nvenc_h264_cavlc": "disabled",
-          },
-        },
-        {
-          id: "qsv",
-          name: "Intel QuickSync Encoder",
-          options: {
-            "qsv_preset": "medium",
-            "qsv_coder": "auto",
-            "qsv_slow_hevc": "disabled",
-          },
-        },
-        {
-          id: "amd",
-          name: "AMD AMF Encoder",
-          options: {
-            "amd_usage": "ultralowlatency",
-            "amd_rc": "vbr_latency",
-            "amd_enforce_hrd": "disabled",
-            "amd_max_au_size": "",
-            "amd_quality": "balanced",
-            "amd_preanalysis": "disabled",
-            "amd_vbaq": "enabled",
-            "amd_coder": "auto",
-          },
-        },
-        {
-          id: "vt",
-          name: "VideoToolbox Encoder",
-          options: {
-            "vt_coder": "auto",
-            "vt_software": "auto",
-            "vt_realtime": "enabled",
-          },
-        },
-        {
-          id: "vaapi",
-          name: "VA-API Encoder",
-          options: {
-            "vaapi_blbrc": "disabled",
-            "vaapi_quality": "auto",
-            "vaapi_rc": "auto",
-            "vaapi_strict_rc_buffer": "disabled",
-          },
-        },
-        {
-          id: "vulkan",
-          name: "Vulkan Encoder",
-          options: {
-            "vk_tune": 2,
-            "vk_rc_mode": 2,
-          },
-        },
-        {
-          id: "sw",
-          name: "Software Encoder",
-          options: {
-            "sw_preset": "superfast",
-            "sw_tune": "zerolatency",
-          },
-        },
-      ],
+      // True once config is fetched. Allows getAllConfigOptions to recompute after $refs exist.
+      refsReady: false,
+      tabs: {
+        general: [
+          { id: "general", name: "General", icon: Settings },
+          { id: "input", name: "Input", icon: Gamepad2 },
+          { id: "av", name: "Audio/Video", icon: Volume2 },
+          { id: "network", name: "Network", icon: NetworkIcon },
+          { id: "files", name: "Config Files", icon: FileCog },
+          { id: "advanced", name: "Advanced", icon: Sliders },
+        ],
+        encoders: [
+          { id: "nv", name: "NVIDIA NVENC Encoder", icon: Gpu, excludedIn: ["macos"] },
+          { id: "qsv", name: "Intel QuickSync Encoder", icon: Gpu, excludedIn: ["freebsd", "linux", "macos"] },
+          { id: "amd", name: "AMD AMF Encoder", icon: Gpu, excludedIn: ["freebsd", "linux", "macos"] },
+          { id: "vt", name: "VideoToolbox Encoder", icon: Gpu, excludedIn: ["windows", "freebsd", "linux"] },
+          { id: "vaapi", name: "VA-API Encoder", icon: Gpu, excludedIn: ["windows", "macos"] },
+          { id: "vulkan", name: "Vulkan Encoder", icon: Gpu, excludedIn: ["windows", "macos"] },
+          { id: "sw", name: "Software Encoder", icon: Cpu, excludedIn: [] },
+        ],
+      },
     };
   },
   provide() {
     return {
       platform: computed(() => this.platform),
-      searchQuery: computed(() => this.searchQuery),
     }
   },
   computed: {
-    generalTabs() {
-      return this.tabs.filter(tab => !ENCODER_TAB_IDS.has(tab.id));
-    },
-    encoderTabs() {
-      return this.tabs.filter(tab => ENCODER_TAB_IDS.has(tab.id));
-    },
-    allConfigOptions() {
+    getAllConfigOptions() {
       const options = [];
-      this.tabs.forEach(tab => {
-        Object.keys(tab.options).forEach(key => {
+
+      if (!this.refsReady) {
+        return options;
+      }
+
+      const pushOptions = (tabOptions, tabName, tabId) => {
+        Object.keys(tabOptions).forEach(key => {
           options.push({
             key: key,
-            label: key.replaceAll('_', ' ').replaceAll(/\b\w/g, l => l.toUpperCase()),
-            tab: tab.name,
-            tabId: tab.id
+            label: this.$t(`config.${key}`),
+            tab: tabName,
+            tabId: tabId
           });
         });
+      };
+
+      this.tabs.general.forEach(tab => {
+        if (this.$refs[tab.id]) {
+          pushOptions(this.$refs[tab.id].getOwnConfigOptions(), tab.name, tab.id);
+        }
       });
+
+      if (this.$refs.containerEncoders) {
+        const encoderOptionsById = this.$refs.containerEncoders.getOptionsById();
+        this.tabs.encoders.forEach(tab => {
+          if (encoderOptionsById[tab.id]) {
+            pushOptions(encoderOptionsById[tab.id], tab.name, tab.id);
+          }
+        });
+      }
+
       return options;
     },
-    searchResults() {
-      if (!this.searchQuery) return [];
-      const query = this.searchQuery.toLowerCase();
-      return this.allConfigOptions.filter(option =>
-        option.key.toLowerCase().includes(query) ||
-        option.label.toLowerCase().includes(query)
-      );
-    }
   },
   created() {
     fetch("./api/config")
@@ -370,95 +195,38 @@ export default {
         this.config = r;
         this.platform = this.config.platform;
 
-        if (this.platform === "windows") {
-          this.tabs = this.tabs.filter((el) => {
-            return el.id !== "vt" && el.id !== "vaapi" && el.id !== "vulkan";
-          });
-        }
-        if (this.platform === "freebsd" || this.platform === "linux") {
-          this.tabs = this.tabs.filter((el) => {
-            return el.id !== "amd" && el.id !== "qsv" && el.id !== "vt";
-          });
-        }
-        if (this.platform === "macos") {
-          this.tabs = this.tabs.filter((el) => {
-            return el.id !== "amd" && el.id !== "nv" && el.id !== "qsv" && el.id !== "vaapi" && el.id !== "vulkan";
-          });
-        }
+        this.tabs.encoders = this.tabs.encoders.filter(el => !el.excludedIn.includes(this.platform));
 
         // remove values we don't want in the config file
         delete this.config.platform;
         delete this.config.status;
         delete this.config.version;
 
-        // TODO: let each tab's Component handle it's own data instead of doing it here
-
         // Parse the special options before population if available
-        const specialOptions = ["dd_mode_remapping", "global_prep_cmd"]
-        for (const optionKey of specialOptions) {
-          if (this.config.hasOwnProperty(optionKey)) {
-            this.config[optionKey] = JSON.parse(this.config[optionKey]);
+        ["dd_mode_remapping", "global_prep_cmd"].forEach(key => {
+          if (this.config.hasOwnProperty(key)) {
+            this.config[key] = JSON.parse(this.config[key]);
           }
-        }
+        });
 
-        // Populate default values from tabs options
-        this.tabs.forEach(tab => {
-          Object.keys(tab.options).forEach(optionKey => {
-            if (this.config[optionKey] === undefined) {
-              // Make sure to copy by value
-              this.config[optionKey] = structuredClone(tab.options[optionKey]);
-            }
-          });
+        // Wait for the resulting v-if="config" mount to actually land before
+        // flipping this - that's what guarantees $refs are populated by then.
+        this.$nextTick(() => {
+          this.refsReady = true;
         });
       });
   },
   methods: {
-    getTabIcon(tabId) {
-      const iconMap = {
-        'general': 'Settings',
-        'input': 'Gamepad2',
-        'av': 'Volume2',
-        'network': 'NetworkIcon',
-        'files': 'FileCog',
-        'advanced': 'Sliders',
-        'nv': 'Gpu',
-        'amd': 'Gpu',
-        'qsv': 'Gpu',
-        'vaapi': 'Gpu',
-        'vt': 'Gpu',
-        'vulkan': 'Gpu',
-        'sw': 'Cpu',
-      };
-      return iconMap[tabId] || 'Settings';
-    },
-    forceUpdate() {
-      this.$forceUpdate()
-    },
-    serialize() {
-      return structuredClone(this.config);
-    },
     save() {
       this.saved = false;
       this.restarted = false;
 
-      // create a temp copy of this.config to use for the post request
-      let config = this.serialize();
-
-      // delete default values from this.config
-      this.tabs.forEach(tab => {
-        Object.keys(tab.options).forEach(optionKey => {
-          let delete_value = false
-
-          // todo: add proper type checking
-          if (JSON.stringify(config[optionKey]) === JSON.stringify(tab.options[optionKey])) {
-            delete_value = true
-          }
-
-          if (delete_value) {
-            delete config[optionKey]
-          }
-        });
+      // collect each tab's current values via its own getOwnConfigOptions()
+      let config = {};
+      this.tabs.general.forEach(tab => {
+        Object.assign(config, this.$refs[tab.id].getOwnConfigOptions());
       });
+      Object.assign(config, this.$refs.containerEncoders.getOptions());
 
       return apiFetch("./api/config", {
         method: "POST",
@@ -495,105 +263,31 @@ export default {
         }
       });
     },
-    handleSearch() {
-      // Clear all highlighting
+    onSearchSelect(option) {
+      // Clear any previous highlight
       document.querySelectorAll('.config-search-highlight').forEach(el => {
         el.classList.remove('config-search-highlight');
       });
 
-      if (!this.searchQuery) {
-        // Show all form groups when search is cleared
-        document.querySelectorAll('.mb-3').forEach(el => {
-          el.style.display = '';
-        });
-        return;
+      if (option.tabId !== this.currentTab) {
+        this.currentTab = option.tabId;
       }
 
-      const results = this.searchResults;
-
-      if (results.length === 0) {
-        return;
-      }
-
-      // Switch to the tab of the first result
-      if (results.length > 0 && results[0].tabId !== this.currentTab) {
-        this.currentTab = results[0].tabId;
-      }
-
-      // Wait for tab content to render
+      // Wait for the tab to render before locating the element
       this.$nextTick(() => {
-        // Hide all form groups first
-        document.querySelectorAll('.config-page .mb-3').forEach(el => {
-          el.style.display = 'none';
-        });
-
-        // Show only matching elements
-        results.forEach(result => {
-          const element = document.getElementById(result.key);
-
-          if (element) {
-            // Show the element's container
-            const container = element.closest('.mb-3');
-            if (container) {
-              container.style.display = '';
-            }
-          }
-        });
-
-        // Scroll to and highlight the first result
-        if (results.length > 0) {
-          const firstElement = document.getElementById(results[0].key);
-          if (firstElement) {
-            const container = firstElement.closest('.mb-3');
-            if (container) {
-              container.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              container.classList.add('config-search-highlight');
-              setTimeout(() => {
-                container.classList.remove('config-search-highlight');
-              }, 3000);
-            }
-          }
+        const element = document.getElementById(option.key);
+        const container = element ? element.closest('.mb-3') : null;
+        if (!container) {
+          return;
         }
+
+        container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        container.classList.add('config-search-highlight');
+        setTimeout(() => {
+          container.classList.remove('config-search-highlight');
+        }, 3000);
       });
     },
-  },
-  mounted() {
-    // Handle hashchange events
-    const handleHash = () => {
-      let hash = window.location.hash;
-      if (hash) {
-        // remove the # from the hash
-        let stripped_hash = hash.substring(1);
-
-        this.tabs.forEach(tab => {
-          Object.keys(tab.options).forEach(key => {
-            if (tab.id === stripped_hash || key === stripped_hash) {
-              this.currentTab = tab.id;
-            }
-            if (key === stripped_hash) {
-              // sleep for 2 seconds to allow the page to load
-              setTimeout(() => {
-                let element = document.getElementById(stripped_hash);
-                if (element) {
-                  window.location.hash = hash;
-                }
-              }, 2000);
-            }
-
-            if (this.currentTab === tab.id) {
-              // stop looping
-              return true;
-            }
-          });
-        });
-      }
-    };
-
-    // Call handleHash for the initial load
-    handleHash();
-
-    // Add hashchange event listener
-    window.addEventListener("hashchange", handleHash);
   },
 }
 </script>

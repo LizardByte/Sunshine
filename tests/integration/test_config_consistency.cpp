@@ -87,96 +87,75 @@ protected:
     return pos - 1;
   }
 
-  // Helper function to extract tab ID from a tab object
-  static std::string extractTabId(const std::string &tabObject) {
-    const std::regex idPattern(R"DELIM(id:\s*"([^"]+)")DELIM");
-
-    if (std::smatch idMatch; std::regex_search(tabObject, idMatch, idPattern)) {
-      return idMatch[1].str();
-    }
-
-    return "";
+  // Maps a tab id to the component file that declares its config OPTIONS.
+  static std::string tabIdToFilePath(const std::string &tabId) {
+    static const std::map<std::string, std::string, std::less<>> pathById = {
+      {"general", "src_assets/common/assets/web/src/components/configs/tabs/General.vue"},
+      {"input", "src_assets/common/assets/web/src/components/configs/tabs/Inputs.vue"},
+      {"av", "src_assets/common/assets/web/src/components/configs/tabs/AudioVideo.vue"},
+      {"network", "src_assets/common/assets/web/src/components/configs/tabs/Network.vue"},
+      {"files", "src_assets/common/assets/web/src/components/configs/tabs/Files.vue"},
+      {"advanced", "src_assets/common/assets/web/src/components/configs/tabs/Advanced.vue"},
+      {"nv", "src_assets/common/assets/web/src/components/configs/tabs/encoders/NvidiaNvencEncoder.vue"},
+      {"qsv", "src_assets/common/assets/web/src/components/configs/tabs/encoders/IntelQuickSyncEncoder.vue"},
+      {"amd", "src_assets/common/assets/web/src/components/configs/tabs/encoders/AmdAmfEncoder.vue"},
+      {"vt", "src_assets/common/assets/web/src/components/configs/tabs/encoders/VideotoolboxEncoder.vue"},
+      {"vaapi", "src_assets/common/assets/web/src/components/configs/tabs/encoders/VAAPIEncoder.vue"},
+      {"vulkan", "src_assets/common/assets/web/src/components/configs/tabs/encoders/VulkanEncoder.vue"},
+      {"sw", "src_assets/common/assets/web/src/components/configs/tabs/encoders/SoftwareEncoder.vue"},
+    };
+    const auto it = pathById.find(tabId);
+    return it != pathById.end() ? it->second : "";
   }
 
-  // Helper function to find and extract tabs content from ConfigView.vue
-  static std::string extractTabsContent(const std::string &content) {
-    const size_t tabsStart = content.find("tabs: [");
+  // Extract every tab id declared in ConfigView.vue's tabs.general/tabs.encoders arrays.
+  static std::vector<std::string> extractConfigViewTabIds() {
+    std::vector<std::string> ids;
+    const std::string content = file_handler::read_file("src_assets/common/assets/web/src/views/ConfigView.vue");
+
+    const size_t tabsStart = content.find("tabs: {");
     if (tabsStart == std::string::npos) {
-      return "";
+      return ids;
     }
 
-    // Find the end of the tab array
-    size_t pos = tabsStart + 7;  // Skip "tabs: ["
-    int bracketLevel = 1;
-    size_t tabsEnd = pos;
+    const size_t braceStart = content.find('{', tabsStart);
+    const size_t braceEnd = findClosingBrace(content, braceStart);
+    const std::string tabsSection = content.substr(braceStart + 1, braceEnd - braceStart - 1);
 
-    while (pos < content.length() && bracketLevel > 0) {
-      if (content[pos] == '[') {
-        bracketLevel++;
-      } else if (content[pos] == ']') {
-        bracketLevel--;
-      }
-      tabsEnd = pos;
-      pos++;
+    const std::regex idPattern(R"DELIM(id:\s*"([^"]+)")DELIM");
+    std::sregex_iterator iter(tabsSection.begin(), tabsSection.end(), idPattern);
+
+    for (const std::sregex_iterator end; iter != end; ++iter) {
+      ids.push_back((*iter)[1].str());
     }
 
-    return content.substr(tabsStart + 7, tabsEnd - tabsStart - 7);
+    return ids;
   }
 
-  // Helper function to extract options from a tab object (generic version)
-  template<typename Container>
-  static void extractOptionsFromTabGeneric(const std::string &tabObject, Container &container) {
-    const std::string tabId = extractTabId(tabObject);
-    if (tabId.empty()) {
-      return;
-    }
+  // Extract the option keys declared in a tab component's OPTIONS constant.
+  static std::vector<std::string> extractOptionsFromTabFile(const std::string &filePath) {
+    std::vector<std::string> keys;
+    const std::string content = file_handler::read_file(filePath.c_str());
 
-    const size_t optionsStart = tabObject.find("options:");
+    // Anchored to "export const OPTIONS = {" specifically - a plain "OPTIONS = {" search would
+    // also match inside an unrelated constant like "CAPTURE_OPTIONS = {" or "ENCODER_OPTIONS = {".
+    const size_t optionsStart = content.find("export const OPTIONS = {");
     if (optionsStart == std::string::npos) {
-      return;
+      return keys;
     }
 
-    const size_t optStart = tabObject.find('{', optionsStart);
-    if (optStart == std::string::npos) {
-      return;
+    const size_t braceStart = content.find('{', optionsStart);
+    const size_t braceEnd = findClosingBrace(content, braceStart);
+    const std::string optionsSection = content.substr(braceStart + 1, braceEnd - braceStart - 1);
+
+    const std::regex keyPattern(R"DELIM("([^"]+)":\s*)DELIM");
+    std::sregex_iterator iter(optionsSection.begin(), optionsSection.end(), keyPattern);
+
+    for (const std::sregex_iterator end; iter != end; ++iter) {
+      keys.push_back((*iter)[1].str());
     }
 
-    const size_t optEnd = findClosingBrace(tabObject, optStart);
-    std::string optionsSection = tabObject.substr(optStart + 1, optEnd - optStart - 1);
-
-    // Extract option names
-    const std::regex optionPattern(R"DELIM("([^"]+)":\s*)DELIM");
-    std::sregex_iterator optionIter(optionsSection.begin(), optionsSection.end(), optionPattern);
-
-    for (const std::sregex_iterator optionEnd; optionIter != optionEnd; ++optionIter) {
-      std::string optionName = (*optionIter)[1].str();
-
-      // Use if constexpr to handle different container types
-      if constexpr (std::is_same_v<Container, std::map<std::string, std::string, std::less<>>>) {
-        container[optionName] = tabId;
-      } else if constexpr (std::is_same_v<Container, std::map<std::string, std::vector<std::string>, std::less<>>>) {
-        container[tabId].push_back(optionName);
-      }
-    }
-  }
-
-  // Helper function to process tab objects from tabs content
-  template<typename Container>
-  static void processTabObjects(const std::string &tabsContent, Container &container) {
-    size_t tabPos = 0;
-    while (tabPos < tabsContent.length()) {
-      const size_t objStart = tabsContent.find('{', tabPos);
-      if (objStart == std::string::npos) {
-        break;
-      }
-
-      const size_t objEnd = findClosingBrace(tabsContent, objStart);
-      std::string tabObject = tabsContent.substr(objStart, objEnd - objStart + 1);
-
-      extractOptionsFromTabGeneric(tabObject, container);
-
-      tabPos = objEnd + 1;
-    }
+    return keys;
   }
 
   // Helper function to trim whitespace from string
@@ -195,37 +174,33 @@ protected:
     return "";
   }
 
-  // Extract config options from ConfigView.vue
-  static std::map<std::string, std::string, std::less<>> extractConfigViewOptions() {
-    std::map<std::string, std::string, std::less<>> options;
-    const std::string content = file_handler::read_file("src_assets/common/assets/web/src/views/ConfigView.vue");
-
-    const std::string tabsContent = extractTabsContent(content);
-    if (tabsContent.empty()) {
-      return options;
-    }
-
-    processTabObjects(tabsContent, options);
-    return options;
-  }
-
-  // Helper function to extract options from a single tab object (now using generic function)
-  static void extractOptionsFromTab(const std::string &tabObject, std::map<std::string, std::vector<std::string>, std::less<>> &optionsByTab) {
-    extractOptionsFromTabGeneric(tabObject, optionsByTab);
-  }
-
-  // Extract config options from ConfigView.vue with order preserved
+  // Extract config options from each tab component's OPTIONS constant, with order preserved.
   static std::map<std::string, std::vector<std::string>, std::less<>> extractConfigViewOptionsWithOrder() {
     std::map<std::string, std::vector<std::string>, std::less<>> optionsByTab;
-    const std::string content = file_handler::read_file("src_assets/common/assets/web/src/views/ConfigView.vue");
 
-    const std::string tabsContent = extractTabsContent(content);
-    if (tabsContent.empty()) {
-      return optionsByTab;
+    for (const auto &tabId : extractConfigViewTabIds()) {
+      const std::string filePath = tabIdToFilePath(tabId);
+      if (filePath.empty()) {
+        continue;
+      }
+
+      optionsByTab[tabId] = extractOptionsFromTabFile(filePath);
     }
 
-    processTabObjects(tabsContent, optionsByTab);
     return optionsByTab;
+  }
+
+  // Extract config options from each tab component's OPTIONS constant, keyed by tab id.
+  static std::map<std::string, std::string, std::less<>> extractConfigViewOptions() {
+    std::map<std::string, std::string, std::less<>> options;
+
+    for (const auto &[tabId, optionNames] : extractConfigViewOptionsWithOrder()) {
+      for (const auto &optionName : optionNames) {
+        options[optionName] = tabId;
+      }
+    }
+
+    return options;
   }
 
   // Helper function to process markdown line for section headers

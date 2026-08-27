@@ -370,6 +370,7 @@
     "qsv_slow_hevc": "Allow Slow HEVC Encoding",
     "qsv_slow_hevc_desc": "This can enable HEVC encoding on older Intel GPUs, at the cost of higher GPU usage and worse performance.",
     "restart_note": "Sunshine is restarting to apply changes.",
+    "search_no_results": "No results found for \"{query}\"",
     "search_options": "Search configuration options...",
     "stream_audio": "Stream Audio",
     "stream_audio_desc": "Whether to stream audio or not. Disabling this can be useful for streaming headless displays as second monitors.",

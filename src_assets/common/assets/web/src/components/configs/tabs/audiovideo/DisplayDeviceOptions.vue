@@ -49,7 +49,7 @@ function addRemappingEntry() {
 </script>
 
 <template>
-  <PlatformLayout :platform="platform">
+  <PlatformLayout>
     <template #windows>
       <div class="mb-3 accordion">
         <div class="accordion-item">

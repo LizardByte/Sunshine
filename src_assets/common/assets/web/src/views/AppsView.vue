@@ -115,7 +115,7 @@
         <div class="input-group">
           <input type="text" class="form-control monospace" id="appOutput" v-model="editForm.output" />
           <button class="btn btn-secondary" type="button"
-            @click="browseFor('any', 'file_browser.select_file', editForm.output, v => editForm.output = v)">
+            @click="openFileBrowser('any', 'file_browser.select_file', editForm.output, { field: 'output' })">
             <folder-open :size="18" class="icon"></folder-open>
           </button>
         </div>
@@ -123,68 +123,8 @@
       <!-- prep-cmd -->
       <Checkbox class="mb-3" id="excludeGlobalPrep" label="apps.global_prep_name" desc="apps.global_prep_desc"
         v-model="editForm['exclude-global-prep-cmd']" default="true" inverse-values></Checkbox>
-      <div class="mb-3">
-        <div class="form-label">{{ $t('apps.cmd_prep_name') }}</div>
-        <div class="form-text">{{ $t('apps.cmd_prep_desc') }}</div>
-        <div class="row g-2 align-items-center mx-0 my-2" v-if="editForm['prep-cmd'].length > 0">
-          <div class="col-12 col-md text-muted small text-uppercase fw-semibold ps-3 d-flex align-items-center">
-            <play :size="14" class="icon me-1"></play>{{ $t('_common.do_cmd') }}
-          </div>
-          <div class="col-12 col-md text-muted small text-uppercase fw-semibold ps-3 d-flex align-items-center">
-            <rotate-ccw :size="14" class="icon me-1"></rotate-ccw>{{ $t('_common.undo_cmd') }}
-          </div>
-          <div class="col-auto text-muted small text-uppercase fw-semibold d-flex align-items-center"
-            v-if="platform === 'windows'">
-            <shield :size="14" class="icon me-1"></shield>{{ $t('_common.run_as') }}
-          </div>
-          <div class="col-auto" style="height: 0;">
-            <div class="invisible">
-              <button type="button" class="btn btn-danger btn-sm" tabindex="-1" aria-hidden="true">
-                <trash-2 :size="16" class="icon"></trash-2>
-              </button>
-            </div>
-          </div>
-        </div>
-        <div v-for="(cmd, index) in editForm['prep-cmd']" :key="index" class="row g-2 align-items-center mx-0 my-2">
-          <div class="col-12 col-md">
-            <div class="input-group">
-              <span class="input-group-text">
-                <play :size="14" class="icon"></play>
-              </span>
-              <input type="text" class="form-control monospace" v-model="cmd.do" :placeholder="$t('_common.do_cmd')"
-                :aria-label="$t('_common.do_cmd')" />
-              <button class="btn btn-secondary" type="button" @click="browsePrep(index, 'do')">
-                <folder-open :size="14" class="icon"></folder-open>
-              </button>
-            </div>
-          </div>
-          <div class="col-12 col-md">
-            <div class="input-group">
-              <span class="input-group-text"><rotate-ccw :size="14" class="icon"></rotate-ccw></span>
-              <input type="text" class="form-control monospace" v-model="cmd.undo"
-                :placeholder="$t('_common.undo_cmd')" :aria-label="$t('_common.undo_cmd')" />
-              <button class="btn btn-secondary" type="button" @click="browsePrep(index, 'undo')">
-                <folder-open :size="14" class="icon"></folder-open>
-              </button>
-            </div>
-          </div>
-          <div class="col-auto" v-if="platform === 'windows'">
-            <Checkbox :id="'prep-cmd-admin-' + index" label="_common.elevated" desc="" v-model="cmd.elevated">
-            </Checkbox>
-          </div>
-          <div class="col-auto">
-            <button type="button" class="btn btn-danger btn-sm" @click="deletePrepCmd(index)">
-              <trash-2 :size="16" class="icon"></trash-2>
-            </button>
-          </div>
-        </div>
-        <div class="d-flex justify-content-start my-3">
-          <button type="button" class="btn btn-success" @click="addPrepCmd">
-            <plus :size="18" class="icon"></plus>
-            {{ $t('apps.add_cmds') }}
-          </button>
-        </div>
-      </div>
+      <PrepCommandList v-model="editForm['prep-cmd']" :platform="platform" :label="$t('apps.cmd_prep_name')"
+        :description="$t('apps.cmd_prep_desc')" :add-label="$t('apps.add_cmds')" />
       <!-- detached -->
       <div class="mb-3">
         <div class="form-label">{{ $t('apps.detached_cmds') }}</div>
@@ -214,7 +154,7 @@
         <div class="input-group">
           <input type="text" class="form-control monospace" id="appCmd" v-model="editForm.cmd" />
           <button class="btn btn-secondary" type="button"
-            @click="browseFor('executable', 'file_browser.select_executable', editForm.cmd, v => editForm.cmd = v)">
+            @click="openFileBrowser('executable', 'file_browser.select_executable', editForm.cmd, { field: 'cmd' })">
             <folder-open :size="18" class="icon"></folder-open>
           </button>
         </div>
@@ -228,7 +168,7 @@
         <div class="input-group">
           <input type="text" class="form-control monospace" id="appWorkingDir" v-model="editForm['working-dir']" />
           <button class="btn btn-secondary" type="button"
-            @click="browseFor('directory', 'file_browser.select_directory', editForm['working-dir'], v => editForm['working-dir'] = v)">
+            @click="openFileBrowser('directory', 'file_browser.select_directory', editForm['working-dir'], { field: 'working-dir' })">
             <folder-open :size="18" class="icon"></folder-open>
           </button>
         </div>
@@ -251,7 +191,7 @@
         <div class="input-group">
           <input type="text" class="form-control monospace" id="appImagePath" v-model="editForm['image-path']" />
           <button class="btn btn-secondary" type="button"
-            @click="browseFor('file', 'file_browser.select_file', editForm['image-path'], v => editForm['image-path'] = v)">
+            @click="openFileBrowser('file', 'file_browser.select_file', editForm['image-path'], { field: 'image-path' })">
             <folder-open :size="18" class="icon"></folder-open>
           </button>
           <button class="btn btn-secondary" type="button" @click="showCoverFinder">
@@ -408,91 +348,31 @@
   </Modal>
 
   <!-- Shared file browser modal -->
-  <Modal v-model="fileBrowserModalOpen" dialog-class="modal-lg modal-dialog-scrollable modal-fullscreen-md-down"
-    stacked>
-    <template #title>{{ fileBrowserTitle || $t('file_browser.title') }}</template>
-    <!-- Path input -->
-    <div class="input-group mb-2">
-      <input type="text" class="form-control monospace" v-model="fileBrowserTypedPath" @input="fileBrowserOnTypedInput"
-        :aria-label="$t('file_browser.path')" @keyup.enter="fileBrowserNavigate(fileBrowserTypedPath)" />
-      <button class="btn btn-secondary" type="button" @click="fileBrowserNavigate(fileBrowserTypedPath)">
-        <arrow-right :size="16" class="icon"></arrow-right>
-      </button>
-    </div>
-    <!-- Up button -->
-    <div class="mb-2">
-      <button class="btn btn-sm btn-outline-secondary" type="button"
-        :disabled="fileBrowserLoading || fileBrowserParentPath === fileBrowserCurrentPath"
-        @click="fileBrowserNavigateUp">
-        <folder-up :size="16" class="icon me-1"></folder-up>
-        {{ $t('file_browser.up') }}
-      </button>
-    </div>
-    <!-- Error -->
-    <div v-if="fileBrowserError" class="alert alert-danger py-2 small">{{ fileBrowserError }}</div>
-    <!-- Loading -->
-    <div v-if="fileBrowserLoading" class="text-center py-3">
-      <LoadingSpinner :label="$t('_common.loading')" small />
-    </div>
-    <!-- Entries -->
-    <div v-else class="list-group" style="max-height: 400px; overflow-y: auto;">
-      <div v-if="fileBrowserEntries.length === 0" class="list-group-item text-muted text-center">
-        {{ $t('file_browser.empty') }}
-      </div>
-      <button v-for="entry in fileBrowserEntries" :key="entry.path" type="button"
-        class="list-group-item list-group-item-action d-flex align-items-center py-1"
-        :class="{ active: fileBrowserSelectedPath === entry.path }" @click="fileBrowserSelectEntry(entry)"
-        @dblclick="fileBrowserActivateEntry(entry)">
-        <hard-drive v-if="!fileBrowserCurrentPath && entry.type === 'directory'" :size="16"
-          class="icon me-2 flex-shrink-0"></hard-drive>
-        <folder v-else-if="entry.type === 'directory'" :size="16" class="icon me-2 flex-shrink-0 text-warning"></folder>
-        <file-text v-else :size="16" class="icon me-2 flex-shrink-0"></file-text>
-        <span class="text-truncate">{{ entry.name }}</span>
-      </button>
-    </div>
-    <template #footer>
-      <div class="flex-grow-1 text-muted small text-truncate" v-if="fileBrowserSelectedPath">
-        <code>{{ fileBrowserSelectedPath }}</code>
-      </div>
-      <button type="button" class="btn btn-secondary" @click="fileBrowserClose">
-        <x :size="16" class="icon me-1"></x>
-        {{ $t('_common.cancel') }}
-      </button>
-      <button type="button" class="btn btn-primary" @click="fileBrowserConfirm"
-        :disabled="!fileBrowserSelectedPath && !fileBrowserTypedPath">
-        <check :size="16" class="icon me-1"></check>
-        {{ $t('file_browser.select') }}
-      </button>
-    </template>
-  </Modal>
+  <FileBrowserModal v-model:open="fileBrowserOpen" :type="fileBrowserType" :title="fileBrowserTitle"
+    :start-path="fileBrowserStartPath" @confirm="onFileBrowserConfirm" />
 </template>
 
 <script>
+import { toRaw } from 'vue'
 import Modal from '@/components/Modal.vue'
 import FormGroup from '@/components/FormGroup.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
 import Checkbox from '@/components/Checkbox.vue'
+import FileBrowserModal from '@/components/FileBrowserModal.vue'
+import PrepCommandList from '@/components/PrepCommandList.vue'
 import { apiFetch } from '@/utils/fetch_utils'
 import SunshineVersion from '@/utils/sunshine_version'
 import {
   ArrowDown,
-  ArrowRight,
   ArrowUp,
   ArrowUpDown,
-  Check,
   Edit,
-  FileText,
   Folder,
   FolderOpen,
-  FolderUp,
-  HardDrive,
   LayersPlus,
-  Play,
   Plus,
-  RotateCcw,
   Save,
   Search,
-  Shield,
   Terminal,
   Trash2,
   X,
@@ -512,24 +392,18 @@ export default {
     FormGroup,
     LoadingSpinner,
     Checkbox,
+    FileBrowserModal,
+    PrepCommandList,
     ArrowDown,
-    ArrowRight,
     ArrowUp,
     ArrowUpDown,
-    Check,
     Edit,
-    FileText,
     Folder,
     FolderOpen,
-    FolderUp,
-    HardDrive,
     LayersPlus,
-    Play,
     Plus,
-    RotateCcw,
     Save,
     Search,
-    Shield,
     Terminal,
     Trash2,
     X,
@@ -543,23 +417,17 @@ export default {
       coverCandidates: [],
       coverSearchQuery: "",
       platform: "",
-      fileBrowserType: "any",
-      fileBrowserTitle: "",
-      fileBrowserCallback: null,
-      fileBrowserCurrentPath: "",
-      fileBrowserParentPath: "",
-      fileBrowserEntries: [],
-      fileBrowserLoading: false,
-      fileBrowserError: "",
-      fileBrowserSelectedPath: "",
-      fileBrowserTypedPath: "",
       searchQuery: "",
       sortMode: "default",
       deleteTarget: null,
       deleteModalOpen: false,
       editModalOpen: false,
       coverFinderModalOpen: false,
-      fileBrowserModalOpen: false,
+      fileBrowserOpen: false,
+      fileBrowserType: "any",
+      fileBrowserTitle: "",
+      fileBrowserStartPath: "",
+      fileBrowserTarget: null,
       version: null,
       githubVersion: null,
     };
@@ -664,7 +532,7 @@ export default {
       this.editModalOpen = true;
     },
     editApp(id) {
-      this.editForm = structuredClone(this.apps[id]);
+      this.editForm = structuredClone(toRaw(this.apps[id]));
       this.editForm.index = id;
       if (this.editForm["prep-cmd"] === undefined)
         this.editForm["prep-cmd"] = [];
@@ -706,21 +574,6 @@ export default {
       }).then((r) => {
         if (r.status === 200) document.location.reload();
       });
-    },
-    addPrepCmd() {
-      let template = {
-        do: "",
-        undo: ""
-      };
-
-      if (this.platform === 'windows') {
-        template = { ...template, elevated: false };
-      }
-
-      this.editForm["prep-cmd"].push(template);
-    },
-    deletePrepCmd(index) {
-      this.editForm["prep-cmd"].splice(index, 1);
     },
     addDetached() {
       this.editForm.detached.push("");
@@ -806,80 +659,24 @@ export default {
       })
         .finally(() => this.coverFinderBusy = false);
     },
-    browseFor(type, titleKey, startPath, callback) {
+    openFileBrowser(type, titleKey, startPath, target) {
       this.fileBrowserType = type;
       this.fileBrowserTitle = this.$t(titleKey);
-      this.fileBrowserCallback = callback;
-      this.fileBrowserSelectedPath = startPath || '';
-      this.fileBrowserTypedPath = startPath || '';
-      this.fileBrowserError = '';
-      this.fileBrowserNavigate(startPath || '');
-      this.fileBrowserModalOpen = true;
+      this.fileBrowserStartPath = startPath || '';
+      this.fileBrowserTarget = target;
+      this.fileBrowserOpen = true;
     },
-    fileBrowserClose() {
-      this.fileBrowserModalOpen = false;
-    },
-    fileBrowserConfirm() {
-      const path = this.fileBrowserSelectedPath || this.fileBrowserTypedPath;
-      if (path) {
-        if (this.fileBrowserCallback) {
-          this.fileBrowserCallback(path);
-          this.fileBrowserCallback = null;
-        }
-        this.fileBrowserClose();
-      }
-    },
-    fileBrowserNavigate(path) {
-      this.fileBrowserLoading = true;
-      this.fileBrowserError = '';
-      const params = new URLSearchParams({ type: this.fileBrowserType });
-      if (path) params.set('path', path);
-      fetch(`./api/browse?${params.toString()}`)
-        .then(r => r.ok ? r.json() : r.json().then(e => { throw new Error(e.error || 'Browse failed'); }))
-        .then(data => {
-          this.fileBrowserCurrentPath = data.path ?? '';
-          this.fileBrowserParentPath = data.parent ?? '';
-          this.fileBrowserEntries = data.entries ?? [];
-          this.fileBrowserTypedPath = data.path ?? '';
-          this.fileBrowserSelectedPath = this.fileBrowserType === 'directory' ? (data.path ?? '') : '';
-        })
-        .catch(err => { this.fileBrowserError = err.message; })
-        .finally(() => { this.fileBrowserLoading = false; });
-    },
-    fileBrowserNavigateUp() {
-      this.fileBrowserNavigate(this.fileBrowserParentPath);
-    },
-    fileBrowserSelectEntry(entry) {
-      if (entry.type === 'directory') {
-        this.fileBrowserNavigate(entry.path);
+    onFileBrowserConfirm(path) {
+      const target = this.fileBrowserTarget;
+      if (target.field === 'detached') {
+        this.editForm.detached[target.index] = path;
       } else {
-        this.fileBrowserSelectedPath = entry.path;
-        this.fileBrowserTypedPath = entry.path;
+        this.editForm[target.field] = path;
       }
-    },
-    fileBrowserActivateEntry(entry) {
-      if (entry.type === 'directory') {
-        this.fileBrowserNavigate(entry.path);
-      } else {
-        this.fileBrowserSelectedPath = entry.path;
-        this.fileBrowserTypedPath = entry.path;
-        this.fileBrowserConfirm();
-      }
-    },
-    fileBrowserOnTypedInput() {
-      this.fileBrowserSelectedPath = this.fileBrowserTypedPath;
-    },
-    browsePrep(index, field) {
-      const current = this.editForm['prep-cmd'][index][field] || '';
-      this.browseFor('executable', 'file_browser.select_executable', current, (path) => {
-        this.editForm['prep-cmd'][index][field] = path;
-      });
     },
     browseDetached(index) {
       const current = this.editForm.detached[index] || '';
-      this.browseFor('executable', 'file_browser.select_executable', current, (path) => {
-        this.editForm.detached[index] = path;
-      });
+      this.openFileBrowser('executable', 'file_browser.select_executable', current, { field: 'detached', index });
     },
     save() {
       this.editForm["image-path"] = this.editForm["image-path"].toString().replaceAll('"', '');

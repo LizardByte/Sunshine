@@ -1,51 +1,58 @@
 <script setup>
-import { ref } from 'vue'
 import Checkbox from "@/components/Checkbox.vue";
+import Select from '@/components/Select.vue'
+import { useConfigTab } from '@/composables/useConfigTab'
+import { useI18n } from 'vue-i18n'
 
-const props = defineProps([
-  'platform',
-  'config',
-])
+const { t } = useI18n()
 
-const config = ref(props.config)
+const props = defineProps({
+  platform: String,
+  config: {
+    type: Object,
+    default: () => structuredClone(OPTIONS)
+  }
+})
+
+const { config, getOwnConfigOptions } = useConfigTab(props.config, OPTIONS)
+
+defineExpose({ getOwnConfigOptions })
+
+const PRESET_OPTIONS = [
+  { value: 'veryfast', label: t('config.qsv_preset_veryfast') },
+  { value: 'faster', label: t('config.qsv_preset_faster') },
+  { value: 'fast', label: t('config.qsv_preset_fast') },
+  { value: 'medium', label: t('config.qsv_preset_medium') },
+  { value: 'slow', label: t('config.qsv_preset_slow') },
+  { value: 'slower', label: t('config.qsv_preset_slower') },
+  { value: 'slowest', label: t('config.qsv_preset_slowest') },
+]
+
+const CODER_OPTIONS = [
+  { value: 'auto', label: t('config.ffmpeg_auto') },
+  { value: 'cabac', label: t('config.coder_cabac') },
+  { value: 'cavlc', label: t('config.coder_cavlc') },
+]
+</script>
+
+<script>
+export const OPTIONS = {
+  "qsv_preset": "medium",
+  "qsv_coder": "auto",
+  "qsv_slow_hevc": "disabled",
+}
 </script>
 
 <template>
   <div id="intel-quicksync-encoder" class="config-page">
     <!-- QuickSync Preset -->
-    <div class="mb-3">
-      <label for="qsv_preset" class="form-label">{{ $t('config.qsv_preset') }}</label>
-      <select id="qsv_preset" class="form-select" v-model="config.qsv_preset">
-        <option value="veryfast">{{ $t('config.qsv_preset_veryfast') }}</option>
-        <option value="faster">{{ $t('config.qsv_preset_faster') }}</option>
-        <option value="fast">{{ $t('config.qsv_preset_fast') }}</option>
-        <option value="medium">{{ $t('config.qsv_preset_medium') }}</option>
-        <option value="slow">{{ $t('config.qsv_preset_slow') }}</option>
-        <option value="slower">{{ $t('config.qsv_preset_slower') }}</option>
-        <option value="slowest">{{ $t('config.qsv_preset_slowest') }}</option>
-      </select>
-    </div>
+    <Select id="qsv_preset" v-model="config.qsv_preset" :label="$t('config.qsv_preset')" :options="PRESET_OPTIONS" />
 
     <!-- QuickSync Coder (H264) -->
-    <div class="mb-3">
-      <label for="qsv_coder" class="form-label">{{ $t('config.qsv_coder') }}</label>
-      <select id="qsv_coder" class="form-select" v-model="config.qsv_coder">
-        <option value="auto">{{ $t('config.ffmpeg_auto') }}</option>
-        <option value="cabac">{{ $t('config.coder_cabac') }}</option>
-        <option value="cavlc">{{ $t('config.coder_cavlc') }}</option>
-      </select>
-    </div>
+    <Select id="qsv_coder" v-model="config.qsv_coder" :label="$t('config.qsv_coder')" :options="CODER_OPTIONS" />
 
     <!-- Allow Slow HEVC Encoding -->
-    <Checkbox class="mb-3"
-              id="qsv_slow_hevc"
-              locale-prefix="config"
-              v-model="config.qsv_slow_hevc"
-              default="false"
-    ></Checkbox>
+    <Checkbox class="mb-3" id="qsv_slow_hevc" locale-prefix="config" v-model="config.qsv_slow_hevc" default="false">
+    </Checkbox>
   </div>
 </template>
-
-<style scoped>
-
-</style>

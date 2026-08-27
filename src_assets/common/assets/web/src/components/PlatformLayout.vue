@@ -1,10 +1,7 @@
 <script setup>
-const props = defineProps({
-  platform: {
-    type: String,
-    required: true
-  }
-})
+import { inject } from 'vue'
+
+const platform = inject('platform')
 </script>
 
 <template>
@@ -23,9 +20,9 @@ const props = defineProps({
   <template v-if="$slots.macos && platform === 'macos'">
     <slot name="macos"></slot>
   </template>
+
+  <!-- common: rendered for any platform -->
+  <template v-if="$slots.default">
+    <slot></slot>
+  </template>
 </template>
-
-
-<style scoped>
-
-</style>

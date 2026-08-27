@@ -25,7 +25,7 @@ const outputNamePlaceholder = _outputNamePlaceholder;  // NOSONAR(javascript:S14
            v-model="config.output_name"/>
     <div class="form-text">
       {{ $tp('config.output_name_desc') }}<br>
-      <PlatformLayout :platform="platform">
+      <PlatformLayout>
         <template #windows>
           <pre style="white-space: pre-line;">
             <b>&nbsp;&nbsp;{</b>

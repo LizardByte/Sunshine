@@ -1,12 +1,28 @@
 <script setup>
-import { ref } from 'vue'
+import { useConfigTab } from '@/composables/useConfigTab'
 
-const props = defineProps([
-  'platform',
-  'config'
-])
+const props = defineProps({
+  platform: String,
+  config: {
+    type: Object,
+    default: () => structuredClone(OPTIONS)
+  }
+})
 
-const config = ref(props.config)
+const { config, getOwnConfigOptions } = useConfigTab(props.config, OPTIONS)
+
+defineExpose({ getOwnConfigOptions })
+</script>
+
+<script>
+export const OPTIONS = {
+  "file_apps": "",
+  "credentials_file": "",
+  "log_path": "",
+  "pkey": "",
+  "cert": "",
+  "file_state": "",
+}
 </script>
 
 <template>
@@ -21,7 +37,8 @@ const config = ref(props.config)
     <!-- Credentials File -->
     <div class="mb-3">
       <label for="credentials_file" class="form-label">{{ $t('config.credentials_file') }}</label>
-      <input type="text" class="form-control" id="credentials_file" placeholder="sunshine_state.json" v-model="config.credentials_file" />
+      <input type="text" class="form-control" id="credentials_file" placeholder="sunshine_state.json"
+        v-model="config.credentials_file" />
       <div class="form-text">{{ $t('config.credentials_file_desc') }}</div>
     </div>
 
@@ -50,13 +67,9 @@ const config = ref(props.config)
     <div class="mb-3">
       <label for="file_state" class="form-label">{{ $t('config.file_state') }}</label>
       <input type="text" class="form-control" id="file_state" placeholder="sunshine_state.json"
-             v-model="config.file_state" />
+        v-model="config.file_state" />
       <div class="form-text">{{ $t('config.file_state_desc') }}</div>
     </div>
 
   </div>
 </template>
-
-<style scoped>
-
-</style>

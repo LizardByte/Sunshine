@@ -18,7 +18,7 @@ const config = ref(props.config)
            :placeholder="$tp('config.adapter_name_placeholder', '/dev/dri/renderD128')"
            v-model="config.adapter_name" />
     <div class="form-text">
-      <PlatformLayout :platform="platform">
+      <PlatformLayout>
         <template #windows>
           {{ $t('config.adapter_name_desc_windows') }}<br>
           <pre>tools\dxgi-info.exe</pre>
