@@ -223,6 +223,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">
             A list of commands to be run before/after all applications.
             If any of the prep-commands fail, starting the application is aborted.
+            @note{These run when the application <b>starts</b> and <b>terminates</b>, which is not
+            the same as a client connecting and disconnecting. Disconnecting does not terminate the
+            application - the session is kept alive so the client can resume - so <code>undo</code>
+            runs only on actual termination (quitting from the client, stopping it in the Web UI, or
+            Sunshine shutting down). Reconnecting resumes that session rather than launching the
+            application again, so <code>do</code> does not run on a reconnect either. Prep-commands
+            that change machine state needed by every stream, such as display layout or audio
+            routing, will therefore not be reapplied when a client resumes an existing session.}
         </td>
     </tr>
     <tr>
