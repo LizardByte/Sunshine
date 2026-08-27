@@ -13,14 +13,16 @@
 /**
  * @brief ScreenCaptureKit display capture controller used by the macOS backend.
  *
- * Frames are captured exclusively through SCScreenshotManager polling rather than an
- * SCStream: SCStream misses or delays small screen updates (e.g. a blinking terminal
- * cursor), and mixing stream frames with screenshot frames produces visible flicker on
- * translucent surfaces because the two paths composite slightly differently. Polling a
- * single consistent source avoids both problems.
+ * Frames are delivered by an SCStream and latched into a single latest-wins slot; the
+ * capture loop consumes the newest frame and the encoder duplicates the previous frame
+ * when the screen is static. Delivery reliability depends on configuration discipline
+ * (matching OBS's): `minimumFrameInterval` must sit ~10% below the target interval or
+ * frames get suppressed by clock beating, `queueDepth` must exceed the number of sample
+ * buffers the pipeline holds concurrently or WindowServer stalls delivery entirely, and
+ * frames must never be filtered by SCFrameStatus.
  */
 API_AVAILABLE(macos(14.0))
-@interface SCCapture: NSObject
+@interface SCCapture: NSObject <SCStreamDelegate, SCStreamOutput>
 
 /**
  * @def kMaxDisplays
@@ -54,9 +56,13 @@ API_AVAILABLE(macos(14.0))
  */
 @property (nonatomic, strong) SCContentFilter *contentFilter;
 /**
- * @brief Stream configuration used for screenshot captures.
+ * @brief Stream configuration used for the capture stream.
  */
 @property (nonatomic, strong) SCStreamConfiguration *streamConfiguration;
+/**
+ * @brief Active capture stream delivering frames, or nil when stopped.
+ */
+@property (nonatomic, strong) SCStream *stream;
 /**
  * @brief Cached shareable content used for display lookup.
  */
@@ -82,7 +88,7 @@ API_AVAILABLE(macos(14.0))
 /**
  * @brief Check whether ScreenCaptureKit screenshot capture is available on this system.
  *
- * @return `YES` when the running macOS version supports SCScreenshotManager.
+ * @return `YES` when the running macOS version supports the capture backend.
  */
 + (BOOL)isAvailable;
 /**
@@ -117,7 +123,7 @@ API_AVAILABLE(macos(14.0))
  */
 - (void)setFrameWidth:(int)frameWidth frameHeight:(int)frameHeight;
 /**
- * @brief Prepare the capture session for screenshot polling.
+ * @brief Create, configure, and start the capture stream.
  *
  * @return Semaphore signalled when capture stops, or nil on failure.
  */
@@ -128,10 +134,6 @@ API_AVAILABLE(macos(14.0))
  * @return Retained sample buffer, or NULL when no new frame is available.
  */
 - (CMSampleBufferRef)copyLatestSampleBuffer;
-/**
- * @brief Request the next screenshot frame; at most one request is kept in flight.
- */
-- (void)requestScreenshotSampleBuffer;
 /**
  * @brief Stop capture and release capture state.
  */
