@@ -76,5 +76,3 @@ defineExpose({ getOptions, getOptionsById })
   <SoftwareEncoder ref="sw" v-show="currentTab === 'sw'" :platform="platform" :config="config" />
 
 </template>
-
-<style scoped></style>

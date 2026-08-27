@@ -26,7 +26,7 @@ const props = defineProps({
   options: { type: [Array, Object], required: true },
 })
 
-const model = defineModel()
+const model = defineModel({ type: [String, Number] })
 
 // Normalizes to { slotName: options[] } for PlatformLayout.
 const optionsBySlot = computed(() => Array.isArray(props.options) ? { default: props.options } : props.options)

@@ -1,6 +1,6 @@
 <template>
-  <div class="mb-3">
-    <label class="form-label">{{ label }}</label>
+  <fieldset class="mb-3">
+    <legend class="form-label h6">{{ label }}</legend>
     <div class="form-text">{{ description }}</div>
 
     <!-- Column headers (only once there's at least one row) -->
@@ -66,10 +66,11 @@
 
     <FileBrowserModal v-model:open="browserOpen" type="executable" :title="$t('file_browser.select_executable')"
       :start-path="browserStartPath" @confirm="onBrowserConfirm" />
-  </div>
+  </fieldset>
 </template>
 
-<script>
+<script setup>
+import { computed, ref } from 'vue'
 import Checkbox from '@/components/Checkbox.vue'
 import FileBrowserModal from '@/components/FileBrowserModal.vue'
 import {
@@ -81,63 +82,53 @@ import {
   Trash2,
 } from '@lucide/vue'
 
-export default {
-  components: {
-    Checkbox,
-    FileBrowserModal,
-    FolderOpen,
-    Play,
-    Plus,
-    RotateCcw,
-    Shield,
-    Trash2,
-  },
-  props: {
-    modelValue: { type: Array, default: () => [] },
-    platform: String,
-    label: String,
-    description: String,
-    addLabel: String,
-  },
-  emits: ['update:modelValue'],
-  data() {
-    return {
-      browserOpen: false,
-      browserTargetIndex: null,
-      browserTargetField: null,
-    };
-  },
-  computed: {
-    browserStartPath() {
-      if (this.browserTargetIndex === null) {
-        return '';
-      }
-      return this.modelValue[this.browserTargetIndex][this.browserTargetField] || '';
-    },
-  },
-  methods: {
-    addCmd() {
-      let template = {
-        do: "",
-        undo: "",
-      };
+const props = defineProps({
+  platform: String,
+  label: String,
+  description: String,
+  addLabel: String,
+})
 
-      if (this.platform === 'windows') {
-        template = { ...template, elevated: false };
-      }
-      this.modelValue.push(template);
-    },
-    removeCmd(index) {
-      this.modelValue.splice(index, 1);
-    },
-    browse(index, field) {
-      this.browserTargetIndex = index;
-      this.browserTargetField = field;
-      this.browserOpen = true;
-    },
-    onBrowserConfirm(path) {
-      this.modelValue[this.browserTargetIndex][this.browserTargetField] = path;
-    },
-  },
+const modelValue = defineModel({ type: Array, default: () => [] })
+
+const browserOpen = ref(false)
+const browserTargetIndex = ref(null)
+const browserTargetField = ref(null)
+
+const browserStartPath = computed(() => {
+  if (browserTargetIndex.value === null) {
+    return '';
+  }
+  return modelValue.value[browserTargetIndex.value][browserTargetField.value] || '';
+})
+
+function addCmd() {
+  let template = {
+    do: "",
+    undo: "",
+  };
+
+  if (props.platform === 'windows') {
+    template = { ...template, elevated: false };
+  }
+  modelValue.value = [...modelValue.value, template];
+}
+
+function removeCmd(index) {
+  const updated = [...modelValue.value];
+  updated.splice(index, 1);
+  modelValue.value = updated;
+}
+
+function browse(index, field) {
+  browserTargetIndex.value = index;
+  browserTargetField.value = field;
+  browserOpen.value = true;
+}
+
+function onBrowserConfirm(path) {
+  const updated = [...modelValue.value];
+  updated[browserTargetIndex.value] = { ...updated[browserTargetIndex.value], [browserTargetField.value]: path };
+  modelValue.value = updated;
 }
 </script>
