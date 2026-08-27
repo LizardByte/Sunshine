@@ -28,32 +28,6 @@ static BOOL isUsableImageSampleBuffer(CMSampleBufferRef sampleBuffer) {
   return sampleBuffer && CMSampleBufferIsValid(sampleBuffer) && CMSampleBufferGetImageBuffer(sampleBuffer);
 }
 
-/**
- * @brief Private state and helpers for the screenshot capture loop.
- */
-API_AVAILABLE(macos(14.0))
-@interface SCCapture ()
-
-/**
- * @brief Whether a screenshot request is currently awaiting completion.
- */
-@property (nonatomic, assign) BOOL screenshotInFlight;
-
-/**
- * @brief Handle a completed screenshot request and schedule the next one.
- *
- * @param sampleBuffer Sample buffer delivered by the screenshot request, or nil on failure.
- * @param error Error delivered by the screenshot request, or nil on success.
- * @param filter Content filter the screenshot was captured with.
- * @param config Stream configuration the screenshot was captured with.
- */
-- (void)finishScreenshotSampleBuffer:(CMSampleBufferRef)sampleBuffer
-                               error:(NSError *)error
-                              filter:(SCContentFilter *)filter
-                       configuration:(SCStreamConfiguration *)config;
-
-@end
-
 API_AVAILABLE(macos(14.0))
 @implementation SCCapture
 
@@ -215,12 +189,13 @@ API_AVAILABLE(macos(14.0))
 }
 
 - (dispatch_semaphore_t)captureVideo {
+  dispatch_semaphore_t capture_signal = nil;
+
   @synchronized(self) {
     [self clearLatestSampleBuffer];
     [self releaseCaptureSignals];
 
     self.stopping = NO;
-    self.screenshotInFlight = NO;
     self.captureSignal = dispatch_semaphore_create(0);
     self.frameSignal = dispatch_semaphore_create(0);
 
@@ -242,13 +217,57 @@ API_AVAILABLE(macos(14.0))
     config.showsCursor = YES;
     config.captureResolution = SCCaptureResolutionBest;
     config.preservesAspectRatio = YES;
+    // Slightly below the target interval: an interval of exactly 1/fps beats against
+    // WindowServer's delivery clock and suppresses frames that arrive marginally early.
+    const int fps = MAX(self.frameRate, 1);
+    config.minimumFrameInterval = CMTimeMake(9, fps * 10);
+    // Must exceed the number of sample buffers the pipeline holds at once (latest-wins
+    // slot, encoder in-flight, transient retains), or WindowServer runs out of surfaces
+    // and stops delivering until one is returned.
+    config.queueDepth = 8;
     self.streamConfiguration = config;
     [config release];
 
-    NSLog(@"[SCCapture] Screenshot capture configured: %dx%d @ %d fps", self.frameWidth, self.frameHeight, self.frameRate);
-
-    return self.captureSignal;
+    capture_signal = self.captureSignal;
   }
+
+  // Start the stream outside the lock: delivery callbacks synchronize on self.
+  SCStream *stream = [[SCStream alloc] initWithFilter:self.contentFilter configuration:self.streamConfiguration delegate:self];
+  NSError *output_error = nil;
+  if (!stream || ![stream addStreamOutput:self type:SCStreamOutputTypeScreen sampleHandlerQueue:nil error:&output_error]) {
+    NSLog(@"[SCCapture] Failed to create stream output: %@", output_error.localizedDescription);
+    [stream release];
+    @synchronized(self) {
+      [self releaseCaptureSignals];
+    }
+    return nil;
+  }
+
+  __block NSError *start_error = nil;
+  dispatch_semaphore_t started = dispatch_semaphore_create(0);
+  [stream startCaptureWithCompletionHandler:^(NSError *error) {
+    start_error = [error retain];
+    dispatch_semaphore_signal(started);
+  }];
+  dispatch_semaphore_wait(started, DISPATCH_TIME_FOREVER);
+  dispatch_release(started);
+
+  if (start_error) {
+    NSLog(@"[SCCapture] Failed to start capture stream: %@", start_error.localizedDescription);
+    [start_error release];
+    [stream release];
+    @synchronized(self) {
+      [self releaseCaptureSignals];
+    }
+    return nil;
+  }
+
+  self.stream = stream;
+  [stream release];
+
+  NSLog(@"[SCCapture] SCStream capture configured: %dx%d @ %d fps", self.frameWidth, self.frameHeight, self.frameRate);
+
+  return capture_signal;
 }
 
 - (CMSampleBufferRef)copyLatestSampleBuffer {
@@ -259,53 +278,48 @@ API_AVAILABLE(macos(14.0))
   }
 }
 
-- (void)finishScreenshotSampleBuffer:(CMSampleBufferRef)sampleBuffer
-                               error:(NSError *)error
-                              filter:(SCContentFilter *)filter
-                       configuration:(SCStreamConfiguration *)config {
-  @synchronized(self) {
-    self.screenshotInFlight = NO;
+- (void)stream:(SCStream *)stream didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer ofType:(SCStreamOutputType)type {
+  if (type != SCStreamOutputTypeScreen) {
+    return;
   }
 
-  if (!error && isUsableImageSampleBuffer(sampleBuffer)) {
-    [self storeSampleBuffer:sampleBuffer];
+  // No SCFrameStatus filtering: any sample buffer carrying pixels is a real update.
+  if (!isUsableImageSampleBuffer(sampleBuffer)) {
+    return;
   }
 
-  [filter release];
-  [config release];
+  [self storeSampleBuffer:sampleBuffer];
 }
 
-- (void)requestScreenshotSampleBuffer {
-  SCContentFilter *filter = nil;
-  SCStreamConfiguration *config = nil;
-
+- (void)stream:(SCStream *)stream didStopWithError:(NSError *)error {
+  NSLog(@"[SCCapture] Stream stopped with error: %@", error.localizedDescription);
   @synchronized(self) {
-    if (self.stopping || self.screenshotInFlight || !self.contentFilter || !self.streamConfiguration) {
-      return;
+    if (!self.stopping && self.captureSignal) {
+      // Wake the capture loop so the pipeline tears down and reinitializes.
+      dispatch_semaphore_signal(self.captureSignal);
     }
-
-    self.screenshotInFlight = YES;
-    filter = [self.contentFilter retain];
-    config = [self.streamConfiguration retain];
   }
-
-  [SCScreenshotManager captureSampleBufferWithFilter:filter
-                                       configuration:config
-                                   completionHandler:^(CMSampleBufferRef sampleBuffer, NSError *error) {
-                                     [self finishScreenshotSampleBuffer:sampleBuffer error:error filter:filter configuration:config];
-                                   }];
 }
 
 - (void)stopCapture {
+  SCStream *stream = nil;
+
   @synchronized(self) {
     self.stopping = YES;
-    self.screenshotInFlight = NO;
 
+    stream = [self.stream retain];
+    self.stream = nil;
     self.contentFilter = nil;
     self.streamConfiguration = nil;
 
     [self clearLatestSampleBuffer];
     [self releaseCaptureSignals];
+  }
+
+  if (stream) {
+    [stream stopCaptureWithCompletionHandler:^(NSError *error) {
+    }];
+    [stream release];
   }
 }
 
