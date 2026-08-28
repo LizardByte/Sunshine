@@ -173,6 +173,8 @@
     "channels": "Maximum Connected Clients",
     "channels_desc_1": "Sunshine can allow a single streaming session to be shared with multiple clients simultaneously.",
     "channels_desc_2": "Some hardware encoders may have limitations that reduce performance with multiple streams.",
+    "chroma_supersample": "Exact Chroma via Integer Supersampling",
+    "chroma_supersample_desc": "When the stream resolution is an exact, even multiple of the capture resolution (2x, 4x, ...), use nearest-neighbor upscaling instead of bilinear so 4:2:0 chroma subsampling reproduces the source exactly. This is a practical alternative to 4:4:4 encoding on GPUs without a 4:4:4 hardware encoder profile. Falls back to normal scaling automatically when the resolution ratio doesn't qualify. The client must play back fullscreen for the exactness to hold end to end.",
     "coder_cabac": "cabac -- context adaptive binary arithmetic coding - higher quality",
     "coder_cavlc": "cavlc -- context adaptive variable-length coding - faster decode",
     "configuration": "Configuration",
