@@ -1253,12 +1253,14 @@ namespace platf {
 
         // Publish the real cursor position for the abs->rel input conversion
         // (see config: absolute_mouse_as_relative). Cursor-plane CRTC
-        // coordinates are CRTC-local physical pixels; add the output's desktop
-        // offset and publish the output extents so the consumer can rescale
-        // to logical touch-port units.
+        // coordinates are output-local physical pixels (relative to the
+        // captured output, no desktop offset); publish them together with the
+        // output extents so the consumer can rescale to logical touch-port
+        // units. The fields are written under a seqlock (seq odd while writing).
         auto &cursor_fb = platf::kms_cursor_feedback();
-        cursor_fb.x.store(offset_x + *prop_crtc_x);
-        cursor_fb.y.store(offset_y + *prop_crtc_y);
+        cursor_fb.seq.fetch_add(1);
+        cursor_fb.x.store(*prop_crtc_x);
+        cursor_fb.y.store(*prop_crtc_y);
         cursor_fb.desktop_w.store(width);
         cursor_fb.desktop_h.store(height);
         cursor_fb.logical_w.store(logical_width);
