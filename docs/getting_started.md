@@ -265,6 +265,9 @@ flatpak install --user ./sunshine_{arch}.flatpak
 ```
 
 ##### Additional installation (required)
+Run this command after installing or updating the Flatpak so the privileged host
+udev rules stay synchronized with Sunshine:
+
 ```bash
 flatpak run --command=additional-install.sh dev.lizardbyte.app.Sunshine
 ```
@@ -293,6 +296,7 @@ brew update
 brew upgrade
 brew tap LizardByte/homebrew
 brew install sunshine
+sudo "$(brew --prefix sunshine)/bin/postinst"
 ```
 
 ##### Uninstall

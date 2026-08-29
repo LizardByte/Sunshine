@@ -188,6 +188,18 @@ flatpak permission-set kde-authorized remote-desktop dev.lizardbyte.app.Sunshine
 After installation, the `udev` rules need to be reloaded. Our post-install script tries to do this for you
 automatically, but if it fails, you may need to restart your system.
 
+Sunshine recreates virtual gamepad device nodes for each streaming session. Manual `chmod` or `setfacl`
+changes therefore disappear when the client reconnects. Confirm that the installed Sunshine rule contains the
+parent-property import and `libvirtualhid/uhid/*` match, then reload it and reapply it to existing gamepad nodes:
+
+```bash
+grep -R -E 'IMPORT\{parent\}="HID_\*"|ENV\{HID_PHYS\}=="libvirtualhid/uhid/\*"' \
+  /etc/udev/rules.d /usr/lib/udev/rules.d /lib/udev/rules.d 2>/dev/null
+sudo udevadm control --reload-rules
+sudo udevadm trigger --subsystem-match=hidraw
+sudo udevadm trigger --subsystem-match=input
+```
+
 If the input is still not working, you may need to add your user to the `input` group.
 
 ```bash

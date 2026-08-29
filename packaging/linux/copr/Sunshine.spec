@@ -414,21 +414,23 @@ cd %{_builddir}/Sunshine/build
 %post
 # Note: this is copied from the postinst script
 
-# Load uhid (DS5 emulation)
-echo "Loading uhid kernel module for DS5 emulation."
+# Load uhid for descriptor-driven gamepad emulation
+echo "Loading uhid kernel module for gamepad emulation."
 modprobe uhid
 
 # Check if we're in an rpm-ostree environment
 if [ ! -x "$(command -v rpm-ostree)" ]; then
   echo "Not in an rpm-ostree environment, proceeding with post install steps."
 
-  # Trigger udev rule reload for /dev/uinput and /dev/uhid
+  # Reload the rules and reapply them to virtual gamepad child nodes.
   path_to_udevadm=$(which udevadm)
   if [ -x "$path_to_udevadm" ]; then
     echo "Reloading udev rules."
     $path_to_udevadm control --reload-rules
     $path_to_udevadm trigger --property-match=DEVNAME=/dev/uinput
     $path_to_udevadm trigger --property-match=DEVNAME=/dev/uhid
+    $path_to_udevadm trigger --subsystem-match=hidraw
+    $path_to_udevadm trigger --subsystem-match=input
     echo "Udev rules reloaded successfully."
   else
     echo "error: udevadm not found or not executable."

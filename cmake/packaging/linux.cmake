@@ -30,9 +30,15 @@ else()
     find_package(Udev)
 
     if(UDEV_FOUND)
-        install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sunshine.rules"
-                DESTINATION "${UDEV_RULES_INSTALL_DIR}")
+        set(SUNSHINE_UDEV_RULES_INSTALL_DIR "${UDEV_RULES_INSTALL_DIR}")
+    else()
+        set(SUNSHINE_UDEV_RULES_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/udev/rules.d")
+        message(WARNING
+                "Could not determine the host udev rules directory; "
+                "installing Sunshine rules to ${SUNSHINE_UDEV_RULES_INSTALL_DIR}")
     endif()
+    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sunshine.rules"
+            DESTINATION "${SUNSHINE_UDEV_RULES_INSTALL_DIR}")
     if(SYSTEMD_FOUND)
         install(FILES "${CMAKE_CURRENT_BINARY_DIR}/app-${PROJECT_FQDN}.service"
                 DESTINATION "${SYSTEMD_USER_UNIT_INSTALL_DIR}")

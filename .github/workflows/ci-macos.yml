@@ -58,9 +58,11 @@ jobs:
           - os: "macos-14"
             name: "macOS-arm64"
             arch: "arm64"
+            build_docs: "ON"
           - os: "macos-15-intel"
             name: "macOS-x86_64"
             arch: "x86_64"
+            build_docs: "OFF"
     steps:
       - name: Install Apple certificate
         uses: apple-actions/import-codesign-certs@5142e029c445c10ffc7149d172e540235a065466  # v7.0.0
@@ -121,6 +123,7 @@ jobs:
           cmake \
             -B build \
             -S . \
+            -DBUILD_DOCS="${{ matrix.build_docs }}" \
             -DBUILD_WERROR=ON \
             -DCMAKE_BUILD_TYPE=Release \
             -DICU_ROOT="$(brew --prefix icu4c@78 2>/dev/null)" \
