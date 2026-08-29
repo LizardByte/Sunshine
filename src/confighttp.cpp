@@ -1113,14 +1113,19 @@ namespace confighttp {
   }
 
   /**
-   * @brief Get a CSRF token for the authenticated user.
+   * @brief Get a CSRF token.
+   *
+   * No authentication required: login and initial setup need to fetch a token
+   * before a session exists. Still safe, since the Same-Origin Policy prevents
+   * a cross-origin page from ever reading the response.
+   *
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    *
    * @api_examples{/api/csrf-token| GET| null}
    */
   void getCSRFToken(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!check_origin_allowed(response, request)) {
       return;
     }
 
@@ -1816,6 +1821,11 @@ namespace confighttp {
       return;
     }
     if (!authenticate(response, request)) {
+      return;
+    }
+
+    const std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
