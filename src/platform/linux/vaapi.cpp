@@ -531,7 +531,9 @@ namespace va {
      * @return Conversion status.
      */
     int convert(platf::img_t &img) override {
-      sws.load_ram(img);
+      if (sws.load_ram(img) < 0) {
+        return -1;
+      }
 
       sws.convert_nv12(nv12->buf);
       return 0;

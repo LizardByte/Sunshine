@@ -635,6 +635,7 @@ namespace platf {
       img->data = (uint8_t *) x_img->data;
       img->row_pitch = x_img->bytes_per_line;
       img->pixel_pitch = x_img->bits_per_pixel / 8;
+      img->pixel_format = (img->pixel_pitch == 4) ? platf::pix_fmt_e::bgr0 : platf::pix_fmt_e::unknown;
       img->img.reset(x_img);
 
       if (cursor) {
@@ -830,6 +831,7 @@ namespace platf {
       img->height = height;
       img->pixel_pitch = 4;
       img->row_pitch = img->pixel_pitch * width;
+      img->pixel_format = platf::pix_fmt_e::bgr0;
       img->data = new std::uint8_t[height * img->row_pitch];
 
       return img;
@@ -1052,6 +1054,7 @@ namespace platf {
       img.y = xcursor->y - xcursor->yhot;
       img.pixel_pitch = 4;
       img.row_pitch = img.pixel_pitch * img.width;
+      img.pixel_format = platf::pix_fmt_e::bgr0;
       img.serial = xcursor->cursor_serial;
     }
 

@@ -1258,11 +1258,21 @@ namespace egl {
     return make_nv12(in_width, in_height, out_width, out_height, std::move(tex));
   }
 
-  void sws_t::load_ram(platf::img_t &img) {
+  int sws_t::load_ram(platf::img_t &img) {
+    // This upload path only understands packed 8-bit BGR captures. Fail loudly
+    // for declared formats it cannot represent (e.g. NV12 or 10-bit formats)
+    // instead of silently uploading them as BGR0.
+    if (!platf::is_bgr_capture_format(img.pixel_format)) {
+      BOOST_LOG(error) << "RAM capture conversion does not support pixel format: "sv << platf::from_pix_fmt(img.pixel_format);
+      return -1;
+    }
+
     loaded_texture = tex[0];
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, loaded_texture);
     gl::ctx.TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, img.width, img.height, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
+
+    return 0;
   }
 
   void sws_t::load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture, bool is_yuv444) {

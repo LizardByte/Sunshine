@@ -126,6 +126,8 @@ namespace video {
   public:
     /**
      * @brief Convert a captured image into the encoder input representation.
+     * @note Uses the capture pixel format declared in `img.pixel_format` when
+     * available, falling back to a heuristic based on `img.pixel_pitch` otherwise.
      *
      * @param img Image or frame object to read from or populate.
      * @return Conversion status.
