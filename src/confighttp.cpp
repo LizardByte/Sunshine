@@ -2068,6 +2068,10 @@ namespace confighttp {
 
     print_req(request);
 
+    nlohmann::json output_tree;
+    output_tree["status"] = true;
+    send_response(response, output_tree);
+
     // We may not return from this call
     platf::restart();
   }

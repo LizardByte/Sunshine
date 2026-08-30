@@ -58,7 +58,8 @@
                 <td>
                   <div class="driver-release-state" :class="driverReleaseStateClass(virtualhid, virtualhidRelease)"
                     :title="driverReleaseStatusText(virtualhid, virtualhidRelease)" aria-live="polite">
-                    <refresh-cw v-if="virtualhidRelease.loading" :size="17" class="driver-release-spinning"></refresh-cw>
+                    <refresh-cw v-if="virtualhidRelease.loading" :size="17"
+                      class="driver-release-spinning"></refresh-cw>
                     <check-circle v-else-if="driverReleaseState(virtualhid, virtualhidRelease) === 'current'"
                       :size="17"></check-circle>
                     <alert-triangle v-else-if="driverReleaseState(virtualhid, virtualhidRelease) === 'outdated'"
@@ -66,7 +67,8 @@
                     <alert-circle v-else :size="17"></alert-circle>
                     <span>{{ driverLatestVersion(virtualhidRelease) }}</span>
                   </div>
-                  <small class="driver-release-detail">{{ driverReleaseStatusText(virtualhid, virtualhidRelease) }}</small>
+                  <small class="driver-release-detail">{{ driverReleaseStatusText(virtualhid, virtualhidRelease)
+                    }}</small>
                 </td>
                 <td>{{ virtualhid.supported_versions }}</td>
                 <td>
@@ -105,8 +107,8 @@
                   </span>
                 </td>
                 <td class="driver-download-column">
-                  <a class="btn btn-outline-primary driver-download-button" :href="vigembusRelease.url"
-                    target="_blank" rel="noopener noreferrer">
+                  <a class="btn btn-outline-primary driver-download-button" :href="vigembusRelease.url" target="_blank"
+                    rel="noopener noreferrer">
                     <download :size="17"></download>
                     {{ $t('troubleshooting.driver_download') }}
                   </a>
@@ -157,8 +159,8 @@
         </p>
 
         <div class="virtualhid-license-toolbar">
-          <button class="btn btn-secondary" type="button" :disabled="licenseBusy || !virtualhidLicense.service_available"
-            @click="updateLicense('validate')">
+          <button class="btn btn-secondary" type="button"
+            :disabled="licenseBusy || !virtualhidLicense.service_available" @click="updateLicense('validate')">
             <refresh-cw :size="18" :class="{ 'driver-release-spinning': licenseBusy }"></refresh-cw>
             {{ $t('troubleshooting.virtualhid_license_refresh') }}
           </button>
@@ -230,11 +232,8 @@
     <div class="card-body">
       <h2 id="restart">{{ $t('troubleshooting.restart_sunshine') }}</h2>
       <p>{{ $t('troubleshooting.restart_sunshine_desc') }}</p>
-      <AlertBox v-if="restartPressed === true" variant="success" compact>
-        {{ $t('troubleshooting.restart_sunshine_success') }}
-      </AlertBox>
       <div>
-        <button type="button" class="btn btn-warning" :disabled="restartPressed" @click="restart">
+        <button type="button" class="btn btn-warning" @click="restart">
           <refresh-cw :size="18" class="icon"></refresh-cw>
           {{ $t('troubleshooting.restart_sunshine') }}
         </button>
@@ -268,7 +267,8 @@
       <div class="alert alert-success d-flex align-items-center" v-if="showApplyMessage">
         <check-circle :size="18" class="icon"></check-circle>
         <div><b>{{ $t('_common.success') }}</b> {{ $t('troubleshooting.unpair_single_success') }}</div>
-        <button type="button" class="btn btn-success ms-auto" @click="clickedApplyBanner">{{ $t('_common.dismiss') }}</button>
+        <button type="button" class="btn btn-success ms-auto" @click="clickedApplyBanner">{{ $t('_common.dismiss')
+          }}</button>
       </div>
       <AlertBox v-if="unpairAllStatus === true" variant="success" compact>
         {{ $t('troubleshooting.unpair_all_success') }}
@@ -353,6 +353,8 @@
 import AlertBox from '@/components/AlertBox.vue'
 import FeatureCard from '@/components/FeatureCard.vue'
 import { apiFetch } from '@/utils/fetch_utils'
+import { authState } from '@/utils/auth'
+import { notifyKey } from '@/components/Notification.vue'
 import {
   AlertCircle,
   AlertTriangle,
@@ -421,7 +423,6 @@ export default {
       licenseBusy: false,
       licenseError: '',
       licenseKey: '',
-      restartPressed: false,
       showApplyMessage: false,
       platform: "",
       controllerEnabled: false,
@@ -634,8 +635,9 @@ export default {
       apiFetch("./api/apps/close", {
         method: "POST",
         headers: {
-            "Content-Type": "application/json"
-        } })
+          "Content-Type": "application/json"
+        }
+      })
         .then((r) => r.json())
         .then((r) => {
           this.closeAppPressed = false;
@@ -650,9 +652,9 @@ export default {
       apiFetch("./api/clients/unpair-all", {
         method: "POST",
         headers: {
-            "Content-Type": "application/json"
+          "Content-Type": "application/json"
         }
-       })
+      })
         .then((r) => r.json())
         .then((r) => {
           this.unpairAllPressed = false;
@@ -720,16 +722,24 @@ export default {
       });
     },
     restart() {
-      this.restartPressed = true;
-      setTimeout(() => {
-        this.restartPressed = false;
-      }, 5000);
       apiFetch("./api/restart", {
         method: "POST",
         headers: {
-            "Content-Type": "application/json"
+          "Content-Type": "application/json"
         }
-      });
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.status) {
+            notifyKey.success('troubleshooting.restart_sunshine_success');
+          }
+        })
+        .catch(() => { })
+        .finally(() => {
+          // Session is gone after restart. Redirect to /login.
+          authState.authenticated = false;
+          this.$router.push('/login');
+        });
     },
     ddResetPersistence() {
       this.ddResetPressed = true;
