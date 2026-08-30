@@ -11,7 +11,9 @@
 #include <vector>
 
 #ifdef SUNSHINE_BUILD_WAYLAND
-  #include <linux-dmabuf-unstable-v1.h>
+  #include <ext-image-capture-source-v1.h>
+  #include <ext-image-copy-capture-v1.h>
+  #include <linux-dmabuf-v1.h>
   #include <wlr-screencopy-unstable-v1.h>
   #include <xdg-output-unstable-v1.h>
 #endif
@@ -68,40 +70,18 @@ namespace wl {
     dmabuf_t &operator=(const dmabuf_t &) = delete;
     dmabuf_t &operator=(dmabuf_t &&) = delete;
 
-    /**
-     * @brief Start a screencopy request and attach the DMA-BUF listener callbacks.
-     *
-     * @param screencopy_manager Compositor screencopy manager used to request frames.
-     * @param dmabuf_interface Compositor DMA-BUF interface used to allocate buffers.
-     * @param supported_modifiers DMA-BUF format modifiers supported by the compositor.
-     * @param output Wayland output to capture.
-     * @param blend_cursor Whether the compositor should include the cursor in the frame.
-     */
-    void listen(zwlr_screencopy_manager_v1 *screencopy_manager, zwp_linux_dmabuf_v1 *dmabuf_interface, const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers, wl_output *output, bool blend_cursor = false);
-    /**
-     * @brief Store the Wayland buffer created for a DMA-BUF parameter request.
-     *
-     * @param data Pointer to the `dmabuf_t` instance associated with the callback.
-     * @param params DMA-BUF parameter object that completed buffer creation.
-     * @param wl_buffer Wayland buffer created from the DMA-BUF planes.
-     */
-    static void buffer_params_created(void *data, struct zwp_linux_buffer_params_v1 *params, struct wl_buffer *wl_buffer);
-    /**
-     * @brief Mark DMA-BUF buffer creation as failed.
-     *
-     * @param data Pointer to the `dmabuf_t` instance associated with the callback.
-     * @param params DMA-BUF parameter object that failed buffer creation.
-     */
-    static void buffer_params_failed(void *data, struct zwp_linux_buffer_params_v1 *params);
-    /**
-     * @brief Record DMA-BUF buffer parameters from the compositor.
-     *
-     * @param frame Screencopy frame that advertised shared-memory fallback data.
-     * @param format DRM pixel format for the shared-memory buffer.
-     * @param width Frame width in pixels.
-     * @param height Frame height in pixels.
-     * @param stride Number of bytes per row in the buffer.
-     */
+    // wlr-screencopy based capture
+    void screencopy_create(zwlr_screencopy_manager_v1 *screencopy_manager, zwp_linux_dmabuf_v1 *dmabuf_interface, wl_output *output);
+    void screencopy_capture(bool blend_cursor = false);
+    void buffer_params_created(zwp_linux_buffer_params_v1 *params, struct wl_buffer *wl_buffer);
+    void buffer_params_failed(zwp_linux_buffer_params_v1 *params);
+    void buffer_feedback_done(zwp_linux_dmabuf_feedback_v1 *feedback);
+    void buffer_feedback_format_table(zwp_linux_dmabuf_feedback_v1 *feedback, int fd, int size);
+    void buffer_feedback_main_device(zwp_linux_dmabuf_feedback_v1 *feedback, struct wl_array *device);
+    void buffer_feedback_tranche_done(zwp_linux_dmabuf_feedback_v1 *feedback);
+    void buffer_feedback_tranche_target_device(zwp_linux_dmabuf_feedback_v1 *feedback, struct wl_array *device);
+    void buffer_feedback_tranche_formats(zwp_linux_dmabuf_feedback_v1 *feedback, struct wl_array *formats);
+    void buffer_feedback_tranche_flags(zwp_linux_dmabuf_feedback_v1 *feedback, int flags);
     void buffer(zwlr_screencopy_frame_v1 *frame, std::uint32_t format, std::uint32_t width, std::uint32_t height, std::uint32_t stride);
     /**
      * @brief Record Linux DMA-BUF parameters advertised for the frame.
@@ -151,11 +131,24 @@ namespace wl {
      */
     void failed(zwlr_screencopy_frame_v1 *frame);
 
-    /**
-     * @brief Select the inactive frame slot for the next screencopy request.
-     *
-     * @return Inactive frame buffer that can receive the next capture.
-     */
+    // ext-image-copy-capture based capture
+    void icc_create(ext_image_copy_capture_manager_v1 *manager, ext_output_image_capture_source_manager_v1 *source_manager, zwp_linux_dmabuf_v1 *dmabuf_interface, wl_output *output, bool blend_cursor = false);
+    void icc_capture(bool blend_cursor = false);
+    void icc_cleanup();
+    void icc_buffer_params_created(zwp_linux_buffer_params_v1 *params, struct wl_buffer *buffer);
+    void icc_buffer_params_failed(zwp_linux_buffer_params_v1 *params);
+    void icc_session_buffer_size(ext_image_copy_capture_session_v1 *session, std::uint32_t width, std::uint32_t height);
+    void icc_session_shm_format(ext_image_copy_capture_session_v1 *session, std::uint32_t format);
+    void icc_session_dmabuf_device(ext_image_copy_capture_session_v1 *session, struct wl_array *device);
+    void icc_session_dmabuf_format(ext_image_copy_capture_session_v1 *session, std::uint32_t format, struct wl_array *modifiers);
+    void icc_session_done(ext_image_copy_capture_session_v1 *session);
+    void icc_session_stopped(ext_image_copy_capture_session_v1 *session);
+    void icc_frame_transform(ext_image_copy_capture_frame_v1 *frame, std::uint32_t transform);
+    void icc_frame_damage(ext_image_copy_capture_frame_v1 *frame, std::int32_t x, std::int32_t y, std::int32_t width, std::int32_t height);
+    void icc_frame_presentation_time(ext_image_copy_capture_frame_v1 *frame, std::uint32_t tv_sec_hi, std::uint32_t tv_sec_lo, std::uint32_t tv_nsec);
+    void icc_frame_ready(ext_image_copy_capture_frame_v1 *frame);
+    void icc_frame_failed(ext_image_copy_capture_frame_v1 *frame, std::uint32_t reason);
+
     frame_t *get_next_frame() {
       return current_frame == &frames[0] ? &frames[1] : &frames[0];
     }
@@ -169,9 +162,9 @@ namespace wl {
     bool init_gbm();
     void cleanup_gbm();
     void create_and_copy_dmabuf(zwlr_screencopy_frame_v1 *frame);
+    void icc_create_and_copy_dmabuf(ext_image_copy_capture_frame_v1 *frame);
 
     zwp_linux_dmabuf_v1 *dmabuf_interface {nullptr};
-    const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers {nullptr};
 
     struct {
       bool supported {false};
@@ -187,6 +180,29 @@ namespace wl {
       std::uint32_t width;
       std::uint32_t height;
     } dmabuf_info;
+
+    struct {
+      zwlr_screencopy_manager_v1 *manager {nullptr};
+      zwlr_screencopy_frame_v1 *frame {nullptr};
+      wl_output *output {nullptr};
+      bool done {false};
+      std::map<std::uint32_t, std::vector<std::uint64_t>> supported_modifiers;
+    } screencopy_session;
+
+    struct {
+      ext_image_copy_capture_session_v1 *session {nullptr};
+      ext_image_copy_capture_frame_v1 *frame {nullptr};
+      std::uint32_t width {0};
+      std::uint32_t height {0};
+      std::uint32_t format {0};
+      std::uint64_t modifier {0};
+      std::uint64_t num_modifiers {0};
+      std::uint64_t *modifiers;
+      std::map<std::uint32_t, std::vector<std::uint64_t>> supported_modifiers;
+      bool dmabuf_supported {false};
+      bool cursor {false};
+      bool done {false};
+    } icc_session;
 
     struct gbm_device *gbm_device {nullptr};
     struct gbm_bo *current_bo {nullptr};
@@ -313,8 +329,10 @@ namespace wl {
      */
     enum interface_e {
       XDG_OUTPUT,  ///< xdg-output
-      WLR_EXPORT_DMABUF,  ///< screencopy manager
+      WLR_SCREENCOPY,  ///< wlr-screencopy manager
       LINUX_DMABUF,  ///< linux-dmabuf protocol
+      EXT_IMAGE_COPY_CAPTURE,  ///< ext-image-copy-capture manager
+      EXT_IMAGE_CAPTURE_SOURCE,  ///< ext-image-capture-source manager
       MAX_INTERFACES,  ///< Maximum number of interfaces
     };
 
@@ -359,11 +377,12 @@ namespace wl {
      */
     void dmabuf_modifier(zwp_linux_dmabuf_v1 *zwp_linux_dmabuf, uint32_t format, uint32_t modifier_hi, uint32_t modifier_lo);
 
-    std::vector<std::unique_ptr<monitor_t>> monitors;  ///< Outputs discovered from the Wayland registry.
-    std::map<std::uint32_t, std::vector<std::uint64_t>> supported_modifiers;  ///< DRM format modifiers grouped by format.
-    zwlr_screencopy_manager_v1 *screencopy_manager {nullptr};  ///< WLR screencopy global used to request frames.
-    zwp_linux_dmabuf_v1 *dmabuf_interface {nullptr};  ///< Linux DMA-BUF global used to allocate frame buffers.
-    zxdg_output_manager_v1 *output_manager {nullptr};  ///< xdg-output global used to query monitor names and sizes.
+    std::vector<std::unique_ptr<monitor_t>> monitors;
+    zwlr_screencopy_manager_v1 *screencopy_manager {nullptr};
+    zwp_linux_dmabuf_v1 *dmabuf_interface {nullptr};
+    zxdg_output_manager_v1 *output_manager {nullptr};
+    ext_image_copy_capture_manager_v1 *icc_manager {nullptr};
+    ext_output_image_capture_source_manager_v1 *icc_source_manager {nullptr};
 
   private:
     void add_interface(wl_registry *registry, std::uint32_t id, const char *interface, std::uint32_t version);
@@ -371,7 +390,6 @@ namespace wl {
 
     std::bitset<MAX_INTERFACES> interface;
     wl_registry_listener listener;
-    zwp_linux_dmabuf_v1_listener dmabuf_listener;
   };
 
   /**
