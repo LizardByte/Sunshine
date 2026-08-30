@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">  <!-- //NOSONAR(Web:PageWithoutTitleCheck): _includes/head.html renders the page title. -->
+<!-- Beautiful Jekyll 6.0.1 | Copyright Dean Attali 2023 -->
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  
+  <!-- Load theme initialization script early to prevent flash of wrong theme -->
+  <script src="/assets/js/theme-init.js"></script>
+  
+
+  
+
+  
+
+  
+
+  <title>Sunshine | LizardByte</title>
+
+  
+  
+  <meta name="author" content="LizardByte">
+  
+
+  <meta name="description" content="A LizardByte project">
+
+  
+  <meta name="theme-color" content="#05FF3B">
+  
+
+  
+  <meta name="keywords" content="LizardByte,Sunshine,Moonlight,self-hosted,gamestreaming,gamestream,game,streaming,media server">
+  
+
+  
+  <link rel="alternate" type="application/rss+xml" title="LizardByte" href="http://app.lizardbyte.dev/feed.xml">
+  
+
+  
+<!-- Global site tag (gtag.js) - Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SSW90X5YZX"></script>
+<script>
+  globalThis.dataLayer = globalThis.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-SSW90X5YZX');
+</script>
+
+
+  
+
+  
+
+  
+
+  
+
+
+  
+    
+      
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.8/css/bootstrap.min.css" rel="stylesheet" integrity="sha512-2bBQCjcnw658Lho4nlXJcc6WkV/UxpE/sAokbXPxQNGqmNdQrWqtw26Ns9kFF/yG792pKR1Sx8/Y1Lf1XN4GKA==" crossorigin="anonymous">
+
+
+    
+      
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet" integrity="sha512-2SwdPD6INVrV/lHTZbO2nodKhrnDdJK9/kg2XD1r9uGqPo1cUbujc+IYdlYdEErWNu69gVcYgdxlmVmzTWnetw==" crossorigin="anonymous">
+
+
+    
+      
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic">
+
+
+    
+      
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800">
+
+
+    
+  
+
+  
+    
+      <link rel="stylesheet" href="/assets/css/bootstrap-social.css">
+    
+      <link rel="stylesheet" href="/assets/css/beautifuljekyll.css">
+    
+  
+
+  
+    
+      
+        
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@2026.812.190302/dist/crowdin-bootstrap-css.css">
+
+
+      
+    
+      
+        <link rel="stylesheet" href="/assets/css/styles.css">
+      
+    
+  
+
+  
+
+  
+
+  
+
+  
+  <meta property="og:site_name" content="LizardByte">
+  <meta property="og:title" content="Sunshine | LizardByte">
+  <meta property="og:description" content="A LizardByte project">
+
+  
+
+  
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="http://app.lizardbyte.dev/">
+  <link rel="canonical" href="http://app.lizardbyte.dev/">
+  
+
+  
+  <meta name="twitter:card" content="summary">
+  
+  <meta name="twitter:site" content="@LizardByteDev">
+  <meta name="twitter:creator" content="@LizardByteDev">
+
+  <meta property="twitter:title" content="Sunshine | LizardByte">
+  <meta property="twitter:description" content="A LizardByte project">
+
+  
+
+  
+
+
+  
+
+  
+  
+  <link rel="icon" href="/favicon.ico" />
+  
+
+  
+
+</head>
+
+
+<body>
+  
+
+
+  <nav class="navbar navbar-expand-xl navbar-light fixed-top navbar-custom top-nav-regular">
+  <div class="container-fluid"><a class="navbar-brand" href="http://app.lizardbyte.dev/">LizardByte</a><button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#main-navbar" aria-controls="main-navbar" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="main-navbar">
+      <ul class="navbar-nav ms-auto">
+            <li class="nav-item dropdown">
+              <button class="nav-link dropdown-toggle" id="navbarDropdown1" type="button" data-bs-toggle="dropdown" aria-expanded="false">❤ Donate</button>
+              <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown1">
+                    <a class="dropdown-item" href="https://github.com/sponsors/LizardByte">GitHub</a>
+                    <a class="dropdown-item" href="https://patreon.com/LizardByte">Patreon</a>
+                    <a class="dropdown-item" href="https://www.paypal.com/paypalme/ReenigneArcher">PayPal</a>
+              </div>
+            </li>
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/store">Store</a>
+            </li>
+            <li class="nav-item dropdown">
+              <button class="nav-link dropdown-toggle" id="navbarDropdown3" type="button" data-bs-toggle="dropdown" aria-expanded="false">Resources</button>
+              <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown3">
+                    <a class="dropdown-item" href="/blog">Blog</a>
+                    <a class="dropdown-item" href="https://github.com/orgs/LizardByte/discussions">Community</a>
+                    <a class="dropdown-item" href="/discord">Discord</a>
+                    <a class="dropdown-item" href="https://docs.lizardbyte.dev/latest/about/overview.html">Docs</a>
+                    <a class="dropdown-item" href="https://app.lizardbyte.dev/GameDB">Game DB</a>
+                    <a class="dropdown-item" href="https://github.com/LizardByte">GitHub</a>
+                    <a class="dropdown-item" href="https://status.LizardByte.dev">Status</a>
+                    <a class="dropdown-item" href="/support">Support</a>
+              </div>
+            </li>
+          
+            <li class="nav-item dropdown">
+              <button class="nav-link dropdown-toggle" id="navbarDropdown4" type="button" data-bs-toggle="dropdown" aria-expanded="false">Tools</button>
+              <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown4">
+                    <a class="dropdown-item" href="/gamepad-tester">Gamepad Tester</a>
+                    <a class="dropdown-item" href="/mouse-tester">Mouse Tester</a>
+              </div>
+            </li>
+          
+            <li class="nav-item dropdown">
+              <button class="nav-link dropdown-toggle" id="navbarDropdown5" type="button" data-bs-toggle="dropdown" aria-expanded="false">Downloads</button>
+              <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown5">
+                    <a class="dropdown-item" href="https://app.lizardbyte.dev/packages">Packages</a>
+                    <a class="dropdown-item" href="https://github.com/LizardByte/homebrew-homebrew">Homebrew</a>
+                    <a class="dropdown-item" href="https://github.com/LizardByte/pacman-repo">Pacman</a>
+              </div>
+            </li>
+          
+            <li class="nav-item dropdown">
+              <button class="nav-link dropdown-toggle" id="navbarDropdown6" type="button" data-bs-toggle="dropdown" aria-expanded="false">Development</button>
+              <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown6">
+                    <a class="dropdown-item" href="https://docs.lizardbyte.dev/latest/developers/contributing.html">Contributing</a>
+                    <a class="dropdown-item" href="https://app.lizardbyte.dev/dashboard">Dashboard</a>
+                    <a class="dropdown-item" href="https://status-dev.LizardByte.dev">Dev Status</a>
+                    <a class="dropdown-item" href="/roadmap">Roadmap</a>
+              </div>
+            </li>
+          
+          
+          
+            <li class="nav-item">
+              <button class="nav-link" id="theme-toggle" type="button" title="Toggle theme (currently: auto)">
+                <span id="theme-icon-button" class="fas fa-fw fa-circle-half-stroke"></span>
+                <span class="d-xl-none ms-1">Theme</span>
+              </button>
+            </li>
+          
+          <li class="nav-item">
+            <a class="nav-link" id="nav-search-link" href="#" title="Search">
+              <span id="nav-search-icon" class="fa fa-fw fa-search"></span>
+              <span id="nav-search-text">Search</span>
+            </a>
+          </li></ul>
+    </div>
+
+    
+
+    
+      <div class="avatar-container">
+        <div class="avatar-img-border">
+          <a href="http://app.lizardbyte.dev/">
+            <img alt="Navigation bar avatar" class="avatar-img" src="/Sunshine/assets/img/navbar-avatar.png" />
+          </a>
+        </div>
+      </div>
+    
+
+  </div>
+</nav>
+
+
+
+<div id="beautifuljekyll-search-overlay">
+
+  <div id="nav-search-exit" title="Exit search">✕</div>
+  <input type="text" id="nav-search-input" placeholder="Search">
+  <ul id="search-results-container"></ul>
+
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/simple-jekyll-search/1.9.2/simple-jekyll-search.min.js"
+    integrity="sha384-UN+lyciv8Ta643YxZ9sY2tdTSmk3KE61Qq84ZIXG9NRTbD9+NFXy38m9h6Exxx3n"
+    crossorigin="anonymous"></script>
+  <script>
+    SimpleJekyllSearch({
+      searchInput: document.getElementById('nav-search-input'),
+      resultsContainer: document.getElementById('search-results-container'),
+      json: '/assets/data/searchcorpus.json'
+    });
+  </script>
+</div>
+
+
+
+
+
+  
+
+
+  <div id="header-big-imgs" data-num-img=3
+    
+    
+    
+    
+      data-img-src-1="http://app.lizardbyte.dev/Sunshine/assets/img/banners/AdobeStock_305732536_1920x1280.jpg"
+    
+    
+    
+    
+    
+    
+      data-img-src-2="http://app.lizardbyte.dev/Sunshine/assets/img/banners/AdobeStock_231616343_1920x1280.jpg"
+    
+    
+    
+    
+    
+    
+      data-img-src-3="http://app.lizardbyte.dev/Sunshine/assets/img/banners/AdobeStock_303330124_1920x1280.jpg"
+    
+    
+    
+  ></div>
+
+
+<header class="header-section has-img">
+<div class="intro-header  big-img ">
+  
+  <div class="container-md">
+    <div class="row">
+      <div class="col-xl-8 offset-xl-2 col-lg-10 offset-lg-1">
+        <div class="page-heading">
+          <h1>Sunshine</h1>
+          
+            
+              <hr class="small">
+              <span class="page-subheading">A LizardByte project</span>
+            
+          
+
+          
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <span class='img-desc'></span>
+</div>
+
+
+
+</header>
+
+
+<main class=" container-fluid ">
+  <div class="row">
+    <div class=" col ">
+      
+
+      <!-- About section-->
+<section class="py-5" id="About">
+    <div class="container px-auto">
+        <p class="lead text-center mx-auto mt-0 mb-5">
+            Sunshine is a self-hosted game stream host for Moonlight. Offering low latency, cloud gaming
+            server capabilities with support for AMD, Intel, and Nvidia GPUs for hardware encoding. Software
+            encoding is also available. You can connect to Sunshine from any Moonlight client on a variety
+            of devices. A web UI is provided to allow configuration, and client pairing, from your favorite
+            web browser. Pair from the local server or any mobile device.
+        </p>
+    </div>
+</section>
+
+<!-- Features section-->
+<section class="py-5" id="Features">
+    <div class="container px-auto">
+        <h2 class="text-center fw-bolder my-5">Features</h2>
+        <div class="row gx-5">
+            
+            <div class="col-md-6 col-lg-4 mb-5">
+                <div class="card-custom h-100 shadow border-0 rounded-0">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center">
+                            <div class="icon">
+                                
+                                <i class="fa-fw fa-2x fas fa-server"></i>
+                                
+                            </div>
+                            <div class="ms-3">
+                                <h5 class="fw-bolder mb-0">Self-hosted</h5>
+                                <p class="mb-0">Run Sunshine on your own hardware. No need to pay monthly fees to a cloud gaming provider.
+</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-4 mb-5">
+                <div class="card-custom h-100 shadow border-0 rounded-0">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center">
+                            <div class="icon">
+                                
+                                <img  src="https://moonlight-stream.org/images/moonlight.svg" alt="Moonlight"/>
+                                
+                            </div>
+                            <div class="ms-3">
+                                <h5 class="fw-bolder mb-0">Moonlight Support</h5>
+                                <p class="mb-0">Connect to Sunshine from any Moonlight client. Moonlight is available for Windows, macOS, Linux, Android, iOS, Xbox, and more. See <a href="#Clients">clients</a> for more information.
+</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-4 mb-5">
+                <div class="card-custom h-100 shadow border-0 rounded-0">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center">
+                            <div class="icon">
+                                
+                                <i class="fa-fw fa-2x fas fa-microchip"></i>
+                                
+                            </div>
+                            <div class="ms-3">
+                                <h5 class="fw-bolder mb-0">Hardware Encoding</h5>
+                                <p class="mb-0">Sunshine supports AMD, Intel, and Nvidia GPUs for hardware encoding. Software encoding is also available.
+</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-4 mb-5">
+                <div class="card-custom h-100 shadow border-0 rounded-0">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center">
+                            <div class="icon">
+                                
+                                <i class="fa-fw fa-2x fas fa-globe"></i>
+                                
+                            </div>
+                            <div class="ms-3">
+                                <h5 class="fw-bolder mb-0">Low Latency</h5>
+                                <p class="mb-0">Sunshine is designed to provide the lowest latency possible to achieve optimal gaming performance.
+</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-4 mb-5">
+                <div class="card-custom h-100 shadow border-0 rounded-0">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center">
+                            <div class="icon">
+                                
+                                <i class="fa-fw fa-2x fas fa-gamepad"></i>
+                                
+                            </div>
+                            <div class="ms-3">
+                                <h5 class="fw-bolder mb-0">Control</h5>
+                                <p class="mb-0">Sunshine emulates an Xbox, PlayStation, or Nintendo Switch controller. Use nearly any controller on your Moonlight client! <br><small><ul> <li>Gamepad emulation is not currently supported on macOS.</li> </ul></small>
+</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-4 mb-5">
+                <div class="card-custom h-100 shadow border-0 rounded-0">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center">
+                            <div class="icon">
+                                
+                                <i class="fa-fw fa-2x fas fa-gear"></i>
+                                
+                            </div>
+                            <div class="ms-3">
+                                <h5 class="fw-bolder mb-0">Configurable</h5>
+                                <p class="mb-0">Sunshine offers many configuration options to customize your experience.
+</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+</section>
+
+<!-- Clients section-->
+<section class="py-5" id="Clients">
+    <div class="container px-auto">
+        <h2 class="text-center fw-bolder my-5">Clients</h2>
+        <div class="row gx-5" id="clients-container">
+            <!-- Dynamically populated from sunshine.json -->
+        </div>
+    </div>
+</section>
+
+<!-- More cards -->
+<div class="container py-5 px-auto">
+    <div class="container col-md-10">
+        <!-- Docs section -->
+        <section class="py-4" id="Docs">
+            <div class="card-custom shadow border-0 rounded-0">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center">
+                        <i class="fa-fw fa-2x fas fa-book"></i>
+                        <div class="ms-3">
+                            <h2 class="fw-bolder mb-0">Documentation</h2>
+                            <p class="mb-0">
+                                Read the documentation to learn how to install, use, and configure Sunshine.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer p-3 px-4">
+                    <a class="btn btn-outline-theme me-3 mb-3" href="https://docs.lizardbyte.dev/projects/sunshine" target="_blank">
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/readthedocs.svg" alt="ReadTheDocs"/>
+                        Read the Docs
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Download section -->
+        <section class="py-4" id="Download">
+            <div class="card-custom shadow border-0 rounded-0">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center">
+                        <i class="fa-fw fa-2x fas fa-download"></i>
+                        <div class="ms-3">
+                            <h2 class="fw-bolder mb-0">Download</h2>
+                            <p class="mb-0">
+                                Download Sunshine for your platform.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer p-3 px-4">
+                    <a class="latest-button btn btn-outline-theme me-3 mb-3 d-none" href="https://github.com/LizardByte/Sunshine/releases/latest" target="_blank">
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/github.svg" alt="GitHub"/>
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/icons/windows.svg" alt="Windows"/>
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/debian.svg" alt="Debian"/>
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/ubuntu.svg" alt="Ubuntu"/>
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/flatpak.svg" alt="Flatpak"/>
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/linux.svg" alt="AppImage"/>
+                            Latest: <span id="latest-version" class="crowdin-ignore"></span>
+                    </a>
+                    <a class="beta-button btn btn-outline-theme me-3 mb-3 d-none" href="#" target="_blank">
+                        <i class="fa-fw fa-lg fas fa-flask"></i>
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/icons/windows.svg" alt="Windows"/>
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/debian.svg" alt="Debian"/>
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/ubuntu.svg" alt="Ubuntu"/>
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/flatpak.svg" alt="Flatpak"/>
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/linux.svg" alt="AppImage"/>
+                            Beta: <span id="beta-version" class="crowdin-ignore"></span>
+                    </a>
+                    <a class="btn btn-outline-theme me-3 mb-3" href="https://github.com/LizardByte/pacman-repo" target="_blank">
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/archlinux.svg" alt="Arch Linux"/>
+                            Arch Linux
+                    </a>
+                    <a class="btn btn-outline-theme me-3 mb-3" href="https://hub.docker.com/r/lizardbyte/sunshine" target="_blank">
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/docker.svg" alt="Docker"/>
+                            Docker
+                    </a>
+                    <a class="btn btn-outline-theme me-3 mb-3" href="https://flathub.org/apps/dev.lizardbyte.app.Sunshine" target="_blank">
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/flathub.svg" alt="Flathub"/>
+                            Flathub
+                    </a>
+                    <a class="btn btn-outline-theme me-3 mb-3" href="https://github.com/LizardByte/homebrew-homebrew" target="_blank">
+                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/homebrew.svg" alt="Homebrew"/>
+                            Homebrew
+                    </a>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+
+<!-- TODO: Move this to website repo, and make it accept arguments for the repo name -->
+<script>
+  // Fetch the releases from the GitHub API
+  fetch('https://api.github.com/repos/LizardByte/Sunshine/releases')
+    .then(response => response.json())
+    .then(data => {
+      // Filter the releases to get only the pre-releases
+      const preReleases = data.filter(release => release.prerelease);
+      // Filter the releases to get only the stable releases
+      const stableReleases = data.filter(release => !release.prerelease);
+
+      const latestButton = document.querySelector('.latest-button');
+      const latestVersion = document.querySelector('#latest-version');
+      const betaButton = document.querySelector('.beta-button');
+      const betaVersion = document.querySelector('#beta-version');
+
+      // If there are no stable releases, hide the latest download button
+      if (stableReleases.length === 0) {
+        latestButton.classList.add('d-none');
+      } else {
+        // Show the latest download button
+        latestButton.classList.remove('d-none');
+
+        // Get the latest stable release
+        const latestStableRelease = stableReleases[0];
+        latestVersion.textContent = latestStableRelease.tag_name;
+
+        // If there is a pre-release, update the href attribute of the anchor tag
+        if (preReleases.length > 0) {
+          const latestPreRelease = preReleases[0];
+
+          // Compare the date of the latest pre-release with the date of the latest stable release
+          const preReleaseDate = new Date(latestPreRelease.published_at);
+          const stableReleaseDate = new Date(latestStableRelease.published_at);
+
+          // If the pre-release is newer, update the href attribute of the anchor tag
+          if (preReleaseDate > stableReleaseDate) {
+            betaButton.href = latestPreRelease.html_url;
+            betaVersion.textContent = latestPreRelease.tag_name;
+            betaButton.classList.remove('d-none');
+          } else {
+            // If the pre-release is older, hide the button
+            betaButton.classList.add('d-none');
+          }
+        } else {
+          // If there is no pre-release, hide the button
+          betaButton.classList.add('d-none');
+        }
+      }
+    });
+
+  // Fetch clients from app directory
+  fetch('https://app.lizardbyte.dev/app-directory/sunshine.json')
+    .then(response => response.json())
+    .then(data => {
+      const clientsContainer = document.getElementById('clients-container');
+      if (!clientsContainer) return;
+
+      const apps = data.apps || [];
+
+      apps.forEach(app => {
+        let iconsHtml = '';
+
+        // Dynamic generation from JSON icons array
+        if (app.icons && Array.isArray(app.icons)) {
+          app.icons.forEach(icon => {
+            iconsHtml += `<img ${icon.invert ? 'class="invert"' : ''} src="${icon.src}" alt="${icon.alt}"/>`;
+          });
+        }
+
+        const typeBadge = app.official
+            ? '<span class="badge text-bg-info rounded-pill">Official</span>'
+            : '<span class="badge text-bg-warning rounded-pill">Community</span>';
+
+        let downloadsHtml = '';
+
+        // Dynamic generation from JSON downloads array
+        if (app.downloads && Array.isArray(app.downloads)) {
+          app.downloads.forEach((download, index) => {
+            const isLast = index === app.downloads.length - 1;
+            const pbClass = isLast ? '' : ' pb-3';
+
+            if (download.img) {
+              let styleAttr = '';
+              let heightAttr = '40';
+              let imgHost = '';
+              try { imgHost = new URL(download.img).hostname; } catch (e) {}
+
+              if (imgHost === 'play.google.com' || imgHost.endsWith('.ssl-images-amazon.com') || imgHost === 'fdroid.gitlab.io') {
+                  heightAttr = '60';
+              }
+              if (imgHost.endsWith('.ssl-images-amazon.com')) {
+                  styleAttr = 'style="padding: 10px;"';
+              }
+
+              downloadsHtml += `
+                  <div class="${pbClass.trim()}">
+                      <a href="${download.url}" target="_blank">
+                          <img alt="${download.label}"
+                               src="${download.img}"
+                               height="${heightAttr}"
+                               ${styleAttr}/>
+                      </a>
+                  </div>
+              `;
+            } else {
+              let btnClass = 'btn btn-info';
+              let iconHtml = '<i class="fas fa-download"></i> ';
+              let urlHost = '';
+              try { urlHost = new URL(download.url).hostname; } catch (e) {}
+
+              if (urlHost === 'github.com') {
+                  iconHtml = '<i class="fab fa-github"></i> ';
+              }
+              downloadsHtml += `
+                  <div class="${pbClass.trim()}">
+                      <a href="${download.url}" target="_blank" class="${btnClass}">
+                          ${iconHtml}${download.label}
+                      </a>
+                  </div>
+              `;
+            }
+          });
+        }
+
+        const projectLink = (app.links && app.links.github) || (app.links && app.links.website) || '#';
+
+        const clientHtml = `
+            <div class="col-md-6 col-lg-4 mb-5">
+                <div class="card-custom h-100 shadow border-0 rounded-0 d-flex flex-column">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center">
+                            <div class="icon">
+                                ${iconsHtml}
+                            </div>
+                            <div class="ms-3">
+                                <h5 class="fw-bolder mb-0">
+                                    <a href="${projectLink}" target="_blank" class="text-decoration-none project-card-link crowdin-ignore">
+                                        ${app.name}
+                                    </a>
+                                </h5>
+                            </div>
+                            <div class="ms-auto">
+                                ${typeBadge}
+                            </div>
+                        </div>
+                    </div>
+                    ${downloadsHtml ? `
+                    <div class="card-footer p-3 px-4">
+                        ${downloadsHtml}
+                    </div>` : ''}
+                </div>
+            </div>
+        `;
+        clientsContainer.innerHTML += clientHtml;
+      });
+    });
+</script>
+
+
+      
+        <div class="after-content">
+          
+            <!-- Donate section-->
+<section class="p-5" id="Donate">
+    <div class="container mb-5 shadow border-0 card-custom rounded-0">
+        <div class="d-table-row g-0">
+            <div class="d-table-cell px-3 align-middle text-center">
+                <i class="fa-fw fa-2xl fas fa-coins"></i>
+            </div>
+            <div class="col-sm-auto border-white my-3 px-3 py-2 border-start">
+                <div class="container">
+                    <h4 class="card-title mb-3 fw-bolder">Donate</h4>
+                </div>
+                <a
+                    class="text-decoration-none"
+                    href="https://github.com/sponsors/LizardByte"
+                    target="_blank">
+                    <img class="m-3 crowdin-ignore"
+                         alt="GitHub Sponsors"
+                         src="https://img.shields.io/github/sponsors/lizardbyte?label=Github%20Sponsors&style=for-the-badge&color=green&logo=githubsponsors"
+                    >
+                </a>
+                <a
+                    class="text-decoration-none"
+                    href="https://www.patreon.com/LizardByte"
+                    target="_blank">
+                    <img class="m-3 crowdin-ignore"
+                         alt="Patreon"
+                         src="https://img.shields.io/badge/dynamic/json?color=green&label=Patreon&style=for-the-badge&query=patron_count&url=https%3A%2F%2Fapp.lizardbyte.dev%2Fdashboard%2Fpatreon%2FLizardByte.json&logo=patreon"
+                    >
+                </a>
+                <a
+                    class="text-decoration-none"
+                    href="https://www.paypal.com/paypalme/ReenigneArcher"
+                    target="_blank">
+                    <img class="m-3 crowdin-ignore"
+                         alt="PayPal"
+                         src="https://img.shields.io/static/v1?style=for-the-badge&label=PayPal&message=Donate&color=green&logo=paypal"
+                    >
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+          
+            <!-- Support -->
+<section class="p-5" id="Support">
+    <div class="mx-auto mb-5">
+        <div class="container shadow border-0 bg-primary text-white rounded-0">
+            <div class="d-table-row g-0">
+                <div class="d-table-cell px-4 align-middle text-center">
+                    <h3 class="fw-bolder">Support Center</h3>
+                    <div>Find answers and ask questions.</div>
+                </div>
+                <div class="col-sm-auto border-white my-3 px-4 py-2 border-start">
+                    <p class="card-text">
+                        <em>The one who knows all the answers has not been asked all the questions.</em>
+                        – Confucius.
+                    </p>
+                    <div class="input-group mb-2">
+                        <a href="/support">
+                            <button class="btn btn-outline-light rounded-0"
+                                    id="button-support"
+                                    type="button"
+                            >Support</button>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+          
+        </div>
+      
+
+      
+
+    </div>
+  </div>
+</main>
+
+
+  <footer>
+  <div class="container-md beautiful-jekyll-footer">
+    <div class="row">
+      <div class="col-xl-8 offset-xl-2 col-lg-10 offset-lg-1">
+      
+<ul class="list-inline text-center footer-links"><li class="list-inline-item">
+    <a href="/feed.xml" title="RSS">
+      <span class="fa-stack fa-lg" aria-hidden="true">
+        <i class="fas fa-circle fa-stack-2x"></i>
+        <i class="fas fa-rss fa-stack-1x fa-inverse"></i>
+      </span>
+      <span class="visually-hidden">RSS</span>
+    </a>
+  </li><li class="list-inline-item">
+    <a href="https://discord.com/invite/d6MpcrbYQs" title="Discord">
+      <span class="fa-stack fa-lg" aria-hidden="true">
+        <i class="fas fa-circle fa-stack-2x"></i>
+        <i class="fab fa-discord fa-stack-1x fa-inverse"></i>
+      </span>
+      <span class="visually-hidden">Discord</span>
+   </a>
+  </li><li class="list-inline-item">
+    <a href="https://www.facebook.com/LizardByteDev" title="Facebook">
+      <span class="fa-stack fa-lg" aria-hidden="true">
+        <i class="fas fa-circle fa-stack-2x"></i>
+        <i class="fab fa-facebook fa-stack-1x fa-inverse"></i>
+      </span>
+      <span class="visually-hidden">Facebook</span>
+   </a>
+  </li><li class="list-inline-item">
+    <a href="https://github.com/LizardByte" title="GitHub">
+      <span class="fa-stack fa-lg" aria-hidden="true">
+        <i class="fas fa-circle fa-stack-2x"></i>
+        <i class="fab fa-github fa-stack-1x fa-inverse"></i>
+      </span>
+      <span class="visually-hidden">GitHub</span>
+   </a>
+  </li><li class="list-inline-item">
+    <a href="https://patreon.com/LizardByte" title="Patreon">
+      <span class="fa-stack fa-lg" aria-hidden="true">
+        <i class="fas fa-circle fa-stack-2x"></i>
+        <i class="fab fa-patreon fa-stack-1x fa-inverse"></i>
+      </span>
+      <span class="visually-hidden">Patreon</span>
+    </a>
+  </li><li class="list-inline-item">
+    <a href="https://reddit.com/r/LizardByte" title="Reddit">
+      <span class="fa-stack fa-lg" aria-hidden="true">
+        <i class="fas fa-circle fa-stack-2x"></i>
+        <i class="fab fa-reddit fa-stack-1x fa-inverse"></i>
+      </span>
+      <span class="visually-hidden">Reddit</span>
+   </a>
+  </li><li class="list-inline-item">
+    <a href="https://twitter.com/LizardByteDev" title="X (Twitter)">
+      <span class="fa-stack fa-lg" aria-hidden="true">
+        <i class="fas fa-circle fa-stack-2x"></i>
+        <i class="fab fa-x-twitter fa-stack-1x fa-inverse"></i>
+      </span>
+      <span class="visually-hidden">X (Twitter)</span>
+   </a>
+  </li><li class="list-inline-item">
+    <a href="https://www.youtube.com/c/LizardByteDev" title="YouTube">
+      <span class="fa-stack fa-lg" aria-hidden="true">
+        <i class="fas fa-circle fa-stack-2x"></i>
+        <i class="fab fa-youtube fa-stack-1x fa-inverse"></i>
+      </span>
+      <span class="visually-hidden">YouTube</span>
+   </a>
+  </li></ul>
+
+
+      
+        <div class="footer-custom-content">
+          
+            <script>
+    //open external links in a new window
+    function external_new_window() {
+        for(let c = document.getElementsByTagName("a"), a = 0;a < c.length;a++) {
+            let b = c[a];
+            if(b.getAttribute("href") && b.hostname !== location.hostname) {
+                b.target = "_blank";
+                b.rel = "noopener";
+            }
+        }
+    }
+
+    //open PDF links in a new window
+    function pdf_new_window ()
+    {
+        if (!document.getElementsByTagName) return false;
+        let links = document.getElementsByTagName("a");
+        for (const element of links) {
+            if (element.href.includes('.pdf') || element.href.includes('.doc') || element.href.includes('.docx')) {
+                element.onclick =
+                function() {
+                    window.open(this.href);
+                    return false;
+                }
+            }
+        }
+    }
+    pdf_new_window();
+    external_new_window();
+</script>
+
+
+<a title="Privacy Policy" href="/privacy" class="text_muted">Privacy</a>
+&nbsp;&bull;&nbsp;
+<a title="Terms and Conditions" href="/terms" class="text_muted">Terms</a>
+&nbsp;&bull;&nbsp;
+<a title="Licenses and Attribution" href="/licenses" class="text_muted">Licenses</a>
+
+          
+        </div>
+      
+      <p class="copyright text-muted">
+      
+        LizardByte
+        &nbsp;&bull;&nbsp;
+      
+      2026
+
+      
+        &nbsp;&bull;&nbsp;
+        <span class="author-site">
+          <a href="http://app.lizardbyte.dev/">app.LizardByte.dev</a>
+        </span>
+      
+
+      
+
+      
+        &nbsp;&bull;&nbsp;
+        <a title="Edit this page on GitHub" href="https://github.com/LizardByte/Sunshine/edit/gh-pages/index.html" class="text_muted">Edit page</a>
+       
+
+      </p>
+      
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+  
+  
+    
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.8/js/bootstrap.bundle.min.js" integrity="sha512-HvOjJrdwNpDbkGJIG2ZNqDlVqMo77qbs4Me4cah0HoDrfhrbA+8SBlZn1KrvAQw7cILLPFJvdwIgphzQmMm+Pw==" crossorigin="anonymous"></script>
+
+
+  
+
+
+
+  
+    <script src="/assets/js/beautifuljekyll.js"></script>
+  
+
+
+
+  
+    
+      
+  <script src="https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@2026.812.190302/dist/crowdin.js"></script>
+
+
+    
+  
+    
+      <script src="/assets/js/crowdin-init.js"></script>
+    
+  
+
+
+
+
+
+
+
+</body>
+</html>
