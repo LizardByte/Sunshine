@@ -1,0 +1,9 @@
+.intro-header {
+  margin-bottom: 0;
+}
+
+@media (min-width: 1200px) {
+  .intro-header {
+    margin-top: 5.6875rem;
+  }
+}
