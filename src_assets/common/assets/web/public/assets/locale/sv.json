@@ -71,6 +71,7 @@
     "env_client_hdr": "HDR är aktiverat av klienten (true/false)",
     "env_client_height": "Höjd som begärts av kunden (int)",
     "env_client_host_audio": "Kunden har begärt värdljud (true/false)",
+    "env_client_name": "Namnet på klienten som tilldelats under parning (str)",
     "env_client_width": "Bredden begärd av klienten (int)",
     "env_displayplacer_example": "Exempel - en displayplacer för automatiserad upplösning:",
     "env_qres_example": "Exempel - QRes för upplösnings automation:",
