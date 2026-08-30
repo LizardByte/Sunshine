@@ -1,0 +1,28 @@
+.main-content {
+  padding-bottom: 3.125rem;
+}
+
+footer.footer-min {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  padding: 0.1875rem;
+  background-color: #f5f5f5;
+  border-top: 1px solid #eeeeee;
+  text-align: center;
+}
+
+a {
+  text-decoration: none;  /* no underline */
+}
+a:hover,
+a:focus {
+  text-decoration: underline;  /* underline when hovering */
+}
+
+.navbar-custom .navbar-nav .dropdown-menu .dropdown-item:focus,
+.pagination .page-item .page-link:hover,
+.pagination .page-item .page-link:focus,
+.tag-btn:hover {
+  text-decoration: none;
+}
