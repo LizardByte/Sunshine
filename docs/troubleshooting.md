@@ -308,7 +308,7 @@ Input keyboard and mouse plus full virtual gamepad support. ViGEmBus is detected
 360 and DualShock 4 gamepads when libvirtualhid is unavailable. If you use the
 [ViGEmBus fallback](https://github.com/nefarius/ViGEmBus/releases/latest), you must use version 1.17 or newer.
 
-Sunshine requires Virtual HID Driver version `2026.826.2024.22` or newer. Earlier releases use incompatible Windows
+Sunshine requires Virtual HID Driver version `2026.829.2338.54` or newer. Earlier releases use incompatible Windows
 control and broker protocols. The Troubleshooting page reports an older installed package as unsupported and links
 to the current driver release. Local development driver builds using a `0.0.0.*` version remain supported.
 
