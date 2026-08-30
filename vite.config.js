@@ -59,6 +59,8 @@ export default defineConfig({
             bundleName: "sunshine",
             uploadToken: process.env.CODECOV_TOKEN,
             gitService: "github",
+            dryRun: process.env.GITHUB_REPOSITORY !== 'LizardByte/Sunshine',
+            telemetry: process.env.GITHUB_REPOSITORY === 'LizardByte/Sunshine',
         }),
     ],
     root: resolve(assetsSrcPath),

@@ -23,5 +23,10 @@
     "serve": "14.2.6",
     "vite": "6.4.3",
     "vite-plugin-ejs": "2.0.0"
+  },
+  "overrides": {
+    "@codecov/vite-plugin": {
+      "vite": "$vite"
+    }
   }
 }
