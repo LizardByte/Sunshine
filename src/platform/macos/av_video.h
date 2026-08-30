@@ -96,6 +96,7 @@ typedef bool (^FrameCallbackBlock)(CMSampleBufferRef);
  * slept, this performs that teardown on its behalf.
  *
  * @param signal Semaphore previously returned by capture:.
+ * @note This method waits for any in-flight frame callback to finish before returning.
  */
 - (void)stopCapture:(dispatch_semaphore_t)signal;
 

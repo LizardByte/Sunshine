@@ -5,6 +5,21 @@
 // local includes
 #import "av_video.h"
 
+/**
+ * @brief Private capture lifecycle helpers for AVVideo.
+ */
+@interface AVVideo ()
+
+/**
+ * @brief Tear down one capture after its callback queue has been serialized.
+ *
+ * @param connection Capture connection to tear down.
+ * @param signalCompletion Whether to wake the thread waiting for normal capture completion.
+ */
+- (void)finishCapture:(AVCaptureConnection *)connection signalCompletion:(BOOL)signalCompletion;
+
+@end
+
 @implementation AVVideo
 
 - (id)initWithDisplay:(CGDirectDisplayID)displayID frameRate:(int)frameRate {
@@ -94,27 +109,55 @@
 }
 
 - (void)stopCapture:(dispatch_semaphore_t)signal {
+  AVCaptureConnection *target = nil;
+  AVCaptureVideoDataOutput *videoOutput = nil;
+
   @synchronized(self) {
-    AVCaptureConnection *target = nil;
     for (AVCaptureConnection *connection in self.captureSignals) {
       if ([self.captureSignals objectForKey:connection] == signal) {
-        target = connection;
+        target = [connection retain];
+        videoOutput = [[self.videoOutputs objectForKey:connection] retain];
         break;
       }
     }
+  }
 
-    if (target == nil) {
+  if (target == nil) {
+    return;
+  }
+
+  // The callback is invoked on a serial queue. Running teardown on that same queue waits for
+  // an in-flight callback and orders this teardown before any callback that has not started.
+  dispatch_queue_t callbackQueue = [videoOutput sampleBufferCallbackQueue];
+  if (callbackQueue != nil) {
+    dispatch_sync(callbackQueue, ^{
+      [self finishCapture:target signalCompletion:NO];
+    });
+  } else {
+    [self finishCapture:target signalCompletion:NO];
+  }
+
+  [videoOutput release];
+  [target release];
+}
+
+- (void)finishCapture:(AVCaptureConnection *)connection signalCompletion:(BOOL)signalCompletion {
+  @synchronized(self) {
+    AVCaptureVideoDataOutput *videoOutput = [self.videoOutputs objectForKey:connection];
+    dispatch_semaphore_t signal = [self.captureSignals objectForKey:connection];
+    if (videoOutput == nil || signal == nil) {
       return;
     }
 
-    // Same teardown the frame callback performs when it returns false. Leaving the output
-    // in the session while the map tables release it over-releases it once this object is
-    // deallocated, so the entries have to go before the caller drops us.
+    // Claim this capture before stopping the session so queued callbacks become no-ops.
+    [self.captureCallbacks removeObjectForKey:connection];
     [self.session stopRunning];
-    [self.captureCallbacks removeObjectForKey:target];
-    [self.session removeOutput:[self.videoOutputs objectForKey:target]];
-    [self.videoOutputs removeObjectForKey:target];
-    [self.captureSignals removeObjectForKey:target];
+    [self.session removeOutput:videoOutput];
+    [self.videoOutputs removeObjectForKey:connection];
+    if (signalCompletion) {
+      dispatch_semaphore_signal(signal);
+    }
+    [self.captureSignals removeObjectForKey:connection];
     [self.session startRunning];
   }
 }
@@ -122,19 +165,17 @@
 - (void)captureOutput:(AVCaptureOutput *)captureOutput
   didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
          fromConnection:(AVCaptureConnection *)connection {
-  FrameCallbackBlock callback = [self.captureCallbacks objectForKey:connection];
+  FrameCallbackBlock callback = nil;
+  @synchronized(self) {
+    callback = [[self.captureCallbacks objectForKey:connection] copy];
+  }
 
   if (callback != nil) {
-    if (!callback(sampleBuffer)) {
-      @synchronized(self) {
-        [self.session stopRunning];
-        [self.captureCallbacks removeObjectForKey:connection];
-        [self.session removeOutput:[self.videoOutputs objectForKey:connection]];
-        [self.videoOutputs removeObjectForKey:connection];
-        dispatch_semaphore_signal([self.captureSignals objectForKey:connection]);
-        [self.captureSignals removeObjectForKey:connection];
-        [self.session startRunning];
-      }
+    const bool shouldStopCapture = !callback(sampleBuffer);
+    [callback release];
+
+    if (shouldStopCapture) {
+      [self finishCapture:connection signalCompletion:YES];
     }
   }
 }
