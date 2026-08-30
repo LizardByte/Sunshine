@@ -658,8 +658,8 @@ namespace pipewire {
       if (d->format.info.raw.max_framerate.num == 0 && d->format.info.raw.max_framerate.denom == 1) {
         BOOST_LOG(info) << "[pipewire] Framerate (from compositor): 0/1 (variable rate capture)";
       } else {
-        BOOST_LOG(info) << "[pipewire] Framerate (from compositor): "sv << d->format.info.raw.framerate.num << "/"sv << d->format.info.raw.framerate.denom;
-        BOOST_LOG(info) << "[pipewire] Framerate (from compositor, max): "sv << d->format.info.raw.max_framerate.num << "/"sv << d->format.info.raw.max_framerate.denom;
+        BOOST_LOG(info) << "[pipewire] Framerate (from compositor): "sv << d->format.info.raw.framerate.num << "/"sv << d->format.info.raw.framerate.denom
+                        << ", max: "sv << d->format.info.raw.max_framerate.num << "/"sv << d->format.info.raw.max_framerate.denom;
       }
 
       int physical_w = d->format.info.raw.size.width;
@@ -815,10 +815,11 @@ namespace pipewire {
       // calculate frame interval we should capture at
       delay = ::video::capture_frame_interval(config);
 
-      // WORKAROUND: request variable rate (0, 1) capture only if the active compositor is KWin 5.x-6.7.x.
+      // WORKAROUND: if the active compositor is KWin, request variable rate (0, 1) capture only for versions 5.x-6.7.x.
       // Ref: https://bugs.kde.org/show_bug.cgi?id=524129
+      // Also negotiate variable rate for all other compositors. Mutter's variable rate pacing is superior.
       const static std::vector<int> kwin_version = get_running_kwin_version();
-      const static bool negotiate_variable_rate = !kwin_version.empty() && (kwin_version[0] == 5 || (kwin_version[0] == 6 && kwin_version[1] < 8));
+      const static bool negotiate_variable_rate = kwin_version.empty() || (kwin_version[0] == 5 || (kwin_version[0] == 6 && kwin_version[1] < 8));
 
       const AVRational fps = (negotiate_variable_rate ? AVRational {0, 1} : ::video::framerate_to_rational(config));
       if (fps.den != 1) {
