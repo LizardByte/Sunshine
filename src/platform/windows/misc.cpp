@@ -1877,4 +1877,37 @@ namespace platf {
   std::string resolve_render_device() {
     return {};
   }
+
+  std::optional<std::array<double, 2>> pointer_location() {
+    POINT cursor {};
+    if (!GetCursorPos(&cursor)) {
+      return std::nullopt;
+    }
+
+    // GetCursorPos answers in virtual-screen coordinates, which span every monitor, so a pointer
+    // on a second one lands outside the streamed display rather than nowhere. Only a pointer on
+    // the display being streamed means anything to the client.
+    MONITORINFO primary {};
+    primary.cbSize = sizeof(primary);
+    if (const auto monitor = MonitorFromPoint(POINT {0, 0}, MONITOR_DEFAULTTOPRIMARY);
+        !monitor || !GetMonitorInfo(monitor, &primary)) {
+      return std::nullopt;
+    }
+
+    const auto &bounds = primary.rcMonitor;
+    const auto width = static_cast<double>(bounds.right - bounds.left);
+    const auto height = static_cast<double>(bounds.bottom - bounds.top);
+    if (width <= 0 || height <= 0) {
+      return std::nullopt;
+    }
+
+    if (cursor.x < bounds.left || cursor.x >= bounds.right || cursor.y < bounds.top || cursor.y >= bounds.bottom) {
+      return std::nullopt;
+    }
+
+    return std::array<double, 2> {
+      (cursor.x - bounds.left) / width,
+      (cursor.y - bounds.top) / height
+    };
+  }
 }  // namespace platf

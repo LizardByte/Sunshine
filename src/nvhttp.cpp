@@ -28,6 +28,9 @@
 #include "logging.h"
 #include "network.h"
 #include "nvhttp.h"
+#ifdef __APPLE__
+  #include "src/platform/macos/misc.h"
+#endif
 #include "platform/common.h"
 #include "process.h"
 #include "rtsp.h"
@@ -984,6 +987,59 @@ namespace nvhttp {
   }
 
   /**
+   * @brief Report where the focused application is expecting text.
+   *
+   * A phone's on-screen keyboard covers half the picture, and the client has no way of knowing
+   * which half matters. The host does. Coordinates are fractions of the streamed display so the
+   * client needs to know nothing about resolutions, and "source" says whether the answer is the
+   * insertion point itself or the pointer standing in for it. An empty body means neither was
+   * available, and the client should leave the picture where it is.
+   *
+   * Served only over HTTPS, so it reaches paired and enabled clients alone. Where someone is
+   * typing, and the pointer position it falls back to, describe what the user is doing closely
+   * enough that they belong behind the same verification as the rest of the session.
+   *
+   * @param response HTTP response object to populate.
+   * @param request HTTP request data from the client.
+   */
+  void caret(resp_https_t response, req_https_t request) {
+    print_req<SunshineHTTPS>(request);
+
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "application/json");
+
+    // The caret when the focused application will say where it is, the pointer when it will not,
+    // which is most of them. Accessibility is the only interface that reports an insertion point
+    // and it is macOS-only, so elsewhere the pointer is the whole answer.
+#ifdef __APPLE__
+    if (const auto rect = platf::focused_caret()) {
+      response->write(
+        SimpleWeb::StatusCode::success_ok,
+        std::format(R"({{"x":{},"y":{},"w":{},"h":{},"source":"caret"}})",
+                    (*rect)[0], (*rect)[1], (*rect)[2], (*rect)[3]),
+        headers
+      );
+      return;
+    }
+#endif
+
+    // Where you clicked to start typing, so it is close enough to the field to be worth moving
+    // the picture for, and in trackpad mode it is the only thing the client cannot work out for
+    // itself: it sends relative motion and never learns where the pointer ended up.
+    if (const auto point = platf::pointer_location()) {
+      response->write(
+        SimpleWeb::StatusCode::success_ok,
+        std::format(R"({{"x":{},"y":{},"w":0,"h":0,"source":"pointer"}})",
+                    (*point)[0], (*point)[1]),
+        headers
+      );
+      return;
+    }
+
+    response->write(SimpleWeb::StatusCode::success_ok, "{}", headers);
+  }
+
+  /**
    * @brief Launch the requested application for a GameStream session.
    *
    * @param host_audio Host audio.
@@ -1367,6 +1423,7 @@ namespace nvhttp {
       pair<SunshineHTTPS>(add_cert, resp, req);
     };
     https_server.resource["^/applist$"]["GET"] = applist;
+    https_server.resource["^/caret$"]["GET"] = caret;
     https_server.resource["^/appasset$"]["GET"] = appasset;
     https_server.resource["^/launch$"]["GET"] = [&host_audio](auto resp, auto req) {
       launch(host_audio, resp, req);
