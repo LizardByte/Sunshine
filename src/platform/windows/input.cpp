@@ -1234,7 +1234,7 @@ namespace platf {
   platform_caps::caps_t get_capabilities() {
     platform_caps::caps_t caps = 0;
 
-    if (virtualhid::configured_gamepad_supports_touchpad()) {
+    if (virtualhid::configured_gamepad_supports_controller_extensions()) {
       caps |= platform_caps::controller_touch;
     }
 

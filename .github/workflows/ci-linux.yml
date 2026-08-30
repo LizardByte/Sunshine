@@ -103,6 +103,11 @@ jobs:
         run: |
           # install sunshine to the DESTDIR
           DESTDIR=AppDir ninja install
+          test -f AppDir/usr/share/sunshine/udev/rules.d/60-sunshine.rules
+          grep -Fq 'IMPORT{parent}="HID_*"' \
+            AppDir/usr/share/sunshine/udev/rules.d/60-sunshine.rules
+          grep -Fq 'ENV{HID_PHYS}=="libvirtualhid/uhid/*"' \
+            AppDir/usr/share/sunshine/udev/rules.d/60-sunshine.rules
 
           # custom AppRun file
           cp -f ../packaging/linux/AppImage/AppRun ./AppDir/

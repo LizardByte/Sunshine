@@ -2091,11 +2091,16 @@ namespace input {
     });
   }
 
-  void refresh_virtual_mouse() {
+  void refresh_virtual_input() {
     dispatch_input_task([]() {
       if (platf_input) {
+        task_pool.cancel(key_press_repeat_id);
+        key_press_repeat_id = nullptr;
         reset_mouse_buttons();
-        platf::virtualhid::get_input_context(platf_input).refresh_mouse();
+        reset_keyboard_keys();
+        auto &context = platf::virtualhid::get_input_context(platf_input);
+        context.refresh_keyboard();
+        context.refresh_mouse();
       }
     });
   }

@@ -36,6 +36,11 @@ namespace platf::virtualhid {
     explicit input_context_t(lvh::BackendKind backend);
 
     /**
+     * @brief Recreate the shared keyboard using the runtime's current driver and license state.
+     */
+    void refresh_keyboard();
+
+    /**
      * @brief Recreate the shared mouse using the runtime's current driver and license state.
      */
     void refresh_mouse();
@@ -273,5 +278,15 @@ namespace platf::virtualhid {
    * @return True when controller touchpad input should be advertised.
    */
   bool configured_gamepad_supports_touchpad();
+
+  /**
+   * @brief Return whether the configured gamepad profile needs Moonlight controller extensions.
+   *
+   * Moonlight uses the controller-touch feature flag to authorize both controller
+   * touchpad and motion packets.
+   *
+   * @return True when controller touchpad or motion input should be advertised.
+   */
+  bool configured_gamepad_supports_controller_extensions();
 
 }  // namespace platf::virtualhid

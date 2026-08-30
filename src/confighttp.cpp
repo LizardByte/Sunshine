@@ -175,7 +175,7 @@ namespace confighttp {
    */
   constexpr auto CSRF_TOKEN_LIFETIME = std::chrono::hours(1);  // Tokens valid for 1 hour
 
-  constexpr auto LIBVIRTUALHID_MINIMUM_VERSION = "2026.823.352.3"sv;  ///< Minimum supported libvirtualhid driver version.  // NOSONAR(cpp:S1313): not an IP address
+  constexpr auto LIBVIRTUALHID_MINIMUM_VERSION = "2026.829.2338.54"sv;  ///< Minimum supported libvirtualhid driver version.  // NOSONAR(cpp:S1313): not an IP address
   constexpr auto VIGEMBUS_MINIMUM_VERSION = "1.17.0.0"sv;  ///< Minimum supported ViGEmBus fallback driver version.  // NOSONAR(cpp:S1313): not an IP address
 
   /**
@@ -1958,7 +1958,7 @@ namespace confighttp {
 #endif
 #ifdef _WIN32
       if (result.status.ok()) {
-        input::refresh_virtual_mouse();
+        input::refresh_virtual_input();
       }
 #endif
       send_response(response, build_virtualhid_license_status(result));
