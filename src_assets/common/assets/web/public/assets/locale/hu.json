@@ -71,6 +71,7 @@
     "env_client_hdr": "A kliensgép engedélyezi a HDR-t (igaz/hamis)",
     "env_client_height": "A kliensgép által kért magasság (egész szám)",
     "env_client_host_audio": "A kliensgép a gazdagép hangját kérte (igaz/hamis)",
+    "env_client_name": "A párosítás során hozzárendelt ügyfél neve (str)",
     "env_client_width": "A kliensgép által kért szélesség (egész szám)",
     "env_displayplacer_example": "Példa - displayplacer a felbontás automatizáláshoz:",
     "env_qres_example": "Példa - QRes a felbontás automatizálásához:",
