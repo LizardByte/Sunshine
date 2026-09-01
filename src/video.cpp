@@ -161,6 +161,32 @@ namespace video {
   }
 
   /**
+   * @brief Resolve a client-requested dynamic range against probed encoder capabilities.
+   *
+   * @param encoder Selected encoder and its probed codec capabilities.
+   * @param config Client-requested stream configuration.
+   * @return Effective stream configuration, downgraded to SDR when HDR is unsupported.
+   */
+  config_t resolve_dynamic_range(const encoder_t &encoder, config_t config) {
+    if (!config.dynamicRange) {
+      return config;
+    }
+
+    const auto &video_format = encoder.codec_from_config(config);
+    const auto capability = config.chromaSamplingType == 1 ?
+                              encoder_t::DYNAMIC_RANGE_YUV444 :
+                              encoder_t::DYNAMIC_RANGE;
+    if (video_format[capability]) {
+      return config;
+    }
+
+    const auto mode = config.chromaSamplingType == 1 ? "YUV 4:4:4 dynamic range"sv : "dynamic range"sv;
+    BOOST_LOG(warning) << video_format.name << ": "sv << mode << " not supported, falling back to SDR"sv;
+    config.dynamicRange = 0;
+    return config;
+  }
+
+  /**
    * @brief Create an FFmpeg hardware device buffer for D3D11VA input.
    *
    * @param encode_device Encode device.
@@ -1926,28 +1952,21 @@ namespace video {
       return nullptr;
     }
 
-    // may be downgraded below if the device can't deliver HDR (e.g. NvFBC's CUDA path is NV12/YUV444P only)
-    bool dynamicRange = config.dynamicRange;
-
     if (config.chromaSamplingType == 1) {
       if (!video_format[encoder_t::YUV444]) {
         BOOST_LOG(error) << video_format.name << ": YUV 4:4:4 not supported"sv;
         return nullptr;
       }
 
-      if (dynamicRange && !video_format[encoder_t::DYNAMIC_RANGE_YUV444]) {
-        BOOST_LOG(warning) << video_format.name << ": YUV 4:4:4 dynamic range not supported, falling back to SDR"sv;
-        dynamicRange = false;
-        encode_device->colorspace.colorspace = colorspace_e::rec709;
-        encode_device->colorspace.bit_depth = 8;
+      if (config.dynamicRange && !video_format[encoder_t::DYNAMIC_RANGE_YUV444]) {
+        BOOST_LOG(error) << video_format.name << ": YUV 4:4:4 dynamic range not supported"sv;
+        return nullptr;
       }
 
     } else {
-      if (dynamicRange && !video_format[encoder_t::DYNAMIC_RANGE]) {
-        BOOST_LOG(warning) << video_format.name << ": dynamic range not supported, falling back to SDR"sv;
-        dynamicRange = false;
-        encode_device->colorspace.colorspace = colorspace_e::rec709;
-        encode_device->colorspace.bit_depth = 8;
+      if (config.dynamicRange && !video_format[encoder_t::DYNAMIC_RANGE]) {
+        BOOST_LOG(error) << video_format.name << ": dynamic range not supported"sv;
+        return nullptr;
       }
     }
 
@@ -1991,7 +2010,7 @@ namespace video {
             // HEVC uses the same RExt profile for both 8 and 10 bit YUV 4:4:4 encoding
             ctx->profile = AV_PROFILE_HEVC_REXT;
           } else {
-            ctx->profile = dynamicRange ? AV_PROFILE_HEVC_MAIN_10 : AV_PROFILE_HEVC_MAIN;
+            ctx->profile = config.dynamicRange ? AV_PROFILE_HEVC_MAIN_10 : AV_PROFILE_HEVC_MAIN;
           }
           break;
 
@@ -2151,11 +2170,11 @@ namespace video {
       for (auto &option : video_format.common_options) {
         handle_option(option);
       }
-      for (auto &option : (dynamicRange ? video_format.hdr_options : video_format.sdr_options)) {
+      for (auto &option : (config.dynamicRange ? video_format.hdr_options : video_format.sdr_options)) {
         handle_option(option);
       }
       if (config.chromaSamplingType == 1) {
-        for (auto &option : (dynamicRange ? video_format.hdr444_options : video_format.sdr444_options)) {
+        for (auto &option : (config.dynamicRange ? video_format.hdr444_options : video_format.sdr444_options)) {
           handle_option(option);
         }
       }
@@ -2912,7 +2931,7 @@ namespace video {
    * @brief Capture and encode video for a streaming session.
    *
    * @param mail Session mail bus.
-   * @param config Video configuration.
+   * @param config Client-requested video configuration, normalized before capture begins.
    * @param channel_data Opaque channel data passed to packets.
    */
   void capture(
@@ -2920,6 +2939,8 @@ namespace video {
     config_t config,
     void *channel_data
   ) {
+    config = resolve_dynamic_range(*chosen_encoder, config);
+
     auto idr_events = mail->event<bool>(mail::idr);
 
     idr_events->raise(true);
