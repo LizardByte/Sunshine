@@ -37,7 +37,7 @@ namespace platf {
     }
 
     const auto &capabilities = runtime->capabilities();
-    if (capabilities.supports_gamepad && virtualhid::configured_gamepad_supports_touchpad()) {
+    if (capabilities.supports_gamepad && virtualhid::configured_gamepad_supports_controller_extensions()) {
       caps |= platform_caps::controller_touch;
     }
     if (config::input.native_pen_touch && (capabilities.supports_touchscreen || capabilities.supports_pen_tablet)) {

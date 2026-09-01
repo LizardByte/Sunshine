@@ -28,15 +28,16 @@ namespace {
   /**
    * @brief Expected touchpad support for a configured gamepad.
    */
-  struct gamepad_touchpad_case_t {
+  struct gamepad_capabilities_case_t {
     std::string_view gamepad;  ///< Configured gamepad name.
-    bool expected;  ///< Whether the configured gamepad supports touchpad input.
+    bool expected_touchpad;  ///< Whether the configured gamepad supports touchpad input.
+    bool expected_controller_extensions;  ///< Whether Moonlight controller extensions should be advertised.
   };
 
   /**
    * @brief Parameterized fixture that restores the configured gamepad after each test.
    */
-  class VirtualHidInputTest: public ::testing::TestWithParam<gamepad_touchpad_case_t> {
+  class VirtualHidInputTest: public ::testing::TestWithParam<gamepad_capabilities_case_t> {
   protected:
     /**
      * @brief Preserve the configured gamepad.
@@ -59,25 +60,34 @@ namespace {
 }  // namespace
 
 TEST_P(VirtualHidInputTest, ReportsExpectedTouchpadSupport) {
-  const auto &[gamepad, expected] = GetParam();
-  config::input.gamepad = gamepad;
-  EXPECT_EQ(platf::virtualhid::configured_gamepad_supports_touchpad(), expected) << gamepad;
+  const auto &test_case = GetParam();
+  config::input.gamepad = test_case.gamepad;
+  EXPECT_EQ(platf::virtualhid::configured_gamepad_supports_touchpad(), test_case.expected_touchpad) << test_case.gamepad;
+}
+
+TEST_P(VirtualHidInputTest, ReportsExpectedControllerExtensionSupport) {
+  const auto &test_case = GetParam();
+  config::input.gamepad = test_case.gamepad;
+  EXPECT_EQ(
+    platf::virtualhid::configured_gamepad_supports_controller_extensions(),
+    test_case.expected_controller_extensions
+  ) << test_case.gamepad;
 }
 
 INSTANTIATE_TEST_SUITE_P(
   ConfiguredGamepads,
   VirtualHidInputTest,
   ::testing::Values(
-    gamepad_touchpad_case_t {"auto"sv, true},
-    gamepad_touchpad_case_t {"generic"sv, false},
-    gamepad_touchpad_case_t {"x360"sv, false},
-    gamepad_touchpad_case_t {"xone"sv, false},
-    gamepad_touchpad_case_t {"xseries"sv, false},
-    gamepad_touchpad_case_t {"ds4"sv, true},
-    gamepad_touchpad_case_t {"ds5"sv, true},
-    gamepad_touchpad_case_t {"switch"sv, false}
+    gamepad_capabilities_case_t {"auto"sv, true, true},
+    gamepad_capabilities_case_t {"generic"sv, false, false},
+    gamepad_capabilities_case_t {"x360"sv, false, false},
+    gamepad_capabilities_case_t {"xone"sv, false, false},
+    gamepad_capabilities_case_t {"xseries"sv, false, false},
+    gamepad_capabilities_case_t {"ds4"sv, true, true},
+    gamepad_capabilities_case_t {"ds5"sv, true, true},
+    gamepad_capabilities_case_t {"switch"sv, false, true}
   ),
-  [](const ::testing::TestParamInfo<gamepad_touchpad_case_t> &info) {
+  [](const ::testing::TestParamInfo<gamepad_capabilities_case_t> &info) {
     return std::string {info.param.gamepad};
   }
 );
@@ -240,6 +250,10 @@ TEST_F(VirtualHidDeviceTest, RejectsUnavailableAndInvalidGamepadSlots) {
 
   platf::virtualhid::input_context_t no_runtime {lvh::BackendKind::fake};
   no_runtime.runtime.reset();
+  no_runtime.refresh_keyboard();
+  no_runtime.refresh_mouse();
+  EXPECT_EQ(no_runtime.keyboard, nullptr);
+  EXPECT_EQ(no_runtime.mouse, nullptr);
   EXPECT_EQ(platf::virtualhid::alloc_gamepad(no_runtime, valid_id, metadata, nullptr), -1);
 
   EXPECT_EQ(platf::virtualhid::alloc_gamepad(*context(), {-1, 0}, metadata, nullptr), -1);
@@ -401,6 +415,23 @@ TEST_F(VirtualHidDeviceTest, RoutesAndDeduplicatesGamepadFeedback) {
   ++output.blue;
   ASSERT_TRUE(adapter->dispatch_output(output).ok());
   EXPECT_TRUE(feedback_queue()->pop(10ms));
+
+  output.kind = lvh::GamepadOutputKind::player_leds;
+  output.player_leds = {true, false, true, false};
+  output.flashing_player_leds = {false, true, false, true};
+  ASSERT_TRUE(adapter->dispatch_output(output).ok());
+  feedback = feedback_queue()->pop(10ms);
+  ASSERT_TRUE(feedback);
+  EXPECT_EQ(feedback->type, platf::gamepad_feedback_e::set_player_leds);
+  EXPECT_EQ(feedback->data.player_leds.solid, 0x05);
+  EXPECT_EQ(feedback->data.player_leds.flashing, 0x0A);
+  ASSERT_TRUE(adapter->dispatch_output(output).ok());
+  EXPECT_FALSE(feedback_queue()->pop(0ms));
+  output.player_leds[3] = true;
+  ASSERT_TRUE(adapter->dispatch_output(output).ok());
+  feedback = feedback_queue()->pop(10ms);
+  ASSERT_TRUE(feedback);
+  EXPECT_EQ(feedback->data.player_leds.solid, 0x0D);
 
   output.kind = lvh::GamepadOutputKind::adaptive_triggers;
   output.adaptive_trigger_flags = 5;

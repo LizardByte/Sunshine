@@ -151,7 +151,7 @@ namespace system_tray {
   constexpr auto LIBVIRTUALHID_RELEASES_URL = "https://github.com/LizardByte/libvirtualhid/releases/latest"sv;  ///< Latest Virtual HID Driver release.
   static std::array<struct tray_menu, 7> virtualhid_benefits_menu {{
     {.text = "Xbox One, Xbox Series, DualSense (DS5), Switch Pro, and Generic", .disabled = 1},
-    {.text = "Raw Input mouse for relative movement, buttons, and scrolling", .disabled = 1},
+    {.text = "Raw Input keyboard and mouse for physical-style input", .disabled = 1},
     {.text = "Motion, touchpads, LEDs, and adaptive triggers where supported", .disabled = 1},
     {.text = "Actively developed and supported by LizardByte", .disabled = 1},
     {.text = "-"},
@@ -435,7 +435,7 @@ namespace system_tray {
       set_virtualhid_license_menu_item(6, "Manage License", false, tray_virtualhid_license_cb);
     } else {
       set_virtualhid_license_menu_item(1, std::string {virtualhid_license_state_detail(license.state)}, true);
-      set_virtualhid_license_menu_item(2, "Driver-backed gamepads and Raw Input mouse are locked", true);
+      set_virtualhid_license_menu_item(2, "Driver-backed keyboard, mouse, and gamepads are locked", true);
       set_virtualhid_license_menu_item(
         3,
         license.service_available ? "License service: Available" : "License service: Unavailable",
@@ -470,7 +470,7 @@ namespace system_tray {
     if (notify_if_unlicensed && !license.licensed()) {
       tray.notification_title = "Activate Virtual HID Driver";
       tray.notification_text =
-        "Adds a Raw Input mouse plus Xbox One/Series, DualSense (DS5), Switch Pro, and Generic gamepads. Actively maintained by LizardByte. Click to activate or buy a license; details remain in the tray menu.";
+        "Adds a Raw Input keyboard and mouse plus Xbox One/Series, DualSense (DS5), Switch Pro, and Generic gamepads. Actively maintained by LizardByte. Click to activate or buy a license; details remain in the tray menu.";
       tray.notification_icon = tray.allIconPaths[4];
       tray.notification_cb = []() {
         launch_ui("/troubleshooting#virtualhid-license");

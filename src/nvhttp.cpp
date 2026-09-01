@@ -176,6 +176,7 @@ namespace nvhttp {
 
   // Set by TLS verify callback, read by launch/resume handler (single-threaded HTTPS server)
   std::string last_verified_client_cert;  ///< Last client certificate accepted by the TLS verify callback.  // NOSONAR(cpp:S5421): intentionally mutable global
+  std::string last_verified_client_name;  ///< Friendly name of last client certificate accepted by the TLS verify callback. // NOSONAR(cpp:S5421): intentionally mutable global
 
   /**
    * @brief Case-insensitive map used for HTTP headers and query parameters.
@@ -405,6 +406,7 @@ namespace nvhttp {
     }
     launch_session->rtsp_url_scheme = launch_session->rtsp_cipher ? "rtspenc://"s : "rtsp://"s;
     launch_session->client_cert = last_verified_client_cert;
+    launch_session->client_name = last_verified_client_name;
 
     // Generate the unique identifiers for this connection that we will send later during RTSP handshake
     unsigned char raw_payload[8];
@@ -1253,12 +1255,13 @@ namespace nvhttp {
   }
 
   /**
-   * @brief Check whether a paired client certificate is allowed to connect.
+   * @brief Check whether a paired client certificate is allowed to connect and retrieve its friendly name.
    *
    * @param cert_pem PEM-encoded client certificate to look up.
-   * @return True when the client certificate belongs to an enabled device.
+   * @return Pair of (bool enabled, string name) where "enabled" is True when the client certificate belongs to an
+             enabled device and "name" is the friendly client name set during pairing.
    */
-  bool is_client_enabled(const std::string_view cert_pem);
+  std::pair<bool, std::string> get_client_status(const std::string_view cert_pem);
 
   void start() {
     platf::set_thread_name("nvhttp");
@@ -1330,12 +1333,14 @@ namespace nvhttp {
 
       // Check if this client is enabled
       auto pem = crypto::pem(x509);
-      if (!is_client_enabled(pem)) {
+      auto [enabled, client_name] = get_client_status(pem);
+      if (!enabled) {
         BOOST_LOG(info) << "Client is disabled -- denied"sv;
         return verified;
       }
 
       last_verified_client_cert = pem;
+      last_verified_client_name = client_name;
       verified = 1;
 
       return verified;
@@ -1463,15 +1468,15 @@ namespace nvhttp {
   }
 
   /**
-   * @brief Check whether a paired client certificate is allowed to connect.
+   * @brief Check whether a paired client certificate is allowed to connect and return its friendly name.
    */
-  bool is_client_enabled(const std::string_view cert_pem) {
+  std::pair<bool, std::string> get_client_status(const std::string_view cert_pem) {
     const client_t &client = client_root;
     for (const auto &named_cert : client.named_devices) {
       if (named_cert.cert == cert_pem) {
-        return named_cert.enabled;
+        return {named_cert.enabled, named_cert.name};
       }
     }
-    return true;
+    return {true, {}};
   }
 }  // namespace nvhttp

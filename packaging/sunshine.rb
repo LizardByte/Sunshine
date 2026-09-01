@@ -476,6 +476,11 @@ class Sunshine < Formula
     # test that the binary runs at all
     system bin/"sunshine", "--version"
 
+    if OS.linux?
+      assert_path_exists lib/"udev/rules.d/60-sunshine.rules"
+      assert_path_exists lib/"modules-load.d/60-sunshine.conf"
+    end
+
     if IS_UPSTREAM_REPO
       artifact_dir = release_homebrew_testpath
       if artifact_dir

@@ -84,7 +84,7 @@ namespace {
     ASSERT_NE(benefits_menu, nullptr);
     EXPECT_STREQ(benefits_menu[0].text, "Xbox One, Xbox Series, DualSense (DS5), Switch Pro, and Generic");
     EXPECT_EQ(benefits_menu[0].disabled, 1);
-    EXPECT_STREQ(benefits_menu[1].text, "Raw Input mouse for relative movement, buttons, and scrolling");
+    EXPECT_STREQ(benefits_menu[1].text, "Raw Input keyboard and mouse for physical-style input");
     EXPECT_EQ(benefits_menu[1].disabled, 1);
     EXPECT_STREQ(benefits_menu[2].text, "Motion, touchpads, LEDs, and adaptive triggers where supported");
     EXPECT_EQ(benefits_menu[2].disabled, 1);
@@ -384,7 +384,7 @@ TEST_P(UnlicensedVirtualHidTrayTest, PreparesMenuAndStartupNotification) {
   ASSERT_NE(license_menu, nullptr);
   EXPECT_STREQ(license_menu[0].text, std::format("Status: {}", state_label).c_str());
   EXPECT_STREQ(license_menu[1].text, state_detail);
-  EXPECT_STREQ(license_menu[2].text, "Driver-backed gamepads and Raw Input mouse are locked");
+  EXPECT_STREQ(license_menu[2].text, "Driver-backed keyboard, mouse, and gamepads are locked");
   EXPECT_STREQ(license_menu[3].text, service_available ? "License service: Available" : "License service: Unavailable");
   EXPECT_STREQ(license_menu[4].text, "Activate this machine to use Virtual HID Driver");
   EXPECT_STREQ(license_menu[5].text, "-");
@@ -396,7 +396,7 @@ TEST_P(UnlicensedVirtualHidTrayTest, PreparesMenuAndStartupNotification) {
   EXPECT_STREQ(tray_data.notification_title, "Activate Virtual HID Driver");
   EXPECT_STREQ(
     tray_data.notification_text,
-    "Adds a Raw Input mouse plus Xbox One/Series, DualSense (DS5), Switch Pro, and Generic gamepads. Actively maintained by LizardByte. Click to activate or buy a license; details remain in the tray menu."
+    "Adds a Raw Input keyboard and mouse plus Xbox One/Series, DualSense (DS5), Switch Pro, and Generic gamepads. Actively maintained by LizardByte. Click to activate or buy a license; details remain in the tray menu."
   );
   EXPECT_STREQ(tray_data.notification_icon, tray_data.allIconPaths[4]);
   EXPECT_NE(tray_data.notification_cb, nullptr);

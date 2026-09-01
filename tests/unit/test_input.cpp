@@ -105,14 +105,18 @@ TEST_F(InputGamepadSessionTest, ReusesGamepadsAcrossPauseAndDestroysThemOnTermin
   EXPECT_NE(replacement, resumed);
 }
 
-TEST_F(InputGamepadSessionTest, RefreshesSharedMouseAfterLicenseStateChanges) {
+TEST_F(InputGamepadSessionTest, RefreshesSharedVirtualInputAfterLicenseStateChanges) {
+  ASSERT_NE(context().keyboard, nullptr);
   ASSERT_NE(context().mouse, nullptr);
+  const auto original_keyboard_id = context().keyboard->device_id();
   const auto original_mouse_id = context().mouse->device_id();
   const auto active_devices = runtime().active_device_count();
 
-  input::refresh_virtual_mouse();
+  input::refresh_virtual_input();
 
+  ASSERT_NE(context().keyboard, nullptr);
   ASSERT_NE(context().mouse, nullptr);
+  EXPECT_NE(context().keyboard->device_id(), original_keyboard_id);
   EXPECT_NE(context().mouse->device_id(), original_mouse_id);
   EXPECT_EQ(runtime().active_device_count(), active_devices);
 }
