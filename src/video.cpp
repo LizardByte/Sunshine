@@ -161,6 +161,32 @@ namespace video {
   }
 
   /**
+   * @brief Resolve a client-requested dynamic range against probed encoder capabilities.
+   *
+   * @param encoder Selected encoder and its probed codec capabilities.
+   * @param config Client-requested stream configuration.
+   * @return Effective stream configuration, downgraded to SDR when HDR is unsupported.
+   */
+  config_t resolve_dynamic_range(const encoder_t &encoder, config_t config) {
+    if (!config.dynamicRange) {
+      return config;
+    }
+
+    const auto &video_format = encoder.codec_from_config(config);
+    const auto capability = config.chromaSamplingType == 1 ?
+                              encoder_t::DYNAMIC_RANGE_YUV444 :
+                              encoder_t::DYNAMIC_RANGE;
+    if (video_format[capability]) {
+      return config;
+    }
+
+    const auto mode = config.chromaSamplingType == 1 ? "YUV 4:4:4 dynamic range"sv : "dynamic range"sv;
+    BOOST_LOG(warning) << video_format.name << ": "sv << mode << " not supported, falling back to SDR"sv;
+    config.dynamicRange = 0;
+    return config;
+  }
+
+  /**
    * @brief Create an FFmpeg hardware device buffer for D3D11VA input.
    *
    * @param encode_device Encode device.
@@ -2905,7 +2931,7 @@ namespace video {
    * @brief Capture and encode video for a streaming session.
    *
    * @param mail Session mail bus.
-   * @param config Video configuration.
+   * @param config Client-requested video configuration, normalized before capture begins.
    * @param channel_data Opaque channel data passed to packets.
    */
   void capture(
@@ -2913,6 +2939,8 @@ namespace video {
     config_t config,
     void *channel_data
   ) {
+    config = resolve_dynamic_range(*chosen_encoder, config);
+
     auto idr_events = mail->event<bool>(mail::idr);
 
     idr_events->raise(true);
