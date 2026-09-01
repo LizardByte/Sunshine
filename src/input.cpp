@@ -165,6 +165,17 @@ namespace input {
   static std::array<std::uint8_t, 5> mouse_press {};
 
   static platf::input_t platf_input;
+#ifdef SUNSHINE_TESTS
+  /**
+   * @brief Recorder that unit tests install in place of the platform keyboard.
+   *
+   * @return Mutable reference to the recorder, empty when no test installed one.
+   */
+  std::function<void(const testing::keyboard_event_t &)> &keyboard_sink() {
+    static std::function<void(const testing::keyboard_event_t &)> sink;
+    return sink;
+  }
+#endif
   static std::bitset<platf::MAX_GAMEPADS> gamepadMask {};
 
   /**
@@ -218,6 +229,24 @@ namespace input {
   };
 
   /**
+   * @brief Tracks the side-specific client keys that contribute to one modifier flag.
+   */
+  struct modifier_state_t {
+    /**
+     * @brief Return whether any key for this modifier remains pressed.
+     *
+     * @return `true` when the generic, left, or right key is pressed.
+     */
+    [[nodiscard]] bool any_pressed() const {
+      return generic_pressed || left_pressed || right_pressed;
+    }
+
+    bool generic_pressed = false;  ///< Whether the side-less modifier key is pressed.
+    bool left_pressed = false;  ///< Whether the left modifier key is pressed.
+    bool right_pressed = false;  ///< Whether the right modifier key is pressed.
+  };
+
+  /**
    * @brief Input emulation settings loaded from configuration.
    */
   struct input_t {
@@ -255,8 +284,9 @@ namespace input {
     // Keep track of alt+ctrl+shift key combo
     int shortcutFlags;  ///< Shortcut flags.
 
-    bool left_alt_pressed = false;  ///< Tracks whether the left Alt key is currently pressed.
-    bool right_alt_pressed = false;  ///< Tracks whether the right Alt key is currently pressed.
+    modifier_state_t shift_keys;  ///< Client Shift keys contributing to the aggregate Shift flag.
+    modifier_state_t control_keys;  ///< Client Control keys contributing to the aggregate Control flag.
+    modifier_state_t alt_keys;  ///< Client Alt keys contributing to the aggregate Alt flag.
 
     std::vector<gamepad_t> gamepads;  ///< Virtual gamepad slots tracked for the stream.
     std::unique_ptr<platf::client_input_t> client_context;  ///< Client context.
@@ -917,19 +947,64 @@ namespace input {
   }
 
   /**
+   * @brief Update the side-specific state for a client modifier key.
+   *
+   * @param input Input context tracking the modifier keys.
+   * @param key_code Moonlight keyboard packet key code.
+   * @param release Whether the key event is a release.
+   */
+  void update_modifier_state(input_t &input, short key_code, bool release) {
+    const bool pressed = !release;
+    switch (key_code) {
+      case VKEY_SHIFT:
+        input.shift_keys.generic_pressed = pressed;
+        break;
+      case VKEY_LSHIFT:
+        input.shift_keys.left_pressed = pressed;
+        break;
+      case VKEY_RSHIFT:
+        input.shift_keys.right_pressed = pressed;
+        break;
+      case VKEY_CONTROL:
+        input.control_keys.generic_pressed = pressed;
+        break;
+      case VKEY_LCONTROL:
+        input.control_keys.left_pressed = pressed;
+        break;
+      case VKEY_RCONTROL:
+        input.control_keys.right_pressed = pressed;
+        break;
+      case VKEY_MENU:
+        input.alt_keys.generic_pressed = pressed;
+        break;
+      case VKEY_LMENU:
+        input.alt_keys.left_pressed = pressed;
+        break;
+      case VKEY_RMENU:
+        input.alt_keys.right_pressed = pressed;
+        break;
+      default:
+        break;
+    }
+  }
+
+  /**
    * @brief Update flags for keyboard shortcut combo's
    *
-   * @param flags Bit flags that modify the requested operation.
+   * @param input Input context tracking which side-specific modifier keys are held.
    * @param keyCode Moonlight keyboard packet key code.
    * @param release Whether the key or button event is a release.
    */
-  inline void update_shortcutFlags(int *flags, short keyCode, bool release) {
+  inline void update_shortcutFlags(input_t &input, short keyCode, bool release) {
+    int *flags = &input.shortcutFlags;
     switch (keyCode) {
       case VKEY_SHIFT:
       case VKEY_LSHIFT:
       case VKEY_RSHIFT:
         if (release) {
-          *flags &= ~input_t::SHIFT;
+          if (!input.shift_keys.any_pressed()) {
+            *flags &= ~input_t::SHIFT;
+          }
         } else {
           *flags |= input_t::SHIFT;
         }
@@ -938,7 +1013,9 @@ namespace input {
       case VKEY_LCONTROL:
       case VKEY_RCONTROL:
         if (release) {
-          *flags &= ~input_t::CTRL;
+          if (!input.control_keys.any_pressed()) {
+            *flags &= ~input_t::CTRL;
+          }
         } else {
           *flags |= input_t::CTRL;
         }
@@ -946,8 +1023,13 @@ namespace input {
       case VKEY_MENU:
       case VKEY_LMENU:
       case VKEY_RMENU:
+        // Left, right, and side-less Alt all set the same aggregate ALT bit, so releasing
+        // one of them must not clear it while another is still held (e.g. Right Alt mapped
+        // to Meta via key_rightalt_to_key_win, released while Left Alt remains down).
         if (release) {
-          *flags &= ~input_t::ALT;
+          if (!input.alt_keys.any_pressed()) {
+            *flags &= ~input_t::ALT;
+          }
         } else {
           *flags |= input_t::ALT;
         }
@@ -979,6 +1061,25 @@ namespace input {
   }
 
   /**
+   * @brief Deliver one keyboard event to the platform backend.
+   *
+   * Test builds can divert the event to a recorder so unit tests never type into the host.
+   *
+   * @param key_code Platform keycode to emit.
+   * @param release Whether the key event is a release.
+   * @param flags Bit flags that modify the requested operation.
+   */
+  void emit_keyboard_update(uint16_t key_code, bool release, uint8_t flags) {
+#ifdef SUNSHINE_TESTS
+    if (keyboard_sink()) {
+      keyboard_sink()(testing::keyboard_event_t {key_code, release, flags});
+      return;
+    }
+#endif
+    platf::keyboard_update(platf_input, key_code, release, flags);
+  }
+
+  /**
    * @brief Send key and modifiers.
    *
    * @param key_code Moonlight keyboard packet key code.
@@ -990,28 +1091,28 @@ namespace input {
     if (!release) {
       // Press any synthetic modifiers required for this key
       if (synthetic_modifiers & MODIFIER_SHIFT) {
-        platf::keyboard_update(platf_input, VKEY_SHIFT, false, flags);
+        emit_keyboard_update(VKEY_SHIFT, false, flags);
       }
       if (synthetic_modifiers & MODIFIER_CTRL) {
-        platf::keyboard_update(platf_input, VKEY_CONTROL, false, flags);
+        emit_keyboard_update(VKEY_CONTROL, false, flags);
       }
       if (synthetic_modifiers & MODIFIER_ALT) {
-        platf::keyboard_update(platf_input, VKEY_MENU, false, flags);
+        emit_keyboard_update(VKEY_MENU, false, flags);
       }
     }
 
-    platf::keyboard_update(platf_input, map_keycode(key_code), release, flags);
+    emit_keyboard_update(map_keycode(key_code), release, flags);
 
     if (!release) {
       // Raise any synthetic modifier keys we pressed
       if (synthetic_modifiers & MODIFIER_SHIFT) {
-        platf::keyboard_update(platf_input, VKEY_SHIFT, true, flags);
+        emit_keyboard_update(VKEY_SHIFT, true, flags);
       }
       if (synthetic_modifiers & MODIFIER_CTRL) {
-        platf::keyboard_update(platf_input, VKEY_CONTROL, true, flags);
+        emit_keyboard_update(VKEY_CONTROL, true, flags);
       }
       if (synthetic_modifiers & MODIFIER_ALT) {
-        platf::keyboard_update(platf_input, VKEY_MENU, true, flags);
+        emit_keyboard_update(VKEY_MENU, true, flags);
       }
     }
   }
@@ -1049,15 +1150,11 @@ namespace input {
     auto release = util::endian::little(packet->header.magic) == KEY_UP_EVENT_MAGIC;
     auto keyCode = packet->keyCode & 0x00FF;
 
-    if (keyCode == VKEY_LMENU) {
-      input->left_alt_pressed = !release;
-    } else if (keyCode == VKEY_RMENU) {
-      input->right_alt_pressed = !release;
-    }
+    update_modifier_state(*input, keyCode, release);
 
     // Right-alt maps to meta, so it must not also register as ALT
     int modifiers = packet->modifiers;
-    if (config::input.key_rightalt_to_key_win && input->right_alt_pressed && !input->left_alt_pressed) {
+    if (config::input.key_rightalt_to_key_win && input->alt_keys.right_pressed && !input->alt_keys.left_pressed) {
       modifiers &= ~MODIFIER_ALT;
     }
 
@@ -1105,7 +1202,10 @@ namespace input {
 
     send_key_and_modifiers(keyCode, release, packet->flags, synthetic_modifiers);
 
-    update_shortcutFlags(&input->shortcutFlags, map_keycode(keyCode), release);
+    // Track the modifier state the client is holding, not the remapped host key.
+    // This is compared against packet->modifiers above, which is client-side, so a
+    // keybinding that moves Alt off VKEY_*MENU must not clear the ALT bit here.
+    update_shortcutFlags(*input, keyCode, release);
   }
 
   /**
@@ -1966,7 +2066,10 @@ namespace input {
   void reset_keyboard_keys() {
     for (auto &[key, pressed] : key_press) {
       if (pressed) {
-        platf::keyboard_update(platf_input, vk_from_kpid(key) & 0x00FF, true, flags_from_kpid(key));
+        // key_press is keyed on the client's unmapped virtual-key code, but the press was
+        // emitted through map_keycode(). Release the host key that actually went down,
+        // otherwise a remapped modifier stays latched after the client disconnects.
+        emit_keyboard_update(map_keycode(vk_from_kpid(key) & 0x00FF), true, flags_from_kpid(key));
         pressed = false;
       }
     }
@@ -2160,6 +2263,34 @@ namespace input {
         return -1;
       }
       return input->gamepads[client_index].id;
+    }
+
+    void set_keyboard_sink(std::function<void(const keyboard_event_t &)> sink) {
+      keyboard_sink() = std::move(sink);
+    }
+
+    void send_keyboard_packet(std::shared_ptr<input_t> &input, std::uint16_t key_code, std::uint8_t modifiers, std::uint8_t flags, bool release) {
+      const std::uint32_t magic = release ? KEY_UP_EVENT_MAGIC : KEY_DOWN_EVENT_MAGIC;
+
+      NV_KEYBOARD_PACKET packet {};
+      packet.header.size = util::endian::big<std::uint32_t>(sizeof(packet) - sizeof(packet.header.size));
+      packet.header.magic = util::endian::little(magic);
+      packet.keyCode = static_cast<short>(key_code);
+      packet.modifiers = static_cast<char>(modifiers);
+      packet.flags = static_cast<char>(flags);
+
+      // Keyboard packets are never batched, so this matches passthrough_next_message().
+      ::input::passthrough(input, &packet);
+    }
+
+    void reset_keyboard_state() {
+      task_pool.cancel(key_press_repeat_id);
+      key_press_repeat_id = nullptr;
+      key_press.clear();
+    }
+
+    void release_held_keys() {
+      reset_keyboard_keys();
     }
   }  // namespace testing
 #endif
