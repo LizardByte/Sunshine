@@ -6,6 +6,7 @@
 
 // standard includes
 #include <format>
+#include <utility>
 
 // platform includes
 #include <Audioclient.h>
@@ -633,12 +634,7 @@ namespace platf::audio {
         return -1;
       }
 
-      follows_default_device = !capture_device;
-      if (follows_default_device) {
-        device = default_device(device_enum);
-      } else {
-        device = std::move(capture_device);
-      }
+      select_capture_device(std::move(capture_device));
 
       if (!device) {
         return -1;
@@ -713,6 +709,20 @@ namespace platf::audio {
       }
 
       return 0;
+    }
+
+    /**
+     * @brief Select the endpoint used by this capture stream.
+     *
+     * @param capture_device Explicit endpoint to capture, or an empty pointer to follow the default endpoint.
+     */
+    void select_capture_device(device_t capture_device) {
+      follows_default_device = !capture_device;
+      if (follows_default_device) {
+        device = default_device(device_enum);
+      } else {
+        device = std::move(capture_device);
+      }
     }
 
     ~mic_wasapi_t() override {
@@ -1415,6 +1425,100 @@ namespace platf::audio {
     audio::device_enum_t device_enum;  ///< Device enumerator used to query and watch audio endpoints.
     std::string assigned_sink;  ///< Sink assigned while Sunshine captures host audio, captured directly by the microphone.
   };
+
+#ifdef SUNSHINE_TESTS
+  namespace tests {
+    /**
+     * @brief Resolve a sink through the production Windows endpoint lookup.
+     *
+     * @param sink Sink name, virtual sink descriptor, or device identifier.
+     * @param device_enum Device enumerator supplied by the test.
+     * @return `true` when the sink resolves to an active endpoint.
+     */
+    bool sink_device_available(const std::string &sink, IMMDeviceEnumerator *device_enum) {
+      audio_control_t control;
+      device_enum->AddRef();
+      control.device_enum.reset(device_enum);
+      return static_cast<bool>(control.get_sink_device(sink));
+    }
+
+    /**
+     * @brief Exercise microphone creation with controlled assigned and configured sinks.
+     *
+     * @param assigned_sink Sink selected by the shared audio context.
+     * @param configured_sink Sink configured by the user.
+     * @param device_enum Device enumerator supplied by the test.
+     * @return `true` when microphone initialization succeeds.
+     */
+    bool microphone_available(const std::string &assigned_sink, const std::string &configured_sink, IMMDeviceEnumerator *device_enum) {
+      audio_control_t control;
+      device_enum->AddRef();
+      control.device_enum.reset(device_enum);
+      control.assigned_sink = assigned_sink;
+
+      auto previous_configured_sink = std::exchange(config::audio.sink, configured_sink);
+      auto microphone = control.microphone(nullptr, 2, 48000, 240, false, false);
+      config::audio.sink = std::move(previous_configured_sink);
+      return static_cast<bool>(microphone);
+    }
+
+    /**
+     * @brief Select a default or explicit capture endpoint through the production selection path.
+     *
+     * @param device_enum Device enumerator supplied by the test.
+     * @param capture_device Explicit endpoint, or `nullptr` to select the default endpoint.
+     * @return `true` when capture follows the default endpoint.
+     */
+    bool capture_follows_default_device(IMMDeviceEnumerator *device_enum, IMMDevice *capture_device) {
+      mic_wasapi_t microphone;
+      device_enum->AddRef();
+      microphone.device_enum.reset(device_enum);
+
+      device_t selected_device;
+      if (capture_device) {
+        capture_device->AddRef();
+        selected_device.reset(capture_device);
+      }
+
+      microphone.select_capture_device(std::move(selected_device));
+      return microphone.follows_default_device;
+    }
+
+    /**
+     * @brief Exercise the production default-device-change path without live audio hardware.
+     *
+     * @param follows_default_device Whether the capture follows the default render endpoint.
+     * @param install_callback Whether to install a default-device-change callback.
+     * @param render_device_changed Whether to signal a render rather than capture endpoint change.
+     * @param callback_count Receives the number of callback invocations.
+     * @return Capture result produced after processing the notification.
+     */
+    capture_e simulate_default_device_change(bool follows_default_device, bool install_callback, bool render_device_changed, int &callback_count) {
+      mic_wasapi_t mic;
+      mic.audio_event.reset(CreateEventA(nullptr, FALSE, FALSE, nullptr));
+      mic.default_latency_ms = 0;
+      mic.sample_buf = util::buffer_t<float> {1};
+      mic.sample_buf_pos = std::begin(mic.sample_buf);
+      mic.continuous_audio = false;
+      mic.follows_default_device = follows_default_device;
+
+      if (install_callback) {
+        mic.default_endpt_changed_cb = [&callback_count] {
+          ++callback_count;
+        };
+      }
+
+      mic.endpt_notification.OnDefaultDeviceChanged(
+        render_device_changed ? eRender : eCapture,
+        eConsole,
+        nullptr
+      );
+
+      std::vector<float> sample(1);
+      return mic.sample(sample);
+    }
+  }  // namespace tests
+#endif
 }  // namespace platf::audio
 
 namespace platf {
