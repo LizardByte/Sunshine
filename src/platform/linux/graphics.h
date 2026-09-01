@@ -5,8 +5,11 @@
 #pragma once
 
 // standard includes
+#include <exception>
+#include <functional>
 #include <optional>
 #include <string_view>
+#include <utility>
 
 // lib includes
 #include <glad/egl.h>
@@ -602,19 +605,38 @@ namespace egl {
    */
   class img_descriptor_t: public cursor_t {
   public:
-    ~img_descriptor_t() {
+    ~img_descriptor_t() noexcept {
       reset();
     }
 
     /**
      * @brief Reset the object to its initial empty state.
      */
-    void reset() {
+    void reset() noexcept {
+      mark_capture_buffer_consumed();
+
       for (auto x = 0; x < 4; ++x) {
         if (sd.fds[x] >= 0) {
           close(sd.fds[x]);
 
           sd.fds[x] = -1;
+        }
+      }
+    }
+
+    /**
+     * @brief Notify the capture backend that the imported source buffer is no
+     * longer needed by conversion and can be returned to its producer.
+     */
+    void mark_capture_buffer_consumed() noexcept {
+      auto callback = std::exchange(capture_buffer_consumed_cb, {});
+      if (callback) {
+        try {
+          callback();
+        } catch (const std::exception &e) {
+          BOOST_LOG(error) << "Failed to release capture buffer: " << e.what();
+        } catch (...) {
+          BOOST_LOG(error) << "Failed to release capture buffer: unknown exception";
         }
       }
     }
@@ -632,6 +654,7 @@ namespace egl {
     std::optional<uint64_t> seq;  ///< PipeWire frame sequence number.
     std::optional<bool> pw_damage;  ///< Whether PipeWire damage tracking should be used.
     std::optional<uint32_t> pw_flags;  ///< PipeWire frame flags reported with the buffer.
+    std::function<void()> capture_buffer_consumed_cb;  ///< Releases a producer-owned capture buffer after import/conversion.
   };
 
   /**
