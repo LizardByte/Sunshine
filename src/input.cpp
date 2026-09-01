@@ -268,6 +268,7 @@ namespace input {
 
     bool left_alt_pressed = false;  ///< Tracks whether the left Alt key is currently pressed.
     bool right_alt_pressed = false;  ///< Tracks whether the right Alt key is currently pressed.
+    bool generic_alt_pressed = false;  ///< Tracks whether a side-less Alt key is currently pressed.
 
     std::vector<gamepad_t> gamepads;  ///< Virtual gamepad slots tracked for the stream.
     std::unique_ptr<platf::client_input_t> client_context;  ///< Client context.
@@ -930,11 +931,12 @@ namespace input {
   /**
    * @brief Update flags for keyboard shortcut combo's
    *
-   * @param flags Bit flags that modify the requested operation.
+   * @param input Input context tracking which side-specific modifier keys are held.
    * @param keyCode Moonlight keyboard packet key code.
    * @param release Whether the key or button event is a release.
    */
-  inline void update_shortcutFlags(int *flags, short keyCode, bool release) {
+  inline void update_shortcutFlags(input_t &input, short keyCode, bool release) {
+    int *flags = &input.shortcutFlags;
     switch (keyCode) {
       case VKEY_SHIFT:
       case VKEY_LSHIFT:
@@ -957,8 +959,13 @@ namespace input {
       case VKEY_MENU:
       case VKEY_LMENU:
       case VKEY_RMENU:
+        // Left, right, and side-less Alt all set the same aggregate ALT bit, so releasing
+        // one of them must not clear it while another is still held (e.g. Right Alt mapped
+        // to Meta via key_rightalt_to_key_win, released while Left Alt remains down).
         if (release) {
-          *flags &= ~input_t::ALT;
+          if (!input.left_alt_pressed && !input.right_alt_pressed && !input.generic_alt_pressed) {
+            *flags &= ~input_t::ALT;
+          }
         } else {
           *flags |= input_t::ALT;
         }
@@ -1083,6 +1090,8 @@ namespace input {
       input->left_alt_pressed = !release;
     } else if (keyCode == VKEY_RMENU) {
       input->right_alt_pressed = !release;
+    } else if (keyCode == VKEY_MENU) {
+      input->generic_alt_pressed = !release;
     }
 
     // Right-alt maps to meta, so it must not also register as ALT
@@ -1138,7 +1147,7 @@ namespace input {
     // Track the modifier state the client is holding, not the remapped host key.
     // This is compared against packet->modifiers above, which is client-side, so a
     // keybinding that moves Alt off VKEY_*MENU must not clear the ALT bit here.
-    update_shortcutFlags(&input->shortcutFlags, keyCode, release);
+    update_shortcutFlags(*input, keyCode, release);
   }
 
   /**

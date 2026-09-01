@@ -729,20 +729,29 @@ TEST_F(KeyboardPassthroughTest, KeepsRealAltWhileRightAltMapsToKeyWin) {
   press(VKEY_RMENU, MODIFIER_ALT);
   press(VKEY_SPACE, MODIFIER_ALT);
   release(VKEY_SPACE, MODIFIER_ALT);
-  release(VKEY_RMENU, MODIFIER_ALT);
-  release(VKEY_LMENU, 0);
-
   EXPECT_EQ(
     taken(),
     (std::vector<std::string> {
       pressed(VKEY_LMENU),
       pressed(VKEY_LWIN),
       pressed(VKEY_SPACE),
-      released(VKEY_SPACE),
-      released(VKEY_LWIN),
-      released(VKEY_LMENU)
+      released(VKEY_SPACE)
     })
   );
+
+  // Right Alt (mapped to key_win) goes up while left Alt is still held. The shared ALT bit
+  // is only shared, not owned by either side, so it must stay set: the next key must reach
+  // the host as-is, with no synthetic Alt press/release wrapped around it.
+  release(VKEY_RMENU, MODIFIER_ALT);
+  press(VKEY_B, MODIFIER_ALT);
+  release(VKEY_B, MODIFIER_ALT);
+  EXPECT_EQ(
+    taken(),
+    (std::vector<std::string> {released(VKEY_LWIN), pressed(VKEY_B), released(VKEY_B)})
+  );
+
+  release(VKEY_LMENU, 0);
+  EXPECT_EQ(taken(), (std::vector<std::string> {released(VKEY_LMENU)}));
 
   // With right Alt released and left Alt gone too, the client's ALT claim is honored again.
   press(VKEY_A, MODIFIER_ALT);
