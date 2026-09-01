@@ -537,7 +537,7 @@ function install_cuda() {
 
   local url="${cuda_prefix}${cuda_version}/local_installers/cuda_${cuda_version}_${cuda_build}_linux${cuda_suffix}.run"
   echo "cuda url: ${url}"
-  wget "$url" --progress=bar:force:noscroll -q --show-progress -O "${build_dir}/cuda.run"
+  wget "$url" --max-redirect=0 --progress=bar:force:noscroll -q --show-progress -O "${build_dir}/cuda.run"
   chmod a+x "${build_dir}/cuda.run"
   "${build_dir}/cuda.run" --silent --toolkit --toolkitpath="${build_dir}/cuda" --no-opengl-libs --no-man-page --no-drm "$cuda_override_arg"
   rm "${build_dir}/cuda.run"
@@ -631,7 +631,16 @@ function run_step_deps() {
       doxygen_url="https://github.com/doxygen/doxygen/releases/download/Release_${_doxygen_min}/${DOXYGEN}-${doxygen_min}.src.tar.gz"
       echo "${DOXYGEN} url: ${doxygen_url}"
       pushd "${build_dir}"
-        wget "$doxygen_url" --progress=bar:force:noscroll -q --show-progress -O "${DOXYGEN}.tar.gz"
+        local -a doxygen_download_args=(
+          "$doxygen_url"
+          --max-redirect=1
+          --progress=bar:force:noscroll
+          -q
+          --show-progress
+          -O "${DOXYGEN}.tar.gz"
+        )
+        # GitHub release downloads require one redirect to the release asset host.
+        wget "${doxygen_download_args[@]}"  # NOSONAR(shell:S6506)
         tar -xzf "${DOXYGEN}.tar.gz"
         cd "${DOXYGEN}-${doxygen_min}"
         cmake -DCMAKE_BUILD_TYPE=Release -G="Ninja" -B="build" -S="."
@@ -648,7 +657,7 @@ function run_step_deps() {
   if [[ "$nvm_node" == 1 ]]; then
     nvm_url="https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh"
     echo "nvm url: ${nvm_url}"
-    wget -qO- ${nvm_url} | bash
+    wget --max-redirect=0 -qO- ${nvm_url} | bash
 
     # shellcheck source=/dev/null  # we don't care that shellcheck cannot find nvm.sh
     source "$HOME/.nvm/nvm.sh"

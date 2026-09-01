@@ -128,7 +128,7 @@ jobs:
             tarball="${pkg}-${version}-any.pkg.tar.zst"
 
             # download working version
-            wget "https://repo.msys2.org/mingw/${MATRIX_MSYSTEM}/${tarball}"
+            wget --max-redirect=0 "https://repo.msys2.org/mingw/${MATRIX_MSYSTEM}/${tarball}"
 
             tarballs="${tarballs} ${tarball}"
           done
@@ -215,9 +215,13 @@ jobs:
           MSYS2_PATH_TYPE: inherit
           UV_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: |
-          uv sync --locked \
-            --no-python-downloads \
+          uv_sync_args=(
+            --locked
+            --no-python-downloads
             --no-install-project
+          )
+          # uv.lock pins external artifacts; the reviewed local lizardbyte-common build hook is required.
+          uv sync "${uv_sync_args[@]}"  # NOSONAR(githubactions:S8541, githubactions:S8544)
 
       - name: Build Windows
         shell: msys2 {0}
@@ -385,7 +389,7 @@ jobs:
         env:
           MSYS2_PATH_TYPE: inherit
         run: |
-          uv run --project .. --locked --no-sync gcovr . -r ../src \
+          uv run --project .. --locked --no-build --no-sync gcovr . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \
