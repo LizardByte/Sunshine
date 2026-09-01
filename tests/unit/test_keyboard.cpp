@@ -761,6 +761,55 @@ TEST_F(KeyboardPassthroughTest, KeepsRealAltWhileRightAltMapsToKeyWin) {
   );
 }
 
+TEST_F(KeyboardPassthroughTest, KeepsShiftAndControlSetWhileTheirOtherSideRemainsHeld) {
+  /**
+   * @brief Modifier key codes and client bit used by one test case.
+   */
+  struct modifier_case_t {
+    std::uint16_t generic;  ///< Side-less modifier key code used for synthetic events.
+    std::uint16_t left;  ///< Left modifier key code that remains held.
+    std::uint16_t right;  ///< Right modifier key code remapped away from the modifier.
+    unsigned bit;  ///< Client modifier bit reported with keyboard packets.
+    const char *name;  ///< Modifier name used in assertion traces.
+  };
+
+  constexpr std::array cases {
+    modifier_case_t {VKEY_SHIFT, VKEY_LSHIFT, VKEY_RSHIFT, MODIFIER_SHIFT, "shift"},
+    modifier_case_t {VKEY_CONTROL, VKEY_LCONTROL, VKEY_RCONTROL, MODIFIER_CTRL, "control"},
+  };
+
+  for (const auto &modifier : cases) {
+    SCOPED_TRACE(modifier.name);
+    config::input.keybindings = {{modifier.right, VKEY_LWIN}};
+
+    press(modifier.left, modifier.bit);
+    press(modifier.right, modifier.bit);
+    EXPECT_EQ(taken(), (std::vector<std::string> {pressed(modifier.left), pressed(VKEY_LWIN)}));
+
+    // Releasing the remapped right key must not clear the aggregate flag while the left key
+    // remains held, otherwise the next key is wrapped in a synthetic modifier press/release.
+    release(modifier.right, modifier.bit);
+    press(VKEY_B, modifier.bit);
+    release(VKEY_B, modifier.bit);
+    EXPECT_EQ(
+      taken(),
+      (std::vector<std::string> {released(VKEY_LWIN), pressed(VKEY_B), released(VKEY_B)})
+    );
+
+    release(modifier.left, 0);
+    EXPECT_EQ(taken(), (std::vector<std::string> {released(modifier.left)}));
+
+    // Once every real modifier key is released, a client-only modifier claim is synthetic.
+    press(VKEY_A, modifier.bit);
+    EXPECT_EQ(
+      taken(),
+      (std::vector<std::string> {pressed(modifier.generic), pressed(VKEY_A), released(modifier.generic)})
+    );
+    release(VKEY_A, modifier.bit);
+    EXPECT_EQ(taken(), (std::vector<std::string> {released(VKEY_A)}));
+  }
+}
+
 TEST_F(KeyboardPassthroughTest, SwallowsDisplaySwitchShortcutWhileAllModifiersAreHeld) {
   press(VKEY_LCONTROL, MODIFIER_CTRL);
   press(VKEY_LMENU, MODIFIER_CTRL | MODIFIER_ALT);

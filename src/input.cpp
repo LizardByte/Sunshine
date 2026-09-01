@@ -229,6 +229,24 @@ namespace input {
   };
 
   /**
+   * @brief Tracks the side-specific client keys that contribute to one modifier flag.
+   */
+  struct modifier_state_t {
+    /**
+     * @brief Return whether any key for this modifier remains pressed.
+     *
+     * @return `true` when the generic, left, or right key is pressed.
+     */
+    [[nodiscard]] bool any_pressed() const {
+      return generic_pressed || left_pressed || right_pressed;
+    }
+
+    bool generic_pressed = false;  ///< Whether the side-less modifier key is pressed.
+    bool left_pressed = false;  ///< Whether the left modifier key is pressed.
+    bool right_pressed = false;  ///< Whether the right modifier key is pressed.
+  };
+
+  /**
    * @brief Input emulation settings loaded from configuration.
    */
   struct input_t {
@@ -266,9 +284,9 @@ namespace input {
     // Keep track of alt+ctrl+shift key combo
     int shortcutFlags;  ///< Shortcut flags.
 
-    bool left_alt_pressed = false;  ///< Tracks whether the left Alt key is currently pressed.
-    bool right_alt_pressed = false;  ///< Tracks whether the right Alt key is currently pressed.
-    bool generic_alt_pressed = false;  ///< Tracks whether a side-less Alt key is currently pressed.
+    modifier_state_t shift_keys;  ///< Client Shift keys contributing to the aggregate Shift flag.
+    modifier_state_t control_keys;  ///< Client Control keys contributing to the aggregate Control flag.
+    modifier_state_t alt_keys;  ///< Client Alt keys contributing to the aggregate Alt flag.
 
     std::vector<gamepad_t> gamepads;  ///< Virtual gamepad slots tracked for the stream.
     std::unique_ptr<platf::client_input_t> client_context;  ///< Client context.
@@ -929,6 +947,48 @@ namespace input {
   }
 
   /**
+   * @brief Update the side-specific state for a client modifier key.
+   *
+   * @param input Input context tracking the modifier keys.
+   * @param key_code Moonlight keyboard packet key code.
+   * @param release Whether the key event is a release.
+   */
+  void update_modifier_state(input_t &input, short key_code, bool release) {
+    const bool pressed = !release;
+    switch (key_code) {
+      case VKEY_SHIFT:
+        input.shift_keys.generic_pressed = pressed;
+        break;
+      case VKEY_LSHIFT:
+        input.shift_keys.left_pressed = pressed;
+        break;
+      case VKEY_RSHIFT:
+        input.shift_keys.right_pressed = pressed;
+        break;
+      case VKEY_CONTROL:
+        input.control_keys.generic_pressed = pressed;
+        break;
+      case VKEY_LCONTROL:
+        input.control_keys.left_pressed = pressed;
+        break;
+      case VKEY_RCONTROL:
+        input.control_keys.right_pressed = pressed;
+        break;
+      case VKEY_MENU:
+        input.alt_keys.generic_pressed = pressed;
+        break;
+      case VKEY_LMENU:
+        input.alt_keys.left_pressed = pressed;
+        break;
+      case VKEY_RMENU:
+        input.alt_keys.right_pressed = pressed;
+        break;
+      default:
+        break;
+    }
+  }
+
+  /**
    * @brief Update flags for keyboard shortcut combo's
    *
    * @param input Input context tracking which side-specific modifier keys are held.
@@ -942,7 +1002,9 @@ namespace input {
       case VKEY_LSHIFT:
       case VKEY_RSHIFT:
         if (release) {
-          *flags &= ~input_t::SHIFT;
+          if (!input.shift_keys.any_pressed()) {
+            *flags &= ~input_t::SHIFT;
+          }
         } else {
           *flags |= input_t::SHIFT;
         }
@@ -951,7 +1013,9 @@ namespace input {
       case VKEY_LCONTROL:
       case VKEY_RCONTROL:
         if (release) {
-          *flags &= ~input_t::CTRL;
+          if (!input.control_keys.any_pressed()) {
+            *flags &= ~input_t::CTRL;
+          }
         } else {
           *flags |= input_t::CTRL;
         }
@@ -963,7 +1027,7 @@ namespace input {
         // one of them must not clear it while another is still held (e.g. Right Alt mapped
         // to Meta via key_rightalt_to_key_win, released while Left Alt remains down).
         if (release) {
-          if (!input.left_alt_pressed && !input.right_alt_pressed && !input.generic_alt_pressed) {
+          if (!input.alt_keys.any_pressed()) {
             *flags &= ~input_t::ALT;
           }
         } else {
@@ -1086,17 +1150,11 @@ namespace input {
     auto release = util::endian::little(packet->header.magic) == KEY_UP_EVENT_MAGIC;
     auto keyCode = packet->keyCode & 0x00FF;
 
-    if (keyCode == VKEY_LMENU) {
-      input->left_alt_pressed = !release;
-    } else if (keyCode == VKEY_RMENU) {
-      input->right_alt_pressed = !release;
-    } else if (keyCode == VKEY_MENU) {
-      input->generic_alt_pressed = !release;
-    }
+    update_modifier_state(*input, keyCode, release);
 
     // Right-alt maps to meta, so it must not also register as ALT
     int modifiers = packet->modifiers;
-    if (config::input.key_rightalt_to_key_win && input->right_alt_pressed && !input->left_alt_pressed) {
+    if (config::input.key_rightalt_to_key_win && input->alt_keys.right_pressed && !input->alt_keys.left_pressed) {
       modifiers &= ~MODIFIER_ALT;
     }
 
