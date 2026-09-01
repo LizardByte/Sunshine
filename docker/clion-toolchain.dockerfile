@@ -79,7 +79,7 @@ fi
 url="${cuda_prefix}${CUDA_VERSION}/local_installers/cuda_${CUDA_VERSION}_${CUDA_BUILD}_linux${cuda_suffix}.run"
 echo "cuda url: ${url}"
 tmpfile="/tmp/cuda.run"
-wget "$url" --progress=bar:force:noscroll --show-progress -O "$tmpfile"
+wget "$url" --max-redirect=0 --progress=bar:force:noscroll --show-progress -O "$tmpfile"
 chmod a+x "${tmpfile}"
 "${tmpfile}" --silent --toolkit --toolkitpath=/usr/local --no-opengl-libs --no-man-page --no-drm
 rm -f "${tmpfile}"

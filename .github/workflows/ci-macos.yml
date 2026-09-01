@@ -111,9 +111,14 @@ jobs:
 
       - name: Sync Python tools
         run: |
-          uv sync --locked \
-            --python "${PYTHON_VERSION}" \
-            --no-python-downloads --no-install-project
+          uv_sync_args=(
+            --locked
+            --python "${PYTHON_VERSION}"
+            --no-python-downloads
+            --no-install-project
+          )
+          # uv.lock pins external artifacts; the reviewed local lizardbyte-common build hook is required.
+          uv sync "${uv_sync_args[@]}"  # NOSONAR(githubactions:S8541, githubactions:S8544)
 
       - name: Configure
         env:

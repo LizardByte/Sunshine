@@ -105,11 +105,23 @@ jobs:
             set -e
             # Keep FreeBSD off Sunshine's default dependency path: lizardbyte-common[c]
             # includes clang-format, which has no FreeBSD wheel and is slow to build.
-            uv sync --locked --only-group glad --python "/usr/local/bin/python${PYTHON_VERSION}" \
-              --no-python-downloads --no-install-project
-            uv sync --project third-party/lizardbyte-common --locked --only-group test-c \
+            set -- \
+              --locked \
+              --only-group glad \
               --python "/usr/local/bin/python${PYTHON_VERSION}" \
-              --no-python-downloads --no-install-project
+              --no-python-downloads \
+              --no-install-project
+            # uv.lock pins external artifacts; the reviewed vendored glad2 build hook is required.
+            uv sync "$@"  # NOSONAR(githubactions:S8541, githubactions:S8544)
+            set -- \
+              --project third-party/lizardbyte-common \
+              --locked \
+              --only-group test-c \
+              --python "/usr/local/bin/python${PYTHON_VERSION}" \
+              --no-python-downloads \
+              --no-install-project
+            # uv.lock pins the source artifact; FreeBSD must build lxml because no wheel is available.
+            uv sync "$@"  # NOSONAR(githubactions:S8541, githubactions:S8544)
 
             # fix git safe.directory issues
             git config --global --add safe.directory "*"
