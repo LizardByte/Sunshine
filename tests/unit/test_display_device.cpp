@@ -2,9 +2,14 @@
  * @file tests/unit/test_display_device.cpp
  * @brief Test src/display_device.*.
  */
+
+// test includes
 #include "../tests_common.h"
 
+// standard includes
 #include <format>
+
+// local includes
 #include <src/config.h>
 #include <src/display_device.h>
 #include <src/rtsp.h>

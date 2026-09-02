@@ -2,6 +2,8 @@
  * @file tests/unit/test_system_tray.cpp
  * @brief Tests for Sunshine's system tray integration.
  */
+
+// test includes
 #include "../tests_common.h"
 
 // standard includes

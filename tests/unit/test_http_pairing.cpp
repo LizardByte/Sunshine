@@ -3,8 +3,10 @@
  * @brief Test src/nvhttp.cpp HTTP pairing process
  */
 
+// test includes
 #include "../tests_common.h"
 
+// local includes
 #include <src/nvhttp.h>
 
 using namespace nvhttp;

@@ -17,6 +17,9 @@
  * delivery path still reaches the virtual keyboard.
  */
 
+// test includes
+#include "../tests_common.h"
+
 // standard includes
 #include <algorithm>
 #include <array>
@@ -30,7 +33,6 @@
 #include <vector>
 
 // local includes
-#include "../tests_common.h"
 #include "src/config.h"
 #include "src/input.h"
 #include "src/platform/virtualhid_input.h"

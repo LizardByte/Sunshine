@@ -2,6 +2,8 @@
  * @file tests/integration/test_locale_consistency.cpp
  * @brief Test locale consistency across configuration files and locale JSON files
  */
+
+// test includes
 #include "../tests_common.h"
 
 // standard includes

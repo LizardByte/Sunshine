@@ -3,14 +3,19 @@
  * @brief Tests for Windows audio sink selection and endpoint-change handling.
  */
 
+// test includes
 #include "../../../tests_common.h"
 
 #ifdef _WIN32
-  #include "src/platform/common.h"
-
+  // standard includes
   #include <cstring>
+
+  // platform includes
   #include <mmdeviceapi.h>
   #include <propsys.h>
+
+  // local includes
+  #include "src/platform/common.h"
 
 namespace platf::audio::tests {
   bool sink_device_available(const std::string &sink, IMMDeviceEnumerator *device_enum);

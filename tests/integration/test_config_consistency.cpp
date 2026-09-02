@@ -2,6 +2,8 @@
  * @file tests/integration/test_config_consistency.cpp
  * @brief Test configuration consistency across all configuration files
  */
+
+// test includes
 #include "../tests_common.h"
 
 // standard includes
