@@ -13,10 +13,12 @@ extern "C" {
 #include <bitset>
 #include <chrono>
 #include <cmath>
+#include <cstring>
 #include <functional>
 #include <list>
 #include <memory>
 #include <mutex>
+#include <span>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -294,7 +296,7 @@ namespace input {
     safe::mail_raw_t::event_t<input::touch_port_t> touch_port_event;  ///< Touch port event.
     platf::feedback_queue_t feedback_queue;  ///< Queue used to deliver controller feedback to the platform backend.
 
-    std::list<std::vector<uint8_t>> input_queue;  ///< Pending raw input packets waiting for processing.
+    std::list<std::vector<uint8_t>> input_queue;  ///< Validated input packets waiting for processing.
     std::mutex input_queue_lock;  ///< Input queue lock.
 
     thread_pool_util::ThreadPool::task_id_t mouse_left_button_timeout;  ///< Mouse left button timeout.
@@ -1659,6 +1661,82 @@ namespace input {
   }
 
   /**
+   * @brief Validate the declared and available sizes of a fixed-size input packet.
+   *
+   * @tparam Packet Protocol packet structure.
+   * @param packet Raw packet bytes.
+   * @param declared_size Packet size declared after the size field.
+   * @return True when both sizes safely contain the fixed packet structure.
+   */
+  template<typename Packet>
+  bool validate_fixed_input_packet(std::span<const std::uint8_t> packet, std::uint32_t declared_size) {
+    constexpr auto expected_size = static_cast<std::uint32_t>(sizeof(Packet) - sizeof(std::uint32_t));
+    if (declared_size != expected_size) {
+      return false;
+    }
+    return packet.size() >= sizeof(Packet);
+  }
+
+  /**
+   * @brief Validate an input packet before any typed access or batching.
+   *
+   * @param packet Raw packet bytes.
+   * @param parsed_header Optional destination for the safely copied packet header.
+   * @return True when the packet is large enough for its declared and protocol-specific fields.
+   */
+  bool validate_input_packet(std::span<const std::uint8_t> packet, NV_INPUT_HEADER *parsed_header = nullptr) {
+    if (packet.size() < sizeof(NV_INPUT_HEADER)) {
+      return false;
+    }
+
+    NV_INPUT_HEADER header {};
+    std::memcpy(&header, packet.data(), sizeof(header));
+    if (parsed_header) {
+      *parsed_header = header;
+    }
+
+    const auto declared_size = util::endian::big(header.size);
+    if (declared_size < sizeof(header.magic) || declared_size > packet.size() - sizeof(header.size)) {
+      return false;
+    }
+
+    switch (util::endian::little(header.magic)) {
+      case MOUSE_MOVE_REL_MAGIC_GEN5:
+        return validate_fixed_input_packet<NV_REL_MOUSE_MOVE_PACKET>(packet, declared_size);
+      case MOUSE_MOVE_ABS_MAGIC:
+        return validate_fixed_input_packet<NV_ABS_MOUSE_MOVE_PACKET>(packet, declared_size);
+      case MOUSE_BUTTON_DOWN_EVENT_MAGIC_GEN5:
+      case MOUSE_BUTTON_UP_EVENT_MAGIC_GEN5:
+        return validate_fixed_input_packet<NV_MOUSE_BUTTON_PACKET>(packet, declared_size);
+      case SCROLL_MAGIC_GEN5:
+        return validate_fixed_input_packet<NV_SCROLL_PACKET>(packet, declared_size);
+      case SS_HSCROLL_MAGIC:
+        return validate_fixed_input_packet<SS_HSCROLL_PACKET>(packet, declared_size);
+      case KEY_DOWN_EVENT_MAGIC:
+      case KEY_UP_EVENT_MAGIC:
+        return validate_fixed_input_packet<NV_KEYBOARD_PACKET>(packet, declared_size);
+      case UTF8_TEXT_EVENT_MAGIC:
+        return declared_size - sizeof(header.magic) <= UTF8_TEXT_EVENT_MAX_COUNT;
+      case MULTI_CONTROLLER_MAGIC_GEN5:
+        return validate_fixed_input_packet<NV_MULTI_CONTROLLER_PACKET>(packet, declared_size);
+      case SS_TOUCH_MAGIC:
+        return validate_fixed_input_packet<SS_TOUCH_PACKET>(packet, declared_size);
+      case SS_PEN_MAGIC:
+        return validate_fixed_input_packet<SS_PEN_PACKET>(packet, declared_size);
+      case SS_CONTROLLER_ARRIVAL_MAGIC:
+        return validate_fixed_input_packet<SS_CONTROLLER_ARRIVAL_PACKET>(packet, declared_size);
+      case SS_CONTROLLER_TOUCH_MAGIC:
+        return validate_fixed_input_packet<SS_CONTROLLER_TOUCH_PACKET>(packet, declared_size);
+      case SS_CONTROLLER_MOTION_MAGIC:
+        return validate_fixed_input_packet<SS_CONTROLLER_MOTION_PACKET>(packet, declared_size);
+      case SS_CONTROLLER_BATTERY_MAGIC:
+        return validate_fixed_input_packet<SS_CONTROLLER_BATTERY_PACKET>(packet, declared_size);
+      default:
+        return true;
+    }
+  }
+
+  /**
    * @brief Enumerates supported batch result options.
    */
   enum class batch_result_e {
@@ -2041,6 +2119,20 @@ namespace input {
    * @param input_data The input message.
    */
   void passthrough(std::shared_ptr<input_t> &input, std::vector<std::uint8_t> &&input_data) {
+    NV_INPUT_HEADER header {};
+    if (!validate_input_packet(input_data, &header)) {
+      if (input_data.size() >= sizeof(header)) {
+        BOOST_LOG(warning)
+          << "Dropping malformed input packet type ["sv
+          << util::hex(util::endian::little(header.magic)).to_string_view()
+          << "] with declared payload size ["sv << util::endian::big(header.size)
+          << "] and actual size ["sv << input_data.size() << ']';
+      } else {
+        BOOST_LOG(warning) << "Dropping malformed input packet with actual size ["sv << input_data.size() << ']';
+      }
+      return;
+    }
+
     {
       std::lock_guard<std::mutex> lg(input->input_queue_lock);
       input->input_queue.push_back(std::move(input_data));
@@ -2291,6 +2383,19 @@ namespace input {
 
     void release_held_keys() {
       reset_keyboard_keys();
+    }
+
+    bool is_valid_input_packet(std::span<const std::uint8_t> packet) {
+      return ::input::validate_input_packet(packet);
+    }
+
+    std::size_t queued_input_packet_count(const std::shared_ptr<input_t> &input) {
+      if (!input) {
+        return 0;
+      }
+
+      std::lock_guard lock {input->input_queue_lock};
+      return input->input_queue.size();
     }
   }  // namespace testing
 #endif
