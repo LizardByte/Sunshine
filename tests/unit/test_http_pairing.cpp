@@ -6,6 +6,13 @@
 // test includes
 #include "../tests_common.h"
 
+// standard includes
+#include <atomic>
+#include <chrono>
+#include <format>
+#include <thread>
+#include <vector>
+
 // local includes
 #include <src/nvhttp.h>
 
@@ -266,4 +273,200 @@ TEST(PairingTest, OutOfOrderCalls) {
   // Calling it again should fail
   getservercert(sess, tree, "test");
   ASSERT_FALSE(tree.get<int>("root.paired") == 1);
+}
+
+namespace {
+  /**
+   * @brief Build a pairing session that is awaiting operator approval.
+   *
+   * @param unique_id Client-controlled GameStream unique identifier.
+   * @param device_name Client-reported device name.
+   * @param address Network address associated with the request.
+   * @return Pairing session ready for insertion into pending storage.
+   */
+  pair_session_t pending_session(std::string unique_id, std::string device_name, std::string address) {
+    return {
+      .client = {
+        .uniqueID = std::move(unique_id),
+      },
+      .async_insert_pin = {
+        .salt = "ff5dc6eda99339a8a0793e216c4257c4",
+        .device_name = std::move(device_name),
+        .address = std::move(address),
+      },
+    };
+  }
+
+  /**
+   * @brief Fixture that isolates tests using global pending-pairing storage.
+   */
+  class PairingSessionRegistryTest: public BaseTest {
+  protected:
+    void SetUp() override {
+      expire_pair_sessions(std::chrono::steady_clock::time_point::max());
+    }
+
+    void TearDown() override {
+      expire_pair_sessions(std::chrono::steady_clock::time_point::max());
+    }
+  };
+}  // namespace
+
+TEST_F(PairingSessionRegistryTest, PinApprovalTargetsExplicitPairingId) {
+  std::string legitimate_pairing_id;
+  ASSERT_EQ(
+    insert_pair_session(pending_session("legitimate", "Living Room", "192.0.2.10"), legitimate_pairing_id),
+    pair_session_insert_e::ADDED
+  );
+
+  std::string attacker_pairing_id;
+  ASSERT_EQ(
+    insert_pair_session(pending_session("attacker", "Living Room", "192.0.2.20"), attacker_pairing_id),
+    pair_session_insert_e::ADDED
+  );
+  ASSERT_NE(legitimate_pairing_id, attacker_pairing_id);
+
+  // Unit-test sessions have no parked HTTP response, so pin() returns false after
+  // consuming the explicitly selected session. The competing request must remain untouched.
+  EXPECT_FALSE(pin(legitimate_pairing_id, "1234", "Approved client"));
+
+  const auto pending = get_pending_pairings();
+  ASSERT_EQ(pending.size(), 1);
+  EXPECT_EQ(pending.front().id, attacker_pairing_id);
+  EXPECT_EQ(pending.front().address, "192.0.2.20");
+}
+
+TEST_F(PairingSessionRegistryTest, InvalidApprovalCannotConsumePendingSession) {
+  std::string pairing_id;
+  ASSERT_EQ(
+    insert_pair_session(pending_session("legitimate", "Laptop", "192.0.2.10"), pairing_id),
+    pair_session_insert_e::ADDED
+  );
+
+  EXPECT_FALSE(pin("unknown-approval", "1234", "Laptop"));
+  EXPECT_FALSE(pin(pairing_id, "123", "Laptop"));
+  EXPECT_FALSE(pin(pairing_id, "12a4", "Laptop"));
+  EXPECT_FALSE(pin(pairing_id, "1234", ""));
+  EXPECT_FALSE(pin(pairing_id, "1234", std::string(MAX_PAIRING_CLIENT_NAME_SIZE + 1, 'a')));
+
+  const auto pending = get_pending_pairings();
+  ASSERT_EQ(pending.size(), 1);
+  EXPECT_EQ(pending.front().id, pairing_id);
+}
+
+TEST_F(PairingSessionRegistryTest, RestApiPairingFieldsAreValidatedServerSide) {
+  EXPECT_TRUE(is_valid_pairing_id(std::string(PAIRING_ID_SIZE, 'a')));
+  EXPECT_TRUE(is_valid_pairing_id("0123456789ABCDEF0123456789abcdef"));
+  EXPECT_FALSE(is_valid_pairing_id(std::string(PAIRING_ID_SIZE - 1, 'a')));
+  EXPECT_FALSE(is_valid_pairing_id(std::string(PAIRING_ID_SIZE, 'g')));
+
+  EXPECT_TRUE(is_valid_pairing_pin("0000"));
+  EXPECT_TRUE(is_valid_pairing_pin("9999"));
+  EXPECT_FALSE(is_valid_pairing_pin("123"));
+  EXPECT_FALSE(is_valid_pairing_pin("12a4"));
+
+  EXPECT_TRUE(is_valid_pairing_name("Client"));
+  EXPECT_TRUE(is_valid_pairing_name(std::string(MAX_PAIRING_CLIENT_NAME_SIZE, 'a')));
+  EXPECT_FALSE(is_valid_pairing_name(""));
+  EXPECT_FALSE(is_valid_pairing_name(std::string(MAX_PAIRING_CLIENT_NAME_SIZE + 1, 'a')));
+}
+
+TEST_F(PairingSessionRegistryTest, DuplicateUniqueIdIsRejectedWithoutReplacingOriginal) {
+  std::string original_pairing_id;
+  ASSERT_EQ(
+    insert_pair_session(pending_session("duplicate", "Original", "192.0.2.10"), original_pairing_id),
+    pair_session_insert_e::ADDED
+  );
+
+  std::string rejected_pairing_id;
+  EXPECT_EQ(
+    insert_pair_session(pending_session("duplicate", "Replacement", "192.0.2.20"), rejected_pairing_id),
+    pair_session_insert_e::ALREADY_EXISTS
+  );
+  EXPECT_TRUE(rejected_pairing_id.empty());
+
+  const auto pending = get_pending_pairings();
+  ASSERT_EQ(pending.size(), 1);
+  EXPECT_EQ(pending.front().id, original_pairing_id);
+  EXPECT_EQ(pending.front().name, "Original");
+}
+
+TEST_F(PairingSessionRegistryTest, PendingSessionStorageIsBounded) {
+  for (std::size_t index = 0; index < MAX_PENDING_PAIRING_SESSIONS; ++index) {
+    std::string pairing_id;
+    ASSERT_EQ(
+      insert_pair_session(pending_session(std::format("client-{}", index), "Client", "192.0.2.10"), pairing_id),
+      pair_session_insert_e::ADDED
+    );
+    EXPECT_FALSE(pairing_id.empty());
+  }
+
+  std::string overflow_pairing_id;
+  EXPECT_EQ(
+    insert_pair_session(pending_session("overflow", "Overflow", "192.0.2.20"), overflow_pairing_id),
+    pair_session_insert_e::FULL
+  );
+  EXPECT_EQ(get_pending_pairings().size(), MAX_PENDING_PAIRING_SESSIONS);
+}
+
+TEST_F(PairingSessionRegistryTest, ExpiredApprovalCannotConsumeLaterSession) {
+  const auto expiration_check = std::chrono::steady_clock::now() + PAIRING_SESSION_TIMEOUT + std::chrono::seconds {1};
+  std::string expired_pairing_id;
+  ASSERT_EQ(
+    insert_pair_session(pending_session("expired", "Old client", "192.0.2.10"), expired_pairing_id),
+    pair_session_insert_e::ADDED
+  );
+  expire_pair_sessions(expiration_check);
+  EXPECT_TRUE(get_pending_pairings().empty());
+
+  std::string current_pairing_id;
+  ASSERT_EQ(
+    insert_pair_session(pending_session("current", "Current client", "192.0.2.20"), current_pairing_id),
+    pair_session_insert_e::ADDED
+  );
+  EXPECT_FALSE(pin(expired_pairing_id, "1234", "Old client"));
+
+  const auto pending = get_pending_pairings();
+  ASSERT_EQ(pending.size(), 1);
+  EXPECT_EQ(pending.front().id, current_pairing_id);
+}
+
+TEST_F(PairingSessionRegistryTest, CancellationRemovesOnlySelectedPendingSession) {
+  std::string first_pairing_id;
+  ASSERT_EQ(
+    insert_pair_session(pending_session("first", "First", "192.0.2.10"), first_pairing_id),
+    pair_session_insert_e::ADDED
+  );
+  std::string second_pairing_id;
+  ASSERT_EQ(
+    insert_pair_session(pending_session("second", "Second", "192.0.2.20"), second_pairing_id),
+    pair_session_insert_e::ADDED
+  );
+
+  EXPECT_TRUE(cancel_pairing(first_pairing_id));
+  EXPECT_FALSE(cancel_pairing(first_pairing_id));
+
+  const auto pending = get_pending_pairings();
+  ASSERT_EQ(pending.size(), 1);
+  EXPECT_EQ(pending.front().id, second_pairing_id);
+}
+
+TEST_F(PairingSessionRegistryTest, ConcurrentInsertionAndCancellationLeaveConsistentState) {
+  constexpr std::size_t session_count = 16;
+  std::atomic<std::size_t> successful_cancellations {0};
+  std::vector<std::jthread> workers;
+  workers.reserve(session_count);
+
+  for (std::size_t index = 0; index < session_count; ++index) {
+    workers.emplace_back([index, &successful_cancellations]() {
+      std::string pairing_id;
+      if (insert_pair_session(pending_session(std::format("concurrent-{}", index), "Client", "192.0.2.10"), pairing_id) == pair_session_insert_e::ADDED && cancel_pairing(pairing_id)) {
+        ++successful_cancellations;
+      }
+    });
+  }
+  workers.clear();
+
+  EXPECT_EQ(successful_cancellations, session_count);
+  EXPECT_TRUE(get_pending_pairings().empty());
 }

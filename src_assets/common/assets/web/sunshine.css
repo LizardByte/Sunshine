@@ -1464,6 +1464,11 @@ p {
     transition: all var(--transition-fast);
 }
 
+/* Keep option text clear of the select's dropdown indicator. */
+.form-select {
+    padding-right: 2.25rem;
+}
+
 .form-control:focus,
 .form-select:focus {
     border-color: var(--color-primary);

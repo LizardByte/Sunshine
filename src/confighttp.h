@@ -79,6 +79,30 @@ namespace confighttp {
   void getCSRFToken(const resp_https_t &response, const req_https_t &request);
 
   /**
+   * @brief List authenticated pairing requests awaiting operator approval.
+   *
+   * @param response HTTP response object to populate.
+   * @param request HTTP request data from the client.
+   */
+  void getPendingPairings(const resp_https_t &response, const req_https_t &request);
+
+  /**
+   * @brief Cancel an explicitly selected pairing request.
+   *
+   * @param response HTTP response object to populate.
+   * @param request HTTP request data from the client.
+   */
+  void cancelPairing(const resp_https_t &response, const req_https_t &request);
+
+  /**
+   * @brief Apply a PIN to an explicitly selected pairing request.
+   *
+   * @param response HTTP response object to populate.
+   * @param request HTTP request data from the client.
+   */
+  void savePin(const resp_https_t &response, const req_https_t &request);
+
+  /**
    * @brief Check whether a detected driver version satisfies a minimum version.
    *
    * Empty minimum versions accept any detected version. Non-empty minimum versions
