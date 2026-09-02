@@ -71,6 +71,7 @@
     "env_client_hdr": "HDR 由用戶端啟用 (true/false)",
     "env_client_height": "用戶端要求的高度（整數）",
     "env_client_host_audio": "用戶端要求的主機音訊 (true/false)",
+    "env_client_name": "配對時指派的客戶端名稱 (str)",
     "env_client_width": "用戶端要求的寬度（整數）",
     "env_displayplacer_example": "範例 - 用於解析度自動化的 displayplacer：",
     "env_qres_example": "範例 - 用於解析度自動化的 QRes：",

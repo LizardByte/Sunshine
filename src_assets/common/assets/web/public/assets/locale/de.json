@@ -71,6 +71,7 @@
     "env_client_hdr": "HDR ist vom Client aktiviert (true/false)",
     "env_client_height": "Die vom Client angeforderte Höhe (int)",
     "env_client_host_audio": "Der Client hat Host-Audio angefordert (true/false)",
+    "env_client_name": "Der Name des Clients, der während der Paarung zugewiesen wird (str)",
     "env_client_width": "Die vom Client angeforderte Breite (int)",
     "env_displayplacer_example": "Beispiel - displayplacer für die Automatisierung der Auflösung:",
     "env_qres_example": "Beispiel - QRes für die Automatisierung der Auflösung:",

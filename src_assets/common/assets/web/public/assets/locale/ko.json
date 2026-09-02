@@ -71,6 +71,7 @@
     "env_client_hdr": "클라이언트가 HDR을 활성화합니다(참/거짓).",
     "env_client_height": "클라이언트가 요청한 높이(int)",
     "env_client_host_audio": "클라이언트가 호스트 오디오를 요청했습니다(참/거짓).",
+    "env_client_name": "페어링 시 할당된 클라이언트의 이름 (str)",
     "env_client_width": "클라이언트가 요청한 너비(int)",
     "env_displayplacer_example": "예시) 해상도 자동화를 위한 Displayplacer",
     "env_qres_example": "예 - 해결 자동화를 위한 QR:",

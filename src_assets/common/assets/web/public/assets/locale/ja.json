@@ -71,6 +71,7 @@
     "env_client_hdr": "HDR はクライアントによって有効になっています (true/false)",
     "env_client_height": "クライアントから要求された高さ (整数)",
     "env_client_host_audio": "クライアントはホストオーディオを要求しています (true/false)",
+    "env_client_name": "ペアリング中に割り当てられたクライアントの名前 (str)",
     "env_client_width": "クライアントから要求された幅 (int)",
     "env_displayplacer_example": "例 - 解像度自動化のためのディスプレイ プレーサ：",
     "env_qres_example": "例 - 自動解像度用のQRes:",

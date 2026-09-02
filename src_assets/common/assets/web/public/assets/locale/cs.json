@@ -71,6 +71,7 @@
     "env_client_hdr": "HDR je povoleno klientem (true/false)",
     "env_client_height": "Výška požadovaná klientem (int)",
     "env_client_host_audio": "Klient si vyžádal hostitelský zvuk (true/false)",
+    "env_client_name": "Název klienta přidělený během párování (str)",
     "env_client_width": "Šířka požadovaná klientem (int)",
     "env_displayplacer_example": "Příklad - displayplacer pro automatizaci rozlišení:",
     "env_qres_example": "Příklad – QR pro automatizaci rozlišení:",

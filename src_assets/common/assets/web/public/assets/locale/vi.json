@@ -71,6 +71,7 @@
     "env_client_hdr": "HDR được kích hoạt bởi client (true/false)",
     "env_client_height": "Chiều cao do client yêu cầu (số nguyên)",
     "env_client_host_audio": "Client yêu cầu âm thanh từ host (có/không)",
+    "env_client_name": "Tên khách hàng được gán trong quá trình ghép nối (chuỗi ký tự)",
     "env_client_width": "Chiều rộng được yêu cầu bởi client (số nguyên)",
     "env_displayplacer_example": "Ví dụ - Công cụ hiển thị cho độ phân giải động:",
     "env_qres_example": "Ví dụ - QRes cho độ phân giải động:",

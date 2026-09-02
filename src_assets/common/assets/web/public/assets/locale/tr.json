@@ -71,6 +71,7 @@
     "env_client_hdr": "HDR istemci tarafından etkinleştirildi (true/false)",
     "env_client_height": "İstemci tarafından talep edilen Yükseklik (int)",
     "env_client_host_audio": "İstemci ana bilgisayar sesi talep etti (true/false)",
+    "env_client_name": "Eşleştirme sırasında atanan istemcinin adı (str)",
     "env_client_width": "İstemci tarafından talep edilen Genişlik (int)",
     "env_displayplacer_example": "Örnek - Resolution Automation için displayplacer:",
     "env_qres_example": "Örnek - Çözünürlük Otomasyonu için QRes:",
