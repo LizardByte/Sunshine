@@ -172,7 +172,7 @@ If you see the above error in the Sunshine logs, compiling *Mesa* manually may b
 
 ### Portal token issues
 Portal capture requires you to manually approve Remote Desktop permissions via an on-screen prompt on the host.
-This creates a portal token which is used to automaticaly reauthorize on subsequent reconnects, but under certain
+This creates a portal token which is used to automatically reauthorize on subsequent reconnects, but under certain
 circumstances (a Sunshine crash, switching to another desktop environment, or if a monitor hotplug event occurs)
 the portal token may become lost or invalid, necessitating manual re-approval of capture permissions.
 
