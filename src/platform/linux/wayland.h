@@ -217,6 +217,12 @@ namespace wl {
      * @param output_manager xdg-output manager used to query logical monitor metadata.
      */
     void listen(zxdg_output_manager_v1 *output_manager);
+
+    /**
+     * @brief Attach wl-output listeners for this monitor, without using xdg-output.
+     */
+    void listen_fallback();
+
     /**
      * @brief Store the xdg-output logical monitor name.
      *
