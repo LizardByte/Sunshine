@@ -6,6 +6,9 @@
 
 // standard includes
 #include <chrono>
+#include <cstdint>
+#include <optional>
+#include <string>
 #include <string_view>
 
 // local includes
@@ -22,6 +25,42 @@ extern "C" {
 struct AVPacket;
 
 namespace video {
+
+  /**
+   * @brief Result status for a runtime encoder bitrate reconfiguration request.
+   */
+  enum class bitrate_reconfigure_status_e {
+    applied,  ///< The encoder accepted and applied the requested bitrate.
+    unchanged,  ///< The requested bitrate already matches the active bitrate.
+    invalid,  ///< The requested bitrate is outside the backend's numeric domain.
+    unsupported,  ///< The active encoder backend cannot reconfigure bitrate at runtime.
+    failed,  ///< The backend attempted the change but the encoder rejected it.
+  };
+
+  /**
+   * @brief Describe the result of a runtime bitrate reconfiguration request.
+   */
+  struct bitrate_reconfigure_result_t {
+    bitrate_reconfigure_status_e status;  ///< Final status of the request.
+    std::uint32_t old_target_kbps;  ///< Effective target before the request, or zero when unknown.
+    std::uint32_t requested_target_kbps;  ///< Target requested by the caller.
+    std::uint32_t effective_target_kbps;  ///< Effective target after the request, or zero when unknown.
+  };
+
+  /**
+   * @brief Runtime bitrate request transported to the encoder thread.
+   */
+  struct bitrate_reconfigure_request_t {
+    std::uint32_t target_kbps;  ///< Requested encoder target in kilobits per second.
+  };
+
+  /**
+   * @brief Convert a bitrate reconfiguration status to a stable diagnostic name.
+   *
+   * @param status Status to convert.
+   * @return Stable lower-case status name.
+   */
+  std::string_view bitrate_reconfigure_status_name(bitrate_reconfigure_status_e status);
 
   /**
    * @brief Encoding configuration requested by a remote client.
@@ -425,6 +464,21 @@ namespace video {
     virtual ~encode_session_t() = default;
 
     /**
+     * @brief Reconfigure the encoder bitrate without replacing the active session.
+     *
+     * @param target_kbps Requested encoder target in kilobits per second.
+     * @return Result of the request. Backends are unsupported by default.
+     */
+    virtual bitrate_reconfigure_result_t reconfigure_bitrate(std::uint32_t target_kbps) {
+      return {
+        bitrate_reconfigure_status_e::unsupported,
+        0,
+        target_kbps,
+        0,
+      };
+    }
+
+    /**
      * @brief Convert a captured frame into the encoder's required input representation.
      *
      * @param img Captured image supplied by the platform display backend.
@@ -450,6 +504,20 @@ namespace video {
      */
     virtual void invalidate_ref_frames(int64_t first_frame, int64_t last_frame) = 0;
   };
+
+  /**
+   * @brief Apply the latest pending bitrate request and retain it across encoder reinitialization.
+   *
+   * @param bitrate_events Latest-wins bitrate request event for the stream session.
+   * @param session Active encoder session.
+   * @param config Mutable session configuration reused when the encoder is recreated.
+   * @return Reconfiguration result when a request was pending, otherwise no value.
+   */
+  std::optional<bitrate_reconfigure_result_t> apply_pending_bitrate_reconfiguration(
+    const safe::mail_raw_t::event_t<bitrate_reconfigure_request_t> &bitrate_events,
+    encode_session_t &session,
+    config_t &config
+  );
 
   // encoders
   extern encoder_t software;

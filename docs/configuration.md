@@ -1400,6 +1400,34 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### adaptive_bitrate
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Allow supported Moonlight sessions to reduce the video bitrate during sustained network loss. Runtime
+            bitrate changes are currently supported by the Windows native NVENC backend. Recovery is gradual and
+            requires both a quiet period without new loss pressure and a fresh, healthy ENet RTT sample produced by a
+            reliable acknowledgement from Moonlight; the absence of FEC reports alone never permits an increase. The
+            controller never exceeds the bitrate requested by Moonlight or the configured `max_bitrate` ceiling.
+            Unsupported clients and encoders continue to use their fixed effective bitrate.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            adaptive_bitrate = enabled
+            @endcode</td>
+    </tr>
+</table>
+
 ### max_bitrate
 
 <table>
