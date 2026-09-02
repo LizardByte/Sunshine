@@ -63,12 +63,12 @@ namespace input {
   bool probe_gamepads();
 
   /**
-   * @brief Recreate the shared libvirtualhid mouse after a license-state change.
+   * @brief Recreate shared libvirtualhid keyboard and mouse devices after a license-state change.
    *
-   * The work is serialized with streamed input so the mouse backend can switch
+   * The work is serialized with streamed input so both backends can switch
    * safely between the Windows HID and SendInput paths.
    */
-  void refresh_virtual_mouse();
+  void refresh_virtual_input();
 
   /**
    * @brief Allocate and initialize platform input state for a stream.
@@ -106,6 +106,47 @@ namespace input {
      * @return Assigned global gamepad slot, or -1 when unallocated.
      */
     int gamepad_id(const std::shared_ptr<input_t> &input, std::uint8_t client_index);
+
+    /**
+     * @brief Keyboard event Sunshine emitted toward the platform backend.
+     */
+    struct keyboard_event_t {
+      std::uint16_t key_code;  ///< Platform keycode after the configured keybinding remap.
+      bool release;  ///< Whether the event releases the key.
+      std::uint8_t flags;  ///< Bit flags carried by the client keyboard packet.
+    };
+
+    /**
+     * @brief Redirect keyboard output away from the host operating system.
+     *
+     * Tests must install a sink before emitting keys, otherwise the events are typed into the
+     * machine running the test suite.
+     *
+     * @param sink Recorder invoked in place of platf::keyboard_update, or empty to restore
+     *             delivery to the platform backend.
+     */
+    void set_keyboard_sink(std::function<void(const keyboard_event_t &)> sink);
+
+    /**
+     * @brief Process one client keyboard packet on the calling thread.
+     *
+     * @param input Retained input state.
+     * @param key_code Windows virtual-key code sent by the client.
+     * @param modifiers Client modifier bitmask carried by the packet.
+     * @param flags Bit flags carried by the client keyboard packet.
+     * @param release Whether the packet releases the key.
+     */
+    void send_keyboard_packet(std::shared_ptr<input_t> &input, std::uint16_t key_code, std::uint8_t modifiers, std::uint8_t flags, bool release);
+
+    /**
+     * @brief Forget every key Sunshine tracks as pressed and cancel any pending key repeat.
+     */
+    void reset_keyboard_state();
+
+    /**
+     * @brief Release every key Sunshine tracks as pressed, as a disconnect does.
+     */
+    void release_held_keys();
   }  // namespace testing
 #endif
 

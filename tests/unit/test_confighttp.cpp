@@ -7,7 +7,7 @@
  * verify that the confighttp functions work correctly end-to-end.
  */
 
-// test imports
+// test includes
 #include "../tests_common.h"
 
 // standard includes
@@ -20,12 +20,12 @@
 #include <thread>
 #include <utility>
 
-// lib imports
+// lib includes
 #include <Simple-Web-Server/client_https.hpp>
 #include <Simple-Web-Server/crypto.hpp>
 #include <Simple-Web-Server/server_https.hpp>
 
-// local imports
+// local includes
 #include <src/config.h>
 #include <src/confighttp.h>
 #include <src/crypto.h>
@@ -1390,8 +1390,8 @@ TEST(ConfigHttpDriverStatusTest, BuildsLiveVirtualInputDriverStatus) {
   EXPECT_TRUE(virtualhid.contains("version_compatible"));
   EXPECT_TRUE(virtualhid.contains("backend_name"));
   EXPECT_TRUE(virtualhid.contains("requires_installed_driver"));
-  EXPECT_EQ(virtualhid["minimum_version"].get<std::string>(), "2026.823.352.3");  // NOSONAR(cpp:S1313): not an IP address
-  EXPECT_EQ(virtualhid["supported_versions"].get<std::string>(), ">= 2026.823.352.3");  // NOSONAR(cpp:S1313): not an IP address
+  EXPECT_EQ(virtualhid["minimum_version"].get<std::string>(), "2026.829.2338.54");  // NOSONAR(cpp:S1313): not an IP address
+  EXPECT_EQ(virtualhid["supported_versions"].get<std::string>(), ">= 2026.829.2338.54");  // NOSONAR(cpp:S1313): not an IP address
 
   const auto vigembus = confighttp::get_vigembus_driver_status();
   EXPECT_TRUE(vigembus.contains("installed"));

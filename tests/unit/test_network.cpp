@@ -2,8 +2,11 @@
  * @file tests/unit/test_network.cpp
  * @brief Test src/network.*
  */
+
+// test includes
 #include "../tests_common.h"
 
+// local includes
 #include <src/network.h>
 
 struct MdnsInstanceNameTest: BaseTest, testing::WithParamInterface<std::tuple<std::string, std::string>> {};

@@ -71,6 +71,7 @@
     "env_client_hdr": "HDR jest włączony przez klienta (prawda/fałsz)",
     "env_client_height": "Wysokość żądana przez klienta (liczba całkowita)",
     "env_client_host_audio": "Klient zażądał dźwięku hosta (prawda/fałsz)",
+    "env_client_name": "Nazwa klienta przypisana podczas parowania (str)",
     "env_client_width": "Szerokość żądana przez klienta (liczba całkowita)",
     "env_displayplacer_example": "Przykład - displayplacer dla automatycznej rozdzielczości:",
     "env_qres_example": "Przykład - QRes dla automatycznej rozdzielczości:",

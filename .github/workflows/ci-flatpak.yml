@@ -38,7 +38,7 @@ jobs:
     steps:
       - name: More space
         if: matrix.arch == 'x86_64'
-        uses: LizardByte/actions/actions/more_space@d0ae7f82215a479fe2b74f4088c53ee6460513dd  # v2026.728.214955
+        uses: LizardByte/actions/actions/more_space@aef56a192d51ec7445b29117a32b9bd25d2b103c  # v2026.829.140353
         with:
           analyze-space-savings: true
           clean-all: true
@@ -61,10 +61,15 @@ jobs:
 
       - name: Sync Python tools
         run: |
-          uv sync --locked --only-group flatpak \
-            --python "${PYTHON_VERSION}" \
-            --no-python-downloads \
+          uv_sync_args=(
+            --locked
+            --only-group flatpak
+            --python "${PYTHON_VERSION}"
+            --no-python-downloads
             --no-install-project
+          )
+          # uv.lock pins external artifacts; reviewed local Flatpak generator build hooks are required.
+          uv sync "${uv_sync_args[@]}"  # NOSONAR(githubactions:S8541, githubactions:S8544)
 
       - name: Setup Dependencies Linux Flatpak
         run: |
@@ -88,7 +93,7 @@ jobs:
 
       - name: flatpak node generator
         # https://github.com/flatpak/flatpak-builder-tools/blob/master/node/README.md
-        run: uv run --locked --no-sync python -m flatpak_node_generator npm package-lock.json
+        run: uv run --locked --no-build --no-sync python -m flatpak_node_generator npm package-lock.json
 
       - name: Debug generated-sources.json
         run: cat generated-sources.json
@@ -105,7 +110,7 @@ jobs:
             --no-header \
             --output-file glad-requirements.txt
 
-          uv run --locked --no-sync python \
+          uv run --locked --no-build --no-sync python \
             ./packaging/linux/flatpak/deps/flatpak-builder-tools/pip/flatpak-pip-generator.py \
             --runtime="org.kde.Sdk//${KDE_PLATFORM_VERSION}" \
             --output glad-dependencies \

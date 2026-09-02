@@ -279,13 +279,13 @@ namespace pipewire {
      * @param mem_type Mem type.
      * @param width Frame or display width in pixels.
      * @param height Frame or display height in pixels.
-     * @param refresh_rate Refresh rate.
+     * @param target_framerate Target framerate expressed as AVRational.
      * @param dmabuf_infos Dmabuf infos.
      * @param n_dmabuf_infos N dmabuf infos.
      * @param display_is_nvidia Display is nvidia.
      * @return 0 when the PipeWire stream is configured; nonzero on negotiation failure.
      */
-    int ensure_stream(const platf::mem_type_e mem_type, const uint32_t width, const uint32_t height, const uint32_t refresh_rate, const struct dmabuf_format_info_t *dmabuf_infos, const int n_dmabuf_infos, const bool display_is_nvidia) {
+    int ensure_stream(const platf::mem_type_e mem_type, const uint32_t width, const uint32_t height, const AVRational target_framerate, const struct dmabuf_format_info_t *dmabuf_infos, const int n_dmabuf_infos, const bool display_is_nvidia) {
       pw_thread_loop_lock(loop);
       int result = 0;
       if (!stream_data.stream) {
@@ -316,7 +316,7 @@ namespace pipewire {
                                                  (mem_type == platf::mem_type_e::cuda && display_is_nvidia));
         if (use_dmabuf) {
           for (int i = 0; i < n_dmabuf_infos; i++) {
-            auto format_param = build_format_parameter(&pod_builder, width, height, refresh_rate, dmabuf_infos[i].format, dmabuf_infos[i].modifiers, dmabuf_infos[i].n_modifiers);
+            auto format_param = build_format_parameter(&pod_builder, width, height, target_framerate, dmabuf_infos[i].format, dmabuf_infos[i].modifiers, dmabuf_infos[i].n_modifiers);
             params[n_params] = format_param;
             n_params++;
           }
@@ -324,7 +324,7 @@ namespace pipewire {
 
         // Add fallback for memptr
         for (const auto &fmt : format_map) {
-          auto format_param = build_format_parameter(&pod_builder, width, height, refresh_rate, fmt.pw_format, nullptr, 0);
+          auto format_param = build_format_parameter(&pod_builder, width, height, target_framerate, fmt.pw_format, nullptr, 0);
           params[n_params] = format_param;
           n_params++;
         }
@@ -473,7 +473,7 @@ namespace pipewire {
     uint64_t object_serial;
     bool negotiate_maxframerate_ = true;
 
-    struct spa_pod *build_format_parameter(struct spa_pod_builder *b, uint32_t width, uint32_t height, uint32_t refresh_rate, int32_t format, uint64_t *modifiers, int n_modifiers) {
+    struct spa_pod *build_format_parameter(struct spa_pod_builder *b, uint32_t width, uint32_t height, AVRational target_framerate, int32_t format, uint64_t *modifiers, int n_modifiers) {
       struct spa_pod_frame object_frame;
       struct spa_pod_frame modifier_frame;
       std::array<struct spa_rectangle, 3> sizes;
@@ -483,18 +483,22 @@ namespace pipewire {
       sizes[1] = SPA_RECTANGLE(1, 1);
       sizes[2] = SPA_RECTANGLE(8192, 4096);
 
-      framerates[0] = SPA_FRACTION(0, 1);  // default; we only want variable rate, thus bypassing compositor pacing
+      framerates[0] = SPA_FRACTION(uint32_t(target_framerate.num), uint32_t(target_framerate.den));  // default/preferred
       framerates[1] = SPA_FRACTION(0, 1);  // min
-      framerates[2] = SPA_FRACTION(0, 1);  // max
+      framerates[2] = SPA_FRACTION(1000, 1);  // max
 
       spa_pod_builder_push_object(b, &object_frame, SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat);
       spa_pod_builder_add(b, SPA_FORMAT_mediaType, SPA_POD_Id(SPA_MEDIA_TYPE_video), 0);
       spa_pod_builder_add(b, SPA_FORMAT_mediaSubtype, SPA_POD_Id(SPA_MEDIA_SUBTYPE_raw), 0);
       spa_pod_builder_add(b, SPA_FORMAT_VIDEO_format, SPA_POD_Id(format), 0);
       spa_pod_builder_add(b, SPA_FORMAT_VIDEO_size, SPA_POD_CHOICE_RANGE_Rectangle(&sizes[0], &sizes[1], &sizes[2]), 0);
-      spa_pod_builder_add(b, SPA_FORMAT_VIDEO_framerate, SPA_POD_Fraction(&framerates[0]), 0);
       if (negotiate_maxframerate_) {
+        // Always request variable rate (0, 1) for framerate when populating maxFramerate with default,min,max values
+        spa_pod_builder_add(b, SPA_FORMAT_VIDEO_framerate, SPA_POD_Fraction(&framerates[1]), 0);
         spa_pod_builder_add(b, SPA_FORMAT_VIDEO_maxFramerate, SPA_POD_CHOICE_RANGE_Fraction(&framerates[0], &framerates[1], &framerates[2]), 0);
+      } else {
+        // Request target framerate (target_framerate) for framerate in fallback case
+        spa_pod_builder_add(b, SPA_FORMAT_VIDEO_framerate, SPA_POD_Fraction(&framerates[0]), 0);
       }
 
       if (format == SPA_VIDEO_FORMAT_xBGR_210LE) {
@@ -654,8 +658,8 @@ namespace pipewire {
       if (d->format.info.raw.max_framerate.num == 0 && d->format.info.raw.max_framerate.denom == 1) {
         BOOST_LOG(info) << "[pipewire] Framerate (from compositor): 0/1 (variable rate capture)";
       } else {
-        BOOST_LOG(info) << "[pipewire] Framerate (from compositor): "sv << d->format.info.raw.framerate.num << "/"sv << d->format.info.raw.framerate.denom;
-        BOOST_LOG(info) << "[pipewire] Framerate (from compositor, max): "sv << d->format.info.raw.max_framerate.num << "/"sv << d->format.info.raw.max_framerate.denom;
+        BOOST_LOG(info) << "[pipewire] Framerate (from compositor): "sv << d->format.info.raw.framerate.num << "/"sv << d->format.info.raw.framerate.denom
+                        << ", max: "sv << d->format.info.raw.max_framerate.num << "/"sv << d->format.info.raw.max_framerate.denom;
       }
 
       int physical_w = d->format.info.raw.size.width;
@@ -809,14 +813,23 @@ namespace pipewire {
      */
     int init(platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
       // calculate frame interval we should capture at
-      framerate = config.framerate;
       delay = ::video::capture_frame_interval(config);
-      const AVRational fps = ::video::framerate_to_rational(config);
+
+      // WORKAROUND: if the active compositor is KWin, request variable rate (0, 1) capture only for versions 5.x-6.7.x.
+      // Ref: https://bugs.kde.org/show_bug.cgi?id=524129
+      // Also negotiate variable rate for all other compositors. Mutter's variable rate pacing is superior.
+      const static std::vector<int> kwin_version = get_running_kwin_version();
+      const static bool negotiate_variable_rate = kwin_version.empty() || (kwin_version[0] == 5 || (kwin_version[0] == 6 && kwin_version[1] < 8));
+
+      const AVRational fps = (negotiate_variable_rate ? AVRational {0, 1} : ::video::framerate_to_rational(config));
       if (fps.den != 1) {
         BOOST_LOG(info) << "[pipewire] Requested frame rate [" << fps.num << "/" << fps.den << ", approx. " << av_q2d(fps) << " fps]";
+      } else if (fps.num == 0 && fps.den == 1) {
+        BOOST_LOG(info) << "[pipewire] Requested variable rate capture [host pacing: " << std::chrono::duration<double, std::milli>(delay).count() << "ms]";
       } else {
         BOOST_LOG(info) << "[pipewire] Requested frame rate [" << fps.num << "fps]";
       }
+      this->target_framerate = fps;
       mem_type = hwdevice_type;
 
       if (get_dmabuf_modifiers() < 0) {
@@ -836,8 +849,6 @@ namespace pipewire {
       // Verify or update display parameters for streaming to ensure absolute touch inputs work as expected
       verify_and_update_display_parameters();
 
-      framerate = config.framerate;
-
       if (!shared_state) {
         shared_state = std::make_shared<shared_state_t>();
       } else {
@@ -854,7 +865,7 @@ namespace pipewire {
       }
 
       // Start PipeWire now so format negotiation can proceed before capture start
-      if (pipewire.ensure_stream(mem_type, width, height, framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia) < 0) {
+      if (pipewire.ensure_stream(mem_type, width, height, target_framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia) < 0) {
         BOOST_LOG(error) << "[pipewire] Failed to ensure pipewire stream. pipewire_t::init() failed.";
         return -1;
       }
@@ -966,7 +977,7 @@ namespace pipewire {
     platf::capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       auto next_frame = std::chrono::steady_clock::now();
 
-      if (pipewire.ensure_stream(mem_type, width, height, framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia) < 0) {
+      if (pipewire.ensure_stream(mem_type, width, height, target_framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia) < 0) {
         BOOST_LOG(error) << "[pipewire] Failed to ensure pipewire stream. capture() failed with error.";
         return platf::capture_e::error;
       }
@@ -1141,6 +1152,89 @@ namespace pipewire {
       return false;
     }
 
+    /**
+     * Fetch the currently running KWin version (if available from its DBUS support information method)
+     *
+     * @return A vector with 3 elements containing KWin's major.minor.micro version or an empty vector if KWin's version could not be determined
+     */
+    static std::vector<int> get_running_kwin_version() {
+#if !GLIB_CHECK_VERSION(2, 74, 0)
+      // Compatibility for Ubuntu 22.04 (Glib 2.72)
+      constexpr auto G_REGEX_DEFAULT = static_cast<GRegexCompileFlags>(0);
+      constexpr auto G_REGEX_MATCH_DEFAULT = static_cast<GRegexMatchFlags>(0);
+#endif
+      auto conn = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, nullptr);
+      std::vector<int> result;
+
+      if (!conn) {
+        return result;
+      }
+
+      auto reply = g_dbus_connection_call_sync(
+        conn,
+        "org.kde.KWin",
+        "/KWin",
+        "org.kde.KWin",
+        "supportInformation",
+        nullptr,
+        G_VARIANT_TYPE("(s)"),
+        G_DBUS_CALL_FLAGS_NONE,
+        -1,
+        nullptr,
+        nullptr
+      );
+
+      if (!reply) {
+        g_clear_object(&conn);
+        return result;
+      }
+
+      g_autofree gchar *support_info = nullptr;
+      g_variant_get(reply, "(s)", &support_info);
+
+      if (!support_info) {
+        g_variant_unref(reply);
+        g_clear_object(&conn);
+        return result;
+      }
+
+      auto *regex = g_regex_new(
+        "KWin version: ([0-9]+)\\.([0-9]+)\\.([0-9]+)",
+        G_REGEX_DEFAULT,
+        G_REGEX_MATCH_DEFAULT,
+        nullptr
+      );
+
+      if (!regex) {
+        g_variant_unref(reply);
+        g_clear_object(&conn);
+        return result;
+      }
+
+      GMatchInfo *match_info = nullptr;
+      g_regex_match(regex, support_info, G_REGEX_MATCH_DEFAULT, &match_info);
+
+      if (g_match_info_matches(match_info)) {
+        g_autofree const gchar *major =
+          g_match_info_fetch(match_info, 1);
+        g_autofree const gchar *minor =
+          g_match_info_fetch(match_info, 2);
+        g_autofree const gchar *micro =
+          g_match_info_fetch(match_info, 3);
+
+        result.emplace_back(std::atoi(major));
+        result.emplace_back(std::atoi(minor));
+        result.emplace_back(std::atoi(micro));
+      }
+
+      g_match_info_free(match_info);
+      g_regex_unref(regex);
+      g_variant_unref(reply);
+      g_clear_object(&conn);
+
+      return result;
+    }
+
   private:
     bool is_buffer_redundant(const egl::img_descriptor_t *img) {
       // Check for corrupted frame
@@ -1280,7 +1374,7 @@ namespace pipewire {
     std::optional<std::uint64_t> last_pts {};
     std::optional<std::uint64_t> last_seq {};
     std::uint64_t sequence {};
-    uint32_t framerate;
+    AVRational target_framerate;
 
   protected:
     // Allow subclasses to access for pipewire requirements setup and stream dead checks

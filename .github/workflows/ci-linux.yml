@@ -33,7 +33,7 @@ jobs:
             dist: 22.04
     steps:
       - name: More space
-        uses: LizardByte/actions/actions/more_space@d0ae7f82215a479fe2b74f4088c53ee6460513dd  # v2026.728.214955
+        uses: LizardByte/actions/actions/more_space@aef56a192d51ec7445b29117a32b9bd25d2b103c  # v2026.829.140353
         with:
           analyze-space-savings: true
           clean-all: true
@@ -103,6 +103,11 @@ jobs:
         run: |
           # install sunshine to the DESTDIR
           DESTDIR=AppDir ninja install
+          test -f AppDir/usr/share/sunshine/udev/rules.d/60-sunshine.rules
+          grep -Fq 'IMPORT{parent}="HID_*"' \
+            AppDir/usr/share/sunshine/udev/rules.d/60-sunshine.rules
+          grep -Fq 'ENV{HID_PHYS}=="libvirtualhid/uhid/*"' \
+            AppDir/usr/share/sunshine/udev/rules.d/60-sunshine.rules
 
           # custom AppRun file
           cp -f ../packaging/linux/AppImage/AppRun ./AppDir/
@@ -162,7 +167,7 @@ jobs:
           sudo rm -rf /var/lib/apt/lists/*
 
       - name: Setup virtual desktop
-        uses: LizardByte/actions/actions/virtual_desktop@d0ae7f82215a479fe2b74f4088c53ee6460513dd  # v2026.728.214955
+        uses: LizardByte/actions/actions/virtual_desktop@aef56a192d51ec7445b29117a32b9bd25d2b103c  # v2026.829.140353
         with:
           environment: mate
 
