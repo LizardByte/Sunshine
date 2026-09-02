@@ -2,13 +2,13 @@
  * @file tests/unit/test_crypto.cpp
  * @brief Test src/crypto.*.
  */
-// test imports
+// test includes
 #include "../tests_common.h"
 
-// lib imports
+// lib includes
 #include <openssl/x509.h>
 
-// local imports
+// local includes
 #include <src/crypto.h>
 
 TEST(CryptoTest, GeneratedCredentialsExposeSubjectAndVerifySignatures) {

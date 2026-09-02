@@ -1,17 +1,20 @@
 /**
  * @file tests/unit/test_round_robin.cpp
- * @brief Test src/round_robin.h.
+ * @brief Tests for the round-robin iterator.
  */
+
+// test includes
 #include "../tests_common.h"
 
-#include <src/round_robin.h>
-
+// standard includes
+#include <string>
 #include <vector>
 
-// ========== Basic iteration tests ==========
+// local includes
+#include <src/round_robin.h>
 
-TEST(RoundRobinTests, WrapsAroundOnIncrement) {
-  std::vector<int> data = {10, 20, 30};
+TEST(RoundRobinIterationTests, WrapsAroundOnIncrement) {
+  std::vector data {10, 20, 30};
   auto rr = round_robin_util::make_round_robin<int>(data.begin(), data.end());
 
   EXPECT_EQ(*rr, 10);
@@ -20,15 +23,13 @@ TEST(RoundRobinTests, WrapsAroundOnIncrement) {
   ++rr;
   EXPECT_EQ(*rr, 30);
   ++rr;
-  // Should wrap around to the beginning
   EXPECT_EQ(*rr, 10);
 }
 
-TEST(RoundRobinTests, WrapsAroundOnDecrement) {
-  std::vector<int> data = {10, 20, 30};
+TEST(RoundRobinIterationTests, WrapsAroundOnDecrement) {
+  std::vector data {10, 20, 30};
   auto rr = round_robin_util::make_round_robin<int>(data.begin(), data.end());
 
-  // Decrement from the start should wrap to end
   --rr;
   EXPECT_EQ(*rr, 30);
   --rr;
@@ -37,75 +38,71 @@ TEST(RoundRobinTests, WrapsAroundOnDecrement) {
   EXPECT_EQ(*rr, 10);
 }
 
-TEST(RoundRobinTests, PostIncrement) {
-  std::vector<int> data = {1, 2, 3};
+TEST(RoundRobinIterationTests, PostIncrement) {
+  std::vector data {1, 2, 3};
   auto rr = round_robin_util::make_round_robin<int>(data.begin(), data.end());
 
-  auto prev = rr++;
+  const auto prev = rr++;
   EXPECT_EQ(*prev, 1);
   EXPECT_EQ(*rr, 2);
 }
 
-TEST(RoundRobinTests, PostDecrement) {
-  std::vector<int> data = {1, 2, 3};
+TEST(RoundRobinIterationTests, PostDecrement) {
+  std::vector data {1, 2, 3};
   auto rr = round_robin_util::make_round_robin<int>(data.begin(), data.end());
-  ++rr;  // move to 2
+  ++rr;
 
-  auto prev = rr--;
+  const auto prev = rr--;
   EXPECT_EQ(*prev, 2);
   EXPECT_EQ(*rr, 1);
 }
 
-// ========== Arithmetic operator tests ==========
-
-TEST(RoundRobinTests, PlusEqualsAdvancesMultipleSteps) {
-  std::vector<int> data = {10, 20, 30, 40, 50};
+TEST(RoundRobinArithmeticTests, PlusEqualsAdvancesMultipleSteps) {
+  std::vector data {10, 20, 30, 40, 50};
   auto rr = round_robin_util::make_round_robin<int>(data.begin(), data.end());
 
   rr += 3;
   EXPECT_EQ(*rr, 40);
 }
 
-TEST(RoundRobinTests, PlusEqualsWrapsAround) {
-  std::vector<int> data = {10, 20, 30};
+TEST(RoundRobinArithmeticTests, PlusEqualsWrapsAround) {
+  std::vector data {10, 20, 30};
   auto rr = round_robin_util::make_round_robin<int>(data.begin(), data.end());
 
-  rr += 5;  // wraps: 10->20->30->10->20->30... position 5 mod 3 = 2
+  rr += 5;
   EXPECT_EQ(*rr, 30);
 }
 
-TEST(RoundRobinTests, MinusEqualsRewindsMultipleSteps) {
-  std::vector<int> data = {10, 20, 30, 40, 50};
+TEST(RoundRobinArithmeticTests, MinusEqualsRewindsMultipleSteps) {
+  std::vector data {10, 20, 30, 40, 50};
   auto rr = round_robin_util::make_round_robin<int>(data.begin(), data.end());
 
-  rr += 4;  // at 50
-  rr -= 2;  // back to 30
+  rr += 4;
+  rr -= 2;
   EXPECT_EQ(*rr, 30);
 }
 
-TEST(RoundRobinTests, PlusOperatorDoesNotModifyOriginal) {
-  std::vector<int> data = {10, 20, 30};
+TEST(RoundRobinArithmeticTests, PlusOperatorDoesNotModifyOriginal) {
+  std::vector data {10, 20, 30};
   auto rr = round_robin_util::make_round_robin<int>(data.begin(), data.end());
 
-  auto rr2 = rr + 2;
-  EXPECT_EQ(*rr, 10);  // original unchanged
+  const auto rr2 = rr + 2;
+  EXPECT_EQ(*rr, 10);
   EXPECT_EQ(*rr2, 30);
 }
 
-TEST(RoundRobinTests, MinusOperatorDoesNotModifyOriginal) {
-  std::vector<int> data = {10, 20, 30};
+TEST(RoundRobinArithmeticTests, MinusOperatorDoesNotModifyOriginal) {
+  std::vector data {10, 20, 30};
   auto rr = round_robin_util::make_round_robin<int>(data.begin(), data.end());
-  rr += 2;  // at 30
+  rr += 2;
 
-  auto rr2 = rr - 1;
-  EXPECT_EQ(*rr, 30);  // original unchanged
+  const auto rr2 = rr - 1;
+  EXPECT_EQ(*rr, 30);
   EXPECT_EQ(*rr2, 20);
 }
 
-// ========== Comparison operator tests ==========
-
-TEST(RoundRobinTests, EqualityWhenSamePosition) {
-  std::vector<int> data = {10, 20, 30};
+TEST(RoundRobinComparisonTests, EqualityWhenSamePosition) {
+  std::vector data {10, 20, 30};
   auto rr1 = round_robin_util::make_round_robin<int>(data.begin(), data.end());
   auto rr2 = round_robin_util::make_round_robin<int>(data.begin(), data.end());
 
@@ -113,8 +110,8 @@ TEST(RoundRobinTests, EqualityWhenSamePosition) {
   EXPECT_FALSE(rr1 != rr2);
 }
 
-TEST(RoundRobinTests, InequalityWhenDifferentPosition) {
-  std::vector<int> data = {10, 20, 30};
+TEST(RoundRobinComparisonTests, InequalityWhenDifferentPosition) {
+  std::vector data {10, 20, 30};
   auto rr1 = round_robin_util::make_round_robin<int>(data.begin(), data.end());
   auto rr2 = round_robin_util::make_round_robin<int>(data.begin(), data.end());
   ++rr2;
@@ -123,22 +120,39 @@ TEST(RoundRobinTests, InequalityWhenDifferentPosition) {
   EXPECT_TRUE(rr1 != rr2);
 }
 
-// ========== Difference operator tests ==========
+TEST(RoundRobinComparisonTests, InequalityWhenValuesMatchAtDifferentPositions) {
+  std::vector data {10, 10};
+  auto rr1 = round_robin_util::make_round_robin<int>(data.begin(), data.end());
+  auto rr2 = round_robin_util::make_round_robin<int>(data.begin(), data.end());
+  ++rr2;
 
-TEST(RoundRobinTests, DifferenceOperator) {
-  std::vector<int> data = {10, 20, 30, 40, 50};
+  EXPECT_NE(rr1, rr2);
+}
+
+TEST(RoundRobinComparisonTests, OrdersByPosition) {
+  std::vector data {10, 20, 30};
+  auto rr1 = round_robin_util::make_round_robin<int>(data.begin(), data.end());
+  auto rr2 = round_robin_util::make_round_robin<int>(data.begin(), data.end());
+  ++rr2;
+
+  EXPECT_LT(rr1, rr2);
+  EXPECT_LE(rr1, rr2);
+  EXPECT_GT(rr2, rr1);
+  EXPECT_GE(rr2, rr1);
+}
+
+TEST(RoundRobinArithmeticTests, DifferenceOperator) {
+  std::vector data {10, 20, 30, 40, 50};
   auto rr1 = round_robin_util::make_round_robin<int>(data.begin(), data.end());
   auto rr2 = round_robin_util::make_round_robin<int>(data.begin(), data.end());
   rr2 += 3;
 
-  auto diff = rr2 - rr1;
+  const auto diff = rr2 - rr1;
   EXPECT_EQ(diff, 3);
 }
 
-// ========== Single element tests ==========
-
-TEST(RoundRobinTests, SingleElementAlwaysReturnsSame) {
-  std::vector<int> data = {42};
+TEST(RoundRobinIterationTests, SingleElementAlwaysReturnsSame) {
+  std::vector data {42};
   auto rr = round_robin_util::make_round_robin<int>(data.begin(), data.end());
 
   EXPECT_EQ(*rr, 42);
@@ -148,13 +162,10 @@ TEST(RoundRobinTests, SingleElementAlwaysReturnsSame) {
   EXPECT_EQ(*rr, 42);
 }
 
-// ========== Multiple full cycles ==========
-
-TEST(RoundRobinTests, MultipleFullCycles) {
-  std::vector<int> data = {1, 2, 3};
+TEST(RoundRobinIterationTests, MultipleFullCycles) {
+  std::vector data {1, 2, 3};
   auto rr = round_robin_util::make_round_robin<int>(data.begin(), data.end());
 
-  // Go around twice
   for (int cycle = 0; cycle < 2; ++cycle) {
     EXPECT_EQ(*rr, 1);
     ++rr;
@@ -165,16 +176,14 @@ TEST(RoundRobinTests, MultipleFullCycles) {
   }
 }
 
-// ========== Pointer dereference test ==========
-
-TEST(RoundRobinTests, ArrowOperator) {
-  struct Item {
+TEST(RoundRobinAccessTests, ArrowOperator) {
+  struct item_t {
     int value;
     std::string name;
   };
 
-  std::vector<Item> data = {{1, "one"}, {2, "two"}, {3, "three"}};
-  auto rr = round_robin_util::make_round_robin<Item>(data.begin(), data.end());
+  std::vector<item_t> data {{1, "one"}, {2, "two"}, {3, "three"}};
+  auto rr = round_robin_util::make_round_robin<item_t>(data.begin(), data.end());
 
   EXPECT_EQ(rr->value, 1);
   EXPECT_EQ(rr->name, "one");

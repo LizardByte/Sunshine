@@ -2,9 +2,12 @@
  * @file tests/unit/test_entry_handler.cpp
  * @brief Test src/entry_handler.*.
  */
+
+// test includes
 #include "../tests_common.h"
 #include "../tests_log_checker.h"
 
+// local includes
 #include <src/entry_handler.h>
 
 TEST(EntryHandlerTests, LogPublisherDataTest) {

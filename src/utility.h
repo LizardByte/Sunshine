@@ -568,6 +568,10 @@ namespace util {
     std::string hex;
     hex.resize(str_size);
 
+    if (begin == end) {
+      return hex;
+    }
+
     const char _bits[16] {
       '0',
       '1',

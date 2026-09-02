@@ -3,12 +3,14 @@
  * @brief Tests for retained stream input and virtual gamepad lifecycle behavior.
  */
 
+// test includes
+#include "../tests_common.h"
+
 // standard includes
 #include <memory>
 #include <string>
 
 // local includes
-#include "../tests_common.h"
 #include "src/config.h"
 #include "src/input.h"
 #include "src/platform/virtualhid_input.h"

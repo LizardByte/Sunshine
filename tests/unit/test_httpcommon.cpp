@@ -2,13 +2,13 @@
  * @file tests/unit/test_httpcommon.cpp
  * @brief Test src/httpcommon.*.
  */
-// test imports
+// test includes
 #include "../tests_common.h"
 
-// lib imports
+// lib includes
 #include <curl/curl.h>
 
-// local imports
+// local includes
 #include <src/httpcommon.h>
 
 struct UrlEscapeTest: BaseTest, testing::WithParamInterface<std::tuple<std::string, std::string>> {};

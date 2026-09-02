@@ -2,8 +2,11 @@
  * @file tests/unit/test_audio.cpp
  * @brief Test src/audio.*.
  */
+
+// test includes
 #include "../tests_common.h"
 
+// local includes
 #include <src/audio.h>
 
 using namespace audio;

@@ -2,14 +2,14 @@
  * @file tests/unit/test_process.cpp
  * @brief Test src/process.* functions.
  */
-// test imports
+// test includes
 #include "../tests_common.h"
 
-// standard imports
+// standard includes
 #include <filesystem>
 #include <fstream>
 
-// local imports
+// local includes
 #include <src/process.h>
 
 namespace fs = std::filesystem;

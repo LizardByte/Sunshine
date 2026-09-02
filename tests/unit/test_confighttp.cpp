@@ -7,7 +7,7 @@
  * verify that the confighttp functions work correctly end-to-end.
  */
 
-// test imports
+// test includes
 #include "../tests_common.h"
 
 // standard includes
@@ -20,12 +20,12 @@
 #include <thread>
 #include <utility>
 
-// lib imports
+// lib includes
 #include <Simple-Web-Server/client_https.hpp>
 #include <Simple-Web-Server/crypto.hpp>
 #include <Simple-Web-Server/server_https.hpp>
 
-// local imports
+// local includes
 #include <src/config.h>
 #include <src/confighttp.h>
 #include <src/crypto.h>
