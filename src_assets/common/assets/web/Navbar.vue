@@ -30,6 +30,12 @@
               </a>
             </li>
             <li class="nav-item">
+              <a class="nav-link" href="./sessions">
+                <Layers :size="18" class="icon"></Layers>
+                {{ $t('navbar.sessions') }}
+              </a>
+            </li>
+            <li class="nav-item">
               <a class="nav-link" href="./featured">
                 <Star :size="18" class="icon"></Star>
                 {{ $t('navbar.featured') }}
