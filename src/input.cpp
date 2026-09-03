@@ -13,6 +13,7 @@ extern "C" {
 #include <bitset>
 #include <chrono>
 #include <cmath>
+#include <cstddef>
 #include <cstring>
 #include <functional>
 #include <list>
@@ -67,6 +68,16 @@ namespace input {
   constexpr auto VKEY_MENU = 0x12;  ///< Windows virtual-key code for menu.
   constexpr auto VKEY_LMENU = 0xA4;  ///< Windows virtual-key code for lmenu.
   constexpr auto VKEY_RMENU = 0xA5;  ///< Windows virtual-key code for rmenu.
+
+  constexpr auto SS_KEY_UNDO = 0x0100;  ///< Non-normalized client keycode for undo.
+  constexpr auto SS_KEY_CUT = 0x0101;  ///< Non-normalized client keycode for cut.
+  constexpr auto SS_KEY_COPY = 0x0102;  ///< Non-normalized client keycode for copy.
+  constexpr auto SS_KEY_PASTE = 0x0103;  ///< Non-normalized client keycode for paste.
+
+  constexpr auto SS_SCANCODE_UNDO = 0x7A;  ///< SDL scancode delivered for undo when non-normalized.
+  constexpr auto SS_SCANCODE_CUT = 0x7B;  ///< SDL scancode delivered for cut when non-normalized.
+  constexpr auto SS_SCANCODE_COPY = 0x7C;  ///< SDL scancode delivered for copy when non-normalized.
+  constexpr auto SS_SCANCODE_PASTE = 0x7D;  ///< SDL scancode delivered for paste when non-normalized.
 
   /**
    * @brief Enumerates supported button state options.
@@ -1150,12 +1161,43 @@ namespace input {
     }
 
     auto release = util::endian::little(packet->header.magic) == KEY_UP_EVENT_MAGIC;
-    auto keyCode = packet->keyCode & 0x00FF;
+    // Keycodes carrying the legacy 0x8000 flag are normalized Windows virtual-key
+    // codes for which only the low byte is significant. Non-normalized keycodes
+    // (such as the Undo/Cut/Copy/Paste editing keys) are interpreted as-is.
+    const bool normalized_prefix = (packet->keyCode & 0x8000) != 0;
+    auto keyCode = normalized_prefix ? (packet->keyCode & 0x00FF) : (packet->keyCode & 0xFFFF);
+
+    int modifiers = packet->modifiers;
+
+    // Clients deliver the Undo/Cut/Copy/Paste editing keys as non-normalized
+    // keycodes, either as the SDL scancode or a dedicated value. Normalize the
+    // scancode form to the canonical keycode that the platform backend maps to
+    // the native editing key. Requiring the absence of the 0x8000 prefix keeps
+    // the F11-F14 virtual keys (which some clients send with the non-normalized
+    // flag set) from being reinterpreted as editing keys.
+    if (!normalized_prefix &&
+        (static_cast<std::byte>(packet->flags) & static_cast<std::byte>(SS_KBE_FLAG_NON_NORMALIZED)) != std::byte {}) {
+      switch (keyCode) {
+        case SS_SCANCODE_UNDO:
+          keyCode = SS_KEY_UNDO;
+          break;
+        case SS_SCANCODE_CUT:
+          keyCode = SS_KEY_CUT;
+          break;
+        case SS_SCANCODE_COPY:
+          keyCode = SS_KEY_COPY;
+          break;
+        case SS_SCANCODE_PASTE:
+          keyCode = SS_KEY_PASTE;
+          break;
+        default:
+          break;
+      }
+    }
 
     update_modifier_state(*input, keyCode, release);
 
     // Right-alt maps to meta, so it must not also register as ALT
-    int modifiers = packet->modifiers;
     if (config::input.key_rightalt_to_key_win && input->alt_keys.right_pressed && !input->alt_keys.left_pressed) {
       modifiers &= ~MODIFIER_ALT;
     }
