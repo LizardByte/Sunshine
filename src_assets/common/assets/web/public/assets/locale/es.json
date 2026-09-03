@@ -515,11 +515,20 @@
     "success_msg": "¡La contraseña se ha cambiado con éxito! Esta página se recargará pronto, su navegador le pedirá las nuevas credenciales."
   },
   "pin": {
+    "cancel_failure": "La solicitud de emparejamiento no pudo ser cancelada",
+    "cancel_pairing": "Cancelar solicitud de emparejamiento seleccionada",
+    "cancel_success": "Solicitud de emparejamiento cancelada",
     "device_name": "Nombre del dispositivo",
+    "load_failure": "No se pudieron cargar las solicitudes de emparejamiento pendientes",
+    "no_pending_pairings": "No hay dispositivos esperando emparejar",
     "pair_failure": "Falló el emparejamiento: Compruebe si el PIN está escrito correctamente",
     "pair_success": "¡Éxito! Por favor revise Moonlight para continuar",
     "pin_pairing": "Emparejamiento de PIN",
+    "select_pairing": "Seleccione el dispositivo que solicita aprobación",
+    "select_pairing_required": "Seleccione el dispositivo que desea emparejar",
     "send": "Enviar",
+    "unknown_address": "Dirección desconocida",
+    "unknown_device": "Dispositivo desconocido",
     "warning_msg": "Asegúrate de tener acceso al cliente con el que estás emparejando. Este software puede dar control total a tu computadora, ¡así que ten cuidado!"
   },
   "resource_card": {
