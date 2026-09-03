@@ -120,9 +120,9 @@ namespace nvhttp {
    */
   struct pair_session_t {
     struct {
-      std::string uniqueID = {};
-      std::string cert = {};
-      std::string name = {};
+      std::string uniqueID = {};  ///< Client-provided pairing-session identifier.
+      std::string cert = {};  ///< Client certificate bytes exchanged during pairing.
+      std::string name = {};  ///< Client name recorded after successful pairing.
     } client;  ///< Client object or client certificate data owned by this state..
 
     std::unique_ptr<crypto::aes_t> cipher_key = {};  ///< Cipher key.
@@ -135,8 +135,8 @@ namespace nvhttp {
       util::Either<
         std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTP>::Response>,
         std::shared_ptr<typename SimpleWeb::ServerBase<SunshineHTTPS>::Response>>
-        response;
-      std::string salt = {};
+        response;  ///< Pending HTTP or HTTPS response completed after PIN approval.
+      std::string salt = {};  ///< Client-provided salt used to derive the pairing key.
       std::string id = {};  ///< Unguessable identifier used by the Web UI to approve this session.
       std::string device_name = {};  ///< Untrusted device name reported by the pairing client.
       std::string address = {};  ///< Network address from which the pairing request originated.
