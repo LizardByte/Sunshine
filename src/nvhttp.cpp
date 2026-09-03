@@ -1510,6 +1510,7 @@ namespace nvhttp {
              enabled device and "name" is the friendly client name set during pairing.
    */
   std::pair<bool, std::string> get_client_status(const std::string_view cert_pem);
+
   void start() {
     platf::set_thread_name("nvhttp");
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
