@@ -515,11 +515,20 @@
     "success_msg": "Heslo bylo úspěšně změněno! Tato stránka se brzy znovu načte a prohlížeč vás požádá o zadání nových přihlašovacích údajů."
   },
   "pin": {
+    "cancel_failure": "Požadavek na párování nemohl být zrušen",
+    "cancel_pairing": "Zrušit vybraný požadavek na párování",
+    "cancel_success": "Požadavek na párování byl zrušen",
     "device_name": "Název zařízení",
+    "load_failure": "Nevyřízené požadavky na párování nelze načíst",
+    "no_pending_pairings": "Žádné zařízení nečeká na spárování",
     "pair_failure": "Spárování se nezdařilo: Zkontrolujte, zda je PIN správně zadán",
     "pair_success": "Úspěch! Prosím, zkontrolujte Moonlight pro pokračování",
     "pin_pairing": "Párování PIN",
+    "select_pairing": "Vyberte zařízení vyžadující schválení",
+    "select_pairing_required": "Vyberte zařízení, které chcete spárovat",
     "send": "Odeslat",
+    "unknown_address": "Neznámá adresa",
+    "unknown_device": "Neznámé zařízení",
     "warning_msg": "Ujistěte se, že máte přístup ke klientovi, se kterým se párujete. Tento software může dát počítači úplnou kontrolu, proto buďte opatrní!"
   },
   "resource_card": {
