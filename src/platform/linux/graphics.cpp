@@ -631,6 +631,25 @@ namespace egl {
   }
 
   /**
+   * @brief Log the surface descriptor an import attempt was built from, for diagnosing
+   * driver-specific import failures (e.g. a particular DRM format/modifier/pitch combo).
+   * Only meant to be called on the (rate-limited, caller-side) failure path, hence debug level.
+   */
+  static void log_surface_descriptor(const surface_descriptor_t &xrgb) {
+    BOOST_LOG(debug) << "Surface descriptor: "sv << xrgb.width << 'x' << xrgb.height
+                      << " fourcc="sv << util::hex(xrgb.fourcc).to_string_view()
+                      << " modifier="sv << util::hex(xrgb.modifier).to_string_view();
+    for (auto x = 0; x < 4; ++x) {
+      if (xrgb.fds[x] < 0) {
+        continue;
+      }
+      BOOST_LOG(debug) << "  plane["sv << x << "]: fd="sv << xrgb.fds[x]
+                        << " offset="sv << xrgb.offsets[x]
+                        << " pitch="sv << xrgb.pitches[x];
+    }
+  }
+
+  /**
    * @brief Import the source frame texture for EGL/OpenGL conversion.
    *
    * @param egl_display EGL display used to create the image.
@@ -647,17 +666,40 @@ namespace egl {
     };
 
     if (!rgb->xrgb8) {
-      BOOST_LOG(error) << "Couldn't import RGB Image: "sv << util::hex(eglGetError()).to_string_view();
+      BOOST_LOG(debug) << "Couldn't import RGB Image: "sv << util::hex(eglGetError()).to_string_view();
+      log_surface_descriptor(xrgb);
 
       return std::nullopt;
+    }
+
+    // Some drivers can return a non-null EGLImage from eglCreateImage() while still leaving
+    // an error queued (validation deferred until first use). Catch that here too rather than
+    // only checking eglGetError() on the outright-null-image path above.
+    if (auto egl_err = eglGetError(); egl_err != EGL_SUCCESS) {
+      BOOST_LOG(debug) << "eglCreateImage() left a pending EGL error despite returning an image: "sv << util::hex(egl_err).to_string_view();
+      log_surface_descriptor(xrgb);
     }
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
     if (!gl::egl_image_target_texture_2d()) {
       BOOST_LOG(error) << "glEGLImageTargetTexture2DOES is not available; cannot import RGB DMA-BUF"sv;
+      gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
       return std::nullopt;
     }
     gl::egl_image_target_texture_2d()(GL_TEXTURE_2D, rgb->xrgb8);
+
+    // Some drivers accept an EGLImage of a given DRM format/modifier from eglCreateImage()
+    // but then reject binding it to a GL texture, e.g. Mesa/RADV rejecting a 10bpc format
+    // like DRM_FORMAT_XBGR2101010. When that happens, the texture is left with stale or
+    // incomplete contents, so this must be treated as an import failure rather than
+    // silently streaming whatever ends up in the texture. Logged at debug level: callers
+    // already surface a rate-limited, user-facing warning instead of flooding at error level.
+    if (auto err = gl::ctx.GetError(); err != GL_NO_ERROR) {
+      BOOST_LOG(debug) << "Failed to bind EGLImage to GL texture: "sv << util::hex(err).to_string_view();
+      log_surface_descriptor(xrgb);
+      gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
+      return std::nullopt;
+    }
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
 
