@@ -515,11 +515,20 @@
     "success_msg": "Şifre başarıyla değiştirildi! Bu sayfa yakında yeniden yüklenecek, tarayıcınız sizden yeni kimlik bilgilerinizi isteyecektir."
   },
   "pin": {
+    "cancel_failure": "Eşleştirme isteği iptal edilemedi",
+    "cancel_pairing": "Seçilen eşleştirme isteğini iptal et",
+    "cancel_success": "Eşleştirme isteği iptal edildi",
     "device_name": "Cihaz Adı",
+    "load_failure": "Bekleyen eşleştirme istekleri yüklenemedi",
+    "no_pending_pairings": "Eşleştirilmeyi bekleyen cihaz yok",
     "pair_failure": "Eşleştirme Başarısız: PIN'in doğru yazılıp yazılmadığını kontrol edin",
     "pair_success": "Başarılı! Devam etmek için lütfen Moonlight'ı kontrol ediniz",
     "pin_pairing": "PIN Eşleştirme",
+    "select_pairing": "Onay talep eden cihazı seçin",
+    "select_pairing_required": "Eşleştirmek istediğiniz cihazı seçin",
     "send": "Gönder",
+    "unknown_address": "Adres bilinmiyor",
+    "unknown_device": "Bilinmeyen cihaz",
     "warning_msg": "Eşleştirdiğiniz istemciye erişiminiz olduğundan emin olun. Bu yazılım bilgisayarınıza tam kontrol sağlayabilir, bu yüzden dikkatli olun!"
   },
   "resource_card": {
