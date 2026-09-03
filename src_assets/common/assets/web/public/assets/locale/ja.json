@@ -515,11 +515,20 @@
     "success_msg": "パスワードが正常に変更されました！このページはまもなくリロードされます。ブラウザーは新しい資格情報を要求します。"
   },
   "pin": {
+    "cancel_failure": "ペアリングリクエストをキャンセルできませんでした",
+    "cancel_pairing": "選択したペアリングリクエストをキャンセル",
+    "cancel_success": "ペアリングリクエストがキャンセルされました",
     "device_name": "端末名",
+    "load_failure": "保留中のペアリングリクエストを読み込めませんでした",
+    "no_pending_pairings": "ペアリングを待っているデバイスはありません",
     "pair_failure": "ペアリングに失敗しました：PINが正しく入力されたかどうかを確認します",
     "pair_success": "成功！Moonlight を確認して続行してください",
     "pin_pairing": "PINペアリング",
+    "select_pairing": "承認を要求しているデバイスを選択してください",
+    "select_pairing_required": "ペアリングするデバイスを選択してください",
     "send": "送信",
+    "unknown_address": "不明なアドレス",
+    "unknown_device": "不明なデバイス",
     "warning_msg": "ペアリングするクライアントにアクセスできることを確認してください。このソフトウェアは、あなたのコンピュータを完全にコントロールすることができますので、注意してください！"
   },
   "resource_card": {

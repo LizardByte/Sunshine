@@ -515,11 +515,20 @@
     "success_msg": "密碼已成功變更！此頁面將很快重新載入，您的瀏覽器將要求輸入新的憑證。"
   },
   "pin": {
+    "cancel_failure": "無法取消配對請求",
+    "cancel_pairing": "取消已選中的配對請求",
+    "cancel_success": "配對請求已取消",
     "device_name": "裝置名稱",
+    "load_failure": "無法載入待處理的配對請求",
+    "no_pending_pairings": "沒有任何裝置正在等待配對",
     "pair_failure": "配對失敗：請確認 PIN 碼是否輸入正確",
     "pair_success": "成功！請檢查 Moonlight 來繼續",
     "pin_pairing": "PIN 碼配對",
+    "select_pairing": "請選擇需要申請核准的裝置",
+    "select_pairing_required": "請選擇您要配對的裝置",
     "send": "發送",
+    "unknown_address": "未知地址",
+    "unknown_device": "未知裝置",
     "warning_msg": "請確保您可以存取要配對的用戶端。此軟體可讓對方完全控制您的電腦，請小心使用！"
   },
   "resource_card": {

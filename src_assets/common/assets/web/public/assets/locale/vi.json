@@ -515,11 +515,20 @@
     "success_msg": "Mật khẩu đã được thay đổi thành công! Trang này sẽ được tải lại trong giây lát, trình duyệt của bạn sẽ yêu cầu bạn nhập thông tin đăng nhập mới."
   },
   "pin": {
+    "cancel_failure": "Không thể hủy yêu cầu ghép đôi",
+    "cancel_pairing": "Hủy yêu cầu ghép nối đã chọn",
+    "cancel_success": "Yêu cầu ghép đôi đã bị hủy",
     "device_name": "Tên thiết bị",
+    "load_failure": "Không thể tải các yêu cầu ghép nối đang chờ xử lý",
+    "no_pending_pairings": "Không có thiết bị nào đang chờ ghép nối",
     "pair_failure": "Kết nối không thành công: Vui lòng kiểm tra xem mã PIN đã được nhập chính xác chưa.",
     "pair_success": "Thành công! Vui lòng kiểm tra Moonlight để tiếp tục.",
     "pin_pairing": "Kết nối PIN",
+    "select_pairing": "Chọn thiết bị đang yêu cầu phê duyệt",
+    "select_pairing_required": "Chọn thiết bị mà bạn muốn ghép nối",
     "send": "Gửi",
+    "unknown_address": "Địa chỉ không rõ",
+    "unknown_device": "Thiết bị không xác định",
     "warning_msg": "Đảm bảo bạn có quyền truy cập vào máy tính mà bạn đang kết nối. Phần mềm này có thể cho phép kiểm soát hoàn toàn máy tính của bạn, vì vậy hãy cẩn thận!"
   },
   "resource_card": {

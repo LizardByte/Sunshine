@@ -515,11 +515,20 @@
     "success_msg": "La password è stata modificata con successo! Questa pagina verrà ricaricata presto, il tuo browser ti chiederà le nuove credenziali."
   },
   "pin": {
+    "cancel_failure": "La richiesta di accoppiamento non può essere annullata",
+    "cancel_pairing": "Annulla la richiesta di accoppiamento selezionata",
+    "cancel_success": "Richiesta di accoppiamento annullata",
     "device_name": "Nome del Dispositivo",
+    "load_failure": "Le richieste di accoppiamento in sospeso non possono essere caricate",
+    "no_pending_pairings": "Nessun dispositivo in attesa di accoppiamento",
     "pair_failure": "Accoppiamento non riuscito: verificare se il PIN è digitato correttamente",
     "pair_success": "Fatto! Controlla Moonlight per proseguire",
     "pin_pairing": "Accoppiamento con PIN",
+    "select_pairing": "Selezionare il dispositivo che richiede l'approvazione",
+    "select_pairing_required": "Seleziona il dispositivo che intendi abbinare",
     "send": "Invia",
+    "unknown_address": "Indirizzo sconosciuto",
+    "unknown_device": "Dispositivo sconosciuto",
     "warning_msg": "Assicurati di avere accesso al client con cui stai accoppiando. Questo software può dare il controllo totale al tuo computer, quindi fai attenzione!"
   },
   "resource_card": {

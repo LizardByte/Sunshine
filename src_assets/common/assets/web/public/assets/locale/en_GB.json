@@ -515,11 +515,20 @@
     "success_msg": "Password has been changed successfully! This page will reload soon, your browser will ask you for the new credentials."
   },
   "pin": {
+    "cancel_failure": "The pairing request could not be cancelled",
+    "cancel_pairing": "Cancel selected pairing request",
+    "cancel_success": "Pairing request cancelled",
     "device_name": "Device Name",
+    "load_failure": "Pending pairing requests could not be loaded",
+    "no_pending_pairings": "No devices are waiting to pair",
     "pair_failure": "Pairing Failed: Check if the PIN is typed correctly",
     "pair_success": "Success! Please check Moonlight to continue",
     "pin_pairing": "PIN Pairing",
+    "select_pairing": "Select the device requesting approval",
+    "select_pairing_required": "Select the device you intend to pair",
     "send": "Send",
+    "unknown_address": "Unknown address",
+    "unknown_device": "Unknown device",
     "warning_msg": "Make sure you have access to the client you are pairing with. This software can give total control to your computer, so be careful!"
   },
   "resource_card": {

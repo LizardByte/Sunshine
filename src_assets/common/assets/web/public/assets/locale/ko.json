@@ -515,11 +515,20 @@
     "success_msg": "비밀번호가 성공적으로 변경되었습니다! 이 페이지가 곧 다시 로드되며 브라우저에서 새 자격 증명을 입력하라는 메시지가 표시됩니다."
   },
   "pin": {
+    "cancel_failure": "페어링 요청을 취소할 수 없습니다.",
+    "cancel_pairing": "선택한 페어링 요청 취소",
+    "cancel_success": "페어링 요청이 취소되었습니다.",
     "device_name": "기기 이름",
+    "load_failure": "대기 중인 페어링 요청을 불러올 수 없습니다",
+    "no_pending_pairings": "페어링을 기다리는 기기가 없습니다.",
     "pair_failure": "연결할 수 없습니다, PIN이 올바른지 확인하세요.",
     "pair_success": "성공! 계속하려면 Moonlight를 확인해 주세요.",
     "pin_pairing": "PIN 번호로 연결",
+    "select_pairing": "승인을 요청하는 기기를 선택하세요",
+    "select_pairing_required": "페어링할 기기를 선택하세요",
     "send": "보내기",
+    "unknown_address": "알 수 없는 주소",
+    "unknown_device": "알 수 없는 장치",
     "warning_msg": "페어링하려는 클라이언트에 대한 액세스 권한이 있는지 확인하세요. 이 소프트웨어는 컴퓨터를 완전히 제어할 수 있으므로 주의하세요! "
   },
   "resource_card": {

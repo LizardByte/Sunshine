@@ -515,11 +515,20 @@
     "success_msg": "Lösenordet har ändrats! Den här sidan kommer att laddas om snart, din webbläsare kommer att be dig om de nya uppgifterna."
   },
   "pin": {
+    "cancel_failure": "Parkopplingsförfrågan kunde inte avbrytas",
+    "cancel_pairing": "Avbryt vald parningsbegäran",
+    "cancel_success": "Parkopplingsbegäran avbruten",
     "device_name": "Enhetens namn",
+    "load_failure": "Väntande parkopplingsförfrågningar kunde inte laddas",
+    "no_pending_pairings": "Inga enheter väntar på att parkoppla",
     "pair_failure": "Parkoppling misslyckades: Kontrollera om PIN-koden är korrekt skriven",
     "pair_success": "Klart! Kontrollera Moonlight för att fortsätta",
     "pin_pairing": "PIN Pairing",
+    "select_pairing": "Välj den enhet som begär godkännande",
+    "select_pairing_required": "Välj den enhet som du tänker koppla",
     "send": "Skicka",
+    "unknown_address": "Okänd adress",
+    "unknown_device": "Okänd enhet",
     "warning_msg": "Se till att du har tillgång till klienten du parar ihop med. Denna programvara kan ge total kontroll till din dator, så var försiktig!"
   },
   "resource_card": {

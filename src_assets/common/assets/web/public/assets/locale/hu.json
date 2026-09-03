@@ -515,11 +515,20 @@
     "success_msg": "A jelszó megváltoztatása sikeres! Ez az oldal hamarosan újratöltődik, a böngésződ kérni fogja az új hitelesítő adatokat."
   },
   "pin": {
+    "cancel_failure": "A párosítási kérés nem törölhető",
+    "cancel_pairing": "A kijelölt párosítási kérelem visszavonása",
+    "cancel_success": "A párosítási kérelem törölve",
     "device_name": "Eszköz neve",
+    "load_failure": "A függőben lévő párosítási kérelmek betöltése nem sikerült",
+    "no_pending_pairings": "Nincs párosításra váró eszköz",
     "pair_failure": "Párosítás sikertelen: Ellenőrizd, hogy helyesen írtad-e be a PIN-t",
     "pair_success": "Siker! Ellenőrizd a Moonlight-ot a folytatáshoz",
     "pin_pairing": "PIN párosítás",
+    "select_pairing": "Válassza ki a jóváhagyást kérő eszközt",
+    "select_pairing_required": "Válassza ki azt az eszközt, amelyet párosítani szeretne",
     "send": "Küldés",
+    "unknown_address": "Ismeretlen cím",
+    "unknown_device": "Ismeretlen eszköz",
     "warning_msg": "Győződj meg róla, hogy hozzáférsz ahhoz a klienshez, amivel párosítasz. Ez a szoftver teljes kontrollt adhat a számítógéped felett, szóval légy óvatos!"
   },
   "resource_card": {
