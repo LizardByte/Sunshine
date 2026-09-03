@@ -515,11 +515,20 @@
     "success_msg": "Hasło zostało pomyślnie zmienione! Strona zostanie wkrótce przeładowana, a przeglądarka poprosi o podanie nowych danych uwierzytelniających."
   },
   "pin": {
+    "cancel_failure": "Nie można anulować żądania parowania",
+    "cancel_pairing": "Anuluj wybrane żądanie parowania",
+    "cancel_success": "Żądanie parowania anulowane",
     "device_name": "Nazwa urządzenia",
+    "load_failure": "Nie można załadować oczekujących żądań parowania",
+    "no_pending_pairings": "Żadne urządzenia nie czekają na parę",
     "pair_failure": "Parowanie nie powiodło się: Sprawdź, czy kod PIN został wpisany poprawnie",
     "pair_success": "Sukces! Sprawdź Moonlight, aby kontynuować",
     "pin_pairing": "Parowanie PIN",
+    "select_pairing": "Wybierz urządzenie wnioskujące o zatwierdzenie",
+    "select_pairing_required": "Wybierz urządzenie, które chcesz sparować",
     "send": "Wyślij",
+    "unknown_address": "Nieznany adres",
+    "unknown_device": "Nieznane urządzenie",
     "warning_msg": "Upewnij się, że masz dostęp do klienta, z którym się łączysz. To oprogramowanie może dać całkowitą kontrolę nad komputerem, więc bądź ostrożny!"
   },
   "resource_card": {
