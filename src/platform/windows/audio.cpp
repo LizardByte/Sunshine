@@ -285,14 +285,52 @@ namespace platf::audio {
    */
   class co_init_t: public deinit_t {
   public:
-    co_init_t() {
-      CoInitializeEx(nullptr, COINIT_MULTITHREADED | COINIT_SPEED_OVER_MEMORY);
+    co_init_t():
+        status_ {CoInitializeEx(nullptr, COINIT_MULTITHREADED | COINIT_SPEED_OVER_MEMORY)} {
     }
 
     ~co_init_t() override {
-      CoUninitialize();
+      if (SUCCEEDED(status_)) {
+        CoUninitialize();
+      }
     }
+
+    /**
+     * @brief Return the result from `CoInitializeEx()`.
+     * @return COM initialization status for the current thread.
+     */
+    [[nodiscard]] HRESULT status() const {
+      return status_;
+    }
+
+  private:
+    HRESULT status_;
   };
+
+  /**
+   * @brief Determine whether a COM initialization result leaves COM available to the caller.
+   * @param status Result returned by `CoInitializeEx()`.
+   * @return `true` for a successful initialization or an already initialized apartment.
+   */
+  [[nodiscard]] bool is_com_available(HRESULT status) {
+    return SUCCEEDED(status) || status == RPC_E_CHANGED_MODE;
+  }
+
+  /**
+   * @brief Ensure COM remains initialized for the lifetime of the current audio thread.
+   * @return `true` when COM is available on the current thread.
+   */
+  [[nodiscard]] bool initialize_com_for_audio_thread() {
+    thread_local co_init_t co_init;
+    const auto status = co_init.status();
+
+    if (!is_com_available(status)) {
+      BOOST_LOG(error) << "Couldn't initialize COM for audio capture: [0x"sv << util::hex(status).to_string_view() << ']';
+      return false;
+    }
+
+    return true;
+  }
 
   /**
    * @brief RAII wrapper that initializes and clears a Windows PROPVARIANT.
@@ -604,6 +642,10 @@ namespace platf::audio {
      * @return 0 on success; nonzero or negative platform status on failure.
      */
     int init(std::uint32_t sample_rate, std::uint32_t frame_size, std::uint32_t channels_out, bool continuous, device_t capture_device) {
+      if (!initialize_com_for_audio_thread()) {
+        return -1;
+      }
+
       audio_event.reset(CreateEventA(nullptr, FALSE, FALSE, nullptr));
       if (!audio_event) {
         BOOST_LOG(error) << "Couldn't create Event handle"sv;
@@ -1385,6 +1427,10 @@ namespace platf::audio {
      * @return 0 on success; nonzero or negative platform status on failure.
      */
     int init() {
+      if (!initialize_com_for_audio_thread()) {
+        return -1;
+      }
+
       auto status = CoCreateInstance(
         CLSID_CPolicyConfigClient,
         nullptr,
@@ -1428,6 +1474,15 @@ namespace platf::audio {
 
 #ifdef SUNSHINE_TESTS
   namespace tests {
+    /**
+     * @brief Evaluate a COM initialization status through the production acceptance policy.
+     * @param status Result returned by `CoInitializeEx()`.
+     * @return `true` when COM is available to the caller.
+     */
+    bool com_is_available(HRESULT status) {
+      return is_com_available(status);
+    }
+
     /**
      * @brief Resolve a sink through the production Windows endpoint lookup.
      *
