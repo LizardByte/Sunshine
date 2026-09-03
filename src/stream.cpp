@@ -4,9 +4,12 @@
  */
 
 // standard includes
+#include <cstring>
 #include <fstream>
 #include <future>
+#include <optional>
 #include <queue>
+#include <utility>
 
 // lib includes
 #include <boost/endian/arithmetic.hpp>
@@ -630,6 +633,29 @@ namespace stream {
 
   static auto broadcast = safe::make_shared<broadcast_ctx_t>(start_broadcast, end_broadcast);
 
+  /**
+   * @brief Parse a control message from an ENet packet.
+   *
+   * @param packet ENet packet containing the control message type and payload.
+   * @return The message type and payload view, or `std::nullopt` when the packet lacks a complete type.
+   */
+  std::optional<std::pair<std::uint16_t, std::string_view>> parse_control_packet(const ENetPacket &packet) {
+    if (packet.data == nullptr || packet.dataLength < sizeof(std::uint16_t)) {
+      return std::nullopt;
+    }
+
+    std::uint16_t type;
+    std::memcpy(&type, packet.data, sizeof(type));
+
+    return std::pair {
+      type,
+      std::string_view {
+        reinterpret_cast<const char *>(packet.data) + sizeof(type),
+        packet.dataLength - sizeof(type),
+      },
+    };
+  }
+
   session_t *control_server_t::get_session(const net::peer_t peer, uint32_t connect_data) {
     {
       // Fast path - look up existing session by peer
@@ -740,11 +766,10 @@ namespace stream {
         case ENET_EVENT_TYPE_RECEIVE:
           {
             net::packet_t packet {event.packet};
-
-            auto type = *(std::uint16_t *) packet->data;
-            std::string_view payload {(char *) packet->data + sizeof(type), packet->dataLength - sizeof(type)};
-
-            call(type, session, payload, false);
+            auto message = parse_control_packet(*packet);
+            if (message) {
+              call(message->first, session, message->second, false);
+            }
           }
           break;
         case ENET_EVENT_TYPE_CONNECT:
