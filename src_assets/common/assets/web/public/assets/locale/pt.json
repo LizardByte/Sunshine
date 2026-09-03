@@ -515,11 +515,20 @@
     "success_msg": "A senha foi alterada com sucesso! Essa página será recarregada em breve, seu navegador irá pedir as novas credenciais."
   },
   "pin": {
+    "cancel_failure": "A solicitação de emparelhamento não pôde ser cancelada",
+    "cancel_pairing": "Cancelar solicitação de emparelhamento selecionada",
+    "cancel_success": "Solicitação de pareamento cancelada",
     "device_name": "Nome do dispositivo",
+    "load_failure": "Pedidos de emparelhamento pendentes não puderam ser carregados",
+    "no_pending_pairings": "Nenhum dispositivo está esperando para parear",
     "pair_failure": "Pareamento Falhou: Verifique se o PIN foi digitado corretamente",
     "pair_success": "Sucesso! Por favor, verifique a Lua Lunar para continuar",
     "pin_pairing": "PIN Pairing",
+    "select_pairing": "Selecione o dispositivo solicitando aprovação",
+    "select_pairing_required": "Selecione o dispositivo que você pretende parear",
     "send": "Mandar",
+    "unknown_address": "Endereço desconhecido",
+    "unknown_device": "Dispositivo desconhecido",
     "warning_msg": "Certifique-se de que você tem acesso ao cliente com o qual está emparelhando. Este software pode dar controle total ao seu computador, então tenha cuidado!"
   },
   "resource_card": {
