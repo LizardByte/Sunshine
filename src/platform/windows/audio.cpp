@@ -285,9 +285,7 @@ namespace platf::audio {
    */
   class co_init_t: public deinit_t {
   public:
-    co_init_t():
-        status_ {CoInitializeEx(nullptr, COINIT_MULTITHREADED | COINIT_SPEED_OVER_MEMORY)} {
-    }
+    co_init_t() = default;
 
     ~co_init_t() override {
       if (SUCCEEDED(status_)) {
@@ -304,7 +302,7 @@ namespace platf::audio {
     }
 
   private:
-    HRESULT status_;
+    HRESULT status_ {CoInitializeEx(nullptr, COINIT_MULTITHREADED | COINIT_SPEED_OVER_MEMORY)};
   };
 
   /**
