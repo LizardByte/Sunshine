@@ -1766,7 +1766,7 @@ namespace confighttp {
       nlohmann::json output_tree;
       output_tree["status"] = nvhttp::cancel_pairing(pairing_id);
       send_response(response, output_tree);
-    } catch (std::exception &e) {
+    } catch (nlohmann::json::exception &e) {
       BOOST_LOG(warning) << "CancelPairing: "sv << e.what();
       bad_request(response, request, e.what());
     }

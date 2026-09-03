@@ -503,51 +503,51 @@ namespace stream {
     boost::asio::ip::address localAddress;  ///< Local address.
 
     struct {
-      std::string ping_payload;
+      std::string ping_payload;  ///< Payload expected from video-channel ping packets.
 
-      int lowseq;
-      udp::endpoint peer;
+      int lowseq;  ///< Next base sequence number for video RTP packets.
+      udp::endpoint peer;  ///< Client UDP endpoint for the video channel.
 
-      std::optional<crypto::cipher::gcm_t> cipher;
-      std::uint64_t gcm_iv_counter;
+      std::optional<crypto::cipher::gcm_t> cipher;  ///< Optional AES-GCM cipher for encrypted video packets.
+      std::uint64_t gcm_iv_counter;  ///< Counter incorporated into video AES-GCM initialization vectors.
 
-      safe::mail_raw_t::event_t<bool> idr_events;
-      safe::mail_raw_t::event_t<std::pair<int64_t, int64_t>> invalidate_ref_frames_events;
+      safe::mail_raw_t::event_t<bool> idr_events;  ///< Event requesting an instantaneous decoder refresh frame.
+      safe::mail_raw_t::event_t<std::pair<int64_t, int64_t>> invalidate_ref_frames_events;  ///< Event carrying the reference-frame range to invalidate.
 
-      std::unique_ptr<platf::deinit_t> qos;
+      std::unique_ptr<platf::deinit_t> qos;  ///< Lifetime guard for video-socket QoS configuration.
     } video;  ///< Video worker thread state for the active stream.
 
     struct {
-      crypto::cipher::cbc_t cipher;
-      std::string ping_payload;
+      crypto::cipher::cbc_t cipher;  ///< AES-CBC cipher used for audio-packet encryption.
+      std::string ping_payload;  ///< Payload expected from audio-channel ping packets.
 
-      std::uint16_t sequenceNumber;
+      std::uint16_t sequenceNumber;  ///< Next RTP sequence number for an audio packet.
       // avRiKeyId == util::endian::big(First (sizeof(avRiKeyId)) bytes of launch_session->iv)
-      std::uint32_t avRiKeyId;
-      std::uint32_t timestamp;
-      udp::endpoint peer;
+      std::uint32_t avRiKeyId;  ///< Base audio encryption key identifier derived from the launch-session IV.
+      std::uint32_t timestamp;  ///< RTP timestamp for the next audio packet.
+      udp::endpoint peer;  ///< Client UDP endpoint for the audio channel.
 
-      util::buffer_t<char> shards;
-      util::buffer_t<uint8_t *> shards_p;
+      util::buffer_t<char> shards;  ///< Backing storage for audio data and parity shards.
+      util::buffer_t<uint8_t *> shards_p;  ///< Pointer table passed to the audio Reed-Solomon encoder.
 
-      audio_fec_packet_t fec_packet;
-      std::unique_ptr<platf::deinit_t> qos;
+      audio_fec_packet_t fec_packet;  ///< Reusable packet header for audio forward-error-correction shards.
+      std::unique_ptr<platf::deinit_t> qos;  ///< Lifetime guard for audio-socket QoS configuration.
     } audio;  ///< Audio capture configuration for the stream..
 
     struct {
-      crypto::cipher::gcm_t cipher;
-      crypto::aes_t legacy_input_enc_iv;  // Only used when the client doesn't support full control stream encryption
-      crypto::aes_t incoming_iv;
-      crypto::aes_t outgoing_iv;
+      crypto::cipher::gcm_t cipher;  ///< AES-GCM cipher for the encrypted control channel.
+      crypto::aes_t legacy_input_enc_iv;  ///< Input IV used when full control-stream encryption is unavailable.
+      crypto::aes_t incoming_iv;  ///< Initialization vector for incoming control messages.
+      crypto::aes_t outgoing_iv;  ///< Initialization vector for outgoing control messages.
 
-      std::uint32_t connect_data;  // Used for new clients with ML_FF_SESSION_ID_V1
-      std::string expected_peer_address;  // Only used for legacy clients without ML_FF_SESSION_ID_V1
+      std::uint32_t connect_data;  ///< Session identifier used by clients supporting `ML_FF_SESSION_ID_V1`.
+      std::string expected_peer_address;  ///< Expected address for legacy clients without `ML_FF_SESSION_ID_V1`.
 
-      net::peer_t peer;
-      std::uint32_t seq;
+      net::peer_t peer;  ///< Connected ENet peer for the control channel.
+      std::uint32_t seq;  ///< Sequence number for the next encrypted control message.
 
-      platf::feedback_queue_t feedback_queue;
-      safe::mail_raw_t::event_t<video::hdr_info_t> hdr_queue;
+      platf::feedback_queue_t feedback_queue;  ///< Queue of controller feedback awaiting control-channel delivery.
+      safe::mail_raw_t::event_t<video::hdr_info_t> hdr_queue;  ///< Queue of HDR metadata awaiting control-channel delivery.
     } control;  ///< Runtime state for the encrypted GameStream control channel.
 
     std::uint32_t launch_session_id;  ///< RTSP launch-session ID associated with this stream.
