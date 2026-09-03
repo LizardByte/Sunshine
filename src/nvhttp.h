@@ -19,7 +19,6 @@
 
 // local includes
 #include "crypto.h"
-#include "thread_safe.h"
 
 /**
  * @brief Contains all the functions and variables related to the nvhttp (GameStream) server.
@@ -288,11 +287,10 @@ namespace nvhttp {
    * Then using the client certificate public key we should be able to verify that
    * the client secret has been signed by Moonlight
    * @param sess Pairing session that owns the request state.
-   * @param add_cert Add cert.
    * @param tree XML property tree used for the response body.
    * @param client_pairing_secret Client pairing secret.
    */
-  void clientpairingsecret(pair_session_t &sess, std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, boost::property_tree::ptree &tree, const std::string &client_pairing_secret);
+  void clientpairingsecret(pair_session_t &sess, boost::property_tree::ptree &tree, const std::string &client_pairing_secret);
 
   /**
    * @brief Apply the user supplied PIN to the explicitly selected pairing request.
@@ -348,4 +346,39 @@ namespace nvhttp {
    * @examples_end
    */
   void erase_all_clients();
+
+#ifdef SUNSHINE_TESTS
+  /**
+   * @brief Test-only accessors for paired-client authorization state.
+   */
+  namespace test_support {
+    /**
+     * @brief Clear in-memory paired-client records without changing persisted state.
+     */
+    void reset_client_state();
+
+    /**
+     * @brief Add a paired-client record for authorization tests.
+     *
+     * @param name Human-readable client name.
+     * @param cert PEM-encoded client certificate.
+     * @param enabled Whether the client may connect.
+     * @return Persistent UUID for the added client, or an empty string when invalid.
+     */
+    std::string add_client(const std::string &name, std::string cert, bool enabled);
+
+    /**
+     * @brief Run the production certificate authorization checks against PEM input.
+     *
+     * @param cert PEM-encoded certificate presented by a client.
+     * @return `true` when the exact certificate belongs to one enabled paired client.
+     */
+    bool authorize_client_certificate(std::string_view cert);
+
+    /**
+     * @brief Reload paired-client authorization state from the configured state file.
+     */
+    void reload_client_state();
+  }  // namespace test_support
+#endif
 }  // namespace nvhttp

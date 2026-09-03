@@ -192,6 +192,12 @@ namespace crypto {
      */
     void clear();
 
+    /**
+     * @brief Verify that a certificate exactly matches one stored trust anchor.
+     *
+     * @param cert Client certificate to verify.
+     * @return `nullptr` when the exact certificate is trusted, otherwise an OpenSSL error string.
+     */
     const char *verify(x509_t::element_type *cert);
 
   private:

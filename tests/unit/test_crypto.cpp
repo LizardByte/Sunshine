@@ -9,6 +9,8 @@
 #include <openssl/x509.h>
 
 // local includes
+#include "../certificate_test_utils.h"
+
 #include <src/crypto.h>
 
 TEST(CryptoTest, GeneratedCredentialsExposeSubjectAndVerifySignatures) {
@@ -47,4 +49,17 @@ TEST(CryptoTest, GeneratedCredentialsExposeSubjectAndVerifySignatures) {
   const auto signature = crypto::sign256(pkey, payload);
   ASSERT_FALSE(signature.empty());
   ASSERT_TRUE(crypto::verify256(cert, payload, {reinterpret_cast<const char *>(signature.data()), signature.size()}));
+}
+
+TEST(CryptoTest, CertificateChainRequiresExactPairedIdentity) {
+  const auto issuer_credentials = test_utils::certificates::generate_ca_credentials();
+  const auto derived_credentials = test_utils::certificates::generate_derived_leaf(issuer_credentials);
+  auto paired_certificate = crypto::x509(issuer_credentials.x509);
+  auto derived_certificate = crypto::x509(derived_credentials.x509);
+
+  crypto::cert_chain_t certificate_chain;
+  certificate_chain.add(crypto::x509(issuer_credentials.x509));
+
+  EXPECT_EQ(certificate_chain.verify(paired_certificate.get()), nullptr);
+  EXPECT_NE(certificate_chain.verify(derived_certificate.get()), nullptr);
 }
