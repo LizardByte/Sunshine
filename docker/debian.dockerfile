@@ -41,14 +41,17 @@ _DEPS
 
 FROM sunshine-deps AS sunshine-build
 
+ARG BASE
 ARG BRANCH
 ARG BUILD_VERSION
 ARG COMMIT
+ARG TAG
 # note: BUILD_VERSION may be blank
 
 ENV BRANCH=${BRANCH}
 ENV BUILD_VERSION=${BUILD_VERSION}
 ENV COMMIT=${COMMIT}
+ENV DEBIAN_PACKAGE_RELEASE=1+${BASE}${TAG}
 
 # Now copy the full repository
 COPY --link .. .
@@ -94,10 +97,10 @@ ARG TAG
 ARG TARGETARCH
 
 # artifacts to be extracted in CI
-COPY --link --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.deb /artifacts/sunshine-${BASE}-${TAG}-${TARGETARCH}.deb
+COPY --link --from=sunshine-build /build/sunshine/build/cpack_artifacts/*.deb /artifacts/
 
 # copy deb from builder
-COPY --link --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.deb /sunshine.deb
+COPY --link --from=sunshine-build /build/sunshine/build/cpack_artifacts/*.deb /sunshine.deb
 
 # install sunshine
 RUN <<_INSTALL_SUNSHINE

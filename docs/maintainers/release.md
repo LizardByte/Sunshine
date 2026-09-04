@@ -9,7 +9,9 @@ to be created before making a stable release. Below are the instructions for con
    Wait for this build to succeed before continuing. You can view the status
    [here](https://github.com/LizardByte/Sunshine/actions/workflows/ci-copr.yml?query=event%3Arelease)
 3. Once the workflow mentioned in step 2 completes, it will update the GitHub release with the RPM files from the copr
-   build.
+   build. It also calls the separate [Cloudsmith workflow](https://github.com/LizardByte/Sunshine/actions/workflows/ci-cloudsmith.yml),
+   which publishes currently supported DEB and RPM packages to the
+   [beta Cloudsmith repo](https://cloudsmith.io/~lizardbyte/repos/beta/).
 4. At this point, the GitHub release can be edited.
 
    - Add any top-level release notes.
@@ -40,6 +42,8 @@ to be created before making a stable release. Below are the instructions for con
      [Winget repo](https://github.com/microsoft/winget-pkgs/issues?q=is%3Apr%20is%3Aopen%20author%3ALizardByte-bot)
      via a PR (we DO NOT have merge control)
    - Build the new version in [stable copr repo](https://copr.fedorainfracloud.org/coprs/lizardbyte/stable/)
+   - Publish currently supported DEB and RPM packages to the
+     [stable Cloudsmith repo](https://cloudsmith.io/~lizardbyte/repos/stable/)
    - Send release notification to Moonlight Discord server
 
 6. X (Twitter) API is no longer free, so we must manually post the release there.

@@ -3,10 +3,6 @@ name: CI-Copr
 permissions: {}
 
 on:
-  release:
-    types:
-      - prereleased
-      - released
   workflow_call:
     secrets:
       COPR_BETA_WEBHOOK_TOKEN:
