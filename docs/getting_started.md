@@ -50,6 +50,11 @@ sudo pkg delete Sunshine
 
 ### Linux
 
+LizardByte publishes DEB and RPM packages to the
+[stable Cloudsmith repository](https://cloudsmith.io/~lizardbyte/repos/stable/) for releases and the
+[beta Cloudsmith repository](https://cloudsmith.io/~lizardbyte/repos/beta/) for prereleases. The packages also remain
+available for manual download from each GitHub release.
+
 **CUDA Compatibility**
 
 CUDA is used for NVFBC capture.
@@ -74,13 +79,13 @@ CUDA is used for NVFBC capture.
         <td>sunshine.AppImage</td>
     </tr>
     <tr>
-        <td>sunshine-ubuntu-22.04-{arch}.deb</td>
+        <td>sunshine_{version}-1+ubuntu22.04_{arch}.deb</td>
     </tr>
     <tr>
-        <td>sunshine-ubuntu-24.04-{arch}.deb</td>
+        <td>sunshine_{version}-1+ubuntu24.04_{arch}.deb</td>
     </tr>
     <tr>
-        <td>sunshine-debian-trixie-{arch}.deb</td>
+        <td>sunshine_{version}-1+debiantrixie_{arch}.deb</td>
     </tr>
     <tr>
         <td>sunshine_{arch}.flatpak</td>
@@ -160,15 +165,37 @@ pacman -R sunshine
 
 #### Debian/Ubuntu
 
-##### Install
-Download `sunshine-{distro}-{distro-version}-{arch}.deb` and run the following command.
+##### Install from Cloudsmith
+
+Configure the `stable` repository for releases or the `beta` repository for prereleases. The setup script
+automatically selects the appropriate Debian or Ubuntu release.
+
+@tabs{
+  @tab_with_pipe{ Stable |:| ```bash
+    curl -1sLf 'https://dl.cloudsmith.io/public/lizardbyte/stable/cfg/setup/bash.deb.sh' | sudo -E bash
+    ```}
+  @tab_with_pipe{ Beta |:| ```bash
+    curl -1sLf 'https://dl.cloudsmith.io/public/lizardbyte/beta/cfg/setup/bash.deb.sh' | sudo -E bash
+    ```}
+}
+
+Install Sunshine after configuring the repository.
+
 ```bash
-sudo dpkg -i ./sunshine-{distro}-{distro-version}-{arch}.deb
+sudo apt update
+sudo apt install sunshine
+```
+
+##### Install from GitHub releases
+
+Download `sunshine_{version}-1+{distro}{distro-version}_{arch}.deb` and run the following command.
+```bash
+sudo dpkg -i ./sunshine_{version}-1+{distro}{distro-version}_{arch}.deb
 ```
 
 > [!NOTE]
-> The `{distro-version}` is the version of the distro we built the package on. The `{arch}` is the
-> architecture of your operating system.
+> The `{version}` is the Sunshine version. The `1+{distro}{distro-version}` suffix is the Debian package revision and
+> identifies the distro used to build it. The `{arch}` is the architecture of your operating system.
 
 > [!TIP]
 > You can double-click the deb file to see details about the package and begin installation.
@@ -183,11 +210,43 @@ sudo apt remove sunshine
 > [!TIP]
 > The package name is case-sensitive.
 
-##### Install (GitHub releases)
+##### Install from Cloudsmith
+
+Configure the `stable` repository for releases or the `beta` repository for prereleases. Cloudsmith's setup script
+automatically selects Fedora or openSUSE and the appropriate release.
+
+@tabs{
+  @tab_with_pipe{ Stable |:| ```bash
+    curl -1sLf 'https://dl.cloudsmith.io/public/lizardbyte/stable/cfg/setup/bash.rpm.sh' | sudo -E bash
+    ```}
+  @tab_with_pipe{ Beta |:| ```bash
+    curl -1sLf 'https://dl.cloudsmith.io/public/lizardbyte/beta/cfg/setup/bash.rpm.sh' | sudo -E bash
+    ```}
+}
+
+Install Sunshine with your distribution's package manager.
+
+@tabs{
+  @tab{ Fedora | ```bash
+    sudo dnf install Sunshine
+    ```}
+  @tab{ openSUSE | ```bash
+    sudo zypper install Sunshine
+    ```}
+}
+
+##### Install from GitHub releases
+
 Download `Sunshine-{version}.{distro+version}.{arch}.rpm` and run the following command.
-```bash
-sudo dnf install ./Sunshine-{version}.{distro}.{arch}.rpm
-```
+
+@tabs{
+  @tab{ Fedora | ```bash
+    sudo dnf install ./Sunshine-{version}.{distro}.{arch}.rpm
+    ```}
+  @tab{ openSUSE | ```bash
+    sudo zypper install ./Sunshine-{version}.{distro}.{arch}.rpm
+    ```}
+}
 
 > [!NOTE]
 > The `{distro+version}` is the distro and distro version of the distro we built the package on. The `{arch}` is the
@@ -197,9 +256,15 @@ sudo dnf install ./Sunshine-{version}.{distro}.{arch}.rpm
 > You can double-click the rpm file to see details about the package and begin installation.
 
 ##### Uninstall
-```bash
-sudo dnf remove sunshine
-```
+
+@tabs{
+  @tab{ Fedora | ```bash
+    sudo dnf remove Sunshine
+    ```}
+  @tab{ openSUSE | ```bash
+    sudo zypper remove Sunshine
+    ```}
+}
 
 ##### Install (Copr)
 
