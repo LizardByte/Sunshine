@@ -16,10 +16,6 @@ on:
       VIRUSTOTAL_API_KEY:
         required: false
 
-concurrency:
-  group: "_${{ github.workflow }}-${{ github.ref }}"
-  cancel-in-progress: true
-
 jobs:
   call-copr-ci:
     permissions:
