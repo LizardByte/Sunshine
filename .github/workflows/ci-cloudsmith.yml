@@ -37,7 +37,7 @@ jobs:
             --pattern '*.rpm'
 
       - name: Upload packages to Cloudsmith
-        uses: LizardByte/actions/actions/cloudsmith_upload@master
+        uses: LizardByte/actions/actions/cloudsmith_upload@f697f5b43d7787eca2cef681d314a2093cfa15e3  # master
         with:
           api_key: ${{ secrets.CLOUDSMITH_API_KEY }}
           owner: lizardbyte
