@@ -73,28 +73,19 @@ CUDA is used for NVFBC capture.
         <th>Package</th>
     </tr>
     <tr>
-        <td rowspan="8">13.1.1</td>
-        <td rowspan="8">590.48.01</td>
-        <td rowspan="8">50;52;60;61;62;70;72;75;80;86;87;89;90;100;101;103;120;121</td>
+        <td rowspan="5">13.1.1</td>
+        <td rowspan="5">590.48.01</td>
+        <td rowspan="5">50;52;60;61;62;70;72;75;80;86;87;89;90;100;101;103;120;121</td>
         <td>sunshine.AppImage</td>
     </tr>
     <tr>
-        <td>sunshine_{version}-1+ubuntu22.04_{arch}.deb</td>
-    </tr>
-    <tr>
-        <td>sunshine_{version}-1+ubuntu24.04_{arch}.deb</td>
-    </tr>
-    <tr>
-        <td>sunshine_{version}-1+debiantrixie_{arch}.deb</td>
+        <td>sunshine_{version}-1+{distro}{distro-version}_{arch}.deb</td>
     </tr>
     <tr>
         <td>sunshine_{arch}.flatpak</td>
     </tr>
     <tr>
-        <td>Sunshine (copr - Fedora)</td>
-    </tr>
-    <tr>
-        <td>Sunshine (copr - OpenSUSE)</td>
+        <td>Sunshine-{version}-1.{distro+version}.{arch}.rpm</td>
     </tr>
     <tr>
         <td>sunshine.pkg.tar.zst</td>
@@ -237,20 +228,20 @@ Install Sunshine with your distribution's package manager.
 
 ##### Install from GitHub releases
 
-Download `Sunshine-{version}.{distro+version}.{arch}.rpm` and run the following command.
+Download `Sunshine-{version}-1.{distro+version}.{arch}.rpm` and run the following command.
 
 @tabs{
   @tab{ Fedora | ```bash
-    sudo dnf install ./Sunshine-{version}.{distro}.{arch}.rpm
+    sudo dnf install ./Sunshine-{version}-1.{distro+version}.{arch}.rpm
     ```}
   @tab{ openSUSE | ```bash
-    sudo zypper install ./Sunshine-{version}.{distro}.{arch}.rpm
+    sudo zypper install ./Sunshine-{version}-1.{distro+version}.{arch}.rpm
     ```}
 }
 
 > [!NOTE]
-> The `{distro+version}` is the distro and distro version of the distro we built the package on. The `{arch}` is the
-> architecture of your operating system.
+> The `{version}` is the Sunshine version. The `1` is the RPM package release. The `{distro+version}` is the distro and
+> distro version of the distro we built the package on. The `{arch}` is the architecture of your operating system.
 
 > [!TIP]
 > You can double-click the rpm file to see details about the package and begin installation.
