@@ -691,6 +691,35 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### absolute_mouse_as_relative
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            When enabled, absolute mouse positions from Moonlight clients are converted to relative motion.
+            <br>
+            The first event still places the cursor absolutely; subsequent events are emitted as relative deltas,
+            using the cursor position captured from the KMS cursor plane (when available) to stay in sync.
+            <br>
+            This can be useful on compositors whose assistive features (e.g. screen magnifiers) only track relative
+            pointer motion.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            absolute_mouse_as_relative = enabled
+            @endcode</td>
+    </tr>
+</table>
+
 ### keybindings
 
 <table>

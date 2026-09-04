@@ -1251,6 +1251,22 @@ namespace platf {
         captured_cursor.dst_w = *prop_crtc_w;
         captured_cursor.dst_h = *prop_crtc_h;
 
+        // Publish the real cursor position for the abs->rel input conversion
+        // (see config: absolute_mouse_as_relative). Cursor-plane CRTC
+        // coordinates are output-local physical pixels (relative to the
+        // captured output, no desktop offset); publish them together with the
+        // output extents so the consumer can rescale to logical touch-port
+        // units. The fields are written under a seqlock (seq odd while writing).
+        auto &cursor_fb = platf::kms_cursor_feedback();
+        cursor_fb.seq.fetch_add(1);
+        cursor_fb.x.store(*prop_crtc_x);
+        cursor_fb.y.store(*prop_crtc_y);
+        cursor_fb.desktop_w.store(width);
+        cursor_fb.desktop_h.store(height);
+        cursor_fb.logical_w.store(logical_width);
+        cursor_fb.logical_h.store(logical_height);
+        cursor_fb.seq.fetch_add(1);
+
         // We're technically cheating a bit here by assuming that we can detect
         // changes to the cursor plane via property adjustments. If this isn't
         // true, we'll really have to mmap() the dmabuf and draw that every time.

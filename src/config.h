@@ -290,6 +290,7 @@ namespace config {
 
     bool high_resolution_scrolling;  ///< Enable high-resolution mouse-wheel events.
     bool native_pen_touch;  ///< Enable native pen and touch injection.
+    bool absolute_mouse_as_relative;  ///< Emulate absolute client mouse input as relative motion (for compositors whose assistive features only track relative motion).
   };
 
   namespace flag {
