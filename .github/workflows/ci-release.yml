@@ -26,9 +26,7 @@ jobs:
 
   cloudsmith:
     name: Cloudsmith
-    if: >-
-      always() &&
-      startsWith(github.repository, 'LizardByte/')
+    if: startsWith(github.repository, 'LizardByte/')
     needs: copr
     permissions:
       contents: read
