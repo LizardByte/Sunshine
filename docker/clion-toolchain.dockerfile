@@ -1,8 +1,4 @@
 # syntax=docker/dockerfile:1
-# artifacts: false
-# platforms: linux/amd64
-# platforms_pr: linux/amd64
-# no-cache-filters: toolchain-base,toolchain
 ARG BASE=debian
 ARG TAG=trixie-slim
 FROM ${BASE}:${TAG} AS toolchain-base
