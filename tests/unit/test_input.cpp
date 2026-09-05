@@ -9,6 +9,7 @@
 // standard includes
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <limits>
@@ -296,4 +297,71 @@ TEST_F(InputGamepadSessionTest, RefreshesSharedVirtualInputAfterLicenseStateChan
   EXPECT_NE(context().keyboard->device_id(), original_keyboard_id);
   EXPECT_NE(context().mouse->device_id(), original_mouse_id);
   EXPECT_EQ(runtime().active_device_count(), active_devices);
+}
+
+TEST_F(InputGamepadSessionTest, TranslatesEditingKeysToCanonicalKeycodes) {
+  config::input.keyboard = true;
+  config::input.key_repeat_delay = std::chrono::milliseconds {0};
+
+  auto mail = std::make_shared<safe::mail_raw_t>();
+  auto session = input::alloc(mail, "editing-keys-client");
+  ASSERT_NE(session, nullptr);
+  ASSERT_NE(context().keyboard, nullptr);
+
+  constexpr std::uint8_t non_normalized = 0x01;  // SS_KBE_FLAG_NON_NORMALIZED
+
+  struct editing_key_case {
+    std::uint16_t client_key;  ///< Keycode sent by the client.
+    std::uint16_t expected_key;  ///< Canonical keycode forwarded to the backend.
+  };
+  const std::array<editing_key_case, 8> cases {{
+    {0x7A, 0x0100},  // SDL scancode Undo
+    {0x7B, 0x0101},  // SDL scancode Cut
+    {0x7C, 0x0102},  // SDL scancode Copy
+    {0x7D, 0x0103},  // SDL scancode Paste
+    {0x0100, 0x0100},  // Dedicated Undo
+    {0x0101, 0x0101},  // Dedicated Cut
+    {0x0102, 0x0102},  // Dedicated Copy
+    {0x0103, 0x0103},  // Dedicated Paste
+  }};
+
+  for (const auto &editing_key : cases) {
+    const auto before = context().keyboard->submit_count();
+
+    input::testing::send_keyboard_packet(session, editing_key.client_key, 0, non_normalized, false);
+    EXPECT_EQ(context().keyboard->submit_count(), before + 1);
+    const auto press_event = context().keyboard->last_submitted_event();
+    EXPECT_EQ(press_event.key_code, editing_key.expected_key);
+    EXPECT_TRUE(press_event.pressed);
+
+    input::testing::send_keyboard_packet(session, editing_key.client_key, 0, non_normalized, true);
+    EXPECT_EQ(context().keyboard->submit_count(), before + 2);
+    const auto release_event = context().keyboard->last_submitted_event();
+    EXPECT_EQ(release_event.key_code, editing_key.expected_key);
+    EXPECT_FALSE(release_event.pressed);
+  }
+
+  // Without the non-normalized flag, 0x7A-0x7D are the F11-F14 virtual keys and
+  // must pass through untranslated.
+  const auto before_fn = context().keyboard->submit_count();
+  input::testing::send_keyboard_packet(session, 0x7A, 0, 0, false);
+  EXPECT_EQ(context().keyboard->submit_count(), before_fn + 1);
+  const auto fn_event = context().keyboard->last_submitted_event();
+  EXPECT_EQ(fn_event.key_code, 0x7A);
+  EXPECT_TRUE(fn_event.pressed);
+  input::testing::send_keyboard_packet(session, 0x7A, 0, 0, true);
+
+  // A normalized F11-F14 keycode (0x807A-0x807D) that also carries the
+  // non-normalized flag must remain a function key and not be aliased to an
+  // editing key. Only the low byte reaches the backend after prefix stripping.
+  const std::array<std::uint16_t, 4> normalized_function_keys {0x807A, 0x807B, 0x807C, 0x807D};
+  for (const auto normalized_key : normalized_function_keys) {
+    const auto before = context().keyboard->submit_count();
+    input::testing::send_keyboard_packet(session, normalized_key, 0, non_normalized, false);
+    EXPECT_EQ(context().keyboard->submit_count(), before + 1);
+    const auto event = context().keyboard->last_submitted_event();
+    EXPECT_EQ(event.key_code, normalized_key & 0x00FF);
+    EXPECT_TRUE(event.pressed);
+    input::testing::send_keyboard_packet(session, normalized_key, 0, non_normalized, true);
+  }
 }
