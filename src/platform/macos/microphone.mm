@@ -114,6 +114,10 @@ namespace platf {
         const char *audio_sink = config::audio.sink.c_str();
         BOOST_LOG(info) << "Using configured audio sink "sv << audio_sink << " for capture."sv;
 
+        if (!request_microphone_permission()) {
+          return nullptr;
+        }
+
         if ((audio_capture_device = [AVAudio findMicrophone:[NSString stringWithUTF8String:audio_sink]]) == nullptr) {
           BOOST_LOG(error) << "opening microphone '"sv << audio_sink << "' failed. Please set a valid input source in the Sunshine config."sv;
           BOOST_LOG(error) << "Available inputs:"sv;

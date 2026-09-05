@@ -11,6 +11,10 @@
  */
 #import "av_audio.h"
 
+// standard includes
+#include <atomic>
+
+// local includes
 #include "coreaudio_helpers.h"
 #include "src/logging.h"
 #include "src/utility.h"
@@ -20,6 +24,43 @@
 
 namespace platf {
   using namespace std::literals;
+
+  bool request_microphone_permission(AVAuthorizationStatus authorization_status, const microphone_permission_request_t &request_access) {
+    if (authorization_status == AVAuthorizationStatusNotDetermined) {
+      BOOST_LOG(info) << "Requesting microphone permission for the configured audio sink."sv;
+    }
+
+    auto permission_granted = std::atomic<bool> {authorization_status == AVAuthorizationStatusAuthorized};
+    if (authorization_status == AVAuthorizationStatusNotDetermined) {
+      auto permission_resolved = dispatch_semaphore_create(0);
+      request_access([&](bool granted) {
+        permission_granted = granted;
+        dispatch_semaphore_signal(permission_resolved);
+      });
+
+      dispatch_semaphore_wait(permission_resolved, DISPATCH_TIME_FOREVER);
+      dispatch_release(permission_resolved);
+    }
+
+    if (!permission_granted.load()) {
+      if (authorization_status == AVAuthorizationStatusRestricted) {
+        BOOST_LOG(error) << "Microphone access is restricted by macOS."sv;
+      } else {
+        BOOST_LOG(error) << "Microphone access was denied. Enable Sunshine in System Settings -> Privacy & Security -> Microphone."sv;
+      }
+    }
+
+    return permission_granted.load();
+  }
+
+  bool request_microphone_permission() {
+    return request_microphone_permission([AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio], [](microphone_permission_callback_t callback) {
+      [AVCaptureDevice requestAccessForMediaType:AVMediaTypeAudio
+                               completionHandler:^(BOOL granted) {
+                                 callback(granted == YES);
+                               }];
+    });
+  }
 
   /**
    * @brief Real-time AudioConverter input callback for format conversion.

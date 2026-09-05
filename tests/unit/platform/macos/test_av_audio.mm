@@ -64,6 +64,55 @@ TEST_F(AVAudioTest, FindMicrophoneWithEmptyStringReturnsNil) {
 }
 
 /**
+ * @brief Test that existing microphone permission is accepted without another request.
+ */
+TEST_F(AVAudioTest, AuthorizedMicrophonePermissionDoesNotRequestAccess) {
+  bool request_called = false;
+
+  EXPECT_TRUE(platf::request_microphone_permission(AVAuthorizationStatusAuthorized, [&](platf::microphone_permission_callback_t callback) {
+    request_called = true;
+    callback(false);
+  }));
+  EXPECT_FALSE(request_called);
+}
+
+/**
+ * @brief Test that denied, restricted, and unknown microphone states are rejected without another request.
+ */
+TEST_F(AVAudioTest, UnavailableMicrophonePermissionDoesNotRequestAccess) {
+  bool request_called = false;
+  const auto request_access = [&](platf::microphone_permission_callback_t callback) {
+    request_called = true;
+    callback(true);
+  };
+
+  EXPECT_FALSE(platf::request_microphone_permission(AVAuthorizationStatusDenied, request_access));
+  EXPECT_FALSE(platf::request_microphone_permission(AVAuthorizationStatusRestricted, request_access));
+  EXPECT_FALSE(platf::request_microphone_permission(static_cast<AVAuthorizationStatus>(-1), request_access));
+  EXPECT_FALSE(request_called);
+}
+
+/**
+ * @brief Test that an undetermined microphone permission returns the user's decision.
+ */
+TEST_F(AVAudioTest, UndeterminedMicrophonePermissionRequestsAccess) {
+  bool request_called = false;
+
+  EXPECT_TRUE(platf::request_microphone_permission(AVAuthorizationStatusNotDetermined, [&](platf::microphone_permission_callback_t callback) {
+    request_called = true;
+    callback(true);
+  }));
+  EXPECT_TRUE(request_called);
+
+  request_called = false;
+  EXPECT_FALSE(platf::request_microphone_permission(AVAuthorizationStatusNotDetermined, [&](platf::microphone_permission_callback_t callback) {
+    request_called = true;
+    callback(false);
+  }));
+  EXPECT_TRUE(request_called);
+}
+
+/**
  * @brief Test that setupMicrophone handles nil device input properly.
  * Verifies the method returns an error code when passed a nil device.
  */

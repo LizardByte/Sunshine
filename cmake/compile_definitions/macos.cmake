@@ -40,6 +40,7 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 
 set(APPLE_PLIST_TEMPLATE "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/build/Info.plist.in")
 set(APPLE_PLIST_FILE "${CMAKE_BINARY_DIR}/Info.plist")
+set(APPLE_ENTITLEMENTS_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/entitlements.plist")
 configure_file("${APPLE_PLIST_TEMPLATE}" "${APPLE_PLIST_FILE}" @ONLY)
 
 set(PLATFORM_TARGET_FILES
@@ -58,4 +59,5 @@ set(PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/macos/publish.cpp"
         "${CMAKE_SOURCE_DIR}/third-party/TPCircularBuffer/TPCircularBuffer.c"
         "${CMAKE_SOURCE_DIR}/third-party/TPCircularBuffer/TPCircularBuffer.h"
+        ${APPLE_ENTITLEMENTS_FILE}
         ${APPLE_PLIST_FILE})
