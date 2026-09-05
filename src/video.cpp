@@ -3276,12 +3276,12 @@ namespace video {
       if (active_av1_mode == 5 && !encoder->av1[encoder_t::DYNAMIC_RANGE] && !encoder->av1[encoder_t::DYNAMIC_RANGE_YUV444]) {
         BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support AV1 Main10 Rext10_444 on this system"sv;
         active_av1_mode = 0;
-      } else if (active_hevc_mode == 4 && !encoder->av1[encoder_t::DYNAMIC_RANGE_YUV444]) {
+      } else if (active_av1_mode == 4 && !encoder->av1[encoder_t::DYNAMIC_RANGE_YUV444]) {
         BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support AV1 Rext10_444 on this system"sv;
-        active_hevc_mode = 0;
-      } else if (active_hevc_mode == 3 && !encoder->hevc[encoder_t::DYNAMIC_RANGE]) {
+        active_av1_mode = 0;
+      } else if (active_av1_mode == 3 && !encoder->av1[encoder_t::DYNAMIC_RANGE]) {
         BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support AV1 Main10 on this system"sv;
-        active_hevc_mode = 0;
+        active_av1_mode = 0;
       } else if (active_av1_mode == 2 && !encoder->av1[encoder_t::PASSED]) {
         BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support AV1 on this system"sv;
         active_av1_mode = 0;
