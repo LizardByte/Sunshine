@@ -25,7 +25,7 @@ namespace test_utils::certificates {
     auto certificate = crypto::x509(credentials.x509);
     auto private_key = crypto::pkey(credentials.pkey);
 
-    util::safe_ptr<BASIC_CONSTRAINTS, BASIC_CONSTRAINTS_free> constraints {BASIC_CONSTRAINTS_new()};
+    util::safe_ptr<BASIC_CONSTRAINTS, &BASIC_CONSTRAINTS_free> constraints {BASIC_CONSTRAINTS_new()};
     constraints->ca = 1;
     X509_add1_ext_i2d(certificate.get(), NID_basic_constraints, constraints.get(), 1, X509V3_ADD_DEFAULT);
     X509_sign(certificate.get(), private_key.get(), EVP_sha256());

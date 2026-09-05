@@ -1,0 +1,46 @@
+---
+name: CI-Cloudsmith
+permissions: {}
+
+on:
+  workflow_call:
+    inputs:
+      release_tag:
+        description: GitHub release tag containing the DEB assets.
+        required: true
+        type: string
+      repository:
+        description: Cloudsmith repository slug.
+        required: true
+        type: string
+    secrets:
+      CLOUDSMITH_API_KEY:
+        required: true
+
+jobs:
+  cloudsmith:
+    name: Cloudsmith
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          mkdir -p artifacts/packages
+          gh release download "${RELEASE_TAG}" \
+            --dir artifacts/packages \
+            --pattern '*.deb' \
+            --pattern '*.rpm'
+
+      - name: Upload packages to Cloudsmith
+        uses: LizardByte/actions/actions/cloudsmith_upload@f697f5b43d7787eca2cef681d314a2093cfa15e3  # master
+        with:
+          api_key: ${{ secrets.CLOUDSMITH_API_KEY }}
+          owner: lizardbyte
+          package_path: artifacts/packages
+          republish: true
+          repository: ${{ inputs.repository }}

@@ -1670,8 +1670,7 @@ namespace input {
    */
   template<typename Packet>
   bool validate_fixed_input_packet(std::span<const std::uint8_t> packet, std::uint32_t declared_size) {
-    constexpr auto expected_size = static_cast<std::uint32_t>(sizeof(Packet) - sizeof(std::uint32_t));
-    if (declared_size != expected_size) {
+    if (constexpr auto expected_size = static_cast<std::uint32_t>(sizeof(Packet) - sizeof(std::uint32_t)); declared_size != expected_size) {
       return false;
     }
     return packet.size() >= sizeof(Packet);

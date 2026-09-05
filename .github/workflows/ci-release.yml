@@ -1,0 +1,38 @@
+---
+name: CI-Release
+permissions: {}
+
+on:
+  release:
+    types:
+      - prereleased
+      - released
+
+concurrency:
+  group: "_${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  copr:
+    name: Copr
+    permissions:
+      contents: write  # needed to update releases
+    uses: ./.github/workflows/ci-copr.yml
+    secrets:
+      COPR_BETA_WEBHOOK_TOKEN: ${{ secrets.COPR_BETA_WEBHOOK_TOKEN }}
+      COPR_STABLE_WEBHOOK_TOKEN: ${{ secrets.COPR_STABLE_WEBHOOK_TOKEN }}
+      COPR_CLI_CONFIG: ${{ secrets.COPR_CLI_CONFIG }}
+      VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+
+  cloudsmith:
+    name: Cloudsmith
+    if: startsWith(github.repository, 'LizardByte/')
+    needs: copr
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci-cloudsmith.yml
+    with:
+      release_tag: ${{ github.event.release.tag_name }}
+      repository: ${{ github.event.action == 'prereleased' && 'beta' || 'stable' }}
+    secrets:
+      CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}

@@ -362,14 +362,14 @@ namespace platf::dxgi {
       union {
         struct
         {
-          UINT HwSchSupported : 1;
-          UINT HwSchEnabled : 1;
-          UINT HwSchEnabledByDefault : 1;
-          UINT IndependentVidPnVSyncControl : 1;
-          UINT Reserved : 28;
+          UINT HwSchSupported : 1;  ///< Whether hardware-accelerated GPU scheduling is supported.
+          UINT HwSchEnabled : 1;  ///< Whether hardware-accelerated GPU scheduling is enabled.
+          UINT HwSchEnabledByDefault : 1;  ///< Whether hardware scheduling is enabled by default.
+          UINT IndependentVidPnVSyncControl : 1;  ///< Whether independent VidPn VSync control is supported.
+          UINT Reserved : 28;  ///< Reserved capability bits.
         };
 
-        UINT Value;
+        UINT Value;  ///< Packed representation of the WDDM 2.7 capability flags.
       };
     } D3DKMT_WDDM_2_7_CAPS;  ///< Alias for D3 DKMT WDDM 2 7 CAPS.
 

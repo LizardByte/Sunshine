@@ -36,8 +36,8 @@ protected:
     config::sunshine.flags[config::flag::FRESH_STATE] = false;
     nvhttp::test_support::reset_client_state();
 
-    std::error_code error;
-    fs::remove(state_file, error);
+    std::error_code remove_error;
+    fs::remove(state_file, remove_error);
   }
 
   /**
@@ -45,14 +45,15 @@ protected:
    */
   void TearDown() override {
     nvhttp::test_support::reset_client_state();
-    std::error_code error;
-    fs::remove(state_file, error);
+    std::error_code remove_error;
+    fs::remove(state_file, remove_error);
 
     config::nvhttp.file_state = original_state_file;
     config::sunshine.flags[config::flag::FRESH_STATE] = original_fresh_state;
     BaseTest::TearDown();
   }
 
+private:
   fs::path state_file;  ///< Task-specific persisted state fixture.
   std::string original_state_file;  ///< State-file setting restored after each test.
   bool original_fresh_state;  ///< Fresh-state flag restored after each test.
@@ -104,6 +105,7 @@ TEST_F(ClientAuthorizationTest, MultipleClientsPersistAndUnpairIndependently) {
   ASSERT_FALSE(enabled_uuid.empty());
   ASSERT_FALSE(disabled_uuid.empty());
   ASSERT_FALSE(expired_uuid.empty());
+  EXPECT_EQ(nvhttp::get_all_clients().size(), 3);
 
   EXPECT_TRUE(nvhttp::test_support::authorize_client_certificate(enabled_credentials.x509));
   EXPECT_FALSE(nvhttp::test_support::authorize_client_certificate(disabled_credentials.x509));

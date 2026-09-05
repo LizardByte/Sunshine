@@ -131,7 +131,7 @@ jobs:
 
   build-linux-copr:
     name: Linux Copr
-    if: github.event_name != 'push'  # releases are handled directly in ci-copr.yml
+    if: github.event_name != 'push'  # releases are handled directly in ci-release.yml
     needs: release-setup
     permissions:
       contents: write  # needed to update releases

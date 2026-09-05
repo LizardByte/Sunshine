@@ -3,10 +3,6 @@ name: CI-Copr
 permissions: {}
 
 on:
-  release:
-    types:
-      - prereleased
-      - released
   workflow_call:
     secrets:
       COPR_BETA_WEBHOOK_TOKEN:
@@ -19,10 +15,6 @@ on:
         required: false
       VIRUSTOTAL_API_KEY:
         required: false
-
-concurrency:
-  group: "_${{ github.workflow }}-${{ github.ref }}"
-  cancel-in-progress: true
 
 jobs:
   call-copr-ci:

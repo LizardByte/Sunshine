@@ -515,11 +515,20 @@
     "success_msg": "Passwort wurde erfolgreich geändert! Diese Seite wird bald neu geladen, Ihr Browser wird Sie nach den neuen Zugangsdaten fragen."
   },
   "pin": {
+    "cancel_failure": "Die Paaranfrage konnte nicht abgebrochen werden",
+    "cancel_pairing": "Ausgewählte Paarungsanfrage abbrechen",
+    "cancel_success": "Paaranfrage abgebrochen",
     "device_name": "Gerätename",
+    "load_failure": "Ausstehende Paarungsanfragen konnten nicht geladen werden",
+    "no_pending_pairings": "Keine Geräte warten auf Paar",
     "pair_failure": "Kopplung fehlgeschlagen: Prüfe ob die PIN korrekt eingegeben wurde",
     "pair_success": "Erfolg! Weiter geht es in Moonlight",
     "pin_pairing": "PIN-Kopplung",
+    "select_pairing": "Wählen Sie das Gerät zur Freigabe aus",
+    "select_pairing_required": "Wählen Sie das Gerät aus, das Sie verbinden möchten",
     "send": "Senden",
+    "unknown_address": "Unbekannte Adresse",
+    "unknown_device": "Unbekanntes Gerät",
     "warning_msg": "Stelle sicher, dass Du Zugriff auf das Gerät hat, welches du verbinden möchtest. Sei vorsichtig, denn diese Software ermöglicht vollständige Kontrolle über deinen Computer!"
   },
   "resource_card": {
