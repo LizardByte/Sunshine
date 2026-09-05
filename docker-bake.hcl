@@ -10,6 +10,7 @@ group "default" {
     "ubuntu-22-04",
     "ubuntu-24-04",
     "ubuntu-26-04",
+    "ubuntu-26-10",
   ]
 }
 
@@ -21,6 +22,7 @@ group "artifacts" {
     "ubuntu-22-04",
     "ubuntu-24-04",
     "ubuntu-26-04",
+    "ubuntu-26-10",
   ]
 }
 
@@ -84,5 +86,16 @@ target "ubuntu-26-04" {
   }
   labels = {
     "dev.lizardbyte.image.variant" = "ubuntu-26.04"
+  }
+}
+
+target "ubuntu-26-10" {
+  inherits = ["_sunshine"]
+  args = {
+    BASE = "ubuntu"
+    TAG = "26.10"
+  }
+  labels = {
+    "dev.lizardbyte.image.variant" = "ubuntu-26.10"
   }
 }
