@@ -100,6 +100,15 @@ namespace nvhttp {
     virtual ~SunshineHTTPS() {
       // Gracefully shutdown the TLS connection
       SimpleWeb::error_code ec;
+
+      // Never block in the destructor waiting for the peer's close_notify.
+      // After sending our own close_notify, SSL_shutdown() waits for the peer's
+      // close_notify via a blocking read on the socket. Clients that keep the
+      // connection open (e.g. Moonlight's HTTP connection pool) never send one,
+      // which hangs the single io thread of the entire HTTPS server forever.
+      // With a non-blocking socket, the shutdown attempt returns immediately
+      // with would_block instead of waiting indefinitely.
+      lowest_layer().non_blocking(true);
       shutdown(ec);
     }
   };
