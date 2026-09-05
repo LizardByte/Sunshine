@@ -11,6 +11,7 @@
 #include <vector>
 
 #ifdef SUNSHINE_BUILD_WAYLAND
+  #include <color-management-v1.h>
   #include <linux-dmabuf-unstable-v1.h>
   #include <wlr-screencopy-unstable-v1.h>
   #include <xdg-output-unstable-v1.h>
@@ -315,6 +316,7 @@ namespace wl {
       XDG_OUTPUT,  ///< xdg-output
       WLR_EXPORT_DMABUF,  ///< screencopy manager
       LINUX_DMABUF,  ///< linux-dmabuf protocol
+      COLOR_MANAGER,  ///< color-management-v1, which is how an output says it is in HDR
       MAX_INTERFACES,  ///< Maximum number of interfaces
     };
 
@@ -359,11 +361,81 @@ namespace wl {
      */
     void dmabuf_modifier(zwp_linux_dmabuf_v1 *zwp_linux_dmabuf, uint32_t format, uint32_t modifier_hi, uint32_t modifier_lo);
 
+    /**
+     * @brief Absorb the rendering intents wp_color_manager_v1 supports.
+     *
+     * The capability events are not read. They cannot be ignored either:
+     * libwayland dispatches straight into the listener table, so a null entry
+     * for an event the compositor does send is a crash rather than a no-op.
+     *
+     * @param manager Colour management global that emitted the event.
+     * @param render_intent Rendering intent the compositor supports.
+     */
+    void color_supported_intent(wp_color_manager_v1 *manager, std::uint32_t render_intent) {
+      // Deliberately empty; present so the listener entry is not null.
+    }
+
+    /**
+     * @brief Absorb the features wp_color_manager_v1 supports.
+     *
+     * The capability events are not read. They cannot be ignored either:
+     * libwayland dispatches straight into the listener table, so a null entry
+     * for an event the compositor does send is a crash rather than a no-op.
+     *
+     * @param manager Colour management global that emitted the event.
+     * @param feature Feature the compositor supports.
+     */
+    void color_supported_feature(wp_color_manager_v1 *manager, std::uint32_t feature) {
+      // Deliberately empty; present so the listener entry is not null.
+    }
+
+    /**
+     * @brief Absorb the named transfer functions wp_color_manager_v1 supports.
+     *
+     * The capability events are not read. They cannot be ignored either:
+     * libwayland dispatches straight into the listener table, so a null entry
+     * for an event the compositor does send is a crash rather than a no-op.
+     *
+     * @param manager Colour management global that emitted the event.
+     * @param tf Named transfer function the compositor supports.
+     */
+    void color_supported_tf_named(wp_color_manager_v1 *manager, std::uint32_t tf) {
+      // Deliberately empty; present so the listener entry is not null.
+    }
+
+    /**
+     * @brief Absorb the named primaries wp_color_manager_v1 supports.
+     *
+     * The capability events are not read. They cannot be ignored either:
+     * libwayland dispatches straight into the listener table, so a null entry
+     * for an event the compositor does send is a crash rather than a no-op.
+     *
+     * @param manager Colour management global that emitted the event.
+     * @param primaries Named primaries the compositor supports.
+     */
+    void color_supported_primaries_named(wp_color_manager_v1 *manager, std::uint32_t primaries) {
+      // Deliberately empty; present so the listener entry is not null.
+    }
+
+    /**
+     * @brief Acknowledge the end of wp_color_manager_v1's capability events.
+     *
+     * The capability events are not read. They cannot be ignored either:
+     * libwayland dispatches straight into the listener table, so a null entry
+     * for an event the compositor does send is a crash rather than a no-op.
+     *
+     * @param manager Colour management global that emitted the event.
+     */
+    void color_done(wp_color_manager_v1 *manager) {
+      // Deliberately empty; present so the listener entry is not null.
+    }
+
     std::vector<std::unique_ptr<monitor_t>> monitors;  ///< Outputs discovered from the Wayland registry.
     std::map<std::uint32_t, std::vector<std::uint64_t>> supported_modifiers;  ///< DRM format modifiers grouped by format.
     zwlr_screencopy_manager_v1 *screencopy_manager {nullptr};  ///< WLR screencopy global used to request frames.
     zwp_linux_dmabuf_v1 *dmabuf_interface {nullptr};  ///< Linux DMA-BUF global used to allocate frame buffers.
     zxdg_output_manager_v1 *output_manager {nullptr};  ///< xdg-output global used to query monitor names and sizes.
+    wp_color_manager_v1 *color_manager {nullptr};  ///< color-management-v1 global used to read the output's image description.
 
   private:
     void add_interface(wl_registry *registry, std::uint32_t id, const char *interface, std::uint32_t version);
@@ -372,6 +444,7 @@ namespace wl {
     std::bitset<MAX_INTERFACES> interface;
     wl_registry_listener listener;
     zwp_linux_dmabuf_v1_listener dmabuf_listener;
+    wp_color_manager_v1_listener color_listener;
   };
 
   /**
