@@ -453,6 +453,7 @@ int main(int argc, char *argv[]) {
     BOOST_LOG(info) << "Starting system tray"sv;
 #ifdef _WIN32
     system_tray::prepare_tray_virtualhid_license();
+    system_tray::prepare_tray_virtualhid_driver();
     // TODO: Windows has a weird bug where when running as a service and on the first Windows boot,
     // the tray icon would not appear even though Sunshine is running correctly otherwise.
     // Restarting the service would allow the icon to appear normally.

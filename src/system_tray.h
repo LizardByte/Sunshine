@@ -6,6 +6,7 @@
 
 // standard includes
 #include <string>
+#include <string_view>
 
 #ifdef _WIN32
 namespace lvh {
@@ -127,6 +128,28 @@ namespace system_tray {
    * @brief Query the Virtual HID Driver license and prepare the startup tray state.
    */
   void prepare_tray_virtualhid_license();
+
+  /**
+   * @brief Show an update notification for an unsupported Virtual HID Driver.
+   *
+   * Existing notifications are preserved when the driver is absent or supported.
+   *
+   * @param installed Whether the driver is installed.
+   * @param version Installed driver version.
+   * @param version_compatible Whether Sunshine supports the installed version.
+   * @param supported_versions User-visible supported version range.
+   */
+  void update_tray_virtualhid_driver(
+    bool installed,
+    std::string_view version,
+    bool version_compatible,
+    std::string_view supported_versions
+  );
+
+  /**
+   * @brief Query the Virtual HID Driver version and prepare its startup notification.
+   */
+  void prepare_tray_virtualhid_driver();
 #endif
 
   /**

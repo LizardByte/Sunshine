@@ -144,6 +144,16 @@ namespace system_tray {
       static std::array<std::string, 11> menu_text;
       return menu_text;
     }
+
+    /**
+     * @brief Access storage for the Virtual HID Driver compatibility notification.
+     *
+     * @return Persistent string storage backing the tray notification pointer.
+     */
+    std::string &virtualhid_driver_notification_text_storage() {
+      static std::string notification_text;
+      return notification_text;
+    }
   #endif
   }  // namespace
 
@@ -318,6 +328,7 @@ namespace system_tray {
     tray.notification_cb = nullptr;
     #ifdef _WIN32
     virtualhid_license_menu_text_storage() = {};
+    virtualhid_driver_notification_text_storage().clear();
     virtualhid_license_menu = initial_virtualhid_license_menu();
     #endif
   }
@@ -485,6 +496,49 @@ namespace system_tray {
   void prepare_tray_virtualhid_license() {
     const auto result = lvh::get_license_status();
     update_tray_virtualhid_license(result.license, !result.license.licensed());
+  }
+
+  void update_tray_virtualhid_driver(
+    const bool installed,
+    const std::string_view version,
+    const bool version_compatible,
+    const std::string_view supported_versions
+  ) {
+    if (!installed || version_compatible) {
+      return;
+    }
+
+    const std::scoped_lock lock(tray_state_mutex());
+    clear_tray_notification();
+
+    const auto displayed_version = version.empty() ? "unknown" : std::format("v{}", version);
+    auto &notification_text = virtualhid_driver_notification_text_storage();
+    notification_text = std::format(
+      "Installed Virtual HID Driver {} is not supported by this version of Sunshine. Supported versions: {}. Restart Sunshine after updating. Click for instructions.",
+      displayed_version,
+      supported_versions
+    );
+    tray.notification_title = "Update Virtual HID Driver";
+    tray.notification_text = notification_text.c_str();
+    tray.notification_icon = tray.allIconPaths[4];
+    tray.notification_cb = []() {
+      launch_ui("/troubleshooting#virtualhid");
+    };
+
+    BOOST_LOG(warning) << notification_text;
+    if (tray_initialized_state().load()) {
+      tray_update(&tray);
+    }
+  }
+
+  void prepare_tray_virtualhid_driver() {
+    const auto status = confighttp::get_virtualhid_driver_status();
+    update_tray_virtualhid_driver(
+      status.value("installed", false),
+      status.value("version", std::string {}),
+      status.value("version_compatible", false),
+      status.value("supported_versions", std::string {})
+    );
   }
   #endif
 

@@ -175,7 +175,7 @@ namespace confighttp {
    */
   constexpr auto CSRF_TOKEN_LIFETIME = std::chrono::hours(1);  // Tokens valid for 1 hour
 
-  constexpr auto LIBVIRTUALHID_MINIMUM_VERSION = "2026.829.2338.54"sv;  ///< Minimum supported libvirtualhid driver version.  // NOSONAR(cpp:S1313): not an IP address
+  constexpr std::string_view libvirtualhid_minimum_version = LIBVIRTUALHID_MINIMUM_VERSION;  ///< Minimum supported libvirtualhid driver version.
   constexpr auto VIGEMBUS_MINIMUM_VERSION = "1.17.0.0"sv;  ///< Minimum supported ViGEmBus fallback driver version.  // NOSONAR(cpp:S1313): not an IP address
 
   /**
@@ -231,8 +231,13 @@ namespace confighttp {
     return parts;
   }
 
+  bool is_driver_version_development(std::string_view version) {
+    const auto version_parts = parse_driver_version(version);
+    return version_parts && version_parts->size() >= 3U && (*version_parts)[0] == 0U && (*version_parts)[1] == 0U;
+  }
+
   bool is_driver_version_supported(std::string_view version, std::string_view minimum_version) {
-    if (minimum_version.empty()) {
+    if (minimum_version.empty() || is_driver_version_development(version)) {
       return true;
     }
 
@@ -240,10 +245,6 @@ namespace confighttp {
     const auto minimum_parts = parse_driver_version(minimum_version);
     if (!version_parts || !minimum_parts) {
       return false;
-    }
-
-    if (version_parts->size() >= 3U && (*version_parts)[0] == 0U && (*version_parts)[1] == 0U && (*version_parts)[2] == 0U) {
-      return true;
     }
 
     const auto part_count = std::max(version_parts->size(), minimum_parts->size());
@@ -266,6 +267,7 @@ namespace confighttp {
     output_tree["version"] = version;
     output_tree["minimum_version"] = minimum_version_text;
     output_tree["supported_versions"] = minimum_version.empty() ? "Any" : std::format(">= {}", minimum_version_text);
+    output_tree["development_version"] = installed && is_driver_version_development(version);
     output_tree["version_compatible"] = installed && is_driver_version_supported(version, minimum_version);
 
     return output_tree;
@@ -1886,7 +1888,7 @@ namespace confighttp {
 #ifdef _WIN32
     const auto version_str = read_libvirtualhid_driver_version();
     const auto driver_detected = !version_str.empty();
-    auto output_tree = build_driver_status(driver_detected, version_str, LIBVIRTUALHID_MINIMUM_VERSION);
+    auto output_tree = build_driver_status(driver_detected, version_str, libvirtualhid_minimum_version);
     bool requires_installed_driver = true;
     std::string backend_name;
     std::string runtime_error_message;
@@ -1897,7 +1899,7 @@ namespace confighttp {
         const auto &capabilities = runtime->capabilities();
         backend_name = capabilities.backend_name;
         requires_installed_driver = capabilities.requires_installed_driver;
-        output_tree = build_driver_status(driver_detected || capabilities.supports_gamepad, version_str, LIBVIRTUALHID_MINIMUM_VERSION);
+        output_tree = build_driver_status(driver_detected || capabilities.supports_gamepad, version_str, libvirtualhid_minimum_version);
       }
     } catch (const std::bad_alloc &exception) {
       runtime_error_message = exception.what();
@@ -1909,7 +1911,7 @@ namespace confighttp {
       output_tree["error"] = runtime_error_message;
     }
 #else
-    auto output_tree = build_driver_status(false, "", LIBVIRTUALHID_MINIMUM_VERSION);
+    auto output_tree = build_driver_status(false, "", libvirtualhid_minimum_version);
     output_tree["error"] = "libvirtualhid driver status is only available on Windows";
     output_tree["backend_name"] = "";
     output_tree["requires_installed_driver"] = false;

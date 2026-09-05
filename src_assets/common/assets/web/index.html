@@ -29,7 +29,7 @@
     </div>
 
     <!-- libvirtualhid Warning -->
-    <div class="alert alert-warning my-4" v-if="platform === 'windows' && virtualhid && (!virtualhid.installed || !virtualhid.version_compatible)">
+    <div class="alert alert-warning my-4" v-if="platform === 'windows' && virtualhid && (!virtualhid.installed || (!virtualhid.version_compatible && !virtualhid.development_version))">
       <div>
         <div class="d-flex align-items-center mb-3">
           <alert-triangle :size="32" class="icon-lg me-3"></alert-triangle>
@@ -48,6 +48,17 @@
           <wrench :size="18" class="icon"></wrench>
           {{ $t('index.fix_now') }}
         </a>
+      </div>
+    </div>
+
+    <!-- libvirtualhid Development Build Notice -->
+    <div class="alert alert-info my-4" v-if="platform === 'windows' && virtualhid && virtualhid.development_version">
+      <div class="d-flex align-items-center">
+        <info :size="32" class="icon-lg me-3"></info>
+        <div>
+          <p class="mb-1"><strong>{{ $t('index.virtualhid_development_title') }}</strong></p>
+          <p class="mb-0">{{ $t('index.virtualhid_development_desc') }}</p>
+        </div>
       </div>
     </div>
 

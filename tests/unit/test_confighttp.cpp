@@ -1469,11 +1469,21 @@ TEST(ConfigHttpDriverStatusTest, IsDriverVersionSupported_InvalidVersion_Returns
   ASSERT_FALSE(confighttp::is_driver_version_supported("1.17.", "1.17.0.0"));
 }
 
+// Test: numeric 0.0.x development versions are identified consistently
+TEST(ConfigHttpDriverStatusTest, IsDriverVersionDevelopment_RecognizesZeroMajorAndMinor) {
+  ASSERT_TRUE(confighttp::is_driver_version_development("0.0.0"));
+  ASSERT_TRUE(confighttp::is_driver_version_development("0.0.0.42"));
+  ASSERT_TRUE(confighttp::is_driver_version_development("0.0.1.0"));
+  ASSERT_FALSE(confighttp::is_driver_version_development("0.0"));
+  ASSERT_FALSE(confighttp::is_driver_version_development("0.1.0"));
+  ASSERT_FALSE(confighttp::is_driver_version_development("development"));
+}
+
 // Test: numeric development versions always bypass the production minimum
 TEST(ConfigHttpDriverStatusTest, IsDriverVersionSupported_DevelopmentVersionBypassesMinimum) {
   ASSERT_TRUE(confighttp::is_driver_version_supported("0.0.0", "2026.823.352.3"));  // NOSONAR(cpp:S1313): not IP addresses
   ASSERT_TRUE(confighttp::is_driver_version_supported("0.0.0.42", "2026.823.352.3"));  // NOSONAR(cpp:S1313): not IP addresses
-  ASSERT_FALSE(confighttp::is_driver_version_supported("0.0.1.0", "2026.823.352.3"));  // NOSONAR(cpp:S1313): not IP addresses
+  ASSERT_TRUE(confighttp::is_driver_version_supported("0.0.1.0", "2026.823.352.3"));  // NOSONAR(cpp:S1313): not IP addresses
   ASSERT_FALSE(confighttp::is_driver_version_supported("0.0", "2026.823.352.3"));  // NOSONAR(cpp:S1313): not IP addresses
 }
 
@@ -1485,6 +1495,7 @@ TEST(ConfigHttpDriverStatusTest, BuildDriverStatus_IncludesExpectedFields) {
   ASSERT_EQ(status["version"].get<std::string>(), "1.17.0.0");
   ASSERT_EQ(status["minimum_version"].get<std::string>(), "1.17.0.0");
   ASSERT_EQ(status["supported_versions"].get<std::string>(), ">= 1.17.0.0");
+  ASSERT_FALSE(status["development_version"].get<bool>());
   ASSERT_TRUE(status["version_compatible"].get<bool>());
 }
 
@@ -1494,6 +1505,7 @@ TEST(ConfigHttpDriverStatusTest, BuildDriverStatus_NotInstalledIsNotCompatible) 
 
   ASSERT_FALSE(status["installed"].get<bool>());
   ASSERT_EQ(status["supported_versions"].get<std::string>(), "Any");
+  ASSERT_FALSE(status["development_version"].get<bool>());
   ASSERT_FALSE(status["version_compatible"].get<bool>());
 }
 
@@ -1502,6 +1514,7 @@ TEST(ConfigHttpDriverStatusTest, BuildDriverStatus_OlderDetectedDriverIsInstalle
   const auto status = confighttp::build_driver_status(true, "2026.820.1844.57", "2026.823.352.3");  // NOSONAR(cpp:S1313): not IP addresses
 
   ASSERT_TRUE(status["installed"].get<bool>());
+  ASSERT_FALSE(status["development_version"].get<bool>());
   ASSERT_FALSE(status["version_compatible"].get<bool>());
 }
 
@@ -1511,6 +1524,7 @@ TEST(ConfigHttpDriverStatusTest, BuildDriverStatus_DevelopmentVersionIsCompatibl
 
   ASSERT_EQ(status["minimum_version"].get<std::string>(), "2026.823.352.3");  // NOSONAR(cpp:S1313): not an IP address
   ASSERT_EQ(status["supported_versions"].get<std::string>(), ">= 2026.823.352.3");  // NOSONAR(cpp:S1313): not an IP address
+  ASSERT_TRUE(status["development_version"].get<bool>());
   ASSERT_TRUE(status["version_compatible"].get<bool>());
 }
 
@@ -1519,10 +1533,11 @@ TEST(ConfigHttpDriverStatusTest, BuildsLiveVirtualInputDriverStatus) {
   EXPECT_TRUE(virtualhid.contains("installed"));
   EXPECT_TRUE(virtualhid.contains("version"));
   EXPECT_TRUE(virtualhid.contains("version_compatible"));
+  EXPECT_TRUE(virtualhid.contains("development_version"));
   EXPECT_TRUE(virtualhid.contains("backend_name"));
   EXPECT_TRUE(virtualhid.contains("requires_installed_driver"));
-  EXPECT_EQ(virtualhid["minimum_version"].get<std::string>(), "2026.829.2338.54");  // NOSONAR(cpp:S1313): not an IP address
-  EXPECT_EQ(virtualhid["supported_versions"].get<std::string>(), ">= 2026.829.2338.54");  // NOSONAR(cpp:S1313): not an IP address
+  EXPECT_EQ(virtualhid["minimum_version"].get<std::string>(), LIBVIRTUALHID_MINIMUM_VERSION);
+  EXPECT_EQ(virtualhid["supported_versions"].get<std::string>(), std::format(">= {}", LIBVIRTUALHID_MINIMUM_VERSION));
 
   const auto vigembus = confighttp::get_vigembus_driver_status();
   EXPECT_TRUE(vigembus.contains("installed"));

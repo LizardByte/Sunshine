@@ -103,11 +103,22 @@ namespace confighttp {
   void savePin(const resp_https_t &response, const req_https_t &request);
 
   /**
+   * @brief Check whether a detected driver version identifies a development build.
+   *
+   * Numeric versions beginning with `0.0` and containing at least three
+   * components are development builds.
+   *
+   * @param version Detected driver version.
+   * @return True when the version identifies a development build.
+   */
+  bool is_driver_version_development(std::string_view version);
+
+  /**
    * @brief Check whether a detected driver version satisfies a minimum version.
    *
    * Empty minimum versions accept any detected version. Non-empty minimum versions
-   * require a fully numeric dotted version string. Development versions whose
-   * first three components are `0.0.0` are always accepted.
+   * require a fully numeric dotted version string. Development versions beginning
+   * with `0.0` are always accepted.
    *
    * @param version Detected driver version.
    * @param minimum_version Minimum supported driver version, or empty for any version.

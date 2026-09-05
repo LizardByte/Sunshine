@@ -539,9 +539,7 @@ Sunshine uses libvirtualhid for virtual input on Windows. You must install the
 Input keyboard and mouse plus full virtual gamepad support. ViGEmBus is detected only as a limited fallback for Xbox
 360 and DualShock 4 gamepads when libvirtualhid is unavailable.
 
-Sunshine requires Virtual HID Driver version `2026.829.2338.54` or newer. Earlier releases use incompatible Windows
-control and broker protocols and must be upgraded together with Sunshine's embedded libvirtualhid library. Local
-development driver builds using a `0.0.0.*` version remain supported.
+Sunshine requires Virtual HID Driver version `2026.905.2300.20` or newer.
 
 Compared with the ViGEmBus fallback, Virtual HID Driver can create Xbox One, Xbox Series, DualSense, Nintendo Switch
 Pro, and Generic gamepads in addition to Xbox 360 and DualShock 4. It can also expose controller-specific features such
