@@ -118,6 +118,8 @@ namespace config {
       int rc_mode;  ///< Vulkan encoder rate-control mode: driver, CQP, CBR, or VBR.
     } vk;  ///< Vulkan encoder options.
 
+    bool chroma_supersample;  ///< Use point sampling when the stream resolution is an exact, even integer multiple of the capture resolution.
+
     std::string capture;  ///< Capture backend name selected by configuration.
     std::string encoder;  ///< Encoder backend name selected by configuration.
     std::string adapter_name;  ///< Display adapter name selected in configuration.
