@@ -314,8 +314,8 @@ INSTANTIATE_TEST_SUITE_P(
 );
 
 /**
- * @brief Software encoder converts BGR0 and NV12 frames, including padded strides and
- *        backends that don't report the pixel pitch.
+ * @brief Software encoder converts declared capture formats, including padded strides,
+ *        10-bit formats, and backends that don't report the pixel pitch.
  */
 TEST(SoftwareEncoderConversion, Bgr0AndNv12) {
   constexpr int w = 320;
@@ -364,6 +364,129 @@ TEST(SoftwareEncoderConversion, Bgr0AndNv12) {
   padded_nv12_img.row_pitch = padded_stride;
   padded_nv12_img.pixel_pitch = 1;
   EXPECT_EQ(device.convert(padded_nv12_img), 0);
+
+  // Capture backends that declare the negotiated format explicitly take
+  // precedence over the pixel_pitch heuristic.
+  platf::img_t explicit_bgr0_img {};
+  explicit_bgr0_img.data = bgr0_buffer.data();
+  explicit_bgr0_img.width = w;
+  explicit_bgr0_img.height = h;
+  explicit_bgr0_img.row_pitch = w * 4;
+  explicit_bgr0_img.pixel_pitch = 4;
+  explicit_bgr0_img.pixel_format = platf::pix_fmt_e::bgr0;
+  EXPECT_EQ(device.convert(explicit_bgr0_img), 0);
+
+  // NV12 declared explicitly -- even with a misleading pixel_pitch the declared
+  // format wins and the interleaved UV plane is read correctly.
+  platf::img_t explicit_nv12_img {};
+  explicit_nv12_img.data = nv12_buffer.data();
+  explicit_nv12_img.width = w;
+  explicit_nv12_img.height = h;
+  explicit_nv12_img.row_pitch = w;
+  explicit_nv12_img.pixel_pitch = 4;
+  explicit_nv12_img.pixel_format = platf::pix_fmt_e::nv12;
+  EXPECT_EQ(device.convert(explicit_nv12_img), 0);
+
+  // BGRA capture (alpha channel present) -- 4 bytes per pixel, declared explicitly.
+  std::vector<uint8_t> bgra_buffer(static_cast<size_t>(w) * h * 4);
+  platf::img_t bgra_img {};
+  bgra_img.data = bgra_buffer.data();
+  bgra_img.width = w;
+  bgra_img.height = h;
+  bgra_img.row_pitch = w * 4;
+  bgra_img.pixel_pitch = 4;
+  bgra_img.pixel_format = platf::pix_fmt_e::bgra;
+  EXPECT_EQ(device.convert(bgra_img), 0);
+
+  // Packed 10-bit RGB (e.g. XBGR2101010 from an HDR PipeWire capture) -- 4
+  // bytes per pixel, declared explicitly so it is not misread as BGR0.
+  std::vector<uint8_t> xbgr10_buffer(static_cast<size_t>(w) * h * 4);
+  platf::img_t xbgr10_img {};
+  xbgr10_img.data = xbgr10_buffer.data();
+  xbgr10_img.width = w;
+  xbgr10_img.height = h;
+  xbgr10_img.row_pitch = w * 4;
+  xbgr10_img.pixel_pitch = 4;
+  xbgr10_img.pixel_format = platf::pix_fmt_e::xbgr2101010;
+  EXPECT_EQ(device.convert(xbgr10_img), 0);
+
+  // Padded-stride 10-bit -- the declared format keeps the conversion correct
+  // even when the row pitch is larger than width * bytes-per-pixel.
+  constexpr int padded10_stride = w * 4 + 32;
+  std::vector<uint8_t> padded_xbgr10_buffer(static_cast<size_t>(padded10_stride) * h);
+  platf::img_t padded_xbgr10_img {};
+  padded_xbgr10_img.data = padded_xbgr10_buffer.data();
+  padded_xbgr10_img.width = w;
+  padded_xbgr10_img.height = h;
+  padded_xbgr10_img.row_pitch = padded10_stride;
+  padded_xbgr10_img.pixel_pitch = 4;
+  padded_xbgr10_img.pixel_format = platf::pix_fmt_e::xbgr2101010;
+  EXPECT_EQ(device.convert(padded_xbgr10_img), 0);
+
+  // 10-bit with alpha in high bits — bit-identical to X2RGB10LE/X2BGR10LE, zero-cost.
+  std::vector<uint8_t> abgr10_buffer(static_cast<size_t>(w) * h * 4);
+  platf::img_t abgr10_img {};
+  abgr10_img.data = abgr10_buffer.data();
+  abgr10_img.width = w;
+  abgr10_img.height = h;
+  abgr10_img.row_pitch = w * 4;
+  abgr10_img.pixel_pitch = 4;
+  abgr10_img.pixel_format = platf::pix_fmt_e::abgr2101010;
+  EXPECT_EQ(device.convert(abgr10_img), 0);
+
+  std::vector<uint8_t> argb10_buffer(static_cast<size_t>(w) * h * 4);
+  platf::img_t argb10_img {};
+  argb10_img.data = argb10_buffer.data();
+  argb10_img.width = w;
+  argb10_img.height = h;
+  argb10_img.row_pitch = w * 4;
+  argb10_img.pixel_pitch = 4;
+  argb10_img.pixel_format = platf::pix_fmt_e::argb2101010;
+  EXPECT_EQ(device.convert(argb10_img), 0);
+
+  // 10-bit with alpha in low bits (BGRA1010102/RGBA1010102), provided by the
+  // patched FFmpeg from build-deps.
+  std::vector<uint8_t> bgra1010102_buffer(static_cast<size_t>(w) * h * 4);
+  platf::img_t bgra1010102_img {};
+  bgra1010102_img.data = bgra1010102_buffer.data();
+  bgra1010102_img.width = w;
+  bgra1010102_img.height = h;
+  bgra1010102_img.row_pitch = w * 4;
+  bgra1010102_img.pixel_pitch = 4;
+  bgra1010102_img.pixel_format = platf::pix_fmt_e::bgra1010102;
+  EXPECT_EQ(device.convert(bgra1010102_img), 0);
+
+  std::vector<uint8_t> rgba1010102_buffer(static_cast<size_t>(w) * h * 4);
+  platf::img_t rgba1010102_img {};
+  rgba1010102_img.data = rgba1010102_buffer.data();
+  rgba1010102_img.width = w;
+  rgba1010102_img.height = h;
+  rgba1010102_img.row_pitch = w * 4;
+  rgba1010102_img.pixel_pitch = 4;
+  rgba1010102_img.pixel_format = platf::pix_fmt_e::rgba1010102;
+  EXPECT_EQ(device.convert(rgba1010102_img), 0);
+
+  // A declared format with no capture mapping must fail loudly instead of
+  // falling back to the pixel pitch heuristic.
+  platf::img_t unsupported_img {};
+  unsupported_img.data = bgr0_buffer.data();
+  unsupported_img.width = w;
+  unsupported_img.height = h;
+  unsupported_img.row_pitch = w * 4;
+  unsupported_img.pixel_pitch = 4;
+  unsupported_img.pixel_format = platf::pix_fmt_e::yuv420p;
+  EXPECT_NE(device.convert(unsupported_img), 0);
+
+  // P010 (10-bit YUV semi-planar) — used on macOS.
+  std::vector<uint8_t> p010_buffer(static_cast<size_t>(w) * h * 2 + static_cast<size_t>(w) * h);
+  platf::img_t p010_img {};
+  p010_img.data = p010_buffer.data();
+  p010_img.width = w;
+  p010_img.height = h;
+  p010_img.row_pitch = w * 2;
+  p010_img.pixel_pitch = 2;
+  p010_img.pixel_format = platf::pix_fmt_e::p010;
+  EXPECT_EQ(device.convert(p010_img), 0);
 
   // Capture backends that don't report pixel_pitch fall back to deriving it
   // from the row pitch (1 byte per pixel = NV12, 4 = BGR0).

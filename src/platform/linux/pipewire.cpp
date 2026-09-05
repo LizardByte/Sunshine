@@ -50,6 +50,37 @@ namespace {
   constexpr int MAX_PARAMS = 200;
   constexpr int MAX_DMABUF_FORMATS = 200;
   constexpr int MAX_DMABUF_MODIFIERS = 200;
+
+  /**
+   * @brief Map a PipeWire SPA video format to Sunshine's pixel format enum.
+   *
+   * @param spa_format PipeWire SPA video format identifier.
+   * @return Sunshine pixel format; unknown for unmapped formats.
+   */
+  platf::pix_fmt_e map_spa_pix_fmt(int32_t spa_format) {
+    using enum platf::pix_fmt_e;
+
+    switch (spa_format) {
+      case SPA_VIDEO_FORMAT_NV12:
+        return nv12;
+      case SPA_VIDEO_FORMAT_BGRx:
+        return bgr0;
+      case SPA_VIDEO_FORMAT_BGRA:
+        return bgra;
+      case SPA_VIDEO_FORMAT_xBGR_210LE:
+        return xbgr2101010;
+      case SPA_VIDEO_FORMAT_ARGB_210LE:
+        return argb2101010;
+      case SPA_VIDEO_FORMAT_ABGR_210LE:
+        return abgr2101010;
+      case SPA_VIDEO_FORMAT_RGBA_102LE:
+        return rgba1010102;
+      case SPA_VIDEO_FORMAT_BGRA_102LE:
+        return bgra1010102;
+      default:
+        return unknown;
+    }
+  }
 }  // namespace
 
 using namespace std::literals;
@@ -63,12 +94,13 @@ namespace pipewire {
     int32_t pw_format;  ///< Matching PipeWire SPA video format.
   };
 
-  static constexpr std::array<format_map_t, 7> format_map = {{
+  static constexpr std::array<format_map_t, 8> format_map = {{
+    {DRM_FORMAT_NV12, SPA_VIDEO_FORMAT_NV12},
     {DRM_FORMAT_XBGR2101010, SPA_VIDEO_FORMAT_xBGR_210LE},
-    {DRM_FORMAT_BGRA1010102, SPA_VIDEO_FORMAT_ARGB_210LE},
-    {DRM_FORMAT_RGBA1010102, SPA_VIDEO_FORMAT_ABGR_210LE},
-    {DRM_FORMAT_ABGR2101010, SPA_VIDEO_FORMAT_RGBA_102LE},
-    {DRM_FORMAT_ARGB2101010, SPA_VIDEO_FORMAT_BGRA_102LE},
+    {DRM_FORMAT_BGRA1010102, SPA_VIDEO_FORMAT_BGRA_102LE},
+    {DRM_FORMAT_RGBA1010102, SPA_VIDEO_FORMAT_RGBA_102LE},
+    {DRM_FORMAT_ABGR2101010, SPA_VIDEO_FORMAT_ABGR_210LE},
+    {DRM_FORMAT_ARGB2101010, SPA_VIDEO_FORMAT_ARGB_210LE},
     {DRM_FORMAT_ARGB8888, SPA_VIDEO_FORMAT_BGRA},
     {DRM_FORMAT_XRGB8888, SPA_VIDEO_FORMAT_BGRx},
   }};
@@ -447,6 +479,7 @@ namespace pipewire {
           // NV12 is the only 1-byte-per-pixel format delivered on the memory
           // path; every other negotiated format is packed 4 bytes per pixel.
           img->pixel_pitch = (stream_data.format.info.raw.format == SPA_VIDEO_FORMAT_NV12) ? 1 : 4;
+          img->pixel_format = map_spa_pix_fmt(stream_data.format.info.raw.format);
         }
       }
 
@@ -955,6 +988,7 @@ namespace pipewire {
       img->height = height;
       img->pixel_pitch = 4;
       img->row_pitch = img->pixel_pitch * width;
+      img->pixel_format = platf::pix_fmt_e::bgr0;
       img->sequence = 0;
       img->serial = std::numeric_limits<decltype(img->serial)>::max();
       img->data = nullptr;
@@ -1095,6 +1129,7 @@ namespace pipewire {
           static_cast<img_descriptor_t *>(img)->data_owned = true;
           img->row_pitch = w * 4;
           img->pixel_pitch = 4;
+          img->pixel_format = platf::pix_fmt_e::bgr0;
         }
       }
       return 0;

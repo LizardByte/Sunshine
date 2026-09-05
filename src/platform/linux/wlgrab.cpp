@@ -348,6 +348,7 @@ namespace wl {
       img->height = height;
       img->pixel_pitch = 4;
       img->row_pitch = img->pixel_pitch * width;
+      img->pixel_format = platf::pix_fmt_e::bgr0;
       img->data = new std::uint8_t[height * img->row_pitch];
 
       return img;
