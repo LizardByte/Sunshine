@@ -24,6 +24,7 @@ pkg install -y \
   audio/opus \
   audio/pulseaudio \
   devel/cmake \
+  devel/doxygen \
   devel/evdev-proto \
   devel/git \
   devel/libevdev \
@@ -32,6 +33,7 @@ pkg install -y \
   devel/pkgconf \
   devel/qt6-base \
   ftp/curl \
+  graphics/graphviz \
   graphics/libdrm \
   graphics/qt6-svg \
   graphics/wayland \

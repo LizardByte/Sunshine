@@ -54,7 +54,6 @@ jobs:
           cpu: ${{ steps.processor_count.outputs.PROCESSOR_COUNT }}
           envs: 'BRANCH BUILD_VERSION COMMIT PYTHON_VERSION'
           # TODO: there is no libcap for freebsd... we need graphics/libdrm if we find a way to use libcap
-          # TODO: docs are off because doxygen is too old: https://www.freshports.org/devel/doxygen/ must be >= 1.10
           prepare: |
             set -e
 
@@ -65,6 +64,7 @@ jobs:
               audio/pulseaudio \
               devel/boost-all \
               devel/cmake-core \
+              devel/doxygen \
               devel/evdev-proto \
               devel/git \
               devel/libevdev \
@@ -74,6 +74,7 @@ jobs:
               devel/uv \
               devel/qt6-base \
               ftp/curl \
+              graphics/graphviz \
               graphics/libdrm \
               graphics/qt6-svg \
               graphics/shaderc \
@@ -144,7 +145,7 @@ jobs:
             -B build \
             -G Ninja \
             -S . \
-            -DBUILD_DOCS=OFF \
+            -DBUILD_DOCS=ON \
             -DBUILD_WERROR=OFF \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr/local \
