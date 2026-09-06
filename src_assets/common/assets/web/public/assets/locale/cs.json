@@ -454,6 +454,8 @@
     "startup_errors": "<b>Pozor!</b> Sunshine zjistil tyto chyby při spuštění. <b>DŮRAZNĚ DOPORUČUJEME</b> je před streamováním opravit.",
     "version_dirty": "Děkujeme, že pomáháte vylepšovat software Sunshine!",
     "version_latest": "Používáte nejnovější verzi Sunshine",
+    "virtualhid_development_desc": "Děkujeme, že používáte vývojovou verzi virtuálního ovladače. Vaše testování pomáhá zlepšovat Virtuální ovladač HID!",
+    "virtualhid_development_title": "Virtuální vývojářská verze ovladače",
     "virtualhid_license_required_desc": "Ovladač Virtual HID přidává klávesnici a myš typu „Raw Input“ a dále gamepady Xbox One, Xbox Series, DualSense, Nintendo Switch Pro a generické gamepady. Je aktivně udržován týmem LizardByte. Aktivujte licenci nebo ji spravujte, abyste odemkli vstup podporovaný ovladačem.",
     "virtualhid_license_required_title": "Chybí licence pro Virtual HID Driver",
     "virtualhid_missing_vigembus_installed_desc": "Ovladač ViGEmBus je nainstalován, ale bez ovladače libvirtualhid může Sunshine nabídnout pouze omezenou náhradní podporu herních ovladačů.",
