@@ -454,6 +454,8 @@
     "startup_errors": "<b>Dikkat!</b> Sunshine başlatma sırasında bu hataları tespit etti. Yayınlamadan önce bunları düzeltmenizi <b>ŞİDDETLE TAVSİYE</b> EDERİZ.",
     "version_dirty": "Sunshine'ı daha iyi bir yazılım haline getirmeye yardımcı olduğunuz için teşekkür ederiz!",
     "version_latest": "Sunshine'ın en son sürümünü çalıştırıyorsunuz",
+    "virtualhid_development_desc": "Virtual HID Driver’ın geliştirme sürümünü kullandığınız için teşekkür ederiz. Yaptığınız testler, Virtual HID Driver’ın daha iyi hale gelmesine katkıda bulunuyor!",
+    "virtualhid_development_title": "Sanal HID Sürücü Geliştirme Sürümü",
     "virtualhid_license_required_desc": "Virtual HID Driver, sınırlı ViGEmBus yedekleme seçeneğinin ötesinde Xbox One, Xbox Series, DualSense, Nintendo Switch Pro ve genel oyun kumandalarını destekler. Bu yazılım, LizardByte ekibi tarafından aktif olarak güncellenmektedir. Tam desteği etkinleştirmek için lisansı etkinleştirin veya yönetin.",
     "virtualhid_license_required_title": "Sanal HID Ehliyet Eksik",
     "virtualhid_missing_vigembus_installed_desc": "ViGEmBus yüklü; ancak libvirtualhid sürücüsü olmadan Sunshine, oyun kumandası için yalnızca sınırlı bir yedek destek sunabilmektedir.",
