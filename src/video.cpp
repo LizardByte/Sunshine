@@ -541,7 +541,7 @@ namespace video {
     // inject sps/vps data into idr pictures
     int inject;  ///< Number of upcoming IDR frames that should receive rewritten parameter sets.
 
-    std::deque<std::pair<int64_t, std::chrono::steady_clock::time_point>> frame_timestamps;  ///< Capture timestamps of in-flight frames keyed by pts, awaiting their encoded packets.
+    frame_timestamp_queue_t frame_timestamps;  ///< Capture timestamps of in-flight frames keyed by pts, awaiting their encoded packets.
   };
 
   /**
@@ -1817,37 +1817,18 @@ namespace video {
     }
   }
 
-  /**
-   * @brief Remember a submitted frame's capture timestamp until its encoded packet surfaces.
-   *
-   * Encoders may deliver packets one or more frames behind submission, so the timestamp is
-   * kept keyed by pts until the corresponding packet arrives.
-   * @param session Active FFmpeg encoder session.
-   * @param frame_nr Monotonic frame index assigned by the video pipeline, used as the frame pts.
-   * @param frame_timestamp Capture timestamp associated with the frame.
-   */
-  void remember_frame_timestamp(avcodec_encode_session_t &session, int64_t frame_nr, const std::optional<std::chrono::steady_clock::time_point> &frame_timestamp) {
+  void remember_frame_timestamp(frame_timestamp_queue_t &timestamps, int64_t frame_nr, const std::optional<std::chrono::steady_clock::time_point> &frame_timestamp) {
     if (!frame_timestamp) {
       return;
     }
 
-    session.frame_timestamps.emplace_back(frame_nr, *frame_timestamp);
-    if (session.frame_timestamps.size() > 128) {
-      session.frame_timestamps.pop_front();
+    timestamps.emplace_back(frame_nr, *frame_timestamp);
+    if (timestamps.size() > 128) {
+      timestamps.pop_front();
     }
   }
 
-  /**
-   * @brief Match an encoded packet to the capture timestamp of the frame it encodes.
-   *
-   * Entries for older frames whose packets never surfaced (e.g. dropped by the encoder)
-   * are discarded.
-   * @param session Active FFmpeg encoder session.
-   * @param pts Presentation timestamp of the received packet.
-   * @return Capture timestamp of the packet's frame, when known.
-   */
-  std::optional<std::chrono::steady_clock::time_point> match_frame_timestamp(avcodec_encode_session_t &session, int64_t pts) {
-    auto &timestamps = session.frame_timestamps;
+  std::optional<std::chrono::steady_clock::time_point> match_frame_timestamp(frame_timestamp_queue_t &timestamps, int64_t pts) {
     while (!timestamps.empty() && timestamps.front().first < pts) {
       timestamps.pop_front();
     }
@@ -1875,7 +1856,7 @@ namespace video {
     auto &frame = session.device->frame;
     frame->pts = frame_nr;
 
-    remember_frame_timestamp(session, frame_nr, frame_timestamp);
+    remember_frame_timestamp(session.frame_timestamps, frame_nr, frame_timestamp);
 
     auto &ctx = session.avcodec_ctx;
 
@@ -1935,7 +1916,7 @@ namespace video {
         );
       }
 
-      packet->frame_timestamp = match_frame_timestamp(session, av_packet->pts);
+      packet->frame_timestamp = match_frame_timestamp(session.frame_timestamps, av_packet->pts);
 
       packet->replacements = &session.replacements;
       packet->channel_data = channel_data;
