@@ -454,6 +454,8 @@
     "startup_errors": "<b>Внимание!</b> Sunshine засече тези грешки по време на стартиране. <b>НАИСТИНА Е ПРЕПОРЪЧИТЕЛНО</b> да ги отстраните, преди да започнете излъчването.",
     "version_dirty": "Благодарим, че помогнахте да направим Sunshine по-добър софтуер!",
     "version_latest": "Използвате най-новата версия на Sunshine",
+    "virtualhid_development_desc": "Благодарим Ви, че използвате разработваща версия на Virtual HID Driver. Вашите тестове ни помагат да подобрим Virtual HID Driver!",
+    "virtualhid_development_title": "Виртуална версия за разработка на HID драйвери",
     "virtualhid_license_required_desc": "Драйверът за виртуални устройства (Virtual HID Driver) добавя поддръжка за контролери за Xbox One, Xbox Series, DualSense, Nintendo Switch Pro и контролери от общ тип, които не са включени в ограничената поддръжка на ViGEmBus. Програмата се поддържа активно от екипа на LizardByte. Активирайте или управлявайте лиценза, за да отключите пълната поддръжка.",
     "virtualhid_license_required_title": "Липсва лиценз за драйвера за виртуални устройства",
     "virtualhid_missing_vigembus_installed_desc": "ViGEmBus е инсталиран, но без драйвера libvirtualhid Sunshine може да предложи само ограничена поддръжка за контролери.",
