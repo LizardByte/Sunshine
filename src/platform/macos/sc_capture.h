@@ -125,6 +125,9 @@ API_AVAILABLE(macos(14.0))
 /**
  * @brief Create, configure, and start the capture stream.
  *
+ * When a 10-bit capture format is rejected by the runtime, capture falls back to
+ * 8-bit and the encoder continues the negotiated session with 8-bit-sourced frames.
+ *
  * @return Semaphore signalled when capture stops, or nil on failure.
  */
 - (dispatch_semaphore_t)captureVideo;
