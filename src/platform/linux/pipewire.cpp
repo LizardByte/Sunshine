@@ -1029,17 +1029,7 @@ namespace pipewire {
 
         // Use unpaced event driven capture when possible
         if (pacing_required) {
-          // Advance to (or catch up with) next delay interval
-          auto now = std::chrono::steady_clock::now();
-          while (next_frame < now) {
-            next_frame += delay;
-          }
-
-          if (next_frame > now) {
-            std::this_thread::sleep_until(next_frame);
-            sleep_overshoot_logger.first_point(next_frame);
-            sleep_overshoot_logger.second_point_now_and_log();
-          }
+          platf::handle_pacing(next_frame, delay, sleep_overshoot_logger);
         }
 
         std::shared_ptr<platf::img_t> img_out;
