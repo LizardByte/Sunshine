@@ -160,17 +160,24 @@ jobs:
         run: |
           rm -rf ./build/cuda
 
-      - name: Verify AppImage
-        if: >-
-          startsWith(matrix.name, 'AppImage') &&
-          matrix.arch == 'x86_64'
-        run: |
-          APPIMAGELINT_GH="https://github.com/TheAssassin/appimagelint"
-          url="${APPIMAGELINT_GH}/releases/download/continuous/appimagelint-${M_ARCH}.AppImage"
-          wget --max-redirect=1 "$url"  # NOSONAR(githubactions:S6506): GitHub release needs one redirect.
-          chmod +x "appimagelint-${M_ARCH}.AppImage"
+      - name: Setup python
+        id: python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
-          "./appimagelint-${M_ARCH}.AppImage" "./artifacts/Sunshine_${VERSION}_${M_ARCH}.AppImage"
+      - name: Verify AppImage
+        if: startsWith(matrix.name, 'AppImage')
+        run: |
+          # TODO: switch to upstream after
+          # https://github.com/TheAssassin/appimagelint/pull/50 and
+          # https://github.com/TheAssassin/appimagelint/pull/51
+          APPIMAGELINT_REPOSITORY="git+https://github.com/ReenigneArcher/appimagelint.git"
+          APPIMAGELINT_REF="lizardbyte"
+          python -m pip install -e "${APPIMAGELINT_REPOSITORY}@${APPIMAGELINT_REF}#egg=appimagelint"
+          appimagelint --help
+
+          appimagelint "./artifacts/Sunshine_${VERSION}_${M_ARCH}.AppImage"
 
       - name: Install screenshot dependency
         run: |
@@ -183,12 +190,6 @@ jobs:
 
       - name: Setup virtual desktop
         uses: LizardByte/actions/actions/virtual_desktop@188c8ccad593e0f68bcf6aacb6bf84f10359d26f  # v2026.905.43751
-
-      - name: Setup python
-        id: python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Setup uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
