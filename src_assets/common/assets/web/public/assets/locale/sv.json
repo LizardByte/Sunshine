@@ -454,6 +454,8 @@
     "startup_errors": "<b>Uppmärksamhet!</b> Solsken upptäckte dessa fel vid uppstart. Vi <b>STARKLIG KUNSKAP</b> fixar dem innan vi streamar.",
     "version_dirty": "Tack för att du hjälper till att göra Sunshine till en bättre programvara!",
     "version_latest": "Du kör den senaste versionen av Sunshine",
+    "virtualhid_development_desc": "Tack för att du använder en utveckling bygga av Virtual HID Driver. Din testning bidrar till att göra Virtual HID Driver bättre!",
+    "virtualhid_development_title": "Virtuell HID Förarutveckling Bygg",
     "virtualhid_license_required_desc": "Virtuell HID drivrutin lägger Xbox One, Xbox Series, DualSense, Nintendo Switch Pro och Generic gamepads utöver den begränsade ViGEmBus fallback. Det upprätthålls aktivt av LizardByte teamet. Aktivera eller hantera licensen för att låsa upp fullt stöd.",
     "virtualhid_license_required_title": "Virtuellt HID körkort saknas",
     "virtualhid_missing_vigembus_installed_desc": "ViGEmBus är installerat, men utan libvirtualhid-drivrutinen Sunshine kan endast erbjuda begränsat stöd för reservspel.",
