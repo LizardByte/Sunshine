@@ -454,6 +454,8 @@
     "startup_errors": "<b>Attention !</b> Sunshine a détecté ces erreurs lors du démarrage. Nous <b>recommandons vivement de</b> les corriger avant de commencer à streamer.",
     "version_dirty": "Merci de contribuer à faire de Sunshine un meilleur logiciel !",
     "version_latest": "Vous utilisez la dernière version de Sunshine",
+    "virtualhid_development_desc": "Merci d'utiliser une version de développement de Virtual HID Driver. Vos tests aident à améliorer Virtual HID Driver !",
+    "virtualhid_development_title": "Version de développement des pilotes HID virtuels",
     "virtualhid_license_required_desc": "Virtual HID Driver ajoute des manettes Xbox One, Xbox Series, DualSense, Nintendo Switch Pro, et des manettes génériques au-delà du repli limité de ViGEmbus. Il est activement maintenu par l'équipe de LizardByte. Activez ou gérez la licence pour débloquer un support complet.",
     "virtualhid_license_required_title": "Pilote HID Virtuel Manquant",
     "virtualhid_missing_vigembus_installed_desc": "ViGEmBus est installé, mais sans le pilote libvirtualhid Sunshine ne peut offrir que la prise en charge limitée du tableau de bord.",
