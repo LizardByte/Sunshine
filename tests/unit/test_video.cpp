@@ -414,7 +414,6 @@ TEST(SoftwareEncoderConversion, Bgr0AndNv12) {
  * @brief Fixture for the frame timestamp bookkeeping helpers.
  */
 struct FrameTimestampQueueTest: testing::Test {
-protected:
   /**
    * @brief Produce a distinct timestamp for a frame number.
    *
