@@ -454,6 +454,8 @@
     "startup_errors": "<b>Lưu ý!</b> Sunshine đã phát hiện các lỗi sau đây trong quá trình khởi động. Chúng tôi <b>KHUYẾN NGHỊ MẠNH MẼ bạn</b> khắc phục các lỗi này trước khi bắt đầu phát trực tuyến.",
     "version_dirty": "Cảm ơn bạn đã giúp Sunshine trở thành phần mềm tốt hơn!",
     "version_latest": "Bạn đang sử dụng phiên bản mới nhất của Sunshine.",
+    "virtualhid_development_desc": "Cảm ơn bạn đã sử dụng phiên bản phát triển của Virtual HID Driver. Việc thử nghiệm của bạn sẽ giúp Virtual HID Driver ngày càng hoàn thiện hơn!",
+    "virtualhid_development_title": "Bản dựng phát triển trình điều khiển HID ảo",
     "virtualhid_license_required_desc": "Trình điều khiển ảo HID bổ sung hỗ trợ cho Xbox One, Xbox Series, DualSense, Nintendo Switch Pro và các tay cầm chơi game thông dụng, vượt ra ngoài giới hạn của chế độ dự phòng ViGEmBus. Trình điều khiển này đang được nhóm LizardByte duy trì và phát triển tích cực. Hãy kích hoạt hoặc quản lý giấy phép để mở khóa toàn bộ tính năng hỗ trợ.",
     "virtualhid_license_required_title": "Thiếu giấy phép lái xe ảo HID",
     "virtualhid_missing_vigembus_installed_desc": "ViGEmBus đã được cài đặt, nhưng nếu không có trình điều khiển libvirtualhid, Sunshine chỉ có thể cung cấp hỗ trợ gamepad dự phòng ở mức hạn chế.",
