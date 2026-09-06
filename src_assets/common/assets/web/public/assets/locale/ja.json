@@ -454,6 +454,8 @@
     "startup_errors": "<b>注意</b>Sunshineは起動時にこれらのエラーを検出しました。ストリーミングの前にこれらのエラーを修正することを<b>強くお勧め</b>します。",
     "version_dirty": "Sunshineをより良いソフトウェアにしてくれてありがとうございます!",
     "version_latest": "サンシャインの最新バージョンを実行しています",
+    "virtualhid_development_desc": "Virtual HIDドライバーの開発ビルドをご利用いただきありがとうございます。テストにより仮想HIDドライバーの改善に役立ちます！",
+    "virtualhid_development_title": "バーチャルHIDドライバー開発ビルド",
     "virtualhid_license_required_desc": "Virtual HIDドライバーは、限定されたViGEmBusフォールバックを超えて、Xbox One、Xbox Series、DualSense、Nintendo Switch Pro、および一般的なゲームパッドを追加します。 LizardByte チームによって積極的にメンテナンスされています。ライセンスを有効化または管理してフルサポートをアンロックしてください。",
     "virtualhid_license_required_title": "仮想HIDドライバーライセンスがありません",
     "virtualhid_missing_vigembus_installed_desc": "ViGEmBusがインストールされていますが、libvirtualhidドライバがなければSunshineは限られたフォールバックゲームパッドのサポートのみを提供できます。",
