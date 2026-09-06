@@ -454,6 +454,8 @@
     "startup_errors": "<b>Attention!</b> Sunshine detected these errors during startup. We <b>STRONGLY RECOMMEND</b> fixing them before streaming.",
     "version_dirty": "Thank you for helping to make Sunshine a better software!",
     "version_latest": "You are running the latest version of Sunshine",
+    "virtualhid_development_desc": "Thank you for using a development build of Virtual HID Driver. Your testing helps make Virtual HID Driver better!",
+    "virtualhid_development_title": "Virtual HID Driver Development Build",
     "virtualhid_license_required_desc": "Virtual HID Driver adds a Raw Input keyboard and mouse plus Xbox One, Xbox Series, DualSense, Nintendo Switch Pro, and Generic gamepads. It is actively maintained by the LizardByte team. Activate or manage the license to unlock driver-backed input.",
     "virtualhid_license_required_title": "Virtual HID Driver License Missing",
     "virtualhid_missing_vigembus_installed_desc": "ViGEmBus is installed, but without the libvirtualhid driver Sunshine can only offer limited fallback gamepad support.",
