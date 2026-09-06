@@ -454,6 +454,8 @@
     "startup_errors": "<b>注意！</b> Sunshine 在啟動時檢測到這些錯誤。我們<b>強烈建議</b>在開始串流之前修復它們。",
     "version_dirty": "感謝您的協助，讓 Sunshine 成為更好的軟體！",
     "version_latest": "您正在執行最新版本的 Sunshine",
+    "virtualhid_development_desc": "感謝您使用 Virtual HID Driver 的開發版。您的測試有助於讓 Virtual HID Driver 變得更好！",
+    "virtualhid_development_title": "虛擬 HID 驅動程式開發版本",
     "virtualhid_license_required_desc": "Virtual HID Driver 除了 ViGEmBus 有限的備用方案之外，還新增了 Xbox One、Xbox Series、DualSense、Nintendo Switch Pro 以及通用遊戲手把的支援。此套件由 LizardByte 團隊積極維護。請啟用或管理授權以解鎖完整支援功能。",
     "virtualhid_license_required_title": "缺少虛擬 HID 駕駛執照",
     "virtualhid_missing_vigembus_installed_desc": "雖然已安裝 ViGEmBus，但若未安裝 libvirtualhid 驅動程式，Sunshine 僅能提供有限的備用遊戲手把支援。",
