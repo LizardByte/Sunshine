@@ -8,7 +8,7 @@
 
 %undefine _hardened_build
 
-# Define _metainfodir for OpenSUSE if not already defined
+# Define _metainfodir for openSUSE if not already defined
 %if 0%{?suse_version}
 %if !0%{?_metainfodir:1}
 %global _metainfodir %{_datadir}/metainfo
@@ -79,7 +79,7 @@ BuildRequires: xorg-x11-server-Xvfb
 %endif
 
 %if 0%{?suse_version}
-# OpenSUSE-specific BuildRequires
+# openSUSE-specific BuildRequires
 BuildRequires: AppStream
 BuildRequires: appstream-glib
 BuildRequires: libgudev-1_0-devel
@@ -90,8 +90,8 @@ BuildRequires: libnuma-devel
 BuildRequires: libopus-devel
 BuildRequires: libpulse-devel
 BuildRequires: npm
-BuildRequires: python311
-BuildRequires: python311-Jinja2
+BuildRequires: python313
+BuildRequires: python313-Jinja2
 %if !0%{?sle_version}
 BuildRequires: shaderc
 %endif
@@ -129,24 +129,23 @@ BuildRequires: gcc15-c++
 
 %if 0%{?suse_version}
 %if 0%{?suse_version} <= 1699
-# OpenSUSE Leap 15.x
-BuildRequires: gcc14
-BuildRequires: gcc14-c++
-# OpenSUSE Leap: Qt6 not in standard repos, use Qt5
-BuildRequires: libqt5-qtbase-devel
-BuildRequires: libqt5-qtsvg-devel
-%global gcc_version 14
-%global cuda_version 12.9.1
-%global cuda_build 575.57.08
+# openSUSE Leap
+BuildRequires: gcc15
+BuildRequires: gcc15-c++
+BuildRequires: qt6-base-devel
+BuildRequires: qt6-svg-devel
+%global gcc_version 15
+%global cuda_version 13.1.1
+%global cuda_build 590.48.01
 %else
-# OpenSUSE Tumbleweed
-BuildRequires: gcc14
-BuildRequires: gcc14-c++
-BuildRequires: libqt6-qtbase-devel
-BuildRequires: libqt6-qtsvg-devel
-%global gcc_version 14
-%global cuda_version 12.9.1
-%global cuda_build 575.57.08
+# openSUSE Tumbleweed
+BuildRequires: gcc15
+BuildRequires: gcc15-c++
+BuildRequires: qt6-base-devel
+BuildRequires: qt6-svg-devel
+%global gcc_version 15
+%global cuda_version 13.1.1
+%global cuda_build 590.48.01
 %endif
 %endif
 
@@ -175,7 +174,7 @@ Requires: vulkan-loader
 %endif
 
 %if 0%{?suse_version}
-# OpenSUSE runtime requirements
+# openSUSE runtime requirements
 Requires: libcap2
 Requires: libcurl4
 Requires: libdrm2
@@ -191,11 +190,11 @@ Requires: libpulse0
 Requires: libvulkan1
 %endif
 %if 0%{?suse_version} <= 1699
-# OpenSUSE Leap: built with Qt5
-Requires: libQt5Svg5
-Requires: libQt5Widgets5
+# openSUSE Leap: built with Qt6
+Requires: libQt6Svg6
+Requires: libQt6Widgets6
 %else
-# OpenSUSE Tumbleweed: built with Qt6
+# openSUSE Tumbleweed: built with Qt6
 Requires: libQt6Svg6
 Requires: libQt6Widgets6
 %endif
@@ -249,9 +248,9 @@ cmake_args+=("-DPython_EXECUTABLE=%{_builddir}/Sunshine/.venv/bin/python")
 %endif
 
 %if 0%{?suse_version}
-# Use the Python interpreter that owns the python311-Jinja2 BuildRequires.
+# Use the Python interpreter that owns the python313-Jinja2 BuildRequires.
 cmake_args+=("-DGLAD_SKIP_PIP_INSTALL=ON")
-cmake_args+=("-DPython_EXECUTABLE=/usr/bin/python3.11")
+cmake_args+=("-DPython_EXECUTABLE=/usr/bin/python3.13")
 %endif
 
 export CC=gcc-%{gcc_version}
