@@ -74,6 +74,9 @@ set(TEST_DEFINITIONS)  # list will be appended as needed
 list(APPEND TEST_DEFINITIONS SUNSHINE_TESTS)
 list(APPEND TEST_DEFINITIONS SUNSHINE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 list(APPEND TEST_DEFINITIONS SUNSHINE_TEST_BIN_DIR="${CMAKE_CURRENT_BINARY_DIR}")
+if(SUNSHINE_ENABLE_TRAY)
+    list(APPEND TEST_DEFINITIONS TRAY_ENABLE_TEST_HOOKS)
+endif()
 
 # Override SUNSHINE_ASSETS_DIR to use a writable temp directory for tests
 # Remove the existing definition from SUNSHINE_DEFINITIONS to avoid redefinition error

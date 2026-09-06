@@ -56,6 +56,10 @@ if(SUNSHINE_ENABLE_TRAY)
 
     add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/tray")
 
+    if(BUILD_TESTS)
+        target_compile_definitions(tray PRIVATE TRAY_ENABLE_TEST_HOOKS)
+    endif()
+
     if(SUNSHINE_USE_STATIC_QT)
         set(CMAKE_FIND_LIBRARY_SUFFIXES "${_sunshine_find_library_suffixes}")
         set(CMAKE_IMPORT_LIBRARY_SUFFIX "${_sunshine_import_library_suffix}")
