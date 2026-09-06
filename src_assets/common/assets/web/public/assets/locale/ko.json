@@ -454,6 +454,8 @@
     "startup_errors": "<b>주의!</b> 시작하는 중에 오류가 감지되었습니다. 스트리밍하기 전에 이 오류를 수정할 것을 <b>강력히 권장합니다.</b>",
     "version_dirty": "Sunshine이 더 나은 소프트웨어가 될 수 있도록 도와주셔서 감사합니다!",
     "version_latest": "최신 버전의 Sunshine을 실행 중입니다.",
+    "virtualhid_development_desc": "Virtual HID Driver의 개발용 빌드를 사용해 주셔서 감사합니다. 여러분의 테스트는 Virtual HID Driver를 더욱 개선하는 데 큰 도움이 됩니다!",
+    "virtualhid_development_title": "가상 HID 드라이버 개발 빌드",
     "virtualhid_license_required_desc": "Virtual HID Driver는 제한적인 ViGEmBus 대체 기능을 넘어 Xbox One, Xbox Series, DualSense, Nintendo Switch Pro 및 일반 게임패드를 지원합니다. 이 프로그램은 LizardByte 팀에 의해 적극적으로 유지 관리되고 있습니다. 라이선스를 활성화하거나 관리하여 모든 기능을 이용하세요.",
     "virtualhid_license_required_title": "가상 HID 운전면허증이 없습니다",
     "virtualhid_missing_vigembus_installed_desc": "ViGEmBus는 설치되어 있지만, libvirtualhid 드라이버가 없으면 Sunshine은 제한적인 대체 게임패드 지원만 제공할 수 있습니다.",
