@@ -1,16 +1,31 @@
 /**
- * @file src/platform/macos/sc_capture.m
+ * @file src/platform/macos/sc_capture.mm
  * @brief ScreenCaptureKit-based display capture implementation.
  */
 #import "sc_capture.h"
+
+// local includes
+#include "src/logging.h"
+
+using namespace std::literals;
+
+/**
+ * @brief Describe an NSError for logging.
+ *
+ * @param error Error to describe, or nil.
+ * @return UTF-8 description of the error.
+ */
+static const char *error_description(NSError *error) {
+  return error && error.localizedDescription ? error.localizedDescription.UTF8String : "unknown error";
+}
 
 static SCShareableContent *copyShareableContent(void) {
   __block SCShareableContent *shareableContent = nil;
   dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
 
-  [SCShareableContent getShareableContentWithCompletionHandler:^(SCShareableContent *content, NSError *error) {
-    if (error) {
-      NSLog(@"[SCCapture] Failed to get shareable content: %@", error.localizedDescription);
+  [SCShareableContent getShareableContentWithCompletionHandler:^(SCShareableContent *content, NSError *content_error) {
+    if (content_error) {
+      BOOST_LOG(error) << "SCCapture failed to get shareable content: "sv << error_description(content_error);
     } else {
       shareableContent = [content retain];
     }
@@ -129,7 +144,7 @@ API_AVAILABLE(macos(14.0))
   }
 
   for (int attempt = 1; attempt <= 3; attempt++) {
-    NSLog(@"[SCCapture] Display %u not found in SCShareableContent, refreshing (attempt %d/3)", displayID, attempt);
+    BOOST_LOG(warning) << "SCCapture display "sv << displayID << " not found in SCShareableContent, refreshing (attempt "sv << attempt << "/3)"sv;
     [NSThread sleepForTimeInterval:1.0];
 
     SCShareableContent *content = copyShareableContent();
@@ -142,7 +157,7 @@ API_AVAILABLE(macos(14.0))
 
     display = [self findDisplayWithID:displayID];
     if (display) {
-      NSLog(@"[SCCapture] Found display %u after refresh", displayID);
+      BOOST_LOG(info) << "SCCapture found display "sv << displayID << " after refresh"sv;
       return display;
     }
   }
@@ -188,6 +203,39 @@ API_AVAILABLE(macos(14.0))
   }
 }
 
+/**
+ * @brief Create and start a capture stream for the current filter and configuration.
+ *
+ * @return Started stream (retained), or nil on failure.
+ */
+- (SCStream *)startConfiguredStream {
+  SCStream *stream = [[SCStream alloc] initWithFilter:self.contentFilter configuration:self.streamConfiguration delegate:self];
+  NSError *output_error = nil;
+  if (!stream || ![stream addStreamOutput:self type:SCStreamOutputTypeScreen sampleHandlerQueue:nil error:&output_error]) {
+    BOOST_LOG(error) << "SCCapture failed to create stream output: "sv << error_description(output_error);
+    [stream release];
+    return nil;
+  }
+
+  __block NSError *start_error = nil;
+  dispatch_semaphore_t started = dispatch_semaphore_create(0);
+  [stream startCaptureWithCompletionHandler:^(NSError *completion_error) {
+    start_error = [completion_error retain];
+    dispatch_semaphore_signal(started);
+  }];
+  dispatch_semaphore_wait(started, DISPATCH_TIME_FOREVER);
+  dispatch_release(started);
+
+  if (start_error) {
+    BOOST_LOG(error) << "SCCapture failed to start capture stream: "sv << error_description(start_error);
+    [start_error release];
+    [stream release];
+    return nil;
+  }
+
+  return stream;
+}
+
 - (dispatch_semaphore_t)captureVideo {
   dispatch_semaphore_t capture_signal = nil;
 
@@ -201,7 +249,7 @@ API_AVAILABLE(macos(14.0))
 
     SCDisplay *display = [self findDisplayWithIDRetrying:self.displayID];
     if (!display) {
-      NSLog(@"[SCCapture] Display not found after retries: %u", self.displayID);
+      BOOST_LOG(error) << "SCCapture display not found after retries: "sv << self.displayID;
       [self releaseCaptureSignals];
       return nil;
     }
@@ -232,30 +280,22 @@ API_AVAILABLE(macos(14.0))
   }
 
   // Start the stream outside the lock: delivery callbacks synchronize on self.
-  SCStream *stream = [[SCStream alloc] initWithFilter:self.contentFilter configuration:self.streamConfiguration delegate:self];
-  NSError *output_error = nil;
-  if (!stream || ![stream addStreamOutput:self type:SCStreamOutputTypeScreen sampleHandlerQueue:nil error:&output_error]) {
-    NSLog(@"[SCCapture] Failed to create stream output: %@", output_error.localizedDescription);
-    [stream release];
+  SCStream *stream = [self startConfiguredStream];
+
+  // Apple documents only BGRA, l10r, 420v and 420f for SCStreamConfiguration.pixelFormat;
+  // 10-bit sessions request the undocumented (but in practice accepted) x420. If the
+  // runtime rejects it, retry with 8-bit 420v: VideoToolbox accepts 8-bit input into a
+  // Main10 encode session, so the negotiated stream survives with 8-bit-sourced content.
+  if (!stream && self.pixelFormat == kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange) {
+    BOOST_LOG(warning) << "SCCapture 10-bit capture format was rejected, falling back to 8-bit capture"sv;
     @synchronized(self) {
-      [self releaseCaptureSignals];
+      self.pixelFormat = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange;
+      self.streamConfiguration.pixelFormat = self.pixelFormat;
     }
-    return nil;
+    stream = [self startConfiguredStream];
   }
 
-  __block NSError *start_error = nil;
-  dispatch_semaphore_t started = dispatch_semaphore_create(0);
-  [stream startCaptureWithCompletionHandler:^(NSError *error) {
-    start_error = [error retain];
-    dispatch_semaphore_signal(started);
-  }];
-  dispatch_semaphore_wait(started, DISPATCH_TIME_FOREVER);
-  dispatch_release(started);
-
-  if (start_error) {
-    NSLog(@"[SCCapture] Failed to start capture stream: %@", start_error.localizedDescription);
-    [start_error release];
-    [stream release];
+  if (!stream) {
     @synchronized(self) {
       [self releaseCaptureSignals];
     }
@@ -265,7 +305,7 @@ API_AVAILABLE(macos(14.0))
   self.stream = stream;
   [stream release];
 
-  NSLog(@"[SCCapture] SCStream capture configured: %dx%d @ %d fps", self.frameWidth, self.frameHeight, self.frameRate);
+  BOOST_LOG(info) << "SCCapture stream configured: "sv << self.frameWidth << 'x' << self.frameHeight << " @ "sv << self.frameRate << " fps"sv;
 
   return capture_signal;
 }
@@ -291,8 +331,8 @@ API_AVAILABLE(macos(14.0))
   [self storeSampleBuffer:sampleBuffer];
 }
 
-- (void)stream:(SCStream *)stream didStopWithError:(NSError *)error {
-  NSLog(@"[SCCapture] Stream stopped with error: %@", error.localizedDescription);
+- (void)stream:(SCStream *)stream didStopWithError:(NSError *)stop_error {
+  BOOST_LOG(error) << "SCCapture stream stopped: "sv << error_description(stop_error);
   @synchronized(self) {
     if (!self.stopping && self.captureSignal) {
       // Wake the capture loop so the pipeline tears down and reinitializes.
@@ -317,7 +357,7 @@ API_AVAILABLE(macos(14.0))
   }
 
   if (stream) {
-    [stream stopCaptureWithCompletionHandler:^(NSError *error) {
+    [stream stopCaptureWithCompletionHandler:^(NSError *stop_error) {
     }];
     [stream release];
   }
