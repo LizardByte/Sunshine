@@ -454,6 +454,8 @@
     "startup_errors": "<b>Figyelem!</b> A Sunshine ezeket a hibákat észlelte az indítás során. <b>KIFEJEZETTEN AJÁNLJUK</b> ezek kijavítását a streamelés előtt.",
     "version_dirty": "Köszönjük, hogy segítesz a Sunshine jobb szoftverré tételében!",
     "version_latest": "A Sunshine legújabb verzióját futtatod",
+    "virtualhid_development_desc": "Köszönjük, hogy a Virtual HID Driver fejlesztői verzióját használja. Tesztelésével hozzájárul a Virtual HID Driver fejlesztéséhez!",
+    "virtualhid_development_title": "Virtuális HID-illesztőprogram-fejlesztési kiadás",
     "virtualhid_license_required_desc": "A Virtual HID Driver kiegészíti a ViGEmBus korlátozott tartalékfunkcióját az Xbox One, Xbox Series, DualSense, Nintendo Switch Pro és általános gamepadok támogatásával. A programot a LizardByte csapat aktívan karbantartja. A teljes támogatás eléréséhez aktiváld vagy kezeljed a licencet.",
     "virtualhid_license_required_title": "Hiányzik a virtuális HID-jogosítvány",
     "virtualhid_missing_vigembus_installed_desc": "A ViGEmBus telepítve van, de a libvirtualhid illesztőprogram hiányában a Sunshine csak korlátozott tartalék gamepad-támogatást tud nyújtani.",
