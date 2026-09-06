@@ -345,6 +345,13 @@ namespace platf {
     yuv444p16,  ///< Planar 10-bit (shifted to 16-bit) YUV 4:4:4
     yuv444p,  ///< Planar 8-bit YUV 4:4:4
     y410,  ///< Y410
+    bgr0,  ///< Packed 8-bit B,G,R,0
+    bgra,  ///< Packed 8-bit B,G,R,A
+    xbgr2101010,  ///< Packed 10-bit X,B,G,R
+    bgra1010102,  ///< Packed 10-bit B,G,R,A
+    rgba1010102,  ///< Packed 10-bit R,G,B,A
+    abgr2101010,  ///< Packed 10-bit A,B,G,R
+    argb2101010,  ///< Packed 10-bit A,R,G,B
     unknown  ///< Unknown
   };
 
@@ -370,11 +377,32 @@ namespace platf {
       _CONVERT(yuv444p16);
       _CONVERT(yuv444p);
       _CONVERT(y410);
+      _CONVERT(bgr0);
+      _CONVERT(bgra);
+      _CONVERT(xbgr2101010);
+      _CONVERT(bgra1010102);
+      _CONVERT(rgba1010102);
+      _CONVERT(abgr2101010);
+      _CONVERT(argb2101010);
       _CONVERT(unknown);
     }
 #undef _CONVERT
 
     return "unknown"sv;
+  }
+
+  /**
+   * @brief Check whether a capture pixel format can be uploaded as packed 8-bit BGR.
+   * @note Unknown formats are treated as BGR0, the historical assumption for
+   * capture buffers that do not declare a format.
+   *
+   * @param pix_fmt Capture pixel format to check.
+   * @return True when the format is representable as packed 8-bit BGR.
+   */
+  inline bool is_bgr_capture_format(pix_fmt_e pix_fmt) {
+    using enum pix_fmt_e;
+
+    return pix_fmt == unknown || pix_fmt == bgr0 || pix_fmt == bgra;
   }
 
   // Dimensions for touchscreen input
@@ -536,6 +564,7 @@ namespace platf {
     std::int32_t height {};  ///< Image height in pixels.
     std::int32_t pixel_pitch {};  ///< Bytes per pixel in the image buffer.
     std::int32_t row_pitch {};  ///< Bytes between consecutive image rows.
+    pix_fmt_e pixel_format {pix_fmt_e::unknown};  ///< Declared pixel format of the captured image.
 
     std::optional<std::chrono::steady_clock::time_point> frame_timestamp;  ///< Capture timestamp associated with the frame.
 

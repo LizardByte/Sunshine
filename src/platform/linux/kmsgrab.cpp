@@ -1688,6 +1688,7 @@ namespace platf {
         img->height = height;
         img->pixel_pitch = 4;
         img->row_pitch = img->pixel_pitch * width;
+        img->pixel_format = platf::pix_fmt_e::bgr0;
         img->data = new std::uint8_t[height * img->row_pitch];
 
         return img;
@@ -1764,6 +1765,7 @@ namespace platf {
         img->serial = std::numeric_limits<decltype(img->serial)>::max();
         img->data = nullptr;
         img->pixel_pitch = 4;
+        img->pixel_format = platf::pix_fmt_e::bgr0;
 
         img->sequence = 0;
         std::fill_n(img->sd.fds, 4, -1);
@@ -1855,6 +1857,7 @@ namespace platf {
           img->height = captured_cursor.dst_h;
           img->pixel_pitch = 4;
           img->row_pitch = img->pixel_pitch * img->width;
+          img->pixel_format = platf::pix_fmt_e::bgra;
           img->data = img->buffer.data();
         } else {
           img->data = nullptr;

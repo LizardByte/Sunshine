@@ -75,6 +75,94 @@ namespace video {
       BOOST_LOG(error) << "No display devices are active at the moment! Cannot probe the encoders.";
       return false;
     }
+
+    /**
+     * @brief Map a declared capture pixel format to its FFmpeg equivalent.
+     * @note Formats without an FFmpeg equivalent in the bundled build-deps
+     * FFmpeg map to AV_PIX_FMT_NONE, letting callers fail loudly.
+     *
+     * @param pix_fmt Declared capture pixel format.
+     * @return FFmpeg pixel format; AV_PIX_FMT_NONE when the value is not a capture format.
+     */
+    AVPixelFormat map_capture_pix_fmt(platf::pix_fmt_e pix_fmt) {
+      using enum platf::pix_fmt_e;
+
+      switch (pix_fmt) {
+        case nv12:
+          return AV_PIX_FMT_NV12;
+        case p010:
+          return AV_PIX_FMT_P010;
+        case bgr0:
+          return AV_PIX_FMT_BGR0;
+        case bgra:
+          return AV_PIX_FMT_BGRA;
+        case xbgr2101010:
+          return AV_PIX_FMT_X2BGR10LE;
+        case abgr2101010:
+          return AV_PIX_FMT_X2BGR10LE;
+        case argb2101010:
+          return AV_PIX_FMT_X2RGB10LE;
+        case bgra1010102:
+          return AV_PIX_FMT_BGRA1010102LE;
+        case rgba1010102:
+          return AV_PIX_FMT_RGBA1010102LE;
+        default:
+          return AV_PIX_FMT_NONE;
+      }
+    }
+
+    /**
+     * @brief Resolve the FFmpeg pixel format for a capture image.
+     * @note Uses the format declared by the capture backend when it knows it,
+     * falling back to deriving the format from the bytes per pixel otherwise.
+     * PipeWire-based captures (KWin screencast / XDG portal) deliver NV12 with
+     * 1 byte per pixel, while KMS/DMABUF captures deliver BGR0 (4 bytes per
+     * pixel). The capture backend reports bytes per pixel in img.pixel_pitch;
+     * fall back to the row pitch heuristic when it is unavailable.
+     *
+     * @param img Capture image to resolve the input format for.
+     * @return FFmpeg pixel format; AV_PIX_FMT_NONE when the declared format is unsupported.
+     */
+    AVPixelFormat resolve_input_fmt(const platf::img_t &img) {
+      using enum platf::pix_fmt_e;
+
+      if (img.pixel_format == unknown) {
+        // No declared format; derive the format from the bytes per pixel.
+        const auto pixel_pitch = img.pixel_pitch > 0 ? img.pixel_pitch : (img.row_pitch / std::max(img.width, 1));
+        return (pixel_pitch == 1) ? AV_PIX_FMT_NV12 : AV_PIX_FMT_BGR0;
+      }
+
+      auto input_fmt = map_capture_pix_fmt(img.pixel_format);
+      if (input_fmt == AV_PIX_FMT_NONE) {
+        BOOST_LOG(error) << "Unsupported capture pixel format: "sv << platf::from_pix_fmt(img.pixel_format);
+      }
+      return input_fmt;
+    }
+
+    /**
+     * @brief Copy the scaled output frame into the padded output frame.
+     * @note Used when aspect ratio padding is required; copies line by line to
+     * preserve the leading padding for each row of every plane.
+     *
+     * @param padded_frame Destination frame carrying the aspect ratio padding.
+     * @param output_frame Source frame produced by the scaler.
+     * @param offset_w Horizontal offset in pixels of the scaled region.
+     * @param offset_h Vertical offset in pixels of the scaled region.
+     */
+    void copy_padded_frame(const AVFrame &padded_frame, const AVFrame &output_frame, int offset_w, int offset_h) {
+      auto fmt_desc = av_pix_fmt_desc_get(static_cast<AVPixelFormat>(output_frame.format));
+      auto planes = av_pix_fmt_count_planes(static_cast<AVPixelFormat>(output_frame.format));
+      for (int plane = 0; plane < planes; plane++) {
+        auto shift_h = plane == 0 ? 0 : fmt_desc->log2_chroma_h;
+        auto shift_w = plane == 0 ? 0 : fmt_desc->log2_chroma_w;
+        auto offset = ((offset_w >> shift_w) * fmt_desc->comp[plane].step) + (offset_h >> shift_h) * padded_frame.linesize[plane];
+
+        // Copy line-by-line to preserve leading padding for each row
+        for (int line = 0; line < output_frame.height >> shift_h; line++) {
+          memcpy(padded_frame.data[plane] + offset + (line * padded_frame.linesize[plane]), output_frame.data[plane] + (line * output_frame.linesize[plane]), static_cast<std::size_t>(output_frame.width >> shift_w) * fmt_desc->comp[plane].step);
+        }
+      }
+    }
   }  // namespace
 
   /**
@@ -225,13 +313,13 @@ namespace video {
     // If we need to add aspect ratio padding, we need to scale into an intermediate output buffer
     bool requires_padding = (sw_frame->width != sws_output_frame->width || sw_frame->height != sws_output_frame->height);
 
-    // Detect the actual capture pixel format. PipeWire-based captures (KWin
-    // screencast / XDG portal) deliver NV12 with 1 byte per pixel, while
-    // KMS/DMABUF captures deliver BGR0 (4 bytes per pixel). The capture
-    // backend reports bytes per pixel in img.pixel_pitch; fall back to the row
-    // pitch heuristic when it is unavailable.
-    const auto pixel_pitch = img.pixel_pitch > 0 ? img.pixel_pitch : (img.row_pitch / std::max(img.width, 1));
-    const auto input_fmt = (pixel_pitch == 1) ? AV_PIX_FMT_NV12 : AV_PIX_FMT_BGR0;
+    // Resolve the capture pixel format: use the format declared by the
+    // capture backend when available, deriving it from the bytes per pixel
+    // otherwise.
+    AVPixelFormat input_fmt = resolve_input_fmt(img);
+    if (input_fmt == AV_PIX_FMT_NONE) {
+      return -1;
+    }
 
     // The sws context is created with the default BGR0 source format;
     // recreate it once if the capture is actually NV12.
@@ -247,7 +335,7 @@ namespace video {
     // Setup the input frame using the caller's img_t
     sws_input_frame->data[0] = img.data;
     sws_input_frame->linesize[0] = img.row_pitch;
-    if (input_fmt == AV_PIX_FMT_NV12) {
+    if (input_fmt == AV_PIX_FMT_NV12 || input_fmt == AV_PIX_FMT_P010) {
       sws_input_frame->data[1] = img.data + static_cast<std::size_t>(img.row_pitch) * img.height;
       sws_input_frame->linesize[1] = img.row_pitch;
     } else {
@@ -269,18 +357,7 @@ namespace video {
 
     // If we require aspect ratio padding, copy the output frame into the final padded frame
     if (requires_padding) {
-      auto fmt_desc = av_pix_fmt_desc_get(static_cast<AVPixelFormat>(sws_output_frame->format));
-      auto planes = av_pix_fmt_count_planes(static_cast<AVPixelFormat>(sws_output_frame->format));
-      for (int plane = 0; plane < planes; plane++) {
-        auto shift_h = plane == 0 ? 0 : fmt_desc->log2_chroma_h;
-        auto shift_w = plane == 0 ? 0 : fmt_desc->log2_chroma_w;
-        auto offset = ((offsetW >> shift_w) * fmt_desc->comp[plane].step) + (offsetH >> shift_h) * sw_frame->linesize[plane];
-
-        // Copy line-by-line to preserve leading padding for each row
-        for (int line = 0; line < sws_output_frame->height >> shift_h; line++) {
-          memcpy(sw_frame->data[plane] + offset + (line * sw_frame->linesize[plane]), sws_output_frame->data[plane] + (line * sws_output_frame->linesize[plane]), static_cast<std::size_t>(sws_output_frame->width >> shift_w) * fmt_desc->comp[plane].step);
-        }
-      }
+      copy_padded_frame(*sw_frame, *sws_output_frame, offsetW, offsetH);
     }
 
     // If frame is not a software frame, it means we still need to transfer from main memory

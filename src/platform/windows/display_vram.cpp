@@ -1947,6 +1947,7 @@ namespace platf::dxgi {
 
     // Initialize format-dependent fields
     img->pixel_pitch = get_pixel_pitch();
+    img->pixel_format = (img->pixel_pitch == 4) ? platf::pix_fmt_e::bgr0 : platf::pix_fmt_e::unknown;
     img->row_pitch = img->pixel_pitch * img->width;
     img->dummy = dummy;
     img->format = (capture_format == DXGI_FORMAT_UNKNOWN) ? DXGI_FORMAT_B8G8R8A8_UNORM : capture_format;

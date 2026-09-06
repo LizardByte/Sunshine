@@ -49,6 +49,28 @@ using namespace std::literals;
  * Not pretty and extremely error-prone, fix at earliest convenience.
  */
 namespace platf {
+  /**
+   * @brief Keep in sync with src/platform/common.h:529 platf::img_t.
+   */
+  enum class pix_fmt_e {
+    yuv420p,
+    yuv420p10,
+    nv12,
+    p010,
+    ayuv,
+    yuv444p16,
+    yuv444p,
+    y410,
+    bgr0,
+    bgra,
+    xbgr2101010,
+    bgra1010102,
+    rgba1010102,
+    abgr2101010,
+    argb2101010,
+    unknown
+  };
+
   struct img_t: std::enable_shared_from_this<img_t> {
   public:
     std::uint8_t *data {};
@@ -56,6 +78,7 @@ namespace platf {
     std::int32_t height {};
     std::int32_t pixel_pitch {};
     std::int32_t row_pitch {};
+    pix_fmt_e pixel_format {pix_fmt_e::unknown};  ///< Keep in sync with src/platform/common.h:529
 
     std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
 
@@ -64,6 +87,8 @@ namespace platf {
 }  // namespace platf
 
 // End special declarations
+
+static_assert(sizeof(platf::pix_fmt_e) == 4, "pix_fmt_e must be 4 bytes");
 
 namespace cuda {
 

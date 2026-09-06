@@ -374,6 +374,7 @@ namespace platf::dxgi {
     }
 
     img->pixel_pitch = get_pixel_pitch();
+    img->pixel_format = (img->pixel_pitch == 4) ? platf::pix_fmt_e::bgr0 : platf::pix_fmt_e::unknown;
 
     if (dummy && !img->row_pitch) {
       // Assume our dummy image will have no padding

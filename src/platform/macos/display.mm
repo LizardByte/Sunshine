@@ -52,6 +52,25 @@ namespace platf {
       const auto colorspace {video::colorspace_from_client_config(config, false)};
       return colorspace.bit_depth == 10 ? kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange : kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange;
     }
+
+    /**
+     * @brief Map a Core Video pixel format to Sunshine's pixel format enum.
+     *
+     * @param cv_format Core Video pixel format type.
+     * @return Sunshine pixel format; unknown for unmapped formats.
+     */
+    platf::pix_fmt_e pix_fmt_from_cv_pixel_format(OSType cv_format) {
+      switch (cv_format) {
+        case kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange:
+          return platf::pix_fmt_e::nv12;
+        case kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange:
+          return platf::pix_fmt_e::p010;
+        case kCVPixelFormatType_32BGRA:
+          return platf::pix_fmt_e::bgra;
+        default:
+          return platf::pix_fmt_e::unknown;
+      }
+    }
   }  // namespace
 
   /**
@@ -93,6 +112,7 @@ namespace platf {
         img_out->height = (int) CVPixelBufferGetHeight(new_pixel_buffer->buf);
         img_out->row_pitch = (int) CVPixelBufferGetBytesPerRow(new_pixel_buffer->buf);
         img_out->pixel_pitch = img_out->row_pitch / img_out->width;
+        img_out->pixel_format = pix_fmt_from_cv_pixel_format(av_capture.pixelFormat);
 
         old_data_retainer = nullptr;
 
@@ -177,6 +197,7 @@ namespace platf {
         img->height = (int) CVPixelBufferGetHeight(new_pixel_buffer->buf);
         img->row_pitch = (int) CVPixelBufferGetBytesPerRow(new_pixel_buffer->buf);
         img->pixel_pitch = img->row_pitch / img->width;
+        img->pixel_format = pix_fmt_from_cv_pixel_format(av_capture.pixelFormat);
 
         old_data_retainer = nullptr;
 
