@@ -225,6 +225,34 @@ namespace pipewire {
     }
 
     /**
+     * @brief Check and log whether the active session will require Sunshine to perform pacing.
+     *
+     * @param requested_framerate The framerate that we requested.
+     * @param requested_delay The delay corresponding to the requested framerate.
+     * @return True when Sunshine pacing is required.
+     */
+    bool is_pacing_required(AVRational requested_framerate, std::chrono::nanoseconds requested_delay) {
+      AVRational negotiated_rate =
+        {
+          static_cast<int32_t>(stream_data.format.info.raw.max_framerate.num),
+          static_cast<int32_t>(stream_data.format.info.raw.max_framerate.denom)
+        };
+      int rate_comparison = av_cmp_q(negotiated_rate, requested_framerate);
+      bool variable_rate = negotiated_rate.num == 0 && negotiated_rate.den == 1;
+      bool pacing_required = variable_rate || rate_comparison > 0;
+
+      if (!variable_rate && rate_comparison < 0) {
+        BOOST_LOG(warning)
+          << "[pipewire] Sunshine frame pacing: disabled (negotiated rate lower than requested rate)"sv;
+      } else {
+        BOOST_LOG(info) << "[pipewire] Sunshine frame pacing: "sv
+                        << (pacing_required ? std::format("enabled ({}ms)", std::chrono::duration<double, std::milli>(requested_delay).count()) : "disabled (event-driven capture)");
+      }
+
+      return pacing_required;
+    }
+
+    /**
      * @brief Set frame ready.
      *
      * @param ready Whether the PipeWire frame is ready for capture.
@@ -656,9 +684,10 @@ namespace pipewire {
       BOOST_LOG(info) << "[pipewire] Color primaries: "sv << d->format.info.raw.color_primaries;
       BOOST_LOG(info) << "[pipewire] Transfer function: "sv << d->format.info.raw.transfer_function;
       if (d->format.info.raw.max_framerate.num == 0 && d->format.info.raw.max_framerate.denom == 1) {
-        BOOST_LOG(info) << "[pipewire] Framerate (from compositor): 0/1 (variable rate capture)";
+        BOOST_LOG(info) << "[pipewire] Compositor negotiated frame rate: 0/1 (variable rate capture)"sv;
       } else {
-        BOOST_LOG(info) << "[pipewire] Framerate (from compositor): "sv << d->format.info.raw.framerate.num << "/"sv << d->format.info.raw.framerate.denom
+        BOOST_LOG(info) << "[pipewire] Compositor negotiated frame rate: "sv
+                        << d->format.info.raw.framerate.num << "/"sv << d->format.info.raw.framerate.denom
                         << ", max: "sv << d->format.info.raw.max_framerate.num << "/"sv << d->format.info.raw.max_framerate.denom;
       }
 
@@ -823,11 +852,11 @@ namespace pipewire {
 
       const AVRational fps = (negotiate_variable_rate ? AVRational {0, 1} : ::video::framerate_to_rational(config));
       if (fps.den != 1) {
-        BOOST_LOG(info) << "[pipewire] Requested frame rate [" << fps.num << "/" << fps.den << ", approx. " << av_q2d(fps) << " fps]";
+        BOOST_LOG(info) << "[pipewire] Requested frame rate: "sv << fps.num << "/"sv << fps.den << ", approx. "sv << av_q2d(fps) << " fps"sv;
       } else if (fps.num == 0 && fps.den == 1) {
-        BOOST_LOG(info) << "[pipewire] Requested variable rate capture [host pacing: " << std::chrono::duration<double, std::milli>(delay).count() << "ms]";
+        BOOST_LOG(info) << "[pipewire] Requested variable frame rate (Sunshine pacing required: "sv << std::chrono::duration<double, std::milli>(delay).count() << "ms)"sv;
       } else {
-        BOOST_LOG(info) << "[pipewire] Requested frame rate [" << fps.num << "fps]";
+        BOOST_LOG(info) << "[pipewire] Requested frame rate: "sv << fps.num << "fps"sv;
       }
       this->target_framerate = fps;
       mem_type = hwdevice_type;
@@ -983,6 +1012,9 @@ namespace pipewire {
       }
       sleep_overshoot_logger.reset();
 
+      // Check if pacing is required
+      bool pacing_required = pipewire.is_pacing_required(target_framerate, delay);
+
       while (true) {
         // Check if PipeWire signaled a dead stream
         if (shared_state->stream_dead.exchange(false)) {
@@ -995,16 +1027,19 @@ namespace pipewire {
           return platf::capture_e::reinit;
         }
 
-        // Advance to (or catch up with) next delay interval
-        auto now = std::chrono::steady_clock::now();
-        while (next_frame < now) {
-          next_frame += delay;
-        }
+        // Use unpaced event driven capture when possible
+        if (pacing_required) {
+          // Advance to (or catch up with) next delay interval
+          auto now = std::chrono::steady_clock::now();
+          while (next_frame < now) {
+            next_frame += delay;
+          }
 
-        if (next_frame > now) {
-          std::this_thread::sleep_until(next_frame);
-          sleep_overshoot_logger.first_point(next_frame);
-          sleep_overshoot_logger.second_point_now_and_log();
+          if (next_frame > now) {
+            std::this_thread::sleep_until(next_frame);
+            sleep_overshoot_logger.first_point(next_frame);
+            sleep_overshoot_logger.second_point_now_and_log();
+          }
         }
 
         std::shared_ptr<platf::img_t> img_out;
