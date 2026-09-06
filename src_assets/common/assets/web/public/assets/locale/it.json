@@ -454,6 +454,8 @@
     "startup_errors": "<b>Attenzione!</b> Sunshine ha rilevato questi errori durante l'avvio. Ti <b>raccomandamo vivamente </b> di risolverli prima dello streaming.",
     "version_dirty": "Grazie per aver contribuito a rendere Sunshine un software migliore!",
     "version_latest": "Stai eseguendo l'ultima versione di Sunshine",
+    "virtualhid_development_desc": "Grazie per aver utilizzato una build di sviluppo di driver HID Virtuale. Il tuo test aiuta a migliorare il driver HID Virtuale!",
+    "virtualhid_development_title": "Generazione Sviluppo Driver Hid Virtuale",
     "virtualhid_license_required_desc": "Virtual HID Driver aggiunge Xbox One, Xbox Series, DualSense, Nintendo Switch Pro e Gamepad Generici oltre il limitato rientro ViGEmBus. È attivamente mantenuto dal team LizardByte. Attiva o gestisci la licenza per sbloccare il supporto completo.",
     "virtualhid_license_required_title": "Licenza Virtuale Del Driver Hid Manca",
     "virtualhid_missing_vigembus_installed_desc": "ViGEmBus è installato, ma senza il driver libvirtualhid Sunshine può offrire solo un limitato supporto ai gamepad fallback.",
