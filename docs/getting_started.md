@@ -76,7 +76,7 @@ CUDA is used for NVFBC capture.
         <td rowspan="5">13.1.1</td>
         <td rowspan="5">590.48.01</td>
         <td rowspan="5">50;52;60;61;62;70;72;75;80;86;87;89;90;100;101;103;120;121</td>
-        <td>sunshine.AppImage</td>
+        <td>Sunshine_{version}_{arch}.AppImage</td>
     </tr>
     <tr>
         <td>sunshine_{version}-1+{distro}{distro-version}_{arch}.deb</td>
@@ -102,25 +102,25 @@ CUDA is used for NVFBC capture.
 > The AppImage is built on Ubuntu 22.04, which requires `glibc 2.35` or newer and `libstdc++ 3.4.11` or newer.
 
 ##### Install
-1. Download [sunshine.AppImage](https://github.com/LizardByte/Sunshine/releases/latest/download/sunshine.AppImage)
+1. Download `Sunshine_{version}_{arch}.AppImage`
    into your home directory.
    ```bash
    cd ~
-   wget https://github.com/LizardByte/Sunshine/releases/latest/download/sunshine.AppImage
+   wget https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine_{version}_{arch}.AppImage
    ```
 2. Open terminal and run the following command.
    ```bash
-   ./sunshine.AppImage --install
+   ./Sunshine_{version}_{arch}.AppImage --install
    ```
 
 ##### Run
 ```bash
-./sunshine.AppImage --install && ./sunshine.AppImage
+./Sunshine_{version}_{arch}.AppImage --install && ./Sunshine_{version}_{arch}.AppImage
 ```
 
 ##### Uninstall
 ```bash
-./sunshine.AppImage --remove
+./Sunshine_{version}_{arch}.AppImage --remove
 ```
 
 #### ArchLinux
@@ -650,7 +650,7 @@ To get a list of available arguments, run the following command.
       sunshine --help
       ```}
    @tab{ AppImage | ```bash
-      ./sunshine.AppImage --help
+      ./Sunshine_{version}_{arch}.AppImage --help
       ```}
    @tab{ Flatpak | ```bash
       flatpak run --command=sunshine dev.lizardbyte.app.Sunshine --help

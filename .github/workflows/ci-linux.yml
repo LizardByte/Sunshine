@@ -20,17 +20,23 @@ jobs:
     name: ${{ matrix.name }}
     env:
       APP_ID: dev.lizardbyte.app.Sunshine
+      M_ARCH: ${{ matrix.arch }}
       VERSION: ${{ inputs.release_version }}
     permissions:
       contents: read
-    runs-on: ubuntu-${{ matrix.dist }}
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: AppImage
+          - name: AppImage-aarch64
             EXTRA_ARGS: '--appimage-build'
-            dist: 22.04
+            arch: aarch64
+            runner: ubuntu-22.04-arm
+          - name: AppImage-x86_64
+            EXTRA_ARGS: '--appimage-build'
+            arch: x86_64
+            runner: ubuntu-22.04
     steps:
       - name: More space
         uses: LizardByte/actions/actions/more_space@188c8ccad593e0f68bcf6aacb6bf84f10359d26f  # v2026.905.43751
@@ -70,7 +76,7 @@ jobs:
           gh release download --archive=tar.gz --repo=intel/libva
           tar xzf libva-*.tar.gz && rm libva-*.tar.gz
           cd libva-*
-          ./autogen.sh --prefix=/usr --libdir=/usr/lib/x86_64-linux-gnu \
+          ./autogen.sh --prefix=/usr --libdir="/usr/lib/${M_ARCH}-linux-gnu" \
             --enable-drm \
             --enable-x11 \
             --enable-glx \
@@ -98,7 +104,7 @@ jobs:
           echo "::remove-matcher owner=gcc::"
 
       - name: Package Linux - AppImage
-        if: matrix.name == 'AppImage'
+        if: startsWith(matrix.name, 'AppImage')
         working-directory: build
         run: |
           # install sunshine to the DESTDIR
@@ -120,17 +126,19 @@ jobs:
 
           # AppImage
           # https://docs.appimage.org/packaging-guide/index.html
-          wget -q "${LINUXDEPLOY_GH}/releases/download/continuous/linuxdeploy-x86_64.AppImage"
-          chmod +x linuxdeploy-x86_64.AppImage
+          url="${LINUXDEPLOY_GH}/releases/download/continuous/linuxdeploy-${M_ARCH}.AppImage"
+          wget --max-redirect=1 -q "$url"  # NOSONAR(githubactions:S6506): GitHub release needs one redirect.
+          chmod +x "linuxdeploy-${M_ARCH}.AppImage"
 
           # https://github.com/linuxdeploy/linuxdeploy-plugin-qt
-          wget -q "${LINUXDEPLOY_GH}-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage"
-          chmod +x linuxdeploy-plugin-qt-x86_64.AppImage
+          url="${LINUXDEPLOY_GH}-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${M_ARCH}.AppImage"
+          wget --max-redirect=1 -q "$url"  # NOSONAR(githubactions:S6506): GitHub release needs one redirect.
+          chmod +x "linuxdeploy-plugin-qt-${M_ARCH}.AppImage"
           export QMAKE=/usr/lib/qt6/bin/qmake
           export EXTRA_QT_MODULES="svg;"
           "$QMAKE" -query QT_INSTALL_PLUGINS
 
-          ./linuxdeploy-x86_64.AppImage \
+          "./linuxdeploy-${M_ARCH}.AppImage" \
             --appdir ./AppDir \
             --plugin qt \
             --executable ./sunshine \
@@ -138,11 +146,14 @@ jobs:
             --desktop-file "./$DESKTOP_FILE" \
             --output appimage
 
+          # print original name of AppImage file
+          echo "AppImage file: $(ls Sunshine*.AppImage)"
+
           # move
-          mv Sunshine*.AppImage ../artifacts/sunshine.AppImage
+          mv Sunshine*.AppImage "../artifacts/Sunshine_${VERSION}_${M_ARCH}.AppImage"
 
           # permissions
-          chmod +x ../artifacts/sunshine.AppImage
+          chmod +x "../artifacts/Sunshine_${VERSION}_${M_ARCH}.AppImage"
 
       - name: Delete CUDA
         # free up space on the runner
@@ -150,12 +161,16 @@ jobs:
           rm -rf ./build/cuda
 
       - name: Verify AppImage
-        if: matrix.name == 'AppImage'
+        if: >-
+          startsWith(matrix.name, 'AppImage') &&
+          matrix.arch == 'x86_64'
         run: |
-          wget https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage
-          chmod +x appimagelint-x86_64.AppImage
+          APPIMAGELINT_GH="https://github.com/TheAssassin/appimagelint"
+          url="${APPIMAGELINT_GH}/releases/download/continuous/appimagelint-${M_ARCH}.AppImage"
+          wget --max-redirect=1 "$url"  # NOSONAR(githubactions:S6506): GitHub release needs one redirect.
+          chmod +x "appimagelint-${M_ARCH}.AppImage"
 
-          ./appimagelint-x86_64.AppImage ./artifacts/sunshine.AppImage
+          "./appimagelint-${M_ARCH}.AppImage" "./artifacts/Sunshine_${VERSION}_${M_ARCH}.AppImage"
 
       - name: Install screenshot dependency
         run: |
@@ -168,8 +183,6 @@ jobs:
 
       - name: Setup virtual desktop
         uses: LizardByte/actions/actions/virtual_desktop@188c8ccad593e0f68bcf6aacb6bf84f10359d26f  # v2026.905.43751
-        with:
-          environment: mate
 
       - name: Setup python
         id: python
