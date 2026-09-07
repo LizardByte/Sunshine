@@ -120,8 +120,6 @@ jobs:
           tar -czf sunshine.pkg.tar.gz -C pkg .
 
       - name: Build PKGBUILD
-        env:
-          DISPLAY: :1
         id: build
         shell: bash
         working-directory: pkg
@@ -130,9 +128,6 @@ jobs:
           echo "::add-matcher::.github/matchers/gcc.json"
 
           source /etc/profile  # ensure cuda is in the PATH
-
-          # Run Xvfb for headless testing
-          Xvfb "${DISPLAY}" -screen 0 1024x768x24 &
 
           # Check PKGBUILD
           sudo -u builder namcap -i PKGBUILD
@@ -173,7 +168,7 @@ jobs:
           name: coverage-Archlinux
           path: |
             pkg/src/build/coverage.xml
-            pkg/src/build/tests/test_results.xml
+            pkg/src/build/tests/test_results
           if-no-files-found: error
 
       - name: Copy Artifacts

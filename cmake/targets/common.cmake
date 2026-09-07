@@ -101,6 +101,26 @@ endif()
 
 # tests
 if(BUILD_TESTS)
+    enable_testing()
+
+    # CMAKE_TEST_LAUNCHER was added in CMake 3.29. Use xvfb-run automatically
+    # for headless Unix builds while preserving an existing X11 or Wayland
+    # desktop, such as the one used by the tray screenshot tests.
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.29"
+            AND UNIX
+            AND NOT APPLE
+            AND NOT DEFINED CMAKE_TEST_LAUNCHER
+            AND "$ENV{DISPLAY}" STREQUAL ""
+            AND "$ENV{WAYLAND_DISPLAY}" STREQUAL "")
+        find_program(SUNSHINE_XVFB_EXECUTABLE NAMES Xvfb NO_CACHE)
+        find_program(SUNSHINE_XVFB_RUN_EXECUTABLE NAMES xvfb-run NO_CACHE)
+
+        if(SUNSHINE_XVFB_EXECUTABLE AND SUNSHINE_XVFB_RUN_EXECUTABLE)
+            set(CMAKE_TEST_LAUNCHER "${SUNSHINE_XVFB_RUN_EXECUTABLE}" -a)
+            message(STATUS "Using xvfb-run for headless tests: ${SUNSHINE_XVFB_RUN_EXECUTABLE}")
+        endif()
+    endif()
+
     add_subdirectory(tests)
 endif()
 

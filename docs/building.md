@@ -216,7 +216,7 @@ mkdir build
 
 ```bash
 cmake -B build -G Ninja -S .
-ninja -C build
+cmake --build build
 ```
 
 > [!TIP]

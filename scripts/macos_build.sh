@@ -30,6 +30,7 @@ required_formulas=(
   "cmake"
   "doxygen"
   "graphviz"
+  "ninja"
   "node"
   "pkgconf"
   "icu4c@78"
@@ -95,6 +96,7 @@ function run_step_cmake() {
   # prepare CMAKE args
   cmake_args=(
     "-B=build"
+    "-G=Ninja"
     "-S=."
     "-DBUILD_DOCS=${build_docs}"
     "-DBUILD_TESTS=${build_tests}"
@@ -138,7 +140,7 @@ function run_step_cmake() {
 
 function run_step_build() {
   echo "Running step: Build"
-  cmake --build "${build_dir}" -j "${num_processors}"
+  cmake --build "${build_dir}" --parallel "${num_processors}"
   return 0
 }
 

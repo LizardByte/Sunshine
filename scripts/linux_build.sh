@@ -644,8 +644,8 @@ function run_step_deps() {
         tar -xzf "${DOXYGEN}.tar.gz"
         cd "${DOXYGEN}-${doxygen_min}"
         cmake -DCMAKE_BUILD_TYPE=Release -G="Ninja" -B="build" -S="."
-        ninja -C "build" -j"${num_processors}"
-        ${sudo_cmd} ninja -C "build" install
+        cmake --build "build" --parallel "${num_processors}"
+        ${sudo_cmd} cmake --install "build"
       popd
     else
       echo "${DOXYGEN} version not in range, skipping docs"
@@ -772,7 +772,7 @@ function run_step_build() {
   setup_nvm_environment
 
   # Build the project
-  ninja -C "build"
+  cmake --build "build"
   return 0
 }
 

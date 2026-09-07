@@ -65,7 +65,7 @@ makedepends=(
   'desktop-file-utils'
   "gcc${_gcc_dep_suffix}"
   'git'
-  'make'
+  'ninja'
   'nodejs'
   'npm'
   'python-jinja'  # required by the glad OpenGL/EGL loader generator
@@ -138,6 +138,7 @@ build() {
     local _cmake_options=(
       -S "$pkgname"
       -B build
+      -G Ninja
       -Wno-dev
       -D BUILD_DOCS=OFF
       -D BUILD_WERROR=ON
@@ -190,16 +191,15 @@ check() {
       export CC="gcc${_gcc_env_suffix}"
       export CXX="g++${_gcc_env_suffix}"
 
-      cd "${srcdir}/build/tests"
+      cd "${srcdir}/build"
       # Do not silently upload misleading coverage if the gcov runtime cannot
       # write profile data, such as when its version differs from the compiler.
-      GCOV_EXIT_AT_ERROR=1 ./test_sunshine --gtest_color=yes --gtest_output=xml:test_results.xml
+      GCOV_EXIT_AT_ERROR=1 \
+        ctest --output-on-failure
 
       # Generate coverage report
       # Run gcovr from the build directory (where all .gcda/.gcno files are)
       # This matches the pattern used in ci-linux.yml
-      cd "${srcdir}/build"
-
       # Dynamically find the gcov executable from the selected compiler.
       # This ensures we use the same gcov version that produced the .gcno files.
       local gcov_path
