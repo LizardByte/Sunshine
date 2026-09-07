@@ -8,7 +8,7 @@
 
 %undefine _hardened_build
 
-# Define _metainfodir for OpenSUSE if not already defined
+# Define _metainfodir for openSUSE if not already defined
 %if 0%{?suse_version}
 %if !0%{?_metainfodir:1}
 %global _metainfodir %{_datadir}/metainfo
@@ -79,7 +79,7 @@ BuildRequires: xorg-x11-server-Xvfb
 %endif
 
 %if 0%{?suse_version}
-# OpenSUSE-specific BuildRequires
+# openSUSE-specific BuildRequires
 BuildRequires: AppStream
 BuildRequires: appstream-glib
 BuildRequires: libgudev-1_0-devel
@@ -90,15 +90,14 @@ BuildRequires: libnuma-devel
 BuildRequires: libopus-devel
 BuildRequires: libpulse-devel
 BuildRequires: npm
-BuildRequires: python311
-BuildRequires: python311-Jinja2
-%if !0%{?sle_version}
+BuildRequires: python313
+BuildRequires: python313-Jinja2
+BuildRequires: qt6-base-devel
+BuildRequires: qt6-svg-devel
 BuildRequires: shaderc
-%endif
 BuildRequires: udev
-%if !0%{?sle_version}
 BuildRequires: vulkan-devel
-%endif
+BuildRequires: xz
 # for unit tests
 BuildRequires: ImageMagick
 BuildRequires: xvfb-run
@@ -128,26 +127,13 @@ BuildRequires: gcc15-c++
 %endif
 
 %if 0%{?suse_version}
-%if 0%{?suse_version} <= 1699
-# OpenSUSE Leap 15.x
-BuildRequires: gcc14
-BuildRequires: gcc14-c++
-# OpenSUSE Leap: Qt6 not in standard repos, use Qt5
-BuildRequires: libqt5-qtbase-devel
-BuildRequires: libqt5-qtsvg-devel
-%global gcc_version 14
-%global cuda_version 12.9.1
-%global cuda_build 575.57.08
-%else
-# OpenSUSE Tumbleweed
-BuildRequires: gcc14
-BuildRequires: gcc14-c++
-BuildRequires: libqt6-qtbase-devel
-BuildRequires: libqt6-qtsvg-devel
-%global gcc_version 14
-%global cuda_version 12.9.1
-%global cuda_build 575.57.08
-%endif
+BuildRequires: gcc15
+BuildRequires: gcc15-c++
+%global gcc_version 15
+%global cuda_version 13.1.1
+%global cuda_build 590.48.01
+%global cuda_redist_compiler_version 13.1.115
+%global cuda_redist_runtime_version 13.1.80
 %endif
 
 %global cuda_dir %{_builddir}/cuda
@@ -175,7 +161,7 @@ Requires: vulkan-loader
 %endif
 
 %if 0%{?suse_version}
-# OpenSUSE runtime requirements
+# openSUSE runtime requirements
 Requires: libcap2
 Requires: libcurl4
 Requires: libdrm2
@@ -187,18 +173,9 @@ Requires: libX11-6
 Requires: libnuma1
 Requires: libopenssl3
 Requires: libpulse0
-%if !0%{?sle_version}
-Requires: libvulkan1
-%endif
-%if 0%{?suse_version} <= 1699
-# OpenSUSE Leap: built with Qt5
-Requires: libQt5Svg5
-Requires: libQt5Widgets5
-%else
-# OpenSUSE Tumbleweed: built with Qt6
 Requires: libQt6Svg6
 Requires: libQt6Widgets6
-%endif
+Requires: libvulkan1
 %endif
 
 %description
@@ -249,13 +226,70 @@ cmake_args+=("-DPython_EXECUTABLE=%{_builddir}/Sunshine/.venv/bin/python")
 %endif
 
 %if 0%{?suse_version}
-# Use the Python interpreter that owns the python311-Jinja2 BuildRequires.
+# Use the Python interpreter that owns the python313-Jinja2 BuildRequires.
 cmake_args+=("-DGLAD_SKIP_PIP_INSTALL=ON")
-cmake_args+=("-DPython_EXECUTABLE=/usr/bin/python3.11")
+cmake_args+=("-DPython_EXECUTABLE=/usr/bin/python3.13")
 %endif
 
 export CC=gcc-%{gcc_version}
 export CXX=g++-%{gcc_version}
+
+%if 0%{?suse_version}
+function install_cuda_from_redistributables() {
+  local cuda_redist_arch="linux-x86_64"
+  local cuda_target_arch="x86_64-linux"
+  if [ "$architecture" == "aarch64" ]; then
+    cuda_redist_arch="linux-sbsa"
+    cuda_target_arch="sbsa-linux"
+  fi
+
+  local cuda_target_dir="%{cuda_dir}/targets/${cuda_target_arch}"
+  mkdir -p "%{cuda_dir}" "${cuda_target_dir}"
+
+  # NVIDIA's monolithic runfile installer requires libxml2.so.2, which Tumbleweed
+  # no longer provides. Use the official redistributable archives for all openSUSE
+  # builds so they share one installer-independent CUDA setup.
+  local cuda_components=(
+    "cuda_nvcc:%{cuda_redist_compiler_version}:root"
+    "libnvvm:%{cuda_redist_compiler_version}:root"
+    "cuda_cccl:%{cuda_redist_compiler_version}:target"
+    "cuda_crt:%{cuda_redist_compiler_version}:target"
+    "cuda_cudart:%{cuda_redist_runtime_version}:target"
+    "cuda_culibos:%{cuda_redist_compiler_version}:target"
+    "libnvptxcompiler:%{cuda_redist_compiler_version}:target"
+  )
+
+  local component_data
+  for component_data in "${cuda_components[@]}"; do
+    local component_name
+    local component_version
+    local component_destination
+    IFS=: read -r component_name component_version component_destination <<< "${component_data}"
+
+    local archive="${component_name}-${cuda_redist_arch}-${component_version}-archive.tar.xz"
+    local url="https://developer.download.nvidia.com/compute/cuda/redist/${component_name}/${cuda_redist_arch}/${archive}"
+    local extract_dir="${cuda_target_dir}"
+    if [ "${component_destination}" == "root" ]; then
+      extract_dir="%{cuda_dir}"
+    fi
+
+    echo "cuda component url: ${url}"
+    wget \
+      "${url}" \
+      --progress=bar:force:noscroll \
+      --retry-connrefused \
+      --tries=3 \
+      -q -O "%{_builddir}/${archive}"
+    tar -xJf "%{_builddir}/${archive}" \
+      --directory="${extract_dir}" \
+      --strip-components=1
+    rm "%{_builddir}/${archive}"
+  done
+
+  # nvcc expects this header in its target-specific include directory.
+  mv "%{cuda_dir}/include/fatbinary_section.h" "${cuda_target_dir}/include/"
+}
+%endif
 
 function install_cuda() {
   # check if we need to install cuda
@@ -264,6 +298,9 @@ function install_cuda() {
     return
   fi
 
+%if 0%{?suse_version}
+  install_cuda_from_redistributables
+%else
   local cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
   local cuda_suffix=""
   if [ "$architecture" == "aarch64" ]; then
@@ -288,6 +325,7 @@ function install_cuda() {
     --toolkit \
     --toolkitpath="%{cuda_dir}"
   rm "%{_builddir}/cuda.run"
+%endif
 
   # we need to patch math_functions.h depending on the CUDA major version
   # see https://forums.developer.nvidia.com/t/error-exception-specification-is-incompatible-for-cospi-sinpi-cospif-sinpif-with-glibc-2-41/323591/3
@@ -362,11 +400,6 @@ export BRANCH=%{branch}
 export BUILD_VERSION=v%{build_version}
 export COMMIT=%{commit}
 
-# Disable Vulkan on openSUSE Leap (shaderc/glslang not in official repos)
-%if 0%{?sle_version}
-cmake_args+=("-DSUNSHINE_ENABLE_VULKAN=OFF")
-%endif
-
 # cmake
 cd %{_builddir}/Sunshine
 %if 0%{?fedora}
@@ -385,7 +418,7 @@ make -j$(nproc) -C "%{_builddir}/Sunshine/build"
 %check
 # validate the metainfo file
 appstreamcli validate %{buildroot}%{_metainfodir}/*.metainfo.xml
-appstream-util validate %{buildroot}%{_metainfodir}/*.metainfo.xml
+appstream-util validate --nonet %{buildroot}%{_metainfodir}/*.metainfo.xml
 desktop-file-validate %{buildroot}%{_datadir}/applications/*.desktop
 
 # run tests
