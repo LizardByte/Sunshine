@@ -94,6 +94,7 @@ BuildRequires: python313
 BuildRequires: python313-Jinja2
 %if !0%{?sle_version}
 BuildRequires: shaderc
+BuildRequires: xz
 %endif
 BuildRequires: udev
 %if !0%{?sle_version}
@@ -128,7 +129,7 @@ BuildRequires: gcc15-c++
 %endif
 
 %if 0%{?suse_version}
-%if 0%{?suse_version} <= 1699
+%if 0%{?sle_version}
 # openSUSE Leap
 BuildRequires: gcc15
 BuildRequires: gcc15-c++
@@ -146,6 +147,9 @@ BuildRequires: qt6-svg-devel
 %global gcc_version 15
 %global cuda_version 13.1.1
 %global cuda_build 590.48.01
+%global cuda_redist_compiler_version 13.1.115
+%global cuda_redist_runtime_version 13.1.80
+%global cuda_use_redistributables 1
 %endif
 %endif
 
@@ -256,6 +260,63 @@ cmake_args+=("-DPython_EXECUTABLE=/usr/bin/python3.13")
 export CC=gcc-%{gcc_version}
 export CXX=g++-%{gcc_version}
 
+%if 0%{?cuda_use_redistributables}
+function install_cuda_from_redistributables() {
+  local cuda_redist_arch="linux-x86_64"
+  local cuda_target_arch="x86_64-linux"
+  if [ "$architecture" == "aarch64" ]; then
+    cuda_redist_arch="linux-sbsa"
+    cuda_target_arch="sbsa-linux"
+  fi
+
+  local cuda_target_dir="%{cuda_dir}/targets/${cuda_target_arch}"
+  mkdir -p "%{cuda_dir}" "${cuda_target_dir}"
+
+  # Tumbleweed provides libxml2.so.16, while NVIDIA's monolithic runfile installer
+  # still requires libxml2.so.2. The official redistributable archives do not use
+  # that installer and contain only the CUDA components needed to compile Sunshine.
+  local cuda_components=(
+    "cuda_nvcc:%{cuda_redist_compiler_version}:root"
+    "libnvvm:%{cuda_redist_compiler_version}:root"
+    "cuda_cccl:%{cuda_redist_compiler_version}:target"
+    "cuda_crt:%{cuda_redist_compiler_version}:target"
+    "cuda_cudart:%{cuda_redist_runtime_version}:target"
+    "cuda_culibos:%{cuda_redist_compiler_version}:target"
+    "libnvptxcompiler:%{cuda_redist_compiler_version}:target"
+  )
+
+  local component_data
+  for component_data in "${cuda_components[@]}"; do
+    local component_name
+    local component_version
+    local component_destination
+    IFS=: read -r component_name component_version component_destination <<< "${component_data}"
+
+    local archive="${component_name}-${cuda_redist_arch}-${component_version}-archive.tar.xz"
+    local url="https://developer.download.nvidia.com/compute/cuda/redist/${component_name}/${cuda_redist_arch}/${archive}"
+    local extract_dir="${cuda_target_dir}"
+    if [ "${component_destination}" == "root" ]; then
+      extract_dir="%{cuda_dir}"
+    fi
+
+    echo "cuda component url: ${url}"
+    wget \
+      "${url}" \
+      --progress=bar:force:noscroll \
+      --retry-connrefused \
+      --tries=3 \
+      -q -O "%{_builddir}/${archive}"
+    tar -xJf "%{_builddir}/${archive}" \
+      --directory="${extract_dir}" \
+      --strip-components=1
+    rm "%{_builddir}/${archive}"
+  done
+
+  # nvcc expects this header in its target-specific include directory.
+  mv "%{cuda_dir}/include/fatbinary_section.h" "${cuda_target_dir}/include/"
+}
+%endif
+
 function install_cuda() {
   # check if we need to install cuda
   if [ -f "%{cuda_dir}/bin/nvcc" ]; then
@@ -263,6 +324,9 @@ function install_cuda() {
     return
   fi
 
+%if 0%{?cuda_use_redistributables}
+  install_cuda_from_redistributables
+%else
   local cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
   local cuda_suffix=""
   if [ "$architecture" == "aarch64" ]; then
@@ -287,6 +351,7 @@ function install_cuda() {
     --toolkit \
     --toolkitpath="%{cuda_dir}"
   rm "%{_builddir}/cuda.run"
+%endif
 
   # we need to patch math_functions.h depending on the CUDA major version
   # see https://forums.developer.nvidia.com/t/error-exception-specification-is-incompatible-for-cospi-sinpi-cospif-sinpif-with-glibc-2-41/323591/3
