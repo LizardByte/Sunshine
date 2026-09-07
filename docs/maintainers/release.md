@@ -31,6 +31,7 @@ to be created before making a stable release. Below are the instructions for con
        - LizardByte Discord
        - r/LizardByte subreddit
        - Facebook
+       - X
 
    - Update changelog in [changelog](https://github.com/LizardByte/Sunshine/tree/changelog) branch
    - Update docs on [Read The Docs](https://app.readthedocs.org/projects/sunshinestream/)
@@ -45,5 +46,3 @@ to be created before making a stable release. Below are the instructions for con
    - Publish currently supported DEB and RPM packages to the
      [stable Cloudsmith repo](https://cloudsmith.io/~lizardbyte/repos/stable/)
    - Send release notification to Moonlight Discord server
-
-6. X (Twitter) API is no longer free, so we must manually post the release there.
