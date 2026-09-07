@@ -1245,6 +1245,7 @@ namespace nvhttp {
    */
   void applist(resp_https_t response, req_https_t request) {
     print_req<SunshineHTTPS>(request);
+    proc::refresh(config::stream.file_apps);
 
     pt::ptree tree;
 
