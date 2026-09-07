@@ -92,14 +92,12 @@ BuildRequires: libpulse-devel
 BuildRequires: npm
 BuildRequires: python313
 BuildRequires: python313-Jinja2
-%if !0%{?sle_version}
+BuildRequires: qt6-base-devel
+BuildRequires: qt6-svg-devel
 BuildRequires: shaderc
-BuildRequires: xz
-%endif
 BuildRequires: udev
-%if !0%{?sle_version}
 BuildRequires: vulkan-devel
-%endif
+BuildRequires: xz
 # for unit tests
 BuildRequires: ImageMagick
 BuildRequires: xvfb-run
@@ -129,28 +127,13 @@ BuildRequires: gcc15-c++
 %endif
 
 %if 0%{?suse_version}
-%if 0%{?sle_version}
-# openSUSE Leap
 BuildRequires: gcc15
 BuildRequires: gcc15-c++
-BuildRequires: qt6-base-devel
-BuildRequires: qt6-svg-devel
-%global gcc_version 15
-%global cuda_version 13.1.1
-%global cuda_build 590.48.01
-%else
-# openSUSE Tumbleweed
-BuildRequires: gcc15
-BuildRequires: gcc15-c++
-BuildRequires: qt6-base-devel
-BuildRequires: qt6-svg-devel
 %global gcc_version 15
 %global cuda_version 13.1.1
 %global cuda_build 590.48.01
 %global cuda_redist_compiler_version 13.1.115
 %global cuda_redist_runtime_version 13.1.80
-%global cuda_use_redistributables 1
-%endif
 %endif
 
 %global cuda_dir %{_builddir}/cuda
@@ -190,18 +173,9 @@ Requires: libX11-6
 Requires: libnuma1
 Requires: libopenssl3
 Requires: libpulse0
-%if !0%{?sle_version}
+Requires: libQt6Svg6
+Requires: libQt6Widgets6
 Requires: libvulkan1
-%endif
-%if 0%{?suse_version} <= 1699
-# openSUSE Leap: built with Qt6
-Requires: libQt6Svg6
-Requires: libQt6Widgets6
-%else
-# openSUSE Tumbleweed: built with Qt6
-Requires: libQt6Svg6
-Requires: libQt6Widgets6
-%endif
 %endif
 
 %description
@@ -260,7 +234,7 @@ cmake_args+=("-DPython_EXECUTABLE=/usr/bin/python3.13")
 export CC=gcc-%{gcc_version}
 export CXX=g++-%{gcc_version}
 
-%if 0%{?cuda_use_redistributables}
+%if 0%{?suse_version}
 function install_cuda_from_redistributables() {
   local cuda_redist_arch="linux-x86_64"
   local cuda_target_arch="x86_64-linux"
@@ -272,9 +246,9 @@ function install_cuda_from_redistributables() {
   local cuda_target_dir="%{cuda_dir}/targets/${cuda_target_arch}"
   mkdir -p "%{cuda_dir}" "${cuda_target_dir}"
 
-  # Tumbleweed provides libxml2.so.16, while NVIDIA's monolithic runfile installer
-  # still requires libxml2.so.2. The official redistributable archives do not use
-  # that installer and contain only the CUDA components needed to compile Sunshine.
+  # NVIDIA's monolithic runfile installer requires libxml2.so.2, which Tumbleweed
+  # no longer provides. Use the official redistributable archives for all openSUSE
+  # builds so they share one installer-independent CUDA setup.
   local cuda_components=(
     "cuda_nvcc:%{cuda_redist_compiler_version}:root"
     "libnvvm:%{cuda_redist_compiler_version}:root"
@@ -324,7 +298,7 @@ function install_cuda() {
     return
   fi
 
-%if 0%{?cuda_use_redistributables}
+%if 0%{?suse_version}
   install_cuda_from_redistributables
 %else
   local cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
@@ -426,11 +400,6 @@ export BRANCH=%{branch}
 export BUILD_VERSION=v%{build_version}
 export COMMIT=%{commit}
 
-# Disable Vulkan on openSUSE Leap (shaderc/glslang not in official repos)
-%if 0%{?sle_version}
-cmake_args+=("-DSUNSHINE_ENABLE_VULKAN=OFF")
-%endif
-
 # cmake
 cd %{_builddir}/Sunshine
 %if 0%{?fedora}
@@ -449,7 +418,7 @@ make -j$(nproc) -C "%{_builddir}/Sunshine/build"
 %check
 # validate the metainfo file
 appstreamcli validate %{buildroot}%{_metainfodir}/*.metainfo.xml
-appstream-util validate %{buildroot}%{_metainfodir}/*.metainfo.xml
+appstream-util validate --nonet %{buildroot}%{_metainfodir}/*.metainfo.xml
 desktop-file-validate %{buildroot}%{_datadir}/applications/*.desktop
 
 # run tests
