@@ -20,10 +20,7 @@ jobs:
     name: ${{ matrix.arch }}
     env:
       APP_ID: dev.lizardbyte.app.Sunshine
-      FREEDESKTOP_SDK_VERSION: "25.08"
-      KDE_PLATFORM_VERSION: "6.10"
       MATRIX_ARCH: ${{ matrix.arch }}
-      NODE_VERSION: "20"
     permissions:
       contents: read
     runs-on: ${{ matrix.runner }}
@@ -70,6 +67,44 @@ jobs:
           )
           # uv.lock pins external artifacts; reviewed local Flatpak generator build hooks are required.
           uv sync "${uv_sync_args[@]}"  # NOSONAR(githubactions:S8541, githubactions:S8544)
+
+      - name: Read Flatpak SDK versions
+        run: |
+          uv run --locked --no-build --no-sync python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          import yaml
+
+          manifest_path = Path("packaging/linux/flatpak/dev.lizardbyte.app.Sunshine.yml")
+          manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+
+          kde_platform_version = str(manifest["runtime-version"])
+          node_extensions = [
+              (match.group(1), config)
+              for name, config in manifest["add-build-extensions"].items()
+              if (match := re.fullmatch(r"org\.freedesktop\.Sdk\.Extension\.node(\d+)", name))
+          ]
+          if len(node_extensions) != 1:
+              raise ValueError(f"Expected one Node SDK extension, found {len(node_extensions)}")
+
+          node_version, node_extension = node_extensions[0]
+          freedesktop_sdk_version = str(node_extension["version"])
+          version_pattern = re.compile(r"\d+(?:\.\d+)*")
+          versions = {
+              "FREEDESKTOP_SDK_VERSION": freedesktop_sdk_version,
+              "KDE_PLATFORM_VERSION": kde_platform_version,
+              "NODE_VERSION": node_version,
+          }
+          for name, version in versions.items():
+              if not version_pattern.fullmatch(version):
+                  raise ValueError(f"Invalid {name}: {version!r}")
+
+          with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as github_env:
+              for name, version in versions.items():
+                  print(f"{name}={version}", file=github_env)
+          PY
 
       - name: Setup Dependencies Linux Flatpak
         run: |
