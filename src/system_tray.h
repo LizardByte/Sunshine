@@ -120,7 +120,7 @@ namespace system_tray {
    * @brief Update the Virtual HID Driver license submenu and optional notification.
    *
    * @param license Latest machine license details.
-   * @param notify_if_unlicensed Whether to notify the user when the machine is not activated.
+   * @param notify_if_unlicensed Whether to notify the user when the machine is not activated and ViGEmBus is not exclusively selected.
    */
   void update_tray_virtualhid_license(const lvh::LicenseStatus &license, bool notify_if_unlicensed);
 
@@ -132,7 +132,8 @@ namespace system_tray {
   /**
    * @brief Show an update notification for an unsupported Virtual HID Driver.
    *
-   * Existing notifications are preserved when the driver is absent or supported.
+   * Existing notifications are preserved while the driver choice is unset, when ViGEmBus is exclusively selected,
+   * or when the driver is absent or supported.
    *
    * @param installed Whether the driver is installed.
    * @param version Installed driver version.

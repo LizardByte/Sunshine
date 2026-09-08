@@ -224,6 +224,35 @@ TEST_F(VirtualHidDeviceTest, CreatesEveryDeviceWithFakeRuntime) {
   EXPECT_EQ(runtime->backend_kind(), lvh::BackendKind::fake);
 }
 
+TEST_F(VirtualHidDeviceTest, SelectsVirtualHidGamepadRuntimeByBackendLicenseAndPreference) {
+  auto capabilities = context()->runtime->capabilities();
+  capabilities.supports_gamepad = true;
+  capabilities.requires_installed_driver = false;
+  EXPECT_TRUE(platf::virtualhid::should_use_gamepad_runtime(capabilities, "", false));
+  EXPECT_TRUE(platf::virtualhid::should_use_gamepad_runtime(capabilities, config::GAMEPAD_DRIVER_ALL, false));
+
+  capabilities.requires_installed_driver = true;
+  EXPECT_FALSE(platf::virtualhid::should_use_gamepad_runtime(capabilities, config::GAMEPAD_DRIVER_ALL, false));
+  EXPECT_TRUE(platf::virtualhid::should_use_gamepad_runtime(capabilities, config::GAMEPAD_DRIVER_ALL, true));
+  EXPECT_TRUE(platf::virtualhid::should_use_gamepad_runtime(capabilities, config::GAMEPAD_DRIVER_VIRTUALHID, true));
+  EXPECT_FALSE(platf::virtualhid::should_use_gamepad_runtime(capabilities, config::GAMEPAD_DRIVER_VIGEMBUS, true));
+
+  capabilities.supports_gamepad = false;
+  EXPECT_FALSE(platf::virtualhid::should_use_gamepad_runtime(capabilities, config::GAMEPAD_DRIVER_ALL, true));
+}
+
+TEST_F(VirtualHidDeviceTest, SelectsVigembusFallbackByBackendAndConfiguredProfile) {
+  EXPECT_TRUE(platf::virtualhid::should_try_vigembus_fallback("auto", true, config::GAMEPAD_DRIVER_ALL));
+  EXPECT_TRUE(platf::virtualhid::should_try_vigembus_fallback("x360", true, config::GAMEPAD_DRIVER_ALL));
+  EXPECT_TRUE(platf::virtualhid::should_try_vigembus_fallback("ds4", true, config::GAMEPAD_DRIVER_ALL));
+  EXPECT_FALSE(platf::virtualhid::should_try_vigembus_fallback("xseries", true, config::GAMEPAD_DRIVER_ALL));
+
+  EXPECT_TRUE(platf::virtualhid::should_try_vigembus_fallback("xseries", false, config::GAMEPAD_DRIVER_ALL));
+  EXPECT_TRUE(platf::virtualhid::should_try_vigembus_fallback("xseries", false, ""));
+  EXPECT_TRUE(platf::virtualhid::should_try_vigembus_fallback("xseries", true, config::GAMEPAD_DRIVER_VIGEMBUS));
+  EXPECT_FALSE(platf::virtualhid::should_try_vigembus_fallback("auto", false, config::GAMEPAD_DRIVER_VIRTUALHID));
+}
+
 TEST_F(VirtualHidDeviceTest, ReportsStaticAndRuntimeGamepadChoices) {
   constexpr std::array expected_names {"auto"sv, "generic"sv, "x360"sv, "xone"sv, "xseries"sv, "ds4"sv, "ds5"sv, "switch"sv};
 
@@ -885,6 +914,15 @@ TEST_F(VirtualHidDeviceTest, PlatformWrappersForwardToVirtualHidContext) {
   ASSERT_FALSE(supported.empty());
   EXPECT_TRUE(supported.front().is_enabled);
   EXPECT_FALSE(platf::supported_gamepads(nullptr).empty());
+#ifdef _WIN32
+  config::input.gamepad_driver = config::GAMEPAD_DRIVER_VIGEMBUS;
+  const auto &vigembus_gamepads = platf::supported_gamepads(std::addressof(platform_input));
+  config::input.gamepad_driver = config::GAMEPAD_DRIVER_ALL;
+  ASSERT_EQ(vigembus_gamepads.size(), 3U);
+  EXPECT_EQ(vigembus_gamepads[0].name, "auto");
+  EXPECT_EQ(vigembus_gamepads[1].name, "x360");
+  EXPECT_EQ(vigembus_gamepads[2].name, "ds4");
+#endif
 #ifdef __APPLE__
   EXPECT_EQ(platf::get_capabilities() & platf::platform_caps::controller_touch, 0U);
 #else
@@ -908,8 +946,4 @@ TEST_F(VirtualHidDeviceTest, PlatformWrappersForwardToVirtualHidContext) {
   EXPECT_EQ(platform_client_context.touch->last_submitted_contact().id, 1);
   platf::pen_update(platform_client.get(), viewport, {LI_TOUCH_EVENT_HOVER, LI_TOOL_TYPE_PEN, 0, LI_TILT_UNKNOWN, LI_ROT_UNKNOWN, 0.25F, 0.5F, 0.5F, 0.0F, 0.0F});
   EXPECT_EQ(platform_client_context.pen->last_submitted_tool().tool, lvh::PenToolType::pen);
-
-  platform_context.runtime.reset();
-  config::input.gamepad = "generic";
-  EXPECT_EQ(platf::alloc_gamepad(platform_input, gamepad_id, gamepad_metadata, nullptr), -1);
 }

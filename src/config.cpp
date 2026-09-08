@@ -850,6 +850,7 @@ namespace config {
       platf::supported_gamepads(nullptr).front().name.data(),
       platf::supported_gamepads(nullptr).front().name.size(),
     },  // Default gamepad
+    {},  // gamepad_driver remains unset until the user chooses a Windows driver policy
     true,  // back as touchpad click enabled for PlayStation-style gamepads
     true,  // client gamepads with motion events use PlayStation-style emulation
     true,  // client gamepads with touchpads use PlayStation-style emulation
@@ -1035,6 +1036,34 @@ namespace config {
     }
 
     return vars;
+  }
+
+  bool persist_config_option_if_missing(const std::string_view name, const std::string_view value) {
+    auto file_content = file_handler::read_file(sunshine.config_file.c_str());
+    if (parse_config(file_content).contains(std::string {name})) {
+      return false;
+    }
+
+    if (!file_content.empty() && file_content.back() != '\n') {
+      file_content += '\n';
+    }
+    file_content += std::format("{} = {}\n", name, value);
+    if (file_handler::write_file(sunshine.config_file.c_str(), file_content) != 0) {
+      BOOST_LOG(warning) << "Failed to persist automatically selected config option '"sv << name << "'"sv;
+      return false;
+    }
+
+    BOOST_LOG(info) << "Automatically selected config option '"sv << name << "' = "sv << value;
+    return true;
+  }
+
+  bool select_all_gamepad_drivers_if_licensed(const bool virtualhid_licensed) {
+    if (!virtualhid_licensed || !input.gamepad_driver.empty() || !persist_config_option_if_missing("gamepad_driver", GAMEPAD_DRIVER_ALL)) {
+      return false;
+    }
+
+    input.gamepad_driver = GAMEPAD_DRIVER_ALL;
+    return true;
   }
 
   /**
@@ -1789,7 +1818,18 @@ namespace config {
       input.key_repeat_delay = std::chrono::milliseconds {to};
     }
 
+    string_restricted_f(vars, "gamepad_driver", input.gamepad_driver, {
+                                                                        GAMEPAD_DRIVER_ALL,
+                                                                        GAMEPAD_DRIVER_VIRTUALHID,
+                                                                        GAMEPAD_DRIVER_VIGEMBUS,
+                                                                      });
     string_restricted_f(vars, "gamepad"s, input.gamepad, get_supported_gamepad_options());
+#ifdef _WIN32
+    if (input.gamepad_driver == GAMEPAD_DRIVER_VIGEMBUS && input.gamepad != "auto"sv && input.gamepad != "x360"sv && input.gamepad != "ds4"sv) {
+      BOOST_LOG(warning) << "Gamepad type '"sv << input.gamepad << "' is not supported by ViGEmBus; using automatic selection"sv;
+      input.gamepad = "auto";
+    }
+#endif
     bool_f(vars, "ds4_back_as_touchpad_click", input.ds4_back_as_touchpad_click);
     bool_f(vars, "motion_as_ds4", input.motion_as_ds4);
     bool_f(vars, "touchpad_as_ds4", input.touchpad_as_ds4);

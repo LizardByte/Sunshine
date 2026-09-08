@@ -539,13 +539,24 @@ namespace platf::virtualhid {
     return gamepads;
   }
 
-  std::vector<supported_gamepad_t> supported_gamepads(lvh::Runtime *runtime, bool fallback_vigem_available) {
+  std::vector<supported_gamepad_t> supported_gamepads(
+    lvh::Runtime *runtime,
+    const bool fallback_vigem_available,
+    const bool virtualhid_licensed
+  ) {
     if (!runtime) {
       return static_supported_gamepads();
     }
 
-    const auto libvirtualhid_available = runtime->capabilities().supports_gamepad;
-    const auto reason = libvirtualhid_available ? "" : "gamepads.virtualhid-not-available";
+    const auto &capabilities = runtime->capabilities();
+    const auto license_valid = !capabilities.requires_installed_driver || virtualhid_licensed;
+    const auto libvirtualhid_available = capabilities.supports_gamepad && license_valid;
+    std::string reason;
+    if (!capabilities.supports_gamepad) {
+      reason = "gamepads.virtualhid-not-available";
+    } else if (!license_valid) {
+      reason = "gamepads.virtualhid-license-invalid";
+    }
     const auto auto_enabled = libvirtualhid_available || fallback_vigem_available;
     std::vector gamepads {
       supported_gamepad_t {"auto", auto_enabled, auto_enabled ? "" : reason},
@@ -564,6 +575,31 @@ namespace platf::virtualhid {
     }
 
     return gamepads;
+  }
+
+  bool should_use_gamepad_runtime(
+    const lvh::BackendCapabilities &capabilities,
+    const std::string_view gamepad_driver,
+    const bool virtualhid_licensed
+  ) {
+    return gamepad_driver != config::GAMEPAD_DRIVER_VIGEMBUS && capabilities.supports_gamepad &&
+           (!capabilities.requires_installed_driver || virtualhid_licensed);
+  }
+
+  bool should_try_vigembus_fallback(
+    const std::string_view configured_gamepad,
+    const bool virtualhid_selected,
+    const std::string_view gamepad_driver
+  ) {
+    if (gamepad_driver == config::GAMEPAD_DRIVER_VIRTUALHID) {
+      return false;
+    }
+    if (gamepad_driver == config::GAMEPAD_DRIVER_VIGEMBUS || !virtualhid_selected) {
+      return true;
+    }
+    return configured_gamepad == "auto"sv ||
+           configured_gamepad == "x360"sv ||
+           configured_gamepad == "ds4"sv;
   }
 
   int alloc_gamepad(input_context_t &context, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
