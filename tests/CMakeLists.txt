@@ -172,9 +172,11 @@ add_executable(${PROJECT_NAME}
 
 include(GoogleTest)
 gtest_discover_tests(${PROJECT_NAME}
+        DISCOVERY_MODE PRE_TEST
         EXTRA_ARGS --gtest_color=yes
         NO_PRETTY_TYPES
         NO_PRETTY_VALUES
+        PROPERTIES RUN_SERIAL TRUE
         XML_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/test_results")
 
 # Copy files needed for config consistency tests to build directory

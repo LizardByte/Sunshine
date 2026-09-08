@@ -20,6 +20,7 @@ else()
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND sh <SOURCE_DIR>/autogen.sh && <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
             BUILD_COMMAND make
+            BUILD_BYPRODUCTS <SOURCE_DIR>/libevdev/.libs/libevdev.a
             INSTALL_COMMAND ""
     )
 

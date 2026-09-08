@@ -539,7 +539,12 @@ function install_cuda() {
   echo "cuda url: ${url}"
   wget "$url" --max-redirect=0 --progress=bar:force:noscroll -q --show-progress -O "${build_dir}/cuda.run"
   chmod a+x "${build_dir}/cuda.run"
-  "${build_dir}/cuda.run" --silent --toolkit --toolkitpath="${build_dir}/cuda" --no-opengl-libs --no-man-page --no-drm "$cuda_override_arg"
+  # The NVIDIA runfile tries to open a graphical installer whenever DISPLAY is
+  # set, even in silent mode. Hide the virtual desktop from this command only.
+  (
+    unset DISPLAY WAYLAND_DISPLAY
+    "${build_dir}/cuda.run" --silent --toolkit --toolkitpath="${build_dir}/cuda" --no-opengl-libs --no-man-page --no-drm "$cuda_override_arg"
+  )
   rm "${build_dir}/cuda.run"
 
   apply_cuda_patches "${build_dir}/cuda"
