@@ -513,6 +513,10 @@ namespace platf {
       }
 
       screen_res_t screenr {x11::rr::GetScreenResources(xdisplay.get(), xwindow)};
+      if (!screenr) {
+        BOOST_LOG(error) << "Could not query X screen resources"sv;
+        return -1;
+      }
       int output = screenr->noutput;
 
       output_info_t result;
@@ -531,8 +535,12 @@ namespace platf {
         }
       }
 
+      crtc_info_t crt_info;
       if (result_found && result->crtc) {
-        crtc_info_t crt_info {x11::rr::GetCrtcInfo(xdisplay.get(), screenr.get(), result->crtc)};
+        crt_info = crtc_info_t {x11::rr::GetCrtcInfo(xdisplay.get(), screenr.get(), result->crtc)};
+      }
+
+      if (crt_info) {
         BOOST_LOG(info)
           << "Streaming display: "sv << result->name << " with res "sv << crt_info->width << 'x' << crt_info->height << " offset by "sv << crt_info->x << 'x' << crt_info->y;
 
@@ -942,6 +950,10 @@ namespace platf {
 
     auto xwindow = DefaultRootWindow(xdisplay.get());
     screen_res_t screenr {x11::rr::GetScreenResources(xdisplay.get(), xwindow)};
+    if (!screenr) {
+      BOOST_LOG(error) << "Could not query X screen resources"sv;
+      return {};
+    }
     int output = screenr->noutput;
 
     std::vector<std::string> names;
