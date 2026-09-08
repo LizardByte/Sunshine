@@ -40,7 +40,7 @@
     "app_name_desc": "在 Moonlight 客户端显示的应用名称",
     "applications_desc": "只有重启客户端时应用列表才会被刷新",
     "applications_title": "应用",
-    "auto_detach": "启动串流后应用突然关闭时不退出串流",
+    "auto_detach": "启动串流后若应用迅速退出，仍继续串流",
     "auto_detach_desc": "这将尝试自动检测“启动器类应用”：即那些在启动另一个程序或自身新实例后会迅速关闭的应用。当检测到这类启动器应用时，会将其视为“已分离应用”。",
     "badge_admin": "管理员",
     "badge_app_prep": "应用预览",
