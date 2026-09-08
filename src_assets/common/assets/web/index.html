@@ -28,63 +28,23 @@
       </div>
     </div>
 
-    <!-- libvirtualhid Warning -->
-    <div class="alert alert-warning my-4" v-if="platform === 'windows' && virtualhid && (!virtualhid.installed || (!virtualhid.version_compatible && !virtualhid.development_version))">
+    <!-- Windows virtual input status -->
+    <div class="alert my-4" :class="virtualInputNotice.alertClass" v-if="virtualInputNotice">
       <div>
         <div class="d-flex align-items-center mb-3">
-          <alert-triangle :size="32" class="icon-lg me-3"></alert-triangle>
+          <alert-triangle v-if="virtualInputNotice.warning" :size="32" class="icon-lg me-3"></alert-triangle>
+          <info v-else :size="32" class="icon-lg me-3"></info>
           <div>
-            <div v-if="!virtualhid.installed">
-              <p class="mb-1"><strong>{{ $t('index.virtualhid_not_installed_title') }}</strong></p>
-              <p class="mb-0">{{ $t('index.virtualhid_not_installed_desc') }}</p>
-            </div>
-            <div v-else-if="!virtualhid.version_compatible">
-              <p class="mb-1"><strong>{{ $t('index.virtualhid_outdated_title') }}</strong></p>
-              <p class="mb-0">{{ $t('index.virtualhid_outdated_desc', { version: virtualhid.version, supported_versions: virtualhid.supported_versions }) }}</p>
-            </div>
+            <p class="mb-1"><strong>{{ $t(virtualInputNotice.title) }}</strong></p>
+            <p v-for="message in virtualInputNotice.messages" :key="message.key" class="mb-1">
+              {{ $t(message.key, message.params || {}) }}
+            </p>
           </div>
         </div>
-        <a class="btn btn-warning" href="./troubleshooting#virtualhid">
-          <wrench :size="18" class="icon"></wrench>
-          {{ $t('index.fix_now') }}
-        </a>
-      </div>
-    </div>
-
-    <!-- libvirtualhid Development Build Notice -->
-    <div class="alert alert-info my-4" v-if="platform === 'windows' && virtualhid && virtualhid.development_version">
-      <div class="d-flex align-items-center">
-        <info :size="32" class="icon-lg me-3"></info>
-        <div>
-          <p class="mb-1"><strong>{{ $t('index.virtualhid_development_title') }}</strong></p>
-          <p class="mb-0">{{ $t('index.virtualhid_development_desc') }}</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="alert alert-warning my-4" v-if="platform === 'windows' && controllerEnabled && virtualhid && vigembus && !virtualhid.installed && vigembus.installed">
-      <div class="d-flex align-items-center">
-        <alert-triangle :size="32" class="icon-lg me-3"></alert-triangle>
-        <div>
-          <p class="mb-1"><strong>{{ $t('index.virtualhid_missing_vigembus_installed_title') }}</strong></p>
-          <p class="mb-0">{{ $t('index.virtualhid_missing_vigembus_installed_desc') }}</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Virtual HID Driver license warning -->
-    <div class="alert alert-warning my-4" v-if="platform === 'windows' && virtualhidLicense && !virtualhidLicense.licensed">
-      <div>
-        <div class="d-flex align-items-center mb-3">
-          <alert-triangle :size="32" class="icon-lg me-3"></alert-triangle>
-          <div>
-            <p class="mb-1"><strong>{{ $t('index.virtualhid_license_required_title') }}</strong></p>
-            <p class="mb-0">{{ $t('index.virtualhid_license_required_desc') }}</p>
-          </div>
-        </div>
-        <a class="btn btn-warning" href="./troubleshooting#virtualhid-license">
-          <wrench :size="18" class="icon"></wrench>
-          {{ $t('index.fix_now') }}
+        <a class="btn" :class="virtualInputNotice.buttonClass" :href="virtualInputNotice.href">
+          <gamepad-2 v-if="virtualInputNotice.chooseDriver" :size="18" class="icon"></gamepad-2>
+          <wrench v-else :size="18" class="icon"></wrench>
+          {{ $t(virtualInputNotice.action) }}
         </a>
       </div>
     </div>
@@ -179,7 +139,8 @@
     Package,
     Info,
     CheckCircle,
-    Download
+    Download,
+    Gamepad2
   } from '@lucide/vue'
 
   // Configure marked to allow HTML
@@ -203,7 +164,8 @@
       Package,
       Info,
       CheckCircle,
-      Download
+      Download,
+      Gamepad2
     },
     data() {
       return {
@@ -215,6 +177,7 @@
         logs: null,
         platform: "",
         controllerEnabled: false,
+        gamepadDriver: '',
         virtualhid: null,
         virtualhidLicense: null,
         vigembus: null,
@@ -226,6 +189,7 @@
         this.notifyPreReleases = config.notify_pre_releases;
         this.platform = config.platform;
         this.controllerEnabled = config.controller !== "disabled";
+        this.gamepadDriver = config.gamepad_driver || '';
         this.version = new SunshineVersion(null, config.version);
         console.log("Version: ", this.version.version)
         this.githubVersion = new SunshineVersion(await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest").then((r) => r.json()), null);
@@ -259,6 +223,50 @@
       this.loading = false;
     },
     computed: {
+      /**
+       * Build the single Windows virtual-input message shown on the home page.
+       * Warnings are reserved for an unusable selected backend, an unsupported
+       * installed driver, or an installed driver with an invalid license.
+       */
+      virtualInputNotice() {
+        if (this.platform !== 'windows' || !this.virtualhid || !this.vigembus) {
+          return null;
+        }
+
+        const vigembusUsable = this.vigembus.installed && this.vigembus.version_compatible;
+
+        if (!this.gamepadDriver) {
+          return this.buildVirtualInputNotice(false, 'index.gamepad_driver_choice_title', [{
+            key: 'index.gamepad_driver_choice_desc',
+          }], {
+            action: 'index.choose_gamepad_driver',
+            chooseDriver: true,
+            href: './config#gamepad_driver',
+          });
+        }
+
+        if (this.gamepadDriver === 'vigembus') {
+          return this.buildVigembusNotice(vigembusUsable);
+        }
+
+        if (this.virtualhid.installed) {
+          return this.buildInstalledVirtualhidNotice(vigembusUsable);
+        }
+
+        if (this.gamepadDriver === 'virtualhid') {
+          return this.buildVirtualInputNotice(true, 'index.virtualhid_required_title', [{ key: 'index.virtualhid_required_desc' }]);
+        }
+
+        if (this.controllerEnabled && !vigembusUsable) {
+          return this.buildVirtualInputNotice(true, 'index.virtual_input_unavailable_title', [{ key: 'index.virtual_input_unavailable_desc' }]);
+        }
+
+        return this.buildVirtualInputNotice(
+          false,
+          'index.virtualhid_optional_title',
+          [{ key: this.controllerEnabled ? 'index.virtualhid_optional_vigembus_desc' : 'index.virtualhid_optional_desc' }],
+        );
+      },
       installedVersionNotStable() {
         if (!this.githubVersion || !this.version) {
           return false;
@@ -294,6 +302,70 @@
       }
     },
     methods: {
+      /**
+       * Build a home-page notice for the current Windows virtual-input state.
+       *
+       * @param {boolean} warning Whether the notice represents an actionable warning.
+       * @param {string} title Localization key for the notice title.
+       * @param {object[]} messages Localized message descriptors.
+       * @param {object} options Optional action and destination overrides.
+       * @returns {object} Notice data consumed by the template.
+       */
+      buildVirtualInputNotice(warning, title, messages, options = {}) {
+        return {
+          action: options.action || 'index.review_virtual_input',
+          alertClass: warning ? 'alert-warning' : 'alert-info',
+          buttonClass: warning ? 'btn-warning' : 'btn-info',
+          chooseDriver: options.chooseDriver || false,
+          href: options.href || './troubleshooting#virtualhid',
+          messages,
+          title,
+          warning,
+        };
+      },
+      /**
+       * Build the notice for an explicitly selected ViGEmBus backend.
+       *
+       * @param {boolean} vigembusUsable Whether ViGEmBus is installed and compatible.
+       * @returns {object|null} Warning data, or no notice when ViGEmBus is usable.
+       */
+      buildVigembusNotice(vigembusUsable) {
+        if (!this.controllerEnabled || vigembusUsable) {
+          return null;
+        }
+        return this.buildVirtualInputNotice(true, 'index.vigembus_required_title', [{
+          key: this.vigembus.installed ? 'index.vigembus_outdated_desc' : 'index.vigembus_not_installed_desc',
+          params: { version: this.vigembus.version, supported_versions: this.vigembus.supported_versions },
+        }]);
+      },
+      /**
+       * Build the notice for an installed Virtual HID Driver.
+       *
+       * @param {boolean} vigembusUsable Whether ViGEmBus is available as a fallback.
+       * @returns {object|null} Warning or informational data, or no notice when fully usable.
+       */
+      buildInstalledVirtualhidNotice(vigembusUsable) {
+        const messages = [];
+        if (!this.virtualhid.version_compatible && !this.virtualhid.development_version) {
+          messages.push({
+            key: 'index.virtualhid_outdated_desc',
+            params: { version: this.virtualhid.version, supported_versions: this.virtualhid.supported_versions },
+          });
+        }
+        if (this.virtualhidLicense && !this.virtualhidLicense.licensed) {
+          const licenseMessageKey = this.gamepadDriver === 'all' && vigembusUsable ?
+            'index.virtualhid_license_invalid_fallback_desc' :
+            'index.virtualhid_license_invalid_desc';
+          messages.push({ key: licenseMessageKey });
+        }
+        if (messages.length) {
+          return this.buildVirtualInputNotice(true, 'index.virtualhid_attention_title', messages);
+        }
+        if (this.virtualhid.development_version) {
+          return this.buildVirtualInputNotice(false, 'index.virtualhid_development_title', [{ key: 'index.virtualhid_development_desc' }]);
+        }
+        return null;
+      },
       convertMarkdownToHtml(markdown) {
         if (!markdown) return '';
         return marked.parse(markdown);

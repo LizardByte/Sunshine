@@ -9,6 +9,7 @@
 #include <chrono>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -21,6 +22,10 @@ namespace config {
   constexpr int PACKETSIZE_MAX = 65535;  ///< Highest accepted configured packet size in bytes.
   constexpr int PACKETSIZE_SMALL = 500;  ///< Conservative packet size used for low-MTU links.
   constexpr int PACKETSIZE_LARGE = 1456;  ///< Default large packet size that avoids common MTU fragmentation.
+
+  inline constexpr std::string_view GAMEPAD_DRIVER_ALL = "all";  ///< Allow every available Windows virtual gamepad driver.
+  inline constexpr std::string_view GAMEPAD_DRIVER_VIRTUALHID = "virtualhid";  ///< Allow only Virtual HID Driver for Windows gamepads.
+  inline constexpr std::string_view GAMEPAD_DRIVER_VIGEMBUS = "vigembus";  ///< Allow only ViGEmBus for Windows gamepads.
 
   // track modified config options
   inline std::unordered_map<std::string, std::string> modified_config_settings;  ///< Configuration keys changed during the current parse or UI update.
@@ -275,7 +280,8 @@ namespace config {
     std::chrono::milliseconds key_repeat_delay;  ///< Delay before repeating a held keyboard key.
     std::chrono::duration<double> key_repeat_period;  ///< Interval between repeated keyboard key events.
 
-    std::string gamepad;  ///< Virtual controller backend selected by configuration.
+    std::string gamepad;  ///< Virtual controller profile selected by configuration.
+    std::string gamepad_driver;  ///< Windows virtual gamepad driver policy, or empty until the user chooses one.
     bool ds4_back_as_touchpad_click;  ///< Map Back/Select to touchpad click for PlayStation-style gamepads.
     bool motion_as_ds4;  ///< Prefer PlayStation-style emulation for client gamepads with motion controls.
     bool touchpad_as_ds4;  ///< Prefer PlayStation-style emulation for client gamepads with touchpad input.
@@ -408,4 +414,24 @@ namespace config {
    * @return Parsed configuration key-value entries.
    */
   std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content);
+
+  /**
+   * @brief Persist a configuration option when the active file does not already define it.
+   *
+   * Existing text and comments are retained because the new setting is appended rather
+   * than serializing the complete configuration again.
+   *
+   * @param name Configuration option name.
+   * @param value Configuration option value.
+   * @return True when the option was appended successfully; otherwise, false.
+   */
+  bool persist_config_option_if_missing(std::string_view name, std::string_view value);
+
+  /**
+   * @brief Select all available gamepad drivers when a licensed user has not made a choice.
+   *
+   * @param virtualhid_licensed Whether Virtual HID Driver has an active machine license.
+   * @return True when the `all` preference was persisted and applied; otherwise, false.
+   */
+  bool select_all_gamepad_drivers_if_licensed(bool virtualhid_licensed);
 }  // namespace config

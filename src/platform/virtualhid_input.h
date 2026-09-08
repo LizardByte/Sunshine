@@ -9,6 +9,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
 // lib includes
@@ -105,9 +106,45 @@ namespace platf::virtualhid {
    *
    * @param runtime Runtime to probe.
    * @param fallback_vigem_available Whether Windows ViGEm fallback can create gamepads.
+   * @param virtualhid_licensed Whether an installed-driver runtime has a valid license.
    * @return Supported gamepad choices.
    */
-  std::vector<supported_gamepad_t> supported_gamepads(lvh::Runtime *runtime, bool fallback_vigem_available = false);
+  std::vector<supported_gamepad_t> supported_gamepads(
+    lvh::Runtime *runtime,
+    bool fallback_vigem_available = false,
+    bool virtualhid_licensed = true
+  );
+
+  /**
+   * @brief Decide whether a libvirtualhid runtime may create a gamepad.
+   *
+   * @param capabilities Runtime backend capabilities.
+   * @param gamepad_driver Configured Windows virtual gamepad driver policy.
+   * @param virtualhid_licensed Whether the Virtual HID Driver machine license is valid.
+   * @return True when the libvirtualhid runtime should receive gamepad allocations.
+   */
+  bool should_use_gamepad_runtime(
+    const lvh::BackendCapabilities &capabilities,
+    std::string_view gamepad_driver,
+    bool virtualhid_licensed
+  );
+
+  /**
+   * @brief Decide whether ViGEmBus should be tried for a gamepad allocation.
+   *
+   * When Virtual HID Driver is unavailable or deliberately bypassed, ViGEmBus
+   * uses automatic selection for profiles it cannot represent directly.
+   *
+   * @param configured_gamepad Configured virtual gamepad profile.
+   * @param virtualhid_selected Whether Virtual HID Driver was selected for the allocation.
+   * @param gamepad_driver Configured Windows virtual gamepad driver policy.
+   * @return True when Sunshine should attempt the ViGEmBus fallback.
+   */
+  bool should_try_vigembus_fallback(
+    std::string_view configured_gamepad,
+    bool virtualhid_selected,
+    std::string_view gamepad_driver
+  );
 
   /**
    * @brief Allocate a libvirtualhid gamepad.

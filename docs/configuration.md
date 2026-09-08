@@ -310,6 +310,47 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### gamepad_driver
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Controls which virtual gamepad drivers Sunshine may use. The Web UI and startup notification continue to
+            request a choice while this option is not set. If Sunshine detects an active Virtual HID Driver license,
+            it automatically sets this option to `all` when it is missing.
+            @warning{ViGEmBus has limited gamepad features, supports only Xbox 360 and DualShock 4 emulation, and has
+            reached end of life. Selecting `vigembus` also suppresses Virtual HID Driver startup notifications.}
+            @note{This option applies only to Windows.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            not set
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            gamepad_driver = all
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="3">Choices</td>
+        <td>all</td>
+        <td>Prefer Virtual HID Driver when it is available and licensed, with ViGEmBus as a limited fallback.</td>
+    </tr>
+    <tr>
+        <td>virtualhid</td>
+        <td>Use only Virtual HID Driver. An active paid license is required; ViGEmBus fallback is disabled.</td>
+    </tr>
+    <tr>
+        <td>vigembus</td>
+        <td>Use only ViGEmBus for gamepads and hide Virtual HID Driver status and licensing details.</td>
+    </tr>
+</table>
+
 ### gamepad
 
 <table>
@@ -318,6 +359,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">
             The type of gamepad to emulate on the host.
             @note{This option applies to FreeBSD, Linux, and Windows.}
+            @note{When gamepad_driver is `vigembus` on Windows, only auto, x360, and ds4 are available.}
         </td>
     </tr>
     <tr>

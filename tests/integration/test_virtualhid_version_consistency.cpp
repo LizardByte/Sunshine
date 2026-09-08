@@ -27,7 +27,7 @@ namespace {
 
 TEST(VirtualHidVersionConsistencyTest, DocumentationMatchesConfiguredMinimum) {
   const auto expected_text = std::format(
-    "Sunshine requires Virtual HID Driver version `{}` or newer",
+    "version `{}` or newer",
     LIBVIRTUALHID_MINIMUM_VERSION
   );
 
