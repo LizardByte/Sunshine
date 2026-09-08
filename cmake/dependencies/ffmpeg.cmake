@@ -18,6 +18,9 @@ if(NOT DEFINED FFMPEG_PREPARED_BINARIES)
     # Determine download location
     set(FFMPEG_DOWNLOAD_DIR "${CMAKE_BINARY_DIR}/_deps")
 
+    # A supplied tag is a fallback; it must agree with a resolvable pin.
+    set(_sunshine_requested_ffmpeg_tag "${FFMPEG_RELEASE_TAG}")
+
     # Fetch tags for the build-deps submodule so tag lookups work in CI shallow clones
     execute_process(
         COMMAND git -C "${CMAKE_SOURCE_DIR}/third-party/build-deps" fetch --tags --depth=1
@@ -51,6 +54,19 @@ if(NOT DEFINED FFMPEG_PREPARED_BINARIES)
         )
     endif()
 
+    if(_sunshine_requested_ffmpeg_tag)
+        if(FFMPEG_RELEASE_TAG AND NOT "${_sunshine_requested_ffmpeg_tag}" STREQUAL "${FFMPEG_RELEASE_TAG}")
+            message(FATAL_ERROR
+                "FFMPEG_RELEASE_TAG=${_sunshine_requested_ffmpeg_tag} disagrees with the "
+                "pinned build-deps release ${FFMPEG_RELEASE_TAG}."
+            )
+        elseif(NOT FFMPEG_RELEASE_TAG)
+            set(FFMPEG_RELEASE_TAG "${_sunshine_requested_ffmpeg_tag}")
+            message(STATUS "Using caller-supplied build-deps fallback tag: ${FFMPEG_RELEASE_TAG}")
+        endif()
+    endif()
+    unset(_sunshine_requested_ffmpeg_tag)
+
     # Set GitHub release URL
     set(FFMPEG_GITHUB_REPO "LizardByte/build-deps")
     if(FFMPEG_RELEASE_TAG)
@@ -60,7 +76,13 @@ if(NOT DEFINED FFMPEG_PREPARED_BINARIES)
     else()
         set(FFMPEG_RELEASE_URL "https://github.com/${FFMPEG_GITHUB_REPO}/releases/latest/download")
         set(FFMPEG_VERSION_DIR "${FFMPEG_DOWNLOAD_DIR}/ffmpeg-latest")
-        message(STATUS "Using FFmpeg from latest build-deps release")
+        message(WARNING
+                "Could not resolve a release tag for the third-party/build-deps submodule, so the "
+                "LATEST build-deps release will be used instead. This may select dependencies "
+                "that differ from the pinned build-deps revision, making the build non-reproducible. "
+                "Build from a full clone with submodule tags fetched, or pass the intended tag "
+                "explicitly with -DFFMPEG_RELEASE_TAG=<tag>."
+        )
     endif()
 
     # Set extraction directory and prepared binaries path
