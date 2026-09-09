@@ -39,7 +39,7 @@ jobs:
             runner: ubuntu-22.04
     steps:
       - name: More space
-        uses: LizardByte/actions/actions/more_space@188c8ccad593e0f68bcf6aacb6bf84f10359d26f  # v2026.905.43751
+        uses: LizardByte/actions/actions/more_space@39c468549cfb87ccb917e5e5342e18abc926dc48  # v2026.909.30231
         with:
           analyze-space-savings: true
           clean-all: true
@@ -189,7 +189,7 @@ jobs:
           sudo rm -rf /var/lib/apt/lists/*
 
       - name: Setup virtual desktop
-        uses: LizardByte/actions/actions/virtual_desktop@188c8ccad593e0f68bcf6aacb6bf84f10359d26f  # v2026.905.43751
+        uses: LizardByte/actions/actions/virtual_desktop@39c468549cfb87ccb917e5e5342e18abc926dc48  # v2026.909.30231
 
       - name: Setup uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
