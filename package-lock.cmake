@@ -65,3 +65,14 @@ CPMDeclarePackage(nv_codec_headers_13
         GIT_TAG ${NV_CODEC_HEADERS_13_TAG}
         DOWNLOAD_ONLY YES
 )
+
+# NVENC SDK 13.1 headers
+# renovate: datasource=github-tags depName=FFmpeg/nv-codec-headers
+# versioning=regex:^n(?<major>13)\.(?<minor>1)\.(?<patch>\d+)\.(?<build>\d+)$
+set(NV_CODEC_HEADERS_13_1_TAG n13.1.15.0)
+CPMDeclarePackage(nv_codec_headers_13_1
+        NAME nv_codec_headers_13_1
+        GIT_REPOSITORY https://github.com/FFmpeg/nv-codec-headers.git
+        GIT_TAG ${NV_CODEC_HEADERS_13_1_TAG}
+        DOWNLOAD_ONLY YES
+)

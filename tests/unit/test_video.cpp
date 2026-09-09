@@ -7,6 +7,7 @@
 
 // standard includes
 #include <algorithm>
+#include <array>
 #include <limits>
 #include <optional>
 #include <tuple>
@@ -64,6 +65,33 @@ INSTANTIATE_TEST_SUITE_P(
     return std::string(info.param->name);
   }
 );
+
+#if !defined(_WIN32) && !defined(__APPLE__)
+TEST(NvencAvcodecOptionsTest, UsesVersionStablePresetAndSpatialAqNames) {
+  const std::array codecs {
+    &video::nvenc.av1,
+    &video::nvenc.hevc,
+    &video::nvenc.h264,
+  };
+
+  for (const auto *codec : codecs) {
+    const auto preset = std::ranges::find(codec->common_options, "preset"sv, &video::encoder_t::option_t::name);
+    ASSERT_NE(codec->common_options.end(), preset);
+    ASSERT_TRUE(std::holds_alternative<std::string *>(preset->value));
+    EXPECT_EQ(&config::video.nv_legacy.preset, std::get<std::string *>(preset->value));
+
+    const auto spatial_aq = std::ranges::find(codec->common_options, "spatial-aq"sv, &video::encoder_t::option_t::name);
+    ASSERT_NE(codec->common_options.end(), spatial_aq);
+    ASSERT_TRUE(std::holds_alternative<int *>(spatial_aq->value));
+    EXPECT_EQ(&config::video.nv_legacy.spatial_aq, std::get<int *>(spatial_aq->value));
+
+    EXPECT_EQ(
+      codec->common_options.end(),
+      std::ranges::find(codec->common_options, "aq"sv, &video::encoder_t::option_t::name)
+    );
+  }
+}
+#endif
 
 TEST_P(EncoderTest, ValidateEncoder) {
   // todo:: test something besides fixture setup

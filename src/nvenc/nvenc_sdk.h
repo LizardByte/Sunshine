@@ -16,7 +16,7 @@
    * @brief NVENC SDK version used while generating documentation.
    */
   // Doxygen must select the same preprocessor interface used by versioned build targets.
-  #define NVENC_SDK_VERSION 1300  // NOSONAR(cpp:S5028)
+  #define NVENC_SDK_VERSION 1301  // NOSONAR(cpp:S5028)
 #endif
 
 #ifndef NVENC_NAMESPACE

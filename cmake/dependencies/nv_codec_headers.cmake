@@ -1,3 +1,8 @@
+if(NOT APPLE)
+    CPMGetPackage(nv_codec_headers_13_1)
+    set(NV_CODEC_HEADERS_13_1_INCLUDE_DIR "${nv_codec_headers_13_1_SOURCE_DIR}/include")
+endif()
+
 if(WIN32)
     CPMGetPackage(nv_codec_headers_13)
     CPMGetPackage(nv_codec_headers_11)

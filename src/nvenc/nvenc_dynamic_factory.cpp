@@ -78,6 +78,14 @@ namespace nvenc {
     const auto max_version = decode_nvenc_driver_version(packed_max_version);
     const auto sdk_version = select_nvenc_sdk_version(max_version);
     switch (sdk_version) {
+      case nvenc_sdk_version::sdk_13_1:
+        return std::make_shared<nvenc_dynamic_factory>(
+          std::move(dll),
+          sdk_version,
+          detail::create_nvenc_d3d11_native_1301,
+          detail::create_nvenc_d3d11_on_cuda_1301
+        );
+
       case nvenc_sdk_version::sdk_13_0:
         return std::make_shared<nvenc_dynamic_factory>(
           std::move(dll),
