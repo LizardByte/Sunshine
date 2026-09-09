@@ -50,6 +50,7 @@ class Sunshine < Formula
   depends_on "cmake" => :build
   depends_on "doxygen" => :build if build.with? "docs"
   depends_on "graphviz" => :build if build.with? "docs"
+  depends_on "ninja" => :build
   depends_on "node" => :build
   depends_on "pkgconf" => :build
   depends_on "boost"
@@ -369,9 +370,11 @@ class Sunshine < Formula
 
     source_path = Pathname.new(lines[source_index].delete_prefix("SF:").strip).cleanpath.to_s
     # Homebrew remaps the formula build path to ".". LLVM may then resolve that
-    # relative path from CMake's compilation directory at "build/tests".
+    # relative path from the generator's compilation directory under "build".
     relative_source_path = if source_path.start_with?("build/tests/src/")
       source_path.delete_prefix("build/tests/")
+    elsif source_path.start_with?("build/src/")
+      source_path.delete_prefix("build/")
     elsif source_path.start_with?("src/")
       source_path
     else
@@ -419,12 +422,12 @@ class Sunshine < Formula
   end
 
   def build_and_install_project
-    system "cmake", "-S", ".", "-B", "build", "-G", "Unix Makefiles",
+    system "cmake", "-S", ".", "-B", "build", "-G", "Ninja",
             *std_cmake_args,
             *build_cmake_args
 
-    system "make", "-C", "build"
-    system "make", "-C", "build", "install"
+    system "cmake", "--build", "build"
+    system "cmake", "--install", "build"
   end
 
   def install_platform_specific_files
@@ -498,6 +501,9 @@ class Sunshine < Formula
         SF:build/tests/src/remapped_from_compile_dir.cpp
         DA:1,1
         end_of_record
+        SF:build/src/remapped_from_ninja_compile_dir.cpp
+        DA:1,1
+        end_of_record
         SF:src/relative.cpp
         DA:1,1
         end_of_record
@@ -516,6 +522,9 @@ class Sunshine < Formula
         DA:1,1
         end_of_record
         SF:src/remapped_from_compile_dir.cpp
+        DA:1,1
+        end_of_record
+        SF:src/remapped_from_ninja_compile_dir.cpp
         DA:1,1
         end_of_record
         SF:src/relative.cpp

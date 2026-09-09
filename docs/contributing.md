@@ -23,8 +23,8 @@ Read our contribution guide in our organization level
 
 @tabs{
   @tab{CMake | ```bash
-    cmake -B build -G Ninja -S . --target web-ui
-    ninja -C build web-ui
+    cmake -B build -G Ninja -S .
+    cmake --build build --target web-ui
     ```}
   @tab{Manual | ```bash
     npm run dev
@@ -176,8 +176,11 @@ can be disabled by setting the `BUILD_TESTS` CMake option to `OFF`.
 To run the tests, execute the following command.
 
 ```bash
-./build/tests/test_sunshine
+ctest --test-dir build --output-on-failure
 ```
+
+On headless Linux systems using CMake 3.29 or newer, CMake automatically runs the tests through `xvfb-run` when both
+`Xvfb` and `xvfb-run` are installed. An existing X11 or Wayland display is used as-is.
 
 To see all available options, run the tests with the `--help` flag.
 

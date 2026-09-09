@@ -86,6 +86,9 @@ jobs:
           sudo make install
           cd .. && rm -rf libva-*
 
+      - name: Setup virtual desktop
+        uses: LizardByte/actions/actions/virtual_desktop@188c8ccad593e0f68bcf6aacb6bf84f10359d26f  # v2026.905.43751
+
       - name: Build Linux
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
@@ -108,7 +111,7 @@ jobs:
         working-directory: build
         run: |
           # install sunshine to the DESTDIR
-          DESTDIR=AppDir ninja install
+          DESTDIR=AppDir cmake --install .
           test -f AppDir/usr/share/sunshine/udev/rules.d/60-sunshine.rules
           grep -Fq 'IMPORT{parent}="HID_*"' \
             AppDir/usr/share/sunshine/udev/rules.d/60-sunshine.rules
@@ -188,9 +191,6 @@ jobs:
           sudo apt-get clean
           sudo rm -rf /var/lib/apt/lists/*
 
-      - name: Setup virtual desktop
-        uses: LizardByte/actions/actions/virtual_desktop@188c8ccad593e0f68bcf6aacb6bf84f10359d26f  # v2026.905.43751
-
       - name: Setup uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
         with:
@@ -209,8 +209,8 @@ jobs:
 
       - name: Run tests
         id: test
-        working-directory: build/tests
-        run: ./test_sunshine --gtest_color=yes --gtest_output=xml:test_results.xml
+        working-directory: build
+        run: ctest --output-on-failure
 
       - name: Upload system tray screenshots
         if: >-
@@ -248,7 +248,7 @@ jobs:
           name: coverage-Linux-${{ matrix.name }}
           path: |
             build/coverage.xml
-            build/tests/test_results.xml
+            build/tests/test_results
           if-no-files-found: error
 
       - name: Upload Artifacts

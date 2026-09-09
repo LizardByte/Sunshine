@@ -539,7 +539,12 @@ function install_cuda() {
   echo "cuda url: ${url}"
   wget "$url" --max-redirect=0 --progress=bar:force:noscroll -q --show-progress -O "${build_dir}/cuda.run"
   chmod a+x "${build_dir}/cuda.run"
-  "${build_dir}/cuda.run" --silent --toolkit --toolkitpath="${build_dir}/cuda" --no-opengl-libs --no-man-page --no-drm "$cuda_override_arg"
+  # The NVIDIA runfile tries to open a graphical installer whenever DISPLAY is
+  # set, even in silent mode. Hide the virtual desktop from this command only.
+  (
+    unset DISPLAY WAYLAND_DISPLAY
+    "${build_dir}/cuda.run" --silent --toolkit --toolkitpath="${build_dir}/cuda" --no-opengl-libs --no-man-page --no-drm "$cuda_override_arg"
+  )
   rm "${build_dir}/cuda.run"
 
   apply_cuda_patches "${build_dir}/cuda"
@@ -644,8 +649,8 @@ function run_step_deps() {
         tar -xzf "${DOXYGEN}.tar.gz"
         cd "${DOXYGEN}-${doxygen_min}"
         cmake -DCMAKE_BUILD_TYPE=Release -G="Ninja" -B="build" -S="."
-        ninja -C "build" -j"${num_processors}"
-        ${sudo_cmd} ninja -C "build" install
+        cmake --build "build" --parallel "${num_processors}"
+        ${sudo_cmd} cmake --install "build"
       popd
     else
       echo "${DOXYGEN} version not in range, skipping docs"
@@ -772,7 +777,7 @@ function run_step_build() {
   setup_nvm_environment
 
   # Build the project
-  ninja -C "build"
+  cmake --build "build"
   return 0
 }
 

@@ -249,7 +249,7 @@ jobs:
             -DSUNSHINE_PUBLISHER_WEBSITE="https://app.lizardbyte.dev" \
             -DSUNSHINE_PUBLISHER_ISSUE_URL="https://app.lizardbyte.dev/support"
           echo "::add-matcher::.github/matchers/gcc.json"
-          ninja -C build
+          cmake --build build
           echo "::remove-matcher owner=gcc::"
 
       - name: Check Windows linkage
@@ -351,13 +351,12 @@ jobs:
         run: cat ./build/cpack_artifacts/_CPack_Packages/win64/WIX/wix.log || true
 
       - name: Initialize tray icon
-        working-directory: build/tests
+        working-directory: build
         env:
           SUNSHINE_CONFIGURE_TRAY_ICONS: '1'
         run: >-
-          ./test_sunshine.exe
-          --gtest_color=yes
-          --gtest_filter=SystemTrayTest.InitializesTrayForWorkflowConfiguration
+          ctest --output-on-failure
+          --tests-regex '^SystemTrayTest\.InitializesTrayForWorkflowConfiguration$'
 
       - name: Configure Windows tray screenshots
         uses: LizardByte/tray/.github/actions/configure-windows-tray-screenshots@master
@@ -365,8 +364,8 @@ jobs:
       - name: Run tests
         id: test
         shell: msys2 {0}
-        working-directory: build/tests
-        run: ./test_sunshine.exe --gtest_color=yes --gtest_output=xml:test_results.xml
+        working-directory: build
+        run: ctest --output-on-failure
 
       - name: Upload system tray screenshots
         if: >-
@@ -406,7 +405,7 @@ jobs:
           name: coverage-${{ matrix.name }}
           path: |
             build/coverage.xml
-            build/tests/test_results.xml
+            build/tests/test_results
           if-no-files-found: error
 
       - name: Package Windows Debug Info

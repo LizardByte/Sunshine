@@ -87,6 +87,7 @@ jobs:
             cmake \
             doxygen \
             graphviz \
+            ninja \
             node \
             pkgconf \
             icu4c@78 \
@@ -127,6 +128,7 @@ jobs:
           mkdir -p build
           cmake \
             -B build \
+            -G Ninja \
             -S . \
             -DBUILD_DOCS="${{ matrix.build_docs }}" \
             -DBUILD_WERROR=ON \
@@ -144,7 +146,7 @@ jobs:
       - name: Build
         run: |
           echo "::add-matcher::.github/matchers/gcc.json"
-          cmake --build build -j "$(sysctl -n hw.ncpu)"
+          cmake --build build --parallel "$(sysctl -n hw.ncpu)"
           echo "::remove-matcher owner=gcc::"
 
       - name: Package DMG
@@ -192,8 +194,8 @@ jobs:
 
       - name: Test
         id: test
-        working-directory: build/tests
-        run: ./test_sunshine --gtest_color=yes --gtest_output=xml:test_results.xml
+        working-directory: build
+        run: ctest --output-on-failure
 
       - name: Upload system tray screenshots
         if: >-
@@ -230,7 +232,7 @@ jobs:
           name: coverage-${{ matrix.name }}
           path: |
             build/coverage.xml
-            build/tests/test_results.xml
+            build/tests/test_results
           if-no-files-found: error
 
       - name: Set artifact prefix

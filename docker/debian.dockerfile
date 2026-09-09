@@ -81,13 +81,11 @@ set -e
 _BUILD
 
 # run tests
-WORKDIR /build/sunshine/build/tests
+WORKDIR /build/sunshine/build
 RUN <<_TEST
 #!/bin/bash
 set -e
-export DISPLAY=:1
-Xvfb "${DISPLAY}" -screen 0 1024x768x24 &
-./test_sunshine --gtest_color=yes
+ctest --output-on-failure
 _TEST
 
 FROM sunshine-base AS sunshine

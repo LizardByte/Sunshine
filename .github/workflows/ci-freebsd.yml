@@ -94,7 +94,7 @@ jobs:
               x11/libXfixes \
               x11/libXrandr \
               x11/libXtst \
-              x11-servers/xorg-server
+              x11-servers/xorg-server@xvfb
 
             # create symlink for shebang bash compatibility
             ln -s /usr/local/bin/bash /bin/bash
@@ -168,7 +168,7 @@ jobs:
         run: |
           set -e
           cd "${GITHUB_WORKSPACE}"
-          ninja -C build
+          cmake --build build
 
       - name: Package
         shell: freebsd {0}
@@ -215,13 +215,13 @@ jobs:
         shell: freebsd {0}
         run: |
           set -e
-          cd "${GITHUB_WORKSPACE}/build/tests"
+          cd "${GITHUB_WORKSPACE}/build"
 
           export DISPLAY=:1
           Xvfb ${DISPLAY} -screen 0 1024x768x24 &
           XVFB_PID=$!
 
-          ./test_sunshine --gtest_color=yes --gtest_output=xml:test_results.xml
+          ctest --output-on-failure
 
           kill ${XVFB_PID}
 
@@ -252,7 +252,7 @@ jobs:
           name: coverage-FreeBSD-${{ matrix.cmake_processor }}
           path: |
             build/coverage.xml
-            build/tests/test_results.xml
+            build/tests/test_results
           if-no-files-found: error
 
       - name: Upload Artifacts

@@ -252,9 +252,8 @@ jobs:
       - name: Upload test results
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f  # v7.0.0
         with:
-          disable_search: true
+          directory: ./_coverage/tests
           fail_ci_if_error: true
-          files: ./_coverage/tests/test_results.xml
           report_type: test_results
           flags: ${{ matrix.name }}
           token: ${{ secrets.CODECOV_TOKEN }}
