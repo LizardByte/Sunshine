@@ -68,6 +68,11 @@ if(${END_BUILD})
     return()
 endif()
 
+# Build-deps owns the dependency versions shared with its FFmpeg builds.
+# Include its lock only for full builds so manifest-only configurations do not
+# require the build-deps submodule.
+include(${CMAKE_CURRENT_SOURCE_DIR}/third-party/build-deps/package-lock.cmake)
+
 # project constants
 include(${CMAKE_MODULE_PATH}/prep/constants.cmake)
 
