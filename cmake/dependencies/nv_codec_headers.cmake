@@ -3,8 +3,19 @@ set(SUNSHINE_CPM_PACKAGE_LOCK_ENABLED "${CPM_PACKAGE_LOCK_ENABLED}")
 set(CPM_PACKAGE_LOCK_ENABLED OFF)
 
 if(NOT APPLE)
-    CPMGetPackage(nv_codec_headers_13_1)
-    set(NV_CODEC_HEADERS_13_1_INCLUDE_DIR "${nv_codec_headers_13_1_SOURCE_DIR}/include")
+    set(SUNSHINE_PREPARED_NV_CODEC_HEADERS
+            "${FFMPEG_PREPARED_BINARIES}/include/ffnvcodec/nvEncodeAPI.h")
+
+    if(DEFINED FFMPEG_PREPARED_BINARIES AND EXISTS "${SUNSHINE_PREPARED_NV_CODEC_HEADERS}")
+        # Prepared FFmpeg bundles include the NV codec headers used to build them.
+        set(NV_CODEC_HEADERS_13_1_INCLUDE_DIR "${FFMPEG_PREPARED_BINARIES}/include")
+        message(STATUS "Using NV codec headers from prepared FFmpeg binaries")
+    else()
+        CPMGetPackage(nv_codec_headers_13_1)
+        set(NV_CODEC_HEADERS_13_1_INCLUDE_DIR "${nv_codec_headers_13_1_SOURCE_DIR}/include")
+    endif()
+
+    unset(SUNSHINE_PREPARED_NV_CODEC_HEADERS)
 endif()
 
 if(WIN32)

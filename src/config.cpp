@@ -65,7 +65,7 @@ namespace config {
   namespace nv {
 
     std::string ffmpeg_preset_from_quality(const int quality_preset) {
-      return "p" + std::to_string(quality_preset);
+      return std::format("p{}", quality_preset);
     }
 
     /**
