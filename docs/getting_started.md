@@ -202,7 +202,7 @@ sudo apt install sunshine
 
 Download `sunshine_{version}-1+{distro}{distro-version}_{arch}.deb` and run the following command.
 ```bash
-sudo dpkg -i ./sunshine_{version}-1+{distro}{distro-version}_{arch}.deb
+sudo apt install ./sunshine_{version}-1+{distro}{distro-version}_{arch}.deb
 ```
 
 > [!NOTE]
