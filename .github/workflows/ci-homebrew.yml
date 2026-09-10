@@ -60,6 +60,8 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Select Xcode 16.2
         if: matrix.os_name == 'macos' && matrix.os_version == '14'
@@ -193,6 +195,68 @@ jobs:
           token: ${{ secrets.GH_TOKEN }}
           validate: true
       - run: echo "::remove-matcher owner=gcc-strip3::"
+
+      - name: Run Homebrew tests
+        if: matrix.release != true
+        env:
+          ACTION_TESTPATH: ${{ steps.test.outputs.testpath }}
+        run: |
+          set -euo pipefail
+
+          homebrew_temp="${RUNNER_TEMP}/sunshine-homebrew-test"
+          homebrew_testpath="${homebrew_temp}/sunshine/test"
+          mkdir -p "${homebrew_testpath}/tests"
+          cp "${ACTION_TESTPATH}/coverage-buildpath.txt" "${homebrew_testpath}/coverage-buildpath.txt"
+
+          brew install --only-dependencies --include-test lizardbyte/homebrew/sunshine
+
+          formula_prefix="$(brew --prefix lizardbyte/homebrew/sunshine)"
+          test_binary="${formula_prefix}/bin/test_sunshine"
+          test_runtime="${formula_prefix}/libexec/tests"
+          if [[ ! -x "${test_binary}" ]]; then
+            echo "::error::Homebrew test binary was not installed at ${test_binary}"
+            exit 1
+          fi
+          if [[ ! -d "${test_runtime}" ]]; then
+            echo "::error::Homebrew test fixtures were not installed at ${test_runtime}"
+            exit 1
+          fi
+
+          cd "${test_runtime}"
+          set +e
+          if [[ "${RUNNER_OS}" == "macOS" ]]; then
+            LLVM_PROFILE_FILE="${homebrew_testpath}/sunshine-%p.profraw" \
+            "${test_binary}" \
+                --gtest_color=yes \
+                --gtest_output="xml:${homebrew_testpath}/tests/test_results.xml"
+            test_status=$?
+            coverage_file="coverage.lcov"
+          else
+            # Homebrew's test sandbox cannot write gcov intermediates into the installed Cellar tree.
+            coverage_runtime="$(< "${homebrew_testpath}/coverage-buildpath.txt")"
+            mkdir -p "${coverage_runtime}"
+            cp -R "${test_runtime}/coverage/." "${coverage_runtime}/"
+            printf '%s\n' "${coverage_runtime}" > "${homebrew_testpath}/coverage-buildpath.txt"
+            gcov_prefix_strip="$(< "${test_runtime}/gcov-prefix-strip.txt")"
+            GCOV_PREFIX="${coverage_runtime}" \
+              GCOV_PREFIX_STRIP="${gcov_prefix_strip}" \
+              "${test_binary}" \
+                --gtest_color=yes \
+                --gtest_output="xml:${homebrew_testpath}/tests/test_results.xml"
+            test_status=$?
+            coverage_file="coverage.xml"
+          fi
+          set -e
+
+          HOMEBREW_TEMP="${homebrew_temp}" \
+            HOMEBREW_TEST_ARTIFACTS_DIR="${homebrew_testpath}" \
+            brew test lizardbyte/homebrew/sunshine
+
+          mkdir -p "${ACTION_TESTPATH}/tests"
+          cp "${homebrew_testpath}/${coverage_file}" "${ACTION_TESTPATH}/${coverage_file}"
+          cp "${homebrew_testpath}/tests/test_results.xml" "${ACTION_TESTPATH}/tests/test_results.xml"
+
+          exit "${test_status}"
 
       - name: Upload coverage artifact
         if: >-
