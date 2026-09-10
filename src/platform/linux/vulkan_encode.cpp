@@ -20,6 +20,7 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/hwcontext.h>
 #include <libavutil/hwcontext_vulkan.h>
+#include <libavutil/version.h>
 }
 
 #include "graphics.h"
@@ -232,7 +233,19 @@ namespace vk {
         return -1;
       }
 
+#if LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(60, 32, 100)
+      // FFmpeg 9.0+ may create its queues with VK_DEVICE_QUEUE_CREATE_INTERNALLY_SYNCHRONIZED_BIT_KHR
+      // (when VK_KHR_internally_synchronized_queues is available). The Vulkan spec requires
+      // vkGetDeviceQueue2 to retrieve such queues; plain vkGetDeviceQueue would return an
+      // incompatible queue handle, breaking synchronization with the encoder.
+      VkDeviceQueueInfo2 queue_info = {VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2};
+      queue_info.flags = vk_dev.ctx->queue_flags;
+      queue_info.queueFamilyIndex = vk_dev.compute_qf;
+      queue_info.queueIndex = 0;
+      vkGetDeviceQueue2(vk_dev.dev, &queue_info, &vk_dev.compute_queue);
+#else
       vkGetDeviceQueue(vk_dev.dev, vk_dev.compute_qf, 0, &vk_dev.compute_queue);
+#endif
 
       // Load extension functions
       vk_dev.getMemoryFdProperties = (PFN_vkGetMemoryFdPropertiesKHR)
