@@ -145,7 +145,8 @@ namespace {
       std::pair {11U << 4U, sdk_11_0},
       std::pair {12U << 4U, sdk_12_0},
       std::pair {13U << 4U, sdk_13_0},
-      std::pair {14U << 4U, sdk_13_0},
+      std::pair {(13U << 4U) | 1U, sdk_13_1},
+      std::pair {14U << 4U, sdk_13_1},
     };
     reported_status = 0U;
 
@@ -163,7 +164,7 @@ namespace {
     const auto dll = make_fake_dll();
     nvenc::nvenc_dynamic_factory factory {
       dll,
-      nvenc::nvenc_sdk_version::sdk_13_0,
+      nvenc::nvenc_sdk_version::sdk_13_1,
       [&created_native, &dll](ID3D11Device *, nvenc::shared_dll callback_dll) {
         created_native = true;
         EXPECT_EQ(callback_dll, dll);
@@ -176,7 +177,7 @@ namespace {
       },
     };
 
-    EXPECT_EQ(factory.sdk_version(), nvenc::nvenc_sdk_version::sdk_13_0);
+    EXPECT_EQ(factory.sdk_version(), nvenc::nvenc_sdk_version::sdk_13_1);
     EXPECT_TRUE(factory.create_nvenc_d3d11_native(nullptr));
     EXPECT_TRUE(factory.create_nvenc_d3d11_on_cuda(nullptr));
     EXPECT_TRUE(created_native);

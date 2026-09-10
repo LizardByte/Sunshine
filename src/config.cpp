@@ -64,6 +64,10 @@ namespace config {
 
   namespace nv {
 
+    std::string ffmpeg_preset_from_quality(const int quality_preset) {
+      return std::format("p{}", quality_preset);
+    }
+
     /**
      * @brief Parse the `nvenc_twopass` configuration value.
      *
@@ -1619,12 +1623,12 @@ namespace config {
     bool_f(vars, "nvenc_latency_over_power", video.nv_sunshine_high_power_mode);
 
 #if !defined(__ANDROID__) && !defined(__APPLE__)
-    video.nv_legacy.preset = video.nv.quality_preset + 11;
+    video.nv_legacy.preset = nv::ffmpeg_preset_from_quality(video.nv.quality_preset);
     video.nv_legacy.multipass = video.nv.two_pass == nvenc::nvenc_two_pass::quarter_resolution ? NV_ENC_TWO_PASS_QUARTER_RESOLUTION :
                                 video.nv.two_pass == nvenc::nvenc_two_pass::full_resolution    ? NV_ENC_TWO_PASS_FULL_RESOLUTION :
                                                                                                  NV_ENC_MULTI_PASS_DISABLED;
     video.nv_legacy.h264_coder = video.nv.h264_cavlc ? NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC : NV_ENC_H264_ENTROPY_CODING_MODE_CABAC;
-    video.nv_legacy.aq = video.nv.adaptive_quantization;
+    video.nv_legacy.spatial_aq = video.nv.adaptive_quantization;
     video.nv_legacy.vbv_percentage_increase = video.nv.vbv_percentage_increase;
 #endif
 

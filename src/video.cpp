@@ -786,7 +786,7 @@ namespace video {
         {"tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY},
         {"rc"s, NV_ENC_PARAMS_RC_CBR},
         {"multipass"s, &config::video.nv_legacy.multipass},
-        {"aq"s, &config::video.nv_legacy.aq},
+        {"spatial-aq"s, &config::video.nv_legacy.spatial_aq},
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -807,7 +807,7 @@ namespace video {
         {"tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY},
         {"rc"s, NV_ENC_PARAMS_RC_CBR},
         {"multipass"s, &config::video.nv_legacy.multipass},
-        {"aq"s, &config::video.nv_legacy.aq},
+        {"spatial-aq"s, &config::video.nv_legacy.spatial_aq},
       },
       {
         // SDR-specific options
@@ -834,7 +834,7 @@ namespace video {
         {"rc"s, NV_ENC_PARAMS_RC_CBR},
         {"coder"s, &config::video.nv_legacy.h264_coder},
         {"multipass"s, &config::video.nv_legacy.multipass},
-        {"aq"s, &config::video.nv_legacy.aq},
+        {"spatial-aq"s, &config::video.nv_legacy.spatial_aq},
       },
       {
         // SDR-specific options

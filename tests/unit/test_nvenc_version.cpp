@@ -40,8 +40,8 @@ namespace {
       nvenc_version_test_case {1201U, sdk_12_0},
       nvenc_version_test_case {1299U, sdk_12_0},
       nvenc_version_test_case {1300U, sdk_13_0},
-      nvenc_version_test_case {1301U, sdk_13_0},
-      nvenc_version_test_case {1400U, sdk_13_0},
+      nvenc_version_test_case {1301U, sdk_13_1},
+      nvenc_version_test_case {1400U, sdk_13_1},
     };
 
     for (const auto &[max_version, expected] : test_cases) {

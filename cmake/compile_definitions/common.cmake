@@ -110,11 +110,13 @@ if(WIN32)
     add_nvenc_sdk_implementation(nvenc_sdk_1100 1100 "${NV_CODEC_HEADERS_11_INCLUDE_DIR}")
     add_nvenc_sdk_implementation(nvenc_sdk_1200 1200 "${NV_CODEC_HEADERS_12_INCLUDE_DIR}")
     add_nvenc_sdk_implementation(nvenc_sdk_1300 1300 "${NV_CODEC_HEADERS_13_INCLUDE_DIR}")
+    add_nvenc_sdk_implementation(nvenc_sdk_1301 1301 "${NV_CODEC_HEADERS_13_1_INCLUDE_DIR}")
 
     list(APPEND NVENC_SOURCES
             $<TARGET_OBJECTS:nvenc_sdk_1100>
             $<TARGET_OBJECTS:nvenc_sdk_1200>
             $<TARGET_OBJECTS:nvenc_sdk_1300>
+            $<TARGET_OBJECTS:nvenc_sdk_1301>
     )
 endif()
 
@@ -209,13 +211,8 @@ include_directories(
         ${Boost_INCLUDE_DIRS}  # has to be the last, or we get runtime error on macOS ffmpeg encoder
 )
 
-if(WIN32)
-    include_directories(BEFORE SYSTEM "${NV_CODEC_HEADERS_13_INCLUDE_DIR}")
-else()
-    include_directories(
-            BEFORE SYSTEM
-            "${CMAKE_SOURCE_DIR}/third-party/build-deps/third-party/FFmpeg/nv-codec-headers/include"
-    )
+if(NOT APPLE)
+    include_directories(BEFORE SYSTEM "${NV_CODEC_HEADERS_13_1_INCLUDE_DIR}")
 endif()
 
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES

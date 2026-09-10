@@ -18,6 +18,7 @@ namespace nvenc {
     sdk_11_0 = 1100U,  ///< Video Codec SDK 11.0.
     sdk_12_0 = 1200U,  ///< Video Codec SDK 12.0.
     sdk_13_0 = 1300U,  ///< Video Codec SDK 13.0.
+    sdk_13_1 = 1301U,  ///< Video Codec SDK 13.1.
   };
 
   /**
@@ -38,6 +39,9 @@ namespace nvenc {
    */
   constexpr nvenc_sdk_version select_nvenc_sdk_version(std::uint32_t max_version) {
     using enum nvenc_sdk_version;
+    if (max_version >= std::to_underlying(sdk_13_1)) {
+      return sdk_13_1;
+    }
     if (max_version >= std::to_underlying(sdk_13_0)) {
       return sdk_13_0;
     }

@@ -62,6 +62,22 @@ namespace nvenc::detail {
    * @return SDK-neutral encoder instance.
    */
   std::unique_ptr<nvenc_d3d11_interface> create_nvenc_d3d11_on_cuda_1300(ID3D11Device *device, shared_dll dll);
+  /**
+   * @brief Create an SDK 13.1 native Direct3D11 encoder.
+   *
+   * @param device Direct3D11 device used for encoding.
+   * @param dll Shared NVENC driver module.
+   * @return SDK-neutral encoder instance.
+   */
+  std::unique_ptr<nvenc_d3d11_interface> create_nvenc_d3d11_native_1301(ID3D11Device *device, shared_dll dll);
+  /**
+   * @brief Create an SDK 13.1 CUDA-interoperability encoder.
+   *
+   * @param device Direct3D11 device used for input surfaces.
+   * @param dll Shared NVENC driver module.
+   * @return SDK-neutral encoder instance.
+   */
+  std::unique_ptr<nvenc_d3d11_interface> create_nvenc_d3d11_on_cuda_1301(ID3D11Device *device, shared_dll dll);
 
 }  // namespace nvenc::detail
 #endif
