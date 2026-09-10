@@ -7,7 +7,11 @@
 
 // standard includes
 #include <chrono>
+#include <condition_variable>
 #include <cstddef>
+#include <memory>
+#include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -116,6 +120,15 @@ namespace nvhttp {
   };
 
   /**
+   * @brief Shared result used to return the completed pairing outcome to a PIN submitter.
+   */
+  struct pairing_completion_t {
+    std::condition_variable condition;  ///< Wakes the REST request when pairing finishes.
+    std::mutex mutex;  ///< Protects the completion result.
+    std::optional<bool> result;  ///< Final pairing result, or no value while the handshake is pending.
+  };
+
+  /**
    * @brief Pairing handshake state exchanged with a Moonlight client.
    */
   struct pair_session_t {
@@ -130,6 +143,7 @@ namespace nvhttp {
 
     std::string serversecret = {};  ///< Server pairing secret.
     std::string serverchallenge = {};  ///< Server challenge sent during pairing.
+    std::shared_ptr<pairing_completion_t> completion = std::make_shared<pairing_completion_t>();  ///< Result shared with the REST request waiting for the handshake.
 
     struct {
       util::Either<
@@ -297,7 +311,8 @@ namespace nvhttp {
    * @param pairing_id Unguessable identifier of the pairing request to approve.
    * @param pin The user supplied pin.
    * @param name The user supplied name.
-   * @return `true` if the pin is correct, `false` otherwise.
+   * @return `true` if Moonlight proves the PIN by completing the handshake, `false` otherwise.
+   * @note The handshake wait uses the configured `ping_timeout` and never exceeds the pairing session deadline.
    * @examples
    * bool pin_status = nvhttp::pin("0123456789abcdef0123456789abcdef", "1234", "laptop");
    * @examples_end
@@ -385,6 +400,15 @@ namespace nvhttp {
      * @return `true` when the exact certificate belongs to one enabled paired client.
      */
     bool authorize_client_certificate(std::string_view cert);
+
+    /**
+     * @brief Complete and remove a pairing session without running the protocol phases.
+     *
+     * @param pairing_id Operator approval identifier of the test session.
+     * @param success Pairing result delivered to the waiting PIN submitter.
+     * @return `true` when the session was found and completed.
+     */
+    bool complete_pairing(std::string_view pairing_id, bool success);
 
     /**
      * @brief Reload paired-client authorization state from the configured state file.
