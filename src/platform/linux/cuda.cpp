@@ -538,15 +538,28 @@ namespace cuda {
       } else if (descriptor.sequence > sequence) {
         sequence = descriptor.sequence;
 
-        rgb = egl::rgb_t {};
-
         auto rgb_opt = egl::import_source(display.get(), descriptor.sd);
 
         if (!rgb_opt) {
-          return -1;
-        }
+          // The plane's current format/modifier can't be imported (e.g. a game switched to a
+          // 10bpc swapchain in exclusive fullscreen that this driver won't bind to a GL texture).
+          // Encode a blank frame instead of dropping the client, and only log once per failure
+          // streak to avoid flooding the log every frame.
+          if (!import_failed_last_frame) {
+            BOOST_LOG(warning) << "Skipping frame(s): plane format (fourcc: "sv << util::hex(descriptor.sd.fourcc).to_string_view()
+                                << ") failed to import; will resume automatically if the format changes back"sv;
+            import_failed_last_frame = true;
+          }
 
-        rgb = std::move(*rgb_opt);
+          rgb = egl::create_blank(img);
+        } else {
+          if (import_failed_last_frame) {
+            BOOST_LOG(info) << "Resumed capture after plane format import failure"sv;
+            import_failed_last_frame = false;
+          }
+
+          rgb = std::move(*rgb_opt);
+        }
       }
 
       auto fmt_desc = av_pix_fmt_desc_get(sw_format);
@@ -640,6 +653,8 @@ namespace cuda {
     int offset_y;  ///< Vertical offset in physical pixels.
 
     bool is_yuv444;  ///< Whether the CUDA converter outputs YUV 4:4:4.
+
+    bool import_failed_last_frame = false;  ///< Whether the previous frame's plane import failed, to avoid log spam.
   };
 
   /**
