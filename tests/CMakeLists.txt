@@ -34,6 +34,14 @@ else()
     set(CMAKE_C_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
 endif()
 
+set(SUNSHINE_TEST_GCOV_ROOT
+        ""
+        CACHE PATH "Relocated source and build root used to process gcov data")
+if(SUNSHINE_TEST_GCOV_ROOT AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    add_compile_options(
+            "-fprofile-prefix-map=${CMAKE_SOURCE_DIR}=${SUNSHINE_TEST_GCOV_ROOT}")
+endif()
+
 # Link the libgcov that belongs to the selected compiler. Asking GCC directly
 # avoids selecting another installed GCC version through platform-specific
 # library directory names (for example, the GCC required by CUDA on Arch Linux).
@@ -69,11 +77,17 @@ elseif (NOT APPLE)
 endif ()
 
 set(TEST_DEFINITIONS)  # list will be appended as needed
+set(SUNSHINE_TEST_SOURCE_DIR
+        "${CMAKE_SOURCE_DIR}"
+        CACHE PATH "Source fixture directory used by tests")
+set(SUNSHINE_TEST_RUNTIME_DIR
+        "${CMAKE_CURRENT_BINARY_DIR}"
+        CACHE PATH "Writable runtime fixture directory used by tests")
 
 # this indicates we're building tests in case sunshine needs to adjust some code or add private tests
 list(APPEND TEST_DEFINITIONS SUNSHINE_TESTS)
-list(APPEND TEST_DEFINITIONS SUNSHINE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-list(APPEND TEST_DEFINITIONS SUNSHINE_TEST_BIN_DIR="${CMAKE_CURRENT_BINARY_DIR}")
+list(APPEND TEST_DEFINITIONS SUNSHINE_SOURCE_DIR="${SUNSHINE_TEST_SOURCE_DIR}")
+list(APPEND TEST_DEFINITIONS SUNSHINE_TEST_BIN_DIR="${SUNSHINE_TEST_RUNTIME_DIR}")
 if(SUNSHINE_ENABLE_TRAY)
     list(APPEND TEST_DEFINITIONS TRAY_ENABLE_TEST_HOOKS)
 endif()
@@ -81,7 +95,7 @@ endif()
 # Override SUNSHINE_ASSETS_DIR to use a writable temp directory for tests
 # Remove the existing definition from SUNSHINE_DEFINITIONS to avoid redefinition error
 list(FILTER SUNSHINE_DEFINITIONS EXCLUDE REGEX "^SUNSHINE_ASSETS_DIR=")
-list(APPEND TEST_DEFINITIONS SUNSHINE_ASSETS_DIR="${CMAKE_CURRENT_BINARY_DIR}/test_assets")
+list(APPEND TEST_DEFINITIONS SUNSHINE_ASSETS_DIR="${SUNSHINE_TEST_RUNTIME_DIR}/test_assets")
 
 if(NOT WIN32)
     find_package(Udev 255)  # we need 255+ for udevadm verify
