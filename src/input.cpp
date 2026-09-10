@@ -44,6 +44,14 @@ constexpr int WHEEL_DELTA = 120;  ///< Standard Windows wheel delta used to norm
 
 using namespace std::literals;
 
+namespace platf {
+  kms_cursor_feedback_t&
+  kms_cursor_feedback() {
+    static kms_cursor_feedback_t fb;
+    return fb;
+  }
+}
+
 namespace input {
 
   constexpr auto MAX_GAMEPADS = std::min((std::size_t) platf::MAX_GAMEPADS, sizeof(std::int16_t) * 8);  ///< Maximum gamepads representable by the active gamepad mask.
@@ -302,6 +310,20 @@ namespace input {
     thread_pool_util::ThreadPool::task_id_t mouse_left_button_timeout;  ///< Mouse left button timeout.
 
     input::touch_port_t touch_port;  ///< Touch coordinate bounds for the current stream.
+
+    /// State of the absolute->relative mouse conversion (absolute_mouse_as_relative).
+    struct abs_mouse_t {
+      bool initialized = false;  ///< Whether the absolute baseline is set.
+      float frac_x = 0;          ///< Accumulated fractional X delta.
+      float frac_y = 0;          ///< Accumulated fractional Y delta.
+      float host_x = 0;          ///< Dead-reckoning estimate of the host cursor X, touch-port pixels.
+      float host_y = 0;          ///< Dead-reckoning estimate of the host cursor Y, touch-port pixels.
+      std::uint64_t seq_last = 0;  ///< Cursor-feedback sequence seen by the previous event.
+      float last_raw_x = 0;      ///< Previous raw client X (idle detection).
+      float last_raw_y = 0;      ///< Previous raw client Y (idle detection).
+      std::chrono::steady_clock::time_point last_client_move {};  ///< Last time the client coordinates changed.
+    };
+    abs_mouse_t abs_mouse;  ///< Absolute->relative mouse conversion state.
 
     int32_t accumulated_vscroll_delta;  ///< Accumulated vscroll delta.
     int32_t accumulated_hscroll_delta;  ///< Accumulated hscroll delta.
@@ -810,6 +832,169 @@ namespace input {
     return {multiply_polar_by_cartesian_scalar(major, angle, scalar), multiply_polar_by_cartesian_scalar(minor, angle + (M_PI / 2), scalar)};
   }
 
+  /// Client mouse event data for the absolute->relative conversion.
+  struct abs_mouse_event_t {
+    std::pair<float, float> tpcoords;  ///< Client coordinates mapped to touch-port pixels.
+    float x;      ///< Raw client X on the client surface.
+    float y;      ///< Raw client Y on the client surface.
+    float width;  ///< Client surface width.
+    float height; ///< Client surface height.
+  };
+
+  /**
+   * @brief Resync the dead-reckoning estimate with the real cursor position.
+   *
+   * The KMS capture path publishes the cursor-plane position once per captured
+   * frame. The feedback is only consumed when trustworthy: while the client is
+   * idle (every in-flight move has landed), or on an axis saturated at the
+   * client's own surface edge (the estimate may be mis-anchored there, and any
+   * feedback lag only overshoots toward the edge, where the compositor clamps).
+   *
+   * @param input The input context.
+   * @param client_idle Whether the client coordinates have been quiet lately.
+   * @param sat_x Whether the X axis is saturated on the client surface.
+   * @param sat_y Whether the Y axis is saturated on the client surface.
+   * @param port_w Touch-port width in pixels.
+   * @param port_h Touch-port height in pixels.
+   */
+  static void
+  abs_mouse_sync_estimate(const std::shared_ptr<input_t> &input, bool client_idle, bool sat_x, bool sat_y, float port_w, float port_h) {
+    const auto &fb = platf::kms_cursor_feedback();
+
+    // Seqlock read: retry while the writer is mid-update, and validate the
+    // sequence is unchanged after snapshotting the fields.
+    std::uint64_t seq;
+    std::int32_t cursor_x;
+    std::int32_t cursor_y;
+    std::int32_t phys_w;
+    std::int32_t phys_h;
+    std::int32_t logical_w;
+    std::int32_t logical_h;
+    for (;;) {
+      seq = fb.seq.load();
+      if (seq & 1) {
+        continue;
+      }
+      cursor_x = fb.x.load();
+      cursor_y = fb.y.load();
+      phys_w = fb.desktop_w.load();
+      phys_h = fb.desktop_h.load();
+      logical_w = fb.logical_w.load();
+      logical_h = fb.logical_h.load();
+      if (seq == fb.seq.load()) {
+        break;
+      }
+    }
+
+    if (seq == 0 || seq == input->abs_mouse.seq_last) {
+      return;
+    }
+    input->abs_mouse.seq_last = seq;
+
+    if (phys_w <= 0 || phys_h <= 0 || logical_w <= 0 || logical_h <= 0) {
+      return;
+    }
+
+    // Output-local physical pixels -> compositor logical pixels.
+    const auto real_x = static_cast<float>(cursor_x) * (static_cast<float>(logical_w) / static_cast<float>(phys_w));
+    const auto real_y = static_cast<float>(cursor_y) * (static_cast<float>(logical_h) / static_cast<float>(phys_h));
+
+    if (client_idle) {
+      input->abs_mouse.host_x = std::clamp(real_x, 0.0f, port_w - 1.0f);
+      input->abs_mouse.host_y = std::clamp(real_y, 0.0f, port_h - 1.0f);
+    }
+    else {
+      if (sat_x) input->abs_mouse.host_x = std::clamp(real_x, 0.0f, port_w - 1.0f);
+      if (sat_y) input->abs_mouse.host_y = std::clamp(real_y, 0.0f, port_h - 1.0f);
+    }
+  }
+
+  /**
+   * @brief Emulate relative mouse movement from absolute coordinates.
+   *
+   * Absolute motion arrives as PointerMotionAbsolute in the compositor, which
+   * moves the cursor but does NOT update assistive features that only track
+   * relative motion, e.g. the COSMIC screen magnifier focal point
+   * (pop-os/cosmic-comp #2760). The first event anchors the cursor absolutely;
+   * subsequent events are converted to relative deltas.
+   *
+   * Dead reckoning is the only thing in the smooth motion path (1:1, no
+   * latency); the estimate is resynced with the real cursor position while the
+   * client is idle. Phantom "walls" (movement blocked in one direction until
+   * pushed back) come from the client saturating a coordinate in its own
+   * surface while the host cursor sits mid-screen, so a saturated axis simply
+   * targets the matching host edge — the primary loop itself drives the cursor
+   * there, continuously and idempotently.
+   *
+   * @param input The input context.
+   * @param abs_port Absolute-coordinate touch port.
+   * @param event The client mouse event (raw and touch-port coordinates).
+   * @param touch_port_dim_x Touch-port width in pixels.
+   * @param touch_port_dim_y Touch-port height in pixels.
+   */
+  static void
+  abs_mouse_as_relative(const std::shared_ptr<input_t> &input, const platf::touch_port_t &abs_port, const abs_mouse_event_t &event,
+                        int touch_port_dim_x, int touch_port_dim_y) {
+    const auto port_w = static_cast<float>(touch_port_dim_x);
+    const auto port_h = static_cast<float>(touch_port_dim_y);
+
+    const auto &x = event.x;
+    const auto &y = event.y;
+
+    // Saturation bands on the client's own surface.
+    constexpr float kRawEdge = 8.0f;
+    const auto at_left = x <= kRawEdge;
+    const auto at_right = x >= event.width - kRawEdge;
+    const auto at_top = y <= kRawEdge;
+    const auto at_bottom = y >= event.height - kRawEdge;
+
+    // Client target in touch-port units; a saturated axis targets the host edge.
+    auto target_x = std::clamp(event.tpcoords.first, 0.0f, port_w - 1.0f);
+    auto target_y = std::clamp(event.tpcoords.second, 0.0f, port_h - 1.0f);
+    if (at_left) target_x = 0.0f;
+    else if (at_right) target_x = port_w - 1.0f;
+    if (at_top) target_y = 0.0f;
+    else if (at_bottom) target_y = port_h - 1.0f;
+
+    // Idle detection watches the client's own motion (raw coordinates), so a
+    // cursor pinned against its edge still counts as idle once it stops.
+    const auto now = std::chrono::steady_clock::now();
+    if (std::fabs(x - input->abs_mouse.last_raw_x) > 0.01f ||
+        std::fabs(y - input->abs_mouse.last_raw_y) > 0.01f) {
+      input->abs_mouse.last_client_move = now;
+    }
+    input->abs_mouse.last_raw_x = x;
+    input->abs_mouse.last_raw_y = y;
+
+    if (!input->abs_mouse.initialized) {
+      platf::abs_mouse(platf_input, abs_port, event.tpcoords.first, event.tpcoords.second);
+      input->abs_mouse.initialized = true;
+      input->abs_mouse.host_x = target_x;
+      input->abs_mouse.host_y = target_y;
+      return;
+    }
+
+    constexpr auto kIdleMs = std::chrono::milliseconds(150);
+    const auto client_idle = now - input->abs_mouse.last_client_move > kIdleMs;
+    abs_mouse_sync_estimate(input, client_idle, at_left || at_right, at_top || at_bottom, port_w, port_h);
+
+    // Primary loop: drive the estimate toward the (possibly edge-overridden)
+    // target. Idempotent while resting inside the edge band.
+    input->abs_mouse.frac_x += target_x - input->abs_mouse.host_x;
+    input->abs_mouse.frac_y += target_y - input->abs_mouse.host_y;
+
+    const auto delta_x = static_cast<int>(input->abs_mouse.frac_x);
+    const auto delta_y = static_cast<int>(input->abs_mouse.frac_y);
+    input->abs_mouse.frac_x -= delta_x;
+    input->abs_mouse.frac_y -= delta_y;
+
+    if (delta_x || delta_y) {
+      platf::move_mouse(platf_input, delta_x, delta_y);
+      input->abs_mouse.host_x = std::clamp(input->abs_mouse.host_x + delta_x, 0.0f, port_w - 1.0f);
+      input->abs_mouse.host_y = std::clamp(input->abs_mouse.host_y + delta_y, 0.0f, port_h - 1.0f);
+    }
+  }
+
   /**
    * @brief Forward a client input packet directly to the platform backend.
    *
@@ -863,7 +1048,12 @@ namespace input {
       touch_port_dim_y
     };
 
-    platf::abs_mouse(platf_input, abs_port, tpcoords->first, tpcoords->second);
+    if (!config::input.absolute_mouse_as_relative) {
+      platf::abs_mouse(platf_input, abs_port, tpcoords->first, tpcoords->second);
+      return;
+    }
+
+    abs_mouse_as_relative(input, abs_port, { *tpcoords, x, y, width, height }, touch_port_dim_x, touch_port_dim_y);
   }
 
   /**
