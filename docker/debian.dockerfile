@@ -78,6 +78,17 @@ set -e
 ./scripts/linux_build.sh \
   --step=package \
   --sudo-off
+
+package_dependencies="$(dpkg-deb --field build/cpack_artifacts/*.deb Depends)"
+package_dependencies_valid=false
+case "${package_dependencies}" in
+  *libqt5*) ;;
+  *libqt6widgets6*libqt6svg6* | *libqt6svg6*libqt6widgets6*) package_dependencies_valid=true ;;
+esac
+if [ "${package_dependencies_valid}" = false ]; then
+  echo "Unexpected Qt package dependencies: ${package_dependencies}"
+  exit 1
+fi
 _BUILD
 
 # run tests

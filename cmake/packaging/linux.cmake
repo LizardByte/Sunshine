@@ -163,7 +163,7 @@ if(${SUNSHINE_TRAY} STREQUAL 1)
     # Icons used by the Qt tray backend are no longer installed to the hicolor icon theme,
     # because Qt6 will not allow icons not part of the theme... so we will use icons from our web directory instead
 
-    if(TRAY_QT_VERSION EQUAL 6)
+    if(SUNSHINE_TRAY_QT_VERSION EQUAL 6)
         set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
                     ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \
                     libqt6widgets6, \
@@ -178,7 +178,7 @@ if(${SUNSHINE_TRAY} STREQUAL 1)
                 devel/qt6-base
                 graphics/qt6-svg
         )
-    else()
+    elseif(SUNSHINE_TRAY_QT_VERSION EQUAL 5)
         set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
                     ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \
                     libqt5widgets5, \
@@ -193,6 +193,8 @@ if(${SUNSHINE_TRAY} STREQUAL 1)
                 x11-toolkits/qt5-widgets
                 graphics/qt5-svg
         )
+    else()
+        message(FATAL_ERROR "Unsupported tray Qt version: ${SUNSHINE_TRAY_QT_VERSION}")
     endif()
 endif()
 
