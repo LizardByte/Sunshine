@@ -34,6 +34,9 @@ location by modifying the configuration file.
 Although it is recommended to use the configuration UI, it is possible manually configure Sunshine by
 editing the `conf` file in a text editor. Use the examples as reference.
 
+The web UI groups these settings into the sidebar categories documented below. Encoder categories are shown only when
+supported on the current platform.
+
 ## General
 
 ### locale

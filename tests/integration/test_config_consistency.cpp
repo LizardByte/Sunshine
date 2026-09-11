@@ -471,6 +471,36 @@ TEST_F(ConfigConsistencyTest, AllConfigOptionsExistInAllFiles) {
   }
 }
 
+TEST_F(ConfigConsistencyTest, AllConfigSidebarTabsUseEnglishLocaleKeys) {
+  const std::string content = file_handler::read_file("src_assets/common/assets/web/config.html");
+  const std::string tabsContent = extractTabsContent(content);
+  const auto jsonOptions = extractEnJsonConfigOptions();
+  const std::regex nameKeyPattern(R"DELIM(nameKey:\s*"config\.([^"]+)")DELIM");
+  std::vector<std::string> errors;
+
+  size_t tabPos = 0;
+  while (tabPos < tabsContent.length()) {
+    const size_t objStart = tabsContent.find('{', tabPos);
+    if (objStart == std::string::npos) {
+      break;
+    }
+
+    const size_t objEnd = findClosingBrace(tabsContent, objStart);
+    const std::string tabObject = tabsContent.substr(objStart, objEnd - objStart + 1);
+    const std::string tabId = extractTabId(tabObject);
+
+    if (std::smatch nameKeyMatch; !std::regex_search(tabObject, nameKeyMatch, nameKeyPattern)) {
+      errors.push_back(std::format("Tab '{}' does not use a localized name key", tabId));
+    } else if (!jsonOptions.contains(nameKeyMatch[1].str())) {
+      errors.push_back(std::format("Tab '{}' references missing en.json key 'config.{}'", tabId, nameKeyMatch[1].str()));
+    }
+
+    tabPos = objEnd + 1;
+  }
+
+  EXPECT_TRUE(errors.empty()) << buildCommaSeparatedString(errors);
+}
+
 TEST_F(ConfigConsistencyTest, ConfigTabsMatchDocumentationSections) {
   auto htmlOptions = extractConfigHtmlOptions();
   auto mdOptions = extractConfigMdOptions();
