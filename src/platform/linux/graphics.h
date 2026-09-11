@@ -635,6 +635,26 @@ namespace egl {
   };
 
   /**
+   * @brief Determine the exact integer capture-to-stream upscale factor.
+   *
+   * Point (nearest-neighbour) upscaling only replicates each captured pixel into an
+   * identical NxN block when the stream resolution is an exact integer multiple of the
+   * capture resolution in both axes. The factor must additionally be even: 4:2:0 chroma is
+   * a box average of a 2x2 window of stream pixels, and that window only ever falls fully
+   * inside one replicated block (or fully spans two identical ones) when the block size is
+   * even. An odd factor blends two different source pixels' chroma in some windows -
+   * measured to be worse than the existing bilinear scaling, not just merely inexact. Any
+   * ratio that fails either test must keep the default bilinear filter.
+   *
+   * @param in_width Capture width in pixels.
+   * @param in_height Capture height in pixels.
+   * @param out_width Aspect-corrected stream width in pixels.
+   * @param out_height Aspect-corrected stream height in pixels.
+   * @return The upscale factor when it is an even integer of at least 2 and identical in both axes, otherwise 0.
+   */
+  int supersample_factor(int in_width, int in_height, int out_width, int out_height);
+
+  /**
    * @brief EGL/OpenGL scaler and colorspace conversion pipeline.
    */
   class sws_t {
@@ -720,6 +740,14 @@ namespace egl {
     int blank(gl::frame_buf_t &fb, int offsetX_, int offsetY_, int width, int height, bool is_yuv444);
 
     /**
+     * @brief Bind the loaded source texture and select the filter used by the scaling blit.
+     *
+     * Applies GL_NEAREST when an exact integer upscale was detected, so each captured pixel is
+     * replicated as an identical block instead of being interpolated.
+     */
+    void bind_source_texture();
+
+    /**
      * @brief Load ram data from the backing API or store.
      *
      * @param img Image or frame object to read from or populate.
@@ -763,6 +791,9 @@ namespace egl {
     int in_height;  ///< In height.
     int offsetX;  ///< Offset x.
     int offsetY;  ///< Offset y.
+
+    // Non-zero when the capture->stream blit uses point sampling instead of bilinear
+    int supersample {0};  ///< Integer capture-to-stream upscale factor, or 0 to keep bilinear filtering.
 
     // Pointer to the texture to be converted to nv12
     int loaded_texture;  ///< Loaded texture.

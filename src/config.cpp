@@ -776,6 +776,8 @@ namespace config {
       2,  // vk.rc_mode (default: cbr)
     },
 
+    false,  // chroma_supersample
+
     {},  // capture
     {},  // encoder
     {},  // adapter_name
@@ -1691,6 +1693,8 @@ namespace config {
 
     int_f(vars, "vk_tune", video.vk.tune);
     int_f(vars, "vk_rc_mode", video.vk.rc_mode);
+
+    bool_f(vars, "chroma_supersample", video.chroma_supersample);
 
     string_f(vars, "capture", video.capture);
     string_f(vars, "encoder", video.encoder);

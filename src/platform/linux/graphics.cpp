@@ -7,6 +7,7 @@
 
 // local includes
 #include "graphics.h"
+#include "src/config.h"
 #include "src/file_handler.h"
 #include "src/logging.h"
 #include "src/video.h"
@@ -994,6 +995,75 @@ namespace egl {
     return 0;
   }
 
+  int supersample_factor(int in_width, int in_height, int out_width, int out_height) {
+    if (in_width <= 0 || in_height <= 0) {
+      return 0;
+    }
+
+    const int factor = out_width / in_width;
+    if (factor < 2) {
+      return 0;
+    }
+
+    // Both axes must scale by the same exact integer. Anything else maps a captured pixel
+    // onto a fractional number of stream pixels, which point sampling would alias.
+    if (out_width != factor * in_width || out_height != factor * in_height) {
+      return 0;
+    }
+
+    // The factor must also be even. 4:2:0 chroma is a box average of a 2x2 window of stream
+    // pixels; that window lands entirely inside one replicated source block only when the
+    // block size is even, so every 2x2 window is either fully inside one block or fully
+    // straddles two equal-valued blocks - both exact. An odd factor puts some windows half in
+    // one block and half in the next, blending two different source pixels' chroma; measured
+    // empirically to be *worse* than bilinear at 3x, not just merely inexact.
+    if (factor & 1) {
+      return 0;
+    }
+
+    return factor;
+  }
+
+  /**
+   * @brief Select point sampling for the capture-to-stream upscale when it is exactly integral.
+   *
+   * Leaves sws.supersample at 0 - and therefore the pipeline on its default bilinear filter -
+   * unless `chroma_supersample` is enabled and the geometry supports exact pixel replication.
+   *
+   * @param sws Software-scaling pipeline to configure.
+   * @param is_yuv444 Whether the destination uses three full-resolution planes.
+   */
+  void configure_supersampling(sws_t &sws, bool is_yuv444) {
+    if (!config::video.chroma_supersample) {
+      return;
+    }
+
+    const int factor = supersample_factor(sws.in_width, sws.in_height, sws.out_width, sws.out_height);
+    if (!factor) {
+      BOOST_LOG(warning)
+        << "chroma_supersample: stream resolution ["sv << sws.out_width << 'x' << sws.out_height
+        << "] is not an exact, even integer multiple (2x, 4x, ...) of the capture resolution ["sv
+        << sws.in_width << 'x' << sws.in_height << "]; keeping bilinear scaling"sv;
+      return;
+    }
+
+    // The chroma planes of a 4:2:0 target render into a viewport at exactly half the luma
+    // offset. An odd offset truncates, shifting the chroma grid half a captured pixel away
+    // from the luma blocks it belongs to.
+    if (!is_yuv444 && ((sws.offsetX & 1) || (sws.offsetY & 1))) {
+      BOOST_LOG(warning)
+        << "chroma_supersample: letterbox offset ["sv << sws.offsetX << ',' << sws.offsetY
+        << "] is odd; keeping bilinear scaling"sv;
+      return;
+    }
+
+    sws.supersample = factor;
+
+    BOOST_LOG(info)
+      << "chroma_supersample: point sampling ["sv << sws.in_width << 'x' << sws.in_height
+      << "] -> ["sv << sws.out_width << 'x' << sws.out_height << "] ("sv << factor << "x)"sv;
+  }
+
   std::optional<sws_t> sws_t::make_nv12(int in_width, int in_height, int out_width, int out_height, gl::tex_t &&tex) {
     sws_t sws;
 
@@ -1017,7 +1087,14 @@ namespace egl {
     sws.offsetX = offsetX_f;
     sws.offsetY = offsetY_f;
 
-    auto width_i = 1.0f / sws.out_width;
+    configure_supersampling(sws, false);
+
+    // ConvertUV.frag averages two horizontal taps, `width_i` apart, to place the chroma
+    // sample on the left-sited position H.264/HEVC assume by default. Under point sampling
+    // both taps already resolve to the same captured pixel - every position inside an NxN
+    // block holds the same value - so the offset is dropped to keep that exact instead of
+    // relying on the two taps rounding to the same texel.
+    auto width_i = sws.supersample ? 0.0f : 1.0f / sws.out_width;
 
     {
       constexpr std::array<const char *, 5> sources {{
@@ -1122,6 +1199,8 @@ namespace egl {
 
     sws.offsetX = offsetX_f;
     sws.offsetY = offsetY_f;
+
+    configure_supersampling(sws, true);
 
     {
       constexpr std::array<const char *, 5> sources {{
@@ -1349,8 +1428,20 @@ namespace egl {
     return 0;
   }
 
-  int sws_t::convert_nv12(gl::frame_buf_t &fb) {
+  void sws_t::bind_source_texture() {
     gl::ctx.BindTexture(GL_TEXTURE_2D, loaded_texture);
+
+    if (supersample) {
+      // Set here rather than in gl::tex_t::make(), which backs every texture in the GL path
+      // including the cursor. The source may also be a texture imported from a DMA-BUF and
+      // owned elsewhere, so this is the only point that reliably covers both cases.
+      gl::ctx.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+      gl::ctx.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    }
+  }
+
+  int sws_t::convert_nv12(gl::frame_buf_t &fb) {
+    bind_source_texture();
 
     GLenum attachments[] {
       GL_COLOR_ATTACHMENT0,
@@ -1372,7 +1463,7 @@ namespace egl {
   }
 
   int sws_t::convert_yuv444(gl::frame_buf_t &fb) {
-    gl::ctx.BindTexture(GL_TEXTURE_2D, loaded_texture);
+    bind_source_texture();
 
     GLenum attachments[] {
       GL_COLOR_ATTACHMENT0,
