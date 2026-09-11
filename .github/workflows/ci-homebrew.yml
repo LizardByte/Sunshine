@@ -51,7 +51,7 @@ jobs:
             release: true  # this job will only configure the formula for release, no validation
     steps:
       - name: More space
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.release != true
         uses: LizardByte/actions/actions/more_space@39c468549cfb87ccb917e5e5342e18abc926dc48  # v2026.909.30231
         with:
           analyze-space-savings: true
