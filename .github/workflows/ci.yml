@@ -227,9 +227,6 @@ jobs:
             coverage: true
           - name: macOS-x86_64
             coverage: true
-          - name: Homebrew-macos-14
-            coverage: true
-            coverage_file: coverage.lcov
           - name: Homebrew-macos-15
             coverage: true
             coverage_file: coverage.lcov
