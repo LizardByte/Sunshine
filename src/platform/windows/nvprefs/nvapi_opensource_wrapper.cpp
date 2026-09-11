@@ -57,7 +57,9 @@ NvAPI_Initialize() {
     return NVAPI_OK;
   }
 
-#ifdef _WIN64
+#if defined(_M_ARM64) || defined(__aarch64__)
+  auto dll_name = "nvapia64.dll";
+#elif defined(_WIN64)
   auto dll_name = "nvapi64.dll";
 #else
   auto dll_name = "nvapi.dll";

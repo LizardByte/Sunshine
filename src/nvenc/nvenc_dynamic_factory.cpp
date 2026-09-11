@@ -17,7 +17,9 @@
 
 namespace {
 
-  #ifdef _WIN64
+  #if defined(_M_ARM64) || defined(__aarch64__)
+  constexpr auto nvenc_dll_name = "nvEncodeAPIa64.dll";
+  #elif defined(_WIN64)
   constexpr auto nvenc_dll_name = "nvEncodeAPI64.dll";
   #else
   constexpr auto nvenc_dll_name = "nvEncodeAPI.dll";
