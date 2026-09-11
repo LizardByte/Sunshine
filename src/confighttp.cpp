@@ -1775,7 +1775,11 @@ namespace confighttp {
   }
 
   /**
-   * @brief Send a PIN code to the explicitly selected pairing request.
+   * @brief Submit a PIN and return whether the selected client completes pairing.
+   *
+   * The request remains open for up to the configured `ping_timeout` while
+   * Moonlight completes the cryptographic handshake. A wrong PIN, protocol
+   * failure, cancellation, or timeout returns `{"status":false}`.
    * The body for the post request should be JSON serialized in the following format:
    * @code{.json}
    * {

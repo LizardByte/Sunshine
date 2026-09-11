@@ -652,6 +652,28 @@ TEST_F(ConfigHttpTest, PairingRestApiCancelsOnlyExplicitRequest) {
   EXPECT_TRUE(nvhttp::get_pending_pairings().empty());
 }
 
+TEST_F(ConfigHttpTest, PairingRestApiReportsIncompleteHandshakeAsFailure) {
+  const std::string pairing_id = insert_pending_pairing();
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Content-Type", "application/json");
+
+  const auto response = client->request(
+    "POST",
+    "/pairing-test",
+    nlohmann::json {
+      {"pairing_id", pairing_id},
+      {"pin", "9875"},
+      {"name", "Client"},
+    }
+      .dump(),
+    headers
+  );
+  ASSERT_EQ(response->status_code, "200 OK");
+  EXPECT_FALSE(nlohmann::json::parse(response->content.string()).at("status").get<bool>());
+  EXPECT_TRUE(nvhttp::get_pending_pairings().empty());
+}
+
 // Test: confighttp::authenticate() rejects requests without auth header
 TEST_F(ConfigHttpTest, AuthenticateRejectsNoAuth) {
   const auto response = client->request("GET", "/auth-test");
