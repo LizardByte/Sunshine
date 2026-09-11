@@ -848,11 +848,13 @@ namespace egl {
    */
   std::optional<nv12_t> create_nv12_target(int width, int height, AVPixelFormat format) {
     nv12_t nv12 {
-      EGL_NO_DISPLAY,
-      EGL_NO_IMAGE,
-      EGL_NO_IMAGE,
-      gl::tex_t::make(2),
-      gl::frame_buf_t::make(2),
+      nv12_img_t {
+        .display = EGL_NO_DISPLAY,
+        .r8 = EGL_NO_IMAGE,
+        .bg88 = EGL_NO_IMAGE,
+        .tex = gl::tex_t::make(2),
+        .buf = gl::frame_buf_t::make(2),
+      },
     };
 
     GLint y_format;
@@ -889,12 +891,14 @@ namespace egl {
    */
   std::optional<yuv444_t> create_yuv444_target(int width, int height, AVPixelFormat format) {
     yuv444_t yuv444 {
-      EGL_NO_DISPLAY,
-      EGL_NO_IMAGE,
-      EGL_NO_IMAGE,
-      EGL_NO_IMAGE,
-      gl::tex_t::make(3),
-      gl::frame_buf_t::make(3),
+      yuv444_img_t {
+        .display = EGL_NO_DISPLAY,
+        .r8 = EGL_NO_IMAGE,
+        .g8 = EGL_NO_IMAGE,
+        .b8 = EGL_NO_IMAGE,
+        .tex = gl::tex_t::make(3),
+        .buf = gl::frame_buf_t::make(3),
+      },
     };
 
     GLint y_format;

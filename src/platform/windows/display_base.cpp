@@ -643,7 +643,7 @@ namespace platf::dxgi {
             return false;
           }
 
-          D3DKMT_OPENADAPTERFROMLUID d3dkmt_adapter = {adapter};
+          D3DKMT_OPENADAPTERFROMLUID d3dkmt_adapter = {.AdapterLuid = adapter};
           if (FAILED(d3dkmt_open_adapter(&d3dkmt_adapter))) {
             BOOST_LOG(error) << "D3DKMTOpenAdapterFromLuid() failed while trying to determine GPU HAGS status";
             return false;

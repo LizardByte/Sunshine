@@ -861,6 +861,7 @@ namespace config {
     true,  // virtualhid_randomize_mac
 
     true,  // keyboard enabled
+    false,  // key_rightalt_to_key_win
     true,  // mouse enabled
     true,  // controller enabled
     true,  // always send scancodes
@@ -888,6 +889,7 @@ namespace config {
     false,  // notify_pre_releases
     true,  // system_tray
     {},  // prep commands
+    {},  // csrf_allowed_origins
   };
 
   /**

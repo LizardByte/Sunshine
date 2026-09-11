@@ -694,7 +694,7 @@ namespace cuda {
 
   namespace nvfbc {
     static PNVFBCCREATEINSTANCE createInstance {};
-    static NVFBC_API_FUNCTION_LIST func {NVFBC_VERSION};
+    static NVFBC_API_FUNCTION_LIST func {.dwVersion = NVFBC_VERSION};
 
     static constexpr inline NVFBC_BOOL nv_bool(bool b) {
       return b ? NVFBC_TRUE : NVFBC_FALSE;
@@ -818,7 +818,7 @@ namespace cuda {
        * @return Created backend object, or null when creation fails.
        */
       static std::optional<handle_t> make() {
-        NVFBC_CREATE_HANDLE_PARAMS params {NVFBC_CREATE_HANDLE_PARAMS_VER};
+        NVFBC_CREATE_HANDLE_PARAMS params {.dwVersion = NVFBC_CREATE_HANDLE_PARAMS_VER};
 
         // Set privateData to allow NvFBC on consumer NVIDIA GPUs.
         // Based on https://github.com/keylase/nvidia-patch/blob/3193b4b1cea91527bf09ea9b8db5aade6a3f3c0a/win/nvfbcwrp/nvfbcwrp_main.cpp#L23-L25 .
@@ -854,7 +854,7 @@ namespace cuda {
        * @return Status status.
        */
       std::optional<NVFBC_GET_STATUS_PARAMS> status() {
-        NVFBC_GET_STATUS_PARAMS params {NVFBC_GET_STATUS_PARAMS_VER};
+        NVFBC_GET_STATUS_PARAMS params {.dwVersion = NVFBC_GET_STATUS_PARAMS_VER};
 
         auto status = func.nvFBCGetStatus(handle, &params);
         if (status) {
@@ -990,7 +990,7 @@ namespace cuda {
 
         delay = ::video::capture_frame_interval(config);
 
-        capture_params = NVFBC_CREATE_CAPTURE_SESSION_PARAMS {NVFBC_CREATE_CAPTURE_SESSION_PARAMS_VER};
+        capture_params = NVFBC_CREATE_CAPTURE_SESSION_PARAMS {.dwVersion = NVFBC_CREATE_CAPTURE_SESSION_PARAMS_VER};
 
         capture_params.eCaptureType = NVFBC_CAPTURE_SHARED_CUDA;
         capture_params.bDisableAutoModesetRecovery = nv_bool(true);

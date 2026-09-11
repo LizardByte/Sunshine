@@ -309,7 +309,7 @@ namespace va {
       }
 
       // When the compression_level AVOption is set, vaapi_encode.c assigns the value to VAEncMiscParameterBufferQualityLevel
-      VAConfigAttrib quality_attr = {VAConfigAttribEncQualityRange};
+      VAConfigAttrib quality_attr = {.type = VAConfigAttribEncQualityRange};
       auto status = vaGetConfigAttributes(va_display, va_profile, va_entrypoint, &quality_attr, 1);
       if (status != VA_STATUS_SUCCESS || quality_attr.value == VA_ATTRIB_NOT_SUPPORTED) {
         quality_attr.value = 0;
@@ -333,14 +333,14 @@ namespace va {
         BOOST_LOG(info) << "[VAAPI] Quality level set to "sv << ctx->compression_level << " (fastest level: "sv << quality_attr.value << ")"sv;
       }
 
-      VAConfigAttrib rc_attr = {VAConfigAttribRateControl};
+      VAConfigAttrib rc_attr = {.type = VAConfigAttribRateControl};
       status = vaGetConfigAttributes(va_display, va_profile, va_entrypoint, &rc_attr, 1);
       if (status != VA_STATUS_SUCCESS) {
         // Stick to the default rate control (CQP)
         rc_attr.value = 0;
       }
 
-      VAConfigAttrib slice_attr = {VAConfigAttribEncMaxSlices};
+      VAConfigAttrib slice_attr = {.type = VAConfigAttribEncMaxSlices};
       status = vaGetConfigAttributes(va_display, va_profile, va_entrypoint, &slice_attr, 1);
       if (status != VA_STATUS_SUCCESS) {
         // Assume only a single slice is supported
