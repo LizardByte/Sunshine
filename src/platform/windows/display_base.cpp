@@ -772,6 +772,27 @@ namespace platf::dxgi {
     return desc1.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020;
   }
 
+  bool display_base_t::is_source_gamma_encoded_fp16() {
+    dxgi::output6_t output6 {};
+
+    auto status = output->QueryInterface(IID_IDXGIOutput6, (void **) &output6);
+    if (FAILED(status)) {
+      return false;
+    }
+
+    DXGI_OUTPUT_DESC1 desc1;
+    output6->GetDesc1(&desc1);
+
+    // Windows 11 Auto Color Management (ACM) composes SDR desktops into an
+    // FP16 framebuffer but the pixel values remain gamma-encoded (G22).
+    // The "linear" shader path assumes linear scRGB FP16 (G10) and applies
+    // ApplySRGBCurve, which double-encodes the already-sRGB G22 values,
+    // crushing highlights to white. Use this method to route G22+FP16 input
+    // through the non-linear shader path (saturate only, no curve).
+    return desc1.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709
+        || desc1.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P2020;
+  }
+
   bool display_base_t::get_hdr_metadata(SS_HDR_METADATA &metadata) {
     dxgi::output6_t output6 {};
 
