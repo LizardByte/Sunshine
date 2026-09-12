@@ -27,6 +27,14 @@
 
 namespace wl {
   /**
+   * @brief Determine whether wlroots capture should keep frames in VRAM for the requested memory type.
+   *
+   * @param hwdevice_type Hardware device type requested for capture or encode.
+   * @return `true` when the requested memory type should use the wlroots VRAM path.
+   */
+  bool use_vram_capture(platf::mem_type_e hwdevice_type);
+
+  /**
    * @brief Owning pointer for a Wayland display connection.
    */
   using display_internal_t = util::safe_ptr<wl_display, wl_display_disconnect>;
