@@ -792,8 +792,8 @@ namespace platf {
 
       for (auto &connector : connectors) {
         result.emplace(connector.crtc_id, monitor_t {
-                                            connector.type,
-                                            connector.index,
+                                            .type = connector.type,
+                                            .index = connector.index,
                                           });
       }
 
@@ -2090,10 +2090,10 @@ namespace platf {
         auto it = crtc_to_monitor.find(plane->crtc_id);
         if (it != std::end(crtc_to_monitor)) {
           it->second.viewport = platf::touch_port_t {
-            (int) crtc->x,
-            (int) crtc->y,
-            (int) crtc->width,
-            (int) crtc->height,
+            .offset_x = (int) crtc->x,
+            .offset_y = (int) crtc->y,
+            .width = (int) crtc->width,
+            .height = (int) crtc->height,
           };
           it->second.monitor_index = count;
         }

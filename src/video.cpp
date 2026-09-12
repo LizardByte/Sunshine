@@ -730,6 +730,7 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
       "av1_nvenc"s,
+      {},  // capabilities
     },
     {
       {},  // Common options
@@ -739,6 +740,7 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
       "hevc_nvenc"s,
+      {},  // capabilities
     },
     {
       {},  // Common options
@@ -748,6 +750,7 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
       "h264_nvenc"s,
+      {},  // capabilities
     },
     PARALLEL_ENCODING | REF_FRAMES_INVALIDATION | YUV444_SUPPORT | ASYNC_TEARDOWN  // flags
   };
@@ -794,6 +797,7 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
       "av1_nvenc"s,
+      {},  // capabilities
     },
     {
       // Common options
@@ -821,6 +825,7 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
       "hevc_nvenc"s,
+      {},  // capabilities
     },
     {
       {
@@ -845,6 +850,7 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
       "h264_nvenc"s,
+      {},  // capabilities
     },
     PARALLEL_ENCODING | YUV444_SUPPORT
   };
@@ -893,6 +899,7 @@ namespace video {
       },
       {},  // Fallback options
       "av1_qsv"s,
+      {},  // capabilities
     },
     {
       // Common options
@@ -928,6 +935,7 @@ namespace video {
          }},
       },
       "hevc_qsv"s,
+      {},  // capabilities
     },
     {
       // Common options
@@ -958,6 +966,7 @@ namespace video {
         {"low_power"s, 0},  // Some old/low-end Intel GPUs don't support low power encoding
       },
       "h264_qsv"s,
+      {},  // capabilities
     },
     PARALLEL_ENCODING | CBR_WITH_VBR | RELAXED_COMPLIANCE | NO_RC_BUF_LIMIT | YUV444_SUPPORT
   };
@@ -1000,6 +1009,7 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
       "av1_amf"s,
+      {},  // capabilities
     },
     {
       // Common options
@@ -1040,6 +1050,7 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
       "hevc_amf"s,
+      {},  // capabilities
     },
     {
       // Common options
@@ -1070,6 +1081,7 @@ namespace video {
         {"usage"s, 2 /* AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY */},  // Workaround for https://github.com/GPUOpen-LibrariesAndSDKs/AMF/issues/410
       },
       "h264_amf"s,
+      {},  // capabilities
     },
     PARALLEL_ENCODING
   };
@@ -1102,6 +1114,7 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
       "av1_mf"s,
+      {},  // capabilities
     },
     {
       // Common options for HEVC - Qualcomm MF encoder
@@ -1116,6 +1129,7 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
       "hevc_mf"s,
+      {},  // capabilities
     },
     {
       // Common options for H.264 - Qualcomm MF encoder
@@ -1130,6 +1144,7 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
       "h264_mf"s,
+      {},  // capabilities
     },
     PARALLEL_ENCODING | FIXED_GOP_SIZE  // MF encoder doesn't support on-demand IDR frames
   };
@@ -1173,6 +1188,7 @@ namespace video {
 #else
       {},
 #endif
+      {},  // capabilities
     },
     {
       // x265's Info SEI is so long that it causes the IDR picture data to be
@@ -1191,6 +1207,7 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
       "libx265"s,
+      {},  // capabilities
     },
     {
       // Common options
@@ -1204,6 +1221,7 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
       "libx264"s,
+      {},  // capabilities
     },
     H264_ONLY | PARALLEL_ENCODING | ALWAYS_REPROBE | YUV444_SUPPORT
   };
@@ -1237,6 +1255,7 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
       "av1_vaapi"s,
+      {},  // capabilities
     },
     {
       // Common options
@@ -1252,6 +1271,7 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
       "hevc_vaapi"s,
+      {},  // capabilities
     },
     {
       // Common options
@@ -1267,6 +1287,7 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
       "h264_vaapi"s,
+      {},  // capabilities
     },
     // RC buffer size will be set in platform code if supported
     LIMITED_GOP_SIZE | PARALLEL_ENCODING | NO_RC_BUF_LIMIT
@@ -1302,6 +1323,7 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
       "av1_vulkan"s,
+      {},  // capabilities
     },
     {
       // HEVC
@@ -1320,6 +1342,7 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
       "hevc_vulkan"s,
+      {},  // capabilities
     },
     {
       // H.264
@@ -1338,6 +1361,7 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
       "h264_vulkan"s,
+      {},  // capabilities
     },
     LIMITED_GOP_SIZE | PARALLEL_ENCODING
   };
@@ -1375,6 +1399,7 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
       "av1_videotoolbox"s,
+      {},  // capabilities
     },
     {
       // Common options
@@ -1391,6 +1416,7 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
       "hevc_videotoolbox"s,
+      {},  // capabilities
     },
     {
       // Common options
@@ -1414,6 +1440,7 @@ namespace video {
         {"flags"s, "-low_delay"},
       },
       "h264_videotoolbox"s,
+      {},  // capabilities
     },
     PARALLEL_ENCODING
   };
@@ -2524,6 +2551,8 @@ namespace video {
         display->offset_y,
         config.width,
         config.height,
+        display->logical_width,
+        display->logical_height,
       },
       display->env_width,
       display->env_height,
@@ -3053,8 +3082,8 @@ namespace video {
     encoder.av1.capabilities.set();
 
     // First, test encoder viability
-    config_t config_max_ref_frames {1920, 1080, 60, 6000, 1000, 1, 1, 1, 0, 0, 0};
-    config_t config_autoselect {1920, 1080, 60, 6000, 1000, 1, 0, 1, 0, 0, 0};
+    config_t config_max_ref_frames {1920, 1080, 60, 6000, 1000, 1, 1, 1, 0, 0, 0, 0};
+    config_t config_autoselect {1920, 1080, 60, 6000, 1000, 1, 0, 1, 0, 0, 0, 0};
 
     // If the encoder isn't supported at all (not even H.264), bail early
     reset_display(disp, encoder.platform_formats->dev_type, output_name, config_autoselect);
@@ -3148,7 +3177,7 @@ namespace video {
     // Test HDR and YUV444 support
     {
       auto test_yuv444 = [&](auto &flag_map, auto video_format) {
-        const config_t config = {1920, 1080, 60, 6000, 1000, 1, 0, 1, video_format, 0, 1};
+        const config_t config = {1920, 1080, 60, 6000, 1000, 1, 0, 1, video_format, 0, 1, 0};
 
         reset_display(disp, encoder.platform_formats->dev_type, output_name, config);
         if (!disp) {
@@ -3168,7 +3197,7 @@ namespace video {
       };
 
       auto test_yuv420_hdr = [&](auto &flag_map, auto video_format) {
-        const config_t config = {1920, 1080, 60, 6000, 1000, 1, 0, 3, video_format, 1, 0};
+        const config_t config = {1920, 1080, 60, 6000, 1000, 1, 0, 3, video_format, 1, 0, 0};
 
         reset_display(disp, encoder.platform_formats->dev_type, output_name, config);
         if (!disp) {
@@ -3188,7 +3217,7 @@ namespace video {
       };
 
       auto test_yuv444_hdr = [&](auto &flag_map, auto video_format) {
-        const config_t config = {1920, 1080, 60, 6000, 1000, 1, 0, 3, video_format, 1, 1};
+        const config_t config = {1920, 1080, 60, 6000, 1000, 1, 0, 3, video_format, 1, 1, 0};
 
         reset_display(disp, encoder.platform_formats->dev_type, output_name, config);
         if (!disp) {

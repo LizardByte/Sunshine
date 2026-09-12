@@ -256,7 +256,6 @@ namespace platf {
       } player_leds;  ///< Player-indicator LED payload.
 
       struct {
-        uint16_t controllerNumber;  ///< Controller number supplied to the adaptive-trigger backend.
         uint8_t event_flags;  ///< Flags describing which adaptive-trigger data is present.
         uint8_t type_left;  ///< Left adaptive-trigger effect type.
         uint8_t type_right;  ///< Right adaptive-trigger effect type.

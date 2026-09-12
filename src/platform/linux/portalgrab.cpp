@@ -354,9 +354,7 @@ namespace portal {
       GDBusProxy *proxy = use_screencast ? screencast_proxy : remote_desktop_proxy;
       const char *session_type = use_screencast ? "ScreenCast" : "RemoteDesktop";
 
-      dbus_response_t response = {
-        nullptr,
-      };
+      dbus_response_t response {};
       g_autofree gchar *request_token = nullptr;
       create_request_path(conn, nullptr, &request_token);
 
@@ -417,9 +415,7 @@ namespace portal {
     }
 
     int select_remote_desktop_devices(GMainLoop *loop, const gchar *session_path) {
-      dbus_response_t response = {
-        nullptr,
-      };
+      dbus_response_t response {};
       g_autofree gchar *request_token = nullptr;
       create_request_path(conn, nullptr, &request_token);
 
@@ -467,9 +463,7 @@ namespace portal {
     }
 
     int select_screencast_sources(GMainLoop *loop, const gchar *session_path, bool persist) {
-      dbus_response_t response = {
-        nullptr,
-      };
+      dbus_response_t response {};
       g_autofree gchar *request_token = nullptr;
       create_request_path(conn, nullptr, &request_token);
 
@@ -523,9 +517,7 @@ namespace portal {
       GDBusProxy *proxy = use_screencast ? screencast_proxy : remote_desktop_proxy;
       const char *session_type = use_screencast ? "ScreenCast" : "RemoteDesktop";
 
-      dbus_response_t response = {
-        nullptr,
-      };
+      dbus_response_t response {};
       g_autofree gchar *request_token = nullptr;
       create_request_path(conn, nullptr, &request_token);
 
@@ -608,7 +600,14 @@ namespace portal {
           out_pipewire_object_serial = SPA_ID_INVALID;
         }
 
-        auto stream = pipewire_streaminfo_t {out_pipewire_node, out_pipewire_object_serial, out_width, out_height, out_pos_x, out_pos_y};
+        auto stream = pipewire_streaminfo_t {
+          .pipewire_node = out_pipewire_node,
+          .pipewire_object_serial = out_pipewire_object_serial,
+          .width = out_width,
+          .height = out_height,
+          .pos_x = out_pos_x,
+          .pos_y = out_pos_y,
+        };
 
         // Try to match the stream to a monitor_name by position/resolution and update stream info
         for (const auto &monitor : wl_monitors) {

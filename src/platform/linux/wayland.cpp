@@ -117,10 +117,10 @@ namespace wl {
   monitor_t::monitor_t(wl_output *output):
       output {output},
       wl_listener {
-        &CLASS_CALL(monitor_t, wl_geometry),
-        &CLASS_CALL(monitor_t, wl_mode),
-        &CLASS_CALL(monitor_t, wl_done),
-        &CLASS_CALL(monitor_t, wl_scale),
+        .geometry = &CLASS_CALL(monitor_t, wl_geometry),
+        .mode = &CLASS_CALL(monitor_t, wl_mode),
+        .done = &CLASS_CALL(monitor_t, wl_done),
+        .scale = &CLASS_CALL(monitor_t, wl_scale),
       },
       xdg_listener {
         &CLASS_CALL(monitor_t, xdg_position),
