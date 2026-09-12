@@ -94,6 +94,7 @@ if(LIBDRM_FOUND)
         list(APPEND PLATFORM_LIBRARIES ${LIBDRM_LIBRARIES})
         add_compile_definitions(SUNSHINE_BUILD_DRM)
         list(APPEND PLATFORM_TARGET_FILES
+                "${CMAKE_SOURCE_DIR}/src/platform/linux/kmsgrab.h"
                 "${CMAKE_SOURCE_DIR}/src/platform/linux/kmsgrab.cpp")
         list(APPEND SUNSHINE_DEFINITIONS EGL_NO_X11=1)
     endif()
