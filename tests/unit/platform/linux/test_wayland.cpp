@@ -29,4 +29,20 @@ TEST(WaylandMonitorTest, UpdatesCurrentMode) {
   EXPECT_EQ(monitor.viewport.width, 2560);
   EXPECT_EQ(monitor.viewport.height, 1440);
 }
+
+TEST(WaylandCaptureTest, UsesVramForVaapi) {
+  EXPECT_TRUE(wl::use_vram_capture(platf::mem_type_e::vaapi));
+}
+
+TEST(WaylandCaptureTest, UsesSystemMemoryForSoftwareEncoding) {
+  EXPECT_FALSE(wl::use_vram_capture(platf::mem_type_e::system));
+}
+
+TEST(WaylandCaptureTest, UsesVramForCudaOnlyWhenCudaSupportIsBuilt) {
+  #ifdef SUNSHINE_BUILD_CUDA
+  EXPECT_TRUE(wl::use_vram_capture(platf::mem_type_e::cuda));
+  #else
+  EXPECT_FALSE(wl::use_vram_capture(platf::mem_type_e::cuda));
+  #endif
+}
 #endif

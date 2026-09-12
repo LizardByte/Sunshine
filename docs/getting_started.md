@@ -57,12 +57,20 @@ available for manual download from each GitHub release.
 
 **CUDA Compatibility**
 
-CUDA is used for NVFBC capture.
+CUDA is used for NVFBC capture and direct GPU-memory NVENC encoding.
+
+> [!IMPORTANT]
+> CUDA support is selected when Sunshine is compiled. If you build Sunshine for an NVIDIA GPU yourself, including
+> through the AUR or for a third-party repository such as Omarchy, install the CUDA Toolkit before building Sunshine.
+> Installing CUDA after Sunshine has been compiled does not add CUDA support; Sunshine must be rebuilt.
+>
+> This requirement does not apply when installing a prebuilt package supplied by LizardByte. In particular, the
+> Arch Linux package from LizardByte's [pacman-repo](https://github.com/LizardByte/pacman-repo) is already built with
+> CUDA support, so its users do not need to install the CUDA Toolkit.
 
 > [!NOTE]
 > See [CUDA GPUS](https://developer.nvidia.com/cuda-gpus) to cross-reference Compute Capability to your GPU.
-> The table below applies to packages provided by LizardByte. If you use an official LizardByte package, then you do not
-> need to install CUDA.
+> The table below applies to packages provided by LizardByte.
 
 <table>
     <caption>CUDA Compatibility</caption>
@@ -148,6 +156,11 @@ apk del sunshine
 
 > [!CAUTION]
 > Use AUR packages at your own risk.
+
+> [!IMPORTANT]
+> NVIDIA users installing Sunshine from LizardByte's pacman-repo do not need the CUDA Toolkit. If Sunshine is compiled
+> locally from the AUR or by another package provider, such as Omarchy, the builder must install the CUDA Toolkit before
+> compilation. Installing CUDA after the package was built cannot enable CUDA support in that package.
 
 ##### Install Prebuilt Packages
 Follow the instructions at LizardByte's [pacman-repo](https://github.com/LizardByte/pacman-repo) to add

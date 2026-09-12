@@ -75,7 +75,17 @@ sudo mv /tmp/sunshine build/sunshine
 ```
 
 ##### CUDA Toolkit
-Sunshine requires CUDA Toolkit for NVFBC capture. There are two caveats to CUDA:
+When building Sunshine for a system with an NVIDIA GPU, install the CUDA Toolkit before configuring or compiling
+Sunshine. CUDA support is selected at compile time and is used for NVFBC capture and direct GPU-memory NVENC encoding.
+This applies to every source build, including builds made through the AUR or for third-party repositories such as
+Omarchy. Installing the CUDA Toolkit after Sunshine was compiled does not enable CUDA support; Sunshine must be rebuilt.
+
+> [!NOTE]
+> Users installing a prebuilt package supplied by LizardByte do not need to install the CUDA Toolkit. This includes the
+> Arch Linux package from LizardByte's [pacman-repo](https://github.com/LizardByte/pacman-repo), which is already built
+> with CUDA support.
+
+There are two caveats to CUDA:
 
 1. The version installed depends on the version of GCC.
 2. The version of CUDA you use will determine compatibility with various GPU generations.
