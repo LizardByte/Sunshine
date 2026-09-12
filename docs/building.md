@@ -172,7 +172,7 @@ dependencies=(
   "mingw-w64-${TOOLCHAIN}-cmake"
   "mingw-w64-${TOOLCHAIN}-cppwinrt"
   "mingw-w64-${TOOLCHAIN}-curl-winssl"
-  "mingw-w64-${TOOLCHAIN}-doxygen"  # Optional, for docs... better to install official Doxygen
+  "mingw-w64-${TOOLCHAIN}-doxygen"  # Optional, for docs
   "mingw-w64-${TOOLCHAIN}-graphviz"  # Optional, for docs
   "mingw-w64-${TOOLCHAIN}-miniupnpc"
   "mingw-w64-${TOOLCHAIN}-onevpl"
