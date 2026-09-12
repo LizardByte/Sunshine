@@ -1561,8 +1561,9 @@ supported on the current platform.
             and want to restrict Sunshine to a specific one. If not set, Sunshine will bind to all available
             interfaces (0.0.0.0 for IPv4 or :: for IPv6).
             <br><br>
-            <strong>Note:</strong> The address must be valid for the system and must match the address family
-            being used. When using IPv6, you can specify an IPv6 address even with address_family set to "both".
+            <strong>Note:</strong> The address must exist on the host and be compatible with address_family.
+            An IPv4 address works with either "ipv4" or "both"; when used with "both", Sunshine listens only
+            on that IPv4 address. An IPv6 address requires address_family to be set to "both".
         </td>
     </tr>
     <tr>

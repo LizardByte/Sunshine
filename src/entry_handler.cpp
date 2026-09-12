@@ -26,12 +26,16 @@ extern "C" {
 
 using namespace std::literals;
 
-void launch_ui(const std::optional<std::string> &path) {
-  std::string url = std::format("https://localhost:{}", static_cast<int>(net::map_port(confighttp::PORT_HTTPS)));
+std::string get_launch_ui_url(const std::optional<std::string> &path) {
+  std::string url = std::format("https://{}:{}", net::get_bind_address_url_host(), static_cast<int>(net::map_port(confighttp::PORT_HTTPS)));
   if (path) {
     url += *path;
   }
-  platf::open_url(url);
+  return url;
+}
+
+void launch_ui(const std::optional<std::string> &path) {
+  platf::open_url(get_launch_ui_url(path));
 }
 
 namespace args {

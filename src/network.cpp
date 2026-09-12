@@ -126,6 +126,16 @@ namespace net {
     return BOTH;
   }
 
+  af_e get_effective_address_family(const af_e af) {
+    if (af != BOTH || config::sunshine.bind_address.empty()) {
+      return af;
+    }
+
+    boost::system::error_code ec;
+    const auto bind_address = ip::make_address(config::sunshine.bind_address, ec);
+    return !ec && bind_address.is_v4() ? IPV4 : af;
+  }
+
   std::string_view af_to_any_address_string(const af_e af) {
     switch (af) {
       case IPV4:
@@ -175,6 +185,16 @@ namespace net {
     }
   }
 
+  std::string get_bind_address_url_host() {
+    if (config::sunshine.bind_address.empty()) {
+      return "localhost";
+    }
+
+    boost::system::error_code ec;
+    const auto bind_address = ip::make_address(config::sunshine.bind_address, ec);
+    return ec ? config::sunshine.bind_address : addr_to_url_escaped_string(bind_address);
+  }
+
   int encryption_mode_for_address(boost::asio::ip::address address) {
     auto nettype = net::from_address(address.to_string());
     if (nettype == net::net_e::PC || nettype == net::net_e::LAN) {
@@ -193,6 +213,7 @@ namespace net {
       enet_initialize();
     });
 
+    af = get_effective_address_family(af);
     const auto bind_addr = net::get_bind_address(af);
     enet_address_set_host(&addr, bind_addr.c_str());
     enet_address_set_port(&addr, port);

@@ -2320,9 +2320,7 @@ namespace confighttp {
     server.config.address = net::get_bind_address(address_family);
     server.config.port = port_https;
 
-    // Store bind address for logging, use "localhost" as fallback for wildcard addresses
-    const auto bind_addr = server.config.address;
-    const auto display_addr = config::sunshine.bind_address.empty() ? "localhost"sv : std::string_view {bind_addr};
+    const auto display_addr = net::get_bind_address_url_host();
 
     auto accept_and_run = [&](auto *server) {
       try {
