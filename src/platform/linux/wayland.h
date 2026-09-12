@@ -5,9 +5,11 @@
 #pragma once
 
 // standard includes
+#include <array>
 #include <bitset>
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <vector>
 
 #ifdef SUNSHINE_BUILD_WAYLAND
@@ -25,6 +27,8 @@
  */
 #ifdef SUNSHINE_BUILD_WAYLAND
 
+struct gbm_bo;
+
 namespace wl {
   /**
    * @brief Determine whether wlroots capture should keep frames in VRAM for the requested memory type.
@@ -40,6 +44,17 @@ namespace wl {
   using display_internal_t = util::safe_ptr<wl_display, wl_display_disconnect>;
 
   /**
+   * @brief GBM buffer accessors used to export DMA-BUF plane metadata.
+   */
+  struct gbm_bo_accessors_t {
+    int (*get_plane_count)(gbm_bo *bo);  ///< Return the number of memory planes in the buffer.
+    int (*get_fd_for_plane)(gbm_bo *bo, int plane);  ///< Duplicate the DMA-BUF descriptor for one plane.
+    std::uint32_t (*get_stride_for_plane)(gbm_bo *bo, int plane);  ///< Return the row stride for one plane.
+    std::uint32_t (*get_offset)(gbm_bo *bo, int plane);  ///< Return the byte offset for one plane.
+    std::uint64_t (*get_modifier)(gbm_bo *bo);  ///< Return the DRM format modifier shared by the planes.
+  };
+
+  /**
    * @brief Captured Wayland frame metadata and DMA-BUF surface state.
    */
   class frame_t {
@@ -53,6 +68,16 @@ namespace wl {
     egl::surface_descriptor_t sd;  ///< DMA-BUF surface descriptor received from the compositor.
     std::optional<std::chrono::steady_clock::time_point> frame_timestamp;  ///< Capture timestamp associated with the frame.
   };
+
+  /**
+   * @brief Export every GBM buffer plane into a captured frame descriptor.
+   *
+   * @param bo GBM buffer whose DMA-BUF planes will be exported.
+   * @param frame Frame that takes ownership of the exported file descriptors.
+   * @param accessors GBM accessors used to query the buffer.
+   * @return Number of exported planes, or no value when the buffer cannot be exported.
+   */
+  std::optional<std::uint32_t> export_gbm_bo_planes(gbm_bo *bo, frame_t &frame, const gbm_bo_accessors_t &accessors);
 
   /**
    * @brief Listener state for Wayland screencopy frames backed by DMA-BUFs.

@@ -34,6 +34,16 @@ using namespace std::literals;
 
 namespace wl {
 
+  namespace {
+    const gbm_bo_accessors_t gbm_bo_accessors {
+      .get_plane_count = gbm_bo_get_plane_count,
+      .get_fd_for_plane = gbm_bo_get_fd_for_plane,
+      .get_stride_for_plane = gbm_bo_get_stride_for_plane,
+      .get_offset = gbm_bo_get_offset,
+      .get_modifier = gbm_bo_get_modifier,
+    };
+  }  // namespace
+
   // Helper to call C++ method from wayland C callback
   template<class T, class Method, Method m, class... Params>
   static auto classCall(void *data, Params... params) -> decltype(((*reinterpret_cast<T *>(data)).*m)(params...)) {
@@ -373,6 +383,31 @@ namespace wl {
     BOOST_LOG(verbose) << "Frame flags: "sv << flags << (y_invert ? " (y_invert)" : "");
   }
 
+  std::optional<std::uint32_t> export_gbm_bo_planes(gbm_bo *bo, frame_t &frame, const gbm_bo_accessors_t &accessors) {
+    frame.destroy();
+
+    const auto plane_count = accessors.get_plane_count(bo);
+    if (plane_count <= 0 || plane_count > static_cast<int>(std::size(frame.sd.fds))) {
+      BOOST_LOG(error) << "[wayland] GBM buffer has unsupported plane count ["sv << plane_count << ']';
+      return std::nullopt;
+    }
+
+    frame.sd.modifier = accessors.get_modifier(bo);
+    for (auto plane = 0; plane < plane_count; ++plane) {
+      frame.sd.fds[plane] = accessors.get_fd_for_plane(bo, plane);
+      if (frame.sd.fds[plane] < 0) {
+        BOOST_LOG(error) << "[wayland] Failed to export DMA-BUF plane ["sv << plane << ']';
+        frame.destroy();
+        return std::nullopt;
+      }
+
+      frame.sd.pitches[plane] = accessors.get_stride_for_plane(bo, plane);
+      frame.sd.offsets[plane] = accessors.get_offset(bo, plane);
+    }
+
+    return static_cast<std::uint32_t>(plane_count);
+  }
+
   // DMA-BUF creation helper
   void dmabuf_t::create_and_copy_dmabuf(zwlr_screencopy_frame_v1 *frame) {
     if (!init_gbm()) {
@@ -386,7 +421,7 @@ namespace wl {
     if (supported_modifiers) {
       auto it = supported_modifiers->find(dmabuf_info.format);
       if (it != supported_modifiers->end() && !it->second.empty()) {
-        current_bo = gbm_bo_create_with_modifiers(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, it->second.data(), it->second.size());
+        current_bo = gbm_bo_create_with_modifiers2(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, it->second.data(), it->second.size(), GBM_BO_USE_RENDERING);
       }
     }
 
@@ -401,10 +436,10 @@ namespace wl {
       return;
     }
 
-    // Get buffer info
-    int fd = gbm_bo_get_fd(current_bo);
-    if (fd < 0) {
-      BOOST_LOG(error) << "Failed to get buffer FD"sv;
+    // Export every memory plane into the surface descriptor
+    auto next_frame = get_next_frame();
+    const auto plane_count = export_gbm_bo_planes(current_bo, *next_frame, gbm_bo_accessors);
+    if (!plane_count) {
       gbm_bo_destroy(current_bo);
       current_bo = nullptr;
       zwlr_screencopy_frame_v1_destroy(frame);
@@ -412,19 +447,19 @@ namespace wl {
       return;
     }
 
-    uint32_t stride = gbm_bo_get_stride(current_bo);
-    uint64_t modifier = gbm_bo_get_modifier(current_bo);
-
-    // Store in surface descriptor for later use
-    auto next_frame = get_next_frame();
-    next_frame->sd.fds[0] = fd;
-    next_frame->sd.pitches[0] = stride;
-    next_frame->sd.offsets[0] = 0;
-    next_frame->sd.modifier = modifier;
-
     // Create linux-dmabuf buffer
     auto params = zwp_linux_dmabuf_v1_create_params(dmabuf_interface);
-    zwp_linux_buffer_params_v1_add(params, fd, 0, 0, stride, modifier >> 32, modifier & 0xffffffff);
+    for (std::uint32_t plane = 0; plane < *plane_count; ++plane) {
+      zwp_linux_buffer_params_v1_add(
+        params,
+        next_frame->sd.fds[plane],
+        plane,
+        next_frame->sd.offsets[plane],
+        next_frame->sd.pitches[plane],
+        next_frame->sd.modifier >> 32,
+        next_frame->sd.modifier & 0xffffffff
+      );
+    }
 
     // Add listener for buffer creation
     zwp_linux_buffer_params_v1_add_listener(params, &params_listener, frame);
@@ -485,6 +520,7 @@ namespace wl {
 
     BOOST_LOG(error) << "[wayland] Failed to create buffer from params"sv;
     self->cleanup_gbm();
+    self->get_next_frame()->destroy();
 
     zwp_linux_buffer_params_v1_destroy(params);
     zwlr_screencopy_frame_v1_destroy(frame);
