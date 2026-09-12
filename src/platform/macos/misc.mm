@@ -19,6 +19,8 @@
 // platform includes
 #include <arpa/inet.h>
 #include <dlfcn.h>
+#include <ApplicationServices/ApplicationServices.h>
+#include <AppKit/AppKit.h>
 #include <Foundation/Foundation.h>
 #include <mach-o/dyld.h>
 #include <net/if_dl.h>
@@ -32,6 +34,7 @@
 
 // local includes
 #include "misc.h"
+#include "src/utility.h"
 #include "src/entry_handler.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
@@ -69,6 +72,119 @@ namespace platf {
   /**
    * @brief Check whether screen capture allowed.
    */
+  namespace {
+    /// Reads an Accessibility attribute, returning nothing rather than an error code.
+    CFTypeRef copy_attribute(AXUIElementRef element, CFStringRef name) {
+      CFTypeRef value = nullptr;
+      if (AXUIElementCopyAttributeValue(element, name, &value) != kAXErrorSuccess) {
+        return nullptr;
+      }
+      return value;
+    }
+  }  // namespace
+
+  std::optional<std::array<double, 4>> focused_caret() {
+    if (!AXIsProcessTrusted()) {
+      return std::nullopt;
+    }
+
+    NSRunningApplication *front = [[NSWorkspace sharedWorkspace] frontmostApplication];
+    if (front == nil) {
+      return std::nullopt;
+    }
+
+    // Ask the application, not the system. AXUIElementCreateSystemWide() with
+    // kAXFocusedUIElementAttribute comes back empty for applications that answer perfectly well
+    // when asked directly — iTerm2 among them, which is the case this exists for.
+    AXUIElementRef app = AXUIElementCreateApplication(front.processIdentifier);
+    if (!app) {
+      return std::nullopt;
+    }
+    // A busy or hung application must not stall the request that asked for this.
+    AXUIElementSetMessagingTimeout(app, 0.1f);
+
+    const auto release_app = util::fail_guard([app]() {
+      CFRelease(app);
+    });
+
+    CFTypeRef focused = copy_attribute(app, kAXFocusedUIElementAttribute);
+    if (!focused) {
+      return std::nullopt;
+    }
+    const auto release_focused = util::fail_guard([focused]() {
+      CFRelease(focused);
+    });
+
+    CFTypeRef range = copy_attribute(static_cast<AXUIElementRef>(focused), kAXSelectedTextRangeAttribute);
+    if (!range) {
+      return std::nullopt;
+    }
+    const auto release_range = util::fail_guard([range]() {
+      CFRelease(range);
+    });
+
+    CFTypeRef bounds = nullptr;
+    if (AXUIElementCopyParameterizedAttributeValue(
+          static_cast<AXUIElementRef>(focused),
+          kAXBoundsForRangeParameterizedAttribute,
+          range,
+          &bounds
+        ) != kAXErrorSuccess ||
+        !bounds) {
+      return std::nullopt;
+    }
+    const auto release_bounds = util::fail_guard([bounds]() {
+      CFRelease(bounds);
+    });
+
+    CGRect caret = CGRectZero;
+    if (!AXValueGetValue(static_cast<AXValueRef>(bounds), kAXValueTypeCGRect, &caret)) {
+      return std::nullopt;
+    }
+    // An element that does not really have an insertion point answers with an empty rect at the
+    // origin rather than with an error.
+    if (caret.size.width == 0 && caret.size.height == 0) {
+      return std::nullopt;
+    }
+
+    // Accessibility works in the coordinates of the whole desktop arrangement, which on a second
+    // display can be negative or larger than the streamed display. Only a caret on the display
+    // being streamed means anything to the client.
+    const CGRect display = CGDisplayBounds(CGMainDisplayID());
+    const CGPoint anchor = CGPointMake(CGRectGetMidX(caret), CGRectGetMidY(caret));
+    if (!CGRectContainsPoint(display, anchor)) {
+      return std::nullopt;
+    }
+
+    return std::array<double, 4> {
+      (caret.origin.x - display.origin.x) / display.size.width,
+      (caret.origin.y - display.origin.y) / display.size.height,
+      caret.size.width / display.size.width,
+      caret.size.height / display.size.height
+    };
+  }
+
+  std::optional<std::array<double, 2>> pointer_location() {
+    // A fresh event every time rather than a reused one, as get_mouse_loc() does: the location
+    // on a reused event is whatever it was when the event was made.
+    CGEventRef snapshot = CGEventCreate(nullptr);
+    if (!snapshot) {
+      return std::nullopt;
+    }
+    const CGPoint location = CGEventGetLocation(snapshot);
+    CFRelease(snapshot);
+
+    const CGRect display = CGDisplayBounds(CGMainDisplayID());
+    if (!CGRectContainsPoint(display, location)) {
+      return std::nullopt;
+    }
+
+    return std::array<double, 2> {
+      (location.x - display.origin.x) / display.size.width,
+      (location.y - display.origin.y) / display.size.height
+    };
+  }
+
   bool is_screen_capture_allowed() {
     return screen_capture_allowed;
   }

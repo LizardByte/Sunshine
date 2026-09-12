@@ -66,6 +66,47 @@ namespace platf {
 #endif
   }
 
+  // Kept beside get_mouse_loc() rather than in misc.cpp, which is where the other two platforms
+  // put it, because this is the only Linux translation unit with an X11 connection already set up.
+  std::optional<std::array<double, 2>> pointer_location() {
+#ifdef SUNSHINE_BUILD_X11
+    auto *display = XOpenDisplay(nullptr);
+    if (!display) {
+      return std::nullopt;
+    }
+
+    const auto screen = DefaultScreen(display);
+    const auto width = static_cast<double>(DisplayWidth(display, screen));
+    const auto height = static_cast<double>(DisplayHeight(display, screen));
+
+    const auto root = DefaultRootWindow(display);
+    Window root_return {};
+    Window child_return {};
+    int root_x = 0;
+    int root_y = 0;
+    int window_x = 0;
+    int window_y = 0;
+    unsigned int mask = 0;
+    const auto queried = XQueryPointer(display, root, &root_return, &child_return, &root_x, &root_y, &window_x, &window_y, &mask);
+    XCloseDisplay(display);
+
+    if (!queried || width <= 0 || height <= 0) {
+      return std::nullopt;
+    }
+
+    // The X screen, which spans every output. That is also what x11grab captures, so the two
+    // agree by default; a session capturing one output of several would need the pointer placed
+    // against that output instead.
+    return std::array<double, 2> {
+      root_x / width,
+      root_y / height
+    };
+#else
+    // Wayland gives no way to ask, so the client falls back to leaving the picture alone.
+    return std::nullopt;
+#endif
+  }
+
   std::vector<supported_gamepad_t> &supported_gamepads(input_t *input) {
     static std::vector<supported_gamepad_t> gamepads;
     if (!input || !input->get()) {
