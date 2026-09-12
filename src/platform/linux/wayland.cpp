@@ -191,6 +191,13 @@ namespace wl {
       dmabuf_listener {
         &CLASS_CALL(interface_t, dmabuf_format),
         &CLASS_CALL(interface_t, dmabuf_modifier)
+      },
+      color_listener {
+        &CLASS_CALL(interface_t, color_supported_intent),
+        &CLASS_CALL(interface_t, color_supported_feature),
+        &CLASS_CALL(interface_t, color_supported_tf_named),
+        &CLASS_CALL(interface_t, color_supported_primaries_named),
+        &CLASS_CALL(interface_t, color_done)
       } {
   }
 
@@ -237,6 +244,17 @@ namespace wl {
       zwp_linux_dmabuf_v1_add_listener(dmabuf_interface, &dmabuf_listener, this);
 
       this->interface[LINUX_DMABUF] = true;
+    } else if (!std::strcmp(interface, wp_color_manager_v1_interface.name)) {
+      BOOST_LOG(info) << "[wayland] Found interface: "sv << interface << '(' << id << ") version "sv << version;
+
+      // Bound at version 1 on purpose. Everything wlgrab asks of this global -
+      // the output's image description and the values inside it - is in the
+      // first version, and a higher one only adds events this code would have
+      // to carry a handler for.
+      color_manager = (wp_color_manager_v1 *) wl_registry_bind(registry, id, &wp_color_manager_v1_interface, 1);
+      wp_color_manager_v1_add_listener(color_manager, &color_listener, this);
+
+      this->interface[COLOR_MANAGER] = true;
     }
   }
 
