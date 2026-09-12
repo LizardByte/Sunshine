@@ -817,8 +817,15 @@ namespace video {
         // HDR-specific options
         {"profile"s, std::to_underlying(nv::profile_hevc_e::main_10)},
       },
-      {},  // YUV444 SDR-specific options
-      {},  // YUV444 HDR-specific options
+      {
+        // YUV444 SDR-specific options
+        // HEVC uses the same RExt profile for both 8 and 10 bit YUV 4:4:4 encoding
+        {"profile"s, std::to_underlying(nv::profile_hevc_e::rext)},
+      },
+      {
+        // YUV444 HDR-specific options
+        {"profile"s, std::to_underlying(nv::profile_hevc_e::rext)},
+      },
       {},  // Fallback options
       "hevc_nvenc"s,
     },
