@@ -52,6 +52,31 @@ namespace platf {
       const auto colorspace {video::colorspace_from_client_config(config, false)};
       return colorspace.bit_depth == 10 ? kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange : kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange;
     }
+
+    /**
+     * @brief How often the capture loop wakes up to check on the display while capturing.
+     *
+     * The capture semaphore is only signalled when capture ends, so the loop needs its own
+     * cadence to notice a display that slept and woke.
+     */
+    constexpr auto capture_poll_interval {250ms};
+
+    /**
+     * @brief How long dummy_img() waits for a single frame before giving up.
+     *
+     * Without a bound this blocks forever when the display is asleep during encoder probing.
+     */
+    constexpr auto dummy_img_timeout {5s};
+
+    /**
+     * @brief Convert a duration to an absolute dispatch timeout.
+     *
+     * @param duration How far in the future the timeout should fire.
+     * @return Dispatch time suitable for dispatch_semaphore_wait().
+     */
+    dispatch_time_t dispatch_timeout_from_now(std::chrono::nanoseconds duration) {
+      return dispatch_time(DISPATCH_TIME_NOW, duration.count());
+    }
   }  // namespace
 
   /**
@@ -105,8 +130,25 @@ namespace platf {
         return true;
       }];
 
-      // FIXME: We should time out if an image isn't returned for a while
-      dispatch_semaphore_wait(signal, DISPATCH_TIME_FOREVER);
+      // The semaphore is only signalled once capture ends, so waiting on it forever used to
+      // park this thread for the lifetime of the process: a sleeping display stops
+      // AVCaptureSession delivering sample buffers, and the session does not resume when the
+      // display wakes again. Poll instead, so a display that slept and woke can be reported
+      // to the caller as a display that needs rebuilding.
+      bool display_slept {false};
+      while (dispatch_semaphore_wait(signal, dispatch_timeout_from_now(capture_poll_interval)) != 0) {
+        if (CGDisplayIsAsleep(display_id)) {
+          display_slept = true;
+        } else if (display_slept) {
+          BOOST_LOG(info) << "Display ["sv << display_id << "] woke from sleep, reinitializing capture"sv;
+
+          // Tear the capture down before returning, so that no callback outlives this call
+          // and the output does not survive into our destructor still owned by the session.
+          [av_capture stopCapture:signal];
+
+          return capture_e::reinit;
+        }
+      }
 
       return capture_e::ok;
     }
@@ -184,7 +226,16 @@ namespace platf {
         return false;
       }];
 
-      dispatch_semaphore_wait(signal, DISPATCH_TIME_FOREVER);
+      // Unlike capture(), this callback stops after a single frame, so the semaphore really
+      // does mean "one image arrived". Bound the wait anyway: with the display asleep no
+      // frame is ever delivered, and encoder probing would hang here forever.
+      if (dispatch_semaphore_wait(signal, dispatch_timeout_from_now(dummy_img_timeout)) != 0) {
+        BOOST_LOG(error) << "Timed out waiting for a frame from display ["sv << display_id << "], is it asleep?"sv;
+
+        [av_capture stopCapture:signal];
+
+        return 1;
+      }
 
       return 0;
     }
