@@ -312,6 +312,27 @@
         </div>
       </div>
     </div>
+    <!-- Reset XDG Portal restore token -->
+    <div class="card my-4" v-if="platform === 'linux' || platform === 'freebsd'">
+      <div class="card-body">
+        <h2 id="portal_reset">{{ $t('troubleshooting.portal_reset') }}</h2>
+        <p>{{ $t('troubleshooting.portal_reset_desc') }}</p>
+        <div class="alert alert-success" v-if="portalResetStatus === true">
+          <check-circle :size="18" class="icon"></check-circle>
+          {{ $t('troubleshooting.portal_reset_success') }}
+        </div>
+        <div class="alert alert-danger" v-if="portalResetStatus === false">
+          <alert-circle :size="18" class="icon"></alert-circle>
+          {{ $t('troubleshooting.portal_reset_error') }}
+        </div>
+        <div>
+          <button class="btn btn-warning" :disabled="portalResetPressed" @click="resetPortalToken">
+            <rotate-ccw :size="18" class="icon"></rotate-ccw>
+            {{ $t('troubleshooting.portal_reset') }}
+          </button>
+        </div>
+      </div>
+    </div>
     <!-- Reset persistent display device settings -->
     <div class="card my-4" v-if="platform === 'windows'">
       <div class="card-body">
@@ -491,6 +512,8 @@
           licenseBusy: false,
           licenseError: '',
           licenseKey: '',
+          portalResetPressed: false,
+          portalResetStatus: null,
           restartPressed: false,
           showApplyMessage: false,
           platform: "",
@@ -819,6 +842,35 @@
                 "Content-Type": "application/json"
             }
           });
+        },
+        resetPortalToken() {
+          this.portalResetPressed = true;
+          apiFetch("./api/reset-portal-token", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            }
+          })
+            .then((r) => r.json())
+            .then((r) => {
+              this.portalResetStatus = r.status;
+              if (r.status) {
+                apiFetch("./api/restart", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json"
+                  }
+                });
+              }
+              setTimeout(() => {
+                this.portalResetPressed = false;
+                this.portalResetStatus = null;
+              }, 5000);
+            })
+            .catch(() => {
+              this.portalResetPressed = false;
+              this.portalResetStatus = false;
+            });
         },
         ddResetPersistence() {
           this.ddResetPressed = true;

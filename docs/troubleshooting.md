@@ -170,14 +170,44 @@ If you see the above error in the Sunshine logs, compiling *Mesa* manually may b
 > Other build options are listed in the
 > [meson options](https://gitlab.freedesktop.org/mesa/mesa/-/blob/main/meson_options.txt) file.
 
-### Portal token issues
-Portal capture requires you to manually approve Remote Desktop permissions via an on-screen prompt on the host.
-This creates a portal token which is used to automatically reauthorize on subsequent reconnects, but under certain
-circumstances (a Sunshine crash, switching to another desktop environment, or if a monitor hotplug event occurs)
-the portal token may become lost or invalid, necessitating manual re-approval of capture permissions.
+### XDG Portal Token Issues
+Portal capture requires you to approve Remote Desktop permissions using an on-screen prompt on the host. Sunshine saves
+the resulting restore token so the desktop portal can reauthorize capture automatically on subsequent starts. The token
+can become invalid after events such as a Sunshine crash, switching desktop environments, changing portal
+implementations, or connecting and disconnecting monitors.
+
+Reset the token when portal capture previously worked but Sunshine no longer shows the permission prompt, or when the
+log shows that a saved token was loaded before the portal returned no streams. For example:
+
+```txt
+Info: [portalgrab] Loaded portal restore token from disk
+Error: [portalgrab] RemoteDesktop Start: no streams in response
+Warning: [portalgrab] Failed to connect to portal. Cannot enumerate displays, returning empty list.
+```
+
+Do not use this reset for a generic encoder failure unless the log also shows that XDG Portal capture failed.
+
+In the Web UI, open **Troubleshooting** and select **Reset XDG Portal Capture**. Sunshine deletes the saved token and
+restarts. Approve the Remote Desktop prompt and select the display to capture when it appears again.
+
+If the Web UI is inaccessible, stop Sunshine and delete the token manually:
+
+@tabs{
+  @tab{Linux / FreeBSD | ```bash
+    rm "${XDG_CONFIG_HOME:-$HOME/.config}/sunshine/portal_token"
+    ```
+  }
+  @tab{Flatpak | ```bash
+    rm "$HOME/.var/app/dev.lizardbyte.app.Sunshine/config/sunshine/portal_token"
+    ```
+  }
+}
+
+Start Sunshine again, then approve the new Remote Desktop request. If Sunshine uses a custom configuration directory,
+delete the `portal_token` file from that directory instead.
 
 Users of the KDE Plasma desktop can bypass this issue either by switching to `kwin` capture or setting the following
-configuration to enable permanent capture autorization for Sunshine via Portal capture:
+configuration to enable permanent capture authorization for Sunshine via Portal capture:
 ```
 flatpak permission-set kde-authorized remote-desktop dev.lizardbyte.app.Sunshine yes
 ```

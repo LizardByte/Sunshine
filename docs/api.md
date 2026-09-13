@@ -91,6 +91,9 @@ curl -u user:pass -H "X-CSRF-Token: your_token_here" \
 ## POST /api/reset-display-device-persistence
 @copydoc confighttp::resetDisplayDevicePersistence()
 
+## POST /api/reset-portal-token
+@copydoc confighttp::resetPortalToken()
+
 ## POST /api/restart
 @copydoc confighttp::restart()
 

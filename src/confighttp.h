@@ -164,8 +164,11 @@ namespace confighttp {
 
   void updateVirtualInputLicense(const resp_https_t &response, const req_https_t &request);
 
+  void resetPortalToken(const resp_https_t &response, const req_https_t &request);
+
 #ifdef SUNSHINE_TESTS
   using virtual_input_license_status_provider_t = std::function<lvh::LicenseResult()>;  ///< Test provider for current libvirtualhid license status.
+  using portal_token_path_provider_t = std::function<std::filesystem::path()>;  ///< Test provider for the XDG Portal token path.
 
   /**
    * @brief Replace the virtual-input license status provider for unit tests.
@@ -178,6 +181,18 @@ namespace confighttp {
    * @brief Restore the production virtual-input license status provider after a unit test.
    */
   void reset_virtual_input_license_status_provider_for_testing();
+
+  /**
+   * @brief Replace the XDG Portal token path provider for unit tests.
+   *
+   * @param path_provider Provider returning the token path used by the reset endpoint.
+   */
+  void set_portal_token_path_provider_for_testing(portal_token_path_provider_t path_provider);
+
+  /**
+   * @brief Restore the production XDG Portal token path provider after a unit test.
+   */
+  void reset_portal_token_path_provider_for_testing();
 
   /**
    * @brief Exercise request-local sensitive string clearing for unit tests.
