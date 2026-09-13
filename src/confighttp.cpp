@@ -83,6 +83,9 @@ namespace confighttp {
 
   namespace {
     using license_status_provider_t = std::function<lvh::LicenseResult()>;  ///< Provider for the current libvirtualhid license status.
+#if defined(linux) || defined(__FreeBSD__) || defined(SUNSHINE_TESTS)
+    using portal_token_path_provider_t = std::function<fs::path()>;  ///< Provider for the XDG Portal token path.
+#endif
 
     /**
      * @brief Return the current libvirtualhid license status provider.
@@ -101,6 +104,26 @@ namespace confighttp {
 #endif
       return status_provider;
     }
+
+#if defined(linux) || defined(__FreeBSD__) || defined(SUNSHINE_TESTS)
+    /**
+     * @brief Return the path provider for the saved XDG Portal restore token.
+     *
+     * @return Path provider for the current build.
+     */
+    auto &portal_token_path_provider() {
+  #ifdef SUNSHINE_TESTS
+      static portal_token_path_provider_t path_provider = []() {
+        return platf::appdata() / "portal_token";
+      };
+  #else
+      static const portal_token_path_provider_t path_provider = []() {
+        return platf::appdata() / "portal_token";
+      };
+  #endif
+      return path_provider;
+    }
+#endif
   }  // namespace
 
   /**
@@ -146,6 +169,16 @@ namespace confighttp {
 
   void reset_virtual_input_license_status_provider_for_testing() {
     virtual_input_license_status_provider() = lvh::get_license_status;
+  }
+
+  void set_portal_token_path_provider_for_testing(confighttp::portal_token_path_provider_t path_provider) {
+    portal_token_path_provider() = std::move(path_provider);
+  }
+
+  void reset_portal_token_path_provider_for_testing() {
+    portal_token_path_provider() = []() {
+      return platf::appdata() / "portal_token";
+    };
   }
 
   void clear_sensitive_string_for_testing(std::string &value) {
@@ -1860,6 +1893,42 @@ namespace confighttp {
   }
 
   /**
+   * @brief Authenticate a Web UI request and delete the saved XDG Portal restore token.
+   * @details On platforms without XDG Portal capture, this operation succeeds without changing the filesystem.
+   *
+   * @param response HTTP response used for authentication, CSRF, and status output.
+   * @param request HTTP request carrying the client identity and CSRF token.
+   *
+   * @api_examples{/api/reset-portal-token| POST| null}
+   */
+  void resetPortalToken(const resp_https_t &response, const req_https_t &request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
+      return;
+    }
+
+    print_req(request);
+
+    bool status = true;
+#if defined(linux) || defined(__FreeBSD__)
+    std::error_code ec;
+    fs::remove(portal_token_path_provider()(), ec);
+    if (ec) {
+      BOOST_LOG(error) << "Failed to delete XDG Portal restore token: "sv << ec.message();
+      status = false;
+    }
+#endif
+
+    nlohmann::json output_tree;
+    output_tree["status"] = status;
+    send_response(response, output_tree);
+  }
+
+  /**
    * @brief Authenticate a Web UI request and restart the Sunshine process.
    *
    * @param response HTTP response used for authentication or CSRF failures.
@@ -2306,6 +2375,7 @@ namespace confighttp {
     server.resource["^/api/pin$"]["POST"] = savePin;
     server.resource["^/api/logs$"]["GET"] = getLogs;
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
+    server.resource["^/api/reset-portal-token$"]["POST"] = resetPortalToken;
     server.resource["^/api/restart$"]["POST"] = restart;
     server.resource["^/api/virtual-input/license$"]["GET"] = getVirtualInputLicense;
     server.resource["^/api/virtual-input/license$"]["POST"] = updateVirtualInputLicense;
