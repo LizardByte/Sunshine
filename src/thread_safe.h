@@ -409,7 +409,7 @@ namespace safe {
      * @param max_elements Maximum number of elements that may be queued.
      * @param overflow Behavior when the queue reaches its maximum size.
      */
-    queue_t(std::uint32_t max_elements = 32, overflow_policy_e overflow = overflow_policy_e::drop_oldest):
+    explicit queue_t(std::uint32_t max_elements = 32, overflow_policy_e overflow = overflow_policy_e::drop_oldest):
         _max_elements {max_elements},
         _overflow_policy {overflow} {
     }
