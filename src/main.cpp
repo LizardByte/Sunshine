@@ -16,7 +16,12 @@
   #include <mach-o/dyld.h>
 #endif
 #ifdef __linux__
+  #include "platform/linux/graphics.h"
+
   #include <sys/auxv.h>
+  #if defined(SUNSHINE_BUILD_DRM)
+    #include "platform/linux/misc.h"
+  #endif
 #endif
 
 // lib includes
@@ -214,6 +219,13 @@ int main(int argc, char *argv[]) {
   // Check and drop capabilities but use 'false' to retain CAP_SYS_NICE for EGL high priority contexts
   if (platf::has_elevated_privileges(false)) {
     platf::drop_elevated_privileges(false);
+  }
+
+  // Next, initialize privileged EGL worker thread
+  egl::ensure_privileged_egl_worker_started();
+  // Finally, check and drop all capabilities via 'true', which includes CAP_SYS_NICE.
+  if (platf::has_elevated_privileges(true)) {
+    platf::drop_elevated_privileges(true);
   }
 #endif
 
