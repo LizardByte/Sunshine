@@ -166,7 +166,7 @@
     "back_button_timeout": "Home/Guide Button Emulation Timeout",
     "back_button_timeout_desc": "If the Back/Select button is held down for the specified number of milliseconds, a Home/Guide button press is emulated. If set to a value < 0 (default), holding the Back/Select button will not emulate the Home/Guide button.",
     "bind_address": "Bind address",
-    "bind_address_desc": "Set the specific IP address Sunshine will bind to. If left blank, Sunshine will bind to all available addresses.",
+    "bind_address_desc": "Set an IP address that exists on this host. An IPv4 address works with either address-family mode; an IPv6 address requires dual-stack mode. If left blank, Sunshine will bind to all available addresses for the configured address family.",
     "capture": "Force a Specific Capture Method",
     "capture_desc": "On automatic mode Sunshine will use the first one that works. NvFBC requires patched nvidia drivers.",
     "category_advanced": "Advanced",
