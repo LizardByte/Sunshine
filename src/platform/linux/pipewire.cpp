@@ -848,7 +848,8 @@ namespace pipewire {
       // Ref: https://bugs.kde.org/show_bug.cgi?id=524129
       // Also negotiate variable rate for all other compositors. Mutter's variable rate pacing is superior.
       const static std::vector<int> kwin_version = get_running_kwin_version();
-      const static bool negotiate_variable_rate = kwin_version.empty() || (kwin_version[0] == 5 || (kwin_version[0] == 6 && kwin_version[1] < 8));
+      // Ensure that 6.8 beta/RC versions are covered to assist in troubleshooting screencast issues. Ref: https://bugs.kde.org/show_bug.cgi?id=525619
+      const static bool negotiate_variable_rate = kwin_version.empty() || (kwin_version[0] == 5 || (kwin_version[0] == 6 && kwin_version[1] < 8 && kwin_version[2] < 80));
 
       const AVRational fps = (negotiate_variable_rate ? AVRational {0, 1} : ::video::framerate_to_rational(config));
       if (fps.den != 1) {
