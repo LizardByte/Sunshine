@@ -13,6 +13,7 @@
 #endif
 
 // standard includes
+#include <array>
 #include <cerrno>
 #include <cstring>
 #include <fstream>
@@ -151,6 +152,33 @@ namespace dyn {
 }  // namespace dyn
 
 namespace platf {
+  namespace {
+    constexpr std::array privileged_gui_environment_variables {
+      "GDK_PIXBUF_MODULEDIR",
+      "GDK_PIXBUF_MODULE_FILE",
+      "GIO_EXTRA_MODULES",
+      "GTK3_MODULES",
+      "GTK_EXE_PREFIX",
+      "GTK_IM_MODULE_FILE",
+      "GTK_MODULES",
+      "GTK_PATH",
+      "QML2_IMPORT_PATH",
+      "QML_IMPORT_PATH",
+      "QT_PLUGIN_PATH",
+      "QT_QPA_PLATFORM_PLUGIN_PATH",
+    };
+
+  }  // namespace
+
+  bool sanitize_process_environment() {
+    for (const auto *variable : privileged_gui_environment_variables) {
+      if (unsetenv(variable) != 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   /**
    * @brief Owning pointer for `getifaddrs` results.
    */
@@ -1262,7 +1290,9 @@ namespace platf {
   }
 
   std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
-    // Keep KMS as first element to check before dropping CAP_SYS_ADMIN
+    // Please ensure that KMS followed by CUDA remains at the top so that we can
+    // drop DRM worker privileges once neither backend requires it.
+
 #ifdef SUNSHINE_BUILD_DRM
     if (sources[source::KMS]) {
       BOOST_LOG(info) << "Screencasting with KMS"sv;
@@ -1270,17 +1300,18 @@ namespace platf {
     }
 #endif
 
-    // KMS capture was passed; drop CAP_SYS_ADMIN only.
-    if (has_elevated_privileges(false)) {
-      drop_elevated_privileges(false);
-    }
-
 #ifdef SUNSHINE_BUILD_CUDA
     if (sources[source::NVFBC] && hwdevice_type == mem_type_e::cuda) {
       BOOST_LOG(info) << "Screencasting with NvFBC"sv;
       return nvfbc_display(hwdevice_type, display_name, config);
     }
 #endif
+
+#ifdef SUNSHINE_BUILD_DRM
+    // Drop all DRM worker thread privileges if not needed for this process's lifetime.
+    platf::kms::drop_drm_worker_privileges();
+#endif
+
 #ifdef SUNSHINE_BUILD_WAYLAND
     if (sources[source::WAYLAND]) {
       BOOST_LOG(info) << "Screencasting with Wayland's protocol"sv;

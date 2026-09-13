@@ -396,34 +396,49 @@ namespace safe {
     using status_t = util::optional_t<T>;
 
     /**
+     * @brief Behavior when raise() is called with the queue already at its bound.
+     */
+    enum class overflow_policy_e {
+      drop_oldest,  ///< Clear the queue and accept the new item (current default behavior)
+      reject  ///< Refuse the new item, leaving existing queued items intact
+    };
+
+    /**
      * @brief Construct a bounded blocking queue.
      *
-     * @param max_elements Maximum number of queued elements before producers block.
+     * @param max_elements Maximum number of elements that may be queued.
+     * @param overflow Behavior when the queue reaches its maximum size.
      */
-    queue_t(std::uint32_t max_elements = 32):
-        _max_elements {max_elements} {
+    queue_t(std::uint32_t max_elements = 32, overflow_policy_e overflow = overflow_policy_e::drop_oldest):
+        _max_elements {max_elements},
+        _overflow_policy {overflow} {
     }
 
     /**
-     * @brief Notify waiters that a new event value is available.
+     * @brief Notify waiters that a new event value may be available.
      *
      * @param args Arguments forwarded to the callable or parser.
+     * @return True if the item was queued, false if the queue is stopped or the
+     *         configured overflow policy rejects the item.
      */
     template<class... Args>
-    void raise(Args &&...args) {
+    bool raise(Args &&...args) {
       std::lock_guard ul {_lock};
 
       if (!_continue) {
-        return;
+        return false;
       }
 
-      if (_queue.size() == _max_elements) {
+      if (_queue.size() >= _max_elements) {
+        if (_overflow_policy == overflow_policy_e::reject) {
+          return false;
+        }
         _queue.clear();
       }
 
       _queue.emplace_back(std::forward<Args>(args)...);
-
       _cv.notify_all();
+      return true;
     }
 
     /**
@@ -524,6 +539,7 @@ namespace safe {
     std::condition_variable _cv;
 
     std::vector<T> _queue;
+    overflow_policy_e _overflow_policy;
   };
 
   /**
