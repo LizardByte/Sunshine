@@ -180,6 +180,12 @@ jobs:
       AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
 
+  test-powershell:
+    name: PowerShell
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci-powershell.yml
+
   bundle-analysis:
     name: Bundle Analysis
     needs: release-setup
@@ -204,6 +210,7 @@ jobs:
       - build-macos
       - build-homebrew
       - build-windows
+      - test-powershell
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -238,6 +245,8 @@ jobs:
           - name: Windows-AMD64
             coverage: true
           - name: Windows-ARM64
+            coverage: true
+          - name: PowerShell
             coverage: true
     steps:
       - name: Checkout

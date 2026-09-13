@@ -239,6 +239,10 @@ while getopts ":h-:" opt; do
       echo "Invalid option: -${OPTARG}" 1>&2
       _usage 1
       ;;
+    *)
+      echo "Unexpected option state: ${opt}" 1>&2
+      _usage 1
+      ;;
   esac
 done
 shift $((OPTIND -1))
