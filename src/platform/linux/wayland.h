@@ -5,9 +5,11 @@
 #pragma once
 
 // standard includes
+#include <array>
 #include <bitset>
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <vector>
 
 #ifdef SUNSHINE_BUILD_WAYLAND
@@ -25,6 +27,8 @@
  */
 #ifdef SUNSHINE_BUILD_WAYLAND
 
+struct gbm_bo;
+
 namespace wl {
   /**
    * @brief Determine whether wlroots capture should keep frames in VRAM for the requested memory type.
@@ -40,6 +44,17 @@ namespace wl {
   using display_internal_t = util::safe_ptr<wl_display, wl_display_disconnect>;
 
   /**
+   * @brief GBM buffer accessors used to export DMA-BUF plane metadata.
+   */
+  struct gbm_bo_accessors_t {
+    int (*get_plane_count)(gbm_bo *bo);  ///< Return the number of memory planes in the buffer.
+    int (*get_fd_for_plane)(gbm_bo *bo, int plane);  ///< Duplicate the DMA-BUF descriptor for one plane.
+    std::uint32_t (*get_stride_for_plane)(gbm_bo *bo, int plane);  ///< Return the row stride for one plane.
+    std::uint32_t (*get_offset)(gbm_bo *bo, int plane);  ///< Return the byte offset for one plane.
+    std::uint64_t (*get_modifier)(gbm_bo *bo);  ///< Return the DRM format modifier shared by the planes.
+  };
+
+  /**
    * @brief Captured Wayland frame metadata and DMA-BUF surface state.
    */
   class frame_t {
@@ -53,6 +68,16 @@ namespace wl {
     egl::surface_descriptor_t sd;  ///< DMA-BUF surface descriptor received from the compositor.
     std::optional<std::chrono::steady_clock::time_point> frame_timestamp;  ///< Capture timestamp associated with the frame.
   };
+
+  /**
+   * @brief Export every GBM buffer plane into a captured frame descriptor.
+   *
+   * @param bo GBM buffer whose DMA-BUF planes will be exported.
+   * @param frame Frame that takes ownership of the exported file descriptors.
+   * @param accessors GBM accessors used to query the buffer.
+   * @return Number of exported planes, or no value when the buffer cannot be exported.
+   */
+  std::optional<std::uint32_t> export_gbm_bo_planes(gbm_bo *bo, frame_t &frame, const gbm_bo_accessors_t &accessors);
 
   /**
    * @brief Listener state for Wayland screencopy frames backed by DMA-BUFs.
@@ -358,12 +383,13 @@ namespace wl {
      */
     void dmabuf_format(zwp_linux_dmabuf_v1 *zwp_linux_dmabuf, uint32_t format);
     /**
-     * @brief Record a DMA-BUF format modifier advertised by the compositor.
+     * @brief Record an explicit DMA-BUF format modifier advertised by the compositor.
      *
      * @param zwp_linux_dmabuf DMA-BUF interface that emitted the modifier event.
      * @param format DRM format associated with the modifier.
      * @param modifier_hi High 32 bits of the DRM format modifier.
      * @param modifier_lo Low 32 bits of the DRM format modifier.
+     * @note The combined DRM_FORMAT_MOD_INVALID value is omitted because implicit allocation uses the fallback path.
      */
     void dmabuf_modifier(zwp_linux_dmabuf_v1 *zwp_linux_dmabuf, uint32_t format, uint32_t modifier_hi, uint32_t modifier_lo);
 
