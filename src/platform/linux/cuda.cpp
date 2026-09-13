@@ -382,7 +382,7 @@ namespace cuda {
 
         fs::path dri_path {"/dev/dri"sv};
         auto device_path = dri_path / file;
-        return platf::kms::privileged_open_drm_card_fd(device_path);
+        return platf::kms::privileged_open_drm_card_fd(device_path.c_str());
       }
     } catch (const std::filesystem::filesystem_error &err) {
       BOOST_LOG(error) << "Failed to read sysfs: "sv << err.what();
