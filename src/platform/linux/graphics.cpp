@@ -344,6 +344,21 @@ namespace egl {
      */
     class cap_sys_nice {
     public:
+      static bool verify_cap_sys_nice() {
+        cap_t caps = cap_get_proc();
+        cap_value_t sys_nice = CAP_SYS_NICE;
+        cap_flag_value_t value;
+        cap_get_flag(caps, sys_nice, CAP_EFFECTIVE, &value);
+        cap_free(caps);
+
+        if (value != CAP_SET) {
+          BOOST_LOG(debug) << "Failed to verify CAP_SYS_NICE effective capability"sv;
+          return false;
+        }
+
+        return true;
+      }
+
       cap_sys_nice() {
         caps = cap_get_proc();
 
@@ -379,20 +394,12 @@ namespace egl {
         instance();
       }
 
-      static EGLContext eglCreateContext_privileged(EGLDisplay display, EGLConfig config, EGLContext share_context, EGLint const *attrib_list, bool &warning) {
+      static EGLContext eglCreateContext_privileged(EGLDisplay display, EGLConfig config, EGLContext share_context, EGLint const *attrib_list, bool &nice_warning) {
         try {
-          return instance().run([display, config, share_context, attrib_list, &warning] {
-            warning = false;
+          return instance().run([display, config, share_context, attrib_list, &nice_warning] {
+            nice_warning = false;
 #if !defined(__FreeBSD__)
-            cap_t caps = cap_get_proc();
-            cap_value_t sys_nice = CAP_SYS_NICE;
-            cap_flag_value_t value;
-            cap_get_flag(caps, sys_nice, CAP_EFFECTIVE, &value);
-            if (value != CAP_SET) {
-              BOOST_LOG(debug) << "Failed to verify CAP_SYS_NICE effective capability"sv;
-              warning = true;
-            }
-            cap_free(caps);
+            nice_warning = !egl::cap_sys_nice::verify_cap_sys_nice();
 #endif
 
             if (!eglBindAPI(EGL_OPENGL_API)) {
