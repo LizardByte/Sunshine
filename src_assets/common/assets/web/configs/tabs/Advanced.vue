@@ -105,6 +105,7 @@ const config = ref(props.config)
             <option value="nvenc">NVIDIA NVENC</option>
             <option value="vaapi">VA-API</option>
             <option value="vulkan">Vulkan</option>
+            <option value="v4l2">V4L2</option>
           </template>
           <template #macos>
             <option value="videotoolbox">VideoToolbox</option>
