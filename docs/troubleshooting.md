@@ -338,7 +338,7 @@ for a driver-backed Raw Input keyboard and mouse plus full virtual gamepad suppo
 for Xbox 360 and DualShock 4 support that has reached end of life. If you use the
 [ViGEmBus fallback](https://github.com/nefarius/ViGEmBus/releases/latest), you must use version 1.17 or newer.
 
-When Virtual HID Driver is used, Sunshine requires version `2026.905.2300.20` or newer.
+When Virtual HID Driver is used, Sunshine requires version `2026.914.1218.10` or newer.
 
 Virtual HID Driver adds Xbox One, Xbox Series, DualSense, Nintendo Switch Pro, and Generic gamepads, plus advanced
 controller features such as motion, touchpads, LEDs, and adaptive triggers when supported. Unlike the discontinued
