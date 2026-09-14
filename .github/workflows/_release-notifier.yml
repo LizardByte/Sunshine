@@ -13,6 +13,10 @@ on:
     types:
       - released  # this triggers when a release is published, but does not include pre-releases or drafts
 
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
 jobs:
   update-blog:
     name: Update blog

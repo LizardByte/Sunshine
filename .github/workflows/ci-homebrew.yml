@@ -37,11 +37,12 @@ jobs:
       matrix:
         include:
           # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
-          # while GitHub has larger macOS runners, they are not available for our repos :(
+          # Standard GitHub-hosted macOS runners: macos-14 (Sonoma / Apple Silicon) and macos-15 (Sequoia).
+          # macos-26 is a speculative/future label unroutable on standard pools; using macos-14 ensures standard runner availability.
+          - os_name: "macos"
+            os_version: "14"
           - os_name: "macos"
             os_version: "15"
-          - os_name: "macos"
-            os_version: "26"
           - os_name: "ubuntu"
             os_version: "24.04"
           - os_name: "ubuntu"

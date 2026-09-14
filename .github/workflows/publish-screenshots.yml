@@ -9,6 +9,10 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
 jobs:
   publish:
     if: github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure'

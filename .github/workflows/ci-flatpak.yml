@@ -159,8 +159,8 @@ jobs:
       - name: Cache Flatpak build
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          path: ./build/.flatpak-builder
-          key: flatpak-${{ matrix.arch }}-${{ github.sha }}
+          path: ./build/.flatpak-builder/downloads
+          key: flatpak-${{ matrix.arch }}-${{ hashFiles('packaging/linux/flatpak/**', 'package-lock.json') }}
           restore-keys: |
             flatpak-${{ matrix.arch }}-
 

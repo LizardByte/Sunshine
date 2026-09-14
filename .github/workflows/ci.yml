@@ -227,10 +227,10 @@ jobs:
             coverage: true
           - name: macOS-x86_64
             coverage: true
-          - name: Homebrew-macos-15
+          - name: Homebrew-macos-14  # Matches standard macos-14 runner in ci-homebrew.yml (remediates unroutable macos-26)
             coverage: true
             coverage_file: coverage.lcov
-          - name: Homebrew-macos-26
+          - name: Homebrew-macos-15
             coverage: true
             coverage_file: coverage.lcov
           - name: Homebrew-ubuntu-24.04
