@@ -53,11 +53,11 @@ namespace cbs {
   h264_t make_sps_h264(const AVCodecContext *ctx, const AVPacket *packet);
 
   /**
-   * @brief Check whether an encoded H.264 or HEVC packet contains active SPS VUI metadata.
+   * @brief Check whether the given encoded H.264 or HEVC packets contain active SPS VUI metadata.
    *
-   * @param packet Encoded packet to parse with FFmpeg's coded bitstream reader.
+   * @param packets Encoded packets to parse with FFmpeg's coded bitstream reader.
    * @param codec_id FFmpeg codec identifier; expected to be AV_CODEC_ID_H264 or AV_CODEC_ID_H265.
    * @return `true` when the packet's active SPS advertises VUI parameters.
    */
-  bool validate_sps(const AVPacket *packet, int codec_id);
+  bool validate_sps(const std::vector<AVPacket *> &packets, int codec_id);
 }  // namespace cbs
