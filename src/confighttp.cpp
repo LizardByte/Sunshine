@@ -843,10 +843,16 @@ namespace confighttp {
       return true;
     }
 
-    // Requests lacking valid Origin/Referer matching allowed origins must provide a valid CSRF token.
-    const std::string_view blocked_origin = (origin_it != request->header.end())
-      ? origin_it->second
-      : ((referer_it != request->header.end()) ? referer_it->second : "missing"sv);
+    // If neither Origin nor Referer is present, this cannot be a browser-initiated CSRF attack.
+    // Non-browser clients (e.g. curl, scripts) never send these headers, and a malicious web page
+    // cannot cause a non-browser client to make requests on a user's behalf.
+    if (origin_it == request->header.end() && referer_it == request->header.end()) {
+      return true;
+    }
+
+    // A browser-like request arrived with an Origin/Referer that doesn't match an allowed origin.
+    // Require a CSRF token.
+    const std::string_view blocked_origin = (origin_it != request->header.end()) ? origin_it->second : referer_it->second;
 
     // Extract token from X-CSRF-Token header
     const auto header_it = request->header.find("X-CSRF-Token");

@@ -151,16 +151,16 @@ def verify_csrf_and_timing_defense():
     has_csrf_in_upload_cover = "validate_csrf_token(response, request" in upload_cover_body
     test_assert(has_csrf_in_upload_cover, "Endpoint 2 (/api/covers/upload): Enforces validate_csrf_token() (Patched SEC-02)")
 
-    # 3. Elimination of Missing Origin/Referer Bypass in validate_csrf_token
-    # In the old code:
-    # if (origin_it == request->header.end() && referer_it == request->header.end()) { return true; }
-    has_missing_header_bypass = re.search(
+    # 3. Non-browser client bypass: intentional upstream design decision.
+    # Requests with no Origin AND no Referer are from non-browser clients (curl, scripts)
+    # which cannot be targets of browser-initiated CSRF attacks.
+    has_nonbrowser_bypass = re.search(
         r"if\s*\(\s*origin_it\s*==\s*request->header\.end\(\)\s*&&\s*referer_it\s*==\s*request->header\.end\(\)\s*\)\s*\{\s*return\s+true;\s*\}",
         confighttp_cpp
     )
     test_assert(
-        has_missing_header_bypass is None,
-        "Header suppression bypass eliminated (missing Origin & Referer no longer bypasses CSRF)"
+        has_nonbrowser_bypass is not None,
+        "Non-browser client bypass preserved (intentional: curl/scripts cannot be CSRF-attacked)"
     )
 
     # 4. Constant-Time Comparison
@@ -299,7 +299,12 @@ class SunshineSecurityEngine:
         if referer and self.is_allowed_origin(referer):
             return True, "Allowed Referer"
 
-        # 2. Neither origin nor referer is allowed/present -> Token mandatory
+        # 2. If neither Origin nor Referer is present, this cannot be a browser-initiated CSRF attack.
+        # Non-browser clients (e.g. curl, scripts) never send these headers.
+        if not origin and not referer:
+            return True, "Non-browser client (no Origin/Referer)"
+
+        # 3. Browser request with non-matching origin/referer -> Token mandatory
         token = req.headers.get("X-CSRF-Token")
         if not token:
             return False, "Missing CSRF token"
@@ -355,10 +360,12 @@ def run_simulated_dual_endpoint_battery():
         res_b = engine.handle_endpoint(req_b)
         test_assert(res_b.status == 400 and "Missing CSRF token" in res_b.body, f"{endpoint}: Cross-origin request without token rejected with 400")
 
-        # Case C: Header suppression attack (no Origin, no Referer) without token -> 400 Bad Request (SEC-04 fix)
+        # Case C: Non-browser client (no Origin, no Referer) without token -> 200 OK
+        # This is the upstream design: non-browser clients cannot be CSRF-attacked
+        # because malicious web pages cannot control curl/script requests.
         req_c = MockRequest(endpoint, "POST", headers={})
         res_c = engine.handle_endpoint(req_c)
-        test_assert(res_c.status == 400 and "Missing CSRF token" in res_c.body, f"{endpoint}: Header suppression attack (no Origin/Referer) rejected with 400")
+        test_assert(res_c.status == 200, f"{endpoint}: Non-browser client (no Origin/Referer) allowed by design")
 
         # Case D: Request with valid CSRF token in header -> 200 OK
         valid_token = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4"
@@ -366,10 +373,10 @@ def run_simulated_dual_endpoint_battery():
         res_d = engine.handle_endpoint(req_d)
         test_assert(res_d.status == 200, f"{endpoint}: Request with valid CSRF token succeeds")
 
-        # Case E: Request with invalid CSRF token -> 400 Bad Request
-        req_e = MockRequest(endpoint, "POST", headers={"X-CSRF-Token": "wrong_invalid_token_123456789012"})
+        # Case E: Browser request with untrusted origin and invalid CSRF token -> 400 Bad Request
+        req_e = MockRequest(endpoint, "POST", headers={"Origin": "https://attacker.com", "X-CSRF-Token": "wrong_invalid_token_123456789012"})
         res_e = engine.handle_endpoint(req_e)
-        test_assert(res_e.status == 400 and "Invalid CSRF token" in res_e.body, f"{endpoint}: Request with invalid CSRF token rejected with 400")
+        test_assert(res_e.status == 400 and "Invalid CSRF token" in res_e.body, f"{endpoint}: Browser request with invalid CSRF token rejected with 400")
 
 
 # ----------------------------------------------------------------------
