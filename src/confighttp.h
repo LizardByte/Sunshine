@@ -54,6 +54,22 @@ namespace confighttp {
   bool check_content_type(const resp_https_t &response, const req_https_t &request, const std::string_view &contentType);
   std::string generate_csrf_token(const std::string &client_id);
   /**
+   * @brief Injects standard defensive HTTP security headers into response header map.
+   *
+   * @param headers HTTP response headers map to populate.
+   */
+  void add_security_headers(SimpleWeb::CaseInsensitiveMultimap &headers);
+
+  /**
+   * @brief Constant-time string comparison to prevent timing attacks.
+   *
+   * @param a First string view to compare.
+   * @param b Second string view to compare.
+   * @return True if strings match identically, false otherwise.
+   */
+  bool constant_time_equals(const std::string_view a, const std::string_view b);
+
+  /**
    * @brief Validate CSRF token.
    *
    * @param response HTTP response object to populate.
@@ -62,6 +78,15 @@ namespace confighttp {
    * @return True when the request passes validation and processing may continue.
    */
   bool validate_csrf_token(const resp_https_t &response, const req_https_t &request, const std::string &client_id);
+
+  /**
+   * @brief Validate CSRF token using client ID derived from request.
+   *
+   * @param response HTTP response object to populate.
+   * @param request HTTP request data from the client.
+   * @return True when the request passes validation and processing may continue.
+   */
+  bool validate_csrf_token(const resp_https_t &response, const req_https_t &request);
   std::string get_client_id(const req_https_t &request);
   /**
    * @brief Check app index.

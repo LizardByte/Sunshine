@@ -26,6 +26,7 @@
 #include <nlohmann/json.hpp>
 #include <Simple-Web-Server/crypto.hpp>
 #include <Simple-Web-Server/server_https.hpp>
+#include <openssl/crypto.h>
 
 #ifdef _WIN32
   #include "platform/virtualhid_input.h"
@@ -531,6 +532,30 @@ namespace confighttp {
   }
 
   /**
+   * @brief Constant-time string comparison to prevent timing side-channel attacks (CWE-208).
+   * @param a First string view to compare.
+   * @param b Second string view to compare.
+   * @return True if strings match identically, false otherwise.
+   */
+  bool constant_time_equals(const std::string_view a, const std::string_view b) {
+    if (a.size() != b.size()) {
+      return false;
+    }
+    return CRYPTO_memcmp(a.data(), b.data(), a.size()) == 0;
+  }
+
+  /**
+   * @brief Injects standard defensive HTTP security headers into response header map.
+   * @param headers HTTP response headers map to populate.
+   */
+  void add_security_headers(SimpleWeb::CaseInsensitiveMultimap &headers) {
+    headers.emplace("X-Frame-Options", "DENY");
+    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+    headers.emplace("X-Content-Type-Options", "nosniff");
+    headers.emplace("Referrer-Policy", "strict-origin-when-cross-origin");
+  }
+
+  /**
    * @brief Send a response.
    * @param response The HTTP response object.
    * @param output_tree The JSON tree to send.
@@ -538,8 +563,7 @@ namespace confighttp {
   void send_response(const resp_https_t &response, const nlohmann::json &output_tree) {
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "application/json");
-    headers.emplace("X-Frame-Options", "DENY");
-    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+    add_security_headers(headers);
     response->write(output_tree.dump(), headers);
   }
 
@@ -559,12 +583,11 @@ namespace confighttp {
     tree["status"] = false;
     tree["error"] = "Unauthorized";
 
-    const SimpleWeb::CaseInsensitiveMultimap headers {
+    SimpleWeb::CaseInsensitiveMultimap headers {
       {"Content-Type", "application/json"},
-      {"WWW-Authenticate", R"(Basic realm="Sunshine Gamestream Host", charset="UTF-8")"},
-      {"X-Frame-Options", "DENY"},
-      {"Content-Security-Policy", "frame-ancestors 'none';"}
+      {"WWW-Authenticate", R"(Basic realm="Sunshine Gamestream Host", charset="UTF-8")"}
     };
+    add_security_headers(headers);
 
     response->write(code, tree.dump(), headers);
   }
@@ -578,11 +601,10 @@ namespace confighttp {
   void send_redirect(const resp_https_t &response, const req_https_t &request, const char *path) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
     BOOST_LOG(info) << "Web UI: ["sv << address << "] -- not authorized"sv;
-    const SimpleWeb::CaseInsensitiveMultimap headers {
-      {"Location", path},
-      {"X-Frame-Options", "DENY"},
-      {"Content-Security-Policy", "frame-ancestors 'none';"}
+    SimpleWeb::CaseInsensitiveMultimap headers {
+      {"Location", path}
     };
+    add_security_headers(headers);
     response->write(SimpleWeb::StatusCode::redirection_temporary_redirect, headers);
   }
 
@@ -597,7 +619,9 @@ namespace confighttp {
 
     if (const auto ip_type = net::from_address(address); ip_type > http::origin_web_ui_allowed) {
       BOOST_LOG(info) << "Web UI: ["sv << address << "] -- denied"sv;
-      response->write(SimpleWeb::StatusCode::client_error_forbidden);
+      SimpleWeb::CaseInsensitiveMultimap headers;
+      add_security_headers(headers);
+      response->write(SimpleWeb::StatusCode::client_error_forbidden, headers);
       return false;
     }
 
@@ -627,7 +651,7 @@ namespace confighttp {
     const auto username = authData.substr(0, index);
     const auto password = authData.substr(index + 1);
 
-    if (const auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string(); !boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
+    if (const auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string(); !boost::iequals(username, config::sunshine.username) || !constant_time_equals(hash, config::sunshine.password)) {
       return false;
     }
 
@@ -650,8 +674,7 @@ namespace confighttp {
 
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "application/json");
-    headers.emplace("X-Frame-Options", "DENY");
-    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+    add_security_headers(headers);
 
     response->write(code, tree.dump(), headers);
   }
@@ -672,8 +695,7 @@ namespace confighttp {
 
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "application/json");
-    headers.emplace("X-Frame-Options", "DENY");
-    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+    add_security_headers(headers);
 
     response->write(code, tree.dump(), headers);
   }
@@ -780,7 +802,7 @@ namespace confighttp {
       return false;
     }
 
-    if (token_it->second.token != provided_token) {
+    if (!constant_time_equals(token_it->second.token, provided_token)) {
       auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
       BOOST_LOG(error) << "Web UI: ["sv << address << "] -- CSRF token validation failed: token mismatch"sv;
       bad_request(response, request, "Invalid CSRF token");
@@ -807,30 +829,25 @@ namespace confighttp {
       });
     };
 
-    // Check if the request is from the same origin (Origin or Referer header matches configured allowed origins)
+    // Check if the request is from an allowed origin (Origin or Referer header matches configured allowed origins)
     const auto origin_it = request->header.find("Origin");
     if (origin_it != request->header.end() && is_allowed_origin(origin_it->second)) {
-      // Same origin request - allow without CSRF token
+      // Allowed origin request - allow without CSRF token
       return true;
     }
 
-    // If we have a Referer header, check if it's same-origin
+    // If we have a Referer header, check if it's from an allowed origin
     const auto referer_it = request->header.find("Referer");
     if (referer_it != request->header.end() && is_allowed_origin(referer_it->second)) {
-      // Same origin request - allow without CSRF token
+      // Allowed origin request - allow without CSRF token
       return true;
     }
 
-    // If neither Origin nor Referer is present, this cannot be a browser-initiated CSRF attack.
-    // Non-browser clients (e.g. curl, scripts) never send these headers, and a malicious web page
-    // cannot cause a non-browser client to make requests on a user's behalf.
-    if (origin_it == request->header.end() && referer_it == request->header.end()) {
-      return true;
-    }
+    // Requests lacking valid Origin/Referer matching allowed origins must provide a valid CSRF token.
+    const std::string_view blocked_origin = (origin_it != request->header.end())
+      ? origin_it->second
+      : ((referer_it != request->header.end()) ? referer_it->second : "missing"sv);
 
-    // A browser-like request arrived with an Origin/Referer that doesn't match an allowed origin.
-    // Require a CSRF token.
-    const std::string_view blocked_origin = (origin_it != request->header.end()) ? origin_it->second : referer_it->second;
     // Extract token from X-CSRF-Token header
     const auto header_it = request->header.find("X-CSRF-Token");
     if (header_it == request->header.end()) {
@@ -850,6 +867,13 @@ namespace confighttp {
 
     // Validate token from header
     return validate_stored_csrf_token(response, request, client_id, header_it->second);
+  }
+
+  /**
+   * @brief Validate CSRF token using client ID derived from request.
+   */
+  bool validate_csrf_token(const resp_https_t &response, const req_https_t &request) {
+    return validate_csrf_token(response, request, get_client_id(request));
   }
 
   /**
@@ -895,10 +919,7 @@ namespace confighttp {
     const std::string content = file_handler::read_file((std::string(WEB_DIR) + html_file).c_str());
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
-
-    // prevent click jacking
-    headers.emplace("X-Frame-Options", "DENY");
-    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+    add_security_headers(headers);
 
     response->write(content, headers);
   }
@@ -916,8 +937,7 @@ namespace confighttp {
     std::ifstream in(WEB_DIR "images/sunshine.ico", std::ios::binary);
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "image/x-icon");
-    headers.emplace("X-Frame-Options", "DENY");
-    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+    add_security_headers(headers);
     response->write(SimpleWeb::StatusCode::success_ok, in, headers);
   }
 
@@ -934,8 +954,7 @@ namespace confighttp {
     std::ifstream in(WEB_DIR "images/logo-sunshine-45.png", std::ios::binary);
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "image/png");
-    headers.emplace("X-Frame-Options", "DENY");
-    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+    add_security_headers(headers);
     response->write(SimpleWeb::StatusCode::success_ok, in, headers);
   }
 
@@ -987,8 +1006,7 @@ namespace confighttp {
     // if it is, set the content type to the mime type
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", mimeType->second);
-    headers.emplace("X-Frame-Options", "DENY");
-    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+    add_security_headers(headers);
     std::ifstream in(filePath.string(), std::ios::binary);
     response->write(SimpleWeb::StatusCode::success_ok, in, headers);
   }
@@ -1562,8 +1580,7 @@ namespace confighttp {
 
       SimpleWeb::CaseInsensitiveMultimap headers;
       headers.emplace("Content-Type", "image/png");
-      headers.emplace("X-Frame-Options", "DENY");
-      headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+      add_security_headers(headers);
 
       response->write(SimpleWeb::StatusCode::success_ok, in, headers);
     } catch (std::exception &e) {
@@ -1591,6 +1608,11 @@ namespace confighttp {
       return;
     }
     if (!authenticate(response, request)) {
+      return;
+    }
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -1652,8 +1674,7 @@ namespace confighttp {
     std::string content = file_handler::read_file(config::sunshine.log_file.c_str());
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/plain");
-    headers.emplace("X-Frame-Options", "DENY");
-    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+    add_security_headers(headers);
     response->write(SimpleWeb::StatusCode::success_ok, content, headers);
   }
 

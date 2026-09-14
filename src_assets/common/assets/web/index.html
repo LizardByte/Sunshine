@@ -143,13 +143,78 @@
     Gamepad2
   } from '@lucide/vue'
 
-  // Configure marked to allow HTML
+  // Sanitize HTML output to prevent XSS (CWE-79) from release notes
+  function sanitizeHtml(dirtyHtml) {
+    if (!dirtyHtml) return '';
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(dirtyHtml, 'text/html');
+
+    const allowedTags = new Set([
+      'a', 'b', 'blockquote', 'br', 'code', 'dd', 'del', 'div', 'dl', 'dt',
+      'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img', 'ins',
+      'kbd', 'li', 'ol', 'p', 'pre', 'q', 'rp', 'rt', 'ruby', 's', 'samp',
+      'small', 'span', 'strike', 'strong', 'sub', 'sup', 'table', 'tbody',
+      'td', 'tfoot', 'th', 'thead', 'tr', 'ul', 'var'
+    ]);
+
+    const allowedAttrs = new Set([
+      'href', 'src', 'alt', 'title', 'class', 'target', 'rel', 'id', 'name',
+      'width', 'height', 'align'
+    ]);
+
+    const dangerousTags = new Set(['script', 'style', 'iframe', 'object', 'embed', 'form', 'base', 'meta', 'link']);
+
+    function cleanNode(node) {
+      const children = Array.from(node.childNodes);
+      for (const child of children) {
+        if (child.nodeType === Node.ELEMENT_NODE) {
+          const tagName = child.tagName.toLowerCase();
+          if (dangerousTags.has(tagName) || !allowedTags.has(tagName)) {
+            child.remove();
+            continue;
+          }
+
+          // Strip disallowed attributes and all event handlers
+          const attrs = Array.from(child.attributes);
+          for (const attr of attrs) {
+            const attrName = attr.name.toLowerCase();
+            if (attrName.startsWith('on') || !allowedAttrs.has(attrName)) {
+              child.removeAttribute(attr.name);
+              continue;
+            }
+
+            // Validate protocols on URI attributes
+            if (attrName === 'href' || attrName === 'src') {
+              const val = attr.value.trim().toLowerCase();
+              if (val.startsWith('javascript:') || val.startsWith('vbscript:') || val.startsWith('data:text/html')) {
+                child.removeAttribute(attr.name);
+                continue;
+              }
+            }
+          }
+
+          // Prevent tabnabbing on external links
+          if (tagName === 'a' && child.getAttribute('target') === '_blank') {
+            child.setAttribute('rel', 'noopener noreferrer');
+          }
+
+          cleanNode(child);
+        } else if (child.nodeType === Node.COMMENT_NODE) {
+          child.remove();
+        }
+      }
+    }
+
+    cleanNode(doc.body);
+    return doc.body.innerHTML;
+  }
+
+  // Configure marked for release notes rendering
   marked.setOptions({
     breaks: true,
     gfm: true,
     headerIds: true,
-    mangle: false,
-    sanitize: false
+    mangle: false
   });
 
   console.log("Hello, Sunshine!")
@@ -368,7 +433,8 @@
       },
       convertMarkdownToHtml(markdown) {
         if (!markdown) return '';
-        return marked.parse(markdown);
+        const rawHtml = marked.parse(markdown);
+        return sanitizeHtml(rawHtml);
       }
     }
   });
