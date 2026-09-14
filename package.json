@@ -21,7 +21,7 @@
     "@codecov/vite-plugin": "2.0.1",
     "@vitejs/plugin-vue": "6.0.8",
     "serve": "14.2.6",
-    "vite": "8.2.2",
+    "vite": "8.3.0",
     "vite-plugin-ejs": "2.0.0"
   },
   "overrides": {
