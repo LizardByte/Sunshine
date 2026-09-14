@@ -805,11 +805,6 @@ namespace platf {
       return nullptr;
     }
 
-    // Drop CAP_SYS_ADMIN, CAP_SYS_NICE and set DUMPABLE flag to allow XDG /root access
-    if (has_elevated_privileges(true)) {
-      drop_elevated_privileges(true);
-    }
-
     auto portal = std::make_shared<portal::portal_t>();
     if (portal->init(hwdevice_type, display_name, config)) {
       return nullptr;
