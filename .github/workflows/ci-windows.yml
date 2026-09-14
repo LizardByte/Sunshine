@@ -159,7 +159,7 @@ jobs:
         with:
           node-version: 'lts/*'
           cache: 'npm'
-          cache-dependency-path: 'src_assets/common/assets/web/package-lock.json'
+          cache-dependency-path: 'package-lock.json'
 
       - name: NodeJS Path
         shell: pwsh

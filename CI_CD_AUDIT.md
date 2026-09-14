@@ -27,7 +27,7 @@ Sunshine's Continuous Integration and Continuous Delivery (CI/CD) engine compris
 | Category | Baseline State | Risk / Vulnerability | Remediation Applied |
 |---|---|---|---|
 | **Concurrency Control** | 4 workflows lacked concurrency groups (`localize.yml`, `publish-artifacts.yml`, `publish-screenshots.yml`, `_release-notifier.yml`) | Git race conditions on master pushes; duplicate PR comments; competing status checks; duplicate release notifications | Configured `concurrency: group: "${{ github.workflow }}-${{ github.ref }}" cancel-in-progress: true` across all 4 workflows |
-| **NPM Caching** | `actions/setup-node` in `ci-bundle.yml` and `ci-windows.yml` ran with zero caching; live npm queries on every run | Redundant package downloads (30-90s per run); vulnerability to npmjs registry downtime | Configured `cache: 'npm'` and `cache-dependency-path: 'src_assets/common/assets/web/package-lock.json'` |
+| **NPM Caching** | `actions/setup-node` in `ci-bundle.yml` and `ci-windows.yml` ran with zero caching; live npm queries on every run | Redundant package downloads (30-90s per run); vulnerability to npmjs registry downtime | Configured `cache: 'npm'` and `cache-dependency-path: 'package-lock.json'` |
 | **Flatpak Cache Quota** | `ci-flatpak.yml` cached entire `./build/.flatpak-builder` with `${{ github.sha }}` key | Cache miss on every commit; uploaded 5-8 GB per run, rapidly exhausting GitHub's 10 GB repository cache quota and evicting all other branch caches | Scoped cache path to `./build/.flatpak-builder/downloads`; keyed on `${{ hashFiles('packaging/linux/flatpak/**', 'package-lock.json') }}` |
 | **macOS Runner Routing** | `ci-homebrew.yml` and `ci.yml` requested runner `macos-26` | `macos-26` is an unroutable label on standard GitHub pools, causing workflow job failures or unbounded queue delays | Standardized on `macos-14` (Apple Silicon Sonoma) with documented alignment between formula and coverage matrix |
 | **Compiler Caching** | Zero `ccache` / `sccache` in any build workflow | Repetitive C++ compilation across 11 platform builds consumes >200 runner minutes per commit | Documented ccache integration specification providing 65-85% incremental build acceleration |
@@ -205,7 +205,7 @@ The 11 reusable platform build workflows (`ci-windows.yml`, `ci-linux.yml`, `ci-
   ```yaml
   with:
     cache: 'npm'
-    cache-dependency-path: 'src_assets/common/assets/web/package-lock.json'
+    cache-dependency-path: 'package-lock.json'
   ```
   This instructs GitHub Actions to cache the `~/.npm` directory across runs, restoring packages locally and eliminating network downloads on unchanged dependency lockfiles.
 
