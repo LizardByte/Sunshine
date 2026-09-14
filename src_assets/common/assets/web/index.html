@@ -185,7 +185,7 @@
 
             // Validate protocols on URI attributes
             if (attrName === 'href' || attrName === 'src') {
-              const val = attr.value.trim().toLowerCase();
+              const val = attr.value.replace(/[\u0000-\u001f\s]/g, '').toLowerCase();
               if (val.startsWith('javascript:') || val.startsWith('vbscript:') || val.startsWith('data:text/html')) {
                 child.removeAttribute(attr.name);
                 continue;
