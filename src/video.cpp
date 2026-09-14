@@ -1366,6 +1366,57 @@ namespace video {
     LIMITED_GOP_SIZE | PARALLEL_ENCODING
   };
   #endif  // SUNSHINE_BUILD_VULKAN
+
+  #ifdef SUNSHINE_BUILD_V4L2
+  /**
+   * @brief FFmpeg V4L2 M2M encoder configuration.
+   */
+  encoder_t v4l2m2m {
+    "v4l2m2m"sv,
+    std::make_unique<encoder_platform_formats_avcodec>(
+      AV_HWDEVICE_TYPE_NONE,
+      AV_HWDEVICE_TYPE_NONE,
+      AV_PIX_FMT_NONE,
+      AV_PIX_FMT_NV12,
+      AV_PIX_FMT_P010,
+      AV_PIX_FMT_NONE,
+      AV_PIX_FMT_NONE,
+      nullptr,
+      platf::mem_type_e::v4l2
+    ),
+    {
+      {},  // Common options
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
+      {},  // Fallback options
+      "av1_v4l2m2m"s,
+      {},  // capabilities
+    },
+    {
+      {},  // Common options
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
+      {},  // Fallback options
+      "hevc_v4l2m2m"s,
+      {},  // capabilities
+    },
+    {
+      {},  // Common options
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
+      {},  // Fallback options
+      "h264_v4l2m2m"s,
+      {},  // capabilities
+    },
+    PARALLEL_ENCODING
+  };
+  #endif  // SUNSHINE_BUILD_V4L2
 #endif  // linux
 
 #ifdef __APPLE__
@@ -1460,6 +1511,9 @@ namespace video {
     &vulkan,
   #endif
     &vaapi,
+  #ifdef SUNSHINE_BUILD_V4L2
+    &v4l2m2m,
+  #endif
 #endif
 #ifdef __APPLE__
     &videotoolbox,
@@ -1833,7 +1887,7 @@ namespace video {
     auto &vps = session.vps;
 
     // send the frame to the encoder
-    auto ret = avcodec_send_frame(ctx.get(), frame);
+    auto ret = session.device->send_frame(ctx.get());
     if (ret < 0) {
       char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
       BOOST_LOG(error) << "Could not send a frame for encoding: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, ret);
@@ -2329,7 +2383,7 @@ namespace video {
       encode_device_final = std::move(encode_device);
     }
 
-    if (encode_device_final->set_frame(frame.release(), ctx->hw_frames_ctx)) {
+    if (encode_device_final->set_frame(frame.release(), ctx->hw_frames_ctx) || encode_device_final->load_opened_context(ctx.get())) {
       return nullptr;
     }
 

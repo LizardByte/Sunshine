@@ -34,6 +34,14 @@ TEST(WaylandCaptureTest, UsesVramForVaapi) {
   EXPECT_TRUE(wl::use_vram_capture(platf::mem_type_e::vaapi));
 }
 
+TEST(WaylandCaptureTest, UsesVramForV4l2OnlyWhenV4l2SupportIsBuilt) {
+  #ifdef SUNSHINE_BUILD_V4L2
+  EXPECT_TRUE(wl::use_vram_capture(platf::mem_type_e::v4l2));
+  #else
+  EXPECT_FALSE(wl::use_vram_capture(platf::mem_type_e::v4l2));
+  #endif
+}
+
 TEST(WaylandCaptureTest, UsesSystemMemoryForSoftwareEncoding) {
   EXPECT_FALSE(wl::use_vram_capture(platf::mem_type_e::system));
 }
