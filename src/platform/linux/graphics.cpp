@@ -62,6 +62,22 @@ namespace gl {
     return egl_image_target_texture_2d_fn;
   }
 
+  PFNEGLCREATEIMAGEPROC egl_create_image = nullptr;  ///< Selected core or KHR EGL image-creation entry point.
+  PFNEGLDESTROYIMAGEPROC egl_destroy_image = nullptr;  ///< Selected core or KHR EGL image-destruction entry point.
+  PFNGLFRAMEBUFFERTEXTUREPROC glad_framebuffer_texture = nullptr;  ///< Selected framebuffer texture attachment entry point.
+
+  /**
+   * @brief Attach a 2D texture through glFramebufferTexture2D when glFramebufferTexture is unavailable.
+   *
+   * @param target Framebuffer binding target.
+   * @param attachment Framebuffer attachment point.
+   * @param texture Texture object to attach.
+   * @param level Texture mipmap level to attach.
+   */
+  static void glad_framebuffer_texture_2d_wrapper(GLenum target, GLenum attachment, GLuint texture, GLint level) {
+    gl::ctx.FramebufferTexture2D(target, attachment, GL_TEXTURE_2D, texture, level);
+  }
+
   /**
    * @brief Drain and log pending OpenGL errors.
    */
@@ -333,6 +349,32 @@ namespace gbm {
 }  // namespace gbm
 
 namespace egl {
+  /**
+   * @brief Owning type-erased EGL attribute array with a type-aware deleter.
+   *
+   * The deleter restores the EGL attribute element type used for allocation.
+   */
+  using egl_attribs_t = std::unique_ptr<void, void (*)(void *)>;
+
+  /**
+   * @brief Function pointer type for constructing attributes for the selected EGL image API.
+   *
+   * @param surface DMA-BUF surface descriptor to translate.
+   * @return Type-erased EGL attribute array terminated by EGL_NONE.
+   */
+  using surface_descriptor_to_egl_attribs_fn = egl_attribs_t (*)(const surface_descriptor_t &surface);
+
+  surface_descriptor_to_egl_attribs_fn surface_descriptor_to_egl_attribs;  ///< Attribute builder selected for the active EGL image API.
+
+  /**
+   * @brief Build EGL DMA-BUF import attributes using a specific EGL attribute type.
+   *
+   * @tparam EglType EGLAttrib for the core API or EGLint for the KHR API.
+   * @param surface DMA-BUF surface descriptor to translate.
+   * @return Type-erased EGL attribute array terminated by EGL_NONE.
+   */
+  template<typename EglType>
+  egl_attribs_t surface_descriptor_to_egl_attribs_impl(const surface_descriptor_t &surface);
 
   /**
    * @brief Log EGL failure details and return an error code.
@@ -501,6 +543,28 @@ namespace egl {
       BOOST_LOG(warning) << "GL: glEGLImageTargetTexture2DOES not available; DMA-BUF import will fail"sv;
     }
 
+    if (eglCreateImage != nullptr && eglDestroyImage != nullptr) {
+      gl::egl_create_image = (gl::PFNEGLCREATEIMAGEPROC) eglCreateImage;
+      gl::egl_destroy_image = (gl::PFNEGLDESTROYIMAGEPROC) eglDestroyImage;
+      egl::surface_descriptor_to_egl_attribs = surface_descriptor_to_egl_attribs_impl<EGLAttrib>;
+    } else if (eglCreateImageKHR != nullptr && eglDestroyImageKHR != nullptr) {
+      gl::egl_create_image = (gl::PFNEGLCREATEIMAGEPROC) eglCreateImageKHR;
+      gl::egl_destroy_image = (gl::PFNEGLDESTROYIMAGEPROC) eglDestroyImageKHR;
+      egl::surface_descriptor_to_egl_attribs = surface_descriptor_to_egl_attribs_impl<EGLint>;
+    } else {
+      BOOST_LOG(error) << "Neither eglCreateImage/eglDestroyImage nor eglCreateImageKHR/eglDestroyImageKHR are available"sv;
+      return std::nullopt;
+    }
+
+    if (gl::ctx.FramebufferTexture) {
+      gl::glad_framebuffer_texture = gl::ctx.FramebufferTexture;
+    } else if (gl::ctx.FramebufferTexture2D) {
+      gl::glad_framebuffer_texture = gl::glad_framebuffer_texture_2d_wrapper;
+    } else {
+      BOOST_LOG(error) << "Neither glFramebufferTexture nor glFramebufferTexture2D are available"sv;
+      return std::nullopt;
+    }
+
     // GetString returns const GLubyte* (unsigned char*); convert to std::string safely (avoids sonar cpp:S6996).
     auto gl_string = [](const GLubyte *s) {
       std::string result;
@@ -589,12 +653,42 @@ namespace egl {
   }
 
   /**
-   * @brief Get EGL attributes for eglCreateImage() to import the provided surface.
-   * @param surface The surface descriptor.
-   * @return Vector of EGL attributes.
+   * @brief Build EGL DMA-BUF import attributes using a specific EGL attribute type.
+   *
+   * eglCreateImage uses EGLAttrib while eglCreateImageKHR uses EGLint, so the
+   * selected specialization controls both allocation and type-aware deletion.
+   *
+   * @tparam EglType EGLAttrib for the core API or EGLint for the KHR API.
+   * @param surface DMA-BUF surface descriptor to translate.
+   * @return Type-erased EGL attribute array terminated by EGL_NONE.
    */
-  std::vector<EGLAttrib> surface_descriptor_to_egl_attribs(const surface_descriptor_t &surface) {
-    std::vector<EGLAttrib> attribs;
+  template<typename EglType>
+  egl_attribs_t surface_descriptor_to_egl_attribs_impl(const surface_descriptor_t &surface) {
+    // Use a custom vector to abstract away the underlying element type.
+    struct {
+      static_assert(std::is_trivially_copyable_v<EglType>);
+      static_assert(std::is_trivially_destructible_v<EglType>);
+
+      static void deleter(void *ptr) {
+        delete[] reinterpret_cast<EglType *>(ptr);
+      };
+
+      size_t len = 0;
+      size_t cap = 32;
+      egl_attribs_t buf {new EglType[cap], &deleter};
+
+      void emplace_back(EglType value) {
+        if (len == cap) {
+          size_t new_cap = cap + 32;
+          egl_attribs_t new_buf {new EglType[new_cap], &deleter};
+          memcpy(new_buf.get(), buf.get(), len * sizeof(EglType));
+          buf = std::move(new_buf);
+          cap = new_cap;
+        }
+        reinterpret_cast<EglType *>(buf.get())[len] = value;
+        ++len;
+      }
+    } attribs;
 
     attribs.emplace_back(EGL_WIDTH);
     attribs.emplace_back(surface.width);
@@ -627,8 +721,13 @@ namespace egl {
     }
 
     attribs.emplace_back(EGL_NONE);
-    return attribs;
+    return std::move(attribs.buf);
   }
+
+  /** @copydoc surface_descriptor_to_egl_attribs_impl */
+  template egl_attribs_t surface_descriptor_to_egl_attribs_impl<EGLAttrib>(const surface_descriptor_t &surface);
+  /** @copydoc surface_descriptor_to_egl_attribs_impl */
+  template egl_attribs_t surface_descriptor_to_egl_attribs_impl<EGLint>(const surface_descriptor_t &surface);
 
   /**
    * @brief Import the source frame texture for EGL/OpenGL conversion.
@@ -638,11 +737,11 @@ namespace egl {
    * @return Imported RGB image, or empty when import fails.
    */
   std::optional<rgb_t> import_source(display_t::pointer egl_display, const surface_descriptor_t &xrgb) {
-    auto attribs = surface_descriptor_to_egl_attribs(xrgb);
+    egl_attribs_t attribs = surface_descriptor_to_egl_attribs(xrgb);
 
     rgb_t rgb {
       egl_display,
-      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, attribs.data()),
+      gl::egl_create_image(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, attribs.get()),
       gl::tex_t::make(1)
     };
 
@@ -747,13 +846,13 @@ namespace egl {
    * @return Imported NV12 image, or empty when import fails.
    */
   std::optional<nv12_t> import_target(display_t::pointer egl_display, std::array<file_t, nv12_img_t::num_fds> &&fds, const surface_descriptor_t &y, const surface_descriptor_t &uv) {
-    auto y_attribs = surface_descriptor_to_egl_attribs(y);
-    auto uv_attribs = surface_descriptor_to_egl_attribs(uv);
+    egl_attribs_t y_attribs = surface_descriptor_to_egl_attribs(y);
+    egl_attribs_t uv_attribs = surface_descriptor_to_egl_attribs(uv);
 
     nv12_t nv12 {
       egl_display,
-      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, y_attribs.data()),
-      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, uv_attribs.data()),
+      gl::egl_create_image(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, y_attribs.get()),
+      gl::egl_create_image(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, uv_attribs.get()),
       gl::tex_t::make(2),
       gl::frame_buf_t::make(2),
       std::move(fds)
@@ -805,9 +904,9 @@ namespace egl {
 
     yuv444_t yuv444 {
       egl_display,
-      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, y_attribs.data()),
-      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, u_attribs.data()),
-      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, v_attribs.data()),
+      gl::egl_create_image(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, y_attribs.get()),
+      gl::egl_create_image(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, u_attribs.get()),
+      gl::egl_create_image(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, v_attribs.get()),
       gl::tex_t::make(3),
       gl::frame_buf_t::make(3),
       std::move(fds)
