@@ -15,6 +15,7 @@
   #include <gtest/gtest.h>
 
   // local includes
+  #include "src/logging.h"
   #include "src/platform/linux/misc.h"
 
 namespace {
@@ -65,9 +66,25 @@ namespace {
     "QT_PLUGIN_PATH",
     "QT_QPA_PLATFORM_PLUGIN_PATH",
   };
+
+  /**
+   * @brief Synchronize asynchronous test logging before changing the process environment.
+   *
+   * GoogleTest emits test-start records before fixture setup. Draining those records prevents the logging formatter
+   * from reading environment-dependent state concurrently with `setenv()` or `unsetenv()` on older glibc releases.
+   */
+  class ProcessEnvironmentSecurity: public testing::Test {
+  protected:
+    /**
+     * @brief Wait for pending test-start log records to finish formatting.
+     */
+    void SetUp() override {
+      logging::log_flush();
+    }
+  };
 }  // namespace
 
-TEST(ProcessEnvironmentSecurity, RemovesModuleLoaders) {
+TEST_F(ProcessEnvironmentSecurity, RemovesModuleLoaders) {
   std::array<std::optional<environment_guard_t>, unsafe_environment_variables.size()> guards;
   for (std::size_t index = 0; index < unsafe_environment_variables.size(); ++index) {
     const auto *variable = unsafe_environment_variables[index];
@@ -81,7 +98,7 @@ TEST(ProcessEnvironmentSecurity, RemovesModuleLoaders) {
   }
 }
 
-TEST(ProcessEnvironmentSecurity, PreservesTraySessionVariables) {
+TEST_F(ProcessEnvironmentSecurity, PreservesTraySessionVariables) {
   environment_guard_t platform_theme_guard {"QT_QPA_PLATFORMTHEME"};
   environment_guard_t wayland_display_guard {"WAYLAND_DISPLAY"};
   ASSERT_EQ(setenv("QT_QPA_PLATFORMTHEME", "gtk3", 1), 0);
