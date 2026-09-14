@@ -437,11 +437,15 @@ namespace video {
      * @param avcodec_ctx Open FFmpeg codec context for the selected encoder.
      * @param encode_device Platform encode device that supplies frames to FFmpeg.
      * @param inject Whether SPS/VPS replacement data should be injected.
+     * @param first_idr_packets_cnt Number of packets needed to form the first IDR frame.
      */
-    avcodec_encode_session_t(avcodec_ctx_t &&avcodec_ctx, std::unique_ptr<platf::avcodec_encode_device_t> encode_device, int inject):
+    avcodec_encode_session_t(avcodec_ctx_t &&avcodec_ctx, std::unique_ptr<platf::avcodec_encode_device_t> encode_device, int inject, uint8_t first_idr_packets_cnt):
         avcodec_ctx {std::move(avcodec_ctx)},
         device {std::move(encode_device)},
         inject {inject} {
+      // If the first packet already contains the IDR frame, then we don't need to reconstruct the packet again.
+      packets_needed_cnt = first_idr_packets_cnt > 1 ? first_idr_packets_cnt : 0;
+      packets_needed.reserve(first_idr_packets_cnt);
     }
 
     /**
@@ -478,6 +482,8 @@ namespace video {
       vps = std::move(other.vps);
 
       inject = other.inject;
+      packets_needed_cnt = other.packets_needed_cnt;
+      packets_needed = std::move(other.packets_needed);
 
       return *this;
     }
@@ -528,6 +534,25 @@ namespace video {
       request_idr_frame();
     }
 
+    /**
+     * @brief Flush the remaining frames from the encoder. This function will make avcodec_ctx unusable.
+     *
+     * @return Vector of remaining packets.
+     */
+    std::vector<std::unique_ptr<video::packet_raw_avcodec>> flush_rest_frames() {
+      std::vector<std::unique_ptr<video::packet_raw_avcodec>> packets;
+
+      // Flush the encoder by passing nullptr as the frame
+      if (avcodec_send_frame(avcodec_ctx.get(), nullptr) == 0) {
+        do {
+          packets.emplace_back(std::make_unique<video::packet_raw_avcodec>());
+        } while (avcodec_receive_packet(avcodec_ctx.get(), packets.back()->av_packet) == 0);
+        packets.pop_back();  // Remove the last packet which is invalid
+      }
+
+      return packets;
+    }
+
     avcodec_ctx_t avcodec_ctx;  ///< FFmpeg codec context owned by the encode session.
     std::unique_ptr<platf::avcodec_encode_device_t> device;  ///< Platform device used by the FFmpeg hardware encoder.
 
@@ -538,6 +563,9 @@ namespace video {
 
     // inject sps/vps data into idr pictures
     int inject;  ///< Number of upcoming IDR frames that should receive rewritten parameter sets.
+
+    uint8_t packets_needed_cnt;  ///< Number of encoder packets still required to complete the first IDR frame.
+    std::vector<std::unique_ptr<video::packet_raw_avcodec>> packets_needed;  ///< First-IDR packets held until the frame is complete.
   };
 
   /**
@@ -1906,6 +1934,47 @@ namespace video {
         return ret;
       }
 
+      if (session.packets_needed_cnt) {
+        session.packets_needed_cnt--;
+
+        if (session.packets_needed_cnt > 0) {
+          BOOST_LOG(debug) << "Stashing packet "sv << session.packets_needed.size() << " for the first IDR frame";
+          session.packets_needed.emplace_back(std::move(packet));
+          continue;
+        }
+
+        BOOST_LOG(debug) << "Releasing stashed packets for the first IDR frame";
+        packet->av_packet = av_packet_alloc();
+        if (!packet->av_packet) {
+          BOOST_LOG(error) << "Failed to allocate AVPacket for stashed packets";
+          return -1;
+        }
+
+        int new_size = av_packet->size;
+        for (const auto &stashed_packet : session.packets_needed) {
+          new_size += stashed_packet->av_packet->size;
+        }
+        if (av_new_packet(packet->av_packet, new_size)) {
+          BOOST_LOG(error) << "Failed to allocate AVPacket data for stashed packets";
+          return -1;
+        }
+
+        int copy_offset = 0;
+        for (const auto &stashed_packet : session.packets_needed) {
+          memcpy(packet->av_packet->data + copy_offset, stashed_packet->av_packet->data, stashed_packet->av_packet->size);
+          copy_offset += stashed_packet->av_packet->size;
+        }
+        memcpy(packet->av_packet->data + copy_offset, av_packet->data, av_packet->size);
+        if (av_packet_copy_props(packet->av_packet, av_packet)) {
+          BOOST_LOG(error) << "Failed to copy AVPacket properties for stashed packets";
+          return -1;
+        }
+
+        av_packet_free(&av_packet);
+        av_packet = packet->av_packet;
+        session.packets_needed.clear();
+      }
+
       if (av_packet->flags & AV_PKT_FLAG_KEY) {
         BOOST_LOG(debug) << "Frame "sv << frame_nr << ": IDR Keyframe (AV_FRAME_FLAG_KEY)"sv;
       }
@@ -2394,7 +2463,8 @@ namespace video {
       std::move(encode_device_final),
 
       // 0 ==> don't inject, 1 ==> inject for h264, 2 ==> inject for hevc
-      config.videoFormat <= 1 ? (1 - static_cast<int>(video_format[encoder_t::VUI_PARAMETERS])) * (1 + config.videoFormat) : 0
+      config.videoFormat <= 1 ? (1 - static_cast<int>(video_format[encoder_t::VUI_PARAMETERS])) * (1 + config.videoFormat) : 0,
+      video_format.first_idr_packets_cnt
     );
 
     return session;
@@ -3050,10 +3120,28 @@ namespace video {
   }
 
   /**
-   * @brief Enumerates supported validate flag options.
+   * @brief Result of a configuration validation.
    */
-  enum validate_flag_e {
-    VUI_PARAMS = 0x01,  ///< VUI parameters
+  struct validate_result_t {
+    /**
+     * @brief Enumerates supported validate flag options.
+     */
+    enum validate_flag_e {
+      VUI_PARAMS = 0x01,  ///< VUI parameters
+    };
+
+    bool success;  ///< Whether the encoder accepted and successfully encoded the validation frame.
+    uint8_t flags;  ///< Bitwise combination of validate_flag_e capabilities observed during validation.
+    uint8_t first_idr_packets_cnt;  ///< Number of packets emitted for the first IDR frame, including separate parameter-set packets.
+
+    /**
+     * @brief Construct a failed validation result with all capabilities cleared.
+     *
+     * @return Failed validation result.
+     */
+    static constexpr validate_result_t error() {
+      return validate_result_t {false};
+    }
   };
 
   /**
@@ -3062,58 +3150,97 @@ namespace video {
    * @param disp Display connection or display handle.
    * @param encoder Encoder configuration or encoder instance.
    * @param config Configuration values to apply.
-   * @return 0 when the selected encoder/device accepts the configuration; nonzero otherwise.
+   * @return Validation status, detected capabilities, and first-IDR packet count.
    */
-  int validate_config(std::shared_ptr<platf::display_t> disp, const encoder_t &encoder, const config_t &config) {
+  validate_result_t validate_config(std::shared_ptr<platf::display_t> disp, const encoder_t &encoder, const config_t &config) {
     auto encode_device = make_encode_device(*disp, encoder, config);
     if (!encode_device) {
-      return -1;
+      return validate_result_t::error();
     }
 
     auto session = make_encode_session(disp.get(), encoder, config, disp->width, disp->height, std::move(encode_device));
     if (!session) {
-      return -1;
+      return validate_result_t::error();
     }
 
     {
       // Image buffers are large, so we use a separate scope to free it immediately after convert()
       auto img = disp->alloc_img();
       if (!img || disp->dummy_img(img.get()) || session->convert(*img)) {
-        return -1;
+        return validate_result_t::error();
       }
     }
 
     session->request_idr_frame();
 
-    auto packets = mail::man->queue<packet_t>(mail::video_packets);
-    while (!packets->peek()) {
-      if (encode(1, *session, packets, nullptr, {})) {
-        return -1;
+    bool has_vui_params = false;
+    bool is_first_frame_idr = false;
+    uint8_t first_idr_packets_cnt = 0;
+
+    // libavcodec does not require that an IDR frame must be placed in the first packet;
+    // some encoders may output certain packets first (such as H.264 SPS and PPS).
+    if (auto avcodec_session = dynamic_cast<avcodec_encode_session_t *>(session.get())) {
+      avcodec_session->device->frame->pts = 1;
+      auto ret = avcodec_session->device->send_frame(avcodec_session->avcodec_ctx.get());
+      if (ret < 0) {
+        char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
+        BOOST_LOG(error) << "Could not send a frame for encoding: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, ret);
+        return validate_result_t::error();
       }
-    }
 
-    auto packet = packets->pop();
-    if (!packet->is_idr()) {
-      BOOST_LOG(error) << "First packet type is not an IDR frame"sv;
+      auto avcodec_packets = avcodec_session->flush_rest_frames();
+      if (avcodec_packets.size() > 5) {
+        BOOST_LOG(error) << "Received >5 packets for the first IDR frame (weird). Marking validation as failed."sv;
+        return validate_result_t::error();
+      }
+      if (avcodec_packets.empty()) {
+        BOOST_LOG(error) << "Received no packets for the first IDR frame. Marking validation as failed."sv;
+        return validate_result_t::error();
+      }
 
-      return -1;
-    }
+      std::vector<AVPacket *> avcodec_packets_raw(avcodec_packets.size());
+      std::transform(avcodec_packets.begin(), avcodec_packets.end(), avcodec_packets_raw.begin(), [](auto &packet) {
+        return packet->av_packet;
+      });
 
-    int flag = 0;
-
-    // This check only applies for H.264 and HEVC
-    if (config.videoFormat <= 1) {
-      if (auto packet_avcodec = dynamic_cast<packet_raw_avcodec *>(packet.get())) {
-        if (cbs::validate_sps(packet_avcodec->av_packet, config.videoFormat ? AV_CODEC_ID_H265 : AV_CODEC_ID_H264)) {
-          flag |= VUI_PARAMS;
+      is_first_frame_idr = std::any_of(avcodec_packets.begin(), avcodec_packets.end(), [](auto &packet) {
+        return packet->is_idr();
+      });
+      // This check only applies for H.264 and HEVC
+      has_vui_params = config.videoFormat > 1 || cbs::validate_sps(avcodec_packets_raw, config.videoFormat ? AV_CODEC_ID_H265 : AV_CODEC_ID_H264);
+      first_idr_packets_cnt = static_cast<uint8_t>(avcodec_packets.size());
+    } else {
+      auto packets = mail::man->queue<packet_t>(mail::video_packets);
+      while (!packets->peek()) {
+        if (encode(1, *session, packets, nullptr, {})) {
+          return validate_result_t::error();
         }
-      } else {
-        // Don't check it for non-avcodec encoders.
-        flag |= VUI_PARAMS;
       }
+
+      auto packet = packets->pop();
+      is_first_frame_idr = packet->is_idr();
+      // Don't check it for non-avcodec encoders.
+      has_vui_params = true;
+      first_idr_packets_cnt = 1;
     }
 
-    return flag;
+    if (!is_first_frame_idr) {
+      BOOST_LOG(error) << "First packet type is not an IDR frame"sv;
+      return validate_result_t::error();
+    }
+    if (!has_vui_params && first_idr_packets_cnt > 1) {
+      BOOST_LOG(error) << "Encoder splitting the first IDR frame into multiple packets without VUI parameters is not supported for now."sv;
+      return validate_result_t::error();
+    }
+
+    validate_result_t result {true};
+
+    if (has_vui_params) {
+      result.flags |= validate_result_t::VUI_PARAMS;
+    }
+    result.first_idr_packets_cnt = first_idr_packets_cnt;
+
+    return result;
   }
 
   /**
@@ -3136,8 +3263,8 @@ namespace video {
     encoder.av1.capabilities.set();
 
     // First, test encoder viability
-    config_t config_max_ref_frames {1920, 1080, 60, 6000, 1000, 1, 1, 1, 0, 0, 0, 0};
-    config_t config_autoselect {1920, 1080, 60, 6000, 1000, 1, 0, 1, 0, 0, 0, 0};
+    config_t config_max_ref_frames {1920, 1080, 30, 3000, 1000, 1, 1, 1, 0, 0, 0, 0};
+    config_t config_autoselect {1920, 1080, 30, 3000, 1000, 1, 0, 1, 0, 0, 0, 0};
 
     // If the encoder isn't supported at all (not even H.264), bail early
     reset_display(disp, encoder.platform_formats->dev_type, output_name, config_autoselect);
@@ -3152,24 +3279,25 @@ namespace video {
 
     // If we're expecting failure, use the autoselect ref config first since that will always succeed
     // if the encoder is available.
-    auto max_ref_frames_h264 = expect_failure ? -1 : validate_config(disp, encoder, config_max_ref_frames);
-    auto autoselect_h264 = max_ref_frames_h264 >= 0 ? max_ref_frames_h264 : validate_config(disp, encoder, config_autoselect);
-    if (autoselect_h264 < 0) {
+    auto max_ref_frames_h264 = expect_failure ? validate_result_t::error() : validate_config(disp, encoder, config_max_ref_frames);
+    auto autoselect_h264 = max_ref_frames_h264.success ? max_ref_frames_h264 : validate_config(disp, encoder, config_autoselect);
+    if (!autoselect_h264.success) {
       return false;
     } else if (expect_failure) {
       // We expected failure, but actually succeeded. Do the max_ref_frames probe we skipped.
       max_ref_frames_h264 = validate_config(disp, encoder, config_max_ref_frames);
     }
 
-    std::vector<std::pair<validate_flag_e, encoder_t::flag_e>> packet_deficiencies {
-      {VUI_PARAMS, encoder_t::VUI_PARAMETERS},
+    std::vector<std::pair<validate_result_t::validate_flag_e, encoder_t::flag_e>> packet_deficiencies {
+      {validate_result_t::VUI_PARAMS, encoder_t::VUI_PARAMETERS},
     };
 
     for (auto [validate_flag, encoder_flag] : packet_deficiencies) {
-      encoder.h264[encoder_flag] = (max_ref_frames_h264 & validate_flag && autoselect_h264 & validate_flag);
+      encoder.h264[encoder_flag] = (max_ref_frames_h264.flags & validate_flag && autoselect_h264.flags & validate_flag);
     }
 
-    encoder.h264[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_h264 >= 0;
+    encoder.h264.first_idr_packets_cnt = autoselect_h264.first_idr_packets_cnt;
+    encoder.h264[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_h264.success;
     encoder.h264[encoder_t::PASSED] = true;
 
     if (test_hevc) {
@@ -3181,16 +3309,17 @@ namespace video {
 
         // If H.264 succeeded with max ref frames specified, assume that we can count on
         // HEVC to also succeed with max ref frames specified if HEVC is supported.
-        auto autoselect_hevc = (max_ref_frames_hevc >= 0 || max_ref_frames_h264 >= 0) ?
+        auto autoselect_hevc = (max_ref_frames_hevc.success || max_ref_frames_h264.success) ?
                                  max_ref_frames_hevc :
                                  validate_config(disp, encoder, config_autoselect);
 
         for (auto [validate_flag, encoder_flag] : packet_deficiencies) {
-          encoder.hevc[encoder_flag] = (max_ref_frames_hevc & validate_flag && autoselect_hevc & validate_flag);
+          encoder.hevc[encoder_flag] = (max_ref_frames_hevc.flags & validate_flag && autoselect_hevc.flags & validate_flag);
         }
 
-        encoder.hevc[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_hevc >= 0;
-        encoder.hevc[encoder_t::PASSED] = max_ref_frames_hevc >= 0 || autoselect_hevc >= 0;
+        encoder.hevc.first_idr_packets_cnt = autoselect_hevc.first_idr_packets_cnt;
+        encoder.hevc[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_hevc.success;
+        encoder.hevc[encoder_t::PASSED] = max_ref_frames_hevc.success || autoselect_hevc.success;
       } else {
         BOOST_LOG(info) << "Encoder ["sv << encoder.hevc.name << "] is not supported on this GPU"sv;
         encoder.hevc.capabilities.reset();
@@ -3209,16 +3338,17 @@ namespace video {
 
         // If H.264 succeeded with max ref frames specified, assume that we can count on
         // AV1 to also succeed with max ref frames specified if AV1 is supported.
-        auto autoselect_av1 = (max_ref_frames_av1 >= 0 || max_ref_frames_h264 >= 0) ?
+        auto autoselect_av1 = (max_ref_frames_av1.success || max_ref_frames_h264.success) ?
                                 max_ref_frames_av1 :
                                 validate_config(disp, encoder, config_autoselect);
 
         for (auto [validate_flag, encoder_flag] : packet_deficiencies) {
-          encoder.av1[encoder_flag] = (max_ref_frames_av1 & validate_flag && autoselect_av1 & validate_flag);
+          encoder.av1[encoder_flag] = (max_ref_frames_av1.flags & validate_flag && autoselect_av1.flags & validate_flag);
         }
 
-        encoder.av1[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_av1 >= 0;
-        encoder.av1[encoder_t::PASSED] = max_ref_frames_av1 >= 0 || autoselect_av1 >= 0;
+        encoder.av1.first_idr_packets_cnt = autoselect_av1.first_idr_packets_cnt;
+        encoder.av1[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_av1.success;
+        encoder.av1[encoder_t::PASSED] = max_ref_frames_av1.success || autoselect_av1.success;
       } else {
         BOOST_LOG(info) << "Encoder ["sv << encoder.av1.name << "] is not supported on this GPU"sv;
         encoder.av1.capabilities.reset();
@@ -3243,7 +3373,7 @@ namespace video {
 
         auto encoder_codec_name = encoder.codec_from_config(config).name;
 
-        if ((encoder.flags & YUV444_SUPPORT) && disp->is_codec_supported(encoder_codec_name, config) && validate_config(disp, encoder, config) >= 0) {
+        if ((encoder.flags & YUV444_SUPPORT) && disp->is_codec_supported(encoder_codec_name, config) && validate_config(disp, encoder, config).success) {
           flag_map[encoder_t::YUV444] = true;
         } else {
           flag_map[encoder_t::YUV444] = false;
@@ -3263,7 +3393,7 @@ namespace video {
 
         auto encoder_codec_name = encoder.codec_from_config(config).name;
 
-        if (disp->is_codec_supported(encoder_codec_name, config) && validate_config(disp, encoder, config) >= 0) {
+        if (disp->is_codec_supported(encoder_codec_name, config) && validate_config(disp, encoder, config).success) {
           flag_map[encoder_t::DYNAMIC_RANGE] = true;
         } else {
           flag_map[encoder_t::DYNAMIC_RANGE] = false;
@@ -3283,7 +3413,7 @@ namespace video {
 
         auto encoder_codec_name = encoder.codec_from_config(config).name;
 
-        if ((encoder.flags & YUV444_SUPPORT) && disp->is_codec_supported(encoder_codec_name, config) && validate_config(disp, encoder, config) >= 0) {
+        if ((encoder.flags & YUV444_SUPPORT) && disp->is_codec_supported(encoder_codec_name, config) && validate_config(disp, encoder, config).success) {
           flag_map[encoder_t::DYNAMIC_RANGE_YUV444] = true;
         } else {
           flag_map[encoder_t::DYNAMIC_RANGE_YUV444] = false;
