@@ -225,6 +225,8 @@ jobs:
           sudo su "$(whoami)" -c "flatpak run org.flatpak.Builder \
             --arch=${MATRIX_ARCH} \
             --force-clean \
+            --mirror-screenshots-url=https://dl.flathub.org/media \
+            --compose-url-policy=full \
             --repo=repo \
             --sandbox \
             build-sunshine ${APP_ID}.yml"
@@ -254,8 +256,6 @@ jobs:
             "${APP_ID}.yml"
 
           echo "Linting flatpak repo"
-          # TODO: add arg
-          # --mirror-screenshots-url=https://dl.flathub.org/media \
           flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
             --exceptions \
             --user-exceptions "${exceptions_file}" \
