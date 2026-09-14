@@ -373,6 +373,9 @@ namespace video {
 
       std::string name;  ///< Codec name passed to the encoder backend.
       std::bitset<MAX_FLAGS> capabilities;  ///< Capability flags supported by this codec on the encoder.
+      // libavcodec does not require that an IDR frame must be placed in the first packet;
+      // some encoders may output certain packets first (such as H.264 SPS and PPS).
+      std::uint8_t first_idr_packets_cnt = 0;  ///< Number of encoder packets combined to emit the first complete IDR frame.
 
       /**
        * @brief Test whether a codec capability is enabled.
