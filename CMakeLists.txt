@@ -10,7 +10,7 @@ project(Sunshine VERSION 0.0.0
         HOMEPAGE_URL "https://app.lizardbyte.dev/Sunshine")
 
 # Minimum separately installed Virtual HID Driver version supported by this build.
-set(LIBVIRTUALHID_MINIMUM_VERSION "2026.905.2300.20")
+set(LIBVIRTUALHID_MINIMUM_VERSION "2026.914.1218.10")
 list(APPEND SUNSHINE_DEFINITIONS LIBVIRTUALHID_MINIMUM_VERSION="${LIBVIRTUALHID_MINIMUM_VERSION}")
 
 set(CMAKE_CXX_STANDARD 23)
