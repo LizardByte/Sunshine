@@ -143,7 +143,7 @@ Warning: EGL: context priority set to HIGH but CAP_SYS_NICE capability is missin
 > Switching to Vulkan encoding should resolve the issue for the majority of configurations, but refer to this
 > table for recommended configurations (especially if Vulkan encoding is not supported on your system):
 > | Desktop Environment | Vulkan Supported? | Recommended Sunshine Install Type | Recommended Capture & Encoder Configuration              |
-> |:--------------------|-------------------|-----------------------------------|-------------------------------------------------------------:|
+> |:--------------------|-------------------|-----------------------------------|---------------------------------------------------------:|
 > | KDE Plasma          | Yes               | Any                               | `portal` or `kwin` capture with `vulkan` encoding        |
 > | KDE Plasma          | No                | Non-Sandboxed                     | `portal` or `kwin` capture with `vaapi`/`nvenc` encoding |
 > | GNOME / other       | Yes               | Any                               | `portal` capture with `vulkan` encoding                  |
