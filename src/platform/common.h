@@ -16,10 +16,12 @@
 #include <boost/core/noncopyable.hpp>
 #ifndef _WIN32
   #include <boost/asio.hpp>
-  #include <boost/process/v1.hpp>
 #endif
 
 // local includes
+#ifndef _WIN32
+  #include "src/boost_process_compat.h"
+#endif
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/thread_safe.h"
