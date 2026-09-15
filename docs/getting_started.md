@@ -725,7 +725,6 @@ All shortcuts start with `Ctrl+Alt+Shift`, just like Moonlight.
 * The "Desktop" app works the same as any other application except it has no commands. It does not start an application,
   instead it simply starts a stream. If you removed it and would like to get it back, just add a new application with
   the name "Desktop" and "desktop.png" as the image path.
-* For the Linux flatpak you must prepend commands with `flatpak-spawn --host`.
 * If inputs (mouse, keyboard, gamepads...) aren't working after connecting:
 
   * On FreeBSD/Linux, add the user running sunshine to the `input` group.
