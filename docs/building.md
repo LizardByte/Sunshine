@@ -14,6 +14,9 @@ It is recommended to use one of the following compilers:
 
 ### Dependencies
 
+Boost `1.89.0` or newer can be supplied as a system package. When a compatible system package is unavailable, CMake
+downloads the project-locked Boost release through CPM.
+
 #### FreeBSD
 > [!CAUTION]
 > Sunshine support for FreeBSD is experimental and may be incomplete or not work as expected

@@ -188,8 +188,14 @@ add_executable(${PROJECT_NAME}
 # This ensures both CLI and CLion can access the same files relative to the test executable
 # Using configure_file ensures files are copied when they change between builds
 set(INTEGRATION_TEST_FILES
+    "cmake/compile_definitions/macos.cmake"
+    "cmake/dependencies/Boost_Sunshine.cmake"
+    "cmake/macros/common.cmake"
+    "package-lock.cmake"
+    "packaging/linux/flatpak/modules/boost.json"
     "src/config.cpp"
     "src_assets/common/assets/web/config.html"
+    "docs/building.md"
     "docs/configuration.md"
     "docs/getting_started.md"
     "docs/troubleshooting.md"
