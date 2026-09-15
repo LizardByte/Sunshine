@@ -874,6 +874,26 @@ supported on the current platform.
     </tr>
 </table>
 
+### external_audio
+
+Windows only. Enable capture-only operation when an external audio router manages
+application playback. An explicit [audio_sink](#audio_sink) is required; use an
+endpoint ID when names are ambiguous. Sunshine captures that endpoint directly
+without changing or restoring Windows default devices or endpoint formats.
+
+In this mode, [virtual_sink](#virtual_sink), automatic Steam audio driver installation,
+and Moonlight's host-playback toggle do not affect routing. Configure local playback
+and the audio sent to the selected endpoint in your external mixer. If the endpoint
+is unavailable, audio capture fails rather than falling back to another endpoint.
+Video streaming can continue without audio.
+
+Disabled by default. Other platforms retain their existing behavior.
+
+@code{}
+external_audio = enabled
+audio_sink = My Streaming Mix
+@endcode
+
 ### stream_audio
 
 <table>

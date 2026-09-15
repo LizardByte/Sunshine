@@ -49,6 +49,13 @@ const config = ref(props.config)
 
     <PlatformLayout :platform="platform">
       <template #windows>
+        <Checkbox class="mb-3"
+                  id="external_audio"
+                  locale-prefix="config"
+                  v-model="config.external_audio"
+                  default="false"
+        ></Checkbox>
+
         <!-- Virtual Sink -->
         <div class="mb-3">
           <label for="virtual_sink" class="form-label">{{ $t('config.virtual_sink') }}</label>
