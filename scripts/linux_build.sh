@@ -428,6 +428,7 @@ function add_ubuntu_deps() {
       "libboost-locale-dev"
       "libboost-log-dev"
       "libboost-program-options-dev"
+      "libicu-dev"
     )
   fi
 

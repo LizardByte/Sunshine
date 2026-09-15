@@ -16,13 +16,11 @@
 #include <optional>
 #include <unordered_map>
 
-// lib includes
-#include <boost/process/v1.hpp>
-
 // local includes
 #include "config.h"
 #include "platform/common.h"
 #include "rtsp.h"
+#include "src/boost_process_compat.h"
 #include "utility.h"
 
 /**
