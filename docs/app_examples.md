@@ -345,12 +345,6 @@ third-party tool, you can use *QRes* as an example.
 
 ### Additional Considerations
 
-#### Linux (Flatpak)
-
-> [!CAUTION]
-> Because Flatpak packages run in a sandboxed environment and do not normally have access to the
-> host, the Flatpak of Sunshine requires commands to be prefixed with `flatpak-spawn --host`.
-
 #### Windows
 **Elevating Commands (Windows)**
 
