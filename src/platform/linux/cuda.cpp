@@ -604,6 +604,11 @@ namespace cuda {
         CU_CHECK(cdf->cuGraphicsUnmapResources(resources.size(), resources.data(), stream.get()), "Couldn't unmap GL textures from CUDA");
       }
 
+      // Mapping the GL conversion targets into CUDA synchronizes the preceding
+      // GL draw that consumed the source DMA-BUF. It is now safe for PipeWire
+      // to return that producer-owned buffer to KWin for reuse.
+      descriptor.mark_capture_buffer_consumed();
+
       return 0;
     }
 
