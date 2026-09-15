@@ -8,9 +8,7 @@ set(BOOST_COMPONENTS
         filesystem
         log
         program_options
-        system
 )
-# system is not used by Sunshine, but by Simple-Web-Server, added here for convenience
 
 if(NOT WIN32)
     list(APPEND BOOST_COMPONENTS locale)

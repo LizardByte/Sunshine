@@ -60,6 +60,7 @@ TEST(BoostVersionConsistencyTest, SystemPackageAllowsCompatibleVersions) {
   );
   EXPECT_EQ(dependency.find("EXACT"), std::string::npos);
   EXPECT_EQ(dependency.find("FetchContent"), std::string::npos);
+  EXPECT_EQ(dependency.find("\n        system"), std::string::npos);
   EXPECT_NE(dependency.find("CPMGetPackage(Boost)"), std::string::npos);
   EXPECT_NE(documentation.find(std::format("Boost `{}` or newer", minimum_version)), std::string::npos);
   EXPECT_EQ(macos_definitions.find("FETCH_CONTENT_BOOST_USED"), std::string::npos);
@@ -92,17 +93,17 @@ TEST(BoostVersionConsistencyTest, CpmFallbackMatchesFlatpakSource) {
 }
 
 TEST(BoostVersionConsistencyTest, SupportedBuildsInstallStaticSystemPackages) {
-  const auto dependency = read_project_file("cmake/dependencies/Boost_Sunshine.cmake");
   const auto documentation = read_project_file("docs/building.md");
   const auto linux_script = read_project_file("scripts/linux_build.sh");
-  const auto macos_script = read_project_file("scripts/macos_build.sh");
-  const auto macos_workflow = read_project_file(".github/workflows/ci-macos.yml");
   const auto arch_package = read_project_file("packaging/linux/Arch/PKGBUILD");
+#ifdef SUNSHINE_COPR_SPEC_FIXTURE_AVAILABLE
+  const auto dependency = read_project_file("cmake/dependencies/Boost_Sunshine.cmake");
   const auto copr_spec = read_project_file("packaging/linux/copr/Sunshine.spec");
   const auto minimum_version = extract_value(
     dependency,
     std::regex {R"regex(set\(BOOST_MINIMUM_VERSION "([0-9]+\.[0-9]+\.[0-9]+)"\))regex"}
   );
+#endif
 
   EXPECT_NE(linux_script.find("'boost'"), std::string::npos);
   EXPECT_NE(linux_script.find("'boost-libs'"), std::string::npos);
@@ -116,6 +117,7 @@ TEST(BoostVersionConsistencyTest, SupportedBuildsInstallStaticSystemPackages) {
   EXPECT_NE(linux_script.find("version >= 44"), std::string::npos);
   EXPECT_NE(arch_package.find("'boost'"), std::string::npos);
   EXPECT_NE(arch_package.find("'boost-libs'"), std::string::npos);
+#ifdef SUNSHINE_COPR_SPEC_FIXTURE_AVAILABLE
   EXPECT_NE(copr_spec.find("%if 0%{fedora} > 43"), std::string::npos);
   EXPECT_NE(
     copr_spec.find(std::format("BuildRequires: boost-devel >= {}", minimum_version)),
@@ -125,7 +127,14 @@ TEST(BoostVersionConsistencyTest, SupportedBuildsInstallStaticSystemPackages) {
     copr_spec.find(std::format("BuildRequires: boost-static >= {}", minimum_version)),
     std::string::npos
   );
+#endif
+#ifdef __APPLE__
+  const auto macos_script = read_project_file("scripts/macos_build.sh");
+  const auto macos_workflow = read_project_file(".github/workflows/ci-macos.yml");
   EXPECT_NE(macos_script.find("\"boost\""), std::string::npos);
+  EXPECT_NE(macos_script.find("LIBRARY_PATH"), std::string::npos);
   EXPECT_NE(macos_workflow.find("boost \\"), std::string::npos);
+  EXPECT_NE(macos_workflow.find("LIBRARY_PATH"), std::string::npos);
+#endif
   EXPECT_NE(documentation.find("packaged static Boost libraries"), std::string::npos);
 }

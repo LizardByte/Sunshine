@@ -9,16 +9,18 @@
 // platform includes
 #include <initguid.h>
 
+// local includes required before library includes
+// Boost.Process must be included before MinHook pulls in Windows.h so Boost.Asio sees WinSock2.h first.
+#include "src/boost_process_compat.h"
+
 // lib includes
 #include <boost/algorithm/string/join.hpp>
-#include <boost/process/v1.hpp>
 #include <MinHook.h>
 
 // local includes
 #include "utf_utils.h"
 
-// We have to include boost/process/v1.hpp before display.h due to WinSock.h,
-// but that prevents the definition of NTSTATUS so we must define it ourself.
+// Including Boost.Process before Windows.h prevents the definition of NTSTATUS, so we must define it ourselves.
 /**
  * @brief Windows NT status code returned by native APIs.
  */
