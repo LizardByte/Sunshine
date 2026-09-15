@@ -25,8 +25,8 @@ export BUILD_VERSION
 export BRANCH
 export COMMIT
 
-# boost could be included here but cmake will build the right version we need
 required_formulas=(
+  "boost"
   "cmake"
   "doxygen"
   "graphviz"

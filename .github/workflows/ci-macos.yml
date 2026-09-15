@@ -84,6 +84,7 @@ jobs:
         timeout-minutes: 5
         run: |
           brew install --force \
+            boost \
             cmake \
             doxygen \
             graphviz \

@@ -48,6 +48,7 @@ TEST(BoostVersionConsistencyTest, SystemPackageAllowsCompatibleVersions) {
   const auto documentation = read_project_file("docs/building.md");
   const auto macos_definitions = read_project_file("cmake/compile_definitions/macos.cmake");
   const auto common_macros = read_project_file("cmake/macros/common.cmake");
+  const auto options = read_project_file("cmake/prep/options.cmake");
   const auto minimum_version = extract_value(
     dependency,
     std::regex {R"regex(set\(BOOST_MINIMUM_VERSION "([0-9]+\.[0-9]+\.[0-9]+)"\))regex"}
@@ -65,6 +66,10 @@ TEST(BoostVersionConsistencyTest, SystemPackageAllowsCompatibleVersions) {
   EXPECT_NE(macos_definitions.find("CPM_BOOST_USED"), std::string::npos);
   EXPECT_EQ(common_macros.find("FETCH_CONTENT_BOOST_USED"), std::string::npos);
   EXPECT_NE(common_macros.find("CPM_BOOST_USED"), std::string::npos);
+  EXPECT_NE(options.find("option(BOOST_USE_STATIC \"Use static boost libraries.\" ON)"), std::string::npos);
+  EXPECT_EQ(options.find("option(BOOST_USE_STATIC \"Use static boost libraries.\" OFF)"), std::string::npos);
+  EXPECT_NE(documentation.find("Static Boost libraries are preferred on every platform"), std::string::npos);
+  EXPECT_NE(documentation.find("-DBOOST_USE_STATIC=OFF"), std::string::npos);
 }
 
 TEST(BoostVersionConsistencyTest, CpmFallbackMatchesFlatpakSource) {
@@ -84,4 +89,43 @@ TEST(BoostVersionConsistencyTest, CpmFallbackMatchesFlatpakSource) {
     std::string::npos
   );
   EXPECT_NE(flatpak_module.find(std::format("\"sha256\": \"{}\"", fallback_hash)), std::string::npos);
+}
+
+TEST(BoostVersionConsistencyTest, SupportedBuildsInstallStaticSystemPackages) {
+  const auto dependency = read_project_file("cmake/dependencies/Boost_Sunshine.cmake");
+  const auto documentation = read_project_file("docs/building.md");
+  const auto linux_script = read_project_file("scripts/linux_build.sh");
+  const auto macos_script = read_project_file("scripts/macos_build.sh");
+  const auto macos_workflow = read_project_file(".github/workflows/ci-macos.yml");
+  const auto arch_package = read_project_file("packaging/linux/Arch/PKGBUILD");
+  const auto copr_spec = read_project_file("packaging/linux/copr/Sunshine.spec");
+  const auto minimum_version = extract_value(
+    dependency,
+    std::regex {R"regex(set\(BOOST_MINIMUM_VERSION "([0-9]+\.[0-9]+\.[0-9]+)"\))regex"}
+  );
+
+  EXPECT_NE(linux_script.find("'boost'"), std::string::npos);
+  EXPECT_NE(linux_script.find("'boost-libs'"), std::string::npos);
+  EXPECT_NE(linux_script.find("\"boost-devel\""), std::string::npos);
+  EXPECT_NE(linux_script.find("\"boost-static\""), std::string::npos);
+  EXPECT_NE(linux_script.find("\"libboost-filesystem-dev\""), std::string::npos);
+  EXPECT_NE(linux_script.find("\"libboost-locale-dev\""), std::string::npos);
+  EXPECT_NE(linux_script.find("\"libboost-log-dev\""), std::string::npos);
+  EXPECT_NE(linux_script.find("\"libboost-program-options-dev\""), std::string::npos);
+  EXPECT_NE(linux_script.find("\"26.04\" | sort -V"), std::string::npos);
+  EXPECT_NE(linux_script.find("version >= 44"), std::string::npos);
+  EXPECT_NE(arch_package.find("'boost'"), std::string::npos);
+  EXPECT_NE(arch_package.find("'boost-libs'"), std::string::npos);
+  EXPECT_NE(copr_spec.find("%if 0%{fedora} > 43"), std::string::npos);
+  EXPECT_NE(
+    copr_spec.find(std::format("BuildRequires: boost-devel >= {}", minimum_version)),
+    std::string::npos
+  );
+  EXPECT_NE(
+    copr_spec.find(std::format("BuildRequires: boost-static >= {}", minimum_version)),
+    std::string::npos
+  );
+  EXPECT_NE(macos_script.find("\"boost\""), std::string::npos);
+  EXPECT_NE(macos_workflow.find("boost \\"), std::string::npos);
+  EXPECT_NE(documentation.find("packaged static Boost libraries"), std::string::npos);
 }
