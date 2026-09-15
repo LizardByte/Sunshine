@@ -81,6 +81,32 @@ namespace gl {
    */
   PFNGLEGLIMAGETARGETTEXTURE2DOESPROC egl_image_target_texture_2d();
 
+  // Some old GL drivers only have eglCreateImageKHR and eglDestroyImageKHR (e.g. Raspberry Pi 4B),
+  // so we determine at runtime which one to use.
+  /**
+   * @brief Function pointer type for eglCreateImage.
+   *
+   * @param dpy EGL display that owns the image.
+   * @param ctx EGL context used for image creation.
+   * @param target EGL image target.
+   * @param buffer Native client buffer, when required by the target.
+   * @param attrib_list Type-erased EGL attribute list accepted by the selected core or KHR entry point.
+   * @return Created EGL image, or EGL_NO_IMAGE on failure.
+   */
+  using PFNEGLCREATEIMAGEPROC = void *(*) (EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const void *attrib_list);
+
+  /**
+   * @brief Function pointer type for eglDestroyImage.
+   *
+   * @param dpy EGL display that owns the image.
+   * @param image EGL image to destroy.
+   * @return EGL_TRUE on success, or EGL_FALSE on failure.
+   */
+  using PFNEGLDESTROYIMAGEPROC = EGLBoolean(GLAD_API_PTR *)(EGLDisplay dpy, EGLImage image);
+  extern PFNEGLCREATEIMAGEPROC egl_create_image;  ///< Selected core or KHR EGL image-creation entry point.
+  extern PFNEGLDESTROYIMAGEPROC egl_destroy_image;  ///< Selected core or KHR EGL image-destruction entry point.
+  extern PFNGLFRAMEBUFFERTEXTUREPROC glad_framebuffer_texture;  ///< Selected framebuffer texture attachment entry point.
+
   /**
    * @brief Drain and log pending OpenGL errors.
    *
@@ -152,7 +178,7 @@ namespace gl {
       int x = 0;
       for (auto fb : (*this)) {
         ctx.BindFramebuffer(GL_FRAMEBUFFER, fb);
-        ctx.FramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + x, 0, 0);
+        glad_framebuffer_texture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + x, 0, 0);
 
         ++x;
       }
@@ -178,7 +204,7 @@ namespace gl {
         ctx.BindFramebuffer(GL_FRAMEBUFFER, (*this)[x]);
         ctx.BindTexture(GL_TEXTURE_2D, tex);
 
-        ctx.FramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + x, tex, 0);
+        glad_framebuffer_texture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + x, tex, 0);
 
         ++x;
       });
@@ -433,31 +459,31 @@ namespace egl {
 #ifndef DOXYGEN
   KITTY_USING_MOVE_T(rgb_t, rgb_img_t, , {
     if (el.xrgb8) {
-      eglDestroyImage(el.display, el.xrgb8);
+      gl::egl_destroy_image(el.display, el.xrgb8);
     }
   });
 
   KITTY_USING_MOVE_T(nv12_t, nv12_img_t, , {
     if (el.r8) {
-      eglDestroyImage(el.display, el.r8);
+      gl::egl_destroy_image(el.display, el.r8);
     }
 
     if (el.bg88) {
-      eglDestroyImage(el.display, el.bg88);
+      gl::egl_destroy_image(el.display, el.bg88);
     }
   });
 
   KITTY_USING_MOVE_T(yuv444_t, yuv444_img_t, , {
     if (el.r8) {
-      eglDestroyImage(el.display, el.r8);
+      gl::egl_destroy_image(el.display, el.r8);
     }
 
     if (el.g8) {
-      eglDestroyImage(el.display, el.g8);
+      gl::egl_destroy_image(el.display, el.g8);
     }
 
     if (el.b8) {
-      eglDestroyImage(el.display, el.b8);
+      gl::egl_destroy_image(el.display, el.b8);
     }
   });
 
@@ -723,6 +749,15 @@ namespace egl {
      * @return 0 when the target area is cleared; nonzero on OpenGL failure.
      */
     int blank(gl::frame_buf_t &fb, int offsetX_, int offsetY_, int width, int height, bool is_yuv444);
+
+    /**
+     * @brief Copy the contents of one framebuffer to another.
+     *
+     * @param dst Destination framebuffer.
+     * @param src Source framebuffer.
+     * @return 0 when the copy is successful; nonzero on OpenGL failure.
+     */
+    int copy(gl::frame_buf_t &dst, gl::frame_buf_t &src);
 
     /**
      * @brief Load ram data from the backing API or store.
