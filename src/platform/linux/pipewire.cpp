@@ -3,12 +3,20 @@
  * @brief Shared classes for pipewire-based capture methods.
  */
 // standard includes
+#include <format>
 #include <fstream>
+#include <unistd.h>
+#if defined(__FreeBSD__)
+  #include <sys/types.h>
+#else
+  #include <sys/sysmacros.h>
+#endif
 
 // lib includes
 #include <gio/gio.h>
 #include <gio/gunixfdlist.h>
 #include <libdrm/drm_fourcc.h>
+#include <lizardbyte/common/env.h>
 #include <pipewire/pipewire.h>
 #include <spa/param/video/format-utils.h>
 #include <spa/param/video/type-info.h>
@@ -336,9 +344,9 @@ namespace pipewire {
         std::array<const struct spa_pod *, MAX_PARAMS> params;
 
         // Add preferred parameters for DMA-BUF with modifiers
-        // Use DMA-BUF for VAAPI, or for CUDA when the display GPU is NVIDIA (pure NVIDIA system).
-        // On hybrid GPU systems (Intel+NVIDIA), DMA-BUFs come from the Intel GPU and cannot
-        // be imported into CUDA, so we fall back to memory buffers in that case.
+        // Use DMA-BUF for VAAPI/Vulkan, or for CUDA when the compositor renders on an NVIDIA GPU
+        // (display_is_nvidia, decided in get_dmabuf_modifiers). DMA-BUFs rendered by another vendor's
+        // GPU cannot be imported into CUDA, so those fall back to memory buffers.
         bool use_dmabuf = n_dmabuf_infos > 0 && (mem_type == platf::mem_type_e::vaapi ||
                                                  mem_type == platf::mem_type_e::vulkan ||
                                                  (mem_type == platf::mem_type_e::cuda && display_is_nvidia));
@@ -1347,6 +1355,73 @@ namespace pipewire {
       }
     }
 
+    /**
+     * @brief Query the DRM device the compositor renders on through linux-dmabuf v4 default feedback.
+     *
+     * This is the same probe NVIDIA's egl-wayland runs before claiming a Wayland display
+     * (getServerProtocolsInfo): bind zwp_linux_dmabuf_v1 at version 4, request the default
+     * feedback and take the dev_t from its main_device event. Every proxy is released again.
+     *
+     * @param display Connected Wayland display.
+     * @return `dev_t` of the compositor's main device, or no value when the compositor does not offer linux-dmabuf >= 4.
+     */
+    static std::optional<dev_t> query_compositor_main_device(wl::display_t &display) {
+      struct probe_t {
+        zwp_linux_dmabuf_v1 *dmabuf {nullptr};
+        std::optional<dev_t> main_device;
+      } probe;
+
+      static constexpr wl_registry_listener registry_listener {
+        .global = [](void *data, wl_registry *registry, uint32_t id, const char *interface, uint32_t version) {
+          if (!std::strcmp(interface, zwp_linux_dmabuf_v1_interface.name) && version >= ZWP_LINUX_DMABUF_V1_GET_DEFAULT_FEEDBACK_SINCE_VERSION) {
+            static_cast<probe_t *>(data)->dmabuf = static_cast<zwp_linux_dmabuf_v1 *>(wl_registry_bind(registry, id, &zwp_linux_dmabuf_v1_interface, ZWP_LINUX_DMABUF_V1_GET_DEFAULT_FEEDBACK_SINCE_VERSION));
+          }
+        },
+        .global_remove = [](void *, wl_registry *, uint32_t) {
+        },
+      };
+
+      // libwayland aborts on a null listener slot and the compositor always sends at least one tranche,
+      // so every event needs a handler even though only main_device carries what the probe wants.
+      static constexpr zwp_linux_dmabuf_feedback_v1_listener feedback_listener {
+        .done = [](void *, zwp_linux_dmabuf_feedback_v1 *) {
+        },
+        .format_table = [](void *, zwp_linux_dmabuf_feedback_v1 *, int32_t fd, uint32_t) {
+          close(fd);  // ownership of the table fd passes to the client
+        },
+        .main_device = [](void *data, zwp_linux_dmabuf_feedback_v1 *, wl_array *device) {
+          if (device->size == sizeof(dev_t)) {
+            dev_t main_device;
+            std::memcpy(&main_device, device->data, sizeof(dev_t));
+            static_cast<probe_t *>(data)->main_device = main_device;
+          }
+        },
+        .tranche_done = [](void *, zwp_linux_dmabuf_feedback_v1 *) {
+        },
+        .tranche_target_device = [](void *, zwp_linux_dmabuf_feedback_v1 *, wl_array *) {
+        },
+        .tranche_formats = [](void *, zwp_linux_dmabuf_feedback_v1 *, wl_array *) {
+        },
+        .tranche_flags = [](void *, zwp_linux_dmabuf_feedback_v1 *, uint32_t) {
+        },
+      };
+
+      auto registry = display.registry();
+      wl_registry_add_listener(registry, &registry_listener, &probe);
+      display.roundtrip();
+
+      if (probe.dmabuf) {
+        auto feedback = zwp_linux_dmabuf_v1_get_default_feedback(probe.dmabuf);
+        zwp_linux_dmabuf_feedback_v1_add_listener(feedback, &feedback_listener, &probe);
+        display.roundtrip();
+        zwp_linux_dmabuf_feedback_v1_destroy(feedback);
+        zwp_linux_dmabuf_v1_destroy(probe.dmabuf);
+      }
+      wl_registry_destroy(registry);
+
+      return probe.main_device;
+    }
+
     int get_dmabuf_modifiers() {
       if (wl_display.init() < 0) {
         return -1;
@@ -1357,34 +1432,38 @@ namespace pipewire {
         return -1;
       }
 
-      // Detect if this is a pure NVIDIA system (not hybrid Intel+NVIDIA)
-      // On hybrid systems, the wayland compositor typically runs on Intel,
-      // so DMA-BUFs from portal will come from Intel and cannot be imported into CUDA.
-      // Check if Intel GPU exists - if so, assume hybrid system and disable CUDA DMA-BUF.
-      bool has_intel_gpu = std::ifstream("/sys/class/drm/card0/device/vendor").good() ||
-                           std::ifstream("/sys/class/drm/card1/device/vendor").good();
-      if (has_intel_gpu) {
-        // Read vendor IDs to check for Intel (0x8086)
-        auto check_intel = [](const std::string &path) {
-          if (std::ifstream f(path); f.good()) {
-            std::string vendor;
-            f >> vendor;
-            return vendor == "0x8086";
-          }
-          return false;
-        };
-        bool intel_present = check_intel("/sys/class/drm/card0/device/vendor") ||
-                             check_intel("/sys/class/drm/card1/device/vendor");
-        if (intel_present) {
-          BOOST_LOG(info) << "[pipewire] Hybrid GPU system detected (Intel + discrete) - CUDA will use memory buffers"sv;
+      // Whether the compositor's DMA-BUFs can be imported into CUDA depends on the GPU the compositor
+      // renders on, not on which GPUs exist: a muxed hybrid laptop rendering on NVIDIA still enumerates
+      // its idle Intel iGPU as a DRM card, and DRM minor numbers follow module load order, so cardN
+      // identifies nothing. The compositor reports its render device through linux-dmabuf feedback,
+      // and sysfs maps that dev_t back to the PCI vendor of the GPU it belongs to.
+      const auto main_device = query_compositor_main_device(wl_display);
+      std::string vendor;
+      if (main_device) {
+        // Missing without sysfs (FreeBSD) or for devices that are not on the PCI bus (Tegra)
+        std::ifstream(std::format("/sys/dev/char/{}:{}/device/vendor", major(*main_device), minor(*main_device))) >> vendor;
+      }
+
+      if (!vendor.empty()) {
+        display_is_nvidia = vendor == "0x10de";
+        BOOST_LOG(info) << "[pipewire] Compositor renders on DRM device "sv << major(*main_device) << ':' << minor(*main_device) << " (vendor "sv << vendor << (display_is_nvidia ? ") - DMA-BUF will be enabled for CUDA"sv : ") - CUDA will use memory buffers"sv);
+      } else {
+        // libglvnd offers the wl_display to each EGL vendor library in turn (10_nvidia.json before
+        // 50_mesa.json) and keeps the first one that accepts it. NVIDIA's egl-wayland reads the
+        // compositor's wl_drm device or linux-dmabuf main device and declines the display unless that
+        // device is NVIDIA (since 1.1.10), so EGL_VENDOR names the compositor's GPU. Two exceptions make
+        // this a fallback only: __NV_PRIME_RENDER_OFFLOAD makes egl-wayland claim any display, and
+        // pristine egl-wayland <= 1.1.9 claims any display that offers linux-dmabuf at all.
+        const char *egl_vendor = eglQueryString(egl_display.get(), EGL_VENDOR);
+        std::string prime_offload;
+        const bool prime_offload_set = lizardbyte::common::get_env("__NV_PRIME_RENDER_OFFLOAD_PROVIDER", prime_offload) ||
+                                       (lizardbyte::common::get_env("__NV_PRIME_RENDER_OFFLOAD", prime_offload) && prime_offload != "0");
+        if (prime_offload_set) {
           display_is_nvidia = false;
+          BOOST_LOG(info) << "[pipewire] Compositor DRM device vendor unavailable and PRIME render offload is set in the environment, compositor GPU cannot be inferred from EGL vendor - CUDA will use memory buffers"sv;
         } else {
-          // No Intel GPU found, check if NVIDIA is present
-          const char *vendor = eglQueryString(egl_display.get(), EGL_VENDOR);
-          if (vendor && std::string_view(vendor).contains("NVIDIA")) {
-            BOOST_LOG(info) << "[pipewire] Pure NVIDIA system - DMA-BUF will be enabled for CUDA"sv;
-            display_is_nvidia = true;
-          }
+          display_is_nvidia = egl_vendor && std::string_view(egl_vendor).contains("NVIDIA");
+          BOOST_LOG(info) << "[pipewire] Compositor DRM device vendor unavailable, falling back to EGL vendor ["sv << (egl_vendor ? egl_vendor : "unknown") << (display_is_nvidia ? "] - DMA-BUF will be enabled for CUDA"sv : "] - CUDA will use memory buffers"sv);
         }
       }
 
