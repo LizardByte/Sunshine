@@ -26,11 +26,7 @@ endif()
 option(SUNSHINE_SYSTEM_VULKAN_HEADERS "Use system installation of vulkan-headers rather than the submodule." OFF)
 option(SUNSHINE_SYSTEM_WAYLAND_PROTOCOLS "Use system installation of wayland-protocols rather than the submodule." OFF)
 
-if(APPLE)
-    option(BOOST_USE_STATIC "Use static boost libraries." OFF)
-else()
-    option(BOOST_USE_STATIC "Use static boost libraries." ON)
-endif()
+option(BOOST_USE_STATIC "Use static boost libraries." ON)
 
 option(CUDA_FAIL_ON_MISSING "Fail the build if CUDA is not found." ON)
 option(CUDA_INHERIT_COMPILE_OPTIONS

@@ -50,11 +50,12 @@ BuildRequires: which
 %if 0%{?fedora}
 # Fedora-specific BuildRequires
 BuildRequires: appstream
-# BuildRequires: boost-devel >= 1.86.0
 BuildRequires: glslc
 BuildRequires: libappstream-glib
 BuildRequires: vulkan-loader-devel
 %if 0%{fedora} > 43
+BuildRequires: boost-devel >= 1.89.0
+BuildRequires: boost-static >= 1.89.0
 # needed for npm from nvm
 BuildRequires: libatomic
 BuildRequires: xz

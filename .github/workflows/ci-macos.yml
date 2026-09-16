@@ -84,6 +84,7 @@ jobs:
         timeout-minutes: 5
         run: |
           brew install --force \
+            boost \
             cmake \
             doxygen \
             graphviz \
@@ -124,6 +125,11 @@ jobs:
         env:
           APPLE_CODESIGN_IDENTITY: ${{ secrets.APPLE_CODESIGN_IDENTITY }}
         run: |
+          icu4c_root="$(brew --prefix icu4c@78 2>/dev/null)"
+          export CPPFLAGS="${CPPFLAGS:+${CPPFLAGS} }-I${icu4c_root}/include"
+          export LDFLAGS="${LDFLAGS:+${LDFLAGS} }-L${icu4c_root}/lib"
+          export LIBRARY_PATH="${icu4c_root}/lib${LIBRARY_PATH:+:${LIBRARY_PATH}}"
+
           mkdir -p build
           cmake \
             -B build \
@@ -131,7 +137,7 @@ jobs:
             -DBUILD_DOCS="${{ matrix.build_docs }}" \
             -DBUILD_WERROR=ON \
             -DCMAKE_BUILD_TYPE=Release \
-            -DICU_ROOT="$(brew --prefix icu4c@78 2>/dev/null)" \
+            -DICU_ROOT="${icu4c_root}" \
             -DOPENSSL_ROOT_DIR="$(brew --prefix openssl@3 2>/dev/null)" \
             -DOpus_ROOT_DIR="$(brew --prefix opus 2>/dev/null)" \
             -DQt6_DIR="$(brew --prefix qtbase 2>/dev/null)/lib/cmake/Qt6" \

@@ -280,6 +280,8 @@ function add_arch_deps() {
     'appstream-glib'
     'avahi'
     'base-devel'
+    'boost'
+    'boost-libs'
     'cmake'
     'curl'
     'doxygen'
@@ -419,6 +421,17 @@ function add_ubuntu_deps() {
   add_test_ppa
   add_debian_based_deps
 
+  # Ubuntu 26.04+ provides compatible Boost static libraries in the component development packages.
+  if [[ "$(printf '%s\n' "$version" "26.04" | sort -V | head -n1)" == "26.04" ]]; then
+    dependencies+=(
+      "libboost-filesystem-dev"
+      "libboost-locale-dev"
+      "libboost-log-dev"
+      "libboost-program-options-dev"
+      "libicu-dev"
+    )
+  fi
+
   if [[ "$skip_cuda" == 0 ]] && [[ "$cuda_system_package" == 1 ]]; then
     if [[ -z "$cuda_system_package_name" ]]; then
       echo "CUDA system package was requested, but no package name was configured."
@@ -483,6 +496,14 @@ function add_fedora_deps() {
     "which"  # necessary for cuda install with `run` file
     "xorg-x11-server-Xvfb"  # necessary for headless unit testing
   )
+
+  # Fedora 44+ provides Boost 1.90 or newer and packages its static libraries separately.
+  if [[ "$version" =~ ^[0-9]+$ ]] && (( version >= 44 )); then
+    dependencies+=(
+      "boost-devel"
+      "boost-static"
+    )
+  fi
 
   if [[ "$skip_libva" == 0 ]]; then
     dependencies+=(
