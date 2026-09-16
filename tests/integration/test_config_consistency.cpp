@@ -44,10 +44,21 @@ protected:
     };
   }
 
+  /**
+   * @brief Read an integration-test fixture copied beside the test executable.
+   *
+   * @param relativePath Repository-relative path of the copied fixture.
+   * @return Contents of the fixture, or an empty string when it cannot be read.
+   */
+  static std::string readFixture(const std::string_view relativePath) {
+    const auto fixturePath = std::format("{}/{}", SUNSHINE_TEST_BIN_DIR, relativePath);
+    return file_handler::read_file(fixturePath.c_str());
+  }
+
   // Extract config options from config.cpp - the authoritative source
   static std::set<std::string, std::less<>> extractConfigCppOptions() {
     std::set<std::string, std::less<>> options;
-    std::string content = file_handler::read_file("src/config.cpp");
+    std::string content = readFixture("src/config.cpp");
 
     // Regex patterns to match different config option types in config.cpp
     const std::vector patterns = {
@@ -213,7 +224,7 @@ protected:
   // Extract config options from the Vue configuration page
   static std::map<std::string, std::string, std::less<>> extractConfigHtmlOptions() {
     std::map<std::string, std::string, std::less<>> options;
-    const std::string content = file_handler::read_file("src_assets/common/assets/web/Config.vue");
+    const std::string content = readFixture("src_assets/common/assets/web/Config.vue");
 
     const std::string tabsContent = extractTabsContent(content);
     if (tabsContent.empty()) {
@@ -232,7 +243,7 @@ protected:
   // Extract config options from the Vue configuration page with order preserved
   static std::map<std::string, std::vector<std::string>, std::less<>> extractConfigHtmlOptionsWithOrder() {
     std::map<std::string, std::vector<std::string>, std::less<>> optionsByTab;
-    const std::string content = file_handler::read_file("src_assets/common/assets/web/Config.vue");
+    const std::string content = readFixture("src_assets/common/assets/web/Config.vue");
 
     const std::string tabsContent = extractTabsContent(content);
     if (tabsContent.empty()) {
@@ -273,7 +284,7 @@ protected:
   // Extract config options from configuration.md
   static std::map<std::string, std::string, std::less<>> extractConfigMdOptions() {
     std::map<std::string, std::string, std::less<>> options;
-    const std::string content = file_handler::read_file("docs/configuration.md");
+    const std::string content = readFixture("docs/configuration.md");
 
     std::istringstream stream(content);
     std::string line;
@@ -304,7 +315,7 @@ protected:
   // Extract config options from configuration.md with order preserved
   static std::map<std::string, std::vector<std::string>, std::less<>> extractConfigMdOptionsWithOrder() {
     std::map<std::string, std::vector<std::string>, std::less<>> optionsBySection;
-    const std::string content = file_handler::read_file("docs/configuration.md");
+    const std::string content = readFixture("docs/configuration.md");
 
     std::istringstream stream(content);
     std::string line;
@@ -353,7 +364,7 @@ protected:
   // Extract config options from en.json
   static std::set<std::string, std::less<>> extractEnJsonConfigOptions() {
     std::set<std::string, std::less<>> options;
-    const std::string content = file_handler::read_file("src_assets/common/assets/web/public/assets/locale/en.json");
+    const std::string content = readFixture("src_assets/common/assets/web/public/assets/locale/en.json");
 
     // Look for the config section
     const std::regex configSectionPattern(R"DELIM("config":\s*\{)DELIM");
@@ -485,7 +496,7 @@ TEST_F(ConfigConsistencyTest, AllConfigOptionsExistInAllFiles) {
 }
 
 TEST_F(ConfigConsistencyTest, AllConfigSidebarTabsUseEnglishLocaleKeys) {
-  const std::string content = file_handler::read_file("src_assets/common/assets/web/Config.vue");
+  const std::string content = readFixture("src_assets/common/assets/web/Config.vue");
   const std::string tabsContent = extractTabsContent(content);
   const auto jsonOptions = extractEnJsonConfigOptions();
   const std::regex nameKeyPattern(R"DELIM(nameKey:\s*"config\.([^"]+)")DELIM");
@@ -512,6 +523,16 @@ TEST_F(ConfigConsistencyTest, AllConfigSidebarTabsUseEnglishLocaleKeys) {
   }
 
   EXPECT_TRUE(errors.empty()) << buildCommaSeparatedString(errors);
+}
+
+TEST_F(ConfigConsistencyTest, ConfigSidebarTabsDoNotNavigateAway) {
+  const std::string content = readFixture("src_assets/common/assets/web/Config.vue");
+  const std::regex tabButtonPattern(R"(<button\s+type="button"\s+class="nav-link")");
+  const std::sregex_iterator tabButtonBegin(content.begin(), content.end(), tabButtonPattern);
+  const std::sregex_iterator tabButtonEnd;
+
+  EXPECT_EQ(std::distance(tabButtonBegin, tabButtonEnd), 2);
+  EXPECT_EQ(content.find("href=\"#\""), std::string::npos);
 }
 
 TEST_F(ConfigConsistencyTest, ConfigTabsMatchDocumentationSections) {
