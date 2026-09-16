@@ -5,14 +5,14 @@
     <p>{{ $t('index.description') }}</p>
 
     <!-- Fatal Errors Alert -->
-    <div class="alert alert-danger my-4" v-if="fancyLogs.find(x => x.level === 'Fatal')">
+    <div class="alert alert-danger my-4" v-if="fancyLogs.some(x => x.level === 'Fatal')">
       <div>
         <div class="d-flex align-items-center mb-3">
           <alert-circle :size="32" class="icon-lg me-3"></alert-circle>
           <div v-html="$t('index.startup_errors')"></div>
         </div>
         <ul class="mb-3">
-          <li v-for="v in fancyLogs.filter(x => x.level === 'Fatal')">{{v.value}}</li>
+          <li v-for="v in fancyLogs.filter(x => x.level === 'Fatal')" :key="`${v.timestamp}-${v.value}`">{{v.value}}</li>
         </ul>
         <RouterLink class="btn btn-danger" to="/troubleshooting#logs">
           <file-text :size="18" class="icon"></file-text>
@@ -278,7 +278,7 @@
       },
       buildVersionIsDirty() {
         return this.version.version?.split(".").length === 5 &&
-          this.version.version.indexOf("dirty") !== -1
+          this.version.version.includes("dirty")
       },
       /** Parse the text errors, calculating the text, the timestamp and the level */
       fancyLogs() {

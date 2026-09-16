@@ -76,6 +76,7 @@
     "env_displayplacer_example": "Example - displayplacer for Resolution Automation:",
     "env_qres_example": "Example - QRes for Resolution Automation:",
     "env_qres_path": "qres path",
+    "env_var_description": "Description",
     "env_var_name": "Var Name",
     "env_vars_about": "About Environment Variables",
     "env_vars_desc": "All commands get these environment variables by default:",
@@ -670,6 +671,7 @@
     "virtualhid_license_unavailable": "The local libvirtualhid license service is unavailable. Verify that the driver package and broker service are installed and running."
   },
   "featured": {
+    "category_filter": "Category filter",
     "categories": {
       "client": "Clients",
       "tool": "Tools"

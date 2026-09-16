@@ -402,10 +402,11 @@
         <div class="d-flex justify-content-between align-items-baseline py-2">
           <p>{{ $t('troubleshooting.logs_desc') }}</p>
           <div class="input-group" style="max-width: 300px">
+            <label for="log-filter" class="visually-hidden">{{ $t('troubleshooting.logs_find') }}</label>
             <span class="input-group-text">
               <search :size="18" class="icon"></search>
             </span>
-            <input type="text" class="form-control" v-model="logFilter" :placeholder="$t('troubleshooting.logs_find')" />
+            <input id="log-filter" type="text" class="form-control" v-model="logFilter" :placeholder="$t('troubleshooting.logs_find')" />
           </div>
         </div>
         <div>
@@ -795,7 +796,6 @@
           fetch("./api/clients/list")
             .then((response) => response.json())
             .then((response) => {
-              const clientList = document.querySelector("#client-list");
               if (response.status === true && response.named_certs && response.named_certs.length) {
                 this.clients = response.named_certs.sort((a, b) => {
                   return (a.name.toLowerCase() > b.name.toLowerCase() || a.name === "" ? 1 : -1)

@@ -8,7 +8,8 @@
 
     <!-- Category Filter -->
     <div class="toolbar mb-4">
-      <div class="btn-group" role="group" aria-label="Category filter">
+      <fieldset class="btn-group">
+        <legend class="visually-hidden">{{ $t('featured.category_filter') }}</legend>
         <button
           type="button"
           class="btn btn-outline-primary"
@@ -25,14 +26,14 @@
           @click="selectedCategory = category.id">
           {{ $t(`featured.categories.${category.originalId}`) }}
         </button>
-      </div>
+      </fieldset>
     </div>
 
     <!-- Loading State -->
     <div v-if="loading" class="text-center py-5">
-      <div class="spinner-border" role="status">
+      <output class="spinner-border">
         <span class="visually-hidden">{{ $t('_common.loading') }}</span>
-      </div>
+      </output>
     </div>
 
     <!-- Error State -->
@@ -97,15 +98,20 @@
             <!-- Screenshots Section -->
             <div v-if="app.screenshots && app.screenshots.length > 0" class="screenshots-container mb-3">
               <div class="screenshots-scroll">
-                <img
+                <button
                   v-for="(screenshot, index) in app.screenshots"
                   :key="index"
-                  :src="screenshot"
-                  :alt="app.name + ' screenshot ' + (index + 1)"
-                  class="screenshot-thumbnail"
+                  type="button"
+                  class="screenshot-thumbnail-button"
                   @click="openScreenshot(screenshot, app.screenshots)"
-                  @error="handleScreenshotError"
-                />
+                >
+                  <img
+                    :src="screenshot"
+                    :alt="app.name + ' screenshot ' + (index + 1)"
+                    class="screenshot-thumbnail"
+                    @error="handleScreenshotError"
+                  />
+                </button>
               </div>
             </div>
 
@@ -203,7 +209,8 @@
     <div
       v-if="selectedScreenshot"
       class="screenshot-modal"
-      @click="closeScreenshot"
+      @click.self="closeScreenshot"
+      @keydown.esc.stop="closeScreenshot"
       @touchstart="handleTouchStart"
       @touchend="handleTouchEnd">
       <div class="screenshot-modal-content">
@@ -238,7 +245,7 @@
           {{ selectedScreenshotIndex + 1 }} / {{ currentAppScreenshots.length }}
         </div>
 
-        <img :src="selectedScreenshot" alt="Screenshot" @click.stop />
+        <img :src="selectedScreenshot" alt="Screenshot" />
       </div>
     </div>
   </div>

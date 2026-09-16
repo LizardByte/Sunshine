@@ -48,7 +48,7 @@
         <b>{{ $t('_common.success') }}</b> {{ $t('password.success_msg') }}
       </div>
       <div class="mb-3 mt-4">
-        <button class="btn btn-primary">
+        <button type="submit" class="btn btn-primary">
           <save :size="18" class="icon"></save>
           {{ $t('_common.save') }}
         </button>

@@ -9,10 +9,12 @@
     <!-- Search Bar with Autocomplete -->
     <div class="toolbar mb-3 d-flex flex-wrap align-items-center gap-3">
       <div class="input-group config-search">
+        <label for="config-search" class="visually-hidden">{{ $t('config.search_options') }}</label>
         <span class="input-group-text">
           <search :size="18" class="icon"></search>
         </span>
         <input
+          id="config-search"
           type="text"
           class="form-control"
           v-model="searchQuery"
@@ -137,7 +139,7 @@
 </template>
 
 <script>
-  import { computed } from 'vue'
+  import { computed, toRaw } from 'vue'
   import Navbar from './Navbar.vue'
   import { apiFetch } from './fetch_utils'
   import General from './configs/tabs/General.vue'
@@ -147,7 +149,6 @@
   import Advanced from './configs/tabs/Advanced.vue'
   import AudioVideo from './configs/tabs/AudioVideo.vue'
   import ContainerEncoders from './configs/tabs/ContainerEncoders.vue'
-  import {$tp, usePlatformI18n} from './platform-i18n'
   import {
     Check,
     Cpu,
@@ -163,6 +164,20 @@
   } from '@lucide/vue'
 
   const ENCODER_TAB_IDS = new Set(["nv", "amd", "qsv", "vaapi", "vt", "vulkan", "sw"]);
+
+  /**
+   * Build a configuration option object from alternating key and value entries.
+   *
+   * @param {...(string|number)} entries Alternating configuration keys and default values.
+   * @returns {object} Configuration defaults keyed by option name.
+   */
+  function createConfigOptions(...entries) {
+    const options = {};
+    for (let index = 0; index < entries.length; index += 2) {
+      options[entries[index]] = entries[index + 1];
+    }
+    return options;
+  }
 
   export default {
     components: {
@@ -302,75 +317,75 @@
           {
             id: "nv",
             nameKey: "config.category_nvidia_nvenc_encoder",
-            options: {
-              "nvenc_preset": 1,
-              "nvenc_twopass": "quarter_res",
-              "nvenc_spatial_aq": "disabled",
-              "nvenc_vbv_increase": 0,
-              "nvenc_realtime_hags": "enabled",
-              "nvenc_split_encode": "driver_decides",
-              "nvenc_latency_over_power": "enabled",
-              "nvenc_opengl_vulkan_on_dxgi": "enabled",
-              "nvenc_h264_cavlc": "disabled",
-            },
+            options: createConfigOptions(
+              "nvenc_preset", 1,
+              "nvenc_twopass", "quarter_res",
+              "nvenc_spatial_aq", "disabled",
+              "nvenc_vbv_increase", 0,
+              "nvenc_realtime_hags", "enabled",
+              "nvenc_split_encode", "driver_decides",
+              "nvenc_latency_over_power", "enabled",
+              "nvenc_opengl_vulkan_on_dxgi", "enabled",
+              "nvenc_h264_cavlc", "disabled",
+            ),
           },
           {
             id: "qsv",
             nameKey: "config.category_intel_quicksync_encoder",
-            options: {
-              "qsv_preset": "medium",
-              "qsv_coder": "auto",
-              "qsv_slow_hevc": "disabled",
-            },
+            options: createConfigOptions(
+              "qsv_preset", "medium",
+              "qsv_coder", "auto",
+              "qsv_slow_hevc", "disabled",
+            ),
           },
           {
             id: "amd",
             nameKey: "config.category_amd_amf_encoder",
-            options: {
-              "amd_usage": "ultralowlatency",
-              "amd_rc": "vbr_latency",
-              "amd_enforce_hrd": "disabled",
-              "amd_max_au_size": "",
-              "amd_quality": "balanced",
-              "amd_preanalysis": "disabled",
-              "amd_vbaq": "enabled",
-              "amd_coder": "auto",
-            },
+            options: createConfigOptions(
+              "amd_usage", "ultralowlatency",
+              "amd_rc", "vbr_latency",
+              "amd_enforce_hrd", "disabled",
+              "amd_max_au_size", "",
+              "amd_quality", "balanced",
+              "amd_preanalysis", "disabled",
+              "amd_vbaq", "enabled",
+              "amd_coder", "auto",
+            ),
           },
           {
             id: "vt",
             nameKey: "config.category_videotoolbox_encoder",
-            options: {
-              "vt_coder": "auto",
-              "vt_software": "auto",
-              "vt_realtime": "enabled",
-            },
+            options: createConfigOptions(
+              "vt_coder", "auto",
+              "vt_software", "auto",
+              "vt_realtime", "enabled",
+            ),
           },
           {
             id: "vaapi",
             nameKey: "config.category_vaapi_encoder",
-            options: {
-              "vaapi_blbrc": "disabled",
-              "vaapi_quality": "auto",
-              "vaapi_rc": "auto",
-              "vaapi_strict_rc_buffer": "disabled",
-            },
+            options: createConfigOptions(
+              "vaapi_blbrc", "disabled",
+              "vaapi_quality", "auto",
+              "vaapi_rc", "auto",
+              "vaapi_strict_rc_buffer", "disabled",
+            ),
           },
           {
             id: "vulkan",
             nameKey: "config.category_vulkan_encoder",
-            options: {
-              "vk_tune": 2,
-              "vk_rc_mode": 2,
-            },
+            options: createConfigOptions(
+              "vk_tune", 2,
+              "vk_rc_mode", 2,
+            ),
           },
           {
             id: "sw",
             nameKey: "config.category_software_encoder",
-            options: {
-              "sw_preset": "superfast",
-              "sw_tune": "zerolatency",
-            },
+            options: createConfigOptions(
+              "sw_preset", "superfast",
+              "sw_tune", "zerolatency",
+            ),
           },
         ],
       };
@@ -418,7 +433,6 @@
           this.config = r;
           this.platform = this.config.platform;
 
-          var app = document.getElementById("app");
           if (this.platform === "windows") {
             this.tabs = this.tabs.filter((el) => {
               return el.id !== "vt" && el.id !== "vaapi" && el.id !== "vulkan";
@@ -455,7 +469,7 @@
             Object.keys(tab.options).forEach(optionKey => {
               if (this.config[optionKey] === undefined) {
                 // Make sure to copy by value
-                this.config[optionKey] = JSON.parse(JSON.stringify(tab.options[optionKey]));
+                this.config[optionKey] = structuredClone(toRaw(tab.options[optionKey]));
               }
             });
           });
@@ -484,7 +498,7 @@
         this.$forceUpdate()
       },
       serialize() {
-        return JSON.parse(JSON.stringify(this.config));
+        return structuredClone(toRaw(this.config));
       },
       save() {
         this.saved = false;

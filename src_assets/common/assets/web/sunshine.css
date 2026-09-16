@@ -2192,6 +2192,12 @@ p {
     transform: scale(1.02);
 }
 
+.cover-choice {
+    border: 0;
+    background: transparent;
+    color: inherit;
+}
+
 .cover-container img {
     display: block;
     position: absolute;
@@ -2724,6 +2730,17 @@ p {
     flex-shrink: 0;
     object-fit: cover;
     border: 1px solid var(--color-border);
+}
+
+.screenshot-thumbnail-button {
+    flex-shrink: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.screenshot-thumbnail-button .screenshot-thumbnail {
+    display: block;
 }
 
 .screenshot-thumbnail:hover {

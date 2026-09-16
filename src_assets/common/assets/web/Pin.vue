@@ -5,6 +5,7 @@
     <form class="form d-flex flex-column align-items-center" id="form" @submit.prevent="registerDevice">
       <div class="card flex-column d-flex p-4 mb-4">
         <div class="input-group mt-2">
+          <label for="pairing-input" class="visually-hidden">{{ $t('pin.select_pairing') }}</label>
           <span class="input-group-text">
             <user-round-search :size="18" class="icon"></user-round-search>
           </span>
@@ -27,18 +28,20 @@
           </button>
         </div>
         <div class="input-group mt-2">
+          <label for="pin-input" class="visually-hidden">{{ $t('navbar.pin') }}</label>
           <span class="input-group-text">
             <hash :size="18" class="icon"></hash>
           </span>
-          <input v-model="pin" type="text" pattern="\d{4}" maxlength="4" inputmode="numeric" :placeholder="`${$t('navbar.pin')}`" autofocus id="pin-input" class="form-control" required />
+          <input v-model="pin" type="text" pattern="\d{4}" maxlength="4" inputmode="numeric" :placeholder="`${$t('navbar.pin')}`" id="pin-input" class="form-control" required />
         </div>
         <div class="input-group my-4">
+          <label for="name-input" class="visually-hidden">{{ $t('pin.device_name') }}</label>
           <span class="input-group-text">
             <monitor :size="18" class="icon"></monitor>
           </span>
           <input v-model="name" type="text" :placeholder="`${$t('pin.device_name')}`" id="name-input" class="form-control" required />
         </div>
-        <button class="btn btn-primary">
+        <button type="submit" class="btn btn-primary">
           <forward :size="18" class="icon"></forward>
           {{ $t('pin.send') }}
         </button>
