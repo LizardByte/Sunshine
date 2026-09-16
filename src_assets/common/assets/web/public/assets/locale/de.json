@@ -76,6 +76,7 @@
     "env_displayplacer_example": "Beispiel - displayplacer für die Automatisierung der Auflösung:",
     "env_qres_example": "Beispiel - QRes für die Automatisierung der Auflösung:",
     "env_qres_path": "qres Pfad",
+    "env_var_description": "Beschreibung",
     "env_var_name": "Var Name",
     "env_vars_about": "Über Umgebungsvariablen",
     "env_vars_desc": "Alle Befehle erhalten diese Umgebungsvariablen standardmäßig:",
@@ -291,6 +292,16 @@
     "key_rightalt_to_key_win": "Rechter Alt-Taste auf Windows-Taste zuweisen",
     "key_rightalt_to_key_win_desc": "Möglicherweise können Sie den Windows-Schlüssel nicht direkt von Moonlight senden. In diesen Fällen kann es nützlich sein, Sunshine glauben zu lassen, dass die rechte Alt-Taste die Windows-Taste ist",
     "keybindings": "Tastaturbelegungen",
+    "keybindings_add": "Zuordnung hinzufügen",
+    "keybindings_custom": "Eigener Schlüsselcode",
+    "keybindings_desc": "Entfernen Sie Windows virtual-key-Codes, die Sie von Moonlight erhalten haben. Jede Zeile ordnet dem von Sunshine gesendeten Code einen Quellcode zu. Wählen Sie aus der kompletten Liste von Microsoft-definierten Virtual-Key-Codes. Unvollständige oder ungültige Zeilen werden nicht gespeichert.",
+    "keybindings_destination": "Zielcode",
+    "keybindings_empty": "Keine benutzerdefinierten Schlüsselzuordnungen.",
+    "keybindings_invalid": "Wählen Sie einen Virtual-Key Code.",
+    "keybindings_reference": "Alle Virtual-Key Codes anzeigen",
+    "keybindings_remove": "Mapping entfernen",
+    "keybindings_select": "Wählen Sie einen Virtual-Key Code",
+    "keybindings_source": "Quellcode",
     "keyboard": "Tastatureingabe aktivieren",
     "keyboard_desc": "Erlaubt Gästen das Host-System mit der Tastatur zu steuern",
     "lan_encryption_mode": "LAN-Verschlüsselungsmodus",
@@ -670,6 +681,7 @@
     "virtualhid_license_unavailable": "Der lokale libvirtualhid Lizenzdienst ist nicht verfügbar. Vergewissern Sie sich, dass das Treiber-Paket und der Broker-Dienst installiert und ausgeführt werden."
   },
   "featured": {
+    "category_filter": "Kategorie-Filter",
     "categories": {
       "client": "Kunden",
       "tool": "Werkzeuge"
