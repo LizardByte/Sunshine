@@ -295,34 +295,44 @@ watch(
         {{ $t('config.keybindings_empty') }}
       </div>
 
-      <div v-for="(binding, index) in keybindingPairs" :key="binding.id"
-           class="row g-2 align-items-start mb-2">
-        <div class="col-md">
-          <label :for="`keybinding-source-${binding.id}`" class="form-label small">
-            {{ $t('config.keybindings_source') }}
-          </label>
-          <VirtualKeyCodeSelect :id="`keybinding-source-${binding.id}`" v-model="binding.source" />
+      <div v-if="keybindingPairs.length > 0" class="keybinding-grid">
+        <div class="form-label small mb-0 keybinding-source-heading">
+          {{ $t('config.keybindings_source') }}
         </div>
+        <div class="keybinding-heading-spacer keybinding-arrow-heading" aria-hidden="true"></div>
+        <div class="form-label small mb-0 keybinding-destination-heading">
+          {{ $t('config.keybindings_destination') }}
+        </div>
+        <div class="keybinding-heading-spacer keybinding-remove-heading" aria-hidden="true"></div>
 
-        <div class="col-auto keybinding-arrow" aria-hidden="true">
-          <ArrowRight :size="20" />
-        </div>
+        <template v-for="(binding, index) in keybindingPairs" :key="binding.id">
+          <div class="keybinding-field keybinding-source">
+            <label :for="`keybinding-source-${binding.id}`" class="form-label small keybinding-field-label">
+              {{ $t('config.keybindings_source') }}
+            </label>
+            <VirtualKeyCodeSelect :id="`keybinding-source-${binding.id}`" v-model="binding.source" />
+          </div>
 
-        <div class="col-md">
-          <label :for="`keybinding-destination-${binding.id}`" class="form-label small">
-            {{ $t('config.keybindings_destination') }}
-          </label>
-          <VirtualKeyCodeSelect :id="`keybinding-destination-${binding.id}`"
-                                v-model="binding.destination" />
-        </div>
+          <div class="keybinding-arrow" aria-hidden="true">
+            <ArrowRight :size="20" />
+          </div>
 
-        <div class="col-auto keybinding-remove">
-          <button type="button" class="btn btn-danger"
-                  :aria-label="$t('config.keybindings_remove')" :title="$t('config.keybindings_remove')"
-                  @click="removeKeybinding(index)">
-            <Trash2 :size="16" class="icon" />
-          </button>
-        </div>
+          <div class="keybinding-field keybinding-destination">
+            <label :for="`keybinding-destination-${binding.id}`" class="form-label small keybinding-field-label">
+              {{ $t('config.keybindings_destination') }}
+            </label>
+            <VirtualKeyCodeSelect :id="`keybinding-destination-${binding.id}`"
+                                  v-model="binding.destination" />
+          </div>
+
+          <div class="keybinding-remove">
+            <button type="button" class="btn btn-danger"
+                    :aria-label="$t('config.keybindings_remove')" :title="$t('config.keybindings_remove')"
+                    @click="removeKeybinding(index)">
+              <Trash2 :size="16" class="icon" />
+            </button>
+          </div>
+        </template>
       </div>
 
       <button type="button" class="btn btn-success mt-2" @click="addKeybinding">
@@ -361,18 +371,80 @@ watch(
 </template>
 
 <style scoped>
-.keybinding-arrow,
+.keybinding-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.keybinding-source-heading,
+.keybinding-source {
+  grid-column: 1;
+}
+
+.keybinding-arrow-heading,
+.keybinding-arrow {
+  grid-column: 2;
+}
+
+.keybinding-destination-heading,
+.keybinding-destination {
+  grid-column: 3;
+}
+
+.keybinding-remove-heading,
 .keybinding-remove {
-  margin-top: 2rem;
+  grid-column: 4;
+}
+
+.keybinding-arrow {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (min-width: 768px) {
+  .keybinding-field-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
 }
 
 @media (max-width: 767.98px) {
+  .keybinding-grid {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .keybinding-source-heading,
+  .keybinding-destination-heading,
+  .keybinding-heading-spacer {
+    display: none;
+  }
+
+  .keybinding-source {
+    grid-column: 1 / -1;
+  }
+
   .keybinding-arrow {
     display: none;
   }
 
+  .keybinding-destination {
+    grid-column: 1;
+  }
+
   .keybinding-remove {
-    margin-top: 0;
+    grid-column: 2;
+    margin-top: 2rem;
   }
 }
 </style>

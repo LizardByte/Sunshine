@@ -540,7 +540,11 @@ TEST_F(ConfigConsistencyTest, KeybindingsAreAvailableInWebUi) {
   const std::string selectContent = readFixture("src_assets/common/assets/web/configs/VirtualKeyCodeSelect.vue");
   const std::string keyCodeContent = readFixture("src_assets/common/assets/web/configs/virtual_key_codes.js");
 
-  EXPECT_NE(content.find("id=\"keybindings\""), std::string::npos);
+  EXPECT_NE(
+    content.find("id=\"keybindings\" class=\"mb-3\" v-if=\"config.keyboard === 'enabled'\""),
+    std::string::npos
+  );
+  EXPECT_NE(content.find("class=\"keybinding-grid\""), std::string::npos);
   EXPECT_NE(content.find("v-for=\"(binding, index) in keybindingPairs\""), std::string::npos);
   EXPECT_NE(content.find("v-model=\"binding.source\""), std::string::npos);
   EXPECT_NE(content.find("v-model=\"binding.destination\""), std::string::npos);
