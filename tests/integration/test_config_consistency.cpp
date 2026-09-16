@@ -19,6 +19,9 @@
 #include <string_view>
 #include <vector>
 
+// lib includes
+#include <nlohmann/json.hpp>
+
 // local includes
 #include "src/file_handler.h"
 
@@ -83,125 +86,38 @@ protected:
     return options;
   }
 
-  // Helper function to find brace boundaries
-  static size_t findClosingBrace(const std::string &content, const size_t start) {
-    size_t pos = start + 1;
-    int braceLevel = 1;
-
-    while (pos < content.length() && braceLevel > 0) {
-      if (content[pos] == '{') {
-        braceLevel++;
-      } else if (content[pos] == '}') {
-        braceLevel--;
-      }
-      pos++;
+  /**
+   * @brief Parse the ordered configuration-tab defaults used by the Web UI.
+   *
+   * @return Parsed configuration-tab array, or an empty array when the fixture is unavailable.
+   */
+  static nlohmann::ordered_json extractConfigTabs() {
+    const std::string content = readFixture("src_assets/common/assets/web/configs/config_tabs.json");
+    if (content.empty()) {
+      return nlohmann::ordered_json::array();
     }
 
-    return pos - 1;
+    return nlohmann::ordered_json::parse(content);
   }
 
-  // Helper function to extract tab ID from a tab object
-  static std::string extractTabId(const std::string &tabObject) {
-    const std::regex idPattern(R"DELIM(id:\s*"([^"]+)")DELIM");
-
-    if (std::smatch idMatch; std::regex_search(tabObject, idMatch, idPattern)) {
-      return idMatch[1].str();
-    }
-
-    return "";
-  }
-
-  // Helper function to find and extract tabs content from HTML
-  static std::string extractTabsContent(const std::string &content) {
-    const size_t tabsStart = content.find("tabs: [");
-    if (tabsStart == std::string::npos) {
-      return "";
-    }
-
-    // Find the end of the tab array
-    size_t pos = tabsStart + 7;  // Skip "tabs: ["
-    int bracketLevel = 1;
-    size_t tabsEnd = pos;
-
-    while (pos < content.length() && bracketLevel > 0) {
-      if (content[pos] == '[') {
-        bracketLevel++;
-      } else if (content[pos] == ']') {
-        bracketLevel--;
-      }
-      tabsEnd = pos;
-      pos++;
-    }
-
-    return content.substr(tabsStart + 7, tabsEnd - tabsStart - 7);
-  }
-
-  // Helper function to extract options from a tab object (generic version)
+  /**
+   * @brief Extract option names and tab IDs from the ordered Web UI defaults.
+   *
+   * @tparam Container Map type receiving option-to-tab or tab-to-options entries.
+   * @param container Destination container.
+   */
   template<typename Container>
-  static void extractOptionsFromTabGeneric(const std::string &tabObject, Container &container) {
-    const std::string tabId = extractTabId(tabObject);
-    if (tabId.empty()) {
-      return;
-    }
-
-    const size_t optionsStart = tabObject.find("options:");
-    if (optionsStart == std::string::npos) {
-      return;
-    }
-
-    std::string optionsSection;
-    std::regex optionPattern;
-    if (const size_t optStart = tabObject.find('{', optionsStart); optStart != std::string::npos) {
-      const size_t optEnd = findClosingBrace(tabObject, optStart);
-      optionsSection = tabObject.substr(optStart + 1, optEnd - optStart - 1);
-      optionPattern = std::regex(R"DELIM("([^"]+)":\s*)DELIM");
-    } else {
-      const size_t builderStart = tabObject.find("createConfigOptions(", optionsStart);
-      if (builderStart == std::string::npos) {
-        return;
+  static void extractOptionsFromConfigTabs(Container &container) {
+    for (const auto &tab : extractConfigTabs()) {
+      const std::string tabId = tab.at("id").get<std::string>();
+      for (const auto &[optionName, value] : tab.at("options").items()) {
+        (void) value;
+        if constexpr (std::is_same_v<Container, std::map<std::string, std::string, std::less<>>>) {
+          container[optionName] = tabId;
+        } else if constexpr (std::is_same_v<Container, std::map<std::string, std::vector<std::string>, std::less<>>>) {
+          container[tabId].push_back(optionName);
+        }
       }
-
-      const size_t argsStart = tabObject.find('(', builderStart);
-      const size_t argsEnd = tabObject.find(')', argsStart);
-      if (argsEnd == std::string::npos) {
-        return;
-      }
-
-      optionsSection = tabObject.substr(argsStart + 1, argsEnd - argsStart - 1);
-      optionPattern = std::regex(R"DELIM((?:^|,)\s*"([^"]+)"\s*,\s*(?:"[^"]*"|-?\d+(?:\.\d+)?|true|false|null))DELIM");
-    }
-
-    // Extract option names
-    std::sregex_iterator optionIter(optionsSection.begin(), optionsSection.end(), optionPattern);
-
-    for (const std::sregex_iterator optionEnd; optionIter != optionEnd; ++optionIter) {
-      std::string optionName = (*optionIter)[1].str();
-
-      // Use if constexpr to handle different container types
-      if constexpr (std::is_same_v<Container, std::map<std::string, std::string, std::less<>>>) {
-        container[optionName] = tabId;
-      } else if constexpr (std::is_same_v<Container, std::map<std::string, std::vector<std::string>, std::less<>>>) {
-        container[tabId].push_back(optionName);
-      }
-    }
-  }
-
-  // Helper function to process tab objects from tabs content
-  template<typename Container>
-  static void processTabObjects(const std::string &tabsContent, Container &container) {
-    size_t tabPos = 0;
-    while (tabPos < tabsContent.length()) {
-      const size_t objStart = tabsContent.find('{', tabPos);
-      if (objStart == std::string::npos) {
-        break;
-      }
-
-      const size_t objEnd = findClosingBrace(tabsContent, objStart);
-      std::string tabObject = tabsContent.substr(objStart, objEnd - objStart + 1);
-
-      extractOptionsFromTabGeneric(tabObject, container);
-
-      tabPos = objEnd + 1;
     }
   }
 
@@ -221,36 +137,17 @@ protected:
     return "";
   }
 
-  // Extract config options from the Vue configuration page
+  // Extract config options from the Web UI defaults
   static std::map<std::string, std::string, std::less<>> extractConfigHtmlOptions() {
     std::map<std::string, std::string, std::less<>> options;
-    const std::string content = readFixture("src_assets/common/assets/web/Config.vue");
-
-    const std::string tabsContent = extractTabsContent(content);
-    if (tabsContent.empty()) {
-      return options;
-    }
-
-    processTabObjects(tabsContent, options);
+    extractOptionsFromConfigTabs(options);
     return options;
   }
 
-  // Helper function to extract options from a single tab object (now using generic function)
-  static void extractOptionsFromTab(const std::string &tabObject, std::map<std::string, std::vector<std::string>, std::less<>> &optionsByTab) {
-    extractOptionsFromTabGeneric(tabObject, optionsByTab);
-  }
-
-  // Extract config options from the Vue configuration page with order preserved
+  // Extract config options from the Web UI defaults with order preserved
   static std::map<std::string, std::vector<std::string>, std::less<>> extractConfigHtmlOptionsWithOrder() {
     std::map<std::string, std::vector<std::string>, std::less<>> optionsByTab;
-    const std::string content = readFixture("src_assets/common/assets/web/Config.vue");
-
-    const std::string tabsContent = extractTabsContent(content);
-    if (tabsContent.empty()) {
-      return optionsByTab;
-    }
-
-    processTabObjects(tabsContent, optionsByTab);
+    extractOptionsFromConfigTabs(optionsByTab);
     return optionsByTab;
   }
 
@@ -399,7 +296,7 @@ protected:
   // Helper function to validate option existence across files
   static void validateOptionExistence(const std::string &option, const std::map<std::string, std::string, std::less<>> &htmlOptions, const std::map<std::string, std::string, std::less<>> &mdOptions, const std::set<std::string, std::less<>> &jsonOptions, std::vector<std::string> &missingFromFiles) {
     if (!isOptionInHtml(option, htmlOptions)) {
-      missingFromFiles.push_back(std::format("Config.vue missing: {}", option));
+      missingFromFiles.push_back(std::format("config_tabs.json missing: {}", option));
     }
 
     if (!isOptionInMd(option, mdOptions)) {
@@ -439,7 +336,7 @@ protected:
         continue;
       }
 
-      if (missing.contains("Config.vue")) {
+      if (missing.contains("config_tabs.json")) {
         foundMissingDummyInHtml = true;
       }
       if (missing.contains("configuration.md")) {
@@ -496,30 +393,18 @@ TEST_F(ConfigConsistencyTest, AllConfigOptionsExistInAllFiles) {
 }
 
 TEST_F(ConfigConsistencyTest, AllConfigSidebarTabsUseEnglishLocaleKeys) {
-  const std::string content = readFixture("src_assets/common/assets/web/Config.vue");
-  const std::string tabsContent = extractTabsContent(content);
   const auto jsonOptions = extractEnJsonConfigOptions();
-  const std::regex nameKeyPattern(R"DELIM(nameKey:\s*"config\.([^"]+)")DELIM");
   std::vector<std::string> errors;
 
-  size_t tabPos = 0;
-  while (tabPos < tabsContent.length()) {
-    const size_t objStart = tabsContent.find('{', tabPos);
-    if (objStart == std::string::npos) {
-      break;
-    }
-
-    const size_t objEnd = findClosingBrace(tabsContent, objStart);
-    const std::string tabObject = tabsContent.substr(objStart, objEnd - objStart + 1);
-    const std::string tabId = extractTabId(tabObject);
-
-    if (std::smatch nameKeyMatch; !std::regex_search(tabObject, nameKeyMatch, nameKeyPattern)) {
+  for (const auto &tab : extractConfigTabs()) {
+    const std::string tabId = tab.at("id").get<std::string>();
+    const std::string nameKey = tab.at("nameKey").get<std::string>();
+    constexpr std::string_view configPrefix = "config.";
+    if (!nameKey.starts_with(configPrefix)) {
       errors.push_back(std::format("Tab '{}' does not use a localized name key", tabId));
-    } else if (!jsonOptions.contains(nameKeyMatch[1].str())) {
-      errors.push_back(std::format("Tab '{}' references missing en.json key 'config.{}'", tabId, nameKeyMatch[1].str()));
+    } else if (const std::string localeKey = nameKey.substr(configPrefix.size()); !jsonOptions.contains(localeKey)) {
+      errors.push_back(std::format("Tab '{}' references missing en.json key '{}'", tabId, nameKey));
     }
-
-    tabPos = objEnd + 1;
   }
 
   EXPECT_TRUE(errors.empty()) << buildCommaSeparatedString(errors);
@@ -557,7 +442,7 @@ TEST_F(ConfigConsistencyTest, KeybindingsAreAvailableInWebUi) {
   const std::regex keyCodePattern(R"(keyCode\((0x[0-9A-F]{2}),)");
   const std::sregex_iterator keyCodeBegin(keyCodeContent.begin(), keyCodeContent.end(), keyCodePattern);
   const std::sregex_iterator keyCodeEnd;
-  std::set<std::string> uniqueKeyCodes;
+  std::set<std::string, std::less<>> uniqueKeyCodes;
   for (auto keyCode = keyCodeBegin; keyCode != keyCodeEnd; ++keyCode) {
     uniqueKeyCodes.insert((*keyCode)[1].str());
   }
@@ -689,7 +574,7 @@ TEST_F(ConfigConsistencyTest, DummyConfigOptionsDoNotExist) {
     }
 
     if (htmlOptions.contains(dummyOption)) {
-      unexpectedlyFound.push_back(std::format("Config.vue contains dummy option: {}", dummyOption));
+      unexpectedlyFound.push_back(std::format("config_tabs.json contains dummy option: {}", dummyOption));
     }
 
     if (mdOptions.contains(dummyOption)) {
@@ -737,7 +622,7 @@ TEST_F(ConfigConsistencyTest, TestFrameworkDetectsMissingOptions) {
     }
 
     if (!htmlOptions.contains(option)) {
-      missingFromFiles.push_back(std::format("Config.vue missing: {}", option));
+      missingFromFiles.push_back(std::format("config_tabs.json missing: {}", option));
     }
 
     if (!mdOptions.contains(option)) {
@@ -757,7 +642,7 @@ TEST_F(ConfigConsistencyTest, TestFrameworkDetectsMissingOptions) {
   checkTestDummyDetection(missingFromFiles, testDummyOption, foundMissingDummyInHtml, foundMissingDummyInMd, foundMissingDummyInJson);
 
   // The test framework should have detected the fake option as missing from all files
-  EXPECT_TRUE(foundMissingDummyInHtml) << "Test framework failed to detect missing option in Config.vue";
+  EXPECT_TRUE(foundMissingDummyInHtml) << "Test framework failed to detect missing option in config_tabs.json";
   EXPECT_TRUE(foundMissingDummyInMd) << "Test framework failed to detect missing option in configuration.md";
   EXPECT_TRUE(foundMissingDummyInJson) << "Test framework failed to detect missing option in en.json";
 

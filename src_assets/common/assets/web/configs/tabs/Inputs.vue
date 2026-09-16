@@ -282,7 +282,7 @@ watch(
     <!-- Custom key mappings -->
     <div id="keybindings" class="mb-3" v-if="config.keyboard === 'enabled'">
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <label class="form-label mb-0">{{ $t('config.keybindings') }}</label>
+        <div class="form-label mb-0">{{ $t('config.keybindings') }}</div>
         <a href="https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes"
            target="_blank" rel="noopener noreferrer" class="small">
           {{ $t('config.keybindings_reference') }}

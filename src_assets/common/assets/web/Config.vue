@@ -142,6 +142,7 @@
   import { computed, toRaw } from 'vue'
   import Navbar from './Navbar.vue'
   import { apiFetch } from './fetch_utils'
+  import configTabs from './configs/config_tabs.json'
   import General from './configs/tabs/General.vue'
   import Inputs from './configs/tabs/Inputs.vue'
   import Network from './configs/tabs/Network.vue'
@@ -164,20 +165,6 @@
   } from '@lucide/vue'
 
   const ENCODER_TAB_IDS = new Set(["nv", "amd", "qsv", "vaapi", "vt", "vulkan", "sw"]);
-
-  /**
-   * Build a configuration option object from alternating key and value entries.
-   *
-   * @param {...(string|number)} entries Alternating configuration keys and default values.
-   * @returns {object} Configuration defaults keyed by option name.
-   */
-  function createConfigOptions(...entries) {
-    const options = {};
-    for (let index = 0; index < entries.length; index += 2) {
-      options[entries[index]] = entries[index + 1];
-    }
-    return options;
-  }
 
   /**
    * Compare configuration values without coercing their types.
@@ -237,183 +224,8 @@
         currentTab: "general",
         searchQuery: "",
         hashChangeHandler: null,
-        // Tab defaults stay centralized because navigation, search, and serialization consume them together.
-        tabs: [
-          {
-            id: "general",
-            nameKey: "config.category_general",
-            options: {
-              "locale": "en",
-              "sunshine_name": "",
-              "min_log_level": 2,
-              "global_prep_cmd": [],
-              "notify_pre_releases": "disabled",
-              "system_tray": "enabled",
-            },
-          },
-          {
-            id: "input",
-            nameKey: "config.category_input",
-            options: {
-              "controller": "enabled",
-              "gamepad_driver": "",
-              "gamepad": "auto",
-              "ds4_back_as_touchpad_click": "enabled",
-              "motion_as_ds4": "enabled",
-              "touchpad_as_ds4": "enabled",
-              "virtualhid_randomize_mac": "enabled",
-              "back_button_timeout": -1,
-              "keyboard": "enabled",
-              "key_repeat_delay": 500,
-              "key_repeat_frequency": 24.9,
-              "always_send_scancodes": "enabled",
-              "key_rightalt_to_key_win": "disabled",
-              "mouse": "enabled",
-              "high_resolution_scrolling": "enabled",
-              "native_pen_touch": "enabled",
-              "keybindings": "[0x10,0xA0,0x11,0xA2,0x12,0xA4]",
-            },
-          },
-          {
-            id: "av",
-            nameKey: "config.category_audio_video",
-            options: {
-              "audio_sink": "",
-              "virtual_sink": "",
-              "stream_audio": "enabled",
-              "install_steam_audio_drivers": "enabled",
-              "adapter_name": "",
-              "output_name": "",
-              "dd_configuration_option": "disabled",
-              "dd_resolution_option": "auto",
-              "dd_manual_resolution": "",
-              "dd_refresh_rate_option": "auto",
-              "dd_manual_refresh_rate": "",
-              "dd_hdr_option": "auto",
-              "dd_wa_hdr_toggle_delay": 0,
-              "dd_config_revert_delay": 3000,
-              "dd_config_revert_on_disconnect": "disabled",
-              "dd_mode_remapping": {"mixed": [], "resolution_only": [], "refresh_rate_only": []},
-              "max_bitrate": 0,
-              "minimum_fps_target": 0
-            },
-          },
-          {
-            id: "network",
-            nameKey: "config.category_network",
-            options: {
-              "upnp": "disabled",
-              "address_family": "ipv4",
-              "bind_address": "",
-              "port": 47989,
-              "origin_web_ui_allowed": "lan",
-              "csrf_allowed_origins": "",
-              "external_ip": "",
-              "lan_encryption_mode": 0,
-              "wan_encryption_mode": 1,
-              "ping_timeout": 10000,
-              "packetsize": 0,
-            },
-          },
-          {
-            id: "files",
-            nameKey: "config.category_config_files",
-            options: {
-              "file_apps": "",
-              "credentials_file": "",
-              "log_path": "",
-              "pkey": "",
-              "cert": "",
-              "file_state": "",
-            },
-          },
-          {
-            id: "advanced",
-            nameKey: "config.category_advanced",
-            options: {
-              "fec_percentage": 20,
-              "qp": 28,
-              "min_threads": 2,
-              "hevc_mode": 0,
-              "av1_mode": 0,
-              "capture": "",
-              "encoder": "",
-            },
-          },
-          {
-            id: "nv",
-            nameKey: "config.category_nvidia_nvenc_encoder",
-            options: createConfigOptions(
-              "nvenc_preset", 1,
-              "nvenc_twopass", "quarter_res",
-              "nvenc_spatial_aq", "disabled",
-              "nvenc_vbv_increase", 0,
-              "nvenc_realtime_hags", "enabled",
-              "nvenc_split_encode", "driver_decides",
-              "nvenc_latency_over_power", "enabled",
-              "nvenc_opengl_vulkan_on_dxgi", "enabled",
-              "nvenc_h264_cavlc", "disabled",
-            ),
-          },
-          {
-            id: "qsv",
-            nameKey: "config.category_intel_quicksync_encoder",
-            options: createConfigOptions(
-              "qsv_preset", "medium",
-              "qsv_coder", "auto",
-              "qsv_slow_hevc", "disabled",
-            ),
-          },
-          {
-            id: "amd",
-            nameKey: "config.category_amd_amf_encoder",
-            options: createConfigOptions(
-              "amd_usage", "ultralowlatency",
-              "amd_rc", "vbr_latency",
-              "amd_enforce_hrd", "disabled",
-              "amd_max_au_size", "",
-              "amd_quality", "balanced",
-              "amd_preanalysis", "disabled",
-              "amd_vbaq", "enabled",
-              "amd_coder", "auto",
-            ),
-          },
-          {
-            id: "vt",
-            nameKey: "config.category_videotoolbox_encoder",
-            options: createConfigOptions(
-              "vt_coder", "auto",
-              "vt_software", "auto",
-              "vt_realtime", "enabled",
-            ),
-          },
-          {
-            id: "vaapi",
-            nameKey: "config.category_vaapi_encoder",
-            options: createConfigOptions(
-              "vaapi_blbrc", "disabled",
-              "vaapi_quality", "auto",
-              "vaapi_rc", "auto",
-              "vaapi_strict_rc_buffer", "disabled",
-            ),
-          },
-          {
-            id: "vulkan",
-            nameKey: "config.category_vulkan_encoder",
-            options: createConfigOptions(
-              "vk_tune", 2,
-              "vk_rc_mode", 2,
-            ),
-          },
-          {
-            id: "sw",
-            nameKey: "config.category_software_encoder",
-            options: createConfigOptions(
-              "sw_preset", "superfast",
-              "sw_tune", "zerolatency",
-            ),
-          },
-        ],
+        // Keep a private copy because platform filtering replaces this array at runtime.
+        tabs: structuredClone(configTabs),
       };
     },
     provide() {
