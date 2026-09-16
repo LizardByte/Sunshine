@@ -863,6 +863,8 @@ namespace input {
       touch_port_dim_y,
       touch_port.logical_width,
       touch_port.logical_height,
+      touch_port.env_offset_x,
+      touch_port.env_offset_y,
     };
 
     platf::abs_mouse(platf_input, abs_port, tpcoords->first, tpcoords->second);
