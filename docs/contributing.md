@@ -32,6 +32,14 @@ Read our contribution guide in our organization level
     ```}
 }
 
+#### Testing
+
+Run the Web UI unit tests with:
+
+```bash
+npm test
+```
+
 ### Localization
 Sunshine and related LizardByte projects are being localized into various languages.
 The default language is `en` (English).

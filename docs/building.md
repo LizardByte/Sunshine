@@ -22,6 +22,12 @@ Sunshine's build and packaging automation uses packaged static Boost libraries o
 Ubuntu 26.04 or newer, macOS with Homebrew, Windows with MSYS2, and FreeBSD. Older supported distributions continue
 to use the CPM fallback because their repositories do not meet the minimum Boost version.
 
+#### Prebuilt Web UI
+
+Sunshine releases publish the platform-independent Web UI as the `@lizardbyte/sunshine` package to npm and GitHub
+Packages. The package contains the production assets under `build/assets/web`, so downstream packagers can install the
+Web UI without running Node.js or Vite during the native Sunshine build.
+
 #### FreeBSD
 > [!CAUTION]
 > Sunshine support for FreeBSD is experimental and may be incomplete or not work as expected
