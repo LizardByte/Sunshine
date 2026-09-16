@@ -7,6 +7,7 @@
 #include <array>
 #include <cstdint>
 #include <drm_fourcc.h>
+#include <map>
 #include <sys/stat.h>
 #if defined(__FreeBSD__)
   #include <sys/types.h>
@@ -38,6 +39,132 @@ static const size_t rgb2yuv_comp_spv_size = rgb2yuv_comp_spv_data.size() * sizeo
 using namespace std::literals;
 
 namespace vk {
+
+  /**
+   * @brief Find Vulkan physical device matching a render node path.
+   *
+   * @param devs List of Vulkan physical devices.
+   * @param render_path Path to render node (e.g. /dev/dri/renderD128).
+   * @return Matching device, or devs[0] if no match found.
+   */
+  static VkPhysicalDevice find_device_by_render_node(const std::vector<VkPhysicalDevice> &devs, const std::string &render_path) {
+    if (render_path.empty() || render_path[0] != '/') {
+      return devs[0];
+    }
+
+    struct stat node_stat;
+    if (stat(render_path.c_str(), &node_stat) != 0) {
+      return devs[0];
+    }
+
+    auto target_major = major(node_stat.st_rdev);
+    auto target_minor = minor(node_stat.st_rdev);
+
+    for (const auto &dev : devs) {
+      VkPhysicalDeviceDrmPropertiesEXT drm = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRM_PROPERTIES_EXT};
+      VkPhysicalDeviceProperties2 props2 = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+      props2.pNext = &drm;
+      vkGetPhysicalDeviceProperties2(dev, &props2);
+
+      if (drm.hasRender && drm.renderMajor == (int64_t) target_major && drm.renderMinor == (int64_t) target_minor) {
+        return dev;
+      }
+    }
+
+    return devs[0];
+  }
+
+  /**
+   * @brief Query supported modifiers for a single format.
+   *
+   * @param phys_dev Vulkan physical device.
+   * @param vk_fmt Vulkan format to query.
+   * @return Vector of supported modifiers, or empty if none.
+   */
+  static std::vector<std::uint64_t> query_format_modifiers(VkPhysicalDevice phys_dev, VkFormat vk_fmt) {
+    VkDrmFormatModifierPropertiesListEXT mod_list = {.sType = VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT};
+    VkFormatProperties2 fmt_props2 = {.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2};
+    fmt_props2.pNext = &mod_list;
+
+    vkGetPhysicalDeviceFormatProperties2(phys_dev, vk_fmt, &fmt_props2);
+
+    if (mod_list.drmFormatModifierCount == 0) {
+      return {};
+    }
+
+    std::vector<VkDrmFormatModifierPropertiesEXT> mod_props(mod_list.drmFormatModifierCount);
+    mod_list.pDrmFormatModifierProperties = mod_props.data();
+    vkGetPhysicalDeviceFormatProperties2(phys_dev, vk_fmt, &fmt_props2);
+
+    std::vector<std::uint64_t> modifiers;
+    modifiers.reserve(mod_props.size());
+    for (const auto &mp : mod_props) {
+      // Only include modifiers that support sampled images (needed for compute shader input)
+      if (mp.drmFormatModifierTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) {
+        modifiers.push_back(mp.drmFormatModifier);
+      }
+    }
+
+    return modifiers;
+  }
+
+  /**
+   * @brief Query DRM format modifiers supported by the Vulkan driver for common capture formats.
+   *
+   * Creates a temporary Vulkan instance and physical device to query modifier support
+   * via VK_EXT_image_drm_format_modifier extension.
+   *
+   * @return Map of DRM format to supported modifiers, or empty map if query fails.
+   */
+  std::map<std::uint32_t, std::vector<std::uint64_t>> get_supported_capture_modifiers() {
+    std::map<std::uint32_t, std::vector<std::uint64_t>> result;
+
+    // Create temporary Vulkan instance
+    VkApplicationInfo app = {.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO};
+    app.apiVersion = VK_API_VERSION_1_1;
+
+    VkInstanceCreateInfo ci = {.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
+    ci.pApplicationInfo = &app;
+    VkInstance inst = VK_NULL_HANDLE;
+    if (vkCreateInstance(&ci, nullptr, &inst) != VK_SUCCESS) {
+      BOOST_LOG(warning) << "[vulkan] Failed to create instance for modifier query"sv;
+      return result;
+    }
+
+    // Get physical devices
+    uint32_t count = 0;
+    vkEnumeratePhysicalDevices(inst, &count, nullptr);
+    if (count == 0) {
+      vkDestroyInstance(inst, nullptr);
+      return result;
+    }
+
+    std::vector<VkPhysicalDevice> devs(count);
+    vkEnumeratePhysicalDevices(inst, &count, devs.data());
+
+    // Find the device matching the render node that will be used for encoding
+    VkPhysicalDevice phys_dev = find_device_by_render_node(devs, platf::resolve_render_device());
+
+    // Common capture formats (ARGB/XRGB variants)
+    static const std::array<std::pair<uint32_t, VkFormat>, 4> formats_to_query = {{
+      {DRM_FORMAT_ARGB8888, VK_FORMAT_B8G8R8A8_UNORM},
+      {DRM_FORMAT_XRGB8888, VK_FORMAT_B8G8R8A8_UNORM},
+      {DRM_FORMAT_ABGR8888, VK_FORMAT_R8G8B8A8_UNORM},
+      {DRM_FORMAT_XBGR8888, VK_FORMAT_R8G8B8A8_UNORM},
+    }};
+
+    for (const auto &[drm_fmt, vk_fmt] : formats_to_query) {
+      auto modifiers = query_format_modifiers(phys_dev, vk_fmt);
+      if (!modifiers.empty()) {
+        BOOST_LOG(debug) << "[vulkan] Format 0x"sv << std::hex << drm_fmt << std::dec
+                         << " has "sv << modifiers.size() << " supported modifiers"sv;
+        result[drm_fmt] = std::move(modifiers);
+      }
+    }
+
+    vkDestroyInstance(inst, nullptr);
+    return result;
+  }
 
   // Match a DRI render node path to a Vulkan device index via VK_EXT_physical_device_drm.
   // Returns the index as a string (e.g. "1"), or empty string if no match.
