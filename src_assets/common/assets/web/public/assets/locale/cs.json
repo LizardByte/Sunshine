@@ -76,6 +76,7 @@
     "env_displayplacer_example": "Příklad - displayplacer pro automatizaci rozlišení:",
     "env_qres_example": "Příklad – QR pro automatizaci rozlišení:",
     "env_qres_path": "qres cesta",
+    "env_var_description": "L 343, 22.12.2009, s. 1).",
     "env_var_name": "Název Var",
     "env_vars_about": "O proměnných prostředí",
     "env_vars_desc": "Ve výchozím nastavení získávají tyto proměnné prostředí všechny příkazy:",
@@ -291,6 +292,16 @@
     "key_rightalt_to_key_win": "Mapování pravé klávesy Alt na klávesu Windows",
     "key_rightalt_to_key_win_desc": "Je možné, že klávesa Windows nelze odeslat přímo z aplikace Moonlight. V takových případech může být užitečné přimět Sunshine, aby si myslel, že pravý Alt je klávesa Windows",
     "keybindings": "Klávesové zkratky",
+    "keybindings_add": "Přidat mapování",
+    "keybindings_custom": "Vlastní klíč",
+    "keybindings_desc": "Odstraňte Windows virtuální klíčové kódy přijaté z Měsíčního světla. Každý řádek mapuje zdrojový kód do kódu Sunshine odeslaného hostiteli. Vyberte si z kompletního seznamu kódů virtuálního klíče definovaného Microsoftem. Neúplné nebo neplatné řádky nejsou uloženy.",
+    "keybindings_destination": "Kód místa určení",
+    "keybindings_empty": "Žádné vlastní mapování klíčů.",
+    "keybindings_invalid": "Vyberte kód virtuálního klíče.",
+    "keybindings_reference": "Zobrazit všechny kódy virtuálního klíče",
+    "keybindings_remove": "Odstranit mapování",
+    "keybindings_select": "Vyberte kód virtuálního klíče",
+    "keybindings_source": "Zdrojový kód",
     "keyboard": "Povolit vstupu z klávesnice",
     "keyboard_desc": "Umožňuje hostům ovládat hostitelský systém pomocí klávesnice",
     "lan_encryption_mode": "Režim šifrování LAN",
@@ -670,6 +681,7 @@
     "virtualhid_license_unavailable": "Místní licenční služba libvirtualhid není k dispozici. Ověřte, zda jsou balíček ovladače a zprostředkovatelská služba nainstalovány a zda běží."
   },
   "featured": {
+    "category_filter": "Filtr kategorií",
     "categories": {
       "client": "Klienti",
       "tool": "Nástroje"
