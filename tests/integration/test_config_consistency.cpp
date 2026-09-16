@@ -535,6 +535,33 @@ TEST_F(ConfigConsistencyTest, ConfigSidebarTabsDoNotNavigateAway) {
   EXPECT_EQ(content.find("href=\"#\""), std::string::npos);
 }
 
+TEST_F(ConfigConsistencyTest, KeybindingsAreAvailableInWebUi) {
+  const std::string content = readFixture("src_assets/common/assets/web/configs/tabs/Inputs.vue");
+  const std::string selectContent = readFixture("src_assets/common/assets/web/configs/VirtualKeyCodeSelect.vue");
+  const std::string keyCodeContent = readFixture("src_assets/common/assets/web/configs/virtual_key_codes.js");
+
+  EXPECT_NE(content.find("id=\"keybindings\""), std::string::npos);
+  EXPECT_NE(content.find("v-for=\"(binding, index) in keybindingPairs\""), std::string::npos);
+  EXPECT_NE(content.find("v-model=\"binding.source\""), std::string::npos);
+  EXPECT_NE(content.find("v-model=\"binding.destination\""), std::string::npos);
+  EXPECT_NE(selectContent.find("v-for=\"keyCode in virtualKeyCodes\""), std::string::npos);
+  EXPECT_NE(selectContent.find("{{ keyCode.code }} ({{ keyCode.description }})"), std::string::npos);
+  EXPECT_NE(content.find("@click=\"addKeybinding\""), std::string::npos);
+  EXPECT_NE(content.find("@click=\"removeKeybinding(index)\""), std::string::npos);
+  EXPECT_NE(content.find("windows/win32/inputdev/virtual-key-codes"), std::string::npos);
+
+  const std::regex keyCodePattern(R"(keyCode\((0x[0-9A-F]{2}),)");
+  const std::sregex_iterator keyCodeBegin(keyCodeContent.begin(), keyCodeContent.end(), keyCodePattern);
+  const std::sregex_iterator keyCodeEnd;
+  std::set<std::string> uniqueKeyCodes;
+  for (auto keyCode = keyCodeBegin; keyCode != keyCodeEnd; ++keyCode) {
+    uniqueKeyCodes.insert((*keyCode)[1].str());
+  }
+
+  EXPECT_EQ(std::distance(keyCodeBegin, keyCodeEnd), 196);
+  EXPECT_EQ(uniqueKeyCodes.size(), 196);
+}
+
 TEST_F(ConfigConsistencyTest, ConfigTabsMatchDocumentationSections) {
   auto htmlOptions = extractConfigHtmlOptions();
   auto mdOptions = extractConfigMdOptions();

@@ -75,7 +75,8 @@ if(WIN32)
         message(STATUS "MSYS2 Node.js is incompatible with Rolldown; using native npm: ${NPM}")
     endif()
 
-    set(NPM_COMMAND cmd /C)
+    # Ninja wraps custom commands in cmd.exe. `call` keeps a quoted npm.cmd path intact when it contains spaces.
+    set(NPM_COMMAND cmd /C call)
     set(NPM_PATH "PATH=${NPM_DIRECTORY};$ENV{PATH}")
 else()
     set(NPM_COMMAND)

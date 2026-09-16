@@ -179,6 +179,31 @@
     return options;
   }
 
+  /**
+   * Compare configuration values without coercing their types.
+   *
+   * @param {*} value Configured value.
+   * @param {*} defaultValue Default value for the option.
+   * @returns {boolean} Whether both values have the same type and contents.
+   */
+  function configValuesEqual(value, defaultValue) {
+    if (Object.is(value, defaultValue)) {
+      return true;
+    }
+    if (typeof value !== typeof defaultValue || value === null || defaultValue === null || typeof value !== 'object') {
+      return false;
+    }
+    if (Array.isArray(value) !== Array.isArray(defaultValue)) {
+      return false;
+    }
+
+    const valueKeys = Object.keys(value);
+    const defaultKeys = Object.keys(defaultValue);
+    return valueKeys.length === defaultKeys.length && valueKeys.every(key =>
+      Object.hasOwn(defaultValue, key) && configValuesEqual(value[key], defaultValue[key])
+    );
+  }
+
   export default {
     components: {
       Navbar,
@@ -212,7 +237,8 @@
         currentTab: "general",
         searchQuery: "",
         hashChangeHandler: null,
-        tabs: [ // TODO: Move the options to each Component instead, encapsulate.
+        // Tab defaults stay centralized because navigation, search, and serialization consume them together.
+        tabs: [
           {
             id: "general",
             nameKey: "config.category_general",
@@ -245,7 +271,7 @@
               "mouse": "enabled",
               "high_resolution_scrolling": "enabled",
               "native_pen_touch": "enabled",
-              "keybindings": "[0x10,0xA0,0x11,0xA2,0x12,0xA4]",  // todo: add this to UI
+              "keybindings": "[0x10,0xA0,0x11,0xA2,0x12,0xA4]",
             },
           },
           {
@@ -454,8 +480,6 @@
           delete this.config.status;
           delete this.config.version;
 
-          // TODO: let each tab's Component handle it's own data instead of doing it here
-
           // Parse the special options before population if available
           const specialOptions = ["dd_mode_remapping", "global_prep_cmd"]
           for (const optionKey of specialOptions) {
@@ -510,14 +534,7 @@
         // delete default values from this.config
         this.tabs.forEach(tab => {
           Object.keys(tab.options).forEach(optionKey => {
-            let delete_value = false
-
-            // todo: add proper type checking
-            if (JSON.stringify(config[optionKey]) === JSON.stringify(tab.options[optionKey])) {
-              delete_value = true
-            }
-
-            if (delete_value) {
+            if (configValuesEqual(config[optionKey], tab.options[optionKey])) {
               delete config[optionKey]
             }
           });

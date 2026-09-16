@@ -203,7 +203,10 @@ set(INTEGRATION_TEST_FILES
     "docs/getting_started.md"
     "docs/troubleshooting.md"
     "src_assets/common/assets/web/public/assets/locale/en.json"
+    "src_assets/common/assets/web/configs/VirtualKeyCodeSelect.vue"
+    "src_assets/common/assets/web/configs/virtual_key_codes.js"
     "src_assets/common/assets/web/configs/tabs/General.vue"
+    "src_assets/common/assets/web/configs/tabs/Inputs.vue"
     "src_assets/linux/misc/60-sunshine.rules"
 )
 
