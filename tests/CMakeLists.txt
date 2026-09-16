@@ -197,7 +197,7 @@ set(INTEGRATION_TEST_FILES
     "packaging/linux/flatpak/modules/boost.json"
     "scripts/linux_build.sh"
     "src/config.cpp"
-    "src_assets/common/assets/web/config.html"
+    "src_assets/common/assets/web/Config.vue"
     "docs/building.md"
     "docs/configuration.md"
     "docs/getting_started.md"

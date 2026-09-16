@@ -1,11 +1,4 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="auto">
-
-<head>
-  <%- header %>
-</head>
-
-<body id="app" v-cloak>
+<template>
   <Navbar></Navbar>
   <div id="content" class="container">
     <h1 class="my-4 text-center">{{ $t('pin.pin_pairing') }}</h1>
@@ -56,11 +49,9 @@
       <div v-if="status" :class="`alert alert-${status.type}`" role="alert">{{ status.message }}</div>
     </form>
   </div>
-</body>
+</template>
 
-<script type="module">
-  import { createApp } from 'vue'
-  import { initApp } from './init'
+<script>
   import Navbar from './Navbar.vue'
   import { apiFetch } from './fetch_utils'
   import {
@@ -71,7 +62,7 @@
     X,
   } from '@lucide/vue'
 
-  let app = createApp({
+  export default {
     components: {
       Navbar,
       Forward,
@@ -175,7 +166,5 @@
         await this.loadPendingPairings();
       }
     }
-  });
-
-  initApp(app);
+  }
 </script>

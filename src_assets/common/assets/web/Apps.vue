@@ -1,11 +1,4 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="auto">
-
-<head>
-      <%- header %>
-</head>
-
-<body id="app" v-cloak>
+<template>
   <Navbar></Navbar>
   <div id="content" class="container">
     <div class="my-4">
@@ -562,10 +555,9 @@
       </div>
     </div>
   </div>
-</body>
-<script type="module">
-  import { createApp } from 'vue'
-  import { initApp } from './init'
+</template>
+
+<script>
   import Navbar from './Navbar.vue'
   import Checkbox from './Checkbox.vue'
   import { apiFetch } from './fetch_utils'
@@ -595,7 +587,7 @@
     X,
   } from '@lucide/vue'
 
-  const app = createApp({
+  export default {
     components: {
       Navbar,
       Checkbox,
@@ -1046,8 +1038,5 @@
         Modal.getOrCreateInstance(modalEl).show();
       },
     },
-  });
-
-
-  initApp(app);
+  }
 </script>

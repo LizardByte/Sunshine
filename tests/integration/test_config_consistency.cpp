@@ -138,16 +138,29 @@ protected:
       return;
     }
 
-    const size_t optStart = tabObject.find('{', optionsStart);
-    if (optStart == std::string::npos) {
-      return;
+    std::string optionsSection;
+    std::regex optionPattern;
+    if (const size_t optStart = tabObject.find('{', optionsStart); optStart != std::string::npos) {
+      const size_t optEnd = findClosingBrace(tabObject, optStart);
+      optionsSection = tabObject.substr(optStart + 1, optEnd - optStart - 1);
+      optionPattern = std::regex(R"DELIM("([^"]+)":\s*)DELIM");
+    } else {
+      const size_t builderStart = tabObject.find("createConfigOptions(", optionsStart);
+      if (builderStart == std::string::npos) {
+        return;
+      }
+
+      const size_t argsStart = tabObject.find('(', builderStart);
+      const size_t argsEnd = tabObject.find(')', argsStart);
+      if (argsEnd == std::string::npos) {
+        return;
+      }
+
+      optionsSection = tabObject.substr(argsStart + 1, argsEnd - argsStart - 1);
+      optionPattern = std::regex(R"DELIM((?:^|,)\s*"([^"]+)"\s*,\s*(?:"[^"]*"|-?\d+(?:\.\d+)?|true|false|null))DELIM");
     }
 
-    const size_t optEnd = findClosingBrace(tabObject, optStart);
-    std::string optionsSection = tabObject.substr(optStart + 1, optEnd - optStart - 1);
-
     // Extract option names
-    const std::regex optionPattern(R"DELIM("([^"]+)":\s*)DELIM");
     std::sregex_iterator optionIter(optionsSection.begin(), optionsSection.end(), optionPattern);
 
     for (const std::sregex_iterator optionEnd; optionIter != optionEnd; ++optionIter) {
@@ -197,10 +210,10 @@ protected:
     return "";
   }
 
-  // Extract config options from config.html
+  // Extract config options from the Vue configuration page
   static std::map<std::string, std::string, std::less<>> extractConfigHtmlOptions() {
     std::map<std::string, std::string, std::less<>> options;
-    const std::string content = file_handler::read_file("src_assets/common/assets/web/config.html");
+    const std::string content = file_handler::read_file("src_assets/common/assets/web/Config.vue");
 
     const std::string tabsContent = extractTabsContent(content);
     if (tabsContent.empty()) {
@@ -216,10 +229,10 @@ protected:
     extractOptionsFromTabGeneric(tabObject, optionsByTab);
   }
 
-  // Extract config options from config.html with order preserved
+  // Extract config options from the Vue configuration page with order preserved
   static std::map<std::string, std::vector<std::string>, std::less<>> extractConfigHtmlOptionsWithOrder() {
     std::map<std::string, std::vector<std::string>, std::less<>> optionsByTab;
-    const std::string content = file_handler::read_file("src_assets/common/assets/web/config.html");
+    const std::string content = file_handler::read_file("src_assets/common/assets/web/Config.vue");
 
     const std::string tabsContent = extractTabsContent(content);
     if (tabsContent.empty()) {
@@ -375,7 +388,7 @@ protected:
   // Helper function to validate option existence across files
   static void validateOptionExistence(const std::string &option, const std::map<std::string, std::string, std::less<>> &htmlOptions, const std::map<std::string, std::string, std::less<>> &mdOptions, const std::set<std::string, std::less<>> &jsonOptions, std::vector<std::string> &missingFromFiles) {
     if (!isOptionInHtml(option, htmlOptions)) {
-      missingFromFiles.push_back(std::format("config.html missing: {}", option));
+      missingFromFiles.push_back(std::format("Config.vue missing: {}", option));
     }
 
     if (!isOptionInMd(option, mdOptions)) {
@@ -415,7 +428,7 @@ protected:
         continue;
       }
 
-      if (missing.contains("config.html")) {
+      if (missing.contains("Config.vue")) {
         foundMissingDummyInHtml = true;
       }
       if (missing.contains("configuration.md")) {
@@ -472,7 +485,7 @@ TEST_F(ConfigConsistencyTest, AllConfigOptionsExistInAllFiles) {
 }
 
 TEST_F(ConfigConsistencyTest, AllConfigSidebarTabsUseEnglishLocaleKeys) {
-  const std::string content = file_handler::read_file("src_assets/common/assets/web/config.html");
+  const std::string content = file_handler::read_file("src_assets/common/assets/web/Config.vue");
   const std::string tabsContent = extractTabsContent(content);
   const auto jsonOptions = extractEnJsonConfigOptions();
   const std::regex nameKeyPattern(R"DELIM(nameKey:\s*"config\.([^"]+)")DELIM");
@@ -624,7 +637,7 @@ TEST_F(ConfigConsistencyTest, DummyConfigOptionsDoNotExist) {
     }
 
     if (htmlOptions.contains(dummyOption)) {
-      unexpectedlyFound.push_back(std::format("config.html contains dummy option: {}", dummyOption));
+      unexpectedlyFound.push_back(std::format("Config.vue contains dummy option: {}", dummyOption));
     }
 
     if (mdOptions.contains(dummyOption)) {
@@ -672,7 +685,7 @@ TEST_F(ConfigConsistencyTest, TestFrameworkDetectsMissingOptions) {
     }
 
     if (!htmlOptions.contains(option)) {
-      missingFromFiles.push_back(std::format("config.html missing: {}", option));
+      missingFromFiles.push_back(std::format("Config.vue missing: {}", option));
     }
 
     if (!mdOptions.contains(option)) {
@@ -692,7 +705,7 @@ TEST_F(ConfigConsistencyTest, TestFrameworkDetectsMissingOptions) {
   checkTestDummyDetection(missingFromFiles, testDummyOption, foundMissingDummyInHtml, foundMissingDummyInMd, foundMissingDummyInJson);
 
   // The test framework should have detected the fake option as missing from all files
-  EXPECT_TRUE(foundMissingDummyInHtml) << "Test framework failed to detect missing option in config.html";
+  EXPECT_TRUE(foundMissingDummyInHtml) << "Test framework failed to detect missing option in Config.vue";
   EXPECT_TRUE(foundMissingDummyInMd) << "Test framework failed to detect missing option in configuration.md";
   EXPECT_TRUE(foundMissingDummyInJson) << "Test framework failed to detect missing option in en.json";
 

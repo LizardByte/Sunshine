@@ -1,11 +1,4 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="auto">
-
-<head>
-      <%- header %>
-</head>
-
-<body id="app" v-cloak>
+<template>
   <Navbar></Navbar>
   <div id="content" class="container">
     <div class="my-4">
@@ -249,11 +242,9 @@
       </div>
     </div>
   </div>
-</body>
+</template>
 
-<script type="module">
-  import { createApp } from 'vue'
-  import { initApp } from './init'
+<script>
   import Navbar from './Navbar.vue'
   import SimpleIcon from './SimpleIcon.vue'
   import { formatDistanceToNow, format } from 'date-fns'
@@ -274,7 +265,7 @@
     Tv,
   } from '@lucide/vue'
 
-  const app = createApp({
+  export default {
     components: {
       Navbar,
       SimpleIcon,
@@ -490,9 +481,5 @@
         }
       }
     },
-  });
-
-  initApp(app);
+  }
 </script>
-
-</html>

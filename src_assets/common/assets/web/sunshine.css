@@ -1888,10 +1888,14 @@ p {
     display: flex;
     align-items: center;
     gap: var(--spacing-sm);
+    width: 100%;
     padding: var(--spacing-sm) var(--spacing-md);
+    border: 0;
     border-radius: var(--radius-md);
+    background-color: transparent;
     color: var(--color-text-muted);
     font-weight: 600;
+    text-align: left;
     transition: all var(--transition-fast);
 }
 

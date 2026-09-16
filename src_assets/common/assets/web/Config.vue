@@ -1,11 +1,4 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="auto">
-
-<head>
-  <%- header %>
-</head>
-
-<body id="app" v-cloak>
+<template>
   <Navbar></Navbar>
   <div id="content" class="container">
     <div class="my-4">
@@ -47,22 +40,22 @@
         <nav class="config-nav">
           <ul class="nav config-nav-list">
             <li class="nav-item" v-for="tab in generalTabs" :key="tab.id">
-              <a class="nav-link" :class="{'active': tab.id === currentTab}" href="#"
+              <button type="button" class="nav-link" :class="{'active': tab.id === currentTab}"
                 @click="currentTab = tab.id">
                 <component :is="getTabIcon(tab.id)" :size="18" class="icon"></component>
                 {{ $t(tab.nameKey) }}
-              </a>
+              </button>
             </li>
           </ul>
           <template v-if="encoderTabs.length">
             <div class="config-nav-heading">{{ $t('config.encoders') }}</div>
             <ul class="nav config-nav-list">
               <li class="nav-item" v-for="tab in encoderTabs" :key="tab.id">
-                <a class="nav-link" :class="{'active': tab.id === currentTab}" href="#"
+                <button type="button" class="nav-link" :class="{'active': tab.id === currentTab}"
                   @click="currentTab = tab.id">
                   <component :is="getTabIcon(tab.id)" :size="18" class="icon"></component>
                   {{ $t(tab.nameKey) }}
-                </a>
+                </button>
               </li>
             </ul>
           </template>
@@ -141,12 +134,10 @@
     </div>
 
   </div>
-</body>
+</template>
 
-
-<script type="module">
-  import { computed, createApp } from 'vue'
-  import { initApp } from './init'
+<script>
+  import { computed } from 'vue'
   import Navbar from './Navbar.vue'
   import { apiFetch } from './fetch_utils'
   import General from './configs/tabs/General.vue'
@@ -173,7 +164,7 @@
 
   const ENCODER_TAB_IDS = new Set(["nv", "amd", "qsv", "vaapi", "vt", "vulkan", "sw"]);
 
-  const app = createApp({
+  export default {
     components: {
       Navbar,
       General,
@@ -205,6 +196,7 @@
         config: null,
         currentTab: "general",
         searchQuery: "",
+        hashChangeHandler: null,
         tabs: [ // TODO: Move the options to each Component instead, encapsulate.
           {
             id: "general",
@@ -616,7 +608,7 @@
     },
     mounted() {
       // Handle hashchange events
-      const handleHash = () => {
+      this.hashChangeHandler = () => {
         let hash = window.location.hash;
         if (hash) {
           // remove the # from the hash
@@ -647,12 +639,13 @@
       };
 
       // Call handleHash for the initial load
-      handleHash();
+      this.hashChangeHandler();
 
       // Add hashchange event listener
-      window.addEventListener("hashchange", handleHash);
+      window.addEventListener("hashchange", this.hashChangeHandler);
     },
-  });
-
-  initApp(app);
+    beforeUnmount() {
+      window.removeEventListener("hashchange", this.hashChangeHandler);
+    },
+  }
 </script>
