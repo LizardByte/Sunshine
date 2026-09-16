@@ -76,6 +76,7 @@
     "env_displayplacer_example": "Ví dụ - Công cụ hiển thị cho độ phân giải động:",
     "env_qres_example": "Ví dụ - QRes cho độ phân giải động:",
     "env_qres_path": "Đường dẫn qres",
+    "env_var_description": "Mô tả",
     "env_var_name": "Tên biến",
     "env_vars_about": "Về biến môi trường",
     "env_vars_desc": "Tất cả các lệnh đều được gán các biến môi trường sau theo mặc định:",
@@ -291,6 +292,16 @@
     "key_rightalt_to_key_win": "Gán phím Alt bên phải cho phím Windows",
     "key_rightalt_to_key_win_desc": "Có thể bạn không thể gửi phím Windows từ Moonlight trực tiếp. Trong trường hợp đó, có thể hữu ích khi làm cho Sunshine nghĩ rằng phím Alt bên phải là phím Windows.",
     "keybindings": "Phím tắt",
+    "keybindings_add": "Thêm bản đồ",
+    "keybindings_custom": "Mã phím tùy chỉnh",
+    "keybindings_desc": "Ánh xạ lại các mã phím ảo của Windows nhận được từ Moonlight. Mỗi hàng ánh xạ một mã nguồn sang mã mà Sunshine gửi đến máy chủ. Chọn từ danh sách đầy đủ các mã phím ảo do Microsoft định nghĩa. Các hàng không đầy đủ hoặc không hợp lệ sẽ không được lưu lại.",
+    "keybindings_destination": "Mã điểm đến",
+    "keybindings_empty": "Không có thiết lập phím tùy chỉnh.",
+    "keybindings_invalid": "Chọn một mã khóa ảo.",
+    "keybindings_reference": "Xem tất cả các mã khóa ảo",
+    "keybindings_remove": "Xóa bản đồ",
+    "keybindings_select": "Chọn mã khóa ảo",
+    "keybindings_source": "Mã nguồn",
     "keyboard": "Bật nhập liệu bằng bàn phím",
     "keyboard_desc": "Cho phép khách truy cập điều khiển hệ thống chủ thông qua bàn phím.",
     "lan_encryption_mode": "Chế độ mã hóa mạng LAN",
@@ -670,6 +681,7 @@
     "virtualhid_license_unavailable": "Dịch vụ cấp phép libvirtualhid cục bộ hiện không khả dụng. Hãy kiểm tra xem gói trình điều khiển và dịch vụ trung gian đã được cài đặt và đang chạy hay chưa."
   },
   "featured": {
+    "category_filter": "Bộ lọc theo danh mục",
     "categories": {
       "client": "Khách hàng",
       "tool": "Công cụ"
