@@ -6,8 +6,10 @@
 // standard includes
 #include <charconv>
 #include <chrono>
+#include <cstdint>
 #include <optional>
 #include <string_view>
+#include <vector>
 
 // local includes
 #include "src/config.h"
@@ -46,6 +48,30 @@ namespace platf {
       }
 
       return display_id;
+    }
+
+    /**
+     * @brief Return the union of active CoreGraphics display bounds.
+     *
+     * @param fallback_display Display whose bounds are used if enumeration fails.
+     * @return Full active desktop bounds in CoreGraphics coordinates.
+     */
+    CGRect active_desktop_bounds(CGDirectDisplayID fallback_display) {
+      std::uint32_t display_count {};
+      if (CGGetActiveDisplayList(0, nullptr, &display_count) != kCGErrorSuccess || display_count == 0) {
+        return CGDisplayBounds(fallback_display);
+      }
+
+      std::vector<CGDirectDisplayID> displays(display_count);
+      if (CGGetActiveDisplayList(display_count, displays.data(), &display_count) != kCGErrorSuccess || display_count == 0) {
+        return CGDisplayBounds(fallback_display);
+      }
+
+      auto bounds = CGDisplayBounds(displays.front());
+      for (std::uint32_t index = 1; index < display_count; ++index) {
+        bounds = CGRectUnion(bounds, CGDisplayBounds(displays[index]));
+      }
+      return bounds;
     }
 
     OSType videotoolbox_pixel_format(const video::config_t &config) {
@@ -258,6 +284,24 @@ namespace platf {
 
     BOOST_LOG(info) << "Configuring selected display ("sv << display->display_id << ") to stream"sv;
 
+    const auto selected_display_bounds = CGDisplayBounds(display->display_id);
+    const auto desktop_bounds = active_desktop_bounds(display->display_id);
+    display->offset_x = static_cast<int>(selected_display_bounds.origin.x);
+    display->offset_y = static_cast<int>(selected_display_bounds.origin.y);
+    display->logical_width = static_cast<int>(selected_display_bounds.size.width);
+    display->logical_height = static_cast<int>(selected_display_bounds.size.height);
+    display->env_offset_x = static_cast<int>(desktop_bounds.origin.x);
+    display->env_offset_y = static_cast<int>(desktop_bounds.origin.y);
+    display->env_logical_width = static_cast<int>(desktop_bounds.size.width);
+    display->env_logical_height = static_cast<int>(desktop_bounds.size.height);
+    display->env_width = display->env_logical_width;
+    display->env_height = display->env_logical_height;
+
+    BOOST_LOG(debug) << "Selected display bounds: "sv << display->offset_x << 'x' << display->offset_y << ' '
+                     << display->logical_width << 'x' << display->logical_height;
+    BOOST_LOG(debug) << "Active desktop bounds: "sv << display->env_offset_x << 'x' << display->env_offset_y << ' '
+                     << display->env_logical_width << 'x' << display->env_logical_height;
+
     display->av_capture = [[AVVideo alloc] initWithDisplay:display->display_id frameRate:config.framerate];
 
     if (!display->av_capture) {
@@ -267,9 +311,6 @@ namespace platf {
 
     display->width = display->av_capture.frameWidth;
     display->height = display->av_capture.frameHeight;
-    // We also need set env_width and env_height for absolute mouse coordinates
-    display->env_width = display->width;
-    display->env_height = display->height;
 
     if (hwdevice_type == platf::mem_type_e::videotoolbox) {
       const auto pixel_format {videotoolbox_pixel_format(config)};
