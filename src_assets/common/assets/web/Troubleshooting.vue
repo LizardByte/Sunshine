@@ -222,11 +222,12 @@
                rel="noopener noreferrer">
               {{ $t('troubleshooting.virtualhid_license_buy') }}
             </a>
-            <button class="btn btn-outline-danger"
+            <button class="btn btn-danger"
                     type="button"
                     v-if="virtualhidLicense.licensed"
                     :disabled="licenseBusy || !virtualhidLicense.service_available"
                     @click="updateLicense('deactivate')">
+              <trash-2 :size="18" class="icon"></trash-2>
               {{ $t('troubleshooting.virtualhid_license_deactivate') }}
             </button>
           </div>

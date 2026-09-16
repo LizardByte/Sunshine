@@ -317,10 +317,10 @@ watch(
         </div>
 
         <div class="col-auto keybinding-remove">
-          <button type="button" class="btn btn-outline-danger"
+          <button type="button" class="btn btn-danger"
                   :aria-label="$t('config.keybindings_remove')" :title="$t('config.keybindings_remove')"
                   @click="removeKeybinding(index)">
-            <Trash2 :size="16" />
+            <Trash2 :size="16" class="icon" />
           </button>
         </div>
       </div>
