@@ -394,6 +394,14 @@ namespace nvhttp {
     std::string add_client(const std::string &name, std::string cert, bool enabled);
 
     /**
+     * @brief Duplicate a paired-client record to simulate legacy conflicting state.
+     *
+     * @param uuid Persistent UUID of the record to duplicate.
+     * @return `true` when the source record was found and duplicated.
+     */
+    bool duplicate_client(std::string_view uuid);
+
+    /**
      * @brief Run the production certificate authorization checks against PEM input.
      *
      * @param cert PEM-encoded certificate presented by a client.
