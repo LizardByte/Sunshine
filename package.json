@@ -1,11 +1,26 @@
 {
-  "name": "sunshine",
+  "name": "@lizardbyte/sunshine",
   "version": "0.0.0",
+  "description": "Prebuilt web UI assets for the Sunshine game-stream host",
+  "license": "GPL-3.0-only",
+  "funding": "https://app.lizardbyte.dev",
+  "homepage": "https://app.lizardbyte.dev/Sunshine",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LizardByte/Sunshine.git"
+  },
+  "bugs": {
+    "url": "https://github.com/LizardByte/Sunshine/issues"
+  },
+  "files": [
+    "build/assets/web/"
+  ],
   "scripts": {
     "build": "vite build --debug",
     "build-clean": "vite build --debug --emptyOutDir",
     "dev": "vite build --watch",
-    "serve": "serve ./tests/fixtures/http --no-port-switching"
+    "serve": "serve ./tests/fixtures/http --no-port-switching",
+    "test": "vitest run --coverage"
   },
   "type": "module",
   "dependencies": {
@@ -21,8 +36,12 @@
   "devDependencies": {
     "@codecov/vite-plugin": "2.0.1",
     "@vitejs/plugin-vue": "6.0.8",
+    "@vitest/coverage-v8": "5.0.1",
+    "@vue/test-utils": "2.4.6",
+    "jsdom": "29.1.1",
     "serve": "14.2.6",
-    "vite": "8.3.0"
+    "vite": "8.3.0",
+    "vitest": "5.0.1"
   },
   "overrides": {
     "@codecov/vite-plugin": {
