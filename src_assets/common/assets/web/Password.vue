@@ -1,11 +1,4 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="auto">
-
-<head>
-  <%- header %>
-</head>
-
-<body id="app" v-cloak>
+<template>
   <Navbar></Navbar>
   <div id="content" class="container">
     <div class="my-4">
@@ -55,22 +48,21 @@
         <b>{{ $t('_common.success') }}</b> {{ $t('password.success_msg') }}
       </div>
       <div class="mb-3 mt-4">
-        <button class="btn btn-primary">
+        <button type="submit" class="btn btn-primary">
           <save :size="18" class="icon"></save>
           {{ $t('_common.save') }}
         </button>
       </div>
     </form>
   </div>
-</body>
-<script type="module">
-  import { createApp } from 'vue'
-  import { initApp } from './init'
+</template>
+
+<script>
   import Navbar from './Navbar.vue'
   import { apiFetch } from './fetch_utils'
   import { Save } from '@lucide/vue'
 
-  const app = createApp({
+  export default {
     components: {
       Navbar,
       Save,
@@ -115,7 +107,5 @@
         });
       },
     },
-  });
-
-  initApp(app);
+  }
 </script>

@@ -746,7 +746,6 @@ supported on the current platform.
             for example.
             @tip{See [virtual key codes](https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes)}
             @hint{keybindings needs to have a multiple of two elements.}
-            @note{This option is not available in the UI. A PR would be welcome.}
         </td>
     </tr>
     <tr>

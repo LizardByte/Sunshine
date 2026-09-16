@@ -2,6 +2,68 @@
 import { ref, watch } from 'vue'
 import PlatformLayout from '../../PlatformLayout.vue'
 import Checkbox from "../../Checkbox.vue";
+import VirtualKeyCodeSelect from '../VirtualKeyCodeSelect.vue'
+import { isValidVirtualKeyCode } from '../virtual_key_codes.js'
+import {
+  ArrowRight,
+  ExternalLink,
+  Plus,
+  Trash2,
+} from '@lucide/vue'
+
+let nextKeybindingId = 0
+
+/**
+ * @brief Create one editable keybinding pair with a stable rendering key.
+ *
+ * @param {string} source Client virtual-key code.
+ * @param {string} destination Host virtual-key code.
+ * @return {{id: number, source: string, destination: string}} Editable keybinding pair.
+ */
+function createKeybinding(source = '', destination = '') {
+  return {
+    id: nextKeybindingId++,
+    source,
+    destination,
+  }
+}
+
+/**
+ * @brief Parse the serialized integer list used by the configuration API into pairs.
+ *
+ * @param {string} value Serialized keybinding list.
+ * @return {Array<{id: number, source: string, destination: string}>} Editable keybinding pairs.
+ */
+function parseKeybindings(value) {
+  const serialized = String(value ?? '').trim()
+  const contents = serialized.startsWith('[') && serialized.endsWith(']')
+    ? serialized.slice(1, -1)
+    : serialized
+
+  if (contents.trim() === '') {
+    return []
+  }
+
+  const values = contents.split(',').map(keyCode => keyCode.trim())
+  const pairs = []
+  for (let index = 0; index < values.length; index += 2) {
+    pairs.push(createKeybinding(values[index], values[index + 1] ?? ''))
+  }
+  return pairs
+}
+
+/**
+ * @brief Serialize complete, valid keybinding pairs for the configuration API.
+ *
+ * @param {Array<{source: string, destination: string}>} pairs Editable keybinding pairs.
+ * @return {string} Serialized integer list containing only valid pairs.
+ */
+function serializeKeybindings(pairs) {
+  const values = pairs
+    .filter(pair => isValidVirtualKeyCode(pair.source) && isValidVirtualKeyCode(pair.destination))
+    .flatMap(pair => [pair.source.trim(), pair.destination.trim()])
+  return `[${values.join(',')}]`
+}
 
 const props = defineProps([
   'platform',
@@ -9,8 +71,33 @@ const props = defineProps([
 ])
 
 const config = ref(props.config)
+const keybindingPairs = ref(parseKeybindings(config.value.keybindings))
 
 const vigembusGamepads = new Set(['auto', 'x360', 'ds4'])
+
+/**
+ * @brief Add an empty keybinding row.
+ */
+function addKeybinding() {
+  keybindingPairs.value.push(createKeybinding())
+}
+
+/**
+ * @brief Remove a keybinding row.
+ *
+ * @param {number} index Index of the row to remove.
+ */
+function removeKeybinding(index) {
+  keybindingPairs.value.splice(index, 1)
+}
+
+watch(
+  keybindingPairs,
+  pairs => {
+    config.value.keybindings = serializeKeybindings(pairs)
+  },
+  { deep: true },
+)
 
 watch(
   () => config.value.gamepad_driver,
@@ -192,6 +279,68 @@ watch(
               default="false"
     ></Checkbox>
 
+    <!-- Custom key mappings -->
+    <div id="keybindings" class="mb-3" v-if="config.keyboard === 'enabled'">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="form-label mb-0">{{ $t('config.keybindings') }}</div>
+        <a href="https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes"
+           target="_blank" rel="noopener noreferrer" class="small">
+          {{ $t('config.keybindings_reference') }}
+          <ExternalLink :size="14" />
+        </a>
+      </div>
+      <div class="form-text mb-3">{{ $t('config.keybindings_desc') }}</div>
+
+      <div v-if="keybindingPairs.length === 0" class="alert alert-secondary py-2">
+        {{ $t('config.keybindings_empty') }}
+      </div>
+
+      <div v-if="keybindingPairs.length > 0" class="keybinding-grid">
+        <div class="form-label small mb-0 keybinding-source-heading">
+          {{ $t('config.keybindings_source') }}
+        </div>
+        <div class="keybinding-heading-spacer keybinding-arrow-heading" aria-hidden="true"></div>
+        <div class="form-label small mb-0 keybinding-destination-heading">
+          {{ $t('config.keybindings_destination') }}
+        </div>
+        <div class="keybinding-heading-spacer keybinding-remove-heading" aria-hidden="true"></div>
+
+        <template v-for="(binding, index) in keybindingPairs" :key="binding.id">
+          <div class="keybinding-field keybinding-source">
+            <label :for="`keybinding-source-${binding.id}`" class="form-label small keybinding-field-label">
+              {{ $t('config.keybindings_source') }}
+            </label>
+            <VirtualKeyCodeSelect :id="`keybinding-source-${binding.id}`" v-model="binding.source" />
+          </div>
+
+          <div class="keybinding-arrow" aria-hidden="true">
+            <ArrowRight :size="20" />
+          </div>
+
+          <div class="keybinding-field keybinding-destination">
+            <label :for="`keybinding-destination-${binding.id}`" class="form-label small keybinding-field-label">
+              {{ $t('config.keybindings_destination') }}
+            </label>
+            <VirtualKeyCodeSelect :id="`keybinding-destination-${binding.id}`"
+                                  v-model="binding.destination" />
+          </div>
+
+          <div class="keybinding-remove">
+            <button type="button" class="btn btn-danger"
+                    :aria-label="$t('config.keybindings_remove')" :title="$t('config.keybindings_remove')"
+                    @click="removeKeybinding(index)">
+              <Trash2 :size="16" class="icon" />
+            </button>
+          </div>
+        </template>
+      </div>
+
+      <button type="button" class="btn btn-success mt-2" @click="addKeybinding">
+        <Plus :size="16" />
+        {{ $t('config.keybindings_add') }}
+      </button>
+    </div>
+
     <!-- Enable Mouse Input -->
     <hr>
     <Checkbox class="mb-3"
@@ -222,5 +371,80 @@ watch(
 </template>
 
 <style scoped>
+.keybinding-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: start;
+}
 
+.keybinding-source-heading,
+.keybinding-source {
+  grid-column: 1;
+}
+
+.keybinding-arrow-heading,
+.keybinding-arrow {
+  grid-column: 2;
+}
+
+.keybinding-destination-heading,
+.keybinding-destination {
+  grid-column: 3;
+}
+
+.keybinding-remove-heading,
+.keybinding-remove {
+  grid-column: 4;
+}
+
+.keybinding-arrow {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (min-width: 768px) {
+  .keybinding-field-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .keybinding-grid {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .keybinding-source-heading,
+  .keybinding-destination-heading,
+  .keybinding-heading-spacer {
+    display: none;
+  }
+
+  .keybinding-source {
+    grid-column: 1 / -1;
+  }
+
+  .keybinding-arrow {
+    display: none;
+  }
+
+  .keybinding-destination {
+    grid-column: 1;
+  }
+
+  .keybinding-remove {
+    grid-column: 2;
+    margin-top: 2rem;
+  }
+}
 </style>

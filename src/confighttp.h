@@ -72,7 +72,22 @@ namespace confighttp {
    * @return True when the request passes validation and processing may continue.
    */
   bool check_app_index(const resp_https_t &response, const req_https_t &request, int index);
-  void getPage(const resp_https_t &response, const req_https_t &request, const char *html_file, bool require_auth = true, bool redirect_if_username = false);
+  /**
+   * @brief Serve the Web UI single-page application entry document.
+   *
+   * @param response HTTP response object to populate.
+   * @param request HTTP request data from the client.
+   * @param require_auth Whether HTTP authentication is required.
+   * @param redirect_if_username Whether configured users should be redirected to the authenticated home route.
+   */
+  void getPage(const resp_https_t &response, const req_https_t &request, bool require_auth = true, bool redirect_if_username = false);
+  /**
+   * @brief Serve the SPA entry for browser routes and preserve 404 responses for server-owned route prefixes.
+   *
+   * @param response HTTP response object to populate.
+   * @param request HTTP request data from the client.
+   */
+  void getFallbackPage(const resp_https_t &response, const req_https_t &request);
   void getAsset(const resp_https_t &response, const req_https_t &request);
   void browseDirectory(const resp_https_t &response, const req_https_t &request);
   void getLocale(const resp_https_t &response, const req_https_t &request);

@@ -1,11 +1,4 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="auto">
-
-<head>
-      <%- header %>
-</head>
-
-<body id="app" v-cloak>
+<template>
   <Navbar></Navbar>
   <div id="content" class="container">
     <h1 class="my-4">{{ $t('troubleshooting.troubleshooting') }}</h1>
@@ -19,12 +12,12 @@
           <div>
             <h2 id="virtualhid" class="mb-1">{{ $t('troubleshooting.virtual_gamepad') }}</h2>
             <p class="mb-0">{{ $t(virtualInputDescriptionKey) }}</p>
-            <a v-if="gamepadDriver === 'vigembus'"
+            <RouterLink v-if="gamepadDriver === 'vigembus'"
                class="btn btn-primary mt-3"
-               href="./config#gamepad_driver">
+               to="/config#gamepad_driver">
               <gamepad-2 :size="18" class="icon"></gamepad-2>
               {{ $t('troubleshooting.change_gamepad_driver') }}
-            </a>
+            </RouterLink>
           </div>
         </header>
 
@@ -229,11 +222,12 @@
                rel="noopener noreferrer">
               {{ $t('troubleshooting.virtualhid_license_buy') }}
             </a>
-            <button class="btn btn-outline-danger"
+            <button class="btn btn-danger"
                     type="button"
                     v-if="virtualhidLicense.licensed"
                     :disabled="licenseBusy || !virtualhidLicense.service_available"
                     @click="updateLicense('deactivate')">
+              <trash-2 :size="18" class="icon"></trash-2>
               {{ $t('troubleshooting.virtualhid_license_deactivate') }}
             </button>
           </div>
@@ -409,10 +403,11 @@
         <div class="d-flex justify-content-between align-items-baseline py-2">
           <p>{{ $t('troubleshooting.logs_desc') }}</p>
           <div class="input-group" style="max-width: 300px">
+            <label for="log-filter" class="visually-hidden">{{ $t('troubleshooting.logs_find') }}</label>
             <span class="input-group-text">
               <search :size="18" class="icon"></search>
             </span>
-            <input type="text" class="form-control" v-model="logFilter" :placeholder="$t('troubleshooting.logs_find')" />
+            <input id="log-filter" type="text" class="form-control" v-model="logFilter" :placeholder="$t('troubleshooting.logs_find')" />
           </div>
         </div>
         <div>
@@ -444,9 +439,9 @@
     </div>
   </div>
 
-  <script type="module">
-    import { createApp } from 'vue'
-    import { initApp } from './init'
+</template>
+
+<script>
     import Navbar from './Navbar.vue'
     import { apiFetch } from './fetch_utils'
     import {
@@ -473,7 +468,7 @@
       XCircle,
     } from '@lucide/vue'
 
-    const app = createApp({
+    export default {
       components: {
         Navbar,
         AlertCircle,
@@ -729,8 +724,9 @@
         this.refreshLogs();
         this.refreshClients();
       },
-      beforeDestroy() {
+      beforeUnmount() {
         clearInterval(this.logInterval);
+        if (this._logsCopyTimeout) clearTimeout(this._logsCopyTimeout);
       },
       methods: {
         refreshLogs() {
@@ -801,7 +797,6 @@
           fetch("./api/clients/list")
             .then((response) => response.json())
             .then((response) => {
-              const clientList = document.querySelector("#client-list");
               if (response.status === true && response.named_certs && response.named_certs.length) {
                 this.clients = response.named_certs.sort((a, b) => {
                   return (a.name.toLowerCase() > b.name.toLowerCase() || a.name === "" ? 1 : -1)
@@ -1236,9 +1231,5 @@
           }
         },
       },
-    });
-
-    initApp(app);
+    }
   </script>
-
-</body>

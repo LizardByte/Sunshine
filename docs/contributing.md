@@ -12,9 +12,10 @@ Read our contribution guide in our organization level
 
 ### Web UI
 * The Web UI uses [Vite](https://vitejs.dev) as its build system.
-* The HTML pages used by the Web UI are found in `./src_assets/common/assets/web`.
-* [EJS](https://www.npmjs.com/package/vite-plugin-ejs) is used as a templating system for the pages
-  (check `template_header.html` and `template_header_main.html`).
+* The Web UI is a [Vue Router](https://router.vuejs.org) single-page application. Vite builds one `index.html` entry
+  document, and the route implementations remain split into Vue components in `./src_assets/common/assets/web`.
+* Browser routes use history mode. Sunshine serves the same `index.html` entry document for every Web UI route,
+  while API and static asset routes continue to be handled independently by the configuration server.
 * The Style System is provided by [Bootstrap](https://getbootstrap.com).
 * Icons are provided by [Lucide](https://lucide.dev) and [Simple Icons](https://simpleicons.org).
 * The JS framework used by the more interactive pages is [Vue.js](https://vuejs.org).
