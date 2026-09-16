@@ -27,6 +27,10 @@ If you forgot your credentials to the web UI, try this.
 ### Unusual Mouse Behavior
 If you experience unusual mouse behavior, try attaching a physical mouse to the Sunshine host.
 
+For absolute-positioning problems, set **Configuration > Advanced > Log Level** to **Debug** and reproduce the issue.
+Sunshine forwards libvirtualhid diagnostics with a `[libvirtualhid]` prefix, including the streamed display viewport and
+full desktop bounds used for mouse coordinate mapping.
+
 ### Web UI Access
 Can't access the web UI?
 
