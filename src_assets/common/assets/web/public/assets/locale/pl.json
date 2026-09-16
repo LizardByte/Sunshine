@@ -76,6 +76,7 @@
     "env_displayplacer_example": "Przykład - displayplacer dla automatycznej rozdzielczości:",
     "env_qres_example": "Przykład - QRes dla automatycznej rozdzielczości:",
     "env_qres_path": "ścieżka qres",
+    "env_var_description": "Opis",
     "env_var_name": "Nazwa Var",
     "env_vars_about": "Informacje o zmiennych środowiskowych",
     "env_vars_desc": "Wszystkie polecenia domyślnie pobierają te zmienne środowiskowe:",
@@ -291,6 +292,16 @@
     "key_rightalt_to_key_win": "Mapuj klawisz prawy Alt na klawisz Windows",
     "key_rightalt_to_key_win_desc": "Może się zdarzyć, że nie można wysłać klawisza Windows bezpośrednio z Moonlight. W takich przypadkach przydatne może być sprawienie, by Sunshine myślał, że prawy Alt jest klawiszem Windows",
     "keybindings": "Skróty klawiszowe",
+    "keybindings_add": "Dodaj mapowanie",
+    "keybindings_custom": "Niestandardowy kod klucza",
+    "keybindings_desc": "Remap kody klawiszy wirtualnych Windows otrzymane z Moonlight. Każdy wiersz mapuje kod źródłowy do kodu Sunshine wysyła do hosta. Wybierz z pełnej listy kodów klawiszy wirtualnych zdefiniowanych przez Microsoft. Niekompletne lub nieprawidłowe wiersze nie są zapisane.",
+    "keybindings_destination": "Kod miejsca przeznaczenia",
+    "keybindings_empty": "Brak niestandardowych mapowań kluczy.",
+    "keybindings_invalid": "Wybierz kod klawisza wirtualnego.",
+    "keybindings_reference": "Zobacz wszystkie kody klawiszy wirtualnych",
+    "keybindings_remove": "Usuń mapowanie",
+    "keybindings_select": "Wybierz kod klawisza wirtualnego",
+    "keybindings_source": "Kod źródłowy",
     "keyboard": "Włącz wejście klawiatury",
     "keyboard_desc": "Umożliwia gościom kontrolowanie systemu hosta za pomocą klawiatury",
     "lan_encryption_mode": "Tryb szyfrowania LAN",
@@ -670,6 +681,7 @@
     "virtualhid_license_unavailable": "Lokalna usługa licencyjna libvirtualhid jest niedostępna. Sprawdź, czy pakiet kierowców i usługa brokera są zainstalowane i uruchomione."
   },
   "featured": {
+    "category_filter": "Filtr kategorii",
     "categories": {
       "client": "Klienci",
       "tool": "Narzędzia"
