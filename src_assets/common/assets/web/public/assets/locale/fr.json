@@ -76,6 +76,7 @@
     "env_displayplacer_example": "Exemple - displayplacer pour l'automatisation de la résolution :",
     "env_qres_example": "Exemple - QRes pour l'automatisation de la résolution :",
     "env_qres_path": "chemin de qres",
+    "env_var_description": "Libellé",
     "env_var_name": "Nom de la variable",
     "env_vars_about": "À propos des variables d'environnement",
     "env_vars_desc": "Toutes les commandes récupèrent ces variables d'environnement par défaut :",
@@ -291,6 +292,16 @@
     "key_rightalt_to_key_win": "Mapper la touche Alt droite à la touche Windows",
     "key_rightalt_to_key_win_desc": "Il est possible que vous ne puissiez pas envoyer directement la touche Windows à partir de Moonlight. Dans ce cas, il peut être utile de faire croire à Sunshine que la touche Alt droite est la touche Windows",
     "keybindings": "Raccourcis clavier",
+    "keybindings_add": "Ajouter un mapping",
+    "keybindings_custom": "Code de clé personnalisé",
+    "keybindings_desc": "Remapper les codes à clé virtuelle Windows reçus de Moonlight. Chaque ligne fait correspondre un code source au code que Sunshine envoie à l'hôte. Choisissez dans la liste complète des codes de clé virtuelle définis par Microsoft. Les lignes non complètes ou non valides ne sont pas enregistrées.",
+    "keybindings_destination": "Code de destination",
+    "keybindings_empty": "Aucun mappage de clés personnalisé.",
+    "keybindings_invalid": "Sélectionnez un code clé virtuelle.",
+    "keybindings_reference": "Voir tous les codes clés virtuelles",
+    "keybindings_remove": "Supprimer le mappage",
+    "keybindings_select": "Sélectionnez un code clé virtuelle",
+    "keybindings_source": "Code source",
     "keyboard": "Activer l'entrée clavier",
     "keyboard_desc": "Permet aux invités de contrôler le système hôte avec le clavier",
     "lan_encryption_mode": "Mode de chiffrement LAN",
@@ -670,6 +681,7 @@
     "virtualhid_license_unavailable": "Le service de licence local libvirtualhid n'est pas disponible. Vérifiez que le paquet de pilotes et le service de broker sont installés et exécutés."
   },
   "featured": {
+    "category_filter": "Filtre de catégorie",
     "categories": {
       "client": "Clients",
       "tool": "Outils"

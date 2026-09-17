@@ -76,6 +76,7 @@
     "env_displayplacer_example": "Example - displayplacer for Resolution Automation:",
     "env_qres_example": "Example - QRes for Resolution Automation:",
     "env_qres_path": "qres path",
+    "env_var_description": "Description",
     "env_var_name": "Var Name",
     "env_vars_about": "About Environment Variables",
     "env_vars_desc": "All commands get these environment variables by default:",
@@ -291,6 +292,16 @@
     "key_rightalt_to_key_win": "Map Right Alt key to Windows key",
     "key_rightalt_to_key_win_desc": "It may be possible that you cannot send the Windows Key from Moonlight directly. In those cases it may be useful to make Sunshine think the Right Alt key is the Windows key",
     "keybindings": "Keybindings",
+    "keybindings_add": "Add mapping",
+    "keybindings_custom": "Custom key code",
+    "keybindings_desc": "Remap Windows virtual-key codes received from Moonlight. Each row maps a source code to the code Sunshine sends to the host. Choose from the complete list of Microsoft-defined virtual-key codes. Incomplete or invalid rows are not saved.",
+    "keybindings_destination": "Destination code",
+    "keybindings_empty": "No custom key mappings.",
+    "keybindings_invalid": "Select a virtual-key code.",
+    "keybindings_reference": "View all virtual-key codes",
+    "keybindings_remove": "Remove mapping",
+    "keybindings_select": "Select a virtual-key code",
+    "keybindings_source": "Source code",
     "keyboard": "Enable Keyboard Input",
     "keyboard_desc": "Allows guests to control the host system with the keyboard",
     "lan_encryption_mode": "LAN Encryption Mode",
@@ -670,6 +681,7 @@
     "virtualhid_license_unavailable": "The local libvirtualhid license service is unavailable. Verify that the driver package and broker service are installed and running."
   },
   "featured": {
+    "category_filter": "Category filter",
     "categories": {
       "client": "Clients",
       "tool": "Tools"

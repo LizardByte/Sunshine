@@ -76,6 +76,7 @@
     "env_displayplacer_example": "示例 - 使用 displayplacer 自动更改分辨率：",
     "env_qres_example": "示例 - 使用 QRes 自动更改分辨率：",
     "env_qres_path": "QRes 路径",
+    "env_var_description": "描述",
     "env_var_name": "变量名称",
     "env_vars_about": "关于环境变量",
     "env_vars_desc": "默认情况下，所有命令都会得到这些环境变量：",
@@ -291,6 +292,16 @@
     "key_rightalt_to_key_win": "将右 Alt 键映射到 Windows 键",
     "key_rightalt_to_key_win_desc": "您可能无法直接从 Moonlight 发送 Windows 键。在这种情况下，让 Sunshine 认为右 Alt 键是 Windows 键可能会很有用。",
     "keybindings": "按键绑定",
+    "keybindings_add": "添加映射",
+    "keybindings_custom": "自定义密钥代码",
+    "keybindings_desc": "重映射从 Moonlight 收到的 Windows 虚拟键代码。每行映射一个源代码到 Sunshine 发送到主机。 从微软定义虚拟键代码的完整列表中选择。不完整或无效行将不保存。",
+    "keybindings_destination": "目标代码",
+    "keybindings_empty": "没有自定义密钥映射。",
+    "keybindings_invalid": "选择虚拟键代码。",
+    "keybindings_reference": "查看所有虚拟键代码",
+    "keybindings_remove": "删除映射",
+    "keybindings_select": "选择虚拟键代码",
+    "keybindings_source": "源代码",
     "keyboard": "启用键盘输入",
     "keyboard_desc": "允许访客使用键盘控制宿主机系统",
     "lan_encryption_mode": "局域网加密模式",
@@ -670,6 +681,7 @@
     "virtualhid_license_unavailable": "本地的 libvirtualhid 许可证服务不可用。请确认驱动程序包和代理服务（broker service）已安装并正在运行。"
   },
   "featured": {
+    "category_filter": "类别筛选器",
     "categories": {
       "client": "客户端",
       "tool": "工具"

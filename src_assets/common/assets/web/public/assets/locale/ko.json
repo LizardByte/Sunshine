@@ -76,6 +76,7 @@
     "env_displayplacer_example": "예시) 해상도 자동화를 위한 Displayplacer",
     "env_qres_example": "예 - 해결 자동화를 위한 QR:",
     "env_qres_path": "Qres 경로",
+    "env_var_description": "설명",
     "env_var_name": "변수 이름",
     "env_vars_about": "환경 변수 정보",
     "env_vars_desc": "모든 명령은 기본적으로 이러한 환경 변수를 가져옵니다:",
@@ -291,6 +292,16 @@
     "key_rightalt_to_key_win": "오른쪽 Alt 키를 Windows 키로 매핑",
     "key_rightalt_to_key_win_desc": "달빛에서 Windows 키를 직접 보낼 수 없는 경우가 있을 수 있습니다. 이러한 경우 Sunshine이 오른쪽 Alt 키를 Windows 키로 인식하도록 하는 것이 유용할 수 있습니다.",
     "keybindings": "키 바인딩",
+    "keybindings_add": "매핑 추가",
+    "keybindings_custom": "사용자 지정 키 코드",
+    "keybindings_desc": "Moonlight에서 수신된 Windows 가상 키 코드를 재매핑합니다. 각 행은 소스 코드를 Sunshine이 호스트에 전송하는 코드로 매핑합니다. Microsoft에서 정의한 가상 키 코드의 전체 목록에서 선택하십시오. 불완전하거나 유효하지 않은 행은 저장되지 않습니다.",
+    "keybindings_destination": "목적지 코드",
+    "keybindings_empty": "사용자 지정 키 매핑이 없습니다.",
+    "keybindings_invalid": "가상 키 코드를 선택하십시오.",
+    "keybindings_reference": "모든 가상 키 코드 보기",
+    "keybindings_remove": "매핑 제거",
+    "keybindings_select": "가상 키 코드를 선택하세요",
+    "keybindings_source": "소스 코드",
     "keyboard": "키보드 입력 활성화",
     "keyboard_desc": "게스트가 키보드로 호스트 시스템을 제어할 수 있습니다.",
     "lan_encryption_mode": "LAN 암호화 모드",
@@ -670,6 +681,7 @@
     "virtualhid_license_unavailable": "로컬 libvirtualhid 라이선스 서비스를 사용할 수 없습니다. 드라이버 패키지와 브로커 서비스가 설치되어 있고 실행 중인지 확인하십시오."
   },
   "featured": {
+    "category_filter": "카테고리 필터",
     "categories": {
       "client": "클라이언트",
       "tool": "도구"
