@@ -9,10 +9,10 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     let previousElement = table.previousElementSibling;
-    while (previousElement && previousElement.tagName !== "H2") {
+    while (previousElement?.tagName && previousElement.tagName !== "H2") {
       previousElement = previousElement.previousElementSibling;
     }
-    if (previousElement && previousElement.textContent) {
+    if (previousElement?.textContent) {
       const sectionId = previousElement.textContent.trim().toLowerCase();
       const newRow = document.createElement("tr");
 
