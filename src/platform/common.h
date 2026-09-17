@@ -1159,6 +1159,15 @@ namespace platf {
    */
   void move_mouse(input_t &input, int deltaX, int deltaY);
   /**
+   * @brief Retarget the virtual mouse and move it relatively.
+   *
+   * @param input Platform input backend that receives the event.
+   * @param touch_port Desktop and streamed-display bounds for the pointer.
+   * @param deltaX Delta x.
+   * @param deltaY Delta y.
+   */
+  void move_mouse(input_t &input, const touch_port_t &touch_port, int deltaX, int deltaY);
+  /**
    * @brief Move the pointer to an absolute client-provided touch coordinate.
    *
    * @param input Platform input backend that receives the event.
