@@ -6,7 +6,7 @@ function generateExamples(endpoint, method, body = null) {
   let psBodyParams = '';
 
   if (body) {
-    const curlJsonString = JSON.stringify(body).replace(/"/g, '\\"');
+    const curlJsonString = JSON.stringify(body).replaceAll('"', String.raw`\"`);
     curlBodyString = ` -d "${curlJsonString}"`;
     curlHeaderString = ' -H "Content-Type: application/json"';
     psBodyString = `-Body (ConvertTo-Json ${JSON.stringify(body)})`;
@@ -43,12 +43,20 @@ requests.${method.trim().toLowerCase()}(
   };
 }
 
+/**
+ * @brief Create a stable signed 32-bit hash for a string.
+ *
+ * @param {string} str String to hash.
+ * @return {number} Signed 32-bit hash value.
+ */
 function hashString(str) {
   let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash |= 0; // Convert to 32bit integer
+  const signedHash = new Int32Array(1);
+  for (const character of str) {
+    const codePoint = character.codePointAt(0);
+    hash = hash * 31 + codePoint;
+    signedHash[0] = hash;
+    hash = signedHash[0];
   }
   return hash;
 }

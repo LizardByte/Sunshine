@@ -1,9 +1,9 @@
-import fs from 'fs';
-import { resolve } from 'path'
+import fs from 'node:fs';
+import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 import { codecovVitePlugin } from "@codecov/vite-plugin";
 import vue from '@vitejs/plugin-vue'
-import process from 'process'
+import process from 'node:process'
 
 let assetsSrcPath = 'src_assets/common/assets/web';
 let assetsDstPath = 'build/assets/web';

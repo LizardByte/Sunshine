@@ -94,9 +94,9 @@ function addRemappingEntry() {
 
                 <!-- Manual resolution -->
                 <div class="mt-2 ps-4" v-if="config.dd_resolution_option === 'manual'">
-                  <div class="form-text">
+                  <label for="dd_manual_resolution" class="form-label">
                     {{ $t('config.dd_manual_resolution') }}
-                  </div>
+                  </label>
                   <input type="text" class="form-control" id="dd_manual_resolution" placeholder="2560x1440"
                          v-model="config.dd_manual_resolution" />
                 </div>
@@ -115,9 +115,9 @@ function addRemappingEntry() {
 
                 <!-- Manual refresh rate -->
                 <div class="mt-2 ps-4" v-if="config.dd_refresh_rate_option === 'manual'">
-                  <div class="form-text">
+                  <label for="dd_manual_refresh_rate" class="form-label">
                     {{ $t('config.dd_manual_refresh_rate') }}
-                  </div>
+                  </label>
                   <input type="text" class="form-control" id="dd_manual_refresh_rate" placeholder="59.9558"
                          v-model="config.dd_manual_refresh_rate" />
                 </div>
@@ -208,21 +208,33 @@ function addRemappingEntry() {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="(value, idx) in config.dd_mode_remapping[getRemappingType()]">
+                    <tr v-for="(value, idx) in config.dd_mode_remapping[getRemappingType()]" :key="idx">
                       <td v-if="getRemappingType() !== REFRESH_RATE_ONLY">
-                        <input type="text" class="form-control monospace" v-model="value.requested_resolution"
+                        <label :for="`dd-requested-resolution-${idx}`" class="visually-hidden">
+                          {{ $t('config.dd_mode_remapping_requested_resolution') }}
+                        </label>
+                        <input :id="`dd-requested-resolution-${idx}`" type="text" class="form-control monospace" v-model="value.requested_resolution"
                                :placeholder="'1920x1080'" />
                       </td>
                       <td v-if="getRemappingType() !== RESOLUTION_ONLY">
-                        <input type="text" class="form-control monospace" v-model="value.requested_fps"
+                        <label :for="`dd-requested-fps-${idx}`" class="visually-hidden">
+                          {{ $t('config.dd_mode_remapping_requested_fps') }}
+                        </label>
+                        <input :id="`dd-requested-fps-${idx}`" type="text" class="form-control monospace" v-model="value.requested_fps"
                                :placeholder="'60'" />
                       </td>
                       <td v-if="getRemappingType() !== REFRESH_RATE_ONLY">
-                        <input type="text" class="form-control monospace" v-model="value.final_resolution"
+                        <label :for="`dd-final-resolution-${idx}`" class="visually-hidden">
+                          {{ $t('config.dd_mode_remapping_final_resolution') }}
+                        </label>
+                        <input :id="`dd-final-resolution-${idx}`" type="text" class="form-control monospace" v-model="value.final_resolution"
                                :placeholder="'2560x1440'" />
                       </td>
                       <td v-if="getRemappingType() !== RESOLUTION_ONLY">
-                        <input type="text" class="form-control monospace" v-model="value.final_refresh_rate"
+                        <label :for="`dd-final-refresh-rate-${idx}`" class="visually-hidden">
+                          {{ $t('config.dd_mode_remapping_final_refresh_rate') }}
+                        </label>
+                        <input :id="`dd-final-refresh-rate-${idx}`" type="text" class="form-control monospace" v-model="value.final_refresh_rate"
                                :placeholder="'119.95'" />
                       </td>
                       <td>

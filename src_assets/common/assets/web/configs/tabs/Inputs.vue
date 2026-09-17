@@ -65,10 +65,10 @@ function serializeKeybindings(pairs) {
   return `[${values.join(',')}]`
 }
 
-const props = defineProps([
-  'platform',
-  'config'
-])
+const props = defineProps({
+  platform: String,
+  config: Object,
+})
 
 const config = ref(props.config)
 const keybindingPairs = ref(parseKeybindings(config.value.keybindings))
