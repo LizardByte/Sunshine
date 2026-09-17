@@ -883,6 +883,15 @@ namespace platf::virtualhid {
     }
   }
 
+  void move_mouse(input_context_t &context, const touch_port_t &touch_port, int delta_x, int delta_y) {
+    if (!context.mouse) {
+      return;
+    }
+
+    context.update_mouse_viewport(touch_port);
+    move_mouse(context, delta_x, delta_y);
+  }
+
   void abs_mouse(input_context_t &context, const touch_port_t &touch_port, float x, float y) {
     if (!context.mouse) {
       return;
@@ -1137,6 +1146,10 @@ namespace platf {
 
   void move_mouse(input_t &input, int deltaX, int deltaY) {
     virtualhid::move_mouse(virtualhid::get_input_context(input), deltaX, deltaY);
+  }
+
+  void move_mouse(input_t &input, const touch_port_t &touch_port, int deltaX, int deltaY) {
+    virtualhid::move_mouse(virtualhid::get_input_context(input), touch_port, deltaX, deltaY);
   }
 
   void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {

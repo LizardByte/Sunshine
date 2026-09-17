@@ -57,7 +57,7 @@ namespace platf::virtualhid {
     /**
      * @brief Retarget the shared mouse when streamed display geometry changes.
      *
-     * @param touch_port Desktop and viewport geometry for absolute input.
+     * @param touch_port Desktop and viewport geometry for pointer input.
      */
     void update_mouse_viewport(const touch_port_t &touch_port);
 
@@ -253,6 +253,16 @@ namespace platf::virtualhid {
    * @param delta_y Vertical delta.
    */
   void move_mouse(input_context_t &context, int delta_x, int delta_y);
+
+  /**
+   * @brief Retarget the virtual mouse and move it relatively.
+   *
+   * @param context Input context.
+   * @param touch_port Desktop and streamed-display bounds for the pointer.
+   * @param delta_x Horizontal delta.
+   * @param delta_y Vertical delta.
+   */
+  void move_mouse(input_context_t &context, const touch_port_t &touch_port, int delta_x, int delta_y);
 
   /**
    * @brief Move the virtual mouse absolutely inside a target touch port.

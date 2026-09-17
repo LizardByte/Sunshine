@@ -741,6 +741,7 @@ TEST_F(VirtualHidDeviceTest, TranslatesMouseAndKeyboardInput) {
   context()->mouse.reset();
   context()->keyboard.reset();
   platf::virtualhid::move_mouse(*context(), 1, 1);
+  platf::virtualhid::move_mouse(*context(), viewport, 1, 1);
   platf::virtualhid::abs_mouse(*context(), viewport, 1.0F, 1.0F);
   platf::virtualhid::button_mouse(*context(), BUTTON_LEFT, false);
   platf::virtualhid::scroll(*context(), 1);
@@ -781,6 +782,40 @@ TEST_F(VirtualHidDeviceTest, RetargetsAbsoluteMouseWhenStreamedViewportChanges) 
   mouse_event = context()->mouse->last_submitted_event();
   EXPECT_FLOAT_EQ(mouse_event.absolute_x, 960.0F);
   EXPECT_FLOAT_EQ(mouse_event.absolute_y, 540.0F);
+}
+
+TEST_F(VirtualHidDeviceTest, RetargetsRelativeMouseWhenStreamedViewportChanges) {
+  const platf::touch_port_t left_viewport {
+    .offset_x = -1920,
+    .offset_y = 0,
+    .width = 3840,
+    .height = 1080,
+    .logical_width = 1920,
+    .logical_height = 1080,
+    .env_offset_x = -1920,
+    .env_offset_y = 0,
+  };
+
+  const auto initial_mouse_id = context()->mouse->device_id();
+  platf::virtualhid::move_mouse(*context(), left_viewport, 12, -7);
+  const auto left_mouse_id = context()->mouse->device_id();
+  EXPECT_NE(left_mouse_id, initial_mouse_id);
+  auto mouse_event = context()->mouse->last_submitted_event();
+  EXPECT_EQ(mouse_event.kind, lvh::MouseEventKind::relative_motion);
+  EXPECT_EQ(mouse_event.x, 12);
+  EXPECT_EQ(mouse_event.y, -7);
+
+  platf::virtualhid::move_mouse(*context(), left_viewport, 3, 4);
+  EXPECT_EQ(context()->mouse->device_id(), left_mouse_id);
+
+  auto right_viewport = left_viewport;
+  right_viewport.offset_x = 0;
+  platf::virtualhid::move_mouse(*context(), right_viewport, -5, 9);
+  EXPECT_NE(context()->mouse->device_id(), left_mouse_id);
+  mouse_event = context()->mouse->last_submitted_event();
+  EXPECT_EQ(mouse_event.kind, lvh::MouseEventKind::relative_motion);
+  EXPECT_EQ(mouse_event.x, -5);
+  EXPECT_EQ(mouse_event.y, 9);
 }
 
 TEST_F(VirtualHidDeviceTest, TranslatesTouchscreenLifecycleAndGeometry) {
