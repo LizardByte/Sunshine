@@ -9,13 +9,6 @@
 </md-block>
 @endhtmlonly
 
-<div class="section_buttons">
-
-| Previous                        |                Next |
-|:--------------------------------|--------------------:|
-| [App Examples](app_examples.md) | [Guides](guides.md) |
-
-</div>
 
 <details style="display: none;">
   <summary></summary>

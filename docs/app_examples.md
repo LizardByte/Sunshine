@@ -372,13 +372,6 @@ UAC prompt.
 }
 ```
 
-<div class="section_buttons">
-
-| Previous                          |                                    Next |
-|:----------------------------------|----------------------------------------:|
-| [Configuration](configuration.md) | [Awesome-Sunshine](awesome_sunshine.md) |
-
-</div>
 
 <details style="display: none;">
   <summary></summary>

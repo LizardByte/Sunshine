@@ -46,7 +46,7 @@ The default language is `en` (English).
 
 ![](https://app.lizardbyte.dev/dashboard/crowdin/LizardByte_graph.svg)
 
-@admonition{Community | We are looking for language coordinators to help approve translations.
+@admonition{Community |:| We are looking for language coordinators to help approve translations.
 The goal is to have the bars above filled with green!
 If you are interested, please reach out to us on our Discord server.}
 
@@ -211,13 +211,6 @@ maintainers to run the tests locally.
 
 [crowdin-url]: https://translate.lizardbyte.dev
 
-<div class="section_buttons">
-
-| Previous                | Next |
-|:------------------------|-----:|
-| [Building](building.md) |      |
-
-</div>
 
 <details style="display: none;">
   <summary></summary>

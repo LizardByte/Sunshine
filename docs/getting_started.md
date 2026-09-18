@@ -777,16 +777,9 @@ Tutorial videos are available [here](https://www.youtube.com/playlist?list=PLMYr
 
 Guides are available [here](guides.md).
 
-@admonition{Community! |
+@admonition{Community! |:|
 Tutorials and Guides are community generated. Want to contribute? Reach out to us on our discord server.}
 
-<div class="section_buttons">
-
-| Previous                 |                      Next |
-|:-------------------------|--------------------------:|
-| [Overview](../README.md) | [Changelog](changelog.md) |
-
-</div>
 
 <details style="display: none;">
   <summary></summary>

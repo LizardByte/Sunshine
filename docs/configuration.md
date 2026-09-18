@@ -1,6 +1,6 @@
 # Configuration
 
-@admonition{ Host authority | @htmlonly
+@admonition{ Host authority |:| @htmlonly
 By providing the host authority (URI + port), you can easily open each configuration option in the config UI.
 <br>
 <script src="configuration.js"></script>
@@ -3456,13 +3456,6 @@ supported on the current platform.
     </tr>
 </table>
 
-<div class="section_buttons">
-
-| Previous          |                            Next |
-|:------------------|--------------------------------:|
-| [Legal](legal.md) | [App Examples](app_examples.md) |
-
-</div>
 
 <details style="display: none;">
   <summary></summary>

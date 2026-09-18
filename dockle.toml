@@ -51,6 +51,6 @@ predefined = [
 ]
 extra_stylesheets = ["docs/doc-styles.css"]
 extra_files = ["docs/api.js", "docs/configuration.js"]
-aliases = ["api_examples{3|}=@htmlonly<script>(function() { let examples = generateExamples('\\1', '\\2', \\3); document.write(createTabs(examples)); })();</script>@endhtmlonly"]
+aliases = ["api_examples{3|:|}=@htmlonly<script>(function() { let examples = generateExamples('\\1', '\\2', \\3); document.write(createTabs(examples)); })();</script>@endhtmlonly"]
 main_page = "README.md"
 dot_graph_max_nodes = 60

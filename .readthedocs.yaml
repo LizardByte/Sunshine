@@ -1,17 +1,24 @@
 ---
+# .readthedocs.yaml
+# Read the Docs configuration file
+# See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
+
 version: 2
 
 build:
   os: ubuntu-24.04
   tools:
-    python: "miniforge3-26.3"
+    python: "miniconda-latest"
   commands:
-    - conda env create --quiet --name "${READTHEDOCS_VERSION}" --file third-party/dockle/environment.yml
-    - conda run --no-capture-output --name "${READTHEDOCS_VERSION}" python -m pip install 'lizardbyte-dockle[all] @ https://github.com/LizardByte/dockle/releases/download/v2026.918.203650/lizardbyte_dockle-2026.918.203650-py3-none-any.whl'
-    - conda run --no-capture-output --name "${READTHEDOCS_VERSION}" env PYTHONPATH=third-party/dockle/src python -m dockle check
-    - conda run --no-capture-output --name "${READTHEDOCS_VERSION}" env PYTHONPATH=third-party/dockle/src python -m dockle build
-    - mkdir -p "${READTHEDOCS_OUTPUT}html/"
-    - cp -r _site/. "${READTHEDOCS_OUTPUT}html/"
+    - |
+      if [ -f readthedocs_build.sh ]; then
+        dockle_dir="."
+      else
+        dockle_dir="./third-party/dockle"
+      fi
+      chmod +x "${dockle_dir}/readthedocs_build.sh"
+      export DOCKLE_DIR="${dockle_dir}"
+      "${dockle_dir}/readthedocs_build.sh"
 
 conda:
   environment: third-party/dockle/environment.yml

@@ -20,13 +20,6 @@ In summary, while Sunshine is free to use, it is the user's responsibility to en
 licensing requirements when redistributing the software as part of a commercial offering. If you have any questions or
 concerns about using Sunshine in a commercial setting, we recommend consulting with a lawyer.
 
-<div class="section_buttons">
-
-| Previous                                        |                              Next |
-|:------------------------------------------------|----------------------------------:|
-| [Gamestream Migration](gamestream_migration.md) | [Configuration](configuration.md) |
-
-</div>
 
 <details style="display: none;">
   <summary></summary>
