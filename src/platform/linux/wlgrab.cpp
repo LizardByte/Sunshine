@@ -33,6 +33,10 @@ namespace wl {
     return false;
   }
 
+  bool should_request_frame(dmabuf_t::status_e status) {
+    return status != dmabuf_t::WAITING;
+  }
+
   /**
    * @brief Captured frame buffer shared between capture and encode stages.
    */
@@ -174,8 +178,17 @@ namespace wl {
     inline platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
       auto to = std::chrono::steady_clock::now() + timeout;
 
+      if (should_request_frame(dmabuf.status)) {
+        dmabuf.listen(
+          interface.screencopy_manager,
+          interface.dmabuf_interface,
+          &interface.supported_modifiers,
+          output,
+          cursor
+        );
+      }
+
       // Dispatch events until we get a new frame or the timeout expires
-      dmabuf.listen(interface.screencopy_manager, interface.dmabuf_interface, &interface.supported_modifiers, output, cursor);
       do {
         auto remaining_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(to - std::chrono::steady_clock::now());
         if (remaining_time_ms.count() < 0 || !display.dispatch(remaining_time_ms)) {
