@@ -136,10 +136,10 @@ brew install "${dependencies[@]}"
 If there are issues with an SSL header that is not found:
 
 @tabs{
-  @tab{ Intel | ```bash
+  @tab{ Intel |:| ```bash
     ln -s /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
     ```}
-  @tab{ Apple Silicon | ```bash
+  @tab{ Apple Silicon |:| ```bash
     ln -s /opt/homebrew/opt/openssl/include/openssl /opt/homebrew/include/openssl
     ```
   }
@@ -250,32 +250,32 @@ ninja -C build
 ### Package
 
 @tabs{
-  @tab{FreeBSD | @tabs{
-    @tab{pkg | ```bash
+  @tab{FreeBSD |:| @tabs{
+    @tab{pkg |:| ```bash
       cpack -G FREEBSD --config ./build/CPackConfig.cmake
       ```}
   }}
-  @tab{Linux | @tabs{
-    @tab{deb | ```bash
+  @tab{Linux |:| @tabs{
+    @tab{deb |:| ```bash
       cpack -G DEB --config ./build/CPackConfig.cmake
       ```}
-    @tab{rpm | ```bash
+    @tab{rpm |:| ```bash
       cpack -G RPM --config ./build/CPackConfig.cmake
       ```}
   }}
-  @tab{macOS | @tabs{
-    @tab{DragNDrop | ```bash
+  @tab{macOS |:| @tabs{
+    @tab{DragNDrop |:| ```bash
       cpack -G DragNDrop --config ./build/CPackConfig.cmake
       ```}
   }}
-  @tab{Windows | @tabs{
-    @tab{NSIS Installer | ```bash
+  @tab{Windows |:| @tabs{
+    @tab{NSIS Installer |:| ```bash
       cpack -G NSIS --config ./build/CPackConfig.cmake
       ```}
-    @tab{WiX Installer | ```bash
+    @tab{WiX Installer |:| ```bash
       cpack -G WIX --config ./build/CPackConfig.cmake
       ```}
-    @tab{Portable | ```bash
+    @tab{Portable |:| ```bash
       cpack -G ZIP --config ./build/CPackConfig.cmake
       ```}
   }}

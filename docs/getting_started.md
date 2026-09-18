@@ -196,10 +196,10 @@ Configure the `stable` repository for releases or the `beta` repository for prer
 automatically selects the appropriate Debian or Ubuntu release.
 
 @tabs{
-  @tab_with_pipe{ Stable |:| ```bash
+  @tab{ Stable |:| ```bash
     curl -1sLf 'https://dl.cloudsmith.io/public/lizardbyte/stable/cfg/setup/bash.deb.sh' | sudo -E bash
     ```}
-  @tab_with_pipe{ Beta |:| ```bash
+  @tab{ Beta |:| ```bash
     curl -1sLf 'https://dl.cloudsmith.io/public/lizardbyte/beta/cfg/setup/bash.deb.sh' | sudo -E bash
     ```}
 }
@@ -241,10 +241,10 @@ Configure the `stable` repository for releases or the `beta` repository for prer
 automatically selects Fedora or openSUSE and the appropriate release.
 
 @tabs{
-  @tab_with_pipe{ Stable |:| ```bash
+  @tab{ Stable |:| ```bash
     curl -1sLf 'https://dl.cloudsmith.io/public/lizardbyte/stable/cfg/setup/bash.rpm.sh' | sudo -E bash
     ```}
-  @tab_with_pipe{ Beta |:| ```bash
+  @tab{ Beta |:| ```bash
     curl -1sLf 'https://dl.cloudsmith.io/public/lizardbyte/beta/cfg/setup/bash.rpm.sh' | sudo -E bash
     ```}
 }
@@ -252,10 +252,10 @@ automatically selects Fedora or openSUSE and the appropriate release.
 Install Sunshine with your distribution's package manager.
 
 @tabs{
-  @tab{ Fedora | ```bash
+  @tab{ Fedora |:| ```bash
     sudo dnf install Sunshine
     ```}
-  @tab{ openSUSE | ```bash
+  @tab{ openSUSE |:| ```bash
     sudo zypper install Sunshine
     ```}
 }
@@ -265,10 +265,10 @@ Install Sunshine with your distribution's package manager.
 Download `Sunshine-{version}-1.{distro+version}.{arch}.rpm` and run the following command.
 
 @tabs{
-  @tab{ Fedora | ```bash
+  @tab{ Fedora |:| ```bash
     sudo dnf install ./Sunshine-{version}-1.{distro+version}.{arch}.rpm
     ```}
-  @tab{ openSUSE | ```bash
+  @tab{ openSUSE |:| ```bash
     sudo zypper install ./Sunshine-{version}-1.{distro+version}.{arch}.rpm
     ```}
 }
@@ -283,10 +283,10 @@ Download `Sunshine-{version}-1.{distro+version}.{arch}.rpm` and run the followin
 ##### Uninstall
 
 @tabs{
-  @tab{ Fedora | ```bash
+  @tab{ Fedora |:| ```bash
     sudo dnf remove Sunshine
     ```}
-  @tab{ openSUSE | ```bash
+  @tab{ openSUSE |:| ```bash
     sudo zypper remove Sunshine
     ```}
 }
@@ -684,13 +684,13 @@ by default. You may replace *localhost* with your internal ip address.
 To get a list of available arguments, run the following command.
 
 @tabs{
-   @tab{ General | ```bash
+   @tab{ General |:| ```bash
       sunshine --help
       ```}
-   @tab{ AppImage | ```bash
+   @tab{ AppImage |:| ```bash
       ./Sunshine_{version}_{arch}.AppImage --help
       ```}
-   @tab{ Flatpak | ```bash
+   @tab{ Flatpak |:| ```bash
       flatpak run --command=sunshine dev.lizardbyte.app.Sunshine --help
       ```}
 }
@@ -756,13 +756,13 @@ Streaming HDR content is officially supported on Windows hosts and experimentall
 Additional information:
 
 @tabs{
-  @tab{ Windows |
+  @tab{ Windows |:|
   - HDR streaming is supported for Intel, AMD, and NVIDIA GPUs that support encoding HEVC Main 10 or AV1 10-bit profiles.
   - We recommend calibrating the display by streaming the Windows HDR Calibration app to your client device and saving an HDR calibration profile to use while streaming.
   - Older games that use NVIDIA-specific NVAPI HDR rather than native Windows HDR support may not display properly in HDR.
   }
 
-@tab{ Linux |
+@tab{ Linux |:|
   - HDR streaming is supported for Intel and AMD GPUs that support encoding HEVC Main 10 or AV1 10-bit profiles using VAAPI.
   - The KMS capture backend is required for HDR capture. Other capture methods, like NvFBC or X11, do not support HDR.
   - You will need a desktop environment with a compositor that supports HDR rendering, such as Gamescope or KDE Plasma 6.

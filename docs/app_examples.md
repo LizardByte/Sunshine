@@ -26,7 +26,7 @@ and applications to Sunshine.
 > process is killed.
 
 @tabs{
-  @tab{FreeBSD | <!-- -->
+  @tab{FreeBSD |:| <!-- -->
     \| Field                        \| Value                                                \|
     \|------------------------------\|------------------------------------------------------\|
     \| Application Name             \| @code{}Steam Big Picture@endcode                     \|
@@ -34,7 +34,7 @@ and applications to Sunshine.
     \| Detached Commands            \| @code{}setsid steam steam://open/bigpicture@endcode  \|
     \| Image                        \| @code{}steam.png@endcode                             \|
   }
-  @tab{Linux | <!-- -->
+  @tab{Linux |:| <!-- -->
     \| Field                        \| Value                                                \|
     \|------------------------------\|------------------------------------------------------\|
     \| Application Name             \| @code{}Steam Big Picture@endcode                     \|
@@ -42,7 +42,7 @@ and applications to Sunshine.
     \| Detached Commands            \| @code{}setsid steam steam://open/bigpicture@endcode  \|
     \| Image                        \| @code{}steam.png@endcode                             \|
   }
-  @tab{macOS | <!-- -->
+  @tab{macOS |:| <!-- -->
     \| Field                        \| Value                                          \|
     \|------------------------------\|------------------------------------------------\|
     \| Application Name             \| @code{}Steam Big Picture@endcode               \|
@@ -50,7 +50,7 @@ and applications to Sunshine.
     \| Detached Commands            \| @code{}open steam://open/bigpicture@endcode    \|
     \| Image                        \| @code{}steam.png@endcode                       \|
   }
-  @tab{Windows | <!-- -->
+  @tab{Windows |:| <!-- -->
     \| Field                        \| Value                                     \|
     \|------------------------------\|-------------------------------------------\|
     \| Application Name             \| @code{}Steam Big Picture@endcode          \|
@@ -68,7 +68,7 @@ and applications to Sunshine.
 #### URI
 
 @tabs{
-  @tab{Windows | <!-- -->
+  @tab{Windows |:| <!-- -->
     \| Field            \| Value                                                                                                                                                 \|
     \|------------------\|-------------------------------------------------------------------------------------------------------------------------------------------------------\|
     \| Application Name \| @code{}Surviving Mars@endcode                                                                                                                         \|
@@ -78,7 +78,7 @@ and applications to Sunshine.
 
 #### Binary (w/ working directory
 @tabs{
-  @tab{Windows | <!-- -->
+  @tab{Windows |:| <!-- -->
     \| Field             \| Value                                                      \|
     \|-------------------\|------------------------------------------------------------\|
     \| Application Name  \| @code{}Surviving Mars@endcode                              \|
@@ -89,7 +89,7 @@ and applications to Sunshine.
 
 #### Binary (w/o working directory)
 @tabs{
-  @tab{Windows | <!-- -->
+  @tab{Windows |:| <!-- -->
     \| Field             \| Value                                                                   \|
     \|-------------------\|-------------------------------------------------------------------------\|
     \| Application Name  \| @code{}Surviving Mars@endcode                                           \|
@@ -105,25 +105,25 @@ and applications to Sunshine.
 #### URI
 
 @tabs{
-  @tab{FreeBSD | <!-- -->
+  @tab{FreeBSD |:| <!-- -->
     \| Field             \| Value                                                \|
     \|-------------------\|------------------------------------------------------\|
     \| Application Name  \| @code{}Surviving Mars@endcode                        \|
     \| Detached Commands \| @code{}setsid steam steam://rungameid/464920@endcode \|
   }
-  @tab{Linux | <!-- -->
+  @tab{Linux |:| <!-- -->
     \| Field             \| Value                                                \|
     \|-------------------\|------------------------------------------------------\|
     \| Application Name  \| @code{}Surviving Mars@endcode                        \|
     \| Detached Commands \| @code{}setsid steam steam://rungameid/464920@endcode \|
   }
-  @tab{macOS | <!-- -->
+  @tab{macOS |:| <!-- -->
     \| Field             \| Value                                        \|
     \|-------------------\|----------------------------------------------\|
     \| Application Name  \| @code{}Surviving Mars@endcode                \|
     \| Detached Commands \| @code{}open steam://rungameid/464920@endcode \|
   }
-  @tab{Windows | <!-- -->
+  @tab{Windows |:| <!-- -->
     \| Field             \| Value                                   \|
     \|-------------------\|-----------------------------------------\|
     \| Application Name  \| @code{}Surviving Mars@endcode           \|
@@ -133,28 +133,28 @@ and applications to Sunshine.
 
 #### Binary (w/ working directory
 @tabs{
-  @tab{FreeBSD | <!-- -->
+  @tab{FreeBSD |:| <!-- -->
     \| Field             \| Value                                                        \|
     \|-------------------\|--------------------------------------------------------------\|
     \| Application Name  \| @code{}Surviving Mars@endcode                                \|
     \| Command           \| @code{}MarsSteam@endcode                                     \|
     \| Working Directory \| @code{}$(HOME)/.steam/steam/SteamApps/common/Survivng Mars@endcode \|
   }
-  @tab{Linux | <!-- -->
+  @tab{Linux |:| <!-- -->
     \| Field             \| Value                                                        \|
     \|-------------------\|--------------------------------------------------------------\|
     \| Application Name  \| @code{}Surviving Mars@endcode                                \|
     \| Command           \| @code{}MarsSteam@endcode                                     \|
     \| Working Directory \| @code{}$(HOME)/.steam/steam/SteamApps/common/Survivng Mars@endcode \|
   }
-  @tab{macOS | <!-- -->
+  @tab{macOS |:| <!-- -->
     \| Field             \| Value                                                        \|
     \|-------------------\|--------------------------------------------------------------\|
     \| Application Name  \| @code{}Surviving Mars@endcode                                \|
     \| Command           \| @code{}MarsSteam@endcode                                     \|
     \| Working Directory \| @code{}$(HOME)/.steam/steam/SteamApps/common/Survivng Mars@endcode \|
   }
-  @tab{Windows | <!-- -->
+  @tab{Windows |:| <!-- -->
     \| Field             \| Value                                                                         \|
     \|-------------------\|-------------------------------------------------------------------------------\|
     \| Application Name  \| @code{}Surviving Mars@endcode                                                 \|
@@ -165,25 +165,25 @@ and applications to Sunshine.
 
 #### Binary (w/o working directory)
 @tabs{
-  @tab{FreeBSD | <!-- -->
+  @tab{FreeBSD |:| <!-- -->
     \| Field             \| Value                                                                  \|
     \|-------------------\|------------------------------------------------------------------------\|
     \| Application Name  \| @code{}Surviving Mars@endcode                                          \|
     \| Command           \| @code{}$(HOME)/.steam/steam/SteamApps/common/Survivng Mars/MarsSteam@endcode \|
   }
-  @tab{Linux | <!-- -->
+  @tab{Linux |:| <!-- -->
     \| Field             \| Value                                                                  \|
     \|-------------------\|------------------------------------------------------------------------\|
     \| Application Name  \| @code{}Surviving Mars@endcode                                          \|
     \| Command           \| @code{}$(HOME)/.steam/steam/SteamApps/common/Survivng Mars/MarsSteam@endcode \|
   }
-  @tab{macOS | <!-- -->
+  @tab{macOS |:| <!-- -->
     \| Field             \| Value                                                                  \|
     \|-------------------\|------------------------------------------------------------------------\|
     \| Application Name  \| @code{}Surviving Mars@endcode                                          \|
     \| Command           \| @code{}$(HOME)/.steam/steam/SteamApps/common/Survivng Mars/MarsSteam@endcode \|
   }
-  @tab{Windows | <!-- -->
+  @tab{Windows |:| <!-- -->
     \| Field             \| Value                                                                                       \|
     \|-------------------\|---------------------------------------------------------------------------------------------\|
     \| Application Name  \| @code{}Surviving Mars@endcode                                                               \|

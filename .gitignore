@@ -40,7 +40,8 @@
 # build directories
 build/
 cmake-*/
-docs/doxyconfig*
+/.dockle/
+/_site/
 
 # npm
 node_modules/

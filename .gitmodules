@@ -6,10 +6,6 @@
 	path = third-party/build-deps
 	url = https://github.com/LizardByte/build-deps.git
 	branch = master
-[submodule "third-party/doxyconfig"]
-	path = third-party/doxyconfig
-	url = https://github.com/LizardByte/doxyconfig.git
-	branch = master
 [submodule "third-party/glad"]
 	path = third-party/glad
 	url = https://github.com/Dav1dde/glad.git
@@ -60,4 +56,8 @@
 [submodule "third-party/wlr-protocols"]
 	path = third-party/wlr-protocols
 	url = https://github.com/LizardByte-infrastructure/wlr-protocols.git
+	branch = master
+[submodule "third-party/dockle"]
+	path = third-party/dockle
+	url = https://github.com/LizardByte/dockle.git
 	branch = master

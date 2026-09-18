@@ -23,11 +23,11 @@ Read our contribution guide in our organization level
 #### Building
 
 @tabs{
-  @tab{CMake | ```bash
+  @tab{CMake |:| ```bash
     cmake -B build -G Ninja -S . --target web-ui
     ninja -C build web-ui
     ```}
-  @tab{Manual | ```bash
+  @tab{Manual |:| ```bash
     npm run dev
     ```}
 }
@@ -213,9 +213,9 @@ maintainers to run the tests locally.
 
 <div class="section_buttons">
 
-| Previous                |                                                         Next |
-|:------------------------|-------------------------------------------------------------:|
-| [Building](building.md) | [Source Code](../third-party/doxyconfig/docs/source_code.md) |
+| Previous                | Next |
+|:------------------------|-----:|
+| [Building](building.md) |      |
 
 </div>
 
