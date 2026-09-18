@@ -331,7 +331,7 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
     <tr>
         <td>Wayland (wlroots)</td>
         <td>✅</td>
-        <td>❌</td>
+        <td>✅</td>
         <td>✅</td>
         <td>✅</td>
     </tr>
