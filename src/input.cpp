@@ -708,6 +708,38 @@ namespace input {
   }
 
   /**
+   * @brief Consume the latest streamed-display geometry for an input session.
+   *
+   * @param input Input session receiving the geometry.
+   */
+  void refresh_touch_port(std::shared_ptr<input_t> &input) {
+    auto &touch_port_event = input->touch_port_event;
+    if (touch_port_event->peek()) {
+      input->touch_port = *touch_port_event->pop();
+    }
+  }
+
+  /**
+   * @brief Convert stream touch geometry to platform pointer bounds.
+   *
+   * @param touch_port Stream touch geometry.
+   * @return Platform pointer bounds for the full desktop and streamed display.
+   */
+  platf::touch_port_t platform_touch_port(const input::touch_port_t &touch_port) {
+    const bool has_logical_environment = touch_port.env_logical_width != 0 && touch_port.env_logical_height != 0;
+    return {
+      touch_port.offset_x,
+      touch_port.offset_y,
+      has_logical_environment ? touch_port.env_logical_width : touch_port.env_width,
+      has_logical_environment ? touch_port.env_logical_height : touch_port.env_height,
+      touch_port.logical_width,
+      touch_port.logical_height,
+      touch_port.env_offset_x,
+      touch_port.env_offset_y,
+    };
+  }
+
+  /**
    * @brief Forward a client input packet directly to the platform backend.
    *
    * @param input Platform input backend that receives the event.
@@ -719,7 +751,17 @@ namespace input {
     }
 
     input->mouse_left_button_timeout = DISABLE_LEFT_BUTTON_DELAY;
-    platf::move_mouse(platf_input, util::endian::big(packet->deltaX), util::endian::big(packet->deltaY));
+    refresh_touch_port(input);
+    if (input->touch_port) {
+      platf::move_mouse(
+        platf_input,
+        platform_touch_port(input->touch_port),
+        util::endian::big(packet->deltaX),
+        util::endian::big(packet->deltaY)
+      );
+    } else {
+      platf::move_mouse(platf_input, util::endian::big(packet->deltaX), util::endian::big(packet->deltaY));
+    }
   }
 
   /**
@@ -730,11 +772,8 @@ namespace input {
    * @return The host-relative coordinate pair if a touchport is available.
    */
   std::optional<std::pair<float, float>> client_to_touchport(std::shared_ptr<input_t> &input, const std::pair<float, float> &val, const std::pair<float, float> &size) {
-    auto &touch_port_event = input->touch_port_event;
+    refresh_touch_port(input);
     auto &touch_port = input->touch_port;
-    if (touch_port_event->peek()) {
-      touch_port = *touch_port_event->pop();
-    }
     if (!touch_port) {
       BOOST_LOG(verbose) << "Ignoring early absolute input without a touch port"sv;
       return std::nullopt;
@@ -846,26 +885,7 @@ namespace input {
 
     auto &touch_port = input->touch_port;
 
-    int touch_port_dim_x;
-    int touch_port_dim_y;
-    if (touch_port.env_logical_width != 0 && touch_port.env_logical_height != 0) {
-      touch_port_dim_x = touch_port.env_logical_width;
-      touch_port_dim_y = touch_port.env_logical_height;
-    } else {
-      touch_port_dim_x = touch_port.env_width;
-      touch_port_dim_y = touch_port.env_height;
-    }
-
-    platf::touch_port_t abs_port {
-      touch_port.offset_x,
-      touch_port.offset_y,
-      touch_port_dim_x,
-      touch_port_dim_y,
-      touch_port.logical_width,
-      touch_port.logical_height,
-    };
-
-    platf::abs_mouse(platf_input, abs_port, tpcoords->first, tpcoords->second);
+    platf::abs_mouse(platf_input, platform_touch_port(touch_port), tpcoords->first, tpcoords->second);
   }
 
   /**
@@ -2375,6 +2395,16 @@ namespace input {
       packet.flags = static_cast<char>(flags);
 
       // Keyboard packets are never batched, so this matches passthrough_next_message().
+      ::input::passthrough(input, &packet);
+    }
+
+    void send_relative_mouse_packet(std::shared_ptr<input_t> &input, std::int16_t delta_x, std::int16_t delta_y) {
+      NV_REL_MOUSE_MOVE_PACKET packet {};
+      packet.header.size = util::endian::big<std::uint32_t>(sizeof(packet) - sizeof(packet.header.size));
+      packet.header.magic = util::endian::little<std::uint32_t>(MOUSE_MOVE_REL_MAGIC_GEN5);
+      packet.deltaX = util::endian::big(delta_x);
+      packet.deltaY = util::endian::big(delta_y);
+
       ::input::passthrough(input, &packet);
     }
 
