@@ -174,8 +174,19 @@ namespace wl {
     inline platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
       auto to = std::chrono::steady_clock::now() + timeout;
 
+      // A frame copied with damage stays pending until the output changes, so after a timeout it is still in flight:
+      // keep waiting on it rather than requesting another, which would replace the buffer it is being copied into.
+      if (dmabuf.status != dmabuf_t::WAITING) {
+        dmabuf.listen(
+          interface.screencopy_manager,
+          interface.dmabuf_interface,
+          &interface.supported_modifiers,
+          output,
+          cursor
+        );
+      }
+
       // Dispatch events until we get a new frame or the timeout expires
-      dmabuf.listen(interface.screencopy_manager, interface.dmabuf_interface, &interface.supported_modifiers, output, cursor);
       do {
         auto remaining_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(to - std::chrono::steady_clock::now());
         if (remaining_time_ms.count() < 0 || !display.dispatch(remaining_time_ms)) {
