@@ -30,7 +30,7 @@
     "marked": "18.0.12",
     "vue": "3.5.43",
     "vue-i18n": "11.4.12",
-    "vue-router": "4.6.3",
+    "vue-router": "4.6.4",
     "vue3-simple-icons": "16.10.0"
   },
   "devDependencies": {
