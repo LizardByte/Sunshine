@@ -385,9 +385,3 @@ permissions on the disk.
 
 ### Stuttering
 If you experience stuttering using NVIDIA, try disabling `vsync:fast` in the NVIDIA Control Panel.
-
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

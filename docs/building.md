@@ -288,9 +288,3 @@ It may be beneficial to build remotely in some cases. This will enable easier bu
 2. Activate workflows
 3. Trigger the *CI* workflow manually
 4. Download the artifacts/binaries from the workflow run summary
-
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

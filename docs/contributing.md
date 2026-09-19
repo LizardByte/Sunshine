@@ -210,9 +210,3 @@ Even if your changes cannot be covered in the CI, we still encourage you to writ
 maintainers to run the tests locally.
 
 [crowdin-url]: https://translate.lizardbyte.dev
-
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

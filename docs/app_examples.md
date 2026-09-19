@@ -371,9 +371,3 @@ UAC prompt.
   "image-path": ""
 }
 ```
-
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

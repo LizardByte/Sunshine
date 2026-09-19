@@ -142,7 +142,6 @@ supported on the current platform.
         <td>Chinese (Traditional)</td>
     </tr>
 </table>
-
 ### sunshine_name
 
 <table>
@@ -3455,9 +3454,3 @@ supported on the current platform.
         <td>good for fast encoding and low-latency streaming</td>
     </tr>
 </table>
-
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

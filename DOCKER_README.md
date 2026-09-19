@@ -155,9 +155,3 @@ The architectures supported by these images are shown in the table below.
 | debian-bookworm | ✅            | ✅             |
 | ubuntu-22.04    | ✅            | ✅             |
 | ubuntu-24.04    | ✅            | ✅             |
-
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

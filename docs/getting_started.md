@@ -782,9 +782,4 @@ Guides are available [here](guides.md).
 Tutorials and Guides are community generated. Want to contribute? Reach out to us on our discord server.}
 
 
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>
-
 [latest-release]: https://github.com/LizardByte/Sunshine/releases/latest

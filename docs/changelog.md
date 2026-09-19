@@ -7,9 +7,3 @@
   src="https://raw.githubusercontent.com/LizardByte/Sunshine/changelog/CHANGELOG.md">
 </md-block>
 @endhtmlonly
-
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>
