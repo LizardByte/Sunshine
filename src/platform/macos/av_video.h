@@ -88,4 +88,16 @@ typedef bool (^FrameCallbackBlock)(CMSampleBufferRef);
  */
 - (dispatch_semaphore_t)capture:(FrameCallbackBlock)frameCallback;
 
+/**
+ * @brief Abandon a capture that has not ended on its own.
+ *
+ * The frame callback normally tears its own capture down by returning false. When the
+ * caller gives up on a capture that stopped delivering frames, such as after the display
+ * slept, this performs that teardown on its behalf.
+ *
+ * @param signal Semaphore previously returned by capture:.
+ * @note This method waits for any in-flight frame callback to finish before returning.
+ */
+- (void)stopCapture:(dispatch_semaphore_t)signal;
+
 @end
