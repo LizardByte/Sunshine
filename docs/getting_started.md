@@ -678,6 +678,7 @@ by default. You may replace *localhost* with your internal ip address.
 
 7. If you run into issues, logs are available in the `Troubleshooting` tab.
    You can navigate through each warning/error message for clues to the issue.
+
    ![Logs](images/troubleshooting-logs.png)
 
 ### Arguments
