@@ -18,6 +18,7 @@
   #include "src/platform/common.h"
 
 namespace platf::audio::tests {
+  bool com_is_available(HRESULT status);
   bool sink_device_available(const std::string &sink, IMMDeviceEnumerator *device_enum);
   bool microphone_available(const std::string &assigned_sink, const std::string &configured_sink, IMMDeviceEnumerator *device_enum);
   bool capture_follows_default_device(IMMDeviceEnumerator *device_enum, IMMDevice *capture_device);
@@ -242,6 +243,16 @@ namespace {
     std::wstring last_requested_id;
   };
 }  // namespace
+
+TEST(WindowsAudioTest, AcceptsUsableComInitializationResults) {
+  EXPECT_TRUE(platf::audio::tests::com_is_available(S_OK));
+  EXPECT_TRUE(platf::audio::tests::com_is_available(S_FALSE));
+  EXPECT_TRUE(platf::audio::tests::com_is_available(RPC_E_CHANGED_MODE));
+}
+
+TEST(WindowsAudioTest, RejectsFailedComInitializationResult) {
+  EXPECT_FALSE(platf::audio::tests::com_is_available(E_FAIL));
+}
 
 TEST(WindowsAudioTest, AssignedSinkTakesPriorityOverConfiguredSink) {
   fake_device_enumerator_t enumerator {L"assigned-id"};
