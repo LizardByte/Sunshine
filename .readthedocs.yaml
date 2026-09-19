@@ -9,16 +9,18 @@ build:
   os: ubuntu-24.04
   tools:
     python: "miniconda-latest"
-  commands:
-    - |
-      if [ -f readthedocs_build.sh ]; then
-        dockle_dir="."
-      else
-        dockle_dir="./third-party/dockle"
-      fi
-      chmod +x "${dockle_dir}/readthedocs_build.sh"
-      export DOCKLE_DIR="${dockle_dir}"
-      "${dockle_dir}/readthedocs_build.sh"
+  jobs:
+    build:
+      html:
+        - |
+          if [ -f readthedocs_build.sh ]; then
+            dockle_dir="."
+          else
+            dockle_dir="./third-party/dockle"
+          fi
+          chmod +x "${dockle_dir}/readthedocs_build.sh"
+          export DOCKLE_DIR="${dockle_dir}"
+          "${dockle_dir}/readthedocs_build.sh"
 
 conda:
   environment: third-party/dockle/environment.yml
