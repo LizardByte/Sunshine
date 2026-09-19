@@ -195,7 +195,7 @@ pacman -R sunshine
 Configure the `stable` repository for releases or the `beta` repository for prereleases. The setup script
 automatically selects the appropriate Debian or Ubuntu release.
 
-@tabs{
+@tabs_grouped{release-channel|:|
   @tab{ Stable |:| ```bash
     curl -1sLf 'https://dl.cloudsmith.io/public/lizardbyte/stable/cfg/setup/bash.deb.sh' | sudo -E bash
     ```}
@@ -240,7 +240,7 @@ sudo apt remove sunshine
 Configure the `stable` repository for releases or the `beta` repository for prereleases. Cloudsmith's setup script
 automatically selects Fedora or openSUSE and the appropriate release.
 
-@tabs{
+@tabs_grouped{release-channel|:|
   @tab{ Stable |:| ```bash
     curl -1sLf 'https://dl.cloudsmith.io/public/lizardbyte/stable/cfg/setup/bash.rpm.sh' | sudo -E bash
     ```}
@@ -251,7 +251,7 @@ automatically selects Fedora or openSUSE and the appropriate release.
 
 Install Sunshine with your distribution's package manager.
 
-@tabs{
+@tabs_grouped{distribution|:|
   @tab{ Fedora |:| ```bash
     sudo dnf install Sunshine
     ```}
@@ -264,7 +264,7 @@ Install Sunshine with your distribution's package manager.
 
 Download `Sunshine-{version}-1.{distro+version}.{arch}.rpm` and run the following command.
 
-@tabs{
+@tabs_grouped{distribution|:|
   @tab{ Fedora |:| ```bash
     sudo dnf install ./Sunshine-{version}-1.{distro+version}.{arch}.rpm
     ```}
@@ -282,7 +282,7 @@ Download `Sunshine-{version}-1.{distro+version}.{arch}.rpm` and run the followin
 
 ##### Uninstall
 
-@tabs{
+@tabs_grouped{distribution|:|
   @tab{ Fedora |:| ```bash
     sudo dnf remove Sunshine
     ```}
@@ -683,7 +683,7 @@ by default. You may replace *localhost* with your internal ip address.
 ### Arguments
 To get a list of available arguments, run the following command.
 
-@tabs{
+@tabs_grouped{linux-package|:|
    @tab{ General |:| ```bash
       sunshine --help
       ```}
@@ -755,7 +755,7 @@ Streaming HDR content is officially supported on Windows hosts and experimentall
 
 Additional information:
 
-@tabs{
+@tabs_grouped{platform|:|
   @tab{ Windows |:|
   - HDR streaming is supported for Intel, AMD, and NVIDIA GPUs that support encoding HEVC Main 10 or AV1 10-bit profiles.
   - We recommend calibrating the display by streaming the Windows HDR Calibration app to your client device and saving an HDR calibration profile to use while streaming.

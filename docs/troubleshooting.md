@@ -5,7 +5,7 @@
 ### Forgotten Credentials
 If you forgot your credentials to the web UI, try this.
 
-@tabs{
+@tabs_grouped{linux-package|:|
   @tab{General |:| ```bash
     sunshine --creds {new-username} {new-password}
     ```

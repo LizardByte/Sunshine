@@ -135,7 +135,7 @@ brew install "${dependencies[@]}"
 
 If there are issues with an SSL header that is not found:
 
-@tabs{
+@tabs_grouped{mac-architecture|:|
   @tab{ Intel |:| ```bash
     ln -s /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
     ```}
@@ -249,7 +249,7 @@ ninja -C build
 
 ### Package
 
-@tabs{
+@tabs_grouped{platform|:|
   @tab{FreeBSD |:| @tabs{
     @tab{pkg |:| ```bash
       cpack -G FREEBSD --config ./build/CPackConfig.cmake

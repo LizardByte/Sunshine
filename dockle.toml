@@ -17,6 +17,7 @@ name = "docs"
 title = "Sunshine documentation"
 framework = "doxygen"
 source = "."
+home = true
 
 [targets.doxygen]
 inputs = [

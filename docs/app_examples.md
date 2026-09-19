@@ -25,7 +25,7 @@ and applications to Sunshine.
 > Steam is launched as a detached command because Steam starts with a process that self updates itself and the original
 > process is killed.
 
-@tabs{
+@tabs_grouped{platform|:|
   @tab{FreeBSD |:| <!-- -->
     \| Field                        \| Value                                                \|
     \|------------------------------\|------------------------------------------------------\|
@@ -67,7 +67,7 @@ and applications to Sunshine.
 
 #### URI
 
-@tabs{
+@tabs_grouped{platform|:|
   @tab{Windows |:| <!-- -->
     \| Field            \| Value                                                                                                                                                 \|
     \|------------------\|-------------------------------------------------------------------------------------------------------------------------------------------------------\|
@@ -77,7 +77,7 @@ and applications to Sunshine.
 }
 
 #### Binary (w/ working directory
-@tabs{
+@tabs_grouped{platform|:|
   @tab{Windows |:| <!-- -->
     \| Field             \| Value                                                      \|
     \|-------------------\|------------------------------------------------------------\|
@@ -88,7 +88,7 @@ and applications to Sunshine.
 }
 
 #### Binary (w/o working directory)
-@tabs{
+@tabs_grouped{platform|:|
   @tab{Windows |:| <!-- -->
     \| Field             \| Value                                                                   \|
     \|-------------------\|-------------------------------------------------------------------------\|
@@ -104,7 +104,7 @@ and applications to Sunshine.
 
 #### URI
 
-@tabs{
+@tabs_grouped{platform|:|
   @tab{FreeBSD |:| <!-- -->
     \| Field             \| Value                                                \|
     \|-------------------\|------------------------------------------------------\|
@@ -132,7 +132,7 @@ and applications to Sunshine.
 }
 
 #### Binary (w/ working directory
-@tabs{
+@tabs_grouped{platform|:|
   @tab{FreeBSD |:| <!-- -->
     \| Field             \| Value                                                        \|
     \|-------------------\|--------------------------------------------------------------\|
@@ -164,7 +164,7 @@ and applications to Sunshine.
 }
 
 #### Binary (w/o working directory)
-@tabs{
+@tabs_grouped{platform|:|
   @tab{FreeBSD |:| <!-- -->
     \| Field             \| Value                                                                  \|
     \|-------------------\|------------------------------------------------------------------------\|
