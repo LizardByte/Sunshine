@@ -155,16 +155,3 @@ The architectures supported by these images are shown in the table below.
 | debian-bookworm | ✅            | ✅             |
 | ubuntu-22.04    | ✅            | ✅             |
 | ubuntu-24.04    | ✅            | ✅             |
-
-<div class="section_buttons">
-
-| Previous                       |                                                 Next |
-|:-------------------------------|-----------------------------------------------------:|
-| [Changelog](docs/changelog.md) | [Third-Party Packages](docs/third_party_packages.md) |
-
-</div>
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

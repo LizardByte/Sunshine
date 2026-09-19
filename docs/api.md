@@ -99,16 +99,3 @@ curl -u user:pass -H "X-CSRF-Token: your_token_here" \
 
 ## GET /api/virtual-input/status
 @copydoc confighttp::getVirtualInputStatus()
-
-<div class="section_buttons">
-
-| Previous                                    |                                  Next |
-|:--------------------------------------------|--------------------------------------:|
-| [Performance Tuning](performance_tuning.md) | [Troubleshooting](troubleshooting.md) |
-
-</div>
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>
