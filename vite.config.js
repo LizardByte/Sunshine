@@ -1,10 +1,12 @@
 import fs from 'node:fs';
 import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import { codecovVitePlugin } from "@codecov/vite-plugin";
 import vue from '@vitejs/plugin-vue'
 import process from 'node:process'
 
+const projectRoot = fileURLToPath(new URL('.', import.meta.url));
 let assetsSrcPath = 'src_assets/common/assets/web';
 let assetsDstPath = 'build/assets/web';
 
@@ -31,6 +33,26 @@ else {
     }
 }
 
+const emitTrayIconsPlugin = {
+    name: 'emit-tray-icons',
+    buildStart() {
+        this.emitFile({
+            type: 'asset',
+            fileName: 'images/logo-sunshine.svg',
+            source: fs.readFileSync(resolve(projectRoot, 'sunshine.svg')),
+        });
+
+        const virtualHidIcon = resolve(projectRoot, 'third-party/libvirtualhid/libvirtualhid.svg');
+        if (process.platform === 'win32' && fs.existsSync(virtualHidIcon)) {
+            this.emitFile({
+                type: 'asset',
+                fileName: 'images/logo-libvirtualhid.svg',
+                source: fs.readFileSync(virtualHidIcon),
+            });
+        }
+    },
+};
+
 // https://vitejs.dev/config/
 export default defineConfig({
     resolve: {
@@ -41,6 +63,7 @@ export default defineConfig({
     base: '/',
     plugins: [
         vue(),
+        emitTrayIconsPlugin,
         // The Codecov vite plugin should be after all other plugins
         codecovVitePlugin({
             enableBundleAnalysis: true,
