@@ -7,6 +7,7 @@
 #include <array>
 #include <atomic>
 #include <bitset>
+#include <deque>
 #include <list>
 #include <thread>
 #include <utility>
@@ -476,6 +477,7 @@ namespace video {
       replacements = std::move(other.replacements);
       sps = std::move(other.sps);
       vps = std::move(other.vps);
+      frame_timestamps = std::move(other.frame_timestamps);
 
       inject = other.inject;
 
@@ -538,6 +540,8 @@ namespace video {
 
     // inject sps/vps data into idr pictures
     int inject;  ///< Number of upcoming IDR frames that should receive rewritten parameter sets.
+
+    frame_timestamp_queue_t frame_timestamps;  ///< Capture timestamps of in-flight frames keyed by pts, awaiting their encoded packets.
   };
 
   /**
@@ -1813,6 +1817,31 @@ namespace video {
     }
   }
 
+  void remember_frame_timestamp(frame_timestamp_queue_t &timestamps, int64_t frame_nr, const std::optional<std::chrono::steady_clock::time_point> &frame_timestamp) {
+    if (!frame_timestamp) {
+      return;
+    }
+
+    timestamps.emplace_back(frame_nr, *frame_timestamp);
+    if (timestamps.size() > 128) {
+      timestamps.pop_front();
+    }
+  }
+
+  std::optional<std::chrono::steady_clock::time_point> match_frame_timestamp(frame_timestamp_queue_t &timestamps, int64_t pts) {
+    while (!timestamps.empty() && timestamps.front().first < pts) {
+      timestamps.pop_front();
+    }
+
+    if (!timestamps.empty() && timestamps.front().first == pts) {
+      auto timestamp = timestamps.front().second;
+      timestamps.pop_front();
+      return timestamp;
+    }
+
+    return std::nullopt;
+  }
+
   /**
    * @brief Drain encoded packets from an FFmpeg encoder session.
    *
@@ -1826,6 +1855,8 @@ namespace video {
   int encode_avcodec(int64_t frame_nr, avcodec_encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
     auto &frame = session.device->frame;
     frame->pts = frame_nr;
+
+    remember_frame_timestamp(session.frame_timestamps, frame_nr, frame_timestamp);
 
     auto &ctx = session.avcodec_ctx;
 
@@ -1885,9 +1916,7 @@ namespace video {
         );
       }
 
-      if (av_packet && av_packet->pts == frame_nr) {
-        packet->frame_timestamp = frame_timestamp;
-      }
+      packet->frame_timestamp = match_frame_timestamp(session.frame_timestamps, av_packet->pts);
 
       packet->replacements = &session.replacements;
       packet->channel_data = channel_data;
