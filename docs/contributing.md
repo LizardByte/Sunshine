@@ -23,11 +23,11 @@ Read our contribution guide in our organization level
 #### Building
 
 @tabs{
-  @tab{CMake | ```bash
+  @tab{CMake |:| ```bash
     cmake -B build -G Ninja -S . --target web-ui
     ninja -C build web-ui
     ```}
-  @tab{Manual | ```bash
+  @tab{Manual |:| ```bash
     npm run dev
     ```}
 }
@@ -46,7 +46,7 @@ The default language is `en` (English).
 
 ![](https://app.lizardbyte.dev/dashboard/crowdin/LizardByte_graph.svg)
 
-@admonition{Community | We are looking for language coordinators to help approve translations.
+@admonition{Community |:| We are looking for language coordinators to help approve translations.
 The goal is to have the bars above filled with green!
 If you are interested, please reach out to us on our Discord server.}
 
@@ -210,16 +210,3 @@ Even if your changes cannot be covered in the CI, we still encourage you to writ
 maintainers to run the tests locally.
 
 [crowdin-url]: https://translate.lizardbyte.dev
-
-<div class="section_buttons">
-
-| Previous                |                                                         Next |
-|:------------------------|-------------------------------------------------------------:|
-| [Building](building.md) | [Source Code](../third-party/doxyconfig/docs/source_code.md) |
-
-</div>
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

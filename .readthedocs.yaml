@@ -8,22 +8,23 @@ version: 2
 build:
   os: ubuntu-24.04
   tools:
+    nodejs: "24"
     python: "miniconda-latest"
-  commands:
-    - |
-      if [ -f readthedocs_build.sh ]; then
-        doxyconfig_dir="."
-      else
-        doxyconfig_dir="./third-party/doxyconfig"
-      fi
-      chmod +x "${doxyconfig_dir}/readthedocs_build.sh"
-      export DOXYCONFIG_DIR="${doxyconfig_dir}"
-      "${doxyconfig_dir}/readthedocs_build.sh"
+  jobs:
+    build:
+      html:
+        - |
+          if [ -f readthedocs_build.sh ]; then
+            dockle_dir="."
+          else
+            dockle_dir="./third-party/dockle"
+          fi
+          chmod +x "${dockle_dir}/readthedocs_build.sh"
+          export DOCKLE_DIR="${dockle_dir}"
+          "${dockle_dir}/readthedocs_build.sh"
 
-# using conda, we can get newer doxygen and graphviz than ubuntu provide
-# https://github.com/readthedocs/readthedocs.org/issues/8151#issuecomment-890359661
 conda:
-  environment: third-party/doxyconfig/environment.yml
+  environment: third-party/dockle/environment.yml
 
 submodules:
   include: all

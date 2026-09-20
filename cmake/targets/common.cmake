@@ -97,7 +97,8 @@ add_custom_target(web-ui ALL
 
 # docs
 if(BUILD_DOCS)
-    add_subdirectory(third-party/doxyconfig docs)
+    include(third-party/dockle/cmake/Dockle.cmake)
+    dockle_add_docs(docs TARGETS docs)
 endif()
 
 # tests

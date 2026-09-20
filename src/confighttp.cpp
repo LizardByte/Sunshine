@@ -1004,7 +1004,7 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    *
-   * @api_examples{/api/csrf-token| GET| null}
+   * @api_examples{/api/csrf-token|:| GET|:| null}
    */
   void getCSRFToken(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
@@ -1026,7 +1026,7 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    *
-   * @api_examples{/api/apps| GET| null}
+   * @api_examples{/api/apps|:| GET|:| null}
    */
   void getApps(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
@@ -1111,7 +1111,7 @@ namespace confighttp {
    * }
    * @endcode
    *
-   * @api_examples{/api/apps| POST| {"name":"Hello, World!","index":-1}}
+   * @api_examples{/api/apps|:| POST|:| {"name":"Hello, World!","index":-1}}
    */
   void saveApp(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
@@ -1186,7 +1186,7 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    *
-   * @api_examples{/api/apps/close| POST| null}
+   * @api_examples{/api/apps/close|:| POST|:| null}
    */
   void closeApp(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
@@ -1212,7 +1212,7 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    *
-   * @api_examples{/api/apps/9999| DELETE| null}
+   * @api_examples{/api/apps/9999|:| DELETE|:| null}
    */
   void deleteApp(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
@@ -1263,7 +1263,7 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    *
-   * @api_examples{/api/clients/list| GET| null}
+   * @api_examples{/api/clients/list|:| GET|:| null}
    */
   void getClients(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
@@ -1292,7 +1292,7 @@ namespace confighttp {
    * }
    * @endcode
    *
-   * @api_examples{/api/clients/update| POST| {"uuid":"<uuid>","enabled":true}}
+   * @api_examples{/api/clients/update|:| POST|:| {"uuid":"<uuid>","enabled":true}}
    */
   void updateClient(resp_https_t response, req_https_t request) {
     if (!check_content_type(response, request, "application/json")) {
@@ -1346,7 +1346,7 @@ namespace confighttp {
    * }
    * @endcode
    *
-   * @api_examples{/api/unpair| POST| {"uuid":"1234"}}
+   * @api_examples{/api/unpair|:| POST|:| {"uuid":"1234"}}
    */
   void unpair(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
@@ -1390,7 +1390,7 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    *
-   * @api_examples{/api/clients/unpair-all| POST| null}
+   * @api_examples{/api/clients/unpair-all|:| POST|:| null}
    */
   void unpairAll(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
@@ -1417,7 +1417,7 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    *
-   * @api_examples{/api/config| GET| null}
+   * @api_examples{/api/config|:| GET|:| null}
    */
   void getConfig(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
@@ -1445,7 +1445,7 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    *
-   * @api_examples{/api/configLocale| GET| null}
+   * @api_examples{/api/configLocale|:| GET|:| null}
    */
   void getLocale(const resp_https_t &response, const req_https_t &request) {
     // we need to return the locale whether authenticated or not
@@ -1471,7 +1471,7 @@ namespace confighttp {
    *
    * @attention{It is recommended to ONLY save the config settings that differ from the default behavior.}
    *
-   * @api_examples{/api/config| POST| {"key":"value"}}
+   * @api_examples{/api/config|:| POST|:| {"key":"value"}}
    */
   void saveConfig(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
@@ -1520,7 +1520,7 @@ namespace confighttp {
    *
    * @note{The index in the url path is the application index.}
    *
-   * @api_examples{/api/covers/9999 | GET| null}
+   * @api_examples{/api/covers/9999 |:| GET|:| null}
    */
   void getCover(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
@@ -1590,7 +1590,7 @@ namespace confighttp {
    * }
    * @endcode
    *
-   * @api_examples{/api/covers/upload| POST| {"key":"igdb_1234","url":"https://images.igdb.com/igdb/image/upload/t_cover_big_2x/abc123.png"}}
+   * @api_examples{/api/covers/upload|:| POST|:| {"key":"igdb_1234","url":"https://images.igdb.com/igdb/image/upload/t_cover_big_2x/abc123.png"}}
    */
   void uploadCover(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
@@ -1646,7 +1646,7 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    *
-   * @api_examples{/api/logs| GET| null}
+   * @api_examples{/api/logs|:| GET|:| null}
    */
   void getLogs(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
@@ -1678,7 +1678,7 @@ namespace confighttp {
    * }
    * @endcode
    *
-   * @api_examples{/api/password| POST| {"currentUsername":"admin","currentPassword":"admin","newUsername":"admin","newPassword":"admin","confirmNewPassword":"admin"}}
+   * @api_examples{/api/password|:| POST|:| {"currentUsername":"admin","currentPassword":"admin","newUsername":"admin","newPassword":"admin","confirmNewPassword":"admin"}}
    */
   void savePassword(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
@@ -1747,7 +1747,7 @@ namespace confighttp {
   /**
    * @brief List client pairing requests that are waiting for PIN approval.
    *
-   * @api_examples{/api/pin| GET| null}
+   * @api_examples{/api/pin|:| GET|:| null}
    */
   void getPendingPairings(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
@@ -1777,7 +1777,7 @@ namespace confighttp {
    * }
    * @endcode
    *
-   * @api_examples{/api/pin| DELETE| {"pairing_id":"0123456789abcdef0123456789abcdef"}}
+   * @api_examples{/api/pin|:| DELETE|:| {"pairing_id":"0123456789abcdef0123456789abcdef"}}
    */
   void cancelPairing(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
@@ -1828,7 +1828,7 @@ namespace confighttp {
    * }
    * @endcode
    *
-   * @api_examples{/api/pin| POST| {"pairing_id":"0123456789abcdef0123456789abcdef","pin":"1234","name":"My PC"}}
+   * @api_examples{/api/pin|:| POST|:| {"pairing_id":"0123456789abcdef0123456789abcdef","pin":"1234","name":"My PC"}}
    */
   void savePin(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
@@ -1879,7 +1879,7 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    *
-   * @api_examples{/api/reset-display-device-persistence| POST| null}
+   * @api_examples{/api/reset-display-device-persistence|:| POST|:| null}
    */
   void resetDisplayDevicePersistence(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
@@ -1905,7 +1905,7 @@ namespace confighttp {
    * @param response HTTP response used for authentication, CSRF, and status output.
    * @param request HTTP request carrying the client identity and CSRF token.
    *
-   * @api_examples{/api/reset-portal-token| POST| null}
+   * @api_examples{/api/reset-portal-token|:| POST|:| null}
    */
   void resetPortalToken(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
@@ -1940,7 +1940,7 @@ namespace confighttp {
    * @param response HTTP response used for authentication or CSRF failures.
    * @param request HTTP request carrying the client identity and CSRF token.
    *
-   * @api_examples{/api/restart| POST| null}
+   * @api_examples{/api/restart|:| POST|:| null}
    */
   void restart(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
@@ -2033,7 +2033,7 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    *
-   * @api_examples{/api/virtual-input/status| GET| null}
+   * @api_examples{/api/virtual-input/status|:| GET|:| null}
    */
   void getVirtualInputStatus(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
@@ -2054,7 +2054,7 @@ namespace confighttp {
    * @param response HTTP response object.
    * @param request Authenticated HTTP request.
    *
-   * @api_examples{/api/virtual-input/license| GET| null}
+   * @api_examples{/api/virtual-input/license|:| GET|:| null}
    */
   void getVirtualInputLicense(const resp_https_t &response, const req_https_t &request) {
     get_virtual_input_license(response, request);
@@ -2070,7 +2070,7 @@ namespace confighttp {
    * @param response HTTP response object.
    * @param request Authenticated HTTP request with a JSON action.
    *
-   * @api_examples{/api/virtual-input/license| POST| {"action":"validate"}}
+   * @api_examples{/api/virtual-input/license|:| POST|:| {"action":"validate"}}
    */
   void updateVirtualInputLicense(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
@@ -2235,7 +2235,7 @@ namespace confighttp {
    * @note On Windows, an empty or root path returns the list of available drive letters.
    * @note On non-Windows, an empty path defaults to the filesystem root ("/").
    *
-   * @api_examples{/api/browse?path=/home/user&type=directory| GET| null}
+   * @api_examples{/api/browse?path=/home/user&type=directory|:| GET|:| null}
    */
   void browseDirectory(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
