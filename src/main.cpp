@@ -387,12 +387,23 @@ int main(int argc, char *argv[]) {
 
 #endif
 
-  task_pool.start(1);
+  int task_pool_threads = 1;
+#ifdef SUNSHINE_BUILD_PORTAL
+  if (!portal::has_saved_token()) {
+    // Allocate an extra thread for fallback capture otherwise the XDG pending reply will block.
+    task_pool_threads = 2;
+  }
+#endif
+  task_pool.start(task_pool_threads);
 
   // Create signal handler after logging has been initialized
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
   on_signal(SIGINT, [&force_shutdown, &display_device_deinit_guard, shutdown_event]() {
     BOOST_LOG(info) << "Interrupt handler called"sv;
+
+#ifdef SUNSHINE_BUILD_PORTAL
+    portal::cancel_pending_requests();
+#endif
 
     auto task = []() {
       BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;
@@ -413,6 +424,10 @@ int main(int argc, char *argv[]) {
 
   on_signal(SIGTERM, [&force_shutdown, &display_device_deinit_guard, shutdown_event]() {
     BOOST_LOG(info) << "Terminate handler called"sv;
+
+#ifdef SUNSHINE_BUILD_PORTAL
+    portal::cancel_pending_requests();
+#endif
 
     auto task = []() {
       BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;

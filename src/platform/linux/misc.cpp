@@ -61,6 +61,7 @@
 #include "src/boost_process_compat.h"
 #include "src/config.h"
 #include "src/entry_handler.h"
+#include "src/globals.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "vaapi.h"
@@ -1217,8 +1218,35 @@ namespace platf {
   std::vector<std::string> portal_display_names();
   std::shared_ptr<display_t> portal_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
-  bool verify_portal() {
-    return !portal_display_names().empty();
+  /**
+   * @brief Verify Portal capture or begin token negotiation via TaskPool.
+   *
+   * Clears selected_capture when Portal token negotiation is required so
+   * another capture backend can be used during this session.
+   */
+  bool verify_portal(std::string &selected_capture) {
+    if (!portal::is_portal_service_reachable()) {
+      BOOST_LOG(debug) << "[portalgrab] xdg-desktop-portal not reachable; skipping Portal capture."sv;
+      return false;
+    }
+
+    if (portal::has_saved_token()) {
+      return !portal_display_names().empty();
+    } else {
+      selected_capture.clear();
+      BOOST_LOG(fatal) << "Portal capture is awaiting permission. "
+                       << "The effective capture method is 'Autodetect (non-Portal)' "
+                       << "until Portal setup completes.";
+
+      task_pool.push([]() {
+        if (!portal_display_names().empty()) {
+          platf::restart();
+        } else {
+          BOOST_LOG(error) << "[portalgrab] Portal session token was not negotiated.";
+        }
+      });
+    }
+    return false;
   }
 #endif
 
@@ -1290,8 +1318,16 @@ namespace platf {
   }
 
   std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
-    // Please ensure that KMS followed by CUDA remains at the top so that we can
-    // drop DRM worker privileges once neither backend requires it.
+    // Keep Portal as the first element to signal it as the preferred autodetect option.
+    // KMS and CUDA belong just below Portal; DRM worker privileges will be dropped for all other sources.
+#ifdef SUNSHINE_BUILD_PORTAL
+    if (sources[source::PORTAL]) {
+      BOOST_LOG(info) << "Screencasting with XDG portal"sv;
+      // Drop all DRM worker thread privileges for Portal capture.
+      platf::kms::drop_drm_worker_privileges();
+      return portal_display(hwdevice_type, display_name, config);
+    }
+#endif
 
 #ifdef SUNSHINE_BUILD_DRM
     if (sources[source::KMS]) {
@@ -1322,12 +1358,6 @@ namespace platf {
     if (sources[source::X11]) {
       BOOST_LOG(info) << "Screencasting with X11"sv;
       return x11_display(hwdevice_type, display_name, config);
-    }
-#endif
-#ifdef SUNSHINE_BUILD_PORTAL
-    if (sources[source::PORTAL]) {
-      BOOST_LOG(info) << "Screencasting with XDG portal"sv;
-      return portal_display(hwdevice_type, display_name, config);
     }
 #endif
 #ifdef SUNSHINE_BUILD_KWIN
@@ -1372,35 +1402,39 @@ namespace platf {
     }
 #endif
 
+    // Avoid mutating config directly if Portal needs to run in fallback capture mode.
+    std::string selected_capture = config::video.capture;
+
+    // Check Portal first so token negotiation can fall back to another capture backend.
+#ifdef SUNSHINE_BUILD_PORTAL
+    if ((selected_capture.empty() || selected_capture == "portal") && verify_portal(selected_capture)) {
+      sources[source::PORTAL] = true;
+    }
+#endif
 #ifdef SUNSHINE_BUILD_CUDA
-    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "nvfbc") && verify_nvfbc()) {
+    if (((selected_capture.empty() && sources.none()) || selected_capture == "nvfbc") && verify_nvfbc()) {
       sources[source::NVFBC] = true;
     }
 #endif
 #ifdef SUNSHINE_BUILD_WAYLAND
-    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "wlr") && verify_wl()) {
+    if (((selected_capture.empty() && sources.none()) || selected_capture == "wlr") && verify_wl()) {
       sources[source::WAYLAND] = true;
     }
 #endif
 #ifdef SUNSHINE_BUILD_DRM
-    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "kms") && verify_kms()) {
+    if (((selected_capture.empty() && sources.none()) || selected_capture == "kms") && verify_kms()) {
       sources[source::KMS] = true;
     }
 #endif
 #ifdef SUNSHINE_BUILD_X11
     // We enumerate this capture backend regardless of other suitable sources,
     // since it may be needed as a NvFBC fallback for software encoding on X11.
-    if ((config::video.capture.empty() || config::video.capture == "x11") && verify_x11()) {
+    if ((selected_capture.empty() || selected_capture == "x11") && verify_x11()) {
       sources[source::X11] = true;
     }
 #endif
-#ifdef SUNSHINE_BUILD_PORTAL
-    if ((config::video.capture.empty() || config::video.capture == "portal") && verify_portal()) {
-      sources[source::PORTAL] = true;
-    }
-#endif
 #ifdef SUNSHINE_BUILD_KWIN
-    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "kwin") && verify_kwin()) {
+    if (((selected_capture.empty() && sources.none()) || selected_capture == "kwin") && verify_kwin()) {
       sources[source::KWIN] = true;
     }
 #endif
@@ -1563,4 +1597,5 @@ namespace platf {
     }
 #endif
   }
+
 }  // namespace platf

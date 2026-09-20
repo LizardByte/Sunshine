@@ -32,6 +32,24 @@ namespace {
 using namespace std::literals;
 
 namespace portal {
+  namespace {
+    GCancellable *shutdown_cancellable() {
+      static GCancellable *cancellable = g_cancellable_new();
+      return cancellable;
+    }
+
+    void quit_loop_on_cancel(GCancellable *, gpointer user_data) {
+      g_main_loop_quit(static_cast<GMainLoop *>(user_data));
+    }
+  }  // namespace
+
+  /**
+   * @brief Cancel any pending DBus requests.
+   */
+  void cancel_pending_requests() {
+    g_cancellable_cancel(shutdown_cancellable());
+  }
+
   // Forward declarations
   class runtime_t;
 
@@ -70,14 +88,16 @@ namespace portal {
     /**
      * @brief Load persisted state from its backing store.
      */
-    static void load() {
+    static bool load() {
       std::ifstream file(get_file_path());
       if (file.is_open()) {
         std::getline(file, *token_);
         if (!token_->empty()) {
           BOOST_LOG(info) << "[portalgrab] Loaded portal restore token from disk"sv;
+          return true;
         }
       }
+      return false;
     }
 
     /**
@@ -105,12 +125,51 @@ namespace portal {
   };
 
   /**
+   * @brief Check if a Portal restore token already exists on disk.
+   *
+   * @return True if a saved token was found.
+   */
+  bool has_saved_token() {
+    return restore_token_t::load();
+  }
+
+  /**
+   * @brief Check if the Portal service is reachable via simple DBus ping with 2s timeout.
+   *
+   * @return True if the Portal is reachable.
+   */
+  bool is_portal_service_reachable() {
+    g_autoptr(GError) error = nullptr;
+    g_autoptr(GDBusConnection) conn = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, &error);
+    if (!conn) {
+      return false;
+    }
+
+    g_autoptr(GVariant) reply = g_dbus_connection_call_sync(
+      conn,
+      "org.freedesktop.portal.Desktop",
+      "/org/freedesktop/portal/desktop",
+      "org.freedesktop.DBus.Peer",
+      "Ping",
+      nullptr,
+      nullptr,
+      G_DBUS_CALL_FLAGS_NONE,
+      2000,
+      nullptr,
+      &error
+    );
+    return reply != nullptr;
+  }
+
+  /**
    * @brief DBus response loop and response variant for portal calls.
    */
   struct dbus_response_t {
     GMainLoop *loop;  ///< GLib main loop waiting for a portal response signal.
     GVariant *response;  ///< DBus response payload returned by the portal.
     guint subscription_id;  ///< Subscription ID.
+    std::string request_path;  ///< For Request.Close() on cancellation.
+    GDBusConnection *conn;  ///< Borrowed — owned by the calling dbus_t/portal_t.
   };
 
   /**
@@ -690,14 +749,69 @@ namespace portal {
       }
     }
 
-    static void dbus_response_init(struct dbus_response_t *response, GMainLoop *loop, GDBusConnection *conn, const char *request_path) {
-      response->loop = loop;
-      response->subscription_id = g_dbus_connection_signal_subscribe(conn, PORTAL_NAME, REQUEST_IFACE, "Response", request_path, nullptr, G_DBUS_SIGNAL_FLAGS_NONE, on_response_received_cb, response, nullptr);
+    static void close_request_async(GDBusConnection *conn, const std::string &request_path) {
+      g_dbus_connection_call(
+        conn,
+        PORTAL_NAME,
+        request_path.c_str(),
+        REQUEST_IFACE,
+        "Close",
+        nullptr,
+        nullptr,
+        G_DBUS_CALL_FLAGS_NONE,
+        -1,
+        nullptr,
+        nullptr,
+        nullptr
+      );
     }
 
-    static GVariant *dbus_response_wait(struct dbus_response_t *response) {
+    static void dbus_response_init(struct dbus_response_t *response, GMainLoop *loop, GDBusConnection *conn, const char *request_path) {
+      response->loop = loop;
+      response->conn = conn;
+      response->request_path = request_path;
+      response->subscription_id = g_dbus_connection_signal_subscribe(
+        conn,
+        PORTAL_NAME,
+        REQUEST_IFACE,
+        "Response",
+        request_path,
+        nullptr,
+        G_DBUS_SIGNAL_FLAGS_NONE,
+        on_response_received_cb,
+        response,
+        nullptr
+      );
+    }
+
+    static GVariant *dbus_response_wait(dbus_response_t *response) {
+      auto *cancellable = shutdown_cancellable();
+
+      if (g_cancellable_is_cancelled(cancellable)) {
+        close_request_async(response->conn, response->request_path);
+        return nullptr;
+      }
+
+      const auto id = g_cancellable_connect(
+        cancellable,
+        G_CALLBACK(quit_loop_on_cancel),
+        response->loop,
+        nullptr
+      );
+
       g_main_loop_run(response->loop);
-      return response->response;
+      g_cancellable_disconnect(cancellable, id);
+
+      if (response->response) {
+        return response->response;
+      }
+
+      if (g_cancellable_is_cancelled(cancellable)) {
+        BOOST_LOG(info) << "[portalgrab] Portal request cancelled (shutting down)"sv;
+        close_request_async(response->conn, response->request_path);
+      }
+
+      return nullptr;
     }
   };
 
