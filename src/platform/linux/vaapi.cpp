@@ -54,6 +54,7 @@ extern "C" {
 }
 
 // local includes
+#include "vaapi_entrypoint.h"
 #include "graphics.h"
 #include "misc.h"
 #include "src/config.h"
@@ -196,7 +197,7 @@ namespace va {
     }
 
     /**
-     * @brief Finds a supported VA entrypoint for the given VA profile.
+     * @brief Finds an encoding entrypoint, preferring support for the requested rate control.
      * @param profile The profile to match.
      * @return A valid encoding entrypoint or 0 on failure.
      */
@@ -210,19 +211,16 @@ namespace va {
       }
       entrypoints.resize(num_eps);
 
-      // Sorted in order of descending preference
-      VAEntrypoint ep_preferences[] = {
-        VAEntrypointEncSliceLP,
-        VAEntrypointEncSlice,
-        VAEntrypointEncPicture
-      };
-      for (auto ep_pref : ep_preferences) {
-        if (std::find(entrypoints.begin(), entrypoints.end(), ep_pref) != entrypoints.end()) {
-          return ep_pref;
+      // A low-power entrypoint may advertise only CQP even when the normal
+      // entrypoint supports bitrate control. Keep LP preferred when it supports
+      // the requested mode, but inspect alternatives before falling back to CQP.
+      return select_encoding_entrypoint(entrypoints, config::video.vaapi.vaapi_rc.value_or(0), [&](VAEntrypoint ep) -> uint32_t {
+        VAConfigAttrib rc_attr = {.type = VAConfigAttribRateControl};
+        if (vaGetConfigAttributes(va_display, profile, ep, &rc_attr, 1) != VA_STATUS_SUCCESS) {
+          return 0;
         }
-      }
-
-      return (VAEntrypoint) 0;
+        return rc_attr.value;
+      });
     }
 
     /**
