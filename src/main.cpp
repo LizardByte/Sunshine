@@ -16,12 +16,11 @@
   #include <mach-o/dyld.h>
 #endif
 #ifdef __linux__
+  #include "platform/common.h"
   #include "platform/linux/graphics.h"
+  #include "platform/linux/misc.h"
 
   #include <sys/auxv.h>
-  #if defined(SUNSHINE_BUILD_DRM)
-    #include "platform/linux/misc.h"
-  #endif
 #endif
 
 // lib includes
@@ -43,11 +42,6 @@
 #include "system_tray.h"
 #include "upnp.h"
 #include "video.h"
-
-#ifdef __linux__
-  #include "platform/common.h"
-  #include "platform/linux/misc.h"
-#endif
 
 using namespace std::literals;
 
@@ -389,7 +383,7 @@ int main(int argc, char *argv[]) {
 
   int task_pool_threads = 1;
 #ifdef SUNSHINE_BUILD_PORTAL
-  if (!portal::has_saved_token()) {
+  if (!portal::has_saved_token() && (config::video.capture == "portal" || !platf::kwin_available())) {
     // Allocate an extra thread for fallback capture otherwise the XDG pending reply will block.
     task_pool_threads = 2;
   }

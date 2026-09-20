@@ -1215,7 +1215,7 @@ namespace platf {
 #endif
 
 #ifdef SUNSHINE_BUILD_PORTAL
-  std::vector<std::string> portal_display_names();
+  std::vector<std::string> portal_display_names(bool allow_timeout);
   std::shared_ptr<display_t> portal_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
   /**
@@ -1230,22 +1230,34 @@ namespace platf {
       return false;
     }
 
-    if (portal::has_saved_token()) {
-      return !portal_display_names().empty();
-    } else {
-      selected_capture.clear();
-      BOOST_LOG(fatal) << "Portal capture is awaiting permission. "
-                       << "The effective capture method is 'Autodetect (non-Portal)' "
-                       << "until Portal setup completes.";
-
-      task_pool.push([]() {
-        if (!portal_display_names().empty()) {
-          platf::restart();
-        } else {
-          BOOST_LOG(error) << "[portalgrab] Portal session token was not negotiated.";
-        }
-      });
+    bool had_token = portal::has_saved_token();
+    if (had_token && !portal_display_names(true).empty()) {
+      return true;
     }
+
+    if (had_token) {
+      // Token existed but didn't produce a working session (revoked/stale) —
+      // discard it so the retry gets a genuine fresh consent flow instead of
+      // hanging on the same dead token again.
+      BOOST_LOG(warning) << "[portalgrab] Saved portal token did not produce a session; discarding and restarting."sv;
+      portal::clear_saved_token();
+      platf::restart();
+      return false;
+    }
+
+    selected_capture.clear();
+    BOOST_LOG(fatal) << "Portal capture is awaiting permission. "sv
+                     << "The effective capture method is 'Autodetect (non-Portal)' "sv
+                     << "until Portal setup completes."sv;
+
+    task_pool.push([]() {
+      if (!portal_display_names(false).empty()) {
+        platf::restart();
+      } else {
+        BOOST_LOG(error) << "[portalgrab] Portal session token was not negotiated."sv;
+      }
+    });
+
     return false;
   }
 #endif
@@ -1256,8 +1268,7 @@ namespace platf {
   std::shared_ptr<display_t> kwin_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
   bool verify_kwin() {
-    // Note: The separate kwin_available check is necessary because with CAP_SYS_ADMIN kwin_display_names is never empty during startup
-    return window_system == window_system_e::WAYLAND && kwin_available() && !kwin_display_names().empty();
+    return !kwin_display_names().empty();
   }
 #endif
 
@@ -1288,7 +1299,7 @@ namespace platf {
 #endif
 #ifdef SUNSHINE_BUILD_PORTAL
     if (sources[source::PORTAL]) {
-      return portal_display_names();
+      return portal_display_names(true);
     }
 #endif
 #ifdef SUNSHINE_BUILD_KWIN
@@ -1318,8 +1329,20 @@ namespace platf {
   }
 
   std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
-    // Keep Portal as the first element to signal it as the preferred autodetect option.
-    // KMS and CUDA belong just below Portal; DRM worker privileges will be dropped for all other sources.
+    // Order initialization matters in order to handle Portal setup and DRM worker privilege dropping:
+    // 1. KWin, Portal (Pipewire capture methods);
+    // 2. KMS, CUDA (capture methods requiring CAP_SYS_ADMIN);
+    // 3. All other capture methods.
+
+#ifdef SUNSHINE_BUILD_KWIN
+    if (sources[source::KWIN]) {
+      BOOST_LOG(info) << "Screencasting with KWin ScreenCast"sv;
+      // Drop all DRM worker thread privileges for KWin capture.
+      platf::kms::drop_drm_worker_privileges();
+      return kwin_display(hwdevice_type, display_name, config);
+    }
+#endif
+
 #ifdef SUNSHINE_BUILD_PORTAL
     if (sources[source::PORTAL]) {
       BOOST_LOG(info) << "Screencasting with XDG portal"sv;
@@ -1358,12 +1381,6 @@ namespace platf {
     if (sources[source::X11]) {
       BOOST_LOG(info) << "Screencasting with X11"sv;
       return x11_display(hwdevice_type, display_name, config);
-    }
-#endif
-#ifdef SUNSHINE_BUILD_KWIN
-    if (sources[source::KWIN]) {
-      BOOST_LOG(info) << "Screencasting with KWin ScreenCast"sv;
-      return kwin_display(hwdevice_type, display_name, config);
     }
 #endif
 
@@ -1405,10 +1422,27 @@ namespace platf {
     // Avoid mutating config directly if Portal needs to run in fallback capture mode.
     std::string selected_capture = config::video.capture;
 
-    // Check Portal first so token negotiation can fall back to another capture backend.
+    // KWin is the default selection.
+#ifdef SUNSHINE_BUILD_KWIN
+    bool kwin_checked = false;
+    if ((selected_capture.empty() && sources.none()) || selected_capture == "kwin") {
+      kwin_checked = true;
+      if (verify_kwin()) {
+        sources[source::KWIN] = true;
+      }
+    }
+#endif
 #ifdef SUNSHINE_BUILD_PORTAL
-    if ((selected_capture.empty() || selected_capture == "portal") && verify_portal(selected_capture)) {
+    // Consider Portal for autodetection if no capture backend was yet selected (KWin).
+    if (((selected_capture.empty() && sources.none()) || selected_capture == "portal") && verify_portal(selected_capture)) {
       sources[source::PORTAL] = true;
+    }
+#endif
+#ifdef SUNSHINE_BUILD_KWIN
+    // If Portal requires negotiation and cleared selected_capture, give KWin another opportunity
+    // to be used as a fallback capture method.
+    if (!kwin_checked && selected_capture.empty() && sources.none() && verify_kwin()) {
+      sources[source::KWIN] = true;
     }
 #endif
 #ifdef SUNSHINE_BUILD_CUDA
@@ -1431,11 +1465,6 @@ namespace platf {
     // since it may be needed as a NvFBC fallback for software encoding on X11.
     if ((selected_capture.empty() || selected_capture == "x11") && verify_x11()) {
       sources[source::X11] = true;
-    }
-#endif
-#ifdef SUNSHINE_BUILD_KWIN
-    if (((selected_capture.empty() && sources.none()) || selected_capture == "kwin") && verify_kwin()) {
-      sources[source::KWIN] = true;
     }
 #endif
 
@@ -1597,5 +1626,4 @@ namespace platf {
     }
 #endif
   }
-
 }  // namespace platf

@@ -65,6 +65,11 @@ namespace portal {
   bool has_saved_token();
 
   /**
+   * @brief Clear a restore token if it already exists on disk.
+   */
+  void clear_saved_token();
+
+  /**
    * @brief Check if the Portal service is reachable via simple DBus ping with 2s timeout.
    *
    * @return True if the Portal is reachable.
@@ -126,6 +131,19 @@ namespace platf {
       next_frame = now + delay;
     }
   }
+
+  /**
+   * @brief Check whether KWin screencast capture is available.
+   *
+   * @return True when KWin capture support is available.
+   */
+#if defined(SUNSHINE_BUILD_KWIN)
+  bool kwin_available();
+#else
+  inline bool kwin_available() {
+    return false;
+  }
+#endif
 
 #if defined(__linux__) && defined(SUNSHINE_BUILD_DRM)
   namespace kms {
