@@ -30,7 +30,7 @@ and applications to Sunshine.
     \| Field                        \| Value                                                \|
     \|------------------------------\|------------------------------------------------------\|
     \| Application Name             \| @code{}Steam Big Picture@endcode                     \|
-    \| Command Preparations -> Undo  \| @code{}setsid steam steam://close/bigpicture@endcode \|
+    \| Command Preparations -> Undo \| @code{}setsid steam steam://close/bigpicture@endcode \|
     \| Detached Commands            \| @code{}setsid steam steam://open/bigpicture@endcode  \|
     \| Image                        \| @code{}steam.png@endcode                             \|
   }
@@ -38,7 +38,7 @@ and applications to Sunshine.
     \| Field                        \| Value                                                \|
     \|------------------------------\|------------------------------------------------------\|
     \| Application Name             \| @code{}Steam Big Picture@endcode                     \|
-    \| Command Preparations -> Undo  \| @code{}setsid steam steam://close/bigpicture@endcode \|
+    \| Command Preparations -> Undo \| @code{}setsid steam steam://close/bigpicture@endcode \|
     \| Detached Commands            \| @code{}setsid steam steam://open/bigpicture@endcode  \|
     \| Image                        \| @code{}steam.png@endcode                             \|
   }
@@ -46,7 +46,7 @@ and applications to Sunshine.
     \| Field                        \| Value                                          \|
     \|------------------------------\|------------------------------------------------\|
     \| Application Name             \| @code{}Steam Big Picture@endcode               \|
-    \| Command Preparations -> Undo  \| @code{}open steam://close/bigpicture@endcode   \|
+    \| Command Preparations -> Undo \| @code{}open steam://close/bigpicture@endcode   \|
     \| Detached Commands            \| @code{}open steam://open/bigpicture@endcode    \|
     \| Image                        \| @code{}steam.png@endcode                       \|
   }
@@ -54,7 +54,7 @@ and applications to Sunshine.
     \| Field                        \| Value                                     \|
     \|------------------------------\|-------------------------------------------\|
     \| Application Name             \| @code{}Steam Big Picture@endcode          \|
-    \| Command Preparations -> Undo  \| @code{}steam://close/bigpicture@endcode   \|
+    \| Command Preparations -> Undo \| @code{}steam://close/bigpicture@endcode   \|
     \| Detached Commands            \| @code{}steam://open/bigpicture@endcode    \|
     \| Image                        \| @code{}steam.png@endcode                  \|
   }

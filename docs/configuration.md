@@ -142,6 +142,7 @@ supported on the current platform.
         <td>Chinese (Traditional)</td>
     </tr>
 </table>
+
 ### sunshine_name
 
 <table>

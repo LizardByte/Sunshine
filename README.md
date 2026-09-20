@@ -505,6 +505,7 @@ Our support methods are listed in our [LizardByte Docs](https://docs.lizardbyte.
 <p align="center">
   <img src='https://cdn.jsdelivr.net/gh/LizardByte/contributors@dist/sponsors.svg' alt="Sponsors"/>
 </p>
+
 ## 👥 Contributors
 
 Thank you to all the contributors who have helped make Sunshine better!
