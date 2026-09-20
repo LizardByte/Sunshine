@@ -50,7 +50,14 @@ predefined = [
   "SUNSHINE_BUILD_WAYLAND",
   "SUNSHINE_TRAY=1",
 ]
-extra_stylesheets = ["docs/doc-styles.css"]
+extra_stylesheets = [
+  "docs/doc-styles.css",
+  "https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@2026.920.12131/dist/crowdin-dockle-css.css",
+]
+extra_javascript = [
+  "https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@2026.920.12131/dist/crowdin.js",
+  "docs/crowdin.js",
+]
 extra_files = ["docs/api.js", "docs/configuration.js"]
 aliases = ["api_examples{3|:|}=@htmlonly<script>(function() { let examples = generateExamples('\\1', '\\2', \\3); document.write(createTabs(examples)); })();</script>@endhtmlonly"]
 main_page = "README.md"
