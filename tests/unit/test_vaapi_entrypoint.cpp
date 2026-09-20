@@ -71,4 +71,12 @@ TEST(VaapiEntrypoint, ReturnsZeroWithoutAnEncodingEntrypoint) {
               return VA_RC_CBR;
             }));
 }
+
+TEST(VaapiEntrypoint, RespectsAutomaticPolicyWithoutVbrWhitelist) {
+  const VAEntrypoint eps[] = {VAEntrypointEncSliceLP, VAEntrypointEncSlice};
+  EXPECT_EQ(VAEntrypointEncSliceLP, va::select_encoding_entrypoint(eps, 0, [](auto ep) -> uint32_t {
+              return ep == VAEntrypointEncSliceLP ? VA_RC_CQP : VA_RC_VBR;
+            },
+                                                                   VA_RC_CBR));
+}
 #endif

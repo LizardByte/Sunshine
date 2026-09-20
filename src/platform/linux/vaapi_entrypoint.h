@@ -15,16 +15,17 @@ namespace va {
    * @param entrypoints Entrypoints advertised for the selected profile.
    * @param requested_rc Explicit rate-control mask, or zero for automatic bitrate control.
    * @param query_rc Callback returning supported rate-control flags, or zero on query failure.
+   * @param automatic_rc Modes accepted by the automatic rate-control policy.
    * @return Selected entrypoint, or zero if no encoding entrypoint is advertised.
    */
   template<class QueryRateControl>
-  VAEntrypoint select_encoding_entrypoint(std::span<const VAEntrypoint> entrypoints, uint32_t requested_rc, QueryRateControl query_rc) {
+  VAEntrypoint select_encoding_entrypoint(std::span<const VAEntrypoint> entrypoints, uint32_t requested_rc, QueryRateControl query_rc, uint32_t automatic_rc = VA_RC_CBR | VA_RC_VBR) {
     const VAEntrypoint preferences[] = {
       VAEntrypointEncSliceLP,
       VAEntrypointEncSlice,
       VAEntrypointEncPicture
     };
-    const auto desired_rc = requested_rc ? requested_rc : (VA_RC_CBR | VA_RC_VBR);
+    const auto desired_rc = requested_rc ? requested_rc : automatic_rc;
     auto fallback = static_cast<VAEntrypoint>(0);
     for (auto ep : preferences) {
       if (std::find(entrypoints.begin(), entrypoints.end(), ep) == entrypoints.end()) {
