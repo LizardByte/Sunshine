@@ -880,7 +880,7 @@ case "${distro}:${version}" in
     package_update_command="${sudo_cmd} pacman -Syu --noconfirm"
     package_install_command="${sudo_cmd} pacman -Sy --needed"
     nvm_node=0
-    gcc_version="14"
+    gcc_version="15"
     ;;
   "${DISTRO_DEBIAN}":12)
     package_update_command="${sudo_cmd} apt-get update"
