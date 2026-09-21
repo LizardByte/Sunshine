@@ -168,4 +168,100 @@ TEST(WaylandCaptureTest, ClosesExportedPlanesAfterLaterPlaneFails) {
   EXPECT_EQ(fd_error, EBADF);
   EXPECT_EQ(frame.sd.fds[0], -1);
 }
+
+namespace {
+  /**
+   * @brief Count of fake GBM devices destroyed by the accessors below (function-local state, reset per test).
+   */
+  int &fake_destroyed_devices() {
+    static int count = 0;
+    return count;
+  }
+
+  int open_fake_render_node(const char *) {
+    return open("/dev/null", O_RDWR | O_CLOEXEC);
+  }
+
+  gbm_device *create_fake_device(int fd) {
+    // The address of this object stands in for an opaque GBM device.
+    static int storage = 0;
+    return fd >= 0 ? static_cast<gbm_device *>(static_cast<void *>(&storage)) : nullptr;
+  }
+
+  gbm_device *fail_to_create_device(int) {
+    return nullptr;
+  }
+
+  void destroy_fake_device(gbm_device *) {
+    ++fake_destroyed_devices();
+  }
+
+  bool descriptor_is_open(int fd) {
+    return fcntl(fd, F_GETFD) != -1;
+  }
+}  // namespace
+
+TEST(WaylandGbmDeviceTest, ClosesRenderNodeDescriptorOnReset) {
+  const wl::gbm_device_accessors_t accessors {
+    .open_render_node = open_fake_render_node,
+    .create_device = create_fake_device,
+    .destroy_device = destroy_fake_device,
+  };
+  fake_destroyed_devices() = 0;
+
+  wl::gbm_device_t device;
+  ASSERT_TRUE(device.init("/dev/dri/renderD128", accessors));
+  ASSERT_TRUE(device);
+  const int fd = device.fd();
+  ASSERT_GE(fd, 0);
+  EXPECT_TRUE(descriptor_is_open(fd));
+
+  device.reset();
+  EXPECT_FALSE(device);
+  EXPECT_EQ(device.fd(), -1);
+  EXPECT_EQ(fake_destroyed_devices(), 1);
+  EXPECT_FALSE(descriptor_is_open(fd));
+}
+
+TEST(WaylandGbmDeviceTest, ClosesRenderNodeDescriptorWhenDeviceCreationFails) {
+  const wl::gbm_device_accessors_t accessors {
+    .open_render_node = open_fake_render_node,
+    .create_device = fail_to_create_device,
+    .destroy_device = destroy_fake_device,
+  };
+  fake_destroyed_devices() = 0;
+
+  // Learn which descriptor the next open() will return, so its fate can be checked afterwards.
+  const int probe = open("/dev/null", O_RDONLY | O_CLOEXEC);
+  ASSERT_GE(probe, 0);
+  close(probe);
+
+  wl::gbm_device_t device;
+  EXPECT_FALSE(device.init("/dev/dri/renderD128", accessors));
+  EXPECT_FALSE(device);
+  EXPECT_EQ(device.fd(), -1);
+  EXPECT_EQ(fake_destroyed_devices(), 0);
+  EXPECT_FALSE(descriptor_is_open(probe));
+}
+
+TEST(WaylandGbmDeviceTest, DestructorClosesRenderNodeDescriptor) {
+  const wl::gbm_device_accessors_t accessors {
+    .open_render_node = open_fake_render_node,
+    .create_device = create_fake_device,
+    .destroy_device = destroy_fake_device,
+  };
+  fake_destroyed_devices() = 0;
+  int fd = -1;
+
+  {
+    wl::gbm_device_t device;
+    ASSERT_TRUE(device.init("/dev/dri/renderD128", accessors));
+    fd = device.fd();
+    ASSERT_TRUE(descriptor_is_open(fd));
+  }
+
+  EXPECT_EQ(fake_destroyed_devices(), 1);
+  EXPECT_FALSE(descriptor_is_open(fd));
+}
+
 #endif
