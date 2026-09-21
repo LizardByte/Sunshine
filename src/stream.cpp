@@ -53,6 +53,7 @@ constexpr int IDX_SET_MOTION_EVENT = 13;  ///< Control-stream message index for 
 constexpr int IDX_SET_RGB_LED = 14;  ///< Control-stream message index for set rgb led.
 constexpr int IDX_SET_ADAPTIVE_TRIGGERS = 15;  ///< Control-stream message index for set adaptive triggers.
 constexpr int IDX_SET_PLAYER_LEDS = 16;  ///< Control-stream message index for set player indicator LEDs.
+constexpr int IDX_SET_CONTROLLER_HAPTICS = 17;  ///< Control-stream message index for addressable controller haptics.
 
 static const short packetTypes[] = {
   0x0305,  // Start A
@@ -72,6 +73,7 @@ static const short packetTypes[] = {
   0x5502,  // Set RGB LED (Sunshine protocol extension)
   0x5503,  // Set Adaptive triggers (Sunshine protocol extension)
   0x5504,  // Set player indicator LEDs (Sunshine protocol extension)
+  0x5505,  // Set controller haptics (Sunshine protocol extension)
 };
 
 namespace asio = boost::asio;
@@ -271,6 +273,28 @@ namespace stream {
     std::uint8_t type_right;  ///< Adaptive-trigger mode for the right trigger.
     std::uint8_t left[DS_EFFECT_PAYLOAD_SIZE];  ///< Left adaptive-trigger effect payload.
     std::uint8_t right[DS_EFFECT_PAYLOAD_SIZE];  ///< Right adaptive-trigger effect payload.
+  };
+
+  /**
+   * @brief Control payload that plays an addressable controller haptic effect.
+   */
+  struct control_set_controller_haptics_t {
+    control_header_v2 header;  ///< Control message header preceding this payload.
+
+    std::uint16_t id;  ///< Controller identifier associated with this message.
+    std::uint8_t target;  ///< Target actuator selection.
+    std::uint8_t kind;  ///< Haptic effect category.
+    std::int8_t gain_db;  ///< Signed gain in decibels.
+    std::uint16_t intensity;  ///< Profile-defined intensity value.
+    std::uint16_t frequency_hz;  ///< Primary tone frequency in hertz.
+    std::uint32_t duration_us;  ///< Signed effect duration encoded as a little-endian two's-complement value.
+    std::uint32_t interval_us;  ///< Off interval between pulses in microseconds.
+    std::uint16_t repeat_count;  ///< Pulse repeat count.
+    std::uint16_t lfo_frequency_hz;  ///< Low-frequency oscillator frequency in hertz.
+    std::uint8_t lfo_depth_percent;  ///< Low-frequency oscillator depth in percent.
+    std::uint16_t start_frequency_hz;  ///< Sweep start frequency in hertz.
+    std::uint16_t end_frequency_hz;  ///< Sweep end frequency in hertz.
+    std::uint8_t script_id;  ///< Controller-defined scripted effect identifier.
   };
 
   /**
@@ -1100,6 +1124,31 @@ namespace stream {
       std::ranges::copy(msg.data.adaptive_triggers.left, plaintext.left);
       plaintext.type_right = msg.data.adaptive_triggers.type_right;
       std::ranges::copy(msg.data.adaptive_triggers.right, plaintext.right);
+
+      std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
+        encrypted_payload;
+
+      payload = encode_control(session, util::view(plaintext), encrypted_payload);
+    } else if (msg.type == platf::gamepad_feedback_e::set_haptics) {
+      control_set_controller_haptics_t plaintext;
+      plaintext.header.type = packetTypes[IDX_SET_CONTROLLER_HAPTICS];
+      plaintext.header.payloadLength = sizeof(plaintext) - sizeof(control_header_v2);
+
+      const auto &data = msg.data.haptics;
+      plaintext.id = util::endian::little(msg.id);
+      plaintext.target = data.target;
+      plaintext.kind = data.kind;
+      plaintext.gain_db = data.gain_db;
+      plaintext.intensity = util::endian::little(data.intensity);
+      plaintext.frequency_hz = util::endian::little(data.frequency_hz);
+      plaintext.duration_us = util::endian::little(static_cast<std::uint32_t>(data.duration_us));
+      plaintext.interval_us = util::endian::little(data.interval_us);
+      plaintext.repeat_count = util::endian::little(data.repeat_count);
+      plaintext.lfo_frequency_hz = util::endian::little(data.lfo_frequency_hz);
+      plaintext.lfo_depth_percent = data.lfo_depth_percent;
+      plaintext.start_frequency_hz = util::endian::little(data.start_frequency_hz);
+      plaintext.end_frequency_hz = util::endian::little(data.end_frequency_hz);
+      plaintext.script_id = data.script_id;
 
       std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
         encrypted_payload;

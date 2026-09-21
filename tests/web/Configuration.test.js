@@ -145,7 +145,7 @@ describe('gamepad input configuration', () => {
 
     expect(wrapper.find('#gamepad_driver').exists()).toBe(platform === 'windows' || platform === 'macos')
     expect(wrapper.get('#gamepad').findAll('option').map(option => option.attributes('value'))).toEqual([
-      'auto', 'generic', 'x360', 'xone', 'xseries', 'ds4', 'ds5', 'switch',
+      'auto', 'generic', 'x360', 'xone', 'xseries', 'ds4', 'ds5', 'switch', 'steam_triton',
     ])
     expect(wrapper.find('#motion_as_ds4').exists()).toBe(true)
     expect(wrapper.find('#touchpad_as_ds4').exists()).toBe(true)

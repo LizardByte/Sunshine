@@ -414,6 +414,12 @@ keyboard or mouse input. Sunshine’s menu bar **Virtual HID Broker** submenu sh
 for license management and downloads. Sunshine’s DMG does not contain the broker. Keyboard and mouse input use the
 standard macOS synthetic-input permission path.
 
+The `steam_triton` option requires a Virtual HID Broker build with support for the Steam Controller
+(2nd generation). It creates a native Steam Controller profile on macOS;
+Sunshine forwards its pads, rear buttons, motion, battery state, and feedback
+through the same client protocol used on Windows and Linux. The macOS path
+still needs a signed-broker, physical-controller test.
+
 #### DMG
 
 ##### Install
@@ -587,10 +593,15 @@ gamepad support. ViGEmBus remains available as a limited alternative for Xbox 36
 
 When Virtual HID Broker is used, Sunshine requires libvirtualhid version `2026.914.1218.10` or newer.
 
-Compared with the ViGEmBus fallback, Virtual HID Broker can create Xbox One, Xbox Series, DualSense, Nintendo Switch
-Pro, and Generic gamepads in addition to Xbox 360 and DualShock 4. It can also expose controller-specific features such
-as motion, touchpads, LEDs, and adaptive triggers when supported. Virtual HID Broker is actively developed and
-supported by the LizardByte team.
+Compared with the ViGEmBus fallback, Virtual HID Broker can create the Steam Controller (2nd generation), Xbox One,
+Xbox Series, DualSense, Nintendo Switch Pro, and Generic gamepads in addition to Xbox 360 and DualShock 4. The
+`steam_triton` selection specifically emulates the Steam Controller (2nd generation), not the original Steam Controller. It exposes the standard controls,
+Home and miscellaneous buttons, four rear buttons, motion, battery state, both trackpads, and separate clicks for both
+trackpads when the Moonlight client reports those capabilities. Standard rumble and the controller's independently
+addressable trackpad haptics are returned to capable Moonlight clients. Older clients retain pressure- and
+trigger-position-based click inference and do not receive addressable haptic effects. Virtual HID Broker
+also exposes controller-specific features such as LEDs and adaptive triggers for other profiles when supported, and is
+actively developed and supported by the LizardByte team.
 
 With a compatible driver and active license, normal key transitions are exposed through a real HID keyboard so
 applications using Raw Input can receive them. Unicode text input and keys outside the supported HID keyboard page
