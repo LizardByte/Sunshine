@@ -146,6 +146,7 @@ watch(
             <option value="ds4">{{ $t('config.gamepad_ds4') }}</option>
             <option value="ds5">{{ $t("config.gamepad_ds5") }}</option>
             <option value="switch">{{ $t("config.gamepad_switch") }}</option>
+            <option value="steam2026">{{ $t("config.gamepad_steam2026") }}</option>
           </template>
 
           <template #linux>
@@ -156,6 +157,7 @@ watch(
             <option value="ds4">{{ $t('config.gamepad_ds4') }}</option>
             <option value="ds5">{{ $t("config.gamepad_ds5") }}</option>
             <option value="switch">{{ $t("config.gamepad_switch") }}</option>
+            <option value="steam2026">{{ $t("config.gamepad_steam2026") }}</option>
           </template>
 
           <template #windows>
@@ -166,6 +168,7 @@ watch(
             <option value="ds4">{{ $t('config.gamepad_ds4') }}</option>
             <option v-if="config.gamepad_driver !== 'vigembus'" value="ds5">{{ $t("config.gamepad_ds5") }}</option>
             <option v-if="config.gamepad_driver !== 'vigembus'" value="switch">{{ $t("config.gamepad_switch") }}</option>
+            <option v-if="config.gamepad_driver !== 'vigembus'" value="steam2026">{{ $t("config.gamepad_steam2026") }}</option>
           </template>
         </PlatformLayout>
       </select>

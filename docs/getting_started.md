@@ -575,10 +575,14 @@ limited alternative for Xbox 360 and DualShock 4 gamepads, but it has reached en
 
 When Virtual HID Driver is used, Sunshine requires version `2026.914.1218.10` or newer.
 
-Compared with the ViGEmBus fallback, Virtual HID Driver can create Xbox One, Xbox Series, DualSense, Nintendo Switch
-Pro, and Generic gamepads in addition to Xbox 360 and DualShock 4. It can also expose controller-specific features such
-as motion, touchpads, LEDs, and adaptive triggers when supported. Virtual HID Driver is actively developed and
-supported by the LizardByte team.
+Compared with the ViGEmBus fallback, Virtual HID Driver can create the 2026 Steam Controller, Xbox One, Xbox Series,
+DualSense, Nintendo Switch Pro, and Generic gamepads in addition to Xbox 360 and DualShock 4. The `steam2026` selection
+specifically emulates the 2026 Steam Controller, not the original Steam Controller. It exposes the standard controls,
+Home and miscellaneous buttons, four rear buttons, motion, battery state, both trackpads, and separate clicks for both
+trackpads when the Moonlight client reports those capabilities. Standard rumble is returned to the client; the current
+Moonlight feedback protocol cannot represent the controller's native addressable haptic programs. Virtual HID Driver
+also exposes controller-specific features such as LEDs and adaptive triggers for other profiles when supported, and is
+actively developed and supported by the LizardByte team.
 
 With a compatible driver and active license, normal key transitions are exposed through a real HID keyboard so
 applications using Raw Input can receive them. Unicode text input and keys outside the supported HID keyboard page

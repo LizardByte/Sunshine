@@ -144,6 +144,29 @@ namespace input {
     void send_keyboard_packet(std::shared_ptr<input_t> &input, std::uint16_t key_code, std::uint8_t modifiers, std::uint8_t flags, bool release);
 
     /**
+     * @brief Process one client controller-touch packet on the calling thread.
+     *
+     * @param input Retained input state.
+     * @param controller_number Client-relative controller index.
+     * @param event_type Moonlight touch event type.
+     * @param touchpad_index Zero-based touchpad index carried by the packet.
+     * @param pointer_id Client-provided contact identifier.
+     * @param x Normalized horizontal coordinate.
+     * @param y Normalized vertical coordinate.
+     * @param pressure Normalized contact pressure.
+     */
+    void send_controller_touch_packet(
+      std::shared_ptr<input_t> &input,
+      std::uint8_t controller_number,
+      std::uint8_t event_type,
+      std::uint8_t touchpad_index,
+      std::uint32_t pointer_id,
+      float x,
+      float y,
+      float pressure
+    );
+
+    /**
      * @brief Forget every key Sunshine tracks as pressed and cancel any pending key repeat.
      */
     void reset_keyboard_state();

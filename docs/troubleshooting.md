@@ -340,9 +340,11 @@ for Xbox 360 and DualShock 4 support that has reached end of life. If you use th
 
 When Virtual HID Driver is used, Sunshine requires version `2026.914.1218.10` or newer.
 
-Virtual HID Driver adds Xbox One, Xbox Series, DualSense, Nintendo Switch Pro, and Generic gamepads, plus advanced
-controller features such as motion, touchpads, LEDs, and adaptive triggers when supported. Unlike the discontinued
-ViGEmBus project, Virtual HID Driver is actively developed and supported by the LizardByte team.
+Virtual HID Driver adds the 2026 Steam Controller, Xbox One, Xbox Series, DualSense, Nintendo Switch Pro, and Generic
+gamepads, plus advanced controller features such as motion, touchpads, LEDs, and adaptive triggers when supported. The
+`steam2026` option is exclusively for the 2026 Steam Controller, not the original Steam Controller. It requires a
+compatible Virtual HID Driver and cannot fall back to ViGEmBus. Unlike the discontinued ViGEmBus project, Virtual HID
+Driver is actively developed and supported by the LizardByte team.
 
 An active paid Virtual HID Driver machine license is required before Sunshine can create driver-backed libvirtualhid
 devices, including gamepads and the Raw Input keyboard and mouse. Use the message on the Web UI home page, the startup

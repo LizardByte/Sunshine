@@ -378,7 +378,7 @@ supported on the current platform.
             @endcode</td>
     </tr>
     <tr>
-        <td rowspan="7">Choices</td>
+        <td rowspan="8">Choices</td>
         <td>generic</td>
         <td>Generic HID gamepad</td>
     </tr>
@@ -393,6 +393,10 @@ supported on the current platform.
     <tr>
         <td>switch</td>
         <td>Switch Pro controller</td>
+    </tr>
+    <tr>
+        <td>steam2026</td>
+        <td>Steam Controller (2026 model)</td>
     </tr>
     <tr>
         <td>x360</td>
