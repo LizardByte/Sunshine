@@ -7,7 +7,7 @@ version: 2
 build:
   os: ubuntu-24.04
   tools:
-    ruby: "3.3"
+    ruby: "4.0.7"
   apt_packages:
     - 7zip
     - jq
