@@ -32,6 +32,24 @@ namespace {
 using namespace std::literals;
 
 namespace portal {
+  namespace {
+    GCancellable *shutdown_cancellable() {
+      static GCancellable *cancellable = g_cancellable_new();
+      return cancellable;
+    }
+
+    void quit_loop_on_cancel(GCancellable *, gpointer user_data) {
+      g_main_loop_quit(static_cast<GMainLoop *>(user_data));
+    }
+  }  // namespace
+
+  /**
+   * @brief Cancel any pending DBus requests.
+   */
+  void cancel_pending_requests() {
+    g_cancellable_cancel(shutdown_cancellable());
+  }
+
   // Forward declarations
   class runtime_t;
 
@@ -81,6 +99,21 @@ namespace portal {
     }
 
     /**
+     * @brief Check if a Portal restore token exists on disk without inspecting its contents.
+     */
+    static bool exists() {
+      return std::filesystem::exists(get_file_path());
+    }
+
+    /**
+     * @brief Clear a restore token if it already exists on disk.
+     */
+    static void clear() {
+      token_->clear();
+      std::filesystem::remove(get_file_path());
+    }
+
+    /**
      * @brief Save current state to its backing store.
      */
     static void save() {
@@ -105,12 +138,58 @@ namespace portal {
   };
 
   /**
+   * @brief Clear a restore token if it already exists on disk.
+   */
+  void clear_saved_token() {
+    restore_token_t::clear();
+  }
+
+  /**
+   * @brief Check if a Portal restore token exists on disk without inspecting its contents.
+   *
+   * @return True if a saved token was found.
+   */
+  bool has_saved_token() {
+    return restore_token_t::exists();
+  }
+
+  /**
+   * @brief Check if the Portal service is reachable via a DBus ping.
+   *
+   * @return True if the Portal is reachable.
+   */
+  bool is_portal_service_reachable() {
+    g_autoptr(GError) ping_error = nullptr;
+    g_autoptr(GDBusConnection) conn = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, &ping_error);
+    if (!conn) {
+      return false;
+    }
+
+    g_autoptr(GVariant) reply = g_dbus_connection_call_sync(
+      conn,
+      "org.freedesktop.portal.Desktop",
+      "/org/freedesktop/portal/desktop",
+      "org.freedesktop.DBus.Peer",
+      "Ping",
+      nullptr,
+      nullptr,
+      G_DBUS_CALL_FLAGS_NONE,
+      2000,
+      nullptr,
+      &ping_error
+    );
+    return reply != nullptr;
+  }
+
+  /**
    * @brief DBus response loop and response variant for portal calls.
    */
   struct dbus_response_t {
     GMainLoop *loop;  ///< GLib main loop waiting for a portal response signal.
     GVariant *response;  ///< DBus response payload returned by the portal.
     guint subscription_id;  ///< Subscription ID.
+    std::string request_path;  ///< For Request.Close() on cancellation.
+    GDBusConnection *conn;  ///< Borrowed — owned by the calling dbus_t/portal_t.
   };
 
   /**
@@ -230,7 +309,7 @@ namespace portal {
      *
      * @return 0 when a portal session is ready; nonzero when D-Bus or portal setup fails.
      */
-    int connect_to_portal() {
+    int connect_to_portal(bool allow_timeout) {
       g_autoptr(GMainLoop) loop = g_main_loop_new(nullptr, FALSE);
       g_autofree gchar *session_path = nullptr;
       g_autofree gchar *session_token = nullptr;
@@ -244,7 +323,7 @@ namespace portal {
         return -1;
       }
 
-      if (start_portal_session(loop, session_path, pipewire_streams, use_screencast_only) < 0) {
+      if (start_portal_session(loop, session_path, pipewire_streams, use_screencast_only, allow_timeout) < 0) {
         return -1;
       }
 
@@ -377,7 +456,7 @@ namespace portal {
       g_variant_get(reply, "(o)", &request_path);
       dbus_response_init(&response, loop, conn, request_path);
 
-      g_autoptr(GVariant) create_response = dbus_response_wait(&response);
+      g_autoptr(GVariant) create_response = dbus_response_wait(&response, 0);
 
       if (!create_response) {
         BOOST_LOG(error) << "[portalgrab] " << session_type << " CreateSession: no response received"sv;
@@ -443,7 +522,7 @@ namespace portal {
       g_variant_get(reply, "(o)", &request_path);
       dbus_response_init(&response, loop, conn, request_path);
 
-      g_autoptr(GVariant) devices_response = dbus_response_wait(&response);
+      g_autoptr(GVariant) devices_response = dbus_response_wait(&response, 0);
 
       if (!devices_response) {
         BOOST_LOG(error) << "[portalgrab] SelectDevices: no response received"sv;
@@ -494,7 +573,7 @@ namespace portal {
       g_variant_get(reply, "(o)", &request_path);
       dbus_response_init(&response, loop, conn, request_path);
 
-      g_autoptr(GVariant) sources_response = dbus_response_wait(&response);
+      g_autoptr(GVariant) sources_response = dbus_response_wait(&response, 0);
 
       if (!sources_response) {
         BOOST_LOG(error) << "[portalgrab] SelectSources: no response received"sv;
@@ -513,7 +592,7 @@ namespace portal {
       return 0;
     }
 
-    int start_portal_session(GMainLoop *loop, const gchar *session_path, std::vector<pipewire_streaminfo_t> &out_pipewire_streams, bool use_screencast) {
+    int start_portal_session(GMainLoop *loop, const gchar *session_path, std::vector<pipewire_streaminfo_t> &out_pipewire_streams, bool use_screencast, bool allow_timeout) {
       GDBusProxy *proxy = use_screencast ? screencast_proxy : remote_desktop_proxy;
       const char *session_type = use_screencast ? "ScreenCast" : "RemoteDesktop";
 
@@ -540,7 +619,8 @@ namespace portal {
       g_variant_get(reply, "(o)", &request_path);
       dbus_response_init(&response, loop, conn, request_path);
 
-      g_autoptr(GVariant) start_response = dbus_response_wait(&response);
+      int timeout_sec = 10;  // Timeout in seconds used when we only want to probe for stale restore tokens.
+      g_autoptr(GVariant) start_response = dbus_response_wait(&response, (allow_timeout ? timeout_sec : 0));
 
       if (!start_response) {
         BOOST_LOG(error) << "[portalgrab] " << session_type << " Start: no response received"sv;
@@ -690,14 +770,85 @@ namespace portal {
       }
     }
 
-    static void dbus_response_init(struct dbus_response_t *response, GMainLoop *loop, GDBusConnection *conn, const char *request_path) {
-      response->loop = loop;
-      response->subscription_id = g_dbus_connection_signal_subscribe(conn, PORTAL_NAME, REQUEST_IFACE, "Response", request_path, nullptr, G_DBUS_SIGNAL_FLAGS_NONE, on_response_received_cb, response, nullptr);
+    static void close_request_async(GDBusConnection *conn, const std::string &request_path) {
+      g_dbus_connection_call(
+        conn,
+        PORTAL_NAME,
+        request_path.c_str(),
+        REQUEST_IFACE,
+        "Close",
+        nullptr,
+        nullptr,
+        G_DBUS_CALL_FLAGS_NONE,
+        -1,
+        nullptr,
+        nullptr,
+        nullptr
+      );
     }
 
-    static GVariant *dbus_response_wait(struct dbus_response_t *response) {
-      g_main_loop_run(response->loop);
-      return response->response;
+    static void dbus_response_init(struct dbus_response_t *response, GMainLoop *loop, GDBusConnection *conn, const char *request_path) {
+      response->loop = loop;
+      response->conn = conn;
+      response->request_path = request_path;
+      response->subscription_id = g_dbus_connection_signal_subscribe(
+        conn,
+        PORTAL_NAME,
+        REQUEST_IFACE,
+        "Response",
+        request_path,
+        nullptr,
+        G_DBUS_SIGNAL_FLAGS_NONE,
+        on_response_received_cb,
+        response,
+        nullptr
+      );
+    }
+
+    static void cancel_other(GCancellable *, gpointer user_data) {
+      g_cancellable_cancel(static_cast<GCancellable *>(user_data));
+    }
+
+    static GVariant *dbus_response_wait(dbus_response_t *response, guint timeout_seconds = 0) {
+      g_autoptr(GCancellable) local = g_cancellable_new();
+      gulong shutdown_id = g_cancellable_connect(shutdown_cancellable(), G_CALLBACK(cancel_other), local, nullptr);
+
+      GSource *timeout_source = nullptr;
+      if (timeout_seconds > 0) {
+        timeout_source = g_timeout_source_new(timeout_seconds * 1000);
+        g_source_set_callback(
+          timeout_source,
+          [](gpointer user_data) {
+            g_cancellable_cancel(static_cast<GCancellable *>(user_data));
+            return G_SOURCE_REMOVE;
+          },
+          g_object_ref(local),
+          [](gpointer user_data) {
+            g_object_unref(static_cast<GCancellable *>(user_data));
+          }
+        );
+        g_source_attach(timeout_source, g_main_loop_get_context(response->loop));
+      }
+
+      if (!g_cancellable_is_cancelled(local)) {
+        gulong quit_id = g_cancellable_connect(local, G_CALLBACK(quit_loop_on_cancel), response->loop, nullptr);
+        g_main_loop_run(response->loop);
+        g_cancellable_disconnect(local, quit_id);
+      }
+
+      if (timeout_source) {
+        g_source_destroy(timeout_source);  // safe even if it already auto-removed itself after firing
+        g_source_unref(timeout_source);
+      }
+      g_cancellable_disconnect(shutdown_cancellable(), shutdown_id);
+
+      if (response->response) {
+        return response->response;
+      }
+
+      BOOST_LOG(info) << "[portalgrab] Portal request cancelled or timed out"sv;
+      close_request_async(response->conn, response->request_path);
+      return nullptr;
     }
   };
 
@@ -712,7 +863,7 @@ namespace portal {
         BOOST_LOG(error) << "[portalgrab] Failed to connect to dbus. portal_t setup failed.";
         return -1;
       }
-      if (dbus.connect_to_portal() < 0) {
+      if (dbus.connect_to_portal(false) < 0) {
         BOOST_LOG(error) << "[portalgrab] Failed to connect to portal. portal_t setup failed.";
         return -1;
       }
@@ -818,7 +969,7 @@ namespace platf {
    *
    * @return Portal display names, or an empty list when portal discovery fails.
    */
-  std::vector<std::string> portal_display_names() {
+  std::vector<std::string> portal_display_names(bool allow_timeout) {
     std::vector<std::string> display_names;
     auto dbus = std::make_shared<portal::dbus_t>();
 
@@ -827,14 +978,7 @@ namespace platf {
       return {};
     }
 
-    if (has_elevated_privileges(true)) {
-      // We're still in the probing phase of Sunshine startup. Dropping portal security early will break KMS.
-      // Just return a dummy screen for now. Display re-enumeration after encoder probing will yield full result.
-      display_names.emplace_back("init");
-      return display_names;
-    }
-
-    if (dbus->connect_to_portal() < 0) {
+    if (dbus->connect_to_portal(allow_timeout) < 0) {
       BOOST_LOG(warning) << "[portalgrab] Failed to connect to portal. Cannot enumerate displays, returning empty list.";
       return {};
     }

@@ -61,6 +61,7 @@
 #include "src/boost_process_compat.h"
 #include "src/config.h"
 #include "src/entry_handler.h"
+#include "src/globals.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "vaapi.h"
@@ -1214,22 +1215,84 @@ namespace platf {
 #endif
 
 #ifdef SUNSHINE_BUILD_PORTAL
-  std::vector<std::string> portal_display_names();
+  std::vector<std::string> portal_display_names(bool allow_timeout);
   std::shared_ptr<display_t> portal_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
-  bool verify_portal() {
-    return !portal_display_names().empty();
+  enum class portal_probe_e {
+    unreachable,
+    no_token,
+    stale_token,  // had a token, but it didn't produce a working session
+    available
+  };
+
+  /**
+   * @brief Probe Portal availability via token existence, DBus availability and timed probe.
+   *
+   * @return Can return no_token, unreachable, stale_token or available for processing via verify_portal().
+   */
+  portal_probe_e probe_portal() {
+    using enum portal_probe_e;
+
+    if (!portal::is_portal_service_reachable()) {
+      return unreachable;
+    }
+    if (!portal::has_saved_token()) {
+      return no_token;
+    }
+    return portal_display_names(true).empty() ? stale_token : available;
+  }
+
+  /**
+   * @brief Verify Portal capture and/or begin token negotiation via TaskPool.
+   *        If negotiation is requested, either queue a TaskPool task if no restore token is detected,
+   *        or if a stale token is detected, delete it and restart Sunshine.
+   *
+   * @return True if Portal is available.
+   */
+  bool verify_portal(bool do_negotiation, std::optional<portal_probe_e> cached = std::nullopt) {
+    using enum portal_probe_e;
+
+    auto result = cached ? *cached : probe_portal();
+    switch (result) {
+      case available:
+        return true;
+      case unreachable:
+        BOOST_LOG(debug) << "[portalgrab] xdg-desktop-portal not reachable; skipping Portal capture."sv;
+        return false;
+      case stale_token:
+        if (!do_negotiation) {
+          return false;
+        }
+        BOOST_LOG(warning) << "[portalgrab] Saved portal token did not produce a session; discarding and restarting."sv;
+        portal::clear_saved_token();
+        platf::restart();
+        return false;
+      case no_token:
+        if (!do_negotiation) {
+          return false;
+        }
+        BOOST_LOG(fatal) << "Portal capture is awaiting user permission. "sv
+                         << "The current session will attempt to use a fallback capture method."sv;
+        task_pool.push([]() {
+          if (!portal_display_names(false).empty()) {
+            platf::restart();
+          } else {
+            BOOST_LOG(error) << "[portalgrab] Portal session token was not negotiated."sv;
+          }
+        });
+        return false;
+      default:
+        return false;
+    }
   }
 #endif
 
 #ifdef SUNSHINE_BUILD_KWIN
-  bool kwin_available();
   std::vector<std::string> kwin_display_names();
   std::shared_ptr<display_t> kwin_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
   bool verify_kwin() {
-    // Note: The separate kwin_available check is necessary because with CAP_SYS_ADMIN kwin_display_names is never empty during startup
-    return window_system == window_system_e::WAYLAND && kwin_available() && !kwin_display_names().empty();
+    return !kwin_display_names().empty();
   }
 #endif
 
@@ -1260,7 +1323,7 @@ namespace platf {
 #endif
 #ifdef SUNSHINE_BUILD_PORTAL
     if (sources[source::PORTAL]) {
-      return portal_display_names();
+      return portal_display_names(true);
     }
 #endif
 #ifdef SUNSHINE_BUILD_KWIN
@@ -1372,36 +1435,54 @@ namespace platf {
     }
 #endif
 
+    // Avoid mutating config directly if Portal needs to run in fallback capture mode.
+    std::string selected_capture = config::video.capture;
+
+#ifdef SUNSHINE_BUILD_PORTAL
+    // Probe Portal first to determine if we need to continue probing for a working fallback capture method.
+    std::optional<portal_probe_e> portal_probe;
+    bool portal_is_available = false;
+    if (selected_capture == "portal") {
+      using enum portal_probe_e;
+
+      portal_probe = probe_portal();
+      portal_is_available = (*portal_probe == available);
+      if (!portal_is_available) {
+        selected_capture.clear();
+      }
+    }
+#endif
 #ifdef SUNSHINE_BUILD_CUDA
-    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "nvfbc") && verify_nvfbc()) {
+    if (((selected_capture.empty() && sources.none()) || selected_capture == "nvfbc") && verify_nvfbc()) {
       sources[source::NVFBC] = true;
     }
 #endif
 #ifdef SUNSHINE_BUILD_WAYLAND
-    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "wlr") && verify_wl()) {
+    if (((selected_capture.empty() && sources.none()) || selected_capture == "wlr") && verify_wl()) {
       sources[source::WAYLAND] = true;
     }
 #endif
 #ifdef SUNSHINE_BUILD_DRM
-    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "kms") && verify_kms()) {
+    if (((selected_capture.empty() && sources.none()) || selected_capture == "kms") && verify_kms()) {
       sources[source::KMS] = true;
     }
 #endif
 #ifdef SUNSHINE_BUILD_X11
     // We enumerate this capture backend regardless of other suitable sources,
     // since it may be needed as a NvFBC fallback for software encoding on X11.
-    if ((config::video.capture.empty() || config::video.capture == "x11") && verify_x11()) {
+    if ((selected_capture.empty() || selected_capture == "x11") && verify_x11()) {
       sources[source::X11] = true;
     }
 #endif
-#ifdef SUNSHINE_BUILD_PORTAL
-    if ((config::video.capture.empty() || config::video.capture == "portal") && verify_portal()) {
-      sources[source::PORTAL] = true;
+#ifdef SUNSHINE_BUILD_KWIN
+    if (((selected_capture.empty() && sources.none()) || selected_capture == "kwin") && verify_kwin()) {
+      sources[source::KWIN] = true;
     }
 #endif
-#ifdef SUNSHINE_BUILD_KWIN
-    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "kwin") && verify_kwin()) {
-      sources[source::KWIN] = true;
+#ifdef SUNSHINE_BUILD_PORTAL
+    // Check Portal using original non-mutated config in full negotiation mode.
+    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "portal") && (portal_is_available || verify_portal(true, portal_probe))) {
+      sources[source::PORTAL] = true;
     }
 #endif
 

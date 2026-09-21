@@ -60,7 +60,9 @@ namespace platf {
         ~cap_sys_admin() {
           cap_value_t sys_admin = CAP_SYS_ADMIN;
           if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &sys_admin, CAP_CLEAR) || cap_set_proc(caps)) {
-            BOOST_LOG(error) << "Failed to drop CAP_SYS_ADMIN";
+            if (errno != EPERM) {
+              BOOST_LOG(error) << "Failed to drop CAP_SYS_ADMIN";
+            }
           }
           cap_free(caps);
         }
@@ -207,7 +209,10 @@ namespace platf {
      * @brief Allows the DRM privileged_drm_worker thread to drop privileges.
      */
     void drop_drm_worker_privileges() {
-      privileged_drm_worker::drop_worker_privileges();
+      static std::once_flag flag;
+      std::call_once(flag, []() {
+        privileged_drm_worker::drop_worker_privileges();
+      });
     }
 #endif
 

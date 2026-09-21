@@ -16,12 +16,11 @@
   #include <mach-o/dyld.h>
 #endif
 #ifdef __linux__
+  #include "platform/common.h"
   #include "platform/linux/graphics.h"
+  #include "platform/linux/misc.h"
 
   #include <sys/auxv.h>
-  #if defined(SUNSHINE_BUILD_DRM)
-    #include "platform/linux/misc.h"
-  #endif
 #endif
 
 // lib includes
@@ -43,11 +42,6 @@
 #include "system_tray.h"
 #include "upnp.h"
 #include "video.h"
-
-#ifdef __linux__
-  #include "platform/common.h"
-  #include "platform/linux/misc.h"
-#endif
 
 using namespace std::literals;
 
@@ -387,12 +381,21 @@ int main(int argc, char *argv[]) {
 
 #endif
 
-  task_pool.start(1);
+  int task_pool_threads = 1;
+#ifdef SUNSHINE_BUILD_PORTAL
+  // Allocate an extra thread for fallback capture, otherwise a pending XDG user reply can block input.
+  task_pool_threads = 2;
+#endif
+  task_pool.start(task_pool_threads);
 
   // Create signal handler after logging has been initialized
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
   on_signal(SIGINT, [&force_shutdown, &display_device_deinit_guard, shutdown_event]() {
     BOOST_LOG(info) << "Interrupt handler called"sv;
+
+#ifdef SUNSHINE_BUILD_PORTAL
+    portal::cancel_pending_requests();
+#endif
 
     auto task = []() {
       BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;
@@ -413,6 +416,10 @@ int main(int argc, char *argv[]) {
 
   on_signal(SIGTERM, [&force_shutdown, &display_device_deinit_guard, shutdown_event]() {
     BOOST_LOG(info) << "Terminate handler called"sv;
+
+#ifdef SUNSHINE_BUILD_PORTAL
+    portal::cancel_pending_requests();
+#endif
 
     auto task = []() {
       BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;
