@@ -35,9 +35,9 @@
   },
   "devDependencies": {
     "@codecov/vite-plugin": "2.0.1",
-    "@vitejs/plugin-vue": "6.0.8",
+    "@vitejs/plugin-vue": "6.0.9",
     "@vitest/coverage-v8": "5.0.1",
-    "@vue/test-utils": "2.4.6",
+    "@vue/test-utils": "2.5.1",
     "jsdom": "30.1.0",
     "serve": "14.2.6",
     "vite": "8.3.0",
