@@ -393,10 +393,6 @@ int main(int argc, char *argv[]) {
   on_signal(SIGINT, [&force_shutdown, &display_device_deinit_guard, shutdown_event]() {
     BOOST_LOG(info) << "Interrupt handler called"sv;
 
-#ifdef SUNSHINE_BUILD_PORTAL
-    portal::cancel_pending_requests();
-#endif
-
     auto task = []() {
       BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;
       logging::log_flush();
@@ -416,10 +412,6 @@ int main(int argc, char *argv[]) {
 
   on_signal(SIGTERM, [&force_shutdown, &display_device_deinit_guard, shutdown_event]() {
     BOOST_LOG(info) << "Terminate handler called"sv;
-
-#ifdef SUNSHINE_BUILD_PORTAL
-    portal::cancel_pending_requests();
-#endif
 
     auto task = []() {
       BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;

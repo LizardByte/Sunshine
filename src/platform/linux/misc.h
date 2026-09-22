@@ -53,11 +53,6 @@ namespace dyn {
 #ifdef SUNSHINE_BUILD_PORTAL
 namespace portal {
   /**
-   * @brief Cancel any pending DBus requests gracefully.
-   */
-  void cancel_pending_requests();
-
-  /**
    * @brief Check if a Portal restore token already exists on disk.
    *
    * @return True if a saved token was found.

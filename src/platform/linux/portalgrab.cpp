@@ -4,6 +4,7 @@
  */
 // local includes
 #include "pipewire.cpp"
+#include "src/globals.h"
 
 namespace {
   // Portal configuration constants
@@ -38,17 +39,37 @@ namespace portal {
       return cancellable;
     }
 
+    /**
+     * @brief Cancel any pending DBus requests.
+     */
+    void cancel_pending_requests() {
+      g_cancellable_cancel(shutdown_cancellable());
+    }
+
+    /**
+     * @brief Trigger cancellation of pending DBus events on shutdown.
+     */
+    void shutdown_watcher() {
+      auto shutdown_event = mail::man->event<bool>(mail::shutdown);
+      shutdown_event->view();
+      cancel_pending_requests();
+    }
+
+    /**
+     * @brief Shutdown watcher initialization.
+     */
+    void start_shutdown_watcher() {
+      // The watcher is detached and must only be started once.
+      static std::once_flag flag;
+      std::call_once(flag, [] {
+        std::thread(shutdown_watcher).detach();
+      });
+    }
+
     void quit_loop_on_cancel(GCancellable *, gpointer user_data) {
       g_main_loop_quit(static_cast<GMainLoop *>(user_data));
     }
   }  // namespace
-
-  /**
-   * @brief Cancel any pending DBus requests.
-   */
-  void cancel_pending_requests() {
-    g_cancellable_cancel(shutdown_cancellable());
-  }
 
   // Forward declarations
   class runtime_t;
@@ -287,6 +308,7 @@ namespace portal {
      * @return 0 on success; nonzero or negative platform status on failure.
      */
     int init() {
+      start_shutdown_watcher();
       restore_token_t::load();
 
       conn = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, nullptr);
