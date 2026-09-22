@@ -790,8 +790,7 @@ namespace portal {
     }
 
     static gboolean check_shutdown_cb(gpointer user_data) {
-      auto shutdown_event = mail::man->event<bool>(mail::shutdown);
-      if (shutdown_event->peek()) {
+      if (auto shutdown_event = mail::man->event<bool>(mail::shutdown); shutdown_event->peek()) {
         g_main_loop_quit(static_cast<GMainLoop *>(user_data));
         return G_SOURCE_REMOVE;
       }
