@@ -295,7 +295,8 @@ namespace portal {
      * @return 0 when a portal session is ready; nonzero when D-Bus or portal setup fails.
      */
     int connect_to_portal(bool allow_start_timeout) {
-      g_autoptr(GMainLoop) loop = g_main_loop_new(nullptr, FALSE);
+      g_autoptr(GMainContext) context = g_main_context_new();
+      g_autoptr(GMainLoop) loop = g_main_loop_new(context, false);
       g_autofree gchar *session_path = nullptr;
       g_autofree gchar *session_token = nullptr;
       create_session_path(conn, nullptr, &session_token);
@@ -775,6 +776,10 @@ namespace portal {
       response->loop = loop;
       response->conn = conn;
       response->request_path = request_path;
+
+      GMainContext *context = g_main_loop_get_context(loop);
+      g_main_context_push_thread_default(context);
+
       response->subscription_id = g_dbus_connection_signal_subscribe(
         conn,
         PORTAL_NAME,
@@ -787,6 +792,8 @@ namespace portal {
         response,
         nullptr
       );
+
+      g_main_context_pop_thread_default(context);
     }
 
     static gboolean check_shutdown_cb(gpointer user_data) {
