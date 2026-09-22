@@ -144,8 +144,21 @@ namespace portal {
    * @return True if the Portal is reachable.
    */
   bool is_portal_service_reachable() {
+    g_autoptr(GError) g_error = nullptr;
+    g_autofree const gchar *address = g_dbus_address_get_for_bus_sync(G_BUS_TYPE_SESSION, nullptr, &g_error);
+    if (!address) {
+      return false;
+    }
+
     g_autoptr(GError) ping_error = nullptr;
-    g_autoptr(GDBusConnection) conn = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, &ping_error);
+    g_autoptr(GDBusConnection) conn = g_dbus_connection_new_for_address_sync(
+      address,
+      GDBusConnectionFlags(G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
+        G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION),
+      nullptr,
+      nullptr,
+      &ping_error
+    );
     if (!conn) {
       return false;
     }
@@ -275,15 +288,48 @@ namespace portal {
     int init() {
       restore_token_t::load();
 
-      conn = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, nullptr);
+      g_autoptr(GError) g_error = nullptr;
+      g_autofree gchar *address = g_dbus_address_get_for_bus_sync(G_BUS_TYPE_SESSION, nullptr, &g_error);
+      if (!address) {
+        return -1;
+      }
+
+      conn = g_dbus_connection_new_for_address_sync(
+        address,
+        GDBusConnectionFlags(G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
+          G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION),
+        nullptr,
+        nullptr,
+        &g_error
+      );
       if (!conn) {
         return -1;
       }
-      remote_desktop_proxy = g_dbus_proxy_new_sync(conn, G_DBUS_PROXY_FLAGS_NONE, nullptr, PORTAL_NAME, PORTAL_PATH, REMOTE_DESKTOP_IFACE, nullptr, nullptr);
+
+      remote_desktop_proxy = g_dbus_proxy_new_sync(
+        conn,
+        G_DBUS_PROXY_FLAGS_NONE,
+        nullptr,
+        PORTAL_NAME,
+        PORTAL_PATH,
+        REMOTE_DESKTOP_IFACE,
+        nullptr,
+        &g_error
+      );
       if (!remote_desktop_proxy) {
         return -1;
       }
-      screencast_proxy = g_dbus_proxy_new_sync(conn, G_DBUS_PROXY_FLAGS_NONE, nullptr, PORTAL_NAME, PORTAL_PATH, SCREENCAST_IFACE, nullptr, nullptr);
+
+      screencast_proxy = g_dbus_proxy_new_sync(
+        conn,
+        G_DBUS_PROXY_FLAGS_NONE,
+        nullptr,
+        PORTAL_NAME,
+        PORTAL_PATH,
+        SCREENCAST_IFACE,
+        nullptr,
+        &g_error
+      );
       if (!screencast_proxy) {
         return -1;
       }
