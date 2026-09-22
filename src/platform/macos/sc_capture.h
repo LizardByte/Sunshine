@@ -17,9 +17,9 @@
  * capture loop consumes the newest frame and the encoder duplicates the previous frame
  * when the screen is static. Delivery reliability depends on configuration discipline
  * (matching OBS's): `minimumFrameInterval` must sit ~10% below the target interval or
- * frames get suppressed by clock beating, `queueDepth` must exceed the number of sample
- * buffers the pipeline holds concurrently or WindowServer stalls delivery entirely, and
- * frames must never be filtered by SCFrameStatus.
+ * frames get suppressed by clock beating, the pipeline must hold well fewer sample
+ * buffers at once than `queueDepth` (capped at 8 by the API) or WindowServer stalls
+ * delivery until one is returned, and frames must never be filtered by SCFrameStatus.
  */
 API_AVAILABLE(macos(14.0))
 @interface SCCapture: NSObject <SCStreamDelegate, SCStreamOutput>

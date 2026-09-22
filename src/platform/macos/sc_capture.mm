@@ -269,9 +269,10 @@ API_AVAILABLE(macos(14.0))
     // WindowServer's delivery clock and suppresses frames that arrive marginally early.
     const int fps = MAX(self.frameRate, 1);
     config.minimumFrameInterval = CMTimeMake(9, fps * 10);
-    // Must exceed the number of sample buffers the pipeline holds at once (latest-wins
-    // slot, encoder in-flight, transient retains), or WindowServer runs out of surfaces
-    // and stops delivering until one is returned.
+    // Request the documented maximum explicitly (the default has varied across macOS
+    // releases). WindowServer only delivers while it has a free surface, so the pipeline
+    // must keep the number of sample buffers it holds at once (latest-wins slot, image in
+    // flight, encoder reference) well below this, or delivery stalls until one is returned.
     config.queueDepth = 8;
     self.streamConfiguration = config;
     [config release];
