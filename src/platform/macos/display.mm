@@ -406,8 +406,7 @@ namespace platf {
       while (true) {
         // The stream pushes frames on its own; wait for the next one, waking periodically
         // to check for interrupt requests.
-        auto frame_status = dispatch_semaphore_wait(frame_signal, dispatch_time(DISPATCH_TIME_NOW, SCKIT_FRAME_POLL_INTERVAL_NS));
-        (void) frame_status;
+        dispatch_semaphore_wait(frame_signal, dispatch_time(DISPATCH_TIME_NOW, SCKIT_FRAME_POLL_INTERVAL_NS));
         if (dispatch_semaphore_wait(signal, DISPATCH_TIME_NOW) == 0) {
           break;
         }
@@ -415,8 +414,10 @@ namespace platf {
         CMSampleBufferRef sample_buffer = [sc_capture copyLatestSampleBuffer];
 
         if (!sample_buffer) {
-          std::shared_ptr<img_t> probe_img;
-          if (!pull_free_image_cb(probe_img)) {
+          // No new frame within the poll interval: report a timeout like the other backends
+          // so the pipeline can repeat the previous frame.
+          std::shared_ptr<img_t> img_out;
+          if (!pull_free_image_cb(img_out) || !push_captured_image_cb(std::move(img_out), false)) {
             [sc_capture stopCapture];
             break;
           }
