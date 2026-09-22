@@ -33,44 +33,6 @@ namespace {
 using namespace std::literals;
 
 namespace portal {
-  namespace {
-    GCancellable *shutdown_cancellable() {
-      static GCancellable *cancellable = g_cancellable_new();
-      return cancellable;
-    }
-
-    /**
-     * @brief Cancel any pending DBus requests.
-     */
-    void cancel_pending_requests() {
-      g_cancellable_cancel(shutdown_cancellable());
-    }
-
-    /**
-     * @brief Trigger cancellation of pending DBus events on shutdown.
-     */
-    void shutdown_watcher() {
-      auto shutdown_event = mail::man->event<bool>(mail::shutdown);
-      shutdown_event->view();
-      cancel_pending_requests();
-    }
-
-    /**
-     * @brief Shutdown watcher initialization.
-     */
-    void start_shutdown_watcher() {
-      // The watcher is detached and must only be started once.
-      static std::once_flag flag;
-      std::call_once(flag, [] {
-        std::thread(shutdown_watcher).detach();
-      });
-    }
-
-    void quit_loop_on_cancel(GCancellable *, gpointer user_data) {
-      g_main_loop_quit(static_cast<GMainLoop *>(user_data));
-    }
-  }  // namespace
-
   // Forward declarations
   class runtime_t;
 
@@ -255,6 +217,7 @@ namespace portal {
   class dbus_t {
   public:
     guint dbus_timeout = 10;
+
     dbus_t &operator=(dbus_t &&) = delete;  // Do not allow to copying
 
     ~dbus_t() noexcept {
@@ -308,7 +271,6 @@ namespace portal {
      * @return 0 on success; nonzero or negative platform status on failure.
      */
     int init() {
-      start_shutdown_watcher();
       restore_token_t::load();
 
       conn = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, nullptr);
@@ -429,7 +391,7 @@ namespace portal {
           g_variant_new("(ss)", "org.freedesktop.portal.Session", "version"),
           G_VARIANT_TYPE("(v)"),
           G_DBUS_CALL_FLAGS_NONE,
-          -1,
+          dbus_timeout * 1000,
           nullptr,
           &err
         );
@@ -827,48 +789,52 @@ namespace portal {
       );
     }
 
-    static void cancel_other(GCancellable *, gpointer user_data) {
-      g_cancellable_cancel(static_cast<GCancellable *>(user_data));
+    static gboolean check_shutdown_cb(gpointer user_data) {
+      auto shutdown_event = mail::man->event<bool>(mail::shutdown);
+      if (shutdown_event->peek()) {
+        g_main_loop_quit(static_cast<GMainLoop *>(user_data));
+        return G_SOURCE_REMOVE;
+      }
+      return G_SOURCE_CONTINUE;
     }
 
     static GVariant *dbus_response_wait(dbus_response_t *response, guint timeout_seconds = 0) {
-      g_autoptr(GCancellable) local = g_cancellable_new();
-      gulong shutdown_id = g_cancellable_connect(shutdown_cancellable(), G_CALLBACK(cancel_other), local, nullptr);
-
       GSource *timeout_source = nullptr;
+
       if (timeout_seconds > 0) {
         timeout_source = g_timeout_source_new(timeout_seconds * 1000);
         g_source_set_callback(
           timeout_source,
           [](gpointer user_data) {
-            g_cancellable_cancel(static_cast<GCancellable *>(user_data));
+            g_main_loop_quit(static_cast<GMainLoop *>(user_data));
             return G_SOURCE_REMOVE;
           },
-          g_object_ref(local),
-          [](gpointer user_data) {
-            g_object_unref(static_cast<GCancellable *>(user_data));
-          }
+          response->loop,
+          nullptr
         );
         g_source_attach(timeout_source, g_main_loop_get_context(response->loop));
       }
 
-      if (!g_cancellable_is_cancelled(local)) {
-        gulong quit_id = g_cancellable_connect(local, G_CALLBACK(quit_loop_on_cancel), response->loop, nullptr);
-        g_main_loop_run(response->loop);
-        g_cancellable_disconnect(local, quit_id);
-      }
+      constexpr guint shutdown_poll_interval_ms = 1000;
+      GSource *shutdown_source = g_timeout_source_new(shutdown_poll_interval_ms);
+      g_source_set_callback(shutdown_source, check_shutdown_cb, response->loop, nullptr);
+      g_source_attach(shutdown_source, g_main_loop_get_context(response->loop));
+
+      g_main_loop_run(response->loop);
+
+      g_source_destroy(shutdown_source);
+      g_source_unref(shutdown_source);
 
       if (timeout_source) {
-        g_source_destroy(timeout_source);  // safe even if it already auto-removed itself after firing
+        g_source_destroy(timeout_source);
         g_source_unref(timeout_source);
       }
-      g_cancellable_disconnect(shutdown_cancellable(), shutdown_id);
 
       if (response->response) {
         return response->response;
       }
 
-      BOOST_LOG(info) << "[portalgrab] Portal request cancelled or timed out"sv;
+      BOOST_LOG(info) << "[portalgrab] Portal request cancelled, timed out, or shutdown requested"sv;
       close_request_async(response->conn, response->request_path);
       return nullptr;
     }
