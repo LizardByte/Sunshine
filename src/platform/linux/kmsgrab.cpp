@@ -53,15 +53,18 @@ namespace platf {
 
           cap_value_t sys_admin = CAP_SYS_ADMIN;
           if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &sys_admin, CAP_SET) || cap_set_proc(caps)) {
-            BOOST_LOG(error) << "Failed to gain CAP_SYS_ADMIN";
+            BOOST_LOG(error) << "Failed to gain CAP_SYS_ADMIN"sv;
           }
         }
 
         ~cap_sys_admin() {
           cap_value_t sys_admin = CAP_SYS_ADMIN;
-          if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &sys_admin, CAP_CLEAR) || cap_set_proc(caps)) {
+          if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &sys_admin, CAP_CLEAR)) {
+            BOOST_LOG(error) << "Failed to clear CAP_SYS_ADMIN capability flag"sv;
+          } else if (cap_set_proc(caps)) {
+            // CAP_SYS_ADMIN may already have been dropped by privileged_drm_worker.
             if (errno != EPERM) {
-              BOOST_LOG(error) << "Failed to drop CAP_SYS_ADMIN";
+              BOOST_LOG(error) << "Failed to drop CAP_SYS_ADMIN"sv;
             }
           }
           cap_free(caps);

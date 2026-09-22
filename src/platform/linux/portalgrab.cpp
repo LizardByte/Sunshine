@@ -85,15 +85,17 @@ namespace portal {
      * @brief Check if a Portal restore token exists on disk without inspecting its contents.
      */
     static bool exists() {
-      return std::filesystem::exists(get_file_path());
+      std::error_code ec;
+      return std::filesystem::exists(get_file_path(), ec);
     }
 
     /**
      * @brief Clear a restore token if it already exists on disk.
      */
     static void clear() {
+      std::error_code ec;
       token_->clear();
-      std::filesystem::remove(get_file_path());
+      std::filesystem::remove(get_file_path(), ec);
     }
 
     /**
@@ -137,7 +139,7 @@ namespace portal {
   }
 
   /**
-   * @brief Check if the Portal service is reachable via a DBus ping.
+   * @brief Check if the Portal service responds to a DBus Ping within 2 seconds.
    *
    * @return True if the Portal is reachable.
    */
@@ -755,6 +757,9 @@ namespace portal {
       }
     }
 
+    /**
+     * @brief Asynchronously close a pending Portal request.
+     */
     static void close_request_async(GDBusConnection *conn, const std::string &request_path) {
       g_dbus_connection_call(
         conn,
@@ -796,6 +801,9 @@ namespace portal {
       g_main_context_pop_thread_default(context);
     }
 
+    /**
+     * @brief Check for Sunshine shutdown and quit the Portal response loop if requested.
+     */
     static gboolean check_shutdown_cb(gpointer user_data) {
       if (auto shutdown_event = mail::man->event<bool>(mail::shutdown); shutdown_event->peek()) {
         g_main_loop_quit(static_cast<GMainLoop *>(user_data));
@@ -827,6 +835,14 @@ namespace portal {
       g_source_attach(shutdown_source, g_main_loop_get_context(response->loop));
 
       g_main_loop_run(response->loop);
+
+      if (response->subscription_id != 0) {
+        g_dbus_connection_signal_unsubscribe(
+          response->conn,
+          response->subscription_id
+        );
+      }
+      response->subscription_id = 0;
 
       g_source_destroy(shutdown_source);
       g_source_unref(shutdown_source);

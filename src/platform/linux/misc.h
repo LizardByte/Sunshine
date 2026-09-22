@@ -65,7 +65,7 @@ namespace portal {
   void clear_saved_token();
 
   /**
-   * @brief Check if the Portal service is reachable via simple DBus ping with 2s timeout.
+   * @brief Check if the Portal service responds to a DBus Ping within 2 seconds.
    *
    * @return True if the Portal is reachable.
    */
