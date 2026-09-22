@@ -1215,7 +1215,7 @@ namespace platf {
 #endif
 
 #ifdef SUNSHINE_BUILD_PORTAL
-  std::vector<std::string> portal_display_names(bool allow_timeout);
+  std::vector<std::string> portal_display_names(bool allow_start_timeout);
   std::shared_ptr<display_t> portal_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
   enum class portal_probe_e {

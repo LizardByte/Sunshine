@@ -233,6 +233,7 @@ namespace portal {
    */
   class dbus_t {
   public:
+    guint dbus_timeout = 10;
     dbus_t &operator=(dbus_t &&) = delete;  // Do not allow to copying
 
     ~dbus_t() noexcept {
@@ -249,7 +250,7 @@ namespace portal {
             nullptr,
             nullptr,
             G_DBUS_CALL_FLAGS_NONE,
-            -1,
+            dbus_timeout * 1000,
             nullptr,
             &err
           );
@@ -309,7 +310,7 @@ namespace portal {
      *
      * @return 0 when a portal session is ready; nonzero when D-Bus or portal setup fails.
      */
-    int connect_to_portal(bool allow_timeout) {
+    int connect_to_portal(bool allow_start_timeout) {
       g_autoptr(GMainLoop) loop = g_main_loop_new(nullptr, FALSE);
       g_autofree gchar *session_path = nullptr;
       g_autofree gchar *session_token = nullptr;
@@ -323,7 +324,7 @@ namespace portal {
         return -1;
       }
 
-      if (start_portal_session(loop, session_path, pipewire_streams, use_screencast_only, allow_timeout) < 0) {
+      if (start_portal_session(loop, session_path, pipewire_streams, use_screencast_only, allow_start_timeout) < 0) {
         return -1;
       }
 
@@ -445,7 +446,7 @@ namespace portal {
       g_variant_builder_close(&builder);
 
       g_autoptr(GError) err = nullptr;
-      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(proxy, "CreateSession", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &err);
+      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(proxy, "CreateSession", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, dbus_timeout * 1000, nullptr, &err);
 
       if (err) {
         BOOST_LOG(error) << "[portalgrab] Could not create "sv << session_type << " session: "sv << err->message;
@@ -456,7 +457,7 @@ namespace portal {
       g_variant_get(reply, "(o)", &request_path);
       dbus_response_init(&response, loop, conn, request_path);
 
-      g_autoptr(GVariant) create_response = dbus_response_wait(&response, 0);
+      g_autoptr(GVariant) create_response = dbus_response_wait(&response, dbus_timeout);
 
       if (!create_response) {
         BOOST_LOG(error) << "[portalgrab] " << session_type << " CreateSession: no response received"sv;
@@ -511,7 +512,7 @@ namespace portal {
       g_variant_builder_close(&builder);
 
       g_autoptr(GError) err = nullptr;
-      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(remote_desktop_proxy, "SelectDevices", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &err);
+      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(remote_desktop_proxy, "SelectDevices", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, dbus_timeout * 1000, nullptr, &err);
 
       if (err) {
         BOOST_LOG(error) << "[portalgrab] Could not select devices: "sv << err->message;
@@ -522,7 +523,7 @@ namespace portal {
       g_variant_get(reply, "(o)", &request_path);
       dbus_response_init(&response, loop, conn, request_path);
 
-      g_autoptr(GVariant) devices_response = dbus_response_wait(&response, 0);
+      g_autoptr(GVariant) devices_response = dbus_response_wait(&response, dbus_timeout);
 
       if (!devices_response) {
         BOOST_LOG(error) << "[portalgrab] SelectDevices: no response received"sv;
@@ -563,7 +564,7 @@ namespace portal {
       g_variant_builder_close(&builder);
 
       g_autoptr(GError) err = nullptr;
-      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(screencast_proxy, "SelectSources", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &err);
+      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(screencast_proxy, "SelectSources", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, dbus_timeout * 1000, nullptr, &err);
       if (err) {
         BOOST_LOG(error) << "[portalgrab] Could not select sources: "sv << err->message;
         return -1;
@@ -573,7 +574,7 @@ namespace portal {
       g_variant_get(reply, "(o)", &request_path);
       dbus_response_init(&response, loop, conn, request_path);
 
-      g_autoptr(GVariant) sources_response = dbus_response_wait(&response, 0);
+      g_autoptr(GVariant) sources_response = dbus_response_wait(&response, dbus_timeout);
 
       if (!sources_response) {
         BOOST_LOG(error) << "[portalgrab] SelectSources: no response received"sv;
@@ -592,7 +593,7 @@ namespace portal {
       return 0;
     }
 
-    int start_portal_session(GMainLoop *loop, const gchar *session_path, std::vector<pipewire_streaminfo_t> &out_pipewire_streams, bool use_screencast, bool allow_timeout) {
+    int start_portal_session(GMainLoop *loop, const gchar *session_path, std::vector<pipewire_streaminfo_t> &out_pipewire_streams, bool use_screencast, bool allow_start_timeout) {
       GDBusProxy *proxy = use_screencast ? screencast_proxy : remote_desktop_proxy;
       const char *session_type = use_screencast ? "ScreenCast" : "RemoteDesktop";
 
@@ -609,7 +610,7 @@ namespace portal {
       g_variant_builder_close(&builder);
 
       g_autoptr(GError) err = nullptr;
-      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(proxy, "Start", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &err);
+      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(proxy, "Start", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, dbus_timeout * 1000, nullptr, &err);
       if (err) {
         BOOST_LOG(error) << "[portalgrab] Could not start "sv << session_type << " session: "sv << err->message;
         return -1;
@@ -619,8 +620,7 @@ namespace portal {
       g_variant_get(reply, "(o)", &request_path);
       dbus_response_init(&response, loop, conn, request_path);
 
-      int timeout_sec = 10;  // Timeout in seconds used when we only want to probe for stale restore tokens.
-      g_autoptr(GVariant) start_response = dbus_response_wait(&response, (allow_timeout ? timeout_sec : 0));
+      g_autoptr(GVariant) start_response = dbus_response_wait(&response, (allow_start_timeout ? dbus_timeout : 0));
 
       if (!start_response) {
         BOOST_LOG(error) << "[portalgrab] " << session_type << " Start: no response received"sv;
@@ -714,7 +714,7 @@ namespace portal {
       g_autoptr(GVariant) msg = g_variant_ref_sink(g_variant_new("(oa{sv})", session_path, nullptr));
 
       g_autoptr(GError) err = nullptr;
-      g_autoptr(GVariant) reply = g_dbus_proxy_call_with_unix_fd_list_sync(screencast_proxy, "OpenPipeWireRemote", msg, G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &fd_list, nullptr, &err);
+      g_autoptr(GVariant) reply = g_dbus_proxy_call_with_unix_fd_list_sync(screencast_proxy, "OpenPipeWireRemote", msg, G_DBUS_CALL_FLAGS_NONE, dbus_timeout * 1000, nullptr, &fd_list, nullptr, &err);
       if (err) {
         BOOST_LOG(error) << "[portalgrab] Could not open pipewire remote: "sv << err->message;
         return -1;
@@ -969,7 +969,7 @@ namespace platf {
    *
    * @return Portal display names, or an empty list when portal discovery fails.
    */
-  std::vector<std::string> portal_display_names(bool allow_timeout) {
+  std::vector<std::string> portal_display_names(bool allow_start_timeout) {
     std::vector<std::string> display_names;
     auto dbus = std::make_shared<portal::dbus_t>();
 
@@ -978,7 +978,7 @@ namespace platf {
       return {};
     }
 
-    if (dbus->connect_to_portal(allow_timeout) < 0) {
+    if (dbus->connect_to_portal(allow_start_timeout) < 0) {
       BOOST_LOG(warning) << "[portalgrab] Failed to connect to portal. Cannot enumerate displays, returning empty list.";
       return {};
     }
