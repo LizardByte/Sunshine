@@ -267,16 +267,19 @@ namespace input {
      *
      * @param touch_port_event Event carrying the active touch port.
      * @param feedback_queue Queue used for controller feedback.
+     * @param clipboard_queue Queue used for host clipboard updates.
      */
     input_t(
       safe::mail_raw_t::event_t<input::touch_port_t> touch_port_event,
-      platf::feedback_queue_t feedback_queue
+      platf::feedback_queue_t feedback_queue,
+      platf::clipboard_queue_t clipboard_queue
     ):
         shortcutFlags {},
         gamepads(MAX_GAMEPADS),
         client_context {platf::allocate_client_input_context(platf_input)},
         touch_port_event {std::move(touch_port_event)},
         feedback_queue {std::move(feedback_queue)},
+        clipboard_queue {std::move(clipboard_queue)},
         mouse_left_button_timeout {},
         touch_port {{0, 0, 0, 0, 0, 0}, 0, 0, 0.0f, 0.0f, 1.0f, 1.0f, 0, 0},
         accumulated_vscroll_delta {},
@@ -295,6 +298,7 @@ namespace input {
 
     safe::mail_raw_t::event_t<input::touch_port_t> touch_port_event;  ///< Touch port event.
     platf::feedback_queue_t feedback_queue;  ///< Queue used to deliver controller feedback to the platform backend.
+    platf::clipboard_queue_t clipboard_queue;  ///< Queue used to deliver host clipboard text to the client.
 
     std::list<std::vector<uint8_t>> input_queue;  ///< Validated input packets waiting for processing.
     std::mutex input_queue_lock;  ///< Input queue lock.
@@ -404,6 +408,7 @@ namespace input {
   void rebind_input(const std::shared_ptr<input_t> &input, const safe::mail_t &mail) {
     input->touch_port_event = mail->event<input::touch_port_t>(mail::touch_port);
     input->feedback_queue = mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback);
+    input->clipboard_queue = mail->queue<platf::clipboard_text_t>(mail::clipboard);
 
     for (int client_index = 0; client_index < input->gamepads.size(); ++client_index) {
       auto &gamepad = input->gamepads[client_index];
@@ -1273,6 +1278,29 @@ namespace input {
   }
 
   /**
+   * @brief Apply a client clipboard packet to the host clipboard.
+   *
+   * @param input Stream input state.
+   * @param header Packet header at the start of the raw input bytes.
+   */
+  void passthrough_clipboard(std::shared_ptr<input_t> &input, const NV_INPUT_HEADER *header) {
+    auto declared = util::endian::big(header->size);
+    constexpr auto prefix = sizeof(std::uint32_t) + sizeof(std::uint32_t);
+    if (declared < prefix) {
+      return;
+    }
+
+    auto text_len = declared - prefix;
+    platf::clipboard_subscribe(input->clipboard_queue);
+    if (text_len == 0) {
+      return;
+    }
+
+    const auto *bytes = reinterpret_cast<const std::uint8_t *>(header);
+    platf::clipboard_set(std::string_view(reinterpret_cast<const char *>(bytes + sizeof(NV_INPUT_HEADER) + sizeof(std::uint32_t)), text_len));
+  }
+
+  /**
    * @brief Allocate a virtual gamepad for a client-relative controller slot.
    *
    * @param input Stream input state.
@@ -1720,6 +1748,11 @@ namespace input {
         return validate_fixed_input_packet<NV_KEYBOARD_PACKET>(packet, declared_size);
       case UTF8_TEXT_EVENT_MAGIC:
         return declared_size - sizeof(header.magic) <= UTF8_TEXT_EVENT_MAX_COUNT;
+      case SS_CLIPBOARD_TEXT_MAGIC:
+        {
+          constexpr auto prefix = sizeof(std::uint32_t) + sizeof(std::uint32_t);
+          return declared_size >= prefix && declared_size - prefix <= SS_CLIPBOARD_TEXT_MAX;
+        }
       case MULTI_CONTROLLER_MAGIC_GEN5:
         return validate_fixed_input_packet<NV_MULTI_CONTROLLER_PACKET>(packet, declared_size);
       case SS_TOUCH_MAGIC:
@@ -2092,6 +2125,9 @@ namespace input {
       case UTF8_TEXT_EVENT_MAGIC:
         passthrough(static_cast<const NV_UNICODE_PACKET *>(static_cast<const void *>(payload)));
         break;
+      case SS_CLIPBOARD_TEXT_MAGIC:
+        passthrough_clipboard(input, payload);
+        break;
       case MULTI_CONTROLLER_MAGIC_GEN5:
         passthrough(input, (PNV_MULTI_CONTROLLER_PACKET) payload);
         break;
@@ -2319,7 +2355,8 @@ namespace input {
       } else {
         input = std::make_shared<input_t>(
           mail->event<input::touch_port_t>(mail::touch_port),
-          mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback)
+          mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback),
+          mail->queue<platf::clipboard_text_t>(mail::clipboard)
         );
         state.inputs.try_emplace(std::move(session_id), input);
       }

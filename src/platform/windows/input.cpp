@@ -1328,4 +1328,8 @@ namespace platf {
 
     return caps;
   }
+
+  void clipboard_set(std::string_view) {}
+
+  void clipboard_subscribe(clipboard_queue_t) {}
 }  // namespace platf
