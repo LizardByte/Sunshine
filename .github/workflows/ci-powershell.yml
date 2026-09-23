@@ -1,0 +1,49 @@
+---
+name: CI-PowerShell (called)
+permissions: {}
+
+on:
+  workflow_call:
+
+jobs:
+  test:
+    name: Pester
+    permissions:
+      contents: read
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Run Pester tests
+        id: test
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Path ./build/tests -Force | Out-Null
+
+          Import-Module Pester -RequiredVersion 5.9.0 -Force
+          $config = New-PesterConfiguration
+          $config.Run.Path = "./tests/scripts"
+          $config.Run.Exit = $true
+          $config.Output.Verbosity = "Detailed"
+          $config.TestResult.Enabled = $true
+          $config.TestResult.OutputFormat = "JUnitXml"
+          $config.TestResult.OutputPath = "./build/tests/test_results.xml"
+          $config.CodeCoverage.Enabled = $true
+          $config.CodeCoverage.Path = "./src_assets/windows/misc/sunshine-setup-process.ps1"
+          $config.CodeCoverage.OutputFormat = "Cobertura"
+          $config.CodeCoverage.OutputPath = "./build/coverage.xml"
+
+          Invoke-Pester -Configuration $config
+
+      - name: Upload coverage artifact
+        if: >-
+          always() &&
+          (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: coverage-PowerShell
+          path: |
+            build/coverage.xml
+            build/tests/test_results.xml
+          if-no-files-found: error

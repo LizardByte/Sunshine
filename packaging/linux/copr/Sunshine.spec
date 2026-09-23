@@ -50,13 +50,15 @@ BuildRequires: which
 %if 0%{?fedora}
 # Fedora-specific BuildRequires
 BuildRequires: appstream
-# BuildRequires: boost-devel >= 1.86.0
 BuildRequires: glslc
 BuildRequires: libappstream-glib
 BuildRequires: vulkan-loader-devel
 %if 0%{fedora} > 43
+BuildRequires: boost-devel >= 1.89.0
+BuildRequires: boost-static >= 1.89.0
 # needed for npm from nvm
 BuildRequires: libatomic
+BuildRequires: xz
 %endif
 BuildRequires: libgudev
 BuildRequires: mesa-libGL-devel
@@ -123,6 +125,9 @@ BuildRequires: gcc15-c++
 %global gcc_version 15
 %global cuda_version 13.1.1
 %global cuda_build 590.48.01
+%global cuda_redist_compiler_version 13.1.115
+%global cuda_redist_runtime_version 13.1.80
+%global cuda_use_redistributables 1
 %endif
 %endif
 
@@ -134,6 +139,7 @@ BuildRequires: gcc15-c++
 %global cuda_build 590.48.01
 %global cuda_redist_compiler_version 13.1.115
 %global cuda_redist_runtime_version 13.1.80
+%global cuda_use_redistributables 1
 %endif
 
 %global cuda_dir %{_builddir}/cuda
@@ -234,7 +240,7 @@ cmake_args+=("-DPython_EXECUTABLE=/usr/bin/python3.13")
 export CC=gcc-%{gcc_version}
 export CXX=g++-%{gcc_version}
 
-%if 0%{?suse_version}
+%if 0%{?cuda_use_redistributables}
 function install_cuda_from_redistributables() {
   local cuda_redist_arch="linux-x86_64"
   local cuda_target_arch="x86_64-linux"
@@ -246,9 +252,9 @@ function install_cuda_from_redistributables() {
   local cuda_target_dir="%{cuda_dir}/targets/${cuda_target_arch}"
   mkdir -p "%{cuda_dir}" "${cuda_target_dir}"
 
-  # NVIDIA's monolithic runfile installer requires libxml2.so.2, which Tumbleweed
-  # no longer provides. Use the official redistributable archives for all openSUSE
-  # builds so they share one installer-independent CUDA setup.
+  # NVIDIA's monolithic runfile installer requires libxml2.so.2, which current
+  # distributions no longer provide. Use the official redistributable archives
+  # for CUDA 13 builds so they share one installer-independent CUDA setup.
   local cuda_components=(
     "cuda_nvcc:%{cuda_redist_compiler_version}:root"
     "libnvvm:%{cuda_redist_compiler_version}:root"
@@ -298,7 +304,7 @@ function install_cuda() {
     return
   fi
 
-%if 0%{?suse_version}
+%if 0%{?cuda_use_redistributables}
   install_cuda_from_redistributables
 %else
   local cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"

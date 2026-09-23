@@ -1,10 +1,10 @@
 <script setup>
 import { ref } from 'vue'
 
-const props = defineProps([
-  'platform',
-  'config',
-])
+const props = defineProps({
+  platform: String,
+  config: Object,
+})
 
 const config = ref(props.config)
 </script>

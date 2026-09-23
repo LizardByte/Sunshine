@@ -13,6 +13,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  npm:
+    name: NPM
+    if: >-
+      github.event.action == 'released' &&
+      github.repository_owner == 'LizardByte'
+    permissions:
+      contents: read
+      id-token: write  # required for provenance and OIDC
+      packages: write
+    uses: LizardByte/.github/.github/workflows/__call-update-npm.yml@master
+    with:
+      release_version: ${{ github.event.release.tag_name }}
+
   copr:
     name: Copr
     permissions:

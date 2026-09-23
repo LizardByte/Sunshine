@@ -5,16 +5,16 @@
 ### Forgotten Credentials
 If you forgot your credentials to the web UI, try this.
 
-@tabs{
-  @tab{General | ```bash
+@tabs_grouped{linux-package|:|
+  @tab{General |:| ```bash
     sunshine --creds {new-username} {new-password}
     ```
   }
-  @tab{AppImage | ```bash
+  @tab{AppImage |:| ```bash
     ./sunshine.AppImage --creds {new-username} {new-password}
     ```
   }
-  @tab{Flatpak | ```bash
+  @tab{Flatpak |:| ```bash
     flatpak run --command=sunshine dev.lizardbyte.app.Sunshine --creds {new-username} {new-password}
     ```
   }
@@ -131,7 +131,7 @@ resort suggestion.
 ### Hardware Encoders throttle/drop FPS during high GPU load
 Capture methods (`wlgrab`) or encoders (`nvenc`, `vaapi`) that utilize EGL contexts may exhibit FPS drops
 in conjunction with a Sunshine installation that runs in a sandboxed or reduced permissions state
-(Flatpak, AppImage, or when using Portal capture) due to the lack of active CAP_SYS_NICE process permissions
+(Flatpak, AppImage packages) due to the lack of active CAP_SYS_NICE process permissions
 needed to set up high priority EGL contexts.
 
 To check if you are affected by this issue, look out for this message in your Sunshine log:
@@ -142,12 +142,12 @@ Warning: EGL: context priority set to HIGH but CAP_SYS_NICE capability is missin
 > [!IMPORTANT]
 > Switching to Vulkan encoding should resolve the issue for the majority of configurations, but refer to this
 > table for recommended configurations (especially if Vulkan encoding is not supported on your system):
-> | Desktop Environment | Vulkan Supported? | Recommended Sunshine Install Type | Recommended Capture & Encoder Configuration       |
-> |:--------------------|-------------------|-----------------------------------|--------------------------------------------------:|
-> | KDE Plasma          | Yes               | Any                               | `portal` or `kwin` capture with `vulkan` encoding |
-> | KDE Plasma          | No                | Non-Sandboxed                     | `kwin` capture with `vaapi`/`nvenc` encoding      |
-> | GNOME / other       | Yes               | Any                               | `portal` capture with `vulkan` encoding           |
-> | GNOME / other       | No                | Non-Sandboxed                     | `kms` capture with `vaapi`/`nvenc` encoding       |
+> | Desktop Environment | Vulkan Supported? | Recommended Sunshine Install Type | Recommended Capture & Encoder Configuration              |
+> |:--------------------|-------------------|-----------------------------------|---------------------------------------------------------:|
+> | KDE Plasma          | Yes               | Any                               | `portal` or `kwin` capture with `vulkan` encoding        |
+> | KDE Plasma          | No                | Non-Sandboxed                     | `portal` or `kwin` capture with `vaapi`/`nvenc` encoding |
+> | GNOME / other       | Yes               | Any                               | `portal` capture with `vulkan` encoding                  |
+> | GNOME / other       | No                | Non-Sandboxed                     | `portal` capture with `vaapi`/`nvenc` encoding           |
 
 ### Hardware Encoding fails
 Due to legal concerns, Mesa has disabled hardware decoding and encoding by default.
@@ -170,14 +170,44 @@ If you see the above error in the Sunshine logs, compiling *Mesa* manually may b
 > Other build options are listed in the
 > [meson options](https://gitlab.freedesktop.org/mesa/mesa/-/blob/main/meson_options.txt) file.
 
-### Portal token issues
-Portal capture requires you to manually approve Remote Desktop permissions via an on-screen prompt on the host.
-This creates a portal token which is used to automatically reauthorize on subsequent reconnects, but under certain
-circumstances (a Sunshine crash, switching to another desktop environment, or if a monitor hotplug event occurs)
-the portal token may become lost or invalid, necessitating manual re-approval of capture permissions.
+### XDG Portal Token Issues
+Portal capture requires you to approve Remote Desktop permissions using an on-screen prompt on the host. Sunshine saves
+the resulting restore token so the desktop portal can reauthorize capture automatically on subsequent starts. The token
+can become invalid after events such as a Sunshine crash, switching desktop environments, changing portal
+implementations, or connecting and disconnecting monitors.
+
+Reset the token when portal capture previously worked but Sunshine no longer shows the permission prompt, or when the
+log shows that a saved token was loaded before the portal returned no streams. For example:
+
+```txt
+Info: [portalgrab] Loaded portal restore token from disk
+Error: [portalgrab] RemoteDesktop Start: no streams in response
+Warning: [portalgrab] Failed to connect to portal. Cannot enumerate displays, returning empty list.
+```
+
+Do not use this reset for a generic encoder failure unless the log also shows that XDG Portal capture failed.
+
+In the Web UI, open **Troubleshooting** and select **Reset XDG Portal Capture**. Sunshine deletes the saved token and
+restarts. Approve the Remote Desktop prompt and select the display to capture when it appears again.
+
+If the Web UI is inaccessible, stop Sunshine and delete the token manually:
+
+@tabs{
+  @tab{Linux / FreeBSD |:| ```bash
+    rm "${XDG_CONFIG_HOME:-$HOME/.config}/sunshine/portal_token"
+    ```
+  }
+  @tab{Flatpak |:| ```bash
+    rm "$HOME/.var/app/dev.lizardbyte.app.Sunshine/config/sunshine/portal_token"
+    ```
+  }
+}
+
+Start Sunshine again, then approve the new Remote Desktop request. If Sunshine uses a custom configuration directory,
+delete the `portal_token` file from that directory instead.
 
 Users of the KDE Plasma desktop can bypass this issue either by switching to `kwin` capture or setting the following
-configuration to enable permanent capture autorization for Sunshine via Portal capture:
+configuration to enable permanent capture authorization for Sunshine via Portal capture:
 ```
 flatpak permission-set kde-authorized remote-desktop dev.lizardbyte.app.Sunshine yes
 ```
@@ -308,7 +338,7 @@ for a driver-backed Raw Input keyboard and mouse plus full virtual gamepad suppo
 for Xbox 360 and DualShock 4 support that has reached end of life. If you use the
 [ViGEmBus fallback](https://github.com/nefarius/ViGEmBus/releases/latest), you must use version 1.17 or newer.
 
-When Virtual HID Driver is used, Sunshine requires version `2026.905.2300.20` or newer.
+When Virtual HID Driver is used, Sunshine requires version `2026.914.1218.10` or newer.
 
 Virtual HID Driver adds Xbox One, Xbox Series, DualSense, Nintendo Switch Pro, and Generic gamepads, plus advanced
 controller features such as motion, touchpads, LEDs, and adaptive triggers when supported. Unlike the discontinued
@@ -355,16 +385,3 @@ permissions on the disk.
 
 ### Stuttering
 If you experience stuttering using NVIDIA, try disabling `vsync:fast` in the NVIDIA Control Panel.
-
-<div class="section_buttons">
-
-| Previous      |                    Next |
-|:--------------|------------------------:|
-| [API](api.md) | [Building](building.md) |
-
-</div>
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

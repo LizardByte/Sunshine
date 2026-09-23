@@ -75,7 +75,8 @@ if(WIN32)
         message(STATUS "MSYS2 Node.js is incompatible with Rolldown; using native npm: ${NPM}")
     endif()
 
-    set(NPM_COMMAND cmd /C)
+    # Ninja wraps custom commands in cmd.exe. `call` keeps a quoted npm.cmd path intact when it contains spaces.
+    set(NPM_COMMAND cmd /C call)
     set(NPM_PATH "PATH=${NPM_DIRECTORY};$ENV{PATH}")
 else()
     set(NPM_COMMAND)
@@ -96,7 +97,8 @@ add_custom_target(web-ui ALL
 
 # docs
 if(BUILD_DOCS)
-    add_subdirectory(third-party/doxyconfig docs)
+    include(third-party/dockle/cmake/Dockle.cmake)
+    dockle_add_docs(docs TARGETS docs)
 endif()
 
 # tests
@@ -124,6 +126,7 @@ string(APPEND VIGEM_COMPILE_FLAGS "-Wno-misleading-indentation ")
 string(APPEND VIGEM_COMPILE_FLAGS "-Wno-class-memaccess ")
 string(APPEND VIGEM_COMPILE_FLAGS "-Wno-unused-function ")
 string(APPEND VIGEM_COMPILE_FLAGS "-Wno-unused-variable ")
+string(APPEND VIGEM_COMPILE_FLAGS "-Wno-missing-field-initializers ")
 set_source_files_properties("${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/src/ViGEmClient.cpp"
         DIRECTORY "${CMAKE_SOURCE_DIR}" "${TEST_DIR}"
         PROPERTIES

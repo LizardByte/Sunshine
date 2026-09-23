@@ -57,12 +57,20 @@ available for manual download from each GitHub release.
 
 **CUDA Compatibility**
 
-CUDA is used for NVFBC capture.
+CUDA is used for NVFBC capture and direct GPU-memory NVENC encoding.
+
+> [!IMPORTANT]
+> CUDA support is selected when Sunshine is compiled. If you build Sunshine for an NVIDIA GPU yourself, including
+> through the AUR or for a third-party repository such as Omarchy, install the CUDA Toolkit before building Sunshine.
+> Installing CUDA after Sunshine has been compiled does not add CUDA support; Sunshine must be rebuilt.
+>
+> This requirement does not apply when installing a prebuilt package supplied by LizardByte. In particular, the
+> Arch Linux package from LizardByte's [pacman-repo](https://github.com/LizardByte/pacman-repo) is already built with
+> CUDA support, so its users do not need to install the CUDA Toolkit.
 
 > [!NOTE]
 > See [CUDA GPUS](https://developer.nvidia.com/cuda-gpus) to cross-reference Compute Capability to your GPU.
-> The table below applies to packages provided by LizardByte. If you use an official LizardByte package, then you do not
-> need to install CUDA.
+> The table below applies to packages provided by LizardByte.
 
 <table>
     <caption>CUDA Compatibility</caption>
@@ -149,6 +157,11 @@ apk del sunshine
 > [!CAUTION]
 > Use AUR packages at your own risk.
 
+> [!IMPORTANT]
+> NVIDIA users installing Sunshine from LizardByte's pacman-repo do not need the CUDA Toolkit. If Sunshine is compiled
+> locally from the AUR or by another package provider, such as Omarchy, the builder must install the CUDA Toolkit before
+> compilation. Installing CUDA after the package was built cannot enable CUDA support in that package.
+
 ##### Install Prebuilt Packages
 Follow the instructions at LizardByte's [pacman-repo](https://github.com/LizardByte/pacman-repo) to add
 the repository. Then run the following command.
@@ -182,11 +195,11 @@ pacman -R sunshine
 Configure the `stable` repository for releases or the `beta` repository for prereleases. The setup script
 automatically selects the appropriate Debian or Ubuntu release.
 
-@tabs{
-  @tab_with_pipe{ Stable |:| ```bash
+@tabs_grouped{release-channel|:|
+  @tab{ Stable |:| ```bash
     curl -1sLf 'https://dl.cloudsmith.io/public/lizardbyte/stable/cfg/setup/bash.deb.sh' | sudo -E bash
     ```}
-  @tab_with_pipe{ Beta |:| ```bash
+  @tab{ Beta |:| ```bash
     curl -1sLf 'https://dl.cloudsmith.io/public/lizardbyte/beta/cfg/setup/bash.deb.sh' | sudo -E bash
     ```}
 }
@@ -227,22 +240,22 @@ sudo apt remove sunshine
 Configure the `stable` repository for releases or the `beta` repository for prereleases. Cloudsmith's setup script
 automatically selects Fedora or openSUSE and the appropriate release.
 
-@tabs{
-  @tab_with_pipe{ Stable |:| ```bash
+@tabs_grouped{release-channel|:|
+  @tab{ Stable |:| ```bash
     curl -1sLf 'https://dl.cloudsmith.io/public/lizardbyte/stable/cfg/setup/bash.rpm.sh' | sudo -E bash
     ```}
-  @tab_with_pipe{ Beta |:| ```bash
+  @tab{ Beta |:| ```bash
     curl -1sLf 'https://dl.cloudsmith.io/public/lizardbyte/beta/cfg/setup/bash.rpm.sh' | sudo -E bash
     ```}
 }
 
 Install Sunshine with your distribution's package manager.
 
-@tabs{
-  @tab{ Fedora | ```bash
+@tabs_grouped{distribution|:|
+  @tab{ Fedora |:| ```bash
     sudo dnf install Sunshine
     ```}
-  @tab{ openSUSE | ```bash
+  @tab{ openSUSE |:| ```bash
     sudo zypper install Sunshine
     ```}
 }
@@ -251,11 +264,11 @@ Install Sunshine with your distribution's package manager.
 
 Download `Sunshine-{version}-1.{distro+version}.{arch}.rpm` and run the following command.
 
-@tabs{
-  @tab{ Fedora | ```bash
+@tabs_grouped{distribution|:|
+  @tab{ Fedora |:| ```bash
     sudo dnf install ./Sunshine-{version}-1.{distro+version}.{arch}.rpm
     ```}
-  @tab{ openSUSE | ```bash
+  @tab{ openSUSE |:| ```bash
     sudo zypper install ./Sunshine-{version}-1.{distro+version}.{arch}.rpm
     ```}
 }
@@ -269,11 +282,11 @@ Download `Sunshine-{version}-1.{distro+version}.{arch}.rpm` and run the followin
 
 ##### Uninstall
 
-@tabs{
-  @tab{ Fedora | ```bash
+@tabs_grouped{distribution|:|
+  @tab{ Fedora |:| ```bash
     sudo dnf remove Sunshine
     ```}
-  @tab{ openSUSE | ```bash
+  @tab{ openSUSE |:| ```bash
     sudo zypper remove Sunshine
     ```}
 }
@@ -560,7 +573,7 @@ Sunshine supports two virtual gamepad backends on Windows. You can install the
 for a driver-backed Raw Input keyboard and mouse plus full virtual gamepad support. ViGEmBus remains available as a
 limited alternative for Xbox 360 and DualShock 4 gamepads, but it has reached end of life.
 
-When Virtual HID Driver is used, Sunshine requires version `2026.905.2300.20` or newer.
+When Virtual HID Driver is used, Sunshine requires version `2026.914.1218.10` or newer.
 
 Compared with the ViGEmBus fallback, Virtual HID Driver can create Xbox One, Xbox Series, DualSense, Nintendo Switch
 Pro, and Generic gamepads in addition to Xbox 360 and DualShock 4. It can also expose controller-specific features such
@@ -665,19 +678,20 @@ by default. You may replace *localhost* with your internal ip address.
 
 7. If you run into issues, logs are available in the `Troubleshooting` tab.
    You can navigate through each warning/error message for clues to the issue.
+
    ![Logs](images/troubleshooting-logs.png)
 
 ### Arguments
 To get a list of available arguments, run the following command.
 
-@tabs{
-   @tab{ General | ```bash
+@tabs_grouped{linux-package|:|
+   @tab{ General |:| ```bash
       sunshine --help
       ```}
-   @tab{ AppImage | ```bash
+   @tab{ AppImage |:| ```bash
       ./Sunshine_{version}_{arch}.AppImage --help
       ```}
-   @tab{ Flatpak | ```bash
+   @tab{ Flatpak |:| ```bash
       flatpak run --command=sunshine dev.lizardbyte.app.Sunshine --help
       ```}
 }
@@ -712,7 +726,6 @@ All shortcuts start with `Ctrl+Alt+Shift`, just like Moonlight.
 * The "Desktop" app works the same as any other application except it has no commands. It does not start an application,
   instead it simply starts a stream. If you removed it and would like to get it back, just add a new application with
   the name "Desktop" and "desktop.png" as the image path.
-* For the Linux flatpak you must prepend commands with `flatpak-spawn --host`.
 * If inputs (mouse, keyboard, gamepads...) aren't working after connecting:
 
   * On FreeBSD/Linux, add the user running sunshine to the `input` group.
@@ -743,14 +756,14 @@ Streaming HDR content is officially supported on Windows hosts and experimentall
 
 Additional information:
 
-@tabs{
-  @tab{ Windows |
+@tabs_grouped{platform|:|
+  @tab{ Windows |:|
   - HDR streaming is supported for Intel, AMD, and NVIDIA GPUs that support encoding HEVC Main 10 or AV1 10-bit profiles.
   - We recommend calibrating the display by streaming the Windows HDR Calibration app to your client device and saving an HDR calibration profile to use while streaming.
   - Older games that use NVIDIA-specific NVAPI HDR rather than native Windows HDR support may not display properly in HDR.
   }
 
-@tab{ Linux |
+@tab{ Linux |:|
   - HDR streaming is supported for Intel and AMD GPUs that support encoding HEVC Main 10 or AV1 10-bit profiles using VAAPI.
   - The KMS capture backend is required for HDR capture. Other capture methods, like NvFBC or X11, do not support HDR.
   - You will need a desktop environment with a compositor that supports HDR rendering, such as Gamescope or KDE Plasma 6.
@@ -765,20 +778,8 @@ Tutorial videos are available [here](https://www.youtube.com/playlist?list=PLMYr
 
 Guides are available [here](guides.md).
 
-@admonition{Community! |
+@admonition{Community! |:|
 Tutorials and Guides are community generated. Want to contribute? Reach out to us on our discord server.}
 
-<div class="section_buttons">
-
-| Previous                 |                      Next |
-|:-------------------------|--------------------------:|
-| [Overview](../README.md) | [Changelog](changelog.md) |
-
-</div>
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>
 
 [latest-release]: https://github.com/LizardByte/Sunshine/releases/latest

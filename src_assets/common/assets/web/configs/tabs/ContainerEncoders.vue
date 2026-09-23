@@ -8,11 +8,11 @@ import SoftwareEncoder from './encoders/SoftwareEncoder.vue'
 import VAAPIEncoder from './encoders/VAAPIEncoder.vue'
 import VulkanEncoder from './encoders/VulkanEncoder.vue'
 
-const props = defineProps([
-  'platform',
-  'config',
-  'currentTab'
-])
+const props = defineProps({
+  platform: String,
+  config: Object,
+  currentTab: String,
+})
 
 const config = ref(props.config)
 </script>
@@ -69,6 +69,3 @@ const config = ref(props.config)
   />
 
 </template>
-
-<style scoped>
-</style>

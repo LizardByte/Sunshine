@@ -448,7 +448,8 @@ TEST_F(SystemTrayTest, VigembusSelectionSuppressesVirtualHidNotifications) {
   EXPECT_EQ(tray_data.notification_text, nullptr);
   EXPECT_EQ(tray_data.notification_cb, nullptr);
 
-  system_tray::update_tray_virtualhid_driver(true, "2026.829.2338.54", false, ">= 2026.905.2300.20");  // NOSONAR(cpp:S1313): not IP addresses
+  const auto supported_versions = std::format(">= {}", LIBVIRTUALHID_MINIMUM_VERSION);
+  system_tray::update_tray_virtualhid_driver(true, "2026.829.2338.54", false, supported_versions);  // NOSONAR(cpp:S1313): not IP addresses
   EXPECT_EQ(tray_data.notification_title, nullptr);
   EXPECT_EQ(tray_data.notification_text, nullptr);
   EXPECT_EQ(tray_data.notification_cb, nullptr);

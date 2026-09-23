@@ -52,7 +52,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4  # v10.1.0
         with:
           enable-cache: true
 
@@ -225,6 +225,8 @@ jobs:
           sudo su "$(whoami)" -c "flatpak run org.flatpak.Builder \
             --arch=${MATRIX_ARCH} \
             --force-clean \
+            --mirror-screenshots-url=https://dl.flathub.org/media \
+            --compose-url-policy=full \
             --repo=repo \
             --sandbox \
             build-sunshine ${APP_ID}.yml"
@@ -254,8 +256,6 @@ jobs:
             "${APP_ID}.yml"
 
           echo "Linting flatpak repo"
-          # TODO: add arg
-          # --mirror-screenshots-url=https://dl.flathub.org/media \
           flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
             --exceptions \
             --user-exceptions "${exceptions_file}" \
