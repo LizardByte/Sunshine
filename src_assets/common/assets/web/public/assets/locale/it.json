@@ -76,6 +76,7 @@
     "env_displayplacer_example": "Esempio - displayplacer per l'automazione della risoluzione:",
     "env_qres_example": "Esempio - QRes per l'automazione della risoluzione:",
     "env_qres_path": "percorso di QRes",
+    "env_var_description": "Descrizione",
     "env_var_name": "Nome Variable",
     "env_vars_about": "Informazioni sulle variabili d'ambiente",
     "env_vars_desc": "Tutti i comandi ottengono queste variabili d'ambiente per impostazione predefinita:",
@@ -291,6 +292,16 @@
     "key_rightalt_to_key_win": "Mappare il tasto Alt destro sul tasto Windows",
     "key_rightalt_to_key_win_desc": "Potrebbe succedere che non sia possibile inviare il Tasto Windows direttamente da Moonlight. In questi casi può essere utile far credere a Sunshine che il tasto Alt Destro è il Tasto Windows",
     "keybindings": "Associazioni",
+    "keybindings_add": "Aggiungi mappatura",
+    "keybindings_custom": "Codice chiave personalizzato",
+    "keybindings_desc": "Remap i codici virtuali di Windows ricevuti da Moonlight. Ogni riga mappa un codice sorgente al codice Sunshine invia all'host. Scegli dall'elenco completo dei codici di chiave virtuali definiti da Microsoft. Le righe incomplete o non valide non sono salvate.",
+    "keybindings_destination": "Codice di destinazione",
+    "keybindings_empty": "Nessuna mappatura di tasti personalizzata.",
+    "keybindings_invalid": "Selezionare un codice di chiave virtuale.",
+    "keybindings_reference": "Visualizza tutti i codici virtuali",
+    "keybindings_remove": "Rimuovi mappatura",
+    "keybindings_select": "Seleziona un codice di chiave virtuale",
+    "keybindings_source": "Codice sorgente",
     "keyboard": "Abilita Input da Tastiera",
     "keyboard_desc": "Consente ai guest di controllare il sistema host con la tastiera",
     "lan_encryption_mode": "Modalità Crittografia LAN",
@@ -670,6 +681,7 @@
     "virtualhid_license_unavailable": "Il servizio di licenza libvirtualhid locale non è disponibile. Verificare che il pacchetto driver e il servizio broker siano installati ed in esecuzione."
   },
   "featured": {
+    "category_filter": "Filtro categoria",
     "categories": {
       "client": "Clienti",
       "tool": "Strumenti"

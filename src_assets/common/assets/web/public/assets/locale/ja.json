@@ -76,6 +76,7 @@
     "env_displayplacer_example": "例 - 解像度自動化のためのディスプレイ プレーサ：",
     "env_qres_example": "例 - 自動解像度用のQRes:",
     "env_qres_path": "qresのパス",
+    "env_var_description": "説明",
     "env_var_name": "変数名",
     "env_vars_about": "環境変数について",
     "env_vars_desc": "すべてのコマンドはデフォルトでこれらの環境変数を取得します:",
@@ -291,6 +292,16 @@
     "key_rightalt_to_key_win": "右AltキーをWindowsキーにマップする",
     "key_rightalt_to_key_win_desc": "Moonlight から Windows キーを直接送信できない可能性があります。 これらの場合、SunshineにRight AltキーがWindowsキーであると考えさせると便利かもしれません。",
     "keybindings": "キー割り当て",
+    "keybindings_add": "マッピングを追加",
+    "keybindings_custom": "カスタムキーコード",
+    "keybindings_desc": "Moonlight から受信した Windows 仮想キーコードをリマッピングします。各行がソースコードを Sunshine がホストに送信するコードにマッピングします。 Microsoft-defined virtual key codesの完全なリストから選択します。不完全または無効な行は保存されません。",
+    "keybindings_destination": "宛先コード",
+    "keybindings_empty": "カスタムキーマッピングはありません。",
+    "keybindings_invalid": "仮想キーコードを選択します。",
+    "keybindings_reference": "すべての仮想キーコードを表示",
+    "keybindings_remove": "マッピングを削除",
+    "keybindings_select": "仮想キーコードを選択",
+    "keybindings_source": "ソース コード",
     "keyboard": "キーボード入力を有効にする",
     "keyboard_desc": "ゲストがキーボードでホストシステムを制御できるようにします",
     "lan_encryption_mode": "LAN 暗号化モード",
@@ -670,6 +681,7 @@
     "virtualhid_license_unavailable": "ローカル libvirtualhid ライセンスサービスが利用できません。ドライバーパッケージとブローカーサービスがインストールされ、実行されていることを確認してください。"
   },
   "featured": {
+    "category_filter": "カテゴリフィルタ",
     "categories": {
       "client": "クライアント",
       "tool": "ツール"

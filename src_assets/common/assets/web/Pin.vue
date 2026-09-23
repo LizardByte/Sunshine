@@ -1,17 +1,11 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="auto">
-
-<head>
-  <%- header %>
-</head>
-
-<body id="app" v-cloak>
+<template>
   <Navbar></Navbar>
   <div id="content" class="container">
     <h1 class="my-4 text-center">{{ $t('pin.pin_pairing') }}</h1>
     <form class="form d-flex flex-column align-items-center" id="form" @submit.prevent="registerDevice">
       <div class="card flex-column d-flex p-4 mb-4">
         <div class="input-group mt-2">
+          <label for="pairing-input" class="visually-hidden">{{ $t('pin.select_pairing') }}</label>
           <span class="input-group-text">
             <user-round-search :size="18" class="icon"></user-round-search>
           </span>
@@ -34,18 +28,20 @@
           </button>
         </div>
         <div class="input-group mt-2">
+          <label for="pin-input" class="visually-hidden">{{ $t('navbar.pin') }}</label>
           <span class="input-group-text">
             <hash :size="18" class="icon"></hash>
           </span>
-          <input v-model="pin" type="text" pattern="\d{4}" maxlength="4" inputmode="numeric" :placeholder="`${$t('navbar.pin')}`" autofocus id="pin-input" class="form-control" required />
+          <input v-model="pin" type="text" pattern="\d{4}" maxlength="4" inputmode="numeric" :placeholder="`${$t('navbar.pin')}`" id="pin-input" class="form-control" required />
         </div>
         <div class="input-group my-4">
+          <label for="name-input" class="visually-hidden">{{ $t('pin.device_name') }}</label>
           <span class="input-group-text">
             <monitor :size="18" class="icon"></monitor>
           </span>
           <input v-model="name" type="text" :placeholder="`${$t('pin.device_name')}`" id="name-input" class="form-control" required />
         </div>
-        <button class="btn btn-primary">
+        <button type="submit" class="btn btn-primary">
           <forward :size="18" class="icon"></forward>
           {{ $t('pin.send') }}
         </button>
@@ -56,11 +52,9 @@
       <div v-if="status" :class="`alert alert-${status.type}`" role="alert">{{ status.message }}</div>
     </form>
   </div>
-</body>
+</template>
 
-<script type="module">
-  import { createApp } from 'vue'
-  import { initApp } from './init'
+<script>
   import Navbar from './Navbar.vue'
   import { apiFetch } from './fetch_utils'
   import {
@@ -71,7 +65,7 @@
     X,
   } from '@lucide/vue'
 
-  let app = createApp({
+  export default {
     components: {
       Navbar,
       Forward,
@@ -175,7 +169,5 @@
         await this.loadPendingPairings();
       }
     }
-  });
-
-  initApp(app);
+  }
 </script>

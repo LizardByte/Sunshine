@@ -76,6 +76,7 @@
     "env_displayplacer_example": "Пример - displayplacer для автоматизации решения:",
     "env_qres_example": "Пример: автопереключение разрешения через QRes:",
     "env_qres_path": "путь qres",
+    "env_var_description": "Описание",
     "env_var_name": "Переменная окружения",
     "env_vars_about": "О переменных среды",
     "env_vars_desc": "Всем командам по умолчанию передаются эти переменные окружения:",
@@ -291,6 +292,16 @@
     "key_rightalt_to_key_win": "Карта клавиши Alt справа для клавиши Windows",
     "key_rightalt_to_key_win_desc": "Возможно, вы не можете послать нажатие кнопки Windows непосредственно из Moonlight. В таком случае, полезно чтобы Sunshine думал, что клавиша правый Alt является клавишей Windows",
     "keybindings": "Привязки клавиш",
+    "keybindings_add": "Добавить сопоставление",
+    "keybindings_custom": "Пользовательский код ключа",
+    "keybindings_desc": "Виртуальный ключ Windows, полученный от Moonlight. Каждая строка сопоставляет исходный код с кодом Sunshine отправляется узлу. Выберите из полного списка виртуальных кодов Microsoft. Неполные или недопустимые строки не сохраняются.",
+    "keybindings_destination": "Код назначения",
+    "keybindings_empty": "Нет сопоставлений пользовательских ключей.",
+    "keybindings_invalid": "Выберите код виртуального ключа.",
+    "keybindings_reference": "Просмотреть все коды виртуальных ключей",
+    "keybindings_remove": "Удалить сопоставление",
+    "keybindings_select": "Выберите код виртуального ключа",
+    "keybindings_source": "Исходный код",
     "keyboard": "Включить ввод с клавиатуры",
     "keyboard_desc": "Позволяет гостям управлять системой хоста с помощью клавиатуры",
     "lan_encryption_mode": "Режим шифрования LAN",
@@ -670,6 +681,7 @@
     "virtualhid_license_unavailable": "Локальный сервис лицензии libvirtualhid недоступен. Проверьте, что драйверский пакет и брокерская служба установлены и запущены."
   },
   "featured": {
+    "category_filter": "Фильтр категорий",
     "categories": {
       "client": "Клиенты",
       "tool": "Инструменты"

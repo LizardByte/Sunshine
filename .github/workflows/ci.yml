@@ -186,12 +186,14 @@ jobs:
       contents: read
     uses: ./.github/workflows/ci-powershell.yml
 
-  bundle-analysis:
-    name: Bundle Analysis
+  web-ui:
+    name: Web UI
     needs: release-setup
     permissions:
       contents: read
-    uses: ./.github/workflows/ci-bundle.yml
+    uses: ./.github/workflows/ci-web.yml
+    with:
+      release_version: ${{ needs.release-setup.outputs.release_version }}
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
@@ -211,6 +213,7 @@ jobs:
       - build-homebrew
       - build-windows
       - test-powershell
+      - web-ui
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -248,6 +251,10 @@ jobs:
             coverage: true
           - name: PowerShell
             coverage: true
+          - name: Web-UI
+            coverage: true
+            coverage_file: coverage/coverage-final.json
+            test_results_file: junit.xml
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -260,7 +267,7 @@ jobs:
 
       - name: Upload test coverage
         if: matrix.coverage != false
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f  # v7.0.0
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5  # v7.1.1
         with:
           disable_search: true
           fail_ci_if_error: true
@@ -271,11 +278,11 @@ jobs:
           verbose: true
 
       - name: Upload test results
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f  # v7.0.0
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5  # v7.1.1
         with:
           disable_search: true
           fail_ci_if_error: true
-          files: ./_coverage/tests/test_results.xml
+          files: ./_coverage/${{ matrix.test_results_file || 'tests/test_results.xml' }}
           report_type: test_results
           flags: ${{ matrix.name }}
           token: ${{ secrets.CODECOV_TOKEN }}

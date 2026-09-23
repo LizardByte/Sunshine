@@ -61,6 +61,8 @@ depends=(
 makedepends=(
   'appstream'
   'appstream-glib'
+  'boost'
+  'boost-libs'
   'cmake'
   'desktop-file-utils'
   "gcc${_gcc_dep_suffix}"

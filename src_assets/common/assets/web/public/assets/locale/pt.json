@@ -76,6 +76,7 @@
     "env_displayplacer_example": "Exemplo - displayplacer para Automação de Resolução:",
     "env_qres_example": "Exemplo - QRes para Automação de Resolução:",
     "env_qres_path": "Caminho das configurações rápidas",
+    "env_var_description": "Descrição:",
     "env_var_name": "Nome da Var",
     "env_vars_about": "Sobre Variáveis de Ambiente",
     "env_vars_desc": "Todos os comandos obtêm essas variáveis de ambiente por padrão:",
@@ -291,6 +292,16 @@
     "key_rightalt_to_key_win": "Tecla Alt Right Map para a tecla Windows",
     "key_rightalt_to_key_win_desc": "É possível que você não possa enviar diretamente a chave Windows do Moonlight. Nesses casos, pode ser útil fazer Sunshine pensar que a tecla Alt direita é a tecla Windows",
     "keybindings": "Combinações de Teclado",
+    "keybindings_add": "Adicionar Mapeamento",
+    "keybindings_custom": "Código de chave personalizado",
+    "keybindings_desc": "Remixe códigos de chaves virtuais do Windows recebidos da luz da lua. Cada linha mapeia um código-fonte para o código do Sunshine envia para o host. Escolha a partir da lista completa de códigos virtuais definidos pela Microsoft. Linhas incompletas ou inválidas não são salvas.",
+    "keybindings_destination": "Código de destino",
+    "keybindings_empty": "Nenhum mapeamento de chaves personalizado.",
+    "keybindings_invalid": "Selecione um código de chave virtual.",
+    "keybindings_reference": "Ver todos os códigos de chaves virtuais",
+    "keybindings_remove": "Remover mapeamento",
+    "keybindings_select": "Selecione um código de tecla virtual",
+    "keybindings_source": "Código fonte",
     "keyboard": "Habilitar Entrada de Teclado",
     "keyboard_desc": "Permite aos convidados controlar o sistema de host com o teclado",
     "lan_encryption_mode": "Modo de Criptografia LAN",
@@ -670,6 +681,7 @@
     "virtualhid_license_unavailable": "O serviço de licença local libvirtualhid não está disponível. Verifique se o pacote do driver e o serviço de corretor estão instalados e em execução."
   },
   "featured": {
+    "category_filter": "Filtro de categoria",
     "categories": {
       "client": "Clientes",
       "tool": "Ferramentas"

@@ -75,6 +75,26 @@ protected:
     return locales;
   }
 
+  /**
+   * @brief Extract locale codes and referenced file names from the web locale loader.
+   *
+   * @return Map of configured locale codes to referenced JSON file stems.
+   */
+  static std::map<std::string, std::string, std::less<>> extractLocaleJsPaths() {
+    std::map<std::string, std::string, std::less<>> locales;
+    const std::string content = file_handler::read_file("src_assets/common/assets/web/locale.js");
+    const std::regex localePathPattern(
+      R"delimiter(\[\s*['"]([^'"]+)['"]\s*,\s*['"]\./assets/locale/([^'"]+)\.json['"]\s*\])delimiter"
+    );
+    std::sregex_iterator iter(content.begin(), content.end(), localePathPattern);
+
+    for (const std::sregex_iterator end; iter != end; ++iter) {
+      locales[(*iter)[1].str()] = (*iter)[2].str();
+    }
+
+    return locales;
+  }
+
   // Get available locale JSON files
   static std::set<std::string, std::less<>> getAvailableLocaleFiles() {
     std::set<std::string, std::less<>> locales;
@@ -242,6 +262,42 @@ TEST_F(LocaleConsistencyTest, ConfigCppAndGeneralVueLocalesMatch) {
   }
 
   if (!errorMsg.empty()) {
+    FAIL() << errorMsg;
+  }
+}
+
+TEST_F(LocaleConsistencyTest, LocaleJsPathsMatchAvailableFiles) {
+  const auto localePaths = extractLocaleJsPaths();
+  auto localeFiles = getAvailableLocaleFiles();
+  localeFiles.erase("en");  // English is imported directly as the fallback locale.
+
+  std::vector<std::string> inconsistencies;
+
+  for (const auto &localeFile : localeFiles) {
+    if (!localePaths.contains(localeFile)) {
+      inconsistencies.push_back(std::format("{}.json is missing from locale.js", localeFile));
+    }
+  }
+
+  for (const auto &[localeCode, referencedFile] : localePaths) {
+    if (localeCode != referencedFile) {
+      inconsistencies.push_back(
+        std::format("locale.js maps '{}' to '{}.json'", localeCode, referencedFile)
+      );
+    }
+
+    if (!localeFiles.contains(referencedFile)) {
+      inconsistencies.push_back(
+        std::format("locale.js references missing file: {}.json", referencedFile)
+      );
+    }
+  }
+
+  if (!inconsistencies.empty()) {
+    std::string errorMsg = "locale.js path inconsistencies found:\n";
+    for (const auto &inconsistency : inconsistencies) {
+      errorMsg += std::format("  {}\n", inconsistency);
+    }
     FAIL() << errorMsg;
   }
 }

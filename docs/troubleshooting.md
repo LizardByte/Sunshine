@@ -5,16 +5,16 @@
 ### Forgotten Credentials
 If you forgot your credentials to the web UI, try this.
 
-@tabs{
-  @tab{General | ```bash
+@tabs_grouped{linux-package|:|
+  @tab{General |:| ```bash
     sunshine --creds {new-username} {new-password}
     ```
   }
-  @tab{AppImage | ```bash
+  @tab{AppImage |:| ```bash
     ./sunshine.AppImage --creds {new-username} {new-password}
     ```
   }
-  @tab{Flatpak | ```bash
+  @tab{Flatpak |:| ```bash
     flatpak run --command=sunshine dev.lizardbyte.app.Sunshine --creds {new-username} {new-password}
     ```
   }
@@ -193,11 +193,11 @@ restarts. Approve the Remote Desktop prompt and select the display to capture wh
 If the Web UI is inaccessible, stop Sunshine and delete the token manually:
 
 @tabs{
-  @tab{Linux / FreeBSD | ```bash
+  @tab{Linux / FreeBSD |:| ```bash
     rm "${XDG_CONFIG_HOME:-$HOME/.config}/sunshine/portal_token"
     ```
   }
-  @tab{Flatpak | ```bash
+  @tab{Flatpak |:| ```bash
     rm "$HOME/.var/app/dev.lizardbyte.app.Sunshine/config/sunshine/portal_token"
     ```
   }
@@ -385,16 +385,3 @@ permissions on the disk.
 
 ### Stuttering
 If you experience stuttering using NVIDIA, try disabling `vsync:fast` in the NVIDIA Control Panel.
-
-<div class="section_buttons">
-
-| Previous      |                    Next |
-|:--------------|------------------------:|
-| [API](api.md) | [Building](building.md) |
-
-</div>
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

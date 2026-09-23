@@ -76,6 +76,7 @@
     "env_displayplacer_example": "Ejemplo - displayplacer para Automatización de Resoluciones:",
     "env_qres_example": "Ejemplo - QRes para Automatización de Resoluciones:",
     "env_qres_path": "ruta de qres",
+    "env_var_description": "Descripción",
     "env_var_name": "Nombre Var",
     "env_vars_about": "Acerca de variables de entorno",
     "env_vars_desc": "Todos los comandos obtienen estas variables de entorno de forma predeterminada:",
@@ -291,6 +292,16 @@
     "key_rightalt_to_key_win": "Mapear tecla Alt Derecho a la tecla Windows",
     "key_rightalt_to_key_win_desc": "Es posible que no pueda enviar directamente la tecla de Windows desde Moonlight. En esos casos puede ser útil hacer que Sunshine piense que la tecla Alt correcta es la clave de Windows",
     "keybindings": "Enlaces de teclado",
+    "keybindings_add": "Añadir mapeo",
+    "keybindings_custom": "Código clave personalizado",
+    "keybindings_desc": "Remap los códigos de clave virtual de Windows recibidos de Luna. Cada fila mapea un código fuente al código Sunshine envía al host. Elija de la lista completa de códigos de claves virtuales definidos por Microsoft. No se guardan filas incompletas o no válidas.",
+    "keybindings_destination": "Código de destino",
+    "keybindings_empty": "No hay asignaciones de claves personalizadas.",
+    "keybindings_invalid": "Seleccione un código de clave virtual.",
+    "keybindings_reference": "Ver todos los códigos de clave virtual",
+    "keybindings_remove": "Eliminar mapeo",
+    "keybindings_select": "Seleccione un código de clave virtual",
+    "keybindings_source": "Código fuente",
     "keyboard": "Activar entrada de teclado",
     "keyboard_desc": "Permite a los invitados controlar el sistema de host con el teclado",
     "lan_encryption_mode": "Modo de cifrado LAN",
@@ -670,6 +681,7 @@
     "virtualhid_license_unavailable": "El servicio de licencia local libvirtualhid no está disponible. Verifique que el paquete del controlador y el servicio de broker están instalados y ejecutándose."
   },
   "featured": {
+    "category_filter": "Filtro de categoría",
     "categories": {
       "client": "Clientes",
       "tool": "Herramientas"

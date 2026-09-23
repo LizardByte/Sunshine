@@ -1,11 +1,4 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="auto">
-
-<head>
-  <%- header %>
-</head>
-
-<body id="app" v-cloak>
+<template>
   <Navbar></Navbar>
   <div id="content" class="container">
     <div class="my-4">
@@ -16,10 +9,12 @@
     <!-- Search Bar with Autocomplete -->
     <div class="toolbar mb-3 d-flex flex-wrap align-items-center gap-3">
       <div class="input-group config-search">
+        <label for="config-search" class="visually-hidden">{{ $t('config.search_options') }}</label>
         <span class="input-group-text">
           <search :size="18" class="icon"></search>
         </span>
         <input
+          id="config-search"
           type="text"
           class="form-control"
           v-model="searchQuery"
@@ -47,22 +42,22 @@
         <nav class="config-nav">
           <ul class="nav config-nav-list">
             <li class="nav-item" v-for="tab in generalTabs" :key="tab.id">
-              <a class="nav-link" :class="{'active': tab.id === currentTab}" href="#"
+              <button type="button" class="nav-link" :class="{'active': tab.id === currentTab}"
                 @click="currentTab = tab.id">
                 <component :is="getTabIcon(tab.id)" :size="18" class="icon"></component>
                 {{ $t(tab.nameKey) }}
-              </a>
+              </button>
             </li>
           </ul>
           <template v-if="encoderTabs.length">
             <div class="config-nav-heading">{{ $t('config.encoders') }}</div>
             <ul class="nav config-nav-list">
               <li class="nav-item" v-for="tab in encoderTabs" :key="tab.id">
-                <a class="nav-link" :class="{'active': tab.id === currentTab}" href="#"
+                <button type="button" class="nav-link" :class="{'active': tab.id === currentTab}"
                   @click="currentTab = tab.id">
                   <component :is="getTabIcon(tab.id)" :size="18" class="icon"></component>
                   {{ $t(tab.nameKey) }}
-                </a>
+                </button>
               </li>
             </ul>
           </template>
@@ -141,14 +136,13 @@
     </div>
 
   </div>
-</body>
+</template>
 
-
-<script type="module">
-  import { computed, createApp } from 'vue'
-  import { initApp } from './init'
+<script>
+  import { computed, toRaw } from 'vue'
   import Navbar from './Navbar.vue'
   import { apiFetch } from './fetch_utils'
+  import configTabs from './configs/config_tabs.json'
   import General from './configs/tabs/General.vue'
   import Inputs from './configs/tabs/Inputs.vue'
   import Network from './configs/tabs/Network.vue'
@@ -156,7 +150,6 @@
   import Advanced from './configs/tabs/Advanced.vue'
   import AudioVideo from './configs/tabs/AudioVideo.vue'
   import ContainerEncoders from './configs/tabs/ContainerEncoders.vue'
-  import {$tp, usePlatformI18n} from './platform-i18n'
   import {
     Check,
     Cpu,
@@ -173,7 +166,32 @@
 
   const ENCODER_TAB_IDS = new Set(["nv", "amd", "qsv", "vaapi", "vt", "vulkan", "sw"]);
 
-  const app = createApp({
+  /**
+   * Compare configuration values without coercing their types.
+   *
+   * @param {*} value Configured value.
+   * @param {*} defaultValue Default value for the option.
+   * @returns {boolean} Whether both values have the same type and contents.
+   */
+  function configValuesEqual(value, defaultValue) {
+    if (Object.is(value, defaultValue)) {
+      return true;
+    }
+    if (typeof value !== typeof defaultValue || value === null || defaultValue === null || typeof value !== 'object') {
+      return false;
+    }
+    if (Array.isArray(value) !== Array.isArray(defaultValue)) {
+      return false;
+    }
+
+    const valueKeys = Object.keys(value);
+    const defaultKeys = Object.keys(defaultValue);
+    return valueKeys.length === defaultKeys.length && valueKeys.every(key =>
+      Object.hasOwn(defaultValue, key) && configValuesEqual(value[key], defaultValue[key])
+    );
+  }
+
+  export default {
     components: {
       Navbar,
       General,
@@ -205,182 +223,9 @@
         config: null,
         currentTab: "general",
         searchQuery: "",
-        tabs: [ // TODO: Move the options to each Component instead, encapsulate.
-          {
-            id: "general",
-            nameKey: "config.category_general",
-            options: {
-              "locale": "en",
-              "sunshine_name": "",
-              "min_log_level": 2,
-              "global_prep_cmd": [],
-              "notify_pre_releases": "disabled",
-              "system_tray": "enabled",
-            },
-          },
-          {
-            id: "input",
-            nameKey: "config.category_input",
-            options: {
-              "controller": "enabled",
-              "gamepad_driver": "",
-              "gamepad": "auto",
-              "ds4_back_as_touchpad_click": "enabled",
-              "motion_as_ds4": "enabled",
-              "touchpad_as_ds4": "enabled",
-              "virtualhid_randomize_mac": "enabled",
-              "back_button_timeout": -1,
-              "keyboard": "enabled",
-              "key_repeat_delay": 500,
-              "key_repeat_frequency": 24.9,
-              "always_send_scancodes": "enabled",
-              "key_rightalt_to_key_win": "disabled",
-              "mouse": "enabled",
-              "high_resolution_scrolling": "enabled",
-              "native_pen_touch": "enabled",
-              "keybindings": "[0x10,0xA0,0x11,0xA2,0x12,0xA4]",  // todo: add this to UI
-            },
-          },
-          {
-            id: "av",
-            nameKey: "config.category_audio_video",
-            options: {
-              "audio_sink": "",
-              "virtual_sink": "",
-              "stream_audio": "enabled",
-              "install_steam_audio_drivers": "enabled",
-              "adapter_name": "",
-              "output_name": "",
-              "dd_configuration_option": "disabled",
-              "dd_resolution_option": "auto",
-              "dd_manual_resolution": "",
-              "dd_refresh_rate_option": "auto",
-              "dd_manual_refresh_rate": "",
-              "dd_hdr_option": "auto",
-              "dd_wa_hdr_toggle_delay": 0,
-              "dd_config_revert_delay": 3000,
-              "dd_config_revert_on_disconnect": "disabled",
-              "dd_mode_remapping": {"mixed": [], "resolution_only": [], "refresh_rate_only": []},
-              "max_bitrate": 0,
-              "minimum_fps_target": 0
-            },
-          },
-          {
-            id: "network",
-            nameKey: "config.category_network",
-            options: {
-              "upnp": "disabled",
-              "address_family": "ipv4",
-              "bind_address": "",
-              "port": 47989,
-              "origin_web_ui_allowed": "lan",
-              "csrf_allowed_origins": "",
-              "external_ip": "",
-              "lan_encryption_mode": 0,
-              "wan_encryption_mode": 1,
-              "ping_timeout": 10000,
-              "packetsize": 0,
-            },
-          },
-          {
-            id: "files",
-            nameKey: "config.category_config_files",
-            options: {
-              "file_apps": "",
-              "credentials_file": "",
-              "log_path": "",
-              "pkey": "",
-              "cert": "",
-              "file_state": "",
-            },
-          },
-          {
-            id: "advanced",
-            nameKey: "config.category_advanced",
-            options: {
-              "fec_percentage": 20,
-              "qp": 28,
-              "min_threads": 2,
-              "hevc_mode": 0,
-              "av1_mode": 0,
-              "capture": "",
-              "encoder": "",
-            },
-          },
-          {
-            id: "nv",
-            nameKey: "config.category_nvidia_nvenc_encoder",
-            options: {
-              "nvenc_preset": 1,
-              "nvenc_twopass": "quarter_res",
-              "nvenc_spatial_aq": "disabled",
-              "nvenc_vbv_increase": 0,
-              "nvenc_realtime_hags": "enabled",
-              "nvenc_split_encode": "driver_decides",
-              "nvenc_latency_over_power": "enabled",
-              "nvenc_opengl_vulkan_on_dxgi": "enabled",
-              "nvenc_h264_cavlc": "disabled",
-            },
-          },
-          {
-            id: "qsv",
-            nameKey: "config.category_intel_quicksync_encoder",
-            options: {
-              "qsv_preset": "medium",
-              "qsv_coder": "auto",
-              "qsv_slow_hevc": "disabled",
-            },
-          },
-          {
-            id: "amd",
-            nameKey: "config.category_amd_amf_encoder",
-            options: {
-              "amd_usage": "ultralowlatency",
-              "amd_rc": "vbr_latency",
-              "amd_enforce_hrd": "disabled",
-              "amd_max_au_size": "",
-              "amd_quality": "balanced",
-              "amd_preanalysis": "disabled",
-              "amd_vbaq": "enabled",
-              "amd_coder": "auto",
-            },
-          },
-          {
-            id: "vt",
-            nameKey: "config.category_videotoolbox_encoder",
-            options: {
-              "vt_coder": "auto",
-              "vt_software": "auto",
-              "vt_realtime": "enabled",
-            },
-          },
-          {
-            id: "vaapi",
-            nameKey: "config.category_vaapi_encoder",
-            options: {
-              "vaapi_blbrc": "disabled",
-              "vaapi_quality": "auto",
-              "vaapi_rc": "auto",
-              "vaapi_strict_rc_buffer": "disabled",
-            },
-          },
-          {
-            id: "vulkan",
-            nameKey: "config.category_vulkan_encoder",
-            options: {
-              "vk_tune": 2,
-              "vk_rc_mode": 2,
-            },
-          },
-          {
-            id: "sw",
-            nameKey: "config.category_software_encoder",
-            options: {
-              "sw_preset": "superfast",
-              "sw_tune": "zerolatency",
-            },
-          },
-        ],
+        hashChangeHandler: null,
+        // Keep a private copy because platform filtering replaces this array at runtime.
+        tabs: structuredClone(configTabs),
       };
     },
     provide() {
@@ -426,7 +271,6 @@
           this.config = r;
           this.platform = this.config.platform;
 
-          var app = document.getElementById("app");
           if (this.platform === "windows") {
             this.tabs = this.tabs.filter((el) => {
               return el.id !== "vt" && el.id !== "vaapi" && el.id !== "vulkan";
@@ -448,8 +292,6 @@
           delete this.config.status;
           delete this.config.version;
 
-          // TODO: let each tab's Component handle it's own data instead of doing it here
-
           // Parse the special options before population if available
           const specialOptions = ["dd_mode_remapping", "global_prep_cmd"]
           for (const optionKey of specialOptions) {
@@ -463,7 +305,7 @@
             Object.keys(tab.options).forEach(optionKey => {
               if (this.config[optionKey] === undefined) {
                 // Make sure to copy by value
-                this.config[optionKey] = JSON.parse(JSON.stringify(tab.options[optionKey]));
+                this.config[optionKey] = structuredClone(toRaw(tab.options[optionKey]));
               }
             });
           });
@@ -492,7 +334,7 @@
         this.$forceUpdate()
       },
       serialize() {
-        return JSON.parse(JSON.stringify(this.config));
+        return structuredClone(toRaw(this.config));
       },
       save() {
         this.saved = false;
@@ -504,14 +346,7 @@
         // delete default values from this.config
         this.tabs.forEach(tab => {
           Object.keys(tab.options).forEach(optionKey => {
-            let delete_value = false
-
-            // todo: add proper type checking
-            if (JSON.stringify(config[optionKey]) === JSON.stringify(tab.options[optionKey])) {
-              delete_value = true
-            }
-
-            if (delete_value) {
+            if (configValuesEqual(config[optionKey], tab.options[optionKey])) {
               delete config[optionKey]
             }
           });
@@ -616,7 +451,7 @@
     },
     mounted() {
       // Handle hashchange events
-      const handleHash = () => {
+      this.hashChangeHandler = () => {
         let hash = window.location.hash;
         if (hash) {
           // remove the # from the hash
@@ -647,12 +482,13 @@
       };
 
       // Call handleHash for the initial load
-      handleHash();
+      this.hashChangeHandler();
 
       // Add hashchange event listener
-      window.addEventListener("hashchange", handleHash);
+      window.addEventListener("hashchange", this.hashChangeHandler);
     },
-  });
-
-  initApp(app);
+    beforeUnmount() {
+      window.removeEventListener("hashchange", this.hashChangeHandler);
+    },
+  }
 </script>

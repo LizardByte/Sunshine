@@ -1,11 +1,4 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="auto">
-
-<head>
-  <%- header %>
-</head>
-
-<body id="app" v-cloak>
+<template>
   <Navbar-Simple></Navbar-Simple>
   <div class="container py-5">
     <div class="row justify-content-center">
@@ -23,24 +16,16 @@
       </div>
     </div>
   </div>
-</body>
-<script type="module">
-  import { createApp } from 'vue'
-  import { initApp } from './init'
-  import { loadAutoTheme } from './theme'
+</template>
+
+<script>
   import { LogIn } from '@lucide/vue'
   import NavbarSimple from './NavbarSimple.vue'
 
-  loadAutoTheme();
-
-  const app = createApp({
+  export default {
     components: {
       LogIn,
       NavbarSimple,
     },
-  });
-
-  initApp(app);
+  }
 </script>
-
-</html>

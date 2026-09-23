@@ -76,6 +76,7 @@
     "env_displayplacer_example": "Példa - displayplacer a felbontás automatizáláshoz:",
     "env_qres_example": "Példa - QRes a felbontás automatizálásához:",
     "env_qres_path": "qres útvonal",
+    "env_var_description": "Leírás",
     "env_var_name": "Változó neve",
     "env_vars_about": "A környezeti változókról",
     "env_vars_desc": "Alapértelmezés szerint minden parancs megkapja ezeket a környezeti változókat:",
@@ -291,6 +292,16 @@
     "key_rightalt_to_key_win": "Jobb Alt billentyű hozzárendelése a Windows billentyűhöz",
     "key_rightalt_to_key_win_desc": "Előfordulhat, hogy nem tudod közvetlenül elküldeni a Windows billentyűt a Moonlight-ból. Ezekben az esetekben hasznos lehet, ha a Sunshine a jobb Alt billentyűt Windows billentyűként kezeli",
     "keybindings": "Gyorsbillentyűk",
+    "keybindings_add": "Térkép hozzáadása",
+    "keybindings_custom": "Egyedi kulcskód",
+    "keybindings_desc": "A Moonlight-tól kapott Windows virtuális billentyűkódok átkonfigurálása. Minden sor egy forráskódot rendel hozzá ahhoz a kódhoz, amelyet a Sunshine a gazdagépnek küld. Válasszon a Microsoft által meghatározott virtuális billentyűkódok teljes listájából. A hiányos vagy érvénytelen sorok nem kerülnek mentésre.",
+    "keybindings_destination": "Úti cél kódja",
+    "keybindings_empty": "Nincs egyéni billentyűkiosztás.",
+    "keybindings_invalid": "Válasszon ki egy virtuális kulcs kódot.",
+    "keybindings_reference": "Az összes virtuális kulcs kódjának megtekintése",
+    "keybindings_remove": "A leképezés eltávolítása",
+    "keybindings_select": "Válasszon ki egy virtuális kulcs kódot",
+    "keybindings_source": "Forráskód",
     "keyboard": "Billentyűzetbemenet engedélyezése",
     "keyboard_desc": "Lehetővé teszi a vendégeknek, hogy billentyűzettel irányítsák a gazdagépet",
     "lan_encryption_mode": "LAN titkosítási mód",
@@ -670,6 +681,7 @@
     "virtualhid_license_unavailable": "A helyi libvirtualhid licencszolgáltatás nem érhető el. Ellenőrizd, hogy az illesztőprogram-csomag és a közvetítőszolgáltatás telepítve van és fut-e."
   },
   "featured": {
+    "category_filter": "Kategória szűrő",
     "categories": {
       "client": "Kliensek",
       "tool": "Eszközök"

@@ -76,6 +76,7 @@
     "env_displayplacer_example": "Exempel - en displayplacer för automatiserad upplösning:",
     "env_qres_example": "Exempel - QRes för upplösnings automation:",
     "env_qres_path": "qres sökväg",
+    "env_var_description": "Beskrivning",
     "env_var_name": "Variabel namn",
     "env_vars_about": "Om miljövariabler",
     "env_vars_desc": "Alla kommandon får dessa miljövariabler som standard:",
@@ -291,6 +292,16 @@
     "key_rightalt_to_key_win": "Karta Höger Alt nyckel till Windows-tangenten",
     "key_rightalt_to_key_win_desc": "Det kan vara möjligt att du inte kan skicka Windows-tangenten från Moonlight direkt. I dessa fall kan det vara användbart att göra Sunshine tror att rätt Alt nyckel är Windows-tangenten",
     "keybindings": "Tangentbindningar",
+    "keybindings_add": "Lägg till mappning",
+    "keybindings_custom": "Anpassad nyckelkod",
+    "keybindings_desc": "Remap Windows virtuella nyckelkoder mottagna från Moonlight. Varje rad kartor en källkod till koden Sunshine skickar till värden. Välj från den kompletta listan över Microsoft-definierade virtuella nyckelkoder. Ofullständiga eller ogiltiga rader sparas inte.",
+    "keybindings_destination": "Destinationskod",
+    "keybindings_empty": "Inga anpassade nyckelmappningar.",
+    "keybindings_invalid": "Välj en virtuell nyckelkod.",
+    "keybindings_reference": "Visa alla koder för virtuell nyckel",
+    "keybindings_remove": "Ta bort mappning",
+    "keybindings_select": "Välj en virtuell nyckelkod",
+    "keybindings_source": "Källkod",
     "keyboard": "Aktivera tangentbordsinmatning",
     "keyboard_desc": "Tillåter gäster att styra värdsystemet med tangentbordet",
     "lan_encryption_mode": "LAN-krypteringsläge",
@@ -670,6 +681,7 @@
     "virtualhid_license_unavailable": "Den lokala licenstjänsten libvirtualhid är inte tillgänglig. Kontrollera att drivrutinspaketet och mäklartjänsten är installerad och körd."
   },
   "featured": {
+    "category_filter": "Kategori filter",
     "categories": {
       "client": "Klienter",
       "tool": "Verktyg"

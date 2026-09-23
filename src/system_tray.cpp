@@ -64,7 +64,6 @@
 
   // lib includes
   #include <boost/filesystem.hpp>
-  #include <boost/process/v1/environment.hpp>
   #include <tray.h>
   #ifdef _WIN32
     #include <libvirtualhid/license.hpp>

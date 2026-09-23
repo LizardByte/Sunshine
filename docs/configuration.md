@@ -1,6 +1,6 @@
 # Configuration
 
-@admonition{ Host authority | @htmlonly
+@admonition{ Host authority |:| @htmlonly
 By providing the host authority (URI + port), you can easily open each configuration option in the config UI.
 <br>
 <script src="configuration.js"></script>
@@ -746,7 +746,6 @@ supported on the current platform.
             for example.
             @tip{See [virtual key codes](https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes)}
             @hint{keybindings needs to have a multiple of two elements.}
-            @note{This option is not available in the UI. A PR would be welcome.}
         </td>
     </tr>
     <tr>
@@ -3456,16 +3455,3 @@ supported on the current platform.
         <td>good for fast encoding and low-latency streaming</td>
     </tr>
 </table>
-
-<div class="section_buttons">
-
-| Previous          |                            Next |
-|:------------------|--------------------------------:|
-| [Legal](legal.md) | [App Examples](app_examples.md) |
-
-</div>
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

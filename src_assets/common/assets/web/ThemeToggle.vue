@@ -152,6 +152,3 @@ onMounted(() => {
     </ul>
   </div>
 </template>
-
-<style scoped>
-</style>

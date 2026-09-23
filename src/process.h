@@ -16,13 +16,11 @@
 #include <optional>
 #include <unordered_map>
 
-// lib includes
-#include <boost/process/v1.hpp>
-
 // local includes
 #include "config.h"
 #include "platform/common.h"
 #include "rtsp.h"
+#include "src/boost_process_compat.h"
 #include "utility.h"
 
 /**
@@ -179,6 +177,14 @@ namespace proc {
    * @param index Zero-based index of the item being addressed.
    */
   std::tuple<std::string, std::string> calculate_app_id(const std::string &app_name, std::string app_image_path, int index);
+
+  /**
+   * @brief Prepare a configured command for execution.
+   *
+   * @param command Configured command line.
+   * @return Command line with any package-specific launcher prefix applied.
+   */
+  std::string prepare_command(const std::string &command);
 
   bool check_valid_png(const std::filesystem::path &path);
   /**

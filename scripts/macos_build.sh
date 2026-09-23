@@ -25,8 +25,8 @@ export BUILD_VERSION
 export BRANCH
 export COMMIT
 
-# boost could be included here but cmake will build the right version we need
 required_formulas=(
+  "boost"
   "cmake"
   "doxygen"
   "graphviz"
@@ -92,6 +92,12 @@ function run_step_deps() {
 function run_step_cmake() {
   echo "Running step: CMake configure"
 
+  # Static Boost.Locale exposes ICU as transitive linker arguments, while Homebrew keeps ICU keg-only.
+  icu4c_root=$(brew --prefix icu4c@78 2>/dev/null)
+  export CPPFLAGS="${CPPFLAGS:+${CPPFLAGS} }-I${icu4c_root}/include"
+  export LDFLAGS="${LDFLAGS:+${LDFLAGS} }-L${icu4c_root}/lib"
+  export LIBRARY_PATH="${icu4c_root}/lib${LIBRARY_PATH:+:${LIBRARY_PATH}}"
+
   # prepare CMAKE args
   cmake_args=(
     "-B=build"
@@ -100,7 +106,7 @@ function run_step_cmake() {
     "-DBUILD_TESTS=${build_tests}"
     "-DBUILD_WERROR=ON"
     "-DCMAKE_BUILD_TYPE=${build_type}"
-    "-DICU_ROOT=$(brew --prefix icu4c@78 2>/dev/null)"
+    "-DICU_ROOT=${icu4c_root}"
     "-DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3 2>/dev/null)"
     "-DOpus_ROOT_DIR=$(brew --prefix opus 2>/dev/null)"
     "-DQt6_DIR=$(brew --prefix qtbase 2>/dev/null)/lib/cmake/Qt6"

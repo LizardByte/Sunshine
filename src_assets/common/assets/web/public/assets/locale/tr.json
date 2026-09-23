@@ -76,6 +76,7 @@
     "env_displayplacer_example": "Örnek - Resolution Automation için displayplacer:",
     "env_qres_example": "Örnek - Çözünürlük Otomasyonu için QRes:",
     "env_qres_path": "qres yolu",
+    "env_var_description": "Açıklama",
     "env_var_name": "Var Adı",
     "env_vars_about": "Ortam Değişkenleri Hakkında",
     "env_vars_desc": "Tüm komutlar varsayılan olarak bu ortam değişkenlerini alır:",
@@ -291,6 +292,16 @@
     "key_rightalt_to_key_win": "Sağ Alt tuşunu Windows tuşuyla eşleştirme",
     "key_rightalt_to_key_win_desc": "Windows Tuşunu Moonlight'tan doğrudan gönderemiyor olabilirsiniz. Bu gibi durumlarda Sunshine'ın Sağ Alt tuşunun Windows tuşu olduğunu düşünmesini sağlamak yararlı olabilir",
     "keybindings": "Tuş Bağlamaları",
+    "keybindings_add": "Eşleme ekle",
+    "keybindings_custom": "Özel anahtar kodu",
+    "keybindings_desc": "Moonlight'tan alınan Windows sanal tuş kodlarını yeniden eşleştirin. Her satır, bir kaynak kodu Sunshine'ın ana bilgisayara gönderdiği koda eşleştirir. Microsoft tarafından tanımlanmış sanal tuş kodlarının tam listesinden seçim yapın. Eksik veya geçersiz satırlar kaydedilmez.",
+    "keybindings_destination": "Varış kodu",
+    "keybindings_empty": "Özel tuş atamaları yoktur.",
+    "keybindings_invalid": "Bir sanal anahtar kodu seçin.",
+    "keybindings_reference": "Tüm sanal tuş kodlarını görüntüle",
+    "keybindings_remove": "Eşlemeyi kaldır",
+    "keybindings_select": "Bir sanal anahtar kodu seçin",
+    "keybindings_source": "Kaynak kodu",
     "keyboard": "Klavye Girişini Etkinleştir",
     "keyboard_desc": "Konukların ana sistemi klavye ile kontrol etmesini sağlar",
     "lan_encryption_mode": "LAN Şifreleme Modu",
@@ -670,6 +681,7 @@
     "virtualhid_license_unavailable": "Yerel libvirtualhid lisans hizmeti kullanılamıyor. Sürücü paketinin ve aracı hizmetinin kurulu ve çalışır durumda olduğunu kontrol edin."
   },
   "featured": {
+    "category_filter": "Kategori filtresi",
     "categories": {
       "client": "Müşteriler",
       "tool": "Araçlar"

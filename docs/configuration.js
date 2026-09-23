@@ -9,22 +9,26 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     let previousElement = table.previousElementSibling;
-    while (previousElement && previousElement.tagName !== "H2") {
+    while (previousElement?.tagName && previousElement.tagName !== "H2") {
       previousElement = previousElement.previousElementSibling;
     }
-    if (previousElement && previousElement.textContent) {
+    if (previousElement?.textContent) {
       const sectionId = previousElement.textContent.trim().toLowerCase();
       const newRow = document.createElement("tr");
 
       const newCell = document.createElement("td");
       newCell.setAttribute("colspan", "3");
 
-      const newCode = document.createElement("code");
-      newCode.className = "open-button";
-      newCode.setAttribute("onclick", `window.open('https://${document.getElementById('host-authority').value}/config/#${sectionId}', '_blank')`);
-      newCode.textContent = "Open";
+      const openButton = document.createElement("button");
+      openButton.className = "open-button";
+      openButton.type = "button";
+      openButton.textContent = "Open configuration";
+      openButton.addEventListener("click", () => {
+        const authority = document.getElementById("host-authority").value;
+        window.open(`https://${authority}/config/#${sectionId}`, "_blank", "noopener");
+      });
 
-      newCell.appendChild(newCode);
+      newCell.appendChild(openButton);
       newRow.appendChild(newCell);
 
       // get the table body

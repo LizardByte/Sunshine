@@ -76,6 +76,7 @@
     "env_displayplacer_example": "範例 - 用於解析度自動化的 displayplacer：",
     "env_qres_example": "範例 - 用於解析度自動化的 QRes：",
     "env_qres_path": "qres 路徑",
+    "env_var_description": "說明",
     "env_var_name": "變數名稱",
     "env_vars_about": "關於環境變數",
     "env_vars_desc": "所有指令預設會獲得這些環境變數：",
@@ -291,6 +292,16 @@
     "key_rightalt_to_key_win": "將右 Alt 鍵映射為 Windows 鍵",
     "key_rightalt_to_key_win_desc": "Moonlight 可能無法直接發送 Windows 鍵。在這種情況下，讓 Sunshine 認為右 Alt 鍵是 Windows 鍵可能會很有用",
     "keybindings": "鍵盤綁定",
+    "keybindings_add": "新增對應關係",
+    "keybindings_custom": "自訂鍵碼",
+    "keybindings_desc": "重新映射從 Moonlight 接收的 Windows 虛擬鍵碼。每行皆將來源代碼映射至 Sunshine 傳送至主機的代碼。請從 Microsoft 定義的完整虛擬鍵碼清單中進行選擇。不完整或無效的行將不會被儲存。",
+    "keybindings_destination": "目的地代碼",
+    "keybindings_empty": "沒有自訂鍵位設定。",
+    "keybindings_invalid": "請選擇一個虛擬金鑰代碼。",
+    "keybindings_reference": "檢視所有虛擬金鑰代碼",
+    "keybindings_remove": "移除映射",
+    "keybindings_select": "選擇一個虛擬金鑰代碼",
+    "keybindings_source": "原始碼",
     "keyboard": "啟用鍵盤輸入",
     "keyboard_desc": "允許訪客使用鍵盤控制主機系統",
     "lan_encryption_mode": "區域網路加密模式",
@@ -670,6 +681,7 @@
     "virtualhid_license_unavailable": "無法使用本地的 libvirtualhid 授權服務。請確認驅動程式套件和中介服務已安裝且正在執行。"
   },
   "featured": {
+    "category_filter": "類別篩選器",
     "categories": {
       "client": "客戶",
       "tool": "工具"

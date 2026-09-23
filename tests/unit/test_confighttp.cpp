@@ -151,10 +151,10 @@ protected:
       return test_web_dir / "portal_token";
     });
 
-    // Create test HTML file in WEB_DIR, creating parent directories with proper permissions
+    // Create the SPA entry document in WEB_DIR, creating parent directories with proper permissions
     std::filesystem::path web_dir_path(WEB_DIR);
     std::filesystem::create_directories(web_dir_path);
-    web_dir_test_file = web_dir_path / "test_page.html";
+    web_dir_test_file = web_dir_path / "index.html";
 
     std::ofstream test_html(web_dir_test_file);
     test_html << "<html><head><title>Test Page</title></head><body><h1>Test Page Content</h1></body></html>";
@@ -288,8 +288,8 @@ protected:
                                                 const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                               ) {
       // Call the actual confighttp::getPage function
-      // Note: This will read from WEB_DIR, so we need to ensure the file exists there
-      confighttp::getPage(response, request, "test_page.html", true, false);
+      // Note: This reads the SPA index from WEB_DIR, so the fixture creates it in SetUp().
+      confighttp::getPage(response, request, true, false);
     };
 
     // Add a route to test getPage without auth requirement
@@ -297,7 +297,7 @@ protected:
                                                        const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                        const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                      ) {
-      confighttp::getPage(response, request, "test_page.html", false, false);
+      confighttp::getPage(response, request, false, false);
     };
 
     // Add a route to test getPage with redirect_if_username
@@ -305,7 +305,7 @@ protected:
                                                          const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                          const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                        ) {
-      confighttp::getPage(response, request, "test_page.html", false, true);
+      confighttp::getPage(response, request, false, true);
     };
 
     // Add a route to test getLocale
@@ -332,6 +332,7 @@ protected:
     server->resource["^/pairing-test$"]["GET"] = confighttp::getPendingPairings;
     server->resource["^/pairing-test$"]["POST"] = confighttp::savePin;
     server->resource["^/portal-token-reset-test$"]["POST"] = confighttp::resetPortalToken;
+    server->default_resource["GET"] = confighttp::getFallbackPage;
 
     // Start server
     server_thread = std::jthread([this]() {
@@ -1054,6 +1055,26 @@ TEST_F(ConfigHttpTest, GetPageNoRedirectWhenUsernameEmpty) {
 
   // Restore username
   config::sunshine.username = saved;
+}
+
+// Test: browser routes fall back to the SPA entry document
+TEST_F(ConfigHttpTest, BrowserRouteFallsBackToSpaEntry) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  for (const std::string_view path : {"/future-browser-route", "/apiary", "/assets2"}) {
+    const auto response = client->request("GET", std::string {path}, "", headers);
+    EXPECT_EQ(response->status_code, "200 OK") << path;
+    EXPECT_NE(response->content.string().find("Test Page Content"), std::string::npos) << path;
+  }
+}
+
+// Test: server-owned route prefixes retain 404 behavior instead of returning the SPA
+TEST_F(ConfigHttpTest, ServerResourcePrefixesDoNotFallBackToSpaEntry) {
+  for (const std::string_view path : {"/api", "/api/unknown", "/assets", "/assets/missing.js", "/images", "/images/missing.png"}) {
+    const auto response = client->request("GET", std::string {path});
+    EXPECT_EQ(response->status_code, "404 Not Found") << path;
+  }
 }
 
 // Test: confighttp::getLocale() returns locale JSON

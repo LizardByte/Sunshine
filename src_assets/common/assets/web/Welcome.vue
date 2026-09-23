@@ -1,11 +1,4 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="auto">
-
-<head>
-  <%- header %>
-</head>
-
-<body id="app" v-cloak>
+<template>
   <Navbar-Simple></Navbar-Simple>
   <Notification></Notification>
   <main id="content" class="container" role="main">
@@ -49,21 +42,16 @@
       </div>
     </div>
   </main>
-</body>
+</template>
 
-<script type="module">
-  import { createApp } from "vue"
+<script>
   import ResourceCard from './ResourceCard.vue'
-  import { initApp } from './init'
   import { apiFetch } from './fetch_utils'
   import Notification from './Notification.vue'
   import NavbarSimple from './NavbarSimple.vue'
-  import { loadAutoTheme } from './theme'
   import { LogIn } from '@lucide/vue'
 
-  loadAutoTheme();
-
-  let app = createApp({
+  export default {
     components: {
       ResourceCard,
       Notification,
@@ -111,9 +99,5 @@
         });
       },
     },
-  });
-
-  initApp(app);
+  }
 </script>
-
-</html>

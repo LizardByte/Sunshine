@@ -188,15 +188,41 @@ add_executable(${PROJECT_NAME}
 # This ensures both CLI and CLion can access the same files relative to the test executable
 # Using configure_file ensures files are copied when they change between builds
 set(INTEGRATION_TEST_FILES
+    "cmake/compile_definitions/macos.cmake"
+    "cmake/dependencies/Boost_Sunshine.cmake"
+    "cmake/macros/common.cmake"
+    "cmake/prep/options.cmake"
+    "package-lock.cmake"
+    "packaging/linux/Arch/PKGBUILD"
+    "packaging/linux/flatpak/modules/boost.json"
+    "scripts/linux_build.sh"
     "src/config.cpp"
-    "src_assets/common/assets/web/config.html"
+    "src_assets/common/assets/web/Config.vue"
+    "src_assets/common/assets/web/locale.js"
+    "docs/building.md"
     "docs/configuration.md"
     "docs/getting_started.md"
     "docs/troubleshooting.md"
     "src_assets/common/assets/web/public/assets/locale/en.json"
+    "src_assets/common/assets/web/configs/config_tabs.json"
+    "src_assets/common/assets/web/configs/VirtualKeyCodeSelect.vue"
+    "src_assets/common/assets/web/configs/virtual_key_codes.js"
     "src_assets/common/assets/web/configs/tabs/General.vue"
+    "src_assets/common/assets/web/configs/tabs/Inputs.vue"
     "src_assets/linux/misc/60-sunshine.rules"
 )
+
+if(EXISTS "${CMAKE_SOURCE_DIR}/packaging/linux/copr/Sunshine.spec")
+    list(APPEND INTEGRATION_TEST_FILES "packaging/linux/copr/Sunshine.spec")
+    list(APPEND TEST_DEFINITIONS SUNSHINE_COPR_SPEC_FIXTURE_AVAILABLE)
+endif()
+
+if(APPLE)
+    list(APPEND INTEGRATION_TEST_FILES
+        ".github/workflows/ci-macos.yml"
+        "scripts/macos_build.sh"
+    )
+endif()
 
 foreach(file ${INTEGRATION_TEST_FILES})
     configure_file(

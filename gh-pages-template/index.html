@@ -82,6 +82,20 @@ cover-img:
                         </div>
                     </div>
                 </div>
+                {% capture github_release_package_icons %}
+                    <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/icons/windows.svg" alt="Windows"/>
+                    <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/macos.svg" alt="macOS"/>
+                    <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/freebsd.svg" alt="FreeBSD"/>
+                    <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/appimage.svg" alt="AppImage"/> <!-- //NOSONAR(Web:S6851) -->
+                    <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/alpinelinux.svg" alt="Alpine Linux"/>
+                    <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/archlinux.svg" alt="Arch Linux"/>
+                    <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/debian.svg" alt="Debian"/>
+                    <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/fedora.svg" alt="Fedora"/>
+                    <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/opensuse.svg" alt="openSUSE"/>
+                    <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/ubuntu.svg" alt="Ubuntu"/>
+                    <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/flatpak.svg" alt="Flatpak"/>
+                    <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/homebrew.svg" alt="Homebrew"/>
+                {% endcapture %}
                 <div class="card-footer p-3 px-4">
                     <a class="btn btn-outline-theme me-3 mb-3" href="https://docs.lizardbyte.dev/projects/sunshine" target="_blank">
                         <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/readthedocs.svg" alt="ReadTheDocs"/>
@@ -107,22 +121,45 @@ cover-img:
                 </div>
                 <div class="card-footer p-3 px-4">
                     <a class="latest-button btn btn-outline-theme me-3 mb-3 d-none" href="https://github.com/LizardByte/Sunshine/releases/latest" target="_blank">
-                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/github.svg" alt="GitHub"/>
-                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/icons/windows.svg" alt="Windows"/>
-                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/debian.svg" alt="Debian"/>
-                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/ubuntu.svg" alt="Ubuntu"/>
-                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/flatpak.svg" alt="Flatpak"/>
-                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/linux.svg" alt="AppImage"/>
+                        <span class="d-flex align-items-center justify-content-center gap-1">
+                            <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/github.svg" alt="GitHub"/>
                             Latest: <span id="latest-version" class="crowdin-ignore"></span>
+                        </span>
+                        <span class="d-flex align-items-center justify-content-center gap-1 mt-1">
+                            {{ github_release_package_icons }}
+                        </span>
                     </a>
                     <a class="beta-button btn btn-outline-theme me-3 mb-3 d-none" href="#" target="_blank">
-                        <i class="fa-fw fa-lg fas fa-flask"></i>
-                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/icons/windows.svg" alt="Windows"/>
-                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/debian.svg" alt="Debian"/>
-                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/ubuntu.svg" alt="Ubuntu"/>
-                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/flatpak.svg" alt="Flatpak"/>
-                        <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/linux.svg" alt="AppImage"/>
+                        <span class="d-flex align-items-center justify-content-center gap-1">
+                            <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/github.svg" alt="GitHub"/>
+                            <i class="fa-fw fa-lg fas fa-flask"></i>
                             Beta: <span id="beta-version" class="crowdin-ignore"></span>
+                        </span>
+                        <span class="d-flex align-items-center justify-content-center gap-1 mt-1">
+                            {{ github_release_package_icons }}
+                        </span>
+                    </a>
+                    <a class="btn btn-outline-theme me-3 mb-3" href="https://cloudsmith.io/~lizardbyte/repos/" target="_blank">
+                        <span class="d-flex align-items-center justify-content-center gap-1">
+                            <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/cloudsmith.svg" alt="Cloudsmith"/>
+                            Cloudsmith
+                        </span>
+                        <span class="d-flex align-items-center justify-content-center gap-1 mt-1">
+                            <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/alpinelinux.svg" alt="Alpine Linux"/>
+                            <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/debian.svg" alt="Debian"/>
+                            <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/fedora.svg" alt="Fedora"/>
+                            <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/opensuse.svg" alt="openSUSE"/>
+                            <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/ubuntu.svg" alt="Ubuntu"/>
+                        </span>
+                    </a>
+                    <a class="btn btn-outline-theme me-3 mb-3" href="https://copr.fedorainfracloud.org/coprs/lizardbyte/" target="_blank">
+                        <span class="d-flex align-items-center justify-content-center">
+                            Copr
+                        </span>
+                        <span class="d-flex align-items-center justify-content-center gap-1 mt-1">
+                            <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/fedora.svg" alt="Fedora"/>
+                            <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/opensuse.svg" alt="openSUSE"/>
+                        </span>
                     </a>
                     <a class="btn btn-outline-theme me-3 mb-3" href="https://github.com/LizardByte/pacman-repo" target="_blank">
                         <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@16/icons/archlinux.svg" alt="Arch Linux"/>
@@ -146,63 +183,24 @@ cover-img:
     </div>
 </div>
 
-<!-- TODO: Move this to website repo, and make it accept arguments for the repo name -->
-<script>
-  // Fetch the releases from the GitHub API
-  fetch('https://api.github.com/repos/LizardByte/Sunshine/releases')
-    .then(response => response.json())
-    .then(data => {
-      // Filter the releases to get only the pre-releases
-      const preReleases = data.filter(release => release.prerelease);
-      // Filter the releases to get only the stable releases
-      const stableReleases = data.filter(release => !release.prerelease);
-
-      const latestButton = document.querySelector('.latest-button');
-      const latestVersion = document.querySelector('#latest-version');
-      const betaButton = document.querySelector('.beta-button');
-      const betaVersion = document.querySelector('#beta-version');
-
-      // If there are no stable releases, hide the latest download button
-      if (stableReleases.length === 0) {
-        latestButton.classList.add('d-none');
-      } else {
-        // Show the latest download button
-        latestButton.classList.remove('d-none');
-
-        // Get the latest stable release
-        const latestStableRelease = stableReleases[0];
-        latestVersion.textContent = latestStableRelease.tag_name;
-
-        // If there is a pre-release, update the href attribute of the anchor tag
-        if (preReleases.length > 0) {
-          const latestPreRelease = preReleases[0];
-
-          // Compare the date of the latest pre-release with the date of the latest stable release
-          const preReleaseDate = new Date(latestPreRelease.published_at);
-          const stableReleaseDate = new Date(latestStableRelease.published_at);
-
-          // If the pre-release is newer, update the href attribute of the anchor tag
-          if (preReleaseDate > stableReleaseDate) {
-            betaButton.href = latestPreRelease.html_url;
-            betaVersion.textContent = latestPreRelease.tag_name;
-            betaButton.classList.remove('d-none');
-          } else {
-            // If the pre-release is older, hide the button
-            betaButton.classList.add('d-none');
-          }
-        } else {
-          // If there is no pre-release, hide the button
-          betaButton.classList.add('d-none');
-        }
-      }
+<script src="{{ '/Sunshine/assets/js/release-versions.js' | relative_url }}"></script>
+<script type="module">
+  try {
+    await globalThis.updateGitHubReleaseVersions({
+      repository: 'LizardByte/Sunshine',
+      stableButtonSelector: '.latest-button',
+      stableVersionSelector: '#latest-version',
+      prereleaseButtonSelector: '.beta-button',
+      prereleaseVersionSelector: '#beta-version',
     });
+  } catch (error) {
+    console.error('Failed to update release versions', error);
+  }
 
-  // Fetch clients from app directory
-  fetch('https://app.lizardbyte.dev/app-directory/sunshine.json')
-    .then(response => response.json())
-    .then(data => {
-      const clientsContainer = document.getElementById('clients-container');
-      if (!clientsContainer) return;
+  const clientsContainer = document.getElementById('clients-container');
+  if (clientsContainer) {
+      const clientsResponse = await fetch('https://app.lizardbyte.dev/app-directory/sunshine.json');
+      const data = await clientsResponse.json();
 
       const apps = data.apps || [];
 
@@ -302,5 +300,5 @@ cover-img:
         `;
         clientsContainer.innerHTML += clientHtml;
       });
-    });
+  }
 </script>
