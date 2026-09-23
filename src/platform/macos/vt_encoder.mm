@@ -180,6 +180,11 @@ namespace {
 
       set_property(kVTCompressionPropertyKey_RealTime, kCFBooleanTrue, "RealTime"sv);
       set_property(kVTCompressionPropertyKey_AllowFrameReordering, kCFBooleanFalse, "AllowFrameReordering"sv);
+      if (codec == kCMVideoCodecType_H264) {
+        // Low-latency H.264 sessions mark pictures as long-term references by default; some
+        // client hardware decoders mishandle that and freeze, so keep to short-term references.
+        set_property(kVTCompressionPropertyKey_EnableLTR, kCFBooleanFalse, "EnableLTR"sv);
+      }
 
       CFStringRef profile;
       if (codec == kCMVideoCodecType_HEVC) {
