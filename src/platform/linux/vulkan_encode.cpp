@@ -39,9 +39,122 @@ using namespace std::literals;
 
 namespace vk {
 
+  /**
+   * @brief Query the maximum encoder quality level for a given codec.
+   *
+   * This uses FFmpeg's Vulkan context (via get_proc_addr) to query
+   * VkVideoEncodeCapabilitiesKHR.maxQualityLevels. The profile chain
+   * follows FFmpeg's vulkan_encode.c pattern:
+   *   profile -> usage_info -> codec_profile_ext
+   * And output chain:
+   *   caps -> enc_caps -> codec_caps_ext
+   *
+   * @param codec_id FFmpeg codec ID (AV_CODEC_ID_H264, AV_CODEC_ID_HEVC, AV_CODEC_ID_AV1).
+   * @param vk_ctx FFmpeg's AVVulkanDeviceContext with initialized Vulkan handles.
+   * @return Maximum quality level supported by the driver, or 0 if query fails.
+   */
+  static uint32_t query_max_quality_level(AVCodecID codec_id, AVVulkanDeviceContext *vk_ctx) {
+    if (!vk_ctx || !vk_ctx->inst || !vk_ctx->phys_dev || !vk_ctx->get_proc_addr) {
+      return 0;
+    }
+
+    auto vkGetPhysicalDeviceVideoCapabilitiesKHR_fn = (PFN_vkGetPhysicalDeviceVideoCapabilitiesKHR)
+                                                        vk_ctx->get_proc_addr(vk_ctx->inst, "vkGetPhysicalDeviceVideoCapabilitiesKHR");
+
+    if (!vkGetPhysicalDeviceVideoCapabilitiesKHR_fn) {
+      return 0;
+    }
+
+    // Codec-specific profile extensions (zero-initialized)
+    VkVideoEncodeH264ProfileInfoKHR h264_profile = {};
+    h264_profile.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_H264_PROFILE_INFO_KHR;
+    h264_profile.stdProfileIdc = STD_VIDEO_H264_PROFILE_IDC_HIGH;
+
+    VkVideoEncodeH265ProfileInfoKHR h265_profile = {};
+    h265_profile.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_H265_PROFILE_INFO_KHR;
+    h265_profile.stdProfileIdc = STD_VIDEO_H265_PROFILE_IDC_MAIN;
+
+    VkVideoEncodeAV1ProfileInfoKHR av1_profile = {};
+    av1_profile.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_AV1_PROFILE_INFO_KHR;
+    av1_profile.stdProfile = STD_VIDEO_AV1_PROFILE_MAIN;
+
+    // Codec-specific capabilities extensions (zero-initialized)
+    VkVideoEncodeH264CapabilitiesKHR h264_caps = {};
+    h264_caps.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_H264_CAPABILITIES_KHR;
+
+    VkVideoEncodeH265CapabilitiesKHR h265_caps = {};
+    h265_caps.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_H265_CAPABILITIES_KHR;
+
+    VkVideoEncodeAV1CapabilitiesKHR av1_caps = {};
+    av1_caps.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_AV1_CAPABILITIES_KHR;
+
+    // Usage info chain (follows FFmpeg's pattern)
+    VkVideoEncodeUsageInfoKHR usage_info = {};
+    usage_info.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_USAGE_INFO_KHR;
+    usage_info.videoUsageHints = VK_VIDEO_ENCODE_USAGE_STREAMING_BIT_KHR;
+    usage_info.videoContentHints = VK_VIDEO_ENCODE_CONTENT_DEFAULT_KHR;
+    usage_info.tuningMode = VK_VIDEO_ENCODE_TUNING_MODE_LOW_LATENCY_KHR;
+
+    // Profile info
+    VkVideoProfileInfoKHR profile = {};
+    profile.sType = VK_STRUCTURE_TYPE_VIDEO_PROFILE_INFO_KHR;
+    profile.pNext = &usage_info;
+    profile.chromaSubsampling = VK_VIDEO_CHROMA_SUBSAMPLING_420_BIT_KHR;
+    profile.lumaBitDepth = VK_VIDEO_COMPONENT_BIT_DEPTH_8_BIT_KHR;
+    profile.chromaBitDepth = VK_VIDEO_COMPONENT_BIT_DEPTH_8_BIT_KHR;
+
+    // Encode capabilities output
+    VkVideoEncodeCapabilitiesKHR enc_caps = {};
+    enc_caps.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_CAPABILITIES_KHR;
+
+    // Set codec operation and chain codec-specific extensions (profile and caps)
+    switch (codec_id) {
+      case AV_CODEC_ID_H264:
+        profile.videoCodecOperation = VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR;
+        usage_info.pNext = &h264_profile;
+        enc_caps.pNext = &h264_caps;
+        break;
+      case AV_CODEC_ID_HEVC:
+        profile.videoCodecOperation = VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR;
+        usage_info.pNext = &h265_profile;
+        enc_caps.pNext = &h265_caps;
+        break;
+      case AV_CODEC_ID_AV1:
+        profile.videoCodecOperation = VK_VIDEO_CODEC_OPERATION_ENCODE_AV1_BIT_KHR;
+        usage_info.pNext = &av1_profile;
+        enc_caps.pNext = &av1_caps;
+        break;
+      default:
+        return 0;
+    }
+
+    // Main capabilities output
+    VkVideoCapabilitiesKHR caps = {};
+    caps.sType = VK_STRUCTURE_TYPE_VIDEO_CAPABILITIES_KHR;
+    caps.pNext = &enc_caps;
+
+    VkResult result = vkGetPhysicalDeviceVideoCapabilitiesKHR_fn(vk_ctx->phys_dev, &profile, &caps);
+    if (result == VK_SUCCESS) {
+      BOOST_LOG(debug) << "[vulkan] Driver max quality level: "sv << enc_caps.maxQualityLevels;
+      return enc_caps.maxQualityLevels;
+    }
+
+    return 0;
+  }
+
   // Match a DRI render node path to a Vulkan device index via VK_EXT_physical_device_drm.
   // Returns the index as a string (e.g. "1"), or empty string if no match.
+  // Result is cached since render device doesn't change during runtime.
   static std::string find_vulkan_index_for_render_node(const char *render_path) {
+    // Cache result to avoid repeated Vulkan instance creation (~10-20ms overhead)
+    static std::string cached_result;
+    static std::string cached_path;
+    static bool cached = false;
+
+    if (cached && cached_path == render_path) {
+      return cached_result;
+    }
+
     struct stat node_stat;
     if (stat(render_path, &node_stat) < 0) {
       return {};
@@ -85,6 +198,12 @@ namespace vk {
       }
     }
     vkDestroyInstance(inst, nullptr);
+
+    // Cache the result
+    cached_path = render_path;
+    cached_result = result;
+    cached = true;
+
     return result;
   }
 
@@ -192,6 +311,42 @@ namespace vk {
       // on complex frames.
       if (config::video.vk.rc_mode == 4) {
         ctx->rc_min_rate = 0;
+      }
+
+      // Map quality preset to driver's quality range (same abstraction as VAAPI)
+      // 0 = auto (don't pass anything to FFmpeg), 1 = speed, 2 = balanced, 3 = quality
+      // Note: Vulkan quality is 0 = fastest, higher = slower/better quality
+      int quality_preset = config::video.vk.quality;
+      if (quality_preset > 0 && ctx->hw_frames_ctx) {
+        // Reuse FFmpeg's Vulkan instance and device instead of creating new ones
+        auto *frames_ctx = (AVHWFramesContext *) ctx->hw_frames_ctx->data;
+        auto *dev_ctx = (AVHWDeviceContext *) frames_ctx->device_ref->data;
+        auto *vk_ctx = (AVVulkanDeviceContext *) dev_ctx->hwctx;
+
+        uint32_t max_quality = query_max_quality_level(ctx->codec_id, vk_ctx);
+        if (max_quality > 0) {
+          // max_quality is the highest valid quality level (0 to max_quality)
+          int target_quality = 0;
+          const char *preset_name = "speed";
+          switch (quality_preset) {
+            default:
+            case 1:  // speed (level 0 = fastest)
+              target_quality = 0;
+              preset_name = "speed";
+              break;
+            case 2:  // balanced (middle level)
+              target_quality = max_quality / 2;
+              preset_name = "balanced";
+              break;
+            case 3:  // quality (max level = best quality)
+              target_quality = max_quality;
+              preset_name = "quality";
+              break;
+          }
+          av_dict_set_int(options, "quality", target_quality, 0);
+          BOOST_LOG(info) << "[vulkan] Encoder quality set to "sv << target_quality
+                          << " ("sv << preset_name << "), driver range: 0-"sv << max_quality;
+        }
       }
     }
 
