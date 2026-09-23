@@ -1249,7 +1249,7 @@ namespace platf {
    *
    * @return True if Portal is available.
    */
-  bool verify_portal(bool do_negotiation, std::optional<portal_probe_e> cached = std::nullopt) {
+  bool verify_portal(std::optional<portal_probe_e> cached = std::nullopt) {
     using enum portal_probe_e;
 
     auto result = cached ? *cached : probe_portal();
@@ -1260,17 +1260,11 @@ namespace platf {
         BOOST_LOG(debug) << "[portalgrab] xdg-desktop-portal not reachable; skipping Portal capture."sv;
         return false;
       case stale_token:
-        if (!do_negotiation) {
-          return false;
-        }
         BOOST_LOG(warning) << "[portalgrab] Saved portal token did not produce a session; discarding and restarting."sv;
         portal::clear_saved_token();
         platf::restart();
         return false;
       case no_token:
-        if (!do_negotiation) {
-          return false;
-        }
         BOOST_LOG(fatal) << "Portal capture is awaiting user permission. "sv
                          << "The current session will attempt to use a fallback capture method."sv;
         task_pool.push([]() {
@@ -1438,16 +1432,13 @@ namespace platf {
     // Avoid mutating config directly if Portal needs to run in fallback capture mode.
     std::string selected_capture = config::video.capture;
 
+    // When Portal is explicitly selected, probe it first so other capture methods can be considered for fallback capture.
 #ifdef SUNSHINE_BUILD_PORTAL
-    // Probe Portal first to determine if we need to continue probing for a working fallback capture method.
-    std::optional<portal_probe_e> portal_probe;
-    bool portal_is_available = false;
+    bool portal_available = false;
     if (selected_capture == "portal") {
-      using enum portal_probe_e;
-
-      portal_probe = probe_portal();
-      portal_is_available = (*portal_probe == available);
-      if (!portal_is_available) {
+      portal_available = verify_portal();
+      if (!portal_available) {
+        // Continue probing for fallback capture methods.
         selected_capture.clear();
       }
     }
@@ -1480,8 +1471,7 @@ namespace platf {
     }
 #endif
 #ifdef SUNSHINE_BUILD_PORTAL
-    // Check Portal using original non-mutated config in full negotiation mode.
-    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "portal") && (portal_is_available || verify_portal(true, portal_probe))) {
+    if (portal_available || (config::video.capture.empty() && sources.none() && verify_portal())) {
       sources[source::PORTAL] = true;
     }
 #endif
