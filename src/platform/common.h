@@ -281,6 +281,9 @@ namespace platf {
     std::string text;  ///< UTF-8 clipboard text.
   };
 
+  /**
+   * @brief Queue used to deliver host clipboard text to the control stream.
+   */
   using clipboard_queue_t = safe::mail_raw_t::queue_t<clipboard_text_t>;
 
   namespace speaker {
