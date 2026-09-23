@@ -16,9 +16,13 @@
 #ifndef SUNSHINE_BUILD_X11
 
 namespace platf {
-  void clipboard_set(std::string_view) {}
+  void clipboard_set(std::string_view) {
+    // This build has no X11 display, so the host clipboard cannot be updated.
+  }
 
-  void clipboard_subscribe(clipboard_queue_t) {}
+  void clipboard_subscribe(clipboard_queue_t) {
+    // This build has no X11 display, so host clipboard changes cannot be watched.
+  }
 }  // namespace platf
 
 #else

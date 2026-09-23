@@ -2,6 +2,7 @@
  * @file src/input.cpp
  * @brief Definitions for gamepad, keyboard, and mouse input handling.
  */
+#include <cstddef>
 #include <cstdint>
 extern "C" {
 #include <moonlight-common-c/src/Input.h>
@@ -1283,7 +1284,7 @@ namespace input {
    * @param input Stream input state.
    * @param header Packet header at the start of the raw input bytes.
    */
-  void passthrough_clipboard(std::shared_ptr<input_t> &input, const NV_INPUT_HEADER *header) {
+  void passthrough_clipboard(const std::shared_ptr<input_t> &input, const NV_INPUT_HEADER *header) {
     auto declared = util::endian::big(header->size);
     constexpr auto prefix = sizeof(std::uint32_t) + sizeof(std::uint32_t);
     if (declared < prefix) {
@@ -1296,7 +1297,7 @@ namespace input {
       return;
     }
 
-    const auto *bytes = reinterpret_cast<const std::uint8_t *>(header);
+    const auto *bytes = reinterpret_cast<const std::byte *>(header);
     platf::clipboard_set(std::string_view(reinterpret_cast<const char *>(bytes + sizeof(NV_INPUT_HEADER) + sizeof(std::uint32_t)), text_len));
   }
 

@@ -59,8 +59,12 @@ namespace platf {
     return gamepads;
   }
 
-  void clipboard_set(std::string_view) {}
+  void clipboard_set(std::string_view) {
+    // macOS host clipboard sync is not implemented yet.
+  }
 
-  void clipboard_subscribe(clipboard_queue_t) {}
+  void clipboard_subscribe(clipboard_queue_t) {
+    // macOS host clipboard sync is not implemented yet.
+  }
 
 }  // namespace platf

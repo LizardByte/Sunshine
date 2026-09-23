@@ -1329,7 +1329,11 @@ namespace platf {
     return caps;
   }
 
-  void clipboard_set(std::string_view) {}
+  void clipboard_set(std::string_view) {
+    // Windows host clipboard sync is not implemented yet.
+  }
 
-  void clipboard_subscribe(clipboard_queue_t) {}
+  void clipboard_subscribe(clipboard_queue_t) {
+    // Windows host clipboard sync is not implemented yet.
+  }
 }  // namespace platf
