@@ -1249,10 +1249,10 @@ namespace platf {
    *
    * @return True if Portal is available.
    */
-  bool verify_portal(std::optional<portal_probe_e> cached = std::nullopt) {
+  bool verify_portal() {
     using enum portal_probe_e;
 
-    auto result = cached ? *cached : probe_portal();
+    auto result = probe_portal();
     switch (result) {
       case available:
         return true;
