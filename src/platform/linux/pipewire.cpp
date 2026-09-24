@@ -395,11 +395,47 @@ namespace pipewire {
     }
 
     /**
-     * Fetch the currently running KWin version (if available from its DBus support information method)
-     *
-     * @return A vector with 3 elements containing KWin's major.minor.micro version or an empty vector if KWin's version could not be determined.
+     * @brief Compositors that require version-based checks for optimal stream setup.
      */
-    static std::vector<int> get_running_kwin_version() {
+    enum class compositor_type_e {
+      unknown,  ///< Unknown
+      gnome,  ///< GNOME Shell is a proxy for Mutter.
+      kwin  ///< KWin
+    };
+
+    /**
+     * @brief Compositor type and version information.
+     */
+    struct compositor_version_t {
+      compositor_type_e type = compositor_type_e::unknown;
+      std::vector<int> version;
+    };
+
+    /**
+     * Fetch compositor type and version for processing.
+     *
+     * @return A struct containing the compositor type and version.
+     */
+    static compositor_version_t get_running_compositor() {
+      using enum compositor_type_e;
+
+      if (auto version = get_running_compositor_version(kwin); !version.empty()) {
+        return {kwin, std::move(version)};
+      }
+
+      if (auto version = get_running_compositor_version(gnome); !version.empty()) {
+        return {gnome, std::move(version)};
+      }
+
+      return {};
+    }
+
+    /**
+     * Fetch compositor version information using DBus calls.
+     *
+     * @return A vector with 2-3 elements containing the major.minor.micro versions or an empty vector if the version could not be determined.
+     */
+    static std::vector<int> get_running_compositor_version(enum compositor_type_e compositor_type) {
 #if !GLIB_CHECK_VERSION(2, 74, 0)
       // Compatibility for Ubuntu 22.04 (Glib 2.72)
       constexpr auto G_REGEX_DEFAULT = static_cast<GRegexCompileFlags>(0);
@@ -412,53 +448,84 @@ namespace pipewire {
         return result;
       }
 
-      auto reply = g_dbus_connection_call_sync(
-        conn,
-        "org.kde.KWin",
-        "/KWin",
-        "org.kde.KWin",
-        "supportInformation",
-        nullptr,
-        G_VARIANT_TYPE("(s)"),
-        G_DBUS_CALL_FLAGS_NONE,
-        -1,
-        nullptr,
-        nullptr
-      );
+      const gchar *version_regex;
+      GVariant *reply;
+
+      using enum compositor_type_e;
+      if (compositor_type == kwin) {
+        version_regex = "KWin version: ([0-9]+)\\.([0-9]+)\\.([0-9]+)";
+        reply = g_dbus_connection_call_sync(
+          conn,
+          "org.kde.KWin",
+          "/KWin",
+          "org.kde.KWin",
+          "supportInformation",
+          nullptr,
+          G_VARIANT_TYPE("(s)"),
+          G_DBUS_CALL_FLAGS_NONE,
+          -1,
+          nullptr,
+          nullptr
+        );
+      } else {
+        version_regex = "([0-9]+)\\.([0-9]+)(?:\\.([0-9]+))?";
+        reply = g_dbus_connection_call_sync(
+          conn,
+          "org.gnome.Shell",
+          "/org/gnome/Shell",
+          "org.freedesktop.DBus.Properties",
+          "Get",
+          g_variant_new("(ss)", "org.gnome.Shell", "ShellVersion"),
+          G_VARIANT_TYPE("(v)"),
+          G_DBUS_CALL_FLAGS_NONE,
+          -1,
+          nullptr,
+          nullptr
+        );
+      }
 
       if (!reply) {
         g_clear_object(&conn);
         return result;
       }
 
-      g_autofree gchar *support_info = nullptr;
-      g_variant_get(reply, "(s)", &support_info);
+      g_autofree gchar *version_str = nullptr;
 
-      if (!support_info) {
+      if (compositor_type == kwin) {
+        g_variant_get(reply, "(s)", &version_str);
+      } else {
+        GVariant *inner_variant = nullptr;
+        g_variant_get(reply, "(v)", &inner_variant);
+        if (inner_variant) {
+          version_str = g_variant_dup_string(inner_variant, nullptr);
+          g_variant_unref(inner_variant);
+        }
+      }
+
+      if (!version_str) {
         g_variant_unref(reply);
         g_clear_object(&conn);
         return result;
       }
 
-      auto *regex = g_regex_new(
-        "KWin version: ([0-9]+)\\.([0-9]+)\\.([0-9]+)",
-        G_REGEX_DEFAULT,
-        G_REGEX_MATCH_DEFAULT,
-        nullptr
-      );
-
-      if (regex) {
+      if (auto *regex = g_regex_new(version_regex, G_REGEX_DEFAULT, G_REGEX_MATCH_DEFAULT, nullptr); regex) {
         GMatchInfo *match_info = nullptr;
-        g_regex_match(regex, support_info, G_REGEX_MATCH_DEFAULT, &match_info);
+        g_regex_match(regex, version_str, G_REGEX_MATCH_DEFAULT, &match_info);
 
         if (g_match_info_matches(match_info)) {
           g_autofree const gchar *major = g_match_info_fetch(match_info, 1);
           g_autofree const gchar *minor = g_match_info_fetch(match_info, 2);
           g_autofree const gchar *micro = g_match_info_fetch(match_info, 3);
 
-          result.emplace_back(std::atoi(major));
-          result.emplace_back(std::atoi(minor));
-          result.emplace_back(std::atoi(micro));
+          if (major) {
+            result.emplace_back(std::atoi(major));
+          }
+          if (minor) {
+            result.emplace_back(std::atoi(minor));
+          }
+          if (micro && *micro != '\0') {
+            result.emplace_back(std::atoi(micro));
+          }
         }
         g_match_info_free(match_info);
         g_regex_unref(regex);
@@ -470,91 +537,33 @@ namespace pipewire {
     }
 
     /**
-     * Fetch the currently running GNOME Shell version from its ShellVersion DBus property. The version is used as a proxy for the Mutter version.
-     *
-     * @return A vector with 2-3 elements containing Shell/Mutter's major.minor.micro version or an empty vector if the Shell version could not be determined.
-     */
-    static std::vector<int> get_running_gnome_shell_version() {
-      std::vector<int> result;
-      auto conn = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, nullptr);
-
-      if (!conn) {
-        return result;
-      }
-
-      auto reply = g_dbus_connection_call_sync(
-        conn,
-        "org.gnome.Shell",
-        "/org/gnome/Shell",
-        "org.freedesktop.DBus.Properties",
-        "Get",
-        g_variant_new("(ss)", "org.gnome.Shell", "ShellVersion"),
-        G_VARIANT_TYPE("(v)"),
-        G_DBUS_CALL_FLAGS_NONE,
-        -1,
-        nullptr,
-        nullptr
-      );
-
-      if (!reply) {
-        g_clear_object(&conn);
-        return result;
-      }
-
-      GVariant *variant = nullptr;
-      g_variant_get(reply, "(v)", &variant);
-
-      if (!variant) {
-        g_variant_unref(reply);
-        g_clear_object(&conn);
-        return result;
-      }
-
-      const char *version_str = g_variant_get_string(variant, nullptr);
-      if (version_str) {
-        int major = 0, minor = 0, micro = 0;
-
-        int scanned = sscanf(version_str, "%d.%d.%d", &major, &minor, &micro);
-        if (scanned >= 1) {
-          result.emplace_back(major);
-        }
-        if (scanned >= 2) {
-          result.emplace_back(minor);
-        }
-        if (scanned >= 3) {
-          result.emplace_back(micro);
-        }
-      }
-
-      g_variant_unref(variant);
-      g_variant_unref(reply);
-      g_clear_object(&conn);
-
-      return result;
-    }
-
-    /**
      * Determine if Pipewire's pts metadata is suitable for client pacing based on compositor type/version whitelist.
      *
      * @return True if pts metadata is suitable.
      */
-    static bool use_pipewire_pts() {
+    static bool use_pipewire_pts(const compositor_version_t &compositor, const std::string &selected_display_name) {
       // KWin: use Pipewire pts metadata for versions 6.7.80+ (6.8 beta) or newer.
-      // Mutter: use Pipewire pts metadata for Mutter 51 onwards.
+      // Mutter: use Pipewire pts metadata for Mutter 51 onwards, but pts is reliable only for virtual monitors (Meta-).
       // All other cases: don't use Pipewire pts metadata directly.
 
       bool use_pts = false;
-      std::vector<int> gnome_version;
-      std::vector<int> kwin_version;
+      bool using_virtual_monitor = false;
 
-      if (!(kwin_version = get_running_kwin_version()).empty()) {
-        use_pts = (kwin_version[0] > 6 || (kwin_version[0] == 6 && (kwin_version[1] > 7 || (kwin_version[1] == 7 && kwin_version[2] > 79))));
-      } else if (!(gnome_version = get_running_gnome_shell_version()).empty()) {
-        use_pts = gnome_version[0] >= 51;
+      using enum compositor_type_e;
+      switch (compositor.type) {
+        case gnome:
+          using_virtual_monitor = (selected_display_name.find("Meta-", 0) == 0);
+          use_pts = (using_virtual_monitor && compositor.version[0] >= 51);
+          break;
+        case kwin:
+          use_pts = (compositor.version[0] > 6 || (compositor.version[0] == 6 && (compositor.version[1] > 7 || (compositor.version[1] == 7 && compositor.version[2] > 79))));
+          break;
+        default:
+          break;
       }
 
       BOOST_LOG(info) << "[pipewire] Using frame_timestamp (pts) metadata source: "sv
-                      << (use_pts ? "Pipewire (via compositor)" : "Sunshine");
+                      << (use_pts ? "Pipewire (via compositor)" : PROJECT_NAME);
       return use_pts;
     }
 
@@ -563,7 +572,8 @@ namespace pipewire {
      *
      * @return True if variable rate capture is suitable.
      */
-    static bool use_variable_rate() {
+    static bool
+      use_variable_rate(const compositor_version_t &compositor) {
       // If the active compositor is KWin, request variable rate (0, 1) capture for versions 5.x-6.7.79 (up to 6.7 stable series).
       // Issue: KWin <=6.7 has a ~3% fixed-rate pacing deficit vs the requested framerate; variable rate avoids this and prioritizes gaming smoothness.
       //        KWin 6.7 regresses variable rate (desktop animations run at half speed, but doesn't affect in-game pacing). Ref: https://bugs.kde.org/show_bug.cgi?id=524129
@@ -575,9 +585,13 @@ namespace pipewire {
       // All other compositors (including Mutter) will default to variable rate.
       bool variable_rate = true;
 
-      const static std::vector<int> kwin_version = get_running_kwin_version();
-      if (!kwin_version.empty()) {
-        variable_rate = (kwin_version[0] == 5 || (kwin_version[0] == 6 && (kwin_version[1] < 7 || (kwin_version[1] == 7 && kwin_version[2] < 80))));
+      using enum compositor_type_e;
+      switch (compositor.type) {
+        case kwin:
+          variable_rate = (compositor.version[0] == 5 || (compositor.version[0] == 6 && (compositor.version[1] < 7 || (compositor.version[1] == 7 && compositor.version[2] < 80))));
+          break;
+        default:
+          break;
       }
 
       return variable_rate;
@@ -685,9 +699,8 @@ namespace pipewire {
       negotiate_maxframerate_ = negotiate_maxframerate;
     }
 
-    inline static std::once_flag compositor_probe_once;
-    inline static bool prefer_pipewire_pts = false;
-    inline static bool negotiate_variable_rate = true;
+    inline static std::atomic<bool> prefer_pipewire_pts = false;
+    inline static std::atomic<bool> negotiate_variable_rate = true;
 
   private:
     struct pw_thread_loop *loop;
@@ -1043,14 +1056,11 @@ namespace pipewire {
       // calculate frame interval we should capture at
       delay = ::video::capture_frame_interval(config);
 
-      // These compositor checks are not expected to change during the process lifecycle.
-      std::call_once(pipewire.compositor_probe_once, [this] {
-        // Determine if variable rate should be negotiated based on compositor type/versioning.
-        pipewire.negotiate_variable_rate = pipewire.use_variable_rate();
+      using enum pipewire_t::compositor_type_e;
+      const auto compositor = pipewire.get_running_compositor();
 
-        // Determine if pts metadata should be sourced from Pipewire or sampled by Sunshine at time of capture.
-        pipewire.prefer_pipewire_pts = pipewire.use_pipewire_pts();
-      });
+      // Determine if variable rate should be negotiated based on compositor type/versioning.
+      pipewire.negotiate_variable_rate = pipewire.use_variable_rate(compositor);
 
       const AVRational fps = (pipewire.negotiate_variable_rate ? AVRational {0, 1} : ::video::framerate_to_rational(config));
       if (fps.den != 1) {
@@ -1079,6 +1089,9 @@ namespace pipewire {
 
       // Verify or update display parameters for streaming to ensure absolute touch inputs work as expected
       verify_and_update_display_parameters();
+
+      // Determine if pts metadata should be sourced from Pipewire or sampled by Sunshine at time of capture.
+      pipewire.prefer_pipewire_pts = pipewire.use_pipewire_pts(compositor, display_name);
 
       if (!shared_state) {
         shared_state = std::make_shared<shared_state_t>();
