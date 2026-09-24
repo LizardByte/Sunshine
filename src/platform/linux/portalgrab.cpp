@@ -153,8 +153,7 @@ namespace portal {
     g_autoptr(GError) ping_error = nullptr;
     g_autoptr(GDBusConnection) conn = g_dbus_connection_new_for_address_sync(
       address,
-      GDBusConnectionFlags(G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
-        G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION),
+      GDBusConnectionFlags(G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT | G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION),
       nullptr,
       nullptr,
       &ping_error
@@ -296,8 +295,7 @@ namespace portal {
 
       conn = g_dbus_connection_new_for_address_sync(
         address,
-        GDBusConnectionFlags(G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
-          G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION),
+        GDBusConnectionFlags(G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT | G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION),
         nullptr,
         nullptr,
         &g_error
