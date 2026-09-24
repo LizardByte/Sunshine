@@ -16,10 +16,12 @@
 #include <boost/core/noncopyable.hpp>
 #ifndef _WIN32
   #include <boost/asio.hpp>
-  #include <boost/process/v1.hpp>
 #endif
 
 // local includes
+#ifndef _WIN32
+  #include "src/boost_process_compat.h"
+#endif
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/thread_safe.h"
@@ -256,7 +258,6 @@ namespace platf {
       } player_leds;  ///< Player-indicator LED payload.
 
       struct {
-        uint16_t controllerNumber;  ///< Controller number supplied to the adaptive-trigger backend.
         uint8_t event_flags;  ///< Flags describing which adaptive-trigger data is present.
         uint8_t type_left;  ///< Left adaptive-trigger effect type.
         uint8_t type_right;  ///< Right adaptive-trigger effect type.

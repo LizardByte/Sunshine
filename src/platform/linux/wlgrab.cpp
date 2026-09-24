@@ -19,6 +19,20 @@ namespace wl {
   static int env_width;
   static int env_height;
 
+  bool use_vram_capture(platf::mem_type_e hwdevice_type) {
+    if (hwdevice_type == platf::mem_type_e::vaapi) {
+      return true;
+    }
+
+#ifdef SUNSHINE_BUILD_CUDA
+    if (hwdevice_type == platf::mem_type_e::cuda) {
+      return true;
+    }
+#endif
+
+    return false;
+  }
+
   /**
    * @brief Captured frame buffer shared between capture and encode stages.
    */
@@ -488,7 +502,7 @@ namespace platf {
       return nullptr;
     }
 
-    if (hwdevice_type == platf::mem_type_e::vaapi || hwdevice_type == platf::mem_type_e::cuda) {
+    if (wl::use_vram_capture(hwdevice_type)) {
       auto wlr = std::make_shared<wl::wlr_vram_t>();
       if (wlr->init(hwdevice_type, display_name, config)) {
         return nullptr;
@@ -496,6 +510,12 @@ namespace platf {
 
       return wlr;
     }
+
+#ifndef SUNSHINE_BUILD_CUDA
+    if (hwdevice_type == platf::mem_type_e::cuda) {
+      BOOST_LOG(warning) << "This build does not include CUDA support. Falling back to GPU -> RAM -> GPU for NVENC."sv;
+    }
+#endif
 
     auto wlr = std::make_shared<wl::wlr_ram_t>();
     if (wlr->init(hwdevice_type, display_name, config)) {

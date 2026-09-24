@@ -121,6 +121,9 @@ apt-get update -y
 apt-get install -y --no-install-recommends /sunshine.deb
 apt-get clean
 rm -rf /var/lib/apt/lists/*
+# systemd 261 creates this mode-000 runtime directory, which prevents BuildKit's
+# local exporter from copying Ubuntu 26.10 arm64 images.
+rm -rf /run/systemd/dissect-root
 _INSTALL_SUNSHINE
 
 # network setup

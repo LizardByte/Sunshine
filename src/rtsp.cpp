@@ -482,6 +482,7 @@ namespace rtsp_stream {
      * @return Network operation status.
      */
     int bind(net::af_e af, std::uint16_t port, boost::system::error_code &ec) {
+      af = net::get_effective_address_family(af);
       acceptor.open(af == net::IPV4 ? tcp::v4() : tcp::v6(), ec);
       if (ec) {
         return -1;

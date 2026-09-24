@@ -19,6 +19,9 @@
 #include <string_view>
 #include <vector>
 
+// lib includes
+#include <nlohmann/json.hpp>
+
 // local includes
 #include "src/file_handler.h"
 
@@ -44,10 +47,21 @@ protected:
     };
   }
 
+  /**
+   * @brief Read an integration-test fixture copied beside the test executable.
+   *
+   * @param relativePath Repository-relative path of the copied fixture.
+   * @return Contents of the fixture, or an empty string when it cannot be read.
+   */
+  static std::string readFixture(const std::string_view relativePath) {
+    const auto fixturePath = std::format("{}/{}", SUNSHINE_TEST_BIN_DIR, relativePath);
+    return file_handler::read_file(fixturePath.c_str());
+  }
+
   // Extract config options from config.cpp - the authoritative source
   static std::set<std::string, std::less<>> extractConfigCppOptions() {
     std::set<std::string, std::less<>> options;
-    std::string content = file_handler::read_file("src/config.cpp");
+    std::string content = readFixture("src/config.cpp");
 
     // Regex patterns to match different config option types in config.cpp
     const std::vector patterns = {
@@ -72,112 +86,38 @@ protected:
     return options;
   }
 
-  // Helper function to find brace boundaries
-  static size_t findClosingBrace(const std::string &content, const size_t start) {
-    size_t pos = start + 1;
-    int braceLevel = 1;
-
-    while (pos < content.length() && braceLevel > 0) {
-      if (content[pos] == '{') {
-        braceLevel++;
-      } else if (content[pos] == '}') {
-        braceLevel--;
-      }
-      pos++;
+  /**
+   * @brief Parse the ordered configuration-tab defaults used by the Web UI.
+   *
+   * @return Parsed configuration-tab array, or an empty array when the fixture is unavailable.
+   */
+  static nlohmann::ordered_json extractConfigTabs() {
+    const std::string content = readFixture("src_assets/common/assets/web/configs/config_tabs.json");
+    if (content.empty()) {
+      return nlohmann::ordered_json::array();
     }
 
-    return pos - 1;
+    return nlohmann::ordered_json::parse(content);
   }
 
-  // Helper function to extract tab ID from a tab object
-  static std::string extractTabId(const std::string &tabObject) {
-    const std::regex idPattern(R"DELIM(id:\s*"([^"]+)")DELIM");
-
-    if (std::smatch idMatch; std::regex_search(tabObject, idMatch, idPattern)) {
-      return idMatch[1].str();
-    }
-
-    return "";
-  }
-
-  // Helper function to find and extract tabs content from HTML
-  static std::string extractTabsContent(const std::string &content) {
-    const size_t tabsStart = content.find("tabs: [");
-    if (tabsStart == std::string::npos) {
-      return "";
-    }
-
-    // Find the end of the tab array
-    size_t pos = tabsStart + 7;  // Skip "tabs: ["
-    int bracketLevel = 1;
-    size_t tabsEnd = pos;
-
-    while (pos < content.length() && bracketLevel > 0) {
-      if (content[pos] == '[') {
-        bracketLevel++;
-      } else if (content[pos] == ']') {
-        bracketLevel--;
-      }
-      tabsEnd = pos;
-      pos++;
-    }
-
-    return content.substr(tabsStart + 7, tabsEnd - tabsStart - 7);
-  }
-
-  // Helper function to extract options from a tab object (generic version)
+  /**
+   * @brief Extract option names and tab IDs from the ordered Web UI defaults.
+   *
+   * @tparam Container Map type receiving option-to-tab or tab-to-options entries.
+   * @param container Destination container.
+   */
   template<typename Container>
-  static void extractOptionsFromTabGeneric(const std::string &tabObject, Container &container) {
-    const std::string tabId = extractTabId(tabObject);
-    if (tabId.empty()) {
-      return;
-    }
-
-    const size_t optionsStart = tabObject.find("options:");
-    if (optionsStart == std::string::npos) {
-      return;
-    }
-
-    const size_t optStart = tabObject.find('{', optionsStart);
-    if (optStart == std::string::npos) {
-      return;
-    }
-
-    const size_t optEnd = findClosingBrace(tabObject, optStart);
-    std::string optionsSection = tabObject.substr(optStart + 1, optEnd - optStart - 1);
-
-    // Extract option names
-    const std::regex optionPattern(R"DELIM("([^"]+)":\s*)DELIM");
-    std::sregex_iterator optionIter(optionsSection.begin(), optionsSection.end(), optionPattern);
-
-    for (const std::sregex_iterator optionEnd; optionIter != optionEnd; ++optionIter) {
-      std::string optionName = (*optionIter)[1].str();
-
-      // Use if constexpr to handle different container types
-      if constexpr (std::is_same_v<Container, std::map<std::string, std::string, std::less<>>>) {
-        container[optionName] = tabId;
-      } else if constexpr (std::is_same_v<Container, std::map<std::string, std::vector<std::string>, std::less<>>>) {
-        container[tabId].push_back(optionName);
+  static void extractOptionsFromConfigTabs(Container &container) {
+    for (const auto &tab : extractConfigTabs()) {
+      const std::string tabId = tab.at("id").get<std::string>();
+      for (const auto &[optionName, value] : tab.at("options").items()) {
+        (void) value;
+        if constexpr (std::is_same_v<Container, std::map<std::string, std::string, std::less<>>>) {
+          container[optionName] = tabId;
+        } else if constexpr (std::is_same_v<Container, std::map<std::string, std::vector<std::string>, std::less<>>>) {
+          container[tabId].push_back(optionName);
+        }
       }
-    }
-  }
-
-  // Helper function to process tab objects from tabs content
-  template<typename Container>
-  static void processTabObjects(const std::string &tabsContent, Container &container) {
-    size_t tabPos = 0;
-    while (tabPos < tabsContent.length()) {
-      const size_t objStart = tabsContent.find('{', tabPos);
-      if (objStart == std::string::npos) {
-        break;
-      }
-
-      const size_t objEnd = findClosingBrace(tabsContent, objStart);
-      std::string tabObject = tabsContent.substr(objStart, objEnd - objStart + 1);
-
-      extractOptionsFromTabGeneric(tabObject, container);
-
-      tabPos = objEnd + 1;
     }
   }
 
@@ -197,36 +137,17 @@ protected:
     return "";
   }
 
-  // Extract config options from config.html
+  // Extract config options from the Web UI defaults
   static std::map<std::string, std::string, std::less<>> extractConfigHtmlOptions() {
     std::map<std::string, std::string, std::less<>> options;
-    const std::string content = file_handler::read_file("src_assets/common/assets/web/config.html");
-
-    const std::string tabsContent = extractTabsContent(content);
-    if (tabsContent.empty()) {
-      return options;
-    }
-
-    processTabObjects(tabsContent, options);
+    extractOptionsFromConfigTabs(options);
     return options;
   }
 
-  // Helper function to extract options from a single tab object (now using generic function)
-  static void extractOptionsFromTab(const std::string &tabObject, std::map<std::string, std::vector<std::string>, std::less<>> &optionsByTab) {
-    extractOptionsFromTabGeneric(tabObject, optionsByTab);
-  }
-
-  // Extract config options from config.html with order preserved
+  // Extract config options from the Web UI defaults with order preserved
   static std::map<std::string, std::vector<std::string>, std::less<>> extractConfigHtmlOptionsWithOrder() {
     std::map<std::string, std::vector<std::string>, std::less<>> optionsByTab;
-    const std::string content = file_handler::read_file("src_assets/common/assets/web/config.html");
-
-    const std::string tabsContent = extractTabsContent(content);
-    if (tabsContent.empty()) {
-      return optionsByTab;
-    }
-
-    processTabObjects(tabsContent, optionsByTab);
+    extractOptionsFromConfigTabs(optionsByTab);
     return optionsByTab;
   }
 
@@ -260,7 +181,7 @@ protected:
   // Extract config options from configuration.md
   static std::map<std::string, std::string, std::less<>> extractConfigMdOptions() {
     std::map<std::string, std::string, std::less<>> options;
-    const std::string content = file_handler::read_file("docs/configuration.md");
+    const std::string content = readFixture("docs/configuration.md");
 
     std::istringstream stream(content);
     std::string line;
@@ -291,7 +212,7 @@ protected:
   // Extract config options from configuration.md with order preserved
   static std::map<std::string, std::vector<std::string>, std::less<>> extractConfigMdOptionsWithOrder() {
     std::map<std::string, std::vector<std::string>, std::less<>> optionsBySection;
-    const std::string content = file_handler::read_file("docs/configuration.md");
+    const std::string content = readFixture("docs/configuration.md");
 
     std::istringstream stream(content);
     std::string line;
@@ -340,7 +261,7 @@ protected:
   // Extract config options from en.json
   static std::set<std::string, std::less<>> extractEnJsonConfigOptions() {
     std::set<std::string, std::less<>> options;
-    const std::string content = file_handler::read_file("src_assets/common/assets/web/public/assets/locale/en.json");
+    const std::string content = readFixture("src_assets/common/assets/web/public/assets/locale/en.json");
 
     // Look for the config section
     const std::regex configSectionPattern(R"DELIM("config":\s*\{)DELIM");
@@ -375,7 +296,7 @@ protected:
   // Helper function to validate option existence across files
   static void validateOptionExistence(const std::string &option, const std::map<std::string, std::string, std::less<>> &htmlOptions, const std::map<std::string, std::string, std::less<>> &mdOptions, const std::set<std::string, std::less<>> &jsonOptions, std::vector<std::string> &missingFromFiles) {
     if (!isOptionInHtml(option, htmlOptions)) {
-      missingFromFiles.push_back(std::format("config.html missing: {}", option));
+      missingFromFiles.push_back(std::format("config_tabs.json missing: {}", option));
     }
 
     if (!isOptionInMd(option, mdOptions)) {
@@ -415,7 +336,7 @@ protected:
         continue;
       }
 
-      if (missing.contains("config.html")) {
+      if (missing.contains("config_tabs.json")) {
         foundMissingDummyInHtml = true;
       }
       if (missing.contains("configuration.md")) {
@@ -472,33 +393,62 @@ TEST_F(ConfigConsistencyTest, AllConfigOptionsExistInAllFiles) {
 }
 
 TEST_F(ConfigConsistencyTest, AllConfigSidebarTabsUseEnglishLocaleKeys) {
-  const std::string content = file_handler::read_file("src_assets/common/assets/web/config.html");
-  const std::string tabsContent = extractTabsContent(content);
   const auto jsonOptions = extractEnJsonConfigOptions();
-  const std::regex nameKeyPattern(R"DELIM(nameKey:\s*"config\.([^"]+)")DELIM");
   std::vector<std::string> errors;
 
-  size_t tabPos = 0;
-  while (tabPos < tabsContent.length()) {
-    const size_t objStart = tabsContent.find('{', tabPos);
-    if (objStart == std::string::npos) {
-      break;
-    }
-
-    const size_t objEnd = findClosingBrace(tabsContent, objStart);
-    const std::string tabObject = tabsContent.substr(objStart, objEnd - objStart + 1);
-    const std::string tabId = extractTabId(tabObject);
-
-    if (std::smatch nameKeyMatch; !std::regex_search(tabObject, nameKeyMatch, nameKeyPattern)) {
+  for (const auto &tab : extractConfigTabs()) {
+    const std::string tabId = tab.at("id").get<std::string>();
+    const std::string nameKey = tab.at("nameKey").get<std::string>();
+    constexpr std::string_view configPrefix = "config.";
+    if (!nameKey.starts_with(configPrefix)) {
       errors.push_back(std::format("Tab '{}' does not use a localized name key", tabId));
-    } else if (!jsonOptions.contains(nameKeyMatch[1].str())) {
-      errors.push_back(std::format("Tab '{}' references missing en.json key 'config.{}'", tabId, nameKeyMatch[1].str()));
+    } else if (const std::string localeKey = nameKey.substr(configPrefix.size()); !jsonOptions.contains(localeKey)) {
+      errors.push_back(std::format("Tab '{}' references missing en.json key '{}'", tabId, nameKey));
     }
-
-    tabPos = objEnd + 1;
   }
 
   EXPECT_TRUE(errors.empty()) << buildCommaSeparatedString(errors);
+}
+
+TEST_F(ConfigConsistencyTest, ConfigSidebarTabsDoNotNavigateAway) {
+  const std::string content = readFixture("src_assets/common/assets/web/Config.vue");
+  const std::regex tabButtonPattern(R"(<button\s+type="button"\s+class="nav-link")");
+  const std::sregex_iterator tabButtonBegin(content.begin(), content.end(), tabButtonPattern);
+  const std::sregex_iterator tabButtonEnd;
+
+  EXPECT_EQ(std::distance(tabButtonBegin, tabButtonEnd), 2);
+  EXPECT_EQ(content.find("href=\"#\""), std::string::npos);
+}
+
+TEST_F(ConfigConsistencyTest, KeybindingsAreAvailableInWebUi) {
+  const std::string content = readFixture("src_assets/common/assets/web/configs/tabs/Inputs.vue");
+  const std::string selectContent = readFixture("src_assets/common/assets/web/configs/VirtualKeyCodeSelect.vue");
+  const std::string keyCodeContent = readFixture("src_assets/common/assets/web/configs/virtual_key_codes.js");
+
+  EXPECT_NE(
+    content.find("id=\"keybindings\" class=\"mb-3\" v-if=\"config.keyboard === 'enabled'\""),
+    std::string::npos
+  );
+  EXPECT_NE(content.find("class=\"keybinding-grid\""), std::string::npos);
+  EXPECT_NE(content.find("v-for=\"(binding, index) in keybindingPairs\""), std::string::npos);
+  EXPECT_NE(content.find("v-model=\"binding.source\""), std::string::npos);
+  EXPECT_NE(content.find("v-model=\"binding.destination\""), std::string::npos);
+  EXPECT_NE(selectContent.find("v-for=\"keyCode in virtualKeyCodes\""), std::string::npos);
+  EXPECT_NE(selectContent.find("{{ keyCode.code }} ({{ keyCode.description }})"), std::string::npos);
+  EXPECT_NE(content.find("@click=\"addKeybinding\""), std::string::npos);
+  EXPECT_NE(content.find("@click=\"removeKeybinding(index)\""), std::string::npos);
+  EXPECT_NE(content.find("windows/win32/inputdev/virtual-key-codes"), std::string::npos);
+
+  const std::regex keyCodePattern(R"(keyCode\((0x[0-9A-F]{2}),)");
+  const std::sregex_iterator keyCodeBegin(keyCodeContent.begin(), keyCodeContent.end(), keyCodePattern);
+  const std::sregex_iterator keyCodeEnd;
+  std::set<std::string, std::less<>> uniqueKeyCodes;
+  for (auto keyCode = keyCodeBegin; keyCode != keyCodeEnd; ++keyCode) {
+    uniqueKeyCodes.insert((*keyCode)[1].str());
+  }
+
+  EXPECT_EQ(std::distance(keyCodeBegin, keyCodeEnd), 196);
+  EXPECT_EQ(uniqueKeyCodes.size(), 196);
 }
 
 TEST_F(ConfigConsistencyTest, ConfigTabsMatchDocumentationSections) {
@@ -624,7 +574,7 @@ TEST_F(ConfigConsistencyTest, DummyConfigOptionsDoNotExist) {
     }
 
     if (htmlOptions.contains(dummyOption)) {
-      unexpectedlyFound.push_back(std::format("config.html contains dummy option: {}", dummyOption));
+      unexpectedlyFound.push_back(std::format("config_tabs.json contains dummy option: {}", dummyOption));
     }
 
     if (mdOptions.contains(dummyOption)) {
@@ -672,7 +622,7 @@ TEST_F(ConfigConsistencyTest, TestFrameworkDetectsMissingOptions) {
     }
 
     if (!htmlOptions.contains(option)) {
-      missingFromFiles.push_back(std::format("config.html missing: {}", option));
+      missingFromFiles.push_back(std::format("config_tabs.json missing: {}", option));
     }
 
     if (!mdOptions.contains(option)) {
@@ -692,7 +642,7 @@ TEST_F(ConfigConsistencyTest, TestFrameworkDetectsMissingOptions) {
   checkTestDummyDetection(missingFromFiles, testDummyOption, foundMissingDummyInHtml, foundMissingDummyInMd, foundMissingDummyInJson);
 
   // The test framework should have detected the fake option as missing from all files
-  EXPECT_TRUE(foundMissingDummyInHtml) << "Test framework failed to detect missing option in config.html";
+  EXPECT_TRUE(foundMissingDummyInHtml) << "Test framework failed to detect missing option in config_tabs.json";
   EXPECT_TRUE(foundMissingDummyInMd) << "Test framework failed to detect missing option in configuration.md";
   EXPECT_TRUE(foundMissingDummyInJson) << "Test framework failed to detect missing option in en.json";
 

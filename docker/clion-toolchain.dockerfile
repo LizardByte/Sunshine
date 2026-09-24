@@ -21,11 +21,11 @@ set -e
 apt-get update -y
 apt-get install -y --no-install-recommends \
   build-essential \
-  cmake=3.31.* \
   ca-certificates \
+  cmake=3.31.* \
   doxygen \
-  gcc=4:14.2.* \
   g++=4:14.2.* \
+  gcc=4:14.2.* \
   gdb \
   git \
   graphviz \

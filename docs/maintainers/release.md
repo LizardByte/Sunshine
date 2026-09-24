@@ -3,6 +3,13 @@
 Pre-releases in Sunshine are created automatically on every push event to the `master` branch. These are required
 to be created before making a stable release. Below are the instructions for converting a pre-release to stable.
 
+## npm publishing
+
+Stable releases publish the prebuilt Web UI as `@lizardbyte/sunshine` to npm and GitHub Packages. npm trusts the
+`LizardByte/Sunshine` repository's `ci-release.yml` workflow through the `npmjs` GitHub environment, with direct
+publishing enabled. The shared release workflow derives the package version from the release tag and does not require
+an npm access token.
+
 1. Wait for the pre-release to be created.
 2. Once the pre-release is created, the copr build will begin in the
    [beta copr repo](https://copr.fedorainfracloud.org/coprs/lizardbyte/beta/).
@@ -45,4 +52,5 @@ to be created before making a stable release. Below are the instructions for con
    - Build the new version in [stable copr repo](https://copr.fedorainfracloud.org/coprs/lizardbyte/stable/)
    - Publish currently supported DEB and RPM packages to the
      [stable Cloudsmith repo](https://cloudsmith.io/~lizardbyte/repos/stable/)
+   - Publish the prebuilt Web UI to npm and GitHub Packages
    - Send release notification to Moonlight Discord server

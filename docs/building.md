@@ -14,6 +14,20 @@ It is recommended to use one of the following compilers:
 
 ### Dependencies
 
+Boost `1.89.0` or newer can be supplied as a system package. When a compatible system package is unavailable, CMake
+downloads the project-locked Boost release through CPM. Static Boost libraries are preferred on every platform by
+default; pass `-DBOOST_USE_STATIC=OFF` to use shared system libraries instead.
+
+Sunshine's build and packaging automation uses packaged static Boost libraries on Arch Linux, Fedora 44 or newer,
+Ubuntu 26.04 or newer, macOS with Homebrew, Windows with MSYS2, and FreeBSD. Older supported distributions continue
+to use the CPM fallback because their repositories do not meet the minimum Boost version.
+
+#### Prebuilt Web UI
+
+Sunshine releases publish the platform-independent Web UI as the `@lizardbyte/sunshine` package to npm and GitHub
+Packages. The package contains the production assets under `build/assets/web`, so downstream packagers can install the
+Web UI without running Node.js or Vite during the native Sunshine build.
+
 #### FreeBSD
 > [!CAUTION]
 > Sunshine support for FreeBSD is experimental and may be incomplete or not work as expected
@@ -75,7 +89,17 @@ sudo mv /tmp/sunshine build/sunshine
 ```
 
 ##### CUDA Toolkit
-Sunshine requires CUDA Toolkit for NVFBC capture. There are two caveats to CUDA:
+When building Sunshine for a system with an NVIDIA GPU, install the CUDA Toolkit before configuring or compiling
+Sunshine. CUDA support is selected at compile time and is used for NVFBC capture and direct GPU-memory NVENC encoding.
+This applies to every source build, including builds made through the AUR or for third-party repositories such as
+Omarchy. Installing the CUDA Toolkit after Sunshine was compiled does not enable CUDA support; Sunshine must be rebuilt.
+
+> [!NOTE]
+> Users installing a prebuilt package supplied by LizardByte do not need to install the CUDA Toolkit. This includes the
+> Arch Linux package from LizardByte's [pacman-repo](https://github.com/LizardByte/pacman-repo), which is already built
+> with CUDA support.
+
+There are two caveats to CUDA:
 
 1. The version installed depends on the version of GCC.
 2. The version of CUDA you use will determine compatibility with various GPU generations.
@@ -111,11 +135,11 @@ brew install "${dependencies[@]}"
 
 If there are issues with an SSL header that is not found:
 
-@tabs{
-  @tab{ Intel | ```bash
+@tabs_grouped{mac-architecture|:|
+  @tab{ Intel |:| ```bash
     ln -s /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
     ```}
-  @tab{ Apple Silicon | ```bash
+  @tab{ Apple Silicon |:| ```bash
     ln -s /opt/homebrew/opt/openssl/include/openssl /opt/homebrew/include/openssl
     ```
   }
@@ -172,7 +196,7 @@ dependencies=(
   "mingw-w64-${TOOLCHAIN}-cmake"
   "mingw-w64-${TOOLCHAIN}-cppwinrt"
   "mingw-w64-${TOOLCHAIN}-curl-winssl"
-  "mingw-w64-${TOOLCHAIN}-doxygen"  # Optional, for docs... better to install official Doxygen
+  "mingw-w64-${TOOLCHAIN}-doxygen"  # Optional, for docs
   "mingw-w64-${TOOLCHAIN}-graphviz"  # Optional, for docs
   "mingw-w64-${TOOLCHAIN}-miniupnpc"
   "mingw-w64-${TOOLCHAIN}-onevpl"
@@ -225,33 +249,33 @@ ninja -C build
 
 ### Package
 
-@tabs{
-  @tab{FreeBSD | @tabs{
-    @tab{pkg | ```bash
+@tabs_grouped{platform|:|
+  @tab{FreeBSD |:| @tabs{
+    @tab{pkg |:| ```bash
       cpack -G FREEBSD --config ./build/CPackConfig.cmake
       ```}
   }}
-  @tab{Linux | @tabs{
-    @tab{deb | ```bash
+  @tab{Linux |:| @tabs{
+    @tab{deb |:| ```bash
       cpack -G DEB --config ./build/CPackConfig.cmake
       ```}
-    @tab{rpm | ```bash
+    @tab{rpm |:| ```bash
       cpack -G RPM --config ./build/CPackConfig.cmake
       ```}
   }}
-  @tab{macOS | @tabs{
-    @tab{DragNDrop | ```bash
+  @tab{macOS |:| @tabs{
+    @tab{DragNDrop |:| ```bash
       cpack -G DragNDrop --config ./build/CPackConfig.cmake
       ```}
   }}
-  @tab{Windows | @tabs{
-    @tab{NSIS Installer | ```bash
+  @tab{Windows |:| @tabs{
+    @tab{NSIS Installer |:| ```bash
       cpack -G NSIS --config ./build/CPackConfig.cmake
       ```}
-    @tab{WiX Installer | ```bash
+    @tab{WiX Installer |:| ```bash
       cpack -G WIX --config ./build/CPackConfig.cmake
       ```}
-    @tab{Portable | ```bash
+    @tab{Portable |:| ```bash
       cpack -G ZIP --config ./build/CPackConfig.cmake
       ```}
   }}
@@ -264,16 +288,3 @@ It may be beneficial to build remotely in some cases. This will enable easier bu
 2. Activate workflows
 3. Trigger the *CI* workflow manually
 4. Download the artifacts/binaries from the workflow run summary
-
-<div class="section_buttons">
-
-| Previous                              |                            Next |
-|:--------------------------------------|--------------------------------:|
-| [Troubleshooting](troubleshooting.md) | [Contributing](contributing.md) |
-
-</div>
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

@@ -1956,7 +1956,7 @@ namespace stream {
    * @brief Bind the GameStream UDP and control sockets used for a streaming session.
    */
   int start_broadcast(broadcast_ctx_t &ctx) {
-    auto address_family = net::af_from_enum_string(config::sunshine.address_family);
+    auto address_family = net::get_effective_address_family(net::af_from_enum_string(config::sunshine.address_family));
     auto protocol = address_family == net::IPV4 ? udp::v4() : udp::v6();
     auto control_port = net::map_port(CONTROL_PORT);
     auto video_port = net::map_port(VIDEO_STREAM_PORT);

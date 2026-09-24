@@ -262,7 +262,7 @@ INSTANTIATE_TEST_SUITE_P(
     /**
      * null values (phase 1)
      */
-    std::make_tuple(pairing_input {.session = std::make_shared<pair_session_t>()}, pairing_output {false}),
+    std::make_tuple(pairing_input {.session = std::make_shared<pair_session_t>()}, pairing_output {.phase_1_success = false}),
     /**
      * null values (phase 4, phase 2 and 3 have no reason to fail since we are running them in order)
      */

@@ -33,6 +33,10 @@ step="all"
 # constants
 AARCH64="aarch64"
 DOXYGEN="doxygen"
+readonly DISTRO_ARCH="arch"
+readonly DISTRO_DEBIAN="debian"
+readonly DISTRO_FEDORA="fedora"
+readonly DISTRO_UBUNTU="ubuntu"
 
 function setup_cuda_system_package_environment() {
   if [[ "$cuda_system_package" == 1 ]]; then
@@ -182,7 +186,7 @@ Options:
   --cuda-patches           Apply cuda patches. Enabled automatically on Ubuntu 26.04.
   --cuda-runfile           Force CUDA installation from the NVIDIA runfile.
   --cuda-system-package=*  The CUDA package to install when system CUDA is enabled.
-                           Default for Ubuntu 26.04 is cuda-toolkit-13-1.
+                           Default for Ubuntu 26.04 and 26.10 is cuda-toolkit-13-1.
   --num-processors         The number of processors to use for compilation. Default is the value of 'nproc'.
   --publisher-name         The name of the publisher (not developer) of the application.
   --publisher-website      The URL of the publisher's website.
@@ -260,6 +264,10 @@ while getopts ":hs-:" opt; do
       echo "Invalid option: -${OPTARG}" 1>&2
       _usage 1
       ;;
+    *)
+      echo "Invalid option: -${OPTARG}" 1>&2
+      _usage 1
+      ;;
   esac
 done
 shift $((OPTIND -1))
@@ -272,6 +280,8 @@ function add_arch_deps() {
     'appstream-glib'
     'avahi'
     'base-devel'
+    'boost'
+    'boost-libs'
     'cmake'
     'curl'
     'doxygen'
@@ -370,7 +380,7 @@ function add_debian_based_deps() {
   )
 
   # Ubuntu 22.04 uses a different package name for Qt6 SVG
-  if [[ "$distro" == "ubuntu" ]] && [[ "$version" == "22.04" ]]; then
+  if [[ "$distro" == "$DISTRO_UBUNTU" ]] && [[ "$version" == "22.04" ]]; then
     dependencies+=(
       "libgl-dev"  # OpenGL development headers, needed for qt6-svg
       "libqt6svg6-dev"
@@ -410,6 +420,17 @@ function add_ubuntu_deps() {
   ${sudo_cmd} add-apt-repository universe -y
   add_test_ppa
   add_debian_based_deps
+
+  # Ubuntu 26.04+ provides compatible Boost static libraries in the component development packages.
+  if [[ "$(printf '%s\n' "$version" "26.04" | sort -V | head -n1)" == "26.04" ]]; then
+    dependencies+=(
+      "libboost-filesystem-dev"
+      "libboost-locale-dev"
+      "libboost-log-dev"
+      "libboost-program-options-dev"
+      "libicu-dev"
+    )
+  fi
 
   if [[ "$skip_cuda" == 0 ]] && [[ "$cuda_system_package" == 1 ]]; then
     if [[ -z "$cuda_system_package_name" ]]; then
@@ -476,6 +497,14 @@ function add_fedora_deps() {
     "xorg-x11-server-Xvfb"  # necessary for headless unit testing
   )
 
+  # Fedora 44+ provides Boost 1.90 or newer and packages its static libraries separately.
+  if [[ "$version" =~ ^[0-9]+$ ]] && (( version >= 44 )); then
+    dependencies+=(
+      "boost-devel"
+      "boost-static"
+    )
+  fi
+
   if [[ "$skip_libva" == 0 ]]; then
     dependencies+=(
       "libva-devel"  # VA-API
@@ -504,7 +533,7 @@ function install_cuda() {
   fi
 
   local cuda_override_arg=""
-  if [[ "$distro" == "fedora" ]]; then
+  if [[ "$distro" == "$DISTRO_FEDORA" ]]; then
     cuda_override_arg="--override"
   fi
 
@@ -518,9 +547,9 @@ function install_cuda() {
     # we need to patch the math-vector.h file for aarch64 fedora
     # back up /usr/include/bits/math-vector.h
     math_vector_file=""
-    if [[ "$distro" == "ubuntu" ]] || [[ "$version" == "24.04" ]]; then
+    if [[ "$distro" == "$DISTRO_UBUNTU" ]] || [[ "$version" == "24.04" ]]; then
       math_vector_file="/usr/include/aarch64-linux-gnu/bits/math-vector.h"
-    elif [[ "$distro" == "fedora" ]]; then
+    elif [[ "$distro" == "$DISTRO_FEDORA" ]]; then
       math_vector_file="/usr/include/bits/math-vector.h"
     fi
 
@@ -554,11 +583,11 @@ function check_version() {
 
   echo "Checking if $package_name is installed and at least version $min_version"
 
-  if [[ "$distro" == "debian" ]] || [[ "$distro" == "ubuntu" ]]; then
+  if [[ "$distro" == "$DISTRO_DEBIAN" ]] || [[ "$distro" == "$DISTRO_UBUNTU" ]]; then
     installed_version=$(dpkg -s "$package_name" 2>/dev/null | grep '^Version:' | awk '{print $2}')
-  elif [[ "$distro" == "fedora" ]]; then
+  elif [[ "$distro" == "$DISTRO_FEDORA" ]]; then
     installed_version=$(rpm -q --queryformat '%{VERSION}' "$package_name" 2>/dev/null)
-  elif [[ "$distro" == "arch" ]]; then
+  elif [[ "$distro" == "$DISTRO_ARCH" ]]; then
     installed_version=$(pacman -Q "$package_name" | awk '{print $2}' )
   else
     echo "Unsupported Distro"
@@ -586,13 +615,13 @@ function run_step_deps() {
   # Update the package list
   $package_update_command
 
-  if [[ "$distro" == "arch" ]]; then
+  if [[ "$distro" == "$DISTRO_ARCH" ]]; then
     add_arch_deps
-  elif [[ "$distro" == "debian" ]]; then
+  elif [[ "$distro" == "$DISTRO_DEBIAN" ]]; then
     add_debian_deps
-  elif [[ "$distro" == "ubuntu" ]]; then
+  elif [[ "$distro" == "$DISTRO_UBUNTU" ]]; then
     add_ubuntu_deps
-  elif [[ "$distro" == "fedora" ]]; then
+  elif [[ "$distro" == "$DISTRO_FEDORA" ]]; then
     add_fedora_deps
     ${sudo_cmd} dnf group install "development-tools" -y
   fi
@@ -781,9 +810,9 @@ function run_step_package() {
 
   # Create the package
   if [[ "$skip_package" == 0 ]]; then
-    if [[ "$distro" == "debian" ]] || [[ "$distro" == "ubuntu" ]]; then
+    if [[ "$distro" == "$DISTRO_DEBIAN" ]] || [[ "$distro" == "$DISTRO_UBUNTU" ]]; then
       cpack -G DEB --config ./build/CPackConfig.cmake
-    elif [[ "$distro" == "fedora" ]]; then
+    elif [[ "$distro" == "$DISTRO_FEDORA" ]]; then
       cpack -G RPM --config ./build/CPackConfig.cmake
     fi
   fi
@@ -840,103 +869,87 @@ function run_install() {
 # Determine the OS and call the appropriate function
 cat /etc/os-release
 
-if grep -q "Arch Linux" /etc/os-release; then
-  distro="arch"
-  version=""
-  package_update_command="${sudo_cmd} pacman -Syu --noconfirm"
-  package_install_command="${sudo_cmd} pacman -Sy --needed"
-  nvm_node=0
-  gcc_version="14"
-elif grep -q "Debian GNU/Linux 12 (bookworm)" /etc/os-release; then
-  distro="debian"
-  version="12"
-  package_update_command="${sudo_cmd} apt-get update"
-  package_install_command="${sudo_cmd} apt-get install -y"
-  gcc_version="13"
-  nvm_node=0
-elif grep -q "Debian GNU/Linux 13 (trixie)" /etc/os-release; then
-  distro="debian"
-  version="13"
-  package_update_command="${sudo_cmd} apt-get update"
-  package_install_command="${sudo_cmd} apt-get install -y"
-  gcc_version="14"
-  nvm_node=0
-elif grep -q "PLATFORM_ID=\"platform:f42\"" /etc/os-release; then
-  distro="fedora"
-  version="42"
-  package_update_command="${sudo_cmd} dnf update -y"
-  package_install_command="${sudo_cmd} dnf install -y"
-  gcc_version="14"
-  nvm_node=0
-elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=43$' /etc/os-release; then
-  distro="fedora"
-  version="43"
-  package_update_command="${sudo_cmd} dnf update -y"
-  package_install_command="${sudo_cmd} dnf install -y"
-  gcc_version="14"
-  nvm_node=0
-elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=44$' /etc/os-release; then
-  distro="fedora"
-  version="44"
-  package_update_command="${sudo_cmd} dnf update -y"
-  package_install_command="${sudo_cmd} dnf install -y"
-  gcc_version="14"
-  nvm_node=0
-elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=45$' /etc/os-release; then
-  distro="fedora"
-  version="45"
-  package_update_command="${sudo_cmd} dnf update -y"
-  package_install_command="${sudo_cmd} dnf install -y"
-  cuda_version="13.1.1"
-  cuda_build="590.48.01"
-  gcc_version="15"
-  nvm_node=0
-elif grep -q "Ubuntu 22.04" /etc/os-release; then
-  distro="ubuntu"
-  version="22.04"
-  package_update_command="${sudo_cmd} apt-get update"
-  package_install_command="${sudo_cmd} apt-get install -y"
-  gcc_version="14"
-  nvm_node=1
-elif grep -q "Ubuntu 24.04" /etc/os-release; then
-  distro="ubuntu"
-  version="24.04"
-  package_update_command="${sudo_cmd} apt-get update"
-  package_install_command="${sudo_cmd} apt-get install -y"
-  gcc_version="14"
-  nvm_node=1
-elif grep -q "Ubuntu 25.04" /etc/os-release; then
-  distro="ubuntu"
-  version="25.04"
-  package_update_command="${sudo_cmd} apt-get update"
-  package_install_command="${sudo_cmd} apt-get install -y"
-  gcc_version="14"
-  nvm_node=0
-elif grep -q "Ubuntu 25.10" /etc/os-release; then
-  distro="ubuntu"
-  version="25.10"
-  package_update_command="${sudo_cmd} apt-get update"
-  package_install_command="${sudo_cmd} apt-get install -y"
-  gcc_version="14"
-  nvm_node=0
-elif grep -q 'VERSION_ID="26.04"' /etc/os-release; then
-  distro="ubuntu"
-  version="26.04"
-  package_update_command="${sudo_cmd} apt-get update"
-  package_install_command="${sudo_cmd} apt-get install -y"
-  cuda_patches=1
-  if [[ "$force_cuda_runfile" == 0 ]]; then
-    cuda_system_package=1
-    if [[ -z "$cuda_system_package_name" ]]; then
-      cuda_system_package_name="cuda-toolkit-13-1"
+# shellcheck disable=SC1091  # trusted system file is unavailable to static analysis
+source /etc/os-release
+distro="$ID"
+version="${VERSION_ID:-}"
+
+case "${distro}:${version}" in
+  "${DISTRO_ARCH}":*)
+    version=""
+    package_update_command="${sudo_cmd} pacman -Syu --noconfirm"
+    package_install_command="${sudo_cmd} pacman -Sy --needed"
+    nvm_node=0
+    gcc_version="15"
+    ;;
+  "${DISTRO_DEBIAN}":12)
+    package_update_command="${sudo_cmd} apt-get update"
+    package_install_command="${sudo_cmd} apt-get install -y"
+    gcc_version="13"
+    nvm_node=0
+    ;;
+  "${DISTRO_DEBIAN}":13)
+    package_update_command="${sudo_cmd} apt-get update"
+    package_install_command="${sudo_cmd} apt-get install -y"
+    gcc_version="14"
+    nvm_node=0
+    ;;
+  "${DISTRO_FEDORA}":42|"${DISTRO_FEDORA}":43|"${DISTRO_FEDORA}":44)
+    package_update_command="${sudo_cmd} dnf update -y"
+    package_install_command="${sudo_cmd} dnf install -y"
+    gcc_version="14"
+    nvm_node=0
+    ;;
+  "${DISTRO_FEDORA}":45)
+    package_update_command="${sudo_cmd} dnf update -y"
+    package_install_command="${sudo_cmd} dnf install -y"
+    cuda_version="13.1.1"
+    cuda_build="590.48.01"
+    gcc_version="15"
+    nvm_node=0
+    ;;
+  "${DISTRO_UBUNTU}":22.04|"${DISTRO_UBUNTU}":24.04)
+    package_update_command="${sudo_cmd} apt-get update"
+    package_install_command="${sudo_cmd} apt-get install -y"
+    gcc_version="14"
+    nvm_node=1
+    ;;
+  "${DISTRO_UBUNTU}":25.04|"${DISTRO_UBUNTU}":25.10)
+    package_update_command="${sudo_cmd} apt-get update"
+    package_install_command="${sudo_cmd} apt-get install -y"
+    gcc_version="14"
+    nvm_node=0
+    ;;
+  "${DISTRO_UBUNTU}":26.04)
+    package_update_command="${sudo_cmd} apt-get update"
+    package_install_command="${sudo_cmd} apt-get install -y"
+    cuda_patches=1
+    if [[ "$force_cuda_runfile" == 0 ]]; then
+      cuda_system_package=1
+      if [[ -z "$cuda_system_package_name" ]]; then
+        cuda_system_package_name="cuda-toolkit-13-1"
+      fi
     fi
-  fi
-  gcc_version="14"
-  nvm_node=0
-else
-  echo "Unsupported Distro or Version"
-  exit 1
-fi
+    gcc_version="14"
+    nvm_node=0
+    ;;
+  "${DISTRO_UBUNTU}":26.10)
+    package_update_command="${sudo_cmd} apt-get update"
+    package_install_command="${sudo_cmd} apt-get install -y"
+    if [[ "$force_cuda_runfile" == 0 ]]; then
+      cuda_system_package=1
+      if [[ -z "$cuda_system_package_name" ]]; then
+        cuda_system_package_name="cuda-toolkit-13-1"
+      fi
+    fi
+    gcc_version="14"
+    nvm_node=0
+    ;;
+  *)
+    echo "Unsupported Distro or Version"
+    exit 1
+    ;;
+esac
 
 architecture=$(uname -m)
 

@@ -1,0 +1,64 @@
+[project]
+name = "Sunshine"
+version = "0.0.0"
+description = "Self-hosted game stream host for Moonlight."
+repository = "https://github.com/LizardByte/Sunshine"
+logo = "sunshine.svg"
+favicon = "sunshine.ico"
+
+[build]
+output = "_site"
+work = ".dockle"
+strict = true
+clean = true
+
+[[targets]]
+name = "docs"
+title = "Sunshine documentation"
+framework = "doxygen"
+source = "."
+home = true
+
+[targets.doxygen]
+inputs = [
+  "README.md",
+  "docs/getting_started.md",
+  "docs/changelog.md",
+  "DOCKER_README.md",
+  "docs/third_party_packages.md",
+  "docs/gamestream_migration.md",
+  "docs/legal.md",
+  "docs/configuration.md",
+  "docs/app_examples.md",
+  "docs/awesome_sunshine.md",
+  "docs/guides.md",
+  "docs/performance_tuning.md",
+  "docs/api.md",
+  "docs/troubleshooting.md",
+  "docs/building.md",
+  "docs/contributing.md",
+  "src",
+]
+image_paths = ["docs/images"]
+predefined = [
+  "__APPLE__",
+  "linux",
+  "__linux",
+  "__linux__",
+  "__MACH__",
+  "_WIN32",
+  "SUNSHINE_BUILD_WAYLAND",
+  "SUNSHINE_TRAY=1",
+]
+extra_stylesheets = [
+  "docs/doc-styles.css",
+  "https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@2026.920.12131/dist/crowdin-dockle-css.css",
+]
+extra_javascript = [
+  "https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@2026.920.12131/dist/crowdin.js",
+  "docs/crowdin.js",
+]
+extra_files = ["docs/api.js", "docs/configuration.js"]
+aliases = ["api_examples{3|:|}=@htmlonly<script>(function() { let examples = generateExamples('\\1', '\\2', \\3); document.write(createTabs(examples)); })();</script>@endhtmlonly"]
+main_page = "README.md"
+dot_graph_max_nodes = 60

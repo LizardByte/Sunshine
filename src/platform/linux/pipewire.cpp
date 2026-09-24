@@ -844,11 +844,16 @@ namespace pipewire {
       // calculate frame interval we should capture at
       delay = ::video::capture_frame_interval(config);
 
-      // WORKAROUND: if the active compositor is KWin, request variable rate (0, 1) capture only for versions 5.x-6.7.x.
-      // Ref: https://bugs.kde.org/show_bug.cgi?id=524129
+      // WORKAROUND: if the active compositor is KWin, request variable rate (0, 1) capture for versions 5.x-6.7.79 (6.7.80+ are 6.8 preview releases).
+      // Issue: KWin <=6.7 has a ~3% fixed-rate pacing deficit vs the requested framerate; variable rate avoids this and prioritizes gaming smoothness.
+      //        KWin 6.7 regresses variable rate (desktop animations run at half speed, but doesn't affect in-game pacing). Ref: https://bugs.kde.org/show_bug.cgi?id=524129
+      // Issue: KWin 6.8 still has desktop animation pacing issues with variable rate, but fixes the 3% fixed-rate pacing deficit. Fixed-rate pacing has
+      //        new regression tied to 'commit-timing'/VK_KHR_present_timing support when Vsync/FIFO is enabled. Ref: https://bugs.kde.org/show_bug.cgi?id=525619
+      // Summary: KWin 5.5-6.6 have excellent (variable) pacing. KWin 6.7 has poor desktop animation pacing (variable) but good game pacing.
+      //          KWin 6.8+ will have good overall (fixed) pacing if #525619 can be resolved, otherwise we will update docs advising to disable VSync in games.
       // Also negotiate variable rate for all other compositors. Mutter's variable rate pacing is superior.
       const static std::vector<int> kwin_version = get_running_kwin_version();
-      const static bool negotiate_variable_rate = kwin_version.empty() || (kwin_version[0] == 5 || (kwin_version[0] == 6 && kwin_version[1] < 8));
+      const static bool negotiate_variable_rate = kwin_version.empty() || (kwin_version[0] == 5 || (kwin_version[0] == 6 && (kwin_version[1] < 7 || (kwin_version[1] == 7 && kwin_version[2] < 80))));
 
       const AVRational fps = (negotiate_variable_rate ? AVRational {0, 1} : ::video::framerate_to_rational(config));
       if (fps.den != 1) {

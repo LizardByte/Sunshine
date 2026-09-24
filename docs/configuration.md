@@ -1,6 +1,6 @@
 # Configuration
 
-@admonition{ Host authority | @htmlonly
+@admonition{ Host authority |:| @htmlonly
 By providing the host authority (URI + port), you can easily open each configuration option in the config UI.
 <br>
 <script src="configuration.js"></script>
@@ -746,7 +746,6 @@ supported on the current platform.
             for example.
             @tip{See [virtual key codes](https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes)}
             @hint{keybindings needs to have a multiple of two elements.}
-            @note{This option is not available in the UI. A PR would be welcome.}
         </td>
     </tr>
     <tr>
@@ -1561,8 +1560,9 @@ supported on the current platform.
             and want to restrict Sunshine to a specific one. If not set, Sunshine will bind to all available
             interfaces (0.0.0.0 for IPv4 or :: for IPv6).
             <br><br>
-            <strong>Note:</strong> The address must be valid for the system and must match the address family
-            being used. When using IPv6, you can specify an IPv6 address even with address_family set to "both".
+            <strong>Note:</strong> The address must exist on the host and be compatible with address_family.
+            An IPv4 address works with either "ipv4" or "both"; when used with "both", Sunshine listens only
+            on that IPv4 address. An IPv6 address requires address_family to be set to "both".
         </td>
     </tr>
     <tr>
@@ -3455,16 +3455,3 @@ supported on the current platform.
         <td>good for fast encoding and low-latency streaming</td>
     </tr>
 </table>
-
-<div class="section_buttons">
-
-| Previous          |                            Next |
-|:------------------|--------------------------------:|
-| [Legal](legal.md) | [App Examples](app_examples.md) |
-
-</div>
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

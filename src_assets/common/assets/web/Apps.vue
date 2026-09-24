@@ -1,11 +1,4 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="auto">
-
-<head>
-      <%- header %>
-</head>
-
-<body id="app" v-cloak>
+<template>
   <Navbar></Navbar>
   <div id="content" class="container">
     <div class="my-4">
@@ -37,7 +30,8 @@
         </button>
         <!-- Search box -->
         <div class="input-group">
-          <input type="text" class="form-control" v-model="searchQuery" :placeholder="$t('apps.search_placeholder')" />
+          <label for="app-search" class="visually-hidden">{{ $t('apps.search_placeholder') }}</label>
+          <input id="app-search" type="text" class="form-control" v-model="searchQuery" :placeholder="$t('apps.search_placeholder')" />
           <button v-if="searchQuery" class="btn btn-outline-secondary" type="button" @click="resetSearchQuery" :aria-label="$t('_common.close')">
             <x :size="16" class="icon"></x>
           </button>
@@ -180,10 +174,11 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(c, i) in editForm['prep-cmd']">
+                  <tr v-for="(c, i) in editForm['prep-cmd']" :key="i">
                     <td>
                       <div class="input-group">
-                        <input type="text" class="form-control monospace" v-model="c.do" />
+                        <label :for="`prep-cmd-do-${i}`" class="visually-hidden">{{ $t('_common.do_cmd') }}</label>
+                        <input :id="`prep-cmd-do-${i}`" type="text" class="form-control monospace" v-model="c.do" />
                         <button class="btn btn-secondary btn-sm" type="button" @click="browsePrep(i, 'do')">
                           <folder-open :size="14" class="icon"></folder-open>
                         </button>
@@ -191,7 +186,8 @@
                     </td>
                     <td>
                       <div class="input-group">
-                        <input type="text" class="form-control monospace" v-model="c.undo" />
+                        <label :for="`prep-cmd-undo-${i}`" class="visually-hidden">{{ $t('_common.undo_cmd') }}</label>
+                        <input :id="`prep-cmd-undo-${i}`" type="text" class="form-control monospace" v-model="c.undo" />
                         <button class="btn btn-secondary btn-sm" type="button" @click="browsePrep(i, 'undo')">
                           <folder-open :size="14" class="icon"></folder-open>
                         </button>
@@ -219,8 +215,9 @@
             <!-- detached -->
             <div class="mb-3">
               <label for="appName" class="form-label">{{ $t('apps.detached_cmds') }}</label>
-              <div v-for="(c,i) in editForm.detached" class="d-flex justify-content-between align-items-center my-2">
-                <input type="text" v-model="editForm.detached[i]" class="form-control monospace">
+              <div v-for="(c,i) in editForm.detached" :key="i" class="d-flex justify-content-between align-items-center my-2">
+                <label :for="`detached-command-${i}`" class="visually-hidden">{{ $t('apps.detached_cmds') }}</label>
+                <input :id="`detached-command-${i}`" type="text" v-model="editForm.detached[i]" class="form-control monospace">
                 <button class="btn btn-secondary btn-sm ms-2" @click="browseDetached(i)">
                   <folder-open :size="14" class="icon"></folder-open>
                 </button>
@@ -326,8 +323,8 @@
               </div>
               <table class="env-table">
                 <tr>
-                  <td><b>{{ $t('apps.env_var_name') }}</b></td>
-                  <td><b></b></td>
+                  <th scope="col">{{ $t('apps.env_var_name') }}</th>
+                  <th scope="col">{{ $t('apps.env_var_description') }}</th>
                 </tr>
                 <tr>
                   <td style="font-family: monospace">SUNSHINE_APP_ID</td>
@@ -418,7 +415,9 @@
           <div class="modal-body">
             <div class="mb-3">
               <div class="input-group">
+                <label for="cover-search-query" class="visually-hidden">{{ $t('_common.search') }}</label>
                 <input
+                  id="cover-search-query"
                   type="text"
                   class="form-control"
                   v-model="coverSearchQuery"
@@ -439,20 +438,20 @@
               <div class="row">
                 <div v-if="coverSearching" class="col-12 col-sm-6 col-lg-4 mb-3">
                   <div class="cover-container">
-                    <div class="spinner-border" role="status">
+                    <output class="spinner-border">
                       <span class="visually-hidden">{{ $t('apps.loading') }}</span>
-                    </div>
+                    </output>
                   </div>
                 </div>
-                <div v-for="cover in coverCandidates" :key="cover.url" class="col-12 col-sm-6 col-lg-3 mb-3"
+                <button type="button" v-for="cover in coverCandidates" :key="cover.url" class="cover-choice col-12 col-sm-6 col-lg-3 mb-3"
                   @click="useCover(cover)">
                   <div class="cover-container result">
-                    <img class="rounded" :src="cover.url" />
+                    <img class="rounded" :src="cover.url" :alt="cover.name" />
                   </div>
-                  <label class="d-block text-nowrap text-center text-truncate">
+                  <span class="d-block text-nowrap text-center text-truncate">
                     {{cover.name}}
-                  </label>
-                </div>
+                  </span>
+                </button>
               </div>
             </div>
           </div>
@@ -505,7 +504,8 @@
           <div class="modal-body">
             <!-- Path input -->
             <div class="input-group mb-2">
-              <input type="text" class="form-control monospace" v-model="fileBrowserTypedPath"
+              <label for="file-browser-path" class="visually-hidden">{{ $t('file_browser.title') }}</label>
+              <input id="file-browser-path" type="text" class="form-control monospace" v-model="fileBrowserTypedPath"
                 @input="fileBrowserOnTypedInput" @keyup.enter="fileBrowserNavigate(fileBrowserTypedPath)" />
               <button class="btn btn-secondary" type="button" @click="fileBrowserNavigate(fileBrowserTypedPath)">
                 <arrow-right :size="16" class="icon"></arrow-right>
@@ -562,10 +562,10 @@
       </div>
     </div>
   </div>
-</body>
-<script type="module">
-  import { createApp } from 'vue'
-  import { initApp } from './init'
+</template>
+
+<script>
+  import { toRaw } from 'vue'
   import Navbar from './Navbar.vue'
   import Checkbox from './Checkbox.vue'
   import { apiFetch } from './fetch_utils'
@@ -595,7 +595,64 @@
     X,
   } from '@lucide/vue'
 
-  const app = createApp({
+  /**
+   * Return the GameDB bucket for an application name.
+   *
+   * @param {string} name Application name to categorize.
+   * @returns {string} The normalized GameDB bucket name.
+   */
+  function getSearchBucket(name) {
+    const bucket = name.substring(0, Math.min(name.length, 2)).toLowerCase().replaceAll(/[^a-z\d]/g, '');
+    return bucket || '@';
+  }
+
+  /**
+   * Search GameDB for cover candidates matching an application name.
+   *
+   * @param {string} name Application name to search for.
+   * @returns {Promise<object[]>} Matching cover candidates.
+   */
+  function searchCovers(name) {
+    if (!name) {
+      return Promise.resolve([]);
+    }
+    let searchName = name.replaceAll(/\s+/g, '.').toLowerCase();
+
+    // Use raw.githubusercontent.com to avoid CORS issues as we migrate the CNAME
+    let dbUrl = "https://raw.githubusercontent.com/LizardByte/GameDB/gh-pages";
+    let bucket = getSearchBucket(name);
+    return fetch(`${dbUrl}/buckets/${bucket}.json`).then(function (r) {
+      if (!r.ok) throw new Error("Failed to search covers");
+      return r.json();
+    }).then(maps => Promise.all(Object.keys(maps).map(id => {
+      let item = maps[id];
+      if (item.name.replaceAll(/\s+/g, '.').toLowerCase().startsWith(searchName)) {
+        return fetch(`${dbUrl}/games/${id}.json`).then(function (r) {
+          return r.json();
+        }).catch(() => null);
+      }
+      return null;
+    }).filter(Boolean)))
+      .then(results => results
+        .filter(item => item && item.cover && item.cover.url)
+        .map(game => {
+          const thumb = game.cover.url;
+          const dotIndex = thumb.lastIndexOf('.');
+          const slashIndex = thumb.lastIndexOf('/');
+          if (dotIndex < 0 || slashIndex < 0) {
+            return null;
+          }
+          const slug = thumb.substring(slashIndex + 1, dotIndex);
+          return {
+            name: game.name,
+            key: `igdb_${game.id}`,
+            url: `https://images.igdb.com/igdb/image/upload/t_cover_big/${slug}.jpg`,
+            saveUrl: `https://images.igdb.com/igdb/image/upload/t_cover_big_2x/${slug}.png`,
+          }
+        }).filter(Boolean));
+  }
+
+  export default {
     components: {
       Navbar,
       Checkbox,
@@ -748,7 +805,7 @@
         this.openEditModal();
       },
       editApp(id) {
-        this.editForm = JSON.parse(JSON.stringify(this.apps[id]));
+        this.editForm = structuredClone(toRaw(this.apps[id]));
         this.editForm.index = id;
         if (this.editForm["prep-cmd"] === undefined)
           this.editForm["prep-cmd"] = [];
@@ -831,54 +888,6 @@
 
         // Use search query if provided, otherwise fall back to app name
         const searchTerm = this.coverSearchQuery.trim() || this.editForm["name"].toString();
-
-        function getSearchBucket(name) {
-          let bucket = name.substring(0, Math.min(name.length, 2)).toLowerCase().replaceAll(/[^a-z\d]/g, '');
-          if (!bucket) {
-            return '@';
-          }
-          return bucket;
-        }
-
-        function searchCovers(name) {
-          if (!name) {
-            return Promise.resolve([]);
-          }
-          let searchName = name.replaceAll(/\s+/g, '.').toLowerCase();
-
-          // Use raw.githubusercontent.com to avoid CORS issues as we migrate the CNAME
-          let dbUrl = "https://raw.githubusercontent.com/LizardByte/GameDB/gh-pages";
-          let bucket = getSearchBucket(name);
-          return fetch(`${dbUrl}/buckets/${bucket}.json`).then(function (r) {
-            if (!r.ok) throw new Error("Failed to search covers");
-            return r.json();
-          }).then(maps => Promise.all(Object.keys(maps).map(id => {
-            let item = maps[id];
-            if (item.name.replaceAll(/\s+/g, '.').toLowerCase().startsWith(searchName)) {
-              return fetch(`${dbUrl}/games/${id}.json`).then(function (r) {
-                return r.json();
-              }).catch(() => null);
-            }
-            return null;
-          }).filter(item => item)))
-            .then(results => results
-              .filter(item => item && item.cover && item.cover.url)
-              .map(game => {
-                const thumb = game.cover.url;
-                const dotIndex = thumb.lastIndexOf('.');
-                const slashIndex = thumb.lastIndexOf('/');
-                if (dotIndex < 0 || slashIndex < 0) {
-                  return null;
-                }
-                const slug = thumb.substring(slashIndex + 1, dotIndex);
-                return {
-                  name: game.name,
-                  key: `igdb_${game.id}`,
-                  url: `https://images.igdb.com/igdb/image/upload/t_cover_big/${slug}.jpg`,
-                  saveUrl: `https://images.igdb.com/igdb/image/upload/t_cover_big_2x/${slug}.png`,
-                }
-              }).filter(item => item));
-        }
 
         searchCovers(searchTerm)
           .then(list => this.coverCandidates = list)
@@ -988,7 +997,7 @@
         });
       },
       save() {
-        this.editForm["image-path"] = this.editForm["image-path"].toString().replace(/"/g, '');
+        this.editForm["image-path"] = this.editForm["image-path"].toString().replaceAll('"', '');
         apiFetch("./api/apps", {
           method: "POST",
           headers: {
@@ -1046,8 +1055,5 @@
         Modal.getOrCreateInstance(modalEl).show();
       },
     },
-  });
-
-
-  initApp(app);
+  }
 </script>

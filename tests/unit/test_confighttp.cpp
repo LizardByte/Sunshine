@@ -147,11 +147,14 @@ protected:
     // Create test web directory in temp
     test_web_dir = std::filesystem::temp_directory_path() / "sunshine_test_confighttp";  // NOSONAR(cpp:S5443): safe for tests
     std::filesystem::create_directories(test_web_dir / "web");
+    confighttp::set_portal_token_path_provider_for_testing([this]() {
+      return test_web_dir / "portal_token";
+    });
 
-    // Create test HTML file in WEB_DIR, creating parent directories with proper permissions
+    // Create the SPA entry document in WEB_DIR, creating parent directories with proper permissions
     std::filesystem::path web_dir_path(WEB_DIR);
     std::filesystem::create_directories(web_dir_path);
-    web_dir_test_file = web_dir_path / "test_page.html";
+    web_dir_test_file = web_dir_path / "index.html";
 
     std::ofstream test_html(web_dir_test_file);
     test_html << "<html><head><title>Test Page</title></head><body><h1>Test Page Content</h1></body></html>";
@@ -285,8 +288,8 @@ protected:
                                                 const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                               ) {
       // Call the actual confighttp::getPage function
-      // Note: This will read from WEB_DIR, so we need to ensure the file exists there
-      confighttp::getPage(response, request, "test_page.html", true, false);
+      // Note: This reads the SPA index from WEB_DIR, so the fixture creates it in SetUp().
+      confighttp::getPage(response, request, true, false);
     };
 
     // Add a route to test getPage without auth requirement
@@ -294,7 +297,7 @@ protected:
                                                        const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                        const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                      ) {
-      confighttp::getPage(response, request, "test_page.html", false, false);
+      confighttp::getPage(response, request, false, false);
     };
 
     // Add a route to test getPage with redirect_if_username
@@ -302,7 +305,7 @@ protected:
                                                          const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                          const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                        ) {
-      confighttp::getPage(response, request, "test_page.html", false, true);
+      confighttp::getPage(response, request, false, true);
     };
 
     // Add a route to test getLocale
@@ -328,6 +331,8 @@ protected:
     server->resource["^/pairing-test$"]["DELETE"] = confighttp::cancelPairing;
     server->resource["^/pairing-test$"]["GET"] = confighttp::getPendingPairings;
     server->resource["^/pairing-test$"]["POST"] = confighttp::savePin;
+    server->resource["^/portal-token-reset-test$"]["POST"] = confighttp::resetPortalToken;
+    server->default_resource["GET"] = confighttp::getFallbackPage;
 
     // Start server
     server_thread = std::jthread([this]() {
@@ -361,6 +366,7 @@ protected:
       server_thread.join();
     }
     confighttp::reset_virtual_input_license_status_provider_for_testing();
+    confighttp::reset_portal_token_path_provider_for_testing();
 
     config::sunshine.username = saved_username;
     config::sunshine.password = saved_password;
@@ -495,6 +501,7 @@ INSTANTIATE_TEST_SUITE_P(
     endpoint_request_t {"CsrfToken", "GET", "/csrf-token-test", ""},
     endpoint_request_t {"BrowseDirectory", "GET", "/browse-test", ""},
     endpoint_request_t {"PairingList", "GET", "/pairing-test", ""},
+    endpoint_request_t {"PortalTokenReset", "POST", "/portal-token-reset-test", ""},
     endpoint_request_t {"VirtualInputStatus", "GET", "/virtual-input-status-test", ""},
     endpoint_request_t {"VirtualInputLicense", "GET", "/virtual-input-license-test", ""},
     endpoint_request_t {"VirtualInputLicenseUpdate", "POST", "/virtual-input-license-test", R"({"action":"validate"})"}
@@ -518,6 +525,7 @@ INSTANTIATE_TEST_SUITE_P(
   CsrfProtectedConfigHttpEndpointTest,
   testing::Values(
     endpoint_request_t {"CsrfValidation", "POST", "/csrf-validate-test", ""},
+    endpoint_request_t {"PortalTokenReset", "POST", "/portal-token-reset-test", ""},
     endpoint_request_t {"VirtualInputLicenseUpdate", "POST", "/virtual-input-license-test", R"({"action":"validate"})"}
   ),
   endpoint_request_name
@@ -672,6 +680,56 @@ TEST_F(ConfigHttpTest, PairingRestApiReportsIncompleteHandshakeAsFailure) {
   ASSERT_EQ(response->status_code, "200 OK");
   EXPECT_FALSE(nlohmann::json::parse(response->content.string()).at("status").get<bool>());
   EXPECT_TRUE(nvhttp::get_pending_pairings().empty());
+}
+
+TEST_F(ConfigHttpTest, PortalTokenResetHandlesSavedTokenForCurrentPlatform) {
+  const auto token_path = test_web_dir / "portal_token";
+  std::ofstream(token_path) << "saved-token";
+
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Origin", std::format("https://localhost:{}", port));
+
+  const auto response = client->request("POST", "/portal-token-reset-test", "", headers);
+
+  ASSERT_EQ(response->status_code, "200 OK");
+  EXPECT_TRUE(nlohmann::json::parse(response->content.string()).at("status").get<bool>());
+#if defined(linux) || defined(__FreeBSD__)
+  EXPECT_FALSE(std::filesystem::exists(token_path));
+#else
+  EXPECT_TRUE(std::filesystem::exists(token_path));
+#endif
+}
+
+TEST_F(ConfigHttpTest, PortalTokenResetSucceedsWhenTokenDoesNotExist) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Origin", std::format("https://localhost:{}", port));
+
+  const auto response = client->request("POST", "/portal-token-reset-test", "", headers);
+
+  ASSERT_EQ(response->status_code, "200 OK");
+  EXPECT_TRUE(nlohmann::json::parse(response->content.string()).at("status").get<bool>());
+}
+
+TEST_F(ConfigHttpTest, PortalTokenResetReportsDeletionFailure) {
+  const auto token_path = test_web_dir / "portal_token";
+  std::filesystem::create_directories(token_path);
+  std::ofstream(token_path / "contents") << "not empty";
+
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Origin", std::format("https://localhost:{}", port));
+
+  const auto response = client->request("POST", "/portal-token-reset-test", "", headers);
+
+  ASSERT_EQ(response->status_code, "200 OK");
+#if defined(linux) || defined(__FreeBSD__)
+  EXPECT_FALSE(nlohmann::json::parse(response->content.string()).at("status").get<bool>());
+#else
+  EXPECT_TRUE(nlohmann::json::parse(response->content.string()).at("status").get<bool>());
+#endif
+  EXPECT_TRUE(std::filesystem::exists(token_path));
 }
 
 // Test: confighttp::authenticate() rejects requests without auth header
@@ -997,6 +1055,26 @@ TEST_F(ConfigHttpTest, GetPageNoRedirectWhenUsernameEmpty) {
 
   // Restore username
   config::sunshine.username = saved;
+}
+
+// Test: browser routes fall back to the SPA entry document
+TEST_F(ConfigHttpTest, BrowserRouteFallsBackToSpaEntry) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  for (const std::string_view path : {"/future-browser-route", "/apiary", "/assets2"}) {
+    const auto response = client->request("GET", std::string {path}, "", headers);
+    EXPECT_EQ(response->status_code, "200 OK") << path;
+    EXPECT_NE(response->content.string().find("Test Page Content"), std::string::npos) << path;
+  }
+}
+
+// Test: server-owned route prefixes retain 404 behavior instead of returning the SPA
+TEST_F(ConfigHttpTest, ServerResourcePrefixesDoNotFallBackToSpaEntry) {
+  for (const std::string_view path : {"/api", "/api/unknown", "/assets", "/assets/missing.js", "/images", "/images/missing.png"}) {
+    const auto response = client->request("GET", std::string {path});
+    EXPECT_EQ(response->status_code, "404 Not Found") << path;
+  }
 }
 
 // Test: confighttp::getLocale() returns locale JSON

@@ -52,6 +52,16 @@ namespace dyn {
 
 namespace platf {
   /**
+   * @brief Remove environment variables that can load untrusted GUI modules.
+   *
+   * Loader paths and module lists used by Qt, GTK, GIO, and GdkPixbuf are removed before any of those libraries
+   * can initialize. The caller determines whether privileged execution requires the policy.
+   *
+   * @return `true` when the environment is safe to use; `false` if a variable could not be removed.
+   */
+  bool sanitize_process_environment();
+
+  /**
    * @brief Open a DRM card node and drop implicit DRM master, if any.
    *
    * Performs `open(path, flags | O_CLOEXEC)` and probes the resulting fd with
@@ -93,4 +103,30 @@ namespace platf {
       next_frame = now + delay;
     }
   }
+
+#if defined(__linux__) && defined(SUNSHINE_BUILD_DRM)
+  namespace kms {
+    /**
+     * @brief Force-construct the DRM privileged worker thread while the calling
+     *        thread still holds CAP_SYS_ADMIN in CAP_PERMITTED.
+     *
+     * This must be called before dropping CAP_SYS_ADMIN from the calling thread,
+     * since newly-created threads inherit its capability sets.
+     */
+    void ensure_privileged_drm_worker_started();
+
+    /**
+     * @brief Drop the DRM worker thread's privileges.
+     */
+    void drop_drm_worker_privileges();
+
+    /**
+     * @brief Open a DRM card file descriptor using the privileged DRM worker.
+     *
+     * @param path Path to the DRM card node.
+     * @return A file descriptor on success, or `-1` on failure.
+     */
+    int privileged_open_drm_card_fd(const char *path);
+  }  // namespace kms
+#endif
 }  // namespace platf

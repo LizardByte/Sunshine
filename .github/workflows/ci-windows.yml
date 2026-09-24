@@ -100,6 +100,7 @@ jobs:
             "mingw-w64-${TOOLCHAIN}-cmake"
             "mingw-w64-${TOOLCHAIN}-cppwinrt"
             "mingw-w64-${TOOLCHAIN}-curl-winssl"
+            "mingw-w64-${TOOLCHAIN}-doxygen"
             "mingw-w64-${TOOLCHAIN}-gcc"
             "mingw-w64-${TOOLCHAIN}-graphviz"
             "mingw-w64-${TOOLCHAIN}-miniupnpc"
@@ -148,32 +149,6 @@ jobs:
             pacman -Syu --noconfirm "${dependencies[@]}"
           fi
 
-      - name: Install Doxygen
-        # GCC compiled doxygen has issues when running graphviz
-        env:
-          DOXYGEN_VERSION: "1.11.0"
-        shell: pwsh
-        run: |
-          # Set version variables
-          $doxy_ver = $env:DOXYGEN_VERSION
-          $_doxy_ver = $doxy_ver.Replace(".", "_")
-
-          # Download the Doxygen installer
-          Invoke-WebRequest -Uri `
-            "https://github.com/doxygen/doxygen/releases/download/Release_${_doxy_ver}/doxygen-${doxy_ver}-setup.exe" `
-            -OutFile "doxygen-setup.exe"
-
-          # Run the installer
-          Start-Process `
-            -FilePath .\doxygen-setup.exe `
-            -ArgumentList `
-              '/VERYSILENT' `
-          -Wait `
-          -NoNewWindow
-
-          # Clean up
-          Remove-Item -Path doxygen-setup.exe
-
       - name: Setup dotnet  # needed for wix
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68  # v6.0.0
         with:
@@ -205,7 +180,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4  # v10.1.0
         with:
           enable-cache: true
 

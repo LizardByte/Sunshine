@@ -278,7 +278,7 @@ namespace input {
         touch_port_event {std::move(touch_port_event)},
         feedback_queue {std::move(feedback_queue)},
         mouse_left_button_timeout {},
-        touch_port {{0, 0, 0, 0}, 0, 0, 1.0f, 1.0f, 0, 0},
+        touch_port {{0, 0, 0, 0, 0, 0}, 0, 0, 0.0f, 0.0f, 1.0f, 1.0f, 0, 0},
         accumulated_vscroll_delta {},
         accumulated_hscroll_delta {} {
     }
@@ -860,7 +860,9 @@ namespace input {
       touch_port.offset_x,
       touch_port.offset_y,
       touch_port_dim_x,
-      touch_port_dim_y
+      touch_port_dim_y,
+      touch_port.logical_width,
+      touch_port.logical_height,
     };
 
     platf::abs_mouse(platf_input, abs_port, tpcoords->first, tpcoords->second);
@@ -1343,7 +1345,9 @@ namespace input {
       touch_port.offset_x,
       touch_port.offset_y,
       static_cast<int>(monitor_logical_w),
-      static_cast<int>(monitor_logical_h)
+      static_cast<int>(monitor_logical_h),
+      static_cast<int>(monitor_logical_w),
+      static_cast<int>(monitor_logical_h),
     };
   }
 

@@ -451,6 +451,26 @@ class Sunshine < Formula
       %w[docs src src_assets test_assets].each do |directory|
         test_runtime.install "build/tests/#{directory}"
       end
+      boost_test_fixtures = %w[
+        cmake/compile_definitions/macos.cmake
+        cmake/dependencies/Boost_Sunshine.cmake
+        cmake/macros/common.cmake
+        cmake/prep/options.cmake
+        package-lock.cmake
+        packaging/linux/Arch/PKGBUILD
+        packaging/linux/copr/Sunshine.spec
+        packaging/linux/flatpak/modules/boost.json
+        scripts/linux_build.sh
+      ]
+      if OS.mac?
+        boost_test_fixtures += %w[
+          .github/workflows/ci-macos.yml
+          scripts/macos_build.sh
+        ]
+      end
+      boost_test_fixtures.each do |fixture|
+        (test_runtime/Pathname.new(fixture).dirname).install "build/tests/#{fixture}"
+      end
       test_runtime.install "sunshine.png"
       (test_runtime/"tests/unit").install "tests/unit/test_video.cpp"
 
@@ -527,6 +547,8 @@ class Sunshine < Formula
         assert_path_exists coverage_buildpath
         assert_path_exists bin/TEST_BINARY
         assert_path_exists test_runtime/"docs/getting_started.md"
+        assert_path_exists test_runtime/"cmake/dependencies/Boost_Sunshine.cmake"
+        assert_path_exists test_runtime/"scripts/macos_build.sh" if OS.mac?
         assert_path_exists test_runtime/"src/config.cpp"
         assert_path_exists test_runtime/"src_assets/common/assets/web/public/assets/locale/en.json"
         assert_path_exists test_runtime/"test_assets/web/images/logo-sunshine.svg"
