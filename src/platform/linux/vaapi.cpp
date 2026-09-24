@@ -281,23 +281,52 @@ namespace va {
     }
 
     /**
-     * @brief Determines if a specific VA quality level is supported.
-     *
-     * @return True if supported.
+     * @brief Probes driver support for a specific VA quality level via vaCreateConfig,
+     * then sets compression_level to the validated value. Note: vaGetConfigAttributes only
+     * reports whether the QualityRange attribute is supported and its max value — it does not
+     * validate individual levels within that range, so vaCreateConfig is used as the actual check.
      */
+    void set_quality_level(AVCodecContext *va_ctx, VADisplay dpy, VAProfile va_profile, VAEntrypoint va_entrypoint, int quality_level) {
+      // When the compression_level value is set, vaapi_encode.c assigns the value to VAEncMiscParameterBufferQualityLevel
+      VAConfigAttrib quality_attr = {.type = VAConfigAttribEncQualityRange};
+      auto quality_status = vaGetConfigAttributes(dpy, va_profile, va_entrypoint, &quality_attr, 1);
+      if (quality_status != VA_STATUS_SUCCESS || quality_attr.value == VA_ATTRIB_NOT_SUPPORTED) {
+        quality_attr.value = 0;
+      }
+      auto target_quality = 0;
+      switch (quality_level) {
+        case 0:  // auto or unset
+          break;
+        case 1:  // low quality (highest value in range)
+          target_quality = quality_attr.value;
+          break;
+        case 2:  // med quality (middle value in range)
+          // Calculate the true midpoint between 1 and max quality range.
+          // For an odd max like 7, (1 + 7) / 2 = 4. For even like 6, (1 + 6) / 2 = 3.
+          target_quality = (1 + quality_attr.value) / 2;
+          break;
+        case 3:  // high quality (1)
+          target_quality = 1;
+          break;
+        default:
+          break;
+      }
 
-    bool is_quality_level_supported(VADisplay dpy, VAProfile profile, VAEntrypoint entrypoint, int quality_level) {
       VAConfigAttrib attrib = {
         .type = VAConfigAttribEncQualityRange,
-        .value = static_cast<unsigned int>(quality_level)
+        .value = static_cast<unsigned int>(target_quality)
       };
       VAConfigID config_id;
 
-      if (VAStatus status = vaCreateConfig(dpy, profile, entrypoint, &attrib, 1, &config_id); status == VA_STATUS_SUCCESS) {
+      if (VAStatus status = vaCreateConfig(dpy, va_profile, va_entrypoint, &attrib, 1, &config_id); status == VA_STATUS_SUCCESS) {
         vaDestroyConfig(dpy, config_id);
-        return true;
+        va_ctx->compression_level = target_quality;
+        BOOST_LOG(info) << "[VAAPI] Quality level set to "sv << va_ctx->compression_level
+                        << " (fastest level: "sv << quality_attr.value << ")"sv;
+      } else {
+        BOOST_LOG(warning) << "[VAAPI] Quality level "sv << target_quality
+                           << " is not supported by the driver; using default."sv;
       }
-      return false;
     }
 
     /**
@@ -328,37 +357,11 @@ namespace va {
         BOOST_LOG(info) << "Using normal encoding mode"sv;
       }
 
-      // When the compression_level AVOption is set, vaapi_encode.c assigns the value to VAEncMiscParameterBufferQualityLevel
-      VAConfigAttrib quality_attr = {.type = VAConfigAttribEncQualityRange};
-      auto status = vaGetConfigAttributes(va_display, va_profile, va_entrypoint, &quality_attr, 1);
-      if (status != VA_STATUS_SUCCESS || quality_attr.value == VA_ATTRIB_NOT_SUPPORTED) {
-        quality_attr.value = 0;
-      }
-      auto vaapi_quality = config::video.vaapi.vaapi_quality.value_or(0);
-      auto target_quality = 0;
-      switch (vaapi_quality) {
-        default:
-        case 0:  // auto or unset
-          break;
-        case 1:  // low quality (highest value in range)
-        case 2:  // med quality (middle value in range)
-          // Calculate the true midpoint between 1 and max quality range.
-          // For an odd max like 7, (1 + 7) / 2 = 4. For even like 6, (1 + 6) / 2 = 3.
-          target_quality = (1 + quality_attr.value / vaapi_quality);
-          break;
-        case 3:  // high quality (1)
-          target_quality = 1;
-          break;
-      }
-      if (is_quality_level_supported(va_display, va_profile, va_entrypoint, target_quality)) {
-        ctx->compression_level = target_quality;
-        BOOST_LOG(info) << "[VAAPI] Quality level set to "sv << ctx->compression_level << " (fastest level: "sv << quality_attr.value << ")"sv;
-      } else {
-        BOOST_LOG(warning) << "[VAAPI] Quality level "sv << target_quality << " is not supported."sv;
-      }
+      // Validate and set quality level
+      set_quality_level(ctx, va_display, va_profile, va_entrypoint, config::video.vaapi.vaapi_quality.value_or(0));
 
       VAConfigAttrib rc_attr = {.type = VAConfigAttribRateControl};
-      status = vaGetConfigAttributes(va_display, va_profile, va_entrypoint, &rc_attr, 1);
+      auto status = vaGetConfigAttributes(va_display, va_profile, va_entrypoint, &rc_attr, 1);
       if (status != VA_STATUS_SUCCESS) {
         // Stick to the default rate control (CQP)
         rc_attr.value = 0;
