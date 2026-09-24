@@ -586,12 +586,8 @@ namespace pipewire {
       bool variable_rate = true;
 
       using enum compositor_type_e;
-      switch (compositor.type) {
-        case kwin:
-          variable_rate = (compositor.version[0] == 5 || (compositor.version[0] == 6 && (compositor.version[1] < 7 || (compositor.version[1] == 7 && compositor.version[2] < 80))));
-          break;
-        default:
-          break;
+      if (compositor.type == kwin) {
+        variable_rate = (compositor.version[0] == 5 || (compositor.version[0] == 6 && (compositor.version[1] < 7 || (compositor.version[1] == 7 && compositor.version[2] < 80))));
       }
 
       return variable_rate;
@@ -699,8 +695,8 @@ namespace pipewire {
       negotiate_maxframerate_ = negotiate_maxframerate;
     }
 
-    inline static std::atomic<bool> prefer_pipewire_pts = false;
-    inline static std::atomic<bool> negotiate_variable_rate = true;
+    inline static std::atomic prefer_pipewire_pts {false};
+    inline static std::atomic negotiate_variable_rate {true};
 
   private:
     struct pw_thread_loop *loop;
