@@ -8,7 +8,7 @@ version: 2
 build:
   os: ubuntu-26.04
   tools:
-    nodejs: "24"
+    nodejs: "26"
     python: "miniforge3-26.3"
   jobs:
     build:
