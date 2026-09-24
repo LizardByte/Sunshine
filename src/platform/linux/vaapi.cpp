@@ -281,6 +281,26 @@ namespace va {
     }
 
     /**
+     * @brief Determines if a specific VA quality level is supported.
+     *
+     * @return True if supported.
+     */
+
+    bool is_quality_level_supported(VADisplay dpy, VAProfile profile, VAEntrypoint entrypoint, int quality_level) {
+      VAConfigAttrib attrib = {
+        .type = VAConfigAttribEncQualityRange,
+        .value = static_cast<unsigned int>(quality_level)
+      };
+      VAConfigID config_id;
+
+      if (VAStatus status = vaCreateConfig(dpy, profile, entrypoint, &attrib, 1, &config_id); status == VA_STATUS_SUCCESS) {
+        vaDestroyConfig(dpy, config_id);
+        return true;
+      }
+      return false;
+    }
+
+    /**
      * @brief Initialize codec options.
      *
      * @param ctx Native context object used by the operation or callback.
@@ -322,15 +342,19 @@ namespace va {
           break;
         case 1:  // low quality (highest value in range)
         case 2:  // med quality (middle value in range)
-          target_quality = quality_attr.value / vaapi_quality;
+          // Calculate the true midpoint between 1 and max quality range.
+          // For an odd max like 7, (1 + 7) / 2 = 4. For even like 6, (1 + 6) / 2 = 3.
+          target_quality = (1 + quality_attr.value / vaapi_quality);
           break;
         case 3:  // high quality (1)
           target_quality = 1;
           break;
       }
-      if (quality_attr.value > 0) {
+      if (is_quality_level_supported(va_display, va_profile, va_entrypoint, target_quality)) {
         ctx->compression_level = target_quality;
         BOOST_LOG(info) << "[VAAPI] Quality level set to "sv << ctx->compression_level << " (fastest level: "sv << quality_attr.value << ")"sv;
+      } else {
+        BOOST_LOG(warning) << "[VAAPI] Quality level "sv << target_quality << " is not supported."sv;
       }
 
       VAConfigAttrib rc_attr = {.type = VAConfigAttribRateControl};
