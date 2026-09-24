@@ -395,21 +395,216 @@ namespace pipewire {
     }
 
     /**
+     * Fetch the currently running KWin version (if available from its DBus support information method)
+     *
+     * @return A vector with 3 elements containing KWin's major.minor.micro version or an empty vector if KWin's version could not be determined.
+     */
+    static std::vector<int> get_running_kwin_version() {
+#if !GLIB_CHECK_VERSION(2, 74, 0)
+      // Compatibility for Ubuntu 22.04 (Glib 2.72)
+      constexpr auto G_REGEX_DEFAULT = static_cast<GRegexCompileFlags>(0);
+      constexpr auto G_REGEX_MATCH_DEFAULT = static_cast<GRegexMatchFlags>(0);
+#endif
+      auto conn = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, nullptr);
+      std::vector<int> result;
+
+      if (!conn) {
+        return result;
+      }
+
+      auto reply = g_dbus_connection_call_sync(
+        conn,
+        "org.kde.KWin",
+        "/KWin",
+        "org.kde.KWin",
+        "supportInformation",
+        nullptr,
+        G_VARIANT_TYPE("(s)"),
+        G_DBUS_CALL_FLAGS_NONE,
+        -1,
+        nullptr,
+        nullptr
+      );
+
+      if (!reply) {
+        g_clear_object(&conn);
+        return result;
+      }
+
+      g_autofree gchar *support_info = nullptr;
+      g_variant_get(reply, "(s)", &support_info);
+
+      if (!support_info) {
+        g_variant_unref(reply);
+        g_clear_object(&conn);
+        return result;
+      }
+
+      auto *regex = g_regex_new(
+        "KWin version: ([0-9]+)\\.([0-9]+)\\.([0-9]+)",
+        G_REGEX_DEFAULT,
+        G_REGEX_MATCH_DEFAULT,
+        nullptr
+      );
+
+      if (regex) {
+        GMatchInfo *match_info = nullptr;
+        g_regex_match(regex, support_info, G_REGEX_MATCH_DEFAULT, &match_info);
+
+        if (g_match_info_matches(match_info)) {
+          g_autofree const gchar *major = g_match_info_fetch(match_info, 1);
+          g_autofree const gchar *minor = g_match_info_fetch(match_info, 2);
+          g_autofree const gchar *micro = g_match_info_fetch(match_info, 3);
+
+          result.emplace_back(std::atoi(major));
+          result.emplace_back(std::atoi(minor));
+          result.emplace_back(std::atoi(micro));
+        }
+        g_match_info_free(match_info);
+        g_regex_unref(regex);
+      }
+
+      g_variant_unref(reply);
+      g_clear_object(&conn);
+      return result;
+    }
+
+    /**
+     * Fetch the currently running GNOME Shell version from its ShellVersion DBus property. The version is used as a proxy for the Mutter version.
+     *
+     * @return A vector with 2-3 elements containing Shell/Mutter's major.minor.micro version or an empty vector if the Shell version could not be determined.
+     */
+    static std::vector<int> get_running_gnome_shell_version() {
+      std::vector<int> result;
+      auto conn = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, nullptr);
+
+      if (!conn) {
+        return result;
+      }
+
+      auto reply = g_dbus_connection_call_sync(
+        conn,
+        "org.gnome.Shell",
+        "/org/gnome/Shell",
+        "org.freedesktop.DBus.Properties",
+        "Get",
+        g_variant_new("(ss)", "org.gnome.Shell", "ShellVersion"),
+        G_VARIANT_TYPE("(v)"),
+        G_DBUS_CALL_FLAGS_NONE,
+        -1,
+        nullptr,
+        nullptr
+      );
+
+      if (!reply) {
+        g_clear_object(&conn);
+        return result;
+      }
+
+      GVariant *variant = nullptr;
+      g_variant_get(reply, "(v)", &variant);
+
+      if (!variant) {
+        g_variant_unref(reply);
+        g_clear_object(&conn);
+        return result;
+      }
+
+      const char *version_str = g_variant_get_string(variant, nullptr);
+      if (version_str) {
+        int major = 0, minor = 0, micro = 0;
+
+        int scanned = sscanf(version_str, "%d.%d.%d", &major, &minor, &micro);
+        if (scanned >= 1) {
+          result.emplace_back(major);
+        }
+        if (scanned >= 2) {
+          result.emplace_back(minor);
+        }
+        if (scanned >= 3) {
+          result.emplace_back(micro);
+        }
+      }
+
+      g_variant_unref(variant);
+      g_variant_unref(reply);
+      g_clear_object(&conn);
+
+      return result;
+    }
+
+    /**
+     * Determine if Pipewire's pts metadata is suitable for client pacing based on compositor type/version whitelist.
+     *
+     * @return True if pts metadata is suitable.
+     */
+    static bool use_pipewire_pts() {
+      // KWin: use Pipewire pts metadata for versions 6.7.80+ (6.8 beta) or newer.
+      // Mutter: use Pipewire pts metadata for Mutter 51 onwards.
+      // All other cases: don't use Pipewire pts metadata directly.
+
+      bool use_pts = false;
+      std::vector<int> gnome_version;
+      std::vector<int> kwin_version;
+
+      if (!(kwin_version = get_running_kwin_version()).empty()) {
+        use_pts = (kwin_version[0] > 6 || (kwin_version[0] == 6 && (kwin_version[1] > 7 || (kwin_version[1] == 7 && kwin_version[2] > 79))));
+      } else if (!(gnome_version = get_running_gnome_shell_version()).empty()) {
+        use_pts = gnome_version[0] >= 51;
+      }
+
+      BOOST_LOG(info) << "[pipewire] Using frame_timestamp (pts) metadata source: "sv
+                      << (use_pts ? "Pipewire (via compositor)" : "Sunshine");
+      return use_pts;
+    }
+
+    /**
+     * Determine if the active compositor is suited for variable rate capture based on type/version whitelist.
+     *
+     * @return True if variable rate capture is suitable.
+     */
+    static bool use_variable_rate() {
+      // If the active compositor is KWin, request variable rate (0, 1) capture for versions 5.x-6.7.79 (up to 6.7 stable series).
+      // Issue: KWin <=6.7 has a ~3% fixed-rate pacing deficit vs the requested framerate; variable rate avoids this and prioritizes gaming smoothness.
+      //        KWin 6.7 regresses variable rate (desktop animations run at half speed, but doesn't affect in-game pacing). Ref: https://bugs.kde.org/show_bug.cgi?id=524129
+      // Issue: KWin 6.8 still has desktop animation pacing issues with variable rate, but fixes the 3% fixed-rate pacing deficit. Fixed-rate pacing has
+      //        new regression tied to 'commit-timing'/VK_KHR_present_timing support when Vsync/FIFO is enabled. Ref: https://bugs.kde.org/show_bug.cgi?id=525619
+      // Summary: KWin 5.5-6.6 have excellent (variable) pacing. KWin 6.7 has poor desktop animation pacing (variable) but good game pacing.
+      //          KWin 6.8+ will have good overall (fixed) pacing if #525619 can be resolved, otherwise we will update docs advising to disable VSync in games.
+
+      // All other compositors (including Mutter) will default to variable rate.
+      bool variable_rate = true;
+
+      const static std::vector<int> kwin_version = get_running_kwin_version();
+      if (!kwin_version.empty()) {
+        variable_rate = (kwin_version[0] == 5 || (kwin_version[0] == 6 && (kwin_version[1] < 7 || (kwin_version[1] == 7 && kwin_version[2] < 80))));
+      }
+
+      return variable_rate;
+    }
+
+    /**
      * @brief Copy PipeWire metadata into the Sunshine image descriptor.
      *
      * @param img_descriptor Image descriptor receiving timestamps, sequence, and damage flags.
      * @param buf Raw byte buffer used for serialization.
      */
     static void fill_img_metadata(egl::img_descriptor_t *img_descriptor, struct spa_buffer *buf) {
-      img_descriptor->frame_timestamp = std::chrono::steady_clock::now();
-
       struct spa_meta_header *h = static_cast<struct spa_meta_header *>(
         spa_buffer_find_meta_data(buf, SPA_META_Header, sizeof(*h))
       );
+
+      img_descriptor->seq.reset();
+      img_descriptor->pts.reset();
       if (h) {
         img_descriptor->seq = h->seq;
-        img_descriptor->pts = h->pts;
+        if (h->pts > 0) {
+          img_descriptor->pts = h->pts;
+        }
       }
+      img_descriptor->frame_timestamp = (img_descriptor->pts.has_value() && prefer_pipewire_pts) ?
+                                          std::chrono::steady_clock::time_point(std::chrono::nanoseconds(img_descriptor->pts.value())) :
+                                          std::chrono::steady_clock::now();
 
       if (buf->n_datas > 0) {
         img_descriptor->pw_flags = buf->datas[0].chunk->flags;
@@ -489,6 +684,10 @@ namespace pipewire {
     void set_negotiate_maxframerate(bool negotiate_maxframerate) {
       negotiate_maxframerate_ = negotiate_maxframerate;
     }
+
+    inline static std::once_flag compositor_probe_once;
+    inline static bool prefer_pipewire_pts = false;
+    inline static bool negotiate_variable_rate = true;
 
   private:
     struct pw_thread_loop *loop;
@@ -844,18 +1043,16 @@ namespace pipewire {
       // calculate frame interval we should capture at
       delay = ::video::capture_frame_interval(config);
 
-      // WORKAROUND: if the active compositor is KWin, request variable rate (0, 1) capture for versions 5.x-6.7.79 (6.7.80+ are 6.8 preview releases).
-      // Issue: KWin <=6.7 has a ~3% fixed-rate pacing deficit vs the requested framerate; variable rate avoids this and prioritizes gaming smoothness.
-      //        KWin 6.7 regresses variable rate (desktop animations run at half speed, but doesn't affect in-game pacing). Ref: https://bugs.kde.org/show_bug.cgi?id=524129
-      // Issue: KWin 6.8 still has desktop animation pacing issues with variable rate, but fixes the 3% fixed-rate pacing deficit. Fixed-rate pacing has
-      //        new regression tied to 'commit-timing'/VK_KHR_present_timing support when Vsync/FIFO is enabled. Ref: https://bugs.kde.org/show_bug.cgi?id=525619
-      // Summary: KWin 5.5-6.6 have excellent (variable) pacing. KWin 6.7 has poor desktop animation pacing (variable) but good game pacing.
-      //          KWin 6.8+ will have good overall (fixed) pacing if #525619 can be resolved, otherwise we will update docs advising to disable VSync in games.
-      // Also negotiate variable rate for all other compositors. Mutter's variable rate pacing is superior.
-      const static std::vector<int> kwin_version = get_running_kwin_version();
-      const static bool negotiate_variable_rate = kwin_version.empty() || (kwin_version[0] == 5 || (kwin_version[0] == 6 && (kwin_version[1] < 7 || (kwin_version[1] == 7 && kwin_version[2] < 80))));
+      // These compositor checks are not expected to change during the process lifecycle.
+      std::call_once(pipewire.compositor_probe_once, [this] {
+        // Determine if variable rate should be negotiated based on compositor type/versioning.
+        pipewire.negotiate_variable_rate = pipewire.use_variable_rate();
 
-      const AVRational fps = (negotiate_variable_rate ? AVRational {0, 1} : ::video::framerate_to_rational(config));
+        // Determine if pts metadata should be sourced from Pipewire or sampled by Sunshine at time of capture.
+        pipewire.prefer_pipewire_pts = pipewire.use_pipewire_pts();
+      });
+
+      const AVRational fps = (pipewire.negotiate_variable_rate ? AVRational {0, 1} : ::video::framerate_to_rational(config));
       if (fps.den != 1) {
         BOOST_LOG(info) << "[pipewire] Requested frame rate: "sv << fps.num << "/"sv << fps.den << ", approx. "sv << av_q2d(fps) << " fps"sv;
       } else if (fps.num == 0 && fps.den == 1) {
@@ -1180,89 +1377,6 @@ namespace pipewire {
       }
 
       return false;
-    }
-
-    /**
-     * Fetch the currently running KWin version (if available from its DBUS support information method)
-     *
-     * @return A vector with 3 elements containing KWin's major.minor.micro version or an empty vector if KWin's version could not be determined
-     */
-    static std::vector<int> get_running_kwin_version() {
-#if !GLIB_CHECK_VERSION(2, 74, 0)
-      // Compatibility for Ubuntu 22.04 (Glib 2.72)
-      constexpr auto G_REGEX_DEFAULT = static_cast<GRegexCompileFlags>(0);
-      constexpr auto G_REGEX_MATCH_DEFAULT = static_cast<GRegexMatchFlags>(0);
-#endif
-      auto conn = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, nullptr);
-      std::vector<int> result;
-
-      if (!conn) {
-        return result;
-      }
-
-      auto reply = g_dbus_connection_call_sync(
-        conn,
-        "org.kde.KWin",
-        "/KWin",
-        "org.kde.KWin",
-        "supportInformation",
-        nullptr,
-        G_VARIANT_TYPE("(s)"),
-        G_DBUS_CALL_FLAGS_NONE,
-        -1,
-        nullptr,
-        nullptr
-      );
-
-      if (!reply) {
-        g_clear_object(&conn);
-        return result;
-      }
-
-      g_autofree gchar *support_info = nullptr;
-      g_variant_get(reply, "(s)", &support_info);
-
-      if (!support_info) {
-        g_variant_unref(reply);
-        g_clear_object(&conn);
-        return result;
-      }
-
-      auto *regex = g_regex_new(
-        "KWin version: ([0-9]+)\\.([0-9]+)\\.([0-9]+)",
-        G_REGEX_DEFAULT,
-        G_REGEX_MATCH_DEFAULT,
-        nullptr
-      );
-
-      if (!regex) {
-        g_variant_unref(reply);
-        g_clear_object(&conn);
-        return result;
-      }
-
-      GMatchInfo *match_info = nullptr;
-      g_regex_match(regex, support_info, G_REGEX_MATCH_DEFAULT, &match_info);
-
-      if (g_match_info_matches(match_info)) {
-        g_autofree const gchar *major =
-          g_match_info_fetch(match_info, 1);
-        g_autofree const gchar *minor =
-          g_match_info_fetch(match_info, 2);
-        g_autofree const gchar *micro =
-          g_match_info_fetch(match_info, 3);
-
-        result.emplace_back(std::atoi(major));
-        result.emplace_back(std::atoi(minor));
-        result.emplace_back(std::atoi(micro));
-      }
-
-      g_match_info_free(match_info);
-      g_regex_unref(regex);
-      g_variant_unref(reply);
-      g_clear_object(&conn);
-
-      return result;
     }
 
   private:
