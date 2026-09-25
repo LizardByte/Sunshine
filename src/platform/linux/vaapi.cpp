@@ -289,7 +289,7 @@ namespace va {
      * @param va_ctx AVCodecContext context.
      * @param dpy VA display.
      * @param va_profile VA profile.
-     * @param va_profile VA entrypoint.
+     * @param va_entrypoint VA entrypoint.
      * @param quality_level Requested quality level to be translated into equivalent per-driver VA quality value.
      */
     void set_quality_level(AVCodecContext *va_ctx, VADisplay dpy, VAProfile va_profile, VAEntrypoint va_entrypoint, int quality_level) {
