@@ -850,6 +850,8 @@ namespace portal {
 
     /**
      * @brief Check for Sunshine shutdown and quit the Portal response loop if requested.
+     *
+     * @result True (continue) if shutdown event is not in progress.
      */
     static gboolean check_shutdown_cb(gpointer user_data) {
       if (auto shutdown_event = mail::man->event<bool>(mail::shutdown); shutdown_event->peek()) {
@@ -859,6 +861,13 @@ namespace portal {
       return G_SOURCE_CONTINUE;
     }
 
+    /**
+     * @brief Check for DBus response with optional timeout guard.
+     *
+     * @param response DBus response.
+     * @param timeout_seconds Timeout in seconds before quitting loop.
+     * @return Variant containing the requested data.
+     */
     static GVariant *dbus_response_wait(dbus_response_t *response, guint timeout_seconds = 0) {
       GSource *timeout_source = nullptr;
 

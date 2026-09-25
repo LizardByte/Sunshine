@@ -352,6 +352,7 @@ namespace kwin {
 
     /**
      * @brief Check if kwin screencasting is currently available
+     *
      * @return true if screencast can be started, false otherwise
      */
     bool is_kwin_screencasting_available() const {
