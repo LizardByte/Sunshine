@@ -131,7 +131,7 @@ namespace config {
     struct {
       int tune;  ///< Vulkan encoder tuning mode: default, HQ, LL, ULL, or lossless.
       int rc_mode;  ///< Vulkan encoder rate-control mode: driver, CQP, CBR, or VBR.
-      int quality;  ///< Vulkan encoder quality preset: 0 = auto, 1 = speed, 2 = balanced, 3 = quality.
+      int quality;  ///< Vulkan encoder quality preset: 1 = speed, 2 = balanced (default), 3 = quality.
     } vk;  ///< Vulkan encoder options.
 
     std::string capture;  ///< Capture backend name selected by configuration.

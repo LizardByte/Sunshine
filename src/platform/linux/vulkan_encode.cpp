@@ -44,7 +44,7 @@ namespace vk {
    *
    * This uses FFmpeg's Vulkan context to query maxQualityLevels and validate
    * the requested level using vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR.
-   * If the requested level is invalid, falls back to level 0.
+   * If the requested level is invalid, returns 0 to indicate failure.
    *
    * @param codec_id FFmpeg codec ID (AV_CODEC_ID_H264, AV_CODEC_ID_HEVC, AV_CODEC_ID_AV1).
    * @param vk_ctx FFmpeg's AVVulkanDeviceContext with initialized Vulkan handles.
@@ -164,8 +164,6 @@ namespace vk {
 
       result = vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR_fn(vk_ctx->phys_dev, &quality_level_info, &quality_props);
       if (result != VK_SUCCESS) {
-        BOOST_LOG(warning) << "[vulkan] Quality level "sv << requested_level
-                           << " validation failed, falling back to 0"sv;
         return 0;
       }
     }
@@ -345,7 +343,7 @@ namespace vk {
       }
 
       // Map quality preset to driver's quality range (same abstraction as VAAPI)
-      // 0 = auto (don't pass anything to FFmpeg), 1 = speed, 2 = balanced, 3 = quality
+      // 1 = speed, 2 = balanced (default), 3 = quality
       // Note: Vulkan quality is 0 = fastest, higher = slower/better quality
       int quality_preset = config::video.vk.quality;
       if (quality_preset > 0 && ctx->hw_frames_ctx) {
@@ -382,9 +380,14 @@ namespace vk {
           // Validate the calculated target quality level
           uint32_t validated_quality = query_and_validate_quality_level(ctx->codec_id, vk_ctx, target_quality, &max_quality);
 
-          av_dict_set_int(options, "quality", validated_quality, 0);
-          BOOST_LOG(info) << "[vulkan] Encoder quality set to "sv << validated_quality
-                          << " ("sv << preset_name << "), driver range: 0-"sv << max_quality;
+          if (validated_quality == target_quality) {
+            av_dict_set_int(options, "quality", validated_quality, 0);
+            BOOST_LOG(info) << "[vulkan] Encoder quality set to "sv << validated_quality
+                            << " ("sv << preset_name << "), driver range: 0-"sv << max_quality;
+          } else {
+            BOOST_LOG(warning) << "[vulkan] Quality level "sv << target_quality
+                               << " is not supported by the driver; using default"sv;
+          }
         }
       }
     }
