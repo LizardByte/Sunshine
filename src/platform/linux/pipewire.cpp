@@ -552,7 +552,7 @@ namespace pipewire {
       using enum compositor_type_e;
       switch (compositor.type) {
         case gnome:
-          using_virtual_monitor = (selected_display_name.find("Meta-", 0) == 0);
+          using_virtual_monitor = selected_display_name.starts_with("Meta-");
           use_pts = (using_virtual_monitor && compositor.version[0] >= 51);
           break;
         case kwin:
