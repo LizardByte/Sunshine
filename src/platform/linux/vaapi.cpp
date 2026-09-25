@@ -285,6 +285,12 @@ namespace va {
      * then sets compression_level to the validated value. Note: vaGetConfigAttributes only
      * reports whether the QualityRange attribute is supported and its max value — it does not
      * validate individual levels within that range, so vaCreateConfig is used as the actual check.
+     *
+     * @param va_ctx AVCodecContext context.
+     * @param dpy VA display.
+     * @param va_profile VA profile.
+     * @param va_profile VA entrypoint.
+     * @param quality_level Requested quality level to be translated into equivalent per-driver VA quality value.
      */
     void set_quality_level(AVCodecContext *va_ctx, VADisplay dpy, VAProfile va_profile, VAEntrypoint va_entrypoint, int quality_level) {
       // When the compression_level value is set, vaapi_encode.c assigns the value to VAEncMiscParameterBufferQualityLevel
