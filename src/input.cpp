@@ -1484,6 +1484,7 @@ namespace input {
       from_clamped_netfloat(packet->x, 0.0f, 1.0f),
       from_clamped_netfloat(packet->y, 0.0f, 1.0f),
       from_clamped_netfloat(packet->pressure, 0.0f, 1.0f),
+      packet->touchpadIndex,
     };
 
     platf::gamepad_touch(platf_input, touch);
@@ -2375,6 +2376,28 @@ namespace input {
       packet.flags = static_cast<char>(flags);
 
       // Keyboard packets are never batched, so this matches passthrough_next_message().
+      ::input::passthrough(input, &packet);
+    }
+
+    void send_controller_touch_packet(
+      std::shared_ptr<input_t> &input,
+      std::uint8_t controller_number,
+      std::uint8_t event_type,
+      std::uint8_t touchpad_index,
+      std::uint32_t pointer_id,
+      float x,
+      float y,
+      float pressure
+    ) {
+      SS_CONTROLLER_TOUCH_PACKET packet {};
+      packet.controllerNumber = controller_number;
+      packet.eventType = event_type;
+      packet.touchpadIndex = touchpad_index;
+      packet.pointerId = util::endian::little(pointer_id);
+      boost::endian::endian_store<float, sizeof(float), boost::endian::order::little>(packet.x, x);
+      boost::endian::endian_store<float, sizeof(float), boost::endian::order::little>(packet.y, y);
+      boost::endian::endian_store<float, sizeof(float), boost::endian::order::little>(packet.pressure, pressure);
+
       ::input::passthrough(input, &packet);
     }
 

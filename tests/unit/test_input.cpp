@@ -282,6 +282,35 @@ TEST_F(InputGamepadSessionTest, ReusesGamepadsAcrossPauseAndDestroysThemOnTermin
   EXPECT_NE(replacement, resumed);
 }
 
+TEST_F(InputGamepadSessionTest, PreservesControllerTouchpadIndex) {
+  config::input.gamepad = "steam2026";
+  auto stream_input = input::alloc(std::make_shared<safe::mail_raw_t>(), "dual-touchpad-client");
+  ASSERT_NE(stream_input, nullptr);
+
+  constexpr auto capabilities = static_cast<std::uint16_t>(LI_CCAP_TOUCHPAD | LI_CCAP_DUAL_TOUCHPAD);
+  const platf::gamepad_arrival_t metadata {LI_CTYPE_STEAM, capabilities, 0};
+  const auto global_id = input::testing::alloc_gamepad(stream_input, 0, metadata);
+  ASSERT_GE(global_id, 0);
+
+  auto *adapter = platf::virtualhid::gamepad_adapter_for_testing(context(), global_id);
+  ASSERT_NE(adapter, nullptr);
+  input::testing::send_controller_touch_packet(
+    stream_input,
+    0,
+    LI_TOUCH_EVENT_DOWN,
+    1,
+    42,
+    0.75F,
+    0.25F,
+    1.0F
+  );
+
+  EXPECT_FALSE(adapter->state().touchpad_contacts[0].active);
+  EXPECT_TRUE(adapter->state().touchpad_contacts[1].active);
+  EXPECT_FLOAT_EQ(adapter->state().touchpad_contacts[1].x, 0.75F);
+  EXPECT_FLOAT_EQ(adapter->state().touchpad_contacts[1].y, 0.25F);
+}
+
 TEST_F(InputGamepadSessionTest, RefreshesSharedVirtualInputAfterLicenseStateChanges) {
   ASSERT_NE(context().keyboard, nullptr);
   ASSERT_NE(context().mouse, nullptr);

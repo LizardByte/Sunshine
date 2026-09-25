@@ -85,11 +85,11 @@ namespace {
    */
   void verify_virtualhid_benefits_menu(const struct tray_menu *benefits_menu) {
     ASSERT_NE(benefits_menu, nullptr);
-    EXPECT_STREQ(benefits_menu[0].text, "Xbox One, Xbox Series, DualSense (DS5), Switch Pro, and Generic");
+    EXPECT_STREQ(benefits_menu[0].text, "2026 Steam Controller, Xbox One, Xbox Series, DualSense (DS5), Switch Pro, and Generic");
     EXPECT_EQ(benefits_menu[0].disabled, 1);
     EXPECT_STREQ(benefits_menu[1].text, "Raw Input keyboard and mouse for physical-style input");
     EXPECT_EQ(benefits_menu[1].disabled, 1);
-    EXPECT_STREQ(benefits_menu[2].text, "Motion, touchpads, LEDs, and adaptive triggers where supported");
+    EXPECT_STREQ(benefits_menu[2].text, "Motion, dual touchpads, rear buttons, LEDs, and adaptive triggers where supported");
     EXPECT_EQ(benefits_menu[2].disabled, 1);
     EXPECT_STREQ(benefits_menu[3].text, "Actively developed and supported by LizardByte");
     EXPECT_EQ(benefits_menu[3].disabled, 1);

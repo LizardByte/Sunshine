@@ -100,6 +100,14 @@ namespace platf {
   constexpr std::uint32_t PADDLE4 = 0x080000;  ///< Moonlight gamepad button mask bit for paddle 4.
   constexpr std::uint32_t TOUCHPAD_BUTTON = 0x100000;  ///< Moonlight gamepad button mask bit for touchpad click.
   constexpr std::uint32_t MISC_BUTTON = 0x200000;  ///< Moonlight gamepad button mask bit for the miscellaneous button.
+  constexpr std::uint32_t STEAM_LEFT_TOUCHPAD_BUTTON = TOUCHPAD_BUTTON;  ///< Sunshine extension for the 2026 Steam Controller left trackpad click.
+  constexpr std::uint32_t STEAM_RIGHT_TOUCHPAD_BUTTON = 0x400000;  ///< Sunshine extension for the 2026 Steam Controller right trackpad click.
+  constexpr std::uint32_t STEAM_LEFT_TRIGGER_CLICK = 0x800000;  ///< Sunshine extension for the 2026 Steam Controller left trigger click.
+  constexpr std::uint32_t STEAM_RIGHT_TRIGGER_CLICK = 0x1000000;  ///< Sunshine extension for the 2026 Steam Controller right trigger click.
+  constexpr std::uint32_t STEAM_LEFT_STICK_TOUCH = 0x2000000;  ///< Sunshine extension for the 2026 Steam Controller left stick touch sensor.
+  constexpr std::uint32_t STEAM_RIGHT_STICK_TOUCH = 0x4000000;  ///< Sunshine extension for the 2026 Steam Controller right stick touch sensor.
+  constexpr std::uint32_t STEAM_LEFT_GRIP_TOUCH = 0x8000000;  ///< Sunshine extension for the 2026 Steam Controller left grip touch sensor.
+  constexpr std::uint32_t STEAM_RIGHT_GRIP_TOUCH = 0x10000000;  ///< Sunshine extension for the 2026 Steam Controller right grip touch sensor.
 
   /**
    * @brief Gamepad type exposed to clients and why it may be disabled.
@@ -454,6 +462,7 @@ namespace platf {
     float x;  ///< Horizontal coordinate or vector component.
     float y;  ///< Vertical coordinate or vector component.
     float pressure;  ///< Contact pressure reported by the client.
+    std::uint8_t touchpadIndex = 0;  ///< Zero-based Moonlight touchpad index.
   };
 
   /**
