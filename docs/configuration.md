@@ -3352,13 +3352,13 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Determines encoder tradeoff between quality and speed. Auto lets the driver decide.
+            Determines encoder tradeoff between quality and speed.
             @note{This option only applies when using Vulkan [encoder](#encoder).}
         </td>
     </tr>
     <tr>
         <td>Default</td>
-        <td colspan="2">@code{}auto@endcode</td>
+        <td colspan="2">@code{}balanced@endcode</td>
     </tr>
     <tr>
         <td>Example</td>
@@ -3368,18 +3368,13 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     </tr>
     <tr>
         <td>Options</td>
-        <td>auto</td>
-        <td>driver default</td>
-    </tr>
-    <tr>
-        <td></td>
         <td>speed</td>
         <td>Speed (prefer speed)</td>
     </tr>
     <tr>
         <td></td>
         <td>balanced</td>
-        <td>Balanced</td>
+        <td>Balanced (default)</td>
     </tr>
     <tr>
         <td></td>

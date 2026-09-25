@@ -774,7 +774,7 @@ namespace config {
     {
       2,  // vk.tune (default: ll - low latency)
       2,  // vk.rc_mode (default: cbr)
-      2,  // vk.quality (default: 2 = balanced, 0 = auto, 1 = speed, 3 = quality)
+      2,  // vk.quality (default: 2 = balanced, 1 = speed, 3 = quality)
     },
 
     {},  // capture
