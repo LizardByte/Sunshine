@@ -1218,11 +1218,14 @@ namespace platf {
   std::vector<std::string> portal_display_names(bool allow_start_timeout);
   std::shared_ptr<display_t> portal_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
+  /**
+   * @brief Enumerates possible Portal probe responses.
+   */
   enum class portal_probe_e {
-    unreachable,
-    no_token,
-    stale_token,  // had a token, but it didn't produce a working session
-    available
+    unreachable,  ///< Portal service is unreachable.
+    no_token,  ///< Token not found.
+    stale_token,  ///< Had a token, but it didn't produce a working session.
+    available  ///< Portal is available.
   };
 
   /**
