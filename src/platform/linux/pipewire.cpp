@@ -407,8 +407,8 @@ namespace pipewire {
      * @brief Compositor type and version information.
      */
     struct compositor_version_t {
-      compositor_type_e type = compositor_type_e::unknown;
-      std::vector<int> version;
+      compositor_type_e type = compositor_type_e::unknown;  ///< Compositor type (gnome, kde...).
+      std::vector<int> version;  ///< Compositor version.
     };
 
     /**
@@ -433,6 +433,7 @@ namespace pipewire {
     /**
      * Fetch compositor version information using DBus calls.
      *
+     * @param compositor_type The compositor we should attempt to fetch version information for.
      * @return A vector with 2-3 elements containing the major.minor.micro versions or an empty vector if the version could not be determined.
      */
     static std::vector<int> get_running_compositor_version(enum compositor_type_e compositor_type) {
@@ -539,6 +540,8 @@ namespace pipewire {
     /**
      * Determine if Pipewire's pts metadata is suitable for client pacing based on compositor type/version whitelist.
      *
+     * @param compositor Struct containing compositor type and version.
+     * @param selected_display_name Name of display - specifically the connector type - such as DP-1, HDMI-1, etc.
      * @return True if pts metadata is suitable.
      */
     static bool use_pipewire_pts(const compositor_version_t &compositor, const std::string &selected_display_name) {
@@ -570,6 +573,7 @@ namespace pipewire {
     /**
      * Determine if the active compositor is suited for variable rate capture based on type/version whitelist.
      *
+     * @param compositor Struct containing the compositor type and version.
      * @return True if variable rate capture is suitable.
      */
     static bool
@@ -695,8 +699,8 @@ namespace pipewire {
       negotiate_maxframerate_ = negotiate_maxframerate;
     }
 
-    inline static std::atomic prefer_pipewire_pts {false};
-    inline static std::atomic negotiate_variable_rate {true};
+    inline static std::atomic prefer_pipewire_pts {false};  ///< Whether the session should directly passthrough Pipewire pts metadata for client pacing.
+    inline static std::atomic negotiate_variable_rate {true};  ///< Whether the session should request variable rate (maxFrameRate = 0/1) capture.
 
   private:
     struct pw_thread_loop *loop;
