@@ -1052,8 +1052,7 @@ namespace pipewire {
       // calculate frame interval we should capture at
       delay = ::video::capture_frame_interval(config);
 
-      using enum pipewire_t::compositor_type_e;
-      const auto compositor = pipewire.get_running_compositor();
+      const static auto compositor = pipewire.get_running_compositor();
 
       // Determine if variable rate should be negotiated based on compositor type/versioning.
       pipewire.negotiate_variable_rate = pipewire.use_variable_rate(compositor);
