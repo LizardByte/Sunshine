@@ -170,45 +170,33 @@ If you see the above error in the Sunshine logs, compiling *Mesa* manually may b
 > Other build options are listed in the
 > [meson options](https://gitlab.freedesktop.org/mesa/mesa/-/blob/main/meson_options.txt) file.
 
-### XDG Portal Token Issues
-Portal capture requires you to approve Remote Desktop permissions using an on-screen prompt on the host. Sunshine saves
-the resulting restore token so the desktop portal can reauthorize capture automatically on subsequent starts. The token
-can become invalid after events such as a Sunshine crash, switching desktop environments, changing portal
-implementations, or connecting and disconnecting monitors.
+### XDG Portal Capture Permissions
 
-Reset the token when portal capture previously worked but Sunshine no longer shows the permission prompt, or when the
-log shows that a saved token was loaded before the portal returned no streams. For example:
+Portal capture requires you to approve Remote Desktop permissions using an on-screen prompt on the host. Sunshine saves the
+resulting restore token so the XDG Desktop Portal can reauthorize capture automatically on subsequent starts.
 
-```txt
-Info: [portalgrab] Loaded portal restore token from disk
-Error: [portalgrab] RemoteDesktop Start: no streams in response
-Warning: [portalgrab] Failed to connect to portal. Cannot enumerate displays, returning empty list.
-```
+If a restore token doesn't yet exist or becomes stale (for example, after a Sunshine crash, switching desktop environments,
+changing portal implementations, or changing the monitor associated with the Portal session), Sunshine will attempt to run
+in fallback capture mode. While in this mode, Sunshine will temporarily select another working capture method so that you
+can interact with the Portal Remote Desktop dialog. Once a new restore token is negotiated and saved, Sunshine will
+automatically restart and switch back to Portal capture.
 
-Do not use this reset for a generic encoder failure unless the log also shows that XDG Portal capture failed.
+> [!IMPORTANT]
+> If a fallback session cannot be created because no other capture methods are available, you will need to directly
+> interact with the host or use an alternative Remote Desktop connection (e.g. VNC, RDP) to complete setup.
 
-In the Web UI, open **Troubleshooting** and select **Reset XDG Portal Capture**. Sunshine deletes the saved token and
-restarts. Approve the Remote Desktop prompt and select the display to capture when it appears again.
+If the saved Portal token is valid but you want to change the monitor associated with Portal capture, open the Web UI,
+open **Troubleshooting**, and select **Reset XDG Portal Capture**. Sunshine deletes the saved token and restarts.
+Approve the Remote Desktop prompt again and select the display to capture when it appears.
 
-If the Web UI is inaccessible, stop Sunshine and delete the token manually:
+> [!TIP]
+> If Sunshine uses a custom configuration directory, you may need to delete the `portal_token` file from the custom
+> directory and restart Sunshine manually in lieu of the Web UI.
 
-@tabs{
-  @tab{Linux / FreeBSD |:| ```bash
-    rm "${XDG_CONFIG_HOME:-$HOME/.config}/sunshine/portal_token"
-    ```
-  }
-  @tab{Flatpak |:| ```bash
-    rm "$HOME/.var/app/dev.lizardbyte.app.Sunshine/config/sunshine/portal_token"
-    ```
-  }
-}
+Users of the KDE Plasma desktop can bypass manual permission setup either by switching to `kwin` capture or setting
+the following configuration to enable permanent capture authorization for Sunshine via Portal capture:
 
-Start Sunshine again, then approve the new Remote Desktop request. If Sunshine uses a custom configuration directory,
-delete the `portal_token` file from that directory instead.
-
-Users of the KDE Plasma desktop can bypass this issue either by switching to `kwin` capture or setting the following
-configuration to enable permanent capture authorization for Sunshine via Portal capture:
-```
+```bash
 flatpak permission-set kde-authorized remote-desktop dev.lizardbyte.app.Sunshine yes
 ```
 > [!NOTE]

@@ -50,6 +50,29 @@ namespace dyn {
 
 }  // namespace dyn
 
+#ifdef SUNSHINE_BUILD_PORTAL
+namespace portal {
+  /**
+   * @brief Check if a Portal restore token already exists on disk.
+   *
+   * @return True if a saved token was found.
+   */
+  bool has_saved_token();
+
+  /**
+   * @brief Clear a restore token if it already exists on disk.
+   */
+  void clear_saved_token();
+
+  /**
+   * @brief Check if the Portal service responds to a DBus Ping within 2 seconds.
+   *
+   * @return True if the Portal is reachable.
+   */
+  bool is_portal_service_reachable();
+}  // namespace portal
+#endif
+
 namespace platf {
   /**
    * @brief Remove environment variables that can load untrusted GUI modules.
