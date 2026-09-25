@@ -40,20 +40,21 @@ using namespace std::literals;
 namespace vk {
 
   /**
-   * @brief Query the maximum encoder quality level for a given codec.
+   * @brief Query and validate encoder quality level for a given codec.
    *
-   * This uses FFmpeg's Vulkan context (via get_proc_addr) to query
-   * VkVideoEncodeCapabilitiesKHR.maxQualityLevels. The profile chain
-   * follows FFmpeg's vulkan_encode.c pattern:
-   *   profile -> usage_info -> codec_profile_ext
-   * And output chain:
-   *   caps -> enc_caps -> codec_caps_ext
+   * This uses FFmpeg's Vulkan context to query maxQualityLevels and validate
+   * the requested level using vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR.
+   * If the requested level is invalid, falls back to level 0.
    *
    * @param codec_id FFmpeg codec ID (AV_CODEC_ID_H264, AV_CODEC_ID_HEVC, AV_CODEC_ID_AV1).
    * @param vk_ctx FFmpeg's AVVulkanDeviceContext with initialized Vulkan handles.
-   * @return Maximum quality level supported by the driver, or 0 if query fails.
+   * @param requested_level Requested quality level to validate (0 = speed, max = quality).
+   * @param[out] max_level Maximum quality level supported by the driver.
+   * @return Validated quality level (requested_level if valid, 0 if invalid).
    */
-  static uint32_t query_max_quality_level(AVCodecID codec_id, AVVulkanDeviceContext *vk_ctx) {
+  static uint32_t query_and_validate_quality_level(AVCodecID codec_id, AVVulkanDeviceContext *vk_ctx, uint32_t requested_level, uint32_t *max_level) {
+    *max_level = 0;
+
     if (!vk_ctx || !vk_ctx->inst || !vk_ctx->phys_dev || !vk_ctx->get_proc_addr) {
       return 0;
     }
@@ -134,12 +135,42 @@ namespace vk {
     caps.pNext = &enc_caps;
 
     VkResult result = vkGetPhysicalDeviceVideoCapabilitiesKHR_fn(vk_ctx->phys_dev, &profile, &caps);
-    if (result == VK_SUCCESS) {
-      BOOST_LOG(debug) << "[vulkan] Driver max quality level: "sv << enc_caps.maxQualityLevels;
-      return enc_caps.maxQualityLevels;
+    if (result != VK_SUCCESS) {
+      return 0;
     }
 
-    return 0;
+    *max_level = enc_caps.maxQualityLevels;
+    BOOST_LOG(debug) << "[vulkan] Driver max quality level: "sv << *max_level;
+
+    // If requested level is 0 or within range, try to validate it
+    if (requested_level > *max_level) {
+      BOOST_LOG(warning) << "[vulkan] Requested quality level "sv << requested_level
+                         << " exceeds max "sv << *max_level << ", using max"sv;
+      requested_level = *max_level;
+    }
+
+    // Try to validate the requested level
+    auto vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR_fn = (PFN_vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR)
+                                                                        vk_ctx->get_proc_addr(vk_ctx->inst, "vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR");
+
+    if (vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR_fn) {
+      VkPhysicalDeviceVideoEncodeQualityLevelInfoKHR quality_level_info = {};
+      quality_level_info.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_ENCODE_QUALITY_LEVEL_INFO_KHR;
+      quality_level_info.pVideoProfile = &profile;
+      quality_level_info.qualityLevel = requested_level;
+
+      VkVideoEncodeQualityLevelPropertiesKHR quality_props = {};
+      quality_props.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_QUALITY_LEVEL_PROPERTIES_KHR;
+
+      result = vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR_fn(vk_ctx->phys_dev, &quality_level_info, &quality_props);
+      if (result != VK_SUCCESS) {
+        BOOST_LOG(warning) << "[vulkan] Quality level "sv << requested_level
+                           << " validation failed, falling back to 0"sv;
+        return 0;
+      }
+    }
+
+    return requested_level;
   }
 
   // Match a DRI render node path to a Vulkan device index via VK_EXT_physical_device_drm.
@@ -323,11 +354,15 @@ namespace vk {
         auto *dev_ctx = (AVHWDeviceContext *) frames_ctx->device_ref->data;
         auto *vk_ctx = (AVVulkanDeviceContext *) dev_ctx->hwctx;
 
-        uint32_t max_quality = query_max_quality_level(ctx->codec_id, vk_ctx);
+        // Calculate target quality based on preset
+        uint32_t max_quality = 0;
+        uint32_t target_quality = 0;
+        const char *preset_name = "speed";
+
+        // First pass: get max quality to calculate target
+        query_and_validate_quality_level(ctx->codec_id, vk_ctx, 0, &max_quality);
+
         if (max_quality > 0) {
-          // max_quality is the highest valid quality level (0 to max_quality)
-          int target_quality = 0;
-          const char *preset_name = "speed";
           switch (quality_preset) {
             default:
             case 1:  // speed (level 0 = fastest)
@@ -343,8 +378,12 @@ namespace vk {
               preset_name = "quality";
               break;
           }
-          av_dict_set_int(options, "quality", target_quality, 0);
-          BOOST_LOG(info) << "[vulkan] Encoder quality set to "sv << target_quality
+
+          // Validate the calculated target quality level
+          uint32_t validated_quality = query_and_validate_quality_level(ctx->codec_id, vk_ctx, target_quality, &max_quality);
+
+          av_dict_set_int(options, "quality", validated_quality, 0);
+          BOOST_LOG(info) << "[vulkan] Encoder quality set to "sv << validated_quality
                           << " ("sv << preset_name << "), driver range: 0-"sv << max_quality;
         }
       }
