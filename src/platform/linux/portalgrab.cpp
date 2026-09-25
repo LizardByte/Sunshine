@@ -124,14 +124,27 @@ namespace portal {
     }
   };
 
+  /**
+   * @brief Clear a restore token if it already exists on disk.
+   */
   void clear_saved_token() {
     restore_token_t::clear();
   }
 
+  /**
+   * @brief Check if a Portal restore token exists on disk without inspecting its contents.
+   *
+   * @return True if a saved token was found.
+   */
   bool has_saved_token() {
     return restore_token_t::exists();
   }
 
+  /**
+   * @brief Check if the Portal service responds to a DBus Ping within 2 seconds.
+   *
+   * @return True if the Portal is reachable.
+   */
   bool is_portal_service_reachable() {
     g_autoptr(GError) g_error = nullptr;
     g_autofree const gchar *address = g_dbus_address_get_for_bus_sync(G_BUS_TYPE_SESSION, nullptr, &g_error);
@@ -219,7 +232,7 @@ namespace portal {
    */
   class dbus_t {
   public:
-    guint dbus_timeout = 10;  //< Timeout in seconds for DBus calls.
+    guint dbus_timeout = 10;  ///< Timeout in seconds for DBus calls.
 
     dbus_t &operator=(dbus_t &&) = delete;  // Do not allow to copying
 
