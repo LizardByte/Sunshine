@@ -444,6 +444,7 @@ namespace platf {
       _CONVERT("HDMI-B"sv, HDMIB);
       _CONVERT("TV"sv, TV);
       _CONVERT("eDP"sv, eDP);
+      _CONVERT("Meta"sv, VIRTUAL);  ///<  GNOME Shell (Mutter) virtual monitor
       _CONVERT("VIRTUAL"sv, VIRTUAL);
       _CONVERT("Virtual"sv, VIRTUAL);
       _CONVERT("DSI"sv, DSI);
