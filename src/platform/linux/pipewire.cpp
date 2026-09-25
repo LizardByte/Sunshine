@@ -412,7 +412,7 @@ namespace pipewire {
     };
 
     /**
-     * Fetch compositor type and version for processing.
+     * @brief Fetch compositor type and version for processing.
      *
      * @return A struct containing the compositor type and version.
      */
@@ -431,7 +431,7 @@ namespace pipewire {
     }
 
     /**
-     * Fetch compositor version information using DBus calls.
+     * @brief Fetch compositor version information using DBus calls.
      *
      * @param compositor_type The compositor we should attempt to fetch version information for.
      * @return A vector with 2-3 elements containing the major.minor.micro versions or an empty vector if the version could not be determined.
@@ -538,7 +538,7 @@ namespace pipewire {
     }
 
     /**
-     * Determine if Pipewire's pts metadata is suitable for client pacing based on compositor type/version whitelist.
+     * @brief Determine if Pipewire's pts metadata is suitable for client pacing based on compositor type/version whitelist.
      *
      * @param compositor Struct containing compositor type and version.
      * @param selected_display_name Name of display - specifically the connector type - such as DP-1, HDMI-1, etc.
@@ -571,7 +571,7 @@ namespace pipewire {
     }
 
     /**
-     * Determine if the active compositor is suited for variable rate capture based on type/version whitelist.
+     * @brief Determine if the active compositor is suited for variable rate capture based on type/version whitelist.
      *
      * @param compositor Struct containing the compositor type and version.
      * @return True if variable rate capture is suitable.
