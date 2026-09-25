@@ -196,7 +196,7 @@ Approve the Remote Desktop prompt again and select the display to capture when i
 Users of the KDE Plasma desktop can bypass manual permission setup either by switching to `kwin` capture or setting
 the following configuration to enable permanent capture authorization for Sunshine via Portal capture:
 
-```txt
+```bash
 flatpak permission-set kde-authorized remote-desktop dev.lizardbyte.app.Sunshine yes
 ```
 > [!NOTE]

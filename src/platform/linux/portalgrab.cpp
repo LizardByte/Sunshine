@@ -83,6 +83,8 @@ namespace portal {
 
     /**
      * @brief Check if a Portal restore token exists on disk without inspecting its contents.
+     *
+     * @return True if file exists on disk.
      */
     static bool exists() {
       std::error_code ec;
@@ -122,27 +124,14 @@ namespace portal {
     }
   };
 
-  /**
-   * @brief Clear a restore token if it already exists on disk.
-   */
   void clear_saved_token() {
     restore_token_t::clear();
   }
 
-  /**
-   * @brief Check if a Portal restore token exists on disk without inspecting its contents.
-   *
-   * @return True if a saved token was found.
-   */
   bool has_saved_token() {
     return restore_token_t::exists();
   }
 
-  /**
-   * @brief Check if the Portal service responds to a DBus Ping within 2 seconds.
-   *
-   * @return True if the Portal is reachable.
-   */
   bool is_portal_service_reachable() {
     g_autoptr(GError) g_error = nullptr;
     g_autofree const gchar *address = g_dbus_address_get_for_bus_sync(G_BUS_TYPE_SESSION, nullptr, &g_error);
@@ -230,7 +219,7 @@ namespace portal {
    */
   class dbus_t {
   public:
-    guint dbus_timeout = 10;
+    guint dbus_timeout = 10;  //< Timeout in seconds for DBus calls.
 
     dbus_t &operator=(dbus_t &&) = delete;  // Do not allow to copying
 
@@ -338,6 +327,7 @@ namespace portal {
     /**
      * @brief Connect to xdg-desktop-portal and restore or create a screencast session.
      *
+     * @param allow_start_timeout True if "Start" DBus call is allowed to time out.
      * @return 0 when a portal session is ready; nonzero when D-Bus or portal setup fails.
      */
     int connect_to_portal(bool allow_start_timeout) {
@@ -1021,6 +1011,7 @@ namespace platf {
   /**
    * @brief Enumerate capture targets available through xdg-desktop-portal.
    *
+   * @param allow_start_timeout True if "Start" DBus call is allowed to time out.
    * @return Portal display names, or an empty list when portal discovery fails.
    */
   std::vector<std::string> portal_display_names(bool allow_start_timeout) {
