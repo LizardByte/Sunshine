@@ -121,6 +121,8 @@ namespace proc {
       case 8:
         env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "7.1";
         break;
+      default:
+        break;
     }
     env["SUNSHINE_CLIENT_AUDIO_SURROUND_PARAMS"] = session.surround_params;
   }
@@ -388,7 +390,7 @@ namespace proc {
       system_tray::update_tray_stopped(proc::proc.get_last_run_app_name());
 #endif
 
-      if (!display_prep::owns_display_restoration()) {
+      if (!display_prep::owns_display_restoration()) {  // NOSONAR(cpp:S1066): the enclosing block also updates the tray
         display_device::revert_configuration();
       }
     }

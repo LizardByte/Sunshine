@@ -5,14 +5,15 @@
 #include "../tests_common.h"
 
 // standard includes
+#include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <format>
 #include <fstream>
-#include <future>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 // local includes
@@ -43,7 +44,7 @@ namespace {
     void revert_display(std::function<void(bool)> callback) override {
       events.emplace_back("revert");
       if (revert_throws) {
-        throw std::runtime_error("Revert unavailable");
+        throw std::runtime_error("Revert unavailable");  // NOSONAR(cpp:S112): generic failure for the fake backend
       }
       on_reverted = std::move(callback);
     }
@@ -57,7 +58,7 @@ namespace {
   using events_t = std::vector<std::string>;
 
   /** @brief Manager with an observable fake backend. */
-  class DisplayPrepTest: public ::testing::Test {
+  class DisplayPrepTest: public ::testing::Test {  // NOSONAR(cpp:S3656): protected members are intentional for test fixture subclassing
   protected:
     /** @brief Build a manager that owns a fake backend. */
     DisplayPrepTest() {
@@ -66,8 +67,8 @@ namespace {
       manager = std::make_shared<display_prep::manager_t>(std::move(owned));
     }
 
-    fake_backend_t *backend;  ///< Owned by manager. NOSONAR(cpp:S3656): protected members are intentional for test fixture subclassing
-    std::shared_ptr<display_prep::manager_t> manager;  ///< Manager under test. NOSONAR(cpp:S3656): protected members are intentional for test fixture subclassing
+    fake_backend_t *backend;  ///< Owned by manager.
+    std::shared_ptr<display_prep::manager_t> manager;  ///< Manager under test.
   };
 }  // namespace
 
@@ -148,12 +149,16 @@ TEST_F(DisplayPrepTest, FailedUndoBlocksAnotherDo) {
 TEST_F(DisplayPrepTest, ReconnectWaitsForPreviousRestoration) {
   manager->acquire({});
 
-  auto reconnect = std::async(std::launch::async, [this] {
-    return manager->acquire({});
+  std::shared_ptr<display_prep::lease_t> next;
+  std::atomic_bool acquired {false};
+  std::thread reconnect([this, &next, &acquired] {
+    next = manager->acquire({});
+    acquired = true;
   });
-  EXPECT_EQ(reconnect.wait_for(std::chrono::milliseconds(50)), std::future_status::timeout);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  EXPECT_FALSE(acquired);
   backend->complete_revert();
-  auto next = reconnect.get();
+  reconnect.join();
   ASSERT_NE(next, nullptr);
   EXPECT_EQ(backend->events, events_t({"do", "revert", "undo", "do"}));
   next->finish();
@@ -192,7 +197,7 @@ TEST(DisplayPrep, RevertCallbackRunsWhenDisplayDeviceIsUnavailable) {
 
 namespace {
   /** @brief Command backend tests that run real shell commands. */
-  class DisplayPrepCommandTest: public ::testing::Test {
+  class DisplayPrepCommandTest: public ::testing::Test {  // NOSONAR(cpp:S3656): protected members are intentional for test fixture subclassing
   protected:
     void SetUp() override {
       log_ = std::filesystem::temp_directory_path() / std::format("sunshine_display_prep_test_{}.log", std::chrono::steady_clock::now().time_since_epoch().count());  // NOSONAR(cpp:S5443): safe for tests
@@ -230,7 +235,7 @@ namespace {
       return {std::move(do_cmd), std::move(undo_cmd), false};
     }
 
-    std::filesystem::path log_;  ///< File written by test commands. NOSONAR(cpp:S3656): protected members are intentional for test fixture subclassing
+    std::filesystem::path log_;  ///< File written by test commands.
   };
 }  // namespace
 

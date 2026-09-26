@@ -1389,7 +1389,7 @@ namespace nvhttp {
 
     try {
       launch_session->display_prep_lease = display_prep::prepare(*launch_session);
-    } catch (const std::runtime_error &e) {
+    } catch (const display_prep::prepare_error_t &e) {
       tree.put("root.<xmlattr>.status_code", 503);
       tree.put("root.<xmlattr>.status_message", e.what());
       tree.put("root.gamesession", 0);
@@ -1513,7 +1513,7 @@ namespace nvhttp {
 
     try {
       launch_session->display_prep_lease = display_prep::prepare(*launch_session);
-    } catch (const std::runtime_error &e) {
+    } catch (const display_prep::prepare_error_t &e) {
       tree.put("root.resume", 0);
       tree.put("root.<xmlattr>.status_code", 503);
       tree.put("root.<xmlattr>.status_message", e.what());

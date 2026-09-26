@@ -69,7 +69,7 @@ namespace display_device {
       for (auto &callback : callbacks) {
         try {
           callback(restored);
-        } catch (const std::exception &e) {
+        } catch (const std::exception &e) {  // NOSONAR(cpp:S1181): callbacks may throw any exception
           BOOST_LOG(error) << "Display restoration callback failed: " << e.what();
         }
       }

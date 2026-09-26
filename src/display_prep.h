@@ -9,6 +9,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -49,6 +50,12 @@ namespace display_prep {
      * @param on_reverted Receives true after restoration or false if it was abandoned.
      */
     virtual void revert_display(std::function<void(bool)> on_reverted) = 0;
+  };
+
+  /** @brief Reported when the output cannot be prepared for a launch. */
+  class prepare_error_t: public std::runtime_error {
+  public:
+    using std::runtime_error::runtime_error;
   };
 
   class manager_t;
@@ -160,7 +167,7 @@ namespace display_prep {
    * @brief Acquire a lease before display configuration if commands are configured.
    * @param session Launch parameters passed to the commands.
    * @return A lease, or nullptr if no commands are configured.
-   * @throws std::runtime_error If preparation failed.
+   * @throws prepare_error_t If preparation failed.
    */
   std::shared_ptr<lease_t> prepare(const rtsp_stream::launch_session_t &session);
 

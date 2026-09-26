@@ -157,7 +157,7 @@ namespace display_prep {
       bool prepared = false;
       try {
         prepared = backend_->prepare(session);
-      } catch (const std::exception &e) {
+      } catch (const std::exception &e) {  // NOSONAR(cpp:S1181): commands and callbacks may throw any exception
         BOOST_LOG(::error) << "Pre-display Do threw: " << e.what();
       }
       if (!prepared) {
@@ -195,7 +195,7 @@ namespace display_prep {
       backend_->revert_display([self = shared_from_this()](bool restored) {
         self->finish_restore(restored);
       });
-    } catch (const std::exception &e) {
+    } catch (const std::exception &e) {  // NOSONAR(cpp:S1181): commands and callbacks may throw any exception
       std::lock_guard lock(mutex_);
       state_ = state_e::failed;
       error_ = std::string {"Could not request display restoration: "} + e.what();
@@ -222,7 +222,7 @@ namespace display_prep {
   bool manager_t::undo_safely() {
     try {
       return backend_->undo();
-    } catch (const std::exception &e) {
+    } catch (const std::exception &e) {  // NOSONAR(cpp:S1181): commands and callbacks may throw any exception
       BOOST_LOG(::error) << "Pre-display Undo threw: " << e.what();
       return false;
     }
@@ -249,7 +249,7 @@ namespace display_prep {
     auto manager = runtime_manager();
     auto lease = manager->acquire(session);
     if (!lease) {
-      throw std::runtime_error(manager->error());
+      throw prepare_error_t(manager->error());
     }
     return lease;
   }
