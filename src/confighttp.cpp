@@ -2112,7 +2112,7 @@ namespace confighttp {
 #ifdef _WIN32
       config::select_all_gamepad_drivers_if_licensed(result.license.licensed());
 #endif
-#if defined(_WIN32) && defined(SUNSHINE_TRAY) && SUNSHINE_TRAY >= 1
+#if (defined(_WIN32) || defined(__APPLE__)) && defined(SUNSHINE_TRAY) && SUNSHINE_TRAY >= 1
       system_tray::update_tray_virtualhid_license(result.license, false);
 #endif
 #ifdef _WIN32

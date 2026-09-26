@@ -511,6 +511,9 @@ int main(int argc, char *argv[]) {
     // Ideally, we would run the system tray on the main thread for all platforms.
     system_tray::init_tray_threaded();
 #else
+  #ifdef __APPLE__
+    system_tray::prepare_tray_virtualhid_license();
+  #endif
     system_tray::init_tray();
 #endif
   }
