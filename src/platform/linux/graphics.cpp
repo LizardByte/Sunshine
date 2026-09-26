@@ -1527,6 +1527,35 @@ namespace egl {
 
     return 0;
   }
+
+  int sws_t::copy(gl::frame_buf_t &dst, gl::frame_buf_t &src) {
+    for (int plane = 0; plane < 2; ++plane) {
+      const int plane_width = out_width / (plane + 1);  // UV plane is half the width of the Y plane
+      const int plane_height = out_height / (plane + 1);
+      const GLenum attachment = GL_COLOR_ATTACHMENT0 + plane;
+
+      gl::ctx.BindFramebuffer(GL_READ_FRAMEBUFFER, src[plane]);
+      gl::ctx.ReadBuffer(attachment);
+
+      gl::ctx.BindFramebuffer(GL_DRAW_FRAMEBUFFER, dst[plane]);
+      gl::ctx.DrawBuffers(1, &attachment);
+
+#ifndef NDEBUG
+      if (gl::ctx.CheckFramebufferStatus(GL_READ_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE || gl::ctx.CheckFramebufferStatus(GL_DRAW_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        BOOST_LOG(error) << "Copy: incomplete framebuffer for NV12 plane "sv << plane;
+        return -1;
+      }
+#endif
+
+      gl::ctx.BlitFramebuffer(0, 0, plane_width, plane_height, 0, 0, plane_width, plane_height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
+
+    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    gl::ctx.Flush();
+
+    return 0;
+  }
 }  // namespace egl
 
 /**
