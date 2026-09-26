@@ -151,7 +151,7 @@ TEST_F(DisplayPrepTest, ReconnectWaitsForPreviousRestoration) {
 
   std::shared_ptr<display_prep::lease_t> next;
   std::atomic_bool acquired {false};
-  std::thread reconnect([this, &next, &acquired] {
+  std::jthread reconnect([this, &next, &acquired] {
     next = manager->acquire({});
     acquired = true;
   });
