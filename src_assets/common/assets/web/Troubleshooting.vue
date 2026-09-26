@@ -2,8 +2,8 @@
   <Navbar></Navbar>
   <div id="content" class="container">
     <h1 class="my-4">{{ $t('troubleshooting.troubleshooting') }}</h1>
-    <!-- Virtual input driver and license -->
-    <div class="card my-4 virtual-gamepad-card" v-if="platform === 'windows'">
+    <!-- Virtual gamepad broker and license -->
+    <div class="card my-4 virtual-gamepad-card" v-if="platform === 'windows' || platform === 'macos'">
       <div class="card-body">
         <header class="virtual-gamepad-hero">
           <div class="virtual-gamepad-heading-icon" aria-hidden="true">
@@ -12,7 +12,14 @@
           <div>
             <h2 id="virtualhid" class="mb-1">{{ $t('troubleshooting.virtual_gamepad') }}</h2>
             <p class="mb-0">{{ $t(virtualInputDescriptionKey) }}</p>
-            <RouterLink v-if="gamepadDriver === 'vigembus'"
+            <a v-if="platform === 'macos' && gamepadDriver !== 'none'"
+               class="btn btn-primary mt-3"
+               href="https://github.com/LizardByte/libvirtualhid/releases/latest"
+               target="_blank" rel="noopener noreferrer">
+              <download :size="18" class="icon"></download>
+              {{ $t('troubleshooting.virtualhid_broker_download') }}
+            </a>
+            <RouterLink v-if="platform === 'windows' && gamepadDriver === 'vigembus'"
                class="btn btn-primary mt-3"
                to="/config#gamepad_driver">
               <gamepad-2 :size="18" class="icon"></gamepad-2>
@@ -62,7 +69,7 @@
           </article>
         </div>
 
-        <section class="virtual-gamepad-section">
+        <section class="virtual-gamepad-section" v-if="platform === 'windows'">
           <div class="virtual-gamepad-section-heading">
             <div>
               <h3 class="h4 mb-1">{{ $t('troubleshooting.virtual_gamepad_drivers') }}</h3>
@@ -160,8 +167,8 @@
         <section class="virtualhid-license-section" aria-labelledby="virtualhid-license" v-if="showVirtualhid">
           <div class="virtualhid-license-heading">
             <div>
-              <h3 id="virtualhid-license" class="h4 mb-1">{{ $t('troubleshooting.virtualhid_license') }}</h3>
-              <p class="mb-0">{{ $t('troubleshooting.virtualhid_license_desc') }}</p>
+              <h3 id="virtualhid-license" class="h4 mb-1">{{ $t('troubleshooting.virtualhid_broker_license') }}</h3>
+              <p class="mb-0">{{ $t(platform === 'macos' ? 'troubleshooting.virtualhid_macos_license_desc' : 'troubleshooting.virtualhid_license_desc') }}</p>
             </div>
             <span :class="licenseStatusClass()">{{ licenseStatusText() }}</span>
           </div>
@@ -172,7 +179,7 @@
           </div>
           <div class="alert alert-warning alert-inline" role="alert" v-else-if="!virtualhidLicense.service_available">
             <alert-triangle :size="18" class="icon flex-shrink-0"></alert-triangle>
-            <span>{{ virtualhidLicense.message || $t('troubleshooting.virtualhid_license_unavailable') }}</span>
+            <span>{{ virtualhidLicense.message || $t('troubleshooting.virtualhid_broker_unavailable') }}</span>
           </div>
 
           <div class="virtualhid-license-stats">
@@ -262,7 +269,7 @@
             <check-circle :size="22" aria-hidden="true"></check-circle>
             <div>
               <strong>{{ $t('troubleshooting.virtualhid_license_machine_activated') }}</strong>
-              <p class="mb-0">{{ $t('troubleshooting.virtualhid_license_machine_activated_desc') }}</p>
+              <p class="mb-0">{{ $t('troubleshooting.virtualhid_broker_activated_desc') }}</p>
             </div>
           </div>
         </section>
@@ -555,18 +562,24 @@
       },
       computed: {
         showVirtualhid() {
-          return this.gamepadDriver !== 'vigembus';
+          return this.gamepadDriver !== 'none' && (this.platform === 'macos' || this.gamepadDriver !== 'vigembus');
         },
 
         showVigembus() {
-          return this.gamepadDriver !== 'virtualhid';
+          return this.gamepadDriver !== 'none' && this.gamepadDriver !== 'virtualhid';
         },
 
         showVirtualhidBenefits() {
-          return !(this.virtualhid.installed && this.virtualhidLicense.licensed);
+          return this.platform === 'windows' && this.gamepadDriver !== 'none' && !(this.virtualhid.installed && this.virtualhidLicense.licensed);
         },
 
         virtualInputDescriptionKey() {
+          if (this.gamepadDriver === 'none') {
+            return 'troubleshooting.virtual_gamepad_none_desc';
+          }
+          if (this.platform === 'macos') {
+            return 'troubleshooting.virtual_gamepad_macos_desc';
+          }
           if (!this.gamepadDriver) {
             return 'troubleshooting.virtual_gamepad_unset_desc';
           }
@@ -712,9 +725,9 @@
             // The Virtual HID Driver also backs relative mouse input when gamepads are disabled.
             if (this.platform === 'windows') {
               this.refreshDriverInformation();
-              if (this.showVirtualhid) {
-                this.refreshLicenseStatus();
-              }
+            }
+            if ((this.platform === 'windows' || this.platform === 'macos') && this.showVirtualhid) {
+              this.refreshLicenseStatus();
             }
           });
 

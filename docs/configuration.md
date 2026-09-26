@@ -319,12 +319,12 @@ supported on the current platform.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Controls which virtual gamepad drivers Sunshine may use. The Web UI and startup notification continue to
-            request a choice while this option is not set. If Sunshine detects an active Virtual HID Driver license,
-            it automatically sets this option to `all` when it is missing.
+            Controls which virtual gamepad backend Sunshine may use on Windows and macOS. On Windows, the Web UI and
+            startup notification request a choice while this option is not set. If Sunshine detects an active Virtual
+            HID Broker license on Windows, it automatically sets this option to `all` when it is missing.
             @warning{ViGEmBus has limited gamepad features, supports only Xbox 360 and DualShock 4 emulation, and has
-            reached end of life. Selecting `vigembus` also suppresses Virtual HID Driver startup notifications.}
-            @note{This option applies only to Windows.}
+            reached end of life. Selecting `vigembus` also suppresses Virtual HID Broker startup notifications.}
+            @note{`all` and `vigembus` apply only to Windows. On macOS, an unset value uses Virtual HID Broker.}
         </td>
     </tr>
     <tr>
@@ -340,17 +340,21 @@ supported on the current platform.
             @endcode</td>
     </tr>
     <tr>
-        <td rowspan="3">Choices</td>
+        <td rowspan="4">Choices</td>
         <td>all</td>
-        <td>Prefer Virtual HID Driver when it is available and licensed, with ViGEmBus as a limited fallback.</td>
+        <td>Windows only: prefer Virtual HID Broker when it is available and licensed, with ViGEmBus as a limited fallback.</td>
     </tr>
     <tr>
         <td>virtualhid</td>
-        <td>Use only Virtual HID Driver. An active paid license is required; ViGEmBus fallback is disabled.</td>
+        <td>Use Virtual HID Broker for gamepads. An active paid license is required; Windows ViGEmBus fallback is disabled.</td>
     </tr>
     <tr>
         <td>vigembus</td>
-        <td>Use only ViGEmBus for gamepads and hide Virtual HID Driver status and licensing details.</td>
+        <td>Windows only: use ViGEmBus for gamepads and hide Virtual HID Broker status and licensing details.</td>
+    </tr>
+    <tr>
+        <td>none</td>
+        <td>Disable virtual gamepads on Windows and macOS without changing keyboard or mouse input. Suppress broker and driver choice notices.</td>
     </tr>
 </table>
 
@@ -361,7 +365,6 @@ supported on the current platform.
         <td>Description</td>
         <td colspan="2">
             The type of gamepad to emulate on the host.
-            @note{This option applies to FreeBSD, Linux, and Windows.}
             @note{When gamepad_driver is `vigembus` on Windows, only auto, x360, and ds4 are available.}
         </td>
     </tr>

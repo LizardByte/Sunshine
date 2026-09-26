@@ -106,13 +106,15 @@ namespace platf::virtualhid {
    *
    * @param runtime Runtime to probe.
    * @param fallback_vigem_available Whether Windows ViGEm fallback can create gamepads.
-   * @param virtualhid_licensed Whether an installed-driver runtime has a valid license.
+   * @param virtualhid_licensed Whether the broker has a valid license.
+   * @param require_license Whether this platform requires a broker license for gamepads.
    * @return Supported gamepad choices.
    */
   std::vector<supported_gamepad_t> supported_gamepads(
     lvh::Runtime *runtime,
     bool fallback_vigem_available = false,
-    bool virtualhid_licensed = true
+    bool virtualhid_licensed = true,
+    bool require_license = false
   );
 
   /**
