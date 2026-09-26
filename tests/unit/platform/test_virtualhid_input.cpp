@@ -967,7 +967,13 @@ TEST_F(VirtualHidDeviceTest, PlatformWrappersForwardToVirtualHidContext) {
 
   const auto &supported = platf::supported_gamepads(std::addressof(platform_input));
   ASSERT_FALSE(supported.empty());
+#ifdef __APPLE__
+  const auto licensed = lvh::get_license_status().license.licensed();
+  EXPECT_EQ(supported.front().is_enabled, licensed);
+  EXPECT_EQ(supported.front().reason_disabled, licensed ? "" : "gamepads.virtualhid-license-invalid");
+#else
   EXPECT_TRUE(supported.front().is_enabled);
+#endif
   EXPECT_FALSE(platf::supported_gamepads(nullptr).empty());
 #ifdef _WIN32
   config::input.gamepad_driver = config::GAMEPAD_DRIVER_VIGEMBUS;

@@ -731,7 +731,7 @@ TEST_F(SystemTrayVisualTest, CapturesIconTooltipNotificationsAndMenu) {
   }
 
   const auto &tray_data = system_tray::tray_data_for_testing();
-    #ifdef _WIN32
+    #if defined(_WIN32) || defined(__APPLE__)
   ASSERT_EQ(tray_data.iconPathCount, 5);
     #else
   ASSERT_EQ(tray_data.iconPathCount, 4);
