@@ -164,6 +164,9 @@ namespace display_prep {
    */
   std::shared_ptr<lease_t> prepare(const rtsp_stream::launch_session_t &session);
 
-  /** @brief Return whether active leases or restoration own the display state. */
+  /**
+   * @brief Check whether pre-display leases own display restoration.
+   * @return True while a lease is active or its restoration is pending.
+   */
   bool owns_display_restoration();
 }  // namespace display_prep

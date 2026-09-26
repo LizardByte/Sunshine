@@ -194,13 +194,6 @@ namespace proc {
    */
   void add_client_env(boost::process::v1::environment &env, const rtsp_stream::launch_session_t &session);
 
-  /**
-   * @brief Resolve the working directory for a configured command.
-   *
-   * @param cmd Command line to inspect.
-   * @param env Environment used to search for the executable.
-   * @return Parent directory of the executable or an empty path.
-   */
   boost::filesystem::path find_working_directory(const std::string &cmd, boost::process::v1::environment &env);
 
   bool check_valid_png(const std::filesystem::path &path);
