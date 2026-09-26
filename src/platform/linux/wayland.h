@@ -228,6 +228,17 @@ namespace wl {
   };
 
   /**
+   * @brief Determine whether a capture should request a new screencopy frame.
+   *
+   * Frames are copied with damage, so the compositor holds a request until the output changes. A capture that timed
+   * out still has that request in flight, and requesting another would replace the buffer it is being copied into.
+   *
+   * @param status State of the current screencopy request.
+   * @return `true` unless a requested frame is still pending.
+   */
+  bool should_request_frame(dmabuf_t::status_e status);
+
+  /**
    * @brief Wayland output metadata used to match a configured display name.
    */
   class monitor_t {
