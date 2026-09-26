@@ -124,6 +124,22 @@ if(LIBVA_FOUND)
             "${CMAKE_SOURCE_DIR}/src/platform/linux/vaapi.cpp")
 endif()
 
+# v4l2
+if(${SUNSHINE_ENABLE_V4L2})
+    include(CheckIncludeFiles)
+    check_include_files("linux/videodev2.h" V4L2_FOUND)
+else()
+    set(V4L2_FOUND OFF)
+endif()
+if(V4L2_FOUND)
+    add_compile_definitions(SUNSHINE_BUILD_V4L2)
+    list(APPEND PLATFORM_TARGET_FILES
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/v4l2_wrapper.h"
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/v4l2_wrapper.c"
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/v4l2.h"
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/v4l2.cpp")
+endif()
+
 # vulkan video encoding (via FFmpeg)
 if(${SUNSHINE_ENABLE_VULKAN})
     if(NOT SUNSHINE_SYSTEM_VULKAN_HEADERS)
