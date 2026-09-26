@@ -14,6 +14,7 @@
 
 // local includes
 #include "src/config.h"
+#include "src/platform/common.h"
 #include "src/platform/virtualhid_input.h"
 
 namespace platf {
@@ -56,6 +57,14 @@ namespace platf {
 
     gamepads = virtualhid::supported_gamepads(virtualhid::get_input_context(*input).runtime.get());
     return gamepads;
+  }
+
+  void clipboard_set(std::string_view) {
+    // macOS host clipboard sync is not implemented yet.
+  }
+
+  void clipboard_subscribe(clipboard_queue_t) {
+    // macOS host clipboard sync is not implemented yet.
   }
 
 }  // namespace platf

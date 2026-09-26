@@ -10,6 +10,7 @@
 #include <optional>
 #include <queue>
 #include <utility>
+#include <vector>
 
 // lib includes
 #include <boost/endian/arithmetic.hpp>
@@ -18,6 +19,7 @@
 
 extern "C" {
   // clang-format off
+#include <moonlight-common-c/src/Input.h>
 #include <moonlight-common-c/src/Limelight-internal.h>
   // clang-format on
 }
@@ -547,6 +549,7 @@ namespace stream {
       std::uint32_t seq;  ///< Sequence number for the next encrypted control message.
 
       platf::feedback_queue_t feedback_queue;  ///< Queue of controller feedback awaiting control-channel delivery.
+      platf::clipboard_queue_t clipboard_queue;  ///< Queue of clipboard text awaiting control-channel delivery.
       safe::mail_raw_t::event_t<video::hdr_info_t> hdr_queue;  ///< Queue of HDR metadata awaiting control-channel delivery.
     } control;  ///< Runtime state for the encrypted GameStream control channel.
 
@@ -566,12 +569,10 @@ namespace stream {
    * returns empty string_view on failure
    * returns string_view pointing to payload data
    */
-  template<std::size_t max_payload_size>
-  static inline std::string_view encode_control(session_t *session, const std::string_view &plaintext, std::array<std::uint8_t, max_payload_size> &tagged_cipher) {
-    static_assert(
-      max_payload_size >= sizeof(control_encrypted_t) + sizeof(crypto::cipher::tag_size),
-      "max_payload_size >= sizeof(control_encrypted_t) + sizeof(crypto::cipher::tag_size)"
-    );
+  static inline std::string_view encode_control(session_t *session, const std::string_view &plaintext, std::uint8_t *tagged_cipher, std::size_t tagged_size) {
+    if (tagged_size < sizeof(control_encrypted_t) + sizeof(crypto::cipher::tag_size)) {
+      return {};
+    }
 
     if (session->config.controlProtocolType != 13) {
       return plaintext;
@@ -600,7 +601,7 @@ namespace stream {
       iv[0] = (std::uint8_t) seq;
     }
 
-    auto packet = (control_encrypted_p) tagged_cipher.data();
+    auto packet = (control_encrypted_p) tagged_cipher;
 
     auto bytes = session->control.cipher.encrypt(plaintext, packet->payload(), &iv);
     if (bytes <= 0) {
@@ -614,7 +615,17 @@ namespace stream {
     packet->length = util::endian::little(packet_length);
     packet->seq = util::endian::little(seq);
 
-    return std::string_view {(char *) tagged_cipher.data(), packet_length + sizeof(control_encrypted_t) - sizeof(control_encrypted_t::seq)};
+    return std::string_view {(char *) tagged_cipher, packet_length + sizeof(control_encrypted_t) - sizeof(control_encrypted_t::seq)};
+  }
+
+  template<std::size_t max_payload_size>
+  static inline std::string_view encode_control(session_t *session, const std::string_view &plaintext, std::array<std::uint8_t, max_payload_size> &tagged_cipher) {
+    static_assert(
+      max_payload_size >= sizeof(control_encrypted_t) + sizeof(crypto::cipher::tag_size),
+      "max_payload_size >= sizeof(control_encrypted_t) + sizeof(crypto::cipher::tag_size)"
+    );
+
+    return encode_control(session, plaintext, tagged_cipher.data(), tagged_cipher.size());
   }
 
   /**
@@ -1121,6 +1132,46 @@ namespace stream {
   }
 
   /**
+   * @brief Send clipboard text to the client over the control channel.
+   *
+   * @param session Active streaming session.
+   * @param msg Clipboard text and echo token.
+   * @return 0 when the control message is queued.
+   */
+  int send_clipboard_text(session_t *session, const platf::clipboard_text_t &msg) {
+    if (!session->control.peer || msg.text.size() > SS_CLIPBOARD_TEXT_MAX) {
+      return -1;
+    }
+
+    control_header_v2 header {};
+    header.type = SS_CLIPBOARD_CONTROL_PTYPE;
+    header.payloadLength = static_cast<std::uint16_t>(sizeof(std::uint32_t) * 2 + msg.text.size());
+
+    std::vector<std::uint8_t> plaintext(sizeof(header) + header.payloadLength);
+    std::memcpy(plaintext.data(), &header, sizeof(header));
+
+    auto token = util::endian::little(msg.token);
+    auto length = util::endian::little(static_cast<std::uint32_t>(msg.text.size()));
+    auto *payload = plaintext.data() + sizeof(header);
+    std::memcpy(payload, &token, sizeof(token));
+    std::memcpy(payload + sizeof(token), &length, sizeof(length));
+    std::memcpy(payload + sizeof(token) + sizeof(length), msg.text.data(), msg.text.size());
+
+    const auto tagged_size = sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(plaintext.size()) + crypto::cipher::tag_size;
+    std::vector<std::uint8_t> tagged(tagged_size);
+    auto encoded = encode_control(session, util::view(plaintext.data(), plaintext.data() + plaintext.size()), tagged.data(), tagged.size());
+    if (encoded.empty()) {
+      return -1;
+    }
+
+    if (session->broadcast_ref->control_server.send(encoded, session->control.peer)) {
+      return -1;
+    }
+
+    return 0;
+  }
+
+  /**
    * @brief Send the selected HDR mode to the connected client over the control channel.
    *
    * @param session Active streaming or pairing session for the request.
@@ -1359,6 +1410,12 @@ namespace stream {
               auto feedback_msg = feedback_queue->pop();
 
               send_feedback_msg(session, *feedback_msg);
+            }
+
+            auto &clipboard_queue = session->control.clipboard_queue;
+            while (session->control.peer && clipboard_queue->peek()) {
+              auto clipboard_msg = clipboard_queue->pop();
+              send_clipboard_text(session, *clipboard_msg);
             }
 
             auto &hdr_queue = session->control.hdr_queue;
@@ -2321,6 +2378,7 @@ namespace stream {
 
       session->control.connect_data = launch_session.control_connect_data;
       session->control.feedback_queue = mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback);
+      session->control.clipboard_queue = mail->queue<platf::clipboard_text_t>(mail::clipboard);
       session->control.hdr_queue = mail->event<video::hdr_info_t>(mail::hdr);
       session->control.legacy_input_enc_iv = launch_session.iv;
       session->control.cipher = crypto::cipher::gcm_t {
