@@ -293,7 +293,7 @@
           delete this.config.version;
 
           // Parse the special options before population if available
-          const specialOptions = ["dd_mode_remapping", "global_prep_cmd"]
+          const specialOptions = ["dd_mode_remapping", "global_prep_cmd", "pre_display_prep_cmd"]
           for (const optionKey of specialOptions) {
             if (this.config.hasOwnProperty(optionKey)) {
               this.config[optionKey] = JSON.parse(this.config[optionKey]);

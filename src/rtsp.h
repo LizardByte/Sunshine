@@ -9,6 +9,7 @@
 
 // local includes
 #include "crypto.h"
+#include "display_prep.h"
 #include "thread_safe.h"
 
 namespace rtsp_stream {
@@ -19,6 +20,7 @@ namespace rtsp_stream {
    */
   struct launch_session_t {
     uint32_t id;  ///< RTSP launch-session identifier assigned before stream startup.
+    std::shared_ptr<display_prep::lease_t> display_prep_lease;  ///< Keeps pre-display commands active through capture.
 
     crypto::aes_t gcm_key;  ///< AES-GCM key negotiated for encrypted RTSP messages.
     crypto::aes_t iv;  ///< Initial RTSP AES-GCM IV supplied by the client.

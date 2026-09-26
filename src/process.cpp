@@ -25,6 +25,7 @@
 #include "config.h"
 #include "crypto.h"
 #include "display_device.h"
+#include "display_prep.h"
 #include "input.h"
 #include "logging.h"
 #include "platform/common.h"
@@ -99,6 +100,31 @@ namespace proc {
       // avoid zombie process
       proc.detach();
     }
+  }
+
+  void add_client_env(boost::process::v1::environment &env, const rtsp_stream::launch_session_t &session) {
+    env["SUNSHINE_CLIENT_NAME"] = session.client_name;
+    env["SUNSHINE_CLIENT_WIDTH"] = std::to_string(session.width);
+    env["SUNSHINE_CLIENT_HEIGHT"] = std::to_string(session.height);
+    env["SUNSHINE_CLIENT_FPS"] = std::to_string(session.fps);
+    env["SUNSHINE_CLIENT_HDR"] = session.enable_hdr ? "true" : "false";
+    env["SUNSHINE_CLIENT_GCMAP"] = std::to_string(session.gcmap);
+    env["SUNSHINE_CLIENT_HOST_AUDIO"] = session.host_audio ? "true" : "false";
+    env["SUNSHINE_CLIENT_ENABLE_SOPS"] = session.enable_sops ? "true" : "false";
+    switch (session.surround_info & 65535) {
+      case 2:
+        env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "2.0";
+        break;
+      case 6:
+        env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "5.1";
+        break;
+      case 8:
+        env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "7.1";
+        break;
+      default:
+        break;
+    }
+    env["SUNSHINE_CLIENT_AUDIO_SURROUND_PARAMS"] = session.surround_params;
   }
 
   /**
@@ -187,27 +213,7 @@ namespace proc {
     // Add Stream-specific environment variables
     _env["SUNSHINE_APP_ID"] = std::to_string(_app_id);
     _env["SUNSHINE_APP_NAME"] = _app.name;
-    _env["SUNSHINE_CLIENT_NAME"] = launch_session->client_name;
-    _env["SUNSHINE_CLIENT_WIDTH"] = std::to_string(launch_session->width);
-    _env["SUNSHINE_CLIENT_HEIGHT"] = std::to_string(launch_session->height);
-    _env["SUNSHINE_CLIENT_FPS"] = std::to_string(launch_session->fps);
-    _env["SUNSHINE_CLIENT_HDR"] = launch_session->enable_hdr ? "true" : "false";
-    _env["SUNSHINE_CLIENT_GCMAP"] = std::to_string(launch_session->gcmap);
-    _env["SUNSHINE_CLIENT_HOST_AUDIO"] = launch_session->host_audio ? "true" : "false";
-    _env["SUNSHINE_CLIENT_ENABLE_SOPS"] = launch_session->enable_sops ? "true" : "false";
-    int channelCount = launch_session->surround_info & 65535;
-    switch (channelCount) {
-      case 2:
-        _env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "2.0";
-        break;
-      case 6:
-        _env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "5.1";
-        break;
-      case 8:
-        _env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "7.1";
-        break;
-    }
-    _env["SUNSHINE_CLIENT_AUDIO_SURROUND_PARAMS"] = launch_session->surround_params;
+    add_client_env(_env, *launch_session);
 
     if (!_app.output.empty() && _app.output != "null"sv) {
 #ifdef _WIN32
@@ -384,7 +390,9 @@ namespace proc {
       system_tray::update_tray_stopped(proc::proc.get_last_run_app_name());
 #endif
 
-      display_device::revert_configuration();
+      if (!display_prep::owns_display_restoration()) {  // NOSONAR(cpp:S1066): the enclosing block also updates the tray
+        display_device::revert_configuration();
+      }
     }
 
     _app_id = -1;

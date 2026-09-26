@@ -242,6 +242,44 @@ supported on the current platform.
     </tr>
 </table>
 
+### pre_display_prep_cmd
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            An optional list of Do/Undo command pairs for preparing a capture output.
+            On the first launch or resume, Sunshine waits for each Do command before
+            configuring displays and detecting encoders. Later clients share the
+            prepared output. After the last stream stops, Sunshine restores display
+            settings and then runs Undo commands in reverse order. A failed Do
+            aborts the launch and undoes every attempted command, including the
+            command that failed. If display restoration fails, Undo is withheld
+            until restoration succeeds; Sunshine retries when the display API
+            becomes available or output devices change. Resetting display
+            persistence abandons restoration and leaves the preparation in a
+            failed state; it does not run Undo. While failed (also after an
+            incomplete Undo), launches are rejected: undo the changes manually,
+            then restart Sunshine. Every Do
+            command requires an Undo command. Use idempotent commands; Sunshine cannot
+            recover arbitrary external changes after an unexpected process exit.
+            This option restores display settings after the last stream even if
+            <code>dd_config_revert_on_disconnect</code> is disabled.
+            The existing <code>global_prep_cmd</code> behavior is unchanged.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}[]@endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            pre_display_prep_cmd = [{"do":"enable-display.cmd","undo":"disable-display.cmd","elevated":true}]
+            @endcode</td>
+    </tr>
+</table>
+
 ### notify_pre_releases
 
 <table>
