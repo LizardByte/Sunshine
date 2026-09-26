@@ -7,6 +7,7 @@
 // standard includes
 #include <chrono>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -110,11 +111,12 @@ namespace display_device {
    * In case the state could not be restored, by default it will be retried again in 5 seconds
    * (repeating indefinitely until success or until persistence is reset).
    *
+   * @param on_reverted Optional callback receiving true after restoration succeeds, or false when persistence is reset without restoration.
    * @examples
    * revert_configuration();
    * @examples_end
    */
-  void revert_configuration();
+  void revert_configuration(std::function<void(bool)> on_reverted = {});
 
   /**
    * @brief Reset persisted display state and the captured initial state.

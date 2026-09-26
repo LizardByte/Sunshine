@@ -275,6 +275,8 @@
     "gamepad_xseries": "Xbox Series",
     "global_prep_cmd": "Command Preparations",
     "global_prep_cmd_desc": "Configure a list of commands to be executed before or after running any application. If any of the specified preparation commands fail, the application launch process will be aborted.",
+    "pre_display_prep_cmd": "Pre-Display Preparations",
+    "pre_display_prep_cmd_desc": "Run Do commands before display configuration and encoder detection. After the last stream ends, Sunshine restores display settings before running Undo commands in reverse order, regardless of the disconnect revert setting. Every Do command requires an Undo command; both should be idempotent.",
     "hevc_mode": "HEVC Support",
     "hevc_mode_0": "Sunshine will advertise support for HEVC based on encoder capabilities (recommended)",
     "hevc_mode_1": "Sunshine will not advertise support for HEVC",

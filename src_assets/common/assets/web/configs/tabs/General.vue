@@ -14,8 +14,12 @@ const props = defineProps({
   config: Object
 })
 const config = ref(props.config)
+const prepOptions = [
+  { key: 'global_prep_cmd', title: 'global_prep_cmd', description: 'global_prep_cmd_desc' },
+  { key: 'pre_display_prep_cmd', title: 'pre_display_prep_cmd', description: 'pre_display_prep_cmd_desc' },
+]
 
-function addCmd() {
+function addCmd(key) {
   let template = {
     do: "",
     undo: "",
@@ -24,11 +28,11 @@ function addCmd() {
   if (props.platform === 'windows') {
     template = { ...template, elevated: false };
   }
-  config.value.global_prep_cmd.push(template);
+  config.value[key].push(template);
 }
 
-function removeCmd(index) {
-  config.value.global_prep_cmd.splice(index,1)
+function removeCmd(key, index) {
+  config.value[key].splice(index,1)
 }
 </script>
 
@@ -87,11 +91,11 @@ function removeCmd(index) {
       <div class="form-text">{{ $t('config.min_log_level_desc') }}</div>
     </div>
 
-    <!-- Global Prep Commands -->
-    <div id="global_prep_cmd" class="mb-3 d-flex flex-column">
-      <div class="form-label">{{ $t('config.global_prep_cmd') }}</div>
-      <div class="form-text">{{ $t('config.global_prep_cmd_desc') }}</div>
-      <table class="table" v-if="config.global_prep_cmd.length > 0">
+    <!-- Preparation Commands -->
+    <div v-for="option in prepOptions" :key="option.key" :id="option.key" class="mb-3 d-flex flex-column">
+      <div class="form-label">{{ $t(`config.${option.title}`) }}</div>
+      <div class="form-text">{{ $t(`config.${option.description}`) }}</div>
+      <table class="table" v-if="config[option.key].length > 0">
         <thead>
         <tr>
           <th scope="col"><Play :size="16" /> {{ $t('_common.do_cmd') }}</th>
@@ -103,34 +107,34 @@ function removeCmd(index) {
         </tr>
         </thead>
         <tbody>
-        <tr v-for="(c, i) in config.global_prep_cmd" :key="i">
+        <tr v-for="(c, i) in config[option.key]" :key="i">
           <td>
-            <label :for="`prep-cmd-do-${i}`" class="visually-hidden">{{ $t('_common.do_cmd') }}</label>
-            <input :id="`prep-cmd-do-${i}`" type="text" class="form-control monospace" v-model="c.do" />
+            <label :for="`${option.key}-do-${i}`" class="visually-hidden">{{ $t('_common.do_cmd') }}</label>
+            <input :id="`${option.key}-do-${i}`" type="text" class="form-control monospace" v-model="c.do" />
           </td>
           <td>
-            <label :for="`prep-cmd-undo-${i}`" class="visually-hidden">{{ $t('_common.undo_cmd') }}</label>
-            <input :id="`prep-cmd-undo-${i}`" type="text" class="form-control monospace" v-model="c.undo" />
+            <label :for="`${option.key}-undo-${i}`" class="visually-hidden">{{ $t('_common.undo_cmd') }}</label>
+            <input :id="`${option.key}-undo-${i}`" type="text" class="form-control monospace" v-model="c.undo" />
           </td>
           <td v-if="platform === 'windows'" class="align-middle">
-            <Checkbox :id="'prep-cmd-admin-' + i"
+            <Checkbox :id="`${option.key}-admin-${i}`"
                       label="_common.elevated"
                       desc=""
                       v-model="c.elevated"
             ></Checkbox>
           </td>
           <td>
-            <button class="btn btn-danger" @click="removeCmd(i)">
+            <button class="btn btn-danger" @click="removeCmd(option.key, i)">
               <Trash2 :size="16" />
             </button>
-            <button class="btn btn-success" @click="addCmd">
+            <button class="btn btn-success" @click="addCmd(option.key)">
               <Plus :size="16" />
             </button>
           </td>
         </tr>
         </tbody>
       </table>
-      <button class="ms-0 mt-2 btn btn-success" style="margin: 0 auto" @click="addCmd">
+      <button class="ms-0 mt-2 btn btn-success" style="margin: 0 auto" @click="addCmd(option.key)">
         &plus; {{ $t('config.add') }}
       </button>
     </div>

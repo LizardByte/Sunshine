@@ -1381,10 +1381,22 @@ namespace nvhttp {
       return;
     }
 
+    // session_count() also reaps stopped streams, releasing their pre-display
+    // leases, so it must run before display_prep::prepare().
+    const bool no_active_sessions {rtsp_stream::session_count() == 0};
     host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
     auto launch_session = make_launch_session(host_audio, args);
 
-    if (rtsp_stream::session_count() == 0) {
+    try {
+      launch_session->display_prep_lease = display_prep::prepare(*launch_session);
+    } catch (const std::runtime_error &e) {
+      tree.put("root.<xmlattr>.status_code", 503);
+      tree.put("root.<xmlattr>.status_message", e.what());
+      tree.put("root.gamesession", 0);
+      return;
+    }
+
+    if (no_active_sessions) {
       // The display should be restored in case something fails as there are no other sessions.
       revert_display_configuration = true;
 
@@ -1498,6 +1510,15 @@ namespace nvhttp {
       host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
     }
     const auto launch_session = make_launch_session(host_audio, args);
+
+    try {
+      launch_session->display_prep_lease = display_prep::prepare(*launch_session);
+    } catch (const std::runtime_error &e) {
+      tree.put("root.resume", 0);
+      tree.put("root.<xmlattr>.status_code", 503);
+      tree.put("root.<xmlattr>.status_message", e.what());
+      return;
+    }
 
     if (no_active_sessions) {
       // We want to prepare display only if there are no active sessions at

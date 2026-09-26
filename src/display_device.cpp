@@ -8,9 +8,11 @@
 // standard includes
 #include <algorithm>
 #include <cctype>
+#include <functional>
 #include <mutex>
 #include <regex>
 #include <string_view>
+#include <vector>
 
 // lib includes
 #include <boost/algorithm/string.hpp>
@@ -50,7 +52,28 @@ namespace display_device {
       std::mutex mutex {};
       std::chrono::milliseconds config_revert_delay {0};
       std::unique_ptr<RetryScheduler<SettingsManagerInterface>> sm_instance {nullptr};
+      std::mutex revert_callbacks_mutex {};  ///< Separate from mutex because scheduler callbacks may run inline.
+      std::vector<std::function<void(bool)>> revert_callbacks {};  ///< Work waiting for display restoration or reset.
     } DD_DATA;
+
+    /**
+     * @brief Deliver callbacks with the outcome of display restoration.
+     * @param restored True only when the previous display state was restored.
+     */
+    void complete_revert_callbacks(bool restored) {
+      std::vector<std::function<void(bool)>> callbacks;
+      {
+        std::lock_guard lock {DD_DATA.revert_callbacks_mutex};
+        callbacks.swap(DD_DATA.revert_callbacks);
+      }
+      for (auto &callback : callbacks) {
+        try {
+          callback(restored);
+        } catch (const std::exception &e) {
+          BOOST_LOG(error) << "Display restoration callback failed: " << e.what();
+        }
+      }
+    }
 
     /**
      * @brief Helper class for capturing audio context when the API demands it.
@@ -743,6 +766,7 @@ namespace display_device {
 
         using enum SettingsManagerInterface::RevertResult;
         if (const auto result {settings_iface.revertSettings()}; result == Ok) {
+          complete_revert_callbacks(true);
           stop_token.requestStop();
           return;
         } else if (result == ApiTemporarilyUnavailable) {
@@ -890,8 +914,18 @@ namespace display_device {
                                   {.m_sleep_durations = {DEFAULT_RETRY_INTERVAL}});
   }
 
-  void revert_configuration() {
+  void revert_configuration(std::function<void(bool)> on_reverted) {
     std::lock_guard lock {DD_DATA.mutex};
+    if (!DD_DATA.sm_instance) {
+      if (on_reverted) {
+        on_reverted(true);
+      }
+      return;
+    }
+    if (on_reverted) {
+      std::lock_guard callback_lock {DD_DATA.revert_callbacks_mutex};
+      DD_DATA.revert_callbacks.emplace_back(std::move(on_reverted));
+    }
     revert_configuration_unlocked(revert_option_e::try_indefinitely_with_delay);
   }
 
@@ -902,12 +936,18 @@ namespace display_device {
       return true;
     }
 
-    return DD_DATA.sm_instance->execute([](auto &settings_iface, auto &stop_token) {
+    const bool result = DD_DATA.sm_instance->execute([](auto &settings_iface, auto &stop_token) {
       // Whatever the outcome is we want to stop interfering with the user,
       // so any schedulers need to be stopped.
       stop_token.requestStop();
       return settings_iface.resetPersistence();
     });
+
+    // Reset accepts the current display state; it does not restore the old one.
+    // A stopped revert can no longer complete, so notify its waiters without
+    // allowing them to run cleanup that requires a restored display.
+    complete_revert_callbacks(false);
+    return result;
   }
 
   EnumeratedDeviceList enumerate_devices() {

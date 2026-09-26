@@ -25,12 +25,13 @@ const globalOptions = {
 }
 
 describe('configuration accessibility', () => {
-  it('gives every global prep command input an accessible label', () => {
+  it('gives every prep command input an accessible label', () => {
     const wrapper = mount(General, {
       props: {
         platform: 'windows',
         config: {
           global_prep_cmd: [{ do: 'start', elevated: false, undo: 'stop' }],
+          pre_display_prep_cmd: [{ do: 'enable', elevated: false, undo: 'disable' }],
           notify_pre_releases: false,
           system_tray: true,
         },
@@ -38,7 +39,9 @@ describe('configuration accessibility', () => {
       global: globalOptions,
     })
 
-    for (const input of wrapper.findAll('#global_prep_cmd tbody input')) {
+    const inputs = wrapper.findAll('#global_prep_cmd tbody input, #pre_display_prep_cmd tbody input')
+    expect(inputs).toHaveLength(4)
+    for (const input of inputs) {
       expect(wrapper.get(`label[for="${input.attributes('id')}"]`).classes()).toContain('visually-hidden')
     }
   })
