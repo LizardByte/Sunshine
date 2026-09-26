@@ -774,6 +774,7 @@ namespace config {
     {
       2,  // vk.tune (default: ll - low latency)
       2,  // vk.rc_mode (default: cbr)
+      2,  // vk.quality (default: 2 = balanced, 1 = speed, 3 = quality)
     },
 
     {},  // capture
@@ -1693,6 +1694,16 @@ namespace config {
 
     int_f(vars, "vk_tune", video.vk.tune);
     int_f(vars, "vk_rc_mode", video.vk.rc_mode);
+    std::string vk_quality;
+    string_f(vars, "vk_quality", vk_quality);
+    static const std::unordered_map<std::string_view, int> vk_quality_map = {
+      {"speed"sv, 1},
+      {"balanced"sv, 2},
+      {"quality"sv, 3}
+    };
+    if (auto it = vk_quality_map.find(vk_quality); it != vk_quality_map.end()) {
+      video.vk.quality = it->second;
+    }
 
     string_f(vars, "capture", video.capture);
     string_f(vars, "encoder", video.encoder);
