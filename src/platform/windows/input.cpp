@@ -1274,6 +1274,11 @@ namespace platf {
     }
 
     const auto raw = (input_raw_t *) input->get();
+    if (config::input.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
+      gps.clear();
+      return gps;
+    }
+
     if (config::input.gamepad_driver == config::GAMEPAD_DRIVER_VIGEMBUS) {
       gps = vigembus_supported_gamepads(raw->vigem != nullptr);
       return gps;
@@ -1310,7 +1315,7 @@ namespace platf {
   platform_caps::caps_t get_capabilities() {
     platform_caps::caps_t caps = 0;
 
-    if (virtualhid::configured_gamepad_supports_controller_extensions()) {
+    if (config::input.gamepad_driver != config::GAMEPAD_DRIVER_NONE && virtualhid::configured_gamepad_supports_controller_extensions()) {
       caps |= platform_caps::controller_touch;
     }
 

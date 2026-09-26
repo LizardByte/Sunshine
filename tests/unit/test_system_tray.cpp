@@ -22,7 +22,7 @@
 
   // lib includes
   #include <tray.h>
-  #ifdef _WIN32
+  #if defined(_WIN32) || defined(__APPLE__)
     #include <libvirtualhid/license.hpp>
   #endif
 
@@ -79,7 +79,7 @@ namespace {
 
   #ifdef _WIN32
   /**
-   * @brief Verify the persistent Virtual HID Driver benefits submenu.
+   * @brief Verify the persistent Virtual HID Broker benefits submenu.
    *
    * @param benefits_menu Benefits submenu to verify.
    */
@@ -97,7 +97,7 @@ namespace {
   }
 
   /**
-   * @brief Verify the shared action entries in a populated Virtual HID Driver menu.
+   * @brief Verify the shared action entries in a populated Virtual HID Broker menu.
    *
    * @param license_menu License submenu to verify.
    */
@@ -106,10 +106,10 @@ namespace {
     EXPECT_STREQ(license_menu[4].text, "-");
     EXPECT_STREQ(license_menu[5].text, "Get/Manage License");
     EXPECT_NE(license_menu[5].cb, nullptr);
-    EXPECT_STREQ(license_menu[6].text, "Virtual HID Driver Benefits");
+    EXPECT_STREQ(license_menu[6].text, "Virtual HID Broker Benefits");
     EXPECT_EQ(license_menu[6].cb, nullptr);
     verify_virtualhid_benefits_menu(license_menu[6].submenu);
-    EXPECT_STREQ(license_menu[7].text, "Download Virtual HID Driver");
+    EXPECT_STREQ(license_menu[7].text, "Download Virtual HID Broker");
     EXPECT_NE(license_menu[7].cb, nullptr);
     EXPECT_EQ(license_menu[8].text, nullptr);
   }
@@ -127,20 +127,26 @@ namespace {
     EXPECT_STREQ(tray_data.menu[1].text, "-");
     EXPECT_EQ(tray_data.menu[1].cb, nullptr);
 
-  #ifdef _WIN32
-    EXPECT_STREQ(tray_data.menu[2].text, "Virtual HID Driver");
+  #if defined(_WIN32) || defined(__APPLE__)
+    EXPECT_STREQ(tray_data.menu[2].text, "Virtual HID Broker");
     ASSERT_NE(tray_data.menu[2].submenu, nullptr);
     EXPECT_STREQ(tray_data.menu[2].submenu[0].text, "Status: Checking");
     EXPECT_EQ(tray_data.menu[2].submenu[0].disabled, 1);
     EXPECT_STREQ(tray_data.menu[2].submenu[1].text, "-");
     EXPECT_STREQ(tray_data.menu[2].submenu[2].text, "Get/Manage License");
     EXPECT_NE(tray_data.menu[2].submenu[2].cb, nullptr);
-    EXPECT_STREQ(tray_data.menu[2].submenu[3].text, "Virtual HID Driver Benefits");
+    #ifdef _WIN32
+    EXPECT_STREQ(tray_data.menu[2].submenu[3].text, "Virtual HID Broker Benefits");
     EXPECT_EQ(tray_data.menu[2].submenu[3].cb, nullptr);
     verify_virtualhid_benefits_menu(tray_data.menu[2].submenu[3].submenu);
-    EXPECT_STREQ(tray_data.menu[2].submenu[4].text, "Download Virtual HID Driver");
+    EXPECT_STREQ(tray_data.menu[2].submenu[4].text, "Download Virtual HID Broker");
     EXPECT_NE(tray_data.menu[2].submenu[4].cb, nullptr);
     EXPECT_EQ(tray_data.menu[2].submenu[5].text, nullptr);
+    #else
+    EXPECT_STREQ(tray_data.menu[2].submenu[3].text, "Download Virtual HID Broker");
+    EXPECT_NE(tray_data.menu[2].submenu[3].cb, nullptr);
+    EXPECT_EQ(tray_data.menu[2].submenu[4].text, nullptr);
+    #endif
     EXPECT_STREQ(tray_data.menu[3].text, "-");
     EXPECT_STREQ(tray_data.menu[4].text, "Donate");
     ASSERT_NE(tray_data.menu[4].submenu, nullptr);
@@ -149,6 +155,7 @@ namespace {
     EXPECT_STREQ(tray_data.menu[4].submenu[2].text, "PayPal");
     EXPECT_EQ(tray_data.menu[4].submenu[3].text, nullptr);
     EXPECT_STREQ(tray_data.menu[5].text, "-");
+    #ifdef _WIN32
     EXPECT_STREQ(tray_data.menu[6].text, "Reset Display Device Config");
     EXPECT_NE(tray_data.menu[6].cb, nullptr);
     EXPECT_STREQ(tray_data.menu[7].text, "Restart");
@@ -156,6 +163,13 @@ namespace {
     EXPECT_STREQ(tray_data.menu[8].text, "Quit");
     EXPECT_NE(tray_data.menu[8].cb, nullptr);
     EXPECT_EQ(tray_data.menu[9].text, nullptr);
+    #else
+    EXPECT_STREQ(tray_data.menu[6].text, "Restart");
+    EXPECT_NE(tray_data.menu[6].cb, nullptr);
+    EXPECT_STREQ(tray_data.menu[7].text, "Quit");
+    EXPECT_NE(tray_data.menu[7].cb, nullptr);
+    EXPECT_EQ(tray_data.menu[8].text, nullptr);
+    #endif
   #else
     EXPECT_STREQ(tray_data.menu[2].text, "Donate");
     ASSERT_NE(tray_data.menu[2].submenu, nullptr);
@@ -243,6 +257,11 @@ protected:
   #ifdef _WIN32
     original_gamepad_driver_ = config::input.gamepad_driver;
     config::input.gamepad_driver = config::GAMEPAD_DRIVER_ALL;
+  #elif defined(__APPLE__)
+    original_controller_ = config::input.controller;
+    original_gamepad_driver_ = config::input.gamepad_driver;
+    config::input.controller = true;
+    config::input.gamepad_driver = config::GAMEPAD_DRIVER_VIRTUALHID;
   #endif
     EXPECT_EQ(system_tray::end_tray(), 0);
   #ifndef _WIN32
@@ -270,6 +289,9 @@ protected:
     system_tray::reset_tray_data_for_testing();
   #ifdef _WIN32
     config::input.gamepad_driver = std::move(original_gamepad_driver_);
+  #elif defined(__APPLE__)
+    config::input.controller = original_controller_;
+    config::input.gamepad_driver = std::move(original_gamepad_driver_);
   #endif
   }
 
@@ -291,6 +313,9 @@ protected:
 private:
   #ifdef _WIN32
   std::string original_gamepad_driver_;  ///< Original gamepad driver preference restored after each test.
+  #elif defined(__APPLE__)
+  bool original_controller_ = false;  ///< Original gamepad input setting restored after each test.
+  std::string original_gamepad_driver_;  ///< Original gamepad backend setting restored after each test.
   #endif
 };
 
@@ -385,10 +410,10 @@ TEST_F(SystemTrayTest, PromptsForUnsetGamepadDriverEvenWhenLicensed) {
   system_tray::update_tray_virtualhid_license(license, false);
 
   const auto &tray_data = system_tray::tray_data_for_testing();
-  EXPECT_STREQ(tray_data.notification_title, "Choose a Gamepad Driver");
+  EXPECT_STREQ(tray_data.notification_title, "Choose a Gamepad Backend");
   EXPECT_STREQ(
     tray_data.notification_text,
-    "Choose a driver in Input settings. Virtual HID Driver is a paid upgrade; ViGEmBus is limited and has reached end of life."
+    "Choose a gamepad backend in Input settings. Virtual HID Broker is a paid upgrade; ViGEmBus is limited and has reached end of life."
   );
   EXPECT_STREQ(tray_data.notification_icon, tray_data.allIconPaths[4]);
   EXPECT_NE(tray_data.notification_cb, nullptr);
@@ -400,10 +425,10 @@ TEST_F(SystemTrayTest, NotifiesWhenVirtualHidDriverIsUnsupported) {
 
   const auto &tray_data = system_tray::tray_data_for_testing();
   const auto expected_notification = std::format(
-    "Installed Virtual HID Driver v2026.829.2338.54 is not supported by this version of Sunshine. Supported versions: {}. Restart Sunshine after updating. Click for instructions.",
+    "Installed libvirtualhid driver v2026.829.2338.54 is not supported by this version of Sunshine. Supported versions: {}. Restart Sunshine after updating. Click for instructions.",
     supported_versions
   );
-  EXPECT_STREQ(tray_data.notification_title, "Update Virtual HID Driver");
+  EXPECT_STREQ(tray_data.notification_title, "Update Virtual HID Broker");
   EXPECT_STREQ(tray_data.notification_text, expected_notification.c_str());
   EXPECT_STREQ(tray_data.notification_icon, tray_data.allIconPaths[4]);
   EXPECT_NE(tray_data.notification_cb, nullptr);
@@ -455,8 +480,27 @@ TEST_F(SystemTrayTest, VigembusSelectionSuppressesVirtualHidNotifications) {
   EXPECT_EQ(tray_data.notification_cb, nullptr);
 }
 
+TEST_F(SystemTrayTest, NoneSelectionSuppressesWindowsVirtualHidNotifications) {
+  lvh::LicenseStatus license;
+  license.service_available = false;
+  license.state = lvh::LicenseState::unavailable;
+  config::input.gamepad_driver = config::GAMEPAD_DRIVER_NONE;
+
+  system_tray::update_tray_virtualhid_license(license, true);
+
+  const auto &tray_data = system_tray::tray_data_for_testing();
+  EXPECT_EQ(tray_data.notification_title, nullptr);
+  EXPECT_EQ(tray_data.notification_text, nullptr);
+  EXPECT_EQ(tray_data.notification_cb, nullptr);
+  EXPECT_STREQ(tray_data.menu[2].submenu[0].text, "Status: Unavailable");
+
+  const auto supported_versions = std::format(">= {}", LIBVIRTUALHID_MINIMUM_VERSION);
+  system_tray::update_tray_virtualhid_driver(true, "2026.829.2338.54", false, supported_versions);  // NOSONAR(cpp:S1313): not IP addresses
+  EXPECT_EQ(tray_data.notification_title, nullptr);
+}
+
 /**
- * @brief License-state fixture for the Windows Virtual HID Driver tray menu.
+ * @brief License-state fixture for the Windows Virtual HID Broker tray menu.
  */
 class UnlicensedVirtualHidTrayTest:
     public SystemTrayTest,
@@ -478,7 +522,7 @@ TEST_P(UnlicensedVirtualHidTrayTest, PreparesMenuAndStartupNotification) {
   EXPECT_STREQ(license_menu[2].text, "Driver-backed keyboard, mouse, and gamepads are locked");
   EXPECT_STREQ(license_menu[3].text, service_available ? "License service: Available" : "License service: Unavailable");
   verify_virtualhid_actions_menu(license_menu);
-  EXPECT_STREQ(tray_data.notification_title, "Virtual HID Driver License");
+  EXPECT_STREQ(tray_data.notification_title, "Virtual HID Broker License");
   EXPECT_STREQ(
     tray_data.notification_text,
     "Get or manage a license, or use the limited, end-of-life ViGEmBus driver."
@@ -506,6 +550,81 @@ INSTANTIATE_TEST_SUITE_P(
     std::tuple {lvh::LicenseState::invalid, "Invalid", "The license on this machine is invalid", true}
   )
 );
+  #endif
+
+  #ifdef __APPLE__
+TEST_F(SystemTrayTest, ShowsLicensedMacBrokerDetailsBeforeInitialization) {
+  lvh::LicenseStatus license;
+  license.service_available = true;
+  license.state = lvh::LicenseState::licensed;
+  license.plan_name = "Yearly";
+  license.customer_email = "customer@example.com";
+  license.activation_usage = 2;
+  license.activation_limit = 5;
+
+  system_tray::update_tray_virtualhid_license(license, true);
+
+  const auto &tray_data = system_tray::tray_data_for_testing();
+  ASSERT_EQ(tray_data.iconPathCount, 5);
+  const auto *menu = tray_data.menu[2].submenu;
+  ASSERT_NE(menu, nullptr);
+  EXPECT_STREQ(menu[0].text, "Status: Licensed");
+  EXPECT_STREQ(menu[1].text, "Plan: Yearly");
+  EXPECT_STREQ(menu[2].text, "Customer: customer@example.com");
+  EXPECT_STREQ(menu[3].text, "Machine activations: 2 / 5");
+  EXPECT_STREQ(menu[4].text, "-");
+  EXPECT_STREQ(menu[5].text, "Get/Manage License");
+  EXPECT_NE(menu[5].cb, nullptr);
+  EXPECT_STREQ(menu[6].text, "Download Virtual HID Broker");
+  EXPECT_NE(menu[6].cb, nullptr);
+  EXPECT_EQ(menu[7].text, nullptr);
+  EXPECT_EQ(tray_data.notification_title, nullptr);
+}
+
+TEST_F(SystemTrayTest, ShowsMacBrokerLicenseAndAvailabilityWithOptionalStartupNotifications) {
+  lvh::LicenseStatus license;
+  license.service_available = true;
+  license.state = lvh::LicenseState::unlicensed;
+
+  system_tray::update_tray_virtualhid_license(license, true);
+
+  const auto &tray_data = system_tray::tray_data_for_testing();
+  const auto *menu = tray_data.menu[2].submenu;
+  ASSERT_NE(menu, nullptr);
+  EXPECT_STREQ(menu[0].text, "Status: Not Activated");
+  EXPECT_STREQ(menu[1].text, "No license is active on this machine");
+  EXPECT_STREQ(menu[2].text, "Virtual gamepads are locked");
+  EXPECT_STREQ(menu[3].text, "License service: Available");
+  EXPECT_STREQ(tray_data.notification_title, "Virtual HID Broker License");
+  EXPECT_STREQ(tray_data.notification_text, "Activate a machine license to use virtual gamepads. Click to manage the license.");
+  EXPECT_STREQ(tray_data.notification_icon, tray_data.allIconPaths[4]);
+  EXPECT_NE(tray_data.notification_cb, nullptr);
+
+  license.service_available = false;
+  license.state = lvh::LicenseState::unavailable;
+  system_tray::update_tray_virtualhid_license(license, true);
+  EXPECT_STREQ(menu[0].text, "Status: Unavailable");
+  EXPECT_STREQ(menu[3].text, "License service: Unavailable");
+  EXPECT_STREQ(tray_data.notification_title, "Virtual HID Broker Is Unavailable");
+  EXPECT_STREQ(tray_data.notification_text, "Install and start Virtual HID Broker to use virtual gamepads. Click to download.");
+  EXPECT_STREQ(tray_data.notification_icon, tray_data.allIconPaths[4]);
+  EXPECT_NE(tray_data.notification_cb, nullptr);
+
+  system_tray::update_tray_virtualhid_license(license, false);
+  EXPECT_EQ(tray_data.notification_title, nullptr);
+  EXPECT_EQ(tray_data.notification_cb, nullptr);
+
+  config::input.gamepad_driver = config::GAMEPAD_DRIVER_NONE;
+  system_tray::update_tray_virtualhid_license(license, true);
+  EXPECT_EQ(tray_data.notification_title, nullptr);
+  EXPECT_EQ(tray_data.notification_cb, nullptr);
+  EXPECT_STREQ(menu[0].text, "Status: Unavailable");
+
+  config::input.gamepad_driver = config::GAMEPAD_DRIVER_VIRTUALHID;
+  config::input.controller = false;
+  system_tray::update_tray_virtualhid_license(license, true);
+  EXPECT_EQ(tray_data.notification_title, nullptr);
+}
   #endif
 
   #ifndef _WIN32

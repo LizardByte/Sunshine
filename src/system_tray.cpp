@@ -27,7 +27,7 @@
   #define TRAY_ICON_LOCKED WEB_DIR "images/sunshine-locked.svg"
   /**
    * @def TRAY_ICON_VIRTUALHID
-   * @brief Path to the Virtual HID Driver notification icon.
+   * @brief Path to the Virtual HID Broker notification icon.
    */
   #define TRAY_ICON_VIRTUALHID WEB_DIR "images/logo-libvirtualhid.svg"
 
@@ -65,7 +65,7 @@
   // lib includes
   #include <boost/filesystem.hpp>
   #include <tray.h>
-  #ifdef _WIN32
+  #if defined(_WIN32) || defined(__APPLE__)
     #include <libvirtualhid/license.hpp>
   #endif
 
@@ -134,9 +134,9 @@ namespace system_tray {
       }
     };
 
-  #ifdef _WIN32
+  #if defined(_WIN32) || defined(__APPLE__)
     /**
-     * @brief Access storage for dynamic Virtual HID Driver license menu labels.
+     * @brief Access storage for dynamic Virtual HID Broker license menu labels.
      *
      * @return Persistent string storage backing the tray menu label pointers.
      */
@@ -145,8 +145,9 @@ namespace system_tray {
       return menu_text;
     }
 
+    #ifdef _WIN32
     /**
-     * @brief Access storage for the Virtual HID Driver compatibility notification.
+     * @brief Access storage for the Virtual HID Broker compatibility notification.
      *
      * @return Persistent string storage backing the tray notification pointer.
      */
@@ -156,12 +157,12 @@ namespace system_tray {
     }
 
     /**
-     * @brief Access persistent storage for the Virtual HID Driver benefits menu.
+     * @brief Access persistent storage for the Virtual HID Broker benefits menu.
      *
      * The tray C API requires a mutable submenu pointer even though Sunshine
      * treats these entries as immutable.
      *
-     * @return Persistent Virtual HID Driver benefits menu storage.
+     * @return Persistent Virtual HID Broker benefits menu storage.
      */
     std::array<struct tray_menu, 5> &virtualhid_benefits_menu_storage() {
       static std::array<struct tray_menu, 5> benefits_menu {{
@@ -173,11 +174,12 @@ namespace system_tray {
       }};
       return benefits_menu;
     }
+    #endif
   #endif
   }  // namespace
 
-  #ifdef _WIN32
-  constexpr auto LIBVIRTUALHID_RELEASES_URL = "https://github.com/LizardByte/libvirtualhid/releases/latest"sv;  ///< Latest Virtual HID Driver release.
+  #if defined(_WIN32) || defined(__APPLE__)
+  constexpr auto LIBVIRTUALHID_RELEASES_URL = "https://github.com/LizardByte/libvirtualhid/releases/latest"sv;  ///< Latest Virtual HID Broker release.
   #endif
 
   void tray_open_ui_cb([[maybe_unused]] struct tray_menu *item) {
@@ -197,14 +199,18 @@ namespace system_tray {
     platf::open_url("https://www.paypal.com/paypalme/ReenigneArcher");
   }
 
-  #ifdef _WIN32
+  #if defined(_WIN32) || defined(__APPLE__)
   void tray_virtualhid_license_cb([[maybe_unused]] struct tray_menu *item) {
-    BOOST_LOG(info) << "Opening Virtual HID Driver license settings from system tray"sv;
+    BOOST_LOG(info) << "Opening Virtual HID Broker license settings from system tray"sv;
+    #ifdef _WIN32
     launch_ui(config::input.gamepad_driver == config::GAMEPAD_DRIVER_VIGEMBUS ? "/config#gamepad_driver" : "/troubleshooting#virtualhid-license");
+    #else
+    launch_ui("/troubleshooting#virtualhid-license");
+    #endif
   }
 
   void tray_virtualhid_download_cb([[maybe_unused]] struct tray_menu *item) {
-    BOOST_LOG(info) << "Opening Virtual HID Driver download from system tray"sv;
+    BOOST_LOG(info) << "Opening Virtual HID Broker download from system tray"sv;
     platf::open_url(std::string {LIBVIRTUALHID_RELEASES_URL});
   }
   #endif
@@ -261,9 +267,9 @@ namespace system_tray {
     lifetime::exit_sunshine(0, true);
   }
 
-  #ifdef _WIN32
+  #if defined(_WIN32) || defined(__APPLE__)
   /**
-   * @brief Create the initial Virtual HID Driver license submenu.
+   * @brief Create the initial Virtual HID Broker license submenu.
    *
    * @return Menu storage with a checking state, benefits, license settings, and driver download.
    */
@@ -272,12 +278,16 @@ namespace system_tray {
     menu[0] = {.text = "Status: Checking", .disabled = 1};
     menu[1] = {.text = "-"};
     menu[2] = {.text = "Get/Manage License", .cb = tray_virtualhid_license_cb};
-    menu[3] = {.text = "Virtual HID Driver Benefits", .submenu = virtualhid_benefits_menu_storage().data()};
-    menu[4] = {.text = "Download Virtual HID Driver", .cb = tray_virtualhid_download_cb};
+    #ifdef _WIN32
+    menu[3] = {.text = "Virtual HID Broker Benefits", .submenu = virtualhid_benefits_menu_storage().data()};
+    menu[4] = {.text = "Download Virtual HID Broker", .cb = tray_virtualhid_download_cb};
+    #else
+    menu[3] = {.text = "Download Virtual HID Broker", .cb = tray_virtualhid_download_cb};
+    #endif
     return menu;
   }
 
-  static auto virtualhid_license_menu = initial_virtualhid_license_menu();  ///< Virtual HID Driver license submenu.
+  static auto virtualhid_license_menu = initial_virtualhid_license_menu();  ///< Virtual HID Broker license submenu.
   #endif
 
   // Tray menu
@@ -289,8 +299,8 @@ namespace system_tray {
         // Tray menu labels currently use the project's English source strings.
         {.text = "Open Sunshine", .cb = tray_open_ui_cb},
         {.text = "-"},
-  #ifdef _WIN32
-        {.text = "Virtual HID Driver", .submenu = virtualhid_license_menu.data()},
+  #if defined(_WIN32) || defined(__APPLE__)
+        {.text = "Virtual HID Broker", .submenu = virtualhid_license_menu.data()},
         {.text = "-"},
   #endif
         {.text = "Donate",
@@ -310,7 +320,7 @@ namespace system_tray {
         {.text = "Quit", .cb = tray_quit_cb},
         {.text = nullptr}
       },
-  #ifdef _WIN32
+  #if defined(_WIN32) || defined(__APPLE__)
     .iconPathCount = 5,
     .allIconPaths = {TRAY_ICON, TRAY_ICON_LOCKED, TRAY_ICON_PLAYING, TRAY_ICON_PAUSING, TRAY_ICON_VIRTUALHID},
   #else
@@ -336,17 +346,19 @@ namespace system_tray {
     tray.notification_text = nullptr;
     tray.notification_title = nullptr;
     tray.notification_cb = nullptr;
-    #ifdef _WIN32
+    #if defined(_WIN32) || defined(__APPLE__)
     virtualhid_license_menu_text_storage() = {};
+      #ifdef _WIN32
     virtualhid_driver_notification_text_storage().clear();
+      #endif
     virtualhid_license_menu = initial_virtualhid_license_menu();
     #endif
   }
   #endif
 
-  #ifdef _WIN32
+  #if defined(_WIN32) || defined(__APPLE__)
   /**
-   * @brief Return the user-visible label for a Virtual HID Driver license state.
+   * @brief Return the user-visible label for a Virtual HID Broker license state.
    *
    * @param state License state reported by libvirtualhid.
    * @return Short state label suitable for a tray menu.
@@ -398,7 +410,7 @@ namespace system_tray {
   }
 
   /**
-   * @brief Assign text and behavior to one Virtual HID Driver submenu item.
+   * @brief Assign text and behavior to one Virtual HID Broker submenu item.
    *
    * @tparam Callback Callback type accepted by the tray library.
    * @param index Submenu index to populate.
@@ -423,7 +435,7 @@ namespace system_tray {
   }
 
   /**
-   * @brief Rebuild the Virtual HID Driver submenu for the latest license state.
+   * @brief Rebuild the Virtual HID Broker submenu for the latest license state.
    *
    * @param license Latest machine license details.
    */
@@ -452,7 +464,11 @@ namespace system_tray {
       );
     } else {
       set_virtualhid_license_menu_item(1, std::string {virtualhid_license_state_detail(license.state)}, true);
+    #ifdef _WIN32
       set_virtualhid_license_menu_item(2, "Driver-backed keyboard, mouse, and gamepads are locked", true);
+    #else
+      set_virtualhid_license_menu_item(2, "Virtual gamepads are locked", true);
+    #endif
       set_virtualhid_license_menu_item(
         3,
         license.service_available ? "License service: Available" : "License service: Unavailable",
@@ -461,9 +477,13 @@ namespace system_tray {
     }
     virtualhid_license_menu[4] = {.text = "-"};
     set_virtualhid_license_menu_item(5, "Get/Manage License", false, tray_virtualhid_license_cb);
-    set_virtualhid_license_menu_item(6, "Virtual HID Driver Benefits", false);
+    #ifdef _WIN32
+    set_virtualhid_license_menu_item(6, "Virtual HID Broker Benefits", false);
     virtualhid_license_menu[6].submenu = virtualhid_benefits_menu_storage().data();
-    set_virtualhid_license_menu_item(7, "Download Virtual HID Driver", false, tray_virtualhid_download_cb);
+    set_virtualhid_license_menu_item(7, "Download Virtual HID Broker", false, tray_virtualhid_download_cb);
+    #else
+    set_virtualhid_license_menu_item(6, "Download Virtual HID Broker", false, tray_virtualhid_download_cb);
+    #endif
   }
 
   /**
@@ -481,16 +501,17 @@ namespace system_tray {
     clear_tray_notification();
     rebuild_virtualhid_license_menu(license);
 
-    if (config::input.gamepad_driver.empty()) {
-      tray.notification_title = "Choose a Gamepad Driver";
+    #ifdef _WIN32
+    if (config::input.controller && config::input.gamepad_driver.empty()) {
+      tray.notification_title = "Choose a Gamepad Backend";
       tray.notification_text =
-        "Choose a driver in Input settings. Virtual HID Driver is a paid upgrade; ViGEmBus is limited and has reached end of life.";
+        "Choose a gamepad backend in Input settings. Virtual HID Broker is a paid upgrade; ViGEmBus is limited and has reached end of life.";
       tray.notification_icon = tray.allIconPaths[4];
       tray.notification_cb = []() {
         launch_ui("/config#gamepad_driver");
       };
-    } else if (config::input.gamepad_driver != config::GAMEPAD_DRIVER_VIGEMBUS && notify_if_unlicensed && !license.licensed()) {
-      tray.notification_title = "Virtual HID Driver License";
+    } else if (config::input.controller && config::input.gamepad_driver != config::GAMEPAD_DRIVER_NONE && config::input.gamepad_driver != config::GAMEPAD_DRIVER_VIGEMBUS && notify_if_unlicensed && !license.licensed()) {
+      tray.notification_title = "Virtual HID Broker License";
       tray.notification_text =
         "Get or manage a license, or use the limited, end-of-life ViGEmBus driver.";
       tray.notification_icon = tray.allIconPaths[4];
@@ -498,6 +519,24 @@ namespace system_tray {
         launch_ui("/troubleshooting#virtualhid-license");
       };
     }
+    #else
+    if (config::input.controller && config::input.gamepad_driver != config::GAMEPAD_DRIVER_NONE && notify_if_unlicensed && !license.licensed()) {
+      if (license.service_available) {
+        tray.notification_title = "Virtual HID Broker License";
+        tray.notification_text = "Activate a machine license to use virtual gamepads. Click to manage the license.";
+        tray.notification_cb = []() {
+          launch_ui("/troubleshooting#virtualhid-license");
+        };
+      } else {
+        tray.notification_title = "Virtual HID Broker Is Unavailable";
+        tray.notification_text = "Install and start Virtual HID Broker to use virtual gamepads. Click to download.";
+        tray.notification_cb = []() {
+          tray_virtualhid_download_cb(nullptr);
+        };
+      }
+      tray.notification_icon = tray.allIconPaths[4];
+    }
+    #endif
 
     if (tray_initialized_state().load()) {
       tray_update(&tray);
@@ -509,13 +548,14 @@ namespace system_tray {
     update_tray_virtualhid_license(result.license, !result.license.licensed());
   }
 
+    #ifdef _WIN32
   void update_tray_virtualhid_driver(
     const bool installed,
     const std::string_view version,
     const bool version_compatible,
     const std::string_view supported_versions
   ) {
-    if (config::input.gamepad_driver.empty() || config::input.gamepad_driver == config::GAMEPAD_DRIVER_VIGEMBUS || !installed || version_compatible) {
+    if (config::input.gamepad_driver.empty() || config::input.gamepad_driver == config::GAMEPAD_DRIVER_NONE || config::input.gamepad_driver == config::GAMEPAD_DRIVER_VIGEMBUS || !installed || version_compatible) {
       return;
     }
 
@@ -525,11 +565,11 @@ namespace system_tray {
     const auto displayed_version = version.empty() ? "unknown" : std::format("v{}", version);
     auto &notification_text = virtualhid_driver_notification_text_storage();
     notification_text = std::format(
-      "Installed Virtual HID Driver {} is not supported by this version of Sunshine. Supported versions: {}. Restart Sunshine after updating. Click for instructions.",
+      "Installed libvirtualhid driver {} is not supported by this version of Sunshine. Supported versions: {}. Restart Sunshine after updating. Click for instructions.",
       displayed_version,
       supported_versions
     );
-    tray.notification_title = "Update Virtual HID Driver";
+    tray.notification_title = "Update Virtual HID Broker";
     tray.notification_text = notification_text.c_str();
     tray.notification_icon = tray.allIconPaths[4];
     tray.notification_cb = []() {
@@ -551,6 +591,7 @@ namespace system_tray {
       status.value("supported_versions", std::string {})
     );
   }
+    #endif
   #endif
 
   /**

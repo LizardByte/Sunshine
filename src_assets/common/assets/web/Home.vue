@@ -21,7 +21,7 @@
       </div>
     </div>
 
-    <!-- Windows virtual input status -->
+    <!-- Virtual gamepad broker status -->
     <div class="alert my-4" :class="virtualInputNotice.alertClass" v-if="virtualInputNotice">
       <div>
         <div class="d-flex align-items-center mb-3">
@@ -197,10 +197,12 @@
           } catch (e) {
             console.error("Failed to fetch virtual input driver status:", e);
           }
+        }
+        if (this.platform === 'windows' || this.platform === 'macos') {
           try {
             this.virtualhidLicense = await fetch("./api/virtual-input/license").then((r) => r.json());
           } catch (e) {
-            console.error("Failed to fetch Virtual HID Driver license status:", e);
+            console.error("Failed to fetch Virtual HID Broker license status:", e);
           }
         }
       } catch (e) {
@@ -215,11 +217,23 @@
     },
     computed: {
       /**
-       * Build the single Windows virtual-input message shown on the home page.
-       * Warnings are reserved for an unusable selected backend, an unsupported
-       * installed driver, or an installed driver with an invalid license.
+       * Build the virtual-input message shown on the home page.
+       * Warn about broker or gamepad driver issues when virtual gamepads are enabled.
        */
       virtualInputNotice() {
+        if (!this.controllerEnabled || this.gamepadDriver === 'none') {
+          return null;
+        }
+
+        if (this.platform === 'macos') {
+          if (!this.virtualhidLicense || this.virtualhidLicense.licensed) {
+            return null;
+          }
+          return this.virtualhidLicense.service_available
+            ? this.buildVirtualInputNotice(true, 'index.virtualhid_macos_license_title', [{ key: 'index.virtualhid_macos_license_desc' }])
+            : this.buildVirtualInputNotice(true, 'index.virtualhid_broker_unavailable_title', [{ key: 'index.virtualhid_macos_broker_desc' }]);
+        }
+
         if (this.platform !== 'windows' || !this.virtualhid || !this.vigembus) {
           return null;
         }
@@ -245,7 +259,7 @@
         }
 
         if (this.gamepadDriver === 'virtualhid') {
-          return this.buildVirtualInputNotice(true, 'index.virtualhid_required_title', [{ key: 'index.virtualhid_required_desc' }]);
+          return this.buildVirtualInputNotice(true, 'index.virtualhid_broker_unavailable_title', [{ key: 'index.virtualhid_required_desc' }]);
         }
 
         if (this.controllerEnabled && !vigembusUsable) {
@@ -294,7 +308,7 @@
     },
     methods: {
       /**
-       * Build a home-page notice for the current Windows virtual-input state.
+       * Build a home-page notice for the current virtual-input state.
        *
        * @param {boolean} warning Whether the notice represents an actionable warning.
        * @param {string} title Localization key for the notice title.
