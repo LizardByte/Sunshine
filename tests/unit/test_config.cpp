@@ -18,6 +18,10 @@
 
 using namespace std::literals;
 
+TEST(ConfigDefaultsTest, UsesAutomaticGamepadSelection) {
+  EXPECT_EQ(config::input.gamepad, "auto");
+}
+
 using NvencPresetNameParam = std::pair<int, std::string_view>;
 
 /**

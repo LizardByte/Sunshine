@@ -364,7 +364,9 @@ supported on the current platform.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            The type of gamepad to emulate on the host.
+            The type of gamepad to emulate on the host. Automatic selection uses the controller type
+            reported by the client. If the type is unknown, Sunshine can select a PlayStation-style
+            controller from reported motion or touchpad support; otherwise it uses an Xbox-style controller.
             @note{When gamepad_driver is `vigembus` on Windows, only auto, x360, and ds4 are available.}
         </td>
     </tr>
