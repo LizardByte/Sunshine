@@ -13,6 +13,8 @@
 
 // platform includes
 #ifdef __APPLE__
+  #include "platform/macos/misc.h"
+
   #include <mach-o/dyld.h>
 #endif
 #ifdef __linux__
@@ -38,6 +40,7 @@
 #include "logging.h"
 #include "main.h"
 #include "nvhttp.h"
+#include "platform/permissions.h"
 #include "process.h"
 #include "system_tray.h"
 #include "upnp.h"
@@ -440,6 +443,13 @@ int main(int argc, char *argv[]) {
     BOOST_LOG(error) << "Platform failed to initialize"sv;
   }
 
+  // Capture the pre-request state so access granted during this launch causes
+  // one clean restart after every verifiable required permission is available.
+  const bool permission_restart_needed = !platf::required_permissions_granted(platf::get_permission_statuses());
+#ifdef __APPLE__
+  platf::request_startup_permissions(tray_is_enabled && config::sunshine.system_tray);
+#endif
+
   auto proc_deinit_guard = proc::init();
   if (!proc_deinit_guard) {
     BOOST_LOG(error) << "Proc failed to initialize"sv;
@@ -512,7 +522,44 @@ int main(int argc, char *argv[]) {
 #endif
   }
 
+#ifdef __APPLE__
+  // Core Audio has no passive system-audio authorization check. A short,
+  // unmuted tap asks macOS for access before the first stream starts.
+  std::jthread macos_audio_permission_requester;
+  if (!permission_restart_needed && config::audio.sink.empty()) {
+    macos_audio_permission_requester = std::jthread([]() {
+      if (!platf::request_system_audio_permission()) {
+        BOOST_LOG(warning) << "System audio recording permission or tap setup is unavailable"sv;
+      }
+    });
+  }
+#endif
+
+  std::jthread permission_watcher;
+  if (permission_restart_needed) {
+    permission_watcher = std::jthread([](std::stop_token stop) {
+      while (!stop.stop_requested()) {
+        if (platf::required_permissions_granted(platf::get_permission_statuses())) {
+          BOOST_LOG(info) << "Required permissions granted; restarting Sunshine"sv;
+          platf::restart();
+          return;
+        }
+        std::this_thread::sleep_for(2s);
+      }
+    });
+  }
+
   mainThreadLoop(shutdown_event);
+
+  permission_watcher.request_stop();
+  if (permission_watcher.joinable()) {
+    permission_watcher.join();
+  }
+#ifdef __APPLE__
+  if (macos_audio_permission_requester.joinable()) {
+    macos_audio_permission_requester.join();
+  }
+#endif
 
   httpThread.join();
   configThread.join();

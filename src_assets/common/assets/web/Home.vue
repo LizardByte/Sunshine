@@ -21,6 +21,17 @@
       </div>
     </div>
 
+    <div class="alert alert-warning my-4" v-if="missingPermissions.length">
+      <div class="d-flex align-items-center gap-3 mb-2">
+        <alert-triangle :size="24" class="icon"></alert-triangle>
+        <strong>{{ $t('index.permissions_missing_title') }}</strong>
+      </div>
+      <p>{{ $t('index.permissions_missing_desc') }}</p>
+      <RouterLink class="btn btn-warning" to="/troubleshooting#permissions">
+        {{ $t('index.permissions_review') }}
+      </RouterLink>
+    </div>
+
     <!-- Virtual gamepad broker status -->
     <div class="alert my-4" :class="virtualInputNotice.alertClass" v-if="virtualInputNotice">
       <div>
@@ -172,6 +183,7 @@
         virtualhid: null,
         virtualhidLicense: null,
         vigembus: null,
+        permissions: [],
       }
     },
     async created() {
@@ -182,6 +194,12 @@
         this.controllerEnabled = config.controller !== "disabled";
         this.gamepadDriver = config.gamepad_driver || '';
         this.version = new SunshineVersion(null, config.version);
+        try {
+          const response = await fetch('./api/permissions');
+          this.permissions = (await response.json()).permissions || [];
+        } catch (e) {
+          console.error('Failed to fetch permission status:', e);
+        }
         console.log("Version: ", this.version.version)
         this.githubVersion = new SunshineVersion(await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest").then((r) => r.json()), null);
         console.log("GitHub Version: ", this.githubVersion.version)
@@ -218,6 +236,10 @@
       this.loading = false;
     },
     computed: {
+      /** Return required permissions that the current platform can check and has not granted. */
+      missingPermissions() {
+        return this.permissions.filter(permission => permission.required && permission.verifiable && permission.status !== 'granted');
+      },
       /**
        * Build the virtual-input message shown on the home page.
        * Warn about broker or gamepad driver issues when virtual gamepads are enabled.

@@ -175,6 +175,22 @@ namespace confighttp {
 
   void getVirtualInputStatus(const resp_https_t &response, const req_https_t &request);
 
+  /**
+   * @brief Return the host's permission statuses to the Web UI.
+   *
+   * @param response HTTPS response receiving the status JSON.
+   * @param request Authenticated HTTPS request.
+   */
+  void getPermissions(const resp_https_t &response, const req_https_t &request);
+
+  /**
+   * @brief Initiate a native permission request from the Web UI.
+   *
+   * @param response HTTPS response receiving the request result.
+   * @param request Authenticated, CSRF protected request.
+   */
+  void requestPermission(const resp_https_t &response, const req_https_t &request);
+
   void getVirtualInputLicense(const resp_https_t &response, const req_https_t &request);
 
   void updateVirtualInputLicense(const resp_https_t &response, const req_https_t &request);
@@ -182,6 +198,18 @@ namespace confighttp {
   void resetPortalToken(const resp_https_t &response, const req_https_t &request);
 
 #ifdef SUNSHINE_TESTS
+  /**
+   * @brief Replace native permission statuses for deterministic HTTP tests.
+   *
+   * @param permissions JSON array returned by the status endpoint.
+   */
+  void set_permission_statuses_for_testing(nlohmann::json permissions);
+
+  /**
+   * @brief Restore native permission status queries after HTTP tests.
+   */
+  void reset_permission_statuses_for_testing();
+
   using virtual_input_license_status_provider_t = std::function<lvh::LicenseResult()>;  ///< Test provider for current libvirtualhid license status.
   using portal_token_path_provider_t = std::function<std::filesystem::path()>;  ///< Test provider for the XDG Portal token path.
 

@@ -120,6 +120,10 @@ protected:
       license.message = "Test license status";
       return lvh::LicenseResult {lvh::OperationStatus::success(), std::move(license)};
     });
+    confighttp::set_permission_statuses_for_testing(nlohmann::json::array({
+      {{"id", "screen_recording"}, {"status", "denied"}, {"required", true}, {"verifiable", true}},
+      {{"id", "notifications"}, {"status", "granted"}, {"required", false}, {"verifiable", true}},
+    }));
 
     // Save current config
     saved_username = config::sunshine.username;
@@ -328,6 +332,8 @@ protected:
     server->resource["^/virtual-input-status-test$"]["GET"] = confighttp::getVirtualInputStatus;
     server->resource["^/virtual-input-license-test$"]["GET"] = confighttp::getVirtualInputLicense;
     server->resource["^/virtual-input-license-test$"]["POST"] = confighttp::updateVirtualInputLicense;
+    server->resource["^/permissions-test$"]["GET"] = confighttp::getPermissions;
+    server->resource["^/permissions-test$"]["POST"] = confighttp::requestPermission;
     server->resource["^/pairing-test$"]["DELETE"] = confighttp::cancelPairing;
     server->resource["^/pairing-test$"]["GET"] = confighttp::getPendingPairings;
     server->resource["^/pairing-test$"]["POST"] = confighttp::savePin;
@@ -366,6 +372,7 @@ protected:
       server_thread.join();
     }
     confighttp::reset_virtual_input_license_status_provider_for_testing();
+    confighttp::reset_permission_statuses_for_testing();
     confighttp::reset_portal_token_path_provider_for_testing();
 
     config::sunshine.username = saved_username;
@@ -1672,6 +1679,43 @@ TEST_F(ConfigHttpTest, VirtualInputStatusReturnsBothBackends) {
   ASSERT_TRUE(body.contains("vigembus"));
   EXPECT_TRUE(body.at("virtualhid").contains("installed"));
   EXPECT_TRUE(body.at("vigembus").contains("installed"));
+}
+
+TEST_F(ConfigHttpTest, PermissionsEndpointRequiresAuthenticationAndCsrf) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Content-Type", "application/json");
+  EXPECT_EQ(client->request("GET", "/permissions-test", "", headers)->status_code, "401 Unauthorized");
+  EXPECT_EQ(client->request("POST", "/permissions-test", R"({"id":"screen_recording"})", headers)->status_code, "401 Unauthorized");
+
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Origin", "https://example.invalid");
+  const auto response = client->request("POST", "/permissions-test", R"({"id":"screen_recording"})", headers);
+  EXPECT_EQ(response->status_code, "400 Bad Request");
+  EXPECT_TRUE(response->content.string().contains("Missing CSRF token"));
+}
+
+TEST_F(ConfigHttpTest, PermissionsEndpointReturnsRequiredAndOptionalStatuses) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", "/permissions-test", "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+  const auto body = nlohmann::json::parse(response->content.string());
+  ASSERT_EQ(body.at("permissions").size(), 2U);
+  EXPECT_EQ(body.at("permissions").at(0).at("id"), "screen_recording");
+  EXPECT_TRUE(body.at("permissions").at(0).at("required").get<bool>());
+  EXPECT_FALSE(body.at("permissions").at(1).at("required").get<bool>());
+}
+
+TEST_F(ConfigHttpTest, PermissionsEndpointRejectsMalformedAndUnknownRequests) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Content-Type", "application/json");
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Origin", std::format("https://localhost:{}", port));
+
+  EXPECT_EQ(client->request("POST", "/permissions-test", "not-json", headers)->status_code, "400 Bad Request");
+  EXPECT_EQ(client->request("POST", "/permissions-test", R"({"id":1})", headers)->status_code, "400 Bad Request");
+  EXPECT_EQ(client->request("POST", "/permissions-test", R"({"id":"unknown"})", headers)->status_code, "400 Bad Request");
 }
 
 TEST_F(ConfigHttpTest, VirtualInputLicenseReturnsCurrentStatus) {

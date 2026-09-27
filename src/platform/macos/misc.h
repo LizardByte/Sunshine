@@ -7,10 +7,33 @@
 // standard includes
 #include <vector>
 
-// platform includes
-#include <CoreGraphics/CoreGraphics.h>
+// local includes
+#include "src/platform/permissions.h"
 
 namespace platf {
+  /**
+   * @brief Decide whether startup should initiate a native permission request.
+   *
+   * @param permission Permission status and requirement for the active configuration.
+   * @param notifications_enabled Whether the system tray uses notifications.
+   * @return True when a missing permission should be requested.
+   */
+  bool should_request_startup_permission(const permission_status_t &permission, bool notifications_enabled);
+
+  /**
+   * @brief Request missing permissions needed at startup.
+   *
+   * @param notifications_enabled Whether the running build shows tray notifications.
+   */
+  void request_startup_permissions(bool notifications_enabled);
+
+  /**
+   * @brief Start and stop an unmuted Core Audio tap to request system audio access.
+   *
+   * @return True when the temporary tap started successfully.
+   */
+  bool request_system_audio_permission();
+
   /**
    * @brief Check whether macOS has granted screen-capture permission.
    *

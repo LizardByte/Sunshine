@@ -563,7 +563,18 @@ systemctl --user --now enable app-dev.lizardbyte.app.Sunshine
 > XDG Desktop Portal, but it is also aliased to "sunshine.service" for convenience.
 
 ### macOS
-The first time you start Sunshine, you will be asked to grant access to screen recording and your microphone.
+On first launch, Sunshine requests Screen Recording and keyboard and mouse control when those features are enabled.
+It also requests Microphone access if you configured a custom **Audio Sink**, and optional Notifications access when
+the system tray is enabled. Open **Troubleshooting > Permissions** in the Web UI to review these permissions or
+open their System Settings pages. Sunshine restarts once after missing required permissions are granted, including
+when a permission was removed and later restored.
+
+macOS requests Local Network access when Sunshine advertises itself with Bonjour. When the other required permissions
+are ready, Sunshine briefly starts an unmuted system audio tap to request System Audio Recording access before the
+first stream. If that tap cannot start, the first stream can still prompt. macOS does not offer Sunshine a passive status
+check for Local Network or System Audio Recording, so the Web UI identifies them as permissions handled when used.
+Virtual gamepad access belongs to the separately installed Virtual HID Broker and is described in the macOS gamepad
+setup above; Sunshine shows the broker's availability and license under **Troubleshooting > Virtual Gamepad**.
 
 Sunshine supports native system audio capture on macOS 14.0 (Sonoma) and newer via Apple’s Audio Tap API.
 To use it, simply leave the **Audio Sink** setting blank.
