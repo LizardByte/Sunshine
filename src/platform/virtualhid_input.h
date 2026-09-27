@@ -281,8 +281,9 @@ namespace platf::virtualhid {
    * @param modcode Portable key code.
    * @param release Whether the key was released.
    * @param flags Bit flags that modify the requested operation.
+   * @param extended Whether the client positively identified an extended key.
    */
-  void keyboard_update(input_context_t &context, std::uint16_t modcode, bool release, std::uint8_t flags);
+  void keyboard_update(input_context_t &context, std::uint16_t modcode, bool release, std::uint8_t flags, bool extended = false);
 
   /**
    * @brief Submit UTF-8 text input.

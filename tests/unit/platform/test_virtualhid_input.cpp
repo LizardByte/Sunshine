@@ -745,6 +745,7 @@ TEST_F(VirtualHidDeviceTest, TranslatesMouseAndKeyboardInput) {
   auto keyboard_event = context()->keyboard->last_submitted_event();
   EXPECT_EQ(keyboard_event.key_code, 0x41);
   EXPECT_TRUE(keyboard_event.pressed);
+  EXPECT_FALSE(keyboard_event.extended);
 #ifdef _WIN32
   EXPECT_TRUE(keyboard_event.uses_normalized_key_code);
   EXPECT_TRUE(keyboard_event.prefer_native_scan_code);
@@ -758,6 +759,10 @@ TEST_F(VirtualHidDeviceTest, TranslatesMouseAndKeyboardInput) {
   keyboard_event = context()->keyboard->last_submitted_event();
 #endif
   EXPECT_FALSE(keyboard_event.pressed);
+  platf::virtualhid::keyboard_update(*context(), 0x0D, false, 0, true);
+  keyboard_event = context()->keyboard->last_submitted_event();
+  EXPECT_EQ(keyboard_event.key_code, 0x0D);
+  EXPECT_TRUE(keyboard_event.extended);
 
   const auto keyboard_submit_count = context()->keyboard->submit_count();
   const std::string text = "Sunshine \u{2600}";
@@ -950,6 +955,8 @@ TEST_F(VirtualHidDeviceTest, PlatformWrappersForwardToVirtualHidContext) {
   EXPECT_EQ(platform_context.mouse->last_submitted_event().kind, lvh::MouseEventKind::horizontal_scroll);
   platf::keyboard_update(platform_input, 0x41, false, 0);
   EXPECT_EQ(platform_context.keyboard->last_submitted_event().key_code, 0x41);
+  platf::keyboard_update(platform_input, 0x0D, false, 0, true);
+  EXPECT_TRUE(platform_context.keyboard->last_submitted_event().extended);
   const std::string text = "wrapper";
   const auto keyboard_count = platform_context.keyboard->submit_count();
   platf::unicode(platform_input, text.data(), static_cast<int>(text.size()));
