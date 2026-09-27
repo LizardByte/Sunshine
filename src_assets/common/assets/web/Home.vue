@@ -188,12 +188,14 @@
         this.preReleaseVersion = new SunshineVersion((await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases").then((r) => r.json())).find(release => release.prerelease), null);
         console.log("Pre-Release Version: ", this.preReleaseVersion.version)
 
-        // The Virtual HID Driver also backs relative mouse input when controllers are disabled.
-        if (this.platform === 'windows') {
+        // Read the broker version on both platforms to identify development builds.
+        if (this.platform === 'windows' || this.platform === 'macos') {
           try {
             const virtualInputStatus = await fetch("./api/virtual-input/status").then((r) => r.json());
             this.virtualhid = virtualInputStatus.virtualhid;
-            this.vigembus = virtualInputStatus.vigembus;
+            if (this.platform === 'windows') {
+              this.vigembus = virtualInputStatus.vigembus;
+            }
           } catch (e) {
             console.error("Failed to fetch virtual input driver status:", e);
           }
@@ -226,12 +228,14 @@
         }
 
         if (this.platform === 'macos') {
-          if (!this.virtualhidLicense || this.virtualhidLicense.licensed) {
-            return null;
+          if (this.virtualhidLicense && !this.virtualhidLicense.licensed) {
+            return this.virtualhidLicense.service_available
+              ? this.buildVirtualInputNotice(true, 'index.virtualhid_macos_license_title', [{ key: 'index.virtualhid_macos_license_desc' }])
+              : this.buildVirtualInputNotice(true, 'index.virtualhid_broker_unavailable_title', [{ key: 'index.virtualhid_macos_broker_desc' }]);
           }
-          return this.virtualhidLicense.service_available
-            ? this.buildVirtualInputNotice(true, 'index.virtualhid_macos_license_title', [{ key: 'index.virtualhid_macos_license_desc' }])
-            : this.buildVirtualInputNotice(true, 'index.virtualhid_broker_unavailable_title', [{ key: 'index.virtualhid_macos_broker_desc' }]);
+          return this.virtualhid?.development_version
+            ? this.buildVirtualInputNotice(false, 'index.virtualhid_development_title', [{ key: 'index.virtualhid_development_desc' }])
+            : null;
         }
 
         if (this.platform !== 'windows' || !this.virtualhid || !this.vigembus) {
