@@ -67,6 +67,7 @@ namespace {
     void SetUp() override {
       original_input_ = config::input;
       config::input.controller = true;
+      config::input.mouse = true;
       config::input.gamepad = "xseries";
 
       auto platform_input = platf::input();
@@ -296,4 +297,55 @@ TEST_F(InputGamepadSessionTest, RefreshesSharedVirtualInputAfterLicenseStateChan
   EXPECT_NE(context().keyboard->device_id(), original_keyboard_id);
   EXPECT_NE(context().mouse->device_id(), original_mouse_id);
   EXPECT_EQ(runtime().active_device_count(), active_devices);
+}
+
+TEST_F(InputGamepadSessionTest, RetargetsRelativeMouseFromLatestStreamGeometry) {
+  auto session_mail = std::make_shared<safe::mail_raw_t>();
+  auto stream_input = input::alloc(session_mail, "relative-mouse-client");
+  ASSERT_NE(stream_input, nullptr);
+
+  input::touch_port_t left_viewport {
+    {
+      .offset_x = -1920,
+      .offset_y = 0,
+      .width = 1920,
+      .height = 1080,
+      .logical_width = 1920,
+      .logical_height = 1080,
+      .env_offset_x = -1920,
+      .env_offset_y = 0,
+    },
+    3840,
+    1080,
+    0.0F,
+    0.0F,
+    1.0F,
+    1.0F,
+    3840,
+    1080,
+  };
+
+  const auto initial_mouse_id = context().mouse->device_id();
+  session_mail->event<input::touch_port_t>(mail::touch_port)->raise(left_viewport);
+  input::testing::send_relative_mouse_packet(stream_input, 12, -7);
+  const auto left_mouse_id = context().mouse->device_id();
+  EXPECT_NE(left_mouse_id, initial_mouse_id);
+  auto mouse_event = context().mouse->last_submitted_event();
+  EXPECT_EQ(mouse_event.kind, lvh::MouseEventKind::relative_motion);
+  EXPECT_EQ(mouse_event.x, 12);
+  EXPECT_EQ(mouse_event.y, -7);
+  EXPECT_EQ(context().mouse_desktop.offset_x, -1920);
+  EXPECT_EQ(context().mouse_desktop.width, 3840);
+  EXPECT_EQ(context().mouse_viewport.offset_x, -1920);
+  EXPECT_EQ(context().mouse_viewport.width, 1920);
+
+  left_viewport.offset_x = 0;
+  session_mail->event<input::touch_port_t>(mail::touch_port)->raise(left_viewport);
+  input::testing::send_relative_mouse_packet(stream_input, -5, 9);
+  EXPECT_NE(context().mouse->device_id(), left_mouse_id);
+  mouse_event = context().mouse->last_submitted_event();
+  EXPECT_EQ(mouse_event.kind, lvh::MouseEventKind::relative_motion);
+  EXPECT_EQ(mouse_event.x, -5);
+  EXPECT_EQ(mouse_event.y, 9);
+  EXPECT_EQ(context().mouse_viewport.offset_x, 0);
 }

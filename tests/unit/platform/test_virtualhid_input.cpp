@@ -5,6 +5,7 @@
 
 // test includes
 #include "../../tests_common.h"
+#include "../../tests_log_checker.h"
 
 // standard includes
 #include <array>
@@ -293,6 +294,24 @@ TEST_F(VirtualHidDeviceTest, RejectsUnavailableAndInvalidGamepadSlots) {
   EXPECT_FALSE(platf::virtualhid::has_gamepad(*context(), static_cast<int>(context()->gamepads.size())));
   EXPECT_EQ(platf::virtualhid::gamepad_adapter_for_testing(*context(), 0), nullptr);
   EXPECT_EQ(platf::virtualhid::rebind_gamepad(*context(), valid_id, feedback_queue()), -1);
+}
+
+TEST_F(VirtualHidDeviceTest, RoutesLibvirtualhidDiagnosticsToSunshineLog) {
+  auto runtime = platf::virtualhid::create_runtime(lvh::BackendKind::fake);
+  ASSERT_NE(runtime, nullptr);
+
+  auto created = runtime->create_mouse();
+  ASSERT_TRUE(created);
+  ASSERT_NE(created.mouse, nullptr);
+  EXPECT_TRUE(created.mouse->move_relative(1, -1).ok());
+  EXPECT_FALSE(created.mouse->move_absolute(0, 0, 0, 1).ok());
+  EXPECT_TRUE(created.mouse->close().ok());
+  EXPECT_FALSE(created.mouse->move_relative(1, 1).ok());
+
+  EXPECT_TRUE(log_checker::line_contains("test_sunshine.log", "Info: [libvirtualhid] initialized fake backend"));
+  EXPECT_TRUE(log_checker::line_contains("test_sunshine.log", "Debug: [libvirtualhid] mouse "));
+  EXPECT_TRUE(log_checker::line_contains("test_sunshine.log", "Warning: [libvirtualhid] rejected mouse event:"));
+  EXPECT_TRUE(log_checker::line_contains("test_sunshine.log", "Error: [libvirtualhid] mouse input failed: mouse is closed"));
 }
 
 TEST_F(VirtualHidDeviceTest, AllocatesManualProfileAndTranslatesFullState) {
@@ -641,12 +660,21 @@ TEST_F(VirtualHidDeviceTest, TranslatesMouseAndKeyboardInput) {
   EXPECT_EQ(mouse_event.x, -4);
   EXPECT_EQ(mouse_event.y, 7);
 
-  const platf::touch_port_t viewport {10, 20, 1920, 1080, 1920, 1080};
+  const platf::touch_port_t viewport {
+    .offset_x = 10,
+    .offset_y = 20,
+    .width = 3840,
+    .height = 2160,
+    .logical_width = 1920,
+    .logical_height = 1080,
+  };
   platf::virtualhid::abs_mouse(*context(), viewport, 10.6F, 20.4F);
   mouse_event = context()->mouse->last_submitted_event();
   EXPECT_EQ(mouse_event.kind, lvh::MouseEventKind::absolute_motion);
-  EXPECT_EQ(mouse_event.x, 11);
-  EXPECT_EQ(mouse_event.y, 20);
+  EXPECT_EQ(mouse_event.x, 1);
+  EXPECT_EQ(mouse_event.y, 0);
+  EXPECT_NEAR(mouse_event.absolute_x, 0.6F, 0.0001F);
+  EXPECT_NEAR(mouse_event.absolute_y, 0.4F, 0.0001F);
   EXPECT_EQ(mouse_event.width, 1920);
   EXPECT_EQ(mouse_event.height, 1080);
 
@@ -713,12 +741,81 @@ TEST_F(VirtualHidDeviceTest, TranslatesMouseAndKeyboardInput) {
   context()->mouse.reset();
   context()->keyboard.reset();
   platf::virtualhid::move_mouse(*context(), 1, 1);
+  platf::virtualhid::move_mouse(*context(), viewport, 1, 1);
   platf::virtualhid::abs_mouse(*context(), viewport, 1.0F, 1.0F);
   platf::virtualhid::button_mouse(*context(), BUTTON_LEFT, false);
   platf::virtualhid::scroll(*context(), 1);
   platf::virtualhid::hscroll(*context(), 1);
   platf::virtualhid::keyboard_update(*context(), 0x41, false, 0);
   platf::virtualhid::unicode(*context(), text.data(), static_cast<int>(text.size()));
+}
+
+TEST_F(VirtualHidDeviceTest, RetargetsAbsoluteMouseWhenStreamedViewportChanges) {
+  const platf::touch_port_t left_viewport {
+    .offset_x = -1920,
+    .offset_y = 0,
+    .width = 3840,
+    .height = 1080,
+    .logical_width = 1920,
+    .logical_height = 1080,
+    .env_offset_x = -1920,
+    .env_offset_y = 0,
+  };
+
+  const auto initial_mouse_id = context()->mouse->device_id();
+  platf::virtualhid::abs_mouse(*context(), left_viewport, -960.25F, 540.5F);
+  const auto left_mouse_id = context()->mouse->device_id();
+  EXPECT_NE(left_mouse_id, initial_mouse_id);
+  auto mouse_event = context()->mouse->last_submitted_event();
+  EXPECT_FLOAT_EQ(mouse_event.absolute_x, 959.75F);
+  EXPECT_FLOAT_EQ(mouse_event.absolute_y, 540.5F);
+  EXPECT_EQ(mouse_event.width, 1920);
+  EXPECT_EQ(mouse_event.height, 1080);
+
+  platf::virtualhid::abs_mouse(*context(), left_viewport, -480.0F, 270.0F);
+  EXPECT_EQ(context()->mouse->device_id(), left_mouse_id);
+
+  auto right_viewport = left_viewport;
+  right_viewport.offset_x = 0;
+  platf::virtualhid::abs_mouse(*context(), right_viewport, 960.0F, 540.0F);
+  EXPECT_NE(context()->mouse->device_id(), left_mouse_id);
+  mouse_event = context()->mouse->last_submitted_event();
+  EXPECT_FLOAT_EQ(mouse_event.absolute_x, 960.0F);
+  EXPECT_FLOAT_EQ(mouse_event.absolute_y, 540.0F);
+}
+
+TEST_F(VirtualHidDeviceTest, RetargetsRelativeMouseWhenStreamedViewportChanges) {
+  const platf::touch_port_t left_viewport {
+    .offset_x = -1920,
+    .offset_y = 0,
+    .width = 3840,
+    .height = 1080,
+    .logical_width = 1920,
+    .logical_height = 1080,
+    .env_offset_x = -1920,
+    .env_offset_y = 0,
+  };
+
+  const auto initial_mouse_id = context()->mouse->device_id();
+  platf::virtualhid::move_mouse(*context(), left_viewport, 12, -7);
+  const auto left_mouse_id = context()->mouse->device_id();
+  EXPECT_NE(left_mouse_id, initial_mouse_id);
+  auto mouse_event = context()->mouse->last_submitted_event();
+  EXPECT_EQ(mouse_event.kind, lvh::MouseEventKind::relative_motion);
+  EXPECT_EQ(mouse_event.x, 12);
+  EXPECT_EQ(mouse_event.y, -7);
+
+  platf::virtualhid::move_mouse(*context(), left_viewport, 3, 4);
+  EXPECT_EQ(context()->mouse->device_id(), left_mouse_id);
+
+  auto right_viewport = left_viewport;
+  right_viewport.offset_x = 0;
+  platf::virtualhid::move_mouse(*context(), right_viewport, -5, 9);
+  EXPECT_NE(context()->mouse->device_id(), left_mouse_id);
+  mouse_event = context()->mouse->last_submitted_event();
+  EXPECT_EQ(mouse_event.kind, lvh::MouseEventKind::relative_motion);
+  EXPECT_EQ(mouse_event.x, -5);
+  EXPECT_EQ(mouse_event.y, 9);
 }
 
 TEST_F(VirtualHidDeviceTest, TranslatesTouchscreenLifecycleAndGeometry) {

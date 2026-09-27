@@ -2553,6 +2553,8 @@ namespace video {
         config.height,
         display->logical_width,
         display->logical_height,
+        display->env_offset_x,
+        display->env_offset_y,
       },
       display->env_width,
       display->env_height,

@@ -144,6 +144,15 @@ namespace input {
     void send_keyboard_packet(std::shared_ptr<input_t> &input, std::uint16_t key_code, std::uint8_t modifiers, std::uint8_t flags, bool release);
 
     /**
+     * @brief Process one client relative-mouse packet on the calling thread.
+     *
+     * @param input Retained input state.
+     * @param delta_x Horizontal client mouse delta.
+     * @param delta_y Vertical client mouse delta.
+     */
+    void send_relative_mouse_packet(std::shared_ptr<input_t> &input, std::int16_t delta_x, std::int16_t delta_y);
+
+    /**
      * @brief Forget every key Sunshine tracks as pressed and cancel any pending key repeat.
      */
     void reset_keyboard_state();

@@ -46,9 +46,26 @@ namespace platf::virtualhid {
      */
     void refresh_mouse();
 
+    /**
+     * @brief Recreate the shared mouse for a virtual desktop and target viewport.
+     *
+     * @param desktop Full native virtual-desktop bounds.
+     * @param viewport Native bounds of the streamed display.
+     */
+    void refresh_mouse(const lvh::PointerViewport &desktop, const lvh::PointerViewport &viewport);
+
+    /**
+     * @brief Retarget the shared mouse when streamed display geometry changes.
+     *
+     * @param touch_port Desktop and viewport geometry for pointer input.
+     */
+    void update_mouse_viewport(const touch_port_t &touch_port);
+
     std::unique_ptr<lvh::Runtime> runtime;  ///< libvirtualhid runtime.
     std::unique_ptr<lvh::Keyboard> keyboard;  ///< Shared virtual keyboard.
     std::unique_ptr<lvh::Mouse> mouse;  ///< Shared virtual mouse.
+    lvh::PointerViewport mouse_desktop;  ///< Virtual-desktop bounds used to create the shared mouse.
+    lvh::PointerViewport mouse_viewport;  ///< Streamed display bounds used to create the shared mouse.
     std::vector<std::shared_ptr<struct gamepad_context_t>> gamepads {static_cast<std::size_t>(MAX_GAMEPADS)};  ///< Virtual gamepad slots.
   };
 
@@ -236,6 +253,16 @@ namespace platf::virtualhid {
    * @param delta_y Vertical delta.
    */
   void move_mouse(input_context_t &context, int delta_x, int delta_y);
+
+  /**
+   * @brief Retarget the virtual mouse and move it relatively.
+   *
+   * @param context Input context.
+   * @param touch_port Desktop and streamed-display bounds for the pointer.
+   * @param delta_x Horizontal delta.
+   * @param delta_y Vertical delta.
+   */
+  void move_mouse(input_context_t &context, const touch_port_t &touch_port, int delta_x, int delta_y);
 
   /**
    * @brief Move the virtual mouse absolutely inside a target touch port.
