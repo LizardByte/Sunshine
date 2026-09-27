@@ -849,13 +849,23 @@ namespace portal {
     }
 
     /**
+     * @brief Data for loop and shutdown_event mail used by check_shutdown_cb().
+     */
+    struct loop_context_t {
+      GMainLoop *loop;
+      std::shared_ptr<safe::event_t<bool>> shutdown_event;
+    };
+
+    /**
      * @brief Check for Sunshine shutdown and quit the Portal response loop if requested.
      *
      * @result True (continue) if shutdown event is not in progress.
      */
     static gboolean check_shutdown_cb(gpointer user_data) {
-      if (auto shutdown_event = mail::man->event<bool>(mail::shutdown); shutdown_event->peek()) {
-        g_main_loop_quit(static_cast<GMainLoop *>(user_data));
+      auto *ctx = static_cast<loop_context_t *>(user_data);
+
+      if (ctx->shutdown_event && ctx->shutdown_event->peek()) {
+        g_main_loop_quit(ctx->loop);
         return G_SOURCE_REMOVE;
       }
       return G_SOURCE_CONTINUE;
@@ -886,8 +896,11 @@ namespace portal {
       }
 
       constexpr guint shutdown_poll_interval_ms = 1000;
+      auto shutdown_event = mail::man ? mail::man->event<bool>(mail::shutdown) : nullptr;
+      loop_context_t ctx {response->loop, shutdown_event};
+
       GSource *shutdown_source = g_timeout_source_new(shutdown_poll_interval_ms);
-      g_source_set_callback(shutdown_source, check_shutdown_cb, response->loop, nullptr);
+      g_source_set_callback(shutdown_source, check_shutdown_cb, &ctx, nullptr);
       g_source_attach(shutdown_source, g_main_loop_get_context(response->loop));
 
       g_main_loop_run(response->loop);
