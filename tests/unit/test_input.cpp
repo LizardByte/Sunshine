@@ -9,11 +9,14 @@
 // standard includes
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
+#include <future>
 #include <limits>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 // moonlight-common-c includes
@@ -83,6 +86,8 @@ namespace {
      * @brief Destroy retained test sessions and restore configuration.
      */
     void TearDown() override {
+      input::testing::set_input_packet_hook({});
+      input::testing::set_input_task_sink({});
       input::terminate_gamepads();
       input::testing::set_platform_input({});
       context_ = nullptr;
@@ -248,6 +253,112 @@ TEST_F(InputGamepadSessionTest, RejectsMalformedBatchablePacketsAtQueueIngress) 
     input::passthrough(stream_input, std::move(oversized_declared_size));
     EXPECT_EQ(input::testing::queued_input_packet_count(stream_input), valid_packet_count) << "magic=" << magic;
   }
+}
+
+TEST_F(InputGamepadSessionTest, SerializesArrivalAndStatePacketsForOneController) {
+  ASSERT_FALSE(task_pool.running());
+  config::input.gamepad = "auto";
+
+  auto stream_input = input::alloc(std::make_shared<safe::mail_raw_t>(), "simultaneous-controller-packets");
+  ASSERT_NE(stream_input, nullptr);
+  std::vector<std::shared_ptr<input::input_t>> scheduled;
+  input::testing::set_input_task_sink([&](std::shared_ptr<input::input_t> input) {
+    scheduled.push_back(std::move(input));
+  });
+
+  SS_CONTROLLER_ARRIVAL_PACKET arrival {};
+  arrival.header.size = util::endian::big<std::uint32_t>(sizeof(arrival) - sizeof(arrival.header.size));
+  arrival.header.magic = util::endian::little(SS_CONTROLLER_ARRIVAL_MAGIC);
+  arrival.controllerNumber = 0;
+  arrival.type = LI_CTYPE_NINTENDO;
+
+  NV_MULTI_CONTROLLER_PACKET state {};
+  state.header.size = util::endian::big<std::uint32_t>(sizeof(state) - sizeof(state.header.size));
+  state.header.magic = util::endian::little(MULTI_CONTROLLER_MAGIC_GEN5);
+  state.controllerNumber = 0;
+  state.activeGamepadMask = 1;
+
+  std::vector<std::uint8_t> arrival_bytes(sizeof(arrival));
+  std::memcpy(arrival_bytes.data(), &arrival, sizeof(arrival));
+  input::passthrough(stream_input, std::move(arrival_bytes));
+  ASSERT_EQ(scheduled.size(), 1);
+  EXPECT_EQ(scheduled.front(), stream_input);
+
+  std::promise<void> arrival_started;
+  std::promise<void> release_arrival;
+  const auto release_signal = release_arrival.get_future().share();
+  input::testing::set_input_packet_hook([&](std::uint32_t magic) {
+    if (magic == SS_CONTROLLER_ARRIVAL_MAGIC) {
+      arrival_started.set_value();
+      release_signal.wait();
+    }
+  });
+
+  std::jthread worker {input::testing::process_queued_messages, stream_input};
+  const auto arrival_status = arrival_started.get_future().wait_for(std::chrono::seconds {5});
+  if (arrival_status != std::future_status::ready) {
+    release_arrival.set_value();
+    worker.join();
+    FAIL() << "Controller arrival packet did not reach the dispatch hook";
+  }
+
+  std::vector<std::uint8_t> state_bytes(sizeof(state));
+  std::memcpy(state_bytes.data(), &state, sizeof(state));
+  input::passthrough(stream_input, std::move(state_bytes));
+  EXPECT_EQ(scheduled.size(), 1);
+  EXPECT_EQ(input::testing::queued_input_packet_count(stream_input), 1);
+
+  auto other_input = input::alloc(std::make_shared<safe::mail_raw_t>(), "independent-input-stream");
+  if (!other_input) {
+    release_arrival.set_value();
+    worker.join();
+    FAIL() << "Could not create independent input stream";
+  }
+  input::passthrough(other_input, make_input_packet(0x12345678, sizeof(std::uint32_t), sizeof(NV_INPUT_HEADER)));
+  EXPECT_EQ(scheduled.size(), 2);
+  if (scheduled.size() == 2) {
+    EXPECT_EQ(scheduled.back(), other_input);
+  }
+  const auto active_before_gamepad = runtime().active_device_count();
+  release_arrival.set_value();
+  worker.join();
+  input::testing::set_input_packet_hook({});
+  input::testing::process_queued_messages(other_input);
+
+  EXPECT_EQ(input::testing::queued_input_packet_count(stream_input), 0);
+  EXPECT_EQ(input::testing::queued_input_packet_count(other_input), 0);
+  EXPECT_EQ(runtime().active_device_count(), active_before_gamepad + 1);
+  const auto gamepad_id = input::testing::gamepad_id(stream_input, 0);
+  ASSERT_GE(gamepad_id, 0);
+  const auto *adapter = platf::virtualhid::gamepad_adapter_for_testing(context(), gamepad_id);
+  ASSERT_NE(adapter, nullptr);
+  ASSERT_NE(adapter->gamepad(), nullptr);
+  EXPECT_EQ(adapter->gamepad()->profile().gamepad_kind, lvh::GamepadProfileKind::switch_pro);
+}
+
+TEST_F(InputGamepadSessionTest, YieldsAfterBoundedPacketBatch) {
+  ASSERT_FALSE(task_pool.running());
+  auto stream_input = input::alloc(std::make_shared<safe::mail_raw_t>(), "bounded-input-batch");
+  ASSERT_NE(stream_input, nullptr);
+
+  std::vector<std::shared_ptr<input::input_t>> scheduled;
+  input::testing::set_input_task_sink([&](std::shared_ptr<input::input_t> input) {
+    scheduled.push_back(std::move(input));
+  });
+
+  constexpr std::uint32_t unknown_magic = 0x12345678;
+  constexpr std::size_t packet_count = 33;
+  for (std::size_t n = 0; n < packet_count; ++n) {
+    input::passthrough(stream_input, make_input_packet(unknown_magic, sizeof(std::uint32_t), sizeof(NV_INPUT_HEADER)));
+  }
+  ASSERT_EQ(scheduled.size(), 1);
+
+  input::testing::process_queued_messages(scheduled.front());
+  EXPECT_EQ(input::testing::queued_input_packet_count(stream_input), 1);
+  ASSERT_EQ(scheduled.size(), 2);
+  input::testing::process_queued_messages(scheduled.back());
+  EXPECT_EQ(input::testing::queued_input_packet_count(stream_input), 0);
+  EXPECT_EQ(scheduled.size(), 2);
 }
 
 TEST_F(InputGamepadSessionTest, ReusesGamepadsAcrossPauseAndDestroysThemOnTermination) {
