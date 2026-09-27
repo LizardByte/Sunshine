@@ -228,14 +228,7 @@
         }
 
         if (this.platform === 'macos') {
-          if (this.virtualhidLicense && !this.virtualhidLicense.licensed) {
-            return this.virtualhidLicense.service_available
-              ? this.buildVirtualInputNotice(true, 'index.virtualhid_macos_license_title', [{ key: 'index.virtualhid_macos_license_desc' }])
-              : this.buildVirtualInputNotice(true, 'index.virtualhid_broker_unavailable_title', [{ key: 'index.virtualhid_macos_broker_desc' }]);
-          }
-          return this.virtualhid?.development_version
-            ? this.buildVirtualInputNotice(false, 'index.virtualhid_development_title', [{ key: 'index.virtualhid_development_desc' }])
-            : null;
+          return this.buildMacosVirtualInputNotice();
         }
 
         if (this.platform !== 'windows' || !this.virtualhid || !this.vigembus) {
@@ -311,6 +304,21 @@
       }
     },
     methods: {
+      /**
+       * Build the macOS broker notice, prioritizing license and service warnings.
+       *
+       * @returns {object|null} Warning or development-build notice, when applicable.
+       */
+      buildMacosVirtualInputNotice() {
+        if (this.virtualhidLicense && !this.virtualhidLicense.licensed) {
+          return this.virtualhidLicense.service_available
+            ? this.buildVirtualInputNotice(true, 'index.virtualhid_macos_license_title', [{ key: 'index.virtualhid_macos_license_desc' }])
+            : this.buildVirtualInputNotice(true, 'index.virtualhid_broker_unavailable_title', [{ key: 'index.virtualhid_macos_broker_desc' }]);
+        }
+        return this.virtualhid?.development_version
+          ? this.buildVirtualInputNotice(false, 'index.virtualhid_development_title', [{ key: 'index.virtualhid_development_desc' }])
+          : null;
+      },
       /**
        * Build a home-page notice for the current virtual-input state.
        *

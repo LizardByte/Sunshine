@@ -10,7 +10,7 @@ vi.mock('../../src_assets/common/assets/web/ResourceCard.vue', () => ({
 
 import Home from '../../src_assets/common/assets/web/Home.vue'
 
-async function mountHome(platform, { developmentVersion = true, licensed = true, gamepadDriver = 'virtualhid' } = {}) {
+async function mountHome(platform, { developmentVersion = true, licensed = true, serviceAvailable = true, gamepadDriver = 'virtualhid' } = {}) {
   vi.stubGlobal('fetch', vi.fn(async url => {
     if (url === './api/config') {
       return { json: async () => ({ platform, controller: 'enabled', gamepad_driver: gamepadDriver, version: '2026.927.1200' }) }
@@ -24,7 +24,7 @@ async function mountHome(platform, { developmentVersion = true, licensed = true,
       }
     }
     if (url === './api/virtual-input/license') {
-      return { json: async () => ({ licensed, service_available: true }) }
+      return { json: async () => ({ licensed, service_available: serviceAvailable }) }
     }
     if (url === './api/logs') {
       return { text: async () => '' }
@@ -66,6 +66,14 @@ describe('development broker home notice', () => {
     const wrapper = await mountHome('macos', { licensed: false })
 
     expect(wrapper.get('.alert.my-4').text()).toContain('index.virtualhid_macos_license_title')
+    expect(wrapper.get('.alert.my-4').text()).not.toContain('index.virtualhid_development_title')
+    wrapper.unmount()
+  })
+
+  it('shows the macOS broker warning when the license service is unavailable', async () => {
+    const wrapper = await mountHome('macos', { licensed: false, serviceAvailable: false })
+
+    expect(wrapper.get('.alert.my-4').text()).toContain('index.virtualhid_broker_unavailable_title')
     expect(wrapper.get('.alert.my-4').text()).not.toContain('index.virtualhid_development_title')
     wrapper.unmount()
   })
