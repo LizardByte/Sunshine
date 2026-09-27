@@ -456,8 +456,8 @@ namespace system_tray {
       set_virtualhid_license_menu_item(
         3,
         license.activation_limit == 0 ?
-          "Machine activations: Not reported" :
-          std::format("Machine activations: {} / {}", license.activation_usage, license.activation_limit),
+          "Machine activation limit: Not reported" :
+          std::format("Machine activation limit: {}", license.activation_limit),
         true
       );
     } else {

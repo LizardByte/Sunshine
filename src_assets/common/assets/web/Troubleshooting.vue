@@ -181,8 +181,8 @@
               <dd>{{ virtualhidLicense.plan_name }}</dd>
             </dl>
             <dl class="virtualhid-license-stat">
-              <dt>{{ $t('troubleshooting.virtualhid_license_activations') }}</dt>
-              <dd>{{ licenseActivationText() }}</dd>
+              <dt>{{ $t('troubleshooting.virtualhid_license_activation_limit') }}</dt>
+              <dd>{{ licenseActivationLimitText() }}</dd>
             </dl>
             <dl class="virtualhid-license-stat">
               <dt>{{ $t('troubleshooting.virtualhid_license_active_devices') }}</dt>
@@ -1153,11 +1153,11 @@
           const key = `troubleshooting.virtualhid_license_state_${this.virtualhidLicense.state}`;
           return this.$t(key);
         },
-        licenseActivationText() {
+        licenseActivationLimitText() {
           if (!this.virtualhidLicense.activation_limit) {
             return this.$t('troubleshooting.virtualhid_license_not_reported');
           }
-          return `${this.virtualhidLicense.activation_usage} / ${this.virtualhidLicense.activation_limit}`;
+          return String(this.virtualhidLicense.activation_limit);
         },
         driverVersion(driver) {
           if (!driver.installed) {

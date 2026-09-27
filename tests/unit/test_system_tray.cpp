@@ -370,7 +370,7 @@ TEST_F(SystemTrayTest, PreparesLicensedVirtualHidMenuBeforeInitialization) {
   license.state = lvh::LicenseState::licensed;
   license.plan_name = "Yearly";
   license.customer_email = "customer@example.com";
-  license.activation_usage = 2;
+  license.activation_usage = 1;
   license.activation_limit = 5;
 
   system_tray::update_tray_virtualhid_license(license, true);
@@ -381,7 +381,7 @@ TEST_F(SystemTrayTest, PreparesLicensedVirtualHidMenuBeforeInitialization) {
   EXPECT_STREQ(license_menu[0].text, "Status: Licensed");
   EXPECT_STREQ(license_menu[1].text, "Plan: Yearly");
   EXPECT_STREQ(license_menu[2].text, "Customer: customer@example.com");
-  EXPECT_STREQ(license_menu[3].text, "Machine activations: 2 / 5");
+  EXPECT_STREQ(license_menu[3].text, "Machine activation limit: 5");
   EXPECT_STREQ(license_menu[4].text, "-");
   EXPECT_STREQ(license_menu[5].text, "Get/Manage License");
   EXPECT_NE(license_menu[5].cb, nullptr);
@@ -398,7 +398,7 @@ TEST_F(SystemTrayTest, PreparesLicensedVirtualHidMenuBeforeInitialization) {
 
   EXPECT_STREQ(license_menu[1].text, "This machine is activated");
   EXPECT_STREQ(license_menu[2].text, "Customer: Not reported");
-  EXPECT_STREQ(license_menu[3].text, "Machine activations: Not reported");
+  EXPECT_STREQ(license_menu[3].text, "Machine activation limit: Not reported");
 }
 
 TEST_F(SystemTrayTest, PromptsForUnsetGamepadDriverEvenWhenLicensed) {
@@ -588,7 +588,7 @@ TEST_F(SystemTrayTest, ShowsLicensedMacBrokerDetailsBeforeInitialization) {
   license.state = lvh::LicenseState::licensed;
   license.plan_name = "Yearly";
   license.customer_email = "customer@example.com";
-  license.activation_usage = 2;
+  license.activation_usage = 1;
   license.activation_limit = 5;
 
   system_tray::update_tray_virtualhid_license(license, true);
@@ -600,7 +600,7 @@ TEST_F(SystemTrayTest, ShowsLicensedMacBrokerDetailsBeforeInitialization) {
   EXPECT_STREQ(menu[0].text, "Status: Licensed");
   EXPECT_STREQ(menu[1].text, "Plan: Yearly");
   EXPECT_STREQ(menu[2].text, "Customer: customer@example.com");
-  EXPECT_STREQ(menu[3].text, "Machine activations: 2 / 5");
+  EXPECT_STREQ(menu[3].text, "Machine activation limit: 5");
   EXPECT_STREQ(menu[4].text, "-");
   EXPECT_STREQ(menu[5].text, "Get/Manage License");
   EXPECT_NE(menu[5].cb, nullptr);

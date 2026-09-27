@@ -1718,7 +1718,7 @@ TEST(ConfigHttpLicenseStatusTest, BuildVirtualHidLicenseStatus_IncludesExpectedF
   license.state = lvh::LicenseState::licensed;
   license.active_devices = 2;
   license.activation_limit = 5;
-  license.activation_usage = 3;
+  license.activation_usage = 1;
   license.plan_name = "Yearly";
   license.customer_email = "customer@example.com";
   license.message = "License is active";
@@ -1730,7 +1730,7 @@ TEST(ConfigHttpLicenseStatusTest, BuildVirtualHidLicenseStatus_IncludesExpectedF
   EXPECT_TRUE(output["service_available"].get<bool>());
   EXPECT_EQ(output["active_devices"].get<unsigned int>(), 2U);
   EXPECT_EQ(output["activation_limit"].get<unsigned int>(), 5U);
-  EXPECT_EQ(output["activation_usage"].get<unsigned int>(), 3U);
+  EXPECT_EQ(output["activation_usage"].get<unsigned int>(), 1U);
   EXPECT_EQ(output["plan_name"].get<std::string>(), "Yearly");
   EXPECT_EQ(output["customer_email"].get<std::string>(), "customer@example.com");
   EXPECT_FALSE(output.contains("expires_at"));

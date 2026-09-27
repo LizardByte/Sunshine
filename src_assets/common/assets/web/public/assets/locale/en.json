@@ -665,6 +665,7 @@
     "virtualhid_driver": "Virtual HID Broker",
     "virtualhid_license_activate": "Activate License",
     "virtualhid_license_activations": "Machine Activations",
+    "virtualhid_license_activation_limit": "Machine Activation Limit",
     "virtualhid_license_active_devices": "Active Virtual HID Devices",
     "virtualhid_license_buy": "Buy License",
     "virtualhid_license_customer": "Customer",

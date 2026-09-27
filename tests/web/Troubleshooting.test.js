@@ -7,7 +7,7 @@ vi.mock('../../src_assets/common/assets/web/Navbar.vue', () => ({
 
 import Troubleshooting from '../../src_assets/common/assets/web/Troubleshooting.vue'
 
-async function mountTroubleshooting(platform, gamepadDriver) {
+async function mountTroubleshooting(platform, gamepadDriver, licenseStatus = {}) {
   vi.stubGlobal('fetch', vi.fn(async url => {
     if (url === '/api/config') {
       return { json: async () => ({ platform, gamepad_driver: gamepadDriver }) }
@@ -26,7 +26,7 @@ async function mountTroubleshooting(platform, gamepadDriver) {
       }
     }
     if (url === '/api/virtual-input/license') {
-      return { ok: true, json: async () => ({ service_available: true, state: 'licensed', licensed: true }) }
+      return { ok: true, json: async () => ({ service_available: true, state: 'licensed', licensed: true, ...licenseStatus }) }
     }
     if (url === './api/logs') {
       return { text: async () => '' }
@@ -62,6 +62,16 @@ describe('virtual input troubleshooting', () => {
     expect(wrapper.findAll('.driver-table-shell tbody tr')).toHaveLength(1)
     expect(wrapper.find('.driver-table-shell').text()).toContain('2026.914.1218')
     expect(fetch).toHaveBeenCalledWith('/api/virtual-input/status')
+    wrapper.unmount()
+  })
+
+  it.each(['macos', 'windows'])('shows only the license activation limit on %s', async platform => {
+    const wrapper = await mountTroubleshooting(platform, 'all', { activation_usage: 1, activation_limit: 5 })
+
+    const activation = wrapper.findAll('.virtualhid-license-stat').find(stat =>
+      stat.find('dt').text() === 'troubleshooting.virtualhid_license_activation_limit'
+    )
+    expect(activation.find('dd').text()).toBe('5')
     wrapper.unmount()
   })
 
