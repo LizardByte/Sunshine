@@ -12,13 +12,6 @@
           <div>
             <h2 id="virtualhid" class="mb-1">{{ $t('troubleshooting.virtual_gamepad') }}</h2>
             <p class="mb-0">{{ $t(virtualInputDescriptionKey) }}</p>
-            <a v-if="platform === 'macos' && gamepadDriver !== 'none'"
-               class="btn btn-primary mt-3"
-               href="https://github.com/LizardByte/libvirtualhid/releases/latest"
-               target="_blank" rel="noopener noreferrer">
-              <download :size="18" class="icon"></download>
-              {{ $t('troubleshooting.virtualhid_broker_download') }}
-            </a>
             <RouterLink v-if="platform === 'windows' && gamepadDriver === 'vigembus'"
                class="btn btn-primary mt-3"
                to="/config#gamepad_driver">
@@ -69,7 +62,7 @@
           </article>
         </div>
 
-        <section class="virtual-gamepad-section" v-if="platform === 'windows'">
+        <section class="virtual-gamepad-section" v-if="platform === 'windows' || platform === 'macos'">
           <div class="virtual-gamepad-section-heading">
             <div>
               <h3 class="h4 mb-1">{{ $t('troubleshooting.virtual_gamepad_drivers') }}</h3>
@@ -566,7 +559,7 @@
         },
 
         showVigembus() {
-          return this.gamepadDriver !== 'none' && this.gamepadDriver !== 'virtualhid';
+          return this.platform === 'windows' && this.gamepadDriver !== 'none' && this.gamepadDriver !== 'virtualhid';
         },
 
         showVirtualhidBenefits() {
@@ -722,8 +715,8 @@
           .then((r) => {
             this.platform = r.platform;
             this.gamepadDriver = r.gamepad_driver || '';
-            // The Virtual HID Driver also backs relative mouse input when gamepads are disabled.
-            if (this.platform === 'windows') {
+            // The Windows broker also backs relative mouse input when gamepads are disabled.
+            if (this.platform === 'windows' || this.platform === 'macos') {
               this.refreshDriverInformation();
             }
             if ((this.platform === 'windows' || this.platform === 'macos') && this.showVirtualhid) {
@@ -898,14 +891,14 @@
             });
         },
         /**
-         * @brief Refresh the installed driver details and latest stable Virtual HID Driver release.
+         * @brief Refresh the installed backend details and latest stable Virtual HID Broker release.
          */
         refreshDriverInformation() {
           this.refreshVirtualInputStatus();
           this.refreshDriverReleases();
         },
         /**
-         * @brief Refresh the latest stable release metadata for Virtual HID Driver.
+         * @brief Refresh the latest stable release metadata for Virtual HID Broker.
          */
         refreshDriverReleases() {
           if (this.showVirtualhid) {

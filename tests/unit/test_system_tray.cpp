@@ -425,7 +425,7 @@ TEST_F(SystemTrayTest, NotifiesWhenVirtualHidDriverIsUnsupported) {
 
   const auto &tray_data = system_tray::tray_data_for_testing();
   const auto expected_notification = std::format(
-    "Installed libvirtualhid driver v2026.829.2338.54 is not supported by this version of Sunshine. Supported versions: {}. Restart Sunshine after updating. Click for instructions.",
+    "Installed Virtual HID Broker v2026.829.2338.54 is not supported by this version of Sunshine. Supported versions: {}. Restart Sunshine after updating. Click for instructions.",
     supported_versions
   );
   EXPECT_STREQ(tray_data.notification_title, "Update Virtual HID Broker");
@@ -553,6 +553,35 @@ INSTANTIATE_TEST_SUITE_P(
   #endif
 
   #ifdef __APPLE__
+TEST_F(SystemTrayTest, NotifiesWhenMacBrokerVersionIsUnsupported) {
+  const auto supported_versions = std::format(">= {}", LIBVIRTUALHID_MACOS_MINIMUM_VERSION);
+  system_tray::update_tray_virtualhid_driver(true, "2026.829.2338", false, supported_versions);  // NOSONAR(cpp:S1313): not an IP address
+
+  const auto &tray_data = system_tray::tray_data_for_testing();
+  const auto expected_notification = std::format(
+    "Installed Virtual HID Broker v2026.829.2338 is not supported by this version of Sunshine. Supported versions: {}. Restart Sunshine after updating. Click for instructions.",
+    supported_versions
+  );
+  EXPECT_STREQ(tray_data.notification_title, "Update Virtual HID Broker");
+  EXPECT_STREQ(tray_data.notification_text, expected_notification.c_str());
+  EXPECT_STREQ(tray_data.notification_icon, tray_data.allIconPaths[4]);
+  EXPECT_NE(tray_data.notification_cb, nullptr);
+}
+
+TEST_F(SystemTrayTest, MacBrokerVersionNotificationRespectsDisabledGamepads) {
+  const auto supported_versions = std::format(">= {}", LIBVIRTUALHID_MACOS_MINIMUM_VERSION);
+  config::input.gamepad_driver = config::GAMEPAD_DRIVER_NONE;
+  system_tray::update_tray_virtualhid_driver(true, "2026.829.2338", false, supported_versions);  // NOSONAR(cpp:S1313): not an IP address
+
+  const auto &tray_data = system_tray::tray_data_for_testing();
+  EXPECT_EQ(tray_data.notification_title, nullptr);
+  EXPECT_EQ(tray_data.notification_text, nullptr);
+
+  config::input.gamepad_driver.clear();
+  system_tray::update_tray_virtualhid_driver(true, "2026.829.2338", false, supported_versions);  // NOSONAR(cpp:S1313): not an IP address
+  EXPECT_STREQ(tray_data.notification_title, "Update Virtual HID Broker");
+}
+
 TEST_F(SystemTrayTest, ShowsLicensedMacBrokerDetailsBeforeInitialization) {
   lvh::LicenseStatus license;
   license.service_available = true;

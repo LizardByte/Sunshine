@@ -8,6 +8,7 @@
 
 // standard includes
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <filesystem>
 #include <format>
@@ -27,12 +28,17 @@
 #include <Simple-Web-Server/crypto.hpp>
 #include <Simple-Web-Server/server_https.hpp>
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
   #include "platform/virtualhid_input.h"
+#endif
+
+#ifdef _WIN32
   #include "platform/windows/misc.h"
   #include "platform/windows/utf_utils.h"
 
   #include <Windows.h>
+#elif defined(__APPLE__)
+  #include <CoreFoundation/CoreFoundation.h>
 #endif
 
 // local includes
@@ -208,7 +214,12 @@ namespace confighttp {
    */
   constexpr auto CSRF_TOKEN_LIFETIME = std::chrono::hours(1);  // Tokens valid for 1 hour
 
-  constexpr std::string_view libvirtualhid_minimum_version = LIBVIRTUALHID_MINIMUM_VERSION;  ///< Minimum supported libvirtualhid driver version.
+#ifndef __APPLE__
+  constexpr std::string_view libvirtualhid_minimum_version = LIBVIRTUALHID_MINIMUM_VERSION;  ///< Minimum supported Windows broker version.
+#endif
+#ifdef __APPLE__
+  constexpr std::string_view libvirtualhid_macos_minimum_version = LIBVIRTUALHID_MACOS_MINIMUM_VERSION;  ///< Minimum supported macOS broker bundle version.
+#endif
   constexpr auto VIGEMBUS_MINIMUM_VERSION = "1.17.0.0"sv;  ///< Minimum supported ViGEmBus fallback driver version.  // NOSONAR(cpp:S1313): not an IP address
 
   /**
@@ -507,6 +518,42 @@ namespace confighttp {
     return {};
   }
 
+#endif
+
+#ifdef __APPLE__
+  /**
+   * @brief Read the installed macOS Virtual HID Broker app version.
+   *
+   * @return Three-part bundle version, or empty when the app is unavailable.
+   */
+  std::string read_libvirtualhid_broker_version() {
+    const auto bundle_url = CFURLCreateWithFileSystemPath(
+      kCFAllocatorDefault,
+      CFSTR("/Applications/VirtualHIDBroker.app"),
+      kCFURLPOSIXPathStyle,
+      true
+    );
+    if (!bundle_url) {
+      return {};
+    }
+
+    const auto bundle = CFBundleCreate(kCFAllocatorDefault, bundle_url);
+    CFRelease(bundle_url);
+    if (!bundle) {
+      return {};
+    }
+
+    std::string version;
+    const auto value = CFBundleGetValueForInfoDictionaryKey(bundle, CFSTR("CFBundleShortVersionString"));
+    if (value && CFGetTypeID(value) == CFStringGetTypeID()) {
+      std::array<char, 64> buffer {};
+      if (CFStringGetCString(static_cast<CFStringRef>(value), buffer.data(), buffer.size(), kCFStringEncodingUTF8)) {
+        version = buffer.data();
+      }
+    }
+    CFRelease(bundle);
+    return version;
+  }
 #endif
 
   /**
@@ -1959,15 +2006,21 @@ namespace confighttp {
   }
 
   /**
-   * @brief Build libvirtualhid driver version and installation status.
+   * @brief Build Virtual HID Broker version and installation status.
    *
-   * @return libvirtualhid driver status JSON.
+   * @return Virtual HID Broker status JSON.
    */
   nlohmann::json get_virtualhid_driver_status() {
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
+  #ifdef _WIN32
     const auto version_str = read_libvirtualhid_driver_version();
+    const auto minimum_version = libvirtualhid_minimum_version;
+  #else
+    const auto version_str = read_libvirtualhid_broker_version();
+    const auto minimum_version = libvirtualhid_macos_minimum_version;
+  #endif
     const auto driver_detected = !version_str.empty();
-    auto output_tree = build_driver_status(driver_detected, version_str, libvirtualhid_minimum_version);
+    auto output_tree = build_driver_status(driver_detected, version_str, minimum_version);
     bool requires_installed_driver = true;
     std::string backend_name;
     std::string runtime_error_message;
@@ -1978,7 +2031,7 @@ namespace confighttp {
         const auto &capabilities = runtime->capabilities();
         backend_name = capabilities.backend_name;
         requires_installed_driver = capabilities.requires_installed_driver;
-        output_tree = build_driver_status(driver_detected || capabilities.supports_gamepad, version_str, libvirtualhid_minimum_version);
+        output_tree = build_driver_status(driver_detected || capabilities.supports_gamepad, version_str, minimum_version);
       }
     } catch (const std::bad_alloc &exception) {
       runtime_error_message = exception.what();
@@ -1991,7 +2044,7 @@ namespace confighttp {
     }
 #else
     auto output_tree = build_driver_status(false, "", libvirtualhid_minimum_version);
-    output_tree["error"] = "libvirtualhid driver status is only available on Windows";
+    output_tree["error"] = "Virtual HID Broker status is only available on Windows and macOS";
     output_tree["backend_name"] = "";
     output_tree["requires_installed_driver"] = false;
 #endif

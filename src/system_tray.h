@@ -129,15 +129,14 @@ namespace system_tray {
    */
   void prepare_tray_virtualhid_license();
 
-  #ifdef _WIN32
   /**
-   * @brief Show an update notification for an unsupported Virtual HID Driver.
+   * @brief Show an update notification for an unsupported Virtual HID Broker.
    *
-   * Existing notifications are preserved while the driver choice is unset, when ViGEmBus is exclusively selected,
-   * or when the driver is absent or supported.
+   * Existing notifications are preserved when gamepad input is disabled, the broker is absent or supported,
+   * or the Windows backend choice does not use the broker.
    *
-   * @param installed Whether the driver is installed.
-   * @param version Installed driver version.
+   * @param installed Whether the broker is installed.
+   * @param version Installed broker version.
    * @param version_compatible Whether Sunshine supports the installed version.
    * @param supported_versions User-visible supported version range.
    */
@@ -149,10 +148,9 @@ namespace system_tray {
   );
 
   /**
-   * @brief Query the Virtual HID Driver version and prepare its startup notification.
+   * @brief Query the Virtual HID Broker version and prepare its startup notification.
    */
   void prepare_tray_virtualhid_driver();
-  #endif
 #endif
 
   /**

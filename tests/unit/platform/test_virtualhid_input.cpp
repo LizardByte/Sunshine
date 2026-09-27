@@ -22,7 +22,7 @@
 #include "src/globals.h"
 #include "src/platform/virtualhid_input.h"
 
-#ifdef __APPLE__
+#if defined(_WIN32) || defined(__APPLE__)
   #include <libvirtualhid/license.hpp>
 #endif
 
@@ -293,8 +293,8 @@ TEST_F(VirtualHidDeviceTest, ReportsStaticAndRuntimeGamepadChoices) {
   EXPECT_EQ(no_runtime_gamepads.size(), expected_names.size());
 }
 
-#ifdef __APPLE__
-TEST_F(VirtualHidDeviceTest, MacosNoneSelectionHidesAvailableGamepads) {
+#if defined(_WIN32) || defined(__APPLE__)
+TEST_F(VirtualHidDeviceTest, NoneSelectionHidesAvailableGamepads) {
   config::input.gamepad_driver = config::GAMEPAD_DRIVER_NONE;
   auto platform_input = platf::input();
   ASSERT_TRUE(platform_input);
@@ -303,13 +303,19 @@ TEST_F(VirtualHidDeviceTest, MacosNoneSelectionHidesAvailableGamepads) {
   EXPECT_EQ(platf::get_capabilities() & platf::platform_caps::controller_touch, 0U);
 }
 
-TEST_F(VirtualHidDeviceTest, MacosBrokerCreatesAndUpdatesEveryGamepadProfileWhenLicensed) {
+TEST_F(VirtualHidDeviceTest, BrokerCreatesAndUpdatesEveryGamepadProfileWhenLicensed) {
   if (!lvh::get_license_status().license.licensed()) {
-    GTEST_SKIP() << "macOS Virtual HID Broker is not activated";
+    GTEST_SKIP() << "Virtual HID Broker is not activated";
   }
 
+  config::input.gamepad_driver = config::GAMEPAD_DRIVER_VIRTUALHID;
   auto platform_input = platf::input();
   ASSERT_TRUE(platform_input);
+  const auto &context = platf::virtualhid::get_input_context(platform_input);
+  if (!context.runtime || !context.runtime->capabilities().supports_gamepad) {
+    GTEST_SKIP() << "Virtual HID Broker is not installed";
+  }
+
   const auto &available = platf::supported_gamepads(std::addressof(platform_input));
   for (const auto &gamepad : available) {
     EXPECT_TRUE(gamepad.is_enabled) << gamepad.name;

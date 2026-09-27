@@ -145,7 +145,6 @@ namespace system_tray {
       return menu_text;
     }
 
-    #ifdef _WIN32
     /**
      * @brief Access storage for the Virtual HID Broker compatibility notification.
      *
@@ -156,6 +155,7 @@ namespace system_tray {
       return notification_text;
     }
 
+    #ifdef _WIN32
     /**
      * @brief Access persistent storage for the Virtual HID Broker benefits menu.
      *
@@ -348,9 +348,7 @@ namespace system_tray {
     tray.notification_cb = nullptr;
     #if defined(_WIN32) || defined(__APPLE__)
     virtualhid_license_menu_text_storage() = {};
-      #ifdef _WIN32
     virtualhid_driver_notification_text_storage().clear();
-      #endif
     virtualhid_license_menu = initial_virtualhid_license_menu();
     #endif
   }
@@ -548,16 +546,20 @@ namespace system_tray {
     update_tray_virtualhid_license(result.license, !result.license.licensed());
   }
 
-    #ifdef _WIN32
   void update_tray_virtualhid_driver(
     const bool installed,
     const std::string_view version,
     const bool version_compatible,
     const std::string_view supported_versions
   ) {
-    if (config::input.gamepad_driver.empty() || config::input.gamepad_driver == config::GAMEPAD_DRIVER_NONE || config::input.gamepad_driver == config::GAMEPAD_DRIVER_VIGEMBUS || !installed || version_compatible) {
+    if (config::input.gamepad_driver == config::GAMEPAD_DRIVER_NONE || !installed || version_compatible) {
       return;
     }
+    #ifdef _WIN32
+    if (config::input.gamepad_driver.empty() || config::input.gamepad_driver == config::GAMEPAD_DRIVER_VIGEMBUS) {
+      return;
+    }
+    #endif
 
     const std::scoped_lock lock(tray_state_mutex());
     clear_tray_notification();
@@ -565,7 +567,7 @@ namespace system_tray {
     const auto displayed_version = version.empty() ? "unknown" : std::format("v{}", version);
     auto &notification_text = virtualhid_driver_notification_text_storage();
     notification_text = std::format(
-      "Installed libvirtualhid driver {} is not supported by this version of Sunshine. Supported versions: {}. Restart Sunshine after updating. Click for instructions.",
+      "Installed Virtual HID Broker {} is not supported by this version of Sunshine. Supported versions: {}. Restart Sunshine after updating. Click for instructions.",
       displayed_version,
       supported_versions
     );
@@ -591,7 +593,6 @@ namespace system_tray {
       status.value("supported_versions", std::string {})
     );
   }
-    #endif
   #endif
 
   /**

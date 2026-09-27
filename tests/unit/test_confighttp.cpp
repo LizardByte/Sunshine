@@ -1636,8 +1636,17 @@ TEST(ConfigHttpDriverStatusTest, BuildsLiveVirtualInputDriverStatus) {
   EXPECT_TRUE(virtualhid.contains("development_version"));
   EXPECT_TRUE(virtualhid.contains("backend_name"));
   EXPECT_TRUE(virtualhid.contains("requires_installed_driver"));
+#ifdef __APPLE__
+  EXPECT_EQ(virtualhid["minimum_version"].get<std::string>(), LIBVIRTUALHID_MACOS_MINIMUM_VERSION);
+  EXPECT_EQ(virtualhid["supported_versions"].get<std::string>(), std::format(">= {}", LIBVIRTUALHID_MACOS_MINIMUM_VERSION));
+  if (std::filesystem::exists("/Applications/VirtualHIDBroker.app/Contents/Info.plist")) {
+    EXPECT_TRUE(virtualhid["installed"].get<bool>());
+    EXPECT_FALSE(virtualhid["version"].get<std::string>().empty());
+  }
+#else
   EXPECT_EQ(virtualhid["minimum_version"].get<std::string>(), LIBVIRTUALHID_MINIMUM_VERSION);
   EXPECT_EQ(virtualhid["supported_versions"].get<std::string>(), std::format(">= {}", LIBVIRTUALHID_MINIMUM_VERSION));
+#endif
 
   const auto vigembus = confighttp::get_vigembus_driver_status();
   EXPECT_TRUE(vigembus.contains("installed"));
