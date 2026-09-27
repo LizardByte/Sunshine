@@ -257,8 +257,9 @@ supported on the current platform.
             command that failed. If display restoration fails, Undo is withheld
             until restoration succeeds; Sunshine retries when the display API
             becomes available or output devices change. Resetting display
-            persistence abandons restoration and leaves the preparation in a
-            failed state; it does not run Undo. While failed (also after an
+            persistence, or a failed restoration while Sunshine shuts down,
+            abandons restoration and leaves the preparation in a failed state;
+            it does not run Undo. While failed (also after an
             incomplete Undo), launches are rejected: undo the changes manually,
             then restart Sunshine. Every Do
             command requires an Undo command. Use idempotent commands; Sunshine cannot

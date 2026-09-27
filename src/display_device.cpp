@@ -54,6 +54,7 @@ namespace display_device {
       std::unique_ptr<RetryScheduler<SettingsManagerInterface>> sm_instance {nullptr};
       std::mutex revert_callbacks_mutex {};  ///< Separate from mutex because scheduler callbacks may run inline.
       std::vector<std::function<void(bool)>> revert_callbacks {};  ///< Work waiting for display restoration or reset.
+      bool last_revert_ok {true};  ///< Outcome of the last one-shot revert, reported once the settings manager is gone.
     } DD_DATA;
 
     /**
@@ -738,7 +739,15 @@ namespace display_device {
 
       DD_DATA.sm_instance->schedule([try_once = (option == revert_option_e::try_once), tried_out_devices = StringSet {}](auto &settings_iface, auto &stop_token) mutable {
         if (try_once) {
-          std::ignore = settings_iface.revertSettings();
+          // Runs inline at startup and shutdown; waiters must not assume success, even if it throws.
+          bool reverted = false;
+          try {
+            reverted = settings_iface.revertSettings() == SettingsManagerInterface::RevertResult::Ok;
+          } catch (const std::exception &e) {  // NOSONAR(cpp:S1181): any failure means the display was not restored
+            BOOST_LOG(error) << "Failed to revert display device configuration: " << e.what();
+          }
+          DD_DATA.last_revert_ok = reverted;
+          complete_revert_callbacks(reverted);
           stop_token.requestStop();
           return;
         }
@@ -918,7 +927,8 @@ namespace display_device {
     std::lock_guard lock {DD_DATA.mutex};
     if (!DD_DATA.sm_instance) {
       if (on_reverted) {
-        on_reverted(true);
+        // Unsupported platforms have nothing to restore; after shutdown, report how the final revert went.
+        on_reverted(DD_DATA.last_revert_ok);
       }
       return;
     }

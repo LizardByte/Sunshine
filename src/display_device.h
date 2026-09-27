@@ -111,7 +111,7 @@ namespace display_device {
    * In case the state could not be restored, by default it will be retried again in 5 seconds
    * (repeating indefinitely until success or until persistence is reset).
    *
-   * @param on_reverted Optional callback receiving true after restoration succeeds, or false when persistence is reset without restoration.
+   * @param on_reverted Optional callback receiving true after restoration succeeds, or false when restoration is abandoned (persistence reset, or a failed revert during shutdown).
    * @examples
    * revert_configuration();
    * @examples_end

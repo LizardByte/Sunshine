@@ -208,7 +208,7 @@ namespace display_prep {
     if (!restored) {
       std::lock_guard lock(mutex_);
       state_ = failed;
-      error_ = "Display persistence was reset before restoration; pre-display Undo requires manual recovery";
+      error_ = "Display settings were not restored; pre-display Undo was skipped and requires manual recovery";
       restored_.notify_all();
       return;
     }
