@@ -64,7 +64,6 @@ jobs:
               audio/pulseaudio \
               devel/boost-all \
               devel/cmake-core \
-              devel/doxygen \
               devel/evdev-proto \
               devel/git \
               devel/libevdev \
@@ -74,7 +73,6 @@ jobs:
               devel/uv \
               devel/qt6-base \
               ftp/curl \
-              graphics/graphviz \
               graphics/libdrm \
               graphics/qt6-svg \
               graphics/shaderc \
@@ -145,7 +143,7 @@ jobs:
             -B build \
             -G Ninja \
             -S . \
-            -DBUILD_DOCS=ON \
+            -DBUILD_DOCS=OFF \
             -DBUILD_WERROR=OFF \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr/local \
