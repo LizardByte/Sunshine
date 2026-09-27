@@ -246,7 +246,7 @@ TEST_F(AVAudioTest, AudioConverterComplexInputProc) {
       }
     }
 
-    AudioConverterInputData inputInfo = {0};
+    AudioConverterInputData inputInfo = {};
     inputInfo.inputData = testData;
     inputInfo.inputFrames = frameCount;
     inputInfo.framesProvided = 0;
@@ -255,7 +255,7 @@ TEST_F(AVAudioTest, AudioConverterComplexInputProc) {
 
     // Test the method
     UInt32 requestedPackets = 128;
-    AudioBufferList bufferList = {0};
+    AudioBufferList bufferList = {};
     // Use a dummy AudioConverterRef (can be null for our test since our implementation doesn't use it)
     AudioConverterRef dummyConverter = nullptr;
     OSStatus result = platf::audioConverterComplexInputProc(dummyConverter, &requestedPackets, &bufferList, nullptr, &inputInfo);
@@ -284,7 +284,7 @@ TEST_F(AVAudioTest, AudioConverterInputProcNoMoreData) {
     UInt32 channels = 2;
     float *testData = (float *) calloc(frameCount * channels, sizeof(float));
 
-    AudioConverterInputData inputInfo = {0};
+    AudioConverterInputData inputInfo = {};
     inputInfo.inputData = testData;
     inputInfo.inputFrames = frameCount;
     inputInfo.framesProvided = frameCount;  // Already provided all frames
@@ -292,7 +292,7 @@ TEST_F(AVAudioTest, AudioConverterInputProcNoMoreData) {
     inputInfo.avAudio = avAudio;
 
     UInt32 requestedPackets = 128;
-    AudioBufferList bufferList = {0};
+    AudioBufferList bufferList = {};
     // Use a dummy AudioConverterRef (can be null for our test since our implementation doesn't use it)
     AudioConverterRef dummyConverter = nullptr;
     OSStatus result = platf::audioConverterComplexInputProc(dummyConverter, &requestedPackets, &bufferList, nullptr, &inputInfo);
@@ -404,7 +404,7 @@ TEST_P(ProcessSystemAudioIOProcTest, ProcessAudioInput) {
     [avAudio initializeAudioBuffer:params.channels];
 
     // Create timestamps
-    AudioTimeStamp timeStamp = {0};
+    AudioTimeStamp timeStamp = {};
     timeStamp.mFlags = kAudioTimeStampSampleTimeValid;
     timeStamp.mSampleTime = 0;
 
@@ -438,7 +438,7 @@ TEST_P(ProcessSystemAudioIOProcTest, ProcessAudioInput) {
     TPCircularBufferTail(&avAudio->audioSampleBuffer, &initialAvailableBytes);
 
     // Create IOProc data structure for the C++ function
-    AVAudioIOProcData procData = {0};
+    AVAudioIOProcData procData = {};
     procData.avAudio = avAudio;
     procData.clientRequestedChannels = params.channels;
     procData.clientRequestedFrameSize = params.frameCount;
@@ -448,7 +448,7 @@ TEST_P(ProcessSystemAudioIOProcTest, ProcessAudioInput) {
     procData.audioConverter = nullptr;  // No conversion needed for most tests
 
     // Create a dummy output buffer (not used in our implementation but required by signature)
-    AudioBufferList dummyOutputBufferList = {0};
+    AudioBufferList dummyOutputBufferList = {};
 
     // Test the systemAudioIOProcWrapper function
     OSStatus result = platf::systemAudioIOProc(0,  // device ID (not used in our logic)

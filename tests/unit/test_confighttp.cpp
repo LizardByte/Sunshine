@@ -1636,8 +1636,17 @@ TEST(ConfigHttpDriverStatusTest, BuildsLiveVirtualInputDriverStatus) {
   EXPECT_TRUE(virtualhid.contains("development_version"));
   EXPECT_TRUE(virtualhid.contains("backend_name"));
   EXPECT_TRUE(virtualhid.contains("requires_installed_driver"));
+#ifdef __APPLE__
+  EXPECT_EQ(virtualhid["minimum_version"].get<std::string>(), LIBVIRTUALHID_MACOS_MINIMUM_VERSION);
+  EXPECT_EQ(virtualhid["supported_versions"].get<std::string>(), std::format(">= {}", LIBVIRTUALHID_MACOS_MINIMUM_VERSION));
+  if (std::filesystem::exists("/Applications/VirtualHIDBroker.app/Contents/Info.plist")) {
+    EXPECT_TRUE(virtualhid["installed"].get<bool>());
+    EXPECT_FALSE(virtualhid["version"].get<std::string>().empty());
+  }
+#else
   EXPECT_EQ(virtualhid["minimum_version"].get<std::string>(), LIBVIRTUALHID_MINIMUM_VERSION);
   EXPECT_EQ(virtualhid["supported_versions"].get<std::string>(), std::format(">= {}", LIBVIRTUALHID_MINIMUM_VERSION));
+#endif
 
   const auto vigembus = confighttp::get_vigembus_driver_status();
   EXPECT_TRUE(vigembus.contains("installed"));
@@ -1709,7 +1718,7 @@ TEST(ConfigHttpLicenseStatusTest, BuildVirtualHidLicenseStatus_IncludesExpectedF
   license.state = lvh::LicenseState::licensed;
   license.active_devices = 2;
   license.activation_limit = 5;
-  license.activation_usage = 3;
+  license.activation_usage = 1;
   license.plan_name = "Yearly";
   license.customer_email = "customer@example.com";
   license.message = "License is active";
@@ -1721,7 +1730,7 @@ TEST(ConfigHttpLicenseStatusTest, BuildVirtualHidLicenseStatus_IncludesExpectedF
   EXPECT_TRUE(output["service_available"].get<bool>());
   EXPECT_EQ(output["active_devices"].get<unsigned int>(), 2U);
   EXPECT_EQ(output["activation_limit"].get<unsigned int>(), 5U);
-  EXPECT_EQ(output["activation_usage"].get<unsigned int>(), 3U);
+  EXPECT_EQ(output["activation_usage"].get<unsigned int>(), 1U);
   EXPECT_EQ(output["plan_name"].get<std::string>(), "Yearly");
   EXPECT_EQ(output["customer_email"].get<std::string>(), "customer@example.com");
   EXPECT_FALSE(output.contains("expires_at"));

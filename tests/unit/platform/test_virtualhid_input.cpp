@@ -22,6 +22,10 @@
 #include "src/globals.h"
 #include "src/platform/virtualhid_input.h"
 
+#if defined(_WIN32) || defined(__APPLE__)
+  #include <libvirtualhid/license.hpp>
+#endif
+
 using namespace std::chrono_literals;
 using namespace std::literals;
 
@@ -236,6 +240,7 @@ TEST_F(VirtualHidDeviceTest, SelectsVirtualHidGamepadRuntimeByBackendLicenseAndP
   EXPECT_TRUE(platf::virtualhid::should_use_gamepad_runtime(capabilities, config::GAMEPAD_DRIVER_ALL, true));
   EXPECT_TRUE(platf::virtualhid::should_use_gamepad_runtime(capabilities, config::GAMEPAD_DRIVER_VIRTUALHID, true));
   EXPECT_FALSE(platf::virtualhid::should_use_gamepad_runtime(capabilities, config::GAMEPAD_DRIVER_VIGEMBUS, true));
+  EXPECT_FALSE(platf::virtualhid::should_use_gamepad_runtime(capabilities, config::GAMEPAD_DRIVER_NONE, true));
 
   capabilities.supports_gamepad = false;
   EXPECT_FALSE(platf::virtualhid::should_use_gamepad_runtime(capabilities, config::GAMEPAD_DRIVER_ALL, true));
@@ -251,6 +256,7 @@ TEST_F(VirtualHidDeviceTest, SelectsVigembusFallbackByBackendAndConfiguredProfil
   EXPECT_TRUE(platf::virtualhid::should_try_vigembus_fallback("xseries", false, ""));
   EXPECT_TRUE(platf::virtualhid::should_try_vigembus_fallback("xseries", true, config::GAMEPAD_DRIVER_VIGEMBUS));
   EXPECT_FALSE(platf::virtualhid::should_try_vigembus_fallback("auto", false, config::GAMEPAD_DRIVER_VIRTUALHID));
+  EXPECT_FALSE(platf::virtualhid::should_try_vigembus_fallback("auto", false, config::GAMEPAD_DRIVER_NONE));
 }
 
 TEST_F(VirtualHidDeviceTest, ReportsStaticAndRuntimeGamepadChoices) {
@@ -271,9 +277,64 @@ TEST_F(VirtualHidDeviceTest, ReportsStaticAndRuntimeGamepadChoices) {
     EXPECT_TRUE(gamepad.reason_disabled.empty()) << gamepad.name;
   }
 
+  const auto licensed_broker_gamepads = platf::virtualhid::supported_gamepads(context()->runtime.get(), false, true, true);
+  for (const auto &gamepad : licensed_broker_gamepads) {
+    EXPECT_TRUE(gamepad.is_enabled) << gamepad.name;
+  }
+
+  const auto unlicensed_gamepads = platf::virtualhid::supported_gamepads(context()->runtime.get(), false, false, true);
+  ASSERT_EQ(unlicensed_gamepads.size(), expected_names.size());
+  for (const auto &gamepad : unlicensed_gamepads) {
+    EXPECT_FALSE(gamepad.is_enabled) << gamepad.name;
+    EXPECT_EQ(gamepad.reason_disabled, "gamepads.virtualhid-license-invalid") << gamepad.name;
+  }
+
   const auto no_runtime_gamepads = platf::virtualhid::supported_gamepads(nullptr, true);
   EXPECT_EQ(no_runtime_gamepads.size(), expected_names.size());
 }
+
+#if defined(_WIN32) || defined(__APPLE__)
+TEST_F(VirtualHidDeviceTest, NoneSelectionHidesAvailableGamepads) {
+  config::input.gamepad_driver = config::GAMEPAD_DRIVER_NONE;
+  auto platform_input = platf::input();
+  ASSERT_TRUE(platform_input);
+
+  EXPECT_TRUE(platf::supported_gamepads(std::addressof(platform_input)).empty());
+  EXPECT_EQ(platf::get_capabilities() & platf::platform_caps::controller_touch, 0U);
+}
+
+TEST_F(VirtualHidDeviceTest, BrokerCreatesAndUpdatesEveryGamepadProfileWhenLicensed) {
+  if (!lvh::get_license_status().license.licensed()) {
+    GTEST_SKIP() << "Virtual HID Broker is not activated";
+  }
+
+  config::input.gamepad_driver = config::GAMEPAD_DRIVER_VIRTUALHID;
+  auto platform_input = platf::input();
+  ASSERT_TRUE(platform_input);
+  const auto &context = platf::virtualhid::get_input_context(platform_input);
+  if (!context.runtime || !context.runtime->capabilities().supports_gamepad) {
+    GTEST_SKIP() << "Virtual HID Broker is not installed";
+  }
+
+  const auto &available = platf::supported_gamepads(std::addressof(platform_input));
+  for (const auto &gamepad : available) {
+    EXPECT_TRUE(gamepad.is_enabled) << gamepad.name;
+  }
+
+  constexpr std::array profiles {"generic"sv, "x360"sv, "xone"sv, "xseries"sv, "ds4"sv, "ds5"sv, "switch"sv};
+  const platf::gamepad_id_t id {0, 0};
+  const platf::gamepad_arrival_t metadata {LI_CTYPE_UNKNOWN, 0, 0};
+  for (const auto profile : profiles) {
+    config::input.gamepad = profile;
+    ASSERT_EQ(platf::alloc_gamepad(platform_input, id, metadata, nullptr), 0) << profile;
+    platf::gamepad_update(platform_input, 0, {platf::A, 255, 0, 0, 0, 0, 0});
+    const auto *adapter = platf::virtualhid::gamepad_adapter_for_testing(platf::virtualhid::get_input_context(platform_input), 0);
+    ASSERT_NE(adapter, nullptr);
+    EXPECT_TRUE(adapter->state().buttons.test(lvh::GamepadButton::a)) << profile;
+    platf::free_gamepad(platform_input, 0);
+  }
+}
+#endif
 
 TEST_F(VirtualHidDeviceTest, RejectsUnavailableAndInvalidGamepadSlots) {
   const platf::gamepad_arrival_t metadata {LI_CTYPE_XBOX, 0, 0};
@@ -912,7 +973,13 @@ TEST_F(VirtualHidDeviceTest, PlatformWrappersForwardToVirtualHidContext) {
 
   const auto &supported = platf::supported_gamepads(std::addressof(platform_input));
   ASSERT_FALSE(supported.empty());
+#ifdef __APPLE__
+  const auto licensed = lvh::get_license_status().license.licensed();
+  EXPECT_EQ(supported.front().is_enabled, licensed);
+  EXPECT_EQ(supported.front().reason_disabled, licensed ? "" : "gamepads.virtualhid-license-invalid");
+#else
   EXPECT_TRUE(supported.front().is_enabled);
+#endif
   EXPECT_FALSE(platf::supported_gamepads(nullptr).empty());
 #ifdef _WIN32
   config::input.gamepad_driver = config::GAMEPAD_DRIVER_VIGEMBUS;
@@ -924,7 +991,12 @@ TEST_F(VirtualHidDeviceTest, PlatformWrappersForwardToVirtualHidContext) {
   EXPECT_EQ(vigembus_gamepads[2].name, "ds4");
 #endif
 #ifdef __APPLE__
-  EXPECT_EQ(platf::get_capabilities() & platf::platform_caps::controller_touch, 0U);
+  const auto controller_touch = platf::get_capabilities() & platf::platform_caps::controller_touch;
+  if (lvh::get_license_status().license.licensed()) {
+    EXPECT_NE(controller_touch, 0U);
+  } else {
+    EXPECT_EQ(controller_touch, 0U);
+  }
 #else
   EXPECT_NE(platf::get_capabilities() & platf::platform_caps::controller_touch, 0U);
 #endif
