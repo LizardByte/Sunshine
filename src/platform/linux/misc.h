@@ -70,6 +70,9 @@ namespace portal {
    * @return True if the Portal is reachable.
    */
   bool is_portal_service_reachable();
+
+  inline std::jthread xdg_worker;  ///< XDG worker thread to negotiate restore token.
+  inline std::once_flag xdg_worker_flag;  ///< Flag to ensure xdg_worker spawns only once.
 }  // namespace portal
 #endif
 

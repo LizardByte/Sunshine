@@ -381,12 +381,7 @@ int main(int argc, char *argv[]) {
 
 #endif
 
-  int task_pool_threads = 1;
-#ifdef SUNSHINE_BUILD_PORTAL
-  // Allocate an extra thread for fallback capture, otherwise a pending XDG user reply can block input.
-  task_pool_threads = 2;
-#endif
-  task_pool.start(task_pool_threads);
+  task_pool.start(1);
 
   // Create signal handler after logging has been initialized
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
