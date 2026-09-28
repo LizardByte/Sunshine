@@ -27,19 +27,9 @@ using namespace std::literals;
 
 namespace platf::virtualhid {
   /**
-   * @brief Runtime state for one virtual gamepad.
+   * @brief Last feedback values forwarded to the current client session.
    */
-  struct gamepad_context_t {
-    std::unique_ptr<lvh::GamepadStateAdapter> adapter;  ///< State adapter for the virtual gamepad.
-    std::mutex feedback_mutex;  ///< Synchronizes feedback routing with session rebinding.
-    feedback_queue_t feedback_queue;  ///< Feedback queue for client output events.
-    std::array<std::optional<std::uint32_t>, 2> touch_ids;  ///< Client touch IDs assigned to libvirtualhid slots.
-    std::array<bool, 2> inferred_touchpad_clicks {};  ///< Steam touchpad clicks inferred from client pressure.
-    std::array<bool, 2> inferred_trigger_clicks {};  ///< Steam trigger clicks inferred from client axes.
-    std::uint32_t client_button_flags = 0;  ///< Latest client button state, before Steam click inference.
-    std::uint32_t supported_button_flags = 0;  ///< Button flags the client can report natively.
-    std::uint8_t client_relative_index = 0;  ///< Client-relative controller index.
-    bool supports_haptics = false;  ///< Whether the client can play addressable haptic effects.
+  struct feedback_cache_t {
     bool has_last_rumble = false;  ///< Whether last rumble values are valid.
     std::uint16_t last_low_frequency_rumble = 0;  ///< Last low-frequency rumble value.
     std::uint16_t last_high_frequency_rumble = 0;  ///< Last high-frequency rumble value.
@@ -53,6 +43,23 @@ namespace platf::virtualhid {
     bool has_last_player_leds = false;  ///< Whether last player indicator LED values are valid.
     std::uint8_t last_solid_player_leds = 0;  ///< Last solid player indicator mask.
     std::uint8_t last_flashing_player_leds = 0;  ///< Last flashing player indicator mask.
+  };
+
+  /**
+   * @brief Runtime state for one virtual gamepad.
+   */
+  struct gamepad_context_t {
+    std::unique_ptr<lvh::GamepadStateAdapter> adapter;  ///< State adapter for the virtual gamepad.
+    std::mutex feedback_mutex;  ///< Synchronizes feedback routing with session rebinding.
+    feedback_queue_t feedback_queue;  ///< Feedback queue for client output events.
+    std::array<std::optional<std::uint32_t>, 2> touch_ids;  ///< Client touch IDs assigned to libvirtualhid slots.
+    std::array<bool, 2> inferred_touchpad_clicks {};  ///< Steam touchpad clicks inferred from client pressure.
+    std::array<bool, 2> inferred_trigger_clicks {};  ///< Steam trigger clicks inferred from client axes.
+    std::uint32_t client_button_flags = 0;  ///< Latest client button state, before Steam click inference.
+    std::uint32_t supported_button_flags = 0;  ///< Button flags the client can report natively.
+    std::uint8_t client_relative_index = 0;  ///< Client-relative controller index.
+    bool supports_haptics = false;  ///< Whether the client can play addressable haptic effects.
+    feedback_cache_t feedback_cache;  ///< Feedback values already sent to this client session.
   };
 
   namespace {
@@ -507,43 +514,43 @@ namespace platf::virtualhid {
       std::lock_guard lock {gamepad->feedback_mutex};
       switch (output.kind) {
         case lvh::GamepadOutputKind::rumble:
-          if (gamepad->has_last_rumble && gamepad->last_low_frequency_rumble == output.low_frequency_rumble && gamepad->last_high_frequency_rumble == output.high_frequency_rumble) {
+          if (gamepad->feedback_cache.has_last_rumble && gamepad->feedback_cache.last_low_frequency_rumble == output.low_frequency_rumble && gamepad->feedback_cache.last_high_frequency_rumble == output.high_frequency_rumble) {
             return;
           }
-          gamepad->has_last_rumble = true;
-          gamepad->last_low_frequency_rumble = output.low_frequency_rumble;
-          gamepad->last_high_frequency_rumble = output.high_frequency_rumble;
+          gamepad->feedback_cache.has_last_rumble = true;
+          gamepad->feedback_cache.last_low_frequency_rumble = output.low_frequency_rumble;
+          gamepad->feedback_cache.last_high_frequency_rumble = output.high_frequency_rumble;
           raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_rumble(gamepad->client_relative_index, output.low_frequency_rumble, output.high_frequency_rumble));
           break;
         case lvh::GamepadOutputKind::trigger_rumble:
-          if (gamepad->has_last_trigger_rumble && gamepad->last_left_trigger_rumble == output.left_trigger_rumble && gamepad->last_right_trigger_rumble == output.right_trigger_rumble) {
+          if (gamepad->feedback_cache.has_last_trigger_rumble && gamepad->feedback_cache.last_left_trigger_rumble == output.left_trigger_rumble && gamepad->feedback_cache.last_right_trigger_rumble == output.right_trigger_rumble) {
             return;
           }
-          gamepad->has_last_trigger_rumble = true;
-          gamepad->last_left_trigger_rumble = output.left_trigger_rumble;
-          gamepad->last_right_trigger_rumble = output.right_trigger_rumble;
+          gamepad->feedback_cache.has_last_trigger_rumble = true;
+          gamepad->feedback_cache.last_left_trigger_rumble = output.left_trigger_rumble;
+          gamepad->feedback_cache.last_right_trigger_rumble = output.right_trigger_rumble;
           raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_rumble_triggers(gamepad->client_relative_index, output.left_trigger_rumble, output.right_trigger_rumble));
           break;
         case lvh::GamepadOutputKind::rgb_led:
-          if (gamepad->has_last_rgb && gamepad->last_red == output.red && gamepad->last_green == output.green && gamepad->last_blue == output.blue) {
+          if (gamepad->feedback_cache.has_last_rgb && gamepad->feedback_cache.last_red == output.red && gamepad->feedback_cache.last_green == output.green && gamepad->feedback_cache.last_blue == output.blue) {
             return;
           }
-          gamepad->has_last_rgb = true;
-          gamepad->last_red = output.red;
-          gamepad->last_green = output.green;
-          gamepad->last_blue = output.blue;
+          gamepad->feedback_cache.has_last_rgb = true;
+          gamepad->feedback_cache.last_red = output.red;
+          gamepad->feedback_cache.last_green = output.green;
+          gamepad->feedback_cache.last_blue = output.blue;
           raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_rgb_led(gamepad->client_relative_index, output.red, output.green, output.blue));
           break;
         case lvh::GamepadOutputKind::player_leds:
           {
             const auto solid = player_led_mask(output.player_leds);
             const auto flashing = player_led_mask(output.flashing_player_leds);
-            if (gamepad->has_last_player_leds && gamepad->last_solid_player_leds == solid && gamepad->last_flashing_player_leds == flashing) {
+            if (gamepad->feedback_cache.has_last_player_leds && gamepad->feedback_cache.last_solid_player_leds == solid && gamepad->feedback_cache.last_flashing_player_leds == flashing) {
               return;
             }
-            gamepad->has_last_player_leds = true;
-            gamepad->last_solid_player_leds = solid;
-            gamepad->last_flashing_player_leds = flashing;
+            gamepad->feedback_cache.has_last_player_leds = true;
+            gamepad->feedback_cache.last_solid_player_leds = solid;
+            gamepad->feedback_cache.last_flashing_player_leds = flashing;
             raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_player_leds(gamepad->client_relative_index, solid, flashing));
             break;
           }
@@ -558,8 +565,8 @@ namespace platf::virtualhid {
               gamepad_feedback_msg_t::make_haptics(
                 gamepad->client_relative_index,
                 {
-                  .target = static_cast<std::uint8_t>(effect.target),
-                  .kind = static_cast<std::uint8_t>(effect.kind),
+                  .target = std::to_underlying(effect.target),
+                  .kind = std::to_underlying(effect.kind),
                   .gain_db = effect.gain_db,
                   .intensity = effect.intensity,
                   .frequency_hz = effect.frequency_hz,
@@ -884,10 +891,7 @@ namespace platf::virtualhid {
     std::lock_guard lock {gamepad->feedback_mutex};
     gamepad->feedback_queue = std::move(feedback_queue);
     gamepad->client_relative_index = id.clientRelativeIndex;
-    gamepad->has_last_rumble = false;
-    gamepad->has_last_trigger_rumble = false;
-    gamepad->has_last_rgb = false;
-    gamepad->has_last_player_leds = false;
+    gamepad->feedback_cache = {};
 
     if (gamepad->adapter->support().supports_motion) {
       raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_motion_event_state(id.clientRelativeIndex, LI_MOTION_TYPE_ACCEL, 100));

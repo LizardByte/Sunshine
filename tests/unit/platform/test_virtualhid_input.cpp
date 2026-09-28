@@ -734,6 +734,28 @@ TEST_F(VirtualHidDeviceTest, RoutesAndDeduplicatesGamepadFeedback) {
   EXPECT_EQ(feedback->id, 7);
   EXPECT_FALSE(feedback_queue()->pop(0ms));
 
+  output.kind = lvh::GamepadOutputKind::trigger_rumble;
+  ASSERT_TRUE(adapter->dispatch_output(output).ok());
+  feedback = resumed_feedback->pop(10ms);
+  ASSERT_TRUE(feedback);
+  EXPECT_EQ(feedback->type, platf::gamepad_feedback_e::rumble_triggers);
+  EXPECT_EQ(feedback->id, 7);
+
+  output.kind = lvh::GamepadOutputKind::rgb_led;
+  ASSERT_TRUE(adapter->dispatch_output(output).ok());
+  feedback = resumed_feedback->pop(10ms);
+  ASSERT_TRUE(feedback);
+  EXPECT_EQ(feedback->type, platf::gamepad_feedback_e::set_rgb_led);
+  EXPECT_EQ(feedback->id, 7);
+
+  output.kind = lvh::GamepadOutputKind::player_leds;
+  ASSERT_TRUE(adapter->dispatch_output(output).ok());
+  feedback = resumed_feedback->pop(10ms);
+  ASSERT_TRUE(feedback);
+  EXPECT_EQ(feedback->type, platf::gamepad_feedback_e::set_player_leds);
+  EXPECT_EQ(feedback->id, 7);
+  EXPECT_FALSE(feedback_queue()->pop(0ms));
+
   output.kind = lvh::GamepadOutputKind::raw_report;
   ASSERT_TRUE(adapter->dispatch_output(output).ok());
   EXPECT_FALSE(feedback_queue()->pop(0ms));
