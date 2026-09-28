@@ -862,9 +862,7 @@ namespace portal {
      * @result True (continue) if shutdown event is not in progress.
      */
     static gboolean check_shutdown_cb(gpointer user_data) {
-      auto *ctx = static_cast<loop_context_t *>(user_data);
-
-      if (ctx->shutdown_event && ctx->shutdown_event->peek()) {
+      if (auto *ctx = static_cast<loop_context_t *>(user_data); ctx->shutdown_event && ctx->shutdown_event->peek()) {
         g_main_loop_quit(ctx->loop);
         return G_SOURCE_REMOVE;
       }
