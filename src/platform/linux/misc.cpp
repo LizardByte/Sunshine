@@ -1507,6 +1507,10 @@ namespace platf {
       ~deinit_t() override {
         try {
           if (portal::xdg_worker.joinable()) {
+            // Make sure the worker's response loop sees shutdown before we block on join().
+            if (mail::man) {
+              mail::man->event<bool>(mail::shutdown)->raise(true);
+            }
             portal::xdg_worker.join();
           }
         } catch (const std::exception &err) {
