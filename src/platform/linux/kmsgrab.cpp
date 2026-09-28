@@ -353,27 +353,30 @@ namespace platf {
       }
 
       ~wrapper_fb() {
-        std::ranges::for_each(handles, [&](auto &handle) {
-          if (handle) {
-            struct drm_gem_close close_args = {};
-            close_args.handle = handle;
+        try {
+          std::ranges::for_each(handles, [&](auto &handle) {
+            if (handle) {
+              struct drm_gem_close close_args = {};
+              close_args.handle = handle;
 
-            try {
               platf::kms::privileged_drm_worker::drmIoctl_privileged(
                 card_fd,
                 DRM_IOCTL_GEM_CLOSE,
                 &close_args
               );
-            } catch (const privileged_drm_worker_stopped &err) {
-              BOOST_LOG(error) << err.what();
             }
-          }
-        });
+          });
 
-        if (fb) {
-          drmModeFreeFB(fb);
-        } else if (fb2) {
-          drmModeFreeFB2(fb2);
+          if (fb) {
+            drmModeFreeFB(fb);
+          } else if (fb2) {
+            drmModeFreeFB2(fb2);
+          }
+
+        } catch (const std::exception &err) {
+          BOOST_LOG(error) << "Exception during DRM framebuffer cleanup: "sv << err.what();
+        } catch (...) {
+          BOOST_LOG(error) << "Exception during DRM framebuffer cleanup: unknown exception"sv;
         }
       }
 
