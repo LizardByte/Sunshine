@@ -3,6 +3,7 @@
  * @brief Definitions for wlgrab capture.
  */
 // standard includes
+#include <map>
 #include <thread>
 
 // local includes
@@ -11,6 +12,7 @@
 #include "src/platform/common.h"
 #include "src/video.h"
 #include "vaapi.h"
+#include "vulkan_encode.h"
 #include "wayland.h"
 
 using namespace std::literals;
@@ -21,6 +23,10 @@ namespace wl {
 
   bool use_vram_capture(platf::mem_type_e hwdevice_type) {
     if (hwdevice_type == platf::mem_type_e::vaapi) {
+      return true;
+    }
+
+    if (hwdevice_type == platf::mem_type_e::vulkan) {
       return true;
     }
 
@@ -175,7 +181,8 @@ namespace wl {
       auto to = std::chrono::steady_clock::now() + timeout;
 
       // Dispatch events until we get a new frame or the timeout expires
-      dmabuf.listen(interface.screencopy_manager, interface.dmabuf_interface, &interface.supported_modifiers, output, cursor);
+      const std::map<std::uint32_t, std::vector<std::uint64_t>> *enc_mods = encoder_modifiers.empty() ? nullptr : &encoder_modifiers;
+      dmabuf.listen(interface.screencopy_manager, interface.dmabuf_interface, &interface.supported_modifiers, enc_mods, output, cursor);
       do {
         auto remaining_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(to - std::chrono::steady_clock::now());
         if (remaining_time_ms.count() < 0 || !display.dispatch(remaining_time_ms)) {
@@ -205,6 +212,8 @@ namespace wl {
     dmabuf_t dmabuf;  ///< DMA-BUF feedback and format state advertised by the compositor.
 
     wl_output *output;  ///< Wayland output selected for capture.
+
+    std::map<std::uint32_t, std::vector<std::uint64_t>> encoder_modifiers;  ///< DRM format modifiers supported by the encoder.
   };
 
   /**
@@ -467,6 +476,12 @@ namespace wl {
       }
 #endif
 
+#ifdef SUNSHINE_BUILD_VULKAN
+      if (mem_type == platf::mem_type_e::vulkan) {
+        return vk::make_avcodec_encode_device_vram(width, height, 0, 0);
+      }
+#endif
+
 #ifdef SUNSHINE_BUILD_CUDA
       if (mem_type == platf::mem_type_e::cuda) {
         return cuda::make_avcodec_gl_encode_device(width, height, 0, 0);
@@ -497,13 +512,24 @@ namespace platf {
    * @brief Create a Wayland capture backend for the requested memory type.
    */
   std::shared_ptr<display_t> wl_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
-    if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda) {
+    if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda && hwdevice_type != platf::mem_type_e::vulkan) {
       BOOST_LOG(error) << "[wlgrab] Could not initialize display with the given hw device type."sv;
       return nullptr;
     }
 
     if (wl::use_vram_capture(hwdevice_type)) {
       auto wlr = std::make_shared<wl::wlr_vram_t>();
+
+      // For Vulkan encoder, query supported modifiers before init for safe buffer allocation
+      if (hwdevice_type == platf::mem_type_e::vulkan) {
+        wlr->encoder_modifiers = vk::get_supported_capture_modifiers();
+        if (wlr->encoder_modifiers.empty()) {
+          BOOST_LOG(error) << "[wlgrab] Vulkan encoder reported no supported DRM format modifiers, cannot use wlroots capture"sv;
+          return nullptr;
+        }
+        BOOST_LOG(info) << "[wlgrab] Vulkan encoder supports modifiers for "sv << wlr->encoder_modifiers.size() << " formats"sv;
+      }
+
       if (wlr->init(hwdevice_type, display_name, config)) {
         return nullptr;
       }

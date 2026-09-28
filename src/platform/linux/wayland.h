@@ -107,10 +107,11 @@ namespace wl {
      * @param screencopy_manager Compositor screencopy manager used to request frames.
      * @param dmabuf_interface Compositor DMA-BUF interface used to allocate buffers.
      * @param supported_modifiers DMA-BUF format modifiers supported by the compositor.
+     * @param encoder_modifiers DMA-BUF format modifiers supported by the encoder (optional, for intersection).
      * @param output Wayland output to capture.
      * @param blend_cursor Whether the compositor should include the cursor in the frame.
      */
-    void listen(zwlr_screencopy_manager_v1 *screencopy_manager, zwp_linux_dmabuf_v1 *dmabuf_interface, const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers, wl_output *output, bool blend_cursor = false);
+    void listen(zwlr_screencopy_manager_v1 *screencopy_manager, zwp_linux_dmabuf_v1 *dmabuf_interface, const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers, const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers, wl_output *output, bool blend_cursor = false);
     /**
      * @brief Store the Wayland buffer created for a DMA-BUF parameter request.
      *
@@ -202,9 +203,11 @@ namespace wl {
     bool init_gbm();
     void cleanup_gbm();
     void create_and_copy_dmabuf(zwlr_screencopy_frame_v1 *frame);
+    std::vector<std::uint64_t> intersect_modifiers(const std::vector<std::uint64_t> &compositor_mods, std::uint32_t format);
 
     zwp_linux_dmabuf_v1 *dmabuf_interface {nullptr};
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers {nullptr};
+    const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers {nullptr};  ///< Modifiers supported by the encoder (for intersection).
 
     struct {
       bool supported {false};

@@ -312,11 +312,13 @@ namespace wl {
     zwlr_screencopy_manager_v1 *screencopy_manager,
     zwp_linux_dmabuf_v1 *dmabuf_interface,
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers,
+    const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers,
     wl_output *output,
     bool blend_cursor
   ) {
     this->dmabuf_interface = dmabuf_interface;
     this->supported_modifiers = supported_modifiers;
+    this->encoder_modifiers = encoder_modifiers;
     // Reset state
     shm_info.supported = false;
     dmabuf_info.supported = false;
@@ -410,6 +412,41 @@ namespace wl {
     return static_cast<std::uint32_t>(plane_count);
   }
 
+  /**
+   * @brief Intersect compositor modifiers with encoder modifiers.
+   *
+   * @param compositor_mods Modifiers supported by the compositor.
+   * @param format DRM format code for logging.
+   * @return Modifiers supported by both, or empty if no intersection.
+   */
+  std::vector<std::uint64_t> dmabuf_t::intersect_modifiers(const std::vector<std::uint64_t> &compositor_mods, std::uint32_t format) {
+    std::vector<std::uint64_t> result;
+
+    auto enc_it = encoder_modifiers->find(format);
+    if (enc_it == encoder_modifiers->end() || enc_it->second.empty()) {
+      return result;
+    }
+
+    for (const auto &comp_mod : compositor_mods) {
+      for (const auto &enc_mod : enc_it->second) {
+        if (comp_mod == enc_mod) {
+          result.push_back(comp_mod);
+          break;
+        }
+      }
+    }
+
+    if (!result.empty()) {
+      BOOST_LOG(debug) << "[wayland] Using "sv << result.size()
+                       << " intersected modifiers for format 0x"sv << std::hex << format << std::dec;
+    } else {
+      BOOST_LOG(warning) << "[wayland] No common modifiers between compositor and encoder for format 0x"sv
+                         << std::hex << format << std::dec << ", falling back to compositor modifiers"sv;
+    }
+
+    return result;
+  }
+
   // DMA-BUF creation helper
   void dmabuf_t::create_and_copy_dmabuf(zwlr_screencopy_frame_v1 *frame) {
     if (!init_gbm()) {
@@ -423,7 +460,18 @@ namespace wl {
     if (supported_modifiers) {
       auto it = supported_modifiers->find(dmabuf_info.format);
       if (it != supported_modifiers->end() && !it->second.empty()) {
-        current_bo = gbm_bo_create_with_modifiers2(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, it->second.data(), it->second.size(), GBM_BO_USE_RENDERING);
+        const std::vector<std::uint64_t> *modifiers_to_use = &it->second;
+        std::vector<std::uint64_t> intersected_modifiers;
+
+        // If encoder modifiers are provided, intersect with compositor's modifiers
+        if (encoder_modifiers) {
+          intersected_modifiers = intersect_modifiers(it->second, dmabuf_info.format);
+          if (!intersected_modifiers.empty()) {
+            modifiers_to_use = &intersected_modifiers;
+          }
+        }
+
+        current_bo = gbm_bo_create_with_modifiers2(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, modifiers_to_use->data(), modifiers_to_use->size(), GBM_BO_USE_RENDERING);
       }
     }
 
