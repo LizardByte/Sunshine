@@ -91,7 +91,8 @@ INSTANTIATE_TEST_SUITE_P(
     gamepad_capabilities_case_t {"xseries"sv, false, false},
     gamepad_capabilities_case_t {"ds4"sv, true, true},
     gamepad_capabilities_case_t {"ds5"sv, true, true},
-    gamepad_capabilities_case_t {"switch"sv, false, true}
+    gamepad_capabilities_case_t {"switch"sv, false, true},
+    gamepad_capabilities_case_t {"steam_triton"sv, true, true}
   ),
   [](const ::testing::TestParamInfo<gamepad_capabilities_case_t> &info) {
     return std::string {info.param.gamepad};
@@ -148,11 +149,12 @@ namespace {
       std::uint8_t type = LI_CTYPE_UNKNOWN,
       std::uint16_t capabilities = 0,
       int global_index = 0,
-      std::uint8_t client_index = 3
+      std::uint8_t client_index = 3,
+      std::uint32_t supported_buttons = 0
     ) {
       config::input.gamepad = profile;
       const platf::gamepad_id_t id {global_index, client_index};
-      const platf::gamepad_arrival_t metadata {type, capabilities, 0};
+      const platf::gamepad_arrival_t metadata {type, capabilities, supported_buttons};
       if (platf::virtualhid::alloc_gamepad(*context_, id, metadata, feedback_queue_) != 0) {
         ADD_FAILURE() << "Failed to allocate fake gamepad profile " << profile;
         return nullptr;
@@ -251,6 +253,7 @@ TEST_F(VirtualHidDeviceTest, SelectsVigembusFallbackByBackendAndConfiguredProfil
   EXPECT_TRUE(platf::virtualhid::should_try_vigembus_fallback("x360", true, config::GAMEPAD_DRIVER_ALL));
   EXPECT_TRUE(platf::virtualhid::should_try_vigembus_fallback("ds4", true, config::GAMEPAD_DRIVER_ALL));
   EXPECT_FALSE(platf::virtualhid::should_try_vigembus_fallback("xseries", true, config::GAMEPAD_DRIVER_ALL));
+  EXPECT_FALSE(platf::virtualhid::should_try_vigembus_fallback("steam_triton", true, config::GAMEPAD_DRIVER_ALL));
 
   EXPECT_TRUE(platf::virtualhid::should_try_vigembus_fallback("xseries", false, config::GAMEPAD_DRIVER_ALL));
   EXPECT_TRUE(platf::virtualhid::should_try_vigembus_fallback("xseries", false, ""));
@@ -260,7 +263,7 @@ TEST_F(VirtualHidDeviceTest, SelectsVigembusFallbackByBackendAndConfiguredProfil
 }
 
 TEST_F(VirtualHidDeviceTest, ReportsStaticAndRuntimeGamepadChoices) {
-  constexpr std::array expected_names {"auto"sv, "generic"sv, "x360"sv, "xone"sv, "xseries"sv, "ds4"sv, "ds5"sv, "switch"sv};
+  constexpr std::array expected_names {"auto"sv, "generic"sv, "x360"sv, "xone"sv, "xseries"sv, "ds4"sv, "ds5"sv, "switch"sv, "steam_triton"sv};
 
   const auto static_gamepads = platf::virtualhid::static_supported_gamepads();
   ASSERT_EQ(static_gamepads.size(), expected_names.size());
@@ -415,6 +418,182 @@ TEST_F(VirtualHidDeviceTest, AllocatesManualProfileAndTranslatesFullState) {
   platf::virtualhid::gamepad_update(*context(), 1, input_state);
 }
 
+TEST_F(VirtualHidDeviceTest, AllocatesSecondGenerationSteamControllerAndTranslatesExtendedState) {
+  constexpr auto capabilities = static_cast<std::uint16_t>(LI_CCAP_ACCEL | LI_CCAP_GYRO | LI_CCAP_TOUCHPAD | LI_CCAP_DUAL_TOUCHPAD | LI_CCAP_BATTERY_STATE);
+  auto *adapter = allocate_gamepad("steam_triton"sv, LI_CTYPE_UNKNOWN, capabilities);
+  ASSERT_NE(adapter, nullptr);
+  ASSERT_NE(adapter->gamepad(), nullptr);
+  EXPECT_EQ(adapter->gamepad()->profile().gamepad_kind, lvh::GamepadProfileKind::steam_triton);
+  EXPECT_EQ(adapter->gamepad()->profile().name, "Sunshine Steam Controller (2nd generation)");
+  EXPECT_TRUE(adapter->gamepad()->metadata().has_motion_sensors);
+  EXPECT_TRUE(adapter->gamepad()->metadata().has_touchpad);
+  EXPECT_TRUE(adapter->gamepad()->metadata().has_battery);
+  EXPECT_EQ(adapter->support().supported_touchpad_count, 2U);
+  EXPECT_EQ(adapter->support().supported_rear_paddle_count, 4U);
+
+  constexpr auto button_flags = platf::DPAD_UP | platf::DPAD_DOWN | platf::DPAD_LEFT | platf::DPAD_RIGHT |
+                                platf::START | platf::BACK | platf::LEFT_STICK | platf::RIGHT_STICK |
+                                platf::LEFT_BUTTON | platf::RIGHT_BUTTON | platf::HOME |
+                                platf::A | platf::B | platf::X | platf::Y | platf::MISC_BUTTON |
+                                platf::PADDLE1 | platf::PADDLE2 | platf::PADDLE3 | platf::PADDLE4 |
+                                platf::STEAM_LEFT_TOUCHPAD_BUTTON | platf::STEAM_RIGHT_TOUCHPAD_BUTTON |
+                                platf::STEAM_LEFT_TRIGGER_CLICK | platf::STEAM_RIGHT_TRIGGER_CLICK |
+                                platf::STEAM_LEFT_STICK_TOUCH | platf::STEAM_RIGHT_STICK_TOUCH |
+                                platf::STEAM_LEFT_GRIP_TOUCH | platf::STEAM_RIGHT_GRIP_TOUCH;
+  platf::virtualhid::gamepad_update(*context(), 0, {button_flags, 64, 192, -32768, 32767, -16384, 16384});
+
+  using enum lvh::GamepadButton;
+  for (const auto button : {
+         dpad_up,
+         dpad_down,
+         dpad_left,
+         dpad_right,
+         start,
+         back,
+         left_stick,
+         right_stick,
+         left_shoulder,
+         right_shoulder,
+         guide,
+         a,
+         b,
+         x,
+         y,
+         misc1,
+         paddle1,
+         paddle2,
+         paddle3,
+         paddle4,
+         left_touchpad,
+         right_touchpad,
+         left_trigger_click,
+         right_trigger_click,
+         left_stick_touch,
+         right_stick_touch,
+         left_grip_touch,
+         right_grip_touch,
+       }) {
+    EXPECT_TRUE(adapter->state().buttons.test(button));
+  }
+  EXPECT_FALSE(adapter->state().buttons.test(touchpad));
+  EXPECT_FLOAT_EQ(adapter->state().left_trigger, 64.0F / 255.0F);
+  EXPECT_FLOAT_EQ(adapter->state().right_trigger, 192.0F / 255.0F);
+  EXPECT_FLOAT_EQ(adapter->state().left_stick.x, -1.0F);
+  EXPECT_FLOAT_EQ(adapter->state().left_stick.y, 1.0F);
+
+  platf::virtualhid::gamepad_update(*context(), 0, {0, 242, 255, 0, 0, 0, 0});
+  EXPECT_FALSE(adapter->state().buttons.test(left_trigger_click));
+  EXPECT_TRUE(adapter->state().buttons.test(right_trigger_click));
+  platf::virtualhid::gamepad_update(*context(), 0, {0, 243, 230, 0, 0, 0, 0});
+  EXPECT_TRUE(adapter->state().buttons.test(left_trigger_click));
+  EXPECT_TRUE(adapter->state().buttons.test(right_trigger_click));
+  platf::virtualhid::gamepad_update(*context(), 0, {0, 230, 229, 0, 0, 0, 0});
+  EXPECT_TRUE(adapter->state().buttons.test(left_trigger_click));
+  EXPECT_FALSE(adapter->state().buttons.test(right_trigger_click));
+  platf::virtualhid::gamepad_update(*context(), 0, {0, 229, 0, 0, 0, 0, 0});
+  EXPECT_FALSE(adapter->state().buttons.test(left_trigger_click));
+
+  platf::gamepad_touch_t left_touch {{0, 3}, LI_TOUCH_EVENT_DOWN, 40, 0.25F, 0.75F, 0.8F, 0};
+  platf::gamepad_touch_t right_touch {{0, 3}, LI_TOUCH_EVENT_DOWN, 40, 0.75F, 0.25F, 0.6F, 1};
+  platf::virtualhid::gamepad_touch(*context(), left_touch);
+  platf::virtualhid::gamepad_touch(*context(), right_touch);
+  EXPECT_TRUE(adapter->state().touchpad_contacts[0].active);
+  EXPECT_TRUE(adapter->state().touchpad_contacts[1].active);
+  EXPECT_FLOAT_EQ(adapter->state().touchpad_contacts[0].x, 0.25F);
+  EXPECT_FLOAT_EQ(adapter->state().touchpad_contacts[0].pressure, 0.8F);
+  EXPECT_FLOAT_EQ(adapter->state().touchpad_contacts[1].x, 0.75F);
+  EXPECT_FLOAT_EQ(adapter->state().touchpad_contacts[1].pressure, 0.6F);
+  EXPECT_TRUE(adapter->state().buttons.test(left_touchpad));
+  EXPECT_TRUE(adapter->state().buttons.test(right_touchpad));
+  platf::virtualhid::gamepad_update(*context(), 0, {});
+  EXPECT_TRUE(adapter->state().buttons.test(left_touchpad));
+  EXPECT_TRUE(adapter->state().buttons.test(right_touchpad));
+
+  const auto dual_touch_submit_count = adapter->gamepad()->submit_count();
+  right_touch.pointerId = 41;
+  platf::virtualhid::gamepad_touch(*context(), right_touch);
+  EXPECT_EQ(adapter->gamepad()->submit_count(), dual_touch_submit_count);
+  right_touch.eventType = LI_TOUCH_EVENT_MOVE;
+  platf::virtualhid::gamepad_touch(*context(), right_touch);
+  EXPECT_EQ(adapter->gamepad()->submit_count(), dual_touch_submit_count);
+  right_touch.touchpadIndex = 2;
+  platf::virtualhid::gamepad_touch(*context(), right_touch);
+  EXPECT_EQ(adapter->gamepad()->submit_count(), dual_touch_submit_count);
+
+  left_touch.eventType = LI_TOUCH_EVENT_UP;
+  platf::virtualhid::gamepad_touch(*context(), left_touch);
+  EXPECT_FALSE(adapter->state().touchpad_contacts[0].active);
+  EXPECT_FALSE(adapter->state().buttons.test(left_touchpad));
+  EXPECT_TRUE(adapter->state().buttons.test(right_touchpad));
+  right_touch.eventType = LI_TOUCH_EVENT_CANCEL_ALL;
+  platf::virtualhid::gamepad_touch(*context(), right_touch);
+  EXPECT_FALSE(adapter->state().touchpad_contacts[1].active);
+  EXPECT_FALSE(adapter->state().buttons.test(right_touchpad));
+
+  const auto mouse_submit_count = context()->mouse->submit_count();
+  right_touch.touchpadIndex = 1;
+  right_touch.pointerId = 43;
+  right_touch.eventType = LI_TOUCH_EVENT_DOWN;
+  right_touch.x = 0.6F;
+  right_touch.y = 0.4F;
+  platf::virtualhid::gamepad_touch(*context(), right_touch);
+  right_touch.eventType = LI_TOUCH_EVENT_UP;
+  platf::virtualhid::gamepad_touch(*context(), right_touch);
+  EXPECT_FALSE(adapter->state().touchpad_contacts[1].active);
+  EXPECT_FLOAT_EQ(adapter->state().touchpad_contacts[1].x, 0.6F);
+  EXPECT_FLOAT_EQ(adapter->state().touchpad_contacts[1].y, 0.4F);
+  EXPECT_EQ(context()->mouse->submit_count(), mouse_submit_count);
+
+  left_touch.eventType = LI_TOUCH_EVENT_DOWN;
+  left_touch.pointerId = 42;
+  left_touch.pressure = 0.34F;
+  platf::virtualhid::gamepad_touch(*context(), left_touch);
+  EXPECT_FALSE(adapter->state().buttons.test(left_touchpad));
+  left_touch.eventType = LI_TOUCH_EVENT_MOVE;
+  left_touch.pressure = 0.35F;
+  platf::virtualhid::gamepad_touch(*context(), left_touch);
+  EXPECT_TRUE(adapter->state().buttons.test(left_touchpad));
+  left_touch.pressure = 0.30F;
+  platf::virtualhid::gamepad_touch(*context(), left_touch);
+  EXPECT_TRUE(adapter->state().buttons.test(left_touchpad));
+  left_touch.pressure = 0.25F;
+  platf::virtualhid::gamepad_touch(*context(), left_touch);
+  EXPECT_FALSE(adapter->state().buttons.test(left_touchpad));
+  left_touch.eventType = LI_TOUCH_EVENT_UP;
+  platf::virtualhid::gamepad_touch(*context(), left_touch);
+
+  platf::virtualhid::gamepad_motion(*context(), {{0, 3}, LI_MOTION_TYPE_GYRO, 1.0F, 2.0F, 3.0F});
+  EXPECT_TRUE(adapter->state().gyroscope.has_value());
+  platf::virtualhid::gamepad_battery(*context(), {{0, 3}, LI_BATTERY_STATE_DISCHARGING, 75});
+  EXPECT_EQ(adapter->state().battery->percentage, 75);
+}
+
+TEST_F(VirtualHidDeviceTest, UsesSteamClickInferenceOnlyForUnsupportedButtons) {
+  constexpr auto capabilities = static_cast<std::uint16_t>(LI_CCAP_DUAL_TOUCHPAD);
+  constexpr auto native_clicks = platf::STEAM_LEFT_TOUCHPAD_BUTTON | platf::STEAM_RIGHT_TOUCHPAD_BUTTON |
+                                 platf::STEAM_LEFT_TRIGGER_CLICK | platf::STEAM_RIGHT_TRIGGER_CLICK;
+  auto *adapter = allocate_gamepad("steam_triton"sv, LI_CTYPE_STEAM, capabilities, 0, 3, native_clicks);
+  ASSERT_NE(adapter, nullptr);
+
+  using enum lvh::GamepadButton;
+  platf::virtualhid::gamepad_update(*context(), 0, {0, 255, 255, 0, 0, 0, 0});
+  EXPECT_FALSE(adapter->state().buttons.test(left_trigger_click));
+  EXPECT_FALSE(adapter->state().buttons.test(right_trigger_click));
+
+  platf::gamepad_touch_t left_touch {{0, 3}, LI_TOUCH_EVENT_DOWN, 10, 0.5F, 0.5F, 1.0F, 0};
+  platf::gamepad_touch_t right_touch {{0, 3}, LI_TOUCH_EVENT_DOWN, 11, 0.5F, 0.5F, 1.0F, 1};
+  platf::virtualhid::gamepad_touch(*context(), left_touch);
+  platf::virtualhid::gamepad_touch(*context(), right_touch);
+  EXPECT_FALSE(adapter->state().buttons.test(left_touchpad));
+  EXPECT_FALSE(adapter->state().buttons.test(right_touchpad));
+
+  platf::virtualhid::gamepad_update(*context(), 0, {native_clicks, 255, 255, 0, 0, 0, 0});
+  EXPECT_TRUE(adapter->state().buttons.test(left_trigger_click));
+  EXPECT_TRUE(adapter->state().buttons.test(right_trigger_click));
+  EXPECT_TRUE(adapter->state().buttons.test(left_touchpad));
+  EXPECT_TRUE(adapter->state().buttons.test(right_touchpad));
+}
+
 TEST_P(VirtualHidAutoProfileTest, SelectsProfileFromClientMetadata) {
   const auto &test_case = GetParam();
   auto *adapter = allocate_gamepad("auto"sv, test_case.type, test_case.capabilities);
@@ -430,6 +609,8 @@ INSTANTIATE_TEST_SUITE_P(
     auto_profile_case_t {"PlayStation", LI_CTYPE_PS, 0, lvh::GamepadProfileKind::dualsense},
     auto_profile_case_t {"Nintendo", LI_CTYPE_NINTENDO, 0, lvh::GamepadProfileKind::switch_pro},
     auto_profile_case_t {"Xbox", LI_CTYPE_XBOX, 0, lvh::GamepadProfileKind::xbox_series},
+    auto_profile_case_t {"SteamTriton", LI_CTYPE_STEAM, LI_CCAP_DUAL_TOUCHPAD, lvh::GamepadProfileKind::steam_triton},
+    auto_profile_case_t {"DualTouchpad", LI_CTYPE_UNKNOWN, LI_CCAP_DUAL_TOUCHPAD, lvh::GamepadProfileKind::steam_triton},
     auto_profile_case_t {"UnknownMotion", LI_CTYPE_UNKNOWN, LI_CCAP_ACCEL, lvh::GamepadProfileKind::dualsense},
     auto_profile_case_t {"UnknownTouchpad", LI_CTYPE_UNKNOWN, LI_CCAP_TOUCHPAD, lvh::GamepadProfileKind::dualsense},
     auto_profile_case_t {"UnknownDefault", LI_CTYPE_UNKNOWN, 0, lvh::GamepadProfileKind::xbox_series}
@@ -553,7 +734,32 @@ TEST_F(VirtualHidDeviceTest, RoutesAndDeduplicatesGamepadFeedback) {
   EXPECT_EQ(feedback->id, 7);
   EXPECT_FALSE(feedback_queue()->pop(0ms));
 
+  output.kind = lvh::GamepadOutputKind::trigger_rumble;
+  ASSERT_TRUE(adapter->dispatch_output(output).ok());
+  feedback = resumed_feedback->pop(10ms);
+  ASSERT_TRUE(feedback);
+  EXPECT_EQ(feedback->type, platf::gamepad_feedback_e::rumble_triggers);
+  EXPECT_EQ(feedback->id, 7);
+
+  output.kind = lvh::GamepadOutputKind::rgb_led;
+  ASSERT_TRUE(adapter->dispatch_output(output).ok());
+  feedback = resumed_feedback->pop(10ms);
+  ASSERT_TRUE(feedback);
+  EXPECT_EQ(feedback->type, platf::gamepad_feedback_e::set_rgb_led);
+  EXPECT_EQ(feedback->id, 7);
+
+  output.kind = lvh::GamepadOutputKind::player_leds;
+  ASSERT_TRUE(adapter->dispatch_output(output).ok());
+  feedback = resumed_feedback->pop(10ms);
+  ASSERT_TRUE(feedback);
+  EXPECT_EQ(feedback->type, platf::gamepad_feedback_e::set_player_leds);
+  EXPECT_EQ(feedback->id, 7);
+  EXPECT_FALSE(feedback_queue()->pop(0ms));
+
   output.kind = lvh::GamepadOutputKind::raw_report;
+  ASSERT_TRUE(adapter->dispatch_output(output).ok());
+  EXPECT_FALSE(feedback_queue()->pop(0ms));
+  output.kind = lvh::GamepadOutputKind::haptics;
   ASSERT_TRUE(adapter->dispatch_output(output).ok());
   EXPECT_FALSE(feedback_queue()->pop(0ms));
 
@@ -565,6 +771,51 @@ TEST_F(VirtualHidDeviceTest, RoutesAndDeduplicatesGamepadFeedback) {
   ASSERT_NE(adapter, nullptr);
   output.kind = lvh::GamepadOutputKind::rumble;
   ASSERT_TRUE(adapter->dispatch_output(output).ok());
+}
+
+TEST_F(VirtualHidDeviceTest, RoutesAddressableHapticsToCapableClient) {
+  constexpr auto capabilities = static_cast<std::uint16_t>(LI_CCAP_DUAL_TOUCHPAD | LI_CCAP_HAPTICS);
+  auto *adapter = allocate_gamepad("steam_triton"sv, LI_CTYPE_STEAM, capabilities);
+  ASSERT_NE(adapter, nullptr);
+  ASSERT_TRUE(feedback_queue()->pop(10ms));
+  ASSERT_TRUE(feedback_queue()->pop(10ms));
+
+  lvh::GamepadOutput output;
+  output.kind = lvh::GamepadOutputKind::haptics;
+  output.haptic_effect = lvh::GamepadHapticEffect {
+    .target = lvh::GamepadHapticTarget::both,
+    .kind = lvh::GamepadHapticEffectKind::pulse,
+    .gain_db = -6,
+    .intensity = 42,
+    .frequency_hz = 440,
+    .duration_us = 1000,
+    .interval_us = 2000,
+    .repeat_count = 5,
+    .lfo_frequency_hz = 7,
+    .lfo_depth_percent = 80,
+    .start_frequency_hz = 100,
+    .end_frequency_hz = 200,
+    .script_id = 3,
+  };
+  ASSERT_TRUE(adapter->dispatch_output(output).ok());
+
+  const auto feedback = feedback_queue()->pop(10ms);
+  ASSERT_TRUE(feedback);
+  EXPECT_EQ(feedback->type, platf::gamepad_feedback_e::set_haptics);
+  EXPECT_EQ(feedback->id, 3);
+  EXPECT_EQ(feedback->data.haptics.target, static_cast<std::uint8_t>(lvh::GamepadHapticTarget::both));
+  EXPECT_EQ(feedback->data.haptics.kind, static_cast<std::uint8_t>(lvh::GamepadHapticEffectKind::pulse));
+  EXPECT_EQ(feedback->data.haptics.gain_db, -6);
+  EXPECT_EQ(feedback->data.haptics.intensity, 42);
+  EXPECT_EQ(feedback->data.haptics.frequency_hz, 440);
+  EXPECT_EQ(feedback->data.haptics.duration_us, 1000);
+  EXPECT_EQ(feedback->data.haptics.interval_us, 2000U);
+  EXPECT_EQ(feedback->data.haptics.repeat_count, 5);
+  EXPECT_EQ(feedback->data.haptics.lfo_frequency_hz, 7);
+  EXPECT_EQ(feedback->data.haptics.lfo_depth_percent, 80);
+  EXPECT_EQ(feedback->data.haptics.start_frequency_hz, 100);
+  EXPECT_EQ(feedback->data.haptics.end_frequency_hz, 200);
+  EXPECT_EQ(feedback->data.haptics.script_id, 3);
 }
 
 TEST_F(VirtualHidDeviceTest, TranslatesGamepadTouchMotionAndBattery) {
@@ -580,14 +831,16 @@ TEST_F(VirtualHidDeviceTest, TranslatesGamepadTouchMotionAndBattery) {
   EXPECT_TRUE(adapter->state().touchpad_contacts[0].active);
   EXPECT_FLOAT_EQ(adapter->state().touchpad_contacts[0].x, 0.0F);
   EXPECT_FLOAT_EQ(adapter->state().touchpad_contacts[0].y, 1.0F);
+  EXPECT_FALSE(adapter->state().buttons.test(lvh::GamepadButton::touchpad));
 
   touch.eventType = LI_TOUCH_EVENT_MOVE;
   touch.pressure = 0.25F;
   touch.x = 0.4F;
   touch.y = 0.6F;
   platf::virtualhid::gamepad_touch(*context(), touch);
-  EXPECT_FALSE(adapter->state().touchpad_contacts[0].active);
+  EXPECT_TRUE(adapter->state().touchpad_contacts[0].active);
   EXPECT_FLOAT_EQ(adapter->state().touchpad_contacts[0].x, 0.4F);
+  EXPECT_FLOAT_EQ(adapter->state().touchpad_contacts[0].pressure, 0.25F);
 
   touch.eventType = LI_TOUCH_EVENT_DOWN;
   touch.pointerId = 11;

@@ -27,14 +27,9 @@ using namespace std::literals;
 
 namespace platf::virtualhid {
   /**
-   * @brief Runtime state for one virtual gamepad.
+   * @brief Last feedback values forwarded to the current client session.
    */
-  struct gamepad_context_t {
-    std::unique_ptr<lvh::GamepadStateAdapter> adapter;  ///< State adapter for the virtual gamepad.
-    std::mutex feedback_mutex;  ///< Synchronizes feedback routing with session rebinding.
-    feedback_queue_t feedback_queue;  ///< Feedback queue for client output events.
-    std::array<std::optional<std::uint32_t>, 2> touch_ids;  ///< Client touch IDs assigned to libvirtualhid slots.
-    std::uint8_t client_relative_index = 0;  ///< Client-relative controller index.
+  struct feedback_cache_t {
     bool has_last_rumble = false;  ///< Whether last rumble values are valid.
     std::uint16_t last_low_frequency_rumble = 0;  ///< Last low-frequency rumble value.
     std::uint16_t last_high_frequency_rumble = 0;  ///< Last high-frequency rumble value.
@@ -50,7 +45,32 @@ namespace platf::virtualhid {
     std::uint8_t last_flashing_player_leds = 0;  ///< Last flashing player indicator mask.
   };
 
+  /**
+   * @brief Runtime state for one virtual gamepad.
+   */
+  struct gamepad_context_t {
+    std::unique_ptr<lvh::GamepadStateAdapter> adapter;  ///< State adapter for the virtual gamepad.
+    std::mutex feedback_mutex;  ///< Synchronizes feedback routing with session rebinding.
+    feedback_queue_t feedback_queue;  ///< Feedback queue for client output events.
+    std::array<std::optional<std::uint32_t>, 2> touch_ids;  ///< Client touch IDs assigned to libvirtualhid slots.
+    std::array<bool, 2> inferred_touchpad_clicks {};  ///< Steam touchpad clicks inferred from client pressure.
+    std::array<bool, 2> inferred_trigger_clicks {};  ///< Steam trigger clicks inferred from client axes.
+    std::uint32_t client_button_flags = 0;  ///< Latest client button state, before Steam click inference.
+    std::uint32_t supported_button_flags = 0;  ///< Button flags the client can report natively.
+    std::uint8_t client_relative_index = 0;  ///< Client-relative controller index.
+    bool supports_haptics = false;  ///< Whether the client can play addressable haptic effects.
+    feedback_cache_t feedback_cache;  ///< Feedback values already sent to this client session.
+  };
+
   namespace {
+
+    // Moonlight currently carries Steam trackpad pressure and analog trigger
+    // travel but not all native click bits. Keep this compatibility fallback
+    // specific to the Steam Controller (2nd generation) profile.
+    constexpr float steam_touchpad_click_press_threshold = 0.35F;
+    constexpr float steam_touchpad_click_release_threshold = 0.25F;
+    constexpr float steam_trigger_click_press_threshold = 0.95F;
+    constexpr float steam_trigger_click_release_threshold = 0.90F;
 
     /**
      * @brief Gamepad profile exposed through Sunshine config.
@@ -72,6 +92,7 @@ namespace platf::virtualhid {
       gamepad_profile_t {"ds4", lvh::GamepadProfileKind::dualshock4, lvh::profiles::dualshock4},
       gamepad_profile_t {"ds5", lvh::GamepadProfileKind::dualsense, lvh::profiles::dualsense},
       gamepad_profile_t {"switch", lvh::GamepadProfileKind::switch_pro, lvh::profiles::switch_pro},
+      gamepad_profile_t {"steam_triton", lvh::GamepadProfileKind::steam_triton, lvh::profiles::steam_triton},
     };
 
     void log_failure(std::string_view operation, const lvh::OperationStatus &status) {
@@ -121,6 +142,10 @@ namespace platf::virtualhid {
         return profile_for_name(config::input.gamepad);
       }
 
+      if (metadata.type == LI_CTYPE_STEAM) {
+        BOOST_LOG(info) << "Gamepad will be Steam Controller (2nd generation), auto-selected by client-reported type"sv;
+        return profile_for_name("steam_triton"sv);
+      }
       if (metadata.type == LI_CTYPE_PS) {
         BOOST_LOG(info) << "Gamepad will be DualSense controller (auto-selected by client-reported type)"sv;
         return profile_for_name("ds5"sv);
@@ -132,6 +157,10 @@ namespace platf::virtualhid {
       if (metadata.type == LI_CTYPE_XBOX) {
         BOOST_LOG(info) << "Gamepad will be Xbox Series controller (auto-selected by client-reported type)"sv;
         return profile_for_name("xseries"sv);
+      }
+      if (metadata.capabilities & LI_CCAP_DUAL_TOUCHPAD) {
+        BOOST_LOG(info) << "Gamepad will be Steam Controller (2nd generation), auto-selected by dual-touchpad capability"sv;
+        return profile_for_name("steam_triton"sv);
       }
       if (config::input.motion_as_ds4 && (metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO))) {
         BOOST_LOG(info) << "Gamepad will be DualSense controller (auto-selected by motion sensor presence)"sv;
@@ -175,7 +204,7 @@ namespace platf::virtualhid {
       result.client_relative_index = id.clientRelativeIndex;
       result.client_type = client_controller_type(metadata.type);
       result.has_motion_sensors = metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO);
-      result.has_touchpad = metadata.capabilities & LI_CCAP_TOUCHPAD;
+      result.has_touchpad = metadata.capabilities & (LI_CCAP_TOUCHPAD | LI_CCAP_DUAL_TOUCHPAD);
       result.has_rgb_led = metadata.capabilities & LI_CCAP_RGB_LED;
       result.has_battery = metadata.capabilities & LI_CCAP_BATTERY_STATE;
       result.stable_id = gamepad_stable_id(id, profile);
@@ -186,11 +215,14 @@ namespace platf::virtualhid {
       if ((metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO)) && !support.supports_motion) {
         BOOST_LOG(warning) << "Gamepad "sv << global_index << " has motion sensors, but the selected virtual profile cannot expose them"sv;
       }
-      if ((metadata.capabilities & LI_CCAP_TOUCHPAD) && !support.supports_touchpad) {
+      if ((metadata.capabilities & (LI_CCAP_TOUCHPAD | LI_CCAP_DUAL_TOUCHPAD)) && !support.supports_touchpad) {
         BOOST_LOG(warning) << "Gamepad "sv << global_index << " has a touchpad, but the selected virtual profile cannot expose it"sv;
       }
       if ((metadata.capabilities & LI_CCAP_RGB_LED) && !support.supports_rgb_led) {
         BOOST_LOG(warning) << "Gamepad "sv << global_index << " has an RGB LED, but the selected virtual profile cannot expose it"sv;
+      }
+      if ((metadata.capabilities & LI_CCAP_HAPTICS) && !support.supports_haptics) {
+        BOOST_LOG(warning) << "Gamepad "sv << global_index << " has addressable haptics, but the selected virtual profile cannot expose them"sv;
       }
     }
 
@@ -198,14 +230,21 @@ namespace platf::virtualhid {
       if (support.supports_motion && !(metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO))) {
         BOOST_LOG(warning) << "Gamepad "sv << global_index << " is emulating a motion-capable controller, but the client gamepad does not have motion sensors active"sv;
       }
-      if (support.supports_touchpad && !(metadata.capabilities & LI_CCAP_TOUCHPAD)) {
+      if (support.supports_touchpad && !(metadata.capabilities & (LI_CCAP_TOUCHPAD | LI_CCAP_DUAL_TOUCHPAD))) {
         BOOST_LOG(warning) << "Gamepad "sv << global_index << " is emulating a touchpad-capable controller, but the client gamepad does not have a touchpad"sv;
+      }
+      if (support.supported_touchpad_count > 1U && !(metadata.capabilities & LI_CCAP_DUAL_TOUCHPAD)) {
+        BOOST_LOG(warning) << "Gamepad "sv << global_index << " is emulating the Steam Controller (2nd generation), but the client cannot report its second touchpad"sv;
+      }
+      if (support.supports_haptics && !(metadata.capabilities & LI_CCAP_HAPTICS)) {
+        BOOST_LOG(warning) << "Gamepad "sv << global_index << " is emulating addressable haptics, but the client cannot play them"sv;
       }
     }
 
-    lvh::GamepadState make_gamepad_state(const gamepad_state_t &state, const lvh::GamepadProfileSupport &support) {
+    lvh::GamepadState make_gamepad_state(const gamepad_state_t &state, const lvh::DeviceProfile &profile) {
       using enum lvh::GamepadButton;
 
+      const auto support = lvh::gamepad_profile_support(profile);
       lvh::GamepadState result;
       const auto flags = state.buttonFlags;
 
@@ -226,6 +265,21 @@ namespace platf::virtualhid {
       result.buttons.set(y, flags & Y);
       result.buttons.set(misc1, support.supports_misc1_button && (flags & MISC_BUTTON));
       result.buttons.set(touchpad, support.supports_touchpad_button && (flags & TOUCHPAD_BUTTON));
+      result.buttons.set(paddle1, support.supported_rear_paddle_count >= 1U && (flags & PADDLE1));
+      result.buttons.set(paddle2, support.supported_rear_paddle_count >= 2U && (flags & PADDLE2));
+      result.buttons.set(paddle3, support.supported_rear_paddle_count >= 3U && (flags & PADDLE3));
+      result.buttons.set(paddle4, support.supported_rear_paddle_count >= 4U && (flags & PADDLE4));
+
+      if (profile.gamepad_kind == lvh::GamepadProfileKind::steam_triton) {
+        result.buttons.set(left_touchpad, flags & STEAM_LEFT_TOUCHPAD_BUTTON);
+        result.buttons.set(right_touchpad, flags & STEAM_RIGHT_TOUCHPAD_BUTTON);
+        result.buttons.set(left_trigger_click, flags & STEAM_LEFT_TRIGGER_CLICK);
+        result.buttons.set(right_trigger_click, flags & STEAM_RIGHT_TRIGGER_CLICK);
+        result.buttons.set(left_stick_touch, flags & STEAM_LEFT_STICK_TOUCH);
+        result.buttons.set(right_stick_touch, flags & STEAM_RIGHT_STICK_TOUCH);
+        result.buttons.set(left_grip_touch, flags & STEAM_LEFT_GRIP_TOUCH);
+        result.buttons.set(right_grip_touch, flags & STEAM_RIGHT_GRIP_TOUCH);
+      }
 
       if (support.supports_touchpad_button && config::input.ds4_back_as_touchpad_click && configured_gamepad_supports_touchpad() && (flags & BACK)) {
         result.buttons.set(touchpad);
@@ -236,6 +290,84 @@ namespace platf::virtualhid {
       result.left_trigger = normalize_trigger(state.lt);
       result.right_trigger = normalize_trigger(state.rt);
       return result;
+    }
+
+    bool threshold_button_state(bool pressed, float value, float press_threshold, float release_threshold) {
+      return pressed ? value > release_threshold : value >= press_threshold;
+    }
+
+    bool is_steam_triton(const std::shared_ptr<gamepad_context_t> &gamepad) {
+      return gamepad->adapter->gamepad()->profile().gamepad_kind == lvh::GamepadProfileKind::steam_triton;
+    }
+
+    void apply_inferred_steam_clicks(const std::shared_ptr<gamepad_context_t> &gamepad, lvh::GamepadState &state) {
+      if (!is_steam_triton(gamepad)) {
+        return;
+      }
+
+      using enum lvh::GamepadButton;
+      state.buttons.set(left_touchpad, state.buttons.test(left_touchpad) || gamepad->inferred_touchpad_clicks[0]);
+      state.buttons.set(right_touchpad, state.buttons.test(right_touchpad) || gamepad->inferred_touchpad_clicks[1]);
+      state.buttons.set(left_trigger_click, state.buttons.test(left_trigger_click) || gamepad->inferred_trigger_clicks[0]);
+      state.buttons.set(right_trigger_click, state.buttons.test(right_trigger_click) || gamepad->inferred_trigger_clicks[1]);
+    }
+
+    void update_inferred_steam_trigger_clicks(
+      const std::shared_ptr<gamepad_context_t> &gamepad,
+      float left_trigger,
+      float right_trigger
+    ) {
+      if (!is_steam_triton(gamepad)) {
+        return;
+      }
+
+      gamepad->inferred_trigger_clicks[0] = threshold_button_state(
+        gamepad->inferred_trigger_clicks[0],
+        left_trigger,
+        steam_trigger_click_press_threshold,
+        steam_trigger_click_release_threshold
+      );
+      gamepad->inferred_trigger_clicks[1] = threshold_button_state(
+        gamepad->inferred_trigger_clicks[1],
+        right_trigger,
+        steam_trigger_click_press_threshold,
+        steam_trigger_click_release_threshold
+      );
+      if (gamepad->supported_button_flags & STEAM_LEFT_TRIGGER_CLICK) {
+        gamepad->inferred_trigger_clicks[0] = false;
+      }
+      if (gamepad->supported_button_flags & STEAM_RIGHT_TRIGGER_CLICK) {
+        gamepad->inferred_trigger_clicks[1] = false;
+      }
+    }
+
+    void update_inferred_steam_touchpad_click(
+      const std::shared_ptr<gamepad_context_t> &gamepad,
+      std::size_t index,
+      bool active,
+      float pressure
+    ) {
+      if (!is_steam_triton(gamepad) || index >= gamepad->inferred_touchpad_clicks.size()) {
+        return;
+      }
+
+      auto &inferred = gamepad->inferred_touchpad_clicks[index];
+      inferred = active && threshold_button_state(
+                             inferred,
+                             pressure,
+                             steam_touchpad_click_press_threshold,
+                             steam_touchpad_click_release_threshold
+                           );
+
+      const auto explicit_flag = index == 0U ? STEAM_LEFT_TOUCHPAD_BUTTON : STEAM_RIGHT_TOUCHPAD_BUTTON;
+      if (gamepad->supported_button_flags & explicit_flag) {
+        inferred = false;
+      }
+      const auto button = index == 0U ? lvh::GamepadButton::left_touchpad : lvh::GamepadButton::right_touchpad;
+      log_failure(
+        "submit inferred Steam touchpad click"sv,
+        gamepad->adapter->set_button(button, inferred || (gamepad->client_button_flags & explicit_flag))
+      );
     }
 
     std::optional<lvh::MouseButton> mouse_button(int button) {
@@ -382,52 +514,145 @@ namespace platf::virtualhid {
       std::lock_guard lock {gamepad->feedback_mutex};
       switch (output.kind) {
         case lvh::GamepadOutputKind::rumble:
-          if (gamepad->has_last_rumble && gamepad->last_low_frequency_rumble == output.low_frequency_rumble && gamepad->last_high_frequency_rumble == output.high_frequency_rumble) {
+          if (gamepad->feedback_cache.has_last_rumble && gamepad->feedback_cache.last_low_frequency_rumble == output.low_frequency_rumble && gamepad->feedback_cache.last_high_frequency_rumble == output.high_frequency_rumble) {
             return;
           }
-          gamepad->has_last_rumble = true;
-          gamepad->last_low_frequency_rumble = output.low_frequency_rumble;
-          gamepad->last_high_frequency_rumble = output.high_frequency_rumble;
+          gamepad->feedback_cache.has_last_rumble = true;
+          gamepad->feedback_cache.last_low_frequency_rumble = output.low_frequency_rumble;
+          gamepad->feedback_cache.last_high_frequency_rumble = output.high_frequency_rumble;
           raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_rumble(gamepad->client_relative_index, output.low_frequency_rumble, output.high_frequency_rumble));
           break;
         case lvh::GamepadOutputKind::trigger_rumble:
-          if (gamepad->has_last_trigger_rumble && gamepad->last_left_trigger_rumble == output.left_trigger_rumble && gamepad->last_right_trigger_rumble == output.right_trigger_rumble) {
+          if (gamepad->feedback_cache.has_last_trigger_rumble && gamepad->feedback_cache.last_left_trigger_rumble == output.left_trigger_rumble && gamepad->feedback_cache.last_right_trigger_rumble == output.right_trigger_rumble) {
             return;
           }
-          gamepad->has_last_trigger_rumble = true;
-          gamepad->last_left_trigger_rumble = output.left_trigger_rumble;
-          gamepad->last_right_trigger_rumble = output.right_trigger_rumble;
+          gamepad->feedback_cache.has_last_trigger_rumble = true;
+          gamepad->feedback_cache.last_left_trigger_rumble = output.left_trigger_rumble;
+          gamepad->feedback_cache.last_right_trigger_rumble = output.right_trigger_rumble;
           raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_rumble_triggers(gamepad->client_relative_index, output.left_trigger_rumble, output.right_trigger_rumble));
           break;
         case lvh::GamepadOutputKind::rgb_led:
-          if (gamepad->has_last_rgb && gamepad->last_red == output.red && gamepad->last_green == output.green && gamepad->last_blue == output.blue) {
+          if (gamepad->feedback_cache.has_last_rgb && gamepad->feedback_cache.last_red == output.red && gamepad->feedback_cache.last_green == output.green && gamepad->feedback_cache.last_blue == output.blue) {
             return;
           }
-          gamepad->has_last_rgb = true;
-          gamepad->last_red = output.red;
-          gamepad->last_green = output.green;
-          gamepad->last_blue = output.blue;
+          gamepad->feedback_cache.has_last_rgb = true;
+          gamepad->feedback_cache.last_red = output.red;
+          gamepad->feedback_cache.last_green = output.green;
+          gamepad->feedback_cache.last_blue = output.blue;
           raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_rgb_led(gamepad->client_relative_index, output.red, output.green, output.blue));
           break;
         case lvh::GamepadOutputKind::player_leds:
           {
             const auto solid = player_led_mask(output.player_leds);
             const auto flashing = player_led_mask(output.flashing_player_leds);
-            if (gamepad->has_last_player_leds && gamepad->last_solid_player_leds == solid && gamepad->last_flashing_player_leds == flashing) {
+            if (gamepad->feedback_cache.has_last_player_leds && gamepad->feedback_cache.last_solid_player_leds == solid && gamepad->feedback_cache.last_flashing_player_leds == flashing) {
               return;
             }
-            gamepad->has_last_player_leds = true;
-            gamepad->last_solid_player_leds = solid;
-            gamepad->last_flashing_player_leds = flashing;
+            gamepad->feedback_cache.has_last_player_leds = true;
+            gamepad->feedback_cache.last_solid_player_leds = solid;
+            gamepad->feedback_cache.last_flashing_player_leds = flashing;
             raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_player_leds(gamepad->client_relative_index, solid, flashing));
             break;
           }
         case lvh::GamepadOutputKind::adaptive_triggers:
           raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_adaptive_triggers(gamepad->client_relative_index, output.adaptive_trigger_flags, output.left_trigger_effect_type, output.right_trigger_effect_type, output.left_trigger_effect, output.right_trigger_effect));
           break;
+        case lvh::GamepadOutputKind::haptics:
+          if (gamepad->supports_haptics && output.haptic_effect) {
+            const auto &effect = *output.haptic_effect;
+            raise_feedback_unlocked(
+              gamepad,
+              gamepad_feedback_msg_t::make_haptics(
+                gamepad->client_relative_index,
+                {
+                  .target = std::to_underlying(effect.target),
+                  .kind = std::to_underlying(effect.kind),
+                  .gain_db = effect.gain_db,
+                  .intensity = effect.intensity,
+                  .frequency_hz = effect.frequency_hz,
+                  .duration_us = effect.duration_us,
+                  .interval_us = effect.interval_us,
+                  .repeat_count = effect.repeat_count,
+                  .lfo_frequency_hz = effect.lfo_frequency_hz,
+                  .lfo_depth_percent = effect.lfo_depth_percent,
+                  .start_frequency_hz = effect.start_frequency_hz,
+                  .end_frequency_hz = effect.end_frequency_hz,
+                  .script_id = effect.script_id,
+                }
+              )
+            );
+          }
+          break;
         case lvh::GamepadOutputKind::raw_report:
           break;
       }
+    }
+
+    void cancel_all_gamepad_touches(const std::shared_ptr<gamepad_context_t> &gamepad) {
+      for (std::size_t index = 0; index < gamepad->touch_ids.size(); ++index) {
+        update_inferred_steam_touchpad_click(gamepad, index, false, 0.0F);
+        if (gamepad->touch_ids[index].has_value()) {
+          log_failure("release libvirtualhid gamepad touch"sv, gamepad->adapter->clear_touchpad_contact(index));
+          gamepad->touch_ids[index].reset();
+        }
+      }
+    }
+
+    std::optional<std::size_t> indexed_touch_slot(
+      const std::shared_ptr<gamepad_context_t> &gamepad,
+      const gamepad_touch_t &touch,
+      const lvh::GamepadProfileSupport &support
+    ) {
+      if (touch.touchpadIndex >= support.supported_touchpad_count || touch.touchpadIndex >= gamepad->touch_ids.size()) {
+        BOOST_LOG(warning) << "Invalid libvirtualhid gamepad touchpad index: "sv << static_cast<unsigned int>(touch.touchpadIndex);
+        return std::nullopt;
+      }
+
+      auto &slot = gamepad->touch_ids[touch.touchpadIndex];
+      if (touch.eventType == LI_TOUCH_EVENT_DOWN) {
+        if (slot.has_value() && slot.value() != touch.pointerId) {
+          BOOST_LOG(warning) << "No free libvirtualhid gamepad touch slot for touchpad "sv << static_cast<unsigned int>(touch.touchpadIndex);
+          return std::nullopt;
+        }
+        slot = touch.pointerId;
+      } else if (!slot.has_value() || slot.value() != touch.pointerId) {
+        return std::nullopt;
+      }
+
+      return touch.touchpadIndex;
+    }
+
+    std::optional<std::size_t> shared_touch_slot(
+      const std::shared_ptr<gamepad_context_t> &gamepad,
+      const gamepad_touch_t &touch
+    ) {
+      auto slot = std::ranges::find(gamepad->touch_ids, touch.pointerId);
+      if (touch.eventType == LI_TOUCH_EVENT_DOWN && slot == gamepad->touch_ids.end()) {
+        slot = std::ranges::find_if(gamepad->touch_ids, [](const auto &id) {
+          return !id.has_value();
+        });
+        if (slot == gamepad->touch_ids.end()) {
+          BOOST_LOG(warning) << "No free libvirtualhid gamepad touch slots"sv;
+          return std::nullopt;
+        }
+        *slot = touch.pointerId;
+      }
+
+      if (slot == gamepad->touch_ids.end()) {
+        return std::nullopt;
+      }
+      return static_cast<std::size_t>(std::distance(gamepad->touch_ids.begin(), slot));
+    }
+
+    std::optional<std::size_t> gamepad_touch_slot(
+      const std::shared_ptr<gamepad_context_t> &gamepad,
+      const gamepad_touch_t &touch,
+      const lvh::GamepadProfileSupport &support
+    ) {
+      if (support.supported_touchpad_count > 1U) {
+        return indexed_touch_slot(gamepad, touch, support);
+      }
+      return shared_touch_slot(gamepad, touch);
     }
 
     void cancel_all_touches(client_context_t &context) {
@@ -614,6 +839,9 @@ namespace platf::virtualhid {
 
     const auto &selection = profile_for_metadata(metadata);
     auto profile = selection.profile();
+    if (selection.kind == lvh::GamepadProfileKind::steam_triton) {
+      profile.name = "Steam Controller (2nd generation)";
+    }
     profile.name = std::format("Sunshine {}", profile.name);
     if (config::input.gamepad != "auto"sv) {
       BOOST_LOG(info) << "Gamepad "sv << id.globalIndex << " will be "sv << profile.name << " (manual selection)"sv;
@@ -633,7 +861,9 @@ namespace platf::virtualhid {
     auto gamepad = std::make_shared<gamepad_context_t>();
     gamepad->adapter = std::move(created.adapter);
     gamepad->feedback_queue = std::move(feedback_queue);
+    gamepad->supported_button_flags = metadata.supportedButtons;
     gamepad->client_relative_index = id.clientRelativeIndex;
+    gamepad->supports_haptics = metadata.capabilities & LI_CCAP_HAPTICS;
     gamepad->adapter->set_output_callback([weak_gamepad = std::weak_ptr {gamepad}](const lvh::GamepadOutput &output) {
       if (const auto gamepad = weak_gamepad.lock()) {
         handle_output(gamepad, output);
@@ -661,10 +891,7 @@ namespace platf::virtualhid {
     std::lock_guard lock {gamepad->feedback_mutex};
     gamepad->feedback_queue = std::move(feedback_queue);
     gamepad->client_relative_index = id.clientRelativeIndex;
-    gamepad->has_last_rumble = false;
-    gamepad->has_last_trigger_rumble = false;
-    gamepad->has_last_rgb = false;
-    gamepad->has_last_player_leds = false;
+    gamepad->feedback_cache = {};
 
     if (gamepad->adapter->support().supports_motion) {
       raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_motion_event_state(id.clientRelativeIndex, LI_MOTION_TYPE_ACCEL, 100));
@@ -696,7 +923,10 @@ namespace platf::virtualhid {
     }
 
     auto &gamepad = context.gamepads[nr];
-    auto updated_state = make_gamepad_state(state, gamepad->adapter->support());
+    gamepad->client_button_flags = state.buttonFlags;
+    auto updated_state = make_gamepad_state(state, gamepad->adapter->gamepad()->profile());
+    update_inferred_steam_trigger_clicks(gamepad, updated_state.left_trigger, updated_state.right_trigger);
+    apply_inferred_steam_clicks(gamepad, updated_state);
     const auto &cached_state = gamepad->adapter->state();
     updated_state.acceleration = cached_state.acceleration;
     updated_state.gyroscope = cached_state.gyroscope;
@@ -711,40 +941,25 @@ namespace platf::virtualhid {
     }
 
     auto &gamepad = context.gamepads[touch.id.globalIndex];
-    if (!gamepad->adapter->support().supports_touchpad) {
+    const auto &support = gamepad->adapter->support();
+    if (!support.supports_touchpad) {
       return;
     }
 
     if (touch.eventType == LI_TOUCH_EVENT_CANCEL_ALL) {
-      for (std::size_t index = 0; index < gamepad->touch_ids.size(); ++index) {
-        if (gamepad->touch_ids[index].has_value()) {
-          log_failure("release libvirtualhid gamepad touch"sv, gamepad->adapter->clear_touchpad_contact(index));
-          gamepad->touch_ids[index].reset();
-        }
-      }
+      cancel_all_gamepad_touches(gamepad);
       return;
     }
 
-    auto slot = std::ranges::find(gamepad->touch_ids, touch.pointerId);
-    if (touch.eventType == LI_TOUCH_EVENT_DOWN && slot == gamepad->touch_ids.end()) {
-      slot = std::ranges::find_if(gamepad->touch_ids, [](const auto &id) {
-        return !id.has_value();
-      });
-      if (slot == gamepad->touch_ids.end()) {
-        BOOST_LOG(warning) << "No free libvirtualhid gamepad touch slots"sv;
-        return;
-      }
-      *slot = touch.pointerId;
-    }
-
-    if (slot == gamepad->touch_ids.end()) {
+    const auto slot = gamepad_touch_slot(gamepad, touch, support);
+    if (!slot.has_value()) {
       return;
     }
 
-    const auto index = static_cast<std::size_t>(std::distance(gamepad->touch_ids.begin(), slot));
     if (touch.eventType == LI_TOUCH_EVENT_UP || touch.eventType == LI_TOUCH_EVENT_CANCEL) {
-      log_failure("release libvirtualhid gamepad touch"sv, gamepad->adapter->clear_touchpad_contact(index));
-      slot->reset();
+      update_inferred_steam_touchpad_click(gamepad, *slot, false, 0.0F);
+      log_failure("release libvirtualhid gamepad touch"sv, gamepad->adapter->clear_touchpad_contact(*slot));
+      gamepad->touch_ids[*slot].reset();
       return;
     }
     if (touch.eventType != LI_TOUCH_EVENT_DOWN && touch.eventType != LI_TOUCH_EVENT_MOVE) {
@@ -752,11 +967,13 @@ namespace platf::virtualhid {
     }
 
     lvh::GamepadTouchContact contact;
-    contact.id = static_cast<std::uint8_t>(index);
-    contact.active = touch.pressure > 0.5F;
+    contact.id = static_cast<std::uint8_t>(*slot);
+    contact.active = true;
     contact.x = std::clamp(touch.x, 0.0F, 1.0F);
     contact.y = std::clamp(touch.y, 0.0F, 1.0F);
-    log_failure("submit libvirtualhid gamepad touch"sv, gamepad->adapter->set_touchpad_contact(index, contact));
+    contact.pressure = std::clamp(touch.pressure, 0.0F, 1.0F);
+    log_failure("submit libvirtualhid gamepad touch"sv, gamepad->adapter->set_touchpad_contact(*slot, contact));
+    update_inferred_steam_touchpad_click(gamepad, *slot, true, contact.pressure);
   }
 
   void gamepad_motion(input_context_t &context, const gamepad_motion_t &motion) {

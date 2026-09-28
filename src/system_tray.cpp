@@ -166,9 +166,9 @@ namespace system_tray {
      */
     std::array<struct tray_menu, 5> &virtualhid_benefits_menu_storage() {
       static std::array<struct tray_menu, 5> benefits_menu {{
-        {.text = "Xbox One, Xbox Series, DualSense (DS5), Switch Pro, and Generic", .disabled = 1},
+        {.text = "Steam Controller (2nd generation), Xbox One, Xbox Series, DualSense (DS5), Switch Pro, and Generic", .disabled = 1},
         {.text = "Raw Input keyboard and mouse for physical-style input", .disabled = 1},
-        {.text = "Motion, touchpads, LEDs, and adaptive triggers where supported", .disabled = 1},
+        {.text = "Motion, dual touchpads, rear buttons, LEDs, and adaptive triggers where supported", .disabled = 1},
         {.text = "Actively developed and supported by LizardByte", .disabled = 1},
         {},
       }};

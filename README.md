@@ -81,6 +81,13 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
         <td>✅<sup>3</sup></td>
     </tr>
     <tr>
+        <td>Steam Controller (2nd generation)</td>
+        <td>🟡<sup>1</sup></td>
+        <td>✅</td>
+        <td>❌</td>
+        <td>✅</td>
+    </tr>
+    <tr>
         <td>Xbox 360</td>
         <td>🟡<sup>1</sup></td>
         <td>✅</td>

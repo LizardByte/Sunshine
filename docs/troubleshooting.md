@@ -318,6 +318,12 @@ and the broker or license is unavailable. Choose **None** under **Configuration 
 virtual gamepads and that notice without affecting keyboard or mouse input. Reconnect the Moonlight session after choosing
 a different emulated gamepad profile.
 
+For `steam_triton`, use a broker build that includes the Steam Controller (2nd generation) profile.
+Older macOS broker builds reject that profile during creation. The
+new macOS path still needs validation with a signed broker and physical
+controller; if it fails, check the broker version and permission before
+changing Moonlight's gamepad mapping.
+
 ### Dynamic session lookup failed
 If you get this error:
 
@@ -340,9 +346,13 @@ gamepad support. ViGEmBus is a limited alternative for Xbox 360 and DualShock 4 
 
 When Virtual HID Broker is used, Sunshine requires libvirtualhid version `2026.914.1218.10` or newer.
 
-Virtual HID Broker adds Xbox One, Xbox Series, DualSense, Nintendo Switch Pro, and Generic gamepads, plus advanced
-controller features such as motion, touchpads, LEDs, and adaptive triggers when supported. Unlike the discontinued
-ViGEmBus project, Virtual HID Broker is actively developed and supported by the LizardByte team.
+Virtual HID Broker adds the Steam Controller (2nd generation), Xbox One, Xbox Series, DualSense, Nintendo Switch Pro, and Generic
+gamepads, plus advanced controller features such as motion, touchpads, LEDs, and adaptive triggers when supported. The
+`steam_triton` option is exclusively for the Steam Controller (2nd generation), not the original Steam Controller. It requires a
+compatible Virtual HID Broker and cannot fall back to ViGEmBus. Native trackpad clicks, trigger clicks, stick and grip
+touch sensors, exact battery reporting, and addressable trackpad haptics also require a capable Moonlight client; older
+clients use Sunshine's pressure and trigger-position click fallback. Unlike the discontinued ViGEmBus project, Virtual
+HID Broker is actively developed and supported by the LizardByte team.
 
 An active paid Virtual HID Broker machine license is required before Sunshine can create driver-backed libvirtualhid
 devices, including gamepads and the Raw Input keyboard and mouse. Use the message on the Web UI home page, the startup

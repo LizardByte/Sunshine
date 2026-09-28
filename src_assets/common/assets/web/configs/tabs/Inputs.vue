@@ -149,6 +149,7 @@ watch(
         <option value="ds4">{{ $t('config.gamepad_ds4') }}</option>
         <option v-if="!vigembusOnly" value="ds5">{{ $t("config.gamepad_ds5") }}</option>
         <option v-if="!vigembusOnly" value="switch">{{ $t("config.gamepad_switch") }}</option>
+        <option v-if="!vigembusOnly" value="steam_triton">{{ $t("config.gamepad_steam_triton") }}</option>
       </select>
       <div class="form-text">{{ $t('config.gamepad_desc') }}</div>
     </div>

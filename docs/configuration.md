@@ -383,7 +383,7 @@ supported on the current platform.
             @endcode</td>
     </tr>
     <tr>
-        <td rowspan="7">Choices</td>
+        <td rowspan="8">Choices</td>
         <td>generic</td>
         <td>Generic HID gamepad</td>
     </tr>
@@ -398,6 +398,10 @@ supported on the current platform.
     <tr>
         <td>switch</td>
         <td>Switch Pro controller</td>
+    </tr>
+    <tr>
+        <td>steam_triton</td>
+        <td>Steam Controller (2nd generation)</td>
     </tr>
     <tr>
         <td>x360</td>

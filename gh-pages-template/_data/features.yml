@@ -27,8 +27,8 @@
 - title: "Control"
   icon_fa: "fas fa-gamepad"
   description: >
-    Sunshine emulates Xbox 360|One|Series, PlayStation DualShock 4|DualSense, or Nintendo Switch Pro controllers.
-    Use nearly any controller on your Moonlight client!
+    Sunshine emulates Steam Controller (2nd Generation), Xbox 360|One|Series, PlayStation DualShock 4|DualSense,
+    or Nintendo Switch Pro controllers. Use nearly any controller on your Moonlight client!
 
 - title: "Configurable"
   icon_fa: "fas fa-gear"

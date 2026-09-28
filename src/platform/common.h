@@ -100,6 +100,14 @@ namespace platf {
   constexpr std::uint32_t PADDLE4 = 0x080000;  ///< Moonlight gamepad button mask bit for paddle 4.
   constexpr std::uint32_t TOUCHPAD_BUTTON = 0x100000;  ///< Moonlight gamepad button mask bit for touchpad click.
   constexpr std::uint32_t MISC_BUTTON = 0x200000;  ///< Moonlight gamepad button mask bit for the miscellaneous button.
+  constexpr std::uint32_t STEAM_LEFT_TOUCHPAD_BUTTON = STEAM_LEFT_TOUCHPAD_FLAG;  ///< Moonlight bit for the Steam Controller (2nd generation) left trackpad click.
+  constexpr std::uint32_t STEAM_RIGHT_TOUCHPAD_BUTTON = STEAM_RIGHT_TOUCHPAD_FLAG;  ///< Moonlight bit for the Steam Controller (2nd generation) right trackpad click.
+  constexpr std::uint32_t STEAM_LEFT_TRIGGER_CLICK = STEAM_LEFT_TRIGGER_CLICK_FLAG;  ///< Moonlight bit for the Steam Controller (2nd generation) left trigger click.
+  constexpr std::uint32_t STEAM_RIGHT_TRIGGER_CLICK = STEAM_RIGHT_TRIGGER_CLICK_FLAG;  ///< Moonlight bit for the Steam Controller (2nd generation) right trigger click.
+  constexpr std::uint32_t STEAM_LEFT_STICK_TOUCH = STEAM_LEFT_STICK_TOUCH_FLAG;  ///< Moonlight bit for the Steam Controller (2nd generation) left stick touch sensor.
+  constexpr std::uint32_t STEAM_RIGHT_STICK_TOUCH = STEAM_RIGHT_STICK_TOUCH_FLAG;  ///< Moonlight bit for the Steam Controller (2nd generation) right stick touch sensor.
+  constexpr std::uint32_t STEAM_LEFT_GRIP_TOUCH = STEAM_LEFT_GRIP_TOUCH_FLAG;  ///< Moonlight bit for the Steam Controller (2nd generation) left grip touch sensor.
+  constexpr std::uint32_t STEAM_RIGHT_GRIP_TOUCH = STEAM_RIGHT_GRIP_TOUCH_FLAG;  ///< Moonlight bit for the Steam Controller (2nd generation) right grip touch sensor.
 
   /**
    * @brief Gamepad type exposed to clients and why it may be disabled.
@@ -120,6 +128,26 @@ namespace platf {
     set_rgb_led,  ///< Set RGB LED
     set_player_leds,  ///< Set player indicator LEDs
     set_adaptive_triggers,  ///< Set adaptive triggers
+    set_haptics,  ///< Play an addressable haptic effect
+  };
+
+  /**
+   * @brief Profile-neutral addressable gamepad haptic effect.
+   */
+  struct gamepad_haptic_effect_t {
+    std::uint8_t target;  ///< Target actuator selection.
+    std::uint8_t kind;  ///< Haptic effect category.
+    std::int8_t gain_db;  ///< Signed gain in decibels.
+    std::uint16_t intensity;  ///< Profile-defined intensity value.
+    std::uint16_t frequency_hz;  ///< Primary tone frequency in hertz.
+    std::int32_t duration_us;  ///< Effect duration in microseconds; negative means indefinite.
+    std::uint32_t interval_us;  ///< Off interval between pulses in microseconds.
+    std::uint16_t repeat_count;  ///< Pulse repeat count.
+    std::uint16_t lfo_frequency_hz;  ///< Low-frequency oscillator frequency in hertz.
+    std::uint8_t lfo_depth_percent;  ///< Low-frequency oscillator depth in percent.
+    std::uint16_t start_frequency_hz;  ///< Sweep start frequency in hertz.
+    std::uint16_t end_frequency_hz;  ///< Sweep end frequency in hertz.
+    std::uint8_t script_id;  ///< Controller-defined scripted effect identifier.
   };
 
   /**
@@ -227,6 +255,21 @@ namespace platf {
       return msg;
     }
 
+    /**
+     * @brief Create an addressable haptic effect command.
+     *
+     * @param id Identifier for the controller.
+     * @param effect Profile-neutral haptic effect parameters.
+     * @return Constructed haptic effect command.
+     */
+    static gamepad_feedback_msg_t make_haptics(std::uint16_t id, const gamepad_haptic_effect_t &effect) {
+      gamepad_feedback_msg_t msg;
+      msg.type = gamepad_feedback_e::set_haptics;
+      msg.id = id;
+      msg.data.haptics = effect;
+      return msg;
+    }
+
     gamepad_feedback_e type;  ///< Feedback command type stored in the union payload.
     std::uint16_t id;  ///< Controller identifier associated with this message.
 
@@ -264,6 +307,8 @@ namespace platf {
         std::array<uint8_t, 10> left;  ///< Left adaptive-trigger effect parameters.
         std::array<uint8_t, 10> right;  ///< Right adaptive-trigger effect parameters.
       } adaptive_triggers;  ///< Adaptive-trigger effect payload.
+
+      gamepad_haptic_effect_t haptics;  ///< Addressable haptic effect payload.
     } data;  ///< Controller feedback payload for the selected feedback type.
   };
 
@@ -454,6 +499,7 @@ namespace platf {
     float x;  ///< Horizontal coordinate or vector component.
     float y;  ///< Vertical coordinate or vector component.
     float pressure;  ///< Contact pressure reported by the client.
+    std::uint8_t touchpadIndex = 0;  ///< Zero-based Moonlight touchpad index.
   };
 
   /**
