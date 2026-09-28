@@ -5,8 +5,14 @@
 #pragma once
 
 // standard includes
+#include <memory>
 #include <string>
 #include <string_view>
+
+namespace safe {
+  template<class T>
+  class event_t;
+}
 
 #if defined(_WIN32) || defined(__APPLE__)
 namespace lvh {
@@ -85,6 +91,13 @@ namespace system_tray {
    * @return 0 if processing was successful, non-zero otherwise.
    */
   int process_tray_events();
+
+  /**
+   * @brief Process tray events until exit and notify the application's workers.
+   *
+   * @param shutdown_event Event used to stop Sunshine's server threads.
+   */
+  void run_tray_until_exit(const std::shared_ptr<safe::event_t<bool>> &shutdown_event);
 
   /**
    * @brief Exit the system tray.

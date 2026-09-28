@@ -12,6 +12,34 @@
 
 namespace platf {
   /**
+   * @brief Action to take when a macOS privacy permission is unavailable.
+   */
+  enum class permission_request_action_t {
+    none,  ///< No startup action is needed after an earlier request.
+    prompt,  ///< Ask macOS for the native permission.
+    settings,  ///< Open the permission's settings pane.
+  };
+
+  /**
+   * @brief Choose a privacy action without repeating a macOS startup prompt.
+   *
+   * @param granted Whether the native preflight check reports access.
+   * @param previous_state Zero before a request, one after a request, or two after a grant.
+   * @param startup Whether this action is part of automatic startup checks.
+   * @param retry_manual_request Whether a user-initiated action should retry the native request.
+   * @return The action to perform.
+   */
+  permission_request_action_t permission_request_action(bool granted, int previous_state, bool startup, bool retry_manual_request);
+
+  /**
+   * @brief Check whether the macOS version has Local Network privacy controls.
+   *
+   * @param major_version macOS major version number.
+   * @return True on macOS 15 and newer.
+   */
+  bool supports_local_network_privacy(int major_version);
+
+  /**
    * @brief Decide whether startup should initiate a native permission request.
    *
    * @param permission Permission status and requirement for the active configuration.
@@ -26,6 +54,23 @@ namespace platf {
    * @param notifications_enabled Whether the running build shows tray notifications.
    */
   void request_startup_permissions(bool notifications_enabled);
+
+  /**
+   * @brief Probe system audio once on startup when no custom sink is configured.
+   *
+   * The operating system has no passive tap authorization query. Later streams
+   * may request access again if the user removes permission.
+   */
+  void request_startup_system_audio_permission();
+
+  /**
+   * @brief Decide whether a one-time startup system audio probe is due.
+   *
+   * @param has_custom_sink Whether Sunshine uses a custom audio sink.
+   * @param previously_requested Whether a startup probe was already attempted.
+   * @return True only for the first native system audio startup probe.
+   */
+  bool should_request_startup_system_audio_permission(bool has_custom_sink, bool previously_requested);
 
   /**
    * @brief Start and stop an unmuted Core Audio tap to request system audio access.

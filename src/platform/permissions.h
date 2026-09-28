@@ -40,6 +40,8 @@ namespace platf {
   /**
    * @brief Initiate a native request or settings action for an access item.
    *
+   * On macOS, Local Network opens Privacy & Security, where the user selects Local Network.
+   *
    * @param id Stable identifier of the access item.
    * @return True when the action was recognized and initiated.
    */

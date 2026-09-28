@@ -43,4 +43,28 @@ TEST(MacosPermissionsTest, StartupRequestsOnlyMissingPermissionsInUse) {
   EXPECT_FALSE(platf::should_request_startup_permission({"notifications", "not_determined", false, true}, false));
   EXPECT_FALSE(platf::should_request_startup_permission({"system_audio", "on_use", true, false}, true));
 }
+
+TEST(MacosPermissionsTest, CoreGraphicsPromptOnlyOnFirstRequest) {
+  using platf::permission_request_action_t;
+  EXPECT_EQ(platf::permission_request_action(true, 0, true, false), permission_request_action_t::none);
+  EXPECT_EQ(platf::permission_request_action(true, 1, false, true), permission_request_action_t::none);
+  EXPECT_EQ(platf::permission_request_action(false, 0, true, false), permission_request_action_t::prompt);
+  EXPECT_EQ(platf::permission_request_action(false, 1, true, true), permission_request_action_t::none);
+  EXPECT_EQ(platf::permission_request_action(false, 1, false, false), permission_request_action_t::settings);
+  EXPECT_EQ(platf::permission_request_action(false, 1, false, true), permission_request_action_t::prompt);
+  EXPECT_EQ(platf::permission_request_action(false, 2, true, false), permission_request_action_t::settings);
+}
+
+TEST(MacosPermissionsTest, LocalNetworkPrivacyStartsWithMacOS15) {
+  EXPECT_FALSE(platf::supports_local_network_privacy(14));
+  EXPECT_TRUE(platf::supports_local_network_privacy(15));
+  EXPECT_TRUE(platf::supports_local_network_privacy(27));
+}
+
+TEST(MacosPermissionsTest, StartupSystemAudioProbeRunsOnlyOnce) {
+  EXPECT_TRUE(platf::should_request_startup_system_audio_permission(false, false));
+  EXPECT_FALSE(platf::should_request_startup_system_audio_permission(false, true));
+  EXPECT_FALSE(platf::should_request_startup_system_audio_permission(true, false));
+  EXPECT_FALSE(platf::should_request_startup_system_audio_permission(true, true));
+}
 #endif

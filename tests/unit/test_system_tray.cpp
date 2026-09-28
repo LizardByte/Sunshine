@@ -29,6 +29,7 @@
   // local includes
   #include <src/config.h>
   #include <src/system_tray.h>
+  #include <src/thread_safe.h>
 
   #if defined(__linux__) || defined(__APPLE__) || defined(_WIN32)
     // lib includes
@@ -670,7 +671,10 @@ TEST_F(SystemTrayTest, LifecycleMenuAndStateTransitions) {
     std::this_thread::sleep_for(100ms);
     std::ignore = system_tray::end_tray();
   });
-  EXPECT_NE(system_tray::process_tray_events(), 0);
+  auto shutdown_event = std::make_shared<safe::event_t<bool>>();
+  EXPECT_FALSE(shutdown_event->peek());
+  system_tray::run_tray_until_exit(shutdown_event);
+  EXPECT_TRUE(shutdown_event->peek());
   exit_thread.join();
   EXPECT_FALSE(system_tray::tray_initialized_for_testing());
 }

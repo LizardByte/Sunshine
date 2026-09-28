@@ -78,6 +78,7 @@
   #include "process.h"
   #include "src/entry_handler.h"
   #include "system_tray.h"
+  #include "thread_safe.h"
   #ifdef _WIN32
     #include "platform/windows/utf_utils.h"
   #endif
@@ -816,6 +817,11 @@ namespace system_tray {
 
     // Block until an event is processed or tray_quit() is called
     return tray_loop(1);
+  }
+
+  void run_tray_until_exit(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) {
+    while (process_tray_events() == 0);
+    shutdown_event->raise(true);
   }
 
   int end_tray() {

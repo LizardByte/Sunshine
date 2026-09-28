@@ -568,13 +568,21 @@ It also requests Microphone access if you configured a custom **Audio Sink**, an
 the system tray is enabled. Open **Troubleshooting > Permissions** in the Web UI to review these permissions or
 open their System Settings pages. Sunshine restarts once after missing required permissions are granted, including
 when a permission was removed and later restored.
+If macOS offers **Quit & Reopen** after you allow Screen Recording, choose it so the running process receives the new
+access. Sunshine exits its tray and server threads before macOS reopens it.
 
-macOS requests Local Network access when Sunshine advertises itself with Bonjour. When the other required permissions
-are ready, Sunshine briefly starts an unmuted system audio tap to request System Audio Recording access before the
-first stream. If that tap cannot start, the first stream can still prompt. macOS does not offer Sunshine a passive status
-check for Local Network or System Audio Recording, so the Web UI identifies them as permissions handled when used.
-Virtual gamepad access belongs to the separately installed Virtual HID Broker and is described in the macOS gamepad
-setup above; Sunshine shows the broker's availability and license under **Troubleshooting > Virtual Gamepad**.
+On macOS 15 and newer, macOS requests Local Network access when Sunshine advertises itself with Bonjour. System Audio
+Recording access is requested once at startup with a brief audio tap, when the first stream captures audio if startup
+access was unavailable, or when you use its Web UI button. The button also opens Screen & System Audio Recording
+settings. macOS does not offer Sunshine a passive status check for Local Network
+or System Audio Recording, so the Web UI identifies them as permissions handled when used. The Local Network button
+opens **Privacy & Security**; choose **Local Network** there to manage app access.
+Sunshine uses libvirtualhid to send keyboard and mouse events through CoreGraphics. Virtual gamepads use the separately
+installed Virtual HID Broker described in the macOS gamepad setup above. Sunshine shows the broker's availability and
+license under **Troubleshooting > Virtual Input**.
+If a macOS privacy switch is enabled but Sunshine still reports access denied, remove that Sunshine entry and add the
+installed app again. Development builds should use a consistent Apple-issued signing identity so macOS can recognize
+the app across updates.
 
 Sunshine supports native system audio capture on macOS 14.0 (Sonoma) and newer via Apple’s Audio Tap API.
 To use it, simply leave the **Audio Sink** setting blank.

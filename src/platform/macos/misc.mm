@@ -71,6 +71,9 @@ namespace platf {
 
   namespace {
     auto screen_capture_allowed = std::atomic<bool> {false};
+    NSString *const screen_recording_state_key = @"screenRecordingPermissionState";  ///< Last screen recording request state for this user.
+    NSString *const input_post_event_state_key = @"inputPostEventPermissionState";  ///< Last keyboard and mouse request state for this user.
+    NSString *const system_audio_requested_key = @"systemAudioStartupRequested";  ///< Whether Sunshine already started a startup tap.
 
     /**
      * @brief Check screen recording without showing a macOS prompt.
@@ -122,7 +125,90 @@ namespace platf {
       NSString *address = [@"x-apple.systempreferences:com.apple.preference.security?" stringByAppendingString:pane];
       return [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:address]] == YES;
     }
+
+    /**
+     * @brief Request a CoreGraphics permission or open Settings when it was previously requested.
+     *
+     * @param startup Whether Sunshine is performing automatic startup checks.
+     * @param state_key User defaults key recording this permission's previous state.
+     * @param granted Whether the native preflight check reports access.
+     * @param pane Settings pane to open for manual authorization.
+     * @param request Native function that initiates the initial authorization request.
+     * @param retry_manual_request Whether a user action should retry the native request and open Settings.
+     * @return True when access exists or a native action was started.
+     */
+    bool request_coregraphics_permission(bool startup, NSString *state_key, bool granted, NSString *pane, bool (*request)(), bool retry_manual_request) {
+      NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+      const auto previous_state = static_cast<int>([defaults integerForKey:state_key]);
+      const auto action = permission_request_action(granted, previous_state, startup, retry_manual_request);
+      if (granted) {
+        [defaults setInteger:2 forKey:state_key];
+      }
+      if (action == permission_request_action_t::none) {
+        return granted;
+      }
+      if (action == permission_request_action_t::settings) {
+        [defaults setInteger:1 forKey:state_key];
+        return open_privacy_settings(pane);
+      }
+      [defaults setInteger:1 forKey:state_key];
+      if (request()) {
+        [defaults setInteger:2 forKey:state_key];
+        if (!startup && retry_manual_request) {
+          open_privacy_settings(pane);
+        }
+        return true;
+      }
+      return open_privacy_settings(pane);
+    }
+
+    /**
+     * @brief Request screen capture access without repeating an earlier startup prompt.
+     *
+     * @param startup Whether this is an automatic startup request.
+     * @return True when access exists or the request was opened.
+     */
+    bool request_screen_recording(bool startup) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
+      return request_coregraphics_permission(startup, screen_recording_state_key, screen_recording_granted(), @"Privacy_ScreenCapture", CGRequestScreenCaptureAccess, false);
+#pragma clang diagnostic pop
+    }
+
+    /**
+     * @brief Request Post Event access for libvirtualhid keyboard and mouse input.
+     *
+     * @param startup Whether this is an automatic startup request.
+     * @return True when access exists or the request was opened.
+     */
+    bool request_input_post_event(bool startup) {
+      return request_coregraphics_permission(startup, input_post_event_state_key, CGPreflightPostEventAccess(), @"Privacy_Accessibility", CGRequestPostEventAccess, true);
+    }
   }  // namespace
+
+  permission_request_action_t permission_request_action(bool granted, int previous_state, bool startup, bool retry_manual_request) {
+    if (granted) {
+      return permission_request_action_t::none;
+    }
+    if (!startup && retry_manual_request) {
+      return permission_request_action_t::prompt;
+    }
+    if (previous_state <= 0) {
+      return permission_request_action_t::prompt;
+    }
+    if (previous_state == 2 || !startup) {
+      return permission_request_action_t::settings;
+    }
+    return permission_request_action_t::none;
+  }
+
+  bool supports_local_network_privacy(int major_version) {
+    return major_version >= 15;
+  }
+
+  bool should_request_startup_system_audio_permission(bool has_custom_sink, bool previously_requested) {
+    return !has_custom_sink && !previously_requested;
+  }
 
   std::vector<permission_status_t> get_permission_statuses() {
     const auto microphone_authorization = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio];
@@ -140,14 +226,27 @@ namespace platf {
         break;
     }
 
-    return {
-      {"screen_recording", screen_recording_granted() ? "granted" : "denied", true, true, true},
-      {"input", CGPreflightPostEventAccess() ? "granted" : "denied", config::input.keyboard || config::input.mouse, true, true},
+    const auto screen_granted = screen_recording_granted();
+    const auto input_granted = CGPreflightPostEventAccess();
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    if (screen_granted) {
+      [defaults setInteger:2 forKey:screen_recording_state_key];
+    }
+    if (input_granted) {
+      [defaults setInteger:2 forKey:input_post_event_state_key];
+    }
+
+    std::vector<permission_status_t> statuses {
+      {"screen_recording", screen_granted ? "granted" : "denied", true, true, true},
+      {"input", input_granted ? "granted" : "denied", config::input.keyboard || config::input.mouse, true, true},
       {"microphone", microphone_status, !config::audio.sink.empty(), true, true},
       {"system_audio", "on_use", config::audio.sink.empty(), false, true},
-      {"local_network", "on_use", true, false, true},
-      {"notifications", notification_status(), false, true, true},
     };
+    if (supports_local_network_privacy(static_cast<int>([[NSProcessInfo processInfo] operatingSystemVersion].majorVersion))) {
+      statuses.push_back({"local_network", "on_use", true, false, true});
+    }
+    statuses.push_back({"notifications", notification_status(), false, true, true});
+    return statuses;
   }
 
   bool should_request_startup_permission(const permission_status_t &permission, bool notifications_enabled) {
@@ -166,19 +265,10 @@ namespace platf {
 
   bool request_permission(std::string_view id) {
     if (id == "screen_recording") {
-      if (screen_recording_granted()) {
-        return true;
-      }
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunguarded-availability-new"
-      if (!CGRequestScreenCaptureAccess()) {
-        return open_privacy_settings(@"Privacy_ScreenCapture");
-      }
-#pragma clang diagnostic pop
-      return true;
+      return request_screen_recording(false);
     }
     if (id == "input") {
-      return CGPreflightPostEventAccess() || CGRequestPostEventAccess() || open_privacy_settings(@"Privacy_Accessibility");
+      return request_input_post_event(false);
     }
     if (id == "microphone") {
       const auto authorization = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio];
@@ -197,10 +287,17 @@ namespace platf {
       return true;
     }
     if (id == "system_audio") {
-      return request_system_audio_permission() || open_privacy_settings(@"Privacy_ScreenCapture");
+      const bool settings_opened = open_privacy_settings(@"Privacy_ScreenCapture");
+      if (!request_system_audio_permission()) {
+        BOOST_LOG(warning) << "System audio recording permission or tap setup is unavailable"sv;
+      }
+      return settings_opened;
     }
     if (id == "local_network") {
-      return open_privacy_settings(@"Privacy_LocalNetwork");
+      if (!supports_local_network_privacy(static_cast<int>([[NSProcessInfo processInfo] operatingSystemVersion].majorVersion))) {
+        return false;
+      }
+      return [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:@"x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension"]] == YES;
     }
     return false;
   }
@@ -208,8 +305,25 @@ namespace platf {
   void request_startup_permissions(bool notifications_enabled) {
     for (const auto &permission : get_permission_statuses()) {
       if (should_request_startup_permission(permission, notifications_enabled)) {
-        request_permission(permission.id);
+        if (permission.id == "screen_recording") {
+          request_screen_recording(true);
+        } else if (permission.id == "input") {
+          request_input_post_event(true);
+        } else {
+          request_permission(permission.id);
+        }
       }
+    }
+  }
+
+  void request_startup_system_audio_permission() {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    if (!should_request_startup_system_audio_permission(!config::audio.sink.empty(), [defaults boolForKey:system_audio_requested_key])) {
+      return;
+    }
+    [defaults setBool:YES forKey:system_audio_requested_key];
+    if (!request_system_audio_permission()) {
+      BOOST_LOG(warning) << "System audio recording permission or tap setup is unavailable"sv;
     }
   }
 

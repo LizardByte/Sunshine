@@ -26,7 +26,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="permission in permissions" :key="permission.id">
+              <tr v-for="permission in orderedPermissions" :key="permission.id">
                 <th scope="row">
                   <strong>{{ $t('troubleshooting.permission_' + permission.id +
                     (permission.id === 'input' && (platform === 'linux' || platform === 'freebsd') ? '_unix' : '')) }}</strong>
@@ -58,7 +58,7 @@
                           type="button" :disabled="permissionBusy === permission.id"
                           @click="requestPermission(permission.id)">
                     {{ $t(permission.id === 'local_network'
-                      ? 'troubleshooting.permissions_settings' : 'troubleshooting.permissions_request') }}
+                      ? 'troubleshooting.permissions_privacy_settings' : 'troubleshooting.permissions_request') }}
                   </button>
                   <button v-else-if="permission.status !== 'granted'" class="btn btn-outline-primary"
                           type="button" @click="permissionHelp = permissionHelp === permission.id ? '' : permission.id">
@@ -546,6 +546,8 @@
       XCircle,
     } from '@lucide/vue'
 
+    const permissionOrder = ['screen_recording', 'input', 'notifications', 'microphone', 'system_audio', 'local_network'];
+
     export default {
       components: {
         Navbar,
@@ -637,6 +639,16 @@
         };
       },
       computed: {
+        /** Keep known permissions in troubleshooting order on every platform. */
+        orderedPermissions() {
+          return this.permissions.slice().sort((left, right) => {
+            const leftRank = permissionOrder.indexOf(left.id);
+            const rightRank = permissionOrder.indexOf(right.id);
+            return (leftRank < 0 ? permissionOrder.length : leftRank) -
+              (rightRank < 0 ? permissionOrder.length : rightRank);
+          });
+        },
+
         showVirtualhid() {
           return this.gamepadDriver !== 'none' && (this.platform === 'macos' || this.gamepadDriver !== 'vigembus');
         },
@@ -841,6 +853,9 @@
               body: JSON.stringify({ id }),
             });
             if (!response.ok) throw new Error(this.$t('troubleshooting.permissions_error'));
+            if (id === 'local_network' || (this.platform === 'macos' && (id === 'screen_recording' || id === 'input'))) {
+              this.permissionHelp = id;
+            }
             await this.refreshPermissions();
           } catch (error) {
             this.permissionError = error.message;

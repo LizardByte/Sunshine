@@ -166,7 +166,7 @@ void mainThreadLoop(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) 
   // Main thread event loop
   BOOST_LOG(info) << "Starting main loop"sv;
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
-  while (system_tray::process_tray_events() == 0);
+  system_tray::run_tray_until_exit(shutdown_event);
 #endif
   BOOST_LOG(info) << "Main loop has exited"sv;
 }
@@ -523,14 +523,10 @@ int main(int argc, char *argv[]) {
   }
 
 #ifdef __APPLE__
-  // Core Audio has no passive system-audio authorization check. A short,
-  // unmuted tap asks macOS for access before the first stream starts.
   std::jthread macos_audio_permission_requester;
-  if (!permission_restart_needed && config::audio.sink.empty()) {
+  if (!permission_restart_needed) {
     macos_audio_permission_requester = std::jthread([]() {
-      if (!platf::request_system_audio_permission()) {
-        BOOST_LOG(warning) << "System audio recording permission or tap setup is unavailable"sv;
-      }
+      platf::request_startup_system_audio_permission();
     });
   }
 #endif

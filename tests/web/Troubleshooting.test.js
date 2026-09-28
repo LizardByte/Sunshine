@@ -61,6 +61,31 @@ afterEach(() => {
 })
 
 describe('virtual input troubleshooting', () => {
+  it('orders permission rows consistently across platforms', async () => {
+    const permissions = [
+      { id: 'local_network', status: 'on_use', required: true },
+      { id: 'config_directory', status: 'granted', required: true },
+      { id: 'microphone', status: 'granted', required: false },
+      { id: 'system_audio', status: 'on_use', required: true },
+      { id: 'notifications', status: 'granted', required: false },
+      { id: 'input', status: 'granted', required: true },
+      { id: 'screen_recording', status: 'granted', required: true },
+    ]
+    for (const platform of ['macos', 'windows']) {
+      const wrapper = await mountTroubleshooting(platform, 'none', {}, permissions)
+      expect(wrapper.findAll('.permission-table-shell tbody tr').map(row => row.get('strong').text())).toEqual([
+        'troubleshooting.permission_screen_recording',
+        'troubleshooting.permission_input',
+        'troubleshooting.permission_notifications',
+        'troubleshooting.permission_microphone',
+        'troubleshooting.permission_system_audio',
+        'troubleshooting.permission_local_network',
+        'troubleshooting.permission_config_directory',
+      ])
+      wrapper.unmount()
+    }
+  })
+
   it('shows macOS permission status and requests access from the row button', async () => {
     const wrapper = await mountTroubleshooting('macos', 'all', {}, [
       { id: 'screen_recording', status: 'denied', required: true, requestable: true },
@@ -89,6 +114,40 @@ describe('virtual input troubleshooting', () => {
       method: 'POST',
       body: JSON.stringify({ id: 'screen_recording' }),
     }))
+    expect(screenRow.text()).toContain('troubleshooting.permission_screen_recording_help')
+    wrapper.unmount()
+  })
+
+  it('shows macOS input access recovery steps when the request button is used', async () => {
+    const wrapper = await mountTroubleshooting('macos', 'all', {}, [
+      { id: 'input', status: 'denied', required: true, requestable: true },
+    ])
+
+    const row = wrapper.get('.permission-table-shell tbody tr')
+    await row.get('button').trigger('click')
+    await flushPromises()
+    expect(fetch).toHaveBeenCalledWith('./api/permissions/request', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ id: 'input' }),
+    }))
+    expect(row.text()).toContain('troubleshooting.permission_input_help')
+    wrapper.unmount()
+  })
+
+  it('shows Local Network setup steps after opening Privacy & Security', async () => {
+    const wrapper = await mountTroubleshooting('macos', 'all', {}, [
+      { id: 'local_network', status: 'on_use', required: true, requestable: true },
+    ])
+
+    const row = wrapper.get('.permission-table-shell tbody tr')
+    expect(row.get('button').text()).toBe('troubleshooting.permissions_privacy_settings')
+    await row.get('button').trigger('click')
+    await flushPromises()
+    expect(fetch).toHaveBeenCalledWith('./api/permissions/request', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ id: 'local_network' }),
+    }))
+    expect(row.text()).toContain('troubleshooting.permission_local_network_help')
     wrapper.unmount()
   })
 
@@ -168,12 +227,12 @@ describe('virtual input troubleshooting', () => {
     const icons = wrapper.findAll('.permission-table-shell tbody .status-icon')
     expect(icons.every(icon => icon.find('svg').exists())).toBe(true)
     expect(icons.map(icon => icon.classes().find(name => name.startsWith('status-icon-')))).toEqual([
-      'status-icon-success', 'status-icon-neutral', 'status-icon-warning',
+      'status-icon-warning', 'status-icon-success', 'status-icon-neutral',
     ])
     expect(icons.map(icon => icon.attributes('title'))).toEqual([
+      'troubleshooting.permissions_status_unknown',
       'troubleshooting.permissions_status_granted',
       'troubleshooting.permissions_status_not_determined',
-      'troubleshooting.permissions_status_unknown',
     ])
     expect(wrapper.findAll('.permission-table-shell tbody button')).toHaveLength(2)
     wrapper.unmount()
