@@ -880,6 +880,8 @@ namespace platf {
 
   std::filesystem::path appdata();
 
+  std::filesystem::path get_xdg_restore_token_path();  ///< XDG restore token path.
+
   /**
    * @brief Return the hardware MAC address associated with a network address.
    *
