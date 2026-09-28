@@ -21,7 +21,7 @@
       </div>
     </div>
 
-    <!-- Windows virtual input status -->
+    <!-- Virtual gamepad broker status -->
     <div class="alert my-4" :class="virtualInputNotice.alertClass" v-if="virtualInputNotice">
       <div>
         <div class="d-flex align-items-center mb-3">
@@ -188,19 +188,23 @@
         this.preReleaseVersion = new SunshineVersion((await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases").then((r) => r.json())).find(release => release.prerelease), null);
         console.log("Pre-Release Version: ", this.preReleaseVersion.version)
 
-        // The Virtual HID Driver also backs relative mouse input when controllers are disabled.
-        if (this.platform === 'windows') {
+        // Read the broker version on both platforms to identify development builds.
+        if (this.platform === 'windows' || this.platform === 'macos') {
           try {
             const virtualInputStatus = await fetch("./api/virtual-input/status").then((r) => r.json());
             this.virtualhid = virtualInputStatus.virtualhid;
-            this.vigembus = virtualInputStatus.vigembus;
+            if (this.platform === 'windows') {
+              this.vigembus = virtualInputStatus.vigembus;
+            }
           } catch (e) {
             console.error("Failed to fetch virtual input driver status:", e);
           }
+        }
+        if (this.platform === 'windows' || this.platform === 'macos') {
           try {
             this.virtualhidLicense = await fetch("./api/virtual-input/license").then((r) => r.json());
           } catch (e) {
-            console.error("Failed to fetch Virtual HID Driver license status:", e);
+            console.error("Failed to fetch Virtual HID Broker license status:", e);
           }
         }
       } catch (e) {
@@ -215,11 +219,18 @@
     },
     computed: {
       /**
-       * Build the single Windows virtual-input message shown on the home page.
-       * Warnings are reserved for an unusable selected backend, an unsupported
-       * installed driver, or an installed driver with an invalid license.
+       * Build the virtual-input message shown on the home page.
+       * Warn about broker or gamepad driver issues when virtual gamepads are enabled.
        */
       virtualInputNotice() {
+        if (!this.controllerEnabled || this.gamepadDriver === 'none') {
+          return null;
+        }
+
+        if (this.platform === 'macos') {
+          return this.buildMacosVirtualInputNotice();
+        }
+
         if (this.platform !== 'windows' || !this.virtualhid || !this.vigembus) {
           return null;
         }
@@ -245,7 +256,7 @@
         }
 
         if (this.gamepadDriver === 'virtualhid') {
-          return this.buildVirtualInputNotice(true, 'index.virtualhid_required_title', [{ key: 'index.virtualhid_required_desc' }]);
+          return this.buildVirtualInputNotice(true, 'index.virtualhid_broker_unavailable_title', [{ key: 'index.virtualhid_required_desc' }]);
         }
 
         if (this.controllerEnabled && !vigembusUsable) {
@@ -294,7 +305,22 @@
     },
     methods: {
       /**
-       * Build a home-page notice for the current Windows virtual-input state.
+       * Build the macOS broker notice, prioritizing license and service warnings.
+       *
+       * @returns {object|null} Warning or development-build notice, when applicable.
+       */
+      buildMacosVirtualInputNotice() {
+        if (this.virtualhidLicense && !this.virtualhidLicense.licensed) {
+          return this.virtualhidLicense.service_available
+            ? this.buildVirtualInputNotice(true, 'index.virtualhid_macos_license_title', [{ key: 'index.virtualhid_macos_license_desc' }])
+            : this.buildVirtualInputNotice(true, 'index.virtualhid_broker_unavailable_title', [{ key: 'index.virtualhid_macos_broker_desc' }]);
+        }
+        return this.virtualhid?.development_version
+          ? this.buildVirtualInputNotice(false, 'index.virtualhid_development_title', [{ key: 'index.virtualhid_development_desc' }])
+          : null;
+      },
+      /**
+       * Build a home-page notice for the current virtual-input state.
        *
        * @param {boolean} warning Whether the notice represents an actionable warning.
        * @param {string} title Localization key for the notice title.

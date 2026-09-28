@@ -160,9 +160,9 @@ namespace confighttp {
   nlohmann::json build_virtualhid_license_status(const lvh::LicenseResult &result);
 
   /**
-   * @brief Build libvirtualhid driver version and installation status.
+   * @brief Build Virtual HID Broker version and installation status.
    *
-   * @return libvirtualhid driver status JSON.
+   * @return Virtual HID Broker status JSON.
    */
   nlohmann::json get_virtualhid_driver_status();
 
