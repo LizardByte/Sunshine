@@ -40,6 +40,7 @@ struct AVBufferRef;
 struct AVHWFramesContext;
 struct AVCodecContext;
 struct AVDictionary;
+struct AVRational;
 
 #ifdef _WIN32
 // Forward declarations of boost classes to avoid having to include boost headers
@@ -346,6 +347,8 @@ namespace platf {
     yuv444p16,  ///< Planar 10-bit (shifted to 16-bit) YUV 4:4:4
     yuv444p,  ///< Planar 8-bit YUV 4:4:4
     y410,  ///< Y410
+    nv24,  ///< NV24
+    p410,  ///< P410
     unknown  ///< Unknown
   };
 
@@ -371,6 +374,8 @@ namespace platf {
       _CONVERT(yuv444p16);
       _CONVERT(yuv444p);
       _CONVERT(y410);
+      _CONVERT(nv24);
+      _CONVERT(p410);
       _CONVERT(unknown);
     }
 #undef _CONVERT
@@ -538,6 +543,8 @@ namespace platf {
     std::int32_t pixel_pitch {};  ///< Bytes per pixel in the image buffer.
     std::int32_t row_pitch {};  ///< Bytes between consecutive image rows.
 
+    // Some backends support additional timing metadata
+    std::optional<std::chrono::steady_clock::time_point> capture_pacing_timestamp;
     std::optional<std::chrono::steady_clock::time_point> frame_timestamp;  ///< Capture timestamp associated with the frame.
 
     /**
@@ -665,6 +672,10 @@ namespace platf {
     nvenc::nvenc_encoder *nvenc = nullptr;  ///< NVENC encoder instance owned by the encode device.
   };
 
+#ifdef __APPLE__
+  class videotoolbox_encode_device_t;
+#endif
+
   /**
    * @brief Enumerates supported capture options.
    */
@@ -750,11 +761,12 @@ namespace platf {
       return nullptr;
     }
 
-    /**
-     * @brief Report whether the active display mode is HDR.
-     *
-     * @return True when the active display mode is HDR.
-     */
+#ifdef __APPLE__
+    virtual std::unique_ptr<videotoolbox_encode_device_t> make_videotoolbox_encode_device(pix_fmt_e pix_fmt) {
+      return nullptr;
+    }
+#endif
+
     virtual bool is_hdr() {
       return false;
     }

@@ -1523,7 +1523,7 @@ namespace stream {
   void videoBroadcastThread(udp::socket &sock) {
     auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
     auto packets = mail::man->queue<video::packet_t>(mail::video_packets);
-    auto video_epoch = std::chrono::steady_clock::now();
+    auto video_epoch = video::video_epoch();
 
     // Video traffic is sent on this thread
     platf::set_thread_name("stream::videoBroadcast");
@@ -1719,15 +1719,18 @@ namespace stream {
 
           size_t next_shard_to_send = 0;
 
-          // RTP video timestamps use a 90 KHz clock and the frame_timestamp from when the frame was captured
-          // When a timestamp isn't available (duplicate frames), the timestamp from rate control is used instead.
+          // RTP video timestamps use a 90 KHz clock, anchored to when the frame was captured.
+          // Encoders that repurpose frame_timestamp (e.g. VideoToolbox) supply the capture time
+          // separately in capture_pacing_timestamp. When no timestamp is available (duplicate frames),
+          // the timestamp from rate control is used instead.
           bool frame_is_dupe = false;
-          if (!packet->frame_timestamp) {
-            packet->frame_timestamp = ratecontrol_next_frame_start;
+          auto rtp_anchor = packet->capture_pacing_timestamp ? packet->capture_pacing_timestamp : packet->frame_timestamp;
+          if (!rtp_anchor) {
+            rtp_anchor = ratecontrol_next_frame_start;
             frame_is_dupe = true;
           }
           using rtp_tick = std::chrono::duration<uint32_t, std::ratio<1, 90000>>;
-          uint32_t timestamp = std::chrono::round<rtp_tick>(*packet->frame_timestamp - video_epoch).count();
+          uint32_t timestamp = std::chrono::round<rtp_tick>(*rtp_anchor - video_epoch).count();
 
           // set FEC info now that we know for sure what our percentage will be for this frame
           for (auto x = 0; x < shards.size(); ++x) {

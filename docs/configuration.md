@@ -1498,6 +1498,68 @@ supported on the current platform.
     </tr>
 </table>
 
+### macos_disable_vsync
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Turn off the macOS window server's V-Sync while a stream is active to reduce capture latency.
+            V-Sync is restored when the stream ends.
+            @note{This option is only supported on macOS.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            enabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            macos_disable_vsync = disabled
+            @endcode</td>
+    </tr>
+</table>
+
+### macos_capture_dynamic_range
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            The dynamic range ScreenCaptureKit uses when capturing an HDR stream.
+            @note{This option is only supported on macOS.}
+        </td>
+    </tr>
+    <tr>
+        <td rowspan="3">Choices</td>
+        <td>hdr_canonical</td>
+        <td>Capture in HDR with standardized attributes for consistent results on any display.</td>
+    </tr>
+    <tr>
+        <td>hdr_local</td>
+        <td>Capture in HDR with the attributes of the display being captured.</td>
+    </tr>
+    <tr>
+        <td>sdr</td>
+        <td>Capture in standard dynamic range even when the stream is HDR.</td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            hdr_canonical
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            macos_capture_dynamic_range = hdr_local
+            @endcode</td>
+    </tr>
+</table>
+
 ## Network
 
 ### upnp
@@ -2996,7 +3058,7 @@ supported on the current platform.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            The entropy encoding to use.
+            The entropy encoding to use with h264.
             @note{This option only applies when using macOS.}
         </td>
     </tr>
@@ -3015,7 +3077,7 @@ supported on the current platform.
     <tr>
         <td rowspan="3">Choices</td>
         <td>auto</td>
-        <td>let ffmpeg decide</td>
+        <td>let VideoToolbox decide</td>
     </tr>
     <tr>
         <td>cabac</td>
@@ -3065,31 +3127,6 @@ supported on the current platform.
     <tr>
         <td>forced</td>
         <td>force software encoding</td>
-    </tr>
-</table>
-
-### vt_realtime
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Realtime encoding.
-            @note{This option only applies when using macOS.}
-            @warning{Disabling realtime encoding might result in a delayed frame encoding or frame drop.}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            enabled
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            vt_realtime = enabled
-            @endcode</td>
     </tr>
 </table>
 

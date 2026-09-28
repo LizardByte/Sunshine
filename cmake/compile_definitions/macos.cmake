@@ -36,7 +36,9 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
         ${CORE_VIDEO_LIBRARY}
         ${FOUNDATION_LIBRARY}
         ${IOKIT_LIBRARY}
-        ${VIDEO_TOOLBOX_LIBRARY})
+        ${SCREEN_CAPTURE_KIT_LIBRARY}
+        ${VIDEO_TOOLBOX_LIBRARY}
+        ${QUARTZ_CORE_LIBRARY})
 
 set(APPLE_PLIST_TEMPLATE "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/build/Info.plist.in")
 set(APPLE_PLIST_FILE "${CMAKE_BINARY_DIR}/Info.plist")
@@ -47,8 +49,8 @@ set(PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/macos/av_audio.h"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/av_audio.mm"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/av_img_t.h"
-        "${CMAKE_SOURCE_DIR}/src/platform/macos/av_video.h"
-        "${CMAKE_SOURCE_DIR}/src/platform/macos/av_video.m"
+        "${CMAKE_SOURCE_DIR}/src/platform/macos/bmem.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/macos/bmem.h"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/display.mm"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/input.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/microphone.mm"
@@ -57,6 +59,13 @@ set(PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/macos/nv12_zero_device.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/nv12_zero_device.h"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/publish.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/macos/sck_picker.h"
+        "${CMAKE_SOURCE_DIR}/src/platform/macos/sck_video.h"
+        "${CMAKE_SOURCE_DIR}/src/platform/macos/sck_video.mm"
+        "${CMAKE_SOURCE_DIR}/src/platform/macos/threading-posix.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/macos/threading.h"
+        "${CMAKE_SOURCE_DIR}/src/platform/macos/videotoolbox.h"
+        "${CMAKE_SOURCE_DIR}/src/platform/macos/videotoolbox.mm"
         "${CMAKE_SOURCE_DIR}/third-party/TPCircularBuffer/TPCircularBuffer.c"
         "${CMAKE_SOURCE_DIR}/third-party/TPCircularBuffer/TPCircularBuffer.h"
         ${APPLE_ENTITLEMENTS_FILE}

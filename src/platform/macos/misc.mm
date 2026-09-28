@@ -19,6 +19,7 @@
 // platform includes
 #include <arpa/inet.h>
 #include <dlfcn.h>
+#include <CoreVideo/CoreVideo.h>
 #include <Foundation/Foundation.h>
 #include <mach-o/dyld.h>
 #include <net/if_dl.h>

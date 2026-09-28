@@ -4,33 +4,78 @@
 #include <cstdint>
 #include <ostream>
 #include <string>
+#include <VideoToolbox/VideoToolbox.h>
 
 namespace ca {
 
-  // Display FourCC error codes, with fallback to integer.
+  // Display FourCC error codes, VideoToolbox error constants, and fallback to integer.
   // Usage: BOOST_LOG(error) << ca::Status(err);
 
-  // Some CoreAudio error examples:
-  // kAudioHardwareNoError = 0,
-  // kAudioHardwareNotRunningError = 'stop',
-  // kAudioHardwareUnspecifiedError = 'what',
-  // kAudioHardwareUnknownPropertyError = 'who?',
-  // kAudioHardwareBadPropertySizeError = '!siz',
-  // kAudioHardwareIllegalOperationError = 'nope',
-  // kAudioHardwareBadObjectError = '!obj',
-  // kAudioHardwareBadDeviceError = '!dev',
-  // kAudioHardwareBadStreamError = '!str',
-  // kAudioHardwareUnsupportedOperationError = 'unop',
-  // kAudioHardwareNotReadyError = 'nrdy',
-  // kAudioDeviceUnsupportedFormatError = '!dat',
-  // kAudioDevicePermissionsError = '!hog'
+  static std::string VTErrorName(OSStatus status) {
+    switch (status) {
+      case 0:
+        return "noErr";
+
+#define VT_ERROR_CASE(name) \
+  case name: \
+    return #name
+        VT_ERROR_CASE(kVTPropertyNotSupportedErr);
+        VT_ERROR_CASE(kVTPropertyReadOnlyErr);
+        VT_ERROR_CASE(kVTParameterErr);
+        VT_ERROR_CASE(kVTInvalidSessionErr);
+        VT_ERROR_CASE(kVTAllocationFailedErr);
+        VT_ERROR_CASE(kVTPixelTransferNotSupportedErr);
+        VT_ERROR_CASE(kVTCouldNotFindVideoDecoderErr);
+        VT_ERROR_CASE(kVTCouldNotCreateInstanceErr);
+        VT_ERROR_CASE(kVTCouldNotFindVideoEncoderErr);
+        VT_ERROR_CASE(kVTVideoDecoderBadDataErr);
+        VT_ERROR_CASE(kVTVideoDecoderUnsupportedDataFormatErr);
+        VT_ERROR_CASE(kVTVideoDecoderMalfunctionErr);
+        VT_ERROR_CASE(kVTVideoEncoderMalfunctionErr);
+        VT_ERROR_CASE(kVTVideoDecoderNotAvailableNowErr);
+        VT_ERROR_CASE(kVTPixelRotationNotSupportedErr);
+        VT_ERROR_CASE(kVTVideoEncoderNotAvailableNowErr);
+        VT_ERROR_CASE(kVTFormatDescriptionChangeNotSupportedErr);
+        VT_ERROR_CASE(kVTInsufficientSourceColorDataErr);
+        VT_ERROR_CASE(kVTCouldNotCreateColorCorrectionDataErr);
+        VT_ERROR_CASE(kVTColorSyncTransformConvertFailedErr);
+        VT_ERROR_CASE(kVTVideoDecoderAuthorizationErr);
+        VT_ERROR_CASE(kVTVideoEncoderAuthorizationErr);
+        VT_ERROR_CASE(kVTColorCorrectionPixelTransferFailedErr);
+        VT_ERROR_CASE(kVTMultiPassStorageIdentifierMismatchErr);
+        VT_ERROR_CASE(kVTMultiPassStorageInvalidErr);
+        VT_ERROR_CASE(kVTFrameSiloInvalidTimeStampErr);
+        VT_ERROR_CASE(kVTFrameSiloInvalidTimeRangeErr);
+        VT_ERROR_CASE(kVTCouldNotFindTemporalFilterErr);
+        VT_ERROR_CASE(kVTPixelTransferNotPermittedErr);
+        VT_ERROR_CASE(kVTColorCorrectionImageRotationFailedErr);
+        VT_ERROR_CASE(kVTVideoDecoderRemovedErr);
+        VT_ERROR_CASE(kVTSessionMalfunctionErr);
+        VT_ERROR_CASE(kVTVideoDecoderNeedsRosettaErr);
+        VT_ERROR_CASE(kVTVideoEncoderNeedsRosettaErr);
+        VT_ERROR_CASE(kVTVideoDecoderReferenceMissingErr);
+        VT_ERROR_CASE(kVTVideoDecoderCallbackMessagingErr);
+        VT_ERROR_CASE(kVTVideoDecoderUnknownErr);
+        VT_ERROR_CASE(kVTExtensionDisabledErr);
+        VT_ERROR_CASE(kVTVideoEncoderMVHEVCVideoLayerIDsMismatchErr);
+        VT_ERROR_CASE(kVTCouldNotOutputTaggedBufferGroupErr);
+        VT_ERROR_CASE(kVTCouldNotFindExtensionErr);
+        VT_ERROR_CASE(kVTExtensionConflictErr);
+        VT_ERROR_CASE(kVTVideoEncoderAutoWhiteBalanceNotLockedErr);
+        VT_ERROR_CASE(kVTLogTransferFunctionMismatchErr);
+#undef VT_ERROR_CASE
+
+      default:
+        return std::to_string(static_cast<int32_t>(status));
+    }
+  }
 
   inline std::string OSStatusToString(OSStatus error) {
-    uint32_t be = CFSwapInt32HostToBig(static_cast<uint32_t>(error));
-    const unsigned char c1 = static_cast<unsigned char>((be >> 24) & 0xFF);
-    const unsigned char c2 = static_cast<unsigned char>((be >> 16) & 0xFF);
-    const unsigned char c3 = static_cast<unsigned char>((be >> 8) & 0xFF);
-    const unsigned char c4 = static_cast<unsigned char>((be >> 0) & 0xFF);
+    const uint32_t val = static_cast<uint32_t>(error);
+    const unsigned char c1 = static_cast<unsigned char>((val >> 24) & 0xFF);
+    const unsigned char c2 = static_cast<unsigned char>((val >> 16) & 0xFF);
+    const unsigned char c3 = static_cast<unsigned char>((val >> 8) & 0xFF);
+    const unsigned char c4 = static_cast<unsigned char>((val >> 0) & 0xFF);
 
     auto is_printable = [](unsigned char c) -> bool {
       return c >= 32 && c <= 126;
@@ -48,7 +93,7 @@ namespace ca {
       return std::string(buf);
     }
 
-    return std::to_string(static_cast<int32_t>(error));
+    return VTErrorName(error);
   }
 
   namespace detail {

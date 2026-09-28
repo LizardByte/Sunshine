@@ -916,22 +916,22 @@ namespace nvhttp {
    */
   template<class T>
   void print_req(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
-    BOOST_LOG(debug) << "TUNNEL :: "sv << tunnel<T>::to_string;
+    BOOST_LOG(verbose) << "TUNNEL :: "sv << tunnel<T>::to_string;
 
-    BOOST_LOG(debug) << "METHOD :: "sv << request->method;
-    BOOST_LOG(debug) << "DESTINATION :: "sv << request->path;
+    BOOST_LOG(verbose) << "METHOD :: "sv << request->method;
+    BOOST_LOG(verbose) << "DESTINATION :: "sv << request->path;
 
     for (auto &[name, val] : request->header) {
-      BOOST_LOG(debug) << name << " -- " << val;
+      BOOST_LOG(verbose) << name << " -- " << val;
     }
 
-    BOOST_LOG(debug) << " [--] "sv;
+    BOOST_LOG(verbose) << " [--] "sv;
 
     for (auto &[name, val] : request->parse_query_string()) {
-      BOOST_LOG(debug) << name << " -- " << val;
+      BOOST_LOG(verbose) << name << " -- " << val;
     }
 
-    BOOST_LOG(debug) << " [--] "sv;
+    BOOST_LOG(verbose) << " [--] "sv;
   }
 
   /**
@@ -985,7 +985,7 @@ namespace nvhttp {
     sess.async_insert_pin.device_name = get_arg(args, "devicename");
     sess.async_insert_pin.address = net::addr_to_normalized_string(request->remote_endpoint().address());
 
-    BOOST_LOG(debug) << sess.client.cert;
+    BOOST_LOG(verbose) << sess.client.cert;
     const bool pin_stdin = config::sunshine.flags[config::flag::PIN_STDIN];
     if (!pin_stdin) {
       sess.async_insert_pin.response = response;
@@ -1654,7 +1654,7 @@ namespace nvhttp {
 
         X509_NAME_oneline(X509_get_subject_name(x509.get()), subject_name, sizeof(subject_name));
 
-        BOOST_LOG(debug) << subject_name << " -- "sv << (verified ? "verified"sv : "denied"sv);
+        BOOST_LOG(verbose) << subject_name << " -- "sv << (verified ? "verified"sv : "denied"sv);
       });
 
       std::lock_guard lock {client_auth_mutex()};

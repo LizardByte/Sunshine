@@ -414,6 +414,9 @@ keyboard or mouse input. Sunshine’s menu bar **Virtual HID Broker** submenu sh
 for license management and downloads. Sunshine’s DMG does not contain the broker. Keyboard and mouse input use the
 standard macOS synthetic-input permission path.
 
+> [!NOTE]
+> Sunshine requires macOS 12.3 (Monterey) or newer for screen capture via ScreenCaptureKit.
+
 #### DMG
 
 ##### Install

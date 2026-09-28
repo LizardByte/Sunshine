@@ -20,6 +20,8 @@
   <string>sunshine.icns</string>
   <key>LSApplicationCategoryType</key>
   <string>public.app-category.utilities</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>12.3</string>
   <key>LSUIElement</key>
   <true/>
   <key>NSMicrophoneUsageDescription</key>
