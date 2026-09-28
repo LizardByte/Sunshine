@@ -95,33 +95,79 @@ namespace platf {
           instance().drop_privileges();
         }
 
-        // deliberately align prototype to match path signature via init(const char *path)
+        /**
+         * @brief Open a DRM card file descriptor in the privileged worker thread.
+         *        Note: prototype aligned to match path signature via init(const char *path).
+         *
+         * @param path Path to the DRM device node.
+         * @return File descriptor on success, or -1 on failure.
+         */
         static int open_drm_card_fd_privileged(const char *path) {
           try {
             return instance().run([path] {
               return platf::open_drm_card_fd(path);
             });
-          } catch (const privileged_drm_worker_stopped &) {
+          } catch (const privileged_drm_worker_stopped &err) {
+            BOOST_LOG(error) << err.what();
             return -1;
           }
         }
 
+        /**
+         * @brief Wrap drmIoctl call in privileged worker thread.
+         *
+         * @param fd File descriptor
+         * @param request Request data.
+         * @param arg Argument
+         * @return Standard drmIoctl return codes passthrough when wrapped or -1 when thrown.
+         */
+        template<class T>
+        static int drmIoctl_privileged(int fd, unsigned long request, T *arg) {
+          try {
+            return instance().run([fd, request, arg] {
+              return drmIoctl(fd, request, arg);
+            });
+          } catch (const privileged_drm_worker_stopped &err) {
+            BOOST_LOG(error) << err.what();
+            return -1;
+          } catch (...) {
+            BOOST_LOG(error) << "privileged_drm_worker: unknown error in "sv << __func__;
+            return -1;
+          }
+        }
+
+        /**
+         * @brief Wrap drmModeGetFB2 call in privileged worker thread.
+         *
+         * @param fd DRM file descriptor.
+         * @param bufferId Framebuffer ID.
+         * @return Pointer to drmModeFB2 structure on success, or nullptr on failure.
+         */
         static drmModeFB2Ptr drmModeGetFB2_privileged(int fd, uint32_t bufferId) {
           try {
             return instance().run([fd, bufferId] {
               return drmModeGetFB2(fd, bufferId);
             });
-          } catch (const privileged_drm_worker_stopped &) {
+          } catch (const privileged_drm_worker_stopped &err) {
+            BOOST_LOG(error) << err.what();
             return nullptr;
           }
         }
 
+        /**
+         * @brief Wrap drmModeGetFB call in privileged worker thread.
+         *
+         * @param fd DRM file descriptor.
+         * @param bufferId Framebuffer ID.
+         * @return Pointer to drmModeFB structure on success, or nullptr on failure.
+         */
         static drmModeFBPtr drmModeGetFB_privileged(int fd, uint32_t bufferId) {
           try {
             return instance().run([fd, bufferId] {
               return drmModeGetFB(fd, bufferId);
             });
-          } catch (const privileged_drm_worker_stopped &) {
+          } catch (const privileged_drm_worker_stopped &err) {
+            BOOST_LOG(error) << err.what();
             return nullptr;
           }
         }
@@ -164,7 +210,7 @@ namespace platf {
         }
 
         template<class F>
-        auto run(F &&f) -> std::invoke_result_t<F> {
+        auto run(F &&f, const std::source_location &loc = std::source_location::current()) -> std::invoke_result_t<F> {
           using R = std::invoke_result_t<F>;
           auto task = std::make_shared<std::packaged_task<R()>>(
             [f = std::forward<F>(f)]() mutable -> R {
@@ -179,7 +225,9 @@ namespace platf {
           if (!queue_.raise([task]() mutable {
                 (*task)();
               })) {
-            throw privileged_drm_worker_stopped {"privileged_drm_worker: task rejected (worker stopping)"};
+            throw privileged_drm_worker_stopped {
+              "privileged_drm_worker: task rejected in "s + loc.function_name() + " (worker stopping)"s
+            };
           }
 
           return fut.get();
@@ -271,7 +319,7 @@ namespace platf {
             struct drm_gem_close close_args = {};
             close_args.handle = handle;
 
-            drmIoctl(card_fd, DRM_IOCTL_GEM_CLOSE, &close_args);
+            platf::kms::privileged_drm_worker::drmIoctl_privileged(card_fd, DRM_IOCTL_GEM_CLOSE, &close_args);
           }
         });
 
@@ -1473,7 +1521,7 @@ namespace platf {
           if (mapped_data == MAP_FAILED && errno == ENOSYS) {
             drm_mode_map_dumb map = {};
             map.handle = fb->handles[0];
-            if (drmIoctl(card.fd.el, DRM_IOCTL_MODE_MAP_DUMB, &map) < 0) {
+            if (platf::kms::privileged_drm_worker::drmIoctl_privileged(card.fd.el, DRM_IOCTL_MODE_MAP_DUMB, &map) < 0) {
               BOOST_LOG(error) << "Failed to map cursor FB as dumb buffer: "sv << strerror(errno);
               captured_cursor.visible = false;
               return;
@@ -1493,7 +1541,7 @@ namespace platf {
           // Prepare to read the dmabuf from the CPU
           struct dma_buf_sync sync;
           sync.flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ;
-          drmIoctl(plane_fd.el, DMA_BUF_IOCTL_SYNC, &sync);
+          platf::kms::privileged_drm_worker::drmIoctl_privileged(plane_fd.el, DMA_BUF_IOCTL_SYNC, &sync);
 
           // If the image is tightly packed, copy it in one shot
           if (fb->pitches[0] == src_w * 4 && src_x == 0) {
@@ -1508,7 +1556,7 @@ namespace platf {
 
           // End the CPU read and unmap the dmabuf
           sync.flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ;
-          drmIoctl(plane_fd.el, DMA_BUF_IOCTL_SYNC, &sync);
+          platf::kms::privileged_drm_worker::drmIoctl_privileged(plane_fd.el, DMA_BUF_IOCTL_SYNC, &sync);
 
           munmap(mapped_data, mapped_size);
 
