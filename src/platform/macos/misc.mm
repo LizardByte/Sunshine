@@ -355,6 +355,15 @@ namespace platf {
     return fs::path {homedir} / ".config/sunshine"sv;
   }
 
+  /**
+   * @brief XDG Portal token path (unused on MacOS).
+   *
+   * @return Path of portal_token in appdata path.
+   */
+  std::filesystem::path get_xdg_restore_token_path() {
+    return appdata() / "portal_token";
+  }
+
   using ifaddr_t = util::safe_ptr<ifaddrs, freeifaddrs>;
 
   ifaddr_t get_ifaddrs() {
