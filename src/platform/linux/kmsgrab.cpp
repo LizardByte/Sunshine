@@ -96,6 +96,22 @@ namespace platf {
         }
 
         /**
+         * @brief Run a function via the privileged worker and capture its errno value.
+         *
+         * @param f Function to execute.
+         * @return Pair containing the function result and worker thread errno value.
+         */
+        template<class F>
+        static auto run_with_errno(F &&f) {
+          return instance().run([f = std::forward<F>(f)]() mutable {
+            errno = 0;
+            const auto result = f();
+            const auto errno_value = errno;
+            return std::pair {result, errno_value};
+          });
+        }
+
+        /**
          * @brief Open a DRM card file descriptor in the privileged worker thread.
          *        Note: prototype aligned to match path signature via init(const char *path).
          *
@@ -104,9 +120,15 @@ namespace platf {
          */
         static int open_drm_card_fd_privileged(const char *path) {
           try {
-            return instance().run([path] {
+            const auto [result, errno_value] = run_with_errno([path] {
               return platf::open_drm_card_fd(path);
             });
+
+            if (!result) {
+              errno = errno_value;
+            }
+
+            return result;
           } catch (const privileged_drm_worker_stopped &err) {
             BOOST_LOG(error) << err.what();
             return -1;
@@ -124,14 +146,17 @@ namespace platf {
         template<class T>
         static int drmIoctl_privileged(int fd, unsigned long request, T *arg) {
           try {
-            return instance().run([fd, request, arg] {
+            const auto [result, errno_value] = run_with_errno([fd, request, arg] {
               return drmIoctl(fd, request, arg);
             });
+
+            if (result < 0) {
+              errno = errno_value;
+            }
+
+            return result;
           } catch (const privileged_drm_worker_stopped &err) {
             BOOST_LOG(error) << err.what();
-            return -1;
-          } catch (...) {
-            BOOST_LOG(error) << "privileged_drm_worker: unknown error in "sv << __func__;
             return -1;
           }
         }
@@ -145,9 +170,16 @@ namespace platf {
          */
         static drmModeFB2Ptr drmModeGetFB2_privileged(int fd, uint32_t bufferId) {
           try {
-            return instance().run([fd, bufferId] {
+            const auto [result, errno_value] = run_with_errno([fd, bufferId] {
               return drmModeGetFB2(fd, bufferId);
             });
+
+            if (!result) {
+              errno = errno_value;
+            }
+
+            return result;
+
           } catch (const privileged_drm_worker_stopped &err) {
             BOOST_LOG(error) << err.what();
             return nullptr;
@@ -163,9 +195,16 @@ namespace platf {
          */
         static drmModeFBPtr drmModeGetFB_privileged(int fd, uint32_t bufferId) {
           try {
-            return instance().run([fd, bufferId] {
+            const auto [result, errno_value] = run_with_errno([fd, bufferId] {
               return drmModeGetFB(fd, bufferId);
             });
+
+            if (!result) {
+              errno = errno_value;
+            }
+
+            return result;
+
           } catch (const privileged_drm_worker_stopped &err) {
             BOOST_LOG(error) << err.what();
             return nullptr;
@@ -319,7 +358,15 @@ namespace platf {
             struct drm_gem_close close_args = {};
             close_args.handle = handle;
 
-            platf::kms::privileged_drm_worker::drmIoctl_privileged(card_fd, DRM_IOCTL_GEM_CLOSE, &close_args);
+            try {
+              platf::kms::privileged_drm_worker::drmIoctl_privileged(
+                card_fd,
+                DRM_IOCTL_GEM_CLOSE,
+                &close_args
+              );
+            } catch (const privileged_drm_worker_stopped &err) {
+              BOOST_LOG(error) << err.what();
+            }
           }
         });
 
