@@ -1273,6 +1273,7 @@ namespace platf {
         std::call_once(portal::xdg_worker_flag, []() {
           portal::xdg_worker = std::jthread([]() {
             try {
+              platf::set_thread_name("xdg_worker");
               if (!portal_display_names(false).empty()) {
                 platf::restart();
               } else {
