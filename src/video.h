@@ -6,7 +6,10 @@
 
 // standard includes
 #include <chrono>
+#include <deque>
+#include <optional>
 #include <string_view>
+#include <utility>
 
 // local includes
 #include "input.h"
@@ -186,6 +189,34 @@ namespace video {
     int offsetW;  ///< Offset w.
     int offsetH;  ///< Offset h.
   };
+
+  /**
+   * @brief Capture timestamps of in-flight frames keyed by pts, awaiting their encoded packets.
+   */
+  using frame_timestamp_queue_t = std::deque<std::pair<int64_t, std::chrono::steady_clock::time_point>>;
+
+  /**
+   * @brief Remember a submitted frame's capture timestamp until its encoded packet surfaces.
+   *
+   * Encoders may deliver packets one or more frames behind submission, so the timestamp is
+   * kept keyed by pts until the corresponding packet arrives. The queue is bounded: once
+   * 128 timestamps are outstanding, the oldest entry is evicted per insertion.
+   * @param timestamps Queue of outstanding capture timestamps.
+   * @param frame_nr Monotonic frame index assigned by the video pipeline, used as the frame pts.
+   * @param frame_timestamp Capture timestamp associated with the frame, when known.
+   */
+  void remember_frame_timestamp(frame_timestamp_queue_t &timestamps, int64_t frame_nr, const std::optional<std::chrono::steady_clock::time_point> &frame_timestamp);
+
+  /**
+   * @brief Match an encoded packet to the capture timestamp of the frame it encodes.
+   *
+   * Entries for older frames whose packets never surfaced (e.g. dropped by the encoder)
+   * are discarded; a packet is never paired with another frame's timestamp.
+   * @param timestamps Queue of outstanding capture timestamps.
+   * @param pts Presentation timestamp of the received packet.
+   * @return Capture timestamp of the packet's frame, when known.
+   */
+  std::optional<std::chrono::steady_clock::time_point> match_frame_timestamp(frame_timestamp_queue_t &timestamps, int64_t pts);
 
   /**
    * @brief Pixel formats supported by one encoder backend.
