@@ -86,13 +86,41 @@ namespace platf {
        * @brief Set up privileged worker thread exclusively for handling DRM capture resources.
        */
       class privileged_drm_worker {
-      public:
-        static void ensure_started() {
-          instance();
+      private:
+        static privileged_drm_worker &instance() {
+          static privileged_drm_worker w;
+          return w;
         }
 
-        static void drop_worker_privileges() {
-          instance().drop_privileges();
+        void drop_privileges() {
+          instance().run([] {
+            platf::drop_elevated_privileges(true);
+          });
+        }
+
+        privileged_drm_worker():
+        thread_ {[this] {
+          sigset_t all;
+          sigfillset(&all);
+          if (pthread_sigmask(SIG_BLOCK, &all, nullptr) != 0) {
+            BOOST_LOG(error) << "Failed to block signals in drm_worker"sv;
+            queue_.stop();
+            return;
+          }
+
+          platf::set_thread_name("drm_worker");
+          for (;;) {
+            auto task = queue_.pop();
+            if (!task) {
+              break;
+            }
+            (*task)();
+          }
+        }} {
+        }
+
+        ~privileged_drm_worker() {
+          queue_.stop();
         }
 
         /**
@@ -109,6 +137,42 @@ namespace platf {
             const auto errno_value = errno;
             return std::pair {result, errno_value};
           });
+        }
+
+        template<class F>
+        auto run(F &&f, const std::source_location &loc = std::source_location::current()) -> std::invoke_result_t<F> {
+          using R = std::invoke_result_t<F>;
+          auto task = std::make_shared<std::packaged_task<R()>>(
+            [f = std::forward<F>(f)]() mutable -> R {
+              #if !defined(__FreeBSD__)
+              cap_sys_admin admin;
+              #endif
+              return f();
+            }
+          );
+          auto fut = task->get_future();
+
+          if (!queue_.raise([task]() mutable {
+            (*task)();
+          })) {
+            throw privileged_drm_worker_stopped {
+              "privileged_drm_worker: task rejected in "s + loc.function_name() + " (worker stopping)"s
+            };
+          }
+
+          return fut.get();
+        }
+
+        safe::queue_t<std::function<void()>> queue_ {32, safe::queue_t<std::function<void()>>::overflow_policy_e::reject};
+        std::jthread thread_;
+
+      public:
+        static void ensure_started() {
+          instance();
+        }
+
+        static void drop_worker_privileges() {
+          instance().drop_privileges();
         }
 
         /**
@@ -260,70 +324,6 @@ namespace platf {
             return -1;
           }
         }
-
-      private:
-        static privileged_drm_worker &instance() {
-          static privileged_drm_worker w;
-          return w;
-        }
-
-        void drop_privileges() {
-          instance().run([] {
-            platf::drop_elevated_privileges(true);
-          });
-        }
-
-        privileged_drm_worker():
-            thread_ {[this] {
-              sigset_t all;
-              sigfillset(&all);
-              if (pthread_sigmask(SIG_BLOCK, &all, nullptr) != 0) {
-                BOOST_LOG(error) << "Failed to block signals in drm_worker"sv;
-                queue_.stop();
-                return;
-              }
-
-              platf::set_thread_name("drm_worker");
-              for (;;) {
-                auto task = queue_.pop();
-                if (!task) {
-                  break;
-                }
-                (*task)();
-              }
-            }} {
-        }
-
-        ~privileged_drm_worker() {
-          queue_.stop();
-        }
-
-        template<class F>
-        auto run(F &&f, const std::source_location &loc = std::source_location::current()) -> std::invoke_result_t<F> {
-          using R = std::invoke_result_t<F>;
-          auto task = std::make_shared<std::packaged_task<R()>>(
-            [f = std::forward<F>(f)]() mutable -> R {
-#if !defined(__FreeBSD__)
-              cap_sys_admin admin;
-#endif
-              return f();
-            }
-          );
-          auto fut = task->get_future();
-
-          if (!queue_.raise([task]() mutable {
-                (*task)();
-              })) {
-            throw privileged_drm_worker_stopped {
-              "privileged_drm_worker: task rejected in "s + loc.function_name() + " (worker stopping)"s
-            };
-          }
-
-          return fut.get();
-        }
-
-        safe::queue_t<std::function<void()>> queue_ {32, safe::queue_t<std::function<void()>>::overflow_policy_e::reject};
-        std::jthread thread_;
       };
     }  // namespace
 
