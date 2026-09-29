@@ -34,7 +34,7 @@ TEST(ProcessTest, PrepareCommand) {
 #endif
 }
 
-class ProcessPNGTest: public BaseTest {
+class ProcessPNGTest: public BaseTest {  // NOSONAR(cpp:S3656): protected members are intentional for test fixture subclassing
 protected:
   void SetUp() override {
     BaseTest::SetUp();
@@ -296,7 +296,7 @@ TEST_F(ProcessPNGTest, ValidateAppImagePath_OldSteamDefault) {
 /**
  * @brief Test fixture for proc_t::update_apps_and_env and proc::refresh.
  */
-class ProcessRefreshTest: public BaseTest {
+class ProcessRefreshTest: public BaseTest {  // NOSONAR(cpp:S3656): protected members are intentional for test fixture subclassing
 protected:
   void SetUp() override {
     BaseTest::SetUp();
