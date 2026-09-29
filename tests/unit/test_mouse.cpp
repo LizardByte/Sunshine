@@ -2,22 +2,29 @@
  * @file tests/unit/test_mouse.cpp
  * @brief Test src/input.*.
  */
+
+// test includes
 #include "../tests_common.h"
 
+// standard includes
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <optional>
-#include <src/input.h>
 #include <thread>
 
 #ifdef _WIN32
+  // platform includes
   #include <Windows.h>
 #endif
 
 #if defined(__APPLE__) && defined(__MACH__)
+  // platform includes
   #include <ApplicationServices/ApplicationServices.h>
 #endif
+
+// local includes
+#include <src/input.h>
 
 namespace {
   constexpr double mouse_position_tolerance = 1.0;

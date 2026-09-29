@@ -64,6 +64,10 @@ namespace config {
 
   namespace nv {
 
+    std::string ffmpeg_preset_from_quality(const int quality_preset) {
+      return std::format("p{}", quality_preset);
+    }
+
     /**
      * @brief Parse the `nvenc_twopass` configuration value.
      *
@@ -748,6 +752,7 @@ namespace config {
       (int) amd::quality_av1_e::balanced,  // quality (av1)
       0,  // preanalysis
       1,  // vbaq
+      {},  // max_au_size (disabled by default)
       (int) amd::coder_e::_auto,  // coder
     },  // amd
 
@@ -769,6 +774,7 @@ namespace config {
     {
       2,  // vk.tune (default: ll - low latency)
       2,  // vk.rc_mode (default: cbr)
+      2,  // vk.quality (default: 2 = balanced, 1 = speed, 3 = quality)
     },
 
     {},  // capture
@@ -845,16 +851,15 @@ namespace config {
     500ms,  // key_repeat_delay
     std::chrono::duration<double> {1 / 24.9},  // key_repeat_period
 
-    {
-      platf::supported_gamepads(nullptr).front().name.data(),
-      platf::supported_gamepads(nullptr).front().name.size(),
-    },  // Default gamepad
+    "auto",  // Default gamepad profile.
+    {},  // Windows requests a backend choice; macOS defaults to Virtual HID Broker.
     true,  // back as touchpad click enabled for PlayStation-style gamepads
     true,  // client gamepads with motion events use PlayStation-style emulation
     true,  // client gamepads with touchpads use PlayStation-style emulation
     true,  // virtualhid_randomize_mac
 
     true,  // keyboard enabled
+    false,  // key_rightalt_to_key_win
     true,  // mouse enabled
     true,  // controller enabled
     true,  // always send scancodes
@@ -882,6 +887,7 @@ namespace config {
     false,  // notify_pre_releases
     true,  // system_tray
     {},  // prep commands
+    {},  // csrf_allowed_origins
   };
 
   /**
@@ -1034,6 +1040,34 @@ namespace config {
     }
 
     return vars;
+  }
+
+  bool persist_config_option_if_missing(const std::string_view name, const std::string_view value) {
+    auto file_content = file_handler::read_file(sunshine.config_file.c_str());
+    if (parse_config(file_content).contains(std::string {name})) {
+      return false;
+    }
+
+    if (!file_content.empty() && file_content.back() != '\n') {
+      file_content += '\n';
+    }
+    file_content += std::format("{} = {}\n", name, value);
+    if (file_handler::write_file(sunshine.config_file.c_str(), file_content) != 0) {
+      BOOST_LOG(warning) << "Failed to persist automatically selected config option '"sv << name << "'"sv;
+      return false;
+    }
+
+    BOOST_LOG(info) << "Automatically selected config option '"sv << name << "' = "sv << value;
+    return true;
+  }
+
+  bool select_all_gamepad_drivers_if_licensed(const bool virtualhid_licensed) {
+    if (!virtualhid_licensed || !input.gamepad_driver.empty() || !persist_config_option_if_missing("gamepad_driver", GAMEPAD_DRIVER_ALL)) {
+      return false;
+    }
+
+    input.gamepad_driver = GAMEPAD_DRIVER_ALL;
+    return true;
   }
 
   /**
@@ -1535,14 +1569,17 @@ namespace config {
    *
    * @return Platform-supported gamepad backend names accepted by configuration.
    */
-  std::vector<std::string_view> &get_supported_gamepad_options() {
-    const auto options = platf::supported_gamepads(nullptr);
-    static std::vector<std::string_view> opts {};
-    opts.reserve(options.size());
-    for (auto &opt : options) {
-      opts.emplace_back(opt.name);
-    }
-    return opts;
+  const std::vector<std::string_view> &get_supported_gamepad_options() {
+    static const auto gamepads = platf::supported_gamepads(nullptr);
+    static const auto options = []() {
+      std::vector<std::string_view> names;
+      names.reserve(gamepads.size());
+      for (const auto &gamepad : gamepads) {
+        names.emplace_back(gamepad.name);
+      }
+      return names;
+    }();
+    return options;
   }
 
   /**
@@ -1589,12 +1626,12 @@ namespace config {
     bool_f(vars, "nvenc_latency_over_power", video.nv_sunshine_high_power_mode);
 
 #if !defined(__ANDROID__) && !defined(__APPLE__)
-    video.nv_legacy.preset = video.nv.quality_preset + 11;
+    video.nv_legacy.preset = nv::ffmpeg_preset_from_quality(video.nv.quality_preset);
     video.nv_legacy.multipass = video.nv.two_pass == nvenc::nvenc_two_pass::quarter_resolution ? NV_ENC_TWO_PASS_QUARTER_RESOLUTION :
                                 video.nv.two_pass == nvenc::nvenc_two_pass::full_resolution    ? NV_ENC_TWO_PASS_FULL_RESOLUTION :
                                                                                                  NV_ENC_MULTI_PASS_DISABLED;
     video.nv_legacy.h264_coder = video.nv.h264_cavlc ? NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC : NV_ENC_H264_ENTROPY_CODING_MODE_CABAC;
-    video.nv_legacy.aq = video.nv.adaptive_quantization;
+    video.nv_legacy.spatial_aq = video.nv.adaptive_quantization;
     video.nv_legacy.vbv_percentage_increase = video.nv.vbv_percentage_increase;
 #endif
 
@@ -1630,6 +1667,13 @@ namespace config {
     bool_f(vars, "amd_preanalysis", (bool &) video.amd.amd_preanalysis);
     bool_f(vars, "amd_vbaq", (bool &) video.amd.amd_vbaq);
     bool_f(vars, "amd_enforce_hrd", (bool &) video.amd.amd_enforce_hrd);
+    {
+      auto max_au_size = video.amd.amd_max_au_size;
+      int_f(vars, "amd_max_au_size", max_au_size);
+      if (!max_au_size || *max_au_size >= -1) {
+        video.amd.amd_max_au_size = max_au_size;
+      }
+    }
 
     int_f(vars, "vt_coder", video.vt.vt_coder, vt::coder_from_view);
     int_f(vars, "vt_software", video.vt.vt_allow_sw, vt::allow_software_from_view);
@@ -1650,6 +1694,16 @@ namespace config {
 
     int_f(vars, "vk_tune", video.vk.tune);
     int_f(vars, "vk_rc_mode", video.vk.rc_mode);
+    std::string vk_quality;
+    string_f(vars, "vk_quality", vk_quality);
+    static const std::unordered_map<std::string_view, int> vk_quality_map = {
+      {"speed"sv, 1},
+      {"balanced"sv, 2},
+      {"quality"sv, 3}
+    };
+    if (auto it = vk_quality_map.find(vk_quality); it != vk_quality_map.end()) {
+      video.vk.quality = it->second;
+    }
 
     string_f(vars, "capture", video.capture);
     string_f(vars, "encoder", video.encoder);
@@ -1781,7 +1835,19 @@ namespace config {
       input.key_repeat_delay = std::chrono::milliseconds {to};
     }
 
+    string_restricted_f(vars, "gamepad_driver", input.gamepad_driver, {
+                                                                        GAMEPAD_DRIVER_ALL,
+                                                                        GAMEPAD_DRIVER_VIRTUALHID,
+                                                                        GAMEPAD_DRIVER_VIGEMBUS,
+                                                                        GAMEPAD_DRIVER_NONE,
+                                                                      });
     string_restricted_f(vars, "gamepad"s, input.gamepad, get_supported_gamepad_options());
+#ifdef _WIN32
+    if (input.gamepad_driver == GAMEPAD_DRIVER_VIGEMBUS && input.gamepad != "auto"sv && input.gamepad != "x360"sv && input.gamepad != "ds4"sv) {
+      BOOST_LOG(warning) << "Gamepad type '"sv << input.gamepad << "' is not supported by ViGEmBus; using automatic selection"sv;
+      input.gamepad = "auto";
+    }
+#endif
     bool_f(vars, "ds4_back_as_touchpad_click", input.ds4_back_as_touchpad_click);
     bool_f(vars, "motion_as_ds4", input.motion_as_ds4);
     bool_f(vars, "touchpad_as_ds4", input.touchpad_as_ds4);
@@ -1885,6 +1951,17 @@ namespace config {
       }
     }
   }
+
+#ifdef SUNSHINE_TESTS
+  /**
+   * @brief Parse and apply serialized configuration text for unit tests.
+   *
+   * @param file_content Raw configuration text to parse and apply.
+   */
+  void apply_config_for_test(const std::string_view file_content) {
+    apply_config(parse_config(file_content));
+  }
+#endif
 
   /**
    * @brief Parse serialized text into the corresponding runtime representation.

@@ -31,37 +31,18 @@
 # - `set(EXAMPLE_SHA256 <sha256>)`
 # - `CPMDeclarePackage(...)`
 
-set(PATCH_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/patches")
+set(PATCH_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/patches")
 
-# NVENC SDK 11.0 headers
-# renovate: datasource=github-tags depName=FFmpeg/nv-codec-headers
-# versioning=regex:^n(?<major>11)\.(?<minor>0)\.(?<patch>\d+)\.(?<build>\d+)$
-set(NV_CODEC_HEADERS_11_TAG n11.0.10.3)
-CPMDeclarePackage(nv_codec_headers_11
-        NAME nv_codec_headers_11
-        GIT_REPOSITORY https://github.com/FFmpeg/nv-codec-headers.git
-        GIT_TAG ${NV_CODEC_HEADERS_11_TAG}
-        DOWNLOAD_ONLY YES
-)
-
-# NVENC SDK 12.0 headers
-# renovate: datasource=github-tags depName=FFmpeg/nv-codec-headers
-# versioning=regex:^n(?<major>12)\.(?<minor>0)\.(?<patch>\d+)\.(?<build>\d+)$
-set(NV_CODEC_HEADERS_12_TAG n12.0.16.2)
-CPMDeclarePackage(nv_codec_headers_12
-        NAME nv_codec_headers_12
-        GIT_REPOSITORY https://github.com/FFmpeg/nv-codec-headers.git
-        GIT_TAG ${NV_CODEC_HEADERS_12_TAG}
-        DOWNLOAD_ONLY YES
-)
-
-# NVENC SDK 13.0 headers
-# renovate: datasource=github-tags depName=FFmpeg/nv-codec-headers
-# versioning=regex:^n(?<major>13)\.(?<minor>0)\.(?<patch>\d+)\.(?<build>\d+)$
-set(NV_CODEC_HEADERS_13_TAG n13.0.19.1)
-CPMDeclarePackage(nv_codec_headers_13
-        NAME nv_codec_headers_13
-        GIT_REPOSITORY https://github.com/FFmpeg/nv-codec-headers.git
-        GIT_TAG ${NV_CODEC_HEADERS_13_TAG}
+# Boost
+# renovate: datasource=github-release-attachments depName=boostorg/boost
+# versioning=regex:^boost-(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?<prerelease>\.[A-Za-z0-9.-]+)?$
+set(BOOST_TAG boost-1.92.0)
+set(BOOST_SHA256 9bed76128d4e46755dbe818487788c6fceb6f72b378f4daa49b7e1e600d9088d)
+string(REGEX REPLACE "^boost-" "" BOOST_VERSION "${BOOST_TAG}")
+CPMDeclarePackage(Boost
+        NAME Boost
+        VERSION ${BOOST_VERSION}
+        URL https://github.com/boostorg/boost/releases/download/${BOOST_TAG}/${BOOST_TAG}-cmake.tar.xz
+        URL_HASH SHA256=${BOOST_SHA256}
         DOWNLOAD_ONLY YES
 )

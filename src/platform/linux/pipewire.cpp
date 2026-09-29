@@ -128,11 +128,17 @@ namespace pipewire {
    */
   struct img_descriptor_t: public egl::img_descriptor_t {
     ~img_descriptor_t() override {
-      if (data) {
+      // Only free buffers this image actually owns. The memory-buffer capture
+      // path points img->data at the PipeWire staging vector (front_buffer),
+      // which is owned by pipewire_t -- deleting it here corrupts the heap.
+      if (data && data_owned) {
         delete[] data;
-        data = nullptr;
       }
+      data = nullptr;
+      data_owned = false;
     }
+
+    bool data_owned = false;  ///< Whether img->data is owned by this image and must be freed.
   };
 
   /**
@@ -219,6 +225,34 @@ namespace pipewire {
     }
 
     /**
+     * @brief Check and log whether the active session will require Sunshine to perform pacing.
+     *
+     * @param requested_framerate The framerate that we requested.
+     * @param requested_delay The delay corresponding to the requested framerate.
+     * @return True when Sunshine pacing is required.
+     */
+    bool is_pacing_required(AVRational requested_framerate, std::chrono::nanoseconds requested_delay) {
+      AVRational negotiated_rate =
+        {
+          static_cast<int32_t>(stream_data.format.info.raw.max_framerate.num),
+          static_cast<int32_t>(stream_data.format.info.raw.max_framerate.denom)
+      };
+      int rate_comparison = av_cmp_q(negotiated_rate, requested_framerate);
+      bool variable_rate = negotiated_rate.num == 0 && negotiated_rate.den == 1;
+      bool pacing_required = variable_rate || rate_comparison > 0;
+
+      if (!variable_rate && rate_comparison < 0) {
+        BOOST_LOG(warning)
+          << "[pipewire] Sunshine frame pacing: disabled (negotiated rate lower than requested rate)"sv;
+      } else {
+        BOOST_LOG(info) << "[pipewire] Sunshine frame pacing: "sv
+                        << (pacing_required ? std::format("enabled ({}ms)", std::chrono::duration<double, std::milli>(requested_delay).count()) : "disabled (event-driven capture)");
+      }
+
+      return pacing_required;
+    }
+
+    /**
      * @brief Set frame ready.
      *
      * @param ready Whether the PipeWire frame is ready for capture.
@@ -273,13 +307,13 @@ namespace pipewire {
      * @param mem_type Mem type.
      * @param width Frame or display width in pixels.
      * @param height Frame or display height in pixels.
-     * @param refresh_rate Refresh rate.
+     * @param target_framerate Target framerate expressed as AVRational.
      * @param dmabuf_infos Dmabuf infos.
      * @param n_dmabuf_infos N dmabuf infos.
      * @param display_is_nvidia Display is nvidia.
      * @return 0 when the PipeWire stream is configured; nonzero on negotiation failure.
      */
-    int ensure_stream(const platf::mem_type_e mem_type, const uint32_t width, const uint32_t height, const uint32_t refresh_rate, const struct dmabuf_format_info_t *dmabuf_infos, const int n_dmabuf_infos, const bool display_is_nvidia) {
+    int ensure_stream(const platf::mem_type_e mem_type, const uint32_t width, const uint32_t height, const AVRational target_framerate, const struct dmabuf_format_info_t *dmabuf_infos, const int n_dmabuf_infos, const bool display_is_nvidia) {
       pw_thread_loop_lock(loop);
       int result = 0;
       if (!stream_data.stream) {
@@ -310,7 +344,7 @@ namespace pipewire {
                                                  (mem_type == platf::mem_type_e::cuda && display_is_nvidia));
         if (use_dmabuf) {
           for (int i = 0; i < n_dmabuf_infos; i++) {
-            auto format_param = build_format_parameter(&pod_builder, width, height, refresh_rate, dmabuf_infos[i].format, dmabuf_infos[i].modifiers, dmabuf_infos[i].n_modifiers);
+            auto format_param = build_format_parameter(&pod_builder, width, height, target_framerate, dmabuf_infos[i].format, dmabuf_infos[i].modifiers, dmabuf_infos[i].n_modifiers);
             params[n_params] = format_param;
             n_params++;
           }
@@ -318,7 +352,7 @@ namespace pipewire {
 
         // Add fallback for memptr
         for (const auto &fmt : format_map) {
-          auto format_param = build_format_parameter(&pod_builder, width, height, refresh_rate, fmt.pw_format, nullptr, 0);
+          auto format_param = build_format_parameter(&pod_builder, width, height, target_framerate, fmt.pw_format, nullptr, 0);
           params[n_params] = format_param;
           n_params++;
         }
@@ -361,21 +395,230 @@ namespace pipewire {
     }
 
     /**
+     * @brief Compositors that require version-based checks for optimal stream setup.
+     */
+    enum class compositor_type_e {
+      unknown,  ///< Unknown
+      gnome,  ///< GNOME Shell is a proxy for Mutter.
+      kwin  ///< KWin
+    };
+
+    /**
+     * @brief Compositor type and version information.
+     */
+    struct compositor_version_t {
+      compositor_type_e type = compositor_type_e::unknown;  ///< Compositor type (gnome, kde...).
+      std::vector<int> version;  ///< Compositor version.
+    };
+
+    /**
+     * @brief Fetch compositor type and version for processing.
+     *
+     * @return A struct containing the compositor type and version.
+     */
+    static compositor_version_t get_running_compositor() {
+      using enum compositor_type_e;
+
+      if (auto version = get_running_compositor_version(kwin); !version.empty()) {
+        return {kwin, std::move(version)};
+      }
+
+      if (auto version = get_running_compositor_version(gnome); !version.empty()) {
+        return {gnome, std::move(version)};
+      }
+
+      return {};
+    }
+
+    /**
+     * @brief Fetch compositor version information using DBus calls.
+     *
+     * @param compositor_type The compositor we should attempt to fetch version information for.
+     * @return A vector with 2-3 elements containing the major.minor.micro versions or an empty vector if the version could not be determined.
+     */
+    static std::vector<int> get_running_compositor_version(enum compositor_type_e compositor_type) {
+#if !GLIB_CHECK_VERSION(2, 74, 0)
+      // Compatibility for Ubuntu 22.04 (Glib 2.72)
+      constexpr auto G_REGEX_DEFAULT = static_cast<GRegexCompileFlags>(0);
+      constexpr auto G_REGEX_MATCH_DEFAULT = static_cast<GRegexMatchFlags>(0);
+#endif
+      auto conn = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, nullptr);
+      std::vector<int> result;
+
+      if (!conn) {
+        return result;
+      }
+
+      const gchar *version_regex;
+      GVariant *reply;
+
+      using enum compositor_type_e;
+      if (compositor_type == kwin) {
+        version_regex = "KWin version: ([0-9]+)\\.([0-9]+)\\.([0-9]+)";
+        reply = g_dbus_connection_call_sync(
+          conn,
+          "org.kde.KWin",
+          "/KWin",
+          "org.kde.KWin",
+          "supportInformation",
+          nullptr,
+          G_VARIANT_TYPE("(s)"),
+          G_DBUS_CALL_FLAGS_NONE,
+          -1,
+          nullptr,
+          nullptr
+        );
+      } else {
+        version_regex = "([0-9]+)\\.([0-9]+)(?:\\.([0-9]+))?";
+        reply = g_dbus_connection_call_sync(
+          conn,
+          "org.gnome.Shell",
+          "/org/gnome/Shell",
+          "org.freedesktop.DBus.Properties",
+          "Get",
+          g_variant_new("(ss)", "org.gnome.Shell", "ShellVersion"),
+          G_VARIANT_TYPE("(v)"),
+          G_DBUS_CALL_FLAGS_NONE,
+          -1,
+          nullptr,
+          nullptr
+        );
+      }
+
+      if (!reply) {
+        g_clear_object(&conn);
+        return result;
+      }
+
+      g_autofree gchar *version_str = nullptr;
+
+      if (compositor_type == kwin) {
+        g_variant_get(reply, "(s)", &version_str);
+      } else {
+        GVariant *inner_variant = nullptr;
+        g_variant_get(reply, "(v)", &inner_variant);
+        if (inner_variant) {
+          version_str = g_variant_dup_string(inner_variant, nullptr);
+          g_variant_unref(inner_variant);
+        }
+      }
+
+      if (!version_str) {
+        g_variant_unref(reply);
+        g_clear_object(&conn);
+        return result;
+      }
+
+      if (auto *regex = g_regex_new(version_regex, G_REGEX_DEFAULT, G_REGEX_MATCH_DEFAULT, nullptr); regex) {
+        GMatchInfo *match_info = nullptr;
+        g_regex_match(regex, version_str, G_REGEX_MATCH_DEFAULT, &match_info);
+
+        if (g_match_info_matches(match_info)) {
+          g_autofree const gchar *major = g_match_info_fetch(match_info, 1);
+          g_autofree const gchar *minor = g_match_info_fetch(match_info, 2);
+          g_autofree const gchar *micro = g_match_info_fetch(match_info, 3);
+
+          if (major) {
+            result.emplace_back(std::atoi(major));
+          }
+          if (minor) {
+            result.emplace_back(std::atoi(minor));
+          }
+          if (micro && *micro != '\0') {
+            result.emplace_back(std::atoi(micro));
+          }
+        }
+        g_match_info_free(match_info);
+        g_regex_unref(regex);
+      }
+
+      g_variant_unref(reply);
+      g_clear_object(&conn);
+      return result;
+    }
+
+    /**
+     * @brief Determine if Pipewire's pts metadata is suitable for client pacing based on compositor type/version whitelist.
+     *
+     * @param compositor Struct containing compositor type and version.
+     * @param selected_display_name Name of display - specifically the connector type - such as DP-1, HDMI-1, etc.
+     * @return True if pts metadata is suitable.
+     */
+    static bool use_pipewire_pts(const compositor_version_t &compositor, const std::string &selected_display_name) {
+      // KWin: use Pipewire pts metadata for versions 6.7.80+ (6.8 beta) or newer.
+      // Mutter: use Pipewire pts metadata for Mutter 51 onwards, but pts is reliable only for virtual monitors (Meta-).
+      // All other cases: don't use Pipewire pts metadata directly.
+
+      bool use_pts = false;
+      bool using_virtual_monitor = false;
+
+      using enum compositor_type_e;
+      switch (compositor.type) {
+        case gnome:
+          using_virtual_monitor = selected_display_name.starts_with("Meta-");
+          use_pts = (using_virtual_monitor && compositor.version[0] >= 51);
+          break;
+        case kwin:
+          use_pts = (compositor.version[0] > 6 || (compositor.version[0] == 6 && (compositor.version[1] > 7 || (compositor.version[1] == 7 && compositor.version[2] > 79))));
+          break;
+        default:
+          break;
+      }
+
+      BOOST_LOG(info) << "[pipewire] Using frame_timestamp (pts) metadata source: "sv
+                      << (use_pts ? "Pipewire (via compositor)" : PROJECT_NAME);
+      return use_pts;
+    }
+
+    /**
+     * @brief Determine if the active compositor is suited for variable rate capture based on type/version whitelist.
+     *
+     * @param compositor Struct containing the compositor type and version.
+     * @return True if variable rate capture is suitable.
+     */
+    static bool
+      use_variable_rate(const compositor_version_t &compositor) {
+      // If the active compositor is KWin, request variable rate (0, 1) capture for versions 5.x-6.7.79 (up to 6.7 stable series).
+      // Issue: KWin <=6.7 has a ~3% fixed-rate pacing deficit vs the requested framerate; variable rate avoids this and prioritizes gaming smoothness.
+      //        KWin 6.7 regresses variable rate (desktop animations run at half speed, but doesn't affect in-game pacing). Ref: https://bugs.kde.org/show_bug.cgi?id=524129
+      // Issue: KWin 6.8 still has desktop animation pacing issues with variable rate, but fixes the 3% fixed-rate pacing deficit. Fixed-rate pacing has
+      //        new regression tied to 'commit-timing'/VK_KHR_present_timing support when Vsync/FIFO is enabled. Ref: https://bugs.kde.org/show_bug.cgi?id=525619
+      // Summary: KWin 5.5-6.6 have excellent (variable) pacing. KWin 6.7 has poor desktop animation pacing (variable) but good game pacing.
+      //          KWin 6.8+ will have good overall (fixed) pacing if #525619 can be resolved, otherwise we will update docs advising to disable VSync in games.
+
+      // All other compositors (including Mutter) will default to variable rate.
+      bool variable_rate = true;
+
+      using enum compositor_type_e;
+      if (compositor.type == kwin) {
+        variable_rate = (compositor.version[0] == 5 || (compositor.version[0] == 6 && (compositor.version[1] < 7 || (compositor.version[1] == 7 && compositor.version[2] < 80))));
+      }
+
+      return variable_rate;
+    }
+
+    /**
      * @brief Copy PipeWire metadata into the Sunshine image descriptor.
      *
      * @param img_descriptor Image descriptor receiving timestamps, sequence, and damage flags.
      * @param buf Raw byte buffer used for serialization.
      */
     static void fill_img_metadata(egl::img_descriptor_t *img_descriptor, struct spa_buffer *buf) {
-      img_descriptor->frame_timestamp = std::chrono::steady_clock::now();
-
       struct spa_meta_header *h = static_cast<struct spa_meta_header *>(
         spa_buffer_find_meta_data(buf, SPA_META_Header, sizeof(*h))
       );
+
+      img_descriptor->seq.reset();
+      img_descriptor->pts.reset();
       if (h) {
         img_descriptor->seq = h->seq;
-        img_descriptor->pts = h->pts;
+        if (h->pts > 0) {
+          img_descriptor->pts = h->pts;
+        }
       }
+      img_descriptor->frame_timestamp = (img_descriptor->pts.has_value() && prefer_pipewire_pts) ?
+                                          std::chrono::steady_clock::time_point(std::chrono::nanoseconds(img_descriptor->pts.value())) :
+                                          std::chrono::steady_clock::now();
 
       if (buf->n_datas > 0) {
         img_descriptor->pw_flags = buf->datas[0].chunk->flags;
@@ -430,13 +673,17 @@ namespace pipewire {
 
       struct spa_buffer *buf = stream_data.current_buffer->buffer;
       if (buf->datas[0].chunk->size != 0) {
-        auto *img_descriptor = static_cast<egl::img_descriptor_t *>(img);
+        auto *img_descriptor = static_cast<img_descriptor_t *>(img);
         fill_img_metadata(img_descriptor, buf);
         if (buf->datas[0].type == SPA_DATA_DmaBuf) {
           fill_img_dmabuf(img_descriptor, buf, stream_data);
         } else {
           img->data = stream_data.front_buffer->data();
+          img_descriptor->data_owned = false;
           img->row_pitch = stream_data.local_stride;
+          // NV12 is the only 1-byte-per-pixel format delivered on the memory
+          // path; every other negotiated format is packed 4 bytes per pixel.
+          img->pixel_pitch = (stream_data.format.info.raw.format == SPA_VIDEO_FORMAT_NV12) ? 1 : 4;
         }
       }
 
@@ -452,6 +699,9 @@ namespace pipewire {
       negotiate_maxframerate_ = negotiate_maxframerate;
     }
 
+    inline static std::atomic prefer_pipewire_pts {false};  ///< Whether the session should directly passthrough Pipewire pts metadata for client pacing.
+    inline static std::atomic negotiate_variable_rate {true};  ///< Whether the session should request variable rate (maxFrameRate = 0/1) capture.
+
   private:
     struct pw_thread_loop *loop;
     struct pw_context *context;
@@ -463,7 +713,7 @@ namespace pipewire {
     uint64_t object_serial;
     bool negotiate_maxframerate_ = true;
 
-    struct spa_pod *build_format_parameter(struct spa_pod_builder *b, uint32_t width, uint32_t height, uint32_t refresh_rate, int32_t format, uint64_t *modifiers, int n_modifiers) {
+    struct spa_pod *build_format_parameter(struct spa_pod_builder *b, uint32_t width, uint32_t height, AVRational target_framerate, int32_t format, uint64_t *modifiers, int n_modifiers) {
       struct spa_pod_frame object_frame;
       struct spa_pod_frame modifier_frame;
       std::array<struct spa_rectangle, 3> sizes;
@@ -473,18 +723,22 @@ namespace pipewire {
       sizes[1] = SPA_RECTANGLE(1, 1);
       sizes[2] = SPA_RECTANGLE(8192, 4096);
 
-      framerates[0] = SPA_FRACTION(0, 1);  // default; we only want variable rate, thus bypassing compositor pacing
+      framerates[0] = SPA_FRACTION(uint32_t(target_framerate.num), uint32_t(target_framerate.den));  // default/preferred
       framerates[1] = SPA_FRACTION(0, 1);  // min
-      framerates[2] = SPA_FRACTION(0, 1);  // max
+      framerates[2] = SPA_FRACTION(1000, 1);  // max
 
       spa_pod_builder_push_object(b, &object_frame, SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat);
       spa_pod_builder_add(b, SPA_FORMAT_mediaType, SPA_POD_Id(SPA_MEDIA_TYPE_video), 0);
       spa_pod_builder_add(b, SPA_FORMAT_mediaSubtype, SPA_POD_Id(SPA_MEDIA_SUBTYPE_raw), 0);
       spa_pod_builder_add(b, SPA_FORMAT_VIDEO_format, SPA_POD_Id(format), 0);
       spa_pod_builder_add(b, SPA_FORMAT_VIDEO_size, SPA_POD_CHOICE_RANGE_Rectangle(&sizes[0], &sizes[1], &sizes[2]), 0);
-      spa_pod_builder_add(b, SPA_FORMAT_VIDEO_framerate, SPA_POD_Fraction(&framerates[0]), 0);
       if (negotiate_maxframerate_) {
+        // Always request variable rate (0, 1) for framerate when populating maxFramerate with default,min,max values
+        spa_pod_builder_add(b, SPA_FORMAT_VIDEO_framerate, SPA_POD_Fraction(&framerates[1]), 0);
         spa_pod_builder_add(b, SPA_FORMAT_VIDEO_maxFramerate, SPA_POD_CHOICE_RANGE_Fraction(&framerates[0], &framerates[1], &framerates[2]), 0);
+      } else {
+        // Request target framerate (target_framerate) for framerate in fallback case
+        spa_pod_builder_add(b, SPA_FORMAT_VIDEO_framerate, SPA_POD_Fraction(&framerates[0]), 0);
       }
 
       if (format == SPA_VIDEO_FORMAT_xBGR_210LE) {
@@ -642,10 +896,11 @@ namespace pipewire {
       BOOST_LOG(info) << "[pipewire] Color primaries: "sv << d->format.info.raw.color_primaries;
       BOOST_LOG(info) << "[pipewire] Transfer function: "sv << d->format.info.raw.transfer_function;
       if (d->format.info.raw.max_framerate.num == 0 && d->format.info.raw.max_framerate.denom == 1) {
-        BOOST_LOG(info) << "[pipewire] Framerate (from compositor): 0/1 (variable rate capture)";
+        BOOST_LOG(info) << "[pipewire] Compositor negotiated frame rate: 0/1 (variable rate capture)"sv;
       } else {
-        BOOST_LOG(info) << "[pipewire] Framerate (from compositor): "sv << d->format.info.raw.framerate.num << "/"sv << d->format.info.raw.framerate.denom;
-        BOOST_LOG(info) << "[pipewire] Framerate (from compositor, max): "sv << d->format.info.raw.max_framerate.num << "/"sv << d->format.info.raw.max_framerate.denom;
+        BOOST_LOG(info) << "[pipewire] Compositor negotiated frame rate: "sv
+                        << d->format.info.raw.framerate.num << "/"sv << d->format.info.raw.framerate.denom
+                        << ", max: "sv << d->format.info.raw.max_framerate.num << "/"sv << d->format.info.raw.max_framerate.denom;
       }
 
       int physical_w = d->format.info.raw.size.width;
@@ -799,14 +1054,22 @@ namespace pipewire {
      */
     int init(platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
       // calculate frame interval we should capture at
-      framerate = config.framerate;
       delay = ::video::capture_frame_interval(config);
-      const AVRational fps = ::video::framerate_to_rational(config);
+
+      const static auto compositor = pipewire.get_running_compositor();
+
+      // Determine if variable rate should be negotiated based on compositor type/versioning.
+      pipewire.negotiate_variable_rate = pipewire.use_variable_rate(compositor);
+
+      const AVRational fps = (pipewire.negotiate_variable_rate ? AVRational {0, 1} : ::video::framerate_to_rational(config));
       if (fps.den != 1) {
-        BOOST_LOG(info) << "[pipewire] Requested frame rate [" << fps.num << "/" << fps.den << ", approx. " << av_q2d(fps) << " fps]";
+        BOOST_LOG(info) << "[pipewire] Requested frame rate: "sv << fps.num << "/"sv << fps.den << ", approx. "sv << av_q2d(fps) << " fps"sv;
+      } else if (fps.num == 0 && fps.den == 1) {
+        BOOST_LOG(info) << "[pipewire] Requested variable frame rate (Sunshine pacing required: "sv << std::chrono::duration<double, std::milli>(delay).count() << "ms)"sv;
       } else {
-        BOOST_LOG(info) << "[pipewire] Requested frame rate [" << fps.num << "fps]";
+        BOOST_LOG(info) << "[pipewire] Requested frame rate: "sv << fps.num << "fps"sv;
       }
+      this->target_framerate = fps;
       mem_type = hwdevice_type;
 
       if (get_dmabuf_modifiers() < 0) {
@@ -826,7 +1089,8 @@ namespace pipewire {
       // Verify or update display parameters for streaming to ensure absolute touch inputs work as expected
       verify_and_update_display_parameters();
 
-      framerate = config.framerate;
+      // Determine if pts metadata should be sourced from Pipewire or sampled by Sunshine at time of capture.
+      pipewire.prefer_pipewire_pts = pipewire.use_pipewire_pts(compositor, display_name);
 
       if (!shared_state) {
         shared_state = std::make_shared<shared_state_t>();
@@ -844,7 +1108,7 @@ namespace pipewire {
       }
 
       // Start PipeWire now so format negotiation can proceed before capture start
-      if (pipewire.ensure_stream(mem_type, width, height, framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia) < 0) {
+      if (pipewire.ensure_stream(mem_type, width, height, target_framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia) < 0) {
         BOOST_LOG(error) << "[pipewire] Failed to ensure pipewire stream. pipewire_t::init() failed.";
         return -1;
       }
@@ -937,6 +1201,7 @@ namespace pipewire {
       img->sequence = 0;
       img->serial = std::numeric_limits<decltype(img->serial)>::max();
       img->data = nullptr;
+      img->data_owned = false;
       std::fill_n(img->sd.fds, 4, -1);
 
       return img;
@@ -955,11 +1220,14 @@ namespace pipewire {
     platf::capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       auto next_frame = std::chrono::steady_clock::now();
 
-      if (pipewire.ensure_stream(mem_type, width, height, framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia) < 0) {
+      if (pipewire.ensure_stream(mem_type, width, height, target_framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia) < 0) {
         BOOST_LOG(error) << "[pipewire] Failed to ensure pipewire stream. capture() failed with error.";
         return platf::capture_e::error;
       }
       sleep_overshoot_logger.reset();
+
+      // Check if pacing is required
+      bool pacing_required = pipewire.is_pacing_required(target_framerate, delay);
 
       while (true) {
         // Check if PipeWire signaled a dead stream
@@ -973,16 +1241,9 @@ namespace pipewire {
           return platf::capture_e::reinit;
         }
 
-        // Advance to (or catch up with) next delay interval
-        auto now = std::chrono::steady_clock::now();
-        while (next_frame < now) {
-          next_frame += delay;
-        }
-
-        if (next_frame > now) {
-          std::this_thread::sleep_until(next_frame);
-          sleep_overshoot_logger.first_point(next_frame);
-          sleep_overshoot_logger.second_point_now_and_log();
+        // Use unpaced event driven capture when possible
+        if (pacing_required) {
+          platf::handle_pacing(next_frame, delay, sleep_overshoot_logger);
         }
 
         std::shared_ptr<platf::img_t> img_out;
@@ -1061,7 +1322,20 @@ namespace pipewire {
      * @return Capture status reported to the streaming pipeline.
      */
     int dummy_img(platf::img_t *img) override {
-      // Empty images are recognized as dummies by the zero sequence number
+      // Software encoders convert the dummy image immediately; provide a valid
+      // (black) buffer instead of leaving img->data null, which makes sws fail
+      // with EINVAL. The buffer is new[]-allocated and marked as owned so the
+      // destructor releases it.
+      if (img->data == nullptr) {
+        const auto w = img->width;
+        const auto h = img->height;
+        if (w > 0 && h > 0) {
+          img->data = new uint8_t[static_cast<size_t>(w) * h * 4]();  // NOSONAR(cpp:S5025) - buffer is owned by the image and freed by img_descriptor_t's destructor
+          static_cast<img_descriptor_t *>(img)->data_owned = true;
+          img->row_pitch = w * 4;
+          img->pixel_pitch = 4;
+        }
+      }
       return 0;
     }
 
@@ -1256,7 +1530,7 @@ namespace pipewire {
     std::optional<std::uint64_t> last_pts {};
     std::optional<std::uint64_t> last_seq {};
     std::uint64_t sequence {};
-    uint32_t framerate;
+    AVRational target_framerate;
 
   protected:
     // Allow subclasses to access for pipewire requirements setup and stream dead checks

@@ -2,10 +2,10 @@
  * @file tests/unit/test_process.cpp
  * @brief Test src/process.* functions.
  */
-// test imports
+// test includes
 #include "../tests_common.h"
 
-// standard imports
+// standard includes
 #include <filesystem>
 #include <fstream>
 #include <thread>
@@ -13,10 +13,26 @@
 // lib imports
 #include <boost/process/v1.hpp>
 
-// local imports
+// local includes
 #include <src/process.h>
 
 namespace fs = std::filesystem;
+
+TEST(ProcessTest, PrepareCommand) {
+#ifdef SUNSHINE_BUILD_FLATPAK
+  EXPECT_EQ(proc::prepare_command("steam"), "flatpak-spawn --host steam");
+  EXPECT_EQ(proc::prepare_command("flatpak-spawn --host steam"), "flatpak-spawn --host steam");
+  EXPECT_EQ(proc::prepare_command("  flatpak-spawn --host steam  "), "flatpak-spawn --host steam");
+  EXPECT_EQ(proc::prepare_command("  steam  "), "flatpak-spawn --host steam");
+  EXPECT_EQ(proc::prepare_command(""), "");
+  EXPECT_EQ(proc::prepare_command("  \t"), "");
+#else
+  EXPECT_EQ(proc::prepare_command("steam"), "steam");
+  EXPECT_EQ(proc::prepare_command("  steam  "), "  steam  ");
+  EXPECT_EQ(proc::prepare_command("flatpak-spawn --host steam"), "flatpak-spawn --host steam");
+  EXPECT_EQ(proc::prepare_command(""), "");
+#endif
+}
 
 class ProcessPNGTest: public BaseTest {
 protected:

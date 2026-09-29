@@ -4,6 +4,11 @@
  */
 #pragma once
 
+// standard includes
+#include <memory>
+#include <string>
+#include <utility>
+
 // Suppress false positive warnings in Boost.Asio on some GCC versions (particularly Arch Linux)
 // These are known false positives in Boost.Asio's basic_resolver_results.hpp
 #if defined(__GNUC__) && !defined(__clang__)
@@ -12,7 +17,10 @@
   #pragma GCC diagnostic ignored "-Wstringop-overflow"
 #endif
 
+// lib includes
 #include <lizardbyte/common/testing.h>
+
+// local includes
 #include <src/globals.h>
 #include <src/logging.h>
 #include <src/platform/common.h>

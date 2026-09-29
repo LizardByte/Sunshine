@@ -1,5 +1,8 @@
 <script setup>
-const model = defineModel({ required: true });
+const model = defineModel({
+  type: [Boolean, Number, String],
+  required: true,
+});
 const slots = defineSlots();
 const props = defineProps({
   class: {

@@ -104,12 +104,12 @@ namespace va {
     struct {
       // DRM PRIME file descriptor for this object.
       // Needs to be closed manually
-      int fd;
+      int fd;  ///< DRM PRIME file descriptor for this object; the owner must close it.
 
       // Total size of this object (may include regions which are not part of the surface)
-      uint32_t size;
+      uint32_t size;  ///< Total byte size of the DRM object.
       // Format modifier applied to this object, not sure what that means
-      uint64_t drm_format_modifier;
+      uint64_t drm_format_modifier;  ///< DRM format modifier applied to this object.
     } objects[4];  ///< DRM PRIME backing objects referenced by the descriptor..
 
     // Number of layers making up the surface.
@@ -117,19 +117,19 @@ namespace va {
 
     struct {
       // DRM format fourcc of this layer (DRM_FOURCC_*).
-      uint32_t drm_format;
+      uint32_t drm_format;  ///< DRM fourcc pixel format for this layer.
 
       // Number of planes in this layer.
-      uint32_t num_planes;
+      uint32_t num_planes;  ///< Number of image planes in this layer.
 
       // references objects --> DRMPRIMESurfaceDescriptor.objects[object_index[0]]
-      uint32_t object_index[4];
+      uint32_t object_index[4];  ///< Index of the backing DRM object for each plane.
 
       // Offset within the object of each plane.
-      uint32_t offset[4];
+      uint32_t offset[4];  ///< Byte offset of each plane within its backing object.
 
       // Pitch of each plane.
-      uint32_t pitch[4];
+      uint32_t pitch[4];  ///< Row pitch in bytes for each plane.
     } layers[4];  ///< DRM PRIME layer descriptions for the frame..
   };
 
@@ -309,7 +309,7 @@ namespace va {
       }
 
       // When the compression_level AVOption is set, vaapi_encode.c assigns the value to VAEncMiscParameterBufferQualityLevel
-      VAConfigAttrib quality_attr = {VAConfigAttribEncQualityRange};
+      VAConfigAttrib quality_attr = {.type = VAConfigAttribEncQualityRange};
       auto status = vaGetConfigAttributes(va_display, va_profile, va_entrypoint, &quality_attr, 1);
       if (status != VA_STATUS_SUCCESS || quality_attr.value == VA_ATTRIB_NOT_SUPPORTED) {
         quality_attr.value = 0;
@@ -333,14 +333,14 @@ namespace va {
         BOOST_LOG(info) << "[VAAPI] Quality level set to "sv << ctx->compression_level << " (fastest level: "sv << quality_attr.value << ")"sv;
       }
 
-      VAConfigAttrib rc_attr = {VAConfigAttribRateControl};
+      VAConfigAttrib rc_attr = {.type = VAConfigAttribRateControl};
       status = vaGetConfigAttributes(va_display, va_profile, va_entrypoint, &rc_attr, 1);
       if (status != VA_STATUS_SUCCESS) {
         // Stick to the default rate control (CQP)
         rc_attr.value = 0;
       }
 
-      VAConfigAttrib slice_attr = {VAConfigAttribEncMaxSlices};
+      VAConfigAttrib slice_attr = {.type = VAConfigAttribEncMaxSlices};
       status = vaGetConfigAttributes(va_display, va_profile, va_entrypoint, &slice_attr, 1);
       if (status != VA_STATUS_SUCCESS) {
         // Assume only a single slice is supported
@@ -613,8 +613,8 @@ namespace va {
    */
   typedef struct VAAPIDevicePriv {
     union {
-      void *xdisplay;
-      int fd;
+      void *xdisplay;  ///< Native X11 display handle for display-backed contexts.
+      int fd;  ///< DRM file descriptor for device-backed contexts.
     } drm;  ///< Native display or DRM fd passed to FFmpeg's VA-API context.
 
     int drm_fd;  ///< DRM fd.

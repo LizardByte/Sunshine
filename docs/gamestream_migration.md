@@ -22,16 +22,3 @@ Sunshine does have some limitations, as compared to Nvidia GameStream.
 
 * Automatic game/application list.
 * Changing game settings automatically to optimize streaming.
-
-<div class="section_buttons">
-
-| Previous                                        |              Next |
-|:------------------------------------------------|------------------:|
-| [Third-party Packages](third_party_packages.md) | [Legal](legal.md) |
-
-</div>
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

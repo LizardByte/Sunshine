@@ -6,7 +6,9 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <filesystem>
+#include <future>
 #include <ranges>
+#include <stdexcept>
 #include <thread>
 #include <unistd.h>
 
@@ -38,30 +40,184 @@ namespace platf {
 
   namespace kms {
 
+    namespace {  // Keep privileged implementation details anonymous/local to this translation unit
+
+#if !defined(__FreeBSD__)
+      /**
+       * @brief Temporarily owns CAP_SYS_ADMIN while opening DRM capture resources.
+       */
+      class cap_sys_admin {
+      public:
+        cap_sys_admin() {
+          caps = cap_get_proc();
+
+          cap_value_t sys_admin = CAP_SYS_ADMIN;
+          if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &sys_admin, CAP_SET) || cap_set_proc(caps)) {
+            BOOST_LOG(error) << "Failed to gain CAP_SYS_ADMIN"sv;
+          }
+        }
+
+        ~cap_sys_admin() {
+          cap_value_t sys_admin = CAP_SYS_ADMIN;
+          if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &sys_admin, CAP_CLEAR)) {
+            BOOST_LOG(error) << "Failed to clear CAP_SYS_ADMIN capability flag"sv;
+          } else if (cap_set_proc(caps)) {
+            // CAP_SYS_ADMIN may already have been dropped by privileged_drm_worker.
+            if (errno != EPERM) {
+              BOOST_LOG(error) << "Failed to drop CAP_SYS_ADMIN"sv;
+            }
+          }
+          cap_free(caps);
+        }
+
+        cap_t caps;  ///< Caps.
+      };
+#endif
+
+      /**
+       * @brief Reports that the privileged DRM worker rejected a task.
+       */
+      class privileged_drm_worker_stopped final: public std::runtime_error {
+      public:
+        using std::runtime_error::runtime_error;  ///< Inherit standard runtime error constructors.
+      };
+
+      /**
+       * @brief Set up privileged worker thread exclusively for handling DRM capture resources.
+       */
+      class privileged_drm_worker {
+      public:
+        static void ensure_started() {
+          instance();
+        }
+
+        static void drop_worker_privileges() {
+          instance().drop_privileges();
+        }
+
+        // deliberately align prototype to match path signature via init(const char *path)
+        static int open_drm_card_fd_privileged(const char *path) {
+          try {
+            return instance().run([path] {
+              return platf::open_drm_card_fd(path);
+            });
+          } catch (const privileged_drm_worker_stopped &) {
+            return -1;
+          }
+        }
+
+        static drmModeFB2Ptr drmModeGetFB2_privileged(int fd, uint32_t bufferId) {
+          try {
+            return instance().run([fd, bufferId] {
+              return drmModeGetFB2(fd, bufferId);
+            });
+          } catch (const privileged_drm_worker_stopped &) {
+            return nullptr;
+          }
+        }
+
+        static drmModeFBPtr drmModeGetFB_privileged(int fd, uint32_t bufferId) {
+          try {
+            return instance().run([fd, bufferId] {
+              return drmModeGetFB(fd, bufferId);
+            });
+          } catch (const privileged_drm_worker_stopped &) {
+            return nullptr;
+          }
+        }
+
+      private:
+        static privileged_drm_worker &instance() {
+          static privileged_drm_worker w;
+          return w;
+        }
+
+        void drop_privileges() {
+          instance().run([] {
+            platf::drop_elevated_privileges(true);
+          });
+        }
+
+        privileged_drm_worker():
+            thread_ {[this] {
+              sigset_t all;
+              sigfillset(&all);
+              if (pthread_sigmask(SIG_BLOCK, &all, nullptr) != 0) {
+                BOOST_LOG(error) << "Failed to block signals in drm_worker"sv;
+                queue_.stop();
+                return;
+              }
+
+              platf::set_thread_name("drm_worker");
+              for (;;) {
+                auto task = queue_.pop();
+                if (!task) {
+                  break;
+                }
+                (*task)();
+              }
+            }} {
+        }
+
+        ~privileged_drm_worker() {
+          queue_.stop();
+        }
+
+        template<class F>
+        auto run(F &&f) -> std::invoke_result_t<F> {
+          using R = std::invoke_result_t<F>;
+          auto task = std::make_shared<std::packaged_task<R()>>(
+            [f = std::forward<F>(f)]() mutable -> R {
+#if !defined(__FreeBSD__)
+              cap_sys_admin admin;
+#endif
+              return f();
+            }
+          );
+          auto fut = task->get_future();
+
+          if (!queue_.raise([task]() mutable {
+                (*task)();
+              })) {
+            throw privileged_drm_worker_stopped {"privileged_drm_worker: task rejected (worker stopping)"};
+          }
+
+          return fut.get();
+        }
+
+        safe::queue_t<std::function<void()>> queue_ {32, safe::queue_t<std::function<void()>>::overflow_policy_e::reject};
+        std::jthread thread_;
+      };
+    }  // namespace
+
+#if defined(__linux__)
     /**
-     * @brief Temporarily owns CAP_SYS_ADMIN while opening DRM capture resources.
+     * @brief Open a DRM card file descriptor using the privileged DRM worker.
+     *
+     * @param path Path to the DRM card node.
+     * @return A file descriptor on success, or `-1` on failure.
      */
-    class cap_sys_admin {
-    public:
-      cap_sys_admin() {
-        caps = cap_get_proc();
+    int privileged_open_drm_card_fd(const char *path) {
+      return privileged_drm_worker::open_drm_card_fd_privileged(path);
+    }
 
-        cap_value_t sys_admin = CAP_SYS_ADMIN;
-        if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &sys_admin, CAP_SET) || cap_set_proc(caps)) {
-          BOOST_LOG(error) << "Failed to gain CAP_SYS_ADMIN";
-        }
-      }
+    /**
+     * @brief Allows the DRM privileged_drm_worker thread to be constructed early.
+     */
+    void ensure_privileged_drm_worker_started() {
+      privileged_drm_worker::ensure_started();
+    }
 
-      ~cap_sys_admin() {
-        cap_value_t sys_admin = CAP_SYS_ADMIN;
-        if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &sys_admin, CAP_CLEAR) || cap_set_proc(caps)) {
-          BOOST_LOG(error) << "Failed to drop CAP_SYS_ADMIN";
-        }
-        cap_free(caps);
-      }
-
-      cap_t caps;  ///< Caps.
-    };
+    /**
+     * @brief Allows the DRM privileged_drm_worker thread to drop privileges.
+     */
+    void drop_drm_worker_privileges() {
+      static std::once_flag flag;
+      std::call_once(flag, []() {
+        privileged_drm_worker::drop_worker_privileges();
+      });
+    }
+#endif
 
     /**
      * @brief RAII wrapper for DRM framebuffer metadata and GEM handles.
@@ -288,6 +444,7 @@ namespace platf {
       _CONVERT("HDMI-B"sv, HDMIB);
       _CONVERT("TV"sv, TV);
       _CONVERT("eDP"sv, eDP);
+      _CONVERT("Meta"sv, VIRTUAL);  ///<  GNOME Shell (Mutter) virtual monitor
       _CONVERT("VIRTUAL"sv, VIRTUAL);
       _CONVERT("Virtual"sv, VIRTUAL);
       _CONVERT("DSI"sv, DSI);
@@ -436,8 +593,7 @@ namespace platf {
        * @return 0 on success; nonzero or negative platform status on failure.
        */
       int init(const char *path) {
-        cap_sys_admin admin;
-        fd.el = open_drm_card_fd(path);
+        fd.el = platf::kms::privileged_drm_worker::open_drm_card_fd_privileged(path);
         if (fd.el < 0) {
           return -1;
         }
@@ -495,14 +651,12 @@ namespace platf {
        * @return Framebuffer metadata wrapper, or nullptr when the framebuffer cannot be read.
        */
       fb_t fb(plane_t::pointer plane) {
-        cap_sys_admin admin;
-
-        auto fb2 = drmModeGetFB2(fd.el, plane->fb_id);
+        auto fb2 = platf::kms::privileged_drm_worker::drmModeGetFB2_privileged(fd.el, plane->fb_id);
         if (fb2) {
           return std::make_unique<wrapper_fb>(fd.el, fb2);
         }
 
-        auto fb = drmModeGetFB(fd.el, plane->fb_id);
+        auto fb = platf::kms::privileged_drm_worker::drmModeGetFB_privileged(fd.el, plane->fb_id);
         if (fb) {
           return std::make_unique<wrapper_fb>(fd.el, fb);
         }
@@ -792,8 +946,8 @@ namespace platf {
 
       for (auto &connector : connectors) {
         result.emplace(connector.crtc_id, monitor_t {
-                                            connector.type,
-                                            connector.index,
+                                            .type = connector.type,
+                                            .index = connector.index,
                                           });
       }
 
@@ -1522,18 +1676,7 @@ namespace platf {
         sleep_overshoot_logger.reset();
 
         while (true) {
-          auto now = std::chrono::steady_clock::now();
-
-          if (next_frame > now) {
-            std::this_thread::sleep_for(next_frame - now);
-            sleep_overshoot_logger.first_point(next_frame);
-            sleep_overshoot_logger.second_point_now_and_log();
-          }
-
-          next_frame += delay;
-          if (next_frame < now) {  // some major slowdown happened; we couldn't keep up
-            next_frame = now + delay;
-          }
+          platf::handle_pacing(next_frame, delay, sleep_overshoot_logger);
 
           std::shared_ptr<platf::img_t> img_out;
           auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
@@ -1799,18 +1942,7 @@ namespace platf {
         sleep_overshoot_logger.reset();
 
         while (true) {
-          auto now = std::chrono::steady_clock::now();
-
-          if (next_frame > now) {
-            std::this_thread::sleep_for(next_frame - now);
-            sleep_overshoot_logger.first_point(next_frame);
-            sleep_overshoot_logger.second_point_now_and_log();
-          }
-
-          next_frame += delay;
-          if (next_frame < now) {  // some major slowdown happened; we couldn't keep up
-            next_frame = now + delay;
-          }
+          platf::handle_pacing(next_frame, delay, sleep_overshoot_logger);
 
           std::shared_ptr<platf::img_t> img_out;
           auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
@@ -2112,10 +2244,10 @@ namespace platf {
         auto it = crtc_to_monitor.find(plane->crtc_id);
         if (it != std::end(crtc_to_monitor)) {
           it->second.viewport = platf::touch_port_t {
-            (int) crtc->x,
-            (int) crtc->y,
-            (int) crtc->width,
-            (int) crtc->height,
+            .offset_x = (int) crtc->x,
+            .offset_y = (int) crtc->y,
+            .width = (int) crtc->width,
+            .height = (int) crtc->height,
           };
           it->second.monitor_index = count;
         }

@@ -123,6 +123,7 @@ qt6_deploy_runtime_dependencies(
           # Sign the app last
           execute_process(COMMAND /usr/bin/codesign --verbose=2
               --sign \"${APPLE_CODESIGN_IDENTITY}\" \"\${_app}\"
+              --entitlements \"${APPLE_ENTITLEMENTS_FILE}\"
               --force --timestamp --options=runtime
               RESULT_VARIABLE rc3
           )

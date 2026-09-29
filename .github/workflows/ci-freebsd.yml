@@ -48,13 +48,12 @@ jobs:
           echo "PROCESSOR_COUNT: $PROCESSOR_COUNT"
 
       - name: Setup FreeBSD
-        uses: vmactions/freebsd-vm@83b151f58c6047089f4c80eb5ba2039d158ce093  # v1.5.3
+        uses: vmactions/freebsd-vm@a2f9a41fa97f6848b8c3b791087dfcdaa5b473ff  # v1.5.8
         with:
           arch: ${{ matrix.arch }}
           cpu: ${{ steps.processor_count.outputs.PROCESSOR_COUNT }}
           envs: 'BRANCH BUILD_VERSION COMMIT PYTHON_VERSION'
           # TODO: there is no libcap for freebsd... we need graphics/libdrm if we find a way to use libcap
-          # TODO: docs are off because doxygen is too old: https://www.freshports.org/devel/doxygen/ must be >= 1.10
           prepare: |
             set -e
 
@@ -105,11 +104,23 @@ jobs:
             set -e
             # Keep FreeBSD off Sunshine's default dependency path: lizardbyte-common[c]
             # includes clang-format, which has no FreeBSD wheel and is slow to build.
-            uv sync --locked --only-group glad --python "/usr/local/bin/python${PYTHON_VERSION}" \
-              --no-python-downloads --no-install-project
-            uv sync --project third-party/lizardbyte-common --locked --only-group test-c \
+            set -- \
+              --locked \
+              --only-group glad \
               --python "/usr/local/bin/python${PYTHON_VERSION}" \
-              --no-python-downloads --no-install-project
+              --no-python-downloads \
+              --no-install-project
+            # uv.lock pins external artifacts; the reviewed vendored glad2 build hook is required.
+            uv sync "$@"  # NOSONAR(githubactions:S8541, githubactions:S8544)
+            set -- \
+              --project third-party/lizardbyte-common \
+              --locked \
+              --only-group test-c \
+              --python "/usr/local/bin/python${PYTHON_VERSION}" \
+              --no-python-downloads \
+              --no-install-project
+            # uv.lock pins the source artifact; FreeBSD must build lxml because no wheel is available.
+            uv sync "$@"  # NOSONAR(githubactions:S8541, githubactions:S8544)
 
             # fix git safe.directory issues
             git config --global --add safe.directory "*"

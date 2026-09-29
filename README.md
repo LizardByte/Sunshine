@@ -56,55 +56,57 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
         <td>Generic</td>
         <td>🟡<sup>1</sup></td>
         <td>✅</td>
-        <td>❌</td>
-        <td>✅</td>
+        <td>✅<sup>2</sup></td>
+        <td>✅<sup>3</sup></td>
     </tr>
     <tr>
         <td>DualShock / DS4 (PlayStation 4)</td>
         <td>🟡<sup>1</sup></td>
         <td>✅</td>
-        <td>❌</td>
-        <td>✅</td>
+        <td>✅<sup>2</sup></td>
+        <td>✅<sup>3</sup></td>
     </tr>
     <tr>
         <td>DualSense / DS5 (PlayStation 5)</td>
         <td>🟡<sup>1</sup></td>
         <td>✅</td>
-        <td>❌</td>
-        <td>✅</td>
+        <td>✅<sup>2</sup></td>
+        <td>✅<sup>3</sup></td>
     </tr>
     <tr>
         <td>Nintendo Switch Pro</td>
         <td>🟡<sup>1</sup></td>
         <td>✅</td>
-        <td>❌</td>
-        <td>✅</td>
+        <td>✅<sup>2</sup></td>
+        <td>✅<sup>3</sup></td>
     </tr>
     <tr>
         <td>Xbox 360</td>
         <td>🟡<sup>1</sup></td>
         <td>✅</td>
-        <td>❌</td>
-        <td>✅</td>
+        <td>✅<sup>2</sup></td>
+        <td>✅<sup>3</sup></td>
     </tr>
     <tr>
         <td>Xbox One</td>
         <td>🟡<sup>1</sup></td>
         <td>✅</td>
-        <td>❌</td>
-        <td>✅</td>
+        <td>✅<sup>2</sup></td>
+        <td>✅<sup>3</sup></td>
     </tr>
     <tr>
         <td>Xbox Series</td>
         <td>🟡<sup>1</sup></td>
         <td>✅</td>
-        <td>❌</td>
-        <td>✅</td>
+        <td>✅<sup>2</sup></td>
+        <td>✅<sup>3</sup></td>
     </tr>
 </table>
 
 > [!NOTE]
 > <sup>1</sup> Missing motion, touchpad input, battery state, RGB LEDs, adaptive triggers, and raw HID output reports.
+> <sup>2</sup> Requires the separately installed and licensed Virtual HID Broker.
+> <sup>3</sup> All profiles are available through the separately installed and licensed Virtual HID Broker. Xbox 360 and DualShock 4 can also use ViGEmBus.
 
 <table>
     <caption id="encoding_api">Encoding API</caption>
@@ -521,16 +523,3 @@ Thank you to all the contributors who have helped make Sunshine better!
 <p align="center">
   <img src='https://cdn.jsdelivr.net/gh/LizardByte/contributors@dist/crowdin.606145.svg' alt="CrowdIn contributors"/>
 </p>
-
-<div class="section_buttons">
-
-| Previous |                                       Next |
-|:---------|-------------------------------------------:|
-|          | [Getting Started](docs/getting_started.md) |
-
-</div>
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

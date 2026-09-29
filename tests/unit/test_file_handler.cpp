@@ -2,9 +2,14 @@
  * @file tests/unit/test_file_handler.cpp
  * @brief Test src/file_handler.*.
  */
+
+// test includes
 #include "../tests_common.h"
 
+// standard includes
 #include <format>
+
+// local includes
 #include <src/file_handler.h>
 
 struct FileHandlerParentDirectoryTest: BaseTest, testing::WithParamInterface<std::tuple<std::string, std::string>> {};

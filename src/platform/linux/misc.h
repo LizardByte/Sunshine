@@ -5,8 +5,10 @@
 #pragma once
 
 // standard includes
+#include <chrono>
 #include <fcntl.h>
 #include <filesystem>
+#include <thread>
 #include <unistd.h>
 #include <vector>
 
@@ -48,7 +50,43 @@ namespace dyn {
 
 }  // namespace dyn
 
+#ifdef SUNSHINE_BUILD_PORTAL
+namespace portal {
+  /**
+   * @brief Check if a Portal restore token already exists on disk.
+   *
+   * @return True if a saved token was found.
+   */
+  bool has_saved_token();
+
+  /**
+   * @brief Clear a restore token if it already exists on disk.
+   */
+  void clear_saved_token();
+
+  /**
+   * @brief Check if the Portal service responds to a DBus Ping within 2 seconds.
+   *
+   * @return True if the Portal is reachable.
+   */
+  bool is_portal_service_reachable();
+
+  inline std::jthread xdg_worker;  ///< XDG worker thread to negotiate restore token.
+  inline std::once_flag xdg_worker_flag;  ///< Flag to ensure xdg_worker spawns only once.
+}  // namespace portal
+#endif
+
 namespace platf {
+  /**
+   * @brief Remove environment variables that can load untrusted GUI modules.
+   *
+   * Loader paths and module lists used by Qt, GTK, GIO, and GdkPixbuf are removed before any of those libraries
+   * can initialize. The caller determines whether privileged execution requires the policy.
+   *
+   * @return `true` when the environment is safe to use; `false` if a variable could not be removed.
+   */
+  bool sanitize_process_environment();
+
   /**
    * @brief Open a DRM card node and drop implicit DRM master, if any.
    *
@@ -67,4 +105,54 @@ namespace platf {
    * @return A file descriptor on success, or `-1` if `open()` itself fails.
    */
   int open_drm_card_fd(const std::filesystem::path &path, int flags = O_RDWR);
+
+  /**
+   * @brief Generic frame pacing logic for Linux capture methods.
+   *
+   * Advances the frame pacing timeline and re-anchors it if the capture thread falls behind.
+   *
+   * @param next_frame Time point that the next frame will be targeted against.
+   * @param delay Delay interval used to pace next frame.
+   * @param logger The sleep_overshoot_logger for tracking discontinuities.
+   */
+  inline void handle_pacing(std::chrono::steady_clock::time_point &next_frame, std::chrono::nanoseconds delay, auto &logger) {
+    auto now = std::chrono::steady_clock::now();
+
+    if (next_frame > now) {
+      std::this_thread::sleep_until(next_frame);
+      logger.first_point(next_frame);
+      logger.second_point_now_and_log();
+    }
+
+    next_frame += delay;
+    if (next_frame < now) {  // some major slowdown happened; we couldn't keep up
+      next_frame = now + delay;
+    }
+  }
+
+#if defined(__linux__) && defined(SUNSHINE_BUILD_DRM)
+  namespace kms {
+    /**
+     * @brief Force-construct the DRM privileged worker thread while the calling
+     *        thread still holds CAP_SYS_ADMIN in CAP_PERMITTED.
+     *
+     * This must be called before dropping CAP_SYS_ADMIN from the calling thread,
+     * since newly-created threads inherit its capability sets.
+     */
+    void ensure_privileged_drm_worker_started();
+
+    /**
+     * @brief Drop the DRM worker thread's privileges.
+     */
+    void drop_drm_worker_privileges();
+
+    /**
+     * @brief Open a DRM card file descriptor using the privileged DRM worker.
+     *
+     * @param path Path to the DRM card node.
+     * @return A file descriptor on success, or `-1` on failure.
+     */
+    int privileged_open_drm_card_fd(const char *path);
+  }  // namespace kms
+#endif
 }  // namespace platf

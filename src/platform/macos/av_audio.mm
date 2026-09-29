@@ -9,17 +9,68 @@
  * The implementation handles format conversion, real-time audio processing, and provides
  * a unified interface for both capture methods through a shared circular buffer.
  */
+// header include
 #import "av_audio.h"
 
+// standard includes
+#include <atomic>
+
+// local includes
 #include "coreaudio_helpers.h"
 #include "src/logging.h"
 #include "src/utility.h"
 
+// platform includes
 #import <AudioToolbox/AudioConverter.h>
 #import <CoreAudio/CATapDescription.h>
 
 namespace platf {
   using namespace std::literals;
+
+  bool request_microphone_permission(AVAuthorizationStatus authorization_status, const microphone_permission_request_t &request_access) {
+    if (authorization_status == AVAuthorizationStatusNotDetermined) {
+      BOOST_LOG(info) << "Requesting microphone permission for the configured audio sink."sv;
+    }
+
+    auto permission_granted = std::atomic<bool> {authorization_status == AVAuthorizationStatusAuthorized};
+    if (authorization_status == AVAuthorizationStatusNotDetermined) {
+      auto permission_resolved = dispatch_semaphore_create(0);
+      request_access([&](bool granted) {
+        permission_granted = granted;
+        dispatch_semaphore_signal(permission_resolved);
+      });
+
+      dispatch_semaphore_wait(permission_resolved, DISPATCH_TIME_FOREVER);
+      dispatch_release(permission_resolved);
+    }
+
+    if (!permission_granted.load()) {
+      if (authorization_status == AVAuthorizationStatusRestricted) {
+        BOOST_LOG(error) << "Microphone access is restricted by macOS."sv;
+      } else {
+        BOOST_LOG(error) << "Microphone access was denied. Enable Sunshine in System Settings -> Privacy & Security -> Microphone."sv;
+      }
+    }
+
+    return permission_granted.load();
+  }
+
+  bool request_microphone_permission() {
+    return request_microphone_permission([AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio], [](microphone_permission_callback_t callback) {
+      [AVCaptureDevice requestAccessForMediaType:AVMediaTypeAudio
+                               completionHandler:^(BOOL granted) {
+                                 callback(granted == YES);
+                               }];
+    });
+  }
+
+  bool request_system_audio_permission() {
+    AVAudio *probe = [[AVAudio alloc] init];
+    probe.hostAudioEnabled = YES;
+    const bool started = [probe setupSystemTap:48000 frameSize:512 channels:2] == 0;
+    [probe release];
+    return started;
+  }
 
   /**
    * @brief Real-time AudioConverter input callback for format conversion.
@@ -95,14 +146,14 @@ namespace platf {
           UInt32 maxOutputFrames = procData->conversionBufferSize / (clientChannels * sizeof(float));
           UInt32 requestedOutputFrames = maxOutputFrames;
 
-          AudioConverterInputData inputData = {0};
+          AudioConverterInputData inputData {};
           inputData.inputData = inputSamples;
           inputData.inputFrames = inputFrames;
           inputData.framesProvided = 0;  // Critical: must start at 0!
           inputData.deviceChannels = deviceChannels;
           inputData.avAudio = avAudio;
 
-          AudioBufferList outputBufferList = {0};
+          AudioBufferList outputBufferList {};
           outputBufferList.mNumberBuffers = 1;
           outputBufferList.mBuffers[0].mNumberChannels = clientChannels;
           outputBufferList.mBuffers[0].mDataByteSize = procData->conversionBufferSize;
@@ -769,7 +820,7 @@ namespace platf {
                    << " -> client: "sv << clientSampleRate << "Hz/" << (int) clientChannels << "ch)"sv;
 
   if (needsConversion) {
-    AudioStreamBasicDescription sourceFormat = {0};
+    AudioStreamBasicDescription sourceFormat {};
     sourceFormat.mSampleRate = (Float64) aggregateDeviceSampleRate;
     sourceFormat.mFormatID = kAudioFormatLinearPCM;
     sourceFormat.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked;
@@ -779,7 +830,7 @@ namespace platf {
     sourceFormat.mChannelsPerFrame = aggregateDeviceChannels;
     sourceFormat.mBitsPerChannel = 32;
 
-    AudioStreamBasicDescription targetFormat = {0};
+    AudioStreamBasicDescription targetFormat {};
     targetFormat.mSampleRate = (Float64) clientSampleRate;
     targetFormat.mFormatID = kAudioFormatLinearPCM;
     targetFormat.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked;

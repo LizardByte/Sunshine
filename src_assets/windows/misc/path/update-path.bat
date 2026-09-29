@@ -46,7 +46,9 @@ if /i "%~1"=="add" (
     rem Only update if path was changed
     if "!NEW_PATH!" neq "!CURRENT_PATH!" (
         rem Set the new path in the registry
-        reg add "%KEY_NAME%" /v "%VALUE_NAME%" /t REG_EXPAND_SZ /d "!NEW_PATH!" /f
+        rem Some localized systems may unexpectedly ignore /f at the end of the command.
+        rem Keep it before /d so the installer never waits for overwrite confirmation.
+        reg add "%KEY_NAME%" /v "%VALUE_NAME%" /t REG_EXPAND_SZ /f /d "!NEW_PATH!"
         if !ERRORLEVEL!==0 (
             echo Successfully added Sunshine directories to PATH
         ) else (
@@ -94,8 +96,8 @@ if /i "%~1"=="remove" (
     rem Only update if path was changed
     if "!CHANGES_MADE!"=="1" (
         rem Set the new path in the registry
-        rem Windows systems running Chinese may unexpectedly ignore the /f option at the end of the command.
-        rem This issue only occurs with the remove command.
+        rem Some localized systems may unexpectedly ignore /f at the end of the command.
+        rem Keep it before /d so the installer never waits for overwrite confirmation.
         reg add "%KEY_NAME%" /v "%VALUE_NAME%" /t REG_EXPAND_SZ /f /d "!CURRENT_PATH!"
         if !ERRORLEVEL!==0 (
             echo Successfully removed Sunshine directories from PATH

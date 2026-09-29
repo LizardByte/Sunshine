@@ -61,6 +61,8 @@ depends=(
 makedepends=(
   'appstream'
   'appstream-glib'
+  'boost'
+  'boost-libs'
   'cmake'
   'desktop-file-utils'
   "gcc${_gcc_dep_suffix}"
@@ -191,7 +193,9 @@ check() {
       export CXX="g++${_gcc_env_suffix}"
 
       cd "${srcdir}/build/tests"
-      ./test_sunshine --gtest_color=yes --gtest_output=xml:test_results.xml
+      # Do not silently upload misleading coverage if the gcov runtime cannot
+      # write profile data, such as when its version differs from the compiler.
+      GCOV_EXIT_AT_ERROR=1 ./test_sunshine --gtest_color=yes --gtest_output=xml:test_results.xml
 
       # Generate coverage report
       # Run gcovr from the build directory (where all .gcda/.gcno files are)

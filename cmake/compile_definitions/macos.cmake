@@ -21,7 +21,7 @@ foreach(dir ${MACOS_LINK_DIRECTORIES})
     endif()
 endforeach()
 
-if(NOT BOOST_USE_STATIC AND NOT FETCH_CONTENT_BOOST_USED)
+if(NOT BOOST_USE_STATIC AND NOT CPM_BOOST_USED)
     ADD_DEFINITIONS(-DBOOST_LOG_DYN_LINK)
 endif()
 
@@ -36,10 +36,12 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
         ${CORE_VIDEO_LIBRARY}
         ${FOUNDATION_LIBRARY}
         ${IOKIT_LIBRARY}
+        ${USER_NOTIFICATIONS_LIBRARY}
         ${VIDEO_TOOLBOX_LIBRARY})
 
 set(APPLE_PLIST_TEMPLATE "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/build/Info.plist.in")
 set(APPLE_PLIST_FILE "${CMAKE_BINARY_DIR}/Info.plist")
+set(APPLE_ENTITLEMENTS_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/entitlements.plist")
 configure_file("${APPLE_PLIST_TEMPLATE}" "${APPLE_PLIST_FILE}" @ONLY)
 
 set(PLATFORM_TARGET_FILES
@@ -58,4 +60,5 @@ set(PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/macos/publish.cpp"
         "${CMAKE_SOURCE_DIR}/third-party/TPCircularBuffer/TPCircularBuffer.c"
         "${CMAKE_SOURCE_DIR}/third-party/TPCircularBuffer/TPCircularBuffer.h"
+        ${APPLE_ENTITLEMENTS_FILE}
         ${APPLE_PLIST_FILE})

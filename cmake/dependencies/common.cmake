@@ -56,6 +56,21 @@ if(SUNSHINE_ENABLE_TRAY)
 
     add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/tray")
 
+    # TRAY_QT_VERSION is scoped to the tray subdirectory, so inspect the target's actual dependencies.
+    get_target_property(_sunshine_tray_link_libraries tray LINK_LIBRARIES)
+    if("Qt6::Widgets" IN_LIST _sunshine_tray_link_libraries)
+        set(SUNSHINE_TRAY_QT_VERSION 6)
+    elseif("Qt5::Widgets" IN_LIST _sunshine_tray_link_libraries)
+        set(SUNSHINE_TRAY_QT_VERSION 5)
+    else()
+        message(FATAL_ERROR "Could not determine the Qt version used by the tray target.")
+    endif()
+    unset(_sunshine_tray_link_libraries)
+
+    if(BUILD_TESTS)
+        target_compile_definitions(tray PRIVATE TRAY_ENABLE_TEST_HOOKS)
+    endif()
+
     if(SUNSHINE_USE_STATIC_QT)
         set(CMAKE_FIND_LIBRARY_SUFFIXES "${_sunshine_find_library_suffixes}")
         set(CMAKE_IMPORT_LIBRARY_SUFFIX "${_sunshine_import_library_suffix}")

@@ -1464,6 +1464,11 @@ p {
     transition: all var(--transition-fast);
 }
 
+/* Keep option text clear of the select's dropdown indicator. */
+.form-select {
+    padding-right: 2.25rem;
+}
+
 .form-control:focus,
 .form-select:focus {
     border-color: var(--color-primary);
@@ -1629,26 +1634,97 @@ p {
     white-space: nowrap;
 }
 
-.driver-table-shell {
+.driver-table-shell,
+.permission-table-shell {
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
 }
 
-.driver-table-shell .table thead th:first-child {
+.driver-table-shell .table thead th:first-child,
+.permission-table-shell .table thead th:first-child {
     border-top-left-radius: var(--radius-lg);
 }
 
-.driver-table-shell .table thead th:last-child {
+.driver-table-shell .table thead th:last-child,
+.permission-table-shell .table thead th:last-child {
     border-top-right-radius: var(--radius-lg);
 }
 
-.driver-table-shell .table tbody tr:last-child {
+.driver-table-shell .table tbody tr:last-child,
+.permission-table-shell .table tbody tr:last-child {
     border-bottom: none;
 }
 
 .driver-table-shell .table tbody th {
     padding: var(--spacing-md) var(--spacing-lg);
     white-space: nowrap;
+}
+
+.permission-table-shell .table {
+    min-width: 42rem;
+}
+
+.permission-table-shell .table tbody th {
+    font-weight: normal;
+    min-width: 18rem;
+    padding: var(--spacing-md) var(--spacing-lg);
+}
+
+.permission-detail,
+.permission-help {
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+    line-height: 1.45;
+    margin-top: var(--spacing-xs);
+}
+
+.permission-help {
+    color: var(--color-text-base);
+}
+
+.permission-action-column {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.status-icon {
+    align-items: center;
+    border-radius: 50%;
+    cursor: help;
+    display: inline-flex;
+    height: 2rem;
+    justify-content: center;
+    width: 2rem;
+}
+
+.status-icon:hover {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+
+.status-icon-success {
+    background-color: var(--color-success-light);
+    color: var(--color-success);
+}
+
+.status-icon-danger {
+    background-color: var(--color-danger-light);
+    color: var(--color-danger);
+}
+
+.status-icon-warning {
+    background-color: var(--color-warning-light);
+    color: var(--color-warning);
+}
+
+.status-icon-primary {
+    background-color: var(--color-primary-light);
+    color: var(--color-primary);
+}
+
+.status-icon-neutral {
+    background-color: var(--color-bg-subtle);
+    color: var(--color-text-muted);
 }
 
 .driver-release-state {
@@ -1883,10 +1959,14 @@ p {
     display: flex;
     align-items: center;
     gap: var(--spacing-sm);
+    width: 100%;
     padding: var(--spacing-sm) var(--spacing-md);
+    border: 0;
     border-radius: var(--radius-md);
+    background-color: transparent;
     color: var(--color-text-muted);
     font-weight: 600;
+    text-align: left;
     transition: all var(--transition-fast);
 }
 
@@ -2181,6 +2261,12 @@ p {
 
 .cover-container.result:hover {
     transform: scale(1.02);
+}
+
+.cover-choice {
+    border: 0;
+    background: transparent;
+    color: inherit;
 }
 
 .cover-container img {
@@ -2715,6 +2801,17 @@ p {
     flex-shrink: 0;
     object-fit: cover;
     border: 1px solid var(--color-border);
+}
+
+.screenshot-thumbnail-button {
+    flex-shrink: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.screenshot-thumbnail-button .screenshot-thumbnail {
+    display: block;
 }
 
 .screenshot-thumbnail:hover {

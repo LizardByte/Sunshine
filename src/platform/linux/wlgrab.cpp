@@ -19,6 +19,20 @@ namespace wl {
   static int env_width;
   static int env_height;
 
+  bool use_vram_capture(platf::mem_type_e hwdevice_type) {
+    if (hwdevice_type == platf::mem_type_e::vaapi) {
+      return true;
+    }
+
+#ifdef SUNSHINE_BUILD_CUDA
+    if (hwdevice_type == platf::mem_type_e::cuda) {
+      return true;
+    }
+#endif
+
+    return false;
+  }
+
   /**
    * @brief Captured frame buffer shared between capture and encode stages.
    */
@@ -204,18 +218,7 @@ namespace wl {
       sleep_overshoot_logger.reset();
 
       while (true) {
-        auto now = std::chrono::steady_clock::now();
-
-        if (next_frame > now) {
-          std::this_thread::sleep_for(next_frame - now);
-          sleep_overshoot_logger.first_point(next_frame);
-          sleep_overshoot_logger.second_point_now_and_log();
-        }
-
-        next_frame += delay;
-        if (next_frame < now) {  // some major slowdown happened; we couldn't keep up
-          next_frame = now + delay;
-        }
+        platf::handle_pacing(next_frame, delay, sleep_overshoot_logger);
 
         std::shared_ptr<platf::img_t> img_out;
         auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
@@ -368,18 +371,7 @@ namespace wl {
       sleep_overshoot_logger.reset();
 
       while (true) {
-        auto now = std::chrono::steady_clock::now();
-
-        if (next_frame > now) {
-          std::this_thread::sleep_for(next_frame - now);
-          sleep_overshoot_logger.first_point(next_frame);
-          sleep_overshoot_logger.second_point_now_and_log();
-        }
-
-        next_frame += delay;
-        if (next_frame < now) {  // some major slowdown happened; we couldn't keep up
-          next_frame = now + delay;
-        }
+        platf::handle_pacing(next_frame, delay, sleep_overshoot_logger);
 
         std::shared_ptr<platf::img_t> img_out;
         auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
@@ -510,7 +502,7 @@ namespace platf {
       return nullptr;
     }
 
-    if (hwdevice_type == platf::mem_type_e::vaapi || hwdevice_type == platf::mem_type_e::cuda) {
+    if (wl::use_vram_capture(hwdevice_type)) {
       auto wlr = std::make_shared<wl::wlr_vram_t>();
       if (wlr->init(hwdevice_type, display_name, config)) {
         return nullptr;
@@ -518,6 +510,12 @@ namespace platf {
 
       return wlr;
     }
+
+#ifndef SUNSHINE_BUILD_CUDA
+    if (hwdevice_type == platf::mem_type_e::cuda) {
+      BOOST_LOG(warning) << "This build does not include CUDA support. Falling back to GPU -> RAM -> GPU for NVENC."sv;
+    }
+#endif
 
     auto wlr = std::make_shared<wl::wlr_ram_t>();
     if (wlr->init(hwdevice_type, display_name, config)) {

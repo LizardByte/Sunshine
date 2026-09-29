@@ -20,6 +20,7 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/hwcontext.h>
 #include <libavutil/hwcontext_vulkan.h>
+#include <libavutil/version.h>
 }
 
 #include "graphics.h"
@@ -38,9 +39,151 @@ using namespace std::literals;
 
 namespace vk {
 
+  /**
+   * @brief Query and validate encoder quality level for a given codec.
+   *
+   * This uses FFmpeg's Vulkan context to query maxQualityLevels and validate
+   * the requested level using vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR.
+   * If the requested level is invalid, returns 0 to indicate failure.
+   *
+   * @param codec_id FFmpeg codec ID (AV_CODEC_ID_H264, AV_CODEC_ID_HEVC, AV_CODEC_ID_AV1).
+   * @param vk_ctx FFmpeg's AVVulkanDeviceContext with initialized Vulkan handles.
+   * @param requested_level Requested quality level to validate (0 = speed, max = quality).
+   * @param[out] max_level Maximum quality level supported by the driver.
+   * @return Validated quality level (requested_level if valid, 0 if invalid).
+   */
+  static uint32_t query_and_validate_quality_level(AVCodecID codec_id, AVVulkanDeviceContext *vk_ctx, uint32_t requested_level, uint32_t *max_level) {
+    *max_level = 0;
+
+    if (!vk_ctx || !vk_ctx->inst || !vk_ctx->phys_dev || !vk_ctx->get_proc_addr) {
+      return 0;
+    }
+
+    auto vkGetPhysicalDeviceVideoCapabilitiesKHR_fn = (PFN_vkGetPhysicalDeviceVideoCapabilitiesKHR)
+                                                        vk_ctx->get_proc_addr(vk_ctx->inst, "vkGetPhysicalDeviceVideoCapabilitiesKHR");
+
+    if (!vkGetPhysicalDeviceVideoCapabilitiesKHR_fn) {
+      return 0;
+    }
+
+    // Codec-specific profile extensions (zero-initialized)
+    VkVideoEncodeH264ProfileInfoKHR h264_profile = {};
+    h264_profile.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_H264_PROFILE_INFO_KHR;
+    h264_profile.stdProfileIdc = STD_VIDEO_H264_PROFILE_IDC_HIGH;
+
+    VkVideoEncodeH265ProfileInfoKHR h265_profile = {};
+    h265_profile.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_H265_PROFILE_INFO_KHR;
+    h265_profile.stdProfileIdc = STD_VIDEO_H265_PROFILE_IDC_MAIN;
+
+    VkVideoEncodeAV1ProfileInfoKHR av1_profile = {};
+    av1_profile.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_AV1_PROFILE_INFO_KHR;
+    av1_profile.stdProfile = STD_VIDEO_AV1_PROFILE_MAIN;
+
+    // Codec-specific capabilities extensions (zero-initialized)
+    VkVideoEncodeH264CapabilitiesKHR h264_caps = {};
+    h264_caps.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_H264_CAPABILITIES_KHR;
+
+    VkVideoEncodeH265CapabilitiesKHR h265_caps = {};
+    h265_caps.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_H265_CAPABILITIES_KHR;
+
+    VkVideoEncodeAV1CapabilitiesKHR av1_caps = {};
+    av1_caps.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_AV1_CAPABILITIES_KHR;
+
+    // Usage info chain (follows FFmpeg's pattern)
+    VkVideoEncodeUsageInfoKHR usage_info = {};
+    usage_info.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_USAGE_INFO_KHR;
+    usage_info.videoUsageHints = VK_VIDEO_ENCODE_USAGE_STREAMING_BIT_KHR;
+    usage_info.videoContentHints = VK_VIDEO_ENCODE_CONTENT_DEFAULT_KHR;
+    usage_info.tuningMode = VK_VIDEO_ENCODE_TUNING_MODE_LOW_LATENCY_KHR;
+
+    // Profile info
+    VkVideoProfileInfoKHR profile = {};
+    profile.sType = VK_STRUCTURE_TYPE_VIDEO_PROFILE_INFO_KHR;
+    profile.pNext = &usage_info;
+    profile.chromaSubsampling = VK_VIDEO_CHROMA_SUBSAMPLING_420_BIT_KHR;
+    profile.lumaBitDepth = VK_VIDEO_COMPONENT_BIT_DEPTH_8_BIT_KHR;
+    profile.chromaBitDepth = VK_VIDEO_COMPONENT_BIT_DEPTH_8_BIT_KHR;
+
+    // Encode capabilities output
+    VkVideoEncodeCapabilitiesKHR enc_caps = {};
+    enc_caps.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_CAPABILITIES_KHR;
+
+    // Set codec operation and chain codec-specific extensions (profile and caps)
+    switch (codec_id) {
+      case AV_CODEC_ID_H264:
+        profile.videoCodecOperation = VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR;
+        usage_info.pNext = &h264_profile;
+        enc_caps.pNext = &h264_caps;
+        break;
+      case AV_CODEC_ID_HEVC:
+        profile.videoCodecOperation = VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR;
+        usage_info.pNext = &h265_profile;
+        enc_caps.pNext = &h265_caps;
+        break;
+      case AV_CODEC_ID_AV1:
+        profile.videoCodecOperation = VK_VIDEO_CODEC_OPERATION_ENCODE_AV1_BIT_KHR;
+        usage_info.pNext = &av1_profile;
+        enc_caps.pNext = &av1_caps;
+        break;
+      default:
+        return 0;
+    }
+
+    // Main capabilities output
+    VkVideoCapabilitiesKHR caps = {};
+    caps.sType = VK_STRUCTURE_TYPE_VIDEO_CAPABILITIES_KHR;
+    caps.pNext = &enc_caps;
+
+    VkResult result = vkGetPhysicalDeviceVideoCapabilitiesKHR_fn(vk_ctx->phys_dev, &profile, &caps);
+    if (result != VK_SUCCESS) {
+      return 0;
+    }
+
+    *max_level = enc_caps.maxQualityLevels;
+    BOOST_LOG(debug) << "[vulkan] Driver max quality level: "sv << *max_level;
+
+    // If requested level is 0 or within range, try to validate it
+    if (requested_level > *max_level) {
+      BOOST_LOG(warning) << "[vulkan] Requested quality level "sv << requested_level
+                         << " exceeds max "sv << *max_level << ", using max"sv;
+      requested_level = *max_level;
+    }
+
+    // Try to validate the requested level
+    auto vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR_fn = (PFN_vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR)
+                                                                        vk_ctx->get_proc_addr(vk_ctx->inst, "vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR");
+
+    if (vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR_fn) {
+      VkPhysicalDeviceVideoEncodeQualityLevelInfoKHR quality_level_info = {};
+      quality_level_info.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_ENCODE_QUALITY_LEVEL_INFO_KHR;
+      quality_level_info.pVideoProfile = &profile;
+      quality_level_info.qualityLevel = requested_level;
+
+      VkVideoEncodeQualityLevelPropertiesKHR quality_props = {};
+      quality_props.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_QUALITY_LEVEL_PROPERTIES_KHR;
+
+      result = vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR_fn(vk_ctx->phys_dev, &quality_level_info, &quality_props);
+      if (result != VK_SUCCESS) {
+        return 0;
+      }
+    }
+
+    return requested_level;
+  }
+
   // Match a DRI render node path to a Vulkan device index via VK_EXT_physical_device_drm.
   // Returns the index as a string (e.g. "1"), or empty string if no match.
+  // Result is cached since render device doesn't change during runtime.
   static std::string find_vulkan_index_for_render_node(const char *render_path) {
+    // Cache result to avoid repeated Vulkan instance creation (~10-20ms overhead)
+    static std::string cached_result;
+    static std::string cached_path;
+    static bool cached = false;
+
+    if (cached && cached_path == render_path) {
+      return cached_result;
+    }
+
     struct stat node_stat;
     if (stat(render_path, &node_stat) < 0) {
       return {};
@@ -49,11 +192,11 @@ namespace vk {
     auto target_major = major(node_stat.st_rdev);
     auto target_minor = minor(node_stat.st_rdev);
 
-    VkApplicationInfo app = {VK_STRUCTURE_TYPE_APPLICATION_INFO};
+    VkApplicationInfo app = {.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO};
     app.apiVersion = VK_API_VERSION_1_1;
 
     static const std::array<const char *, 1> instance_exts = {VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME};
-    VkInstanceCreateInfo ci = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
+    VkInstanceCreateInfo ci = {.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
     ci.pApplicationInfo = &app;
     ci.enabledExtensionCount = instance_exts.size();
     ci.ppEnabledExtensionNames = instance_exts.data();
@@ -74,8 +217,8 @@ namespace vk {
 
     std::string result;
     for (uint32_t i = 0; i < count; i++) {
-      VkPhysicalDeviceDrmPropertiesEXT drm = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRM_PROPERTIES_EXT};
-      VkPhysicalDeviceProperties2 props2 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+      VkPhysicalDeviceDrmPropertiesEXT drm = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRM_PROPERTIES_EXT};
+      VkPhysicalDeviceProperties2 props2 = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
       props2.pNext = &drm;
       vkGetPhysicalDeviceProperties2(devs[i], &props2);
       if (drm.hasRender && drm.renderMajor == (int64_t) target_major && drm.renderMinor == (int64_t) target_minor) {
@@ -84,6 +227,12 @@ namespace vk {
       }
     }
     vkDestroyInstance(inst, nullptr);
+
+    // Cache the result
+    cached_path = render_path;
+    cached_result = result;
+    cached = true;
+
     return result;
   }
 
@@ -192,6 +341,55 @@ namespace vk {
       if (config::video.vk.rc_mode == 4) {
         ctx->rc_min_rate = 0;
       }
+
+      // Map quality preset to driver's quality range (same abstraction as VAAPI)
+      // 1 = speed, 2 = balanced (default), 3 = quality
+      // Note: Vulkan quality is 0 = fastest, higher = slower/better quality
+      int quality_preset = config::video.vk.quality;
+      if (quality_preset > 0 && ctx->hw_frames_ctx) {
+        // Reuse FFmpeg's Vulkan instance and device instead of creating new ones
+        auto *frames_ctx = (AVHWFramesContext *) ctx->hw_frames_ctx->data;
+        auto *dev_ctx = (AVHWDeviceContext *) frames_ctx->device_ref->data;
+        auto *vk_ctx = (AVVulkanDeviceContext *) dev_ctx->hwctx;
+
+        // Calculate target quality based on preset
+        uint32_t max_quality = 0;
+        uint32_t target_quality = 0;
+        const char *preset_name = "speed";
+
+        // First pass: get max quality to calculate target
+        query_and_validate_quality_level(ctx->codec_id, vk_ctx, 0, &max_quality);
+
+        if (max_quality > 0) {
+          switch (quality_preset) {
+            default:
+            case 1:  // speed (level 0 = fastest)
+              target_quality = 0;
+              preset_name = "speed";
+              break;
+            case 2:  // balanced (middle level)
+              target_quality = max_quality / 2;
+              preset_name = "balanced";
+              break;
+            case 3:  // quality (max level = best quality)
+              target_quality = max_quality;
+              preset_name = "quality";
+              break;
+          }
+
+          // Validate the calculated target quality level
+          uint32_t validated_quality = query_and_validate_quality_level(ctx->codec_id, vk_ctx, target_quality, &max_quality);
+
+          if (validated_quality == target_quality) {
+            av_dict_set_int(options, "quality", validated_quality, 0);
+            BOOST_LOG(info) << "[vulkan] Encoder quality set to "sv << validated_quality
+                            << " ("sv << preset_name << "), driver range: 0-"sv << max_quality;
+          } else {
+            BOOST_LOG(warning) << "[vulkan] Quality level "sv << target_quality
+                               << " is not supported by the driver; using default"sv;
+          }
+        }
+      }
     }
 
     /**
@@ -232,7 +430,19 @@ namespace vk {
         return -1;
       }
 
+#if LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(60, 32, 100)
+      // FFmpeg 9.0+ may create its queues with VK_DEVICE_QUEUE_CREATE_INTERNALLY_SYNCHRONIZED_BIT_KHR
+      // (when VK_KHR_internally_synchronized_queues is available). The Vulkan spec requires
+      // vkGetDeviceQueue2 to retrieve such queues; plain vkGetDeviceQueue would return an
+      // incompatible queue handle, breaking synchronization with the encoder.
+      VkDeviceQueueInfo2 queue_info = {.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2};
+      queue_info.flags = vk_dev.ctx->queue_flags;
+      queue_info.queueFamilyIndex = vk_dev.compute_qf;
+      queue_info.queueIndex = 0;
+      vkGetDeviceQueue2(vk_dev.dev, &queue_info, &vk_dev.compute_queue);
+#else
       vkGetDeviceQueue(vk_dev.dev, vk_dev.compute_qf, 0, &vk_dev.compute_queue);
+#endif
 
       // Load extension functions
       vk_dev.getMemoryFdProperties = (PFN_vkGetMemoryFdPropertiesKHR)
@@ -378,7 +588,7 @@ namespace vk {
   private:
     bool create_compute_pipeline() {
       // Shader module
-      VkShaderModuleCreateInfo shader_ci = {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+      VkShaderModuleCreateInfo shader_ci = {.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
       shader_ci.codeSize = rgb2yuv_comp_spv_size;
       shader_ci.pCode = rgb2yuv_comp_spv_data.data();
       VK_CHECK_BOOL(vkCreateShaderModule(vk_dev.dev, &shader_ci, nullptr, &compute.shader_module));
@@ -390,7 +600,7 @@ namespace vk {
       bindings[2] = {2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr};
       bindings[3] = {3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr};
 
-      VkDescriptorSetLayoutCreateInfo ds_layout_ci = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+      VkDescriptorSetLayoutCreateInfo ds_layout_ci = {.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
       ds_layout_ci.bindingCount = bindings.size();
       ds_layout_ci.pBindings = bindings.data();
       VK_CHECK_BOOL(vkCreateDescriptorSetLayout(vk_dev.dev, &ds_layout_ci, nullptr, &compute.ds_layout));
@@ -398,7 +608,7 @@ namespace vk {
       // Push constant range
       VkPushConstantRange pc_range = {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushConstants)};
 
-      VkPipelineLayoutCreateInfo pl_ci = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+      VkPipelineLayoutCreateInfo pl_ci = {.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
       pl_ci.setLayoutCount = 1;
       pl_ci.pSetLayouts = &compute.ds_layout;
       pl_ci.pushConstantRangeCount = 1;
@@ -406,8 +616,8 @@ namespace vk {
       VK_CHECK_BOOL(vkCreatePipelineLayout(vk_dev.dev, &pl_ci, nullptr, &compute.pipeline_layout));
 
       // Compute pipeline
-      VkComputePipelineCreateInfo comp_ci = {VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
-      comp_ci.stage = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+      VkComputePipelineCreateInfo comp_ci = {.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
+      comp_ci.stage = {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
       comp_ci.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
       comp_ci.stage.module = compute.shader_module;
       comp_ci.stage.pName = "main";
@@ -419,20 +629,20 @@ namespace vk {
         {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2},
         {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 2},
       }};
-      VkDescriptorPoolCreateInfo pool_ci = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+      VkDescriptorPoolCreateInfo pool_ci = {.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
       pool_ci.maxSets = 1;
       pool_ci.poolSizeCount = pool_sizes.size();
       pool_ci.pPoolSizes = pool_sizes.data();
       VK_CHECK_BOOL(vkCreateDescriptorPool(vk_dev.dev, &pool_ci, nullptr, &compute.desc_pool));
 
-      VkDescriptorSetAllocateInfo alloc_info = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+      VkDescriptorSetAllocateInfo alloc_info = {.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
       alloc_info.descriptorPool = compute.desc_pool;
       alloc_info.descriptorSetCount = 1;
       alloc_info.pSetLayouts = &compute.ds_layout;
       VK_CHECK_BOOL(vkAllocateDescriptorSets(vk_dev.dev, &alloc_info, &compute.desc_set));
 
       // Sampler for source image
-      VkSamplerCreateInfo sampler_ci = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+      VkSamplerCreateInfo sampler_ci = {.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
       sampler_ci.magFilter = VK_FILTER_LINEAR;
       sampler_ci.minFilter = VK_FILTER_LINEAR;
       sampler_ci.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -447,12 +657,12 @@ namespace vk {
     }
 
     bool create_command_resources() {
-      VkCommandPoolCreateInfo pool_ci = {VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
+      VkCommandPoolCreateInfo pool_ci = {.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
       pool_ci.queueFamilyIndex = vk_dev.compute_qf;
       pool_ci.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
       VK_CHECK_BOOL(vkCreateCommandPool(vk_dev.dev, &pool_ci, nullptr, &cmd.pool));
 
-      VkCommandBufferAllocateInfo alloc_ci = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+      VkCommandBufferAllocateInfo alloc_ci = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
       alloc_ci.commandPool = cmd.pool;
       alloc_ci.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
       alloc_ci.commandBufferCount = CMD_RING_SIZE;
@@ -516,8 +726,8 @@ namespace vk {
      * @return Expected plane count, or 0 if unknown.
      */
     int query_modifier_plane_count(VkFormat format, uint64_t modifier) {
-      VkDrmFormatModifierPropertiesListEXT mod_list = {VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT};
-      VkFormatProperties2 fmt_props2 = {VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2};
+      VkDrmFormatModifierPropertiesListEXT mod_list = {.sType = VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT};
+      VkFormatProperties2 fmt_props2 = {.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2};
       fmt_props2.pNext = &mod_list;
       vkGetPhysicalDeviceFormatProperties2(vk_dev.phys_dev, format, &fmt_props2);
       std::vector<VkDrmFormatModifierPropertiesEXT> mod_props(mod_list.drmFormatModifierCount);
@@ -540,18 +750,18 @@ namespace vk {
       }
 
       // Query memory requirements for this DMA-BUF
-      VkMemoryFdPropertiesKHR fd_props = {VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR};
+      VkMemoryFdPropertiesKHR fd_props = {.sType = VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR};
       if (vk_dev.getMemoryFdProperties) {
         vk_dev.getMemoryFdProperties(vk_dev.dev, VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT, fd, &fd_props);
       }
 
       // Create VkImage for the DMA-BUF
-      VkExternalMemoryImageCreateInfo ext_ci = {VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO};
+      VkExternalMemoryImageCreateInfo ext_ci = {.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO};
       ext_ci.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
 
       std::array<VkSubresourceLayout, 4> drm_layouts = {};
       VkImageDrmFormatModifierExplicitCreateInfoEXT drm_ci = {
-        VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT
+        .sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT,
       };
       VkImageTiling tiling;
 
@@ -581,7 +791,7 @@ namespace vk {
         tiling = VK_IMAGE_TILING_LINEAR;
       }
 
-      VkImageCreateInfo img_ci = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+      VkImageCreateInfo img_ci = {.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
       img_ci.pNext = &ext_ci;
       img_ci.imageType = VK_IMAGE_TYPE_2D;
       img_ci.format = vk_format;
@@ -606,11 +816,11 @@ namespace vk {
       VkMemoryRequirements mem_req;
       vkGetImageMemoryRequirements(vk_dev.dev, src.image, &mem_req);
 
-      VkImportMemoryFdInfoKHR import_fd = {VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR};
+      VkImportMemoryFdInfoKHR import_fd = {.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR};
       import_fd.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
       import_fd.fd = fd;  // Vulkan takes ownership
 
-      VkMemoryAllocateInfo alloc_info = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+      VkMemoryAllocateInfo alloc_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
       alloc_info.pNext = &import_fd;
       alloc_info.allocationSize = mem_req.size;
       alloc_info.memoryTypeIndex = find_memory_type(
@@ -630,7 +840,7 @@ namespace vk {
       vkBindImageMemory(vk_dev.dev, src.image, src_mem, 0);
 
       // Create image view
-      VkImageViewCreateInfo view_ci = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+      VkImageViewCreateInfo view_ci = {.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
       view_ci.image = src.image;
       view_ci.viewType = VK_IMAGE_VIEW_TYPE_2D;
       view_ci.format = vk_format;
@@ -645,7 +855,7 @@ namespace vk {
     bool create_cursor_image(int w, int h, const uint8_t *pixels) {
       destroy_cursor_image();
 
-      VkImageCreateInfo img_ci = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+      VkImageCreateInfo img_ci = {.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
       img_ci.imageType = VK_IMAGE_TYPE_2D;
       img_ci.format = VK_FORMAT_B8G8R8A8_UNORM;
       img_ci.extent = {(uint32_t) w, (uint32_t) h, 1};
@@ -659,7 +869,7 @@ namespace vk {
 
       VkMemoryRequirements mem_req;
       vkGetImageMemoryRequirements(vk_dev.dev, cursor.image, &mem_req);
-      VkMemoryAllocateInfo alloc = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+      VkMemoryAllocateInfo alloc = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
       alloc.allocationSize = mem_req.size;
       alloc.memoryTypeIndex = find_memory_type(mem_req.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
       VK_CHECK_BOOL(vkAllocateMemory(vk_dev.dev, &alloc, nullptr, &cursor.mem));
@@ -677,7 +887,7 @@ namespace vk {
         vkUnmapMemory(vk_dev.dev, cursor.mem);
       }
 
-      VkImageViewCreateInfo view_ci = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+      VkImageViewCreateInfo view_ci = {.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
       view_ci.image = cursor.image;
       view_ci.viewType = VK_IMAGE_VIEW_TYPE_2D;
       view_ci.format = VK_FORMAT_B8G8R8A8_UNORM;
@@ -721,7 +931,7 @@ namespace vk {
 
       if (num_imgs == 1) {
         // Single multiplane image — create plane views
-        VkImageViewCreateInfo view_ci = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+        VkImageViewCreateInfo view_ci = {.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
         view_ci.image = vk_frame->img[0];
         view_ci.viewType = VK_IMAGE_VIEW_TYPE_2D;
 
@@ -736,7 +946,7 @@ namespace vk {
         VK_CHECK_BOOL(vkCreateImageView(vk_dev.dev, &view_ci, nullptr, &target.uv_view));
       } else {
         // Separate images per plane
-        VkImageViewCreateInfo view_ci = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+        VkImageViewCreateInfo view_ci = {.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
         view_ci.viewType = VK_IMAGE_VIEW_TYPE_2D;
         view_ci.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
@@ -779,12 +989,12 @@ namespace vk {
       auto cmd_buf = cmd.ring[cmd.ring_idx];
       cmd.ring_idx = (cmd.ring_idx + 1) % CMD_RING_SIZE;
 
-      VkCommandBufferBeginInfo begin_ci = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+      VkCommandBufferBeginInfo begin_ci = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
       begin_ci.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
       VK_CHECK(vkBeginCommandBuffer(cmd_buf, &begin_ci));
 
       // Transition source image to SHADER_READ_ONLY
-      VkImageMemoryBarrier src_barrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+      VkImageMemoryBarrier src_barrier = {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
       src_barrier.srcAccessMask = 0;
       src_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
       src_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -798,7 +1008,7 @@ namespace vk {
 
       // Transition cursor image if needed
       if (cursor.needs_transition) {
-        VkImageMemoryBarrier cursor_barrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        VkImageMemoryBarrier cursor_barrier = {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
         cursor_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
         cursor_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
         cursor_barrier.oldLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
@@ -815,7 +1025,7 @@ namespace vk {
       std::array<VkImageMemoryBarrier, 2> dst_barriers = {};
       int num_dst_barriers = (num_imgs == 1) ? 1 : 2;
       for (int i = 0; i < num_dst_barriers; i++) {
-        dst_barriers[i] = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        dst_barriers[i] = {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
         dst_barriers[i].srcAccessMask = target.initialized ? VK_ACCESS_SHADER_READ_BIT : 0;
         dst_barriers[i].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
         dst_barriers[i].oldLayout = target.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED;
@@ -840,7 +1050,7 @@ namespace vk {
       VK_CHECK(vkEndCommandBuffer(cmd_buf));
 
       // Submit with timeline semaphore signaling for FFmpeg
-      VkTimelineSemaphoreSubmitInfo timeline_info = {VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO};
+      VkTimelineSemaphoreSubmitInfo timeline_info = {.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO};
       std::array<VkSemaphore, AV_NUM_DATA_POINTERS> wait_sems = {};
       std::array<VkSemaphore, AV_NUM_DATA_POINTERS> signal_sems = {};
       std::array<uint64_t, AV_NUM_DATA_POINTERS> wait_vals = {};
@@ -864,7 +1074,7 @@ namespace vk {
       timeline_info.signalSemaphoreValueCount = sem_count;
       timeline_info.pSignalSemaphoreValues = signal_vals.data();
 
-      VkSubmitInfo submit = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+      VkSubmitInfo submit = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO};
       submit.pNext = &timeline_info;
       submit.waitSemaphoreCount = sem_count;
       submit.pWaitSemaphores = wait_sems.data();
