@@ -211,6 +211,56 @@ namespace platf {
           }
         }
 
+        /**
+         * @brief Wrap drmModeGetPlaneResources call in privileged worker thread.
+         *
+         * @param fd DRM file descriptor.
+         * @return Pointer to drmModePlaneRes structure on success, or nullptr on failure.
+         */
+        static drmModePlaneResPtr drmModeGetPlaneResources_privileged(int fd) {
+          try {
+            const auto [result, errno_value] = run_with_errno([fd] {
+              return drmModeGetPlaneResources(fd);
+            });
+
+            if (!result) {
+              errno = errno_value;
+            }
+
+            return result;
+
+          } catch (const privileged_drm_worker_stopped &err) {
+            BOOST_LOG(error) << err.what();
+            return nullptr;
+          }
+        }
+
+        /**
+         * @brief Wrap drmSetClientCap call in privileged worker thread.
+         *
+         * @param fd DRM file descriptor.
+         * @param capability Capability to set.
+         * @param capability Value to set.
+         * @return 1 on success, -1 on failure.
+         */
+        static int drmSetClientCap_privileged(int fd, uint64_t capability, uint64_t value) {
+          try {
+            const auto [result, errno_value] = run_with_errno([fd, capability, value] {
+              return drmSetClientCap(fd, capability, value);
+            });
+
+            if (!result) {
+              errno = errno_value;
+            }
+
+            return result;
+
+          } catch (const privileged_drm_worker_stopped &err) {
+            BOOST_LOG(error) << err.what();
+            return -1;
+          }
+        }
+
       private:
         static privileged_drm_worker &instance() {
           static privileged_drm_worker w;
@@ -715,12 +765,12 @@ namespace platf {
           render_fd.el = dup(fd.el);
         }
 
-        if (drmSetClientCap(fd.el, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1)) {
+        if (platf::kms::privileged_drm_worker::drmSetClientCap_privileged(fd.el, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1)) {
           BOOST_LOG(error) << "GPU driver doesn't support universal planes: "sv << path;
           return -1;
         }
 
-        if (drmSetClientCap(fd.el, DRM_CLIENT_CAP_ATOMIC, 1)) {
+        if (platf::kms::privileged_drm_worker::drmSetClientCap_privileged(fd.el, DRM_CLIENT_CAP_ATOMIC, 1)) {
           BOOST_LOG(warning) << "GPU driver doesn't support atomic mode-setting: "sv << path;
 #if defined(SUNSHINE_BUILD_X11)
           // We won't be able to capture the mouse cursor with KMS on non-atomic drivers,
@@ -733,7 +783,7 @@ namespace platf {
           BOOST_LOG(warning) << "Cursor capture may fail without atomic mode-setting support!"sv;
         }
 
-        plane_res.reset(drmModeGetPlaneResources(fd.el));
+        plane_res.reset(platf::kms::privileged_drm_worker::drmModeGetPlaneResources_privileged(fd.el));
         if (!plane_res) {
           BOOST_LOG(error) << "Couldn't get drm plane resources"sv;
           return -1;
