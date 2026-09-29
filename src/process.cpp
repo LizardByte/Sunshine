@@ -853,7 +853,7 @@ namespace proc {
     auto current_time = std::filesystem::last_write_time(file_name, ec);
 
     // Only skip parsing when we have a known-good timestamp and the file hasn't changed
-    if (last_apps_file_update && !ec && current_time <= *last_apps_file_update) {
+    if (last_apps_file_update && !ec && current_time == *last_apps_file_update) {
       return;
     }
 

@@ -338,6 +338,53 @@ protected:
     fs::last_write_time(path, new_time);
   }
 
+  void runUpdateWithPlaceboSession(const std::function<void(proc::proc_t &)> &assertions) {
+    boost::process::v1::environment env = boost::this_process::environment();
+    std::vector<proc::ctx_t> apps_initial;
+    proc::ctx_t ctx;
+    ctx.name = "Desktop";
+    ctx.id = "42";
+    apps_initial.push_back(std::move(ctx));
+
+    proc::proc_t target(std::move(env), std::move(apps_initial));
+
+    auto &global_proc = proc::proc;
+    auto saved = std::move(global_proc);
+    global_proc = std::move(target);
+
+    // Launch placebo app to populate session variables in _env
+    auto launch_session = std::make_shared<rtsp_stream::launch_session_t>();
+    launch_session->width = 1920;
+    launch_session->height = 1080;
+    launch_session->fps = 60;
+    launch_session->gcmap = 0;
+    launch_session->enable_hdr = false;
+    launch_session->host_audio = false;
+    launch_session->enable_sops = false;
+    launch_session->surround_info = 2;
+    int rc = global_proc.execute(42, launch_session);
+    ASSERT_EQ(rc, 0);
+
+    // Build a replacement proc_t with a different app list
+    boost::process::v1::environment env2 = boost::this_process::environment();
+    std::vector<proc::ctx_t> apps_new;
+    proc::ctx_t ctx_new;
+    ctx_new.name = "NewApp";
+    ctx_new.id = "99";
+    apps_new.push_back(std::move(ctx_new));
+    proc::proc_t source(std::move(env2), std::move(apps_new));
+
+    // Act — update only apps/env, not running process state
+    global_proc.update_apps_and_env(std::move(source));
+
+    // Run custom assertions
+    assertions(global_proc);
+
+    // Cleanup
+    global_proc.terminate();
+    global_proc = std::move(saved);
+  }
+
   fs::path test_dir;
 };
 
@@ -382,112 +429,23 @@ TEST_F(ProcessRefreshTest, UpdateAppsAndEnv_UpdatesAppsList) {
 }
 
 TEST_F(ProcessRefreshTest, UpdateAppsAndEnv_PreservesRunningState) {
-  // Build a proc_t and simulate a running app using the execute path.
-  // Since we cannot easily launch a real process in a unit test, we verify
-  // that update_apps_and_env does NOT reset _app_id by checking that the
-  // running() return value is preserved.
-  //
-  // We use a "placebo" app (empty cmd) which sets _app_id without spawning
-  // a real process.
-  boost::process::v1::environment env = boost::this_process::environment();
-  std::vector<proc::ctx_t> apps_initial;
-  proc::ctx_t ctx;
-  ctx.name = "Desktop";
-  ctx.id = "42";
-  // Leave cmd empty so execute() uses placebo mode
-  apps_initial.push_back(std::move(ctx));
-
-  proc::proc_t target(std::move(env), std::move(apps_initial));
-
-  // Stash into global proc so execute() can find the app by ID and
-  // terminate() / running() work correctly.
-  auto &global_proc = proc::proc;
-  auto saved = std::move(global_proc);
-  global_proc = std::move(target);
-
-  // Execute the placebo app (empty cmd → placebo = true, _app_id = 42)
-  auto launch_session = std::make_shared<rtsp_stream::launch_session_t>();
-  launch_session->width = 1920;
-  launch_session->height = 1080;
-  launch_session->fps = 60;
-  launch_session->gcmap = 0;
-  launch_session->enable_hdr = false;
-  launch_session->host_audio = false;
-  launch_session->enable_sops = false;
-  launch_session->surround_info = 2;
-  int rc = global_proc.execute(42, launch_session);
-  ASSERT_EQ(rc, 0);
-  ASSERT_EQ(global_proc.running(), 42);
-
-  // Build a replacement proc_t with a different app list
-  boost::process::v1::environment env2 = boost::this_process::environment();
-  std::vector<proc::ctx_t> apps_new;
-  proc::ctx_t ctx_new;
-  ctx_new.name = "NewApp";
-  ctx_new.id = "99";
-  apps_new.push_back(std::move(ctx_new));
-  proc::proc_t source(std::move(env2), std::move(apps_new));
-
-  // Act — update only apps/env, not running process state
-  global_proc.update_apps_and_env(std::move(source));
-
-  // Assert — app list updated, but the running state is preserved
-  ASSERT_EQ(global_proc.get_apps().size(), 1u);
-  EXPECT_EQ(global_proc.get_apps()[0].name, "NewApp");
-  EXPECT_EQ(global_proc.running(), 42) << "update_apps_and_env must not reset _app_id or placebo";
-
-  // Cleanup
-  global_proc.terminate();
-  global_proc = std::move(saved);
+  runUpdateWithPlaceboSession([](proc::proc_t &global_proc) {
+    ASSERT_EQ(global_proc.get_apps().size(), 1u);
+    EXPECT_EQ(global_proc.get_apps()[0].name, "NewApp");
+    EXPECT_EQ(global_proc.running(), 42) << "update_apps_and_env must not reset _app_id or placebo";
+  });
 }
 
 TEST_F(ProcessRefreshTest, UpdateAppsAndEnv_PreservesSessionEnvironment) {
-  // Verify that session-specific environment variables (SUNSHINE_APP_NAME)
-  // are preserved through an update and available to undo commands.
-  boost::process::v1::environment env = boost::this_process::environment();
-  std::vector<proc::ctx_t> apps_initial;
-  proc::ctx_t ctx;
-  ctx.name = "Desktop";
-  ctx.id = "42";
-  apps_initial.push_back(std::move(ctx));
+  runUpdateWithPlaceboSession([](proc::proc_t &global_proc) {
+    const auto &active_env = global_proc.get_env();
+    EXPECT_TRUE(active_env.count("SUNSHINE_APP_NAME") > 0)
+      << "SUNSHINE_APP_NAME was wiped from the environment during update_apps_and_env";
 
-  proc::proc_t target(std::move(env), std::move(apps_initial));
-
-  auto &global_proc = proc::proc;
-  auto saved = std::move(global_proc);
-  global_proc = std::move(target);
-
-  // Launch placebo app to populate session variables in _env
-  auto launch_session = std::make_shared<rtsp_stream::launch_session_t>();
-  launch_session->width = 1920;
-  launch_session->height = 1080;
-  launch_session->fps = 60;
-  int rc = global_proc.execute(42, launch_session);
-  ASSERT_EQ(rc, 0);
-
-  // Update apps and env (simulating a reload)
-  boost::process::v1::environment env2 = boost::this_process::environment();
-  std::vector<proc::ctx_t> apps_new;
-  proc::ctx_t ctx_new;
-  ctx_new.name = "NewApp";
-  ctx_new.id = "99";
-  apps_new.push_back(std::move(ctx_new));
-  proc::proc_t source(std::move(env2), std::move(apps_new));
-
-  global_proc.update_apps_and_env(std::move(source));
-
-  // Verify that SUNSHINE_APP_NAME survived the swap
-  const auto &active_env = global_proc.get_env();
-  EXPECT_TRUE(active_env.count("SUNSHINE_APP_NAME") > 0)
-    << "SUNSHINE_APP_NAME was wiped from the environment during update_apps_and_env";
-
-  if (active_env.count("SUNSHINE_APP_NAME") > 0) {
-    EXPECT_EQ(active_env.at("SUNSHINE_APP_NAME").to_string(), "Desktop");
-  }
-
-  // Cleanup
-  global_proc.terminate();
-  global_proc = std::move(saved);
+    if (active_env.count("SUNSHINE_APP_NAME") > 0) {
+      EXPECT_EQ(active_env.at("SUNSHINE_APP_NAME").to_string(), "Desktop");
+    }
+  });
 }
 
 // -------------------------------------------------------------------
@@ -564,6 +522,31 @@ TEST_F(ProcessRefreshTest, Refresh_ReparseAfterFileModified) {
   EXPECT_EQ(proc::proc.get_apps()[0].name, "AfterEdit");
 
   // Cleanup
+  proc::proc = std::move(saved);
+}
+
+TEST_F(ProcessRefreshTest, Refresh_ReparseAfterFileMtimeDecreased) {
+  const fs::path apps_file = test_dir / "apps_reverted.json";
+  writeAppsJson(apps_file, {"Initial"});
+
+  auto saved = std::move(proc::proc);
+  proc::proc = proc::proc_t {};
+
+  proc::refresh(apps_file.string());
+  ASSERT_EQ(proc::proc.get_apps().size(), 1u);
+  EXPECT_EQ(proc::proc.get_apps()[0].name, "Initial");
+
+  // Write a new file but artificially set its timestamp to the PAST
+  // simulating a backup restoration or git checkout
+  writeAppsJson(apps_file, {"OlderBackup"});
+  auto past_time = fs::file_time_type::clock::now() - std::chrono::hours(1);
+  fs::last_write_time(apps_file, past_time);
+
+  proc::refresh(apps_file.string());
+  ASSERT_EQ(proc::proc.get_apps().size(), 1u);
+  EXPECT_EQ(proc::proc.get_apps()[0].name, "OlderBackup")
+    << "refresh() must re-parse if the modification time differs, even if it is strictly earlier";
+
   proc::proc = std::move(saved);
 }
 
