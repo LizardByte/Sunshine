@@ -341,7 +341,10 @@ protected:
   fs::path test_dir;
 };
 
-class ProcessUpdateTest : public ProcessRefreshTest { // NOSONAR(cpp:S3656): protected members are intentional for test fixture subclassing
+/**
+ * @brief Test fixture for testing updates to process apps and environment.
+ */
+class ProcessUpdateTest: public ProcessRefreshTest {  // NOSONAR(cpp:S3656): protected members are intentional for test fixture subclassing
 protected:
   proc::proc_t saved_global_proc;
 
@@ -376,10 +379,14 @@ protected:
   void TearDown() override {
     proc::proc.terminate();
     proc::proc = std::move(saved_global_proc);
-    
     ProcessRefreshTest::TearDown();
   }
 
+  /**
+   * @brief Build a simulated source environment and app list for the update.
+   *
+   * @return A constructed proc_t containing the new applications and environment.
+   */
   proc::proc_t buildNewSource() const {
     boost::process::v1::environment env2 = boost::this_process::environment();
     std::vector<proc::ctx_t> apps_new;
@@ -390,10 +397,6 @@ protected:
     return proc::proc_t(std::move(env2), std::move(apps_new));
   }
 };
-
-// -------------------------------------------------------------------
-// Tests for proc_t::update_apps_and_env
-// -------------------------------------------------------------------
 
 TEST_F(ProcessRefreshTest, UpdateAppsAndEnv_UpdatesAppsList) {
   // Build an initial proc_t with one app
@@ -450,10 +453,6 @@ TEST_F(ProcessUpdateTest, UpdateAppsAndEnv_PreservesSessionEnvironment) {
     EXPECT_EQ(active_env.at("SUNSHINE_APP_NAME").to_string(), "Desktop");
   }
 }
-
-// -------------------------------------------------------------------
-// Tests for proc::refresh
-// -------------------------------------------------------------------
 
 TEST_F(ProcessRefreshTest, Refresh_ParsesFileOnFirstCall) {
   // The first call to refresh() must always parse the file, regardless
@@ -599,10 +598,6 @@ TEST_F(ProcessRefreshTest, Refresh_PreservesRunningAppDuringReparse) {
   proc::proc = std::move(saved);
 }
 
-// -------------------------------------------------------------------
-// Test for file_time_type{} comparison (documents the UCRT64 issue)
-// -------------------------------------------------------------------
-
 TEST_F(ProcessRefreshTest, FileTimeType_DefaultValueComparison) {
   // This test documents the behavior that triggered the timestamp guard
   // regression. On some toolchains (MSYS2 UCRT64 GCC 16.2), file timestamps
@@ -627,4 +622,3 @@ TEST_F(ProcessRefreshTest, FileTimeType_DefaultValueComparison) {
   // if that test passes, the optional fix works regardless of platform behavior.
   SUCCEED();
 }
-
