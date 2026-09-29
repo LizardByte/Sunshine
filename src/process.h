@@ -160,6 +160,15 @@ namespace proc {
      */
     void update_apps_and_env(proc_t &&other);
 
+#ifdef SUNSHINE_TESTS
+    /**
+     * @brief Get the current process environment (strictly for unit tests).
+     */
+    const boost::process::v1::environment &get_env() const {
+      return _env;
+    }
+#endif
+
   private:
     int _app_id;
 

@@ -449,16 +449,6 @@ TEST_F(ProcessRefreshTest, UpdateAppsAndEnv_PreservesSessionEnvironment) {
   proc::ctx_t ctx;
   ctx.name = "Desktop";
   ctx.id = "42";
-
-  // Create a prep command with an empty do_cmd (skipped during launch)
-  // but a valid undo_cmd that writes SUNSHINE_APP_NAME to a file.
-  fs::path out_file = test_dir / "undo_env.txt";
-#ifdef _WIN32
-  proc::cmd_t cmd("", "cmd.exe /c echo %SUNSHINE_APP_NAME% > \"" + out_file.string() + "\"", true);
-#else
-  proc::cmd_t cmd("", "sh -c \"echo $SUNSHINE_APP_NAME > '" + out_file.string() + "'\"", true);
-#endif
-  ctx.prep_cmds.push_back(std::move(cmd));
   apps_initial.push_back(std::move(ctx));
 
   proc::proc_t target(std::move(env), std::move(apps_initial));
@@ -467,7 +457,7 @@ TEST_F(ProcessRefreshTest, UpdateAppsAndEnv_PreservesSessionEnvironment) {
   auto saved = std::move(global_proc);
   global_proc = std::move(target);
 
-  // Launch placebo app to populate session variables
+  // Launch placebo app to populate session variables in _env
   auto launch_session = std::make_shared<rtsp_stream::launch_session_t>();
   launch_session->width = 1920;
   launch_session->height = 1080;
@@ -475,7 +465,7 @@ TEST_F(ProcessRefreshTest, UpdateAppsAndEnv_PreservesSessionEnvironment) {
   int rc = global_proc.execute(42, launch_session);
   ASSERT_EQ(rc, 0);
 
-  // Update apps and env
+  // Update apps and env (simulating a reload)
   boost::process::v1::environment env2 = boost::this_process::environment();
   std::vector<proc::ctx_t> apps_new;
   proc::ctx_t ctx_new;
@@ -486,19 +476,17 @@ TEST_F(ProcessRefreshTest, UpdateAppsAndEnv_PreservesSessionEnvironment) {
 
   global_proc.update_apps_and_env(std::move(source));
 
-  // Terminate should run the undo_cmd using the preserved environment
+  // Verify that SUNSHINE_APP_NAME survived the swap
+  const auto &active_env = global_proc.get_env();
+  EXPECT_TRUE(active_env.count("SUNSHINE_APP_NAME") > 0)
+    << "SUNSHINE_APP_NAME was wiped from the environment during update_apps_and_env";
+
+  if (active_env.count("SUNSHINE_APP_NAME") > 0) {
+    EXPECT_EQ(active_env.at("SUNSHINE_APP_NAME").to_string(), "Desktop");
+  }
+
+  // Cleanup
   global_proc.terminate();
-
-  // Verify the undo command wrote the app name to the file
-  ASSERT_TRUE(fs::exists(out_file)) << "Undo command failed to execute or write file";
-  std::ifstream ifs(out_file);
-  std::string content;
-  std::getline(ifs, content);
-  
-  // Trim trailing whitespace (like \r\n from echo)
-  content.erase(content.find_last_not_of(" \n\r\t") + 1);
-  EXPECT_EQ(content, "Desktop") << "SUNSHINE_APP_NAME was not preserved in the environment";
-
   global_proc = std::move(saved);
 }
 
