@@ -454,9 +454,9 @@ TEST_F(ProcessRefreshTest, UpdateAppsAndEnv_PreservesSessionEnvironment) {
   // but a valid undo_cmd that writes SUNSHINE_APP_NAME to a file.
   fs::path out_file = test_dir / "undo_env.txt";
 #ifdef _WIN32
-  proc::cmd_t cmd("", "cmd.exe /c echo %SUNSHINE_APP_NAME% > \"" + out_file.string() + "\"", false);
+  proc::cmd_t cmd("", "cmd.exe /c echo %SUNSHINE_APP_NAME% > \"" + out_file.string() + "\"", true);
 #else
-  proc::cmd_t cmd("", "sh -c \"echo $SUNSHINE_APP_NAME > '" + out_file.string() + "'\"", false);
+  proc::cmd_t cmd("", "sh -c \"echo $SUNSHINE_APP_NAME > '" + out_file.string() + "'\"", true);
 #endif
   ctx.prep_cmds.push_back(std::move(cmd));
   apps_initial.push_back(std::move(ctx));
