@@ -50,7 +50,7 @@ jobs:
     steps:
       - name: More space
         if: runner.os == 'Linux' && matrix.release != true
-        uses: LizardByte/actions/actions/more_space@39c468549cfb87ccb917e5e5342e18abc926dc48  # v2026.909.30231
+        uses: LizardByte/actions/actions/more_space@28374bf43cc8b6ee88b9b8a3419b2ac7a6573906  # v2026.928.123224
         with:
           analyze-space-savings: true
           clean-all: true
