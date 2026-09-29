@@ -321,7 +321,7 @@ protected:
     std::ofstream file(path);
     file << "{\n  \"env\": {},\n  \"apps\": [\n";
     for (size_t i = 0; i < app_names.size(); ++i) {
-      file << "    { \"name\": \"" << app_names[i] << "\" }";
+      file << R"(    { "name": ")" << app_names[i] << R"(" })";
       if (i + 1 < app_names.size()) {
         file << ",";
       }
@@ -329,6 +329,13 @@ protected:
     }
     file << "  ]\n}\n";
     file.close();
+
+    // Artificially advance the modification time to guarantee strict monotonicity
+    // across tests. This prevents the static last_apps_file_update in refresh()
+    // from skipping parses when tests execute rapidly in the same clock tick.
+    static int test_time_offset = 1;
+    auto new_time = fs::file_time_type::clock::now() + std::chrono::seconds(test_time_offset++);
+    fs::last_write_time(path, new_time);
   }
 
   fs::path test_dir;
@@ -434,6 +441,67 @@ TEST_F(ProcessRefreshTest, UpdateAppsAndEnv_PreservesRunningState) {
   global_proc = std::move(saved);
 }
 
+TEST_F(ProcessRefreshTest, UpdateAppsAndEnv_PreservesSessionEnvironment) {
+  // Verify that session-specific environment variables (SUNSHINE_APP_NAME)
+  // are preserved through an update and available to undo commands.
+  boost::process::v1::environment env = boost::this_process::environment();
+  std::vector<proc::ctx_t> apps_initial;
+  proc::ctx_t ctx;
+  ctx.name = "Desktop";
+  ctx.id = "42";
+
+  // Create a prep command with an empty do_cmd (skipped during launch)
+  // but a valid undo_cmd that writes SUNSHINE_APP_NAME to a file.
+  fs::path out_file = test_dir / "undo_env.txt";
+#ifdef _WIN32
+  proc::cmd_t cmd("", "cmd.exe /c echo %SUNSHINE_APP_NAME% > \"" + out_file.string() + "\"", false);
+#else
+  proc::cmd_t cmd("", "sh -c \"echo $SUNSHINE_APP_NAME > '" + out_file.string() + "'\"", false);
+#endif
+  ctx.prep_cmds.push_back(std::move(cmd));
+  apps_initial.push_back(std::move(ctx));
+
+  proc::proc_t target(std::move(env), std::move(apps_initial));
+
+  auto &global_proc = proc::proc;
+  auto saved = std::move(global_proc);
+  global_proc = std::move(target);
+
+  // Launch placebo app to populate session variables
+  auto launch_session = std::make_shared<rtsp_stream::launch_session_t>();
+  launch_session->width = 1920;
+  launch_session->height = 1080;
+  launch_session->fps = 60;
+  int rc = global_proc.execute(42, launch_session);
+  ASSERT_EQ(rc, 0);
+
+  // Update apps and env
+  boost::process::v1::environment env2 = boost::this_process::environment();
+  std::vector<proc::ctx_t> apps_new;
+  proc::ctx_t ctx_new;
+  ctx_new.name = "NewApp";
+  ctx_new.id = "99";
+  apps_new.push_back(std::move(ctx_new));
+  proc::proc_t source(std::move(env2), std::move(apps_new));
+
+  global_proc.update_apps_and_env(std::move(source));
+
+  // Terminate should run the undo_cmd using the preserved environment
+  global_proc.terminate();
+
+  // Verify the undo command wrote the app name to the file
+  ASSERT_TRUE(fs::exists(out_file)) << "Undo command failed to execute or write file";
+  std::ifstream ifs(out_file);
+  std::string content;
+  std::getline(ifs, content);
+  
+  // Trim trailing whitespace (like \r\n from echo)
+  content.erase(content.find_last_not_of(" \n\r\t") + 1);
+  EXPECT_EQ(content, "Desktop") << "SUNSHINE_APP_NAME was not preserved in the environment";
+
+  global_proc = std::move(saved);
+}
+
 // -------------------------------------------------------------------
 // Tests for proc::refresh
 // -------------------------------------------------------------------
@@ -500,13 +568,8 @@ TEST_F(ProcessRefreshTest, Refresh_ReparseAfterFileModified) {
   ASSERT_EQ(proc::proc.get_apps().size(), 1u);
   EXPECT_EQ(proc::proc.get_apps()[0].name, "BeforeEdit");
 
-  // Wait briefly, then rewrite to ensure a new timestamp
-  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  // Rewrite to ensure a new timestamp
   writeAppsJson(apps_file, {"AfterEdit"});
-
-  // Bump the modification time to ensure it differs
-  auto new_time = fs::file_time_type::clock::now();
-  fs::last_write_time(apps_file, new_time);
 
   proc::refresh(apps_file.string());
   ASSERT_EQ(proc::proc.get_apps().size(), 1u);
@@ -547,10 +610,7 @@ TEST_F(ProcessRefreshTest, Refresh_PreservesRunningAppDuringReparse) {
   ASSERT_EQ(proc::proc.running(), desktop_id);
 
   // Simulate an external edit to the apps file
-  std::this_thread::sleep_for(std::chrono::milliseconds(50));
   writeAppsJson(apps_file, {"Desktop", "NewApp"});
-  auto new_time = fs::file_time_type::clock::now();
-  fs::last_write_time(apps_file, new_time);
 
   // Act — refresh while the app is "running"
   proc::refresh(apps_file.string());

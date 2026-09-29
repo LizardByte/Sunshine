@@ -416,6 +416,15 @@ namespace proc {
   }
 
   void proc_t::update_apps_and_env(proc_t &&other) {
+    if (_app_id > 0 || placebo) {
+      // Preserve session-specific environment variables for the running app
+      for (const auto &var : _env) {
+        std::string name = var.get_name();
+        if (name.find("SUNSHINE_APP_") == 0 || name.find("SUNSHINE_CLIENT_") == 0) {
+          other._env[name] = var.to_string();
+        }
+      }
+    }
     _env = std::move(other._env);
     _apps = std::move(other._apps);
   }
