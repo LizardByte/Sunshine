@@ -339,6 +339,19 @@ TEST_F(SystemTrayTest, UpdatesAreIgnoredBeforeInitialization) {
   EXPECT_EQ(system_tray::end_tray(), 0);
 }
 
+  #ifdef __APPLE__
+TEST_F(SystemTrayTest, LeftClickUsesNativeMacOSMenu) {
+  const auto &tray_data = system_tray::tray_data_for_testing();
+  ASSERT_NE(tray_data.cb, nullptr);
+  ASSERT_NE(tray_data.menu, nullptr);
+
+  tray_data.cb(nullptr);
+
+  EXPECT_STREQ(tray_data.menu[0].text, "Open Sunshine");
+  EXPECT_FALSE(system_tray::tray_initialized_for_testing());
+}
+  #endif
+
   #ifdef _WIN32
 TEST_F(SystemTrayTest, ResolvesDevelopmentTrayIconsFromExecutableDirectory) {
   EXPECT_EQ(system_tray::resource_path_for_testing(nullptr), nullptr);

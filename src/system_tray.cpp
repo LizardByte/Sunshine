@@ -291,10 +291,26 @@ namespace system_tray {
   static auto virtualhid_license_menu = initial_virtualhid_license_menu();  ///< Virtual HID Broker license submenu.
   #endif
 
+  #ifdef __APPLE__
+  /**
+   * @brief Leave macOS tray menu presentation to Qt's native status item.
+   *
+   * Qt opens an attached context menu on mouse press. Supplying a callback
+   * prevents the tray library from opening a second popup on activation.
+   *
+   * @param tray_icon Tray icon that received the click.
+   */
+  void tray_native_menu_click_cb([[maybe_unused]] struct tray *tray_icon) {
+  }
+  #endif
+
   // Tray menu
   static struct tray tray = {
     .icon = TRAY_ICON,
     .tooltip = PROJECT_NAME,
+  #ifdef __APPLE__
+    .cb = tray_native_menu_click_cb,
+  #endif
     .menu =
       (struct tray_menu[]) {
         // Tray menu labels currently use the project's English source strings.
