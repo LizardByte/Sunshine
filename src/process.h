@@ -151,6 +151,17 @@ namespace proc {
      */
     void terminate();
 
+    /**
+     * @brief Update the cached app list and environment without disturbing running process state.
+     *
+     * This replaces only the application configuration data (_apps and _env) from a newly parsed
+     * proc_t, preserving the current _app_id, _process, _process_group, and other fields that
+     * track an in-flight streaming session.
+     *
+     * @param other The newly parsed proc_t whose apps and env will be moved into this instance.
+     */
+    void update_apps_and_env(proc_t &&other);
+
   private:
     int _app_id;
 

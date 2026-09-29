@@ -8,6 +8,10 @@
 // standard imports
 #include <filesystem>
 #include <fstream>
+#include <thread>
+
+// lib imports
+#include <boost/process/v1.hpp>
 
 // local imports
 #include <src/process.h>
@@ -272,3 +276,305 @@ TEST_F(ProcessPNGTest, ValidateAppImagePath_OldSteamDefault) {
   const std::string result = proc::validate_app_image_path("./assets/steam.png");
   EXPECT_EQ(result, SUNSHINE_ASSETS_DIR "/steam.png");
 }
+
+/**
+ * @brief Test fixture for proc_t::update_apps_and_env and proc::refresh.
+ */
+class ProcessRefreshTest: public BaseTest {
+protected:
+  void SetUp() override {
+    BaseTest::SetUp();
+    test_dir = fs::temp_directory_path() / "sunshine_process_refresh_test";  // NOSONAR(cpp:S5443): safe for tests
+    fs::create_directories(test_dir);
+  }
+
+  void TearDown() override {
+    if (fs::exists(test_dir)) {
+      fs::remove_all(test_dir);
+    }
+    BaseTest::TearDown();
+  }
+
+  /**
+   * @brief Write a minimal valid apps.json file.
+   *
+   * @param path Target path for the JSON file.
+   * @param app_names List of application names to include.
+   */
+  void writeAppsJson(const fs::path &path, const std::vector<std::string> &app_names) const {
+    std::ofstream file(path);
+    file << "{\n  \"env\": {},\n  \"apps\": [\n";
+    for (size_t i = 0; i < app_names.size(); ++i) {
+      file << "    { \"name\": \"" << app_names[i] << "\" }";
+      if (i + 1 < app_names.size()) {
+        file << ",";
+      }
+      file << "\n";
+    }
+    file << "  ]\n}\n";
+    file.close();
+  }
+
+  fs::path test_dir;
+};
+
+// -------------------------------------------------------------------
+// Tests for proc_t::update_apps_and_env
+// -------------------------------------------------------------------
+
+TEST_F(ProcessRefreshTest, UpdateAppsAndEnv_UpdatesAppsList) {
+  // Build an initial proc_t with one app
+  boost::process::v1::environment env = boost::this_process::environment();
+  std::vector<proc::ctx_t> apps_initial;
+  proc::ctx_t ctx_a;
+  ctx_a.name = "AppA";
+  ctx_a.id = "100";
+  apps_initial.push_back(std::move(ctx_a));
+
+  proc::proc_t target(std::move(env), std::move(apps_initial));
+  ASSERT_EQ(target.get_apps().size(), 1u);
+  EXPECT_EQ(target.get_apps()[0].name, "AppA");
+
+  // Build a replacement proc_t with two apps
+  boost::process::v1::environment env2 = boost::this_process::environment();
+  std::vector<proc::ctx_t> apps_new;
+  proc::ctx_t ctx_b;
+  ctx_b.name = "AppB";
+  ctx_b.id = "200";
+  apps_new.push_back(std::move(ctx_b));
+  proc::ctx_t ctx_c;
+  ctx_c.name = "AppC";
+  ctx_c.id = "300";
+  apps_new.push_back(std::move(ctx_c));
+
+  proc::proc_t source(std::move(env2), std::move(apps_new));
+
+  // Act
+  target.update_apps_and_env(std::move(source));
+
+  // Assert — apps list must now contain the new apps
+  ASSERT_EQ(target.get_apps().size(), 2u);
+  EXPECT_EQ(target.get_apps()[0].name, "AppB");
+  EXPECT_EQ(target.get_apps()[1].name, "AppC");
+}
+
+TEST_F(ProcessRefreshTest, UpdateAppsAndEnv_PreservesRunningState) {
+  // Build a proc_t and simulate a running app using the execute path.
+  // Since we cannot easily launch a real process in a unit test, we verify
+  // that update_apps_and_env does NOT reset _app_id by checking that the
+  // running() return value is preserved.
+  //
+  // We use a "placebo" app (empty cmd) which sets _app_id without spawning
+  // a real process.
+  boost::process::v1::environment env = boost::this_process::environment();
+  std::vector<proc::ctx_t> apps_initial;
+  proc::ctx_t ctx;
+  ctx.name = "Desktop";
+  ctx.id = "42";
+  // Leave cmd empty so execute() uses placebo mode
+  apps_initial.push_back(std::move(ctx));
+
+  proc::proc_t target(std::move(env), std::move(apps_initial));
+
+  // Stash into global proc so execute() can find the app by ID and
+  // terminate() / running() work correctly.
+  auto &global_proc = proc::proc;
+  auto saved = std::move(global_proc);
+  global_proc = std::move(target);
+
+  // Execute the placebo app (empty cmd → placebo = true, _app_id = 42)
+  auto launch_session = std::make_shared<rtsp_stream::launch_session_t>();
+  launch_session->width = 1920;
+  launch_session->height = 1080;
+  launch_session->fps = 60;
+  launch_session->gcmap = 0;
+  launch_session->enable_hdr = false;
+  launch_session->host_audio = false;
+  launch_session->enable_sops = false;
+  launch_session->surround_info = 2;
+  int rc = global_proc.execute(42, launch_session);
+  ASSERT_EQ(rc, 0);
+  ASSERT_EQ(global_proc.running(), 42);
+
+  // Build a replacement proc_t with a different app list
+  boost::process::v1::environment env2 = boost::this_process::environment();
+  std::vector<proc::ctx_t> apps_new;
+  proc::ctx_t ctx_new;
+  ctx_new.name = "NewApp";
+  ctx_new.id = "99";
+  apps_new.push_back(std::move(ctx_new));
+  proc::proc_t source(std::move(env2), std::move(apps_new));
+
+  // Act — update only apps/env, not running process state
+  global_proc.update_apps_and_env(std::move(source));
+
+  // Assert — app list updated, but the running state is preserved
+  ASSERT_EQ(global_proc.get_apps().size(), 1u);
+  EXPECT_EQ(global_proc.get_apps()[0].name, "NewApp");
+  EXPECT_EQ(global_proc.running(), 42) << "update_apps_and_env must not reset _app_id or placebo";
+
+  // Cleanup
+  global_proc.terminate();
+  global_proc = std::move(saved);
+}
+
+// -------------------------------------------------------------------
+// Tests for proc::refresh
+// -------------------------------------------------------------------
+
+TEST_F(ProcessRefreshTest, Refresh_ParsesFileOnFirstCall) {
+  // The first call to refresh() must always parse the file, regardless
+  // of what file_time_type{} compares to relative to the file timestamp.
+  //
+  // NOTE: Because refresh() uses static local variables (has_parsed, last_apps_file_update),
+  // this test exercises the very first call in this test process.  Subsequent
+  // tests that call refresh() share the same static state.
+  const fs::path apps_file = test_dir / "apps_initial.json";
+  writeAppsJson(apps_file, {"TestApp1", "TestApp2"});
+
+  // Save and clear global proc
+  auto saved = std::move(proc::proc);
+  proc::proc = proc::proc_t {};
+
+  ASSERT_TRUE(proc::proc.get_apps().empty());
+
+  // Act
+  proc::refresh(apps_file.string());
+
+  // Assert — must have been parsed
+  ASSERT_EQ(proc::proc.get_apps().size(), 2u);
+  EXPECT_EQ(proc::proc.get_apps()[0].name, "TestApp1");
+  EXPECT_EQ(proc::proc.get_apps()[1].name, "TestApp2");
+
+  // Cleanup
+  proc::proc = std::move(saved);
+}
+
+TEST_F(ProcessRefreshTest, Refresh_SkipsUnchangedFile) {
+  const fs::path apps_file = test_dir / "apps_skip.json";
+  writeAppsJson(apps_file, {"OriginalApp"});
+
+  auto saved = std::move(proc::proc);
+  proc::proc = proc::proc_t {};
+
+  // First refresh — should parse
+  proc::refresh(apps_file.string());
+  ASSERT_EQ(proc::proc.get_apps().size(), 1u);
+
+  // Mutate apps in-memory to detect whether the second refresh re-parses
+  proc::proc.get_apps()[0].name = "Mutated";
+
+  // Second refresh with unchanged file — should be skipped
+  proc::refresh(apps_file.string());
+  EXPECT_EQ(proc::proc.get_apps()[0].name, "Mutated")
+    << "refresh() should skip re-parse when the file timestamp has not changed";
+
+  // Cleanup
+  proc::proc = std::move(saved);
+}
+
+TEST_F(ProcessRefreshTest, Refresh_ReparseAfterFileModified) {
+  const fs::path apps_file = test_dir / "apps_modified.json";
+  writeAppsJson(apps_file, {"BeforeEdit"});
+
+  auto saved = std::move(proc::proc);
+  proc::proc = proc::proc_t {};
+
+  proc::refresh(apps_file.string());
+  ASSERT_EQ(proc::proc.get_apps().size(), 1u);
+  EXPECT_EQ(proc::proc.get_apps()[0].name, "BeforeEdit");
+
+  // Wait briefly, then rewrite to ensure a new timestamp
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  writeAppsJson(apps_file, {"AfterEdit"});
+
+  // Bump the modification time to ensure it differs
+  auto new_time = fs::file_time_type::clock::now();
+  fs::last_write_time(apps_file, new_time);
+
+  proc::refresh(apps_file.string());
+  ASSERT_EQ(proc::proc.get_apps().size(), 1u);
+  EXPECT_EQ(proc::proc.get_apps()[0].name, "AfterEdit");
+
+  // Cleanup
+  proc::proc = std::move(saved);
+}
+
+TEST_F(ProcessRefreshTest, Refresh_PreservesRunningAppDuringReparse) {
+  // This is the critical regression test: refreshing the app list while an
+  // app is running must not lose the active process state.
+  const fs::path apps_file = test_dir / "apps_running.json";
+  writeAppsJson(apps_file, {"Desktop"});
+
+  auto saved = std::move(proc::proc);
+  proc::proc = proc::proc_t {};
+
+  // Initial parse
+  proc::refresh(apps_file.string());
+  ASSERT_FALSE(proc::proc.get_apps().empty());
+
+  // Find the ID of "Desktop" as assigned by parse
+  auto desktop_id = std::stoi(proc::proc.get_apps()[0].id);
+
+  // Execute it in placebo mode (empty cmd)
+  auto launch_session = std::make_shared<rtsp_stream::launch_session_t>();
+  launch_session->width = 1920;
+  launch_session->height = 1080;
+  launch_session->fps = 60;
+  launch_session->gcmap = 0;
+  launch_session->enable_hdr = false;
+  launch_session->host_audio = false;
+  launch_session->enable_sops = false;
+  launch_session->surround_info = 2;
+  int rc = proc::proc.execute(desktop_id, launch_session);
+  ASSERT_EQ(rc, 0);
+  ASSERT_EQ(proc::proc.running(), desktop_id);
+
+  // Simulate an external edit to the apps file
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  writeAppsJson(apps_file, {"Desktop", "NewApp"});
+  auto new_time = fs::file_time_type::clock::now();
+  fs::last_write_time(apps_file, new_time);
+
+  // Act — refresh while the app is "running"
+  proc::refresh(apps_file.string());
+
+  // Assert — app list is updated but the running state is preserved
+  ASSERT_EQ(proc::proc.get_apps().size(), 2u);
+  EXPECT_EQ(proc::proc.running(), desktop_id)
+    << "refresh() during a running session must preserve active process state";
+
+  // Cleanup — terminate before restoring
+  proc::proc.terminate();
+  proc::proc = std::move(saved);
+}
+
+// -------------------------------------------------------------------
+// Test for file_time_type{} comparison (documents the UCRT64 issue)
+// -------------------------------------------------------------------
+
+TEST_F(ProcessRefreshTest, FileTimeType_DefaultValueComparison) {
+  // This test documents the behavior that triggered the timestamp guard
+  // regression. On some toolchains (MSYS2 UCRT64 GCC 16.2), file timestamps
+  // and clock::now() can compare less-or-equal to file_time_type{}.
+  //
+  // The fix uses std::optional<file_time_type> instead of relying on
+  // file_time_type{} as a "never parsed" indicator.
+  const auto default_time = std::filesystem::file_time_type {};
+  const auto now_time = std::filesystem::file_time_type::clock::now();
+
+  // We cannot assert the comparison direction since it is platform-dependent.
+  // Instead, just log and document both cases.
+  if (now_time <= default_time) {
+    BOOST_LOG(info) << "file_time_type::clock::now() <= file_time_type{} is TRUE on this platform "
+                    << "(this is the UCRT64 case that requires the optional sentinel)";
+  } else {
+    BOOST_LOG(info) << "file_time_type::clock::now() > file_time_type{} on this platform "
+                    << "(default-init guard would have worked, but optional is still safer)";
+  }
+
+  // The actual correctness is verified by Refresh_ParsesFileOnFirstCall above —
+  // if that test passes, the optional fix works regardless of platform behavior.
+  SUCCEED();
+}
+
