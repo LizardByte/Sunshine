@@ -338,8 +338,18 @@ protected:
     fs::last_write_time(path, new_time);
   }
 
-  template <typename Func>
-  void runUpdateWithPlaceboSession(Func assertions) const {
+  fs::path test_dir;
+};
+
+class ProcessUpdateTest : public ProcessRefreshTest { // NOSONAR(cpp:S3656): protected members are intentional for test fixture subclassing
+protected:
+  proc::proc_t saved_global_proc;
+
+  void SetUp() override {
+    ProcessRefreshTest::SetUp();
+
+    saved_global_proc = std::move(proc::proc);
+
     boost::process::v1::environment env = boost::this_process::environment();
     std::vector<proc::ctx_t> apps_initial;
     proc::ctx_t ctx;
@@ -348,12 +358,8 @@ protected:
     apps_initial.push_back(std::move(ctx));
 
     proc::proc_t target(std::move(env), std::move(apps_initial));
+    proc::proc = std::move(target);
 
-    auto &global_proc = proc::proc;
-    auto saved = std::move(global_proc);
-    global_proc = std::move(target);
-
-    // Launch placebo app to populate session variables in _env
     auto launch_session = std::make_shared<rtsp_stream::launch_session_t>();
     launch_session->width = 1920;
     launch_session->height = 1080;
@@ -363,30 +369,26 @@ protected:
     launch_session->host_audio = false;
     launch_session->enable_sops = false;
     launch_session->surround_info = 2;
-    int rc = global_proc.execute(42, launch_session);
+    int rc = proc::proc.execute(42, launch_session);
     ASSERT_EQ(rc, 0);
+  }
 
-    // Build a replacement proc_t with a different app list
+  void TearDown() override {
+    proc::proc.terminate();
+    proc::proc = std::move(saved_global_proc);
+    
+    ProcessRefreshTest::TearDown();
+  }
+
+  proc::proc_t buildNewSource() {
     boost::process::v1::environment env2 = boost::this_process::environment();
     std::vector<proc::ctx_t> apps_new;
     proc::ctx_t ctx_new;
     ctx_new.name = "NewApp";
     ctx_new.id = "99";
     apps_new.push_back(std::move(ctx_new));
-    proc::proc_t source(std::move(env2), std::move(apps_new));
-
-    // Act — update only apps/env, not running process state
-    global_proc.update_apps_and_env(std::move(source));
-
-    // Run custom assertions
-    assertions(global_proc);
-
-    // Cleanup
-    global_proc.terminate();
-    global_proc = std::move(saved);
+    return proc::proc_t(std::move(env2), std::move(apps_new));
   }
-
-  fs::path test_dir;
 };
 
 // -------------------------------------------------------------------
@@ -429,24 +431,24 @@ TEST_F(ProcessRefreshTest, UpdateAppsAndEnv_UpdatesAppsList) {
   EXPECT_EQ(target.get_apps()[1].name, "AppC");
 }
 
-TEST_F(ProcessRefreshTest, UpdateAppsAndEnv_PreservesRunningState) {
-  runUpdateWithPlaceboSession([](proc::proc_t &global_proc) {
-    ASSERT_EQ(global_proc.get_apps().size(), 1u);
-    EXPECT_EQ(global_proc.get_apps()[0].name, "NewApp");
-    EXPECT_EQ(global_proc.running(), 42) << "update_apps_and_env must not reset _app_id or placebo";
-  });
+TEST_F(ProcessUpdateTest, UpdateAppsAndEnv_PreservesRunningState) {
+  proc::proc.update_apps_and_env(buildNewSource());
+
+  ASSERT_EQ(proc::proc.get_apps().size(), 1u);
+  EXPECT_EQ(proc::proc.get_apps()[0].name, "NewApp");
+  EXPECT_EQ(proc::proc.running(), 42) << "update_apps_and_env must not reset _app_id or placebo";
 }
 
-TEST_F(ProcessRefreshTest, UpdateAppsAndEnv_PreservesSessionEnvironment) {
-  runUpdateWithPlaceboSession([](proc::proc_t &global_proc) {
-    const auto &active_env = global_proc.get_env();
-    EXPECT_TRUE(active_env.count("SUNSHINE_APP_NAME") > 0)
-      << "SUNSHINE_APP_NAME was wiped from the environment during update_apps_and_env";
+TEST_F(ProcessUpdateTest, UpdateAppsAndEnv_PreservesSessionEnvironment) {
+  proc::proc.update_apps_and_env(buildNewSource());
 
-    if (active_env.count("SUNSHINE_APP_NAME") > 0) {
-      EXPECT_EQ(active_env.at("SUNSHINE_APP_NAME").to_string(), "Desktop");
-    }
-  });
+  const auto &active_env = proc::proc.get_env();
+  EXPECT_TRUE(active_env.count("SUNSHINE_APP_NAME") > 0)
+    << "SUNSHINE_APP_NAME was wiped from the environment during update_apps_and_env";
+
+  if (active_env.count("SUNSHINE_APP_NAME") > 0) {
+    EXPECT_EQ(active_env.at("SUNSHINE_APP_NAME").to_string(), "Desktop");
+  }
 }
 
 // -------------------------------------------------------------------
