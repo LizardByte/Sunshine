@@ -24,6 +24,7 @@
 // platform includes
 #include <arpa/inet.h>
 #include <dlfcn.h>
+#include <fcntl.h>
 #include <gio/gio.h>  // For RTKit
 #include <ifaddrs.h>
 #include <netinet/in.h>
@@ -31,6 +32,7 @@
 #include <pwd.h>
 #include <sys/resource.h>  // For setpriority
 #include <sys/socket.h>
+#include <unistd.h>
 
 #if !defined(__FreeBSD__)
   #include <sys/capability.h>
@@ -45,9 +47,7 @@
 // lib includes
 #include <boost/asio/ip/address.hpp>
 #include <boost/asio/ip/host_name.hpp>
-#include <fcntl.h>
 #include <lizardbyte/common/env.h>
-#include <unistd.h>
 
 #ifdef SUNSHINE_BUILD_DRM
   #include <dirent.h>
@@ -64,6 +64,7 @@
 #include "src/globals.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
+#include "src/platform/permissions.h"
 #include "vaapi.h"
 
 #ifdef __GNUC__
@@ -153,6 +154,22 @@ namespace dyn {
 }  // namespace dyn
 
 namespace platf {
+  std::vector<permission_status_t> get_permission_statuses() {
+    // Match libvirtualhid's device paths and its read/write access check.
+    bool input_access = access("/dev/uinput", R_OK | W_OK) == 0;
+#ifndef __FreeBSD__
+    input_access = input_access || access("/dev/input/uinput", R_OK | W_OK) == 0;
+#endif
+    return {{"input", input_access ? "granted" : "denied", config::input.keyboard || config::input.mouse || config::input.controller, true}};
+  }
+
+  bool request_permission(std::string_view id) {
+    // Unix device access has no process-local permission prompt. The Web UI
+    // presents the group/device setup steps for this known permission.
+    (void) id;
+    return false;
+  }
+
   namespace {
     constexpr std::array privileged_gui_environment_variables {
       "GDK_PIXBUF_MODULEDIR",

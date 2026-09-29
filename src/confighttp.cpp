@@ -38,6 +38,8 @@
 
   #include <Windows.h>
 #elif defined(__APPLE__)
+  #include "platform/macos/misc.h"
+
   #include <CoreFoundation/CoreFoundation.h>
 #endif
 
@@ -54,6 +56,7 @@
 #include "network.h"
 #include "nvhttp.h"
 #include "platform/common.h"
+#include "platform/permissions.h"
 #include "process.h"
 #include "rtsp.h"
 #include "system_tray.h"
@@ -89,6 +92,9 @@ namespace confighttp {
 
   namespace {
     using license_status_provider_t = std::function<lvh::LicenseResult()>;  ///< Provider for the current libvirtualhid license status.
+#ifdef SUNSHINE_TESTS
+    std::optional<nlohmann::json> permission_status_override;  ///< Deterministic permission statuses for HTTP tests.
+#endif
 #if defined(linux) || defined(__FreeBSD__) || defined(SUNSHINE_TESTS)
     using portal_token_path_provider_t = std::function<fs::path()>;  ///< Provider for the XDG Portal token path.
 #endif
@@ -2006,6 +2012,82 @@ namespace confighttp {
   }
 
   /**
+   * @brief Return permission status for the current host platform.
+   *
+   * @api_examples{/api/permissions|:| GET|:| null}
+   */
+  void getPermissions(const resp_https_t &response, const req_https_t &request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    nlohmann::json output_tree;
+    output_tree["permissions"] = nlohmann::json::array();
+#ifdef SUNSHINE_TESTS
+    if (permission_status_override) {
+      output_tree["permissions"] = *permission_status_override;
+      send_response(response, output_tree);
+      return;
+    }
+#endif
+    for (const auto &permission : platf::get_permission_statuses()) {
+      output_tree["permissions"].push_back({
+        {"id", permission.id},
+        {"status", permission.status},
+        {"required", permission.required},
+        {"verifiable", permission.verifiable},
+        {"requestable", permission.requestable},
+      });
+    }
+    send_response(response, output_tree);
+  }
+
+#ifdef SUNSHINE_TESTS
+  void set_permission_statuses_for_testing(nlohmann::json permissions) {
+    permission_status_override = std::move(permissions);
+  }
+
+  void reset_permission_statuses_for_testing() {
+    permission_status_override.reset();
+  }
+#endif
+
+  /**
+   * @brief Start a native permission request or open its settings pane.
+   *
+   * @api_examples{/api/permissions/request|:| POST|:| {"id":"screen_recording"}}
+   */
+  void requestPermission(const resp_https_t &response, const req_https_t &request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+    const auto client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
+      return;
+    }
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
+
+    try {
+      const auto input = nlohmann::json::parse(request->content.string());
+      if (!input.is_object() || !input.contains("id") || !input["id"].is_string()) {
+        bad_request(response, request, "A permission ID is required");
+        return;
+      }
+
+      const bool requested = platf::request_permission(input["id"].get<std::string>());
+      if (!requested) {
+        bad_request(response, request, "Unknown or unavailable permission");
+        return;
+      }
+      send_response(response, {{"status", true}});
+    } catch (const nlohmann::json::exception &) {
+      bad_request(response, request, "Invalid permission request");
+    }
+  }
+
+  /**
    * @brief Build Virtual HID Broker version and installation status.
    *
    * @return Virtual HID Broker status JSON.
@@ -2424,6 +2506,8 @@ namespace confighttp {
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
     server.resource["^/api/reset-portal-token$"]["POST"] = resetPortalToken;
     server.resource["^/api/restart$"]["POST"] = restart;
+    server.resource["^/api/permissions$"]["GET"] = getPermissions;
+    server.resource["^/api/permissions/request$"]["POST"] = requestPermission;
     server.resource["^/api/virtual-input/license$"]["GET"] = getVirtualInputLicense;
     server.resource["^/api/virtual-input/license$"]["POST"] = updateVirtualInputLicense;
     server.resource["^/api/virtual-input/status$"]["GET"] = getVirtualInputStatus;

@@ -10,7 +10,7 @@ vi.mock('../../src_assets/common/assets/web/ResourceCard.vue', () => ({
 
 import Home from '../../src_assets/common/assets/web/Home.vue'
 
-async function mountHome(platform, { developmentVersion = true, licensed = true, serviceAvailable = true, gamepadDriver = 'virtualhid' } = {}) {
+async function mountHome(platform, { developmentVersion = true, licensed = true, serviceAvailable = true, gamepadDriver = 'virtualhid', permissions = [] } = {}) {
   vi.stubGlobal('fetch', vi.fn(async url => {
     if (url === './api/config') {
       return { json: async () => ({ platform, controller: 'enabled', gamepad_driver: gamepadDriver, version: '2026.927.1200' }) }
@@ -22,6 +22,9 @@ async function mountHome(platform, { developmentVersion = true, licensed = true,
           vigembus: { installed: false, version_compatible: false },
         }),
       }
+    }
+    if (url === './api/permissions') {
+      return { json: async () => ({ permissions }) }
     }
     if (url === './api/virtual-input/license') {
       return { json: async () => ({ licensed, service_available: serviceAvailable }) }
@@ -53,6 +56,25 @@ afterEach(() => {
 })
 
 describe('development broker home notice', () => {
+  it('links to permission controls when macOS is missing required access', async () => {
+    const wrapper = await mountHome('macos', { permissions: [
+      { id: 'screen_recording', status: 'denied', required: true, verifiable: true },
+      { id: 'notifications', status: 'denied', required: false, verifiable: true },
+      { id: 'local_network', status: 'on_use', required: true, verifiable: false },
+    ] })
+    expect(wrapper.text()).toContain('index.permissions_missing_title')
+    expect(wrapper.findAll('.alert-warning a, .alert-warning router-link-stub').length).toBeGreaterThan(0)
+    wrapper.unmount()
+  })
+
+  it('links to permission guidance when Windows cannot access its config directory', async () => {
+    const wrapper = await mountHome('windows', { permissions: [
+      { id: 'config_directory', status: 'denied', required: true, verifiable: true },
+    ] })
+    expect(wrapper.text()).toContain('index.permissions_missing_title')
+    wrapper.unmount()
+  })
+
   it.each(['windows', 'macos'])('shows the development card on %s', async platform => {
     const wrapper = await mountHome(platform)
 
