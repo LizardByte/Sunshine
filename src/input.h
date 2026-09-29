@@ -139,6 +139,7 @@ namespace input {
       std::uint16_t key_code;  ///< Platform keycode after the configured keybinding remap.
       bool release;  ///< Whether the event releases the key.
       std::uint8_t flags;  ///< Bit flags carried by the client keyboard packet.
+      bool extended = false;  ///< Whether the client positively identified an extended key.
     };
 
     /**
