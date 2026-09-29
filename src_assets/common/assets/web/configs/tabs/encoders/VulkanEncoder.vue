@@ -34,5 +34,16 @@ const config = ref(props.config)
       </select>
       <div class="form-text">{{ $t('config.vk_rc_mode_desc') }}</div>
     </div>
+
+    <!-- Quality -->
+    <div class="mb-3">
+      <label for="vk_quality" class="form-label">{{ $t('config.vk_quality') }}</label>
+      <select id="vk_quality" class="form-select" v-model="config.vk_quality">
+        <option value="speed">{{ $t('config.vk_quality_speed') }}</option>
+        <option value="balanced">{{ $t('config.vk_quality_balanced') }}</option>
+        <option value="quality">{{ $t('config.vk_quality_quality') }}</option>
+      </select>
+      <div class="form-text">{{ $t('config.vk_quality_desc') }}</div>
+    </div>
   </div>
 </template>

@@ -3346,6 +3346,43 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     </tr>
 </table>
 
+### vk_quality
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Determines encoder tradeoff between quality and speed.
+            @note{This option only applies when using Vulkan [encoder](#encoder).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}balanced@endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vk_quality = quality
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Options</td>
+        <td>speed</td>
+        <td>Speed (prefer speed)</td>
+    </tr>
+    <tr>
+        <td></td>
+        <td>balanced</td>
+        <td>Balanced (default)</td>
+    </tr>
+    <tr>
+        <td></td>
+        <td>quality</td>
+        <td>Quality (prefer quality)</td>
+    </tr>
+</table>
+
 ## Software Encoder
 
 ### sw_preset
