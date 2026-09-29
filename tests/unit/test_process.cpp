@@ -380,7 +380,7 @@ protected:
     ProcessRefreshTest::TearDown();
   }
 
-  proc::proc_t buildNewSource() {
+  proc::proc_t buildNewSource() const {
     boost::process::v1::environment env2 = boost::this_process::environment();
     std::vector<proc::ctx_t> apps_new;
     proc::ctx_t ctx_new;
