@@ -338,7 +338,8 @@ protected:
     fs::last_write_time(path, new_time);
   }
 
-  void runUpdateWithPlaceboSession(const std::function<void(proc::proc_t &)> &assertions) {
+  template <typename Func>
+  void runUpdateWithPlaceboSession(Func assertions) const {
     boost::process::v1::environment env = boost::this_process::environment();
     std::vector<proc::ctx_t> apps_initial;
     proc::ctx_t ctx;
