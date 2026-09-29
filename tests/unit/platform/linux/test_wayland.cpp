@@ -178,17 +178,40 @@ namespace {
     return count;
   }
 
+  /**
+   * @brief Descriptor most recently returned by open_fake_render_node() (reset per test).
+   */
+  int &last_fake_render_node() {
+    static int fd = -1;
+    return fd;
+  }
+
+  /**
+   * @brief Count of create_device calls made through the accessors below (reset per test).
+   */
+  int &fake_create_device_calls() {
+    static int count = 0;
+    return count;
+  }
+
   int open_fake_render_node(const char *) {
-    return open("/dev/null", O_RDWR | O_CLOEXEC);
+    last_fake_render_node() = open("/dev/null", O_RDWR | O_CLOEXEC);
+    return last_fake_render_node();
+  }
+
+  int fail_to_open_render_node(const char *) {
+    return -1;
   }
 
   gbm_device *create_fake_device(int fd) {
+    ++fake_create_device_calls();
     // The address of this object stands in for an opaque GBM device.
     static int storage = 0;
     return fd >= 0 ? static_cast<gbm_device *>(static_cast<void *>(&storage)) : nullptr;
   }
 
   gbm_device *fail_to_create_device(int) {
+    ++fake_create_device_calls();
     return nullptr;
   }
 
@@ -230,18 +253,38 @@ TEST(WaylandGbmDeviceTest, ClosesRenderNodeDescriptorWhenDeviceCreationFails) {
     .destroy_device = destroy_fake_device,
   };
   fake_destroyed_devices() = 0;
-
-  // Learn which descriptor the next open() will return, so its fate can be checked afterwards.
-  const int probe = open("/dev/null", O_RDONLY | O_CLOEXEC);
-  ASSERT_GE(probe, 0);
-  close(probe);
+  fake_create_device_calls() = 0;
+  last_fake_render_node() = -1;
 
   wl::gbm_device_t device;
   EXPECT_FALSE(device.init("/dev/dri/renderD128", accessors));
   EXPECT_FALSE(device);
   EXPECT_EQ(device.fd(), -1);
+  EXPECT_EQ(fake_create_device_calls(), 1);
   EXPECT_EQ(fake_destroyed_devices(), 0);
-  EXPECT_FALSE(descriptor_is_open(probe));
+
+  // Check the descriptor the fake accessor actually opened.
+  const int fd = last_fake_render_node();
+  ASSERT_GE(fd, 0);
+  EXPECT_FALSE(descriptor_is_open(fd));
+}
+
+TEST(WaylandGbmDeviceTest, DoesNotCreateDeviceWhenRenderNodeFailsToOpen) {
+  const wl::gbm_device_accessors_t accessors {
+    .open_render_node = fail_to_open_render_node,
+    .create_device = create_fake_device,
+    .destroy_device = destroy_fake_device,
+  };
+  fake_destroyed_devices() = 0;
+  fake_create_device_calls() = 0;
+
+  wl::gbm_device_t device;
+  EXPECT_FALSE(device.init("/dev/dri/renderD128", accessors));
+  EXPECT_FALSE(device);
+  EXPECT_EQ(device.get(), nullptr);
+  EXPECT_EQ(device.fd(), -1);
+  EXPECT_EQ(fake_create_device_calls(), 0);
+  EXPECT_EQ(fake_destroyed_devices(), 0);
 }
 
 TEST(WaylandGbmDeviceTest, DestructorClosesRenderNodeDescriptor) {
