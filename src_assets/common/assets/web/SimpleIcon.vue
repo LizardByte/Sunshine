@@ -14,8 +14,7 @@ import { GitHubIcon, DiscordIcon } from 'vue3-simple-icons'
 const props = defineProps({
   icon: {
     type: String,
-    required: true,
-    default: 'GitHub'
+    required: true
   },
   size: {
     type: [Number, String],

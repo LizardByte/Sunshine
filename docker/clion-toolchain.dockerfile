@@ -1,8 +1,4 @@
 # syntax=docker/dockerfile:1
-# artifacts: false
-# platforms: linux/amd64
-# platforms_pr: linux/amd64
-# no-cache-filters: toolchain-base,toolchain
 ARG BASE=debian
 ARG TAG=trixie-slim
 FROM ${BASE}:${TAG} AS toolchain-base
@@ -25,11 +21,11 @@ set -e
 apt-get update -y
 apt-get install -y --no-install-recommends \
   build-essential \
-  cmake=3.31.* \
   ca-certificates \
+  cmake=3.31.* \
   doxygen \
-  gcc=4:14.2.* \
   g++=4:14.2.* \
+  gcc=4:14.2.* \
   gdb \
   git \
   graphviz \
@@ -79,7 +75,7 @@ fi
 url="${cuda_prefix}${CUDA_VERSION}/local_installers/cuda_${CUDA_VERSION}_${CUDA_BUILD}_linux${cuda_suffix}.run"
 echo "cuda url: ${url}"
 tmpfile="/tmp/cuda.run"
-wget "$url" --progress=bar:force:noscroll --show-progress -O "$tmpfile"
+wget "$url" --max-redirect=0 --progress=bar:force:noscroll --show-progress -O "$tmpfile"
 chmod a+x "${tmpfile}"
 "${tmpfile}" --silent --toolkit --toolkitpath=/usr/local --no-opengl-libs --no-man-page --no-drm
 rm -f "${tmpfile}"

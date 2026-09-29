@@ -75,7 +75,7 @@ jobs:
 
       - name: Setup Dependencies Windows
         # if a dependency needs to be pinned, see https://github.com/LizardByte/build-deps/pull/186
-        uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884  # v2.32.0
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e  # v2.33.0
         with:
           msystem: ${{ matrix.msystem }}
           update: true
@@ -100,6 +100,7 @@ jobs:
             "mingw-w64-${TOOLCHAIN}-cmake"
             "mingw-w64-${TOOLCHAIN}-cppwinrt"
             "mingw-w64-${TOOLCHAIN}-curl-winssl"
+            "mingw-w64-${TOOLCHAIN}-doxygen"
             "mingw-w64-${TOOLCHAIN}-gcc"
             "mingw-w64-${TOOLCHAIN}-graphviz"
             "mingw-w64-${TOOLCHAIN}-miniupnpc"
@@ -128,7 +129,7 @@ jobs:
             tarball="${pkg}-${version}-any.pkg.tar.zst"
 
             # download working version
-            wget "https://repo.msys2.org/mingw/${MATRIX_MSYSTEM}/${tarball}"
+            wget --max-redirect=0 "https://repo.msys2.org/mingw/${MATRIX_MSYSTEM}/${tarball}"
 
             tarballs="${tarballs} ${tarball}"
           done
@@ -147,32 +148,6 @@ jobs:
           else
             pacman -Syu --noconfirm "${dependencies[@]}"
           fi
-
-      - name: Install Doxygen
-        # GCC compiled doxygen has issues when running graphviz
-        env:
-          DOXYGEN_VERSION: "1.11.0"
-        shell: pwsh
-        run: |
-          # Set version variables
-          $doxy_ver = $env:DOXYGEN_VERSION
-          $_doxy_ver = $doxy_ver.Replace(".", "_")
-
-          # Download the Doxygen installer
-          Invoke-WebRequest -Uri `
-            "https://github.com/doxygen/doxygen/releases/download/Release_${_doxy_ver}/doxygen-${doxy_ver}-setup.exe" `
-            -OutFile "doxygen-setup.exe"
-
-          # Run the installer
-          Start-Process `
-            -FilePath .\doxygen-setup.exe `
-            -ArgumentList `
-              '/VERYSILENT' `
-          -Wait `
-          -NoNewWindow
-
-          # Clean up
-          Remove-Item -Path doxygen-setup.exe
 
       - name: Setup dotnet  # needed for wix
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68  # v6.0.0
@@ -205,7 +180,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
         with:
           enable-cache: true
 
@@ -215,9 +190,13 @@ jobs:
           MSYS2_PATH_TYPE: inherit
           UV_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: |
-          uv sync --locked \
-            --no-python-downloads \
+          uv_sync_args=(
+            --locked
+            --no-python-downloads
             --no-install-project
+          )
+          # uv.lock pins external artifacts; the reviewed local lizardbyte-common build hook is required.
+          uv sync "${uv_sync_args[@]}"  # NOSONAR(githubactions:S8541, githubactions:S8544)
 
       - name: Build Windows
         shell: msys2 {0}
@@ -385,7 +364,7 @@ jobs:
         env:
           MSYS2_PATH_TYPE: inherit
         run: |
-          uv run --project .. --locked --no-sync gcovr . -r ../src \
+          uv run --project .. --locked --no-build --no-sync gcovr . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \

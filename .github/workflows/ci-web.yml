@@ -1,0 +1,63 @@
+---
+name: CI-Web (called)
+permissions: {}
+
+on:
+  workflow_call:
+    inputs:
+      release_version:
+        description: 'Release version produced by the parent workflow.'
+        required: true
+        type: string
+    secrets:
+      CODECOV_TOKEN:
+        required: false
+
+jobs:
+  test:
+    name: Vitest
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Setup node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+
+      - name: Update package.json
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
+        run: npm version "${RELEASE_VERSION}" --no-git-tag-version
+
+      - name: Install npm dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Debug install
+        if: always()
+        run: cat "${HOME}/.npm/_logs/*-debug-0.log" || true
+
+      - name: Test
+        id: test
+        run: npm test
+
+      - name: Build
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: npm run build
+
+      - name: Publish (dry run)
+        run: npm publish --dry-run
+
+      - name: Upload coverage artifact
+        if: >-
+          always() &&
+          (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: coverage-Web-UI
+          path: |
+            coverage/coverage-final.json
+            junit.xml
+          if-no-files-found: error

@@ -149,6 +149,15 @@ jobs:
             _support_headless_testing="${_support_headless_testing}" \
             makepkg -si --noconfirm
 
+          # Native packages must install the host rule used by dynamically
+          # created libvirtualhid hidraw and input event nodes.
+          test -f /usr/lib/udev/rules.d/60-sunshine.rules
+          grep -Fq 'IMPORT{parent}="HID_*"' \
+            /usr/lib/udev/rules.d/60-sunshine.rules
+          grep -Fq 'ENV{HID_PHYS}=="libvirtualhid/uhid/*"' \
+            /usr/lib/udev/rules.d/60-sunshine.rules
+          udevadm verify /usr/lib/udev/rules.d/60-sunshine.rules
+
           # Remove debug package
           rm -f sunshine-debug*.pkg.tar.zst
 

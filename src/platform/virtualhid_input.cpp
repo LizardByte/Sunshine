@@ -45,6 +45,9 @@ namespace platf::virtualhid {
     std::uint8_t last_red = 0;  ///< Last red LED value.
     std::uint8_t last_green = 0;  ///< Last green LED value.
     std::uint8_t last_blue = 0;  ///< Last blue LED value.
+    bool has_last_player_leds = false;  ///< Whether last player indicator LED values are valid.
+    std::uint8_t last_solid_player_leds = 0;  ///< Last solid player indicator mask.
+    std::uint8_t last_flashing_player_leds = 0;  ///< Last flashing player indicator mask.
   };
 
   namespace {
@@ -301,10 +304,11 @@ namespace platf::virtualhid {
       };
     }
 
-    lvh::KeyboardEvent keyboard_event(std::uint16_t modcode, bool release, std::uint8_t flags) {
+    lvh::KeyboardEvent keyboard_event(std::uint16_t modcode, bool release, std::uint8_t flags, bool extended) {
       lvh::KeyboardEvent event {
         .key_code = modcode,
         .pressed = !release,
+        .extended = extended,
       };
 
 #ifdef _WIN32
@@ -314,6 +318,22 @@ namespace platf::virtualhid {
       (void) flags;
 #endif
       return event;
+    }
+
+    /**
+     * @brief Pack four player indicator states into a protocol bit mask.
+     *
+     * @param leds Player indicator states ordered from player one through four.
+     * @return Four-bit player indicator mask.
+     */
+    std::uint8_t player_led_mask(const std::array<bool, 4> &leds) {
+      std::byte mask {};
+      for (std::size_t index = 0; index < leds.size(); ++index) {
+        if (leds[index]) {
+          mask |= std::byte {1} << index;
+        }
+      }
+      return std::to_integer<std::uint8_t>(mask);
     }
 
     lvh::PenToolType pen_tool(std::uint8_t tool) {
@@ -390,6 +410,19 @@ namespace platf::virtualhid {
           gamepad->last_blue = output.blue;
           raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_rgb_led(gamepad->client_relative_index, output.red, output.green, output.blue));
           break;
+        case lvh::GamepadOutputKind::player_leds:
+          {
+            const auto solid = player_led_mask(output.player_leds);
+            const auto flashing = player_led_mask(output.flashing_player_leds);
+            if (gamepad->has_last_player_leds && gamepad->last_solid_player_leds == solid && gamepad->last_flashing_player_leds == flashing) {
+              return;
+            }
+            gamepad->has_last_player_leds = true;
+            gamepad->last_solid_player_leds = solid;
+            gamepad->last_flashing_player_leds = flashing;
+            raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_player_leds(gamepad->client_relative_index, solid, flashing));
+            break;
+          }
         case lvh::GamepadOutputKind::adaptive_triggers:
           raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_adaptive_triggers(gamepad->client_relative_index, output.adaptive_trigger_flags, output.left_trigger_effect_type, output.right_trigger_effect_type, output.left_trigger_effect, output.right_trigger_effect));
           break;
@@ -421,28 +454,41 @@ namespace platf::virtualhid {
       return;
     }
 
-    const auto &capabilities = runtime->capabilities();
-    if (capabilities.supports_keyboard) {
-      lvh::CreateKeyboardOptions options;
-      options.profile = lvh::profiles::keyboard();
-      options.stable_id = "sunshine-keyboard";
-      auto created = runtime->create_keyboard(options);
-      if (created) {
-        keyboard = std::move(created.keyboard);
-      } else {
-        log_failure("create libvirtualhid keyboard"sv, created.status);
-      }
+    refresh_keyboard();
+    refresh_mouse();
+  }
+
+  void input_context_t::refresh_keyboard() {
+    keyboard.reset();
+    if (!runtime || !runtime->capabilities().supports_keyboard) {
+      return;
     }
-    if (capabilities.supports_mouse) {
-      lvh::CreateMouseOptions options;
-      options.profile = lvh::profiles::mouse();
-      options.stable_id = "sunshine-mouse";
-      auto created = runtime->create_mouse(options);
-      if (created) {
-        mouse = std::move(created.mouse);
-      } else {
-        log_failure("create libvirtualhid mouse"sv, created.status);
-      }
+
+    lvh::CreateKeyboardOptions options;
+    options.profile = lvh::profiles::keyboard();
+    options.stable_id = "sunshine-keyboard";
+    auto created = runtime->create_keyboard(options);
+    if (created) {
+      keyboard = std::move(created.keyboard);
+    } else {
+      log_failure("create libvirtualhid keyboard"sv, created.status);
+    }
+  }
+
+  void input_context_t::refresh_mouse() {
+    mouse.reset();
+    if (!runtime || !runtime->capabilities().supports_mouse) {
+      return;
+    }
+
+    lvh::CreateMouseOptions options;
+    options.profile = lvh::profiles::mouse();
+    options.stable_id = "sunshine-mouse";
+    auto created = runtime->create_mouse(options);
+    if (created) {
+      mouse = std::move(created.mouse);
+    } else {
+      log_failure("create libvirtualhid mouse"sv, created.status);
     }
   }
 
@@ -494,13 +540,25 @@ namespace platf::virtualhid {
     return gamepads;
   }
 
-  std::vector<supported_gamepad_t> supported_gamepads(lvh::Runtime *runtime, bool fallback_vigem_available) {
+  std::vector<supported_gamepad_t> supported_gamepads(
+    lvh::Runtime *runtime,
+    const bool fallback_vigem_available,
+    const bool virtualhid_licensed,
+    const bool require_license
+  ) {
     if (!runtime) {
       return static_supported_gamepads();
     }
 
-    const auto libvirtualhid_available = runtime->capabilities().supports_gamepad;
-    const auto reason = libvirtualhid_available ? "" : "gamepads.virtualhid-not-available";
+    const auto &capabilities = runtime->capabilities();
+    const auto license_valid = (!capabilities.requires_installed_driver && !require_license) || virtualhid_licensed;
+    const auto libvirtualhid_available = capabilities.supports_gamepad && license_valid;
+    std::string reason;
+    if (!capabilities.supports_gamepad) {
+      reason = "gamepads.virtualhid-not-available";
+    } else if (!license_valid) {
+      reason = "gamepads.virtualhid-license-invalid";
+    }
     const auto auto_enabled = libvirtualhid_available || fallback_vigem_available;
     std::vector gamepads {
       supported_gamepad_t {"auto", auto_enabled, auto_enabled ? "" : reason},
@@ -519,6 +577,31 @@ namespace platf::virtualhid {
     }
 
     return gamepads;
+  }
+
+  bool should_use_gamepad_runtime(
+    const lvh::BackendCapabilities &capabilities,
+    const std::string_view gamepad_driver,
+    const bool virtualhid_licensed
+  ) {
+    return gamepad_driver != config::GAMEPAD_DRIVER_VIGEMBUS && gamepad_driver != config::GAMEPAD_DRIVER_NONE && capabilities.supports_gamepad &&
+           (!capabilities.requires_installed_driver || virtualhid_licensed);
+  }
+
+  bool should_try_vigembus_fallback(
+    const std::string_view configured_gamepad,
+    const bool virtualhid_selected,
+    const std::string_view gamepad_driver
+  ) {
+    if (gamepad_driver == config::GAMEPAD_DRIVER_VIRTUALHID || gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
+      return false;
+    }
+    if (gamepad_driver == config::GAMEPAD_DRIVER_VIGEMBUS || !virtualhid_selected) {
+      return true;
+    }
+    return configured_gamepad == "auto"sv ||
+           configured_gamepad == "x360"sv ||
+           configured_gamepad == "ds4"sv;
   }
 
   int alloc_gamepad(input_context_t &context, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
@@ -582,6 +665,7 @@ namespace platf::virtualhid {
     gamepad->has_last_rumble = false;
     gamepad->has_last_trigger_rumble = false;
     gamepad->has_last_rgb = false;
+    gamepad->has_last_player_leds = false;
 
     if (gamepad->adapter->support().supports_motion) {
       raise_feedback_unlocked(gamepad, gamepad_feedback_msg_t::make_motion_event_state(id.clientRelativeIndex, LI_MOTION_TYPE_ACCEL, 100));
@@ -613,7 +697,13 @@ namespace platf::virtualhid {
     }
 
     auto &gamepad = context.gamepads[nr];
-    log_failure("submit libvirtualhid gamepad state"sv, gamepad->adapter->set_state(make_gamepad_state(state, gamepad->adapter->support())));
+    auto updated_state = make_gamepad_state(state, gamepad->adapter->support());
+    const auto &cached_state = gamepad->adapter->state();
+    updated_state.acceleration = cached_state.acceleration;
+    updated_state.gyroscope = cached_state.gyroscope;
+    updated_state.battery = cached_state.battery;
+    updated_state.touchpad_contacts = cached_state.touchpad_contacts;
+    log_failure("submit libvirtualhid gamepad state"sv, gamepad->adapter->set_state(updated_state));
   }
 
   void gamepad_touch(input_context_t &context, const gamepad_touch_t &touch) {
@@ -748,9 +838,9 @@ namespace platf::virtualhid {
     }
   }
 
-  void keyboard_update(input_context_t &context, std::uint16_t modcode, bool release, std::uint8_t flags) {
+  void keyboard_update(input_context_t &context, std::uint16_t modcode, bool release, std::uint8_t flags, bool extended) {
     if (context.keyboard) {
-      log_failure("submit libvirtualhid keyboard input"sv, context.keyboard->submit(keyboard_event(modcode, release, flags)));
+      log_failure("submit libvirtualhid keyboard input"sv, context.keyboard->submit(keyboard_event(modcode, release, flags, extended)));
     }
   }
 
@@ -894,6 +984,16 @@ namespace platf::virtualhid {
     return lvh::gamepad_profile_support(profile).supports_touchpad;
   }
 
+  bool configured_gamepad_supports_controller_extensions() {
+    if (config::input.gamepad == "auto"sv) {
+      return true;
+    }
+
+    const auto profile = profile_for_name(config::input.gamepad).profile();
+    const auto &support = lvh::gamepad_profile_support(profile);
+    return support.supports_touchpad || support.supports_motion;
+  }
+
 }  // namespace platf::virtualhid
 
 namespace platf {
@@ -966,8 +1066,8 @@ namespace platf {
     virtualhid::hscroll(virtualhid::get_input_context(input), high_res_distance);
   }
 
-  void keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
-    virtualhid::keyboard_update(virtualhid::get_input_context(input), modcode, release, flags);
+  void keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags, bool extended) {
+    virtualhid::keyboard_update(virtualhid::get_input_context(input), modcode, release, flags, extended);
   }
 
   void unicode(input_t &input, const char *utf8, int size) {

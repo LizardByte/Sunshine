@@ -62,13 +62,13 @@ namespace platf::dxgi {
     static_assert(sizeof(T) % 16 == 0, "Buffer needs to be aligned on a 16-byte alignment");
 
     D3D11_BUFFER_DESC buffer_desc {
-      sizeof(T),
-      D3D11_USAGE_IMMUTABLE,
-      D3D11_BIND_CONSTANT_BUFFER
+      .ByteWidth = sizeof(T),
+      .Usage = D3D11_USAGE_IMMUTABLE,
+      .BindFlags = D3D11_BIND_CONSTANT_BUFFER,
     };
 
     D3D11_SUBRESOURCE_DATA init_data {
-      &t
+      .pSysMem = &t,
     };
 
     buf_t::pointer buf_p;

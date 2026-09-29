@@ -144,7 +144,7 @@ namespace NVENC_NAMESPACE {
     }
 
     if (!registered_input_buffer) {
-      NV_ENC_REGISTER_RESOURCE register_resource = {NV_ENC_REGISTER_RESOURCE_VER};
+      NV_ENC_REGISTER_RESOURCE register_resource = {.version = NV_ENC_REGISTER_RESOURCE_VER};
       register_resource.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_CUDADEVICEPTR;
       register_resource.width = encoder_params.width;
       register_resource.height = encoder_params.height;

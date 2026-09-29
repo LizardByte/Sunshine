@@ -12,9 +12,10 @@ Read our contribution guide in our organization level
 
 ### Web UI
 * The Web UI uses [Vite](https://vitejs.dev) as its build system.
-* The HTML pages used by the Web UI are found in `./src_assets/common/assets/web`.
-* [EJS](https://www.npmjs.com/package/vite-plugin-ejs) is used as a templating system for the pages
-  (check `template_header.html` and `template_header_main.html`).
+* The Web UI is a [Vue Router](https://router.vuejs.org) single-page application. Vite builds one `index.html` entry
+  document, and the route implementations remain split into Vue components in `./src_assets/common/assets/web`.
+* Browser routes use history mode. Sunshine serves the same `index.html` entry document for every Web UI route,
+  while API and static asset routes continue to be handled independently by the configuration server.
 * The Style System is provided by [Bootstrap](https://getbootstrap.com).
 * Icons are provided by [Lucide](https://lucide.dev) and [Simple Icons](https://simpleicons.org).
 * The JS framework used by the more interactive pages is [Vue.js](https://vuejs.org).
@@ -22,14 +23,22 @@ Read our contribution guide in our organization level
 #### Building
 
 @tabs{
-  @tab{CMake | ```bash
+  @tab{CMake |:| ```bash
     cmake -B build -G Ninja -S . --target web-ui
     ninja -C build web-ui
     ```}
-  @tab{Manual | ```bash
+  @tab{Manual |:| ```bash
     npm run dev
     ```}
 }
+
+#### Testing
+
+Run the Web UI unit tests with:
+
+```bash
+npm test
+```
 
 ### Localization
 Sunshine and related LizardByte projects are being localized into various languages.
@@ -37,7 +46,7 @@ The default language is `en` (English).
 
 ![](https://app.lizardbyte.dev/dashboard/crowdin/LizardByte_graph.svg)
 
-@admonition{Community | We are looking for language coordinators to help approve translations.
+@admonition{Community |:| We are looking for language coordinators to help approve translations.
 The goal is to have the bars above filled with green!
 If you are interested, please reach out to us on our Discord server.}
 
@@ -201,16 +210,3 @@ Even if your changes cannot be covered in the CI, we still encourage you to writ
 maintainers to run the tests locally.
 
 [crowdin-url]: https://translate.lizardbyte.dev
-
-<div class="section_buttons">
-
-| Previous                |                                                         Next |
-|:------------------------|-------------------------------------------------------------:|
-| [Building](building.md) | [Source Code](../third-party/doxyconfig/docs/source_code.md) |
-
-</div>
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

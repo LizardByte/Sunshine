@@ -20,10 +20,7 @@ jobs:
     name: ${{ matrix.arch }}
     env:
       APP_ID: dev.lizardbyte.app.Sunshine
-      FREEDESKTOP_SDK_VERSION: "25.08"
-      KDE_PLATFORM_VERSION: "6.10"
       MATRIX_ARCH: ${{ matrix.arch }}
-      NODE_VERSION: "20"
     permissions:
       contents: read
     runs-on: ${{ matrix.runner }}
@@ -38,7 +35,7 @@ jobs:
     steps:
       - name: More space
         if: matrix.arch == 'x86_64'
-        uses: LizardByte/actions/actions/more_space@d0ae7f82215a479fe2b74f4088c53ee6460513dd  # v2026.728.214955
+        uses: LizardByte/actions/actions/more_space@28374bf43cc8b6ee88b9b8a3419b2ac7a6573906  # v2026.928.123224
         with:
           analyze-space-savings: true
           clean-all: true
@@ -55,16 +52,59 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
         with:
           enable-cache: true
 
       - name: Sync Python tools
         run: |
-          uv sync --locked --only-group flatpak \
-            --python "${PYTHON_VERSION}" \
-            --no-python-downloads \
+          uv_sync_args=(
+            --locked
+            --only-group flatpak
+            --python "${PYTHON_VERSION}"
+            --no-python-downloads
             --no-install-project
+          )
+          # uv.lock pins external artifacts; reviewed local Flatpak generator build hooks are required.
+          uv sync "${uv_sync_args[@]}"  # NOSONAR(githubactions:S8541, githubactions:S8544)
+
+      - name: Read Flatpak SDK versions
+        run: |
+          uv run --locked --no-build --no-sync python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          import yaml
+
+          manifest_path = Path("packaging/linux/flatpak/dev.lizardbyte.app.Sunshine.yml")
+          manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+
+          kde_platform_version = str(manifest["runtime-version"])
+          node_extensions = [
+              (match.group(1), config)
+              for name, config in manifest["add-build-extensions"].items()
+              if (match := re.fullmatch(r"org\.freedesktop\.Sdk\.Extension\.node(\d+)", name))
+          ]
+          if len(node_extensions) != 1:
+              raise ValueError(f"Expected one Node SDK extension, found {len(node_extensions)}")
+
+          node_version, node_extension = node_extensions[0]
+          freedesktop_sdk_version = str(node_extension["version"])
+          version_pattern = re.compile(r"\d+(?:\.\d+)*")
+          versions = {
+              "FREEDESKTOP_SDK_VERSION": freedesktop_sdk_version,
+              "KDE_PLATFORM_VERSION": kde_platform_version,
+              "NODE_VERSION": node_version,
+          }
+          for name, version in versions.items():
+              if not version_pattern.fullmatch(version):
+                  raise ValueError(f"Invalid {name}: {version!r}")
+
+          with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as github_env:
+              for name, version in versions.items():
+                  print(f"{name}={version}", file=github_env)
+          PY
 
       - name: Setup Dependencies Linux Flatpak
         run: |
@@ -88,7 +128,7 @@ jobs:
 
       - name: flatpak node generator
         # https://github.com/flatpak/flatpak-builder-tools/blob/master/node/README.md
-        run: uv run --locked --no-sync python -m flatpak_node_generator npm package-lock.json
+        run: uv run --locked --no-build --no-sync python -m flatpak_node_generator npm package-lock.json
 
       - name: Debug generated-sources.json
         run: cat generated-sources.json
@@ -105,7 +145,7 @@ jobs:
             --no-header \
             --output-file glad-requirements.txt
 
-          uv run --locked --no-sync python \
+          uv run --locked --no-build --no-sync python \
             ./packaging/linux/flatpak/deps/flatpak-builder-tools/pip/flatpak-pip-generator.py \
             --runtime="org.kde.Sdk//${KDE_PLATFORM_VERSION}" \
             --output glad-dependencies \
@@ -185,6 +225,8 @@ jobs:
           sudo su "$(whoami)" -c "flatpak run org.flatpak.Builder \
             --arch=${MATRIX_ARCH} \
             --force-clean \
+            --mirror-screenshots-url=https://dl.flathub.org/media \
+            --compose-url-policy=full \
             --repo=repo \
             --sandbox \
             build-sunshine ${APP_ID}.yml"
@@ -214,8 +256,6 @@ jobs:
             "${APP_ID}.yml"
 
           echo "Linting flatpak repo"
-          # TODO: add arg
-          # --mirror-screenshots-url=https://dl.flathub.org/media \
           flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
             --exceptions \
             --user-exceptions "${exceptions_file}" \

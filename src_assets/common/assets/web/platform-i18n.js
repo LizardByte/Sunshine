@@ -31,12 +31,12 @@ class PlatformMessageI18n {
             // We got a message back, return early
             return message
         }
-        
+
         // If on Windows, we don't fallback to unix, so return early
         if (this.platform === 'windows') {
-            return defaultMsg ? defaultMsg : message
+            return defaultMsg || message
         }
-        
+
         // there's no message for key, check for unix version
         const unixKey = this.getPlatformKey(key, 'unix')
         message = i18n.t(unixKey)
@@ -59,7 +59,7 @@ export function usePlatformI18n(platform) {
     }
 
     if (!platform) {
-        throw 'platform argument missing'
+        throw new TypeError('platform argument missing')
     }
 
     return inject(

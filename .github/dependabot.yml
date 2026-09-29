@@ -9,10 +9,18 @@
 version: 2
 updates:
   - package-ecosystem: "gitsubmodule"
+    cooldown:
+      exclude:
+        - "*"
     directory: "/"
     rebase-strategy: disabled
     schedule:
       interval: "cron"
       cronjob: "30 2 * * *"
       timezone: "America/New_York"
+    groups:
+      vulkan:
+        patterns:
+          - "third-party/Vulkan-*"
+          - "third-party/*/Vulkan-*"
     open-pull-requests-limit: 10

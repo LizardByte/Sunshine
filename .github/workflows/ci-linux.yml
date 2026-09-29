@@ -20,20 +20,26 @@ jobs:
     name: ${{ matrix.name }}
     env:
       APP_ID: dev.lizardbyte.app.Sunshine
+      M_ARCH: ${{ matrix.arch }}
       VERSION: ${{ inputs.release_version }}
     permissions:
       contents: read
-    runs-on: ubuntu-${{ matrix.dist }}
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: AppImage
+          - name: AppImage-aarch64
             EXTRA_ARGS: '--appimage-build'
-            dist: 22.04
+            arch: aarch64
+            runner: ubuntu-22.04-arm
+          - name: AppImage-x86_64
+            EXTRA_ARGS: '--appimage-build'
+            arch: x86_64
+            runner: ubuntu-22.04
     steps:
       - name: More space
-        uses: LizardByte/actions/actions/more_space@d0ae7f82215a479fe2b74f4088c53ee6460513dd  # v2026.728.214955
+        uses: LizardByte/actions/actions/more_space@28374bf43cc8b6ee88b9b8a3419b2ac7a6573906  # v2026.928.123224
         with:
           analyze-space-savings: true
           clean-all: true
@@ -70,7 +76,7 @@ jobs:
           gh release download --archive=tar.gz --repo=intel/libva
           tar xzf libva-*.tar.gz && rm libva-*.tar.gz
           cd libva-*
-          ./autogen.sh --prefix=/usr --libdir=/usr/lib/x86_64-linux-gnu \
+          ./autogen.sh --prefix=/usr --libdir="/usr/lib/${M_ARCH}-linux-gnu" \
             --enable-drm \
             --enable-x11 \
             --enable-glx \
@@ -98,11 +104,16 @@ jobs:
           echo "::remove-matcher owner=gcc::"
 
       - name: Package Linux - AppImage
-        if: matrix.name == 'AppImage'
+        if: startsWith(matrix.name, 'AppImage')
         working-directory: build
         run: |
           # install sunshine to the DESTDIR
           DESTDIR=AppDir ninja install
+          test -f AppDir/usr/share/sunshine/udev/rules.d/60-sunshine.rules
+          grep -Fq 'IMPORT{parent}="HID_*"' \
+            AppDir/usr/share/sunshine/udev/rules.d/60-sunshine.rules
+          grep -Fq 'ENV{HID_PHYS}=="libvirtualhid/uhid/*"' \
+            AppDir/usr/share/sunshine/udev/rules.d/60-sunshine.rules
 
           # custom AppRun file
           cp -f ../packaging/linux/AppImage/AppRun ./AppDir/
@@ -115,17 +126,19 @@ jobs:
 
           # AppImage
           # https://docs.appimage.org/packaging-guide/index.html
-          wget -q "${LINUXDEPLOY_GH}/releases/download/continuous/linuxdeploy-x86_64.AppImage"
-          chmod +x linuxdeploy-x86_64.AppImage
+          url="${LINUXDEPLOY_GH}/releases/download/continuous/linuxdeploy-${M_ARCH}.AppImage"
+          wget --max-redirect=1 -q "$url"  # NOSONAR(githubactions:S6506): GitHub release needs one redirect.
+          chmod +x "linuxdeploy-${M_ARCH}.AppImage"
 
           # https://github.com/linuxdeploy/linuxdeploy-plugin-qt
-          wget -q "${LINUXDEPLOY_GH}-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage"
-          chmod +x linuxdeploy-plugin-qt-x86_64.AppImage
+          url="${LINUXDEPLOY_GH}-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${M_ARCH}.AppImage"
+          wget --max-redirect=1 -q "$url"  # NOSONAR(githubactions:S6506): GitHub release needs one redirect.
+          chmod +x "linuxdeploy-plugin-qt-${M_ARCH}.AppImage"
           export QMAKE=/usr/lib/qt6/bin/qmake
           export EXTRA_QT_MODULES="svg;"
           "$QMAKE" -query QT_INSTALL_PLUGINS
 
-          ./linuxdeploy-x86_64.AppImage \
+          "./linuxdeploy-${M_ARCH}.AppImage" \
             --appdir ./AppDir \
             --plugin qt \
             --executable ./sunshine \
@@ -133,24 +146,38 @@ jobs:
             --desktop-file "./$DESKTOP_FILE" \
             --output appimage
 
+          # print original name of AppImage file
+          echo "AppImage file: $(ls Sunshine*.AppImage)"
+
           # move
-          mv Sunshine*.AppImage ../artifacts/sunshine.AppImage
+          mv Sunshine*.AppImage "../artifacts/Sunshine_${VERSION}_${M_ARCH}.AppImage"
 
           # permissions
-          chmod +x ../artifacts/sunshine.AppImage
+          chmod +x "../artifacts/Sunshine_${VERSION}_${M_ARCH}.AppImage"
 
       - name: Delete CUDA
         # free up space on the runner
         run: |
           rm -rf ./build/cuda
 
-      - name: Verify AppImage
-        if: matrix.name == 'AppImage'
-        run: |
-          wget https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage
-          chmod +x appimagelint-x86_64.AppImage
+      - name: Setup python
+        id: python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
-          ./appimagelint-x86_64.AppImage ./artifacts/sunshine.AppImage
+      - name: Verify AppImage
+        if: startsWith(matrix.name, 'AppImage')
+        run: |
+          # TODO: switch to upstream after
+          # https://github.com/TheAssassin/appimagelint/pull/50 and
+          # https://github.com/TheAssassin/appimagelint/pull/51
+          APPIMAGELINT_REPOSITORY="git+https://github.com/ReenigneArcher/appimagelint.git"
+          APPIMAGELINT_REF="lizardbyte"
+          python -m pip install -e "${APPIMAGELINT_REPOSITORY}@${APPIMAGELINT_REF}#egg=appimagelint"
+          appimagelint --help
+
+          appimagelint "./artifacts/Sunshine_${VERSION}_${M_ARCH}.AppImage"
 
       - name: Install screenshot dependency
         run: |
@@ -162,18 +189,10 @@ jobs:
           sudo rm -rf /var/lib/apt/lists/*
 
       - name: Setup virtual desktop
-        uses: LizardByte/actions/actions/virtual_desktop@d0ae7f82215a479fe2b74f4088c53ee6460513dd  # v2026.728.214955
-        with:
-          environment: mate
-
-      - name: Setup python
-        id: python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
+        uses: LizardByte/actions/actions/virtual_desktop@28374bf43cc8b6ee88b9b8a3419b2ac7a6573906  # v2026.928.123224
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
         with:
           enable-cache: true
 

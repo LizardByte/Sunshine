@@ -1,6 +1,21 @@
-/* A fake button as doxygen doesn't allow button elements */
+/* Link generated configuration actions to Sunshine's web UI. */
 .open-button {
-    background: var(--primary-color);
-    color: white;
-    cursor: pointer;
+  background: var(--dockle-primary);
+  border: 1px solid color-mix(in srgb, var(--dockle-primary) 75%, black);
+  border-radius: var(--dockle-radius);
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 650;
+  padding: 0.5rem 0.8rem;
+}
+
+.open-button:hover,
+.open-button:focus-visible {
+  filter: brightness(1.1);
+}
+
+.open-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--dockle-primary) 40%, transparent);
+  outline-offset: 2px;
 }

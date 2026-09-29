@@ -1,0 +1,173 @@
+<template>
+  <Navbar></Navbar>
+  <div id="content" class="container">
+    <h1 class="my-4 text-center">{{ $t('pin.pin_pairing') }}</h1>
+    <form class="form d-flex flex-column align-items-center" id="form" @submit.prevent="registerDevice">
+      <div class="card flex-column d-flex p-4 mb-4">
+        <div class="input-group mt-2">
+          <label for="pairing-input" class="visually-hidden">{{ $t('pin.select_pairing') }}</label>
+          <span class="input-group-text">
+            <user-round-search :size="18" class="icon"></user-round-search>
+          </span>
+          <select v-model="selectedPairingId" class="form-select" id="pairing-input" required>
+            <option disabled value="">
+              {{ pendingPairings.length ? $t('pin.select_pairing') : $t('pin.no_pending_pairings') }}
+            </option>
+            <option v-for="pairing in pendingPairings" :key="pairing.id" :value="pairing.id">
+              {{ pairing.name || $t('pin.unknown_device') }} — {{ pairing.address || $t('pin.unknown_address') }}
+            </option>
+          </select>
+          <button
+            type="button"
+            class="btn btn-outline-danger"
+            :disabled="!selectedPairingId"
+            :title="$t('pin.cancel_pairing')"
+            @click="cancelSelectedPairing"
+          >
+            <x :size="18" class="icon"></x>
+          </button>
+        </div>
+        <div class="input-group mt-2">
+          <label for="pin-input" class="visually-hidden">{{ $t('navbar.pin') }}</label>
+          <span class="input-group-text">
+            <hash :size="18" class="icon"></hash>
+          </span>
+          <input v-model="pin" type="text" pattern="\d{4}" maxlength="4" inputmode="numeric" :placeholder="`${$t('navbar.pin')}`" id="pin-input" class="form-control" required />
+        </div>
+        <div class="input-group my-4">
+          <label for="name-input" class="visually-hidden">{{ $t('pin.device_name') }}</label>
+          <span class="input-group-text">
+            <monitor :size="18" class="icon"></monitor>
+          </span>
+          <input v-model="name" type="text" :placeholder="`${$t('pin.device_name')}`" id="name-input" class="form-control" required />
+        </div>
+        <button type="submit" class="btn btn-primary">
+          <forward :size="18" class="icon"></forward>
+          {{ $t('pin.send') }}
+        </button>
+      </div>
+      <div class="alert alert-warning">
+        <b>{{ $t('_common.warning') }}</b> {{ $t('pin.warning_msg') }}
+      </div>
+      <div v-if="status" :class="`alert alert-${status.type}`" role="alert">{{ status.message }}</div>
+    </form>
+  </div>
+</template>
+
+<script>
+  import Navbar from './Navbar.vue'
+  import { apiFetch } from './fetch_utils'
+  import {
+    Forward,
+    Hash,
+    Monitor,
+    UserRoundSearch,
+    X,
+  } from '@lucide/vue'
+
+  export default {
+    components: {
+      Navbar,
+      Forward,
+      Hash,
+      Monitor,
+      UserRoundSearch,
+      X,
+    },
+    inject: ['i18n'],
+    data() {
+      return {
+        name: '',
+        pendingPairings: [],
+        pin: '',
+        refreshTimer: null,
+        selectedPairingId: '',
+        status: null,
+      };
+    },
+    mounted() {
+      this.loadPendingPairings();
+      this.refreshTimer = window.setInterval(() => this.loadPendingPairings(), 2000);
+    },
+    beforeUnmount() {
+      window.clearInterval(this.refreshTimer);
+    },
+    methods: {
+      /**
+       * Refresh the authenticated list of pairing requests awaiting approval.
+       */
+      async loadPendingPairings() {
+        try {
+          const response = await apiFetch('./api/pin', {method: 'GET'});
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+
+          const body = await response.json();
+          this.pendingPairings = body.pairings || [];
+          if (!this.pendingPairings.some((pairing) => pairing.id === this.selectedPairingId)) {
+            this.selectedPairingId = this.pendingPairings.length === 1 ? this.pendingPairings[0].id : '';
+          }
+        } catch (error) {
+          console.error('Failed to load pending pairing requests', error);
+          this.status = {type: 'danger', message: this.i18n.t('pin.load_failure')};
+        }
+      },
+
+      /**
+       * Apply the entered PIN only to the pairing request selected by the operator.
+       */
+      async registerDevice() {
+        this.status = null;
+        if (!this.selectedPairingId) {
+          this.status = {type: 'danger', message: this.i18n.t('pin.select_pairing_required')};
+          return;
+        }
+
+        const body = JSON.stringify({
+          pairing_id: this.selectedPairingId,
+          pin: this.pin,
+          name: this.name,
+        });
+        const response = await apiFetch('./api/pin', {
+          method: "POST",
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body,
+        });
+        const result = await response.json();
+        if (result.status === true) {
+          this.status = {type: 'success', message: this.i18n.t('pin.pair_success')};
+          this.pin = '';
+          this.name = '';
+        } else {
+          this.status = {type: 'danger', message: this.i18n.t('pin.pair_failure')};
+        }
+        await this.loadPendingPairings();
+      },
+
+      /**
+       * Cancel the selected pending request without affecting other clients.
+       */
+      async cancelSelectedPairing() {
+        if (!this.selectedPairingId) {
+          return;
+        }
+
+        const response = await apiFetch('./api/pin', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({pairing_id: this.selectedPairingId}),
+        });
+        const result = await response.json();
+        this.status = result.status === true
+          ? {type: 'success', message: this.i18n.t('pin.cancel_success')}
+          : {type: 'danger', message: this.i18n.t('pin.cancel_failure')};
+        await this.loadPendingPairings();
+      }
+    }
+  }
+</script>

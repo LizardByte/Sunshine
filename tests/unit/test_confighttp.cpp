@@ -7,7 +7,7 @@
  * verify that the confighttp functions work correctly end-to-end.
  */
 
-// test imports
+// test includes
 #include "../tests_common.h"
 
 // standard includes
@@ -20,17 +20,18 @@
 #include <thread>
 #include <utility>
 
-// lib imports
+// lib includes
 #include <Simple-Web-Server/client_https.hpp>
 #include <Simple-Web-Server/crypto.hpp>
 #include <Simple-Web-Server/server_https.hpp>
 
-// local imports
+// local includes
 #include <src/config.h>
 #include <src/confighttp.h>
 #include <src/crypto.h>
 #include <src/httpcommon.h>
 #include <src/network.h>
+#include <src/nvhttp.h>
 #include <src/utility.h>
 
 using namespace std::literals;
@@ -110,6 +111,7 @@ protected:
 
   void SetUp() override {
     BaseTest::SetUp();
+    nvhttp::expire_pair_sessions(std::chrono::steady_clock::time_point::max());
     confighttp::set_virtual_input_license_status_provider_for_testing([]() {
       lvh::LicenseStatus license;
       license.service_available = true;
@@ -118,6 +120,10 @@ protected:
       license.message = "Test license status";
       return lvh::LicenseResult {lvh::OperationStatus::success(), std::move(license)};
     });
+    confighttp::set_permission_statuses_for_testing(nlohmann::json::array({
+      {{"id", "screen_recording"}, {"status", "denied"}, {"required", true}, {"verifiable", true}},
+      {{"id", "notifications"}, {"status", "granted"}, {"required", false}, {"verifiable", true}},
+    }));
 
     // Save current config
     saved_username = config::sunshine.username;
@@ -145,11 +151,14 @@ protected:
     // Create test web directory in temp
     test_web_dir = std::filesystem::temp_directory_path() / "sunshine_test_confighttp";  // NOSONAR(cpp:S5443): safe for tests
     std::filesystem::create_directories(test_web_dir / "web");
+    confighttp::set_portal_token_path_provider_for_testing([this]() {
+      return test_web_dir / "portal_token";
+    });
 
-    // Create test HTML file in WEB_DIR, creating parent directories with proper permissions
+    // Create the SPA entry document in WEB_DIR, creating parent directories with proper permissions
     std::filesystem::path web_dir_path(WEB_DIR);
     std::filesystem::create_directories(web_dir_path);
-    web_dir_test_file = web_dir_path / "test_page.html";
+    web_dir_test_file = web_dir_path / "index.html";
 
     std::ofstream test_html(web_dir_test_file);
     test_html << "<html><head><title>Test Page</title></head><body><h1>Test Page Content</h1></body></html>";
@@ -283,8 +292,8 @@ protected:
                                                 const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                               ) {
       // Call the actual confighttp::getPage function
-      // Note: This will read from WEB_DIR, so we need to ensure the file exists there
-      confighttp::getPage(response, request, "test_page.html", true, false);
+      // Note: This reads the SPA index from WEB_DIR, so the fixture creates it in SetUp().
+      confighttp::getPage(response, request, true, false);
     };
 
     // Add a route to test getPage without auth requirement
@@ -292,7 +301,7 @@ protected:
                                                        const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                        const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                      ) {
-      confighttp::getPage(response, request, "test_page.html", false, false);
+      confighttp::getPage(response, request, false, false);
     };
 
     // Add a route to test getPage with redirect_if_username
@@ -300,7 +309,7 @@ protected:
                                                          const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                          const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                        ) {
-      confighttp::getPage(response, request, "test_page.html", false, true);
+      confighttp::getPage(response, request, false, true);
     };
 
     // Add a route to test getLocale
@@ -323,6 +332,13 @@ protected:
     server->resource["^/virtual-input-status-test$"]["GET"] = confighttp::getVirtualInputStatus;
     server->resource["^/virtual-input-license-test$"]["GET"] = confighttp::getVirtualInputLicense;
     server->resource["^/virtual-input-license-test$"]["POST"] = confighttp::updateVirtualInputLicense;
+    server->resource["^/permissions-test$"]["GET"] = confighttp::getPermissions;
+    server->resource["^/permissions-test$"]["POST"] = confighttp::requestPermission;
+    server->resource["^/pairing-test$"]["DELETE"] = confighttp::cancelPairing;
+    server->resource["^/pairing-test$"]["GET"] = confighttp::getPendingPairings;
+    server->resource["^/pairing-test$"]["POST"] = confighttp::savePin;
+    server->resource["^/portal-token-reset-test$"]["POST"] = confighttp::resetPortalToken;
+    server->default_resource["GET"] = confighttp::getFallbackPage;
 
     // Start server
     server_thread = std::jthread([this]() {
@@ -356,12 +372,15 @@ protected:
       server_thread.join();
     }
     confighttp::reset_virtual_input_license_status_provider_for_testing();
+    confighttp::reset_permission_statuses_for_testing();
+    confighttp::reset_portal_token_path_provider_for_testing();
 
     config::sunshine.username = saved_username;
     config::sunshine.password = saved_password;
     config::sunshine.salt = saved_salt;
     config::sunshine.locale = saved_locale;
     config::sunshine.csrf_allowed_origins = saved_csrf_allowed_origins;
+    nvhttp::expire_pair_sessions(std::chrono::steady_clock::time_point::max());
 
     // Clean up test HTML file from WEB_DIR
     if (std::filesystem::exists(web_dir_test_file)) {
@@ -376,6 +395,23 @@ protected:
 
   static std::string create_auth_header(const std::string &username, const std::string &password) {
     return "Basic " + SimpleWeb::Crypto::Base64::encode(username + ":" + password);
+  }
+
+  /**
+   * @brief Insert a test pairing request into the production pending-session registry.
+   *
+   * @return Unguessable approval identifier assigned to the request.
+   */
+  static std::string insert_pending_pairing() {
+    nvhttp::pair_session_t session;
+    session.client.uniqueID = "rest-api-client";
+    session.async_insert_pin.salt = "ff5dc6eda99339a8a0793e216c4257c4";
+    session.async_insert_pin.device_name = "REST client";
+    session.async_insert_pin.address = "192.0.2.30";
+
+    std::string pairing_id;
+    EXPECT_EQ(nvhttp::insert_pair_session(std::move(session), pairing_id), nvhttp::pair_session_insert_e::ADDED);
+    return pairing_id;
   }
 
   static void assert_security_headers(const std::shared_ptr<SimpleWeb::Client<SimpleWeb::HTTPS>::Response> &response) {
@@ -471,6 +507,8 @@ INSTANTIATE_TEST_SUITE_P(
     endpoint_request_t {"Page", "GET", "/page-test", ""},
     endpoint_request_t {"CsrfToken", "GET", "/csrf-token-test", ""},
     endpoint_request_t {"BrowseDirectory", "GET", "/browse-test", ""},
+    endpoint_request_t {"PairingList", "GET", "/pairing-test", ""},
+    endpoint_request_t {"PortalTokenReset", "POST", "/portal-token-reset-test", ""},
     endpoint_request_t {"VirtualInputStatus", "GET", "/virtual-input-status-test", ""},
     endpoint_request_t {"VirtualInputLicense", "GET", "/virtual-input-license-test", ""},
     endpoint_request_t {"VirtualInputLicenseUpdate", "POST", "/virtual-input-license-test", R"({"action":"validate"})"}
@@ -494,6 +532,7 @@ INSTANTIATE_TEST_SUITE_P(
   CsrfProtectedConfigHttpEndpointTest,
   testing::Values(
     endpoint_request_t {"CsrfValidation", "POST", "/csrf-validate-test", ""},
+    endpoint_request_t {"PortalTokenReset", "POST", "/portal-token-reset-test", ""},
     endpoint_request_t {"VirtualInputLicenseUpdate", "POST", "/virtual-input-license-test", R"({"action":"validate"})"}
   ),
   endpoint_request_name
@@ -520,6 +559,185 @@ INSTANTIATE_TEST_SUITE_P(
   ),
   invalid_license_request_name
 );
+
+TEST_F(ConfigHttpTest, PairingMutationsRejectUnauthenticatedRestRequests) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Content-Type", "application/json");
+
+  const auto post_response = client->request(
+    "POST",
+    "/pairing-test",
+    R"({"pairing_id":"0123456789abcdef0123456789abcdef","pin":"1234","name":"Client"})",
+    headers
+  );
+  EXPECT_EQ(post_response->status_code, "401 Unauthorized");
+
+  const auto delete_response = client->request(
+    "DELETE",
+    "/pairing-test",
+    R"({"pairing_id":"0123456789abcdef0123456789abcdef"})",
+    headers
+  );
+  EXPECT_EQ(delete_response->status_code, "401 Unauthorized");
+}
+
+TEST_F(ConfigHttpTest, PairingMutationsRejectCrossOriginRestRequestsWithoutCsrfToken) {
+  const std::string pairing_id = insert_pending_pairing();
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Content-Type", "application/json");
+  headers.emplace("Origin", "https://example.invalid");
+
+  const auto post_response = client->request(
+    "POST",
+    "/pairing-test",
+    nlohmann::json {
+      {"pairing_id", pairing_id},
+      {"pin", "1234"},
+      {"name", "Client"},
+    }
+      .dump(),
+    headers
+  );
+  EXPECT_EQ(post_response->status_code, "400 Bad Request");
+  EXPECT_TRUE(post_response->content.string().contains("Missing CSRF token"));
+
+  const auto delete_response = client->request(
+    "DELETE",
+    "/pairing-test",
+    nlohmann::json {{"pairing_id", pairing_id}}.dump(),
+    headers
+  );
+  EXPECT_EQ(delete_response->status_code, "400 Bad Request");
+  EXPECT_TRUE(delete_response->content.string().contains("Missing CSRF token"));
+  EXPECT_EQ(nvhttp::get_pending_pairings().size(), 1);
+}
+
+TEST_F(ConfigHttpTest, PairingRestApiListsAuthenticatedPendingRequests) {
+  const std::string pairing_id = insert_pending_pairing();
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", "/pairing-test", "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+  const auto body = nlohmann::json::parse(response->content.string());
+  ASSERT_EQ(body.at("pairings").size(), 1);
+  EXPECT_EQ(body.at("pairings").front().at("id"), pairing_id);
+  EXPECT_EQ(body.at("pairings").front().at("name"), "REST client");
+  EXPECT_EQ(body.at("pairings").front().at("address"), "192.0.2.30");
+}
+
+TEST_F(ConfigHttpTest, PairingRestApiRejectsMalformedFieldsWithoutConsumingRequest) {
+  const std::string pairing_id = insert_pending_pairing();
+  const std::array invalid_requests {
+    nlohmann::json {{"pairing_id", "not-a-pairing-id"}, {"pin", "1234"}, {"name", "Client"}},
+    nlohmann::json {{"pairing_id", pairing_id}, {"pin", "123"}, {"name", "Client"}},
+    nlohmann::json {{"pairing_id", pairing_id}, {"pin", "12a4"}, {"name", "Client"}},
+    nlohmann::json {{"pairing_id", pairing_id}, {"pin", "1234"}, {"name", ""}},
+    nlohmann::json {{"pairing_id", pairing_id}, {"pin", "1234"}, {"name", std::string(nvhttp::MAX_PAIRING_CLIENT_NAME_SIZE + 1, 'a')}},
+  };
+
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Content-Type", "application/json");
+  for (const auto &request : invalid_requests) {
+    const auto response = client->request("POST", "/pairing-test", request.dump(), headers);
+    EXPECT_EQ(response->status_code, "400 Bad Request");
+  }
+
+  const auto pending = nvhttp::get_pending_pairings();
+  ASSERT_EQ(pending.size(), 1);
+  EXPECT_EQ(pending.front().id, pairing_id);
+}
+
+TEST_F(ConfigHttpTest, PairingRestApiCancelsOnlyExplicitRequest) {
+  const std::string pairing_id = insert_pending_pairing();
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Content-Type", "application/json");
+
+  const auto response = client->request(
+    "DELETE",
+    "/pairing-test",
+    nlohmann::json {{"pairing_id", pairing_id}}.dump(),
+    headers
+  );
+  ASSERT_EQ(response->status_code, "200 OK");
+  EXPECT_TRUE(nlohmann::json::parse(response->content.string()).at("status").get<bool>());
+  EXPECT_TRUE(nvhttp::get_pending_pairings().empty());
+}
+
+TEST_F(ConfigHttpTest, PairingRestApiReportsIncompleteHandshakeAsFailure) {
+  const std::string pairing_id = insert_pending_pairing();
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Content-Type", "application/json");
+
+  const auto response = client->request(
+    "POST",
+    "/pairing-test",
+    nlohmann::json {
+      {"pairing_id", pairing_id},
+      {"pin", "9875"},
+      {"name", "Client"},
+    }
+      .dump(),
+    headers
+  );
+  ASSERT_EQ(response->status_code, "200 OK");
+  EXPECT_FALSE(nlohmann::json::parse(response->content.string()).at("status").get<bool>());
+  EXPECT_TRUE(nvhttp::get_pending_pairings().empty());
+}
+
+TEST_F(ConfigHttpTest, PortalTokenResetHandlesSavedTokenForCurrentPlatform) {
+  const auto token_path = test_web_dir / "portal_token";
+  std::ofstream(token_path) << "saved-token";
+
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Origin", std::format("https://localhost:{}", port));
+
+  const auto response = client->request("POST", "/portal-token-reset-test", "", headers);
+
+  ASSERT_EQ(response->status_code, "200 OK");
+  EXPECT_TRUE(nlohmann::json::parse(response->content.string()).at("status").get<bool>());
+#if defined(linux) || defined(__FreeBSD__)
+  EXPECT_FALSE(std::filesystem::exists(token_path));
+#else
+  EXPECT_TRUE(std::filesystem::exists(token_path));
+#endif
+}
+
+TEST_F(ConfigHttpTest, PortalTokenResetSucceedsWhenTokenDoesNotExist) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Origin", std::format("https://localhost:{}", port));
+
+  const auto response = client->request("POST", "/portal-token-reset-test", "", headers);
+
+  ASSERT_EQ(response->status_code, "200 OK");
+  EXPECT_TRUE(nlohmann::json::parse(response->content.string()).at("status").get<bool>());
+}
+
+TEST_F(ConfigHttpTest, PortalTokenResetReportsDeletionFailure) {
+  const auto token_path = test_web_dir / "portal_token";
+  std::filesystem::create_directories(token_path);
+  std::ofstream(token_path / "contents") << "not empty";
+
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Origin", std::format("https://localhost:{}", port));
+
+  const auto response = client->request("POST", "/portal-token-reset-test", "", headers);
+
+  ASSERT_EQ(response->status_code, "200 OK");
+#if defined(linux) || defined(__FreeBSD__)
+  EXPECT_FALSE(nlohmann::json::parse(response->content.string()).at("status").get<bool>());
+#else
+  EXPECT_TRUE(nlohmann::json::parse(response->content.string()).at("status").get<bool>());
+#endif
+  EXPECT_TRUE(std::filesystem::exists(token_path));
+}
 
 // Test: confighttp::authenticate() rejects requests without auth header
 TEST_F(ConfigHttpTest, AuthenticateRejectsNoAuth) {
@@ -844,6 +1062,26 @@ TEST_F(ConfigHttpTest, GetPageNoRedirectWhenUsernameEmpty) {
 
   // Restore username
   config::sunshine.username = saved;
+}
+
+// Test: browser routes fall back to the SPA entry document
+TEST_F(ConfigHttpTest, BrowserRouteFallsBackToSpaEntry) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  for (const std::string_view path : {"/future-browser-route", "/apiary", "/assets2"}) {
+    const auto response = client->request("GET", std::string {path}, "", headers);
+    EXPECT_EQ(response->status_code, "200 OK") << path;
+    EXPECT_NE(response->content.string().find("Test Page Content"), std::string::npos) << path;
+  }
+}
+
+// Test: server-owned route prefixes retain 404 behavior instead of returning the SPA
+TEST_F(ConfigHttpTest, ServerResourcePrefixesDoNotFallBackToSpaEntry) {
+  for (const std::string_view path : {"/api", "/api/unknown", "/assets", "/assets/missing.js", "/images", "/images/missing.png"}) {
+    const auto response = client->request("GET", std::string {path});
+    EXPECT_EQ(response->status_code, "404 Not Found") << path;
+  }
 }
 
 // Test: confighttp::getLocale() returns locale JSON
@@ -1338,6 +1576,24 @@ TEST(ConfigHttpDriverStatusTest, IsDriverVersionSupported_InvalidVersion_Returns
   ASSERT_FALSE(confighttp::is_driver_version_supported("1.17.", "1.17.0.0"));
 }
 
+// Test: numeric 0.0.x development versions are identified consistently
+TEST(ConfigHttpDriverStatusTest, IsDriverVersionDevelopment_RecognizesZeroMajorAndMinor) {
+  ASSERT_TRUE(confighttp::is_driver_version_development("0.0.0"));
+  ASSERT_TRUE(confighttp::is_driver_version_development("0.0.0.42"));
+  ASSERT_TRUE(confighttp::is_driver_version_development("0.0.1.0"));
+  ASSERT_FALSE(confighttp::is_driver_version_development("0.0"));
+  ASSERT_FALSE(confighttp::is_driver_version_development("0.1.0"));
+  ASSERT_FALSE(confighttp::is_driver_version_development("development"));
+}
+
+// Test: numeric development versions always bypass the production minimum
+TEST(ConfigHttpDriverStatusTest, IsDriverVersionSupported_DevelopmentVersionBypassesMinimum) {
+  ASSERT_TRUE(confighttp::is_driver_version_supported("0.0.0", "2026.823.352.3"));  // NOSONAR(cpp:S1313): not IP addresses
+  ASSERT_TRUE(confighttp::is_driver_version_supported("0.0.0.42", "2026.823.352.3"));  // NOSONAR(cpp:S1313): not IP addresses
+  ASSERT_TRUE(confighttp::is_driver_version_supported("0.0.1.0", "2026.823.352.3"));  // NOSONAR(cpp:S1313): not IP addresses
+  ASSERT_FALSE(confighttp::is_driver_version_supported("0.0", "2026.823.352.3"));  // NOSONAR(cpp:S1313): not IP addresses
+}
+
 // Test: driver status JSON includes compatibility and supported version metadata
 TEST(ConfigHttpDriverStatusTest, BuildDriverStatus_IncludesExpectedFields) {
   const auto status = confighttp::build_driver_status(true, "1.17.0.0", "1.17.0.0");  // NOSONAR(cpp:S1313): not an IP address
@@ -1346,6 +1602,7 @@ TEST(ConfigHttpDriverStatusTest, BuildDriverStatus_IncludesExpectedFields) {
   ASSERT_EQ(status["version"].get<std::string>(), "1.17.0.0");
   ASSERT_EQ(status["minimum_version"].get<std::string>(), "1.17.0.0");
   ASSERT_EQ(status["supported_versions"].get<std::string>(), ">= 1.17.0.0");
+  ASSERT_FALSE(status["development_version"].get<bool>());
   ASSERT_TRUE(status["version_compatible"].get<bool>());
 }
 
@@ -1355,7 +1612,27 @@ TEST(ConfigHttpDriverStatusTest, BuildDriverStatus_NotInstalledIsNotCompatible) 
 
   ASSERT_FALSE(status["installed"].get<bool>());
   ASSERT_EQ(status["supported_versions"].get<std::string>(), "Any");
+  ASSERT_FALSE(status["development_version"].get<bool>());
   ASSERT_FALSE(status["version_compatible"].get<bool>());
+}
+
+// Test: detected drivers remain installed when their version is too old
+TEST(ConfigHttpDriverStatusTest, BuildDriverStatus_OlderDetectedDriverIsInstalledButIncompatible) {
+  const auto status = confighttp::build_driver_status(true, "2026.820.1844.57", "2026.823.352.3");  // NOSONAR(cpp:S1313): not IP addresses
+
+  ASSERT_TRUE(status["installed"].get<bool>());
+  ASSERT_FALSE(status["development_version"].get<bool>());
+  ASSERT_FALSE(status["version_compatible"].get<bool>());
+}
+
+// Test: development status remains compatible while retaining the production floor metadata
+TEST(ConfigHttpDriverStatusTest, BuildDriverStatus_DevelopmentVersionIsCompatible) {
+  const auto status = confighttp::build_driver_status(true, "0.0.0.42", "2026.823.352.3");  // NOSONAR(cpp:S1313): not IP addresses
+
+  ASSERT_EQ(status["minimum_version"].get<std::string>(), "2026.823.352.3");  // NOSONAR(cpp:S1313): not an IP address
+  ASSERT_EQ(status["supported_versions"].get<std::string>(), ">= 2026.823.352.3");  // NOSONAR(cpp:S1313): not an IP address
+  ASSERT_TRUE(status["development_version"].get<bool>());
+  ASSERT_TRUE(status["version_compatible"].get<bool>());
 }
 
 TEST(ConfigHttpDriverStatusTest, BuildsLiveVirtualInputDriverStatus) {
@@ -1363,8 +1640,20 @@ TEST(ConfigHttpDriverStatusTest, BuildsLiveVirtualInputDriverStatus) {
   EXPECT_TRUE(virtualhid.contains("installed"));
   EXPECT_TRUE(virtualhid.contains("version"));
   EXPECT_TRUE(virtualhid.contains("version_compatible"));
+  EXPECT_TRUE(virtualhid.contains("development_version"));
   EXPECT_TRUE(virtualhid.contains("backend_name"));
   EXPECT_TRUE(virtualhid.contains("requires_installed_driver"));
+#ifdef __APPLE__
+  EXPECT_EQ(virtualhid["minimum_version"].get<std::string>(), LIBVIRTUALHID_MACOS_MINIMUM_VERSION);
+  EXPECT_EQ(virtualhid["supported_versions"].get<std::string>(), std::format(">= {}", LIBVIRTUALHID_MACOS_MINIMUM_VERSION));
+  if (std::filesystem::exists("/Applications/VirtualHIDBroker.app/Contents/Info.plist")) {
+    EXPECT_TRUE(virtualhid["installed"].get<bool>());
+    EXPECT_FALSE(virtualhid["version"].get<std::string>().empty());
+  }
+#else
+  EXPECT_EQ(virtualhid["minimum_version"].get<std::string>(), LIBVIRTUALHID_MINIMUM_VERSION);
+  EXPECT_EQ(virtualhid["supported_versions"].get<std::string>(), std::format(">= {}", LIBVIRTUALHID_MINIMUM_VERSION));
+#endif
 
   const auto vigembus = confighttp::get_vigembus_driver_status();
   EXPECT_TRUE(vigembus.contains("installed"));
@@ -1390,6 +1679,43 @@ TEST_F(ConfigHttpTest, VirtualInputStatusReturnsBothBackends) {
   ASSERT_TRUE(body.contains("vigembus"));
   EXPECT_TRUE(body.at("virtualhid").contains("installed"));
   EXPECT_TRUE(body.at("vigembus").contains("installed"));
+}
+
+TEST_F(ConfigHttpTest, PermissionsEndpointRequiresAuthenticationAndCsrf) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Content-Type", "application/json");
+  EXPECT_EQ(client->request("GET", "/permissions-test", "", headers)->status_code, "401 Unauthorized");
+  EXPECT_EQ(client->request("POST", "/permissions-test", R"({"id":"screen_recording"})", headers)->status_code, "401 Unauthorized");
+
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Origin", "https://example.invalid");
+  const auto response = client->request("POST", "/permissions-test", R"({"id":"screen_recording"})", headers);
+  EXPECT_EQ(response->status_code, "400 Bad Request");
+  EXPECT_TRUE(response->content.string().contains("Missing CSRF token"));
+}
+
+TEST_F(ConfigHttpTest, PermissionsEndpointReturnsRequiredAndOptionalStatuses) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", "/permissions-test", "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+  const auto body = nlohmann::json::parse(response->content.string());
+  ASSERT_EQ(body.at("permissions").size(), 2U);
+  EXPECT_EQ(body.at("permissions").at(0).at("id"), "screen_recording");
+  EXPECT_TRUE(body.at("permissions").at(0).at("required").get<bool>());
+  EXPECT_FALSE(body.at("permissions").at(1).at("required").get<bool>());
+}
+
+TEST_F(ConfigHttpTest, PermissionsEndpointRejectsMalformedAndUnknownRequests) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Content-Type", "application/json");
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Origin", std::format("https://localhost:{}", port));
+
+  EXPECT_EQ(client->request("POST", "/permissions-test", "not-json", headers)->status_code, "400 Bad Request");
+  EXPECT_EQ(client->request("POST", "/permissions-test", R"({"id":1})", headers)->status_code, "400 Bad Request");
+  EXPECT_EQ(client->request("POST", "/permissions-test", R"({"id":"unknown"})", headers)->status_code, "400 Bad Request");
 }
 
 TEST_F(ConfigHttpTest, VirtualInputLicenseReturnsCurrentStatus) {
@@ -1436,7 +1762,7 @@ TEST(ConfigHttpLicenseStatusTest, BuildVirtualHidLicenseStatus_IncludesExpectedF
   license.state = lvh::LicenseState::licensed;
   license.active_devices = 2;
   license.activation_limit = 5;
-  license.activation_usage = 3;
+  license.activation_usage = 1;
   license.plan_name = "Yearly";
   license.customer_email = "customer@example.com";
   license.message = "License is active";
@@ -1448,7 +1774,7 @@ TEST(ConfigHttpLicenseStatusTest, BuildVirtualHidLicenseStatus_IncludesExpectedF
   EXPECT_TRUE(output["service_available"].get<bool>());
   EXPECT_EQ(output["active_devices"].get<unsigned int>(), 2U);
   EXPECT_EQ(output["activation_limit"].get<unsigned int>(), 5U);
-  EXPECT_EQ(output["activation_usage"].get<unsigned int>(), 3U);
+  EXPECT_EQ(output["activation_usage"].get<unsigned int>(), 1U);
   EXPECT_EQ(output["plan_name"].get<std::string>(), "Yearly");
   EXPECT_EQ(output["customer_email"].get<std::string>(), "customer@example.com");
   EXPECT_FALSE(output.contains("expires_at"));

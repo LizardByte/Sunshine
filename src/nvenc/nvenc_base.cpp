@@ -193,7 +193,7 @@ namespace NVENC_NAMESPACE {
   }
 
   int nvenc_base::get_encoder_cap(const GUID &encode_guid, NV_ENC_CAPS cap) const {
-    NV_ENC_CAPS_PARAM param = {NV_ENC_CAPS_PARAM_VER};
+    NV_ENC_CAPS_PARAM param = {.version = NV_ENC_CAPS_PARAM_VER};
     param.capsToQuery = cap;
     int value = 0;
     if (nvenc->nvEncGetEncodeCaps(encoder, encode_guid, &param, &value) == NV_ENC_SUCCESS) {
@@ -492,7 +492,7 @@ namespace NVENC_NAMESPACE {
       return false;
     }
     if (async_event_handle) {
-      NV_ENC_EVENT_PARAMS event_params = {NV_ENC_EVENT_PARAMS_VER};
+      NV_ENC_EVENT_PARAMS event_params = {.version = NV_ENC_EVENT_PARAMS_VER};
       event_params.completionEvent = async_event_handle;
       if (nvenc_failed(nvenc->nvEncRegisterAsyncEvent(encoder, &event_params))) {
         BOOST_LOG(error) << "NvEnc: NvEncRegisterAsyncEvent() failed: " << last_nvenc_error_string;
@@ -500,7 +500,7 @@ namespace NVENC_NAMESPACE {
       }
     }
 
-    NV_ENC_CREATE_BITSTREAM_BUFFER create_bitstream_buffer = {NV_ENC_CREATE_BITSTREAM_BUFFER_VER};
+    NV_ENC_CREATE_BITSTREAM_BUFFER create_bitstream_buffer = {.version = NV_ENC_CREATE_BITSTREAM_BUFFER_VER};
     if (nvenc_failed(nvenc->nvEncCreateBitstreamBuffer(encoder, &create_bitstream_buffer))) {
       BOOST_LOG(error) << "NvEnc: NvEncCreateBitstreamBuffer() failed: " << last_nvenc_error_string;
       return false;
@@ -589,7 +589,7 @@ namespace NVENC_NAMESPACE {
     encoder_params.buffer_format = buffer_format;
     encoder_params.rfi = true;
 
-    NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS session_params = {NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS_VER};
+    NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS session_params = {.version = NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS_VER};
     session_params.device = device;
     session_params.deviceType = device_type;
     session_params.apiVersion = NVENCAPI_VERSION;
@@ -609,7 +609,7 @@ namespace NVENC_NAMESPACE {
       return false;
     }
 
-    NV_ENC_INITIALIZE_PARAMS init_params = {NV_ENC_INITIALIZE_PARAMS_VER};
+    NV_ENC_INITIALIZE_PARAMS init_params = {.version = NV_ENC_INITIALIZE_PARAMS_VER};
     switch (client_config.videoFormat) {
       case 0:
         init_params.encodeGUID = NV_ENC_CODEC_H264_GUID;
@@ -685,7 +685,7 @@ namespace NVENC_NAMESPACE {
       output_bitstream = nullptr;
     }
     if (encoder && async_event_handle) {
-      NV_ENC_EVENT_PARAMS event_params = {NV_ENC_EVENT_PARAMS_VER};
+      NV_ENC_EVENT_PARAMS event_params = {.version = NV_ENC_EVENT_PARAMS_VER};
       event_params.completionEvent = async_event_handle;
       if (nvenc_failed(nvenc->nvEncUnregisterAsyncEvent(encoder, &event_params))) {
         BOOST_LOG(error) << "NvEnc: NvEncUnregisterAsyncEvent() failed: " << last_nvenc_error_string;
@@ -721,7 +721,7 @@ namespace NVENC_NAMESPACE {
       return {};
     }
 
-    NV_ENC_MAP_INPUT_RESOURCE mapped_input_buffer = {NV_ENC_MAP_INPUT_RESOURCE_VER};
+    NV_ENC_MAP_INPUT_RESOURCE mapped_input_buffer = {.version = NV_ENC_MAP_INPUT_RESOURCE_VER};
     mapped_input_buffer.registeredResource = registered_input_buffer;
 
     if (nvenc_failed(nvenc->nvEncMapInputResource(encoder, &mapped_input_buffer))) {
@@ -734,7 +734,7 @@ namespace NVENC_NAMESPACE {
       }
     });
 
-    NV_ENC_PIC_PARAMS pic_params = {NV_ENC_PIC_PARAMS_VER};
+    NV_ENC_PIC_PARAMS pic_params = {.version = NV_ENC_PIC_PARAMS_VER};
     pic_params.inputWidth = encoder_params.width;
     pic_params.inputHeight = encoder_params.height;
     pic_params.encodePicFlags = force_idr ? NV_ENC_PIC_FLAG_FORCEIDR : 0;
@@ -750,7 +750,7 @@ namespace NVENC_NAMESPACE {
       return {};
     }
 
-    NV_ENC_LOCK_BITSTREAM lock_bitstream = {NV_ENC_LOCK_BITSTREAM_VER};
+    NV_ENC_LOCK_BITSTREAM lock_bitstream = {.version = NV_ENC_LOCK_BITSTREAM_VER};
     lock_bitstream.outputBitstream = output_bitstream;
     lock_bitstream.doNotWait = async_event_handle ? 1 : 0;
 

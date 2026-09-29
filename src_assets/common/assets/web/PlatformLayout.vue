@@ -24,8 +24,3 @@ const props = defineProps({
     <slot name="macos"></slot>
   </template>
 </template>
-
-
-<style scoped>
-
-</style>

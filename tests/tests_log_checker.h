@@ -4,11 +4,15 @@
  */
 #pragma once
 
+// standard includes
 #include <algorithm>
 #include <fstream>
 #include <regex>
-#include <src/logging.h>
 #include <string>
+#include <string_view>
+
+// local includes
+#include <src/logging.h>
 
 namespace log_checker {
 

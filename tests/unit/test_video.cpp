@@ -7,6 +7,9 @@
 
 // standard includes
 #include <algorithm>
+#include <array>
+#include <limits>
+#include <optional>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -63,6 +66,33 @@ INSTANTIATE_TEST_SUITE_P(
   }
 );
 
+#if !defined(_WIN32) && !defined(__APPLE__)
+TEST(NvencAvcodecOptionsTest, UsesVersionStablePresetAndSpatialAqNames) {
+  const std::array codecs {
+    &video::nvenc.av1,
+    &video::nvenc.hevc,
+    &video::nvenc.h264,
+  };
+
+  for (const auto *codec : codecs) {
+    const auto preset = std::ranges::find(codec->common_options, "preset"sv, &video::encoder_t::option_t::name);
+    ASSERT_NE(codec->common_options.end(), preset);
+    ASSERT_TRUE(std::holds_alternative<std::string *>(preset->value));
+    EXPECT_EQ(&config::video.nv_legacy.preset, std::get<std::string *>(preset->value));
+
+    const auto spatial_aq = std::ranges::find(codec->common_options, "spatial-aq"sv, &video::encoder_t::option_t::name);
+    ASSERT_NE(codec->common_options.end(), spatial_aq);
+    ASSERT_TRUE(std::holds_alternative<int *>(spatial_aq->value));
+    EXPECT_EQ(&config::video.nv_legacy.spatial_aq, std::get<int *>(spatial_aq->value));
+
+    EXPECT_EQ(
+      codec->common_options.end(),
+      std::ranges::find(codec->common_options, "aq"sv, &video::encoder_t::option_t::name)
+    );
+  }
+}
+#endif
+
 TEST_P(EncoderTest, ValidateEncoder) {
   // todo:: test something besides fixture setup
 }
@@ -92,6 +122,61 @@ INSTANTIATE_TEST_SUITE_P(
   )
 );
 
+/**
+ * @brief Parameterized coverage for resolving requested dynamic range against encoder capabilities.
+ */
+struct DynamicRangeTest: testing::TestWithParam<std::tuple<int, int, int, bool, bool, int>> {};
+
+TEST_P(DynamicRangeTest, Resolve) {
+  const auto &[video_format, chroma_sampling_type, requested_dynamic_range, supports_hdr, supports_hdr_yuv444, expected_dynamic_range] = GetParam();
+
+  video::encoder_t encoder {
+    "test"sv,
+    {},
+    {},
+    {},
+    {},
+    0,
+  };
+  encoder.h264.name = "h264_test";
+  encoder.hevc.name = "hevc_test";
+  encoder.av1.name = "av1_test";
+
+  video::config_t config {};
+  config.videoFormat = video_format;
+  config.dynamicRange = requested_dynamic_range;
+  config.chromaSamplingType = chroma_sampling_type;
+
+  auto *codec = &encoder.h264;
+  if (video_format == 1) {
+    codec = &encoder.hevc;
+  } else if (video_format == 2) {
+    codec = &encoder.av1;
+  }
+  (*codec)[video::encoder_t::DYNAMIC_RANGE] = supports_hdr;
+  (*codec)[video::encoder_t::DYNAMIC_RANGE_YUV444] = supports_hdr_yuv444;
+
+  const auto effective_config = video::resolve_dynamic_range(encoder, config);
+
+  EXPECT_EQ(expected_dynamic_range, effective_config.dynamicRange);
+  EXPECT_EQ(requested_dynamic_range, config.dynamicRange);
+  EXPECT_EQ(video_format, effective_config.videoFormat);
+  EXPECT_EQ(chroma_sampling_type, effective_config.chromaSamplingType);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  DynamicRangeTests,
+  DynamicRangeTest,
+  testing::Values(
+    std::make_tuple(0, 0, 1, false, true, 0),
+    std::make_tuple(1, 0, 1, false, true, 0),
+    std::make_tuple(1, 0, 1, true, false, 1),
+    std::make_tuple(2, 1, 1, true, false, 0),
+    std::make_tuple(2, 1, 1, false, true, 1),
+    std::make_tuple(1, 0, 0, false, false, 0)
+  )
+);
+
 #ifdef _WIN32
 TEST(AmfH264OptionsTest, CoderUsesConfiguredValue) {
   const auto coder_option = std::ranges::find(video::amdvce.h264.common_options, "coder"sv, &video::encoder_t::option_t::name);
@@ -100,7 +185,88 @@ TEST(AmfH264OptionsTest, CoderUsesConfiguredValue) {
   ASSERT_TRUE(std::holds_alternative<int *>(coder_option->value));
   EXPECT_EQ(&config::video.amd.amd_coder, std::get<int *>(coder_option->value));
 }
+
+/**
+ * @brief Parameterized coverage for the AMF maximum access-unit-size option mappings.
+ */
+struct AmfMaxAuSizeOptionsTest: testing::TestWithParam<std::tuple<const video::encoder_t::codec_t *, bool>> {};
+
+TEST_P(AmfMaxAuSizeOptionsTest, UsesConfiguredValueForSupportedCodecsOnly) {
+  const auto &[codec, supported] = GetParam();
+  const auto option = std::ranges::find(codec->common_options, "max_au_size"sv, &video::encoder_t::option_t::name);
+
+  if (!supported) {
+    EXPECT_EQ(codec->common_options.end(), option);
+    return;
+  }
+
+  ASSERT_NE(codec->common_options.end(), option);
+  ASSERT_TRUE(std::holds_alternative<std::optional<int> *>(option->value));
+  EXPECT_EQ(&config::video.amd.amd_max_au_size, std::get<std::optional<int> *>(option->value));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  AmfCodecOptions,
+  AmfMaxAuSizeOptionsTest,
+  testing::Values(
+    std::make_tuple(&video::amdvce.h264, true),
+    std::make_tuple(&video::amdvce.hevc, true),
+    std::make_tuple(&video::amdvce.av1, false)
+  )
+);
 #endif
+
+using AmfMaxAuSizeConfigParam = std::tuple<std::string_view, std::optional<int>>;
+
+/**
+ * @brief Parameterized coverage for parsing and validating the AMF maximum access-unit size.
+ */
+struct AmfMaxAuSizeConfigTest: BaseTest, testing::WithParamInterface<AmfMaxAuSizeConfigParam> {
+  void SetUp() override {
+    BaseTest::SetUp();
+    config::video.amd.amd_max_au_size.reset();
+    config::stream.file_apps = SUNSHINE_SOURCE_DIR "/tests/unit/test_video.cpp";
+  }
+
+  void TearDown() override {
+    config::video = original_video;
+    config::audio = original_audio;
+    config::stream = original_stream;
+    config::nvhttp = original_nvhttp;
+    config::input = original_input;
+    config::sunshine = original_sunshine;
+    config::modified_config_settings = original_modified_config_settings;
+    BaseTest::TearDown();
+  }
+
+  config::video_t original_video {config::video};  ///< Video configuration restored after each parameterized test.
+  config::audio_t original_audio {config::audio};  ///< Audio configuration restored after each parameterized test.
+  config::stream_t original_stream {config::stream};  ///< Stream configuration restored after each parameterized test.
+  config::nvhttp_t original_nvhttp {config::nvhttp};  ///< HTTP configuration restored after each parameterized test.
+  config::input_t original_input {config::input};  ///< Input configuration restored after each parameterized test.
+  config::sunshine_t original_sunshine {config::sunshine};  ///< Core configuration restored after each parameterized test.
+  decltype(config::modified_config_settings) original_modified_config_settings {config::modified_config_settings};  ///< Modified settings restored after each parameterized test.
+};
+
+TEST_P(AmfMaxAuSizeConfigTest, AcceptsOnlyFfmpegSupportedRange) {
+  const auto &[setting, expected] = GetParam();
+  config::apply_config_for_test(setting);
+
+  EXPECT_EQ(expected, config::video.amd.amd_max_au_size);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  AmfMaxAuSizeValues,
+  AmfMaxAuSizeConfigTest,
+  testing::Values(
+    AmfMaxAuSizeConfigParam {""sv, std::nullopt},
+    AmfMaxAuSizeConfigParam {"amd_max_au_size = -2\n"sv, std::nullopt},
+    AmfMaxAuSizeConfigParam {"amd_max_au_size = -1\n"sv, -1},
+    AmfMaxAuSizeConfigParam {"amd_max_au_size = 0\n"sv, 0},
+    AmfMaxAuSizeConfigParam {"amd_max_au_size = 800000\n"sv, 800000},
+    AmfMaxAuSizeConfigParam {"amd_max_au_size = 2147483647\n"sv, std::numeric_limits<int>::max()}
+  )
+);
 
 struct FramerateX100Test: BaseTest, testing::WithParamInterface<std::tuple<std::int32_t, AVRational>> {};
 
