@@ -226,6 +226,31 @@ namespace platf {
         }
 
         /**
+         * @brief Wrap drmModeGetConnector call in privileged worker thread.
+         *
+         * @param fd DRM file descriptor.
+         * @param connectorId DRM connector id.
+         * @return Pointer to drmModeConnector structure on success, or nullptr on failure.
+         */
+        static drmModeConnectorPtr drmModeGetConnector_privileged(int fd, uint32_t connectorId) {
+          try {
+            const auto [result, errno_value] = run_with_errno([fd, connectorId] {
+              return drmModeGetConnector(fd, connectorId);
+            });
+
+            if (!result) {
+              errno = errno_value;
+            }
+
+            return result;
+
+          } catch (const privileged_drm_worker_stopped &err) {
+            BOOST_LOG(error) << err.what();
+            return nullptr;
+          }
+        }
+
+        /**
          * @brief Wrap drmModeGetFB2 call in privileged worker thread.
          *
          * @param fd DRM file descriptor.
@@ -276,6 +301,31 @@ namespace platf {
         }
 
         /**
+         * @brief Wrap drmModeGetPlane call in privileged worker thread.
+         *
+         * @param fd DRM file descriptor.
+         * @param plane_id DRM plane id.
+         * @return Pointer to drmModePlane structure on success, or nullptr on failure.
+         */
+        static drmModePlanePtr drmModeGetPlane_privileged(int fd, uint32_t plane_id) {
+          try {
+            const auto [result, errno_value] = run_with_errno([fd, plane_id] {
+              return drmModeGetPlane(fd, plane_id);
+            });
+
+            if (!result) {
+              errno = errno_value;
+            }
+
+            return result;
+
+          } catch (const privileged_drm_worker_stopped &err) {
+            BOOST_LOG(error) << err.what();
+            return nullptr;
+          }
+        }
+
+        /**
          * @brief Wrap drmModeGetPlaneResources call in privileged worker thread.
          *
          * @param fd DRM file descriptor.
@@ -285,6 +335,30 @@ namespace platf {
           try {
             const auto [result, errno_value] = run_with_errno([fd] {
               return drmModeGetPlaneResources(fd);
+            });
+
+            if (!result) {
+              errno = errno_value;
+            }
+
+            return result;
+
+          } catch (const privileged_drm_worker_stopped &err) {
+            BOOST_LOG(error) << err.what();
+            return nullptr;
+          }
+        }
+
+        /**
+         * @brief Wrap drmModeGetResources call in privileged worker thread.
+         *
+         * @param fd DRM file descriptor.
+         * @return Pointer to drmModeRes structure on success, or nullptr on failure.
+         */
+        static drmModeResPtr drmModeGetResources_privileged(int fd) {
+          try {
+            const auto [result, errno_value] = run_with_errno([fd] {
+              return drmModeGetResources(fd);
             });
 
             if (!result) {
@@ -656,7 +730,7 @@ namespace platf {
         this->plane.reset();
 
         for (; plane_p != end; ++plane_p) {
-          plane_t plane = drmModeGetPlane(fd, *plane_p);
+          plane_t plane = platf::kms::privileged_drm_worker::drmModeGetPlane_privileged(fd, *plane_p);
           if (!plane) {
             BOOST_LOG(error) << "Couldn't get drm plane ["sv << (end - plane_p) << "]: "sv << strerror(errno);
             continue;
@@ -838,7 +912,7 @@ namespace platf {
        * @return DRM card resource list.
        */
       res_t res() {
-        return drmModeGetResources(fd.el);
+        return platf::kms::privileged_drm_worker::drmModeGetResources_privileged(fd.el);
       }
 
       /**
@@ -928,7 +1002,7 @@ namespace platf {
        * @return Owning pointer to the DRM connector object.
        */
       connector_interal_t connector(std::uint32_t id) {
-        return drmModeGetConnector(fd.el, id);
+        return platf::kms::privileged_drm_worker::drmModeGetConnector_privileged(fd.el, id);
       }
 
       /**
@@ -1048,7 +1122,7 @@ namespace platf {
        * @return Plane metadata for the requested DRM plane.
        */
       plane_t operator[](std::uint32_t index) {
-        return drmModeGetPlane(fd.el, plane_res->planes[index]);
+        return platf::kms::privileged_drm_worker::drmModeGetPlane_privileged(fd.el, plane_res->planes[index]);
       }
 
       /**
@@ -1499,7 +1573,7 @@ namespace platf {
           return;
         }
 
-        plane_t plane = drmModeGetPlane(card.fd.el, cursor_plane_id);
+        plane_t plane = platf::kms::privileged_drm_worker::drmModeGetPlane_privileged(card.fd.el, cursor_plane_id);
 
         std::optional<std::int32_t> prop_crtc_x;
         std::optional<std::int32_t> prop_crtc_y;
@@ -1690,7 +1764,7 @@ namespace platf {
           }
         }
 
-        plane_t plane = drmModeGetPlane(card.fd.el, plane_id);
+        plane_t plane = platf::kms::privileged_drm_worker::drmModeGetPlane_privileged(card.fd.el, plane_id);
         frame_timestamp = std::chrono::steady_clock::now();
 
         auto fb = card.fb(plane.get());
