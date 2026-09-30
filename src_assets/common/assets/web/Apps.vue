@@ -1014,7 +1014,7 @@
       save() {
         this.editFormError = "";
         this.editForm["image-path"] = this.editForm["image-path"].toString().replaceAll('"', '');
-        
+
         const imagePath = this.editForm["image-path"];
         if (imagePath && !imagePath.toLowerCase().endsWith('.png')) {
           this.editFormError = this.$t('file_browser.error_invalid_extension', { extensions: '.png' });
