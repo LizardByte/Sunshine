@@ -760,6 +760,7 @@
   },
   "file_browser": {
     "empty": "没有要显示的项目",
+    "error_invalid_extension": "所选文件的扩展名必须是以下其中之一： {extensions}",
     "root": "根目录",
     "select": "选择",
     "select_directory": "选择目录",
