@@ -760,6 +760,7 @@
   },
   "file_browser": {
     "empty": "Няма елементи за показване",
+    "error_invalid_extension": "Избраният файл трябва да има едно от следните разширения: {extensions}",
     "root": "Коренова папка",
     "select": "Избиране",
     "select_directory": "Изберете папка",
