@@ -760,6 +760,7 @@
   },
   "file_browser": {
     "empty": "Žádné položky k zobrazení",
+    "error_invalid_extension": "Vybraný soubor musí mít jednu z následujících přípon: {extensions}",
     "root": "Kořenový adresář",
     "select": "Vybrat",
     "select_directory": "Vybrat adresář",
