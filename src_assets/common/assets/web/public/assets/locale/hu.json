@@ -760,6 +760,7 @@
   },
   "file_browser": {
     "empty": "Nincs megjelenítendő elem",
+    "error_invalid_extension": "A kiválasztott fájlnak az alábbi kiterjesztések egyikével kell rendelkeznie: {extensions}",
     "root": "Root",
     "select": "Kiválasztás",
     "select_directory": "Könyvtár kiválasztása",
