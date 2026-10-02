@@ -1332,8 +1332,10 @@ namespace input {
       return;
     }
 
-    const auto *bytes = reinterpret_cast<const std::byte *>(header);
-    platf::clipboard_set(std::string_view(reinterpret_cast<const char *>(bytes + sizeof(NV_INPUT_HEADER) + sizeof(std::uint32_t)), text_len));
+    const auto *text = reinterpret_cast<const std::byte *>(header) + sizeof(NV_INPUT_HEADER) + sizeof(std::uint32_t);
+    std::string copy(text_len, '\0');
+    std::memcpy(copy.data(), static_cast<const void *>(text), text_len);
+    platf::clipboard_set(copy);
   }
 
   /**
