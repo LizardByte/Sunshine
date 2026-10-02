@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import DisplayDeviceOptions from '../../src_assets/common/assets/web/configs/tabs/audiovideo/DisplayDeviceOptions.vue'
 import General from '../../src_assets/common/assets/web/configs/tabs/General.vue'
+import Inputs from '../../src_assets/common/assets/web/configs/tabs/Inputs.vue'
 import Network from '../../src_assets/common/assets/web/configs/tabs/Network.vue'
 
 const globalOptions = {
@@ -111,5 +112,83 @@ describe('network configuration', () => {
     expect(tableText).toContain('47989')
     expect(tableText).toContain('48010')
     expect(tableText).not.toContain('NaN')
+  })
+})
+
+describe('gamepad input configuration', () => {
+  function mountInputs(platform, gamepadDriver = '', gamepad = 'auto', controller = 'enabled') {
+    return mount(Inputs, {
+      props: {
+        platform,
+        config: {
+          controller,
+          gamepad,
+          gamepad_driver: gamepadDriver,
+          keybindings: '[]',
+          motion_as_ds4: 'enabled',
+          touchpad_as_ds4: 'enabled',
+          ds4_back_as_touchpad_click: 'enabled',
+          virtualhid_randomize_mac: 'enabled',
+          keyboard: 'disabled',
+          mouse: 'disabled',
+        },
+      },
+      global: {
+        mocks: { $t: key => key },
+        stubs: { Checkbox: true, VirtualKeyCodeSelect: true },
+      },
+    })
+  }
+
+  it.each(['freebsd', 'linux', 'macos', 'windows'])('offers all profiles and automatic detection on %s', platform => {
+    const wrapper = mountInputs(platform, platform === 'windows' ? 'virtualhid' : '')
+
+    expect(wrapper.find('#gamepad_driver').exists()).toBe(platform === 'windows' || platform === 'macos')
+    expect(wrapper.get('#gamepad').findAll('option').map(option => option.attributes('value'))).toEqual([
+      'auto', 'generic', 'x360', 'xone', 'xseries', 'ds4', 'ds5', 'switch',
+    ])
+    expect(wrapper.find('#motion_as_ds4').exists()).toBe(true)
+    expect(wrapper.find('#touchpad_as_ds4').exists()).toBe(true)
+  })
+
+  it('shows the existing Enable Gamepad Input control on macOS', () => {
+    const enabled = mountInputs('macos')
+    expect(enabled.find('#controller').exists()).toBe(true)
+    expect(enabled.find('#gamepad').exists()).toBe(true)
+
+    const disabled = mountInputs('macos', '', 'auto', 'disabled')
+    expect(disabled.find('#controller').exists()).toBe(true)
+    expect(disabled.find('#gamepad_driver').exists()).toBe(true)
+    expect(disabled.find('#gamepad').exists()).toBe(false)
+    expect(disabled.find('#keyboard').exists()).toBe(true)
+    expect(disabled.find('#mouse').exists()).toBe(true)
+  })
+
+  it.each(['macos', 'windows'])('offers None to disable gamepads on %s', async platform => {
+    const wrapper = mountInputs(platform)
+
+    const backend = wrapper.get('#gamepad_driver')
+    expect(backend.findAll('option').map(option => option.attributes('value'))).toContain('none')
+    if (platform === 'macos') {
+      expect(backend.element.value).toBe('virtualhid')
+    }
+
+    await backend.setValue('none')
+    expect(wrapper.find('#gamepad').exists()).toBe(false)
+    expect(wrapper.find('#motion_as_ds4').exists()).toBe(false)
+    expect(wrapper.find('#back_button_timeout').exists()).toBe(false)
+    expect(wrapper.find('#keyboard').exists()).toBe(true)
+    expect(wrapper.find('#mouse').exists()).toBe(true)
+  })
+
+  it('limits Windows ViGEmBus to Xbox 360 and DualShock 4', async () => {
+    const wrapper = mountInputs('windows', 'virtualhid', 'xone')
+
+    await wrapper.get('#gamepad_driver').setValue('vigembus')
+
+    expect(wrapper.get('#gamepad').findAll('option').map(option => option.attributes('value'))).toEqual([
+      'auto', 'x360', 'ds4',
+    ])
+    expect(wrapper.get('#gamepad').element.value).toBe('auto')
   })
 })

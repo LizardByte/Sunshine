@@ -821,6 +821,8 @@ namespace video {
         // HDR-specific options
         {"profile"s, std::to_underlying(nv::profile_hevc_e::main_10)},
       },
+      // libavcodec will automatically use the rext profile for
+      // YUV444 SDR and HDR content, so it doesn't need to be specified here
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
       {},  // Fallback options

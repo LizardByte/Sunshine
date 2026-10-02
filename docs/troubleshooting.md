@@ -170,45 +170,33 @@ If you see the above error in the Sunshine logs, compiling *Mesa* manually may b
 > Other build options are listed in the
 > [meson options](https://gitlab.freedesktop.org/mesa/mesa/-/blob/main/meson_options.txt) file.
 
-### XDG Portal Token Issues
-Portal capture requires you to approve Remote Desktop permissions using an on-screen prompt on the host. Sunshine saves
-the resulting restore token so the desktop portal can reauthorize capture automatically on subsequent starts. The token
-can become invalid after events such as a Sunshine crash, switching desktop environments, changing portal
-implementations, or connecting and disconnecting monitors.
+### XDG Portal Capture Permissions
 
-Reset the token when portal capture previously worked but Sunshine no longer shows the permission prompt, or when the
-log shows that a saved token was loaded before the portal returned no streams. For example:
+Portal capture requires you to approve Remote Desktop permissions using an on-screen prompt on the host. Sunshine saves the
+resulting restore token so the XDG Desktop Portal can reauthorize capture automatically on subsequent starts.
 
-```txt
-Info: [portalgrab] Loaded portal restore token from disk
-Error: [portalgrab] RemoteDesktop Start: no streams in response
-Warning: [portalgrab] Failed to connect to portal. Cannot enumerate displays, returning empty list.
-```
+If a restore token doesn't yet exist or becomes stale (for example, after a Sunshine crash, switching desktop environments,
+changing portal implementations, or changing the monitor associated with the Portal session), Sunshine will attempt to run
+in fallback capture mode. While in this mode, Sunshine will temporarily select another working capture method so that you
+can interact with the Portal Remote Desktop dialog. Once a new restore token is negotiated and saved, Sunshine will
+automatically restart and switch back to Portal capture.
 
-Do not use this reset for a generic encoder failure unless the log also shows that XDG Portal capture failed.
+> [!IMPORTANT]
+> If a fallback session cannot be created because no other capture methods are available, you will need to directly
+> interact with the host or use an alternative Remote Desktop connection (e.g. VNC, RDP) to complete setup.
 
-In the Web UI, open **Troubleshooting** and select **Reset XDG Portal Capture**. Sunshine deletes the saved token and
-restarts. Approve the Remote Desktop prompt and select the display to capture when it appears again.
+If the saved Portal token is valid but you want to change the monitor associated with Portal capture, open the Web UI,
+open **Troubleshooting**, and select **Reset XDG Portal Capture**. Sunshine deletes the saved token and restarts.
+Approve the Remote Desktop prompt again and select the display to capture when it appears.
 
-If the Web UI is inaccessible, stop Sunshine and delete the token manually:
+> [!TIP]
+> If Sunshine uses a custom configuration directory, you may need to delete the `portal_token` file from the custom
+> directory and restart Sunshine manually in lieu of the Web UI.
 
-@tabs{
-  @tab{Linux / FreeBSD |:| ```bash
-    rm "${XDG_CONFIG_HOME:-$HOME/.config}/sunshine/portal_token"
-    ```
-  }
-  @tab{Flatpak |:| ```bash
-    rm "$HOME/.var/app/dev.lizardbyte.app.Sunshine/config/sunshine/portal_token"
-    ```
-  }
-}
+Users of the KDE Plasma desktop can bypass manual permission setup either by switching to `kwin` capture or setting
+the following configuration to enable permanent capture authorization for Sunshine via Portal capture:
 
-Start Sunshine again, then approve the new Remote Desktop request. If Sunshine uses a custom configuration directory,
-delete the `portal_token` file from that directory instead.
-
-Users of the KDE Plasma desktop can bypass this issue either by switching to `kwin` capture or setting the following
-configuration to enable permanent capture authorization for Sunshine via Portal capture:
-```
+```bash
 flatpak permission-set kde-authorized remote-desktop dev.lizardbyte.app.Sunshine yes
 ```
 > [!NOTE]
@@ -318,6 +306,18 @@ Some users have reported stuttering issues when streaming games running within G
 
 ## macOS
 
+### No gamepad detected
+Confirm **Enable Gamepad Input** is on under **Configuration > Input**. Install
+[Virtual HID Broker](https://github.com/LizardByte/libvirtualhid/releases/latest) separately from Sunshine,
+using the macOS installer in its universal DMG. Confirm that `/Applications/VirtualHIDBroker.app` is allowed in
+**System Settings > Privacy & Security > Device Control and Data Access**, and activate a machine license under
+**Troubleshooting > Virtual HID Broker License** in Sunshine. The menu bar **Virtual HID Broker** submenu also
+shows license status and links for license management and downloads. If the broker or license is unavailable, the
+Troubleshooting page shows the broker response. Sunshine can show a startup notice when gamepad input is enabled
+and the broker or license is unavailable. Choose **None** under **Configuration > Input > Gamepad Backend** to disable
+virtual gamepads and that notice without affecting keyboard or mouse input. Reconnect the Moonlight session after choosing
+a different emulated gamepad profile.
+
 ### Dynamic session lookup failed
 If you get this error:
 
@@ -333,46 +333,47 @@ launchctl load -w /Library/LaunchAgents/org.freedesktop.dbus-session.plist
 
 ### No gamepad detected
 Sunshine supports two virtual gamepad backends on Windows. You can install the
-[Virtual HID Driver](https://github.com/LizardByte/libvirtualhid/releases/latest) separately as an optional paid upgrade
-for a driver-backed Raw Input keyboard and mouse plus full virtual gamepad support. ViGEmBus is a limited alternative
-for Xbox 360 and DualShock 4 support that has reached end of life. If you use the
+[Virtual HID Broker](https://github.com/LizardByte/libvirtualhid/releases/latest) separately as an optional paid upgrade.
+Its Windows package includes a broker service and user-mode driver for a Raw Input keyboard and mouse plus full virtual
+gamepad support. ViGEmBus is a limited alternative for Xbox 360 and DualShock 4 support that has reached end of life. If you use the
 [ViGEmBus fallback](https://github.com/nefarius/ViGEmBus/releases/latest), you must use version 1.17 or newer.
 
-When Virtual HID Driver is used, Sunshine requires version `2026.914.1218.10` or newer.
+When Virtual HID Broker is used, Sunshine requires libvirtualhid version `2026.914.1218.10` or newer.
 
-Virtual HID Driver adds Xbox One, Xbox Series, DualSense, Nintendo Switch Pro, and Generic gamepads, plus advanced
+Virtual HID Broker adds Xbox One, Xbox Series, DualSense, Nintendo Switch Pro, and Generic gamepads, plus advanced
 controller features such as motion, touchpads, LEDs, and adaptive triggers when supported. Unlike the discontinued
-ViGEmBus project, Virtual HID Driver is actively developed and supported by the LizardByte team.
+ViGEmBus project, Virtual HID Broker is actively developed and supported by the LizardByte team.
 
-An active paid Virtual HID Driver machine license is required before Sunshine can create driver-backed libvirtualhid
+An active paid Virtual HID Broker machine license is required before Sunshine can create driver-backed libvirtualhid
 devices, including gamepads and the Raw Input keyboard and mouse. Use the message on the Web UI home page, the startup
-tray notification, or **Get/Manage License** in the **Virtual HID Driver** tray submenu to open the license section on
-the Troubleshooting page. In **Configuration > Input**, select **All Available Drivers**, only **Virtual HID Driver**, or
+tray notification, or **Get/Manage License** in the **Virtual HID Broker** tray submenu to open the license section on
+the Troubleshooting page. In **Configuration > Input**, select **All Available Drivers**, only **Virtual HID Broker**, or
 only **ViGEmBus**. Sunshine keeps prompting until this setting is saved, but automatically selects **All Available
-Drivers** when it detects an existing active Virtual HID Driver license. Whenever the Virtual HID Driver license is not
+Drivers** when it detects an existing active Virtual HID Broker license. Whenever the Virtual HID Broker license is not
 valid, **All Available Drivers** falls back to a compatible ViGEmBus installation for Xbox 360 and DualShock 4 gamepads
-and to SendInput for keyboard and mouse. Selecting only **ViGEmBus** suppresses Virtual HID Driver startup notifications
-and hides its status and license details from the Troubleshooting page.
+and to SendInput for keyboard and mouse. Selecting only **ViGEmBus** suppresses Virtual HID Broker startup notifications
+and hides its status and license details from the Troubleshooting page. Selecting **None** disables all virtual
+gamepads and suppresses broker and driver choice notices without affecting keyboard or mouse input.
 
 After installation, it is recommended to restart your computer.
 
 ### Games do not detect keyboard input
-With a compatible Virtual HID Driver and active license, Sunshine sends normal key transitions through a real HID
+With a compatible Virtual HID Broker and active license, Sunshine sends normal key transitions through a real HID
 keyboard so games using Raw Input can receive them. Unicode text input and keys outside the supported HID keyboard
 page continue to use Windows input injection. When the driver-backed keyboard cannot be created because the driver,
 broker, or license is unavailable, libvirtualhid falls back to SendInput.
 
-Check the Virtual HID Driver version and license sections on the Web UI Troubleshooting page. Sunshine recreates the
+Check the libvirtualhid driver version and Virtual HID Broker license on the Web UI Troubleshooting page. Sunshine recreates the
 shared keyboard and mouse after a successful license activation, validation, or deactivation, so you do not need to
 restart Sunshine merely to switch between the HID and SendInput paths.
 
 ### Games do not detect mouse input
-With a compatible Virtual HID Driver and active license, Sunshine sends relative mouse movement, buttons, and scrolling
+With a compatible Virtual HID Broker and active license, Sunshine sends relative mouse movement, buttons, and scrolling
 through a real HID device so games using Raw Input can receive them. Absolute positioning still uses Windows input
 injection. When the driver-backed mouse cannot be created, libvirtualhid falls back to SendInput; the Windows cursor may
 still move even though a game that listens only for Raw Input receives nothing.
 
-Check the Virtual HID Driver version and license sections on the Web UI Troubleshooting page even when controller input
+Check the libvirtualhid driver version and Virtual HID Broker license on the Web UI Troubleshooting page even when controller input
 is disabled. The same live refresh used by the keyboard path also switches the mouse between HID and SendInput without
 requiring a Sunshine restart.
 

@@ -1203,11 +1203,12 @@ namespace platf {
    * @brief Press or release a virtual keyboard key.
    *
    * @param input Platform input backend that receives the event.
-   * @param modcode Modifier key code to update.
+   * @param modcode Portable key code to update.
    * @param release Whether the key or button event is a release.
    * @param flags Bit flags that modify the requested operation.
+   * @param extended Whether the client positively identified an extended key.
    */
-  void keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags);
+  void keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags, bool extended = false);
   void gamepad_update(input_t &input, int nr, const gamepad_state_t &gamepad_state);
   /**
    * @brief Submit UTF-8 text input to the keyboard backend.

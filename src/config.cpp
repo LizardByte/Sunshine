@@ -774,6 +774,7 @@ namespace config {
     {
       2,  // vk.tune (default: ll - low latency)
       2,  // vk.rc_mode (default: cbr)
+      2,  // vk.quality (default: 2 = balanced, 1 = speed, 3 = quality)
     },
 
     {},  // capture
@@ -850,11 +851,8 @@ namespace config {
     500ms,  // key_repeat_delay
     std::chrono::duration<double> {1 / 24.9},  // key_repeat_period
 
-    {
-      platf::supported_gamepads(nullptr).front().name.data(),
-      platf::supported_gamepads(nullptr).front().name.size(),
-    },  // Default gamepad
-    {},  // gamepad_driver remains unset until the user chooses a Windows driver policy
+    "auto",  // Default gamepad profile.
+    {},  // Windows requests a backend choice; macOS defaults to Virtual HID Broker.
     true,  // back as touchpad click enabled for PlayStation-style gamepads
     true,  // client gamepads with motion events use PlayStation-style emulation
     true,  // client gamepads with touchpads use PlayStation-style emulation
@@ -1571,14 +1569,17 @@ namespace config {
    *
    * @return Platform-supported gamepad backend names accepted by configuration.
    */
-  std::vector<std::string_view> &get_supported_gamepad_options() {
-    const auto options = platf::supported_gamepads(nullptr);
-    static std::vector<std::string_view> opts {};
-    opts.reserve(options.size());
-    for (auto &opt : options) {
-      opts.emplace_back(opt.name);
-    }
-    return opts;
+  const std::vector<std::string_view> &get_supported_gamepad_options() {
+    static const auto gamepads = platf::supported_gamepads(nullptr);
+    static const auto options = []() {
+      std::vector<std::string_view> names;
+      names.reserve(gamepads.size());
+      for (const auto &gamepad : gamepads) {
+        names.emplace_back(gamepad.name);
+      }
+      return names;
+    }();
+    return options;
   }
 
   /**
@@ -1693,6 +1694,16 @@ namespace config {
 
     int_f(vars, "vk_tune", video.vk.tune);
     int_f(vars, "vk_rc_mode", video.vk.rc_mode);
+    std::string vk_quality;
+    string_f(vars, "vk_quality", vk_quality);
+    static const std::unordered_map<std::string_view, int> vk_quality_map = {
+      {"speed"sv, 1},
+      {"balanced"sv, 2},
+      {"quality"sv, 3}
+    };
+    if (auto it = vk_quality_map.find(vk_quality); it != vk_quality_map.end()) {
+      video.vk.quality = it->second;
+    }
 
     string_f(vars, "capture", video.capture);
     string_f(vars, "encoder", video.encoder);
@@ -1828,6 +1839,7 @@ namespace config {
                                                                         GAMEPAD_DRIVER_ALL,
                                                                         GAMEPAD_DRIVER_VIRTUALHID,
                                                                         GAMEPAD_DRIVER_VIGEMBUS,
+                                                                        GAMEPAD_DRIVER_NONE,
                                                                       });
     string_restricted_f(vars, "gamepad"s, input.gamepad, get_supported_gamepad_options());
 #ifdef _WIN32

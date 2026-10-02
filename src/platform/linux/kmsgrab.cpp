@@ -53,14 +53,19 @@ namespace platf {
 
           cap_value_t sys_admin = CAP_SYS_ADMIN;
           if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &sys_admin, CAP_SET) || cap_set_proc(caps)) {
-            BOOST_LOG(error) << "Failed to gain CAP_SYS_ADMIN";
+            BOOST_LOG(error) << "Failed to gain CAP_SYS_ADMIN"sv;
           }
         }
 
         ~cap_sys_admin() {
           cap_value_t sys_admin = CAP_SYS_ADMIN;
-          if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &sys_admin, CAP_CLEAR) || cap_set_proc(caps)) {
-            BOOST_LOG(error) << "Failed to drop CAP_SYS_ADMIN";
+          if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &sys_admin, CAP_CLEAR)) {
+            BOOST_LOG(error) << "Failed to clear CAP_SYS_ADMIN capability flag"sv;
+          } else if (cap_set_proc(caps)) {
+            // CAP_SYS_ADMIN may already have been dropped by privileged_drm_worker.
+            if (errno != EPERM) {
+              BOOST_LOG(error) << "Failed to drop CAP_SYS_ADMIN"sv;
+            }
           }
           cap_free(caps);
         }
@@ -207,7 +212,10 @@ namespace platf {
      * @brief Allows the DRM privileged_drm_worker thread to drop privileges.
      */
     void drop_drm_worker_privileges() {
-      privileged_drm_worker::drop_worker_privileges();
+      static std::once_flag flag;
+      std::call_once(flag, []() {
+        privileged_drm_worker::drop_worker_privileges();
+      });
     }
 #endif
 
@@ -436,6 +444,7 @@ namespace platf {
       _CONVERT("HDMI-B"sv, HDMIB);
       _CONVERT("TV"sv, TV);
       _CONVERT("eDP"sv, eDP);
+      _CONVERT("Meta"sv, VIRTUAL);  ///<  GNOME Shell (Mutter) virtual monitor
       _CONVERT("VIRTUAL"sv, VIRTUAL);
       _CONVERT("Virtual"sv, VIRTUAL);
       _CONVERT("DSI"sv, DSI);

@@ -24,6 +24,7 @@
 // platform includes
 #include <arpa/inet.h>
 #include <dlfcn.h>
+#include <fcntl.h>
 #include <gio/gio.h>  // For RTKit
 #include <ifaddrs.h>
 #include <netinet/in.h>
@@ -31,6 +32,7 @@
 #include <pwd.h>
 #include <sys/resource.h>  // For setpriority
 #include <sys/socket.h>
+#include <unistd.h>
 
 #if !defined(__FreeBSD__)
   #include <sys/capability.h>
@@ -45,9 +47,7 @@
 // lib includes
 #include <boost/asio/ip/address.hpp>
 #include <boost/asio/ip/host_name.hpp>
-#include <fcntl.h>
 #include <lizardbyte/common/env.h>
-#include <unistd.h>
 
 #ifdef SUNSHINE_BUILD_DRM
   #include <dirent.h>
@@ -61,8 +61,10 @@
 #include "src/boost_process_compat.h"
 #include "src/config.h"
 #include "src/entry_handler.h"
+#include "src/globals.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
+#include "src/platform/permissions.h"
 #include "vaapi.h"
 
 #ifdef __GNUC__
@@ -152,6 +154,22 @@ namespace dyn {
 }  // namespace dyn
 
 namespace platf {
+  std::vector<permission_status_t> get_permission_statuses() {
+    // Match libvirtualhid's device paths and its read/write access check.
+    bool input_access = access("/dev/uinput", R_OK | W_OK) == 0;
+#ifndef __FreeBSD__
+    input_access = input_access || access("/dev/input/uinput", R_OK | W_OK) == 0;
+#endif
+    return {{"input", input_access ? "granted" : "denied", config::input.keyboard || config::input.mouse || config::input.controller, true}};
+  }
+
+  bool request_permission(std::string_view id) {
+    // Unix device access has no process-local permission prompt. The Web UI
+    // presents the group/device setup steps for this known permission.
+    (void) id;
+    return false;
+  }
+
   namespace {
     constexpr std::array privileged_gui_environment_variables {
       "GDK_PIXBUF_MODULEDIR",
@@ -1214,22 +1232,90 @@ namespace platf {
 #endif
 
 #ifdef SUNSHINE_BUILD_PORTAL
-  std::vector<std::string> portal_display_names();
+  std::vector<std::string> portal_display_names(bool allow_start_timeout);
   std::shared_ptr<display_t> portal_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
+  /**
+   * @brief Enumerates possible Portal probe responses.
+   */
+  enum class portal_probe_e {
+    unreachable,  ///< Portal service is unreachable.
+    no_token,  ///< Token not found.
+    stale_token,  ///< Had a token, but it didn't produce a working session.
+    available  ///< Portal is available.
+  };
+
+  /**
+   * @brief Probe Portal availability via token existence, DBus availability and timed probe.
+   *
+   * @return Can return no_token, unreachable, stale_token or available for processing via verify_portal().
+   */
+  portal_probe_e probe_portal() {
+    using enum portal_probe_e;
+
+    if (!portal::is_portal_service_reachable()) {
+      return unreachable;
+    }
+    if (!portal::has_saved_token()) {
+      return no_token;
+    }
+    return portal_display_names(true).empty() ? stale_token : available;
+  }
+
+  /**
+   * @brief Verify Portal capture and/or begin token negotiation via TaskPool.
+   *        If negotiation is requested, either queue a TaskPool task if no restore token is detected,
+   *        or if a stale token is detected, delete it and restart Sunshine.
+   *
+   * @return True if Portal is available.
+   */
   bool verify_portal() {
-    return !portal_display_names().empty();
+    using enum portal_probe_e;
+
+    auto result = probe_portal();
+    switch (result) {
+      case available:
+        return true;
+      case unreachable:
+        BOOST_LOG(debug) << "[portalgrab] xdg-desktop-portal not reachable; skipping Portal capture."sv;
+        return false;
+      case stale_token:
+        BOOST_LOG(warning) << "[portalgrab] Saved portal token did not produce a session; discarding and restarting."sv;
+        portal::clear_saved_token();
+        platf::restart();
+        return false;
+      case no_token:
+        BOOST_LOG(fatal) << "Portal capture is awaiting user permission. "sv
+                         << "The current session will attempt to use a fallback capture method."sv;
+        std::call_once(portal::xdg_worker_flag, []() {
+          portal::xdg_worker = std::jthread([]() {
+            try {
+              platf::set_thread_name("xdg_worker");
+              if (!portal_display_names(false).empty()) {
+                platf::restart();
+              } else {
+                BOOST_LOG(error) << "[portalgrab] Portal session token was not negotiated."sv;
+              }
+            } catch (const std::exception &e) {
+              BOOST_LOG(error) << "[portalgrab] Exception caught in xdg_worker: "sv << e.what();
+            } catch (...) {
+              BOOST_LOG(error) << "[portalgrab] Unknown exception caught in xdg_worker"sv;
+            }
+          });
+        });
+        return false;
+      default:
+        return false;
+    }
   }
 #endif
 
 #ifdef SUNSHINE_BUILD_KWIN
-  bool kwin_available();
   std::vector<std::string> kwin_display_names();
   std::shared_ptr<display_t> kwin_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
   bool verify_kwin() {
-    // Note: The separate kwin_available check is necessary because with CAP_SYS_ADMIN kwin_display_names is never empty during startup
-    return window_system == window_system_e::WAYLAND && kwin_available() && !kwin_display_names().empty();
+    return !kwin_display_names().empty();
   }
 #endif
 
@@ -1260,7 +1346,7 @@ namespace platf {
 #endif
 #ifdef SUNSHINE_BUILD_PORTAL
     if (sources[source::PORTAL]) {
-      return portal_display_names();
+      return portal_display_names(true);
     }
 #endif
 #ifdef SUNSHINE_BUILD_KWIN
@@ -1372,36 +1458,50 @@ namespace platf {
     }
 #endif
 
+    // Avoid mutating config directly if Portal needs to run in fallback capture mode.
+    std::string selected_capture = config::video.capture;
+
+    // When Portal is explicitly selected, probe it first so other capture methods can be considered for fallback capture.
+#ifdef SUNSHINE_BUILD_PORTAL
+    bool portal_available = false;
+    if (selected_capture == "portal") {
+      portal_available = verify_portal();
+      if (!portal_available) {
+        // Continue probing for fallback capture methods.
+        selected_capture.clear();
+      }
+    }
+#endif
 #ifdef SUNSHINE_BUILD_CUDA
-    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "nvfbc") && verify_nvfbc()) {
+    if (((selected_capture.empty() && sources.none()) || selected_capture == "nvfbc") && verify_nvfbc()) {
       sources[source::NVFBC] = true;
     }
 #endif
 #ifdef SUNSHINE_BUILD_WAYLAND
-    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "wlr") && verify_wl()) {
+    if (((selected_capture.empty() && sources.none()) || selected_capture == "wlr") && verify_wl()) {
       sources[source::WAYLAND] = true;
     }
 #endif
 #ifdef SUNSHINE_BUILD_DRM
-    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "kms") && verify_kms()) {
+    if (((selected_capture.empty() && sources.none()) || selected_capture == "kms") && verify_kms()) {
       sources[source::KMS] = true;
     }
 #endif
 #ifdef SUNSHINE_BUILD_X11
     // We enumerate this capture backend regardless of other suitable sources,
     // since it may be needed as a NvFBC fallback for software encoding on X11.
-    if ((config::video.capture.empty() || config::video.capture == "x11") && verify_x11()) {
+    if ((selected_capture.empty() || selected_capture == "x11") && verify_x11()) {
       sources[source::X11] = true;
     }
 #endif
-#ifdef SUNSHINE_BUILD_PORTAL
-    if ((config::video.capture.empty() || config::video.capture == "portal") && verify_portal()) {
-      sources[source::PORTAL] = true;
+#ifdef SUNSHINE_BUILD_KWIN
+    if (((selected_capture.empty() && sources.none()) || selected_capture == "kwin") && verify_kwin()) {
+      sources[source::KWIN] = true;
     }
 #endif
-#ifdef SUNSHINE_BUILD_KWIN
-    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "kwin") && verify_kwin()) {
-      sources[source::KWIN] = true;
+#ifdef SUNSHINE_BUILD_PORTAL
+    if (portal_available || (config::video.capture.empty() && sources.none() && verify_portal())) {
+      sources[source::PORTAL] = true;
     }
 #endif
 
@@ -1414,6 +1514,28 @@ namespace platf {
       BOOST_LOG(error) << "Failed to load EGL library symbols"sv;
       return nullptr;
     }
+
+#ifdef SUNSHINE_BUILD_PORTAL
+    class deinit_t: public platf::deinit_t {
+    public:
+      /**
+       * @brief Handle xdg_worker thread cleanup in destructor.
+       */
+      ~deinit_t() override {
+        try {
+          if (portal::xdg_worker.joinable()) {
+            // Make sure the worker's response loop sees shutdown before we block on join().
+            if (mail::man) {
+              mail::man->event<bool>(mail::shutdown)->raise(true);
+            }
+            portal::xdg_worker.join();
+          }
+        } catch (const std::exception &err) {
+          BOOST_LOG(error) << "[portalgrab] Exception while joining xdg_worker: "sv << err.what();
+        }
+      }
+    };
+#endif
 
     return std::make_unique<deinit_t>();
   }

@@ -8,6 +8,7 @@
 
 // standard includes
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <filesystem>
 #include <format>
@@ -27,12 +28,19 @@
 #include <Simple-Web-Server/crypto.hpp>
 #include <Simple-Web-Server/server_https.hpp>
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
   #include "platform/virtualhid_input.h"
+#endif
+
+#ifdef _WIN32
   #include "platform/windows/misc.h"
   #include "platform/windows/utf_utils.h"
 
   #include <Windows.h>
+#elif defined(__APPLE__)
+  #include "platform/macos/misc.h"
+
+  #include <CoreFoundation/CoreFoundation.h>
 #endif
 
 // local includes
@@ -48,6 +56,7 @@
 #include "network.h"
 #include "nvhttp.h"
 #include "platform/common.h"
+#include "platform/permissions.h"
 #include "process.h"
 #include "rtsp.h"
 #include "system_tray.h"
@@ -83,6 +92,9 @@ namespace confighttp {
 
   namespace {
     using license_status_provider_t = std::function<lvh::LicenseResult()>;  ///< Provider for the current libvirtualhid license status.
+#ifdef SUNSHINE_TESTS
+    std::optional<nlohmann::json> permission_status_override;  ///< Deterministic permission statuses for HTTP tests.
+#endif
 #if defined(linux) || defined(__FreeBSD__) || defined(SUNSHINE_TESTS)
     using portal_token_path_provider_t = std::function<fs::path()>;  ///< Provider for the XDG Portal token path.
 #endif
@@ -208,7 +220,12 @@ namespace confighttp {
    */
   constexpr auto CSRF_TOKEN_LIFETIME = std::chrono::hours(1);  // Tokens valid for 1 hour
 
-  constexpr std::string_view libvirtualhid_minimum_version = LIBVIRTUALHID_MINIMUM_VERSION;  ///< Minimum supported libvirtualhid driver version.
+#ifndef __APPLE__
+  constexpr std::string_view libvirtualhid_minimum_version = LIBVIRTUALHID_MINIMUM_VERSION;  ///< Minimum supported Windows broker version.
+#endif
+#ifdef __APPLE__
+  constexpr std::string_view libvirtualhid_macos_minimum_version = LIBVIRTUALHID_MACOS_MINIMUM_VERSION;  ///< Minimum supported macOS broker bundle version.
+#endif
   constexpr auto VIGEMBUS_MINIMUM_VERSION = "1.17.0.0"sv;  ///< Minimum supported ViGEmBus fallback driver version.  // NOSONAR(cpp:S1313): not an IP address
 
   /**
@@ -507,6 +524,42 @@ namespace confighttp {
     return {};
   }
 
+#endif
+
+#ifdef __APPLE__
+  /**
+   * @brief Read the installed macOS Virtual HID Broker app version.
+   *
+   * @return Three-part bundle version, or empty when the app is unavailable.
+   */
+  std::string read_libvirtualhid_broker_version() {
+    const auto bundle_url = CFURLCreateWithFileSystemPath(
+      kCFAllocatorDefault,
+      CFSTR("/Applications/VirtualHIDBroker.app"),
+      kCFURLPOSIXPathStyle,
+      true
+    );
+    if (!bundle_url) {
+      return {};
+    }
+
+    const auto bundle = CFBundleCreate(kCFAllocatorDefault, bundle_url);
+    CFRelease(bundle_url);
+    if (!bundle) {
+      return {};
+    }
+
+    std::string version;
+    const auto value = CFBundleGetValueForInfoDictionaryKey(bundle, CFSTR("CFBundleShortVersionString"));
+    if (value && CFGetTypeID(value) == CFStringGetTypeID()) {
+      std::array<char, 64> buffer {};
+      if (CFStringGetCString(static_cast<CFStringRef>(value), buffer.data(), buffer.size(), kCFStringEncodingUTF8)) {
+        version = buffer.data();
+      }
+    }
+    CFRelease(bundle);
+    return version;
+  }
 #endif
 
   /**
@@ -1959,15 +2012,97 @@ namespace confighttp {
   }
 
   /**
-   * @brief Build libvirtualhid driver version and installation status.
+   * @brief Return permission status for the current host platform.
    *
-   * @return libvirtualhid driver status JSON.
+   * @api_examples{/api/permissions|:| GET|:| null}
+   */
+  void getPermissions(const resp_https_t &response, const req_https_t &request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    nlohmann::json output_tree;
+    output_tree["permissions"] = nlohmann::json::array();
+#ifdef SUNSHINE_TESTS
+    if (permission_status_override) {
+      output_tree["permissions"] = *permission_status_override;
+      send_response(response, output_tree);
+      return;
+    }
+#endif
+    for (const auto &permission : platf::get_permission_statuses()) {
+      output_tree["permissions"].push_back({
+        {"id", permission.id},
+        {"status", permission.status},
+        {"required", permission.required},
+        {"verifiable", permission.verifiable},
+        {"requestable", permission.requestable},
+      });
+    }
+    send_response(response, output_tree);
+  }
+
+#ifdef SUNSHINE_TESTS
+  void set_permission_statuses_for_testing(nlohmann::json permissions) {
+    permission_status_override = std::move(permissions);
+  }
+
+  void reset_permission_statuses_for_testing() {
+    permission_status_override.reset();
+  }
+#endif
+
+  /**
+   * @brief Start a native permission request or open its settings pane.
+   *
+   * @api_examples{/api/permissions/request|:| POST|:| {"id":"screen_recording"}}
+   */
+  void requestPermission(const resp_https_t &response, const req_https_t &request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+    const auto client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
+      return;
+    }
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
+
+    try {
+      const auto input = nlohmann::json::parse(request->content.string());
+      if (!input.is_object() || !input.contains("id") || !input["id"].is_string()) {
+        bad_request(response, request, "A permission ID is required");
+        return;
+      }
+
+      const bool requested = platf::request_permission(input["id"].get<std::string>());
+      if (!requested) {
+        bad_request(response, request, "Unknown or unavailable permission");
+        return;
+      }
+      send_response(response, {{"status", true}});
+    } catch (const nlohmann::json::exception &) {
+      bad_request(response, request, "Invalid permission request");
+    }
+  }
+
+  /**
+   * @brief Build Virtual HID Broker version and installation status.
+   *
+   * @return Virtual HID Broker status JSON.
    */
   nlohmann::json get_virtualhid_driver_status() {
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
+  #ifdef _WIN32
     const auto version_str = read_libvirtualhid_driver_version();
+    const auto minimum_version = libvirtualhid_minimum_version;
+  #else
+    const auto version_str = read_libvirtualhid_broker_version();
+    const auto minimum_version = libvirtualhid_macos_minimum_version;
+  #endif
     const auto driver_detected = !version_str.empty();
-    auto output_tree = build_driver_status(driver_detected, version_str, libvirtualhid_minimum_version);
+    auto output_tree = build_driver_status(driver_detected, version_str, minimum_version);
     bool requires_installed_driver = true;
     std::string backend_name;
     std::string runtime_error_message;
@@ -1978,7 +2113,7 @@ namespace confighttp {
         const auto &capabilities = runtime->capabilities();
         backend_name = capabilities.backend_name;
         requires_installed_driver = capabilities.requires_installed_driver;
-        output_tree = build_driver_status(driver_detected || capabilities.supports_gamepad, version_str, libvirtualhid_minimum_version);
+        output_tree = build_driver_status(driver_detected || capabilities.supports_gamepad, version_str, minimum_version);
       }
     } catch (const std::bad_alloc &exception) {
       runtime_error_message = exception.what();
@@ -1991,7 +2126,7 @@ namespace confighttp {
     }
 #else
     auto output_tree = build_driver_status(false, "", libvirtualhid_minimum_version);
-    output_tree["error"] = "libvirtualhid driver status is only available on Windows";
+    output_tree["error"] = "Virtual HID Broker status is only available on Windows and macOS";
     output_tree["backend_name"] = "";
     output_tree["requires_installed_driver"] = false;
 #endif
@@ -2112,7 +2247,7 @@ namespace confighttp {
 #ifdef _WIN32
       config::select_all_gamepad_drivers_if_licensed(result.license.licensed());
 #endif
-#if defined(_WIN32) && defined(SUNSHINE_TRAY) && SUNSHINE_TRAY >= 1
+#if (defined(_WIN32) || defined(__APPLE__)) && defined(SUNSHINE_TRAY) && SUNSHINE_TRAY >= 1
       system_tray::update_tray_virtualhid_license(result.license, false);
 #endif
 #ifdef _WIN32
@@ -2371,6 +2506,8 @@ namespace confighttp {
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
     server.resource["^/api/reset-portal-token$"]["POST"] = resetPortalToken;
     server.resource["^/api/restart$"]["POST"] = restart;
+    server.resource["^/api/permissions$"]["GET"] = getPermissions;
+    server.resource["^/api/permissions/request$"]["POST"] = requestPermission;
     server.resource["^/api/virtual-input/license$"]["GET"] = getVirtualInputLicense;
     server.resource["^/api/virtual-input/license$"]["POST"] = updateVirtualInputLicense;
     server.resource["^/api/virtual-input/status$"]["GET"] = getVirtualInputStatus;

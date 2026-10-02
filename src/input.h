@@ -113,12 +113,33 @@ namespace input {
     int gamepad_id(const std::shared_ptr<input_t> &input, std::uint8_t client_index);
 
     /**
+     * @brief Install a callback called just before dispatching a queued input packet in a test.
+     * @param hook Callback receiving the packet magic, or empty to remove it.
+     */
+    void set_input_packet_hook(std::function<void(std::uint32_t)> hook);
+
+    /**
+     * @brief Redirect input task scheduling to a test callback.
+     *
+     * @param sink Callback receiving the stream whose packet task was queued, or empty to restore the worker pool.
+     */
+    void set_input_task_sink(std::function<void(std::shared_ptr<input_t>)> sink);
+
+    /**
+     * @brief Process queued input packets on the calling thread in a test.
+     *
+     * @param input Retained stream input state.
+     */
+    void process_queued_messages(std::shared_ptr<input_t> input);
+
+    /**
      * @brief Keyboard event Sunshine emitted toward the platform backend.
      */
     struct keyboard_event_t {
       std::uint16_t key_code;  ///< Platform keycode after the configured keybinding remap.
       bool release;  ///< Whether the event releases the key.
       std::uint8_t flags;  ///< Bit flags carried by the client keyboard packet.
+      bool extended = false;  ///< Whether the client positively identified an extended key.
     };
 
     /**

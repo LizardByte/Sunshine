@@ -48,7 +48,7 @@ jobs:
           echo "PROCESSOR_COUNT: $PROCESSOR_COUNT"
 
       - name: Setup FreeBSD
-        uses: vmactions/freebsd-vm@4469451fe39bee80be4066836c5170362e9349f3  # v1.5.7
+        uses: vmactions/freebsd-vm@a2f9a41fa97f6848b8c3b791087dfcdaa5b473ff  # v1.5.8
         with:
           arch: ${{ matrix.arch }}
           cpu: ${{ steps.processor_count.outputs.PROCESSOR_COUNT }}
@@ -64,7 +64,6 @@ jobs:
               audio/pulseaudio \
               devel/boost-all \
               devel/cmake-core \
-              devel/doxygen \
               devel/evdev-proto \
               devel/git \
               devel/libevdev \
@@ -74,7 +73,6 @@ jobs:
               devel/uv \
               devel/qt6-base \
               ftp/curl \
-              graphics/graphviz \
               graphics/libdrm \
               graphics/qt6-svg \
               graphics/shaderc \
@@ -145,7 +143,7 @@ jobs:
             -B build \
             -G Ninja \
             -S . \
-            -DBUILD_DOCS=ON \
+            -DBUILD_DOCS=OFF \
             -DBUILD_WERROR=OFF \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr/local \

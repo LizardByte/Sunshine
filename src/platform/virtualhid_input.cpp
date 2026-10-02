@@ -304,10 +304,11 @@ namespace platf::virtualhid {
       };
     }
 
-    lvh::KeyboardEvent keyboard_event(std::uint16_t modcode, bool release, std::uint8_t flags) {
+    lvh::KeyboardEvent keyboard_event(std::uint16_t modcode, bool release, std::uint8_t flags, bool extended) {
       lvh::KeyboardEvent event {
         .key_code = modcode,
         .pressed = !release,
+        .extended = extended,
       };
 
 #ifdef _WIN32
@@ -542,14 +543,15 @@ namespace platf::virtualhid {
   std::vector<supported_gamepad_t> supported_gamepads(
     lvh::Runtime *runtime,
     const bool fallback_vigem_available,
-    const bool virtualhid_licensed
+    const bool virtualhid_licensed,
+    const bool require_license
   ) {
     if (!runtime) {
       return static_supported_gamepads();
     }
 
     const auto &capabilities = runtime->capabilities();
-    const auto license_valid = !capabilities.requires_installed_driver || virtualhid_licensed;
+    const auto license_valid = (!capabilities.requires_installed_driver && !require_license) || virtualhid_licensed;
     const auto libvirtualhid_available = capabilities.supports_gamepad && license_valid;
     std::string reason;
     if (!capabilities.supports_gamepad) {
@@ -582,7 +584,7 @@ namespace platf::virtualhid {
     const std::string_view gamepad_driver,
     const bool virtualhid_licensed
   ) {
-    return gamepad_driver != config::GAMEPAD_DRIVER_VIGEMBUS && capabilities.supports_gamepad &&
+    return gamepad_driver != config::GAMEPAD_DRIVER_VIGEMBUS && gamepad_driver != config::GAMEPAD_DRIVER_NONE && capabilities.supports_gamepad &&
            (!capabilities.requires_installed_driver || virtualhid_licensed);
   }
 
@@ -591,7 +593,7 @@ namespace platf::virtualhid {
     const bool virtualhid_selected,
     const std::string_view gamepad_driver
   ) {
-    if (gamepad_driver == config::GAMEPAD_DRIVER_VIRTUALHID) {
+    if (gamepad_driver == config::GAMEPAD_DRIVER_VIRTUALHID || gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
       return false;
     }
     if (gamepad_driver == config::GAMEPAD_DRIVER_VIGEMBUS || !virtualhid_selected) {
@@ -836,9 +838,9 @@ namespace platf::virtualhid {
     }
   }
 
-  void keyboard_update(input_context_t &context, std::uint16_t modcode, bool release, std::uint8_t flags) {
+  void keyboard_update(input_context_t &context, std::uint16_t modcode, bool release, std::uint8_t flags, bool extended) {
     if (context.keyboard) {
-      log_failure("submit libvirtualhid keyboard input"sv, context.keyboard->submit(keyboard_event(modcode, release, flags)));
+      log_failure("submit libvirtualhid keyboard input"sv, context.keyboard->submit(keyboard_event(modcode, release, flags, extended)));
     }
   }
 
@@ -1064,8 +1066,8 @@ namespace platf {
     virtualhid::hscroll(virtualhid::get_input_context(input), high_res_distance);
   }
 
-  void keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
-    virtualhid::keyboard_update(virtualhid::get_input_context(input), modcode, release, flags);
+  void keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags, bool extended) {
+    virtualhid::keyboard_update(virtualhid::get_input_context(input), modcode, release, flags, extended);
   }
 
   void unicode(input_t &input, const char *utf8, int size) {

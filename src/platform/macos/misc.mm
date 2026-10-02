@@ -13,17 +13,24 @@
 #endif
 
 // standard includes
-#include <fcntl.h>
-#include <ifaddrs.h>
+#include <algorithm>
+#include <future>
+#include <memory>
 
 // platform includes
+#include <AppKit/AppKit.h>
 #include <arpa/inet.h>
+#include <AVFoundation/AVFoundation.h>
+#include <CoreGraphics/CoreGraphics.h>
 #include <dlfcn.h>
+#include <fcntl.h>
 #include <Foundation/Foundation.h>
+#include <ifaddrs.h>
 #include <mach-o/dyld.h>
 #include <net/if_dl.h>
 #include <pwd.h>
 #include <sys/qos.h>
+#include <UserNotifications/UserNotifications.h>
 
 // lib includes
 #include <boost/asio/ip/address.hpp>
@@ -32,6 +39,7 @@
 // local includes
 #include "misc.h"
 #include "src/boost_process_compat.h"
+#include "src/config.h"
 #include "src/entry_handler.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
@@ -63,7 +71,261 @@ namespace platf {
 
   namespace {
     auto screen_capture_allowed = std::atomic<bool> {false};
+    NSString *const screen_recording_state_key = @"screenRecordingPermissionState";  ///< Last screen recording request state for this user.
+    NSString *const input_post_event_state_key = @"inputPostEventPermissionState";  ///< Last keyboard and mouse request state for this user.
+    NSString *const system_audio_requested_key = @"systemAudioStartupRequested";  ///< Whether Sunshine already started a startup tap.
+
+    /**
+     * @brief Check screen recording without showing a macOS prompt.
+     *
+     * @return True when capture is allowed or the old OS has no privacy gate.
+     */
+    bool screen_recording_granted() {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
+#pragma clang diagnostic ignored "-Wtautological-pointer-compare"
+      return ![[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:((NSOperatingSystemVersion) {10, 15, 0})] ||
+             CGPreflightScreenCaptureAccess == nullptr || CGPreflightScreenCaptureAccess();
+#pragma clang diagnostic pop
+    }
+
+    /**
+     * @brief Query notification authorization without holding a callback stack frame alive.
+     *
+     * @return Authorization state name for the Web UI.
+     */
+    std::string notification_status() {
+      auto result = std::make_shared<std::promise<UNAuthorizationStatus>>();
+      auto future = result->get_future();
+      [[UNUserNotificationCenter currentNotificationCenter] getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings *settings) {
+        result->set_value(settings.authorizationStatus);
+      }];
+      if (future.wait_for(2s) != std::future_status::ready) {
+        return "unknown";
+      }
+      switch (future.get()) {
+        case UNAuthorizationStatusAuthorized:
+        case UNAuthorizationStatusProvisional:
+          return "granted";
+        case UNAuthorizationStatusDenied:
+          return "denied";
+        case UNAuthorizationStatusNotDetermined:
+          return "not_determined";
+      }
+      return "unknown";
+    }
+
+    /**
+     * @brief Open a fixed macOS privacy settings pane.
+     *
+     * @param pane Privacy pane anchor, selected from known Sunshine permissions.
+     * @return True when macOS accepted the settings URL.
+     */
+    bool open_privacy_settings(NSString *pane) {
+      NSString *address = [@"x-apple.systempreferences:com.apple.preference.security?" stringByAppendingString:pane];
+      return [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:address]] == YES;
+    }
+
+    /**
+     * @brief Request a CoreGraphics permission or open Settings when it was previously requested.
+     *
+     * @param startup Whether Sunshine is performing automatic startup checks.
+     * @param state_key User defaults key recording this permission's previous state.
+     * @param granted Whether the native preflight check reports access.
+     * @param pane Settings pane to open for manual authorization.
+     * @param request Native function that initiates the initial authorization request.
+     * @param retry_manual_request Whether a user action should retry the native request and open Settings.
+     * @return True when access exists or a native action was started.
+     */
+    bool request_coregraphics_permission(bool startup, NSString *state_key, bool granted, NSString *pane, bool (*request)(), bool retry_manual_request) {
+      NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+      const auto previous_state = static_cast<int>([defaults integerForKey:state_key]);
+      const auto action = permission_request_action(granted, previous_state, startup, retry_manual_request);
+      if (granted) {
+        [defaults setInteger:2 forKey:state_key];
+      }
+      if (action == permission_request_action_t::none) {
+        return granted;
+      }
+      if (action == permission_request_action_t::settings) {
+        [defaults setInteger:1 forKey:state_key];
+        return open_privacy_settings(pane);
+      }
+      [defaults setInteger:1 forKey:state_key];
+      if (request()) {
+        [defaults setInteger:2 forKey:state_key];
+        if (!startup && retry_manual_request) {
+          open_privacy_settings(pane);
+        }
+        return true;
+      }
+      return open_privacy_settings(pane);
+    }
+
+    /**
+     * @brief Request screen capture access without repeating an earlier startup prompt.
+     *
+     * @param startup Whether this is an automatic startup request.
+     * @return True when access exists or the request was opened.
+     */
+    bool request_screen_recording(bool startup) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
+      return request_coregraphics_permission(startup, screen_recording_state_key, screen_recording_granted(), @"Privacy_ScreenCapture", CGRequestScreenCaptureAccess, false);
+#pragma clang diagnostic pop
+    }
+
+    /**
+     * @brief Request Post Event access for libvirtualhid keyboard and mouse input.
+     *
+     * @param startup Whether this is an automatic startup request.
+     * @return True when access exists or the request was opened.
+     */
+    bool request_input_post_event(bool startup) {
+      return request_coregraphics_permission(startup, input_post_event_state_key, CGPreflightPostEventAccess(), @"Privacy_Accessibility", CGRequestPostEventAccess, true);
+    }
   }  // namespace
+
+  permission_request_action_t permission_request_action(bool granted, int previous_state, bool startup, bool retry_manual_request) {
+    if (granted) {
+      return permission_request_action_t::none;
+    }
+    if (!startup && retry_manual_request) {
+      return permission_request_action_t::prompt;
+    }
+    if (previous_state <= 0) {
+      return permission_request_action_t::prompt;
+    }
+    if (previous_state == 2 || !startup) {
+      return permission_request_action_t::settings;
+    }
+    return permission_request_action_t::none;
+  }
+
+  bool supports_local_network_privacy(int major_version) {
+    return major_version >= 15;
+  }
+
+  bool should_request_startup_system_audio_permission(bool has_custom_sink, bool previously_requested) {
+    return !has_custom_sink && !previously_requested;
+  }
+
+  std::vector<permission_status_t> get_permission_statuses() {
+    const auto microphone_authorization = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio];
+    std::string microphone_status = "unknown";
+    switch (microphone_authorization) {
+      case AVAuthorizationStatusAuthorized:
+        microphone_status = "granted";
+        break;
+      case AVAuthorizationStatusDenied:
+      case AVAuthorizationStatusRestricted:
+        microphone_status = "denied";
+        break;
+      case AVAuthorizationStatusNotDetermined:
+        microphone_status = "not_determined";
+        break;
+    }
+
+    const auto screen_granted = screen_recording_granted();
+    const auto input_granted = CGPreflightPostEventAccess();
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    if (screen_granted) {
+      [defaults setInteger:2 forKey:screen_recording_state_key];
+    }
+    if (input_granted) {
+      [defaults setInteger:2 forKey:input_post_event_state_key];
+    }
+
+    std::vector<permission_status_t> statuses {
+      {"screen_recording", screen_granted ? "granted" : "denied", true, true, true},
+      {"input", input_granted ? "granted" : "denied", config::input.keyboard || config::input.mouse, true, true},
+      {"microphone", microphone_status, !config::audio.sink.empty(), true, true},
+      {"system_audio", "on_use", config::audio.sink.empty(), false, true},
+    };
+    if (supports_local_network_privacy(static_cast<int>([[NSProcessInfo processInfo] operatingSystemVersion].majorVersion))) {
+      statuses.push_back({"local_network", "on_use", true, false, true});
+    }
+    statuses.push_back({"notifications", notification_status(), false, true, true});
+    return statuses;
+  }
+
+  bool should_request_startup_permission(const permission_status_t &permission, bool notifications_enabled) {
+    if (permission.id == "notifications") {
+      return notifications_enabled && permission.status == "not_determined";
+    }
+    if (!permission.required) {
+      return false;
+    }
+    if (permission.id == "microphone") {
+      return permission.status == "not_determined" || permission.status == "denied";
+    }
+    return (permission.id == "screen_recording" || permission.id == "input") &&
+           (permission.status == "not_determined" || permission.status == "denied");
+  }
+
+  bool request_permission(std::string_view id) {
+    if (id == "screen_recording") {
+      return request_screen_recording(false);
+    }
+    if (id == "input") {
+      return request_input_post_event(false);
+    }
+    if (id == "microphone") {
+      const auto authorization = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio];
+      if (authorization == AVAuthorizationStatusNotDetermined) {
+        [AVCaptureDevice requestAccessForMediaType:AVMediaTypeAudio completionHandler:^(BOOL) {}];
+        return true;
+      }
+      return authorization == AVAuthorizationStatusAuthorized || open_privacy_settings(@"Privacy_Microphone");
+    }
+    if (id == "notifications") {
+      if (notification_status() == "denied") {
+        return [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.notifications"]] == YES;
+      }
+      [[UNUserNotificationCenter currentNotificationCenter] requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound)
+                                                                          completionHandler:^(BOOL, NSError *) {}];
+      return true;
+    }
+    if (id == "system_audio") {
+      const bool settings_opened = open_privacy_settings(@"Privacy_ScreenCapture");
+      if (!request_system_audio_permission()) {
+        BOOST_LOG(warning) << "System audio recording permission or tap setup is unavailable"sv;
+      }
+      return settings_opened;
+    }
+    if (id == "local_network") {
+      if (!supports_local_network_privacy(static_cast<int>([[NSProcessInfo processInfo] operatingSystemVersion].majorVersion))) {
+        return false;
+      }
+      return [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:@"x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension"]] == YES;
+    }
+    return false;
+  }
+
+  void request_startup_permissions(bool notifications_enabled) {
+    for (const auto &permission : get_permission_statuses()) {
+      if (should_request_startup_permission(permission, notifications_enabled)) {
+        if (permission.id == "screen_recording") {
+          request_screen_recording(true);
+        } else if (permission.id == "input") {
+          request_input_post_event(true);
+        } else {
+          request_permission(permission.id);
+        }
+      }
+    }
+  }
+
+  void request_startup_system_audio_permission() {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    if (!should_request_startup_system_audio_permission(!config::audio.sink.empty(), [defaults boolForKey:system_audio_requested_key])) {
+      return;
+    }
+    [defaults setBool:YES forKey:system_audio_requested_key];
+    if (!request_system_audio_permission()) {
+      BOOST_LOG(warning) << "System audio recording permission or tap setup is unavailable"sv;
+    }
+  }
 
   // Return whether screen capture is allowed for this process.
   /**
@@ -74,29 +336,11 @@ namespace platf {
   }
 
   std::unique_ptr<deinit_t> init() {
-    // This will generate a warning about CGPreflightScreenCaptureAccess and
-    // CGRequestScreenCaptureAccess being unavailable before macOS 10.15, but
-    // we have a guard to prevent it from being called on those earlier systems.
-    // Unfortunately the supported way to silence this warning, using @available,
-    // produces linker errors for __isPlatformVersionAtLeast, so we have to use
-    // a different method.
-    // We also ignore "tautological-pointer-compare" because when compiling with
-    // Xcode 12.2 and later, these functions are not weakly linked and will never
-    // be null, and therefore generate this warning. Since we are weakly linking
-    // when compiling with earlier Xcode versions, the check for null is
-    // necessary, and so we ignore the warning.
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunguarded-availability-new"
-#pragma clang diagnostic ignored "-Wtautological-pointer-compare"
-    if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:((NSOperatingSystemVersion) {10, 15, 0})] &&
-        // Double check that these weakly-linked symbols have been loaded:
-        CGPreflightScreenCaptureAccess != nullptr && CGRequestScreenCaptureAccess != nullptr && !CGPreflightScreenCaptureAccess()) {
+    if (!screen_recording_granted()) {
       BOOST_LOG(error) << "No screen capture permission!"sv;
-      BOOST_LOG(error) << "Please activate it in 'System Preferences' -> 'Privacy' -> 'Screen Recording'"sv;
-      CGRequestScreenCaptureAccess();
+      BOOST_LOG(error) << "Please activate Sunshine in System Settings -> Privacy & Security -> Screen & System Audio Recording"sv;
       return nullptr;
     }
-#pragma clang diagnostic pop
     // Record that we determined that we have the screen capture permission.
     screen_capture_allowed = true;
     return std::make_unique<deinit_t>();

@@ -13,15 +13,16 @@
 
 // platform includes
 #ifdef __APPLE__
+  #include "platform/macos/misc.h"
+
   #include <mach-o/dyld.h>
 #endif
 #ifdef __linux__
+  #include "platform/common.h"
   #include "platform/linux/graphics.h"
+  #include "platform/linux/misc.h"
 
   #include <sys/auxv.h>
-  #if defined(SUNSHINE_BUILD_DRM)
-    #include "platform/linux/misc.h"
-  #endif
 #endif
 
 // lib includes
@@ -39,15 +40,11 @@
 #include "logging.h"
 #include "main.h"
 #include "nvhttp.h"
+#include "platform/permissions.h"
 #include "process.h"
 #include "system_tray.h"
 #include "upnp.h"
 #include "video.h"
-
-#ifdef __linux__
-  #include "platform/common.h"
-  #include "platform/linux/misc.h"
-#endif
 
 using namespace std::literals;
 
@@ -169,7 +166,7 @@ void mainThreadLoop(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) 
   // Main thread event loop
   BOOST_LOG(info) << "Starting main loop"sv;
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
-  while (system_tray::process_tray_events() == 0);
+  system_tray::run_tray_until_exit(shutdown_event);
 #endif
   BOOST_LOG(info) << "Main loop has exited"sv;
 }
@@ -446,6 +443,13 @@ int main(int argc, char *argv[]) {
     BOOST_LOG(error) << "Platform failed to initialize"sv;
   }
 
+  // Capture the pre-request state so access granted during this launch causes
+  // one clean restart after every verifiable required permission is available.
+  const bool permission_restart_needed = !platf::required_permissions_granted(platf::get_permission_statuses());
+#ifdef __APPLE__
+  platf::request_startup_permissions(tray_is_enabled && config::sunshine.system_tray);
+#endif
+
   auto proc_deinit_guard = proc::init();
   if (!proc_deinit_guard) {
     BOOST_LOG(error) << "Proc failed to initialize"sv;
@@ -502,9 +506,11 @@ int main(int argc, char *argv[]) {
 
   if (tray_is_enabled && config::sunshine.system_tray) {
     BOOST_LOG(info) << "Starting system tray"sv;
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
     system_tray::prepare_tray_virtualhid_license();
     system_tray::prepare_tray_virtualhid_driver();
+#endif
+#ifdef _WIN32
     // TODO: Windows has a weird bug where when running as a service and on the first Windows boot,
     // the tray icon would not appear even though Sunshine is running correctly otherwise.
     // Restarting the service would allow the icon to appear normally.
@@ -516,7 +522,40 @@ int main(int argc, char *argv[]) {
 #endif
   }
 
+#ifdef __APPLE__
+  std::jthread macos_audio_permission_requester;
+  if (!permission_restart_needed) {
+    macos_audio_permission_requester = std::jthread([]() {
+      platf::request_startup_system_audio_permission();
+    });
+  }
+#endif
+
+  std::jthread permission_watcher;
+  if (permission_restart_needed) {
+    permission_watcher = std::jthread([](std::stop_token stop) {
+      while (!stop.stop_requested()) {
+        if (platf::required_permissions_granted(platf::get_permission_statuses())) {
+          BOOST_LOG(info) << "Required permissions granted; restarting Sunshine"sv;
+          platf::restart();
+          return;
+        }
+        std::this_thread::sleep_for(2s);
+      }
+    });
+  }
+
   mainThreadLoop(shutdown_event);
+
+  permission_watcher.request_stop();
+  if (permission_watcher.joinable()) {
+    permission_watcher.join();
+  }
+#ifdef __APPLE__
+  if (macos_audio_permission_requester.joinable()) {
+    macos_audio_permission_requester.join();
+  }
+#endif
 
   httpThread.join();
   configThread.join();

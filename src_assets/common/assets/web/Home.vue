@@ -21,7 +21,18 @@
       </div>
     </div>
 
-    <!-- Windows virtual input status -->
+    <div class="alert alert-warning my-4" v-if="missingPermissions.length">
+      <div class="d-flex align-items-center gap-3 mb-2">
+        <alert-triangle :size="24" class="icon"></alert-triangle>
+        <strong>{{ $t('index.permissions_missing_title') }}</strong>
+      </div>
+      <p>{{ $t('index.permissions_missing_desc') }}</p>
+      <RouterLink class="btn btn-warning" to="/troubleshooting#permissions">
+        {{ $t('index.permissions_review') }}
+      </RouterLink>
+    </div>
+
+    <!-- Virtual gamepad broker status -->
     <div class="alert my-4" :class="virtualInputNotice.alertClass" v-if="virtualInputNotice">
       <div>
         <div class="d-flex align-items-center mb-3">
@@ -172,6 +183,7 @@
         virtualhid: null,
         virtualhidLicense: null,
         vigembus: null,
+        permissions: [],
       }
     },
     async created() {
@@ -182,25 +194,35 @@
         this.controllerEnabled = config.controller !== "disabled";
         this.gamepadDriver = config.gamepad_driver || '';
         this.version = new SunshineVersion(null, config.version);
+        try {
+          const response = await fetch('./api/permissions');
+          this.permissions = (await response.json()).permissions || [];
+        } catch (e) {
+          console.error('Failed to fetch permission status:', e);
+        }
         console.log("Version: ", this.version.version)
         this.githubVersion = new SunshineVersion(await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest").then((r) => r.json()), null);
         console.log("GitHub Version: ", this.githubVersion.version)
         this.preReleaseVersion = new SunshineVersion((await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases").then((r) => r.json())).find(release => release.prerelease), null);
         console.log("Pre-Release Version: ", this.preReleaseVersion.version)
 
-        // The Virtual HID Driver also backs relative mouse input when controllers are disabled.
-        if (this.platform === 'windows') {
+        // Read the broker version on both platforms to identify development builds.
+        if (this.platform === 'windows' || this.platform === 'macos') {
           try {
             const virtualInputStatus = await fetch("./api/virtual-input/status").then((r) => r.json());
             this.virtualhid = virtualInputStatus.virtualhid;
-            this.vigembus = virtualInputStatus.vigembus;
+            if (this.platform === 'windows') {
+              this.vigembus = virtualInputStatus.vigembus;
+            }
           } catch (e) {
             console.error("Failed to fetch virtual input driver status:", e);
           }
+        }
+        if (this.platform === 'windows' || this.platform === 'macos') {
           try {
             this.virtualhidLicense = await fetch("./api/virtual-input/license").then((r) => r.json());
           } catch (e) {
-            console.error("Failed to fetch Virtual HID Driver license status:", e);
+            console.error("Failed to fetch Virtual HID Broker license status:", e);
           }
         }
       } catch (e) {
@@ -214,12 +236,23 @@
       this.loading = false;
     },
     computed: {
+      /** Return required permissions that the current platform can check and has not granted. */
+      missingPermissions() {
+        return this.permissions.filter(permission => permission.required && permission.verifiable && permission.status !== 'granted');
+      },
       /**
-       * Build the single Windows virtual-input message shown on the home page.
-       * Warnings are reserved for an unusable selected backend, an unsupported
-       * installed driver, or an installed driver with an invalid license.
+       * Build the virtual-input message shown on the home page.
+       * Warn about broker or gamepad driver issues when virtual gamepads are enabled.
        */
       virtualInputNotice() {
+        if (!this.controllerEnabled || this.gamepadDriver === 'none') {
+          return null;
+        }
+
+        if (this.platform === 'macos') {
+          return this.buildMacosVirtualInputNotice();
+        }
+
         if (this.platform !== 'windows' || !this.virtualhid || !this.vigembus) {
           return null;
         }
@@ -245,7 +278,7 @@
         }
 
         if (this.gamepadDriver === 'virtualhid') {
-          return this.buildVirtualInputNotice(true, 'index.virtualhid_required_title', [{ key: 'index.virtualhid_required_desc' }]);
+          return this.buildVirtualInputNotice(true, 'index.virtualhid_broker_unavailable_title', [{ key: 'index.virtualhid_required_desc' }]);
         }
 
         if (this.controllerEnabled && !vigembusUsable) {
@@ -294,7 +327,22 @@
     },
     methods: {
       /**
-       * Build a home-page notice for the current Windows virtual-input state.
+       * Build the macOS broker notice, prioritizing license and service warnings.
+       *
+       * @returns {object|null} Warning or development-build notice, when applicable.
+       */
+      buildMacosVirtualInputNotice() {
+        if (this.virtualhidLicense && !this.virtualhidLicense.licensed) {
+          return this.virtualhidLicense.service_available
+            ? this.buildVirtualInputNotice(true, 'index.virtualhid_macos_license_title', [{ key: 'index.virtualhid_macos_license_desc' }])
+            : this.buildVirtualInputNotice(true, 'index.virtualhid_broker_unavailable_title', [{ key: 'index.virtualhid_macos_broker_desc' }]);
+        }
+        return this.virtualhid?.development_version
+          ? this.buildVirtualInputNotice(false, 'index.virtualhid_development_title', [{ key: 'index.virtualhid_development_desc' }])
+          : null;
+      },
+      /**
+       * Build a home-page notice for the current virtual-input state.
        *
        * @param {boolean} warning Whether the notice represents an actionable warning.
        * @param {string} title Localization key for the notice title.

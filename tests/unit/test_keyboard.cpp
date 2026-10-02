@@ -451,6 +451,35 @@ TEST_F(KeyboardPassthroughTest, ForwardsEveryUnmodifiedKeyUnchanged) {
   }
 }
 
+TEST_F(KeyboardPassthroughTest, PreservesExtendedEnterOnReleaseAndDisconnect) {
+  press(VKEY_RETURN);
+  release(VKEY_RETURN);
+  auto events = taken_events();
+  ASSERT_EQ(events.size(), 2U);
+  EXPECT_FALSE(events[0].extended);
+  EXPECT_FALSE(events[1].extended);
+
+  press(VKEY_RETURN, MODIFIER_EXTENDED | MODIFIER_SHIFT);
+  events = taken_events();
+  ASSERT_EQ(events.size(), 3U);
+  EXPECT_FALSE(events[0].extended);
+  EXPECT_TRUE(events[1].extended);
+  EXPECT_FALSE(events[2].extended);
+
+  // The bit may be absent on key-up; release the key as it was pressed.
+  release(VKEY_RETURN);
+  events = taken_events();
+  ASSERT_EQ(events.size(), 1U);
+  EXPECT_TRUE(events[0].extended);
+
+  press(VKEY_RETURN, MODIFIER_EXTENDED);
+  taken_events();
+  input::testing::release_held_keys();
+  events = taken_events();
+  ASSERT_EQ(events.size(), 1U);
+  EXPECT_TRUE(events[0].extended);
+}
+
 TEST_F(KeyboardPassthroughTest, CoversTheWholePrintableAsciiRange) {
   // Guard the table itself: every printable ASCII character must be reachable, exactly once.
   std::set<char> covered;
