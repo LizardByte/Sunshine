@@ -56,6 +56,9 @@ INSTANTIATE_TEST_SUITE_P(
 #if defined(__linux__) || defined(__FreeBSD__)
     &video::vaapi,
 #endif
+#ifdef SUNSHINE_BUILD_V4L2
+    &video::v4l2m2m,
+#endif
 #ifdef __APPLE__
     &video::videotoolbox,
 #endif

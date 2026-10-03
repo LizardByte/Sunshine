@@ -62,6 +62,8 @@ elseif(UNIX)  # Linux
             "Enable KMS grab if available." ON)
     option(SUNSHINE_ENABLE_VAAPI
             "Enable building vaapi specific code." ON)
+    option(SUNSHINE_ENABLE_V4L2
+            "Enable building v4l2 specific code." ON)
     option(SUNSHINE_ENABLE_VULKAN
             "Enable Vulkan video encoding." ON)
     option(SUNSHINE_ENABLE_WAYLAND
