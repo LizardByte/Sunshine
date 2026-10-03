@@ -165,6 +165,15 @@ namespace platf {
     return std::filesystem::path {sunshine_path}.remove_filename() / L"config"sv;
   }
 
+  /**
+   * @brief XDG Portal token path (unused on Windows).
+   *
+   * @return Path of portal_token in appdata path.
+   */
+  std::filesystem::path get_xdg_restore_token_path() {
+    return appdata() / "portal_token";
+  }
+
   std::string from_sockaddr(const sockaddr *const socket_address) {
     char data[INET6_ADDRSTRLEN] = {};
 

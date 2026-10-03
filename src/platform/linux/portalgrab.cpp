@@ -2,6 +2,11 @@
  * @file src/platform/linux/portalgrab.cpp
  * @brief Definitions for XDG portal grab.
  */
+// standard includes
+#include <algorithm>
+#include <cctype>
+#include <cstdlib>
+
 // local includes
 #include "pipewire.cpp"
 #include "src/globals.h"
@@ -116,12 +121,36 @@ namespace portal {
       }
     }
 
+    /**
+     * @brief Get file path of the XDG Portal restore token.
+     *
+     * The token filename is suffixed with the XDG session desktop when set in the environment.
+     *
+     * @return File path.
+     */
+    static std::string get_file_path() {
+      const char *xdg_session_desktop = std::getenv("XDG_SESSION_DESKTOP");
+
+      if (!xdg_session_desktop || *xdg_session_desktop == '\0') {
+        return platf::appdata().string() + "/portal_token";
+      }
+
+      std::string suffix(xdg_session_desktop);
+      boost::algorithm::to_lower(suffix);
+
+      // Restrict the suffix to prevent path traversal and other invalid filename characters.
+      if (const bool is_safe = std::all_of(suffix.begin(), suffix.end(), [](unsigned char c) {
+            return std::isalnum(c) || c == '_' || c == '-';
+          });
+          !is_safe) {
+        return platf::appdata().string() + "/portal_token";
+      }
+
+      return platf::appdata().string() + "/portal_token." + suffix;
+    }
+
   private:
     static inline const std::unique_ptr<std::string> token_ = std::make_unique<std::string>();
-
-    static std::string get_file_path() {
-      return platf::appdata().string() + "/portal_token";
-    }
   };
 
   /**
@@ -190,6 +219,10 @@ namespace portal {
     std::string request_path;  ///< For Request.Close() on cancellation.
     GDBusConnection *conn;  ///< Borrowed — owned by the calling dbus_t/portal_t.
   };
+
+  std::string get_saved_token_path() {
+    return restore_token_t::get_file_path();
+  }
 
   /**
    * @brief PipeWire stream node and negotiated capture size.

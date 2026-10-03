@@ -370,6 +370,19 @@ namespace platf {
   }
 
   /**
+   * @brief Get path of the XDG Portal restore token.
+   *
+   * @return Path of token that may include the session desktop as a suffix (e.g. .gnome, .kde).
+   */
+  std::filesystem::path get_xdg_restore_token_path() {
+#ifdef SUNSHINE_BUILD_PORTAL
+    return portal::get_saved_token_path();
+#else
+    return appdata() / "portal_token";
+#endif
+  }
+
+  /**
    * @brief Convert a socket address to a printable IP address.
    */
   std::string from_sockaddr(const sockaddr *const ip_addr) {
