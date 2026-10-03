@@ -1223,15 +1223,23 @@ namespace platf {
    * @brief Replace the host clipboard with UTF-8 text from the client.
    *
    * @param text Clipboard text.
+   * @param origin Queue of the client that supplied the text. That client is not sent an echo.
    */
-  void clipboard_set(std::string_view text);
+  void clipboard_set(std::string_view text, const clipboard_queue_t &origin);
 
   /**
-   * @brief Start forwarding host clipboard changes to the client.
+   * @brief Start forwarding host clipboard changes to one client.
    *
    * @param queue Queue drained by the control stream.
    */
   void clipboard_subscribe(clipboard_queue_t queue);
+
+  /**
+   * @brief Stop forwarding host clipboard changes when a client session ends.
+   *
+   * @param queue Queue that should no longer receive clipboard text.
+   */
+  void clipboard_unsubscribe(const clipboard_queue_t &queue);
 
   /**
    * @brief Per-client input context allocated by a platform backend.

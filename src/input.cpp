@@ -1335,7 +1335,7 @@ namespace input {
     const auto *text = reinterpret_cast<const std::byte *>(header) + sizeof(NV_INPUT_HEADER) + sizeof(std::uint32_t);
     std::string copy(text_len, '\0');
     std::memcpy(copy.data(), static_cast<const void *>(text), text_len);
-    platf::clipboard_set(copy);
+    platf::clipboard_set(copy, input->clipboard_queue);
   }
 
   /**
@@ -2346,6 +2346,7 @@ namespace input {
    * @brief Reset the object to its initial empty state.
    */
   void reset(std::shared_ptr<input_t> &input) {
+    platf::clipboard_unsubscribe(input->clipboard_queue);
     task_pool.cancel(key_press_repeat_id);
     task_pool.cancel(input->mouse_left_button_timeout);
 
