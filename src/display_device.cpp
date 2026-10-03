@@ -656,7 +656,7 @@ namespace display_device {
     std::unique_ptr<SettingsManagerInterface> make_settings_manager([[maybe_unused]] const std::filesystem::path &persistence_filepath, [[maybe_unused]] const config::video_t &video_config) {
 #ifdef _WIN32
       return std::make_unique<SettingsManager>(
-        std::make_shared<WinDisplayDevice>(std::make_shared<WinApiLayer>()),
+        std::make_shared<WinDisplayDevice>(std::make_shared<WinApiLayer>(), false),
         std::make_shared<sunshine_audio_context_t>(),
         std::make_unique<PersistentState>(
           std::make_shared<FileSettingsPersistence>(persistence_filepath)
