@@ -2,6 +2,11 @@
  * @file src/platform/linux/portalgrab.cpp
  * @brief Definitions for XDG portal grab.
  */
+// standard includes
+#include <algorithm>
+#include <cctype>
+#include <cstdlib>
+
 // local includes
 #include "pipewire.cpp"
 #include "src/globals.h"
@@ -134,11 +139,10 @@ namespace portal {
       boost::algorithm::to_lower(suffix);
 
       // Restrict the suffix to prevent path traversal and other invalid filename characters.
-      const bool is_safe = std::all_of(suffix.begin(), suffix.end(), [](unsigned char c) {
-        return std::isalnum(c) || c == '_' || c == '-';
-      });
-
-      if (!is_safe) {
+      if (const bool is_safe = std::all_of(suffix.begin(), suffix.end(), [](unsigned char c) {
+            return std::isalnum(c) || c == '_' || c == '-';
+          });
+          !is_safe) {
         return platf::appdata().string() + "/portal_token";
       }
 
