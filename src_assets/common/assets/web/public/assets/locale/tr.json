@@ -760,6 +760,7 @@
   },
   "file_browser": {
     "empty": "Görüntülenecek öğe yok",
+    "error_invalid_extension": "Seçilen dosyanın aşağıdaki uzantılardan birine sahip olması gerekir: {extensions}",
     "root": "Kök",
     "select": "Seçiniz",
     "select_directory": "Dizin Seçiniz",

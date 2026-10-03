@@ -760,6 +760,7 @@
   },
   "file_browser": {
     "empty": "Brak elementów do wyświetlenia",
+    "error_invalid_extension": "Wybrany plik musi mieć jedno z następujących rozszerzeń: {extensions}",
     "root": "Główny",
     "select": "Wybierz",
     "select_directory": "Wybierz katalog",

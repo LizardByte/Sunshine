@@ -760,6 +760,7 @@
   },
   "file_browser": {
     "empty": "Nessun elemento da visualizzare",
+    "error_invalid_extension": "Il file selezionato deve avere una delle seguenti estensioni: {extensions}",
     "root": "Root",
     "select": "Seleziona",
     "select_directory": "Seleziona Cartella",

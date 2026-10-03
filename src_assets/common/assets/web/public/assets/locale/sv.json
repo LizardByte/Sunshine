@@ -760,6 +760,7 @@
   },
   "file_browser": {
     "empty": "Inga objekt att visa",
+    "error_invalid_extension": "Vald fil måste ha något av följande tillägg: {extensions}",
     "root": "Rot",
     "select": "Välj",
     "select_directory": "Välj katalog",

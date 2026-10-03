@@ -760,6 +760,7 @@
   },
   "file_browser": {
     "empty": "沒有要顯示的項目",
+    "error_invalid_extension": "選取的檔案必須具有以下其中一種副檔名： {extensions}",
     "root": "根部",
     "select": "選擇",
     "select_directory": "選擇目錄",

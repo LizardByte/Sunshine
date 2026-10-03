@@ -760,6 +760,7 @@
   },
   "file_browser": {
     "empty": "Aucun élément à afficher",
+    "error_invalid_extension": "Le fichier sélectionné doit avoir l'une des extensions suivantes : {extensions}",
     "root": "Racine",
     "select": "Sélectionner",
     "select_directory": "Sélectionner un dossier",
