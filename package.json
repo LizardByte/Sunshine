@@ -24,12 +24,12 @@
   },
   "type": "module",
   "dependencies": {
-    "@lucide/vue": "1.49.0",
+    "@lucide/vue": "1.51.0",
     "bootstrap": "5.3.8",
     "date-fns": "4.4.0",
     "marked": "18.0.12",
     "vue": "3.5.43",
-    "vue-i18n": "11.4.12",
+    "vue-i18n": "11.4.13",
     "vue-router": "5.3.1",
     "vue3-simple-icons": "16.10.0"
   },

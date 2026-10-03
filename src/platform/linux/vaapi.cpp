@@ -321,14 +321,18 @@ namespace va {
         case 0:  // auto or unset
           break;
         case 1:  // low quality (highest value in range)
+          target_quality = quality_attr.value;
+          break;
         case 2:  // med quality (middle value in range)
-          target_quality = quality_attr.value / vaapi_quality;
+          // Calculate the true midpoint between 1 and max quality range.
+          // For an odd max like 7, (1 + 7) / 2 = 4. For even like 6, (1 + 6) / 2 = 3.
+          target_quality = (1 + quality_attr.value) / 2;
           break;
         case 3:  // high quality (1)
           target_quality = 1;
           break;
       }
-      if (quality_attr.value > 0) {
+      if (target_quality > 0) {
         ctx->compression_level = target_quality;
         BOOST_LOG(info) << "[VAAPI] Quality level set to "sv << ctx->compression_level << " (fastest level: "sv << quality_attr.value << ")"sv;
       }

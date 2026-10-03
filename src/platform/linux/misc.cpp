@@ -1434,10 +1434,16 @@ namespace platf {
     // https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/30039
     lizardbyte::common::set_env("AMD_DEBUG", "lowlatencyenc");
 
-    // enable Vulkan video extensions for AMD RADV
-    lizardbyte::common::set_env("RADV_PERFTEST", "video_encode");
-    // Above is deprecated on Mesa 26.1+ and replaced by (keep both to ensure best compatibility):
-    lizardbyte::common::append_env("RADV_EXPERIMENTAL", "video_encode", ",");
+    // Overriding the video_encode extension can cause corrupt video due to outdated FW. Override
+    // only if the user explicitly selects Vulkan so that the autoprobe path will select VAAPI on
+    // such systems.
+    // Ref: https://gitlab.freedesktop.org/mesa/mesa/-/work_items/16457
+    if (config::video.encoder == "vulkan") {
+      // enable Vulkan video extensions for AMD RADV
+      lizardbyte::common::set_env("RADV_PERFTEST", "video_encode");
+      // Above is deprecated on Mesa 26.1+ and replaced by (keep both to ensure best compatibility):
+      lizardbyte::common::append_env("RADV_EXPERIMENTAL", "video_encode", ",");
+    }
 
     // These are allowed to fail.
     gbm::init();
