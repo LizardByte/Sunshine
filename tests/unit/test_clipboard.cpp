@@ -7,7 +7,9 @@
 #include "../tests_common.h"
 
 // standard includes
+#include <array>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -145,10 +147,10 @@ TEST(ClipboardSelectionTest, DoesNotPublishAnIncrSizeAnnouncement) {
   constexpr std::uint64_t utf8 = 1;
   constexpr std::uint64_t string_atom = 2;
   constexpr std::uint64_t incr = 3;
-  const unsigned char announcement[] = {0x2a, 0x00, 0x00, 0x00};
+  constexpr std::array<std::byte, 4> announcement {std::byte {0x2a}, std::byte {0x00}, std::byte {0x00}, std::byte {0x00}};
   platf::incr_transfer_t transfer;
 
-  const auto text = transfer.consume(incr, 32, 1, announcement, utf8, string_atom, incr);
+  const auto text = transfer.consume(incr, 32, 1, announcement.data(), utf8, string_atom, incr);
 
   EXPECT_FALSE(text);
   EXPECT_TRUE(transfer.active());
@@ -158,11 +160,11 @@ TEST(ClipboardSelectionTest, PublishesIncrChunksOnlyAfterTheTransferEnds) {
   constexpr std::uint64_t utf8 = 1;
   constexpr std::uint64_t string_atom = 2;
   constexpr std::uint64_t incr = 3;
-  const unsigned char announcement[] = {0x04, 0x00, 0x00, 0x00};
-  const char chunk[] = {'a', 'b', 'c', 'd'};
+  constexpr std::array<std::byte, 4> announcement {std::byte {0x04}, std::byte {0x00}, std::byte {0x00}, std::byte {0x00}};
+  constexpr std::array<std::byte, 4> chunk {std::byte {'a'}, std::byte {'b'}, std::byte {'c'}, std::byte {'d'}};
   platf::incr_transfer_t transfer;
-  EXPECT_FALSE(transfer.consume(incr, 32, 1, announcement, utf8, string_atom, incr));
-  EXPECT_FALSE(transfer.consume(utf8, 8, sizeof(chunk), chunk, utf8, string_atom, incr));
+  EXPECT_FALSE(transfer.consume(incr, 32, 1, announcement.data(), utf8, string_atom, incr));
+  EXPECT_FALSE(transfer.consume(utf8, 8, chunk.size(), chunk.data(), utf8, string_atom, incr));
 
   const auto text = transfer.consume(utf8, 8, 0, nullptr, utf8, string_atom, incr);
 
@@ -175,10 +177,10 @@ TEST(ClipboardSelectionTest, IgnoresUnsupportedSelectionPropertyData) {
   constexpr std::uint64_t utf8 = 1;
   constexpr std::uint64_t string_atom = 2;
   constexpr std::uint64_t incr = 3;
-  const char chunk[] = {'n', 'o', 'p', 'e'};
+  constexpr std::array<std::byte, 4> chunk {std::byte {'n'}, std::byte {'o'}, std::byte {'p'}, std::byte {'e'}};
   platf::incr_transfer_t transfer;
 
-  const auto text = transfer.consume(99, 8, sizeof(chunk), chunk, utf8, string_atom, incr);
+  const auto text = transfer.consume(99, 8, chunk.size(), chunk.data(), utf8, string_atom, incr);
 
   EXPECT_FALSE(text);
   EXPECT_FALSE(transfer.active());
@@ -188,7 +190,7 @@ TEST(ClipboardSelectionTest, CapsClipboardTextAtTheProtocolLimit) {
   constexpr std::uint64_t utf8 = 1;
   constexpr std::uint64_t string_atom = 2;
   constexpr std::uint64_t incr = 3;
-  const std::string oversized(platf::clipboard_max_bytes + 10, 'z');
+  const std::vector<std::byte> oversized(platf::clipboard_max_bytes + 10, std::byte {'z'});
   platf::incr_transfer_t transfer;
 
   const auto text = transfer.consume(utf8, 8, oversized.size(), oversized.data(), utf8, string_atom, incr);

@@ -235,7 +235,7 @@ namespace platf {
           return;
         }
         static_cast<void>(bytes_after);
-        auto text = transfer.consume(actual_type, actual_format, item_count, data, utf8, XA_STRING, incr);
+        auto text = transfer.consume(actual_type, actual_format, item_count, reinterpret_cast<const std::byte *>(data), utf8, XA_STRING, incr);
         if (data != nullptr) {
           XFree(data);
         }

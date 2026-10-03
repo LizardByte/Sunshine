@@ -8,9 +8,9 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -62,7 +62,7 @@ namespace platf {
      * @param queue Queue that should no longer receive clipboard text.
      */
     void remove(const clipboard_queue_t &queue) {
-      std::erase_if(entries_, [&](const auto &entry) {
+      std::erase_if(entries_, [&queue](const auto &entry) {
         return entry.queue == queue;
       });
     }
@@ -116,7 +116,7 @@ namespace platf {
      * @param text UTF-8 clipboard text.
      * @return The subscriber queue when a delivery is required.
      */
-    static clipboard_queue_t deliver(clipboard_subscriber_t &entry, const std::string &text) {
+    static clipboard_queue_t deliver(clipboard_subscriber_t &entry, std::string_view text) {
       if (entry.has_snapshot && entry.last_sent == text) {
         return {};
       }
@@ -183,7 +183,7 @@ namespace platf {
       std::uint64_t actual_type,
       int actual_format,
       std::size_t item_count,
-      const void *data,
+      const std::byte *data,
       std::uint64_t utf8_atom,
       std::uint64_t string_atom,
       std::uint64_t incr_atom
@@ -224,14 +224,14 @@ namespace platf {
      * @param data Property bytes. May be null when the item count is zero.
      * @param size Number of bytes available at data.
      */
-    static void append_to(std::string &text, const void *data, std::size_t size) {
+    static void append_to(std::string &text, const std::byte *data, std::size_t size) {
       if (data == nullptr || size == 0 || text.size() >= clipboard_max_bytes) {
         return;
       }
       const auto take = std::min(size, clipboard_max_bytes - text.size());
       const auto offset = text.size();
       text.resize(offset + take);
-      std::memcpy(text.data() + offset, data, take);
+      std::copy_n(data, take, reinterpret_cast<std::byte *>(text.data() + offset));
     }
 
     /**
@@ -240,7 +240,7 @@ namespace platf {
      * @param data Chunk bytes.
      * @param size Number of bytes in the chunk.
      */
-    void append_bytes(const void *data, std::size_t size) {
+    void append_bytes(const std::byte *data, std::size_t size) {
       append_to(text_, data, size);
     }
 
