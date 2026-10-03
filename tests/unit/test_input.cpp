@@ -168,6 +168,34 @@ TEST(InputPacketValidationTest, ValidatesUnicodePacketBoundsWithoutOverflow) {
   EXPECT_FALSE(input::testing::is_valid_input_packet(truncated_text));
 }
 
+TEST(InputPacketValidationTest, AcceptsEmptyAndMaximumClipboardPackets) {
+  constexpr auto prefix = sizeof(std::uint32_t) + sizeof(std::uint32_t);
+  const auto empty_packet = make_input_packet(SS_CLIPBOARD_TEXT_MAGIC, prefix, sizeof(std::uint32_t) + prefix);
+  EXPECT_TRUE(input::testing::is_valid_input_packet(empty_packet));
+
+  constexpr auto maximum_declared_size = static_cast<std::uint32_t>(prefix + SS_CLIPBOARD_TEXT_MAX);
+  const auto maximum_packet = make_input_packet(
+    SS_CLIPBOARD_TEXT_MAGIC,
+    maximum_declared_size,
+    sizeof(std::uint32_t) + maximum_declared_size
+  );
+  EXPECT_TRUE(input::testing::is_valid_input_packet(maximum_packet));
+}
+
+TEST(InputPacketValidationTest, RejectsTruncatedAndOversizedClipboardPackets) {
+  constexpr auto prefix = sizeof(std::uint32_t) + sizeof(std::uint32_t);
+  const auto truncated_packet = make_input_packet(SS_CLIPBOARD_TEXT_MAGIC, prefix + 4, sizeof(std::uint32_t) + prefix);
+  EXPECT_FALSE(input::testing::is_valid_input_packet(truncated_packet));
+
+  constexpr auto oversized_declared_size = static_cast<std::uint32_t>(prefix + SS_CLIPBOARD_TEXT_MAX + 1);
+  const auto oversized_packet = make_input_packet(
+    SS_CLIPBOARD_TEXT_MAGIC,
+    oversized_declared_size,
+    sizeof(std::uint32_t) + oversized_declared_size
+  );
+  EXPECT_FALSE(input::testing::is_valid_input_packet(oversized_packet));
+}
+
 TEST(InputPacketValidationTest, EnforcesEveryFixedPacketSize) {
   constexpr std::array packet_specs {
     input_packet_spec_t {MOUSE_MOVE_REL_MAGIC_GEN5, sizeof(NV_REL_MOUSE_MOVE_PACKET)},
