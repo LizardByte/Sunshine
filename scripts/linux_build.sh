@@ -37,6 +37,7 @@ readonly DISTRO_ARCH="arch"
 readonly DISTRO_DEBIAN="debian"
 readonly DISTRO_FEDORA="fedora"
 readonly DISTRO_UBUNTU="ubuntu"
+readonly UBUNTU_APPSTREAM_GLIB_REMOVAL_VERSION="26.10"
 
 function setup_cuda_system_package_environment() {
   if [[ "$cuda_system_package" == 1 ]]; then
@@ -72,10 +73,12 @@ function cuda_math_functions_patch_applied() {
     return 1
   fi
 
-  grep -Fq "rsqrt(double x) noexcept (true)" "$math_functions_file" && \
-    grep -Fq "rsqrtf(float x) noexcept (true)" "$math_functions_file" && \
-    grep -Fq "__func__(double rsqrt(double a) noexcept (true));" "$math_functions_file" && \
-    grep -Fq "__func__(float rsqrtf(float a) noexcept (true));" "$math_functions_file"
+  # Ubuntu's CUDA packages provide the same glibc fix through this specifier macro.
+  local exception_specifier='(noexcept[[:space:]]*\(true\)|_NV_RSQRT_SPECIFIER)'
+  grep -Eq "rsqrt\(double x\) ${exception_specifier};" "$math_functions_file" && \
+    grep -Eq "rsqrtf\(float x\) ${exception_specifier};" "$math_functions_file" && \
+    grep -Eq "__func__\(double rsqrt\(double a\) ${exception_specifier}\);" "$math_functions_file" && \
+    grep -Eq "__func__\(float rsqrtf\(float a\) ${exception_specifier}\);" "$math_functions_file"
 }
 
 function apply_cuda_patches() {
@@ -333,7 +336,6 @@ function add_arch_deps() {
 function add_debian_based_deps() {
   dependencies+=(
     "appstream"
-    "appstream-util"
     "bison"  # required if we need to compile doxygen
     "build-essential"
     "cmake"
@@ -378,6 +380,11 @@ function add_debian_based_deps() {
     "wget"  # necessary for cuda install with `run` file
     "xvfb"  # necessary for headless unit testing
   )
+
+  # appstream-glib was removed in Ubuntu 26.10; appstreamcli remains available.
+  if [[ "$distro" != "$DISTRO_UBUNTU" ]] || [[ "$version" < "$UBUNTU_APPSTREAM_GLIB_REMOVAL_VERSION" ]]; then
+    dependencies+=("appstream-util")
+  fi
 
   # Ubuntu 22.04 uses a different package name for Qt6 SVG
   if [[ "$distro" == "$DISTRO_UBUNTU" ]] && [[ "$version" == "22.04" ]]; then
@@ -786,7 +793,9 @@ function run_step_validation() {
 
   # Run appstream validation, etc.
   appstreamcli validate "build/dev.lizardbyte.app.Sunshine.metainfo.xml"
-  appstream-util validate "build/dev.lizardbyte.app.Sunshine.metainfo.xml"
+  if [[ "$distro" != "$DISTRO_UBUNTU" ]] || [[ "$version" < "$UBUNTU_APPSTREAM_GLIB_REMOVAL_VERSION" ]]; then
+    appstream-util validate "build/dev.lizardbyte.app.Sunshine.metainfo.xml"
+  fi
   desktop-file-validate "build/dev.lizardbyte.app.Sunshine.desktop"
   if [[ "$appimage_build" == 0 ]]; then
     desktop-file-validate "build/dev.lizardbyte.app.Sunshine.terminal.desktop"
