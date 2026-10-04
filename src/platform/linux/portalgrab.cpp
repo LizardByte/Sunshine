@@ -132,22 +132,40 @@ namespace portal {
      * @return File path.
      */
     static std::string get_file_path() {
-      std::string suffix;
-      if (!lizardbyte::common::get_env("XDG_SESSION_DESKTOP", suffix)) {
-        return platf::appdata().string() + "/portal_token";
-      }
+      const std::string legacy_path = platf::appdata().string() + "/portal_token";
 
+      std::string suffix(lizardbyte::common::get_env("XDG_SESSION_DESKTOP"));
       boost::algorithm::to_lower(suffix);
 
       // Restrict the suffix to prevent path traversal and other invalid filename characters.
-      if (const bool is_safe = std::all_of(suffix.begin(), suffix.end(), [](unsigned char c) {
+      if (const bool is_safe = !suffix.empty() && std::all_of(suffix.begin(), suffix.end(), [](unsigned char c) {
             return std::isalnum(c) || c == '_' || c == '-';
           });
           !is_safe) {
-        return platf::appdata().string() + "/portal_token";
+        BOOST_LOG(warning) << "[portalgrab] XDG session desktop type cannot be determined. Using .unknown suffix for Portal restore token."sv;
+        suffix = "unknown";
       }
 
-      return platf::appdata().string() + "/portal_token." + suffix;
+      const std::string suffixed_path = legacy_path + "." + suffix;
+
+      // One-time migration of legacy portal_token.
+      std::error_code ec;
+      if (!std::filesystem::exists(suffixed_path, ec) && !ec) {
+        const bool legacy_exists = std::filesystem::exists(legacy_path, ec);
+
+        if (!ec && legacy_exists) {
+          // Attempt one-time adoption of a pre-upgrade token. Best-effort guess that it belongs
+          // to this session type; if wrong, we're no worse off than not migrating.
+          std::filesystem::rename(legacy_path, suffixed_path, ec);
+          if (ec) {
+            BOOST_LOG(error) << "[portalgrab] Portal restore token migration failed: "sv << ec.message();
+          } else {
+            BOOST_LOG(info) << "[portalgrab] Portal restore token migrated to portal_token."sv << suffix;
+          }
+        }
+      }
+
+      return suffixed_path;
     }
 
   private:
