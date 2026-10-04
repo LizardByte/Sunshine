@@ -69,7 +69,7 @@ namespace portal {
    *
    * @return Path of token that may include the session desktop as a suffix (e.g. .gnome, .kde).
    */
-  std::string get_saved_token_path();
+  std::filesystem::path get_saved_token_path();
 
   /**
    * @brief Check if the Portal service responds to a DBus Ping within 2 seconds.

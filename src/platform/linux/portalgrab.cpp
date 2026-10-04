@@ -131,8 +131,8 @@ namespace portal {
      *
      * @return File path.
      */
-    static std::string get_file_path() {
-      const std::string legacy_path = platf::appdata().string() + "/portal_token";
+    static std::filesystem::path get_file_path() {
+      const std::filesystem::path legacy_path = platf::appdata() / "portal_token";
 
       std::string suffix(lizardbyte::common::get_env("XDG_SESSION_DESKTOP"));
       boost::algorithm::to_lower(suffix);
@@ -146,7 +146,7 @@ namespace portal {
         suffix = "unknown";
       }
 
-      const std::string suffixed_path = legacy_path + "." + suffix;
+      const std::filesystem::path suffixed_path = platf::appdata() / ("portal_token." + suffix);
 
       // One-time migration of legacy portal_token.
       std::error_code ec;
@@ -244,7 +244,7 @@ namespace portal {
    *
    * @return Path of token that may include the session desktop as a suffix (e.g. .gnome, .kde).
    */
-  std::string get_saved_token_path() {
+  std::filesystem::path get_saved_token_path() {
     return restore_token_t::get_file_path();
   }
 
