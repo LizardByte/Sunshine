@@ -7,6 +7,9 @@
 #include <cctype>
 #include <cstdlib>
 
+// lib includes
+#include <lizardbyte/common/env.h>
+
 // local includes
 #include "pipewire.cpp"
 #include "src/globals.h"
@@ -129,13 +132,11 @@ namespace portal {
      * @return File path.
      */
     static std::string get_file_path() {
-      const char *xdg_session_desktop = std::getenv("XDG_SESSION_DESKTOP");
-
-      if (!xdg_session_desktop || *xdg_session_desktop == '\0') {
+      std::string suffix;
+      if (!lizardbyte::common::get_env("XDG_SESSION_DESKTOP", suffix)) {
         return platf::appdata().string() + "/portal_token";
       }
 
-      std::string suffix(xdg_session_desktop);
       boost::algorithm::to_lower(suffix);
 
       // Restrict the suffix to prevent path traversal and other invalid filename characters.
