@@ -507,9 +507,10 @@ namespace wl {
     // Store for cleanup
     self->current_wl_buffer = buffer;
 
-    // Start the actual copy
+    // Start the actual copy. With damage, the compositor completes it on the next change to the output instead of
+    // redrawing the whole output for it, so an unchanged screen costs nothing to capture.
     zwp_linux_buffer_params_v1_destroy(params);
-    zwlr_screencopy_frame_v1_copy(frame, buffer);
+    zwlr_screencopy_frame_v1_copy_with_damage(frame, buffer);
   }
 
   // Buffer params failed callback

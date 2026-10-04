@@ -104,6 +104,21 @@ TEST(WaylandCaptureTest, UsesVramForCudaOnlyWhenCudaSupportIsBuilt) {
   #endif
 }
 
+TEST(WaylandCaptureTest, RequestsTheFirstFrame) {
+  wl::dmabuf_t dmabuf;
+
+  EXPECT_TRUE(wl::should_request_frame(dmabuf.status));
+}
+
+TEST(WaylandCaptureTest, WaitsOnAFramePendingDamage) {
+  EXPECT_FALSE(wl::should_request_frame(wl::dmabuf_t::WAITING));
+}
+
+TEST(WaylandCaptureTest, RequestsAFrameOnceTheLastOneCompleted) {
+  EXPECT_TRUE(wl::should_request_frame(wl::dmabuf_t::READY));
+  EXPECT_TRUE(wl::should_request_frame(wl::dmabuf_t::REINIT));
+}
+
 TEST(WaylandInterfaceTest, RecordsOnlyExplicitDmabufModifiers) {
   constexpr std::uint32_t format = DRM_FORMAT_XRGB8888;
   constexpr std::uint64_t explicit_modifier = 0x100000000000004;
