@@ -260,38 +260,39 @@ namespace cbs {
   }
 
   /**
-   * @brief Check whether an encoded H.264 or HEVC packet contains active SPS VUI metadata.
+   * @brief Check whether the given encoded H.264 or HEVC packets contain active SPS VUI metadata.
    *
-   * @param packet Encoded packet to parse with FFmpeg's coded bitstream reader.
+   * @param packets Encoded packets to parse with FFmpeg's coded bitstream reader.
    * @param codec_id FFmpeg codec identifier; expected to be AV_CODEC_ID_H264 or AV_CODEC_ID_H265.
    * @return `true` when the packet's active SPS advertises VUI parameters.
    */
-  bool validate_sps(const AVPacket *packet, int codec_id) {
+  bool validate_sps(const std::vector<AVPacket *> &packets, int codec_id) {
     cbs::ctx_t ctx;
     if (ff_cbs_init(&ctx, (AVCodecID) codec_id, nullptr)) {
       return false;
     }
 
-    cbs::frag_t frag;
+    for (const auto &packet : packets) {
+      cbs::frag_t frag;
 
-    int err = ff_cbs_read_packet(ctx.get(), &frag, packet);
-    if (err < 0) {
-      char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
-      BOOST_LOG(error) << "Couldn't read packet: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
+      int err = ff_cbs_read_packet(ctx.get(), &frag, packet);
+      if (err < 0) {
+        char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
+        BOOST_LOG(error) << "Couldn't read packet: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
 
-      return false;
+        return false;
+      }
     }
 
     if (codec_id == AV_CODEC_ID_H264) {
       auto h264 = (CodedBitstreamH264Context *) ctx->priv_data;
-
-      if (!h264->active_sps->vui_parameters_present_flag) {
-        return false;
-      }
-
-      return true;
+      return h264 && h264->active_sps && h264->active_sps->vui_parameters_present_flag;
+    } else if (codec_id == AV_CODEC_ID_H265) {
+      auto h265 = (CodedBitstreamH265Context *) ctx->priv_data;
+      return h265 && h265->active_sps && h265->active_sps->vui_parameters_present_flag;
+    } else {
+      BOOST_LOG(error) << "Unsupported codec ID for validate_sps: "sv << codec_id;
+      return false;
     }
-
-    return ((CodedBitstreamH265Context *) ctx->priv_data)->active_sps->vui_parameters_present_flag;
   }
 }  // namespace cbs

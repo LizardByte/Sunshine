@@ -219,6 +219,7 @@ namespace video {
      * @param avcodec_pix_fmt_yuv444_8bit AVCodec 8-bit YUV444 pixel format.
      * @param avcodec_pix_fmt_yuv444_10bit AVCodec 10-bit YUV444 pixel format.
      * @param init_avcodec_hardware_input_buffer_function Hardware input buffer initialization callback.
+     * @param dev_type Explicit platform memory type, or unknown to derive it from avcodec_base_dev_type.
      */
     encoder_platform_formats_avcodec(
       const AVHWDeviceType &avcodec_base_dev_type,
@@ -228,7 +229,10 @@ namespace video {
       const AVPixelFormat &avcodec_pix_fmt_10bit,
       const AVPixelFormat &avcodec_pix_fmt_yuv444_8bit,
       const AVPixelFormat &avcodec_pix_fmt_yuv444_10bit,
-      const init_buffer_function_t &init_avcodec_hardware_input_buffer_function
+      const init_buffer_function_t &init_avcodec_hardware_input_buffer_function,
+      // Some encoders like V4L2 manage input buffers themselves and use AV_HWDEVICE_TYPE_NONE to avoid
+      // Sunshine's hwdevice/hwframes setup, so allow them to override the default device-type mapping.
+      const platf::mem_type_e &dev_type = platf::mem_type_e::unknown
     ):
         avcodec_base_dev_type {avcodec_base_dev_type},
         avcodec_derived_dev_type {avcodec_derived_dev_type},
@@ -238,7 +242,7 @@ namespace video {
         avcodec_pix_fmt_yuv444_8bit {avcodec_pix_fmt_yuv444_8bit},
         avcodec_pix_fmt_yuv444_10bit {avcodec_pix_fmt_yuv444_10bit},
         init_avcodec_hardware_input_buffer {init_avcodec_hardware_input_buffer_function} {
-      dev_type = map_base_dev_type(avcodec_base_dev_type);
+      this->dev_type = (dev_type == platf::mem_type_e::unknown ? map_base_dev_type(avcodec_base_dev_type) : dev_type);
       pix_fmt_8bit = map_pix_fmt(avcodec_pix_fmt_8bit);
       pix_fmt_10bit = map_pix_fmt(avcodec_pix_fmt_10bit);
       pix_fmt_yuv444_8bit = map_pix_fmt(avcodec_pix_fmt_yuv444_8bit);
@@ -369,6 +373,9 @@ namespace video {
 
       std::string name;  ///< Codec name passed to the encoder backend.
       std::bitset<MAX_FLAGS> capabilities;  ///< Capability flags supported by this codec on the encoder.
+      // libavcodec does not require that an IDR frame must be placed in the first packet;
+      // some encoders may output certain packets first (such as H.264 SPS and PPS).
+      std::uint8_t first_idr_packets_cnt = 0;  ///< Number of encoder packets combined to emit the first complete IDR frame.
 
       /**
        * @brief Test whether a codec capability is enabled.
@@ -466,6 +473,10 @@ namespace video {
 
 #if defined(__linux__) || defined(linux) || defined(__linux) || defined(__FreeBSD__)
   extern encoder_t vaapi;
+#endif
+
+#ifdef SUNSHINE_BUILD_V4L2
+  extern encoder_t v4l2m2m;
 #endif
 
 #ifdef __APPLE__

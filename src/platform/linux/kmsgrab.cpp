@@ -29,6 +29,7 @@
 #include "src/round_robin.h"
 #include "src/utility.h"
 #include "src/video.h"
+#include "v4l2.h"
 #include "vaapi.h"
 #include "vulkan_encode.h"
 #include "wayland.h"
@@ -1723,6 +1724,12 @@ namespace platf {
         }
 #endif
 
+#ifdef SUNSHINE_BUILD_V4L2
+        if (mem_type == mem_type_e::v4l2) {
+          return v4l2::make_avcodec_encode_device(width, height, false);
+        }
+#endif
+
         return std::make_unique<avcodec_encode_device_t>();
       }
 
@@ -1901,6 +1908,12 @@ namespace platf {
         }
 #endif
 
+#ifdef SUNSHINE_BUILD_V4L2
+        if (mem_type == mem_type_e::v4l2) {
+          return v4l2::make_avcodec_encode_device(width, height, dup(card.render_fd.el), img_offset_x, img_offset_y, true);
+        }
+#endif
+
         BOOST_LOG(error) << "Unsupported pixel format for egl::display_vram_t: "sv << platf::from_pix_fmt(pix_fmt);
         return nullptr;
       }
@@ -2063,7 +2076,7 @@ namespace platf {
    * @return KMS display backend, or nullptr when initialization fails.
    */
   std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
-    if (hwdevice_type == mem_type_e::vaapi || hwdevice_type == mem_type_e::cuda || hwdevice_type == mem_type_e::vulkan) {
+    if (hwdevice_type == mem_type_e::vaapi || hwdevice_type == mem_type_e::cuda || hwdevice_type == mem_type_e::vulkan || hwdevice_type == mem_type_e::v4l2) {
       auto disp = std::make_shared<kms::display_vram_t>(hwdevice_type);
 
       if (!disp->init(display_name, config)) {
@@ -2295,7 +2308,15 @@ namespace platf {
 
     kms::card_descriptors = std::move(cds);
 
-    BOOST_LOG(debug) << "Final KMS display_names return list: " << (display_names | std::views::join_with(' ') | std::ranges::to<std::string>());
+    std::string display_names_str;
+    for (const auto &name : display_names) {
+      if (!display_names_str.empty()) {
+        display_names_str += ' ';
+      }
+      display_names_str += name;
+    }
+
+    BOOST_LOG(debug) << "Final KMS display_names return list: " << display_names_str;
     return display_names;
   }
 

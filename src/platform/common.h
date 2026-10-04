@@ -41,6 +41,17 @@ struct AVHWFramesContext;
 struct AVCodecContext;
 struct AVDictionary;
 
+extern "C" {
+/**
+ * @brief Submit a frame to an opened FFmpeg encoder.
+ *
+ * @param avctx FFmpeg codec context that receives the frame.
+ * @param frame Frame to submit, or nullptr to flush the encoder.
+ * @return 0 on success, AVERROR(EAGAIN) when output must be drained, or another negative AVERROR code on failure.
+ */
+int avcodec_send_frame(AVCodecContext *avctx, const AVFrame *frame);
+}
+
 #ifdef _WIN32
 // Forward declarations of boost classes to avoid having to include boost headers
 // here, which results in issues with Windows.h and WinSock2.h include order.
@@ -331,6 +342,7 @@ namespace platf {
     cuda,  ///< CUDA
     videotoolbox,  ///< VideoToolbox
     vulkan,  ///< Vulkan
+    v4l2,  ///< V4L2
     unknown  ///< Unknown
   };
 
@@ -647,6 +659,28 @@ namespace platf {
     virtual int prepare_to_derive_context(int hw_device_type) {
       return 0;
     };
+
+    /**
+     * @brief Load the opened context.
+     * @note Implementations may load the opened context after initialization.
+     *
+     * @param ctx FFmpeg codec context to load.
+     * @return Status from loading the opened context; 0 on success, nonzero to abort.
+     */
+    virtual int load_opened_context(AVCodecContext *ctx) {
+      return 0;
+    }
+
+    /**
+     * @brief Send a frame to the codec.
+     * @note Implementations may perform additional operations besides avcodec_send_frame().
+     *
+     * @param ctx FFmpeg codec context to use.
+     * @return Status from sending the frame; 0 on success, nonzero to abort.
+     */
+    virtual int send_frame(AVCodecContext *ctx) {
+      return avcodec_send_frame(ctx, frame);
+    }
   };
 
   /**
