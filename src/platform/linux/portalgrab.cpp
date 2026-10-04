@@ -221,6 +221,11 @@ namespace portal {
     GDBusConnection *conn;  ///< Borrowed — owned by the calling dbus_t/portal_t.
   };
 
+  /**
+   * @brief Get path of the XDG Portal restore token.
+   *
+   * @return Path of token that may include the session desktop as a suffix (e.g. .gnome, .kde).
+   */
   std::string get_saved_token_path() {
     return restore_token_t::get_file_path();
   }
