@@ -607,6 +607,10 @@ namespace rtsp_stream {
         if (!ec) {
           auto discarded = launch_event.pop(0s);
           if (discarded) {
+            // A stream may already own the lease; expire() leaves an active lease alone.
+            if (discarded->display_prep_lease) {
+              discarded->display_prep_lease->expire();
+            }
             BOOST_LOG(debug) << "Event timeout: "sv << discarded->unique_id;
           }
         }
@@ -723,6 +727,15 @@ namespace rtsp_stream {
       acceptor.close();
       io_context.stop();
       clear();
+      expire_pending_prep();
+    }
+
+    /** @brief Release the output owned by a canceled pending handshake. */
+    void expire_pending_prep() {
+      const auto pending = launch_event.view(0s);
+      if (pending && pending->display_prep_lease) {
+        pending->display_prep_lease->expire();
+      }
     }
 
   private:
@@ -759,6 +772,7 @@ namespace rtsp_stream {
 
   void terminate_sessions() {
     server.clear(true);
+    server.expire_pending_prep();
     input::terminate_gamepads();
   }
 
