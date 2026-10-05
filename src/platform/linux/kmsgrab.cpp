@@ -33,6 +33,52 @@
 #include "vulkan_encode.h"
 #include "wayland.h"
 
+static bool is_cursor_32bpp_format(uint32_t fmt)
+{
+    return fmt == DRM_FORMAT_XRGB8888 ||
+           fmt == DRM_FORMAT_XBGR8888 ||
+           fmt == DRM_FORMAT_RGBX8888 ||
+           fmt == DRM_FORMAT_BGRX8888 ||
+           fmt == DRM_FORMAT_ARGB8888 ||
+           fmt == DRM_FORMAT_ABGR8888 ||
+           fmt == DRM_FORMAT_RGBA8888 ||
+           fmt == DRM_FORMAT_BGRA8888;
+}
+
+// Converts one 32-bit pixel in place to DRM_FORMAT_ARGB8888 byte order:
+// [B, G, R, A] on little-endian systems.
+//
+// x_is_alpha: set true for cursor buffers, where the kernel hardcodes
+// DRM_FORMAT_HOST_XRGB8888 (virtgpu_gem.c) but the fourth byte actually
+// carries per-pixel alpha. Scanout buffers must leave this false.
+static bool convert_pixel_to_argb8888(std::uint8_t *p, std::uint32_t fmt,
+                                      bool x_is_alpha = false)
+{
+  const auto c0 = p[0], c1 = p[1], c2 = p[2], c3 = p[3];
+  std::uint8_t b, g, r, a;
+
+  switch (fmt) {
+    case DRM_FORMAT_XRGB8888: b = c0; g = c1; r = c2; a = x_is_alpha ? c3 : 255; break;
+    case DRM_FORMAT_XBGR8888: b = c2; g = c1; r = c0; a = x_is_alpha ? c3 : 255; break;
+    case DRM_FORMAT_RGBX8888: b = c1; g = c2; r = c3; a = x_is_alpha ? c0 : 255; break;
+    case DRM_FORMAT_BGRX8888: b = c3; g = c2; r = c1; a = x_is_alpha ? c0 : 255; break;
+
+    case DRM_FORMAT_ARGB8888: b = c0; g = c1; r = c2; a = c3; break;
+    case DRM_FORMAT_ABGR8888: b = c2; g = c1; r = c0; a = c3; break;
+    case DRM_FORMAT_RGBA8888: b = c1; g = c2; r = c3; a = c0; break;
+    case DRM_FORMAT_BGRA8888: b = c3; g = c2; r = c1; a = c0; break;
+
+    default: return false;
+  }
+
+  p[0] = b;
+  p[1] = g;
+  p[2] = r;
+  p[3] = a;
+  return true;
+}   
+
+
 using namespace std::literals;
 namespace fs = std::filesystem;
 
@@ -1430,9 +1476,9 @@ namespace platf {
             return;
           }
 
-          // All known cursor planes in the wild are ARGB8888
-          if (fb->pixel_format != DRM_FORMAT_ARGB8888) {
-            BOOST_LOG(error) << "Unsupported non-ARGB8888 cursor format: "sv << fb->pixel_format;
+          // All known cursor planes in the wild are 32 bpp
+          if (!is_cursor_32bpp_format(fb->pixel_format)) {
+            BOOST_LOG(error) << "Unsupported cursor format: "sv << fb->pixel_format;
             captured_cursor.visible = false;
             cursor_plane_id = -1;
             return;
@@ -1512,6 +1558,14 @@ namespace platf {
 
           munmap(mapped_data, mapped_size);
 
+          if (fb->pixel_format != DRM_FORMAT_ARGB8888) {
+            // Convert the copied pixels to the format expected by the rest of code.
+            for (std::size_t i = 0; i < captured_cursor.pixels.size(); i += 4) {
+              convert_pixel_to_argb8888(
+                  captured_cursor.pixels.data() + i, fb->pixel_format, true);
+            }
+          }
+          
           captured_cursor.visible = true;
           captured_cursor.src_w = src_w;
           captured_cursor.src_h = src_h;
