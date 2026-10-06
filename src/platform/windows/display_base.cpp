@@ -791,8 +791,7 @@ namespace platf::dxgi {
     // ApplySRGBCurve, which double-encodes the already-sRGB G22 values,
     // crushing highlights to white. Use this method to route G22+FP16 input
     // through the non-linear shader path (saturate only, no curve).
-    return desc1.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709
-        || desc1.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P2020;
+    return desc1.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709 || desc1.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P2020;
   }
 
   bool display_base_t::get_hdr_metadata(SS_HDR_METADATA &metadata) {
