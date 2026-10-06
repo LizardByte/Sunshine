@@ -170,7 +170,7 @@ class Sunshine < Formula
       -DCMAKE_INSTALL_PREFIX=#{prefix}
       -DGLAD_SKIP_PIP_INSTALL=ON
       -DHOMEBREW_ALLOW_FETCHCONTENT=ON
-      -DOPENSSL_ROOT_DIR=#{formula_opt_prefix("openssl")}
+      -DOPENSSL_ROOT_DIR=#{formula_opt_prefix("openssl@3")}
       -DSUNSHINE_ASSETS_DIR=sunshine/assets
       -DSUNSHINE_BUILD_HOMEBREW=ON
       -DSUNSHINE_PUBLISHER_NAME='LizardByte'
