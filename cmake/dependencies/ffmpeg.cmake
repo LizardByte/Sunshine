@@ -64,7 +64,7 @@ if(NOT DEFINED FFMPEG_PREPARED_BINARIES)
     endif()
 
     # Set extraction directory and prepared binaries path
-    set(FFMPEG_EXTRACT_DIR "${FFMPEG_DOWNLOAD_DIR}")
+    set(FFMPEG_EXTRACT_DIR "${FFMPEG_VERSION_DIR}")
     set(FFMPEG_PREPARED_BINARIES "${FFMPEG_EXTRACT_DIR}/ffmpeg")
 
     # Set the archive filename based on architecture
@@ -174,6 +174,68 @@ else()
 
     # Add platform libraries
     list(APPEND FFMPEG_LIBRARIES ${FFMPEG_PLATFORM_LIBRARIES})
+endif()
+
+# Shared packages supply the full static dependency list, including decoders.
+# Older packages retain the library list above.
+set(_sunshine_ffmpeg_pc "${FFMPEG_PREPARED_BINARIES}/lib/pkgconfig/libavcodec.pc")
+set(_sunshine_ffmpeg_relocatable -1)
+if(EXISTS "${_sunshine_ffmpeg_pc}")
+    file(READ "${_sunshine_ffmpeg_pc}" _sunshine_ffmpeg_metadata LIMIT 512)
+    string(FIND "${_sunshine_ffmpeg_metadata}" "prefix=\${pcfiledir}/../.." _sunshine_ffmpeg_relocatable)
+endif()
+if(_sunshine_ffmpeg_relocatable GREATER_EQUAL 0)
+    # Refresh cached paths when the package or system library search policy changes.
+    get_cmake_property(_sunshine_cache_variables CACHE_VARIABLES)
+    foreach(variable IN LISTS _sunshine_cache_variables)
+        if(variable MATCHES "^(pkgcfg_lib_|__pkg_config_checked_)?SUNSHINE_BUNDLED_(FFMPEG|OPUS)")
+            unset(${variable} CACHE)
+        endif()
+    endforeach()
+    foreach(variable PKG_CONFIG_PATH PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR)
+        if(DEFINED ENV{${variable}})
+            set(_sunshine_saved_${variable} "$ENV{${variable}}")
+        else()
+            unset(_sunshine_saved_${variable})
+        endif()
+    endforeach()
+    set(_sunshine_saved_pkg_config_argn "${PKG_CONFIG_ARGN}")
+    # The package supplies static codec archives; system libraries keep their normal linkage.
+    set(ENV{PKG_CONFIG_PATH} "${FFMPEG_PREPARED_BINARIES}/lib/pkgconfig")
+    set(ENV{PKG_CONFIG_LIBDIR} "$ENV{PKG_CONFIG_PATH}")
+    unset(ENV{PKG_CONFIG_SYSROOT_DIR})
+    set(PKG_CONFIG_ARGN --static)
+    if(WIN32)
+        set(_sunshine_saved_library_suffixes "${CMAKE_FIND_LIBRARY_SUFFIXES}")
+        set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+    endif()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(SUNSHINE_BUNDLED_FFMPEG REQUIRED IMPORTED_TARGET libcbs libavcodec libswscale libavutil)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        # Explicit shared compiler runtimes bypass -static-libstdc++/-static-libgcc.
+        # Let the C++ driver apply Sunshine's runtime policy from targets/linux.cmake.
+        get_target_property(_sunshine_ffmpeg_link_libraries
+                PkgConfig::SUNSHINE_BUNDLED_FFMPEG INTERFACE_LINK_LIBRARIES)
+        list(FILTER _sunshine_ffmpeg_link_libraries EXCLUDE
+                REGEX "(^|/)(lib)?(stdc\\+\\+|gcc_s)(\\.[^/]*)?$")
+        set_property(TARGET PkgConfig::SUNSHINE_BUNDLED_FFMPEG PROPERTY
+                INTERFACE_LINK_LIBRARIES "${_sunshine_ffmpeg_link_libraries}")
+    endif()
+    if(EXISTS "${FFMPEG_PREPARED_BINARIES}/lib/libopus.a")
+        pkg_check_modules(SUNSHINE_BUNDLED_OPUS REQUIRED IMPORTED_TARGET opus)
+    endif()
+    foreach(variable PKG_CONFIG_PATH PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR)
+        if(DEFINED _sunshine_saved_${variable})
+            set(ENV{${variable}} "${_sunshine_saved_${variable}}")
+        else()
+            unset(ENV{${variable}})
+        endif()
+    endforeach()
+    set(PKG_CONFIG_ARGN "${_sunshine_saved_pkg_config_argn}")
+    if(WIN32)
+        set(CMAKE_FIND_LIBRARY_SUFFIXES "${_sunshine_saved_library_suffixes}")
+    endif()
+    set(FFMPEG_LIBRARIES PkgConfig::SUNSHINE_BUNDLED_FFMPEG)
 endif()
 
 set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREPARED_BINARIES}/include")
