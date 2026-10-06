@@ -760,6 +760,7 @@
   },
   "file_browser": {
     "empty": "표시할 항목이 없습니다.",
+    "error_invalid_extension": "선택한 파일의 확장자는 다음 중 하나여야 합니다: {extensions}",
     "root": "루트",
     "select": "선택",
     "select_directory": "디렉토리 선택",

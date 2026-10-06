@@ -760,6 +760,7 @@
   },
   "file_browser": {
     "empty": "Không có sản phẩm nào để hiển thị",
+    "error_invalid_extension": "Tệp đã chọn phải có một trong các phần mở rộng sau đây: {extensions}",
     "root": "Gốc",
     "select": "Chọn",
     "select_directory": "Chọn thư mục",

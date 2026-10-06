@@ -760,6 +760,7 @@
   },
   "file_browser": {
     "empty": "Немає елементів для відображення",
+    "error_invalid_extension": "Вибраний файл повинен мати одне з наступних розширень: {extensions}",
     "root": "Корінь",
     "select": "Вибрати",
     "select_directory": "Виберіть каталог",

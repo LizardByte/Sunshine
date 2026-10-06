@@ -760,6 +760,7 @@
   },
   "file_browser": {
     "empty": "Keine Elemente zum Anzeigen",
+    "error_invalid_extension": "Die ausgewählte Datei muss eine der folgenden Endungen haben: {extensions}",
     "root": "Wurzel",
     "select": "Auswählen",
     "select_directory": "Verzeichnis auswählen",

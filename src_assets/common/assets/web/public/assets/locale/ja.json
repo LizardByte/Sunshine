@@ -760,6 +760,7 @@
   },
   "file_browser": {
     "empty": "表示するアイテムがありません",
+    "error_invalid_extension": "選択したファイルは次のいずれかの拡張子を持つ必要があります： {extensions}",
     "root": "ルート",
     "select": "選択",
     "select_directory": "ディレクトリを選択",
