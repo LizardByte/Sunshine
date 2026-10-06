@@ -9,6 +9,30 @@
 </div>
 
 <div align="center">
+  <!-- Keep whitespace outside the badge links to avoid an underlined gap. -->
+  <!-- Use raw HTML aliases to keep Doxygen's emitted comment delimiters balanced. -->
+  <!--! @htmlonly_start -->
+  <a href="https://www.star-history.com/lizardbyte/sunshine"><picture><source
+    media="(prefers-color-scheme: dark)"
+    srcset="https://api.star-history.com/badge?repo=LizardByte/Sunshine&type=rank&theme=dark"
+  /><source
+    media="(prefers-color-scheme: light)"
+    srcset="https://api.star-history.com/badge?repo=LizardByte/Sunshine&type=rank"
+  /><img
+    alt="Star History Rank"
+    src="https://api.star-history.com/badge?repo=LizardByte/Sunshine&type=rank"
+  /></picture></a>
+  <a href="https://www.star-history.com/lizardbyte/sunshine"><picture><source
+    media="(prefers-color-scheme: dark)"
+    srcset="https://api.star-history.com/badge?repo=LizardByte/Sunshine&type=trending&theme=dark"
+  /><source
+    media="(prefers-color-scheme: light)"
+    srcset="https://api.star-history.com/badge?repo=LizardByte/Sunshine&type=trending"
+  /><img
+    alt="GitHub Trending Repository of the Day"
+    src="https://api.star-history.com/badge?repo=LizardByte/Sunshine&type=trending"
+  /></picture></a><br><br>
+  <!--! @htmlonly_end -->
   <a href="https://github.com/LizardByte/Sunshine"><img src="https://img.shields.io/github/stars/lizardbyte/sunshine.svg?logo=github&style=for-the-badge" alt="GitHub stars"></a>
   <a href="https://github.com/LizardByte/Sunshine/releases/latest"><img src="https://img.shields.io/github/downloads/lizardbyte/sunshine/total.svg?style=for-the-badge&logo=github" alt="GitHub Releases"></a>
   <a href="https://hub.docker.com/r/lizardbyte/sunshine"><img src="https://img.shields.io/docker/pulls/lizardbyte/sunshine.svg?style=for-the-badge&logo=docker" alt="Docker"></a>
