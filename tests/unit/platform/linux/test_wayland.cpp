@@ -6,6 +6,7 @@
   // standard includes
   #include <array>
   #include <cerrno>
+  #include <chrono>
 
   // system includes
   #include <drm_fourcc.h>
@@ -86,6 +87,98 @@ TEST(WaylandMonitorTest, UpdatesCurrentMode) {
 
   EXPECT_EQ(monitor.viewport.width, 2560);
   EXPECT_EQ(monitor.viewport.height, 1440);
+}
+
+TEST(WaylandMonitorTest, RecordsRefreshOfCurrentMode) {
+  wl::monitor_t monitor {nullptr};
+
+  EXPECT_EQ(monitor.refresh_mhz, 0);
+
+  monitor.wl_mode(nullptr, WL_OUTPUT_MODE_PREFERRED, 1920, 1080, 60000);
+  EXPECT_EQ(monitor.refresh_mhz, 0);
+
+  monitor.wl_mode(nullptr, WL_OUTPUT_MODE_CURRENT, 1920, 1080, 120000);
+  monitor.wl_mode(nullptr, 0, 1920, 1080, 144000);
+  EXPECT_EQ(monitor.refresh_mhz, 120000);
+}
+
+TEST(WaylandCaptureTest, UsesDamageCaptureOnlyOnAFasterOutput) {
+  // An output at twice the stream's rate, and one just at the threshold.
+  EXPECT_TRUE(wl::use_damage_capture(3, 60.0, 120000));
+  EXPECT_TRUE(wl::use_damage_capture(3, 60.0, 90000));
+
+  // An output at the stream's own rate keeps the paced copy, as does one only slightly faster.
+  EXPECT_FALSE(wl::use_damage_capture(3, 60.0, 60000));
+  EXPECT_FALSE(wl::use_damage_capture(3, 60.0, 89999));
+  EXPECT_FALSE(wl::use_damage_capture(3, 120.0, 120000));
+}
+
+TEST(WaylandCaptureTest, KeepsPacedCaptureWithoutProtocolOrRates) {
+  // copy_with_damage arrived in version 2 of the protocol.
+  EXPECT_FALSE(wl::use_damage_capture(1, 60.0, 120000));
+  EXPECT_TRUE(wl::use_damage_capture(2, 60.0, 120000));
+
+  // A compositor that never reported a mode, and a stream without a rate.
+  EXPECT_FALSE(wl::use_damage_capture(3, 60.0, 0));
+  EXPECT_FALSE(wl::use_damage_capture(3, 0.0, 120000));
+}
+
+TEST(WaylandCaptureTest, DamageRequestBudgetFollowsASourceAtTheStreamRate) {
+  using namespace std::chrono_literals;
+  constexpr std::chrono::nanoseconds delay = 16ms;
+  const std::chrono::steady_clock::time_point start {1s};
+
+  // Frames one interval apart: the next request is always allowed a quarter interval before
+  // the next frame is due, however long that goes on.
+  auto next_request = std::chrono::steady_clock::time_point {};
+  for (int i = 0; i < 100; ++i) {
+    const auto frame_time = start + i * delay;
+    next_request = wl::next_damage_request(next_request, frame_time, delay);
+    EXPECT_EQ(next_request, frame_time + delay - delay / 4);
+  }
+}
+
+TEST(WaylandCaptureTest, DamageRequestBudgetHoldsAFasterSourceToTheStreamRate) {
+  using namespace std::chrono_literals;
+  constexpr std::chrono::nanoseconds delay = 16ms;
+  const std::chrono::steady_clock::time_point start {1s};
+
+  // Frames arriving twice as fast as the stream: each one still costs a whole interval.
+  auto next_request = wl::next_damage_request({}, start, delay);
+  const auto first = next_request;
+  for (int i = 1; i <= 10; ++i) {
+    next_request = wl::next_damage_request(next_request, start + i * (delay / 2), delay);
+  }
+  EXPECT_EQ(next_request, first + 10 * delay);
+}
+
+TEST(WaylandCaptureTest, DamageRequestBudgetResetsAfterALateFrame) {
+  using namespace std::chrono_literals;
+  constexpr std::chrono::nanoseconds delay = 16ms;
+  const std::chrono::steady_clock::time_point start {1s};
+
+  // A still picture, then a frame a second later: no budget is carried over from the pause.
+  auto next_request = wl::next_damage_request({}, start, delay);
+  const auto late = start + 1s;
+  next_request = wl::next_damage_request(next_request, late, delay);
+  EXPECT_EQ(next_request, late + delay - delay / 4);
+}
+
+TEST(WaylandCaptureTest, WaitsOnlyForADamageRequestWithinOneInterval) {
+  using namespace std::chrono_literals;
+  constexpr std::chrono::nanoseconds delay = 16ms;
+  const std::chrono::steady_clock::time_point now {1s};
+
+  EXPECT_TRUE(wl::should_wait_for_damage_request(now + 4ms, now, delay));
+
+  // Already due.
+  EXPECT_FALSE(wl::should_wait_for_damage_request(now, now, delay));
+  EXPECT_FALSE(wl::should_wait_for_damage_request(now - 4ms, now, delay));
+  EXPECT_FALSE(wl::should_wait_for_damage_request({}, now, delay));
+
+  // Further off than one interval: timestamps on another clock, not something to sleep on.
+  EXPECT_FALSE(wl::should_wait_for_damage_request(now + delay, now, delay));
+  EXPECT_FALSE(wl::should_wait_for_damage_request(now + 1h, now, delay));
 }
 
 TEST(WaylandCaptureTest, UsesVramForVaapi) {

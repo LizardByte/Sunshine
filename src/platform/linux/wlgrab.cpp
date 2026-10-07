@@ -38,6 +38,26 @@ namespace wl {
     return false;
   }
 
+  bool use_damage_capture(std::uint32_t screencopy_version, double stream_fps, std::int32_t refresh_mhz) {
+    return screencopy_version >= 2 && stream_fps > 0 && refresh_mhz / 1000.0 >= stream_fps * 1.5;
+  }
+
+  std::chrono::steady_clock::time_point next_damage_request(
+    std::chrono::steady_clock::time_point next_request,
+    std::chrono::steady_clock::time_point frame_time,
+    std::chrono::nanoseconds delay
+  ) {
+    return std::max(next_request, frame_time - delay / 4) + delay;
+  }
+
+  bool should_wait_for_damage_request(
+    std::chrono::steady_clock::time_point next_request,
+    std::chrono::steady_clock::time_point now,
+    std::chrono::nanoseconds delay
+  ) {
+    return next_request > now && next_request < now + delay;
+  }
+
   /**
    * @brief Captured frame buffer shared between capture and encode stages.
    */
@@ -125,6 +145,23 @@ namespace wl {
 
       output = monitor->output;
 
+      // copy_with_damage arrived in version 2 of the protocol. With it the
+      // compositor answers when the output has a new picture, so capture
+      // follows the compositor's frames instead of sampling them on a clock
+      // of our own.
+      //
+      // Only on an output that refreshes at least half again as fast as the
+      // stream. A paced copy makes the compositor commit, and on an output
+      // running at the stream's own rate those commits are part of what keeps
+      // its clients on time: measured on a wlroots headless output at 60 Hz
+      // with a 60 fps stream, taking them away dropped delivery from 60 to
+      // about 55. With the output at twice the rate the same change went from
+      // up to one repeated picture in ten to none.
+      const double stream_fps = av_q2d(fps);
+      const double output_fps = monitor->refresh_mhz / 1000.0;
+      event_driven = use_damage_capture(interface.screencopy_version, stream_fps, monitor->refresh_mhz);
+      BOOST_LOG(info) << "[wlgrab] Frame capture: "sv << (event_driven ? "event-driven"sv : "paced"sv) << " (output "sv << output_fps << " Hz, stream "sv << stream_fps << " fps)"sv;
+
       offset_x = monitor->viewport.offset_x;
       offset_y = monitor->viewport.offset_y;
       width = monitor->viewport.width;
@@ -180,8 +217,17 @@ namespace wl {
     inline platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor, const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers = nullptr) {
       auto to = std::chrono::steady_clock::now() + timeout;
 
-      // Dispatch events until we get a new frame or the timeout expires
-      dmabuf.listen(interface.screencopy_manager, interface.dmabuf_interface, &interface.supported_modifiers, output, cursor, encoder_modifiers);
+      // Dispatch events until we get a new frame or the timeout expires.
+      // A request that outlived the last timeout is still the one to wait
+      // for: with copy_with_damage a still picture never answers, and asking
+      // again on every timeout would pile requests up in the compositor.
+      if (dmabuf.status != dmabuf_t::WAITING) {
+        // The first frame is asked for outright. On a picture that is not
+        // changing, a request for the next change would leave the stream
+        // without anything to show until something moved.
+        dmabuf.with_damage = event_driven && have_frame;
+        dmabuf.listen(interface.screencopy_manager, interface.dmabuf_interface, &interface.supported_modifiers, output, cursor, encoder_modifiers);
+      }
       do {
         auto remaining_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(to - std::chrono::steady_clock::now());
         if (remaining_time_ms.count() < 0 || !display.dispatch(remaining_time_ms)) {
@@ -190,6 +236,10 @@ namespace wl {
       } while (dmabuf.status == dmabuf_t::WAITING);
 
       auto current_frame = dmabuf.current_frame;
+
+      auto frame_time = current_frame->frame_timestamp.value_or(std::chrono::steady_clock::now());
+      next_request = next_damage_request(next_request, frame_time, delay);
+      have_frame = true;
 
       if (
         dmabuf.status == dmabuf_t::REINIT ||
@@ -202,9 +252,42 @@ namespace wl {
       return platf::capture_e::ok;
     }
 
+    /**
+     * @brief Wait until the next frame may be asked for.
+     *
+     * Paced capture sleeps to a clock of its own and then asks for a frame.
+     * That request makes the compositor commit at a time Sunshine chose, and
+     * the same picture can be captured twice while another is never seen.
+     *
+     * Event-driven capture has no clock. The request is answered by the next
+     * commit that changed the picture, so a frame is captured once, when it
+     * exists. What is left to do here is keep an output that changes faster
+     * than the stream from being captured at its own rate, and that is a
+     * budget rather than a clock: every captured frame moves the earliest
+     * time of the next request on by one frame interval. A frame that arrives
+     * late resets the budget to a quarter interval before its own time, so a
+     * source running at the stream's rate is asked for with room to spare,
+     * while a faster one is held to the stream's rate on average.
+     *
+     * @param next_frame Next deadline of the paced clock, unused when event-driven.
+     */
+    void wait_for_next_request(std::chrono::steady_clock::time_point &next_frame) {
+      if (!event_driven) {
+        platf::handle_pacing(next_frame, delay, sleep_overshoot_logger);
+        return;
+      }
+
+      if (should_wait_for_damage_request(next_request, std::chrono::steady_clock::now(), delay)) {
+        std::this_thread::sleep_until(next_request);
+      }
+    }
+
     platf::mem_type_e mem_type;  ///< Mem type.
 
     std::chrono::nanoseconds delay;  ///< Delay before the timer task becomes eligible to run.
+    std::chrono::steady_clock::time_point next_request {};  ///< Earliest time the next frame may be asked for when event-driven.
+    bool event_driven {false};  ///< Whether frames are requested with copy_with_damage.
+    bool have_frame {false};  ///< Whether this capture has delivered a frame yet.
 
     wl::display_t display;  ///< Wayland display connection used for capture.
     interface_t interface;  ///< Wayland registry interfaces required by screencopy.
@@ -224,7 +307,7 @@ namespace wl {
       sleep_overshoot_logger.reset();
 
       while (true) {
-        platf::handle_pacing(next_frame, delay, sleep_overshoot_logger);
+        wait_for_next_request(next_frame);
 
         std::shared_ptr<platf::img_t> img_out;
         auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
@@ -377,7 +460,7 @@ namespace wl {
       sleep_overshoot_logger.reset();
 
       while (true) {
-        platf::handle_pacing(next_frame, delay, sleep_overshoot_logger);
+        wait_for_next_request(next_frame);
 
         std::shared_ptr<platf::img_t> img_out;
         auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);

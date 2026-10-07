@@ -7,6 +7,7 @@
 // standard includes
 #include <array>
 #include <bitset>
+#include <chrono>
 #include <cstdint>
 #include <map>
 #include <optional>
@@ -39,6 +40,56 @@ namespace wl {
    * @return `true` when the requested memory type should use the wlroots VRAM path.
    */
   bool use_vram_capture(platf::mem_type_e hwdevice_type);
+
+  /**
+   * @brief Determine whether wlroots capture should ask for frames with `copy_with_damage`.
+   *
+   * With `copy_with_damage` the compositor answers when the output has a new picture, so capture
+   * follows the compositor's frames instead of sampling them on a clock of Sunshine's own. That
+   * needs version 2 of the screencopy protocol and an output that refreshes at least half again
+   * as fast as the stream. On an output running at the stream's own rate, the commits a paced
+   * copy forces are part of what keeps the output's clients on time.
+   *
+   * @param screencopy_version Version of the screencopy global the compositor offered.
+   * @param stream_fps Frame rate requested for the stream.
+   * @param refresh_mhz Refresh rate of the captured output in mHz, 0 when the compositor did not say.
+   * @return `true` when frames should be asked for with `copy_with_damage`.
+   */
+  bool use_damage_capture(std::uint32_t screencopy_version, double stream_fps, std::int32_t refresh_mhz);
+
+  /**
+   * @brief Move the earliest time of the next damage-driven request on by one captured frame.
+   *
+   * Every captured frame costs one frame interval of budget, which holds an output that changes
+   * faster than the stream to the stream's rate. A frame that arrives after the budget ran out
+   * resets it to a quarter interval before the frame's own time, so a source running at the
+   * stream's rate is asked for with room to spare.
+   *
+   * @param next_request Earliest request time before this frame.
+   * @param frame_time Time the compositor presented the captured frame.
+   * @param delay Frame interval of the stream.
+   * @return Earliest time the next frame may be asked for.
+   */
+  std::chrono::steady_clock::time_point next_damage_request(
+    std::chrono::steady_clock::time_point next_request,
+    std::chrono::steady_clock::time_point frame_time,
+    std::chrono::nanoseconds delay
+  );
+
+  /**
+   * @brief Determine whether a damage-driven request should wait for its budget.
+   *
+   * @param next_request Earliest time the next frame may be asked for.
+   * @param now Current time.
+   * @param delay Frame interval of the stream.
+   * @return `true` when the caller should sleep until `next_request`. A time further off than one
+   *         interval is not waited for: that would be a compositor whose timestamps are on another clock.
+   */
+  bool should_wait_for_damage_request(
+    std::chrono::steady_clock::time_point next_request,
+    std::chrono::steady_clock::time_point now,
+    std::chrono::nanoseconds delay
+  );
 
   /**
    * @brief Intersect compositor and encoder modifiers to find common formats.
@@ -287,6 +338,7 @@ namespace wl {
     }
 
     status_e status;  ///< Current state of the active screencopy request.
+    bool with_damage {false};  ///< Ask the compositor for the next frame that differs, rather than for a frame now.
     std::array<frame_t, 2> frames;  ///< Double-buffered frame descriptors.
     frame_t *current_frame;  ///< Frame descriptor currently being filled by the compositor.
     zwlr_screencopy_frame_v1_listener listener;  ///< Callback table registered on screencopy frames.
@@ -421,6 +473,7 @@ namespace wl {
     std::string name;  ///< xdg-output name used for display selection.
     std::string description;  ///< xdg-output description used for logs and UI.
     platf::touch_port_t viewport;  ///< Logical monitor bounds used to scale absolute input.
+    std::int32_t refresh_mhz {0};  ///< Refresh rate of the current mode in mHz, 0 when the compositor did not say.
     wl_output_listener wl_listener;  ///< Callback table for wl-output events.
     zxdg_output_v1_listener xdg_listener;  ///< Callback table for xdg-output events.
   };
@@ -490,6 +543,7 @@ namespace wl {
     std::vector<std::unique_ptr<monitor_t>> monitors;  ///< Outputs discovered from the Wayland registry.
     std::map<std::uint32_t, std::vector<std::uint64_t>> supported_modifiers;  ///< DRM format modifiers grouped by format.
     zwlr_screencopy_manager_v1 *screencopy_manager {nullptr};  ///< WLR screencopy global used to request frames.
+    std::uint32_t screencopy_version {0};  ///< Version of the screencopy global the compositor offered.
     zwp_linux_dmabuf_v1 *dmabuf_interface {nullptr};  ///< Linux DMA-BUF global used to allocate frame buffers.
     zxdg_output_manager_v1 *output_manager {nullptr};  ///< xdg-output global used to query monitor names and sizes.
 
