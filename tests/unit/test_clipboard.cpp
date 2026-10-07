@@ -59,6 +59,50 @@ namespace {
     }
     return texts;
   }
+
+  /**
+   * @brief Selection property that disappears only after its last byte is read.
+   */
+  struct capped_property_t {
+    std::vector<std::byte> bytes;  ///< Full property contents.
+    bool exists = true;  ///< Whether the property is still on the window.
+    int reads = 0;  ///< How many times the property was read.
+
+    /**
+     * @brief Return one bounded slice of the property.
+     *
+     * @param offset Offset in 32-bit units.
+     * @param length Maximum length in 32-bit units.
+     * @return The slice a deleting XGetWindowProperty read would return.
+     */
+    platf::selection_fragment_t read(unsigned long offset, unsigned long length) {
+      platf::selection_fragment_t fragment;
+      fragment.ok = true;
+      fragment.type = 1;
+      fragment.format = 8;
+      if (!exists) {
+        fragment.type = 0;
+        return fragment;
+      }
+      ++reads;
+      const auto start = static_cast<std::size_t>(offset) * 4;
+      if (start >= bytes.size()) {
+        exists = false;
+        return fragment;
+      }
+      const auto take = std::min(static_cast<std::size_t>(length) * 4, bytes.size() - start);
+      fragment.item_count = take;
+      fragment.data.assign(
+        bytes.begin() + static_cast<std::ptrdiff_t>(start),
+        bytes.begin() + static_cast<std::ptrdiff_t>(start + take)
+      );
+      fragment.bytes_after = bytes.size() - start - take;
+      if (fragment.bytes_after == 0) {
+        exists = false;
+      }
+      return fragment;
+    }
+  };
 }  // namespace
 
 TEST(ClipboardSubscriptionTest, DeliversOneHostChangeToEverySubscriber) {
@@ -237,43 +281,17 @@ TEST(ClipboardSelectionTest, AcceptsANewIncrTransferAfterRejectingAnUnsupportedC
 }
 
 TEST(ClipboardSelectionTest, AcknowledgesAChunkLargerThanTheReadLimit) {
-  constexpr std::size_t property_bytes = 64 * 1024;
-  std::vector<std::byte> property(property_bytes, std::byte {'A'});
-  property[platf::selection_property_long_length * 4] = std::byte {'B'};
-  bool exists = true;
-  int reads = 0;
+  capped_property_t property;
+  property.bytes.assign(64 * 1024, std::byte {'A'});
+  property.bytes[platf::selection_property_long_length * 4] = std::byte {'B'};
 
-  const auto loaded = platf::load_selection_property([&property, &exists, &reads](unsigned long offset, unsigned long length) {
-    platf::selection_fragment_t fragment;
-    fragment.ok = true;
-    fragment.type = 1;
-    fragment.format = 8;
-    if (!exists) {
-      fragment.type = 0;
-      return fragment;
-    }
-    ++reads;
-    const auto start = static_cast<std::size_t>(offset) * 4;
-    if (start >= property.size()) {
-      exists = false;
-      return fragment;
-    }
-    const auto take = std::min(static_cast<std::size_t>(length) * 4, property.size() - start);
-    fragment.item_count = take;
-    fragment.data.assign(
-      property.begin() + static_cast<std::ptrdiff_t>(start),
-      property.begin() + static_cast<std::ptrdiff_t>(start + take)
-    );
-    fragment.bytes_after = property.size() - start - take;
-    if (fragment.bytes_after == 0) {
-      exists = false;
-    }
-    return fragment;
+  const auto loaded = platf::load_selection_property([&property](unsigned long offset, unsigned long length) {
+    return property.read(offset, length);
   });
 
   ASSERT_TRUE(loaded);
-  EXPECT_FALSE(exists);
-  EXPECT_GE(reads, 2);
+  EXPECT_FALSE(property.exists);
+  EXPECT_GE(property.reads, 2);
   EXPECT_TRUE(loaded->acknowledged);
   EXPECT_EQ(loaded->data.size(), platf::clipboard_max_bytes);
   EXPECT_EQ(loaded->data.front(), std::byte {'A'});
@@ -281,7 +299,7 @@ TEST(ClipboardSelectionTest, AcknowledgesAChunkLargerThanTheReadLimit) {
 }
 
 TEST(ClipboardSelectionTest, ReadsAShortPropertyInOneCall) {
-  const std::vector<std::byte> property {std::byte {'h'}, std::byte {'i'}};
+  const std::vector property {std::byte {'h'}, std::byte {'i'}};
   int reads = 0;
   const auto loaded = platf::load_selection_property([&property, &reads](unsigned long, unsigned long) {
     ++reads;

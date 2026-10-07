@@ -311,8 +311,10 @@ namespace platf {
       std::uint64_t incr_atom
     ) {
       if (active_) {
-        const bool text_chunk = actual_format == 8 && (actual_type == utf8_atom || actual_type == string_atom);
-        if (!text_chunk) {
+        if (
+          const bool text_chunk = actual_format == 8 && (actual_type == utf8_atom || actual_type == string_atom);
+          !text_chunk
+        ) {
           rejected_ = true;
           text_.clear();
           return std::nullopt;
