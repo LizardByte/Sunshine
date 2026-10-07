@@ -26,7 +26,5 @@ jobs:
     if: github.repository_owner == 'LizardByte'
     permissions:
       contents: read
-    with:
-      gh_name: ${{ vars.GH_BOT_NAME }}
     secrets:
       GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
