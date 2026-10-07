@@ -2221,7 +2221,8 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     <tr>
         <td>wlr</td>
         <td>Capture for wlroots based Wayland compositors via wlr-screencopy-unstable-v1. It is possible to capture
-            virtual displays in e.g. Hyprland using this method.
+            virtual displays in e.g. Hyprland using this method. Frames are captured only when the display changes, so
+            an idle display costs the compositor no redraws.
             @note{Applies to Linux only.}</td>
     </tr>
     <tr>
