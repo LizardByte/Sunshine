@@ -292,6 +292,37 @@ namespace wl {
     }
   }
 
+  std::map<std::uint32_t, std::vector<std::uint64_t>> intersect_modifiers(
+    const std::map<std::uint32_t, std::vector<std::uint64_t>> &compositor_modifiers,
+    const std::map<std::uint32_t, std::vector<std::uint64_t>> &encoder_modifiers
+  ) {
+    std::map<std::uint32_t, std::vector<std::uint64_t>> result;
+
+    for (const auto &[format, comp_mods] : compositor_modifiers) {
+      auto it = encoder_modifiers.find(format);
+      if (it == encoder_modifiers.end()) {
+        continue;
+      }
+
+      const auto &enc_mods = it->second;
+      std::vector<std::uint64_t> common;
+
+      for (auto mod : comp_mods) {
+        if (std::find(enc_mods.begin(), enc_mods.end(), mod) != enc_mods.end()) {
+          common.push_back(mod);
+        }
+      }
+
+      if (!common.empty()) {
+        BOOST_LOG(debug) << "[wayland] Format 0x"sv << std::hex << format << std::dec
+                         << " has "sv << common.size() << " common modifiers"sv;
+        result[format] = std::move(common);
+      }
+    }
+
+    return result;
+  }
+
   dmabuf_t::dmabuf_t():
       status {READY},
       frames {},
@@ -313,10 +344,12 @@ namespace wl {
     zwp_linux_dmabuf_v1 *dmabuf_interface,
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers,
     wl_output *output,
-    bool blend_cursor
+    bool blend_cursor,
+    const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers
   ) {
     this->dmabuf_interface = dmabuf_interface;
     this->supported_modifiers = supported_modifiers;
+    this->encoder_modifiers = encoder_modifiers;
     // Reset state
     shm_info.supported = false;
     dmabuf_info.supported = false;
@@ -419,10 +452,11 @@ namespace wl {
       return;
     }
 
-    // Create GBM buffer
-    if (supported_modifiers) {
-      auto it = supported_modifiers->find(dmabuf_info.format);
-      if (it != supported_modifiers->end() && !it->second.empty()) {
+    // Create GBM buffer - prefer encoder-intersected modifiers when available
+    const std::map<std::uint32_t, std::vector<std::uint64_t>> *modifiers_to_use = encoder_modifiers ? encoder_modifiers : supported_modifiers;
+    if (modifiers_to_use) {
+      auto it = modifiers_to_use->find(dmabuf_info.format);
+      if (it != modifiers_to_use->end() && !it->second.empty()) {
         current_bo = gbm_bo_create_with_modifiers2(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, it->second.data(), it->second.size(), GBM_BO_USE_RENDERING);
       }
     }

@@ -11,6 +11,7 @@
 #include "src/platform/common.h"
 #include "src/video.h"
 #include "vaapi.h"
+#include "vulkan_encode.h"
 #include "wayland.h"
 
 using namespace std::literals;
@@ -21,6 +22,10 @@ namespace wl {
 
   bool use_vram_capture(platf::mem_type_e hwdevice_type) {
     if (hwdevice_type == platf::mem_type_e::vaapi) {
+      return true;
+    }
+
+    if (hwdevice_type == platf::mem_type_e::vulkan) {
       return true;
     }
 
@@ -169,13 +174,14 @@ namespace wl {
      * @param img_out Captured wlroots image returned to the streaming pipeline.
      * @param timeout Maximum time to wait for the operation.
      * @param cursor Cursor image or visibility state to composite.
+     * @param encoder_modifiers Optional encoder modifiers to intersect with compositor modifiers.
      * @return Capture status reported to the streaming pipeline.
      */
-    inline platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
+    inline platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor, const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers = nullptr) {
       auto to = std::chrono::steady_clock::now() + timeout;
 
       // Dispatch events until we get a new frame or the timeout expires
-      dmabuf.listen(interface.screencopy_manager, interface.dmabuf_interface, &interface.supported_modifiers, output, cursor);
+      dmabuf.listen(interface.screencopy_manager, interface.dmabuf_interface, &interface.supported_modifiers, output, cursor, encoder_modifiers);
       do {
         auto remaining_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(to - std::chrono::steady_clock::now());
         if (remaining_time_ms.count() < 0 || !display.dispatch(remaining_time_ms)) {
@@ -409,7 +415,9 @@ namespace wl {
      * @return Capture status reported to the streaming pipeline.
      */
     platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
-      auto status = wlr_t::snapshot(pull_free_image_cb, img_out, timeout, cursor);
+      // For vulkan, use intersected modifiers; for others, pass nullptr (use compositor modifiers)
+      const std::map<std::uint32_t, std::vector<std::uint64_t>> *mods = intersected_modifiers.empty() ? nullptr : &intersected_modifiers;
+      auto status = wlr_t::snapshot(pull_free_image_cb, img_out, timeout, cursor, mods);
       if (status != platf::capture_e::ok) {
         return status;
       }
@@ -473,6 +481,10 @@ namespace wl {
       }
 #endif
 
+      if (mem_type == platf::mem_type_e::vulkan) {
+        return vk::make_avcodec_encode_device_vram(width, height, 0, 0);
+      }
+
       return std::make_unique<platf::avcodec_encode_device_t>();
     }
 
@@ -487,7 +499,26 @@ namespace wl {
       return 0;
     }
 
+    /**
+     * @brief Initialize encoder modifiers for vulkan capture.
+     *
+     * @param hwdevice_type Hardware device type requested for capture or encode.
+     */
+    void init_encoder_modifiers(platf::mem_type_e hwdevice_type) {
+      if (hwdevice_type == platf::mem_type_e::vulkan) {
+        encoder_modifiers = vk::get_supported_capture_modifiers();
+        if (!encoder_modifiers.empty()) {
+          intersected_modifiers = wl::intersect_modifiers(interface.supported_modifiers, encoder_modifiers);
+          if (intersected_modifiers.empty()) {
+            BOOST_LOG(warning) << "[wlgrab] No common modifiers between compositor and vulkan encoder"sv;
+          }
+        }
+      }
+    }
+
     std::uint64_t sequence {};  ///< Monotonic capture sequence assigned to Wayland frames.
+    std::map<std::uint32_t, std::vector<std::uint64_t>> encoder_modifiers;  ///< Modifiers supported by the vulkan encoder.
+    std::map<std::uint32_t, std::vector<std::uint64_t>> intersected_modifiers;  ///< Common modifiers between compositor and encoder.
   };
 
 }  // namespace wl
@@ -497,7 +528,7 @@ namespace platf {
    * @brief Create a Wayland capture backend for the requested memory type.
    */
   std::shared_ptr<display_t> wl_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
-    if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda) {
+    if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda && hwdevice_type != platf::mem_type_e::vulkan) {
       BOOST_LOG(error) << "[wlgrab] Could not initialize display with the given hw device type."sv;
       return nullptr;
     }
@@ -507,6 +538,9 @@ namespace platf {
       if (wlr->init(hwdevice_type, display_name, config)) {
         return nullptr;
       }
+
+      // Initialize encoder modifiers for vulkan capture after interface setup
+      wlr->init_encoder_modifiers(hwdevice_type);
 
       return wlr;
     }
