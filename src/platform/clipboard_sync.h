@@ -150,6 +150,127 @@ namespace platf {
   }
 
   /**
+   * @brief Byte width of one X property item.
+   *
+   * @param format Property format in bits. 8, 16, and 32 are the X formats.
+   * @return Number of bytes in one item. Unknown formats count as one byte.
+   */
+  inline std::size_t property_byte_width(int format) {
+    if (format == 16) {
+      return 2;
+    }
+    if (format == 32) {
+      return 4;
+    }
+    return 1;
+  }
+
+  /**
+   * @brief 32-bit units to advance after one XGetWindowProperty read.
+   *
+   * The X offset is in 32-bit units. A zero step with bytes still remaining cannot
+   * make progress, so the caller deletes the property instead of reading forever.
+   *
+   * @param format Property format in bits.
+   * @param item_count Items returned by the read.
+   * @return Offset advance, or zero when the read returned no complete 32-bit unit.
+   */
+  inline unsigned long selection_offset_step(int format, std::size_t item_count) {
+    const auto nbytes = item_count * property_byte_width(format);
+    return static_cast<unsigned long>(nbytes / 4);
+  }
+
+  /**
+   * @brief Maximum 32-bit units read from one selection property at a time.
+   *
+   * This is the protocol cap rounded up to a 32-bit unit, which is the longest read
+   * XGetWindowProperty is given. A larger chunk stays on the window until a later read
+   * or an explicit delete brings bytes_after to zero.
+   */
+  inline constexpr unsigned long selection_property_long_length = (clipboard_max_bytes + 3) / 4;
+
+  /**
+   * @brief One slice of a selection property, as XGetWindowProperty returns it.
+   */
+  struct selection_fragment_t {
+    bool ok = false;  ///< Whether the property read succeeded.
+    std::uint64_t type = 0;  ///< Actual property type atom.
+    int format = 0;  ///< Actual property format, in bits.
+    std::size_t item_count = 0;  ///< Items stored in data.
+    std::size_t bytes_after = 0;  ///< Bytes still unread. X11 deletes the property only when this is zero.
+    std::vector<std::byte> data;  ///< Bytes returned by this read.
+  };
+
+  /**
+   * @brief Selection property assembled up to the protocol cap.
+   */
+  struct loaded_selection_t {
+    std::uint64_t type = 0;  ///< Property type from the first read.
+    int format = 0;  ///< Property format from the first read.
+    std::vector<std::byte> data;  ///< Property bytes, capped at clipboard_max_bytes.
+    bool acknowledged = false;  ///< Whether the last read had no unread tail, so X11 deleted the property.
+  };
+
+  /**
+   * @brief Copy property bytes without passing the protocol cap.
+   *
+   * @param out Destination bytes.
+   * @param chunk Bytes returned by one property read.
+   */
+  inline void append_property_bytes(std::vector<std::byte> &out, const std::vector<std::byte> &chunk) {
+    if (chunk.empty() || out.size() >= clipboard_max_bytes) {
+      return;
+    }
+    const auto take = std::min(chunk.size(), clipboard_max_bytes - out.size());
+    const auto offset = out.size();
+    out.resize(offset + take);
+    std::copy_n(chunk.data(), take, out.data() + offset);
+  }
+
+  /**
+   * @brief Read a selection property until X11 can delete it.
+   *
+   * Each fetch uses delete=True and selection_property_long_length. XGetWindowProperty
+   * deletes the property only when bytes_after is zero, so a chunk larger than the read
+   * is fetched again at the next 32-bit offset. Stored text still stops at the protocol cap.
+   * Fetch returns ok=false when the X call fails. The fragment's data must own its bytes.
+   *
+   * @tparam Fetch Reads one slice. Called with the 32-bit offset and the maximum 32-bit length.
+   * @param fetch Property read. It must use delete=True and own the returned bytes.
+   * @return The capped property, or empty when the first read fails.
+   */
+  template <typename Fetch>
+  std::optional<loaded_selection_t> load_selection_property(Fetch &&fetch) {
+    loaded_selection_t loaded;
+    unsigned long offset = 0;
+    bool started = false;
+    while (true) {
+      const selection_fragment_t fragment = fetch(offset, selection_property_long_length);
+      if (!fragment.ok) {
+        if (!started) {
+          return std::nullopt;
+        }
+        return loaded;
+      }
+      if (!started) {
+        loaded.type = fragment.type;
+        loaded.format = fragment.format;
+        started = true;
+      }
+      append_property_bytes(loaded.data, fragment.data);
+      if (fragment.bytes_after == 0) {
+        loaded.acknowledged = true;
+        return loaded;
+      }
+      const auto step = selection_offset_step(fragment.format, fragment.item_count);
+      if (step == 0) {
+        return loaded;
+      }
+      offset += step;
+    }
+  }
+
+  /**
    * @brief Incremental X selection transfer assembled from INCR chunks.
    */
   class incr_transfer_t {
@@ -167,8 +288,9 @@ namespace platf {
      * @brief Accept one selection property and maybe finish a text value.
      *
      * An INCR property carries a byte-count announcement, not clipboard text.
-     * Format-8 chunks are appended until the empty property ends the transfer.
-     * Any other type is ignored.
+     * Format-8 UTF8_STRING and STRING chunks are appended until the empty property ends the transfer.
+     * An unsupported type discards the bytes and rejects the transfer. The transfer stays active
+     * until that empty text property so every chunk can be deleted, and the terminator is not published.
      *
      * @param actual_type Property type atom.
      * @param actual_format Property format, in bits.
@@ -189,13 +311,24 @@ namespace platf {
       std::uint64_t incr_atom
     ) {
       if (active_) {
-        if (actual_format == 8 && item_count == 0) {
+        const bool text_chunk = actual_format == 8 && (actual_type == utf8_atom || actual_type == string_atom);
+        if (!text_chunk) {
+          rejected_ = true;
+          text_.clear();
+          return std::nullopt;
+        }
+        if (item_count == 0) {
           active_ = false;
           auto done = std::move(text_);
           text_.clear();
+          const bool rejected = rejected_;
+          rejected_ = false;
+          if (rejected) {
+            return std::nullopt;
+          }
           return done;
         }
-        if (actual_format == 8) {
+        if (!rejected_) {
           append_bytes(data, item_count);
         }
         return std::nullopt;
@@ -245,6 +378,7 @@ namespace platf {
     }
 
     bool active_ = false;  ///< Whether the empty INCR chunk has not arrived yet.
+    bool rejected_ = false;  ///< Whether an unsupported chunk discarded this INCR transfer.
     std::string text_;  ///< UTF-8 text accumulated from INCR chunks.
   };
 }  // namespace platf

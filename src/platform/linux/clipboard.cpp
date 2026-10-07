@@ -5,7 +5,9 @@
 #include "src/logging.h"
 #include "src/platform/common.h"
 
+#include <algorithm>
 #include <condition_variable>
+#include <cstddef>
 #include <mutex>
 #include <random>
 #include <string>
@@ -226,19 +228,59 @@ namespace platf {
       };
 
       auto read_property = [&]() {
-        Atom actual_type = None;
-        int actual_format = 0;
-        unsigned long item_count = 0;
-        unsigned long bytes_after = 0;
-        unsigned char *data = nullptr;
-        if (XGetWindowProperty(display, window, property, 0, (clipboard_max_bytes + 3) / 4, True, AnyPropertyType, &actual_type, &actual_format, &item_count, &bytes_after, &data) != Success) {
+        const auto loaded = load_selection_property([display, window, property](unsigned long offset, unsigned long length) {
+          selection_fragment_t fragment;
+          Atom actual_type = None;
+          int actual_format = 0;
+          unsigned long item_count = 0;
+          unsigned long bytes_after = 0;
+          unsigned char *data = nullptr;
+          if (XGetWindowProperty(
+                display,
+                window,
+                property,
+                offset,
+                length,
+                True,
+                AnyPropertyType,
+                &actual_type,
+                &actual_format,
+                &item_count,
+                &bytes_after,
+                &data
+              ) != Success) {
+            if (data != nullptr) {
+              XFree(data);
+            }
+            return fragment;
+          }
+          fragment.ok = true;
+          fragment.type = actual_type;
+          fragment.format = actual_format;
+          fragment.item_count = item_count;
+          fragment.bytes_after = bytes_after;
+          if (data != nullptr) {
+            const auto limit = static_cast<std::size_t>(length) * 4;
+            const auto reported = item_count * property_byte_width(actual_format);
+            const auto nbytes = std::min(reported, limit);
+            fragment.data.resize(nbytes);
+            if (nbytes > 0) {
+              std::copy_n(reinterpret_cast<const std::byte *>(data), nbytes, fragment.data.begin());
+            }
+            XFree(data);
+          }
+          return fragment;
+        });
+        if (!loaded) {
           return;
         }
-        static_cast<void>(bytes_after);
-        auto text = transfer.consume(actual_type, actual_format, item_count, reinterpret_cast<const std::byte *>(data), utf8, XA_STRING, incr);
-        if (data != nullptr) {
-          XFree(data);
+        if (!loaded->acknowledged) {
+          XDeleteProperty(display, window, property);
         }
+        const auto width = property_byte_width(loaded->format);
+        const auto items = loaded->data.size() / width;
+        const auto *bytes = loaded->data.empty() ? nullptr : loaded->data.data();
+        auto text = transfer.consume(loaded->type, loaded->format, items, bytes, utf8, XA_STRING, incr);
         if (text) {
           publish(*text);
         }

@@ -198,3 +198,133 @@ TEST(ClipboardSelectionTest, CapsClipboardTextAtTheProtocolLimit) {
   ASSERT_TRUE(text);
   EXPECT_EQ(text->size(), platf::clipboard_max_bytes);
 }
+
+TEST(ClipboardSelectionTest, DropsAnUnsupportedTypeReceivedDuringAnIncrTransfer) {
+  constexpr std::uint64_t utf8 = 1;
+  constexpr std::uint64_t string_atom = 2;
+  constexpr std::uint64_t incr = 3;
+  constexpr std::array<std::byte, 4> announcement {std::byte {0x04}, std::byte {0x00}, std::byte {0x00}, std::byte {0x00}};
+  constexpr std::array<std::byte, 4> chunk {std::byte {'n'}, std::byte {'o'}, std::byte {'p'}, std::byte {'e'}};
+  platf::incr_transfer_t transfer;
+  EXPECT_FALSE(transfer.consume(incr, 32, 1, announcement.data(), utf8, string_atom, incr));
+
+  EXPECT_FALSE(transfer.consume(99, 8, chunk.size(), chunk.data(), utf8, string_atom, incr));
+  EXPECT_TRUE(transfer.active());
+
+  const auto text = transfer.consume(utf8, 8, 0, nullptr, utf8, string_atom, incr);
+
+  EXPECT_FALSE(text);
+  EXPECT_FALSE(transfer.active());
+}
+
+TEST(ClipboardSelectionTest, AcceptsANewIncrTransferAfterRejectingAnUnsupportedChunk) {
+  constexpr std::uint64_t utf8 = 1;
+  constexpr std::uint64_t string_atom = 2;
+  constexpr std::uint64_t incr = 3;
+  constexpr std::array<std::byte, 4> announcement {std::byte {0x04}, std::byte {0x00}, std::byte {0x00}, std::byte {0x00}};
+  constexpr std::array<std::byte, 4> chunk {std::byte {'a'}, std::byte {'b'}, std::byte {'c'}, std::byte {'d'}};
+  platf::incr_transfer_t transfer;
+  EXPECT_FALSE(transfer.consume(incr, 32, 1, announcement.data(), utf8, string_atom, incr));
+  EXPECT_FALSE(transfer.consume(99, 8, chunk.size(), chunk.data(), utf8, string_atom, incr));
+  EXPECT_FALSE(transfer.consume(utf8, 8, 0, nullptr, utf8, string_atom, incr));
+
+  EXPECT_FALSE(transfer.consume(incr, 32, 1, announcement.data(), utf8, string_atom, incr));
+  EXPECT_FALSE(transfer.consume(utf8, 8, chunk.size(), chunk.data(), utf8, string_atom, incr));
+  const auto text = transfer.consume(utf8, 8, 0, nullptr, utf8, string_atom, incr);
+
+  ASSERT_TRUE(text);
+  EXPECT_EQ(*text, "abcd");
+}
+
+TEST(ClipboardSelectionTest, AcknowledgesAChunkLargerThanTheReadLimit) {
+  constexpr std::size_t property_bytes = 64 * 1024;
+  std::vector<std::byte> property(property_bytes, std::byte {'A'});
+  property[platf::selection_property_long_length * 4] = std::byte {'B'};
+  bool exists = true;
+  int reads = 0;
+
+  const auto loaded = platf::load_selection_property([&property, &exists, &reads](unsigned long offset, unsigned long length) {
+    platf::selection_fragment_t fragment;
+    fragment.ok = true;
+    fragment.type = 1;
+    fragment.format = 8;
+    if (!exists) {
+      fragment.type = 0;
+      return fragment;
+    }
+    ++reads;
+    const auto start = static_cast<std::size_t>(offset) * 4;
+    if (start >= property.size()) {
+      exists = false;
+      return fragment;
+    }
+    const auto take = std::min(static_cast<std::size_t>(length) * 4, property.size() - start);
+    fragment.item_count = take;
+    fragment.data.assign(
+      property.begin() + static_cast<std::ptrdiff_t>(start),
+      property.begin() + static_cast<std::ptrdiff_t>(start + take)
+    );
+    fragment.bytes_after = property.size() - start - take;
+    if (fragment.bytes_after == 0) {
+      exists = false;
+    }
+    return fragment;
+  });
+
+  ASSERT_TRUE(loaded);
+  EXPECT_FALSE(exists);
+  EXPECT_GE(reads, 2);
+  EXPECT_TRUE(loaded->acknowledged);
+  EXPECT_EQ(loaded->data.size(), platf::clipboard_max_bytes);
+  EXPECT_EQ(loaded->data.front(), std::byte {'A'});
+  EXPECT_EQ(loaded->data.back(), std::byte {'A'});
+}
+
+TEST(ClipboardSelectionTest, ReadsAShortPropertyInOneCall) {
+  const std::vector<std::byte> property {std::byte {'h'}, std::byte {'i'}};
+  int reads = 0;
+  const auto loaded = platf::load_selection_property([&property, &reads](unsigned long, unsigned long) {
+    ++reads;
+    platf::selection_fragment_t fragment;
+    fragment.ok = true;
+    fragment.type = 1;
+    fragment.format = 8;
+    fragment.item_count = property.size();
+    fragment.data = property;
+    fragment.bytes_after = 0;
+    return fragment;
+  });
+
+  ASSERT_TRUE(loaded);
+  EXPECT_EQ(reads, 1);
+  EXPECT_TRUE(loaded->acknowledged);
+  EXPECT_EQ(loaded->data, property);
+}
+
+TEST(ClipboardSelectionTest, LeavesAnUnreadableTailForTheCallerToDelete) {
+  int reads = 0;
+  const auto loaded = platf::load_selection_property([&reads](unsigned long, unsigned long) {
+    ++reads;
+    platf::selection_fragment_t fragment;
+    fragment.ok = true;
+    fragment.type = 1;
+    fragment.format = 8;
+    fragment.item_count = 1;
+    fragment.bytes_after = 10;
+    fragment.data = {std::byte {'x'}};
+    return fragment;
+  });
+
+  ASSERT_TRUE(loaded);
+  EXPECT_EQ(reads, 1);
+  EXPECT_FALSE(loaded->acknowledged);
+  EXPECT_EQ(loaded->data, (std::vector<std::byte> {std::byte {'x'}}));
+}
+
+TEST(ClipboardSelectionTest, IgnoresAFailedPropertyRead) {
+  const auto loaded = platf::load_selection_property([](unsigned long, unsigned long) {
+    return platf::selection_fragment_t {};
+  });
+
+  EXPECT_FALSE(loaded);
+}
