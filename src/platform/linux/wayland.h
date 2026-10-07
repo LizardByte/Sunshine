@@ -39,6 +39,18 @@ namespace wl {
   bool use_vram_capture(platf::mem_type_e hwdevice_type);
 
   /**
+   * @brief Intersect compositor and encoder modifiers to find common formats.
+   *
+   * @param compositor_modifiers Modifiers supported by the compositor for each format.
+   * @param encoder_modifiers Modifiers supported by the encoder for each format.
+   * @return Intersection of formats and modifiers supported by both.
+   */
+  std::map<std::uint32_t, std::vector<std::uint64_t>> intersect_modifiers(
+    const std::map<std::uint32_t, std::vector<std::uint64_t>> &compositor_modifiers,
+    const std::map<std::uint32_t, std::vector<std::uint64_t>> &encoder_modifiers
+  );
+
+  /**
    * @brief Owning pointer for a Wayland display connection.
    */
   using display_internal_t = util::safe_ptr<wl_display, wl_display_disconnect>;
@@ -109,8 +121,9 @@ namespace wl {
      * @param supported_modifiers DMA-BUF format modifiers supported by the compositor.
      * @param output Wayland output to capture.
      * @param blend_cursor Whether the compositor should include the cursor in the frame.
+     * @param encoder_modifiers Optional modifiers supported by the encoder for format intersection.
      */
-    void listen(zwlr_screencopy_manager_v1 *screencopy_manager, zwp_linux_dmabuf_v1 *dmabuf_interface, const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers, wl_output *output, bool blend_cursor = false);
+    void listen(zwlr_screencopy_manager_v1 *screencopy_manager, zwp_linux_dmabuf_v1 *dmabuf_interface, const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers, wl_output *output, bool blend_cursor = false, const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers = nullptr);
     /**
      * @brief Store the Wayland buffer created for a DMA-BUF parameter request.
      *
@@ -205,6 +218,7 @@ namespace wl {
 
     zwp_linux_dmabuf_v1 *dmabuf_interface {nullptr};
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers {nullptr};
+    const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers {nullptr};  ///< Optional encoder modifiers for intersection.
 
     struct {
       bool supported {false};
