@@ -1333,4 +1333,16 @@ namespace platf {
 
     return caps;
   }
+
+  void clipboard_set(std::string_view, const clipboard_queue_t &) {
+    // Windows host clipboard sync is not implemented yet.
+  }
+
+  void clipboard_subscribe(clipboard_queue_t) {
+    // Windows host clipboard sync is not implemented yet.
+  }
+
+  void clipboard_unsubscribe(const clipboard_queue_t &) {
+    // Windows host clipboard sync is not implemented yet.
+  }
 }  // namespace platf

@@ -11,6 +11,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 
 // lib includes
 #include <boost/core/noncopyable.hpp>
@@ -271,6 +272,19 @@ namespace platf {
    * @brief Queue used to deliver controller feedback commands to the platform backend.
    */
   using feedback_queue_t = safe::mail_raw_t::queue_t<gamepad_feedback_msg_t>;
+
+  /**
+   * @brief Clipboard text waiting to be sent to the client.
+   */
+  struct clipboard_text_t {
+    std::uint32_t token;  ///< Echo-suppression token for this update.
+    std::string text;  ///< UTF-8 clipboard text.
+  };
+
+  /**
+   * @brief Queue used to deliver host clipboard text to the control stream.
+   */
+  using clipboard_queue_t = safe::mail_raw_t::queue_t<clipboard_text_t>;
 
   namespace speaker {
     /**
@@ -1204,6 +1218,28 @@ namespace platf {
    * @param size Number of bytes or elements requested.
    */
   void unicode(input_t &input, const char *utf8, int size);
+
+  /**
+   * @brief Replace the host clipboard with UTF-8 text from the client.
+   *
+   * @param text Clipboard text.
+   * @param origin Queue of the client that supplied the text. That client is not sent an echo.
+   */
+  void clipboard_set(std::string_view text, const clipboard_queue_t &origin);
+
+  /**
+   * @brief Start forwarding host clipboard changes to one client.
+   *
+   * @param queue Queue drained by the control stream.
+   */
+  void clipboard_subscribe(clipboard_queue_t queue);
+
+  /**
+   * @brief Stop forwarding host clipboard changes when a client session ends.
+   *
+   * @param queue Queue that should no longer receive clipboard text.
+   */
+  void clipboard_unsubscribe(const clipboard_queue_t &queue);
 
   /**
    * @brief Per-client input context allocated by a platform backend.
