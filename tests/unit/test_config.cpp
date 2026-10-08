@@ -22,6 +22,10 @@ TEST(ConfigDefaultsTest, UsesAutomaticGamepadSelection) {
   EXPECT_EQ(config::input.gamepad, "auto");
 }
 
+TEST(ConfigDefaultsTest, TreatsFp16SdrCapturesAsLinear) {
+  EXPECT_FALSE(config::video.fp16_sdr_gamma_encoded);
+}
+
 using NvencPresetNameParam = std::pair<int, std::string_view>;
 
 /**
@@ -148,4 +152,16 @@ TEST_F(ConfigPersistenceTest, AcceptsAllGamepadProfilesAcrossRepeatedConfigurati
     config::apply_config_for_test(std::string {"gamepad = "} + std::string {profile} + "\n");
     EXPECT_EQ(config::input.gamepad, profile);
   }
+}
+
+TEST_F(ConfigPersistenceTest, ParsesFp16SdrGammaEncodedOption) {
+  const auto apps_file = config_file().parent_path() / "sunshine_test_config_apps.json";
+  ASSERT_EQ(file_handler::write_file(apps_file.string().c_str(), "{}"), 0);
+  config::stream.file_apps = apps_file.string();
+
+  config::apply_config_for_test("fp16_sdr_gamma_encoded = enabled\n");
+  EXPECT_TRUE(config::video.fp16_sdr_gamma_encoded);
+
+  config::apply_config_for_test("fp16_sdr_gamma_encoded = disabled\n");
+  EXPECT_FALSE(config::video.fp16_sdr_gamma_encoded);
 }

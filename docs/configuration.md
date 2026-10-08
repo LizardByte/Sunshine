@@ -2252,6 +2252,34 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     </tr>
 </table>
 
+### fp16_sdr_gamma_encoded
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Treat FP16 captures of SDR displays as already sRGB gamma-encoded and skip the sRGB curve when converting
+            them. Enable this if the stream looks washed out or its highlights are blown out while the display is in SDR
+            mode and the desktop is captured in FP16 format (the log shows `Desktop format [DXGI_FORMAT_R16G16B16A16_FLOAT]`).
+            Leave this disabled otherwise, because it darkens the stream when the FP16 capture is linear scRGB.
+            This option has no effect when the display is in HDR mode.
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            fp16_sdr_gamma_encoded = enabled
+            @endcode</td>
+    </tr>
+</table>
+
 ### encoder
 
 <table>
