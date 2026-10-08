@@ -362,6 +362,9 @@ udev rules stay synchronized with Sunshine:
 flatpak run --command=additional-install.sh dev.lizardbyte.app.Sunshine
 ```
 
+The script prompts for administrator authorization. If a step fails, resolve the
+reported error and rerun the command before starting Sunshine.
+
 ##### Run with NVFBC capture (X11 Only) or XDG Portal (Wayland Only)
 ```bash
 flatpak run dev.lizardbyte.app.Sunshine

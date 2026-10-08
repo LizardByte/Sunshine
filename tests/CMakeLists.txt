@@ -184,8 +184,8 @@ add_executable(${PROJECT_NAME}
         ${TEST_SOURCES}
         ${SUNSHINE_SOURCES})
 
-# Copy files needed for config consistency tests to build directory
-# This ensures both CLI and CLion can access the same files relative to the test executable
+# Copy integration-test fixtures to the build directory.
+# Preserve repository-relative paths for source and installed-test layouts.
 # Using configure_file ensures files are copied when they change between builds
 set(INTEGRATION_TEST_FILES
     "cmake/compile_definitions/macos.cmake"
@@ -195,6 +195,7 @@ set(INTEGRATION_TEST_FILES
     "package-lock.cmake"
     "packaging/linux/Arch/PKGBUILD"
     "packaging/linux/flatpak/modules/boost.json"
+    "packaging/linux/flatpak/scripts/additional-install.sh"
     "scripts/linux_build.sh"
     "src/config.cpp"
     "src_assets/common/assets/web/Config.vue"
@@ -209,7 +210,9 @@ set(INTEGRATION_TEST_FILES
     "src_assets/common/assets/web/configs/virtual_key_codes.js"
     "src_assets/common/assets/web/configs/tabs/General.vue"
     "src_assets/common/assets/web/configs/tabs/Inputs.vue"
+    "src_assets/linux/misc/60-sunshine.conf"
     "src_assets/linux/misc/60-sunshine.rules"
+    "tests/scripts/test_additional_install.sh"
 )
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/packaging/linux/copr/Sunshine.spec")
