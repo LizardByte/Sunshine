@@ -235,20 +235,7 @@ namespace platf {
           unsigned long item_count = 0;
           unsigned long bytes_after = 0;
           unsigned char *data = nullptr;
-          if (XGetWindowProperty(
-                display,
-                window,
-                property,
-                offset,
-                length,
-                True,
-                AnyPropertyType,
-                &actual_type,
-                &actual_format,
-                &item_count,
-                &bytes_after,
-                &data
-              ) != Success) {
+          if (XGetWindowProperty(display, window, property, offset, length, True, AnyPropertyType, &actual_type, &actual_format, &item_count, &bytes_after, &data) != Success) {
             if (data != nullptr) {
               XFree(data);
             }

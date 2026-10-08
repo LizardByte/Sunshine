@@ -239,7 +239,7 @@ namespace platf {
    * @param fetch Property read. It must use delete=True and own the returned bytes.
    * @return The capped property, or empty when the first read fails.
    */
-  template <typename Fetch>
+  template<typename Fetch>
   std::optional<loaded_selection_t> load_selection_property(Fetch &&fetch) {
     loaded_selection_t loaded;
     unsigned long offset = 0;
