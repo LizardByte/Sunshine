@@ -7,6 +7,8 @@
   #include <array>
   #include <cerrno>
   #include <chrono>
+  #include <optional>
+  #include <string>
 
   // system includes
   #include <drm_fourcc.h>
@@ -310,11 +312,37 @@ TEST(WaylandCaptureTest, UsesSystemMemoryForSoftwareEncoding) {
   EXPECT_FALSE(wl::use_vram_capture(platf::mem_type_e::system));
 }
 
-TEST(WaylandCaptureTest, UsesVramForCudaOnlyWhenCudaSupportIsBuilt) {
+TEST(WaylandCaptureTest, UsesVramForCudaOnlyWhenCaptureNodeIsNvidia) {
   #ifdef SUNSHINE_BUILD_CUDA
-  EXPECT_TRUE(wl::use_vram_capture(platf::mem_type_e::cuda));
+  const wl::sysfs_vendor_reader_t nvidia_reader = [](const std::string &) {
+    return std::optional<std::string> {"0x10de"};
+  };
+  const wl::sysfs_vendor_reader_t amd_reader = [](const std::string &) {
+    return std::optional<std::string> {"0x1002"};
+  };
+  EXPECT_TRUE(wl::use_vram_capture(platf::mem_type_e::cuda, nvidia_reader));
+  EXPECT_FALSE(wl::use_vram_capture(platf::mem_type_e::cuda, amd_reader));
   #else
   EXPECT_FALSE(wl::use_vram_capture(platf::mem_type_e::cuda));
+  #endif
+}
+
+TEST(WaylandCaptureTest, FallsBackToRamBridgeWhenVendorIsUnreadableOrMalformed) {
+  const wl::sysfs_vendor_reader_t missing_reader = [](const std::string &) {
+    return std::optional<std::string> {};
+  };
+  const wl::sysfs_vendor_reader_t malformed_reader = [](const std::string &) {
+    return std::optional<std::string> {"not-a-vendor-id"};
+  };
+  const wl::sysfs_vendor_reader_t truncated_reader = [](const std::string &) {
+    return std::optional<std::string> {"0x10de-garbage"};
+  };
+  EXPECT_FALSE(wl::capture_node_is_nvidia(missing_reader));
+  EXPECT_FALSE(wl::capture_node_is_nvidia(malformed_reader));
+  EXPECT_FALSE(wl::capture_node_is_nvidia(truncated_reader));
+  #ifdef SUNSHINE_BUILD_CUDA
+  EXPECT_FALSE(wl::use_vram_capture(platf::mem_type_e::cuda, missing_reader));
+  EXPECT_FALSE(wl::use_vram_capture(platf::mem_type_e::cuda, malformed_reader));
   #endif
 }
 

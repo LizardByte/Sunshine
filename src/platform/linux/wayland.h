@@ -9,6 +9,7 @@
 #include <bitset>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <optional>
 #include <string>
@@ -34,12 +35,29 @@ struct gbm_device;
 
 namespace wl {
   /**
+   * @brief Read a DRM sysfs vendor file, returning its first token when available.
+   *
+   * @param vendor_path sysfs path of the vendor file to read.
+   * @return Vendor token (e.g. "0x10de"), or no value when the file cannot be read.
+   */
+  using sysfs_vendor_reader_t = std::function<std::optional<std::string>(const std::string &vendor_path)>;
+
+  /**
+   * @brief Check whether the capture render node belongs to an NVIDIA GPU.
+   *
+   * @param read_vendor Vendor file reader; reads sysfs directly when empty.
+   * @return True when the resolved capture node is an NVIDIA device.
+   */
+  bool capture_node_is_nvidia(const sysfs_vendor_reader_t &read_vendor = {});
+
+  /**
    * @brief Determine whether wlroots capture should keep frames in VRAM for the requested memory type.
    *
    * @param hwdevice_type Hardware device type requested for capture or encode.
+   * @param read_vendor Vendor file reader forwarded to the NVIDIA capture-node check.
    * @return `true` when the requested memory type should use the wlroots VRAM path.
    */
-  bool use_vram_capture(platf::mem_type_e hwdevice_type);
+  bool use_vram_capture(platf::mem_type_e hwdevice_type, const sysfs_vendor_reader_t &read_vendor = {});
 
   /**
    * @brief Determine whether wlroots capture should ask for frames with `copy_with_damage`.
@@ -307,8 +325,9 @@ namespace wl {
      * @param output Wayland output to capture.
      * @param blend_cursor Whether the compositor should include the cursor in the frame.
      * @param encoder_modifiers Optional modifiers supported by the encoder for format intersection.
+     * @param prefer_linear_copy Allocate linear copy buffers for cross-GPU encode import.
      */
-    void listen(zwlr_screencopy_manager_v1 *screencopy_manager, zwp_linux_dmabuf_v1 *dmabuf_interface, const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers, wl_output *output, bool blend_cursor = false, const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers = nullptr);
+    void listen(zwlr_screencopy_manager_v1 *screencopy_manager, zwp_linux_dmabuf_v1 *dmabuf_interface, const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers, wl_output *output, bool blend_cursor = false, const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers = nullptr, bool prefer_linear_copy = false);
     /**
      * @brief Store the Wayland buffer created for a DMA-BUF parameter request.
      *
@@ -415,6 +434,7 @@ namespace wl {
     zwp_linux_dmabuf_v1 *dmabuf_interface {nullptr};
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers {nullptr};
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers {nullptr};  ///< Optional encoder modifiers for intersection.
+    bool prefer_linear_copy {false};
 
     struct {
       bool supported {false};
