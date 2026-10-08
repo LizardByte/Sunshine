@@ -9,6 +9,7 @@
 #include <bitset>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <optional>
 #include <string>
@@ -34,12 +35,59 @@ struct gbm_device;
 
 namespace wl {
   /**
+   * @brief Read a DRM sysfs vendor file, returning its first token when available.
+   *
+   * @param vendor_path sysfs path of the vendor file to read.
+   * @return Vendor token (e.g. "0x10de"), or no value when the file cannot be read.
+   */
+  using sysfs_vendor_reader_t = std::function<std::optional<std::string>(const std::string &vendor_path)>;
+
+  /**
+   * @brief Resolve a DRM render node path to its canonical device node.
+   *
+   * @param path Render node path to resolve.
+   * @return Canonical device path supplied by the resolver.
+   */
+  using render_path_resolver_t = std::function<std::string(const std::string &path)>;
+
+  /**
+   * @brief Resolve a DRM render node path, following udev by-path aliases.
+   *
+   * @param path Render node path to resolve, possibly a by-path alias.
+   * @return Canonical device node path, or the input path verbatim when it cannot be resolved.
+   */
+  std::string resolve_drm_node_path(const std::string &path);
+
+  /**
+   * @brief Check whether the capture render node belongs to an NVIDIA GPU.
+   *
+   * @param read_vendor Vendor file reader; reads sysfs directly when empty.
+   * @param resolve_path Render node path resolver; resolves aliases directly when empty.
+   * @return True when the resolved capture node is an NVIDIA device.
+   */
+  bool capture_node_is_nvidia(const sysfs_vendor_reader_t &read_vendor = {}, const render_path_resolver_t &resolve_path = {});
+
+  /**
+   * @brief Check whether a linear copy buffer should be attempted for the format.
+   *
+   * The linear attempt is only valid when the compositor advertised the linear
+   * modifier for the format; otherwise allocation falls through to the
+   * advertised modifier list.
+   *
+   * @param prefer_linear_copy Whether linear copy buffers are preferred for cross-GPU encode.
+   * @param modifiers Effective modifier list advertised for the format.
+   * @return True only when linear copy is preferred and the linear modifier is advertised.
+   */
+  bool should_attempt_linear_copy(bool prefer_linear_copy, const std::vector<std::uint64_t> &modifiers);
+
+  /**
    * @brief Determine whether wlroots capture should keep frames in VRAM for the requested memory type.
    *
    * @param hwdevice_type Hardware device type requested for capture or encode.
+   * @param read_vendor Vendor file reader forwarded to the NVIDIA capture-node check.
    * @return `true` when the requested memory type should use the wlroots VRAM path.
    */
-  bool use_vram_capture(platf::mem_type_e hwdevice_type);
+  bool use_vram_capture(platf::mem_type_e hwdevice_type, const sysfs_vendor_reader_t &read_vendor = {});
 
   /**
    * @brief Determine whether wlroots capture should ask for frames with `copy_with_damage`.
@@ -307,8 +355,9 @@ namespace wl {
      * @param output Wayland output to capture.
      * @param blend_cursor Whether the compositor should include the cursor in the frame.
      * @param encoder_formats Optional modifiers supported by the encoder for format intersection.
+     * @param prefer_linear_copy Allocate linear copy buffers for cross-GPU encode import.
      */
-    void listen(zwlr_screencopy_manager_v1 *screencopy_manager, zwp_linux_dmabuf_v1 *dmabuf_interface, const std::map<std::uint32_t, std::vector<std::uint64_t>> *compositor_formats, wl_output *output, bool blend_cursor = false, const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_formats = nullptr);
+    void listen(zwlr_screencopy_manager_v1 *screencopy_manager, zwp_linux_dmabuf_v1 *dmabuf_interface, const std::map<std::uint32_t, std::vector<std::uint64_t>> *compositor_formats, wl_output *output, bool blend_cursor = false, const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_formats = nullptr, bool prefer_linear_copy = false);
     /**
      * @brief Store the Wayland buffer created for a DMA-BUF parameter request.
      *
@@ -415,6 +464,7 @@ namespace wl {
     zwp_linux_dmabuf_v1 *dmabuf_interface {nullptr};
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers {nullptr};
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers {nullptr};  ///< Optional encoder modifiers for intersection.
+    bool prefer_linear_copy {false};
 
     struct {
       bool supported {false};

@@ -7,6 +7,15 @@
   #include <array>
   #include <cerrno>
   #include <chrono>
+  #include <cstdint>
+  #include <cstdlib>
+  #include <filesystem>
+  #include <fstream>
+  #include <optional>
+  #include <string>
+  #include <string_view>
+  #include <system_error>
+  #include <vector>
 
   // system includes
   #include <drm_fourcc.h>
@@ -336,12 +345,143 @@ TEST(WaylandCaptureTest, UsesSystemMemoryForSoftwareEncoding) {
   EXPECT_FALSE(wl::use_vram_capture(platf::mem_type_e::system));
 }
 
-TEST(WaylandCaptureTest, UsesVramForCudaOnlyWhenCudaSupportIsBuilt) {
+TEST(WaylandCaptureTest, UsesVramForCudaOnlyWhenCaptureNodeIsNvidia) {
   #ifdef SUNSHINE_BUILD_CUDA
-  EXPECT_TRUE(wl::use_vram_capture(platf::mem_type_e::cuda));
+  const wl::sysfs_vendor_reader_t nvidia_reader = [](const std::string &) {
+    return std::optional<std::string> {"0x10de"};
+  };
+  const wl::sysfs_vendor_reader_t bare_hex_reader = [](const std::string &) {
+    return std::optional<std::string> {"10de"};
+  };
+  const wl::sysfs_vendor_reader_t amd_reader = [](const std::string &) {
+    return std::optional<std::string> {"0x1002"};
+  };
+  EXPECT_TRUE(wl::use_vram_capture(platf::mem_type_e::cuda, nvidia_reader));
+  EXPECT_TRUE(wl::use_vram_capture(platf::mem_type_e::cuda, bare_hex_reader));
+  EXPECT_FALSE(wl::use_vram_capture(platf::mem_type_e::cuda, amd_reader));
   #else
   EXPECT_FALSE(wl::use_vram_capture(platf::mem_type_e::cuda));
   #endif
+}
+
+TEST(WaylandCaptureTest, FallsBackToRamBridgeWhenVendorIsUnreadableOrMalformed) {
+  const wl::sysfs_vendor_reader_t missing_reader = [](const std::string &) {
+    return std::optional<std::string> {};
+  };
+  const wl::sysfs_vendor_reader_t malformed_reader = [](const std::string &) {
+    return std::optional<std::string> {"not-a-vendor-id"};
+  };
+  const wl::sysfs_vendor_reader_t truncated_reader = [](const std::string &) {
+    return std::optional<std::string> {"0x10de-garbage"};
+  };
+  const wl::sysfs_vendor_reader_t empty_reader = [](const std::string &) {
+    return std::optional<std::string> {""};
+  };
+  const wl::sysfs_vendor_reader_t overflow_reader = [](const std::string &) {
+    return std::optional<std::string> {"0xFFFFFFFFFFFFFFFFFF"};
+  };
+  EXPECT_FALSE(wl::capture_node_is_nvidia(missing_reader));
+  EXPECT_FALSE(wl::capture_node_is_nvidia(malformed_reader));
+  EXPECT_FALSE(wl::capture_node_is_nvidia(truncated_reader));
+  EXPECT_FALSE(wl::capture_node_is_nvidia(empty_reader));
+  EXPECT_FALSE(wl::capture_node_is_nvidia(overflow_reader));
+  #ifdef SUNSHINE_BUILD_CUDA
+  EXPECT_FALSE(wl::use_vram_capture(platf::mem_type_e::cuda, missing_reader));
+  EXPECT_FALSE(wl::use_vram_capture(platf::mem_type_e::cuda, malformed_reader));
+  #endif
+}
+
+TEST(WaylandCaptureTest, AcceptsBareAndUppercaseVendorIds) {
+  for (const char *token : {"10de", "0x10DE", "0X10de"}) {
+    const wl::sysfs_vendor_reader_t reader = [token](const std::string &) {
+      return std::optional<std::string> {token};
+    };
+    EXPECT_TRUE(wl::capture_node_is_nvidia(reader)) << token;
+  }
+}
+
+TEST(WaylandCaptureTest, RejectsMalformedVendorTokens) {
+  for (const char *token : {"", "0x", "0X", " 0x10de", "+0x10de", "0xFFFFFFFFFFFFFFFFFF"}) {
+    const wl::sysfs_vendor_reader_t reader = [token](const std::string &) {
+      return std::optional<std::string> {token};
+    };
+    EXPECT_FALSE(wl::capture_node_is_nvidia(reader)) << token;
+  }
+}
+
+TEST(WaylandCaptureTest, ResolvesRenderNodeAliasBeforeVendorLookup) {
+  const wl::render_path_resolver_t fake_resolver = [](const std::string &) {
+    return "/dev/dri/renderD128";
+  };
+  std::string observed_path;
+  const wl::sysfs_vendor_reader_t recording_reader = [&observed_path](std::string_view vendor_path) {
+    observed_path = vendor_path;
+    return std::optional<std::string> {"0x10de"};
+  };
+  EXPECT_TRUE(wl::capture_node_is_nvidia(recording_reader, fake_resolver));
+  EXPECT_EQ(observed_path, "/sys/class/drm/renderD128/device/vendor");
+}
+
+TEST(WaylandCaptureTest, UnresolvedAliasWithoutVendorFallsBackToRamBridge) {
+  const wl::render_path_resolver_t passthrough = [](const std::string &path) {
+    return path;
+  };
+  const wl::sysfs_vendor_reader_t missing_reader = [](const std::string &) {
+    return std::optional<std::string> {};
+  };
+  EXPECT_FALSE(wl::capture_node_is_nvidia(missing_reader, passthrough));
+}
+
+TEST(WaylandLinearCopyTest, SkipsLinearAttemptUnlessAdvertised) {
+  const std::vector<std::uint64_t> without_linear {0x100000000000004};
+  const std::vector<std::uint64_t> with_linear {0x100000000000004, DRM_FORMAT_MOD_LINEAR};
+  EXPECT_FALSE(wl::should_attempt_linear_copy(false, with_linear));
+  EXPECT_FALSE(wl::should_attempt_linear_copy(true, without_linear));
+  EXPECT_FALSE(wl::should_attempt_linear_copy(true, {}));
+  EXPECT_TRUE(wl::should_attempt_linear_copy(true, with_linear));
+}
+
+TEST(WaylandResolvePathTest, FollowsSymlinkedAliasToTarget) {
+  std::error_code ec;
+  const char *tmpdir = std::getenv("TMPDIR");
+  std::string dir_template = std::string(tmpdir ? tmpdir : "/tmp") + "/sunshine-wlgrab-test-XXXXXX";
+  ASSERT_NE(::mkdtemp(dir_template.data()), nullptr);
+  const auto dir = std::filesystem::weakly_canonical(std::filesystem::path {dir_template}, ec);
+  ASSERT_FALSE(ec);
+  const auto target = dir / "renderD128";
+  const auto alias = dir / "by-path" / "pci-0000:00:02.0-render";
+  std::filesystem::create_directories(alias.parent_path(), ec);
+  ASSERT_FALSE(ec) << ec.message();
+  {
+    std::ofstream out {target};
+    ASSERT_TRUE(out.good());
+  }
+  std::filesystem::remove(alias, ec);
+  std::filesystem::create_symlink(target, alias, ec);
+  ASSERT_FALSE(ec) << ec.message();
+  EXPECT_EQ(wl::resolve_drm_node_path(alias.string()), target.string());
+  std::filesystem::remove_all(dir, ec);
+}
+
+TEST(WaylandResolvePathTest, FallsBackToVerbatimPath) {
+  std::error_code ec;
+  const char *tmpdir = std::getenv("TMPDIR");
+  std::string dir_template = std::string(tmpdir ? tmpdir : "/tmp") + "/sunshine-wlgrab-test-XXXXXX";
+  ASSERT_NE(::mkdtemp(dir_template.data()), nullptr);
+  const auto dir = std::filesystem::weakly_canonical(std::filesystem::path {dir_template}, ec);
+  ASSERT_FALSE(ec);
+  const auto missing = dir / "renderD999";
+  EXPECT_EQ(wl::resolve_drm_node_path(missing.string()), missing.string());
+
+  const auto dangling_target = dir / "no-such-target";
+  const auto dangling_link = dir / "by-path" / "pci-0000:00:02.0-render";
+  std::filesystem::create_directories(dangling_link.parent_path(), ec);
+  ASSERT_FALSE(ec) << ec.message();
+  std::filesystem::remove(dangling_link, ec);
+  std::filesystem::create_symlink(dangling_target, dangling_link, ec);
+  ASSERT_FALSE(ec) << ec.message();
+  EXPECT_EQ(wl::resolve_drm_node_path(dangling_link.string()), dangling_link.string());
+  std::filesystem::remove_all(dir, ec);
 }
 
 TEST(WaylandInterfaceTest, RecordsOnlyExplicitDmabufModifiers) {

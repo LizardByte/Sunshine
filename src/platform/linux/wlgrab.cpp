@@ -3,6 +3,14 @@
  * @brief Definitions for wlgrab capture.
  */
 // standard includes
+#include <charconv>
+#include <cstdint>
+#include <filesystem>
+#include <fstream>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <system_error>
 #include <thread>
 
 // local includes
@@ -20,7 +28,74 @@ namespace wl {
   static int env_width;
   static int env_height;
 
-  bool use_vram_capture(platf::mem_type_e hwdevice_type) {
+  /**
+   * @brief Read the first token of a DRM sysfs vendor file.
+   */
+  static std::optional<std::string> read_sysfs_vendor(const std::string &vendor_path) {
+    std::ifstream vendor_file {vendor_path};
+    if (std::string vendor; vendor_file >> vendor) {
+      return vendor;
+    }
+    return std::nullopt;
+  }
+
+  /**
+   * @brief Resolve a DRM render node path, following udev by-path aliases.
+   */
+  std::string resolve_drm_node_path(const std::string &path) {
+    std::error_code ec;
+    const auto canonical = std::filesystem::weakly_canonical(path, ec);
+    if (ec) {
+      return path;
+    }
+    return canonical.string();
+  }
+
+  /**
+   * @brief Parse a DRM sysfs vendor token as a hexadecimal PCI vendor id.
+   *
+   * @param token Vendor token to parse, with an optional 0x/0X prefix.
+   * @return Parsed vendor id, or no value when the token is not plain hex.
+   */
+  static std::optional<std::uint32_t> parse_vendor_id(std::string_view token) {
+    if (token.starts_with("0x") || token.starts_with("0X")) {
+      token.remove_prefix(2);
+    }
+    std::uint32_t value {};
+    if (const auto result = std::from_chars(token.data(), token.data() + token.size(), value, 16); result.ec == std::errc {} && result.ptr == token.data() + token.size()) {
+      return value;
+    }
+    return std::nullopt;
+  }
+
+  /**
+   * @brief Check whether the capture render node belongs to an NVIDIA GPU.
+   *
+   * Zero-copy VRAM capture hands the compositor's DMA-BUF directly to the
+   * encoder's GL context. NVIDIA GL cannot sample DMA-BUFs allocated on
+   * another vendor's device (glEGLImageTargetTexture2DOES fails with
+   * GL_INVALID_OPERATION), so cross-GPU systems must copy through RAM.
+   *
+   * @return True when the resolved capture node is an NVIDIA device.
+   */
+  bool capture_node_is_nvidia(const sysfs_vendor_reader_t &read_vendor, const render_path_resolver_t &resolve_path) {
+    const auto render_path = platf::resolve_render_device();
+    const auto resolved_path = resolve_path ? resolve_path(render_path) : resolve_drm_node_path(render_path);
+    const auto node = resolved_path.substr(resolved_path.find_last_of('/') + 1);
+    const std::string vendor_path = "/sys/class/drm/" + node + "/device/vendor";
+    // PCI vendor 0x10de is NVIDIA; lowercase/uppercase hex both parse.
+    if (auto vendor = read_vendor ? read_vendor(vendor_path) : read_sysfs_vendor(vendor_path); vendor) {
+      if (auto value = parse_vendor_id(*vendor); value.has_value()) {
+        return *value == 0x10de;
+      }
+      BOOST_LOG(warning) << "[wlgrab] Could not parse DRM vendor ["sv << *vendor << "] for ["sv << render_path << "], assuming cross-GPU capture"sv;
+      return false;
+    }
+    BOOST_LOG(warning) << "[wlgrab] Could not read DRM vendor for ["sv << render_path << "], assuming cross-GPU capture"sv;
+    return false;
+  }
+
+  bool use_vram_capture(platf::mem_type_e hwdevice_type, const sysfs_vendor_reader_t &read_vendor) {
     using enum platf::mem_type_e;
     if (hwdevice_type == vaapi) {
       return true;
@@ -32,7 +107,14 @@ namespace wl {
 
 #ifdef SUNSHINE_BUILD_CUDA
     if (hwdevice_type == cuda) {
-      return true;
+      // NVENC always encodes on CUDA device 0, so zero-copy is only valid when
+      // capture also runs on NVIDIA hardware. Otherwise (e.g. AMD/Intel render
+      // + NVIDIA NVENC) fall back to GPU -> RAM -> GPU: wlr_ram_t capture plus
+      // cuda_ram_t conversion. Note: split render/encode across two discrete
+      // NVIDIA GPUs is not detected here and keeps the previous behavior.
+      const bool same_gpu = capture_node_is_nvidia(read_vendor);
+      BOOST_LOG(info) << "[wlgrab] CUDA capture path: "sv << (same_gpu ? "zero-copy VRAM (capture node is NVIDIA)"sv : "GPU -> RAM -> GPU bridge (cross-GPU system)"sv);
+      return same_gpu;
     }
 #endif
 
@@ -122,6 +204,12 @@ namespace wl {
       }
 
       mem_type = hwdevice_type;
+#ifdef SUNSHINE_BUILD_CUDA
+      // Cross-GPU NVENC cannot import tiled dmabufs, so resolve once here whether capture
+      // must allocate linear buffers instead. The render node cannot change mid-stream, and
+      // snapshot() runs per frame and must not redo sysfs I/O (or repeat warnings) per frame.
+      prefer_linear_capture = mem_type == platf::mem_type_e::cuda && !capture_node_is_nvidia();
+#endif
 
       if (display.init()) {
         return -1;
@@ -256,7 +344,7 @@ namespace wl {
       if (request != screencopy_request_e::keep) {
         dmabuf.with_damage = request == screencopy_request_e::copy_with_damage;
         requested_cursor = cursor;
-        dmabuf.listen(interface.screencopy_manager, interface.dmabuf_interface, &interface.supported_modifiers, output, cursor, encoder_modifiers);
+        dmabuf.listen(interface.screencopy_manager, interface.dmabuf_interface, &interface.supported_modifiers, output, cursor, encoder_modifiers, prefer_linear_capture);
       }
       do {
         auto remaining_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(to - std::chrono::steady_clock::now());
@@ -364,6 +452,7 @@ namespace wl {
     virtual platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) = 0;
 
     platf::mem_type_e mem_type;  ///< Mem type.
+    bool prefer_linear_capture {false};  ///< Linear copy buffers, resolved once in init() for cross-GPU CUDA encode.
 
     std::chrono::nanoseconds delay;  ///< Delay before the timer task becomes eligible to run.
     std::chrono::steady_clock::time_point next_request {};  ///< Earliest time the next frame may be asked for when event-driven.
