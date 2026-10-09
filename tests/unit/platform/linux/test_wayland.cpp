@@ -7,8 +7,13 @@
   #include <array>
   #include <cerrno>
   #include <chrono>
+  #include <cstdint>
+  #include <filesystem>
+  #include <fstream>
   #include <optional>
   #include <string>
+  #include <system_error>
+  #include <vector>
 
   // system includes
   #include <drm_fourcc.h>
@@ -344,6 +349,15 @@ TEST(WaylandCaptureTest, FallsBackToRamBridgeWhenVendorIsUnreadableOrMalformed) 
   EXPECT_FALSE(wl::use_vram_capture(platf::mem_type_e::cuda, missing_reader));
   EXPECT_FALSE(wl::use_vram_capture(platf::mem_type_e::cuda, malformed_reader));
   #endif
+}
+
+TEST(WaylandLinearCopyTest, SkipsLinearAttemptUnlessAdvertised) {
+  const std::vector<std::uint64_t> without_linear {0x100000000000004};
+  const std::vector<std::uint64_t> with_linear {0x100000000000004, DRM_FORMAT_MOD_LINEAR};
+  EXPECT_FALSE(wl::should_attempt_linear_copy(false, with_linear));
+  EXPECT_FALSE(wl::should_attempt_linear_copy(true, without_linear));
+  EXPECT_FALSE(wl::should_attempt_linear_copy(true, {}));
+  EXPECT_TRUE(wl::should_attempt_linear_copy(true, with_linear));
 }
 
 TEST(WaylandInterfaceTest, RecordsOnlyExplicitDmabufModifiers) {

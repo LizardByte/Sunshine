@@ -358,6 +358,10 @@ namespace wl {
     return result;
   }
 
+  bool should_attempt_linear_copy(bool prefer_linear_copy, const std::vector<std::uint64_t> &modifiers) {
+    return prefer_linear_copy && std::find(modifiers.begin(), modifiers.end(), DRM_FORMAT_MOD_LINEAR) != modifiers.end();
+  }
+
   dmabuf_t::dmabuf_t():
       status {READY},
       frames {},
@@ -490,15 +494,15 @@ namespace wl {
     if (modifiers_to_use) {
       auto it = modifiers_to_use->find(dmabuf_info.format);
       if (it != modifiers_to_use->end() && !it->second.empty()) {
-        if (prefer_linear_copy) {
+        if (should_attempt_linear_copy(prefer_linear_copy, it->second)) {
           // Cross-GPU encode (e.g. NVENC on a headless NVIDIA GPU while the compositor
           // renders on AMD/Intel) cannot import vendor-tiled modifiers, so request a
           // linear buffer the encoder is guaranteed to import instead. Note: no
           // GBM_BO_USE_LINEAR here, Mesa rejects that flag with modifiers2.
-          constexpr std::uint64_t linear_modifier = 0;  // DRM_FORMAT_MOD_LINEAR
+          constexpr std::uint64_t linear_modifier = DRM_FORMAT_MOD_LINEAR;
           current_bo = gbm_bo_create_with_modifiers2(gbm.get(), dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, &linear_modifier, 1, GBM_BO_USE_RENDERING);
           if (!current_bo) {
-            BOOST_LOG(warning) << "Linear screencopy buffer unavailable, falling back to compositor modifiers"sv;
+            BOOST_LOG(debug) << "Linear screencopy buffer unavailable, falling back to compositor modifiers"sv;
           }
         }
         if (!current_bo) {

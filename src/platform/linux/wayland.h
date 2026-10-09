@@ -51,6 +51,19 @@ namespace wl {
   bool capture_node_is_nvidia(const sysfs_vendor_reader_t &read_vendor = {});
 
   /**
+   * @brief Check whether a linear copy buffer should be attempted for the format.
+   *
+   * The linear attempt is only valid when the compositor advertised the linear
+   * modifier for the format; otherwise allocation falls through to the
+   * advertised modifier list.
+   *
+   * @param prefer_linear_copy Whether linear copy buffers are preferred for cross-GPU encode.
+   * @param modifiers Effective modifier list advertised for the format.
+   * @return True only when linear copy is preferred and the linear modifier is advertised.
+   */
+  bool should_attempt_linear_copy(bool prefer_linear_copy, const std::vector<std::uint64_t> &modifiers);
+
+  /**
    * @brief Determine whether wlroots capture should keep frames in VRAM for the requested memory type.
    *
    * @param hwdevice_type Hardware device type requested for capture or encode.
