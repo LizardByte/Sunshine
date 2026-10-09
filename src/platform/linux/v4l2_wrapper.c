@@ -36,11 +36,13 @@ int v4l2_wrapper_context_init(struct v4l2_wrapper_context *ctx, AVCodecContext *
   return 0;
 }
 
+void v4l2_wrapper_sync_v4l2buf_status(struct v4l2_wrapper_context *ctx) {
+  struct V4L2Context *output = (struct V4L2Context *) ctx->output;
+  while (v4l2_dequeue_v4l2buf(output, 0));
+}
+
 int v4l2_wrapper_getfree_v4l2buf_idx(struct v4l2_wrapper_context *ctx) {
   struct V4L2Context *output = (struct V4L2Context *) ctx->output;
-
-  // get back as many output buffers as possible
-  while (v4l2_dequeue_v4l2buf(output, 0));
 
   for (int i = 0; i < ctx->num_buffers; i++) {
     if (output->buffers[i].status == V4L2BUF_AVAILABLE) {
@@ -55,4 +57,14 @@ void v4l2_wrapper_set_current_buffer_index(struct v4l2_wrapper_context *ctx, int
   struct V4L2Context *output = (struct V4L2Context *) ctx->output;
 
   output->current_buffer_index = index;
+}
+
+int v4l2_wrapper_v4l2buf_available(struct v4l2_wrapper_context *ctx, int index) {
+  struct V4L2Context *output = (struct V4L2Context *) ctx->output;
+
+  if (index < 0 || index >= ctx->num_buffers) {
+    return 0;
+  }
+
+  return output->buffers[index].status == V4L2BUF_AVAILABLE;
 }

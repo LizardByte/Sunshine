@@ -67,7 +67,6 @@ namespace v4l2 {
       // so we just set this to a non-null value to avoid falling back to software encoding.
       data = (void *) 0x1;
 
-      last_output_frame_idx = -1;
       current_output_frame_idx = -1;
 
       return 0;
@@ -237,38 +236,52 @@ namespace v4l2 {
      * @return FFmpeg status code, or an AVERROR code when no suitable output buffer is available.
      */
     int send_frame(AVCodecContext *ctx) override {
+      if (!encoder_ctx.avctx) {
+        BOOST_LOG(error) << "Encoder context not set when trying to send a frame"sv;
+        return AVERROR(EINVAL);
+      }
+
       if (current_output_frame_idx < 0) {
         BOOST_LOG(error) << "No converted frame available to send to V4L2 encoder (convert() not called?)"sv;
         return AVERROR(EINVAL);
       }
 
-      // convert() not called, so just send the last converted frame again.
-      if (last_output_frame_idx == current_output_frame_idx) {
-        current_output_frame_idx = get_free_frame();
-        if (current_output_frame_idx < 0) {
+      // If the output buffer selected by the most recent conversion is still in use,
+      // find a free one and copy the converted frame into it.
+      int real_output_frame_idx = current_output_frame_idx;
+      v4l2_wrapper_sync_v4l2buf_status(&encoder_ctx);
+      if (!v4l2_wrapper_v4l2buf_available(&encoder_ctx, current_output_frame_idx)) {
+        real_output_frame_idx = get_free_frame(false);
+        if (real_output_frame_idx < 0) {
           return AVERROR(EAGAIN);
         }
-        convertor.copy(output_frames[current_output_frame_idx]->buf, output_frames[last_output_frame_idx]->buf);
+        if (!convertor.copy(output_frames[real_output_frame_idx]->buf, output_frames[current_output_frame_idx]->buf)) {
+          BOOST_LOG(error) << "Failed to copy converted frame to a new output buffer"sv;
+          return AVERROR(EIO);
+        }
       }
 
-      last_output_frame_idx = current_output_frame_idx;
-      v4l2_wrapper_set_current_buffer_index(&encoder_ctx, last_output_frame_idx);
+      v4l2_wrapper_set_current_buffer_index(&encoder_ctx, real_output_frame_idx);
 
       return avcodec_send_frame(ctx, frame);
     }
 
   protected:
     /**
-     * @brief Reclaim completed V4L2 output buffers and select one available for conversion.
+     * @brief Select one available V4L2 output buffer for conversion.
      *
+     * @param reclaim Whether to reclaim completed buffers before searching.
      * @return Zero-based output-buffer index, or -1 when no buffer is available.
      */
-    int get_free_frame() {
+    int get_free_frame(bool reclaim = true) {
       if (!encoder_ctx.avctx) {
         BOOST_LOG(error) << "Encoder context not set when trying to get a free V4L2 output buffer"sv;
         return -1;
       }
 
+      if (reclaim) {
+        v4l2_wrapper_sync_v4l2buf_status(&encoder_ctx);
+      }
       int frame_idx = v4l2_wrapper_getfree_v4l2buf_idx(&encoder_ctx);
       if (frame_idx < 0) {
         BOOST_LOG(error) << "No free V4L2 output buffer available"sv;
@@ -292,7 +305,6 @@ namespace v4l2 {
     int width;  ///< Input image width in pixels.
     int height;  ///< Input image height in pixels.
 
-    int last_output_frame_idx;  ///< Output-buffer index most recently submitted to FFmpeg.
     int current_output_frame_idx;  ///< Output-buffer index populated by the most recent conversion.
   };
 

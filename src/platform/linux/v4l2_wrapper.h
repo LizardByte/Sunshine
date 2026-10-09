@@ -48,7 +48,18 @@ extern "C" {
   int v4l2_wrapper_context_init(struct v4l2_wrapper_context *ctx, AVCodecContext *avctx);
 
   /**
-   * @brief Dequeue completed output buffers and find one available for reuse.
+   * @brief Dequeue completed output buffers and update their status in the wrapper context.
+   *
+   * @param ctx Initialized wrapper context whose output queue is updated.
+   */
+  void v4l2_wrapper_sync_v4l2buf_status(struct v4l2_wrapper_context *ctx);
+
+  /**
+   * @brief Find one available output buffer.
+   *
+   * This function will not dequeue completed buffers before searching.
+   * To ensure that all completed buffers are available, call
+   * v4l2_wrapper_sync_v4l2buf_status() first.
    *
    * @param ctx Initialized wrapper context whose output queue is inspected.
    * @return Zero-based buffer index on success, or -1 when none is available.
@@ -62,6 +73,15 @@ extern "C" {
    * @param index Zero-based index of the output buffer to select.
    */
   void v4l2_wrapper_set_current_buffer_index(struct v4l2_wrapper_context *ctx, int index);
+
+  /**
+   * @brief Check whether a V4L2 output buffer is available for reuse.
+   *
+   * @param ctx Initialized wrapper context whose output queue is inspected.
+   * @param index Zero-based index of the output buffer to check.
+   * @return Non-zero if the buffer is available, or zero if it is still in use.
+   */
+  int v4l2_wrapper_v4l2buf_available(struct v4l2_wrapper_context *ctx, int index);
 
 #ifdef __cplusplus
 }
