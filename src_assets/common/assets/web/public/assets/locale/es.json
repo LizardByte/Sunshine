@@ -247,6 +247,8 @@
     "encoder_desc": "Forzar un codificador específico, de lo contrario Sunshine seleccionará la mejor opción disponible. Nota: Si especifica un codificador de hardware en Windows, debe coincidir con el GPU donde la pantalla está conectada.",
     "encoder_software": "Software",
     "encoders": "Codificadores",
+    "external_audio": "Externally Managed Audio",
+    "external_audio_desc": "Capture only the configured Audio Sink without changing Windows defaults or device formats. Requires an explicit Audio Sink. Virtual Sink selection, automatic Steam audio driver installation, and Moonlight's host-playback toggle are ignored; manage playback and application routing in your audio mixer.",
     "external_ip": "IP externa",
     "external_ip_desc": "Si no se da ninguna dirección IP externa, Sunshine detectará automáticamente IP externa",
     "fec_percentage": "Porcentaje FEC",
