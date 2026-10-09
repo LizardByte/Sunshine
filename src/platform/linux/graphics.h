@@ -750,13 +750,13 @@ namespace egl {
     int blank(gl::frame_buf_t &fb, int offsetX_, int offsetY_, int width, int height, bool is_yuv444);
 
     /**
-     * @brief Copy the contents of one framebuffer to another.
+     * @brief Copy the contents of one NV12 output framebuffer to another.
      *
      * @param dst Destination framebuffer.
      * @param src Source framebuffer.
      * @return 0 when the copy is successful; nonzero on OpenGL failure.
      */
-    int copy(gl::frame_buf_t &dst, gl::frame_buf_t &src);
+    int copy_nv12(gl::frame_buf_t &dst, gl::frame_buf_t &src);
 
     /**
      * @brief Load ram data from the backing API or store.
