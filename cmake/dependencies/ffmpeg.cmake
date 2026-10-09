@@ -18,37 +18,48 @@ if(NOT DEFINED FFMPEG_PREPARED_BINARIES)
     # Determine download location
     set(FFMPEG_DOWNLOAD_DIR "${CMAKE_BINARY_DIR}/_deps")
 
-    # Fetch tags for the build-deps submodule so tag lookups work in CI shallow clones
-    execute_process(
-        COMMAND git -C "${CMAKE_SOURCE_DIR}/third-party/build-deps" fetch --tags --depth=1
-        OUTPUT_QUIET
-        ERROR_QUIET
-    )
+    # An explicitly supplied tag wins over the git lookups below. This is the escape
+    # hatch when the submodule's tags are not available to git (source tarball,
+    # tagless or shallow clone, or a build-deps directory that is not a repo at all),
+    # since the fallback in that case is the LATEST release, which is not necessarily
+    # the release the pinned submodule corresponds to.
+    if(FFMPEG_RELEASE_TAG)
+        message(STATUS "Using caller-supplied build-deps tag: ${FFMPEG_RELEASE_TAG}")
+    else()
 
-    # Get the current commit/tag from the build-deps submodule
-    execute_process(
-        COMMAND git -C "${CMAKE_SOURCE_DIR}/third-party/build-deps" describe --tags --exact-match
-        OUTPUT_VARIABLE FFMPEG_RELEASE_TAG
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET
-    )
-
-    # If no exact tag match, try to get the commit hash and look for a tag
-    if(NOT FFMPEG_RELEASE_TAG)
+        # Fetch tags for the build-deps submodule so tag lookups work in CI shallow clones
         execute_process(
-            COMMAND git -C "${CMAKE_SOURCE_DIR}/third-party/build-deps" rev-parse HEAD
-            OUTPUT_VARIABLE BUILD_DEPS_COMMIT
-            OUTPUT_STRIP_TRAILING_WHITESPACE
+            COMMAND git -C "${CMAKE_SOURCE_DIR}/third-party/build-deps" fetch --tags --depth=1
+            OUTPUT_QUIET
             ERROR_QUIET
         )
 
-        # Try to find a tag that points to this commit
+        # Get the current commit/tag from the build-deps submodule
         execute_process(
-            COMMAND git -C "${CMAKE_SOURCE_DIR}/third-party/build-deps" tag --points-at ${BUILD_DEPS_COMMIT}
+            COMMAND git -C "${CMAKE_SOURCE_DIR}/third-party/build-deps" describe --tags --exact-match
             OUTPUT_VARIABLE FFMPEG_RELEASE_TAG
             OUTPUT_STRIP_TRAILING_WHITESPACE
             ERROR_QUIET
         )
+
+        # If no exact tag match, try to get the commit hash and look for a tag
+        if(NOT FFMPEG_RELEASE_TAG)
+            execute_process(
+                COMMAND git -C "${CMAKE_SOURCE_DIR}/third-party/build-deps" rev-parse HEAD
+                OUTPUT_VARIABLE BUILD_DEPS_COMMIT
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET
+            )
+
+            # Try to find a tag that points to this commit
+            execute_process(
+                COMMAND git -C "${CMAKE_SOURCE_DIR}/third-party/build-deps" tag --points-at ${BUILD_DEPS_COMMIT}
+                OUTPUT_VARIABLE FFMPEG_RELEASE_TAG
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET
+            )
+        endif()
+
     endif()
 
     # Set GitHub release URL
@@ -60,7 +71,15 @@ if(NOT DEFINED FFMPEG_PREPARED_BINARIES)
     else()
         set(FFMPEG_RELEASE_URL "https://github.com/${FFMPEG_GITHUB_REPO}/releases/latest/download")
         set(FFMPEG_VERSION_DIR "${FFMPEG_DOWNLOAD_DIR}/ffmpeg-latest")
-        message(STATUS "Using FFmpeg from latest build-deps release")
+        message(WARNING
+                "Could not resolve a release tag for the third-party/build-deps submodule, so the "
+                "LATEST build-deps release will be used instead. That release can carry a different "
+                "Video Codec SDK than the pinned submodule, which shows up as an unexplained "
+                "'Check and update NVENC code for backwards compatibility!' error from "
+                "src/nvenc/nvenc_base.cpp when the bundled nvEncodeAPI.h version moves. "
+                "Build from a full clone with submodule tags fetched, or pass the intended tag "
+                "explicitly with -DFFMPEG_RELEASE_TAG=<tag>."
+        )
     endif()
 
     # Set extraction directory and prepared binaries path
