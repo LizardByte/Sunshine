@@ -256,6 +256,8 @@
     "file_apps_desc": "O arquivo onde os aplicativos atuais de Sunshine são armazenados.",
     "file_state": "Arquivo de estado",
     "file_state_desc": "O arquivo onde o estado atual de Sunshine é armazenado",
+    "fp16_sdr_gamma_encoded": "Tratar captura FP16 SDR como codificada por gamma",
+    "fp16_sdr_gamma_encoded_desc": "Habilite isso se o stream parece lavado ou seus destaques são exluídos enquanto a tela está no modo SDR e a área de trabalho é capturada no formato FP16 (o log mostra DXGI_FORMAT_R16G16G16A16_FLOAT como formato desktop). A luz do sol irá então pular a curva sRGB para as capturas SDR FP16. Deixar isto desabilitado, porque escurece o fluxo quando o FP16 é linear. Não tem efeito quando a tela está no modo HDR.",
     "gamepad": "Tipo de controle emulado",
     "gamepad_auto": "Opções de seleção automáticas",
     "gamepad_desc": "Escolha qual tipo de controle será emulado no host",
