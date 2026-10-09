@@ -256,6 +256,8 @@
     "file_apps_desc": "Plik, w którym przechowywane są bieżące aplikacje Sunshine.",
     "file_state": "Plik stanu",
     "file_state_desc": "Plik, w którym przechowywany jest aktualny stan Sunshine",
+    "fp16_sdr_gamma_encoded": "Traktuj FP16 SDR zapisuje jako zakodowane w gammie",
+    "fp16_sdr_gamma_encoded_desc": "Włącz to, jeśli strumień wygląda na wyczyszczony lub jego podświetlenia są wysadzone, gdy wyświetlacz jest w trybie SDR i pulpit jest zapisywany w formacie FP16 (dziennik pokazuje DXGI_FORMAT_R16G16A16_FLOAT jako format pulpitu). Sunshine pominie następnie krzywą sRGB dla przechwytywania SDR FP16. Pozostaw to wyłączenie w inny sposób, ponieważ przyciemnia strumień gdy przechwytywanie FP16 jest liniowe. Nie ma efektu, gdy wyświetlacz jest w trybie HDR.",
     "gamepad": "Emulowany typ kontrolera",
     "gamepad_auto": "Opcje automatycznego wyboru",
     "gamepad_desc": "Wybierz typ kontrolera, który ma być emulowany na hoście",
