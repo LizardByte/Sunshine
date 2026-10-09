@@ -256,6 +256,8 @@
     "file_apps_desc": "Le fichier où sont stockées les applications de Sunshine.",
     "file_state": "Fichier des données",
     "file_state_desc": "Le fichier où l'état actuel de Sunshine est stocké",
+    "fp16_sdr_gamma_encoded": "Traiter les captures SDR FP16 comme étant encodées en gamma",
+    "fp16_sdr_gamma_encoded_desc": "Activez cette option si le flux a l'air nettoyé ou si ses surlignements sont éteints pendant que l'affichage est en mode SDR et que le bureau est capturé au format FP16 (le journal montre DXGI_FORMAT_R16G16B16A16_FLOAT au format bureau). Sunshine sautera alors la courbe sRVB pour les captures de SDR FP16. Laissez cette option désactivée autrement, car elle assombrit le flux lorsque la capture FP16 est linéaire. Cela n'a aucun effet lorsque l'écran est en mode HDR.",
     "gamepad": "Type de manette émulée",
     "gamepad_auto": "Options de sélection automatique",
     "gamepad_desc": "Choisissez le type de manette à émuler sur l'hôte",
