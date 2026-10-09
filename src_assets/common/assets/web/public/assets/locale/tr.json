@@ -256,6 +256,8 @@
     "file_apps_desc": "Sunshine'ın mevcut uygulamalarının depolandığı dosya.",
     "file_state": "Durum Dosyası",
     "file_state_desc": "Sunshine'ın mevcut durumunun depolandığı dosya",
+    "fp16_sdr_gamma_encoded": "FP16 SDR yakalamalarını gama kodlu olarak değerlendirin",
+    "fp16_sdr_gamma_encoded_desc": "Ekran SDR modundayken ve masaüstü FP16 formatında yakalanırken akış soluk görünüyorsa veya parlak alanları aşırı parlıyorsa bu seçeneği etkinleştirin (günlük dosyasında masaüstü formatı olarak DXGI_FORMAT_R16G16B16A16_FLOAT gösterilir). Böylece Sunshine, FP16 SDR yakalamalarında sRGB eğrisini atlayacaktır. Aksi takdirde bu seçeneği devre dışı bırakın, çünkü FP16 yakalama doğrusal olduğunda akışı karartır. Ekran HDR modundayken bu seçeneğin herhangi bir etkisi yoktur.",
     "gamepad": "Emüle Edilmiş Oyun Kumandası Türü",
     "gamepad_auto": "Otomatik seçim seçenekleri",
     "gamepad_desc": "Ana bilgisayarda hangi tür gamepad'in taklit edileceğini seçin",
