@@ -8,10 +8,12 @@
   #include <cerrno>
   #include <chrono>
   #include <cstdint>
+  #include <cstdlib>
   #include <filesystem>
   #include <fstream>
   #include <optional>
   #include <string>
+  #include <string_view>
   #include <system_error>
   #include <vector>
 
@@ -386,7 +388,7 @@ TEST(WaylandCaptureTest, ResolvesRenderNodeAliasBeforeVendorLookup) {
     return "/dev/dri/renderD128";
   };
   std::string observed_path;
-  const wl::sysfs_vendor_reader_t recording_reader = [&observed_path](const std::string &vendor_path) {
+  const wl::sysfs_vendor_reader_t recording_reader = [&observed_path](std::string_view vendor_path) {
     observed_path = vendor_path;
     return std::optional<std::string> {"0x10de"};
   };
@@ -415,9 +417,11 @@ TEST(WaylandLinearCopyTest, SkipsLinearAttemptUnlessAdvertised) {
 
 TEST(WaylandResolvePathTest, FollowsSymlinkedAliasToTarget) {
   std::error_code ec;
-  const auto base = std::filesystem::weakly_canonical(std::filesystem::temp_directory_path(ec), ec);
+  const char *tmpdir = std::getenv("TMPDIR");
+  std::string dir_template = std::string(tmpdir ? tmpdir : "/tmp") + "/sunshine-wlgrab-test-XXXXXX";
+  ASSERT_NE(::mkdtemp(dir_template.data()), nullptr);
+  const auto dir = std::filesystem::weakly_canonical(std::filesystem::path {dir_template}, ec);
   ASSERT_FALSE(ec);
-  const auto dir = base / ("sunshine-wlgrab-test-" + std::to_string(::getpid()));
   const auto target = dir / "renderD128";
   const auto alias = dir / "by-path" / "pci-0000:00:02.0-render";
   std::filesystem::create_directories(alias.parent_path(), ec);
@@ -435,9 +439,11 @@ TEST(WaylandResolvePathTest, FollowsSymlinkedAliasToTarget) {
 
 TEST(WaylandResolvePathTest, FallsBackToVerbatimPath) {
   std::error_code ec;
-  const auto base = std::filesystem::weakly_canonical(std::filesystem::temp_directory_path(ec), ec);
+  const char *tmpdir = std::getenv("TMPDIR");
+  std::string dir_template = std::string(tmpdir ? tmpdir : "/tmp") + "/sunshine-wlgrab-test-XXXXXX";
+  ASSERT_NE(::mkdtemp(dir_template.data()), nullptr);
+  const auto dir = std::filesystem::weakly_canonical(std::filesystem::path {dir_template}, ec);
   ASSERT_FALSE(ec);
-  const auto dir = base / ("sunshine-wlgrab-test-" + std::to_string(::getpid()));
   const auto missing = dir / "renderD999";
   EXPECT_EQ(wl::resolve_drm_node_path(missing.string()), missing.string());
 

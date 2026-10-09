@@ -33,8 +33,7 @@ namespace wl {
    */
   static std::optional<std::string> read_sysfs_vendor(const std::string &vendor_path) {
     std::ifstream vendor_file {vendor_path};
-    std::string vendor;
-    if (vendor_file >> vendor) {
+    if (std::string vendor; vendor_file >> vendor) {
       return vendor;
     }
     return std::nullopt;
@@ -63,8 +62,7 @@ namespace wl {
       token.remove_prefix(2);
     }
     std::uint32_t value {};
-    const auto result = std::from_chars(token.data(), token.data() + token.size(), value, 16);
-    if (result.ec == std::errc {} && result.ptr == token.data() + token.size()) {
+    if (const auto result = std::from_chars(token.data(), token.data() + token.size(), value, 16); result.ec == std::errc {} && result.ptr == token.data() + token.size()) {
       return value;
     }
     return std::nullopt;
@@ -85,11 +83,9 @@ namespace wl {
     const auto resolved_path = resolve_path ? resolve_path(render_path) : resolve_drm_node_path(render_path);
     const auto node = resolved_path.substr(resolved_path.find_last_of('/') + 1);
     const std::string vendor_path = "/sys/class/drm/" + node + "/device/vendor";
-    std::optional<std::string> vendor;
-    std::optional<std::uint32_t> value;
     // PCI vendor 0x10de is NVIDIA; lowercase/uppercase hex both parse.
-    if (vendor = read_vendor ? read_vendor(vendor_path) : read_sysfs_vendor(vendor_path); vendor) {
-      if (value = parse_vendor_id(*vendor); value) {
+    if (auto vendor = read_vendor ? read_vendor(vendor_path) : read_sysfs_vendor(vendor_path); vendor) {
+      if (auto value = parse_vendor_id(*vendor); value.has_value()) {
         return *value == 0x10de;
       }
       BOOST_LOG(warning) << "[wlgrab] Could not parse DRM vendor ["sv << *vendor << "] for ["sv << render_path << "], assuming cross-GPU capture"sv;
