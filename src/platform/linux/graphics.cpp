@@ -1608,10 +1608,13 @@ namespace egl {
     return 0;
   }
 
-  int sws_t::copy(gl::frame_buf_t &dst, gl::frame_buf_t &src) {
+  int sws_t::copy_nv12(gl::frame_buf_t &dst, gl::frame_buf_t &src) {
     for (int plane = 0; plane < 2; ++plane) {
-      const int plane_width = out_width / (plane + 1);  // UV plane is half the width of the Y plane
-      const int plane_height = out_height / (plane + 1);
+      const int divisor = plane + 1;  // UV plane is half the width of the Y plane
+      const int x = offsetX / divisor;
+      const int y = offsetY / divisor;
+      const int plane_width = out_width / divisor;
+      const int plane_height = out_height / divisor;
       const GLenum attachment = GL_COLOR_ATTACHMENT0 + plane;
 
       gl::ctx.BindFramebuffer(GL_READ_FRAMEBUFFER, src[plane]);
@@ -1627,7 +1630,7 @@ namespace egl {
       }
 #endif
 
-      gl::ctx.BlitFramebuffer(0, 0, plane_width, plane_height, 0, 0, plane_width, plane_height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+      gl::ctx.BlitFramebuffer(x, y, x + plane_width, y + plane_height, x, y, x + plane_width, y + plane_height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     }
 
     gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
