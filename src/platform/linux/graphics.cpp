@@ -358,6 +358,9 @@ namespace egl {
   /**
    * @brief Build EGL DMA-BUF import attributes using a specific EGL attribute type.
    *
+   * eglCreateImage uses EGLAttrib while eglCreateImageKHR uses EGLint, so the
+   * selected specialization controls both allocation and type-aware deletion.
+   *
    * @tparam EglType EGLAttrib for the core API or EGLint for the KHR API.
    * @param surface DMA-BUF surface descriptor to translate.
    * @return Type-erased EGL attribute array terminated by EGL_NONE.
@@ -760,16 +763,6 @@ namespace egl {
     return {};
   }
 
-  /**
-   * @brief Build EGL DMA-BUF import attributes using a specific EGL attribute type.
-   *
-   * eglCreateImage uses EGLAttrib while eglCreateImageKHR uses EGLint, so the
-   * selected specialization controls both allocation and type-aware deletion.
-   *
-   * @tparam EglType EGLAttrib for the core API or EGLint for the KHR API.
-   * @param surface DMA-BUF surface descriptor to translate.
-   * @return Type-erased EGL attribute array terminated by EGL_NONE.
-   */
   template<typename EglType>
   egl_attribs_t surface_descriptor_to_egl_attribs_impl(const surface_descriptor_t &surface) {
     // Use a custom vector to abstract away the underlying element type.
@@ -832,9 +825,19 @@ namespace egl {
     return std::move(attribs.buf);
   }
 
-  /** @copydoc surface_descriptor_to_egl_attribs_impl */
+  /**
+   * @brief Build EGL DMA-BUF import attributes for the core EGL image API.
+   *
+   * @param surface DMA-BUF surface descriptor to translate.
+   * @return Type-erased EGLAttrib array terminated by EGL_NONE.
+   */
   template egl_attribs_t surface_descriptor_to_egl_attribs_impl<EGLAttrib>(const surface_descriptor_t &surface);
-  /** @copydoc surface_descriptor_to_egl_attribs_impl */
+  /**
+   * @brief Build EGL DMA-BUF import attributes for the KHR EGL image API.
+   *
+   * @param surface DMA-BUF surface descriptor to translate.
+   * @return Type-erased EGLint array terminated by EGL_NONE.
+   */
   template egl_attribs_t surface_descriptor_to_egl_attribs_impl<EGLint>(const surface_descriptor_t &surface);
 
   /**

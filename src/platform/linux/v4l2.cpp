@@ -206,7 +206,7 @@ namespace v4l2 {
      * @brief Attach frame resources used by the next conversion or encode operation.
      *
      * @param frame Video or graphics frame being processed.
-     * @param hw_frames_ctx_buf Hardware frames context buffer.
+     * @param hw_frames_ctx Hardware frames context buffer.
      * @return Status from updating frame.
      */
     int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {

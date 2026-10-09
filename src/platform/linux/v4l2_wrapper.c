@@ -15,7 +15,6 @@
 // local includes
 #include "v4l2_wrapper.h"
 
-/** @copydoc v4l2_wrapper_context_init */
 int v4l2_wrapper_context_init(struct v4l2_wrapper_context *ctx, AVCodecContext *avctx) {
   if (!ctx || !avctx || !avctx->priv_data) {
     return -1;
@@ -37,7 +36,6 @@ int v4l2_wrapper_context_init(struct v4l2_wrapper_context *ctx, AVCodecContext *
   return 0;
 }
 
-/** @copydoc v4l2_wrapper_getfree_v4l2buf_idx */
 int v4l2_wrapper_getfree_v4l2buf_idx(struct v4l2_wrapper_context *ctx) {
   struct V4L2Context *output = (struct V4L2Context *) ctx->output;
 
@@ -53,7 +51,6 @@ int v4l2_wrapper_getfree_v4l2buf_idx(struct v4l2_wrapper_context *ctx) {
   return -1;
 }
 
-/** @copydoc v4l2_wrapper_set_current_buffer_index */
 void v4l2_wrapper_set_current_buffer_index(struct v4l2_wrapper_context *ctx, int index) {
   struct V4L2Context *output = (struct V4L2Context *) ctx->output;
 
