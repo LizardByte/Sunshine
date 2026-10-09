@@ -256,6 +256,8 @@
     "file_apps_desc": "A fájl, ahol a Sunshine jelenlegi alkalmazásai tárolódnak.",
     "file_state": "State fájl",
     "file_state_desc": "A fájl, ahol a Sunshine jelenlegi állapota tárolódik",
+    "fp16_sdr_gamma_encoded": "Az FP16 SDR-felvételeket tekintsük gamma-kódoltnak",
+    "fp16_sdr_gamma_encoded_desc": "Kapcsold be ezt a beállítást, ha a kép elmosódottnak tűnik, vagy a fényes részek kiégnek, miközben a kijelző SDR módban van, és az asztalt FP16 formátumban rögzítik (a naplóban az asztali formátumként a „DXGI_FORMAT_R16G16B16A16_FLOAT” érték jelenik meg). A Sunshine ezután kihagyja az sRGB-görbét az FP16 SDR-felvételeknél. Egyéb esetben hagyja ezt letiltva, mert sötétíti a streamet, ha az FP16-felvétel lineáris. Nincs hatása, ha a kijelző HDR módban van.",
     "gamepad": "Emulált gamepad típus",
     "gamepad_auto": "Automatikus választási beállítások",
     "gamepad_desc": "Válaszd ki, milyen típusú gamepad legyen emulálva a gazdagépen",
