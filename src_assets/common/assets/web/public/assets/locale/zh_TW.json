@@ -256,6 +256,8 @@
     "file_apps_desc": "Sunshine 目前的應用程式所儲存的檔案。",
     "file_state": "狀態檔案",
     "file_state_desc": "儲存目前 Sunshine 狀態的檔案",
+    "fp16_sdr_gamma_encoded": "將 FP16 SDR 擷取資料視為伽瑪編碼資料",
+    "fp16_sdr_gamma_encoded_desc": "若在顯示器處於 SDR 模式且以 FP16 格式擷取桌面時，畫面看起來過淡或高光部分過曝，請啟用此選項（日誌中會顯示桌面格式為 DXGI_FORMAT_R16G16B16A16_FLOAT）。 如此一來，Sunshine 將在 FP16 SDR 擷取時跳過 sRGB 曲線。否則請保持此選項停用，因為當 FP16 擷取為線性模式時，此設定會使串流變暗。當顯示器處於 HDR 模式時，此設定無效。",
     "gamepad": "模擬遊戲手把類型",
     "gamepad_auto": "自動選擇選項",
     "gamepad_desc": "選擇要在主機上模擬的遊戲手把類型",
