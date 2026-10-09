@@ -78,8 +78,6 @@ namespace wl {
    * another vendor's device (glEGLImageTargetTexture2DOES fails with
    * GL_INVALID_OPERATION), so cross-GPU systems must copy through RAM.
    *
-   * @param read_vendor Vendor file reader; reads sysfs directly when empty.
-   * @param resolve_path Render node path resolver; resolves aliases directly when empty.
    * @return True when the resolved capture node is an NVIDIA device.
    */
   bool capture_node_is_nvidia(const sysfs_vendor_reader_t &read_vendor, const render_path_resolver_t &resolve_path) {
