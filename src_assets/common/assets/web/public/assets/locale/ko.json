@@ -256,6 +256,8 @@
     "file_apps_desc": "현재 Sunshine의 앱이 저장되어 있는 파일입니다.",
     "file_state": "상태 파일",
     "file_state_desc": "Sunshine의 현재 상태가 저장된 파일입니다.",
+    "fp16_sdr_gamma_encoded": "FP16 SDR 캡처를 감마 인코딩된 것으로 취급합니다",
+    "fp16_sdr_gamma_encoded_desc": "디스플레이가 SDR 모드이고 데스크톱이 FP16 형식으로 캡처될 때(로그에 데스크톱 형식으로 DXGI_FORMAT_R16G16B16A16_FLOAT가 표시됨) 스트림이 뭉개져 보이거나 하이라이트가 과다 노출되는 경우 이 옵션을 활성화하십시오. 그러면 Sunshine은 FP16 SDR 캡처 시 sRGB 곡선을 건너뜁니다. FP16 캡처가 선형일 때 스트림이 어두워지므로, 그 외의 경우에는 이 옵션을 비활성화된 상태로 두십시오. 디스플레이가 HDR 모드일 때는 이 옵션이 아무런 영향을 미치지 않습니다.",
     "gamepad": "에뮬레이트된 게임패드 유형",
     "gamepad_auto": "자동 선택 옵션",
     "gamepad_desc": "호스트에서 에뮬레이트할 게임패드 유형을 선택합니다.",
