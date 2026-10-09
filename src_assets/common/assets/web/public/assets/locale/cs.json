@@ -256,6 +256,8 @@
     "file_apps_desc": "Soubor, ve kterém jsou uloženy aktuální aplikace Sunshine.",
     "file_state": "Stavový soubor",
     "file_state_desc": "Soubor, ve kterém je uložen aktuální stav Sunshine",
+    "fp16_sdr_gamma_encoded": "Považovat SDR zachycené v rámci FP16 za gama-kódované",
+    "fp16_sdr_gamma_encoded_desc": "Povolte tuto možnost, pokud stream vypadá mytým nebo jsou zvýrazněné v režimu SDR a desktopová obrazovka je zachycena ve formátu FP16 (log zobrazuje DXGI_FORMAT_R16G16B16A16_FLOAT jako formát plochy). Sunshine pak přeskočí křivku sRGB pro zachycování SDR FP16. Ponechte toto vypnuté v opačném případě, protože ztmaví proud, když je zachycení FP16 lineární. Nemá žádný účinek, pokud je displej v režimu HDR.",
     "gamepad": "Typ emulovaného gamepadu",
     "gamepad_auto": "Možnosti automatického výběru",
     "gamepad_desc": "Výběr typu gamepadu pro emulaci v hostitelském počítači",
