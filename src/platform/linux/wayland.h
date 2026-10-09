@@ -77,13 +77,62 @@ namespace wl {
   );
 
   /**
+   * @brief Pick the time a captured frame is charged to the damage-driven budget at.
+   *
+   * The compositor's own timestamp is the better one, it does not carry the delay of getting the
+   * frame to Sunshine. The screencopy protocol does not say which clock it is on, though. A time
+   * ahead of `now`, or more than one interval behind it, is not from the clock the budget runs on
+   * and would leave the budget permanently due or permanently out of reach, so the frame is
+   * charged at `now` instead.
+   *
+   * @param compositor_time Time the compositor gave for the frame, if any.
+   * @param now Time the frame was received, on Sunshine's clock.
+   * @param delay Frame interval of the stream.
+   * @return `compositor_time` when it lies within one interval before `now`, otherwise `now`.
+   */
+  std::chrono::steady_clock::time_point damage_frame_time(
+    std::optional<std::chrono::steady_clock::time_point> compositor_time,
+    std::chrono::steady_clock::time_point now,
+    std::chrono::nanoseconds delay
+  );
+
+  /**
+   * @brief What a capture does about its screencopy request before waiting for a frame.
+   */
+  enum class screencopy_request_e {
+    keep,  ///< Keep waiting for the request that is already out.
+    copy,  ///< Ask for a frame now.
+    copy_with_damage,  ///< Ask for the next frame that differs.
+  };
+
+  /**
+   * @brief Decide which screencopy request a capture waits on next.
+   *
+   * A request that outlived a timeout is kept: with `copy_with_damage` a still picture never
+   * answers, and asking again on every timeout would pile requests up in the compositor. It is
+   * replaced when the cursor setting changed since it was made. The setting is fixed when a
+   * request is created and changing it does not damage the output, so on a still picture the
+   * old request would go on answering with the cursor as it was. The replacement is a plain
+   * copy, which brings the picture up to date at once.
+   *
+   * @param pending Whether a request is still waiting for the compositor.
+   * @param pending_cursor Cursor setting the pending request was made with.
+   * @param cursor Cursor setting wanted now.
+   * @param event_driven Whether frames are requested with `copy_with_damage`.
+   * @param have_frame Whether this capture has delivered a frame yet.
+   * @return The request to wait on.
+   */
+  screencopy_request_e next_screencopy_request(bool pending, bool pending_cursor, bool cursor, bool event_driven, bool have_frame);
+
+  /**
    * @brief Determine whether a damage-driven request should wait for its budget.
    *
    * @param next_request Earliest time the next frame may be asked for.
    * @param now Current time.
    * @param delay Frame interval of the stream.
    * @return `true` when the caller should sleep until `next_request`. A time further off than one
-   *         interval is not waited for: that would be a compositor whose timestamps are on another clock.
+   *         interval is never waited for. With frame times from `damage_frame_time` the budget does
+   *         not get that far ahead; the bound keeps a wrong budget from stalling capture.
    */
   bool should_wait_for_damage_request(
     std::chrono::steady_clock::time_point next_request,
@@ -329,6 +378,16 @@ namespace wl {
     void failed(zwlr_screencopy_frame_v1 *frame);
 
     /**
+     * @brief Withdraw the request that is waiting for the compositor to copy a frame.
+     *
+     * Only a request whose copy has been asked for can be withdrawn. Before that the buffer for it
+     * is still being created, and its callback refers to the request.
+     *
+     * @return `true` when the request was withdrawn and another may be made.
+     */
+    bool cancel();
+
+    /**
      * @brief Select the inactive frame slot for the next screencopy request.
      *
      * @return Inactive frame buffer that can receive the next capture.
@@ -370,6 +429,7 @@ namespace wl {
     gbm_device_t gbm;  ///< GBM device and render-node descriptor used to allocate capture buffers.
     struct gbm_bo *current_bo {nullptr};
     struct wl_buffer *current_wl_buffer {nullptr};
+    zwlr_screencopy_frame_v1 *pending_copy {nullptr};  ///< Request whose copy is asked for and not yet answered.
     bool y_invert {false};
   };
 

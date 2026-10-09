@@ -579,6 +579,7 @@ namespace wl {
     } else {
       zwlr_screencopy_frame_v1_copy(frame, buffer);
     }
+    self->pending_copy = frame;
   }
 
   // Buffer params failed callback
@@ -624,6 +625,7 @@ namespace wl {
     cleanup_gbm();
 
     zwlr_screencopy_frame_v1_destroy(frame);
+    pending_copy = nullptr;
     status = READY;
   }
 
@@ -637,7 +639,24 @@ namespace wl {
     next_frame->destroy();
 
     zwlr_screencopy_frame_v1_destroy(frame);
+    pending_copy = nullptr;
     status = REINIT;
+  }
+
+  bool dmabuf_t::cancel() {
+    if (!pending_copy) {
+      return false;
+    }
+
+    zwlr_screencopy_frame_v1_destroy(pending_copy);
+    pending_copy = nullptr;
+
+    // Same as a failed copy: the buffer the compositor was to fill is not needed anymore
+    cleanup_gbm();
+    get_next_frame()->destroy();
+
+    status = READY;
+    return true;
   }
 
   // Only called if using zwlr_screencopy_frame_v1_copy_with_damage()
