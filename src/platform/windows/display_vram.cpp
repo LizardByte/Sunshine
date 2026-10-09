@@ -149,6 +149,18 @@ namespace platf::dxgi {
   blob_t cursor_ps_normalize_white_hlsl;  ///< Cursor ps normalize white hlsl.
   blob_t cursor_vs_hlsl;  ///< Cursor vs hlsl.
 
+  fp16_transfer_e select_fp16_transfer(DXGI_FORMAT format, bool hdr, bool gamma_encoded_sdr) {
+    using enum fp16_transfer_e;
+
+    if (hdr) {
+      // NV12 and AYUV have no PQ shaders, so HDR captures fall back to the linear shaders
+      const bool has_pq_shaders = format == DXGI_FORMAT_P010 || format == DXGI_FORMAT_R16_UINT || format == DXGI_FORMAT_Y410;
+      return has_pq_shaders ? perceptual_quantizer : linear;
+    }
+
+    return gamma_encoded_sdr ? gamma_encoded : linear;
+  }
+
   /**
    * @brief D3D-backed captured image and duplication metadata.
    */
@@ -607,20 +619,37 @@ namespace platf::dxgi {
 
       const bool downscaling = display->width > width || display->height > height;
 
+      const auto fp16_transfer = select_fp16_transfer(format, display->is_hdr(), config::video.fp16_sdr_gamma_encoded);
+      if (fp16_transfer == fp16_transfer_e::gamma_encoded) {
+        BOOST_LOG(info) << "Treating FP16 SDR capture as gamma-encoded (fp16_sdr_gamma_encoded)"sv;
+      }
+
+      // Formats without PQ shaders pass their linear shader as perceptual_quantizer, which is never selected for them
+      auto fp16_ps = [fp16_transfer](blob_t &gamma_encoded, blob_t &linear, blob_t &perceptual_quantizer) -> blob_t & {
+        switch (fp16_transfer) {
+          case fp16_transfer_e::gamma_encoded:
+            return gamma_encoded;
+          case fp16_transfer_e::perceptual_quantizer:
+            return perceptual_quantizer;
+          default:
+            return linear;
+        }
+      };
+
       switch (format) {
         case DXGI_FORMAT_NV12:
           // Semi-planar 8-bit YUV 4:2:0
           create_vertex_shader_helper(convert_yuv420_planar_y_vs_hlsl, convert_Y_or_YUV_vs);
           create_pixel_shader_helper(convert_yuv420_planar_y_ps_hlsl, convert_Y_or_YUV_ps);
-          create_pixel_shader_helper(convert_yuv420_planar_y_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
+          create_pixel_shader_helper(fp16_ps(convert_yuv420_planar_y_ps_hlsl, convert_yuv420_planar_y_ps_linear_hlsl, convert_yuv420_planar_y_ps_linear_hlsl), convert_Y_or_YUV_fp16_ps);
           if (downscaling) {
             create_vertex_shader_helper(convert_yuv420_packed_uv_type0s_vs_hlsl, convert_UV_vs);
             create_pixel_shader_helper(convert_yuv420_packed_uv_type0s_ps_hlsl, convert_UV_ps);
-            create_pixel_shader_helper(convert_yuv420_packed_uv_type0s_ps_linear_hlsl, convert_UV_fp16_ps);
+            create_pixel_shader_helper(fp16_ps(convert_yuv420_packed_uv_type0s_ps_hlsl, convert_yuv420_packed_uv_type0s_ps_linear_hlsl, convert_yuv420_packed_uv_type0s_ps_linear_hlsl), convert_UV_fp16_ps);
           } else {
             create_vertex_shader_helper(convert_yuv420_packed_uv_type0_vs_hlsl, convert_UV_vs);
             create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_hlsl, convert_UV_ps);
-            create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_linear_hlsl, convert_UV_fp16_ps);
+            create_pixel_shader_helper(fp16_ps(convert_yuv420_packed_uv_type0_ps_hlsl, convert_yuv420_packed_uv_type0_ps_linear_hlsl, convert_yuv420_packed_uv_type0_ps_linear_hlsl), convert_UV_fp16_ps);
           }
           break;
 
@@ -628,27 +657,15 @@ namespace platf::dxgi {
           // Semi-planar 16-bit YUV 4:2:0, 10 most significant bits store the value
           create_vertex_shader_helper(convert_yuv420_planar_y_vs_hlsl, convert_Y_or_YUV_vs);
           create_pixel_shader_helper(convert_yuv420_planar_y_ps_hlsl, convert_Y_or_YUV_ps);
-          if (display->is_hdr()) {
-            create_pixel_shader_helper(convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl, convert_Y_or_YUV_fp16_ps);
-          } else {
-            create_pixel_shader_helper(convert_yuv420_planar_y_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
-          }
+          create_pixel_shader_helper(fp16_ps(convert_yuv420_planar_y_ps_hlsl, convert_yuv420_planar_y_ps_linear_hlsl, convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl), convert_Y_or_YUV_fp16_ps);
           if (downscaling) {
             create_vertex_shader_helper(convert_yuv420_packed_uv_type0s_vs_hlsl, convert_UV_vs);
             create_pixel_shader_helper(convert_yuv420_packed_uv_type0s_ps_hlsl, convert_UV_ps);
-            if (display->is_hdr()) {
-              create_pixel_shader_helper(convert_yuv420_packed_uv_type0s_ps_perceptual_quantizer_hlsl, convert_UV_fp16_ps);
-            } else {
-              create_pixel_shader_helper(convert_yuv420_packed_uv_type0s_ps_linear_hlsl, convert_UV_fp16_ps);
-            }
+            create_pixel_shader_helper(fp16_ps(convert_yuv420_packed_uv_type0s_ps_hlsl, convert_yuv420_packed_uv_type0s_ps_linear_hlsl, convert_yuv420_packed_uv_type0s_ps_perceptual_quantizer_hlsl), convert_UV_fp16_ps);
           } else {
             create_vertex_shader_helper(convert_yuv420_packed_uv_type0_vs_hlsl, convert_UV_vs);
             create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_hlsl, convert_UV_ps);
-            if (display->is_hdr()) {
-              create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl, convert_UV_fp16_ps);
-            } else {
-              create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_linear_hlsl, convert_UV_fp16_ps);
-            }
+            create_pixel_shader_helper(fp16_ps(convert_yuv420_packed_uv_type0_ps_hlsl, convert_yuv420_packed_uv_type0_ps_linear_hlsl, convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl), convert_UV_fp16_ps);
           }
           break;
 
@@ -656,29 +673,21 @@ namespace platf::dxgi {
           // Planar 16-bit YUV 4:4:4, 10 most significant bits store the value
           create_vertex_shader_helper(convert_yuv444_planar_vs_hlsl, convert_Y_or_YUV_vs);
           create_pixel_shader_helper(convert_yuv444_planar_ps_hlsl, convert_Y_or_YUV_ps);
-          if (display->is_hdr()) {
-            create_pixel_shader_helper(convert_yuv444_planar_ps_perceptual_quantizer_hlsl, convert_Y_or_YUV_fp16_ps);
-          } else {
-            create_pixel_shader_helper(convert_yuv444_planar_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
-          }
+          create_pixel_shader_helper(fp16_ps(convert_yuv444_planar_ps_hlsl, convert_yuv444_planar_ps_linear_hlsl, convert_yuv444_planar_ps_perceptual_quantizer_hlsl), convert_Y_or_YUV_fp16_ps);
           break;
 
         case DXGI_FORMAT_AYUV:
           // Packed 8-bit YUV 4:4:4
           create_vertex_shader_helper(convert_yuv444_packed_vs_hlsl, convert_Y_or_YUV_vs);
           create_pixel_shader_helper(convert_yuv444_packed_ayuv_ps_hlsl, convert_Y_or_YUV_ps);
-          create_pixel_shader_helper(convert_yuv444_packed_ayuv_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
+          create_pixel_shader_helper(fp16_ps(convert_yuv444_packed_ayuv_ps_hlsl, convert_yuv444_packed_ayuv_ps_linear_hlsl, convert_yuv444_packed_ayuv_ps_linear_hlsl), convert_Y_or_YUV_fp16_ps);
           break;
 
         case DXGI_FORMAT_Y410:
           // Packed 10-bit YUV 4:4:4
           create_vertex_shader_helper(convert_yuv444_packed_vs_hlsl, convert_Y_or_YUV_vs);
           create_pixel_shader_helper(convert_yuv444_packed_y410_ps_hlsl, convert_Y_or_YUV_ps);
-          if (display->is_hdr()) {
-            create_pixel_shader_helper(convert_yuv444_packed_y410_ps_perceptual_quantizer_hlsl, convert_Y_or_YUV_fp16_ps);
-          } else {
-            create_pixel_shader_helper(convert_yuv444_packed_y410_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
-          }
+          create_pixel_shader_helper(fp16_ps(convert_yuv444_packed_y410_ps_hlsl, convert_yuv444_packed_y410_ps_linear_hlsl, convert_yuv444_packed_y410_ps_perceptual_quantizer_hlsl), convert_Y_or_YUV_fp16_ps);
           break;
 
         default:

@@ -760,6 +760,7 @@
   },
   "file_browser": {
     "empty": "Нет элементов для отображения",
+    "error_invalid_extension": "Выбранный файл должен иметь одно из следующих расширений: {extensions}",
     "root": "Корень",
     "select": "Выбрать",
     "select_directory": "Выберите папку",

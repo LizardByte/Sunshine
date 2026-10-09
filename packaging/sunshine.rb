@@ -170,7 +170,7 @@ class Sunshine < Formula
       -DCMAKE_INSTALL_PREFIX=#{prefix}
       -DGLAD_SKIP_PIP_INSTALL=ON
       -DHOMEBREW_ALLOW_FETCHCONTENT=ON
-      -DOPENSSL_ROOT_DIR=#{formula_opt_prefix("openssl")}
+      -DOPENSSL_ROOT_DIR=#{formula_opt_prefix("openssl@3")}
       -DSUNSHINE_ASSETS_DIR=sunshine/assets
       -DSUNSHINE_BUILD_HOMEBREW=ON
       -DSUNSHINE_PUBLISHER_NAME='LizardByte'
@@ -460,7 +460,9 @@ class Sunshine < Formula
         packaging/linux/Arch/PKGBUILD
         packaging/linux/copr/Sunshine.spec
         packaging/linux/flatpak/modules/boost.json
+        packaging/linux/flatpak/scripts/additional-install.sh
         scripts/linux_build.sh
+        tests/scripts/test_additional_install.sh
       ]
       if OS.mac?
         boost_test_fixtures += %w[
@@ -554,6 +556,10 @@ class Sunshine < Formula
         assert_path_exists test_runtime/"test_assets/web/images/logo-sunshine.svg"
         assert_path_exists test_runtime/"tests/unit/test_video.cpp"
         if OS.linux?
+          assert_path_exists test_runtime/"tests/scripts/test_additional_install.sh"
+          assert_path_exists test_runtime/"packaging/linux/flatpak/scripts/additional-install.sh"
+          assert_path_exists test_runtime/"src_assets/linux/misc/60-sunshine.conf"
+          assert_path_exists test_runtime/"src_assets/linux/misc/60-sunshine.rules"
           assert_path_exists test_runtime/"coverage/src/config.cpp"
           assert_path_exists test_runtime/GCOV_PREFIX_STRIP_FILE
           source_notes = test_runtime.glob("coverage/build/tests/CMakeFiles/#{TEST_BINARY}.dir/__/src/**/*.gcno")

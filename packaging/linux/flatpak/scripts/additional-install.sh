@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 # User Service
 mkdir -p ~/.config/systemd/user
 cp "/app/share/sunshine/systemd/user/app-dev.lizardbyte.app.Sunshine.service" "$HOME/.config/systemd/user/app-dev.lizardbyte.app.Sunshine.service"
@@ -9,13 +11,17 @@ echo "Use [systemctl --user enable app-dev.lizardbyte.app.Sunshine] once to auto
 # Load uhid for descriptor-driven gamepad emulation
 UHID=$(cat /app/share/sunshine/modules-load.d/60-sunshine.conf)
 echo "Enabling gamepad emulation."
-flatpak-spawn --host pkexec sh -c "echo '$UHID' > /etc/modules-load.d/60-sunshine.conf"
+# The host shell expands $1; the configuration is passed as a literal argument.
+# shellcheck disable=SC2016
+flatpak-spawn --host pkexec sh -c 'printf "%s\n" "$1" > /etc/modules-load.d/60-sunshine.conf' sh "$UHID"
 flatpak-spawn --host pkexec modprobe uhid
 
 # Udev rule
 UDEV=$(cat /app/share/sunshine/udev/rules.d/60-sunshine.rules)
 echo "Configuring virtual input permissions."
-flatpak-spawn --host pkexec sh -c "echo '$UDEV' > /etc/udev/rules.d/60-sunshine.rules"
+# The host shell expands $1; the rules are passed as a literal argument.
+# shellcheck disable=SC2016
+flatpak-spawn --host pkexec sh -c 'printf "%s\n" "$1" > /etc/udev/rules.d/60-sunshine.rules' sh "$UDEV"
 flatpak-spawn --host pkexec udevadm control --reload-rules
 flatpak-spawn --host pkexec udevadm trigger --property-match=DEVNAME=/dev/uinput
 flatpak-spawn --host pkexec udevadm trigger --property-match=DEVNAME=/dev/uhid
