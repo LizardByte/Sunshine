@@ -43,12 +43,29 @@ namespace wl {
   using sysfs_vendor_reader_t = std::function<std::optional<std::string>(const std::string &vendor_path)>;
 
   /**
+   * @brief Resolve a DRM render node path to its canonical device node.
+   *
+   * @param path Render node path to resolve.
+   * @return Canonical device path supplied by the resolver.
+   */
+  using render_path_resolver_t = std::function<std::string(const std::string &path)>;
+
+  /**
+   * @brief Resolve a DRM render node path, following udev by-path aliases.
+   *
+   * @param path Render node path to resolve, possibly a by-path alias.
+   * @return Canonical device node path, or the input path verbatim when it cannot be resolved.
+   */
+  std::string resolve_drm_node_path(const std::string &path);
+
+  /**
    * @brief Check whether the capture render node belongs to an NVIDIA GPU.
    *
    * @param read_vendor Vendor file reader; reads sysfs directly when empty.
+   * @param resolve_path Render node path resolver; resolves aliases directly when empty.
    * @return True when the resolved capture node is an NVIDIA device.
    */
-  bool capture_node_is_nvidia(const sysfs_vendor_reader_t &read_vendor = {});
+  bool capture_node_is_nvidia(const sysfs_vendor_reader_t &read_vendor = {}, const render_path_resolver_t &resolve_path = {});
 
   /**
    * @brief Check whether a linear copy buffer should be attempted for the format.

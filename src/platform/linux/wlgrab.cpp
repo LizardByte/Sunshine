@@ -3,9 +3,14 @@
  * @brief Definitions for wlgrab capture.
  */
 // standard includes
+#include <charconv>
+#include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <system_error>
 #include <thread>
 
 // local includes
@@ -36,6 +41,36 @@ namespace wl {
   }
 
   /**
+   * @brief Resolve a DRM render node path, following udev by-path aliases.
+   */
+  std::string resolve_drm_node_path(const std::string &path) {
+    std::error_code ec;
+    const auto canonical = std::filesystem::weakly_canonical(path, ec);
+    if (ec) {
+      return path;
+    }
+    return canonical.string();
+  }
+
+  /**
+   * @brief Parse a DRM sysfs vendor token as a hexadecimal PCI vendor id.
+   *
+   * @param token Vendor token to parse, with an optional 0x/0X prefix.
+   * @return Parsed vendor id, or no value when the token is not plain hex.
+   */
+  static std::optional<std::uint32_t> parse_vendor_id(std::string_view token) {
+    if (token.starts_with("0x") || token.starts_with("0X")) {
+      token.remove_prefix(2);
+    }
+    std::uint32_t value {};
+    const auto result = std::from_chars(token.data(), token.data() + token.size(), value, 16);
+    if (result.ec == std::errc {} && result.ptr == token.data() + token.size()) {
+      return value;
+    }
+    return std::nullopt;
+  }
+
+  /**
    * @brief Check whether the capture render node belongs to an NVIDIA GPU.
    *
    * Zero-copy VRAM capture hands the compositor's DMA-BUF directly to the
@@ -43,23 +78,21 @@ namespace wl {
    * another vendor's device (glEGLImageTargetTexture2DOES fails with
    * GL_INVALID_OPERATION), so cross-GPU systems must copy through RAM.
    *
+   * @param read_vendor Vendor file reader; reads sysfs directly when empty.
+   * @param resolve_path Render node path resolver; resolves aliases directly when empty.
    * @return True when the resolved capture node is an NVIDIA device.
    */
-  bool capture_node_is_nvidia(const sysfs_vendor_reader_t &read_vendor) {
+  bool capture_node_is_nvidia(const sysfs_vendor_reader_t &read_vendor, const render_path_resolver_t &resolve_path) {
     const auto render_path = platf::resolve_render_device();
-    const auto node = render_path.substr(render_path.find_last_of('/') + 1);
+    const auto resolved_path = resolve_path ? resolve_path(render_path) : resolve_drm_node_path(render_path);
+    const auto node = resolved_path.substr(resolved_path.find_last_of('/') + 1);
     const std::string vendor_path = "/sys/class/drm/" + node + "/device/vendor";
-    const auto vendor = read_vendor ? read_vendor(vendor_path) : read_sysfs_vendor(vendor_path);
-    if (vendor) {
-      // PCI vendor 0x10de is NVIDIA; lowercase/uppercase hex both parse.
-      try {
-        std::size_t parsed = 0;
-        const auto value = std::stoul(*vendor, &parsed, 16);
-        if (parsed == vendor->size()) {
-          return value == 0x10de;
-        }
-      } catch (const std::exception &) {
-        // Fall through to the malformed-vendor warning below.
+    std::optional<std::string> vendor;
+    std::optional<std::uint32_t> value;
+    // PCI vendor 0x10de is NVIDIA; lowercase/uppercase hex both parse.
+    if (vendor = read_vendor ? read_vendor(vendor_path) : read_sysfs_vendor(vendor_path); vendor) {
+      if (value = parse_vendor_id(*vendor); value) {
+        return *value == 0x10de;
       }
       BOOST_LOG(warning) << "[wlgrab] Could not parse DRM vendor ["sv << *vendor << "] for ["sv << render_path << "], assuming cross-GPU capture"sv;
       return false;
