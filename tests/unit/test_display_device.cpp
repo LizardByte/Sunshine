@@ -595,7 +595,14 @@ namespace {
       devices = std::move(next);
     }
 
-    mutable std::mutex mutex;  ///< Guards the device list and revert bookkeeping.
+    /**
+     * @brief Lock the manager while the test inspects revert progress.
+     * @return Lock that guards the device list and revert bookkeeping.
+     */
+    [[nodiscard]] std::unique_lock<std::mutex> lock() const {
+      return std::unique_lock {mutex};
+    }
+
     std::condition_variable restored;  ///< Wakes the test when the redocked display's settings are restored.
     std::shared_ptr<display_device::SettingsPersistenceInterface> persistence;  ///< Persistence observed by the revert loop.
     display_device::EnumeratedDeviceList devices {
@@ -605,6 +612,9 @@ namespace {
     bool keep_pending {true};  ///< When true, a successful revert still leaves the saved record in place.
     bool pending_saved {false};  ///< True when the latest revert left a saved record.
     bool hdr_restored {false};  ///< True when redocking cleared the pending record.
+
+  private:
+    mutable std::mutex mutex;  ///< Guards the device list and revert bookkeeping.
   };
 
   /**
@@ -661,7 +671,7 @@ TEST(DisplayDeviceRevert, RedockRestoresPendingSettings) {
 
   EXPECT_TRUE(display_device::test_revert_retry_is_scheduled());
   {
-    std::lock_guard lock {manager_ptr->mutex};
+    const auto lock {manager_ptr->lock()};
     EXPECT_EQ(manager_ptr->revert_calls, 1);
     EXPECT_TRUE(manager_ptr->pending_saved);
     EXPECT_FALSE(manager_ptr->hdr_restored);
@@ -670,7 +680,7 @@ TEST(DisplayDeviceRevert, RedockRestoresPendingSettings) {
   // The dock is still absent, so later checks must not treat the pending recovery as finished.
   std::this_thread::sleep_for(80ms);
   {
-    std::lock_guard lock {manager_ptr->mutex};
+    const auto lock {manager_ptr->lock()};
     EXPECT_EQ(manager_ptr->revert_calls, 1);
   }
   EXPECT_TRUE(display_device::test_revert_retry_is_scheduled());
@@ -681,7 +691,7 @@ TEST(DisplayDeviceRevert, RedockRestoresPendingSettings) {
   });
 
   {
-    std::unique_lock lock {manager_ptr->mutex};
+    auto lock {manager_ptr->lock()};
     ASSERT_TRUE(manager_ptr->restored.wait_for(lock, 2s, [&]() {
       return manager_ptr->hdr_restored;
     }));

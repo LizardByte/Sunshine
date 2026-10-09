@@ -778,6 +778,66 @@ namespace display_device {
     };
 
     /**
+     * @brief Attempt one scheduled revert, stopping when the saved layout is fully restored.
+     * @param try_once Stop after a single revert regardless of the result.
+     * @param tried_out_devices Device snapshot from the previous attempt. Updated when another try must wait for a device change.
+     * @param persistence_watch Observes whether a settings record is still stored.
+     * @param settings_iface Settings manager that performs the revert.
+     * @param stop_token Token used to stop the scheduler once the revert is complete.
+     */
+    void try_revert_settings(const bool try_once, StringSet &tried_out_devices, const std::shared_ptr<watched_settings_persistence_t> &persistence_watch, SettingsManagerInterface &settings_iface, SchedulerStopToken &stop_token) {
+      if (try_once) {
+        std::ignore = settings_iface.revertSettings();
+        stop_token.requestStop();
+        return;
+      }
+
+      auto available_devices {[&settings_iface]() {
+        const auto devices {settings_iface.enumAvailableDevices()};
+        StringSet parsed_devices;
+
+        std::transform(
+          std::begin(devices),
+          std::end(devices),
+          std::inserter(parsed_devices, std::end(parsed_devices)),
+          [](const auto &device) {
+            return device.m_device_id + " - " + device.m_friendly_name;
+          }
+        );
+
+        return parsed_devices;
+      }()};
+      if (available_devices == tried_out_devices) {
+        BOOST_LOG(debug) << "Skipping reverting configuration, because no newly added/removed devices were detected since last check. Currently available devices:\n"
+                         << toJson(available_devices);
+        return;
+      }
+
+      using enum SettingsManagerInterface::RevertResult;
+      const auto result {settings_iface.revertSettings()};
+      // A saved record after success means an unplugged display still has HDR, mode, or primary settings to restore.
+      const bool restores_pending {persistence_watch && persistence_watch->has_pending_restores()};
+      if (result == Ok && !restores_pending) {
+        stop_token.requestStop();
+        return;
+      }
+      if (result == ApiTemporarilyUnavailable) {
+        // Do nothing and retry next time
+        return;
+      }
+
+      // Try again only after a device is added or removed. That includes redocking a display whose settings are still saved.
+      if (result == Ok) {
+        BOOST_LOG(info) << "Recovered the available display layout, but settings for an unavailable display are still pending. Will retry once devices are added or removed. Currently available devices:\n"
+                        << toJson(available_devices);
+      } else {
+        BOOST_LOG(warning) << "Failed to revert display device configuration (will retry once devices are added or removed). Enabling all of the available devices:\n"
+                           << toJson(available_devices);
+      }
+      tried_out_devices.swap(available_devices);
+    }
+
+    /**
      * @brief Reverts the configuration based on the provided option.
      * @note This is function does not lock mutex.
      */
@@ -801,55 +861,7 @@ namespace display_device {
 
       const auto persistence_watch {DD_DATA.persistence_watch};
       DD_DATA.sm_instance->schedule([try_once = (option == revert_option_e::try_once), tried_out_devices = StringSet {}, persistence_watch](auto &settings_iface, auto &stop_token) mutable {
-        if (try_once) {
-          std::ignore = settings_iface.revertSettings();
-          stop_token.requestStop();
-          return;
-        }
-
-        auto available_devices {[&settings_iface]() {
-          const auto devices {settings_iface.enumAvailableDevices()};
-          StringSet parsed_devices;
-
-          std::transform(
-            std::begin(devices),
-            std::end(devices),
-            std::inserter(parsed_devices, std::end(parsed_devices)),
-            [](const auto &device) {
-              return device.m_device_id + " - " + device.m_friendly_name;
-            }
-          );
-
-          return parsed_devices;
-        }()};
-        if (available_devices == tried_out_devices) {
-          BOOST_LOG(debug) << "Skipping reverting configuration, because no newly added/removed devices were detected since last check. Currently available devices:\n"
-                           << toJson(available_devices);
-          return;
-        }
-
-        using enum SettingsManagerInterface::RevertResult;
-        const auto result {settings_iface.revertSettings()};
-        // A saved record after success means an unplugged display still has HDR, mode, or primary settings to restore.
-        const bool restores_pending {persistence_watch && persistence_watch->has_pending_restores()};
-        if (result == Ok && !restores_pending) {
-          stop_token.requestStop();
-          return;
-        }
-        if (result == ApiTemporarilyUnavailable) {
-          // Do nothing and retry next time
-          return;
-        }
-
-        // Try again only after a device is added or removed. That includes redocking a display whose settings are still saved.
-        if (result == Ok) {
-          BOOST_LOG(info) << "Recovered the available display layout, but settings for an unavailable display are still pending. Will retry once devices are added or removed. Currently available devices:\n"
-                          << toJson(available_devices);
-        } else {
-          BOOST_LOG(warning) << "Failed to revert display device configuration (will retry once devices are added or removed). Enabling all of the available devices:\n"
-                             << toJson(available_devices);
-        }
-        tried_out_devices.swap(available_devices);
+        try_revert_settings(try_once, tried_out_devices, persistence_watch, settings_iface, stop_token);
       },
                                     scheduler_option);
     }
