@@ -256,6 +256,8 @@
     "file_apps_desc": "Thư mục chứa các ứng dụng hiện tại của Sunshine.",
     "file_state": "Tệp của Nhà nước",
     "file_state_desc": "Tệp chứa trạng thái hiện tại của Sunshine",
+    "fp16_sdr_gamma_encoded": "Xử lý các dữ liệu ghi lại từ SDR ở định dạng FP16 như dữ liệu được mã hóa theo hàm gamma",
+    "fp16_sdr_gamma_encoded_desc": "Hãy bật tùy chọn này nếu luồng video trông nhạt màu hoặc các vùng sáng bị cháy sáng khi màn hình đang ở chế độ SDR và màn hình desktop được ghi lại ở định dạng FP16 (nhật ký hiển thị DXGI_FORMAT_R16G16B16A16_FLOAT là định dạng của màn hình desktop). Khi đó, Sunshine sẽ bỏ qua đường cong sRGB cho các bản ghi SDR ở định dạng FP16. Trong các trường hợp khác, hãy để tùy chọn này ở trạng thái tắt, vì nó sẽ làm tối luồng video khi bản ghi FP16 ở chế độ tuyến tính. Tùy chọn này không có tác dụng khi màn hình ở chế độ HDR.",
     "gamepad": "Loại bộ điều khiển trò chơi mô phỏng",
     "gamepad_auto": "Tùy chọn chọn tự động",
     "gamepad_desc": "Chọn loại gamepad muốn mô phỏng trên máy chủ.",
