@@ -150,13 +150,15 @@ namespace platf::dxgi {
   blob_t cursor_vs_hlsl;  ///< Cursor vs hlsl.
 
   fp16_transfer_e select_fp16_transfer(DXGI_FORMAT format, bool hdr, bool gamma_encoded_sdr) {
+    using enum fp16_transfer_e;
+
     if (hdr) {
       // NV12 and AYUV have no PQ shaders, so HDR captures fall back to the linear shaders
       const bool has_pq_shaders = format == DXGI_FORMAT_P010 || format == DXGI_FORMAT_R16_UINT || format == DXGI_FORMAT_Y410;
-      return has_pq_shaders ? fp16_transfer_e::perceptual_quantizer : fp16_transfer_e::linear;
+      return has_pq_shaders ? perceptual_quantizer : linear;
     }
 
-    return gamma_encoded_sdr ? fp16_transfer_e::gamma_encoded : fp16_transfer_e::linear;
+    return gamma_encoded_sdr ? gamma_encoded : linear;
   }
 
   /**
