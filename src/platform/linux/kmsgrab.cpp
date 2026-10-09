@@ -1360,76 +1360,41 @@ namespace platf {
         return 0;
       }
 
-      bool refresh_hdr_metadata_blob_id() {
-        if (!connector_id) {
-          return false;
-        }
-
-        auto connector_props = card.connector_props(*connector_id);
-        hdr_metadata_blob_id =
-          card.prop_value_by_name(connector_props, "HDR_OUTPUT_METADATA"sv);
-
-        return hdr_metadata_blob_id && *hdr_metadata_blob_id != 0;
-      }
-
-      std::optional<hdr_output_metadata> read_hdr_metadata_blob() {
-        for (int attempt = 0; attempt < 2; ++attempt) {
-          if (!refresh_hdr_metadata_blob_id()) {
-            return std::nullopt;
-          }
-
-          auto blob = drmModeGetPropertyBlob(
-            card.fd.el,
-            static_cast<uint32_t>(*hdr_metadata_blob_id)
-          );
-
-          if (!blob) {
-            const int err = errno;
-            if (err == ENOENT && attempt == 0) {
-              continue;  // Refresh the property ID and retry once.
-            }
-
-            BOOST_LOG(error) << "HDR metadata blob unavailable: "
-                             << strerror(err);
-            return std::nullopt;
-          }
-
-          if (blob->length < sizeof(hdr_output_metadata)) {
-            BOOST_LOG(error) << "HDR metadata blob is too small: "
-                             << blob->length;
-            return std::nullopt;
-          }
-
-          hdr_output_metadata raw {};
-          std::memcpy(&raw, blob->data, sizeof(raw));
-          return raw;
-        }
-
-        return std::nullopt;
-      }
-
       /**
-       * @brief Report whether the supplied HDR metadata describes an HDR mode.
+       * @brief Report whether the active display mode is HDR.
        *
-       * @param raw Metadata read from the active display mode.
-       * @return True when the metadata describes an HDR mode.
+       * @return True when the active display mode is HDR.
        */
-      bool is_hdr(const hdr_output_metadata &raw) {
-        if (raw.metadata_type != 0) {  // HDMI_STATIC_METADATA_TYPE1
-          BOOST_LOG(error) << "Unknown HDMI_STATIC_METADATA_TYPE value: "sv
-                           << raw.metadata_type;
+      bool is_hdr() {
+        if (!hdr_metadata_blob_id || *hdr_metadata_blob_id == 0) {
           return false;
         }
 
-        if (raw.hdmi_metadata_type1.metadata_type != 0) {
-          BOOST_LOG(error) << "Unknown secondary metadata type value: "sv
-                           << raw.hdmi_metadata_type1.metadata_type;
+        prop_blob_t hdr_metadata_blob = drmModeGetPropertyBlob(card.fd.el, *hdr_metadata_blob_id);
+        if (hdr_metadata_blob == nullptr) {
+          BOOST_LOG(error) << "Unable to get HDR metadata blob: "sv << strerror(errno);
+          return false;
+        }
+
+        if (hdr_metadata_blob->length < sizeof(uint32_t) + sizeof(hdr_metadata_infoframe)) {
+          BOOST_LOG(error) << "HDR metadata blob is too small: "sv << hdr_metadata_blob->length;
+          return false;
+        }
+
+        auto raw_metadata = (hdr_output_metadata *) hdr_metadata_blob->data;
+        if (raw_metadata->metadata_type != 0) {  // HDMI_STATIC_METADATA_TYPE1
+          BOOST_LOG(error) << "Unknown HDMI_STATIC_METADATA_TYPE value: "sv << raw_metadata->metadata_type;
+          return false;
+        }
+
+        if (raw_metadata->hdmi_metadata_type1.metadata_type != 0) {  // Static Metadata Type 1
+          BOOST_LOG(error) << "Unknown secondary metadata type value: "sv << raw_metadata->hdmi_metadata_type1.metadata_type;
           return false;
         }
 
         // We only support Traditional Gamma SDR or SMPTE 2084 PQ HDR EOTFs.
         // Print a warning if we encounter any others.
-        switch (raw.hdmi_metadata_type1.eotf) {
+        switch (raw_metadata->hdmi_metadata_type1.eotf) {
           case 0:  // HDMI_EOTF_TRADITIONAL_GAMMA_SDR
             return false;
           case 1:  // HDMI_EOTF_TRADITIONAL_GAMMA_HDR
@@ -1441,15 +1406,9 @@ namespace platf {
             BOOST_LOG(warning) << "Unsupported HDR EOTF: HLG"sv;
             return true;
           default:
-            BOOST_LOG(warning) << "Unsupported HDR EOTF: "sv
-                               << raw.hdmi_metadata_type1.eotf;
+            BOOST_LOG(warning) << "Unsupported HDR EOTF: "sv << raw_metadata->hdmi_metadata_type1.eotf;
             return true;
         }
-      }
-
-      bool is_hdr() {
-        auto raw = read_hdr_metadata_blob();
-        return raw && is_hdr(*raw);
       }
 
       /**
@@ -1459,26 +1418,30 @@ namespace platf {
        * @return True when HDR metadata was written to the output structure.
        */
       bool get_hdr_metadata(SS_HDR_METADATA &metadata) {
-        auto raw = read_hdr_metadata_blob();
-        if (!raw || !is_hdr(*raw)) {
+        // This performs all the metadata validation
+        if (!is_hdr()) {
           return false;
         }
 
-        for (int i = 0; i < 3; ++i) {
-          metadata.displayPrimaries[i].x =
-            raw->hdmi_metadata_type1.display_primaries[i].x;
-          metadata.displayPrimaries[i].y =
-            raw->hdmi_metadata_type1.display_primaries[i].y;
+        prop_blob_t hdr_metadata_blob = drmModeGetPropertyBlob(card.fd.el, *hdr_metadata_blob_id);
+        if (hdr_metadata_blob == nullptr) {
+          BOOST_LOG(error) << "Unable to get HDR metadata blob: "sv << strerror(errno);
+          return false;
         }
 
-        metadata.whitePoint.x = raw->hdmi_metadata_type1.white_point.x;
-        metadata.whitePoint.y = raw->hdmi_metadata_type1.white_point.y;
-        metadata.maxDisplayLuminance =
-          raw->hdmi_metadata_type1.max_display_mastering_luminance;
-        metadata.minDisplayLuminance =
-          raw->hdmi_metadata_type1.min_display_mastering_luminance;
-        metadata.maxContentLightLevel = raw->hdmi_metadata_type1.max_cll;
-        metadata.maxFrameAverageLightLevel = raw->hdmi_metadata_type1.max_fall;
+        auto raw_metadata = (hdr_output_metadata *) hdr_metadata_blob->data;
+
+        for (int i = 0; i < 3; i++) {
+          metadata.displayPrimaries[i].x = raw_metadata->hdmi_metadata_type1.display_primaries[i].x;
+          metadata.displayPrimaries[i].y = raw_metadata->hdmi_metadata_type1.display_primaries[i].y;
+        }
+
+        metadata.whitePoint.x = raw_metadata->hdmi_metadata_type1.white_point.x;
+        metadata.whitePoint.y = raw_metadata->hdmi_metadata_type1.white_point.y;
+        metadata.maxDisplayLuminance = raw_metadata->hdmi_metadata_type1.max_display_mastering_luminance;
+        metadata.minDisplayLuminance = raw_metadata->hdmi_metadata_type1.min_display_mastering_luminance;
+        metadata.maxContentLightLevel = raw_metadata->hdmi_metadata_type1.max_cll;
+        metadata.maxFrameAverageLightLevel = raw_metadata->hdmi_metadata_type1.max_fall;
 
         return true;
       }
@@ -1687,27 +1650,9 @@ namespace platf {
         // Check for a change in HDR metadata
         if (connector_id) {
           auto connector_props = card.connector_props(*connector_id);
-          auto current_hdr_metadata_blob_id =
-            card.prop_value_by_name(connector_props, "HDR_OUTPUT_METADATA"sv);
-
-          if (hdr_metadata_blob_id != current_hdr_metadata_blob_id) {
-            // HDR metadata blob changed; updating cached ID
-            hdr_metadata_blob_id = current_hdr_metadata_blob_id;
-          }
-
-          // member
-          bool last_hdr_state = false;
-
-          // in the per-frame loop, replacing the blob-ID comparison block:
-          if (connector_id) {
-            auto raw = read_hdr_metadata_blob();
-            bool is_hdr_now = raw && is_hdr(*raw);
-
-            if (is_hdr_now != last_hdr_state) {
-              BOOST_LOG(info) << "HDR state changed, reinitializing"sv;
-              last_hdr_state = is_hdr_now;
-              return capture_e::reinit;
-            }
+          if (hdr_metadata_blob_id != card.prop_value_by_name(connector_props, "HDR_OUTPUT_METADATA"sv)) {
+            BOOST_LOG(info) << "Reinitializing capture after HDR metadata change"sv;
+            return capture_e::reinit;
           }
         }
 
