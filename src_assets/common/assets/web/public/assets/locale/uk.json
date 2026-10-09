@@ -247,6 +247,8 @@
     "encoder_desc": "Примусово використовуйте конкретний кодер, інакше Sunshine обере найкращий з доступних варіантів. Примітка: Якщо ви вказуєте апаратний кодер у Windows, він має відповідати графічному процесору, до якого під'єднано монітор.",
     "encoder_software": "Програмне забезпечення",
     "encoders": "Енкодери",
+    "external_audio": "Externally Managed Audio",
+    "external_audio_desc": "Capture only the configured Audio Sink without changing Windows defaults or device formats. Requires an explicit Audio Sink. Virtual Sink selection, automatic Steam audio driver installation, and Moonlight's host-playback toggle are ignored; manage playback and application routing in your audio mixer.",
     "external_ip": "Зовнішня IP-адреса",
     "external_ip_desc": "Якщо зовнішню IP-адресу не вказано, Sunshine автоматично визначить зовнішню IP-адресу",
     "fec_percentage": "Відсоток FEC",
