@@ -255,7 +255,7 @@ namespace v4l2 {
         if (real_output_frame_idx < 0) {
           return AVERROR(EAGAIN);
         }
-        if (!convertor.copy(output_frames[real_output_frame_idx]->buf, output_frames[current_output_frame_idx]->buf)) {
+        if (!convertor.copy_nv12(output_frames[real_output_frame_idx]->buf, output_frames[current_output_frame_idx]->buf)) {
           BOOST_LOG(error) << "Failed to copy converted frame to a new output buffer"sv;
           return AVERROR(EIO);
         }
