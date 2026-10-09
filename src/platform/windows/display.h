@@ -473,7 +473,7 @@ namespace platf::dxgi {
      *
      * @return Bytes per pixel for the active capture format.
      */
-    int get_pixel_pitch() {
+    int get_pixel_pitch() const {
       return (capture_format == DXGI_FORMAT_R16G16B16A16_FLOAT) ? 8 : 4;
     }
 
