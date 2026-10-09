@@ -115,14 +115,19 @@ namespace wl {
    * old request would go on answering with the cursor as it was. The replacement is a plain
    * copy, which brings the picture up to date at once.
    *
+   * The same holds when no request is out. The last frame was captured with the setting of the
+   * last request, so if the setting changed since then, the picture the stream is showing is
+   * out of date and the next request is a plain copy as well. This covers a change between two
+   * requests, and a request that could not be withdrawn and was answered with the old setting.
+   *
    * @param pending Whether a request is still waiting for the compositor.
-   * @param pending_cursor Cursor setting the pending request was made with.
+   * @param requested_cursor Cursor setting the last request was made with, pending or answered.
    * @param cursor Cursor setting wanted now.
    * @param event_driven Whether frames are requested with `copy_with_damage`.
    * @param have_frame Whether this capture has delivered a frame yet.
    * @return The request to wait on.
    */
-  screencopy_request_e next_screencopy_request(bool pending, bool pending_cursor, bool cursor, bool event_driven, bool have_frame);
+  screencopy_request_e next_screencopy_request(bool pending, bool requested_cursor, bool cursor, bool event_driven, bool have_frame);
 
   /**
    * @brief Determine whether a damage-driven request should wait for its budget.

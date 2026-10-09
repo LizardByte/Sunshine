@@ -62,15 +62,17 @@ namespace wl {
     return now;
   }
 
-  screencopy_request_e next_screencopy_request(bool pending, bool pending_cursor, bool cursor, bool event_driven, bool have_frame) {
+  screencopy_request_e next_screencopy_request(bool pending, bool requested_cursor, bool cursor, bool event_driven, bool have_frame) {
     if (pending) {
-      return pending_cursor == cursor ? screencopy_request_e::keep : screencopy_request_e::copy;
+      return requested_cursor == cursor ? screencopy_request_e::keep : screencopy_request_e::copy;
     }
 
-    // The first frame is asked for outright. On a picture that is not
-    // changing, a request for the next change would leave the stream
-    // without anything to show until something moved.
-    return event_driven && have_frame ? screencopy_request_e::copy_with_damage : screencopy_request_e::copy;
+    // The first frame is asked for outright, and so is the first one after
+    // the cursor setting changed. On a picture that is not changing, a
+    // request for the next change would leave the stream without anything
+    // to show, or with the cursor as it was, until something moved.
+    const bool up_to_date = have_frame && requested_cursor == cursor;
+    return event_driven && up_to_date ? screencopy_request_e::copy_with_damage : screencopy_request_e::copy;
   }
 
   bool should_wait_for_damage_request(

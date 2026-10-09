@@ -267,6 +267,41 @@ TEST(WaylandCaptureTest, ReplacesAPendingRequestWhenTheCursorIsToggledOnAStillPi
   EXPECT_EQ(wl::next_screencopy_request(true, true, false, false, true), copy);
 }
 
+TEST(WaylandCaptureTest, AsksOutrightWhenTheCursorIsToggledBetweenRequests) {
+  using enum wl::screencopy_request_e;
+
+  // A frame with the cursor was delivered and nothing is pending. The cursor is switched off
+  // before the next request is made. Nothing on the output changes, so a request for the next
+  // change would wait while the stream goes on showing the cursor.
+  EXPECT_EQ(wl::next_screencopy_request(false, true, false, true, true), copy);
+
+  // That copy was made without the cursor. The picture is up to date, changes are asked for
+  // again and the request is kept over timeouts.
+  EXPECT_EQ(wl::next_screencopy_request(false, false, false, true, true), copy_with_damage);
+  EXPECT_EQ(wl::next_screencopy_request(true, false, false, true, true), keep);
+
+  // And back on.
+  EXPECT_EQ(wl::next_screencopy_request(false, false, true, true, true), copy);
+}
+
+TEST(WaylandCaptureTest, AsksOutrightAfterARequestThatCouldNotBeWithdrawn) {
+  using enum wl::screencopy_request_e;
+
+  // The cursor is switched off while a request made with it is out. It is to be replaced, but
+  // its buffer is still being set up and it can not be withdrawn. The caller keeps it and leaves
+  // the setting it remembers alone, because no request was made with the new one.
+  bool requested_cursor = true;
+  EXPECT_EQ(wl::next_screencopy_request(true, requested_cursor, false, true, true), copy);
+
+  // The old request is answered, with the cursor in the picture. The next request has to bring
+  // the picture up to date, not wait for a change.
+  EXPECT_EQ(wl::next_screencopy_request(false, requested_cursor, false, true, true), copy);
+
+  // Only that request was made with the new setting.
+  requested_cursor = false;
+  EXPECT_EQ(wl::next_screencopy_request(false, requested_cursor, false, true, true), copy_with_damage);
+}
+
 TEST(WaylandCaptureTest, UsesVramForVaapi) {
   EXPECT_TRUE(wl::use_vram_capture(platf::mem_type_e::vaapi));
 }
