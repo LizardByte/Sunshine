@@ -33,52 +33,6 @@
 #include "vulkan_encode.h"
 #include "wayland.h"
 
-static bool is_cursor_32bpp_format(uint32_t fmt)
-{
-    return fmt == DRM_FORMAT_XRGB8888 ||
-           fmt == DRM_FORMAT_XBGR8888 ||
-           fmt == DRM_FORMAT_RGBX8888 ||
-           fmt == DRM_FORMAT_BGRX8888 ||
-           fmt == DRM_FORMAT_ARGB8888 ||
-           fmt == DRM_FORMAT_ABGR8888 ||
-           fmt == DRM_FORMAT_RGBA8888 ||
-           fmt == DRM_FORMAT_BGRA8888;
-}
-
-// Converts one 32-bit pixel in place to DRM_FORMAT_ARGB8888 byte order:
-// [B, G, R, A] on little-endian systems.
-//
-// x_is_alpha: set true for cursor buffers, where the kernel hardcodes
-// DRM_FORMAT_HOST_XRGB8888 (virtgpu_gem.c) but the fourth byte actually
-// carries per-pixel alpha. Scanout buffers must leave this false.
-static bool convert_pixel_to_argb8888(std::uint8_t *p, std::uint32_t fmt,
-                                      bool x_is_alpha = false)
-{
-  const auto c0 = p[0], c1 = p[1], c2 = p[2], c3 = p[3];
-  std::uint8_t b, g, r, a;
-
-  switch (fmt) {
-    case DRM_FORMAT_XRGB8888: b = c0; g = c1; r = c2; a = x_is_alpha ? c3 : 255; break;
-    case DRM_FORMAT_XBGR8888: b = c2; g = c1; r = c0; a = x_is_alpha ? c3 : 255; break;
-    case DRM_FORMAT_RGBX8888: b = c1; g = c2; r = c3; a = x_is_alpha ? c0 : 255; break;
-    case DRM_FORMAT_BGRX8888: b = c3; g = c2; r = c1; a = x_is_alpha ? c0 : 255; break;
-
-    case DRM_FORMAT_ARGB8888: b = c0; g = c1; r = c2; a = c3; break;
-    case DRM_FORMAT_ABGR8888: b = c2; g = c1; r = c0; a = c3; break;
-    case DRM_FORMAT_RGBA8888: b = c1; g = c2; r = c3; a = c0; break;
-    case DRM_FORMAT_BGRA8888: b = c3; g = c2; r = c1; a = c0; break;
-
-    default: return false;
-  }
-
-  p[0] = b;
-  p[1] = g;
-  p[2] = r;
-  p[3] = a;
-  return true;
-}   
-
-
 using namespace std::literals;
 namespace fs = std::filesystem;
 
@@ -621,6 +575,109 @@ namespace platf {
       std::uint64_t prop_src_h;  ///< Prop src h.
       std::uint32_t fb_id;  ///< Fb ID.
     };
+
+    /**
+     * @brief Return whether a DRM fourcc value is a supported 32-bit KMS cursor format.
+     *
+     * @param fmt DRM pixel format to inspect.
+     * @return True when the format is one of the 8 accepted 32-bit cursor layouts,
+     *         otherwise false.
+     */
+    bool is_cursor_32bpp_format(uint32_t fmt) {
+      return fmt == DRM_FORMAT_XRGB8888 ||
+             fmt == DRM_FORMAT_XBGR8888 ||
+             fmt == DRM_FORMAT_RGBX8888 ||
+             fmt == DRM_FORMAT_BGRX8888 ||
+             fmt == DRM_FORMAT_ARGB8888 ||
+             fmt == DRM_FORMAT_ABGR8888 ||
+             fmt == DRM_FORMAT_RGBA8888 ||
+             fmt == DRM_FORMAT_BGRA8888;
+    }
+
+    /**
+     * @brief Convert a single 32-bit pixel to the little-endian ARGB8888 layout used by the capture pipeline.
+     *
+     * Rewrites the pixel in place to [B, G, R, A] byte order.
+     *
+     * @param pixel Pointer to the source pixel bytes in the given format.
+     * @param fmt DRM pixel format of the source pixel.
+     * @param x_is_alpha True for cursor buffers where the kernel hardcodes DRM_FORMAT_HOST_XRGB8888
+     *                   (see virtgpu_gem.c) but the fourth byte actually carries per-pixel alpha.
+     *                   Set false for scanout buffers or formats with real alpha channels.
+     * @return void The pixel is rewritten in place to [B, G, R, A] byte order.
+     */
+    bool convert_pixel_to_argb8888(std::uint8_t *p, std::uint32_t fmt, bool x_is_alpha = false) {
+      const auto c0 = p[0];
+      const auto c1 = p[1];
+      const auto c2 = p[2];
+      const auto c3 = p[3];
+
+      std::uint8_t b;
+      std::uint8_t g;
+      std::uint8_t r;
+      std::uint8_t a;
+
+      switch (fmt) {
+        case DRM_FORMAT_XRGB8888:
+          b = c0;
+          g = c1;
+          r = c2;
+          a = x_is_alpha ? c3 : 255;
+          break;
+        case DRM_FORMAT_XBGR8888:
+          b = c2;
+          g = c1;
+          r = c0;
+          a = x_is_alpha ? c3 : 255;
+          break;
+        case DRM_FORMAT_RGBX8888:
+          b = c1;
+          g = c2;
+          r = c3;
+          a = x_is_alpha ? c0 : 255;
+          break;
+        case DRM_FORMAT_BGRX8888:
+          b = c3;
+          g = c2;
+          r = c1;
+          a = x_is_alpha ? c0 : 255;
+          break;
+
+        case DRM_FORMAT_ARGB8888:
+          b = c0;
+          g = c1;
+          r = c2;
+          a = c3;
+          break;
+        case DRM_FORMAT_ABGR8888:
+          b = c2;
+          g = c1;
+          r = c0;
+          a = c3;
+          break;
+        case DRM_FORMAT_RGBA8888:
+          b = c1;
+          g = c2;
+          r = c3;
+          a = c0;
+          break;
+        case DRM_FORMAT_BGRA8888:
+          b = c3;
+          g = c2;
+          r = c1;
+          a = c0;
+          break;
+
+        default:
+          return false;
+      }
+
+      p[0] = b;
+      p[1] = g;
+      p[2] = r;
+      p[3] = a;
+      return true;
+    }
 
     /**
      * @brief DRM card, render node, and plane metadata used for KMS capture.
@@ -1303,41 +1360,76 @@ namespace platf {
         return 0;
       }
 
+      bool refresh_hdr_metadata_blob_id() {
+        if (!connector_id) {
+          return false;
+        }
+
+        auto connector_props = card.connector_props(*connector_id);
+        hdr_metadata_blob_id =
+          card.prop_value_by_name(connector_props, "HDR_OUTPUT_METADATA"sv);
+
+        return hdr_metadata_blob_id && *hdr_metadata_blob_id != 0;
+      }
+
+      std::optional<hdr_output_metadata> read_hdr_metadata_blob() {
+        for (int attempt = 0; attempt < 2; ++attempt) {
+          if (!refresh_hdr_metadata_blob_id()) {
+            return std::nullopt;
+          }
+
+          auto blob = drmModeGetPropertyBlob(
+            card.fd.el,
+            static_cast<uint32_t>(*hdr_metadata_blob_id)
+          );
+
+          if (!blob) {
+            const int err = errno;
+            if (err == ENOENT && attempt == 0) {
+              continue;  // Refresh the property ID and retry once.
+            }
+
+            BOOST_LOG(error) << "HDR metadata blob unavailable: "
+                             << strerror(err);
+            return std::nullopt;
+          }
+
+          if (blob->length < sizeof(hdr_output_metadata)) {
+            BOOST_LOG(error) << "HDR metadata blob is too small: "
+                             << blob->length;
+            return std::nullopt;
+          }
+
+          hdr_output_metadata raw {};
+          std::memcpy(&raw, blob->data, sizeof(raw));
+          return raw;
+        }
+
+        return std::nullopt;
+      }
+
       /**
-       * @brief Report whether the active display mode is HDR.
+       * @brief Report whether the supplied HDR metadata describes an HDR mode.
        *
-       * @return True when the active display mode is HDR.
+       * @param raw Metadata read from the active display mode.
+       * @return True when the metadata describes an HDR mode.
        */
-      bool is_hdr() {
-        if (!hdr_metadata_blob_id || *hdr_metadata_blob_id == 0) {
+      bool is_hdr(const hdr_output_metadata &raw) {
+        if (raw.metadata_type != 0) {  // HDMI_STATIC_METADATA_TYPE1
+          BOOST_LOG(error) << "Unknown HDMI_STATIC_METADATA_TYPE value: "sv
+                           << raw.metadata_type;
           return false;
         }
 
-        prop_blob_t hdr_metadata_blob = drmModeGetPropertyBlob(card.fd.el, *hdr_metadata_blob_id);
-        if (hdr_metadata_blob == nullptr) {
-          BOOST_LOG(error) << "Unable to get HDR metadata blob: "sv << strerror(errno);
-          return false;
-        }
-
-        if (hdr_metadata_blob->length < sizeof(uint32_t) + sizeof(hdr_metadata_infoframe)) {
-          BOOST_LOG(error) << "HDR metadata blob is too small: "sv << hdr_metadata_blob->length;
-          return false;
-        }
-
-        auto raw_metadata = (hdr_output_metadata *) hdr_metadata_blob->data;
-        if (raw_metadata->metadata_type != 0) {  // HDMI_STATIC_METADATA_TYPE1
-          BOOST_LOG(error) << "Unknown HDMI_STATIC_METADATA_TYPE value: "sv << raw_metadata->metadata_type;
-          return false;
-        }
-
-        if (raw_metadata->hdmi_metadata_type1.metadata_type != 0) {  // Static Metadata Type 1
-          BOOST_LOG(error) << "Unknown secondary metadata type value: "sv << raw_metadata->hdmi_metadata_type1.metadata_type;
+        if (raw.hdmi_metadata_type1.metadata_type != 0) {
+          BOOST_LOG(error) << "Unknown secondary metadata type value: "sv
+                           << raw.hdmi_metadata_type1.metadata_type;
           return false;
         }
 
         // We only support Traditional Gamma SDR or SMPTE 2084 PQ HDR EOTFs.
         // Print a warning if we encounter any others.
-        switch (raw_metadata->hdmi_metadata_type1.eotf) {
+        switch (raw.hdmi_metadata_type1.eotf) {
           case 0:  // HDMI_EOTF_TRADITIONAL_GAMMA_SDR
             return false;
           case 1:  // HDMI_EOTF_TRADITIONAL_GAMMA_HDR
@@ -1349,9 +1441,15 @@ namespace platf {
             BOOST_LOG(warning) << "Unsupported HDR EOTF: HLG"sv;
             return true;
           default:
-            BOOST_LOG(warning) << "Unsupported HDR EOTF: "sv << raw_metadata->hdmi_metadata_type1.eotf;
+            BOOST_LOG(warning) << "Unsupported HDR EOTF: "sv
+                               << raw.hdmi_metadata_type1.eotf;
             return true;
         }
+      }
+
+      bool is_hdr() {
+        auto raw = read_hdr_metadata_blob();
+        return raw && is_hdr(*raw);
       }
 
       /**
@@ -1361,30 +1459,26 @@ namespace platf {
        * @return True when HDR metadata was written to the output structure.
        */
       bool get_hdr_metadata(SS_HDR_METADATA &metadata) {
-        // This performs all the metadata validation
-        if (!is_hdr()) {
+        auto raw = read_hdr_metadata_blob();
+        if (!raw || !is_hdr(*raw)) {
           return false;
         }
 
-        prop_blob_t hdr_metadata_blob = drmModeGetPropertyBlob(card.fd.el, *hdr_metadata_blob_id);
-        if (hdr_metadata_blob == nullptr) {
-          BOOST_LOG(error) << "Unable to get HDR metadata blob: "sv << strerror(errno);
-          return false;
+        for (int i = 0; i < 3; ++i) {
+          metadata.displayPrimaries[i].x =
+            raw->hdmi_metadata_type1.display_primaries[i].x;
+          metadata.displayPrimaries[i].y =
+            raw->hdmi_metadata_type1.display_primaries[i].y;
         }
 
-        auto raw_metadata = (hdr_output_metadata *) hdr_metadata_blob->data;
-
-        for (int i = 0; i < 3; i++) {
-          metadata.displayPrimaries[i].x = raw_metadata->hdmi_metadata_type1.display_primaries[i].x;
-          metadata.displayPrimaries[i].y = raw_metadata->hdmi_metadata_type1.display_primaries[i].y;
-        }
-
-        metadata.whitePoint.x = raw_metadata->hdmi_metadata_type1.white_point.x;
-        metadata.whitePoint.y = raw_metadata->hdmi_metadata_type1.white_point.y;
-        metadata.maxDisplayLuminance = raw_metadata->hdmi_metadata_type1.max_display_mastering_luminance;
-        metadata.minDisplayLuminance = raw_metadata->hdmi_metadata_type1.min_display_mastering_luminance;
-        metadata.maxContentLightLevel = raw_metadata->hdmi_metadata_type1.max_cll;
-        metadata.maxFrameAverageLightLevel = raw_metadata->hdmi_metadata_type1.max_fall;
+        metadata.whitePoint.x = raw->hdmi_metadata_type1.white_point.x;
+        metadata.whitePoint.y = raw->hdmi_metadata_type1.white_point.y;
+        metadata.maxDisplayLuminance =
+          raw->hdmi_metadata_type1.max_display_mastering_luminance;
+        metadata.minDisplayLuminance =
+          raw->hdmi_metadata_type1.min_display_mastering_luminance;
+        metadata.maxContentLightLevel = raw->hdmi_metadata_type1.max_cll;
+        metadata.maxFrameAverageLightLevel = raw->hdmi_metadata_type1.max_fall;
 
         return true;
       }
@@ -1562,10 +1656,13 @@ namespace platf {
             // Convert the copied pixels to the format expected by the rest of code.
             for (std::size_t i = 0; i < captured_cursor.pixels.size(); i += 4) {
               convert_pixel_to_argb8888(
-                  captured_cursor.pixels.data() + i, fb->pixel_format, true);
+                captured_cursor.pixels.data() + i,
+                fb->pixel_format,
+                true
+              );
             }
           }
-          
+
           captured_cursor.visible = true;
           captured_cursor.src_w = src_w;
           captured_cursor.src_h = src_h;
@@ -1590,9 +1687,27 @@ namespace platf {
         // Check for a change in HDR metadata
         if (connector_id) {
           auto connector_props = card.connector_props(*connector_id);
-          if (hdr_metadata_blob_id != card.prop_value_by_name(connector_props, "HDR_OUTPUT_METADATA"sv)) {
-            BOOST_LOG(info) << "Reinitializing capture after HDR metadata change"sv;
-            return capture_e::reinit;
+          auto current_hdr_metadata_blob_id =
+            card.prop_value_by_name(connector_props, "HDR_OUTPUT_METADATA"sv);
+
+          if (hdr_metadata_blob_id != current_hdr_metadata_blob_id) {
+            // HDR metadata blob changed; updating cached ID
+            hdr_metadata_blob_id = current_hdr_metadata_blob_id;
+          }
+
+          // member
+          bool last_hdr_state = false;
+
+          // in the per-frame loop, replacing the blob-ID comparison block:
+          if (connector_id) {
+            auto raw = read_hdr_metadata_blob();
+            bool is_hdr_now = raw && is_hdr(*raw);
+
+            if (is_hdr_now != last_hdr_state) {
+              BOOST_LOG(info) << "HDR state changed, reinitializing"sv;
+              last_hdr_state = is_hdr_now;
+              return capture_e::reinit;
+            }
           }
         }
 
