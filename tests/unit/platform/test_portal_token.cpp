@@ -93,6 +93,16 @@ namespace {
       return value;
     }
 
+    /**
+     * @brief Get the private directory used by token assertions.
+     *
+     * @return Read-only path to this fixture's token directory.
+     */
+    const std::filesystem::path &token_directory() const {
+      return token_directory_;
+    }
+
+  private:
     std::filesystem::path token_directory_;  ///< Private directory owned by this fixture.
   };
 
@@ -104,7 +114,7 @@ namespace {
 
 TEST_P(PortalTokenSuffixTest, SelectsSafeSessionFilename) {
   const auto &value = GetParam();
-  EXPECT_EQ(resolve(value.desktop), token_directory_ / (std::string("portal_token.") + value.suffix));
+  EXPECT_EQ(resolve(value.desktop), token_directory() / (std::string("portal_token.") + value.suffix));
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -126,24 +136,24 @@ INSTANTIATE_TEST_SUITE_P(
 
 TEST_F(PortalTokenTest, MigratesLegacyTokenAndPreservesContents) {
   ASSERT_NO_FATAL_FAILURE(write_token("portal_token", "legacy-token"));
-  EXPECT_EQ(resolve(), token_directory_ / "portal_token.kde");
-  EXPECT_FALSE(std::filesystem::exists(token_directory_ / "portal_token"));
+  EXPECT_EQ(resolve(), token_directory() / "portal_token.kde");
+  EXPECT_FALSE(std::filesystem::exists(token_directory() / "portal_token"));
   EXPECT_EQ(read_token("portal_token.kde"), "legacy-token");
-  EXPECT_EQ(resolve(), token_directory_ / "portal_token.kde");
+  EXPECT_EQ(resolve(), token_directory() / "portal_token.kde");
   EXPECT_EQ(read_token("portal_token.kde"), "legacy-token");
 }
 
 TEST_F(PortalTokenTest, MigratesLegacyTokenToUnknownWhenDesktopIsEmpty) {
   ASSERT_NO_FATAL_FAILURE(write_token("portal_token", "legacy-token"));
-  EXPECT_EQ(resolve(""), token_directory_ / "portal_token.unknown");
-  EXPECT_FALSE(std::filesystem::exists(token_directory_ / "portal_token"));
+  EXPECT_EQ(resolve(""), token_directory() / "portal_token.unknown");
+  EXPECT_FALSE(std::filesystem::exists(token_directory() / "portal_token"));
   EXPECT_EQ(read_token("portal_token.unknown"), "legacy-token");
 }
 
 TEST_F(PortalTokenTest, ExistingSessionTokenPreventsLegacyMigration) {
   ASSERT_NO_FATAL_FAILURE(write_token("portal_token", "legacy-token"));
   ASSERT_NO_FATAL_FAILURE(write_token("portal_token.kde", "current-token"));
-  EXPECT_EQ(resolve(), token_directory_ / "portal_token.kde");
+  EXPECT_EQ(resolve(), token_directory() / "portal_token.kde");
   EXPECT_EQ(read_token("portal_token"), "legacy-token");
   EXPECT_EQ(read_token("portal_token.kde"), "current-token");
 }
@@ -151,32 +161,32 @@ TEST_F(PortalTokenTest, ExistingSessionTokenPreventsLegacyMigration) {
 TEST_F(PortalTokenTest, MigrationPreservesOtherDesktopToken) {
   ASSERT_NO_FATAL_FAILURE(write_token("portal_token", "legacy-token"));
   ASSERT_NO_FATAL_FAILURE(write_token("portal_token.gnome", "gnome-token"));
-  EXPECT_EQ(resolve(), token_directory_ / "portal_token.kde");
+  EXPECT_EQ(resolve(), token_directory() / "portal_token.kde");
   EXPECT_EQ(read_token("portal_token.kde"), "legacy-token");
   EXPECT_EQ(read_token("portal_token.gnome"), "gnome-token");
 }
 
 TEST_F(PortalTokenTest, SessionPathLookupErrorLeavesLegacyTokenUntouched) {
   ASSERT_NO_FATAL_FAILURE(write_token("portal_token", "legacy-token"));
-  std::filesystem::create_symlink("portal_token.kde", token_directory_ / "portal_token.kde");
-  EXPECT_EQ(resolve(), token_directory_ / "portal_token.kde");
-  EXPECT_TRUE(std::filesystem::is_symlink(token_directory_ / "portal_token.kde"));
+  std::filesystem::create_symlink("portal_token.kde", token_directory() / "portal_token.kde");
+  EXPECT_EQ(resolve(), token_directory() / "portal_token.kde");
+  EXPECT_TRUE(std::filesystem::is_symlink(token_directory() / "portal_token.kde"));
   EXPECT_EQ(read_token("portal_token"), "legacy-token");
 }
 
 TEST_F(PortalTokenTest, LegacyPathLookupErrorDoesNotCreateSessionToken) {
-  std::filesystem::create_symlink("portal_token", token_directory_ / "portal_token");
-  EXPECT_EQ(resolve(), token_directory_ / "portal_token.kde");
-  EXPECT_TRUE(std::filesystem::is_symlink(token_directory_ / "portal_token"));
-  EXPECT_FALSE(std::filesystem::exists(token_directory_ / "portal_token.kde"));
+  std::filesystem::create_symlink("portal_token", token_directory() / "portal_token");
+  EXPECT_EQ(resolve(), token_directory() / "portal_token.kde");
+  EXPECT_TRUE(std::filesystem::is_symlink(token_directory() / "portal_token"));
+  EXPECT_FALSE(std::filesystem::exists(token_directory() / "portal_token.kde"));
 }
 
 TEST_F(PortalTokenTest, FailedRenamePreservesLegacyEntryAndSessionPath) {
-  ASSERT_TRUE(std::filesystem::create_directory(token_directory_ / "portal_token"));
-  std::filesystem::create_symlink("missing-token", token_directory_ / "portal_token.kde");
+  ASSERT_TRUE(std::filesystem::create_directory(token_directory() / "portal_token"));
+  std::filesystem::create_symlink("missing-token", token_directory() / "portal_token.kde");
   // POSIX cannot rename a directory over a symlink, even when its target is missing.
-  EXPECT_EQ(resolve(), token_directory_ / "portal_token.kde");
-  EXPECT_TRUE(std::filesystem::is_directory(token_directory_ / "portal_token"));
-  EXPECT_TRUE(std::filesystem::is_symlink(token_directory_ / "portal_token.kde"));
+  EXPECT_EQ(resolve(), token_directory() / "portal_token.kde");
+  EXPECT_TRUE(std::filesystem::is_directory(token_directory() / "portal_token"));
+  EXPECT_TRUE(std::filesystem::is_symlink(token_directory() / "portal_token.kde"));
 }
 #endif
