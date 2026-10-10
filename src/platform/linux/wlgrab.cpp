@@ -38,6 +38,51 @@ namespace wl {
     return false;
   }
 
+  bool use_damage_capture(std::uint32_t screencopy_version, double stream_fps, std::int32_t refresh_mhz) {
+    return screencopy_version >= 2 && stream_fps > 0 && refresh_mhz / 1000.0 >= stream_fps * 1.5;
+  }
+
+  std::chrono::steady_clock::time_point next_damage_request(
+    std::chrono::steady_clock::time_point next_request,
+    std::chrono::steady_clock::time_point frame_time,
+    std::chrono::nanoseconds delay
+  ) {
+    return std::max(next_request, frame_time - delay / 4) + delay;
+  }
+
+  std::chrono::steady_clock::time_point damage_frame_time(
+    std::optional<std::chrono::steady_clock::time_point> compositor_time,
+    std::chrono::steady_clock::time_point now,
+    std::chrono::nanoseconds delay
+  ) {
+    if (compositor_time && *compositor_time <= now && *compositor_time > now - delay) {
+      return *compositor_time;
+    }
+
+    return now;
+  }
+
+  screencopy_request_e next_screencopy_request(bool pending, bool requested_cursor, bool cursor, bool event_driven, bool have_frame) {
+    if (pending) {
+      return requested_cursor == cursor ? screencopy_request_e::keep : screencopy_request_e::copy;
+    }
+
+    // The first frame is asked for outright, and so is the first one after
+    // the cursor setting changed. On a picture that is not changing, a
+    // request for the next change would leave the stream without anything
+    // to show, or with the cursor as it was, until something moved.
+    const bool up_to_date = have_frame && requested_cursor == cursor;
+    return event_driven && up_to_date ? screencopy_request_e::copy_with_damage : screencopy_request_e::copy;
+  }
+
+  bool should_wait_for_damage_request(
+    std::chrono::steady_clock::time_point next_request,
+    std::chrono::steady_clock::time_point now,
+    std::chrono::nanoseconds delay
+  ) {
+    return next_request > now && next_request < now + delay;
+  }
+
   /**
    * @brief Captured frame buffer shared between capture and encode stages.
    */
@@ -125,6 +170,23 @@ namespace wl {
 
       output = monitor->output;
 
+      // copy_with_damage arrived in version 2 of the protocol. With it the
+      // compositor answers when the output has a new picture, so capture
+      // follows the compositor's frames instead of sampling them on a clock
+      // of our own.
+      //
+      // Only on an output that refreshes at least half again as fast as the
+      // stream. A paced copy makes the compositor commit, and on an output
+      // running at the stream's own rate those commits are part of what keeps
+      // its clients on time: measured on a wlroots headless output at 60 Hz
+      // with a 60 fps stream, taking them away dropped delivery from 60 to
+      // about 55. With the output at twice the rate the same change went from
+      // up to one repeated picture in ten to none.
+      const double stream_fps = av_q2d(fps);
+      const double output_fps = monitor->refresh_mhz / 1000.0;
+      event_driven = use_damage_capture(interface.screencopy_version, stream_fps, monitor->refresh_mhz);
+      BOOST_LOG(info) << "[wlgrab] Frame capture: "sv << (event_driven ? "event-driven"sv : "paced"sv) << " (output "sv << output_fps << " Hz, stream "sv << stream_fps << " fps)"sv;
+
       offset_x = monitor->viewport.offset_x;
       offset_y = monitor->viewport.offset_y;
       width = monitor->viewport.width;
@@ -177,11 +239,23 @@ namespace wl {
      * @param encoder_modifiers Optional encoder modifiers to intersect with compositor modifiers.
      * @return Capture status reported to the streaming pipeline.
      */
-    inline platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor, const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers = nullptr) {
+    inline platf::capture_e acquire_frame(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor, const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers = nullptr) {
       auto to = std::chrono::steady_clock::now() + timeout;
 
-      // Dispatch events until we get a new frame or the timeout expires
-      dmabuf.listen(interface.screencopy_manager, interface.dmabuf_interface, &interface.supported_modifiers, output, cursor, encoder_modifiers);
+      // Dispatch events until we get a new frame or the timeout expires.
+      // A request that outlived the last timeout is still the one to wait
+      // for, unless the cursor setting it was made with is out of date.
+      const bool pending = dmabuf.status == dmabuf_t::WAITING;
+      auto request = next_screencopy_request(pending, requested_cursor, cursor, event_driven, have_frame);
+      if (request != screencopy_request_e::keep && pending && !dmabuf.cancel()) {
+        // Its buffer is still being set up. It is replaced on the next call.
+        request = screencopy_request_e::keep;
+      }
+      if (request != screencopy_request_e::keep) {
+        dmabuf.with_damage = request == screencopy_request_e::copy_with_damage;
+        requested_cursor = cursor;
+        dmabuf.listen(interface.screencopy_manager, interface.dmabuf_interface, &interface.supported_modifiers, output, cursor, encoder_modifiers);
+      }
       do {
         auto remaining_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(to - std::chrono::steady_clock::now());
         if (remaining_time_ms.count() < 0 || !display.dispatch(remaining_time_ms)) {
@@ -190,6 +264,10 @@ namespace wl {
       } while (dmabuf.status == dmabuf_t::WAITING);
 
       auto current_frame = dmabuf.current_frame;
+
+      auto frame_time = damage_frame_time(current_frame->frame_timestamp, std::chrono::steady_clock::now(), delay);
+      next_request = next_damage_request(next_request, frame_time, delay);
+      have_frame = true;
 
       if (
         dmabuf.status == dmabuf_t::REINIT ||
@@ -202,29 +280,51 @@ namespace wl {
       return platf::capture_e::ok;
     }
 
-    platf::mem_type_e mem_type;  ///< Mem type.
+    /**
+     * @brief Wait until the next frame may be asked for.
+     *
+     * Paced capture sleeps to a clock of its own and then asks for a frame.
+     * That request makes the compositor commit at a time Sunshine chose, and
+     * the same picture can be captured twice while another is never seen.
+     *
+     * Event-driven capture has no clock. The request is answered by the next
+     * commit that changed the picture, so a frame is captured once, when it
+     * exists. What is left to do here is keep an output that changes faster
+     * than the stream from being captured at its own rate, and that is a
+     * budget rather than a clock: every captured frame moves the earliest
+     * time of the next request on by one frame interval. A frame that arrives
+     * late resets the budget to a quarter interval before its own time, so a
+     * source running at the stream's rate is asked for with room to spare,
+     * while a faster one is held to the stream's rate on average.
+     *
+     * @param next_frame Next deadline of the paced clock, unused when event-driven.
+     */
+    void wait_for_next_request(std::chrono::steady_clock::time_point &next_frame) {
+      if (!event_driven) {
+        platf::handle_pacing(next_frame, delay, sleep_overshoot_logger);
+        return;
+      }
 
-    std::chrono::nanoseconds delay;  ///< Delay before the timer task becomes eligible to run.
+      if (should_wait_for_damage_request(next_request, std::chrono::steady_clock::now(), delay)) {
+        std::this_thread::sleep_until(next_request);
+      }
+    }
 
-    wl::display_t display;  ///< Wayland display connection used for capture.
-    interface_t interface;  ///< Wayland registry interfaces required by screencopy.
-    dmabuf_t dmabuf;  ///< DMA-BUF feedback and format state advertised by the compositor.
-
-    wl_output *output;  ///< Wayland output selected for capture.
-  };
-
-  /**
-   * @brief Wayland screencopy backend that copies frames into system memory.
-   */
-  class wlr_ram_t: public wlr_t {
-  public:
+    /**
+     * @brief Capture frames until the stream stops or the display has to be set up again.
+     *
+     * @param push_captured_image_cb Callback that takes a captured image, or a timeout without one.
+     * @param pull_free_image_cb Callback that provides an available image buffer.
+     * @param cursor Whether the cursor is to be part of the picture, read anew for every frame.
+     * @return Capture status reported to the streaming pipeline.
+     */
     platf::capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       auto next_frame = std::chrono::steady_clock::now();
 
       sleep_overshoot_logger.reset();
 
       while (true) {
-        platf::handle_pacing(next_frame, delay, sleep_overshoot_logger);
+        wait_for_next_request(next_frame);
 
         std::shared_ptr<platf::img_t> img_out;
         auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
@@ -234,12 +334,8 @@ namespace wl {
           case platf::capture_e::interrupted:
             return status;
           case platf::capture_e::timeout:
-            if (!push_captured_image_cb(std::move(img_out), false)) {
-              return platf::capture_e::ok;
-            }
-            break;
           case platf::capture_e::ok:
-            if (!push_captured_image_cb(std::move(img_out), true)) {
+            if (!push_captured_image_cb(std::move(img_out), status == platf::capture_e::ok)) {
               return platf::capture_e::ok;
             }
             break;
@@ -261,8 +357,39 @@ namespace wl {
      * @param cursor Cursor image or visibility state to composite.
      * @return Capture status reported to the streaming pipeline.
      */
-    platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
-      auto status = wlr_t::snapshot(pull_free_image_cb, img_out, timeout, cursor);
+    virtual platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) = 0;
+
+    platf::mem_type_e mem_type;  ///< Mem type.
+
+    std::chrono::nanoseconds delay;  ///< Delay before the timer task becomes eligible to run.
+    std::chrono::steady_clock::time_point next_request {};  ///< Earliest time the next frame may be asked for when event-driven.
+    bool event_driven {false};  ///< Whether frames are requested with copy_with_damage.
+    bool have_frame {false};  ///< Whether this capture has delivered a frame yet.
+    bool requested_cursor {false};  ///< Cursor setting the last screencopy request was made with.
+
+    wl::display_t display;  ///< Wayland display connection used for capture.
+    interface_t interface;  ///< Wayland registry interfaces required by screencopy.
+    dmabuf_t dmabuf;  ///< DMA-BUF feedback and format state advertised by the compositor.
+
+    wl_output *output;  ///< Wayland output selected for capture.
+  };
+
+  /**
+   * @brief Wayland screencopy backend that copies frames into system memory.
+   */
+  class wlr_ram_t: public wlr_t {
+  public:
+    /**
+     * @brief Capture a display frame into the provided image object.
+     *
+     * @param pull_free_image_cb Callback that provides an available image buffer.
+     * @param img_out Captured wlroots image returned to the streaming pipeline.
+     * @param timeout Maximum time to wait for the operation.
+     * @param cursor Cursor image or visibility state to composite.
+     * @return Capture status reported to the streaming pipeline.
+     */
+    platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) override {
+      auto status = wlr_t::acquire_frame(pull_free_image_cb, img_out, timeout, cursor);
       if (status != platf::capture_e::ok) {
         return status;
       }
@@ -371,40 +498,6 @@ namespace wl {
    */
   class wlr_vram_t: public wlr_t {
   public:
-    platf::capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
-      auto next_frame = std::chrono::steady_clock::now();
-
-      sleep_overshoot_logger.reset();
-
-      while (true) {
-        platf::handle_pacing(next_frame, delay, sleep_overshoot_logger);
-
-        std::shared_ptr<platf::img_t> img_out;
-        auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
-        switch (status) {
-          case platf::capture_e::reinit:
-          case platf::capture_e::error:
-          case platf::capture_e::interrupted:
-            return status;
-          case platf::capture_e::timeout:
-            if (!push_captured_image_cb(std::move(img_out), false)) {
-              return platf::capture_e::ok;
-            }
-            break;
-          case platf::capture_e::ok:
-            if (!push_captured_image_cb(std::move(img_out), true)) {
-              return platf::capture_e::ok;
-            }
-            break;
-          default:
-            BOOST_LOG(error) << "[wlgrab] Unrecognized capture status ["sv << std::to_underlying(status) << ']';
-            return status;
-        }
-      }
-
-      return platf::capture_e::ok;
-    }
-
     /**
      * @brief Capture a display frame into the provided image object.
      *
@@ -414,10 +507,10 @@ namespace wl {
      * @param cursor Cursor image or visibility state to composite.
      * @return Capture status reported to the streaming pipeline.
      */
-    platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
+    platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) override {
       // For vulkan, use intersected modifiers; for others, pass nullptr (use compositor modifiers)
       const std::map<std::uint32_t, std::vector<std::uint64_t>> *mods = intersected_modifiers.empty() ? nullptr : &intersected_modifiers;
-      auto status = wlr_t::snapshot(pull_free_image_cb, img_out, timeout, cursor, mods);
+      auto status = wlr_t::acquire_frame(pull_free_image_cb, img_out, timeout, cursor, mods);
       if (status != platf::capture_e::ok) {
         return status;
       }

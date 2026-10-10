@@ -23,6 +23,7 @@
 // local includes
 #include "cuda.h"
 #include "graphics.h"
+#include "kms_plane.h"
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
@@ -1659,6 +1660,14 @@ namespace platf {
         plane_t plane = drmModeGetPlane(card.fd.el, plane_id);
         frame_timestamp = std::chrono::steady_clock::now();
 
+        // A plane that stays without a framebuffer will not get the picture back by itself:
+        // the compositor has moved it to another plane, or restarted. Pick a plane again.
+        if (const auto now = std::chrono::steady_clock::now(); empty_plane_timer.update(plane->fb_id != 0, now)) {
+          BOOST_LOG(info) << "Reinitializing capture: plane ["sv << plane_id << "] has had no framebuffer for "sv
+                          << std::chrono::duration_cast<std::chrono::milliseconds>(empty_plane_timer.empty_for(now)).count() << "ms"sv;
+          return capture_e::reinit;
+        }
+
         auto fb = card.fb(plane.get());
         if (!fb) {
           // This can happen if the display is being reconfigured while streaming
@@ -1718,6 +1727,8 @@ namespace platf {
       int img_height;  ///< Img height.
       int img_offset_x;  ///< Img offset x.
       int img_offset_y;  ///< Img offset y.
+
+      kms::empty_plane_timer_t empty_plane_timer {250ms};  ///< Reinitializes capture once the captured plane stays empty.
 
       int plane_id;  ///< Plane ID.
       int crtc_id;  ///< Crtc ID.

@@ -7,7 +7,15 @@
 #include "../tests_common.h"
 
 // standard includes
+#include <chrono>
+#include <condition_variable>
 #include <format>
+#include <mutex>
+#include <thread>
+
+// lib includes
+#include <display_device/settings_manager_interface.h>
+#include <display_device/settings_persistence_interface.h>
 
 // local includes
 #include <src/config.h>
@@ -519,3 +527,197 @@ namespace {
     }
   }
 }  // namespace
+
+namespace {
+  /**
+   * @brief Settings manager that reports success while a dock display's original settings are still saved.
+   *
+   * The first revert, while the dock is unplugged, stores the pending record and returns success.
+   * Redocking makes the next revert clear that record, which is the library's signal that the restore finished.
+   */
+  class redock_settings_manager_t: public display_device::SettingsManagerInterface {
+  public:
+    /**
+     * @brief Remember the persistence object the revert loop watches.
+     * @param persistence Persistence object updated when a revert keeps or finishes pending settings.
+     */
+    explicit redock_settings_manager_t(std::shared_ptr<display_device::SettingsPersistenceInterface> persistence):
+        persistence {std::move(persistence)} {}
+
+    [[nodiscard]] display_device::EnumeratedDeviceList enumAvailableDevices() const override {
+      std::lock_guard lock {mutex};
+      return devices;
+    }
+
+    [[nodiscard]] std::string getDisplayName(const std::string &device_id) const override {
+      return device_id;
+    }
+
+    [[nodiscard]] ApplyResult applySettings(const display_device::SingleDisplayConfiguration &) override {
+      return ApplyResult::Ok;
+    }
+
+    [[nodiscard]] RevertResult revertSettings() override {
+      std::lock_guard lock {mutex};
+      ++revert_calls;
+      if (keep_pending) {
+        pending_saved = persistence->store({1});
+        return RevertResult::Ok;
+      }
+
+      pending_saved = !persistence->clear();
+      hdr_restored = !pending_saved;
+      restored.notify_all();
+      return RevertResult::Ok;
+    }
+
+    [[nodiscard]] bool resetPersistence() override {
+      std::lock_guard lock {mutex};
+      return persistence->clear();
+    }
+
+    /**
+     * @brief Replace the connected displays.
+     * @param next Displays visible to the next revert attempt.
+     */
+    void set_devices(display_device::EnumeratedDeviceList next) {
+      std::lock_guard lock {mutex};
+      devices = std::move(next);
+    }
+
+    /**
+     * @brief Mark the dock as connected and ready for its saved settings to be restored.
+     * @param next Displays visible once the dock is connected again.
+     */
+    void redock(display_device::EnumeratedDeviceList next) {
+      std::lock_guard lock {mutex};
+      keep_pending = false;
+      devices = std::move(next);
+    }
+
+    /**
+     * @brief Choose whether the next revert leaves the saved record in place.
+     * @param pending True when a successful revert should keep the saved record.
+     */
+    void set_keep_pending(const bool pending) {
+      std::lock_guard lock {mutex};
+      keep_pending = pending;
+    }
+
+    /**
+     * @brief Revert counters observed by a test.
+     */
+    struct progress_t {
+      int revert_calls {0};  ///< Number of revert attempts performed.
+      bool pending_saved {false};  ///< True when the latest revert left a saved record.
+      bool hdr_restored {false};  ///< True when redocking cleared the pending record.
+    };
+
+    /**
+     * @brief Read the revert bookkeeping under the manager lock.
+     * @return The latest revert counters.
+     */
+    [[nodiscard]] progress_t progress() const {
+      std::lock_guard lock {mutex};
+      return {revert_calls, pending_saved, hdr_restored};
+    }
+
+    /**
+     * @brief Wait until redocking clears the pending record.
+     * @param timeout Maximum time to wait.
+     * @return True when the pending record was cleared before the timeout.
+     */
+    template<class Rep, class Period>
+    [[nodiscard]] bool wait_for_hdr_restore(const std::chrono::duration<Rep, Period> &timeout) {
+      std::unique_lock lock {mutex};
+      return restored.wait_for(lock, timeout, [this]() {
+        return hdr_restored;
+      });
+    }
+
+  private:
+    std::condition_variable restored;  ///< Wakes the test when the redocked display's settings are restored.
+    std::shared_ptr<display_device::SettingsPersistenceInterface> persistence;  ///< Persistence observed by the revert loop.
+    display_device::EnumeratedDeviceList devices {
+      {.m_device_id = "panel", .m_friendly_name = "Panel"}
+    };  ///< Displays currently connected.
+    int revert_calls {0};  ///< Number of revert attempts performed.
+    bool keep_pending {true};  ///< When true, a successful revert still leaves the saved record in place.
+    bool pending_saved {false};  ///< True when the latest revert left a saved record.
+    bool hdr_restored {false};  ///< True when redocking cleared the pending record.
+    mutable std::mutex mutex;  ///< Guards the device list and revert bookkeeping.
+  };
+
+  /**
+   * @brief Stop the revert scheduler when a test ends.
+   */
+  class display_device_revert_guard_t {
+  public:
+    ~display_device_revert_guard_t() {
+      display_device::test_reset_display_device();
+    }
+  };
+
+  using namespace std::chrono_literals;
+
+  /**
+   * @brief Wait until the revert scheduler has stopped.
+   * @return True when no retry remains scheduled.
+   */
+  bool wait_until_revert_stops() {
+    for (int attempt {0}; attempt < 50 && display_device::test_revert_retry_is_scheduled(); ++attempt) {
+      std::this_thread::sleep_for(5ms);
+    }
+    return !display_device::test_revert_retry_is_scheduled();
+  }
+}  // namespace
+
+using namespace std::chrono_literals;
+
+TEST(DisplayDeviceRevert, CompletedRevertStopsTheRetryLoop) {
+  [[maybe_unused]] const display_device_revert_guard_t guard;
+  display_device::test_set_retry_interval(30ms);
+  const auto persistence {display_device::test_make_watched_persistence()};
+  auto manager {std::make_unique<redock_settings_manager_t>(persistence)};
+  manager->set_keep_pending(false);
+  auto *manager_ptr {manager.get()};
+  display_device::test_install_settings_manager(std::move(manager), persistence);
+
+  display_device::revert_configuration();
+
+  const auto completed {manager_ptr->progress()};
+  EXPECT_EQ(completed.revert_calls, 1);
+  EXPECT_TRUE(completed.hdr_restored);
+  EXPECT_TRUE(wait_until_revert_stops());
+}
+
+TEST(DisplayDeviceRevert, RedockRestoresPendingSettings) {
+  [[maybe_unused]] const display_device_revert_guard_t guard;
+  display_device::test_set_retry_interval(30ms);
+  const auto persistence {display_device::test_make_watched_persistence()};
+  auto manager {std::make_unique<redock_settings_manager_t>(persistence)};
+  auto *manager_ptr {manager.get()};
+  display_device::test_install_settings_manager(std::move(manager), persistence);
+
+  display_device::revert_configuration();
+
+  EXPECT_TRUE(display_device::test_revert_retry_is_scheduled());
+  const auto pending {manager_ptr->progress()};
+  EXPECT_EQ(pending.revert_calls, 1);
+  EXPECT_TRUE(pending.pending_saved);
+  EXPECT_FALSE(pending.hdr_restored);
+
+  // The dock is still absent, so later checks must not treat the pending recovery as finished.
+  std::this_thread::sleep_for(80ms);
+  EXPECT_EQ(manager_ptr->progress().revert_calls, 1);
+  EXPECT_TRUE(display_device::test_revert_retry_is_scheduled());
+
+  manager_ptr->redock({
+    {.m_device_id = "panel", .m_friendly_name = "Panel"},
+    {.m_device_id = "dock", .m_friendly_name = "Dock"},
+  });
+
+  ASSERT_TRUE(manager_ptr->wait_for_hdr_restore(2s));
+  EXPECT_GE(manager_ptr->progress().revert_calls, 2);
+  EXPECT_TRUE(wait_until_revert_stops());
+}
