@@ -347,6 +347,37 @@ namespace cuda {
   };
 
   /**
+   * @brief Query the PCI bus id of a CUDA device.
+   * @param index CUDA device index to query.
+   * @return Lowercase PCI bus id (e.g. "00000000:0f:00.0"), or no value when
+   *         CUDA is unavailable or the query fails.
+   */
+  std::optional<std::string> device_pci_bus_id(int index) {
+    if (!cdf && init() != 0) {
+      return std::nullopt;
+    }
+
+    CUdevice device;
+    if (check(cdf->cuDeviceGet(&device, index), "Couldn't get CUDA device: "sv)) {
+      return std::nullopt;
+    }
+
+    // Room for both the legacy "DDDDDDDD:BB:DD.F" rendering and the short
+    // "DDDD:BB:DD.F" form current drivers return, plus NUL.
+    std::array<char, 32> pci_bus_id {};
+    if (check(cdf->cuDeviceGetPCIBusId(pci_bus_id.data(), pci_bus_id.size(), device), "Couldn't get CUDA device PCI bus ID: "sv)) {
+      return std::nullopt;
+    }
+
+    // Linux renders PCI addresses lowercase while CUDA uses uppercase.
+    std::string bus_id {pci_bus_id.data()};
+    std::transform(bus_id.begin(), bus_id.end(), bus_id.begin(), [](char c) {
+      return std::tolower(c);
+    });
+    return bus_id;
+  }
+
+  /**
    * @brief Opens the DRM device associated with the CUDA device index.
    * @param index CUDA device index to open.
    * @return File descriptor or -1 on failure.

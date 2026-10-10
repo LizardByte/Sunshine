@@ -3,7 +3,20 @@
  * @brief Definitions for wlgrab capture.
  */
 // standard includes
+#include <charconv>
+#include <cstdint>
+#include <filesystem>
+#include <format>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <system_error>
 #include <thread>
+
+// platform includes
+#include <fcntl.h>
+#include <unistd.h>
+#include <xf86drm.h>
 
 // local includes
 #include "cuda.h"
@@ -20,7 +33,113 @@ namespace wl {
   static int env_width;
   static int env_height;
 
-  bool use_vram_capture(platf::mem_type_e hwdevice_type) {
+  /**
+   * @brief Resolve a DRM render node path, following udev by-path aliases.
+   */
+  std::string resolve_drm_node_path(const std::string &path) {
+    std::error_code ec;
+    const auto canonical = std::filesystem::weakly_canonical(path, ec);
+    if (ec) {
+      return path;
+    }
+    return canonical.string();
+  }
+
+  /**
+   * @brief Parse one hexadecimal PCI address component with full consumption.
+   *
+   * @param token Component text to parse, without any 0x prefix.
+   * @param max_digits Maximum accepted component width.
+   * @return Parsed value, or no value when the token is empty, too wide, or not plain hex.
+   */
+  static std::optional<std::uint32_t> parse_pci_component(std::string_view token, std::size_t max_digits) {
+    if (token.empty() || token.size() > max_digits) {
+      return std::nullopt;
+    }
+    std::uint32_t value {};
+    if (const auto result = std::from_chars(token.data(), token.data() + token.size(), value, 16); result.ec == std::errc {} && result.ptr == token.data() + token.size()) {
+      return value;
+    }
+    return std::nullopt;
+  }
+
+  std::optional<pci_bus_id> parse_pci_bus_id(std::string_view bus_id) {
+    const auto first = bus_id.find(':');
+    if (first == std::string_view::npos) {
+      return std::nullopt;
+    }
+    const auto second = bus_id.find(':', first + 1);
+    if (second == std::string_view::npos) {
+      return std::nullopt;
+    }
+    const auto dot = bus_id.find('.', second + 1);
+    if (dot == std::string_view::npos) {
+      return std::nullopt;
+    }
+    const auto domain = parse_pci_component(bus_id.substr(0, first), 8);
+    const auto bus = parse_pci_component(bus_id.substr(first + 1, second - first - 1), 2);
+    const auto device = parse_pci_component(bus_id.substr(second + 1, dot - second - 1), 2);
+    const auto function = parse_pci_component(bus_id.substr(dot + 1), 1);
+    if (!domain.has_value() || !bus.has_value() || !device.has_value() || !function.has_value() || *function > 0x7) {
+      return std::nullopt;
+    }
+    return pci_bus_id {*domain, static_cast<std::uint8_t>(*bus), static_cast<std::uint8_t>(*device), static_cast<std::uint8_t>(*function)};
+  }
+
+  std::optional<std::string> render_node_pci_bus_id(const std::string &render_path) {
+    const int fd = open(render_path.c_str(), O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
+      return std::nullopt;
+    }
+    drmDevicePtr device {};
+    const int status = drmGetDevice2(fd, 0, &device);
+    close(fd);
+    if (status != 0 || !device) {
+      return std::nullopt;
+    }
+    if (device->bustype != DRM_BUS_PCI || !device->businfo.pci) {
+      drmFreeDevice(&device);
+      return std::nullopt;
+    }
+    const auto pci = device->businfo.pci;
+    std::string bus_id = std::format("{:04x}:{:02x}:{:02x}.{:x}", pci->domain, pci->bus, pci->dev, pci->func);
+    drmFreeDevice(&device);
+    return bus_id;
+  }
+
+#ifdef SUNSHINE_BUILD_CUDA
+  static std::optional<std::string> default_cuda_pci_bus_id(int cuda_index) {
+    return cuda::device_pci_bus_id(cuda_index);
+  }
+#else
+  static std::optional<std::string> default_cuda_pci_bus_id(int /*cuda_index*/) {
+    return std::nullopt;
+  }
+#endif
+
+  bool capture_node_is_cuda_device(const render_node_pci_reader_t &read_render_pci, const cuda_device_pci_reader_t &read_cuda_pci, const render_path_resolver_t &resolve_path, int cuda_index) {
+    const auto render_path = platf::resolve_render_device();
+    const auto resolved_path = resolve_path ? resolve_path(render_path) : resolve_drm_node_path(render_path);
+    const auto render_pci = read_render_pci ? read_render_pci(resolved_path) : render_node_pci_bus_id(resolved_path);
+    if (!render_pci) {
+      BOOST_LOG(warning) << "[wlgrab] Could not read PCI bus id for ["sv << render_path << "], assuming cross-GPU capture"sv;
+      return false;
+    }
+    const auto cuda_pci = read_cuda_pci ? read_cuda_pci(cuda_index) : default_cuda_pci_bus_id(cuda_index);
+    if (!cuda_pci) {
+      BOOST_LOG(warning) << "[wlgrab] Could not read PCI bus id for CUDA device ["sv << cuda_index << "], assuming cross-GPU capture"sv;
+      return false;
+    }
+    const auto render_id = parse_pci_bus_id(*render_pci);
+    const auto cuda_id = parse_pci_bus_id(*cuda_pci);
+    if (!render_id || !cuda_id) {
+      BOOST_LOG(warning) << "[wlgrab] Could not parse PCI bus ids (capture ["sv << *render_pci << "], CUDA ["sv << *cuda_pci << "]), assuming cross-GPU capture"sv;
+      return false;
+    }
+    return *render_id == *cuda_id;
+  }
+
+  bool use_vram_capture(platf::mem_type_e hwdevice_type, const render_node_pci_reader_t &read_render_pci, const cuda_device_pci_reader_t &read_cuda_pci) {
     if (hwdevice_type == platf::mem_type_e::vaapi) {
       return true;
     }
@@ -31,7 +150,15 @@ namespace wl {
 
 #ifdef SUNSHINE_BUILD_CUDA
     if (hwdevice_type == platf::mem_type_e::cuda) {
-      return true;
+      // Zero-copy is only valid when capture and NVENC run on the same GPU, so
+      // compare PCI identity against the CUDA encode device instead of trusting
+      // the vendor name: split render/encode across two discrete NVIDIA GPUs
+      // must take the bridge too. Otherwise (e.g. AMD/Intel render + NVIDIA
+      // NVENC) fall back to GPU -> RAM -> GPU: wlr_ram_t capture plus cuda_ram_t
+      // conversion.
+      const bool same_gpu = capture_node_is_cuda_device(read_render_pci, read_cuda_pci);
+      BOOST_LOG(info) << "[wlgrab] CUDA capture path: "sv << (same_gpu ? "zero-copy VRAM (capture node is the CUDA device)"sv : "GPU -> RAM -> GPU bridge (cross-GPU system)"sv);
+      return same_gpu;
     }
 #endif
 
@@ -120,6 +247,12 @@ namespace wl {
       }
 
       mem_type = hwdevice_type;
+#ifdef SUNSHINE_BUILD_CUDA
+      // Cross-GPU NVENC cannot import tiled dmabufs, so resolve once here whether capture
+      // must allocate linear buffers instead. The render node cannot change mid-stream, and
+      // snapshot() runs per frame and must not redo device queries (or repeat warnings) per frame.
+      prefer_linear_capture = mem_type == platf::mem_type_e::cuda && !capture_node_is_cuda_device();
+#endif
 
       if (display.init()) {
         return -1;
@@ -254,7 +387,7 @@ namespace wl {
       if (request != screencopy_request_e::keep) {
         dmabuf.with_damage = request == screencopy_request_e::copy_with_damage;
         requested_cursor = cursor;
-        dmabuf.listen(interface.screencopy_manager, interface.dmabuf_interface, &interface.supported_modifiers, output, cursor, encoder_modifiers);
+        dmabuf.listen(interface.screencopy_manager, interface.dmabuf_interface, &interface.supported_modifiers, output, cursor, encoder_modifiers, prefer_linear_capture);
       }
       do {
         auto remaining_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(to - std::chrono::steady_clock::now());
@@ -360,6 +493,7 @@ namespace wl {
     virtual platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) = 0;
 
     platf::mem_type_e mem_type;  ///< Mem type.
+    bool prefer_linear_capture {false};  ///< Linear copy buffers, resolved once in init() for cross-GPU CUDA encode.
 
     std::chrono::nanoseconds delay;  ///< Delay before the timer task becomes eligible to run.
     std::chrono::steady_clock::time_point next_request {};  ///< Earliest time the next frame may be asked for when event-driven.

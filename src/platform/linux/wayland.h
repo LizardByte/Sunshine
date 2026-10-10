@@ -9,9 +9,11 @@
 #include <bitset>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #ifdef SUNSHINE_BUILD_WAYLAND
@@ -34,12 +36,113 @@ struct gbm_device;
 
 namespace wl {
   /**
+   * @brief PCI bus address identifying one GPU.
+   */
+  struct pci_bus_id {
+    std::uint32_t domain {};  ///< PCI domain number.
+    std::uint8_t bus {};  ///< PCI bus number.
+    std::uint8_t device {};  ///< PCI device number.
+    std::uint8_t function {};  ///< PCI function number.
+
+    /**
+     * @brief Compare two PCI bus addresses for equality.
+     * @return True when domain, bus, device, and function all match.
+     */
+    bool operator==(const pci_bus_id &) const = default;
+  };
+
+  /**
+   * @brief Read the PCI bus id of a DRM render node, without parsing it.
+   *
+   * @param render_path Render node path to query.
+   * @return Raw bus id (e.g. "0000:0f:00.0"), or no value when it cannot be read.
+   */
+  using render_node_pci_reader_t = std::function<std::optional<std::string>(const std::string &render_path)>;
+
+  /**
+   * @brief Read the PCI bus id of a CUDA device, without parsing it.
+   *
+   * @param cuda_index CUDA device index to query.
+   * @return Raw bus id reported by the driver (e.g. "00000000:0F:00.0"),
+   *         or no value when CUDA is unavailable or the query fails.
+   */
+  using cuda_device_pci_reader_t = std::function<std::optional<std::string>(int cuda_index)>;
+
+  /**
+   * @brief Resolve a DRM render node path to its canonical device node.
+   *
+   * @param path Render node path to resolve.
+   * @return Canonical device path supplied by the resolver.
+   */
+  using render_path_resolver_t = std::function<std::string(const std::string &path)>;
+
+  /**
+   * @brief Resolve a DRM render node path, following udev by-path aliases.
+   *
+   * @param path Render node path to resolve, possibly a by-path alias.
+   * @return Canonical device node path, or the input path verbatim when it cannot be resolved.
+   */
+  std::string resolve_drm_node_path(const std::string &path);
+
+  /**
+   * @brief Parse a PCI bus id in sysfs or CUDA form.
+   *
+   * Accepts both the sysfs rendering ("dddd:bb:dd.f") and the CUDA rendering
+   * ("dddddddd:BB:DD.F"); comparison is numeric so width and case differences
+   * do not matter.
+   *
+   * @param bus_id Bus id text to parse.
+   * @return Parsed address, or no value when the text is malformed.
+   */
+  std::optional<pci_bus_id> parse_pci_bus_id(std::string_view bus_id);
+
+  /**
+   * @brief Query the PCI bus id of a DRM render node from its device.
+   *
+   * @param render_path Render node path to query.
+   * @return Bus id text, or no value when the node cannot be opened or is not a PCI device.
+   */
+  std::optional<std::string> render_node_pci_bus_id(const std::string &render_path);
+
+  /**
+   * @brief Check whether the capture render node is the CUDA encode device.
+   *
+   * Zero-copy VRAM capture hands the compositor's DMA-BUF directly to the
+   * encoder's GL context, which is only valid when capture and encode run on
+   * the same GPU, so identity is compared by PCI bus address. Anything
+   * unprovable (unreadable node, unavailable CUDA, unparsable ids, distinct
+   * addresses) selects the GPU -> RAM -> GPU bridge.
+   *
+   * @param read_render_pci Render node PCI reader; queries the node directly when empty.
+   * @param read_cuda_pci CUDA device PCI reader; queries the driver directly when empty.
+   * @param resolve_path Render node path resolver; resolves aliases directly when empty.
+   * @param cuda_index CUDA device index NVENC encodes on.
+   * @return True when the capture node and the CUDA device share a PCI address.
+   */
+  bool capture_node_is_cuda_device(const render_node_pci_reader_t &read_render_pci = {}, const cuda_device_pci_reader_t &read_cuda_pci = {}, const render_path_resolver_t &resolve_path = {}, int cuda_index = 0);
+
+  /**
+   * @brief Check whether a linear copy buffer should be attempted for the format.
+   *
+   * The linear attempt is only valid when the compositor advertised the linear
+   * modifier for the format; otherwise allocation falls through to the
+   * advertised modifier list.
+   *
+   * @param prefer_linear_copy Whether linear copy buffers are preferred for cross-GPU encode.
+   * @param modifiers Effective modifier list advertised for the format.
+   * @return True only when linear copy is preferred and the linear modifier is advertised.
+   */
+  bool should_attempt_linear_copy(bool prefer_linear_copy, const std::vector<std::uint64_t> &modifiers);
+
+  /**
    * @brief Determine whether wlroots capture should keep frames in VRAM for the requested memory type.
    *
    * @param hwdevice_type Hardware device type requested for capture or encode.
+   * @param read_render_pci Render node PCI reader forwarded to the CUDA-device identity check.
+   * @param read_cuda_pci CUDA device PCI reader forwarded to the CUDA-device identity check.
    * @return `true` when the requested memory type should use the wlroots VRAM path.
    */
-  bool use_vram_capture(platf::mem_type_e hwdevice_type);
+  bool use_vram_capture(platf::mem_type_e hwdevice_type, const render_node_pci_reader_t &read_render_pci = {}, const cuda_device_pci_reader_t &read_cuda_pci = {});
 
   /**
    * @brief Determine whether wlroots capture should ask for frames with `copy_with_damage`.
@@ -307,8 +410,9 @@ namespace wl {
      * @param output Wayland output to capture.
      * @param blend_cursor Whether the compositor should include the cursor in the frame.
      * @param encoder_modifiers Optional modifiers supported by the encoder for format intersection.
+     * @param prefer_linear_copy Allocate linear copy buffers for cross-GPU encode import.
      */
-    void listen(zwlr_screencopy_manager_v1 *screencopy_manager, zwp_linux_dmabuf_v1 *dmabuf_interface, const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers, wl_output *output, bool blend_cursor = false, const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers = nullptr);
+    void listen(zwlr_screencopy_manager_v1 *screencopy_manager, zwp_linux_dmabuf_v1 *dmabuf_interface, const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers, wl_output *output, bool blend_cursor = false, const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers = nullptr, bool prefer_linear_copy = false);
     /**
      * @brief Store the Wayland buffer created for a DMA-BUF parameter request.
      *
@@ -415,6 +519,7 @@ namespace wl {
     zwp_linux_dmabuf_v1 *dmabuf_interface {nullptr};
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers {nullptr};
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers {nullptr};  ///< Optional encoder modifiers for intersection.
+    bool prefer_linear_copy {false};  ///< Allocate linear copy buffers for cross-GPU encode import.
 
     struct {
       bool supported {false};

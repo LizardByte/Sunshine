@@ -38,6 +38,14 @@ namespace cuda {
    */
   std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_gl_encode_device(int width, int height, int offset_x, int offset_y);
 
+  /**
+   * @brief Query the PCI bus id of a CUDA device.
+   * @param index CUDA device index to query.
+   * @return Lowercase PCI bus id (e.g. "00000000:0f:00.0"), or no value when
+   *         CUDA is unavailable or the query fails.
+   */
+  std::optional<std::string> device_pci_bus_id(int index);
+
   int init();
 }  // namespace cuda
 

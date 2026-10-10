@@ -7,6 +7,14 @@
   #include <array>
   #include <cerrno>
   #include <chrono>
+  #include <cstdint>
+  #include <filesystem>
+  #include <fstream>
+  #include <optional>
+  #include <string>
+  #include <string_view>
+  #include <system_error>
+  #include <vector>
 
   // system includes
   #include <drm_fourcc.h>
@@ -310,12 +318,162 @@ TEST(WaylandCaptureTest, UsesSystemMemoryForSoftwareEncoding) {
   EXPECT_FALSE(wl::use_vram_capture(platf::mem_type_e::system));
 }
 
-TEST(WaylandCaptureTest, UsesVramForCudaOnlyWhenCudaSupportIsBuilt) {
+TEST(WaylandCaptureTest, UsesVramForCudaOnlyWhenCaptureNodeMatchesCudaPci) {
   #ifdef SUNSHINE_BUILD_CUDA
-  EXPECT_TRUE(wl::use_vram_capture(platf::mem_type_e::cuda));
+  const wl::render_node_pci_reader_t render_reader = [](const std::string &) {
+    return std::optional<std::string> {"0000:0f:00.0"};
+  };
+  const wl::cuda_device_pci_reader_t matching_cuda_reader = [](int) {
+    return std::optional<std::string> {"00000000:0F:00.0"};
+  };
+  const wl::cuda_device_pci_reader_t other_cuda_reader = [](int) {
+    return std::optional<std::string> {"00000000:0E:00.0"};
+  };
+  EXPECT_TRUE(wl::use_vram_capture(platf::mem_type_e::cuda, render_reader, matching_cuda_reader));
+  EXPECT_FALSE(wl::use_vram_capture(platf::mem_type_e::cuda, render_reader, other_cuda_reader));
   #else
   EXPECT_FALSE(wl::use_vram_capture(platf::mem_type_e::cuda));
   #endif
+}
+
+TEST(WaylandCaptureTest, ParsesCudaAndSysfsPciBusIds) {
+  const auto cuda_form = wl::parse_pci_bus_id("00000000:0F:00.0");
+  const auto short_cuda_form = wl::parse_pci_bus_id("0000:0F:00.0");
+  const auto sysfs_form = wl::parse_pci_bus_id("0000:0f:00.0");
+  ASSERT_TRUE(cuda_form.has_value());
+  ASSERT_TRUE(short_cuda_form.has_value());
+  ASSERT_TRUE(sysfs_form.has_value());
+  EXPECT_EQ(*cuda_form, *sysfs_form);
+  EXPECT_EQ(*short_cuda_form, *sysfs_form);
+  EXPECT_EQ(cuda_form->domain, 0u);
+  EXPECT_EQ(cuda_form->bus, 0x0fu);
+  EXPECT_EQ(cuda_form->device, 0x00u);
+  EXPECT_EQ(cuda_form->function, 0u);
+}
+
+TEST(WaylandCaptureTest, RejectsMalformedPciBusIds) {
+  for (const char *bus_id : {"", "0000:0f:00", "0000:0f:00.0:1", "0000:0f:00.8", "0000:0f:00.0 ", "pci:0000:0f:00.0", "0000:0g:00.0", "0x10de"}) {
+    EXPECT_FALSE(wl::parse_pci_bus_id(bus_id).has_value()) << bus_id;
+  }
+}
+
+TEST(WaylandCaptureTest, FallsBackToRamBridgeWhenPciIsUnprovable) {
+  const wl::render_node_pci_reader_t render_reader = [](const std::string &) {
+    return std::optional<std::string> {"0000:0f:00.0"};
+  };
+  const wl::render_node_pci_reader_t missing_render_reader = [](const std::string &) {
+    return std::optional<std::string> {};
+  };
+  const wl::cuda_device_pci_reader_t cuda_reader = [](int) {
+    return std::optional<std::string> {"00000000:0F:00.0"};
+  };
+  const wl::cuda_device_pci_reader_t missing_cuda_reader = [](int) {
+    return std::optional<std::string> {};
+  };
+  EXPECT_FALSE(wl::capture_node_is_cuda_device(missing_render_reader, cuda_reader));
+  EXPECT_FALSE(wl::capture_node_is_cuda_device(render_reader, missing_cuda_reader));
+  EXPECT_FALSE(wl::capture_node_is_cuda_device(missing_render_reader, missing_cuda_reader));
+  #ifdef SUNSHINE_BUILD_CUDA
+  EXPECT_FALSE(wl::use_vram_capture(platf::mem_type_e::cuda, missing_render_reader, cuda_reader));
+  EXPECT_FALSE(wl::use_vram_capture(platf::mem_type_e::cuda, render_reader, missing_cuda_reader));
+  #endif
+}
+
+TEST(WaylandCaptureTest, ResolvesRenderNodeAliasBeforePciLookup) {
+  const wl::render_path_resolver_t fake_resolver = [](const std::string &) {
+    return "/dev/dri/renderD128";
+  };
+  std::string observed_path;
+  const wl::render_node_pci_reader_t recording_reader = [&observed_path](std::string_view render_path) {
+    observed_path = render_path;
+    return std::optional<std::string> {"0000:0f:00.0"};
+  };
+  const wl::cuda_device_pci_reader_t cuda_reader = [](int) {
+    return std::optional<std::string> {"00000000:0F:00.0"};
+  };
+  EXPECT_TRUE(wl::capture_node_is_cuda_device(recording_reader, cuda_reader, fake_resolver));
+  EXPECT_EQ(observed_path, "/dev/dri/renderD128");
+}
+
+TEST(WaylandLinearCopyTest, SkipsLinearAttemptUnlessAdvertised) {
+  const std::vector<std::uint64_t> without_linear {0x100000000000004};
+  const std::vector<std::uint64_t> with_linear {0x100000000000004, DRM_FORMAT_MOD_LINEAR};
+  EXPECT_FALSE(wl::should_attempt_linear_copy(false, with_linear));
+  EXPECT_FALSE(wl::should_attempt_linear_copy(true, without_linear));
+  EXPECT_FALSE(wl::should_attempt_linear_copy(true, {}));
+  EXPECT_TRUE(wl::should_attempt_linear_copy(true, with_linear));
+}
+
+/**
+ * @brief Test fixture for DRM render-node path resolution.
+ */
+class WaylandResolvePathTest: public BaseTest {
+protected:
+  /**
+   * @brief Create an empty directory for the current test.
+   */
+  void SetUp() override {
+    BaseTest::SetUp();
+    std::filesystem::remove_all(test_dir);
+    std::filesystem::create_directories(test_dir);
+  }
+
+  /**
+   * @brief Remove files created by the current test.
+   */
+  void TearDown() override {
+    std::filesystem::remove_all(test_dir);
+    BaseTest::TearDown();
+  }
+
+  const std::filesystem::path test_dir {std::filesystem::path {SUNSHINE_TEST_BIN_DIR} / "wayland_resolve_path_tests"};  ///< Directory containing resolve-path test files.
+};
+
+TEST_F(WaylandResolvePathTest, FollowsSymlinkedAliasToTarget) {
+  std::error_code ec;
+  const auto dir = std::filesystem::weakly_canonical(test_dir, ec);
+  ASSERT_FALSE(ec);
+  const auto target = dir / "renderD128";
+  const auto alias = dir / "by-path" / "pci-0000:00:02.0-render";
+  std::filesystem::create_directories(alias.parent_path(), ec);
+  ASSERT_FALSE(ec) << ec.message();
+  {
+    std::ofstream out {target};
+    ASSERT_TRUE(out.good());
+  }
+  std::filesystem::remove(alias, ec);
+  std::filesystem::create_symlink(target, alias, ec);
+  ASSERT_FALSE(ec) << ec.message();
+  EXPECT_EQ(wl::resolve_drm_node_path(alias.string()), target.string());
+}
+
+TEST_F(WaylandResolvePathTest, FallsBackToVerbatimPath) {
+  std::error_code ec;
+  const auto dir = std::filesystem::weakly_canonical(test_dir, ec);
+  ASSERT_FALSE(ec);
+  const auto missing = dir / "renderD999";
+  EXPECT_EQ(wl::resolve_drm_node_path(missing.string()), missing.string());
+
+  const auto dangling_target = dir / "no-such-target";
+  const auto dangling_link = dir / "by-path" / "pci-0000:00:02.0-render";
+  std::filesystem::create_directories(dangling_link.parent_path(), ec);
+  ASSERT_FALSE(ec) << ec.message();
+  std::filesystem::remove(dangling_link, ec);
+  std::filesystem::create_symlink(dangling_target, dangling_link, ec);
+  ASSERT_FALSE(ec) << ec.message();
+  EXPECT_EQ(wl::resolve_drm_node_path(dangling_link.string()), dangling_link.string());
+}
+
+TEST_F(WaylandResolvePathTest, FallsBackToVerbatimPathOnSymlinkLoop) {
+  std::error_code ec;
+  const auto dir = std::filesystem::weakly_canonical(test_dir, ec);
+  ASSERT_FALSE(ec);
+  // A symlink pointing at itself cannot be canonicalized (ELOOP), forcing the error_code path.
+  const auto loop = dir / "self-loop";
+  std::filesystem::remove(loop, ec);
+  std::filesystem::create_symlink(loop, loop, ec);
+  ASSERT_FALSE(ec) << ec.message();
+  EXPECT_EQ(wl::resolve_drm_node_path(loop.string()), loop.string());
 }
 
 TEST(WaylandInterfaceTest, RecordsOnlyExplicitDmabufModifiers) {
