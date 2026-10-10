@@ -8,7 +8,9 @@
   #include <cerrno>
   #include <chrono>
   #include <cstdint>
+  #include <cstdio>
   #include <filesystem>
+  #include <format>
   #include <fstream>
   #include <optional>
   #include <string>
@@ -20,12 +22,16 @@
   #include <drm_fourcc.h>
   #include <fcntl.h>
   #include <unistd.h>
+  #include <xf86drm.h>
 
   // test includes
   #include "../../../tests_common.h"
 
   // local includes
   #include <src/platform/linux/wayland.h>
+  #ifdef SUNSHINE_BUILD_CUDA
+    #include <src/platform/linux/cuda.h>
+  #endif
 
 namespace {
   struct fake_gbm_bo_t {
@@ -717,5 +723,374 @@ TEST(WaylandGbmDeviceTest, DestructorClosesRenderNodeDescriptor) {
   EXPECT_EQ(fake_destroyed_devices(), 1);
   EXPECT_FALSE(descriptor_is_open(fd));
 }
+
+namespace {
+  /**
+   * @brief Scripted answer for query_fake_drm_device().
+   */
+  struct fake_drm_query_t {
+    int result = 0;
+    drmDevice *device = nullptr;
+  };
+
+  /**
+   * @brief Scripted answer returned by query_fake_drm_device() (reset per test).
+   */
+  fake_drm_query_t &fake_drm_query() {
+    static fake_drm_query_t query;
+    return query;
+  }
+
+  /**
+   * @brief Count of query_fake_drm_device() calls (reset per test).
+   */
+  int &drm_get_device_calls() {
+    static int count = 0;
+    return count;
+  }
+
+  /**
+   * @brief Count of free_fake_drm_device() calls (reset per test).
+   */
+  int &drm_free_device_calls() {
+    static int count = 0;
+    return count;
+  }
+
+  /**
+   * @brief Fake PCI bus info backing query_fake_drm_device() (reset per test).
+   */
+  drmPciBusInfo &fake_pci_bus_info() {
+    static drmPciBusInfo bus_info {};
+    return bus_info;
+  }
+
+  /**
+   * @brief Fake DRM device backing query_fake_drm_device() (reset per test).
+   */
+  drmDevice &fake_drm_device() {
+    static drmDevice device {};
+    return device;
+  }
+
+  int query_fake_drm_device(int, std::uint32_t, _drmDevice **device) {
+    ++drm_get_device_calls();
+    *device = fake_drm_query().device;
+    return fake_drm_query().result;
+  }
+
+  void free_fake_drm_device(_drmDevice **device) {
+    ++drm_free_device_calls();
+    if (device) {
+      *device = nullptr;
+    }
+  }
+
+  /**
+   * @brief Reset the fake DRM query state before a PCI reader test.
+   */
+  void reset_drm_pci_fakes() {
+    drm_get_device_calls() = 0;
+    drm_free_device_calls() = 0;
+    last_fake_render_node() = -1;
+    fake_pci_bus_info() = drmPciBusInfo {};
+    fake_drm_device() = drmDevice {};
+    fake_drm_query() = fake_drm_query_t {};
+  }
+}  // namespace
+
+TEST(WaylandPciReaderTest, ReturnsFormattedPciIdentityOnSuccess) {
+  reset_drm_pci_fakes();
+  fake_pci_bus_info() = drmPciBusInfo {.domain = 0x00a5, .bus = 0x0f, .dev = 0xa0, .func = 0x1};
+  fake_drm_device().bustype = DRM_BUS_PCI;
+  fake_drm_device().businfo.pci = &fake_pci_bus_info();
+  fake_drm_query() = {.result = 0, .device = &fake_drm_device()};
+  const wl::drm_device_accessors_t accessors {
+    .open_render_node = open_fake_render_node,
+    .get_device = query_fake_drm_device,
+    .free_device = free_fake_drm_device,
+  };
+
+  const auto bus_id = wl::render_node_pci_bus_id("/dev/dri/renderD128", accessors);
+
+  ASSERT_TRUE(bus_id.has_value());
+  EXPECT_EQ(*bus_id, "00a5:0f:a0.1");
+  EXPECT_EQ(drm_get_device_calls(), 1);
+  EXPECT_EQ(drm_free_device_calls(), 1);
+  const int fd = last_fake_render_node();
+  ASSERT_GE(fd, 0);
+  EXPECT_FALSE(descriptor_is_open(fd));
+}
+
+TEST(WaylandPciReaderTest, ReturnsNoPciIdentityWhenRenderNodeCannotOpen) {
+  reset_drm_pci_fakes();
+  const wl::drm_device_accessors_t accessors {
+    .open_render_node = fail_to_open_render_node,
+    .get_device = query_fake_drm_device,
+    .free_device = free_fake_drm_device,
+  };
+
+  EXPECT_FALSE(wl::render_node_pci_bus_id("/dev/dri/renderD128", accessors).has_value());
+  EXPECT_EQ(drm_get_device_calls(), 0);
+  EXPECT_EQ(drm_free_device_calls(), 0);
+}
+
+TEST(WaylandPciReaderTest, ReturnsNoPciIdentityWhenDrmQueryFails) {
+  reset_drm_pci_fakes();
+  fake_drm_query() = {.result = -1, .device = nullptr};
+  const wl::drm_device_accessors_t accessors {
+    .open_render_node = open_fake_render_node,
+    .get_device = query_fake_drm_device,
+    .free_device = free_fake_drm_device,
+  };
+
+  EXPECT_FALSE(wl::render_node_pci_bus_id("/dev/dri/renderD128", accessors).has_value());
+  EXPECT_EQ(drm_get_device_calls(), 1);
+  EXPECT_EQ(drm_free_device_calls(), 0);
+  const int fd = last_fake_render_node();
+  ASSERT_GE(fd, 0);
+  EXPECT_FALSE(descriptor_is_open(fd));
+}
+
+TEST(WaylandPciReaderTest, ReturnsNoPciIdentityWhenDeviceIsMissing) {
+  reset_drm_pci_fakes();
+  fake_drm_query() = {.result = 0, .device = nullptr};
+  const wl::drm_device_accessors_t accessors {
+    .open_render_node = open_fake_render_node,
+    .get_device = query_fake_drm_device,
+    .free_device = free_fake_drm_device,
+  };
+
+  EXPECT_FALSE(wl::render_node_pci_bus_id("/dev/dri/renderD128", accessors).has_value());
+  EXPECT_EQ(drm_free_device_calls(), 0);
+  const int fd = last_fake_render_node();
+  ASSERT_GE(fd, 0);
+  EXPECT_FALSE(descriptor_is_open(fd));
+}
+
+TEST(WaylandPciReaderTest, ReturnsNoPciIdentityForNonPciDevice) {
+  reset_drm_pci_fakes();
+  fake_drm_device().bustype = DRM_BUS_PLATFORM;
+  fake_drm_query() = {.result = 0, .device = &fake_drm_device()};
+  const wl::drm_device_accessors_t accessors {
+    .open_render_node = open_fake_render_node,
+    .get_device = query_fake_drm_device,
+    .free_device = free_fake_drm_device,
+  };
+
+  EXPECT_FALSE(wl::render_node_pci_bus_id("/dev/dri/renderD128", accessors).has_value());
+  EXPECT_EQ(drm_free_device_calls(), 1);
+  const int fd = last_fake_render_node();
+  ASSERT_GE(fd, 0);
+  EXPECT_FALSE(descriptor_is_open(fd));
+}
+
+TEST(WaylandPciReaderTest, ReturnsNoPciIdentityWhenPciBusInfoMissing) {
+  reset_drm_pci_fakes();
+  fake_drm_device().bustype = DRM_BUS_PCI;
+  fake_drm_device().businfo.pci = nullptr;
+  fake_drm_query() = {.result = 0, .device = &fake_drm_device()};
+  const wl::drm_device_accessors_t accessors {
+    .open_render_node = open_fake_render_node,
+    .get_device = query_fake_drm_device,
+    .free_device = free_fake_drm_device,
+  };
+
+  EXPECT_FALSE(wl::render_node_pci_bus_id("/dev/dri/renderD128", accessors).has_value());
+  EXPECT_EQ(drm_free_device_calls(), 1);
+  const int fd = last_fake_render_node();
+  ASSERT_GE(fd, 0);
+  EXPECT_FALSE(descriptor_is_open(fd));
+}
+
+  #ifdef SUNSHINE_BUILD_CUDA
+namespace {
+  /**
+   * @brief Whether the fake CUDA function table counts as loaded (reset per test).
+   */
+  bool &fake_cuda_initialized() {
+    static bool initialized = true;
+    return initialized;
+  }
+
+  /**
+   * @brief Count of fake_cuda_initialize() calls (reset per test).
+   */
+  int &cuda_initialize_calls() {
+    static int count = 0;
+    return count;
+  }
+
+  /**
+   * @brief Result returned by fake_cuda_initialize() (reset per test).
+   */
+  int &cuda_initialize_result() {
+    static int result = 0;
+    return result;
+  }
+
+  /**
+   * @brief Count of fake_cuda_get_device() calls (reset per test).
+   */
+  int &cuda_get_device_calls() {
+    static int count = 0;
+    return count;
+  }
+
+  /**
+   * @brief Result returned by fake_cuda_get_device() (reset per test).
+   */
+  CUresult &cuda_get_device_result() {
+    static CUresult result = CUDA_SUCCESS;
+    return result;
+  }
+
+  /**
+   * @brief Count of fake_cuda_get_pci_bus_id() calls (reset per test).
+   */
+  int &cuda_get_pci_bus_id_calls() {
+    static int count = 0;
+    return count;
+  }
+
+  /**
+   * @brief Result returned by fake_cuda_get_pci_bus_id() (reset per test).
+   */
+  CUresult &cuda_get_pci_bus_id_result() {
+    static CUresult result = CUDA_SUCCESS;
+    return result;
+  }
+
+  /**
+   * @brief Bus id text written by fake_cuda_get_pci_bus_id() (reset per test).
+   */
+  std::string &cuda_fake_bus_id() {
+    static std::string bus_id;
+    return bus_id;
+  }
+
+  /**
+   * @brief Device handle observed by fake_cuda_get_pci_bus_id() (reset per test).
+   */
+  CUdevice &cuda_seen_device() {
+    static CUdevice device = 0;
+    return device;
+  }
+
+  bool fake_cuda_is_initialized() {
+    return fake_cuda_initialized();
+  }
+
+  int fake_cuda_initialize() {
+    ++cuda_initialize_calls();
+    return cuda_initialize_result();
+  }
+
+  CUresult fake_cuda_get_device(CUdevice *device, int) {
+    ++cuda_get_device_calls();
+    if (device) {
+      *device = 7;
+    }
+    return cuda_get_device_result();
+  }
+
+  CUresult fake_cuda_get_pci_bus_id(char *pci_bus_id, int len, CUdevice device) {
+    ++cuda_get_pci_bus_id_calls();
+    cuda_seen_device() = device;
+    if (cuda_get_pci_bus_id_result() == CUDA_SUCCESS && pci_bus_id != nullptr && len > 0) {
+      const auto end = std::format_to_n(pci_bus_id, len - 1, "{}", cuda_fake_bus_id()).out;
+      *end = '\0';
+    }
+    return cuda_get_pci_bus_id_result();
+  }
+
+  const cuda::cuda_pci_accessors_t fake_cuda_pci_accessors {
+    .is_initialized = fake_cuda_is_initialized,
+    .initialize = fake_cuda_initialize,
+    .get_device = fake_cuda_get_device,
+    .get_pci_bus_id = fake_cuda_get_pci_bus_id,
+  };
+
+  /**
+   * @brief Reset the fake CUDA query state before a PCI reader test.
+   */
+  void reset_cuda_pci_fakes() {
+    fake_cuda_initialized() = true;
+    cuda_initialize_calls() = 0;
+    cuda_initialize_result() = 0;
+    cuda_get_device_calls() = 0;
+    cuda_get_device_result() = CUDA_SUCCESS;
+    cuda_get_pci_bus_id_calls() = 0;
+    cuda_get_pci_bus_id_result() = CUDA_SUCCESS;
+    cuda_fake_bus_id().clear();
+    cuda_seen_device() = 0;
+  }
+}  // namespace
+
+TEST(CudaPciReaderTest, ReturnsLowercaseBusIdWithoutReinitializing) {
+  reset_cuda_pci_fakes();
+  cuda_fake_bus_id() = "00000000:0F:00.0";
+
+  const auto bus_id = cuda::device_pci_bus_id(0, fake_cuda_pci_accessors);
+
+  ASSERT_TRUE(bus_id.has_value());
+  EXPECT_EQ(*bus_id, "00000000:0f:00.0");
+  EXPECT_EQ(cuda_initialize_calls(), 0);
+  EXPECT_EQ(cuda_get_device_calls(), 1);
+  EXPECT_EQ(cuda_get_pci_bus_id_calls(), 1);
+  EXPECT_EQ(cuda_seen_device(), 7);
+}
+
+TEST(CudaPciReaderTest, ReturnsShortBusIdLowercased) {
+  reset_cuda_pci_fakes();
+  cuda_fake_bus_id() = "0000:0F:00.0";
+
+  const auto bus_id = cuda::device_pci_bus_id(0, fake_cuda_pci_accessors);
+
+  ASSERT_TRUE(bus_id.has_value());
+  EXPECT_EQ(*bus_id, "0000:0f:00.0");
+}
+
+TEST(CudaPciReaderTest, InitializesUninitializedFunctionTable) {
+  reset_cuda_pci_fakes();
+  fake_cuda_initialized() = false;
+  cuda_fake_bus_id() = "0000:0F:00.0";
+
+  const auto bus_id = cuda::device_pci_bus_id(0, fake_cuda_pci_accessors);
+
+  ASSERT_TRUE(bus_id.has_value());
+  EXPECT_EQ(*bus_id, "0000:0f:00.0");
+  EXPECT_EQ(cuda_initialize_calls(), 1);
+  EXPECT_EQ(cuda_get_device_calls(), 1);
+}
+
+TEST(CudaPciReaderTest, ReturnsNoBusIdWhenInitFails) {
+  reset_cuda_pci_fakes();
+  fake_cuda_initialized() = false;
+  cuda_initialize_result() = -1;
+
+  EXPECT_FALSE(cuda::device_pci_bus_id(0, fake_cuda_pci_accessors).has_value());
+  EXPECT_EQ(cuda_initialize_calls(), 1);
+  EXPECT_EQ(cuda_get_device_calls(), 0);
+  EXPECT_EQ(cuda_get_pci_bus_id_calls(), 0);
+}
+
+TEST(CudaPciReaderTest, ReturnsNoBusIdWhenDeviceQueryFails) {
+  reset_cuda_pci_fakes();
+  cuda_get_device_result() = CUDA_ERROR_UNKNOWN;
+
+  EXPECT_FALSE(cuda::device_pci_bus_id(0, fake_cuda_pci_accessors).has_value());
+  EXPECT_EQ(cuda_get_device_calls(), 1);
+  EXPECT_EQ(cuda_get_pci_bus_id_calls(), 0);
+}
+
+TEST(CudaPciReaderTest, ReturnsNoBusIdWhenBusIdQueryFails) {
+  reset_cuda_pci_fakes();
+  cuda_get_pci_bus_id_result() = CUDA_ERROR_UNKNOWN;
+
+  EXPECT_FALSE(cuda::device_pci_bus_id(0, fake_cuda_pci_accessors).has_value());
+  EXPECT_EQ(cuda_get_pci_bus_id_calls(), 1);
+}
+  #endif
 
 #endif

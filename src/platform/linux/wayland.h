@@ -33,6 +33,7 @@
 
 struct gbm_bo;
 struct gbm_device;
+struct _drmDevice;
 
 namespace wl {
   /**
@@ -97,12 +98,30 @@ namespace wl {
   std::optional<pci_bus_id> parse_pci_bus_id(std::string_view bus_id);
 
   /**
+   * @brief Functions used to query the PCI identity of a DRM render node.
+   */
+  struct drm_device_accessors_t {
+    int (*open_render_node)(const char *path);  ///< Open the render node and return its descriptor, or -1.
+    int (*get_device)(int fd, std::uint32_t flags, _drmDevice **device);  ///< Query the DRM device, returning 0 on success.
+    void (*free_device)(_drmDevice **device);  ///< Release a DRM device returned by the query.
+  };
+
+  /**
    * @brief Query the PCI bus id of a DRM render node from its device.
    *
    * @param render_path Render node path to query.
    * @return Bus id text, or no value when the node cannot be opened or is not a PCI device.
    */
   std::optional<std::string> render_node_pci_bus_id(const std::string &render_path);
+
+  /**
+   * @brief Query the PCI bus id of a DRM render node with injected device operations.
+   *
+   * @param render_path Render node path to query.
+   * @param accessors Device operations used to open and query the node.
+   * @return Bus id text, or no value when the node cannot be opened or is not a PCI device.
+   */
+  std::optional<std::string> render_node_pci_bus_id(const std::string &render_path, const drm_device_accessors_t &accessors);
 
   /**
    * @brief Check whether the capture render node is the CUDA encode device.

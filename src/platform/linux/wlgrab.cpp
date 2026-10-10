@@ -33,6 +33,18 @@ namespace wl {
   static int env_width;
   static int env_height;
 
+  namespace {
+    int open_render_node_read_only(const char *path) {
+      return open(path, O_RDONLY | O_CLOEXEC);
+    }
+
+    const drm_device_accessors_t drm_device_accessors {
+      .open_render_node = open_render_node_read_only,
+      .get_device = drmGetDevice2,
+      .free_device = drmFreeDevice,
+    };
+  }  // namespace
+
   /**
    * @brief Resolve a DRM render node path, following udev by-path aliases.
    */
@@ -87,23 +99,27 @@ namespace wl {
   }
 
   std::optional<std::string> render_node_pci_bus_id(const std::string &render_path) {
-    const int fd = open(render_path.c_str(), O_RDONLY | O_CLOEXEC);
+    return render_node_pci_bus_id(render_path, drm_device_accessors);
+  }
+
+  std::optional<std::string> render_node_pci_bus_id(const std::string &render_path, const drm_device_accessors_t &accessors) {
+    const int fd = accessors.open_render_node(render_path.c_str());
     if (fd < 0) {
       return std::nullopt;
     }
     drmDevicePtr device {};
-    const int status = drmGetDevice2(fd, 0, &device);
+    const int status = accessors.get_device(fd, 0, &device);
     close(fd);
     if (status != 0 || !device) {
       return std::nullopt;
     }
     if (device->bustype != DRM_BUS_PCI || !device->businfo.pci) {
-      drmFreeDevice(&device);
+      accessors.free_device(&device);
       return std::nullopt;
     }
     const auto pci = device->businfo.pci;
     std::string bus_id = std::format("{:04x}:{:02x}:{:02x}.{:x}", pci->domain, pci->bus, pci->dev, pci->func);
-    drmFreeDevice(&device);
+    accessors.free_device(&device);
     return bus_id;
   }
 
