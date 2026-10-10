@@ -108,7 +108,7 @@ TEST_F(NvhttpAppassetTest, LockedFallback) {
 
 TEST_F(NvhttpAppassetTest, ReadableImage) {
   auto app_image_path = test_assets_dir / "test2.png";
-  std::string image_data = "mock image content";
+  std::string image_data = "\x89PNG\r\n\x1a\nmock image content";
   std::ofstream(app_image_path, std::ios::binary) << image_data;
 
   proc::ctx_t test_app;
