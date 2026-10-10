@@ -65,6 +65,13 @@ namespace portal {
   void clear_saved_token();
 
   /**
+   * @brief Get path of the XDG Portal restore token.
+   *
+   * @return Path of token that may include the session desktop as a suffix (e.g. .gnome, .kde).
+   */
+  std::filesystem::path get_saved_token_path();
+
+  /**
    * @brief Check if the Portal service responds to a DBus Ping within 2 seconds.
    *
    * @return True if the Portal is reachable.
