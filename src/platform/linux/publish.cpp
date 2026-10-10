@@ -551,6 +551,8 @@ namespace platf::publish {
       if (poll_thread.joinable()) {
         poll_thread.join();
       }
+
+      poll.reset();
     }
   };
 
@@ -581,6 +583,16 @@ namespace platf::publish {
       return nullptr;
     }
 
-    return std::make_unique<deinit_t>(std::jthread {avahi::simple_poll_loop, poll.get()});
+    return std::make_unique<deinit_t>(std::jthread {[]() {
+      avahi::simple_poll_loop(poll.get());
+
+      // simple_poll_loop() returns only once publishing has stopped for good: either at
+      // shutdown, or because a failure path called simple_poll_quit(). Nothing services the
+      // client's D-Bus connection past this point, so release it here rather than leave it
+      // open and subscribed until the process exits. The entry group is owned by the client,
+      // so clear it too, otherwise a later start() would reuse a dangling pointer.
+      client.reset();
+      group = nullptr;
+    }});
   }
 }  // namespace platf::publish

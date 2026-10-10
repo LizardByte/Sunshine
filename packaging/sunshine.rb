@@ -5,13 +5,16 @@ class Sunshine < Formula
 
   CUDA_VERSION = "13.1".freeze
   CUDA_FORMULA = "cuda@#{CUDA_VERSION}".freeze
+  COVERAGE_BUILDPATH_FILE = "coverage-buildpath.txt".freeze
   COVERAGE_LCOV = "coverage.lcov".freeze
   COVERAGE_PROFDATA = "coverage.profdata".freeze
   COVERAGE_XML = "coverage.xml".freeze
+  GCOV_PREFIX_STRIP_FILE = "gcov-prefix-strip.txt".freeze
   GCC_VERSION = "14".freeze
   GCC_FORMULA = "gcc@#{GCC_VERSION}".freeze
   LLVM_PROFILE_FILE_ENV = "LLVM_PROFILE_FILE".freeze
   TEST_BINARY = "test_sunshine".freeze
+  TEST_RESULTS_XML = "tests/test_results.xml".freeze
   IS_UPSTREAM_REPO = ENV.fetch("GITHUB_REPOSITORY", "") == "LizardByte/Sunshine"
 
   desc "@PROJECT_DESCRIPTION@"
@@ -47,6 +50,9 @@ class Sunshine < Formula
   option "with-static-boost", "Enable static link of Boost libraries"
   option "without-static-boost", "Disable static link of Boost libraries" # default option
 
+  # Keep coverage instrumentation in the test binary after test-bot rebuilds the formula from its bottle.
+  skip_clean "bin/#{TEST_BINARY}" if IS_UPSTREAM_REPO
+
   depends_on "cmake" => :build
   depends_on "doxygen" => :build if build.with? "docs"
   depends_on "graphviz" => :build if build.with? "docs"
@@ -56,7 +62,7 @@ class Sunshine < Formula
   depends_on "curl"
   depends_on "icu4c@78"
   depends_on "miniupnpc"
-  depends_on "openssl@3"
+  depends_on "openssl@4"
   depends_on "opus"
   depends_on "qtbase"
   depends_on "qtsvg"
@@ -158,19 +164,27 @@ class Sunshine < Formula
     ENV["CXX"] = "#{gcc_path.opt_bin}/g++-#{GCC_VERSION}"
   end
 
+  ## @brief Generate CMake arguments with Homebrew dependency and Linux runtime paths.
+  ## @return CMake command-line arguments.
   def base_cmake_args
     args = %W[
       -DBUILD_WERROR=ON
       -DCMAKE_INSTALL_PREFIX=#{prefix}
       -DGLAD_SKIP_PIP_INSTALL=ON
       -DHOMEBREW_ALLOW_FETCHCONTENT=ON
-      -DOPENSSL_ROOT_DIR=#{formula_opt_prefix("openssl")}
+      -DOPENSSL_ROOT_DIR=#{formula_opt_prefix("openssl@4")}
       -DSUNSHINE_ASSETS_DIR=sunshine/assets
       -DSUNSHINE_BUILD_HOMEBREW=ON
       -DSUNSHINE_PUBLISHER_NAME='LizardByte'
       -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev'
       -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
     ]
+    if OS.linux?
+      # GCC treats Homebrew's lib directory as implicit, so CMake omits its automatic rpath.
+      # Keep curl's indirect dependencies ahead of incompatible system libraries when linking and running.
+      args << "-DCMAKE_BUILD_RPATH=#{HOMEBREW_PREFIX}/lib"
+      args << "-DCMAKE_INSTALL_RPATH=#{HOMEBREW_PREFIX}/lib"
+    end
     args << "-DSUNSHINE_EXECUTABLE_PATH=#{opt_bin}/sunshine" if OS.linux?
     # Point cmake at the venv Python that has jinja2 installed (set up in setup_build_environment)
     args << "-DPython_EXECUTABLE=#{@glad_python}" if @glad_python
@@ -180,7 +194,17 @@ class Sunshine < Formula
   def add_test_args(args)
     if IS_UPSTREAM_REPO
       args << "-DBUILD_TESTS=ON"
-      args << "-DSUNSHINE_LLVM_COVERAGE=ON" if OS.mac?
+      test_runtime = opt_libexec/"tests"
+      args << "-DSUNSHINE_TEST_SOURCE_DIR=#{test_runtime}"
+      args << "-DSUNSHINE_TEST_RUNTIME_DIR=#{test_runtime}"
+      coverage_arg = if OS.mac?
+        "-DSUNSHINE_LLVM_COVERAGE=ON"
+      else
+        # gcovr writes intermediate files next to the mapped sources, so use Homebrew's writable temp tree.
+        coverage_runtime = HOMEBREW_TEMP/"coverage"
+        "-DSUNSHINE_TEST_GCOV_ROOT=#{coverage_runtime}"
+      end
+      args << coverage_arg
       ohai "Building tests: enabled"
     else
       args << "-DBUILD_TESTS=OFF"
@@ -260,7 +284,7 @@ class Sunshine < Formula
 
   def run_test_suite(artifact_dir)
     mkdir_p artifact_dir/"tests"
-    test_results = artifact_dir/"tests/test_results.xml"
+    test_results = artifact_dir/TEST_RESULTS_XML
 
     if OS.mac?
       with_llvm_profile_file(artifact_dir) do
@@ -345,7 +369,7 @@ class Sunshine < Formula
 
   def generate_gcov_coverage_report(coverage_report, coverage_buildpath)
     cd "#{coverage_buildpath}/build" do
-      system "gcovr", ".",
+      system "gcovr", "tests/CMakeFiles/#{TEST_BINARY}.dir/__/src",
         "-r", "../src",
         *coverage_gcov_options,
         *coverage_common_options(coverage_report)
@@ -355,10 +379,9 @@ class Sunshine < Formula
   end
 
   def coverage_source_prefixes(coverage_buildpath)
-    paths = [
-      coverage_buildpath.to_s,
-      Pathname.new(coverage_buildpath.to_s).realpath.to_s,
-    ]
+    coverage_buildpath = Pathname.new(coverage_buildpath.to_s)
+    paths = [coverage_buildpath.to_s]
+    paths << coverage_buildpath.realpath.to_s if coverage_buildpath.exist?
     paths.uniq.map { |path| "#{path}/src/" }
   end
 
@@ -405,8 +428,9 @@ class Sunshine < Formula
     return unless IS_UPSTREAM_REPO
     return unless artifact_dir
 
-    run_test_suite artifact_dir
-    generate_coverage_report artifact_dir, buildpath
+    coverage_buildpath = OS.mac? ? buildpath.realpath : HOMEBREW_TEMP/"coverage"
+    mkdir_p artifact_dir
+    (artifact_dir/COVERAGE_BUILDPATH_FILE).write coverage_buildpath.to_s
   end
 
   def build_cmake_args
@@ -428,7 +452,51 @@ class Sunshine < Formula
   end
 
   def install_platform_specific_files
-    bin.install "build/tests/#{TEST_BINARY}" if IS_UPSTREAM_REPO
+    if IS_UPSTREAM_REPO
+      bin.install "build/tests/#{TEST_BINARY}"
+
+      test_runtime = libexec/"tests"
+      %w[docs src src_assets test_assets].each do |directory|
+        test_runtime.install "build/tests/#{directory}"
+      end
+      boost_test_fixtures = %w[
+        cmake/compile_definitions/macos.cmake
+        cmake/dependencies/Boost_Sunshine.cmake
+        cmake/macros/common.cmake
+        cmake/prep/options.cmake
+        package-lock.cmake
+        packaging/linux/Arch/PKGBUILD
+        packaging/linux/copr/Sunshine.spec
+        packaging/linux/flatpak/modules/boost.json
+        packaging/linux/flatpak/scripts/additional-install.sh
+        scripts/linux_build.sh
+        tests/scripts/test_additional_install.sh
+      ]
+      if OS.mac?
+        boost_test_fixtures += %w[
+          .github/workflows/ci-macos.yml
+          scripts/macos_build.sh
+        ]
+      end
+      boost_test_fixtures.each do |fixture|
+        (test_runtime/Pathname.new(fixture).dirname).install "build/tests/#{fixture}"
+      end
+      test_runtime.install "sunshine.png"
+      (test_runtime/"tests/unit").install "tests/unit/test_video.cpp"
+
+      if OS.linux?
+        coverage_runtime = test_runtime/"coverage"
+        coverage_runtime.install "src"
+        (test_runtime/GCOV_PREFIX_STRIP_FILE).write "#{buildpath.each_filename.count}\n"
+        coverage_notes = buildpath.glob("build/**/*.gcno")
+        odie "No gcov notes were created" if coverage_notes.empty?
+
+        coverage_notes.each do |coverage_note|
+          relative_note = coverage_note.relative_path_from(buildpath)
+          (coverage_runtime/relative_note.dirname).install coverage_note
+        end
+      end
+    end
 
     # codesign the binary on intel macs
     system "codesign", "-s", "-", "--force", "--deep", bin/"sunshine" if OS.mac? && Hardware::CPU.intel?
@@ -448,16 +516,16 @@ class Sunshine < Formula
     name linux: "app-@PROJECT_FQDN@" if OS.linux?
   end
 
-  def post_install
-    if OS.linux?
-      opoo <<~EOS
+  post_install_steps do
+    on_linux do
+      warn <<~EOS
         ATTENTION: To complete installation, you must run the following command:
-        `sudo #{bin}/postinst`
+        `sudo {{bin}}/postinst`
       EOS
     end
 
-    if OS.mac?
-      opoo <<~EOS
+    on_macos do
+      warn <<~EOS
         Gamepads are not currently supported on macOS.
       EOS
     end
@@ -476,11 +544,41 @@ class Sunshine < Formula
     # test that the binary runs at all
     system bin/"sunshine", "--version"
 
+    if OS.linux?
+      assert_path_exists lib/"udev/rules.d/60-sunshine.rules"
+      assert_path_exists lib/"modules-load.d/60-sunshine.conf"
+    end
+
     if IS_UPSTREAM_REPO
       artifact_dir = release_homebrew_testpath
       if artifact_dir
-        assert_path_exists artifact_dir/"tests/test_results.xml"
-        assert_path_exists coverage_report_path(artifact_dir)
+        coverage_buildpath = artifact_dir/COVERAGE_BUILDPATH_FILE
+        test_runtime = opt_libexec/"tests"
+        assert_path_exists coverage_buildpath
+        assert_path_exists bin/TEST_BINARY
+        assert_path_exists test_runtime/"docs/getting_started.md"
+        assert_path_exists test_runtime/"cmake/dependencies/Boost_Sunshine.cmake"
+        assert_path_exists test_runtime/"scripts/macos_build.sh" if OS.mac?
+        assert_path_exists test_runtime/"src/config.cpp"
+        assert_path_exists test_runtime/"src_assets/common/assets/web/public/assets/locale/en.json"
+        assert_path_exists test_runtime/"test_assets/web/images/logo-sunshine.svg"
+        assert_path_exists test_runtime/"tests/unit/test_video.cpp"
+        if OS.linux?
+          assert_path_exists test_runtime/"tests/scripts/test_additional_install.sh"
+          assert_path_exists test_runtime/"packaging/linux/flatpak/scripts/additional-install.sh"
+          assert_path_exists test_runtime/"src_assets/linux/misc/60-sunshine.conf"
+          assert_path_exists test_runtime/"src_assets/linux/misc/60-sunshine.rules"
+          assert_path_exists test_runtime/"coverage/src/config.cpp"
+          assert_path_exists test_runtime/GCOV_PREFIX_STRIP_FILE
+          source_notes = test_runtime.glob("coverage/build/tests/CMakeFiles/#{TEST_BINARY}.dir/__/src/**/*.gcno")
+          assert source_notes.any?, "No installed source gcov notes were found"
+        end
+
+        if (artifact_dir/TEST_RESULTS_XML).exist?
+          assert_path_exists artifact_dir/TEST_RESULTS_XML
+          generate_coverage_report artifact_dir, coverage_buildpath.read.strip
+          assert_path_exists coverage_report_path(artifact_dir)
+        end
       elsif ENV.fetch("HOMEBREW_BOTTLE_BUILD", "false") != "true"
         run_test_suite testpath
         generate_coverage_report testpath, ENV.fetch("HOMEBREW_BUILDPATH", "")
@@ -521,6 +619,19 @@ class Sunshine < Formula
         end_of_record
       LCOV
       assert_equal expected_lcov, lcov_for_source_files(lcov, testpath)
+
+      missing_buildpath = testpath/"missing-buildpath"
+      missing_path_lcov = <<~LCOV
+        SF:#{missing_buildpath}/src/missing.cpp
+        DA:1,1
+        end_of_record
+      LCOV
+      expected_missing_path_lcov = <<~LCOV
+        SF:src/missing.cpp
+        DA:1,1
+        end_of_record
+      LCOV
+      assert_equal expected_missing_path_lcov, lcov_for_source_files(missing_path_lcov, missing_buildpath)
     end
   end
 end

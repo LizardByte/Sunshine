@@ -14,16 +14,3 @@
 
 ## Solus
 [![Solus](https://img.shields.io/badge/dynamic/xml.svg?color=orange&label=Solus&style=for-the-badge&prefix=v&query=%2F%2Ftr%5B%40id%3D%27solus%27%5D%2Ftd%5B3%5D%2Fspan%2Fa&url=https%3A%2F%2Frepology.org%2Fproject%2Fsunshine%2Fversions&logo=solus)](https://dev.getsol.us/source/sunshine)
-
-<div class="section_buttons">
-
-| Previous                      |                                            Next |
-|:------------------------------|------------------------------------------------:|
-| [Docker](../DOCKER_README.md) | [Gamestream Migration](gamestream_migration.md) |
-
-</div>
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

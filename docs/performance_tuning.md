@@ -10,16 +10,3 @@ applies to `amfenc` and `libx264`.
 ## NVIDIA
 
 Enabling *Fast Sync* in Nvidia settings may help reduce latency.
-
-<div class="section_buttons">
-
-| Previous            |          Next |
-|:--------------------|--------------:|
-| [Guides](guides.md) | [API](api.md) |
-
-</div>
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

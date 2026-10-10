@@ -5,16 +5,16 @@
 ### Forgotten Credentials
 If you forgot your credentials to the web UI, try this.
 
-@tabs{
-  @tab{General | ```bash
+@tabs_grouped{linux-package|:|
+  @tab{General |:| ```bash
     sunshine --creds {new-username} {new-password}
     ```
   }
-  @tab{AppImage | ```bash
+  @tab{AppImage |:| ```bash
     ./sunshine.AppImage --creds {new-username} {new-password}
     ```
   }
-  @tab{Flatpak | ```bash
+  @tab{Flatpak |:| ```bash
     flatpak run --command=sunshine dev.lizardbyte.app.Sunshine --creds {new-username} {new-password}
     ```
   }
@@ -26,6 +26,10 @@ If you forgot your credentials to the web UI, try this.
 
 ### Unusual Mouse Behavior
 If you experience unusual mouse behavior, try attaching a physical mouse to the Sunshine host.
+
+For absolute-positioning problems, set **Configuration > Advanced > Log Level** to **Debug** and reproduce the issue.
+Sunshine forwards libvirtualhid diagnostics with a `[libvirtualhid]` prefix, including the streamed display viewport and
+full desktop bounds used for mouse coordinate mapping.
 
 ### Web UI Access
 Can't access the web UI?
@@ -131,7 +135,7 @@ resort suggestion.
 ### Hardware Encoders throttle/drop FPS during high GPU load
 Capture methods (`wlgrab`) or encoders (`nvenc`, `vaapi`) that utilize EGL contexts may exhibit FPS drops
 in conjunction with a Sunshine installation that runs in a sandboxed or reduced permissions state
-(Flatpak, AppImage, or when using Portal capture) due to the lack of active CAP_SYS_NICE process permissions
+(Flatpak, AppImage packages) due to the lack of active CAP_SYS_NICE process permissions
 needed to set up high priority EGL contexts.
 
 To check if you are affected by this issue, look out for this message in your Sunshine log:
@@ -142,12 +146,12 @@ Warning: EGL: context priority set to HIGH but CAP_SYS_NICE capability is missin
 > [!IMPORTANT]
 > Switching to Vulkan encoding should resolve the issue for the majority of configurations, but refer to this
 > table for recommended configurations (especially if Vulkan encoding is not supported on your system):
-> | Desktop Environment | Vulkan Supported? | Recommended Sunshine Install Type | Recommended Capture & Encoder Configuration       |
-> |:--------------------|-------------------|-----------------------------------|--------------------------------------------------:|
-> | KDE Plasma          | Yes               | Any                               | `portal` or `kwin` capture with `vulkan` encoding |
-> | KDE Plasma          | No                | Non-Sandboxed                     | `kwin` capture with `vaapi`/`nvenc` encoding      |
-> | GNOME / other       | Yes               | Any                               | `portal` capture with `vulkan` encoding           |
-> | GNOME / other       | No                | Non-Sandboxed                     | `kms` capture with `vaapi`/`nvenc` encoding       |
+> | Desktop Environment | Vulkan Supported? | Recommended Sunshine Install Type | Recommended Capture & Encoder Configuration              |
+> |:--------------------|-------------------|-----------------------------------|---------------------------------------------------------:|
+> | KDE Plasma          | Yes               | Any                               | `portal` or `kwin` capture with `vulkan` encoding        |
+> | KDE Plasma          | No                | Non-Sandboxed                     | `portal` or `kwin` capture with `vaapi`/`nvenc` encoding |
+> | GNOME / other       | Yes               | Any                               | `portal` capture with `vulkan` encoding                  |
+> | GNOME / other       | No                | Non-Sandboxed                     | `portal` capture with `vaapi`/`nvenc` encoding           |
 
 ### Hardware Encoding fails
 Due to legal concerns, Mesa has disabled hardware decoding and encoding by default.
@@ -170,15 +174,33 @@ If you see the above error in the Sunshine logs, compiling *Mesa* manually may b
 > Other build options are listed in the
 > [meson options](https://gitlab.freedesktop.org/mesa/mesa/-/blob/main/meson_options.txt) file.
 
-### Portal token issues
-Portal capture requires you to manually approve Remote Desktop permissions via an on-screen prompt on the host.
-This creates a portal token which is used to automaticaly reauthorize on subsequent reconnects, but under certain
-circumstances (a Sunshine crash, switching to another desktop environment, or if a monitor hotplug event occurs)
-the portal token may become lost or invalid, necessitating manual re-approval of capture permissions.
+### XDG Portal Capture Permissions
 
-Users of the KDE Plasma desktop can bypass this issue either by switching to `kwin` capture or setting the following
-configuration to enable permanent capture autorization for Sunshine via Portal capture:
-```
+Portal capture requires you to approve Remote Desktop permissions using an on-screen prompt on the host. Sunshine saves the
+resulting restore token so the XDG Desktop Portal can reauthorize capture automatically on subsequent starts.
+
+If a restore token doesn't yet exist or becomes stale (for example, after a Sunshine crash, switching desktop environments,
+changing portal implementations, or changing the monitor associated with the Portal session), Sunshine will attempt to run
+in fallback capture mode. While in this mode, Sunshine will temporarily select another working capture method so that you
+can interact with the Portal Remote Desktop dialog. Once a new restore token is negotiated and saved, Sunshine will
+automatically restart and switch back to Portal capture.
+
+> [!IMPORTANT]
+> If a fallback session cannot be created because no other capture methods are available, you will need to directly
+> interact with the host or use an alternative Remote Desktop connection (e.g. VNC, RDP) to complete setup.
+
+If the saved Portal token is valid but you want to change the monitor associated with Portal capture, open the Web UI,
+open **Troubleshooting**, and select **Reset XDG Portal Capture**. Sunshine deletes the saved token and restarts.
+Approve the Remote Desktop prompt again and select the display to capture when it appears.
+
+> [!TIP]
+> If Sunshine uses a custom configuration directory, you may need to delete the `portal_token` file from the custom
+> directory and restart Sunshine manually in lieu of the Web UI.
+
+Users of the KDE Plasma desktop can bypass manual permission setup either by switching to `kwin` capture or setting
+the following configuration to enable permanent capture authorization for Sunshine via Portal capture:
+
+```bash
 flatpak permission-set kde-authorized remote-desktop dev.lizardbyte.app.Sunshine yes
 ```
 > [!NOTE]
@@ -187,6 +209,18 @@ flatpak permission-set kde-authorized remote-desktop dev.lizardbyte.app.Sunshine
 ### Input not working
 After installation, the `udev` rules need to be reloaded. Our post-install script tries to do this for you
 automatically, but if it fails, you may need to restart your system.
+
+Sunshine recreates virtual gamepad device nodes for each streaming session. Manual `chmod` or `setfacl`
+changes therefore disappear when the client reconnects. Confirm that the installed Sunshine rule contains the
+parent-property import and `libvirtualhid/uhid/*` match, then reload it and reapply it to existing gamepad nodes:
+
+```bash
+grep -R -E 'IMPORT\{parent\}="HID_\*"|ENV\{HID_PHYS\}=="libvirtualhid/uhid/\*"' \
+  /etc/udev/rules.d /usr/lib/udev/rules.d /lib/udev/rules.d 2>/dev/null
+sudo udevadm control --reload-rules
+sudo udevadm trigger --subsystem-match=hidraw
+sudo udevadm trigger --subsystem-match=input
+```
 
 If the input is still not working, you may need to add your user to the `input` group.
 
@@ -276,6 +310,18 @@ Some users have reported stuttering issues when streaming games running within G
 
 ## macOS
 
+### No gamepad detected
+Confirm **Enable Gamepad Input** is on under **Configuration > Input**. Install
+[Virtual HID Broker](https://github.com/LizardByte/libvirtualhid/releases/latest) separately from Sunshine,
+using the macOS installer in its universal DMG. Confirm that `/Applications/VirtualHIDBroker.app` is allowed in
+**System Settings > Privacy & Security > Device Control and Data Access**, and activate a machine license under
+**Troubleshooting > Virtual HID Broker License** in Sunshine. The menu bar **Virtual HID Broker** submenu also
+shows license status and links for license management and downloads. If the broker or license is unavailable, the
+Troubleshooting page shows the broker response. Sunshine can show a startup notice when gamepad input is enabled
+and the broker or license is unavailable. Choose **None** under **Configuration > Input > Gamepad Backend** to disable
+virtual gamepads and that notice without affecting keyboard or mouse input. Reconnect the Moonlight session after choosing
+a different emulated gamepad profile.
+
 ### Dynamic session lookup failed
 If you get this error:
 
@@ -290,21 +336,50 @@ launchctl load -w /Library/LaunchAgents/org.freedesktop.dbus-session.plist
 ## Windows
 
 ### No gamepad detected
-Sunshine uses libvirtualhid for virtual gamepads on Windows. Install the
-[Virtual HID Driver](https://github.com/LizardByte/libvirtualhid/releases/latest) separately for full virtual gamepad
-support. ViGEmBus is detected only as a limited fallback for Xbox 360 and DualShock 4 gamepads when libvirtualhid is
-unavailable. If you use the [ViGEmBus fallback](https://github.com/nefarius/ViGEmBus/releases/latest), you must use
-version 1.17 or newer.
+Sunshine supports two virtual gamepad backends on Windows. You can install the
+[Virtual HID Broker](https://github.com/LizardByte/libvirtualhid/releases/latest) separately as an optional paid upgrade.
+Its Windows package includes a broker service and user-mode driver for a Raw Input keyboard and mouse plus full virtual
+gamepad support. ViGEmBus is a limited alternative for Xbox 360 and DualShock 4 support that has reached end of life. If you use the
+[ViGEmBus fallback](https://github.com/nefarius/ViGEmBus/releases/latest), you must use version 1.17 or newer.
 
-Virtual HID Driver adds Xbox One, Xbox Series, DualSense, Nintendo Switch Pro, and Generic gamepads, plus advanced
+When Virtual HID Broker is used, Sunshine requires libvirtualhid version `2026.914.1218.10` or newer.
+
+Virtual HID Broker adds Xbox One, Xbox Series, DualSense, Nintendo Switch Pro, and Generic gamepads, plus advanced
 controller features such as motion, touchpads, LEDs, and adaptive triggers when supported. Unlike the discontinued
-ViGEmBus project, Virtual HID Driver is actively developed and supported by the LizardByte team.
+ViGEmBus project, Virtual HID Broker is actively developed and supported by the LizardByte team.
 
-An active Virtual HID Driver machine license is required before Sunshine can create libvirtualhid gamepads. Follow
-the warning on the Web UI home page, the startup tray notification, or the **Virtual HID Driver** tray submenu to open
-the license section on the Troubleshooting page, where you can activate a key or follow the purchase link.
+An active paid Virtual HID Broker machine license is required before Sunshine can create driver-backed libvirtualhid
+devices, including gamepads and the Raw Input keyboard and mouse. Use the message on the Web UI home page, the startup
+tray notification, or **Get/Manage License** in the **Virtual HID Broker** tray submenu to open the license section on
+the Troubleshooting page. In **Configuration > Input**, select **All Available Drivers**, only **Virtual HID Broker**, or
+only **ViGEmBus**. Sunshine keeps prompting until this setting is saved, but automatically selects **All Available
+Drivers** when it detects an existing active Virtual HID Broker license. Whenever the Virtual HID Broker license is not
+valid, **All Available Drivers** falls back to a compatible ViGEmBus installation for Xbox 360 and DualShock 4 gamepads
+and to SendInput for keyboard and mouse. Selecting only **ViGEmBus** suppresses Virtual HID Broker startup notifications
+and hides its status and license details from the Troubleshooting page. Selecting **None** disables all virtual
+gamepads and suppresses broker and driver choice notices without affecting keyboard or mouse input.
 
 After installation, it is recommended to restart your computer.
+
+### Games do not detect keyboard input
+With a compatible Virtual HID Broker and active license, Sunshine sends normal key transitions through a real HID
+keyboard so games using Raw Input can receive them. Unicode text input and keys outside the supported HID keyboard
+page continue to use Windows input injection. When the driver-backed keyboard cannot be created because the driver,
+broker, or license is unavailable, libvirtualhid falls back to SendInput.
+
+Check the libvirtualhid driver version and Virtual HID Broker license on the Web UI Troubleshooting page. Sunshine recreates the
+shared keyboard and mouse after a successful license activation, validation, or deactivation, so you do not need to
+restart Sunshine merely to switch between the HID and SendInput paths.
+
+### Games do not detect mouse input
+With a compatible Virtual HID Broker and active license, Sunshine sends relative mouse movement, buttons, and scrolling
+through a real HID device so games using Raw Input can receive them. Absolute positioning still uses Windows input
+injection. When the driver-backed mouse cannot be created, libvirtualhid falls back to SendInput; the Windows cursor may
+still move even though a game that listens only for Raw Input receives nothing.
+
+Check the libvirtualhid driver version and Virtual HID Broker license on the Web UI Troubleshooting page even when controller input
+is disabled. The same live refresh used by the keyboard path also switches the mouse between HID and SendInput without
+requiring a Sunshine restart.
 
 ### Permission denied
 Since Sunshine runs as a service on Windows, it may not have the same level of access that your regular user account
@@ -315,16 +390,3 @@ permissions on the disk.
 
 ### Stuttering
 If you experience stuttering using NVIDIA, try disabling `vsync:fast` in the NVIDIA Control Panel.
-
-<div class="section_buttons">
-
-| Previous      |                    Next |
-|:--------------|------------------------:|
-| [API](api.md) | [Building](building.md) |
-
-</div>
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

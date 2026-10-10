@@ -184,6 +184,29 @@ namespace platf::dxgi {
     using processor_enum_t = util::safe_ptr<ID3D11VideoProcessorEnumerator, Release<ID3D11VideoProcessorEnumerator>>;
   }  // namespace video
 
+  /**
+   * @brief Transfer handling applied by the shaders that convert FP16 captures.
+   */
+  enum class fp16_transfer_e {
+    linear,  ///< Linear scRGB input; apply the sRGB curve.
+    perceptual_quantizer,  ///< Linear scRGB input; encode with the Rec. 2100 PQ curve.
+    gamma_encoded,  ///< Input is already sRGB gamma-encoded; apply no transfer curve.
+  };
+
+  /**
+   * @brief Select the transfer handling for FP16 capture conversion.
+   *
+   * HDR displays use the PQ shaders when the output format has them and the linear shaders otherwise,
+   * regardless of `gamma_encoded_sdr`. SDR displays use the linear shaders unless the
+   * `fp16_sdr_gamma_encoded` option is enabled, in which case no transfer curve is applied.
+   *
+   * @param format Output surface format of the encoder.
+   * @param hdr Whether the display uses an HDR (ST 2084) color space.
+   * @param gamma_encoded_sdr Whether the `fp16_sdr_gamma_encoded` option is enabled.
+   * @return Transfer handling for the FP16 conversion shaders.
+   */
+  fp16_transfer_e select_fp16_transfer(DXGI_FORMAT format, bool hdr, bool gamma_encoded_sdr);
+
   class hwdevice_t;
 
   /**
@@ -362,14 +385,14 @@ namespace platf::dxgi {
       union {
         struct
         {
-          UINT HwSchSupported : 1;
-          UINT HwSchEnabled : 1;
-          UINT HwSchEnabledByDefault : 1;
-          UINT IndependentVidPnVSyncControl : 1;
-          UINT Reserved : 28;
+          UINT HwSchSupported : 1;  ///< Whether hardware-accelerated GPU scheduling is supported.
+          UINT HwSchEnabled : 1;  ///< Whether hardware-accelerated GPU scheduling is enabled.
+          UINT HwSchEnabledByDefault : 1;  ///< Whether hardware scheduling is enabled by default.
+          UINT IndependentVidPnVSyncControl : 1;  ///< Whether independent VidPn VSync control is supported.
+          UINT Reserved : 28;  ///< Reserved capability bits.
         };
 
-        UINT Value;
+        UINT Value;  ///< Packed representation of the WDDM 2.7 capability flags.
       };
     } D3DKMT_WDDM_2_7_CAPS;  ///< Alias for D3 DKMT WDDM 2 7 CAPS.
 
@@ -450,7 +473,7 @@ namespace platf::dxgi {
      *
      * @return Bytes per pixel for the active capture format.
      */
-    int get_pixel_pitch() {
+    int get_pixel_pitch() const {
       return (capture_format == DXGI_FORMAT_R16G16B16A16_FLOAT) ? 8 : 4;
     }
 

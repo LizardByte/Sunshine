@@ -1,0 +1,29 @@
+#!/bin/sh
+
+set_sunshine_capabilities() {
+	if command -v setcap >/dev/null 2>&1; then
+		setcap cap_sys_admin,cap_sys_nice+p /usr/bin/sunshine || \
+			echo "Warning: unable to set capabilities on /usr/bin/sunshine" >&2
+	fi
+}
+
+reload_udev_rules() {
+	if command -v udevadm >/dev/null 2>&1; then
+		udevadm control --reload-rules || true
+		udevadm trigger --property-match=DEVNAME=/dev/uinput || true
+		udevadm trigger --property-match=DEVNAME=/dev/uhid || true
+		udevadm trigger --subsystem-match=hidraw || true
+		udevadm trigger --subsystem-match=input || true
+	fi
+}
+
+load_input_modules() {
+	if command -v modprobe >/dev/null 2>&1; then
+		modprobe uinput || true
+		modprobe uhid || true
+	fi
+}
+
+set_sunshine_capabilities
+reload_udev_rules
+load_input_modules

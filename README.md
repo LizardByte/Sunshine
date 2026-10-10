@@ -9,6 +9,30 @@
 </div>
 
 <div align="center">
+  <!-- Keep whitespace outside the badge links to avoid an underlined gap. -->
+  <!-- Use raw HTML aliases to keep Doxygen's emitted comment delimiters balanced. -->
+  <!--! @htmlonly_start -->
+  <a href="https://www.star-history.com/lizardbyte/sunshine"><picture><source
+    media="(prefers-color-scheme: dark)"
+    srcset="https://api.star-history.com/badge?repo=LizardByte/Sunshine&type=rank&theme=dark"
+  /><source
+    media="(prefers-color-scheme: light)"
+    srcset="https://api.star-history.com/badge?repo=LizardByte/Sunshine&type=rank"
+  /><img
+    alt="Star History Rank"
+    src="https://api.star-history.com/badge?repo=LizardByte/Sunshine&type=rank"
+  /></picture></a>
+  <a href="https://www.star-history.com/lizardbyte/sunshine"><picture><source
+    media="(prefers-color-scheme: dark)"
+    srcset="https://api.star-history.com/badge?repo=LizardByte/Sunshine&type=trending&theme=dark"
+  /><source
+    media="(prefers-color-scheme: light)"
+    srcset="https://api.star-history.com/badge?repo=LizardByte/Sunshine&type=trending"
+  /><img
+    alt="GitHub Trending Repository of the Day"
+    src="https://api.star-history.com/badge?repo=LizardByte/Sunshine&type=trending"
+  /></picture></a><br><br>
+  <!--! @htmlonly_end -->
   <a href="https://github.com/LizardByte/Sunshine"><img src="https://img.shields.io/github/stars/lizardbyte/sunshine.svg?logo=github&style=for-the-badge" alt="GitHub stars"></a>
   <a href="https://github.com/LizardByte/Sunshine/releases/latest"><img src="https://img.shields.io/github/downloads/lizardbyte/sunshine/total.svg?style=for-the-badge&logo=github" alt="GitHub Releases"></a>
   <a href="https://hub.docker.com/r/lizardbyte/sunshine"><img src="https://img.shields.io/docker/pulls/lizardbyte/sunshine.svg?style=for-the-badge&logo=docker" alt="Docker"></a>
@@ -56,55 +80,57 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
         <td>Generic</td>
         <td>🟡<sup>1</sup></td>
         <td>✅</td>
-        <td>❌</td>
-        <td>✅</td>
+        <td>✅<sup>2</sup></td>
+        <td>✅<sup>3</sup></td>
     </tr>
     <tr>
         <td>DualShock / DS4 (PlayStation 4)</td>
         <td>🟡<sup>1</sup></td>
         <td>✅</td>
-        <td>❌</td>
-        <td>✅</td>
+        <td>✅<sup>2</sup></td>
+        <td>✅<sup>3</sup></td>
     </tr>
     <tr>
         <td>DualSense / DS5 (PlayStation 5)</td>
         <td>🟡<sup>1</sup></td>
         <td>✅</td>
-        <td>❌</td>
-        <td>✅</td>
+        <td>✅<sup>2</sup></td>
+        <td>✅<sup>3</sup></td>
     </tr>
     <tr>
         <td>Nintendo Switch Pro</td>
         <td>🟡<sup>1</sup></td>
         <td>✅</td>
-        <td>❌</td>
-        <td>✅</td>
+        <td>✅<sup>2</sup></td>
+        <td>✅<sup>3</sup></td>
     </tr>
     <tr>
         <td>Xbox 360</td>
         <td>🟡<sup>1</sup></td>
         <td>✅</td>
-        <td>❌</td>
-        <td>✅</td>
+        <td>✅<sup>2</sup></td>
+        <td>✅<sup>3</sup></td>
     </tr>
     <tr>
         <td>Xbox One</td>
         <td>🟡<sup>1</sup></td>
         <td>✅</td>
-        <td>❌</td>
-        <td>✅</td>
+        <td>✅<sup>2</sup></td>
+        <td>✅<sup>3</sup></td>
     </tr>
     <tr>
         <td>Xbox Series</td>
         <td>🟡<sup>1</sup></td>
         <td>✅</td>
-        <td>❌</td>
-        <td>✅</td>
+        <td>✅<sup>2</sup></td>
+        <td>✅<sup>3</sup></td>
     </tr>
 </table>
 
 > [!NOTE]
 > <sup>1</sup> Missing motion, touchpad input, battery state, RGB LEDs, adaptive triggers, and raw HID output reports.
+> <sup>2</sup> Requires the separately installed and licensed Virtual HID Broker.
+> <sup>3</sup> All profiles are available through the separately installed and licensed Virtual HID Broker. Xbox 360 and DualShock 4 can also use ViGEmBus.
 
 <table>
     <caption id="encoding_api">Encoding API</caption>
@@ -331,7 +357,7 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
     <tr>
         <td>Wayland (wlroots)</td>
         <td>✅</td>
-        <td>❌</td>
+        <td>✅</td>
         <td>✅</td>
         <td>✅</td>
     </tr>
@@ -521,16 +547,3 @@ Thank you to all the contributors who have helped make Sunshine better!
 <p align="center">
   <img src='https://cdn.jsdelivr.net/gh/LizardByte/contributors@dist/crowdin.606145.svg' alt="CrowdIn contributors"/>
 </p>
-
-<div class="section_buttons">
-
-| Previous |                                       Next |
-|:---------|-------------------------------------------:|
-|          | [Getting Started](docs/getting_started.md) |
-
-</div>
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

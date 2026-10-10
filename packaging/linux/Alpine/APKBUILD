@@ -1,0 +1,166 @@
+# Edit on GitHub: https://github.com/LizardByte/Sunshine/blob/master/packaging/linux/Alpine/APKBUILD
+# Reference: https://wiki.alpinelinux.org/wiki/APKBUILD_Reference
+
+: "${_run_unit_tests:=false}"  # Run the test suite and generate coverage; useful in CI.
+: "${_coverage_dir:=}"  # Copy CI coverage artifacts to this directory when set.
+: "${_source_dir:=}"  # Build an existing checkout instead of cloning; useful in CI.
+: "${_commit:=@GITHUB_COMMIT@}"
+
+pkgname=sunshine
+pkgver=@PROJECT_VERSION@@SUNSHINE_SUB_VERSION@
+pkgrel=0
+pkgdesc="@PROJECT_DESCRIPTION@"
+url="@PROJECT_HOMEPAGE_URL@"
+arch="x86_64 aarch64"
+license="GPL-3.0-only"
+install="$pkgname.post-install $pkgname.post-upgrade"
+options="net"
+
+# Shared-library dependencies are added automatically by abuild. These packages
+# provide runtime tools and Qt platform plugins that ELF dependency scanning
+# cannot discover.
+depends="
+	eudev
+	kmod
+	libcap-utils
+	qt6-qtbase-x11
+	xrandr
+"
+makedepends="
+	appstream
+	appstream-glib
+	build-base
+	cmake
+	curl-dev
+	desktop-file-utils
+	eudev-dev
+	freetype-dev
+	git
+	glib-dev
+	glslang
+	gnutls-dev
+	lame-dev
+	libass-dev
+	libcap-dev
+	libdrm-dev
+	libevdev-dev
+	libtool
+	libva-dev
+	libvorbis-dev
+	libx11-dev
+	libxcb-dev
+	libxfixes-dev
+	libxrandr-dev
+	libxtst-dev
+	linux-headers
+	mesa-dev
+	meson
+	miniupnpc-dev
+	nasm
+	nodejs
+	npm
+	numactl-dev
+	openssl-dev
+	opus-dev
+	pipewire-dev
+	pkgconf
+	pulseaudio-dev
+	py3-jinja2
+	qt6-qtbase-dev
+	qt6-qtsvg-dev
+	samurai
+	sdl2-dev
+	shaderc-dev
+	vulkan-loader-dev
+	wayland-dev
+	zlib-dev
+"
+checkdepends="
+	gcovr
+	imagemagick
+	xvfb-run
+"
+
+case "$_run_unit_tests" in
+	[tT]*) ;;
+	*) options="$options !check" ;;
+esac
+
+if [ -n "$_source_dir" ]; then
+	builddir="$_source_dir"
+else
+	builddir="$srcdir/$pkgname"
+	source="$pkgname::git+@GITHUB_CLONE_URL@#commit=$_commit"
+	sha512sums="SKIP"
+fi
+
+_build_dir="$srcdir/cmake-build-alpine"
+
+prepare() {
+	default_prepare
+	if [ -z "$_source_dir" ]; then
+		git -C "$builddir" submodule update --recursive --init --depth 1
+	fi
+}
+
+build() {
+	export BRANCH="@GITHUB_BRANCH@"
+	export BUILD_VERSION="@BUILD_VERSION@"
+	export COMMIT="$_commit"
+
+	_build_tests=OFF
+	case "$_run_unit_tests" in
+		[tT]*) _build_tests=ON ;;
+	esac
+
+	cmake -S "$builddir" -B "$_build_dir" -G Ninja -Wno-dev \
+		-DBUILD_DOCS=OFF \
+		-DBUILD_TESTS="$_build_tests" \
+		-DBUILD_WERROR=ON \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DFFMPEG_RELEASE_ASSET_NAME="Alpine-$CARCH-ffmpeg.tar.gz" \
+		-DSUNSHINE_ASSETS_DIR=share/sunshine \
+		-DSUNSHINE_ENABLE_CUDA=OFF \
+		-DCUDA_FAIL_ON_MISSING=OFF \
+		-DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
+		-DSUNSHINE_PUBLISHER_NAME=LizardByte \
+		-DSUNSHINE_PUBLISHER_WEBSITE=https://app.lizardbyte.dev \
+		-DSUNSHINE_PUBLISHER_ISSUE_URL=https://app.lizardbyte.dev/support
+
+	appstreamcli validate --no-net "$_build_dir/dev.lizardbyte.app.Sunshine.metainfo.xml"
+	appstream-util validate "$_build_dir/dev.lizardbyte.app.Sunshine.metainfo.xml"
+	desktop-file-validate "$_build_dir/dev.lizardbyte.app.Sunshine.desktop"
+	desktop-file-validate "$_build_dir/dev.lizardbyte.app.Sunshine.terminal.desktop"
+
+	cmake --build "$_build_dir"
+}
+
+check() {
+	cd "$_build_dir/tests"
+	GCOV_EXIT_AT_ERROR=1 xvfb-run -a ./test_sunshine \
+		--gtest_color=yes \
+		--gtest_output=xml:test_results.xml
+
+	cd "$_build_dir"
+	gcovr --gcov-executable gcov . -r "$builddir/src" \
+		--exclude-noncode-lines \
+		--exclude-throw-branches \
+		--exclude-unreachable-branches \
+		--xml-pretty \
+		-o coverage.xml
+
+	if [ -n "$_coverage_dir" ]; then
+		mkdir -p "$_coverage_dir/tests"
+		cp coverage.xml "$_coverage_dir/coverage.xml"
+		cp tests/test_results.xml "$_coverage_dir/tests/test_results.xml"
+	fi
+
+	./sunshine --version
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install "$_build_dir"
+	install -Dm644 "$builddir/src_assets/linux/misc/60-sunshine.conf" \
+		"$pkgdir/etc/modules-load.d/60-sunshine.conf"
+}

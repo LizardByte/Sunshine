@@ -9,6 +9,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
 // lib includes
@@ -35,9 +36,36 @@ namespace platf::virtualhid {
      */
     explicit input_context_t(lvh::BackendKind backend);
 
+    /**
+     * @brief Recreate the shared keyboard using the runtime's current driver and license state.
+     */
+    void refresh_keyboard();
+
+    /**
+     * @brief Recreate the shared mouse using the runtime's current driver and license state.
+     */
+    void refresh_mouse();
+
+    /**
+     * @brief Recreate the shared mouse for a virtual desktop and target viewport.
+     *
+     * @param desktop Full native virtual-desktop bounds.
+     * @param viewport Native bounds of the streamed display.
+     */
+    void refresh_mouse(const lvh::PointerViewport &desktop, const lvh::PointerViewport &viewport);
+
+    /**
+     * @brief Retarget the shared mouse when streamed display geometry changes.
+     *
+     * @param touch_port Desktop and viewport geometry for pointer input.
+     */
+    void update_mouse_viewport(const touch_port_t &touch_port);
+
     std::unique_ptr<lvh::Runtime> runtime;  ///< libvirtualhid runtime.
     std::unique_ptr<lvh::Keyboard> keyboard;  ///< Shared virtual keyboard.
     std::unique_ptr<lvh::Mouse> mouse;  ///< Shared virtual mouse.
+    lvh::PointerViewport mouse_desktop;  ///< Virtual-desktop bounds used to create the shared mouse.
+    lvh::PointerViewport mouse_viewport;  ///< Streamed display bounds used to create the shared mouse.
     std::vector<std::shared_ptr<struct gamepad_context_t>> gamepads {static_cast<std::size_t>(MAX_GAMEPADS)};  ///< Virtual gamepad slots.
   };
 
@@ -95,9 +123,47 @@ namespace platf::virtualhid {
    *
    * @param runtime Runtime to probe.
    * @param fallback_vigem_available Whether Windows ViGEm fallback can create gamepads.
+   * @param virtualhid_licensed Whether the broker has a valid license.
+   * @param require_license Whether this platform requires a broker license for gamepads.
    * @return Supported gamepad choices.
    */
-  std::vector<supported_gamepad_t> supported_gamepads(lvh::Runtime *runtime, bool fallback_vigem_available = false);
+  std::vector<supported_gamepad_t> supported_gamepads(
+    lvh::Runtime *runtime,
+    bool fallback_vigem_available = false,
+    bool virtualhid_licensed = true,
+    bool require_license = false
+  );
+
+  /**
+   * @brief Decide whether a libvirtualhid runtime may create a gamepad.
+   *
+   * @param capabilities Runtime backend capabilities.
+   * @param gamepad_driver Configured Windows virtual gamepad driver policy.
+   * @param virtualhid_licensed Whether the Virtual HID Driver machine license is valid.
+   * @return True when the libvirtualhid runtime should receive gamepad allocations.
+   */
+  bool should_use_gamepad_runtime(
+    const lvh::BackendCapabilities &capabilities,
+    std::string_view gamepad_driver,
+    bool virtualhid_licensed
+  );
+
+  /**
+   * @brief Decide whether ViGEmBus should be tried for a gamepad allocation.
+   *
+   * When Virtual HID Driver is unavailable or deliberately bypassed, ViGEmBus
+   * uses automatic selection for profiles it cannot represent directly.
+   *
+   * @param configured_gamepad Configured virtual gamepad profile.
+   * @param virtualhid_selected Whether Virtual HID Driver was selected for the allocation.
+   * @param gamepad_driver Configured Windows virtual gamepad driver policy.
+   * @return True when Sunshine should attempt the ViGEmBus fallback.
+   */
+  bool should_try_vigembus_fallback(
+    std::string_view configured_gamepad,
+    bool virtualhid_selected,
+    std::string_view gamepad_driver
+  );
 
   /**
    * @brief Allocate a libvirtualhid gamepad.
@@ -191,6 +257,16 @@ namespace platf::virtualhid {
   void move_mouse(input_context_t &context, int delta_x, int delta_y);
 
   /**
+   * @brief Retarget the virtual mouse and move it relatively.
+   *
+   * @param context Input context.
+   * @param touch_port Desktop and streamed-display bounds for the pointer.
+   * @param delta_x Horizontal delta.
+   * @param delta_y Vertical delta.
+   */
+  void move_mouse(input_context_t &context, const touch_port_t &touch_port, int delta_x, int delta_y);
+
+  /**
    * @brief Move the virtual mouse absolutely inside a target touch port.
    *
    * @param context Input context.
@@ -232,8 +308,9 @@ namespace platf::virtualhid {
    * @param modcode Portable key code.
    * @param release Whether the key was released.
    * @param flags Bit flags that modify the requested operation.
+   * @param extended Whether the client positively identified an extended key.
    */
-  void keyboard_update(input_context_t &context, std::uint16_t modcode, bool release, std::uint8_t flags);
+  void keyboard_update(input_context_t &context, std::uint16_t modcode, bool release, std::uint8_t flags, bool extended = false);
 
   /**
    * @brief Submit UTF-8 text input.
@@ -268,5 +345,15 @@ namespace platf::virtualhid {
    * @return True when controller touchpad input should be advertised.
    */
   bool configured_gamepad_supports_touchpad();
+
+  /**
+   * @brief Return whether the configured gamepad profile needs Moonlight controller extensions.
+   *
+   * Moonlight uses the controller-touch feature flag to authorize both controller
+   * touchpad and motion packets.
+   *
+   * @return True when controller touchpad or motion input should be advertised.
+   */
+  bool configured_gamepad_supports_controller_extensions();
 
 }  // namespace platf::virtualhid

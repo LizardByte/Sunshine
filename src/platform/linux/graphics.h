@@ -519,6 +519,11 @@ namespace egl {
   std::optional<ctx_t> make_ctx(display_t::pointer display);
 
   /**
+   * @brief Allows the EGL privileged worker thread to be constructed early.
+   */
+  void ensure_privileged_egl_worker_started();
+
+  /**
    * @brief Import an RGB source surface.
    *
    * @return Imported RGB image, or std::nullopt on failure.

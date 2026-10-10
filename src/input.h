@@ -5,8 +5,13 @@
 #pragma once
 
 // standard includes
+#include <cstddef>
+#include <cstdint>
 #include <functional>
+#include <memory>
+#include <span>
 #include <string_view>
+#include <vector>
 
 // local includes
 #include "platform/common.h"
@@ -63,6 +68,14 @@ namespace input {
   bool probe_gamepads();
 
   /**
+   * @brief Recreate shared libvirtualhid keyboard and mouse devices after a license-state change.
+   *
+   * The work is serialized with streamed input so both backends can switch
+   * safely between the Windows HID and SendInput paths.
+   */
+  void refresh_virtual_input();
+
+  /**
    * @brief Allocate and initialize platform input state for a stream.
    *
    * @param mail Mailbox used to exchange messages with worker threads.
@@ -98,6 +111,93 @@ namespace input {
      * @return Assigned global gamepad slot, or -1 when unallocated.
      */
     int gamepad_id(const std::shared_ptr<input_t> &input, std::uint8_t client_index);
+
+    /**
+     * @brief Install a callback called just before dispatching a queued input packet in a test.
+     * @param hook Callback receiving the packet magic, or empty to remove it.
+     */
+    void set_input_packet_hook(std::function<void(std::uint32_t)> hook);
+
+    /**
+     * @brief Redirect input task scheduling to a test callback.
+     *
+     * @param sink Callback receiving the stream whose packet task was queued, or empty to restore the worker pool.
+     */
+    void set_input_task_sink(std::function<void(std::shared_ptr<input_t>)> sink);
+
+    /**
+     * @brief Process queued input packets on the calling thread in a test.
+     *
+     * @param input Retained stream input state.
+     */
+    void process_queued_messages(std::shared_ptr<input_t> input);
+
+    /**
+     * @brief Keyboard event Sunshine emitted toward the platform backend.
+     */
+    struct keyboard_event_t {
+      std::uint16_t key_code;  ///< Platform keycode after the configured keybinding remap.
+      bool release;  ///< Whether the event releases the key.
+      std::uint8_t flags;  ///< Bit flags carried by the client keyboard packet.
+      bool extended = false;  ///< Whether the client positively identified an extended key.
+    };
+
+    /**
+     * @brief Redirect keyboard output away from the host operating system.
+     *
+     * Tests must install a sink before emitting keys, otherwise the events are typed into the
+     * machine running the test suite.
+     *
+     * @param sink Recorder invoked in place of platf::keyboard_update, or empty to restore
+     *             delivery to the platform backend.
+     */
+    void set_keyboard_sink(std::function<void(const keyboard_event_t &)> sink);
+
+    /**
+     * @brief Process one client keyboard packet on the calling thread.
+     *
+     * @param input Retained input state.
+     * @param key_code Windows virtual-key code sent by the client.
+     * @param modifiers Client modifier bitmask carried by the packet.
+     * @param flags Bit flags carried by the client keyboard packet.
+     * @param release Whether the packet releases the key.
+     */
+    void send_keyboard_packet(std::shared_ptr<input_t> &input, std::uint16_t key_code, std::uint8_t modifiers, std::uint8_t flags, bool release);
+
+    /**
+     * @brief Process one client relative-mouse packet on the calling thread.
+     *
+     * @param input Retained input state.
+     * @param delta_x Horizontal client mouse delta.
+     * @param delta_y Vertical client mouse delta.
+     */
+    void send_relative_mouse_packet(std::shared_ptr<input_t> &input, std::int16_t delta_x, std::int16_t delta_y);
+
+    /**
+     * @brief Forget every key Sunshine tracks as pressed and cancel any pending key repeat.
+     */
+    void reset_keyboard_state();
+
+    /**
+     * @brief Release every key Sunshine tracks as pressed, as a disconnect does.
+     */
+    void release_held_keys();
+
+    /**
+     * @brief Validate raw protocol input bytes for a unit test.
+     *
+     * @param packet Raw packet bytes.
+     * @return True when the packet is safe for typed processing.
+     */
+    bool is_valid_input_packet(std::span<const std::uint8_t> packet);
+
+    /**
+     * @brief Return the number of validated packets waiting in a test input queue.
+     *
+     * @param input Shared stream input state.
+     * @return Number of queued packets, or zero for an empty input pointer.
+     */
+    std::size_t queued_input_packet_count(const std::shared_ptr<input_t> &input);
   }  // namespace testing
 #endif
 

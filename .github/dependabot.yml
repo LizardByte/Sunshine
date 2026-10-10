@@ -9,6 +9,9 @@
 version: 2
 updates:
   - package-ecosystem: "gitsubmodule"
+    cooldown:
+      exclude:
+        - "*"
     directory: "/"
     rebase-strategy: disabled
     schedule:

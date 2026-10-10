@@ -6,9 +6,9 @@
 	path = third-party/build-deps
 	url = https://github.com/LizardByte/build-deps.git
 	branch = master
-[submodule "third-party/doxyconfig"]
-	path = third-party/doxyconfig
-	url = https://github.com/LizardByte/doxyconfig.git
+[submodule "third-party/dockle"]
+	path = third-party/dockle
+	url = https://github.com/LizardByte/dockle.git
 	branch = master
 [submodule "third-party/glad"]
 	path = third-party/glad

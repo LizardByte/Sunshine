@@ -34,6 +34,63 @@ using namespace std::literals;
 
 namespace wl {
 
+  namespace {
+    const gbm_bo_accessors_t gbm_bo_accessors {
+      .get_plane_count = gbm_bo_get_plane_count,
+      .get_fd_for_plane = gbm_bo_get_fd_for_plane,
+      .get_stride_for_plane = gbm_bo_get_stride_for_plane,
+      .get_offset = gbm_bo_get_offset,
+      .get_modifier = gbm_bo_get_modifier,
+    };
+
+    int open_render_node(const char *path) {
+      return open(path, O_RDWR | O_CLOEXEC);
+    }
+
+    const gbm_device_accessors_t gbm_device_accessors {
+      .open_render_node = open_render_node,
+      .create_device = gbm_create_device,
+      .destroy_device = gbm_device_destroy,
+    };
+  }  // namespace
+
+  gbm_device_t::~gbm_device_t() {
+    reset();
+  }
+
+  bool gbm_device_t::init(const std::string &render_path, const gbm_device_accessors_t &accessors) {
+    reset();
+    this->accessors = accessors;
+
+    drm_fd = accessors.open_render_node(render_path.c_str());
+    if (drm_fd < 0) {
+      BOOST_LOG(error) << "[wayland] Failed to open DRM render node: "sv << render_path;
+      return false;
+    }
+
+    device = accessors.create_device(drm_fd);
+    if (!device) {
+      BOOST_LOG(error) << "[wayland] Failed to create GBM device"sv;
+      reset();
+      return false;
+    }
+
+    return true;
+  }
+
+  void gbm_device_t::reset() {
+    if (device) {
+      accessors.destroy_device(device);
+      device = nullptr;
+    }
+
+    // gbm_device_destroy() does not close the descriptor the device was created from
+    if (drm_fd >= 0) {
+      close(drm_fd);
+      drm_fd = -1;
+    }
+  }
+
   // Helper to call C++ method from wayland C callback
   template<class T, class Method, Method m, class... Params>
   static auto classCall(void *data, Params... params) -> decltype(((*reinterpret_cast<T *>(data)).*m)(params...)) {
@@ -117,10 +174,10 @@ namespace wl {
   monitor_t::monitor_t(wl_output *output):
       output {output},
       wl_listener {
-        &CLASS_CALL(monitor_t, wl_geometry),
-        &CLASS_CALL(monitor_t, wl_mode),
-        &CLASS_CALL(monitor_t, wl_done),
-        &CLASS_CALL(monitor_t, wl_scale),
+        .geometry = &CLASS_CALL(monitor_t, wl_geometry),
+        .mode = &CLASS_CALL(monitor_t, wl_mode),
+        .done = &CLASS_CALL(monitor_t, wl_done),
+        .scale = &CLASS_CALL(monitor_t, wl_scale),
       },
       xdg_listener {
         &CLASS_CALL(monitor_t, xdg_position),
@@ -171,6 +228,7 @@ namespace wl {
 
     viewport.width = width;
     viewport.height = height;
+    refresh_mhz = refresh;
   }
 
   void monitor_t::listen(zxdg_output_manager_v1 *output_manager) {
@@ -202,8 +260,10 @@ namespace wl {
   }
 
   void interface_t::dmabuf_modifier(zwp_linux_dmabuf_v1 *zwp_linux_dmabuf, uint32_t format, uint32_t modifier_hi, uint32_t modifier_lo) {
-    uint64_t modifier = ((uint64_t) modifier_hi << 32) | modifier_lo;
-    supported_modifiers[format].push_back(modifier);
+    const auto modifier = (static_cast<std::uint64_t>(modifier_hi) << 32) | modifier_lo;
+    if (modifier != DRM_FORMAT_MOD_INVALID) {
+      supported_modifiers[format].push_back(modifier);
+    }
   }
 
   void interface_t::add_interface(
@@ -229,6 +289,7 @@ namespace wl {
     } else if (!std::strcmp(interface, zwlr_screencopy_manager_v1_interface.name)) {
       BOOST_LOG(info) << "[wayland] Found interface: "sv << interface << '(' << id << ") version "sv << version;
       screencopy_manager = (zwlr_screencopy_manager_v1 *) wl_registry_bind(registry, id, &zwlr_screencopy_manager_v1_interface, version);
+      screencopy_version = version;
 
       this->interface[WLR_EXPORT_DMABUF] = true;
     } else if (!std::strcmp(interface, zwp_linux_dmabuf_v1_interface.name)) {
@@ -246,25 +307,11 @@ namespace wl {
 
   // Initialize GBM
   bool dmabuf_t::init_gbm() {
-    if (gbm_device) {
+    if (gbm) {
       return true;
     }
 
-    auto render_path = platf::resolve_render_device();
-    int drm_fd = open(render_path.c_str(), O_RDWR);
-    if (drm_fd < 0) {
-      BOOST_LOG(error) << "[wayland] Failed to open DRM render node: "sv << render_path;
-      return false;
-    }
-
-    gbm_device = gbm_create_device(drm_fd);
-    if (!gbm_device) {
-      close(drm_fd);
-      BOOST_LOG(error) << "[wayland] Failed to create GBM device"sv;
-      return false;
-    }
-
-    return true;
+    return gbm.init(platf::resolve_render_device(), gbm_device_accessors);
   }
 
   // Cleanup GBM
@@ -278,6 +325,37 @@ namespace wl {
       wl_buffer_destroy(current_wl_buffer);
       current_wl_buffer = nullptr;
     }
+  }
+
+  std::map<std::uint32_t, std::vector<std::uint64_t>> intersect_modifiers(
+    const std::map<std::uint32_t, std::vector<std::uint64_t>> &compositor_modifiers,
+    const std::map<std::uint32_t, std::vector<std::uint64_t>> &encoder_modifiers
+  ) {
+    std::map<std::uint32_t, std::vector<std::uint64_t>> result;
+
+    for (const auto &[format, comp_mods] : compositor_modifiers) {
+      auto it = encoder_modifiers.find(format);
+      if (it == encoder_modifiers.end()) {
+        continue;
+      }
+
+      const auto &enc_mods = it->second;
+      std::vector<std::uint64_t> common;
+
+      for (auto mod : comp_mods) {
+        if (std::find(enc_mods.begin(), enc_mods.end(), mod) != enc_mods.end()) {
+          common.push_back(mod);
+        }
+      }
+
+      if (!common.empty()) {
+        BOOST_LOG(debug) << "[wayland] Format 0x"sv << std::hex << format << std::dec
+                         << " has "sv << common.size() << " common modifiers"sv;
+        result[format] = std::move(common);
+      }
+    }
+
+    return result;
   }
 
   dmabuf_t::dmabuf_t():
@@ -301,10 +379,12 @@ namespace wl {
     zwp_linux_dmabuf_v1 *dmabuf_interface,
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers,
     wl_output *output,
-    bool blend_cursor
+    bool blend_cursor,
+    const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers
   ) {
     this->dmabuf_interface = dmabuf_interface;
     this->supported_modifiers = supported_modifiers;
+    this->encoder_modifiers = encoder_modifiers;
     // Reset state
     shm_info.supported = false;
     dmabuf_info.supported = false;
@@ -332,11 +412,7 @@ namespace wl {
       frame.destroy();
     }
 
-    if (gbm_device) {
-      // We should close the DRM FD, but it's owned by GBM
-      gbm_device_destroy(gbm_device);
-      gbm_device = nullptr;
-    }
+    gbm.reset();
   }
 
   // Buffer format callback
@@ -373,6 +449,31 @@ namespace wl {
     BOOST_LOG(verbose) << "Frame flags: "sv << flags << (y_invert ? " (y_invert)" : "");
   }
 
+  std::optional<std::uint32_t> export_gbm_bo_planes(gbm_bo *bo, frame_t &frame, const gbm_bo_accessors_t &accessors) {
+    frame.destroy();
+
+    const auto plane_count = accessors.get_plane_count(bo);
+    if (plane_count <= 0 || plane_count > static_cast<int>(std::size(frame.sd.fds))) {
+      BOOST_LOG(error) << "[wayland] GBM buffer has unsupported plane count ["sv << plane_count << ']';
+      return std::nullopt;
+    }
+
+    frame.sd.modifier = accessors.get_modifier(bo);
+    for (auto plane = 0; plane < plane_count; ++plane) {
+      frame.sd.fds[plane] = accessors.get_fd_for_plane(bo, plane);
+      if (frame.sd.fds[plane] < 0) {
+        BOOST_LOG(error) << "[wayland] Failed to export DMA-BUF plane ["sv << plane << ']';
+        frame.destroy();
+        return std::nullopt;
+      }
+
+      frame.sd.pitches[plane] = accessors.get_stride_for_plane(bo, plane);
+      frame.sd.offsets[plane] = accessors.get_offset(bo, plane);
+    }
+
+    return static_cast<std::uint32_t>(plane_count);
+  }
+
   // DMA-BUF creation helper
   void dmabuf_t::create_and_copy_dmabuf(zwlr_screencopy_frame_v1 *frame) {
     if (!init_gbm()) {
@@ -382,16 +483,17 @@ namespace wl {
       return;
     }
 
-    // Create GBM buffer
-    if (supported_modifiers) {
-      auto it = supported_modifiers->find(dmabuf_info.format);
-      if (it != supported_modifiers->end() && !it->second.empty()) {
-        current_bo = gbm_bo_create_with_modifiers(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, it->second.data(), it->second.size());
+    // Create GBM buffer - prefer encoder-intersected modifiers when available
+    const std::map<std::uint32_t, std::vector<std::uint64_t>> *modifiers_to_use = encoder_modifiers ? encoder_modifiers : supported_modifiers;
+    if (modifiers_to_use) {
+      auto it = modifiers_to_use->find(dmabuf_info.format);
+      if (it != modifiers_to_use->end() && !it->second.empty()) {
+        current_bo = gbm_bo_create_with_modifiers2(gbm.get(), dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, it->second.data(), it->second.size(), GBM_BO_USE_RENDERING);
       }
     }
 
     if (!current_bo) {
-      current_bo = gbm_bo_create(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, GBM_BO_USE_RENDERING);
+      current_bo = gbm_bo_create(gbm.get(), dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, GBM_BO_USE_RENDERING);
     }
 
     if (!current_bo) {
@@ -401,10 +503,10 @@ namespace wl {
       return;
     }
 
-    // Get buffer info
-    int fd = gbm_bo_get_fd(current_bo);
-    if (fd < 0) {
-      BOOST_LOG(error) << "Failed to get buffer FD"sv;
+    // Export every memory plane into the surface descriptor
+    auto next_frame = get_next_frame();
+    const auto plane_count = export_gbm_bo_planes(current_bo, *next_frame, gbm_bo_accessors);
+    if (!plane_count) {
       gbm_bo_destroy(current_bo);
       current_bo = nullptr;
       zwlr_screencopy_frame_v1_destroy(frame);
@@ -412,19 +514,19 @@ namespace wl {
       return;
     }
 
-    uint32_t stride = gbm_bo_get_stride(current_bo);
-    uint64_t modifier = gbm_bo_get_modifier(current_bo);
-
-    // Store in surface descriptor for later use
-    auto next_frame = get_next_frame();
-    next_frame->sd.fds[0] = fd;
-    next_frame->sd.pitches[0] = stride;
-    next_frame->sd.offsets[0] = 0;
-    next_frame->sd.modifier = modifier;
-
     // Create linux-dmabuf buffer
     auto params = zwp_linux_dmabuf_v1_create_params(dmabuf_interface);
-    zwp_linux_buffer_params_v1_add(params, fd, 0, 0, stride, modifier >> 32, modifier & 0xffffffff);
+    for (std::uint32_t plane = 0; plane < *plane_count; ++plane) {
+      zwp_linux_buffer_params_v1_add(
+        params,
+        next_frame->sd.fds[plane],
+        plane,
+        next_frame->sd.offsets[plane],
+        next_frame->sd.pitches[plane],
+        next_frame->sd.modifier >> 32,
+        next_frame->sd.modifier & 0xffffffff
+      );
+    }
 
     // Add listener for buffer creation
     zwp_linux_buffer_params_v1_add_listener(params, &params_listener, frame);
@@ -472,7 +574,12 @@ namespace wl {
 
     // Start the actual copy
     zwp_linux_buffer_params_v1_destroy(params);
-    zwlr_screencopy_frame_v1_copy(frame, buffer);
+    if (self->with_damage) {
+      zwlr_screencopy_frame_v1_copy_with_damage(frame, buffer);
+    } else {
+      zwlr_screencopy_frame_v1_copy(frame, buffer);
+    }
+    self->pending_copy = frame;
   }
 
   // Buffer params failed callback
@@ -485,6 +592,7 @@ namespace wl {
 
     BOOST_LOG(error) << "[wayland] Failed to create buffer from params"sv;
     self->cleanup_gbm();
+    self->get_next_frame()->destroy();
 
     zwp_linux_buffer_params_v1_destroy(params);
     zwlr_screencopy_frame_v1_destroy(frame);
@@ -517,6 +625,7 @@ namespace wl {
     cleanup_gbm();
 
     zwlr_screencopy_frame_v1_destroy(frame);
+    pending_copy = nullptr;
     status = READY;
   }
 
@@ -530,7 +639,24 @@ namespace wl {
     next_frame->destroy();
 
     zwlr_screencopy_frame_v1_destroy(frame);
+    pending_copy = nullptr;
     status = REINIT;
+  }
+
+  bool dmabuf_t::cancel() {
+    if (!pending_copy) {
+      return false;
+    }
+
+    zwlr_screencopy_frame_v1_destroy(pending_copy);
+    pending_copy = nullptr;
+
+    // Same as a failed copy: the buffer the compositor was to fill is not needed anymore
+    cleanup_gbm();
+    get_next_frame()->destroy();
+
+    status = READY;
+    return true;
   }
 
   // Only called if using zwlr_screencopy_frame_v1_copy_with_damage()

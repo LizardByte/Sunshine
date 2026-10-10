@@ -17,6 +17,9 @@
 #import <CoreAudio/AudioHardwareTapping.h>
 #import <CoreAudio/CoreAudio.h>
 
+// standard includes
+#include <functional>
+
 // lib includes
 #include "third-party/TPCircularBuffer/TPCircularBuffer.h"
 
@@ -27,6 +30,27 @@ NS_ASSUME_NONNULL_BEGIN
 @class CATapDescription;
 
 namespace platf {
+  using microphone_permission_callback_t = std::function<void(bool)>;  ///< Completion callback for a microphone permission request.
+  using microphone_permission_request_t = std::function<void(microphone_permission_callback_t)>;  ///< Function that starts a microphone permission request.
+
+  /**
+   * @brief Resolve microphone access from an AVFoundation authorization state.
+   *
+   * @param authorization_status Current authorization state for audio capture.
+   * @param request_access Function used to request access when authorization has not been determined.
+   * @return `true` when microphone access is authorized.
+   */
+  bool request_microphone_permission(AVAuthorizationStatus authorization_status, const microphone_permission_request_t &request_access);
+
+  /**
+   * @brief Ensure Sunshine has permission to capture microphone audio.
+   *
+   * Requests access and waits for the user's response when authorization has not yet been determined.
+   *
+   * @return `true` when microphone access is authorized.
+   */
+  bool request_microphone_permission();
+
   /**
    * @brief Provide captured PCM frames to AudioConverter.
    *

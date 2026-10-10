@@ -1,6 +1,6 @@
 # Configuration
 
-@admonition{ Host authority | @htmlonly
+@admonition{ Host authority |:| @htmlonly
 By providing the host authority (URI + port), you can easily open each configuration option in the config UI.
 <br>
 <script src="configuration.js"></script>
@@ -33,6 +33,21 @@ location by modifying the configuration file.
 
 Although it is recommended to use the configuration UI, it is possible manually configure Sunshine by
 editing the `conf` file in a text editor. Use the examples as reference.
+
+The web UI groups these settings into the sidebar categories documented below. Encoder categories are shown only when
+supported on the current platform.
+
+## Permissions on every platform
+
+Open **Troubleshooting > Permissions** in the Web UI to see required and optional access for the current platform.
+The Home page flags verifiable required access that is missing. Sunshine checks for access granted while it is running
+and restarts once after all verifiable required access is available. On Unix, adding a user to a group takes effect only
+after a new login session; Sunshine cannot detect the new group membership in the existing process.
+
+On Linux and FreeBSD, virtual keyboard, mouse, and gamepad input need read and write access to `/dev/uinput` (Linux
+also checks `/dev/input/uinput`). The Web UI shows setup steps if that access is missing. On Windows, Sunshine checks
+whether its account can list and create files in the `config` directory beside the executable. Windows provides no
+consent prompt for directory ACLs, so the Web UI shows setup steps for correcting access.
 
 ## General
 
@@ -310,14 +325,61 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### gamepad_driver
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Controls which virtual gamepad backend Sunshine may use on Windows and macOS. On Windows, the Web UI and
+            startup notification request a choice while this option is not set. If Sunshine detects an active Virtual
+            HID Broker license on Windows, it automatically sets this option to `all` when it is missing.
+            @warning{ViGEmBus has limited gamepad features, supports only Xbox 360 and DualShock 4 emulation, and has
+            reached end of life. Selecting `vigembus` also suppresses Virtual HID Broker startup notifications.}
+            @note{`all` and `vigembus` apply only to Windows. On macOS, an unset value uses Virtual HID Broker.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            not set
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            gamepad_driver = all
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="4">Choices</td>
+        <td>all</td>
+        <td>Windows only: prefer Virtual HID Broker when it is available and licensed, with ViGEmBus as a limited fallback.</td>
+    </tr>
+    <tr>
+        <td>virtualhid</td>
+        <td>Use Virtual HID Broker for gamepads. An active paid license is required; Windows ViGEmBus fallback is disabled.</td>
+    </tr>
+    <tr>
+        <td>vigembus</td>
+        <td>Windows only: use ViGEmBus for gamepads and hide Virtual HID Broker status and licensing details.</td>
+    </tr>
+    <tr>
+        <td>none</td>
+        <td>Disable virtual gamepads on Windows and macOS without changing keyboard or mouse input. Suppress broker and driver choice notices.</td>
+    </tr>
+</table>
+
 ### gamepad
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
-            The type of gamepad to emulate on the host.
-            @note{This option applies to FreeBSD, Linux, and Windows.}
+            The type of gamepad to emulate on the host. Automatic selection uses the controller type
+            reported by the client. If the type is unknown, Sunshine can select a PlayStation-style
+            controller from reported motion or touchpad support; otherwise it uses an Xbox-style controller.
+            @note{When gamepad_driver is `vigembus` on Windows, only auto, x360, and ds4 are available.}
         </td>
     </tr>
     <tr>
@@ -701,7 +763,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
             for example.
             @tip{See [virtual key codes](https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes)}
             @hint{keybindings needs to have a multiple of two elements.}
-            @note{This option is not available in the UI. A PR would be welcome.}
         </td>
     </tr>
     <tr>
@@ -873,6 +934,40 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td>Example</td>
         <td colspan="2">@code{}
             install_steam_audio_drivers = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### external_audio
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Enables capture-only operation when an external audio router manages application playback.
+            An explicit [audio_sink](#audio_sink) is required; use an endpoint ID when names are ambiguous.
+            Sunshine captures that endpoint directly without changing or restoring Windows default devices
+            or endpoint formats.
+            <br>
+            <br>
+            In this mode, [virtual_sink](#virtual_sink), automatic Steam audio driver installation,
+            and Moonlight's host-playback toggle do not affect routing. Configure local playback and the audio
+            sent to the selected endpoint in your external mixer. If the endpoint is unavailable, audio capture
+            fails rather than falling back to another endpoint. Video streaming can continue without audio.
+            @note{This option is only supported on Windows. Other platforms retain their existing behavior.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            external_audio = enabled
+            audio_sink = My Streaming Mix
             @endcode</td>
     </tr>
 </table>
@@ -1516,15 +1611,16 @@ editing the `conf` file in a text editor. Use the examples as reference.
             and want to restrict Sunshine to a specific one. If not set, Sunshine will bind to all available
             interfaces (0.0.0.0 for IPv4 or :: for IPv6).
             <br><br>
-            <strong>Note:</strong> The address must be valid for the system and must match the address family
-            being used. When using IPv6, you can specify an IPv6 address even with address_family set to "both".
+            <strong>Note:</strong> The address must exist on the host and be compatible with address_family.
+            An IPv4 address works with either "ipv4" or "both"; when used with "both", Sunshine listens only
+            on that IPv4 address. An IPv6 address requires address_family to be set to "both".
         </td>
     </tr>
     <tr>
         <td>Default</td>
-        <td colspan="2">@code{}
-            (empty - bind to all interfaces)
-            @endcode</td>
+        <td colspan="2">
+            Empty, binds to all interfaces
+            </td>
     </tr>
     <tr>
         <td>Example (IPv4)</td>
@@ -1626,10 +1722,10 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>Default</td>
-        <td colspan="2">@code{}
-            (empty - uses built-in defaults: https://localhost, https://127.0.0.1, https://[::1],
-            with configured UI port variants)
-            @endcode</td>
+        <td colspan="2">
+            Empty, uses built-in defaults: https://localhost, https://127.0.0.1, https://[::1],
+            with configured UI port variants
+            </td>
     </tr>
     <tr>
         <td>Example</td>
@@ -2159,7 +2255,10 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>wlr</td>
         <td>Capture for wlroots based Wayland compositors via wlr-screencopy-unstable-v1. It is possible to capture
-            virtual displays in e.g. Hyprland using this method.
+            virtual displays in e.g. Hyprland using this method. On an output that refreshes at least 1.5 times
+            as fast as the stream, frames are captured when the compositor has a new one instead of on a clock of
+            Sunshine's own, which avoids repeated frames; a virtual display at twice the stream's frame rate
+            qualifies.
             @note{Applies to Linux only.}</td>
     </tr>
     <tr>
@@ -2187,6 +2286,34 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td>(beta feature) Use Windows.Graphics.Capture to capture the display.
             @note{Applies to Windows only.}
             @attention{This capture method is not compatible with the Sunshine service.}</td>
+    </tr>
+</table>
+
+### fp16_sdr_gamma_encoded
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Treat FP16 captures of SDR displays as already sRGB gamma-encoded and skip the sRGB curve when converting
+            them. Enable this if the stream looks washed out or its highlights are blown out while the display is in SDR
+            mode and the desktop is captured in FP16 format (the log shows `Desktop format [DXGI_FORMAT_R16G16B16A16_FLOAT]`).
+            Leave this disabled otherwise, because it darkens the stream when the FP16 capture is linear scRGB.
+            This option has no effect when the display is in HDR mode.
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            fp16_sdr_gamma_encoded = enabled
+            @endcode</td>
     </tr>
 </table>
 
@@ -2802,9 +2929,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>Default</td>
-        <td colspan="2">@code{}
-
-            @endcode</td>
+        <td colspan="2">
+            Empty, uses encoder default.
+            </td>
     </tr>
     <tr>
         <td>Example</td>
@@ -3284,6 +3411,43 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### vk_quality
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Determines encoder tradeoff between quality and speed.
+            @note{This option only applies when using Vulkan [encoder](#encoder).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}balanced@endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vk_quality = quality
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Options</td>
+        <td>speed</td>
+        <td>Speed (prefer speed)</td>
+    </tr>
+    <tr>
+        <td></td>
+        <td>balanced</td>
+        <td>Balanced (default)</td>
+    </tr>
+    <tr>
+        <td></td>
+        <td>quality</td>
+        <td>Quality (prefer quality)</td>
+    </tr>
+</table>
+
 ## Software Encoder
 
 ### sw_preset
@@ -3410,16 +3574,3 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td>good for fast encoding and low-latency streaming</td>
     </tr>
 </table>
-
-<div class="section_buttons">
-
-| Previous          |                            Next |
-|:------------------|--------------------------------:|
-| [Legal](legal.md) | [App Examples](app_examples.md) |
-
-</div>
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>

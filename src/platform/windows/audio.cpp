@@ -6,6 +6,9 @@
 
 // standard includes
 #include <format>
+#include <functional>
+#include <type_traits>
+#include <utility>
 
 // platform includes
 #include <Audioclient.h>
@@ -599,9 +602,10 @@ namespace platf::audio {
      * @param frame_size Number of samples captured per audio frame.
      * @param channels_out Channels out.
      * @param continuous Whether silent audio should continue to be emitted.
+     * @param capture_device Endpoint device to capture from; the default render device is used when empty.
      * @return 0 on success; nonzero or negative platform status on failure.
      */
-    int init(std::uint32_t sample_rate, std::uint32_t frame_size, std::uint32_t channels_out, bool continuous) {
+    int init(std::uint32_t sample_rate, std::uint32_t frame_size, std::uint32_t channels_out, bool continuous, device_t capture_device) {
       audio_event.reset(CreateEventA(nullptr, FALSE, FALSE, nullptr));
       if (!audio_event) {
         BOOST_LOG(error) << "Couldn't create Event handle"sv;
@@ -632,7 +636,8 @@ namespace platf::audio {
         return -1;
       }
 
-      auto device = default_device(device_enum);
+      select_capture_device(std::move(capture_device));
+
       if (!device) {
         return -1;
       }
@@ -708,6 +713,20 @@ namespace platf::audio {
       return 0;
     }
 
+    /**
+     * @brief Select the endpoint used by this capture stream.
+     *
+     * @param capture_device Explicit endpoint to capture, or an empty pointer to follow the default endpoint.
+     */
+    void select_capture_device(device_t capture_device) {
+      follows_default_device = !capture_device;
+      if (follows_default_device) {
+        device = default_device(device_enum);
+      } else {
+        device = std::move(capture_device);
+      }
+    }
+
     ~mic_wasapi_t() override {
       if (device_enum) {
         device_enum->UnregisterEndpointNotificationCallback(&endpt_notification);
@@ -744,8 +763,11 @@ namespace platf::audio {
           (*default_endpt_changed_cb)();
         }
 
-        // Reinitialize to pick up the new default device
-        return capture_e::reinit;
+        // Reinitialize to pick up the new default device, unless capture is
+        // pinned to an explicitly requested sink
+        if (follows_default_device) {
+          return capture_e::reinit;
+        }
       }
 
       status = WaitForSingleObjectEx(audio_event.get(), default_latency_ms, FALSE);
@@ -833,6 +855,7 @@ namespace platf::audio {
     float *sample_buf_pos;  ///< Current write position in `sample_buf`.
     int channels;  ///< Number of channels in the capture format.
     bool continuous_audio;  ///< Whether audio packets continue during silence.
+    bool follows_default_device;  ///< Whether capture follows the default render device rather than an explicit sink.
 
     HANDLE mmcss_task_handle = nullptr;  ///< MMCSS task handle for the audio capture thread.
   };
@@ -849,6 +872,15 @@ namespace platf::audio {
      */
     std::optional<sink_t> sink_info() override {
       sink_t sink;
+
+      if (config::audio.external_audio) {
+        if (config::audio.sink.empty()) {
+          BOOST_LOG(error) << "external_audio requires an explicit audio_sink";
+          return std::nullopt;
+        }
+        sink.host = config::audio.sink;
+        return sink;
+      }
 
       // Fill host sink name with the device_id of the current default audio device.
       {
@@ -925,6 +957,34 @@ namespace platf::audio {
     }
 
     /**
+     * @brief Resolve a sink name to the audio endpoint device it refers to.
+     *
+     * @param sink Sink name, virtual sink descriptor, or device identifier.
+     * @return Endpoint device to capture from, or an empty pointer if the sink couldn't be resolved.
+     */
+    device_t get_sink_device(const std::string &sink) {
+      std::wstring device_id;
+      if (auto virtual_sink_info = extract_virtual_sink_info(sink)) {
+        device_id = virtual_sink_info->first;
+      } else if (auto matched = find_device_id(match_all_fields(utf_utils::from_utf8(sink)))) {
+        device_id = matched->second;
+      } else {
+        return nullptr;
+      }
+
+      device_t device;
+      if (FAILED(device_enum->GetDevice(device_id.c_str(), &device))) {
+        return nullptr;
+      }
+
+      if (DWORD device_state {}; FAILED(device->GetState(&device_state)) || device_state != DEVICE_STATE_ACTIVE) {
+        return nullptr;
+      }
+
+      return device;
+    }
+
+    /**
      * @brief Create a microphone capture stream for the requested layout.
      *
      * @param mapping Opus channel mapping table for the requested layout.
@@ -938,13 +998,35 @@ namespace platf::audio {
     std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, bool continuous_audio, [[maybe_unused]] bool host_audio_enabled) override {
       auto mic = std::make_unique<mic_wasapi_t>();
 
-      if (mic->init(sample_rate, frame_size, channels, continuous_audio)) {
+      // External routing pins capture to the configured sink; otherwise prefer the session's assigned sink.
+      const auto &requested_sink = config::audio.external_audio || assigned_sink.empty() ? config::audio.sink : assigned_sink;
+
+      if (config::audio.external_audio && requested_sink.empty()) {
+        BOOST_LOG(error) << "external_audio requires an explicit audio_sink";
+        return nullptr;
+      }
+
+      // Capture the requested sink directly instead of relying on it being the default
+      // render device, so that capture keeps working when the default device differs
+      // from the sink or changes during the session.
+      device_t capture_device;
+      if (!requested_sink.empty()) {
+        capture_device = get_sink_device(requested_sink);
+        if (!capture_device) {
+          BOOST_LOG(error) << "Couldn't resolve audio sink ["sv << requested_sink << "] to a capture device"sv;
+          return nullptr;
+        }
+
+        BOOST_LOG(info) << "Capturing audio from sink ["sv << requested_sink << ']';
+      }
+
+      if (mic->init(sample_rate, frame_size, channels, continuous_audio, std::move(capture_device))) {
         return nullptr;
       }
 
       // If this is a virtual sink, set a callback that will change the sink back if it's changed
       auto virtual_sink_info = extract_virtual_sink_info(assigned_sink);
-      if (virtual_sink_info) {
+      if (virtual_sink_info && !config::audio.external_audio) {
         mic->default_endpt_changed_cb = [this] {
           BOOST_LOG(info) << "Resetting sink to ["sv << assigned_sink << "] after default changed";
           set_sink(assigned_sink);
@@ -1031,6 +1113,10 @@ namespace platf::audio {
      * @return Status from updating sink.
      */
     int set_sink(const std::string &sink) override {
+      if (config::audio.external_audio) {
+        return 0;
+      }
+
       auto device_id = set_format(sink);
       if (!device_id) {
         return -1;
@@ -1185,6 +1271,10 @@ namespace platf::audio {
      * @brief Resets the default audio device from Steam Streaming Speakers.
      */
     void reset_default_device() {
+      if (config::audio.external_audio) {
+        return;
+      }
+
       auto matched_steam = find_device_id(match_steam_speakers());
       if (!matched_steam) {
         return;
@@ -1313,26 +1403,31 @@ namespace platf::audio {
     }
 
     /**
-     * @brief Initialize Windows audio policy interfaces.
+     * @brief Initialize endpoint enumeration and policy control when routing is managed by Sunshine.
      *
+     * @tparam CreateInstance Callable type used for COM activation.
+     * @param create_instance COM factory used to initialize the required interfaces.
      * @return 0 on success; nonzero or negative platform status on failure.
      */
-    int init() {
-      auto status = CoCreateInstance(
-        CLSID_CPolicyConfigClient,
-        nullptr,
-        CLSCTX_ALL,
-        IID_IPolicyConfig,
-        (void **) &policy
-      );
+    template<typename CreateInstance = decltype(&CoCreateInstance)>
+    int init(const CreateInstance &create_instance = &CoCreateInstance) {
+      if (!config::audio.external_audio) {
+        auto status = create_instance(
+          CLSID_CPolicyConfigClient,
+          nullptr,
+          CLSCTX_ALL,
+          IID_IPolicyConfig,
+          (void **) &policy
+        );
 
-      if (FAILED(status)) {
-        BOOST_LOG(error) << "Couldn't create audio policy config: [0x"sv << util::hex(status).to_string_view() << ']';
+        if (FAILED(status)) {
+          BOOST_LOG(error) << "Couldn't create audio policy config: [0x"sv << util::hex(status).to_string_view() << ']';
 
-        return -1;
+          return -1;
+        }
       }
 
-      status = CoCreateInstance(
+      auto status = create_instance(
         CLSID_MMDeviceEnumerator,
         nullptr,
         CLSCTX_ALL,
@@ -1356,8 +1451,132 @@ namespace platf::audio {
 
     policy_t policy;  ///< Windows policy configuration interface used to switch default audio devices.
     audio::device_enum_t device_enum;  ///< Device enumerator used to query and watch audio endpoints.
-    std::string assigned_sink;  ///< Virtual sink assigned while Sunshine captures host audio.
+    std::string assigned_sink;  ///< Sink assigned while Sunshine captures host audio, captured directly by the microphone.
   };
+
+#ifdef SUNSHINE_TESTS
+  namespace tests {
+    /**
+     * @brief Exercise controller initialization with a supplied COM factory.
+     * @param create_instance Factory providing or rejecting the requested interfaces.
+     * @return Status from controller initialization.
+     */
+    int initialize_audio_control(const std::function<std::remove_pointer_t<decltype(&CoCreateInstance)>> &create_instance) {
+      audio_control_t control;
+      return control.init(create_instance);
+    }
+
+    /**
+     * @brief Exercise sink discovery without initializing Windows policy interfaces.
+     * @return Sinks reported by the production controller for the current configuration.
+     */
+    std::optional<sink_t> configured_sink_info() {
+      audio_control_t control;
+      return control.sink_info();
+    }
+
+    /**
+     * @brief Exercise the external-routing sink-change guard without policy interfaces.
+     * @param sink Sink a caller attempts to select.
+     * @return Status from the production sink setter.
+     */
+    int set_external_sink(const std::string &sink) {
+      audio_control_t control;
+      control.reset_default_device();
+      return control.set_sink(sink);
+    }
+
+    /**
+     * @brief Resolve a sink through the production Windows endpoint lookup.
+     *
+     * @param sink Sink name, virtual sink descriptor, or device identifier.
+     * @param device_enum Device enumerator supplied by the test.
+     * @return `true` when the sink resolves to an active endpoint.
+     */
+    bool sink_device_available(const std::string &sink, IMMDeviceEnumerator *device_enum) {
+      audio_control_t control;
+      device_enum->AddRef();
+      control.device_enum.reset(device_enum);
+      return static_cast<bool>(control.get_sink_device(sink));
+    }
+
+    /**
+     * @brief Exercise microphone creation with controlled assigned and configured sinks.
+     *
+     * @param assigned_sink Sink selected by the shared audio context.
+     * @param configured_sink Sink configured by the user.
+     * @param device_enum Device enumerator supplied by the test.
+     * @return `true` when microphone initialization succeeds.
+     */
+    bool microphone_available(const std::string &assigned_sink, const std::string &configured_sink, IMMDeviceEnumerator *device_enum) {
+      audio_control_t control;
+      device_enum->AddRef();
+      control.device_enum.reset(device_enum);
+      control.assigned_sink = assigned_sink;
+
+      auto previous_configured_sink = std::exchange(config::audio.sink, configured_sink);
+      auto microphone = control.microphone(nullptr, 2, 48000, 240, false, false);
+      config::audio.sink = std::move(previous_configured_sink);
+      return static_cast<bool>(microphone);
+    }
+
+    /**
+     * @brief Select a default or explicit capture endpoint through the production selection path.
+     *
+     * @param device_enum Device enumerator supplied by the test.
+     * @param capture_device Explicit endpoint, or `nullptr` to select the default endpoint.
+     * @return `true` when capture follows the default endpoint.
+     */
+    bool capture_follows_default_device(IMMDeviceEnumerator *device_enum, IMMDevice *capture_device) {
+      mic_wasapi_t microphone;
+      device_enum->AddRef();
+      microphone.device_enum.reset(device_enum);
+
+      device_t selected_device;
+      if (capture_device) {
+        capture_device->AddRef();
+        selected_device.reset(capture_device);
+      }
+
+      microphone.select_capture_device(std::move(selected_device));
+      return microphone.follows_default_device;
+    }
+
+    /**
+     * @brief Exercise the production default-device-change path without live audio hardware.
+     *
+     * @param follows_default_device Whether the capture follows the default render endpoint.
+     * @param install_callback Whether to install a default-device-change callback.
+     * @param render_device_changed Whether to signal a render rather than capture endpoint change.
+     * @param callback_count Receives the number of callback invocations.
+     * @return Capture result produced after processing the notification.
+     */
+    capture_e simulate_default_device_change(bool follows_default_device, bool install_callback, bool render_device_changed, int &callback_count) {
+      mic_wasapi_t mic;
+      mic.audio_event.reset(CreateEventA(nullptr, FALSE, FALSE, nullptr));
+      mic.default_latency_ms = 0;
+      mic.sample_buf = util::buffer_t<float> {1};
+      mic.sample_buf_pos = std::begin(mic.sample_buf);
+      mic.continuous_audio = false;
+      mic.follows_default_device = follows_default_device;
+
+      if (install_callback) {
+        mic.default_endpt_changed_cb = [&callback_count] {
+          ++callback_count;
+        };
+      }
+
+      mic.endpt_notification.OnDefaultDeviceChanged(
+        render_device_changed ? eRender : eCapture,
+        eConsole,
+        nullptr
+      );
+
+      std::vector<float> sample(1);
+      return mic.sample(sample);
+    }
+  }  // namespace tests
+#endif
 }  // namespace platf::audio
 
 namespace platf {
@@ -1381,7 +1600,7 @@ namespace platf {
 
     // Install Steam Streaming Speakers if needed. We do this during audio_control() to ensure
     // the sink information returned includes the new Steam Streaming Speakers device.
-    if (config::audio.install_steam_drivers && !control->find_device_id(control->match_steam_speakers())) {
+    if (!config::audio.external_audio && config::audio.install_steam_drivers && !control->find_device_id(control->match_steam_speakers())) {
       // This is best effort. Don't fail if it doesn't work.
       control->install_steam_audio_drivers();
     }

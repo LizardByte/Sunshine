@@ -3,10 +3,10 @@ import { ref } from 'vue'
 import { $tp } from '../../../platform-i18n'
 import PlatformLayout from '../../../PlatformLayout.vue'
 
-const props = defineProps([
-  'platform',
-  'config'
-])
+const props = defineProps({
+  platform: String,
+  config: Object,
+})
 
 const config = ref(props.config)
 let _outputNamePlaceholder = '0';

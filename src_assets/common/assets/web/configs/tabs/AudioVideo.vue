@@ -8,10 +8,10 @@ import DisplayDeviceOptions from "./audiovideo/DisplayDeviceOptions.vue";
 import DisplayModesSettings from "./audiovideo/DisplayModesSettings.vue";
 import Checkbox from "../../Checkbox.vue";
 
-const props = defineProps([
-  'platform',
-  'config',
-])
+const props = defineProps({
+  platform: String,
+  config: Object,
+})
 
 const config = ref(props.config)
 </script>
@@ -75,6 +75,18 @@ const config = ref(props.config)
               default="true"
     ></Checkbox>
 
+    <PlatformLayout :platform="platform">
+      <template #windows>
+        <!-- Externally Managed Audio -->
+        <Checkbox class="mb-3"
+                  id="external_audio"
+                  locale-prefix="config"
+                  v-model="config.external_audio"
+                  default="false"
+        ></Checkbox>
+      </template>
+    </PlatformLayout>
+
     <AdapterNameSelector
         :platform="platform"
         :config="config"
@@ -98,6 +110,3 @@ const config = ref(props.config)
 
   </div>
 </template>
-
-<style scoped>
-</style>

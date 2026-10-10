@@ -30,9 +30,15 @@ else()
     find_package(Udev)
 
     if(UDEV_FOUND)
-        install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sunshine.rules"
-                DESTINATION "${UDEV_RULES_INSTALL_DIR}")
+        set(SUNSHINE_UDEV_RULES_INSTALL_DIR "${UDEV_RULES_INSTALL_DIR}")
+    else()
+        set(SUNSHINE_UDEV_RULES_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/udev/rules.d")
+        message(WARNING
+                "Could not determine the host udev rules directory; "
+                "installing Sunshine rules to ${SUNSHINE_UDEV_RULES_INSTALL_DIR}")
     endif()
+    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sunshine.rules"
+            DESTINATION "${SUNSHINE_UDEV_RULES_INSTALL_DIR}")
     if(SYSTEMD_FOUND)
         install(FILES "${CMAKE_CURRENT_BINARY_DIR}/app-${PROJECT_FQDN}.service"
                 DESTINATION "${SYSTEMD_USER_UNIT_INSTALL_DIR}")
@@ -43,6 +49,12 @@ endif()
 
 # RPM specific
 set(CPACK_RPM_PACKAGE_LICENSE "GPLv3")
+
+# DEB specific
+set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+if(DEFINED ENV{DEBIAN_PACKAGE_RELEASE})  # cmake-lint: disable=W0106
+    set(CPACK_DEBIAN_PACKAGE_RELEASE "$ENV{DEBIAN_PACKAGE_RELEASE}")
+endif()
 
 # FreeBSD specific
 set(CPACK_FREEBSD_PACKAGE_MAINTAINER "${CPACK_PACKAGE_VENDOR}")
@@ -151,7 +163,7 @@ if(${SUNSHINE_TRAY} STREQUAL 1)
     # Icons used by the Qt tray backend are no longer installed to the hicolor icon theme,
     # because Qt6 will not allow icons not part of the theme... so we will use icons from our web directory instead
 
-    if(TRAY_QT_VERSION EQUAL 6)
+    if(SUNSHINE_TRAY_QT_VERSION EQUAL 6)
         set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
                     ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \
                     libqt6widgets6, \
@@ -166,7 +178,7 @@ if(${SUNSHINE_TRAY} STREQUAL 1)
                 devel/qt6-base
                 graphics/qt6-svg
         )
-    else()
+    elseif(SUNSHINE_TRAY_QT_VERSION EQUAL 5)
         set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
                     ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \
                     libqt5widgets5, \
@@ -181,6 +193,8 @@ if(${SUNSHINE_TRAY} STREQUAL 1)
                 x11-toolkits/qt5-widgets
                 graphics/qt5-svg
         )
+    else()
+        message(FATAL_ERROR "Unsupported tray Qt version: ${SUNSHINE_TRAY_QT_VERSION}")
     endif()
 endif()
 

@@ -9,6 +9,7 @@
 #include <chrono>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -16,11 +17,26 @@
 #include "nvenc/nvenc_config.h"
 
 namespace config {
+  namespace nv {
+    /**
+     * @brief Convert Sunshine's NVENC quality preset number to FFmpeg's stable symbolic name.
+     *
+     * @param quality_preset Validated Sunshine quality preset in the range 1 through 7.
+     * @return FFmpeg preset name from `p1` through `p7`.
+     */
+    std::string ffmpeg_preset_from_quality(int quality_preset);
+  }  // namespace nv
+
   // Valid range for the packetsize limit
   constexpr int PACKETSIZE_MIN = 200;  ///< Lowest accepted configured packet size in bytes.
   constexpr int PACKETSIZE_MAX = 65535;  ///< Highest accepted configured packet size in bytes.
   constexpr int PACKETSIZE_SMALL = 500;  ///< Conservative packet size used for low-MTU links.
   constexpr int PACKETSIZE_LARGE = 1456;  ///< Default large packet size that avoids common MTU fragmentation.
+
+  inline constexpr std::string_view GAMEPAD_DRIVER_ALL = "all";  ///< Allow every available Windows virtual gamepad driver.
+  inline constexpr std::string_view GAMEPAD_DRIVER_VIRTUALHID = "virtualhid";  ///< Use Virtual HID Broker for gamepads on Windows or macOS.
+  inline constexpr std::string_view GAMEPAD_DRIVER_VIGEMBUS = "vigembus";  ///< Allow only ViGEmBus for Windows gamepads.
+  inline constexpr std::string_view GAMEPAD_DRIVER_NONE = "none";  ///< Disable virtual gamepads on Windows and macOS.
 
   // track modified config options
   inline std::unordered_map<std::string, std::string> modified_config_settings;  ///< Configuration keys changed during the current parse or UI update.
@@ -57,9 +73,9 @@ namespace config {
     int min_threads;  ///< Minimum number of threads or slices for CPU encoding.
 
     struct {
-      std::string sw_preset;
-      std::string sw_tune;
-      std::optional<int> svtav1_preset;
+      std::string sw_preset;  ///< FFmpeg software-encoder preset.
+      std::string sw_tune;  ///< FFmpeg software-encoder tuning profile.
+      std::optional<int> svtav1_preset;  ///< SVT-AV1 preset; unset uses the encoder default.
     } sw;  ///< Software encoder options.
 
     nvenc::nvenc_config nv;  ///< NVIDIA NVENC encoder settings.
@@ -68,57 +84,59 @@ namespace config {
     bool nv_sunshine_high_power_mode;  ///< Request NVIDIA high-power mode for Sunshine.
 
     struct {
-      int preset;
-      int multipass;
-      int h264_coder;
-      int aq;
-      int vbv_percentage_increase;
+      std::string preset;  ///< FFmpeg NVENC preset name shared by supported FFmpeg versions.
+      int multipass;  ///< Legacy NVENC multipass mode.
+      int h264_coder;  ///< Legacy NVENC H.264 entropy-coding mode.
+      int spatial_aq;  ///< FFmpeg NVENC spatial adaptive-quantization mode.
+      int vbv_percentage_increase;  ///< Legacy NVENC VBV buffer-size percentage increase.
     } nv_legacy;  ///< Legacy NVIDIA encoder options kept for config compatibility.
 
     struct {
-      std::optional<int> qsv_preset;
-      std::optional<int> qsv_cavlc;
-      bool qsv_slow_hevc;
+      std::optional<int> qsv_preset;  ///< Intel Quick Sync preset; unset uses the encoder default.
+      std::optional<int> qsv_cavlc;  ///< Intel Quick Sync CAVLC selection; unset uses the encoder default.
+      bool qsv_slow_hevc;  ///< Whether to enable the slower Intel Quick Sync HEVC path.
     } qsv;  ///< Intel Quick Sync encoder options.
 
     struct {
-      std::optional<int> amd_usage_h264;
-      std::optional<int> amd_usage_hevc;
-      std::optional<int> amd_usage_av1;
-      std::optional<int> amd_rc_h264;
-      std::optional<int> amd_rc_hevc;
-      std::optional<int> amd_rc_av1;
-      std::optional<int> amd_enforce_hrd;
-      std::optional<int> amd_quality_h264;
-      std::optional<int> amd_quality_hevc;
-      std::optional<int> amd_quality_av1;
-      std::optional<int> amd_preanalysis;
-      std::optional<int> amd_vbaq;
+      std::optional<int> amd_usage_h264;  ///< AMF H.264 usage profile; unset uses the encoder default.
+      std::optional<int> amd_usage_hevc;  ///< AMF HEVC usage profile; unset uses the encoder default.
+      std::optional<int> amd_usage_av1;  ///< AMF AV1 usage profile; unset uses the encoder default.
+      std::optional<int> amd_rc_h264;  ///< AMF H.264 rate-control mode; unset uses the encoder default.
+      std::optional<int> amd_rc_hevc;  ///< AMF HEVC rate-control mode; unset uses the encoder default.
+      std::optional<int> amd_rc_av1;  ///< AMF AV1 rate-control mode; unset uses the encoder default.
+      std::optional<int> amd_enforce_hrd;  ///< AMF HRD enforcement setting; unset uses the encoder default.
+      std::optional<int> amd_quality_h264;  ///< AMF H.264 quality preset; unset uses the encoder default.
+      std::optional<int> amd_quality_hevc;  ///< AMF HEVC quality preset; unset uses the encoder default.
+      std::optional<int> amd_quality_av1;  ///< AMF AV1 quality preset; unset uses the encoder default.
+      std::optional<int> amd_preanalysis;  ///< AMF pre-analysis setting; unset uses the encoder default.
+      std::optional<int> amd_vbaq;  ///< AMF variance-based adaptive-quantization setting; unset uses the encoder default.
       std::optional<int> amd_max_au_size;  ///< Maximum AMF H.264/HEVC access unit size in bits; unset uses the encoder default.
-      int amd_coder;
+      int amd_coder;  ///< AMF entropy-coding mode.
     } amd;  ///< AMD AMF encoder options.
 
     struct {
-      int vt_allow_sw;
-      int vt_require_sw;
-      int vt_realtime;
-      int vt_coder;
+      int vt_allow_sw;  ///< Whether VideoToolbox may use software encoding.
+      int vt_require_sw;  ///< Whether VideoToolbox must use software encoding.
+      int vt_realtime;  ///< Whether VideoToolbox uses realtime encoding mode.
+      int vt_coder;  ///< VideoToolbox entropy-coding mode.
     } vt;  ///< VideoToolbox encoder options.
 
     struct {
-      std::optional<int> blbrc;
-      std::optional<int> vaapi_quality;
-      std::optional<int> vaapi_rc;
-      std::string vaapi_rc_str;
-      bool strict_rc_buffer;
+      std::optional<int> blbrc;  ///< VA-API block-level bitrate-control setting; unset uses the encoder default.
+      std::optional<int> vaapi_quality;  ///< VA-API quality setting; unset uses the encoder default.
+      std::optional<int> vaapi_rc;  ///< VA-API rate-control mode; unset uses the encoder default.
+      std::string vaapi_rc_str;  ///< Text representation of the selected VA-API rate-control mode.
+      bool strict_rc_buffer;  ///< Whether VA-API must strictly enforce the rate-control buffer.
     } vaapi;  ///< VA-API encoder options.
 
     struct {
-      int tune;  // 0=default, 1=hq, 2=ll, 3=ull, 4=lossless
-      int rc_mode;  // 0=driver, 1=cqp, 2=cbr, 4=vbr
+      int tune;  ///< Vulkan encoder tuning mode: default, HQ, LL, ULL, or lossless.
+      int rc_mode;  ///< Vulkan encoder rate-control mode: driver, CQP, CBR, or VBR.
+      int quality;  ///< Vulkan encoder quality preset: 1 = speed, 2 = balanced (default), 3 = quality.
     } vk;  ///< Vulkan encoder options.
 
     std::string capture;  ///< Capture backend name selected by configuration.
+    bool fp16_sdr_gamma_encoded;  ///< Treat FP16 captures of SDR displays as already sRGB gamma-encoded (Windows).
     std::string encoder;  ///< Encoder backend name selected by configuration.
     std::string adapter_name;  ///< Display adapter name selected in configuration.
     std::string output_name;  ///< Display output name selected in configuration.
@@ -214,6 +232,7 @@ namespace config {
     std::string virtual_sink;  ///< Virtual audio sink for audio routing
     bool stream;  ///< Enable audio streaming to clients
     bool install_steam_drivers;  ///< Install Steam audio drivers for enhanced compatibility
+    bool external_audio;  ///< Windows capture-only mode; an external router owns endpoint defaults and formats.
   };
 
   /**
@@ -275,7 +294,8 @@ namespace config {
     std::chrono::milliseconds key_repeat_delay;  ///< Delay before repeating a held keyboard key.
     std::chrono::duration<double> key_repeat_period;  ///< Interval between repeated keyboard key events.
 
-    std::string gamepad;  ///< Virtual controller backend selected by configuration.
+    std::string gamepad;  ///< Virtual controller profile selected by configuration.
+    std::string gamepad_driver;  ///< Virtual gamepad backend policy on Windows and macOS.
     bool ds4_back_as_touchpad_click;  ///< Map Back/Select to touchpad click for PlayStation-style gamepads.
     bool motion_as_ds4;  ///< Prefer PlayStation-style emulation for client gamepads with motion controls.
     bool touchpad_as_ds4;  ///< Prefer PlayStation-style emulation for client gamepads with touchpad input.
@@ -408,4 +428,24 @@ namespace config {
    * @return Parsed configuration key-value entries.
    */
   std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content);
+
+  /**
+   * @brief Persist a configuration option when the active file does not already define it.
+   *
+   * Existing text and comments are retained because the new setting is appended rather
+   * than serializing the complete configuration again.
+   *
+   * @param name Configuration option name.
+   * @param value Configuration option value.
+   * @return True when the option was appended successfully; otherwise, false.
+   */
+  bool persist_config_option_if_missing(std::string_view name, std::string_view value);
+
+  /**
+   * @brief Select all available gamepad drivers when a licensed user has not made a choice.
+   *
+   * @param virtualhid_licensed Whether Virtual HID Driver has an active machine license.
+   * @return True when the `all` preference was persisted and applied; otherwise, false.
+   */
+  bool select_all_gamepad_drivers_if_licensed(bool virtualhid_licensed);
 }  // namespace config

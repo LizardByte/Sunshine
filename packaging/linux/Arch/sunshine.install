@@ -1,11 +1,15 @@
+# shellcheck shell=bash
+
 do_setcap() {
-  setcap cap_sys_admin,cap_sys_nice+p $(readlink -f usr/bin/sunshine)
+  setcap cap_sys_admin,cap_sys_nice+p "$(readlink -f usr/bin/sunshine)"
 }
 
 do_udev_reload() {
   udevadm control --reload-rules
   udevadm trigger --property-match=DEVNAME=/dev/uinput
   udevadm trigger --property-match=DEVNAME=/dev/uhid
+  udevadm trigger --subsystem-match=hidraw
+  udevadm trigger --subsystem-match=input
   modprobe uinput || true
   modprobe uhid || true
 }

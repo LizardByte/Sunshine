@@ -280,7 +280,7 @@ namespace round_robin_util {
   /**
    * @brief Iterator that cycles indefinitely over a fixed begin/end range.
    */
-  template<class V, class It>
+  template<class V, std::random_access_iterator It>
   class round_robin_t: public it_wrap_t<V, round_robin_t<V, It>> {
   public:
     /**
@@ -329,11 +329,21 @@ namespace round_robin_util {
     /**
      * @brief Compare two iterators for equality.
      *
-     * @param other Iterator or container to compare against.
-     * @return True when both iterators point to equivalent values.
+     * @param other Iterator to compare against.
+     * @return True when both iterators refer to the same position.
      */
     bool eq(const round_robin_t &other) const {
-      return *_pos == *other._pos;
+      return _pos == other._pos;
+    }
+
+    /**
+     * @brief Compare two iterators by their positions in the wrapped range.
+     *
+     * @param other Iterator to compare against.
+     * @return True when this iterator follows `other` in the wrapped range.
+     */
+    bool gt(const round_robin_t &other) const {
+      return _pos > other._pos;
     }
 
     /**
@@ -359,7 +369,7 @@ namespace round_robin_util {
    * @param end Iterator or pointer marking the end of the input range.
    * @return Iterator initialized to `begin` and wrapping before `end`.
    */
-  template<class V, class It>
+  template<class V, std::random_access_iterator It>
   round_robin_t<V, It> make_round_robin(It begin, It end) {
     return round_robin_t<V, It>(begin, end);
   }

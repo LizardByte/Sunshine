@@ -7,6 +7,8 @@ list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-sign-compare)
 # Wno-maybe-uninitialized/Wno-uninitialized - disable warnings for maybe uninitialized variables
 # Wno-sign-compare - disable warnings for signed/unsigned comparisons
 # Wno-restrict - disable warnings for memory overlap
+# Wmissing-field-initializers - enable warnings for missing field initializers
+# Wno-missing-designated-field-initializers - disable warning for missing designated initializers
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # GCC specific compile options
 
@@ -30,6 +32,12 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
 
     # Clang doesn't actually complain about this this, so disabling for now
     # list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-uninitialized)
+
+    # Warn for missing positional field initializers but not designated initializers
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19)
+        list(APPEND SUNSHINE_COMPILE_OPTIONS -Wmissing-field-initializers)
+        list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-missing-designated-field-initializers)
+    endif()
 
     # Some libc++ versions on Apple and FreeBSD guard std::jthread behind this flag.
     if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
@@ -110,11 +118,13 @@ if(WIN32)
     add_nvenc_sdk_implementation(nvenc_sdk_1100 1100 "${NV_CODEC_HEADERS_11_INCLUDE_DIR}")
     add_nvenc_sdk_implementation(nvenc_sdk_1200 1200 "${NV_CODEC_HEADERS_12_INCLUDE_DIR}")
     add_nvenc_sdk_implementation(nvenc_sdk_1300 1300 "${NV_CODEC_HEADERS_13_INCLUDE_DIR}")
+    add_nvenc_sdk_implementation(nvenc_sdk_1301 1301 "${NV_CODEC_HEADERS_13_1_INCLUDE_DIR}")
 
     list(APPEND NVENC_SOURCES
             $<TARGET_OBJECTS:nvenc_sdk_1100>
             $<TARGET_OBJECTS:nvenc_sdk_1200>
             $<TARGET_OBJECTS:nvenc_sdk_1300>
+            $<TARGET_OBJECTS:nvenc_sdk_1301>
     )
 endif()
 
@@ -168,6 +178,8 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/audio.cpp"
         "${CMAKE_SOURCE_DIR}/src/audio.h"
         "${CMAKE_SOURCE_DIR}/src/platform/common.h"
+        "${CMAKE_SOURCE_DIR}/src/platform/permissions.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/permissions.h"
         "${CMAKE_SOURCE_DIR}/src/process.cpp"
         "${CMAKE_SOURCE_DIR}/src/process.h"
         "${CMAKE_SOURCE_DIR}/src/network.cpp"
@@ -209,13 +221,8 @@ include_directories(
         ${Boost_INCLUDE_DIRS}  # has to be the last, or we get runtime error on macOS ffmpeg encoder
 )
 
-if(WIN32)
-    include_directories(BEFORE SYSTEM "${NV_CODEC_HEADERS_13_INCLUDE_DIR}")
-else()
-    include_directories(
-            BEFORE SYSTEM
-            "${CMAKE_SOURCE_DIR}/third-party/build-deps/third-party/FFmpeg/nv-codec-headers/include"
-    )
+if(NOT APPLE)
+    include_directories(BEFORE SYSTEM "${NV_CODEC_HEADERS_13_1_INCLUDE_DIR}")
 endif()
 
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
