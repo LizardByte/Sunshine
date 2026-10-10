@@ -39,11 +39,15 @@ namespace wl {
    * @brief PCI bus address identifying one GPU.
    */
   struct pci_bus_id {
-    std::uint32_t domain {};
-    std::uint8_t bus {};
-    std::uint8_t device {};
-    std::uint8_t function {};
+    std::uint32_t domain {};  ///< PCI domain number.
+    std::uint8_t bus {};  ///< PCI bus number.
+    std::uint8_t device {};  ///< PCI device number.
+    std::uint8_t function {};  ///< PCI function number.
 
+    /**
+     * @brief Compare two PCI bus addresses for equality.
+     * @return True when domain, bus, device, and function all match.
+     */
     bool operator==(const pci_bus_id &) const = default;
   };
 
@@ -515,7 +519,7 @@ namespace wl {
     zwp_linux_dmabuf_v1 *dmabuf_interface {nullptr};
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers {nullptr};
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers {nullptr};  ///< Optional encoder modifiers for intersection.
-    bool prefer_linear_copy {false};
+    bool prefer_linear_copy {false};  ///< Allocate linear copy buffers for cross-GPU encode import.
 
     struct {
       bool supported {false};
