@@ -4,9 +4,9 @@
  */
 // standard includes
 #include <charconv>
-#include <cstdio>
 #include <cstdint>
 #include <filesystem>
+#include <format>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -80,7 +80,7 @@ namespace wl {
     const auto bus = parse_pci_component(bus_id.substr(first + 1, second - first - 1), 2);
     const auto device = parse_pci_component(bus_id.substr(second + 1, dot - second - 1), 2);
     const auto function = parse_pci_component(bus_id.substr(dot + 1), 1);
-    if (!domain || !bus || !device || !function || *function > 0x7) {
+    if (!domain.has_value() || !bus.has_value() || !device.has_value() || !function.has_value() || *function > 0x7) {
       return std::nullopt;
     }
     return pci_bus_id {*domain, static_cast<std::uint8_t>(*bus), static_cast<std::uint8_t>(*device), static_cast<std::uint8_t>(*function)};
@@ -102,10 +102,9 @@ namespace wl {
       return std::nullopt;
     }
     const auto pci = device->businfo.pci;
-    char bus_id[16];  // "dddd:bb:dd.f" plus NUL.
-    std::snprintf(bus_id, sizeof(bus_id), "%04x:%02x:%02x.%x", pci->domain, pci->bus, pci->dev, pci->func);
+    std::string bus_id = std::format("{:04x}:{:02x}:{:02x}.{:x}", pci->domain, pci->bus, pci->dev, pci->func);
     drmFreeDevice(&device);
-    return std::string {bus_id};
+    return bus_id;
   }
 
 #ifdef SUNSHINE_BUILD_CUDA

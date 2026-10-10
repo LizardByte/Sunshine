@@ -384,7 +384,7 @@ TEST(WaylandCaptureTest, ResolvesRenderNodeAliasBeforePciLookup) {
     return "/dev/dri/renderD128";
   };
   std::string observed_path;
-  const wl::render_node_pci_reader_t recording_reader = [&observed_path](const std::string &render_path) {
+  const wl::render_node_pci_reader_t recording_reader = [&observed_path](std::string_view render_path) {
     observed_path = render_path;
     return std::optional<std::string> {"0000:0f:00.0"};
   };
