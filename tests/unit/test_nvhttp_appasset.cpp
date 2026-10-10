@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 #include <future>
+#include <format>
 #include <Simple-Web-Server/client_http.hpp>
 #include <Simple-Web-Server/server_http.hpp>
 #include <src/nvhttp.h>
@@ -10,7 +11,7 @@
 #include <thread>
 
 class NvhttpAppassetTest: public BaseTest {
-protected:
+public:
   std::unique_ptr<SimpleWeb::Server<SimpleWeb::HTTP>> server;
   std::unique_ptr<SimpleWeb::Client<SimpleWeb::HTTP>> client;
   std::jthread server_thread;
@@ -46,7 +47,7 @@ protected:
     });
 
     port = port_future.get();
-    client = std::make_unique<SimpleWeb::Client<SimpleWeb::HTTP>>("localhost:" + std::to_string(port));
+    client = std::make_unique<SimpleWeb::Client<SimpleWeb::HTTP>>(std::format("localhost:{}", port));
   }
 
   void TearDown() override {
