@@ -236,7 +236,7 @@ namespace pipewire {
         {
           static_cast<int32_t>(stream_data.format.info.raw.max_framerate.num),
           static_cast<int32_t>(stream_data.format.info.raw.max_framerate.denom)
-        };
+      };
       int rate_comparison = av_cmp_q(negotiated_rate, requested_framerate);
       bool variable_rate = negotiated_rate.num == 0 && negotiated_rate.den == 1;
       bool pacing_required = variable_rate || rate_comparison > 0;
