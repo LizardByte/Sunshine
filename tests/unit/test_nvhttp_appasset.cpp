@@ -157,7 +157,7 @@ TEST_F(NvhttpAppassetTest, UnreadableFallback) {
 TEST_F(NvhttpAppassetTest, ReadableImage) {
   auto app_image_path = test_assets_dir / "test2.png";
   // Must be a valid PNG to pass production PNG validation
-  std::string image_data = "\x89PNG\x0D\x0A\x1A\x0A mock image content";
+  std::string image_data = "\x{89}PNG\x{0D}\x{0A}\x{1A}\x{0A} mock image content";
   std::ofstream(app_image_path, std::ios::binary) << image_data;
 
   proc::ctx_t test_app;
