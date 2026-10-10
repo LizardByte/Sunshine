@@ -596,6 +596,16 @@ namespace video {
   };
 
   /**
+   * @brief Cache first-IDR packets and concatenate them when the final packet arrives.
+   *
+   * @param packets_needed_cnt Remaining packet count; zero passes the packet through.
+   * @param packets_needed Packets cached in receive order, cleared after concatenation.
+   * @param packet Current packet, consumed when cached; the completed packet retains its properties.
+   * @return 0 to process the passed-through or merged packet, 1 to continue receiving after caching, or a negative value on error.
+   */
+  int collect_first_idr_packet(uint8_t &packets_needed_cnt, std::vector<std::unique_ptr<packet_raw_avcodec>> &packets_needed, std::unique_ptr<packet_raw_avcodec> &packet);
+
+  /**
    * @brief Generic encoded packet bytes and metadata.
    */
   struct packet_raw_generic: packet_raw_t {

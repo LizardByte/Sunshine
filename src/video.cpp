@@ -1895,6 +1895,51 @@ namespace video {
     }
   }
 
+  int collect_first_idr_packet(uint8_t &packets_needed_cnt, std::vector<std::unique_ptr<packet_raw_avcodec>> &packets_needed, std::unique_ptr<packet_raw_avcodec> &packet) {
+    if (!packets_needed_cnt) {
+      return 0;
+    }
+
+    packets_needed_cnt--;
+    if (packets_needed_cnt > 0) {
+      BOOST_LOG(debug) << "Stashing packet "sv << packets_needed.size() << " for the first IDR frame";
+      packets_needed.emplace_back(std::move(packet));
+      return 1;
+    }
+
+    BOOST_LOG(debug) << "Releasing stashed packets for the first IDR frame";
+    packet_raw_avcodec merged;
+    if (!merged.av_packet) {
+      BOOST_LOG(error) << "Failed to allocate AVPacket for stashed packets";
+      return -1;
+    }
+
+    int new_size = packet->av_packet->size;
+    for (const auto &stashed_packet : packets_needed) {
+      new_size += stashed_packet->av_packet->size;
+    }
+    if (av_new_packet(merged.av_packet, new_size)) {
+      BOOST_LOG(error) << "Failed to allocate AVPacket data for stashed packets";
+      return -1;
+    }
+
+    int copy_offset = 0;
+    for (const auto &stashed_packet : packets_needed) {
+      memcpy(merged.av_packet->data + copy_offset, stashed_packet->av_packet->data, stashed_packet->av_packet->size);
+      copy_offset += stashed_packet->av_packet->size;
+    }
+    memcpy(merged.av_packet->data + copy_offset, packet->av_packet->data, packet->av_packet->size);
+    if (av_packet_copy_props(merged.av_packet, packet->av_packet)) {
+      BOOST_LOG(error) << "Failed to copy AVPacket properties for stashed packets";
+      return -1;
+    }
+
+    av_packet_unref(packet->av_packet);
+    av_packet_move_ref(packet->av_packet, merged.av_packet);
+    packets_needed.clear();
+    return 0;
+  }
+
   /**
    * @brief Drain encoded packets from an FFmpeg encoder session.
    *
@@ -1925,7 +1970,7 @@ namespace video {
 
     while (ret >= 0) {
       auto packet = std::make_unique<packet_raw_avcodec>();
-      auto av_packet = packet.get()->av_packet;
+      auto &av_packet = packet.get()->av_packet;
 
       ret = avcodec_receive_packet(ctx.get(), av_packet);
       if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
@@ -1934,45 +1979,12 @@ namespace video {
         return ret;
       }
 
-      if (session.packets_needed_cnt) {
-        session.packets_needed_cnt--;
-
-        if (session.packets_needed_cnt > 0) {
-          BOOST_LOG(debug) << "Stashing packet "sv << session.packets_needed.size() << " for the first IDR frame";
-          session.packets_needed.emplace_back(std::move(packet));
+      if (int ret = collect_first_idr_packet(session.packets_needed_cnt, session.packets_needed, packet)) {
+        if (ret < 0) {
+          return -1;
+        } else {
           continue;
         }
-
-        BOOST_LOG(debug) << "Releasing stashed packets for the first IDR frame";
-        packet->av_packet = av_packet_alloc();
-        if (!packet->av_packet) {
-          BOOST_LOG(error) << "Failed to allocate AVPacket for stashed packets";
-          return -1;
-        }
-
-        int new_size = av_packet->size;
-        for (const auto &stashed_packet : session.packets_needed) {
-          new_size += stashed_packet->av_packet->size;
-        }
-        if (av_new_packet(packet->av_packet, new_size)) {
-          BOOST_LOG(error) << "Failed to allocate AVPacket data for stashed packets";
-          return -1;
-        }
-
-        int copy_offset = 0;
-        for (const auto &stashed_packet : session.packets_needed) {
-          memcpy(packet->av_packet->data + copy_offset, stashed_packet->av_packet->data, stashed_packet->av_packet->size);
-          copy_offset += stashed_packet->av_packet->size;
-        }
-        memcpy(packet->av_packet->data + copy_offset, av_packet->data, av_packet->size);
-        if (av_packet_copy_props(packet->av_packet, av_packet)) {
-          BOOST_LOG(error) << "Failed to copy AVPacket properties for stashed packets";
-          return -1;
-        }
-
-        av_packet_free(&av_packet);
-        av_packet = packet->av_packet;
-        session.packets_needed.clear();
       }
 
       if (av_packet->flags & AV_PKT_FLAG_KEY) {
