@@ -129,12 +129,17 @@ namespace portal {
      *
      * The token filename is suffixed with the XDG session desktop when set in the environment.
      *
+     * @param directory Directory containing saved tokens; defaults to the application data directory.
+     * @param desktop Session desktop; defaults to the XDG_SESSION_DESKTOP environment variable.
      * @return File path.
      */
-    static std::filesystem::path get_file_path() {
-      const std::filesystem::path legacy_path = platf::appdata() / "portal_token";
+    static std::filesystem::path get_file_path(
+      const std::filesystem::path &directory = platf::appdata(),
+      const std::string &desktop = lizardbyte::common::get_env("XDG_SESSION_DESKTOP")
+    ) {
+      const std::filesystem::path legacy_path = directory / "portal_token";
 
-      std::string suffix(lizardbyte::common::get_env("XDG_SESSION_DESKTOP"));
+      std::string suffix(desktop);
       boost::algorithm::to_lower(suffix);
 
       // Restrict the suffix to prevent path traversal and other invalid filename characters.
@@ -146,7 +151,7 @@ namespace portal {
         suffix = "unknown";
       }
 
-      const std::filesystem::path suffixed_path = platf::appdata() / ("portal_token." + suffix);
+      const std::filesystem::path suffixed_path = directory / ("portal_token." + suffix);
 
       // One-time migration of legacy portal_token.
       std::error_code ec;
@@ -247,6 +252,12 @@ namespace portal {
   std::filesystem::path get_saved_token_path() {
     return restore_token_t::get_file_path();
   }
+
+#ifdef SUNSHINE_TESTS
+  std::filesystem::path get_saved_token_path_for_testing(const std::filesystem::path &directory, const std::string &desktop) {
+    return restore_token_t::get_file_path(directory, desktop);
+  }
+#endif
 
   /**
    * @brief PipeWire stream node and negotiated capture size.

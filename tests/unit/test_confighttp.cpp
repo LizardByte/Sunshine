@@ -34,6 +34,10 @@
 #include <src/nvhttp.h>
 #include <src/utility.h>
 
+#ifdef SUNSHINE_BUILD_PORTAL
+  #include <src/platform/linux/misc.h>
+#endif
+
 using namespace std::literals;
 
 namespace {
@@ -738,6 +742,53 @@ TEST_F(ConfigHttpTest, PortalTokenResetReportsDeletionFailure) {
 #endif
   EXPECT_TRUE(std::filesystem::exists(token_path));
 }
+
+#ifdef SUNSHINE_BUILD_PORTAL
+TEST_F(ConfigHttpTest, PortalTokenResetUsesSessionResolverAndPreservesOtherDesktops) {
+  const auto active_token = test_web_dir / "portal_token.kde";
+  const auto other_token = test_web_dir / "portal_token.gnome";
+  std::ofstream(active_token) << "kde-token";
+  std::ofstream(other_token) << "gnome-token";
+  confighttp::set_portal_token_path_provider_for_testing([this]() {
+    return portal::get_saved_token_path_for_testing(test_web_dir, "KDE");
+  });
+
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Origin", std::format("https://localhost:{}", port));
+  const auto response = client->request("POST", "/portal-token-reset-test", "", headers);
+
+  ASSERT_EQ(response->status_code, "200 OK");
+  EXPECT_TRUE(nlohmann::json::parse(response->content.string()).at("status").get<bool>());
+  EXPECT_FALSE(std::filesystem::exists(active_token));
+  ASSERT_TRUE(std::filesystem::exists(other_token));
+  std::ifstream remaining_token(other_token);
+  std::string value;
+  std::getline(remaining_token, value);
+  EXPECT_EQ(value, "gnome-token");
+}
+
+TEST_F(ConfigHttpTest, PortalTokenResetRemovesMigratedLegacyToken) {
+  const auto legacy_token = test_web_dir / "portal_token";
+  const auto active_token = test_web_dir / "portal_token.kde";
+  std::ofstream(legacy_token) << "legacy-token";
+  confighttp::set_portal_token_path_provider_for_testing([this]() {
+    return portal::get_saved_token_path_for_testing(test_web_dir, "KDE");
+  });
+
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Origin", std::format("https://localhost:{}", port));
+  const auto response = client->request("POST", "/portal-token-reset-test", "", headers);
+
+  ASSERT_EQ(response->status_code, "200 OK");
+  EXPECT_TRUE(nlohmann::json::parse(response->content.string()).at("status").get<bool>());
+  EXPECT_FALSE(std::filesystem::exists(legacy_token));
+  EXPECT_FALSE(std::filesystem::exists(active_token));
+  EXPECT_EQ(portal::get_saved_token_path_for_testing(test_web_dir, "KDE"), active_token);
+  EXPECT_FALSE(std::filesystem::exists(active_token));
+}
+#endif
 
 // Test: confighttp::authenticate() rejects requests without auth header
 TEST_F(ConfigHttpTest, AuthenticateRejectsNoAuth) {
