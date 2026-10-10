@@ -1,3 +1,7 @@
+/**
+ * @file tests/unit/test_nvhttp_appasset.cpp
+ * @brief Test src/nvhttp.cpp appasset endpoint
+ */
 #include "../tests_common.h"
 
 #include <filesystem>
@@ -15,6 +19,9 @@
   #include <share.h>
 #endif
 
+/**
+ * @brief Test fixture for the appasset endpoint.
+ */
 class NvhttpAppassetTest: public BaseTest {
 public:
   std::unique_ptr<SimpleWeb::Server<SimpleWeb::HTTP>> server;
@@ -23,6 +30,9 @@ public:
   unsigned short port = 0;
   std::filesystem::path test_assets_dir;
 
+  /**
+   * @brief Start an isolated plain-HTTP appasset endpoint.
+   */
   void SetUp() override {
     BaseTest::SetUp();
 
@@ -54,15 +64,15 @@ public:
       std::this_thread::sleep_for(std::chrono::milliseconds {10});
     }
 
-    // In gtest, SetUp doesn't return value but we can use FAIL()
-    if (port == 0) {
-      FAIL() << "Server failed to start";
-    }
+    ASSERT_NE(port, 0) << "Server failed to start";
 
     client = std::make_unique<SimpleWeb::Client<SimpleWeb::HTTP>>(std::format("localhost:{}", port));
     client->config.timeout = 5;
   }
 
+  /**
+   * @brief Stop the endpoint and cleanup resources.
+   */
   void TearDown() override {
     if (server) {
       server->stop();
@@ -78,8 +88,15 @@ public:
 
 TEST_F(NvhttpAppassetTest, MissingFallback) {
   // Ensure the default image (box.png) does not exist
+  auto box_path = test_assets_dir / "box.png";
+  auto temp_path = test_assets_dir / "box.png.bak";
   std::error_code ec;
-  std::filesystem::remove(test_assets_dir / "box.png", ec);
+  std::filesystem::rename(box_path, temp_path, ec);
+
+  auto restore_file = util::fail_guard([box_path, temp_path]() {
+    std::error_code ec;
+    std::filesystem::rename(temp_path, box_path, ec);
+  });
 
   auto response = client->request("GET", "/appasset?appid=9999");
   EXPECT_EQ(response->status_code, "404 Not Found");
@@ -105,10 +122,6 @@ TEST_F(NvhttpAppassetTest, LookupErrorFallback) {
 
   auto response = client->request("GET", "/appasset?appid=9999");
 
-  std::error_code ec;
-  std::filesystem::permissions(test_assets_dir, original_permissions, ec);
-  restore_permissions.dismiss();
-
   EXPECT_EQ(response->status_code, "500 Internal Server Error");
   auto it = response->header.find("Content-Length");
   ASSERT_NE(it, response->header.end());
@@ -131,21 +144,14 @@ TEST_F(NvhttpAppassetTest, UnreadableFallback) {
 #ifdef _WIN32
   FILE *exclusive_handle = _fsopen(fallback_path.string().c_str(), "w", _SH_DENYRW);
   ASSERT_NE(exclusive_handle, nullptr);
+  auto restore_handle = util::fail_guard([exclusive_handle]() {
+    fclose(exclusive_handle);
+  });
 #else
   std::filesystem::permissions(fallback_path, std::filesystem::perms::none);
 #endif
 
   auto response = client->request("GET", "/appasset?appid=9999");
-
-#ifdef _WIN32
-  fclose(exclusive_handle);
-#else
-  std::filesystem::permissions(fallback_path, std::filesystem::perms::all);
-#endif
-
-  std::error_code ec;
-  std::filesystem::remove(fallback_path, ec);
-  restore_file.dismiss();
 
   EXPECT_EQ(response->status_code, "500 Internal Server Error");
   auto it = response->header.find("Content-Length");
@@ -165,19 +171,15 @@ TEST_F(NvhttpAppassetTest, ReadableImage) {
   test_app.image_path = app_image_path.string();
   test_app.id = "5678";
 
-  auto restore_app = util::fail_guard([]() {
+  auto restore_app = util::fail_guard([app_image_path]() {
     proc::proc.get_apps().pop_back();
+    std::error_code ec;
+    std::filesystem::remove(app_image_path, ec);
   });
 
   proc::proc.get_apps().push_back(test_app);
 
   auto response = client->request("GET", "/appasset?appid=5678");
-
-  proc::proc.get_apps().pop_back();
-  restore_app.dismiss();
-
-  std::error_code ec;
-  std::filesystem::remove(app_image_path, ec);
 
   EXPECT_EQ(response->status_code, "200 OK");
   EXPECT_EQ(response->content.string(), image_data);
