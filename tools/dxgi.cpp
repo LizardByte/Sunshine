@@ -37,12 +37,8 @@ int main(int argc, char *argv[]) {
   }
 
   dxgi::adapter_t::pointer adapter_p {};
-  for (int x = 0; (status = factory->EnumAdapters1(x, &adapter_p)) != DXGI_ERROR_NOT_FOUND; ++x) {
-    if (FAILED(status)) {
-      std::cout << "Failed to enumerate DXGI adapters [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
-      break;
-    }
-
+  int x = 0;
+  while (SUCCEEDED(status = factory->EnumAdapters1(x++, &adapter_p))) {
     dxgi::adapter_t adapter {adapter_p};
 
     DXGI_ADAPTER_DESC1 adapter_desc;
@@ -58,12 +54,8 @@ int main(int argc, char *argv[]) {
 
     dxgi::output_t::pointer output_p {};
     bool has_outputs = false;
-    for (int y = 0; (status = adapter->EnumOutputs(y, &output_p)) != DXGI_ERROR_NOT_FOUND; ++y) {
-      if (FAILED(status)) {
-        std::cout << "Failed to enumerate DXGI outputs [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
-        break;
-      }
-
+    int y = 0;
+    while (SUCCEEDED(status = adapter->EnumOutputs(y++, &output_p))) {
       // Print the header only when we find the first output
       if (!has_outputs) {
         std::cout << std::endl
@@ -83,7 +75,13 @@ int main(int argc, char *argv[]) {
       std::cout << "    AttachedToDesktop : " << (desc.AttachedToDesktop ? "yes" : "no") << std::endl;
       std::cout << "    Resolution        : " << std::format("{}x{}", width, height) << std::endl;
     }
+    if (FAILED(status) && status != DXGI_ERROR_NOT_FOUND) {
+      std::cout << "Failed to enumerate DXGI outputs [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+    }
     std::cout << std::endl;
+  }
+  if (FAILED(status) && status != DXGI_ERROR_NOT_FOUND) {
+    std::cout << "Failed to enumerate DXGI adapters [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
   }
 
   return 0;
