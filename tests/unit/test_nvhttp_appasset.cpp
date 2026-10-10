@@ -41,8 +41,8 @@ public:
     auto port_future = port_promise.get_future();
 
     server_thread = std::jthread([this, &port_promise]() {
-      server->start([&port_promise, this]() {
-        port_promise.set_value(server->getLocalPort());
+      server->start([&port_promise](const unsigned short assigned_port) {
+        port_promise.set_value(assigned_port);
       });
     });
 
