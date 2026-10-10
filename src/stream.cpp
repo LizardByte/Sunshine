@@ -488,6 +488,7 @@ namespace stream {
    */
   struct session_t {
     config_t config;  ///< Stream or encoder configuration captured for the worker.
+    std::shared_ptr<display_prep::lease_t> display_prep_lease;  ///< Released after capture workers stop.
 
     safe::mail_t mail;  ///< Mailbox used to distribute packets and lifecycle events.
 
@@ -2249,11 +2250,17 @@ namespace stream {
           input::terminate_gamepads();
         }
 
-        if (revert_display_config) {
+        // A pre-display lease keeps the output available across a pending
+        // handoff; its final release will request restoration.
+        if (revert_display_config && !session.display_prep_lease) {
           display_device::revert_configuration();
         }
 
         platf::streaming_will_stop();
+      }
+
+      if (session.display_prep_lease) {
+        session.display_prep_lease->finish();
       }
 
       BOOST_LOG(debug) << "Session ended"sv;
@@ -2263,6 +2270,14 @@ namespace stream {
      * @brief Start the audio, video, and control workers for a streaming session.
      */
     int start(session_t &session, const std::string &addr_string) {
+      if (session.display_prep_lease && !session.display_prep_lease->start()) {
+        return -1;
+      }
+      auto prep_failure = util::fail_guard([&] {
+        if (session.display_prep_lease) {
+          session.display_prep_lease->finish();
+        }
+      });
       session.input = input::alloc(session.mail, session.input_session_id);
 
       session.broadcast_ref = broadcast.ref();
@@ -2301,6 +2316,7 @@ namespace stream {
 #endif
       }
 
+      prep_failure.disable();
       return 0;
     }
 
@@ -2314,6 +2330,7 @@ namespace stream {
 
       session->shutdown_event = mail->event<bool>(mail::shutdown);
       session->launch_session_id = launch_session.id;
+      session->display_prep_lease = launch_session.display_prep_lease;
       session->client_cert = launch_session.client_cert;
       session->input_session_id = launch_session.client_cert.empty() ? launch_session.unique_id : launch_session.client_cert;
 
