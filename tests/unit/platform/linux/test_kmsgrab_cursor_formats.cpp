@@ -131,6 +131,39 @@ namespace {
     EXPECT_EQ(pixel[3], 0x11);  // A from X byte
   }
 
+  TEST(KmsGrabCursor, ConvertsXbgr8888WithoutXChannelAlphaMode) {
+    std::array<std::uint8_t, 4> pixel = {0x80, 0x20, 0x10, 0x30};
+
+    EXPECT_TRUE(platf::kms::convert_pixel_to_argb8888(pixel.data(), DRM_FORMAT_XBGR8888, false));
+
+    EXPECT_EQ(pixel[0], 0x10);  // B
+    EXPECT_EQ(pixel[1], 0x20);  // G
+    EXPECT_EQ(pixel[2], 0x80);  // R
+    EXPECT_EQ(pixel[3], 0xFF);  // Opaque
+  }
+
+  TEST(KmsGrabCursor, ConvertsRgbx8888WithoutXChannelAlphaMode) {
+    std::array<std::uint8_t, 4> pixel = {0x11, 0x22, 0x33, 0x44};
+
+    EXPECT_TRUE(platf::kms::convert_pixel_to_argb8888(pixel.data(), DRM_FORMAT_RGBX8888, false));
+
+    EXPECT_EQ(pixel[0], 0x22);  // B
+    EXPECT_EQ(pixel[1], 0x33);  // G
+    EXPECT_EQ(pixel[2], 0x44);  // R
+    EXPECT_EQ(pixel[3], 0xFF);  // Opaque
+  }
+
+  TEST(KmsGrabCursor, ConvertsBgrx8888WithoutXChannelAlphaMode) {
+    std::array<std::uint8_t, 4> pixel = {0x11, 0x22, 0x33, 0x44};
+
+    EXPECT_TRUE(platf::kms::convert_pixel_to_argb8888(pixel.data(), DRM_FORMAT_BGRX8888, false));
+
+    EXPECT_EQ(pixel[0], 0x44);  // B
+    EXPECT_EQ(pixel[1], 0x33);  // G
+    EXPECT_EQ(pixel[2], 0x22);  // R
+    EXPECT_EQ(pixel[3], 0xFF);  // Opaque
+  }
+
   TEST(KmsGrabCursor, HandlesTransparentPartialAndOpaqueAlphaValues) {
     {
       std::array<std::uint8_t, 4> pixel = {0x10, 0x20, 0x30, 0x00};

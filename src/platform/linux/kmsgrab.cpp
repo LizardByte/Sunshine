@@ -599,12 +599,12 @@ namespace platf {
      *
      * Rewrites the pixel in place to [B, G, R, A] byte order.
      *
-     * @param pixel Pointer to the source pixel bytes in the given format.
-     * @param fmt DRM pixel format of the source pixel.
-     * @param x_is_alpha True for cursor buffers where the kernel hardcodes DRM_FORMAT_HOST_XRGB8888
+     * @param[in,out] p Pointer to the source pixel bytes in the given format.
+     * @param[in] fmt DRM pixel format of the source pixel.
+     * @param[in] x_is_alpha True for cursor buffers where the kernel hardcodes DRM_FORMAT_HOST_XRGB8888
      *                   (see virtgpu_gem.c) but the fourth byte actually carries per-pixel alpha.
      *                   Set false for scanout buffers or formats with real alpha channels.
-     * @return void The pixel is rewritten in place to [B, G, R, A] byte order.
+     * @return true if the format is supported; false otherwise.
      */
     bool convert_pixel_to_argb8888(std::uint8_t *p, std::uint32_t fmt, bool x_is_alpha = false) {
       const auto c0 = p[0];
