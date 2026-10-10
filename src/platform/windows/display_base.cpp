@@ -492,7 +492,12 @@ namespace platf::dxgi {
 
     adapter_t::pointer adapter_p;
     for (int tries = 0; tries < 2; ++tries) {
-      for (int x = 0; factory->EnumAdapters1(x, &adapter_p) != DXGI_ERROR_NOT_FOUND; ++x) {
+      for (int x = 0; (status = factory->EnumAdapters1(x, &adapter_p)) != DXGI_ERROR_NOT_FOUND; ++x) {
+        if (FAILED(status)) {
+          BOOST_LOG(error) << "Failed to enumerate DXGI adapters [0x"sv << util::hex(status).to_string_view() << ']';
+          break;
+        }
+
         dxgi::adapter_t adapter_tmp {adapter_p};
 
         DXGI_ADAPTER_DESC1 adapter_desc;
@@ -503,7 +508,12 @@ namespace platf::dxgi {
         }
 
         dxgi::output_t::pointer output_p;
-        for (int y = 0; adapter_tmp->EnumOutputs(y, &output_p) != DXGI_ERROR_NOT_FOUND; ++y) {
+        for (int y = 0; (status = adapter_tmp->EnumOutputs(y, &output_p)) != DXGI_ERROR_NOT_FOUND; ++y) {
+          if (FAILED(status)) {
+            BOOST_LOG(error) << "Failed to enumerate DXGI outputs [0x"sv << util::hex(status).to_string_view() << ']';
+            break;
+          }
+
           dxgi::output_t output_tmp {output_p};
 
           DXGI_OUTPUT_DESC desc;
@@ -1074,7 +1084,12 @@ namespace platf {
     }
 
     dxgi::adapter_t::pointer adapter_p;
-    for (int x = 0; factory->EnumAdapters1(x, &adapter_p) != DXGI_ERROR_NOT_FOUND; ++x) {
+    for (int x = 0; (status = factory->EnumAdapters1(x, &adapter_p)) != DXGI_ERROR_NOT_FOUND; ++x) {
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Failed to enumerate DXGI adapters [0x"sv << util::hex(status).to_string_view() << ']';
+        break;
+      }
+
       dxgi::adapter_t adapter {adapter_p};
       DXGI_ADAPTER_DESC1 adapter_desc;
       adapter->GetDesc1(&adapter_desc);
@@ -1092,7 +1107,12 @@ namespace platf {
         << "    ====== OUTPUT ======"sv << std::endl;
 
       dxgi::output_t::pointer output_p {};
-      for (int y = 0; adapter->EnumOutputs(y, &output_p) != DXGI_ERROR_NOT_FOUND; ++y) {
+      for (int y = 0; (status = adapter->EnumOutputs(y, &output_p)) != DXGI_ERROR_NOT_FOUND; ++y) {
+        if (FAILED(status)) {
+          BOOST_LOG(error) << "Failed to enumerate DXGI outputs [0x"sv << util::hex(status).to_string_view() << ']';
+          break;
+        }
+
         dxgi::output_t output {output_p};
 
         DXGI_OUTPUT_DESC desc;
