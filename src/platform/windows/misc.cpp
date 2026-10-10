@@ -257,9 +257,7 @@ namespace platf {
     return attached_desktop.get();
   }
 
-  input_desktop_guard_t::input_desktop_guard_t():
-      previous_desktop {GetThreadDesktop(GetCurrentThreadId())},
-      input_desktop {OpenInputDesktop(DF_ALLOWOTHERACCOUNTHOOK, FALSE, GENERIC_ALL)} {
+  input_desktop_guard_t::input_desktop_guard_t() {
     if (input_desktop && !SetThreadDesktop(input_desktop.get())) {
       input_desktop.reset();
     }

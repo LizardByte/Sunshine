@@ -29,7 +29,7 @@ namespace platf {
   /**
    * @brief Owning handle of a desktop.
    */
-  using desktop_t = util::safe_ptr_v2<std::remove_pointer_t<HDESK>, BOOL, CloseDesktop>;
+  using desktop_t = util::safe_ptr_v2<std::remove_pointer_t<HDESK>, BOOL, &CloseDesktop>;
 
   /**
    * @brief Synchronize thread desktop.
@@ -47,8 +47,8 @@ namespace platf {
     ~input_desktop_guard_t();
 
   private:
-    HDESK previous_desktop;
-    desktop_t input_desktop;
+    HDESK previous_desktop {GetThreadDesktop(GetCurrentThreadId())};
+    desktop_t input_desktop {OpenInputDesktop(DF_ALLOWOTHERACCOUNTHOOK, FALSE, GENERIC_ALL)};
   };
 
   /**
