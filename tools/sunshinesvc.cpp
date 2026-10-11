@@ -10,6 +10,7 @@
 #include <WtsApi32.h>
 
 // local includes
+#include "service_state.h"
 #include "src/logging.h"
 
 // PROC_THREAD_ATTRIBUTE_JOB_LIST is currently missing from MinGW headers
@@ -17,42 +18,18 @@
   #define PROC_THREAD_ATTRIBUTE_JOB_LIST ProcThreadAttributeValue(13, FALSE, TRUE, FALSE)
 #endif
 
-SERVICE_STATUS_HANDLE service_status_handle;
-SERVICE_STATUS service_status;
-HANDLE stop_event;
-HANDLE session_change_event;
-
 constexpr auto SERVICE_NAME = "SunshineService";
 
+/**
+ * @brief Route an SCM callback to its owning invocation.
+ * @param dwControl SCM control.
+ * @param dwEventType Session event.
+ * @param lpEventData Native event details.
+ * @param lpContext Service invocation.
+ * @return Native control result.
+ */
 DWORD WINAPI HandlerEx(DWORD dwControl, DWORD dwEventType, LPVOID lpEventData, LPVOID lpContext) {
-  switch (dwControl) {
-    case SERVICE_CONTROL_INTERROGATE:
-      return NO_ERROR;
-
-    case SERVICE_CONTROL_SESSIONCHANGE:
-      // If a new session connects to the console, restart Sunshine
-      // to allow it to spawn inside the new console session.
-      if (dwEventType == WTS_CONSOLE_CONNECT) {
-        SetEvent(session_change_event);
-      }
-      return NO_ERROR;
-
-    case SERVICE_CONTROL_PRESHUTDOWN:
-      // The system is shutting down
-    case SERVICE_CONTROL_STOP:
-      // Let SCM know we're stopping in up to 30 seconds
-      service_status.dwCurrentState = SERVICE_STOP_PENDING;
-      service_status.dwControlsAccepted = 0;
-      service_status.dwWaitHint = 30 * 1000;
-      SetServiceStatus(service_status_handle, &service_status);
-
-      // Trigger ServiceMain() to start cleanup
-      SetEvent(stop_event);
-      return NO_ERROR;
-
-    default:
-      return ERROR_CALL_NOT_IMPLEMENTED;
-  }
+  return static_cast<service::state_t *>(lpContext)->control(dwControl, dwEventType);
 }
 
 HANDLE CreateJobObjectForChildProcess() {
@@ -185,50 +162,43 @@ void TerminateSunshine(HANDLE console_token, const PROCESS_INFORMATION &process_
   }
 }
 
+/**
+ * @brief Own the Windows service until its child processes stop.
+ * @param dwArgc Argument count.
+ * @param lpszArgv Arguments supplied by SCM.
+ */
 VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
-  service_status_handle = RegisterServiceCtrlHandlerEx(SERVICE_NAME, HandlerEx, nullptr);
-  if (service_status_handle == nullptr) {
+  service::state_t state;
+  state.status_handle = RegisterServiceCtrlHandlerEx(SERVICE_NAME, HandlerEx, &state);
+  if (state.status_handle == nullptr) {
     // Nothing we can really do here but terminate ourselves
     ExitProcess(GetLastError());
     return;
   }
 
   // Tell SCM we're starting
-  service_status.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
-  service_status.dwServiceSpecificExitCode = 0;
-  service_status.dwWin32ExitCode = NO_ERROR;
-  service_status.dwWaitHint = 0;
-  service_status.dwControlsAccepted = 0;
-  service_status.dwCheckPoint = 0;
-  service_status.dwCurrentState = SERVICE_START_PENDING;
-  SetServiceStatus(service_status_handle, &service_status);
+  state.report(SERVICE_START_PENDING);
 
   // Create a manual-reset stop event
-  stop_event = CreateEventA(nullptr, TRUE, FALSE, nullptr);
-  if (stop_event == nullptr) {
+  state.stop_event = CreateEventA(nullptr, TRUE, FALSE, nullptr);
+  if (state.stop_event == nullptr) {
     // Tell SCM we failed to start
-    service_status.dwWin32ExitCode = GetLastError();
-    service_status.dwCurrentState = SERVICE_STOPPED;
-    SetServiceStatus(service_status_handle, &service_status);
+    state.report(SERVICE_STOPPED, 0, GetLastError());
     return;
   }
 
   // Create an auto-reset session change event
-  session_change_event = CreateEventA(nullptr, FALSE, FALSE, nullptr);
-  if (session_change_event == nullptr) {
+  state.session_change_event = CreateEventA(nullptr, FALSE, FALSE, nullptr);
+  if (state.session_change_event == nullptr) {
     // Tell SCM we failed to start
-    service_status.dwWin32ExitCode = GetLastError();
-    service_status.dwCurrentState = SERVICE_STOPPED;
-    SetServiceStatus(service_status_handle, &service_status);
+    state.report(SERVICE_STOPPED, 0, GetLastError());
     return;
   }
 
   auto log_file_handle = OpenLogFileHandle();
   if (log_file_handle == INVALID_HANDLE_VALUE) {
     // Tell SCM we failed to start
-    service_status.dwWin32ExitCode = GetLastError();
-    service_status.dwCurrentState = SERVICE_STOPPED;
-    SetServiceStatus(service_status_handle, &service_status);
+    state.report(SERVICE_STOPPED, 0, GetLastError());
     return;
   }
 
@@ -245,9 +215,7 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
   startup_info.lpAttributeList = AllocateProcThreadAttributeList(2);
   if (startup_info.lpAttributeList == nullptr) {
     // Tell SCM we failed to start
-    service_status.dwWin32ExitCode = GetLastError();
-    service_status.dwCurrentState = SERVICE_STOPPED;
-    SetServiceStatus(service_status_handle, &service_status);
+    state.report(SERVICE_STOPPED, 0, GetLastError());
     return;
   }
 
@@ -255,12 +223,10 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
   UpdateProcThreadAttribute(startup_info.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, &log_file_handle, sizeof(log_file_handle), nullptr, nullptr);
 
   // Tell SCM we're running (and stoppable now)
-  service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_PRESHUTDOWN | SERVICE_ACCEPT_SESSIONCHANGE;
-  service_status.dwCurrentState = SERVICE_RUNNING;
-  SetServiceStatus(service_status_handle, &service_status);
+  state.report(SERVICE_RUNNING, SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_PRESHUTDOWN | SERVICE_ACCEPT_SESSIONCHANGE);
 
   // Loop every 3 seconds until the stop event is set or Sunshine.exe is running
-  while (WaitForSingleObject(stop_event, 3000) != WAIT_OBJECT_0) {
+  while (WaitForSingleObject(state.stop_event, 3000) != WAIT_OBJECT_0) {
     auto console_session_id = WTSGetActiveConsoleSessionId();
     if (console_session_id == 0xFFFFFFFF) {
       // No console session yet
@@ -292,7 +258,7 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
     bool still_running;
     do {
       // Wait for the stop event to be set, Sunshine.exe to terminate, or the console session to change
-      const std::array<HANDLE, 3> wait_objects = {stop_event, process_info.hProcess, session_change_event};
+      const std::array<HANDLE, 3> wait_objects = {state.stop_event, process_info.hProcess, state.session_change_event};
       switch (WaitForMultipleObjects(wait_objects.size(), wait_objects.data(), FALSE, INFINITE)) {
         case WAIT_OBJECT_0 + 2:
           if (WTSGetActiveConsoleSessionId() == console_session_id) {
@@ -314,14 +280,14 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
             DWORD exit_code;
             if (GetExitCodeProcess(process_info.hProcess, &exit_code) && exit_code == ERROR_SHUTDOWN_IN_PROGRESS) {
               // Sunshine is asking for us to shut down, so gracefully stop ourselves.
-              SetEvent(stop_event);
+              SetEvent(state.stop_event);
             }
             still_running = false;
             break;
           }
         default:
           // Stop the service rather than orphaning Sunshine after an unexpected wait failure.
-          SetEvent(stop_event);
+          SetEvent(state.stop_event);
           TerminateSunshine(console_token, process_info);
           still_running = false;
           break;
@@ -335,8 +301,7 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
   }
 
   // Let SCM know we've stopped
-  service_status.dwCurrentState = SERVICE_STOPPED;
-  SetServiceStatus(service_status_handle, &service_status);
+  state.report(SERVICE_STOPPED);
 }
 
 // This will run in a child process in the user session

@@ -1126,15 +1126,15 @@ namespace platf {
   /**
    * @brief Check whether DXGI reports that adapter or driver enumeration is stale.
    *
+   * @param factory Host-owned adapter change tracker.
+   * @param reenumeration_state_lock Synchronization for this tracker.
    * @return `true` if a change has occurred or if it is unknown whether a change occurred.
    */
-  bool needs_encoder_reenumeration() {
-    // Serialize access to the static DXGI factory
-    static std::mutex reenumeration_state_lock;
+  bool dxgi_needs_encoder_reenumeration(dxgi::factory1_t &factory, std::mutex &reenumeration_state_lock) {
+    // Serialize access to this host's DXGI factory
     auto lg = std::lock_guard(reenumeration_state_lock);
 
     // Keep a reference to the DXGI factory, which will keep track of changes internally.
-    static dxgi::factory1_t factory;
     if (!factory || !factory->IsCurrent()) {
       factory.reset();
 

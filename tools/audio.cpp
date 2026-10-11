@@ -22,8 +22,6 @@ DEFINE_PROPERTYKEY(PKEY_DeviceInterface_FriendlyName, 0x026e516e, 0xb814, 0x414b
 
 using namespace std::literals;
 
-int device_state_filter = DEVICE_STATE_ACTIVE;
-
 namespace audio {
   template<class T>
   void Release(T *p) {
@@ -182,7 +180,12 @@ namespace audio {
     return audio_client;
   }
 
-  void print_device(device_t &device) {
+  /**
+   * @brief Print one device matching the requested state mask.
+   * @param device Audio endpoint.
+   * @param device_state_filter Accepted endpoint states.
+   */
+  void print_device(device_t &device, int device_state_filter) {
     audio::wstring_t wstring;
     DWORD device_state;
 
@@ -259,6 +262,7 @@ void print_help() {
 }
 
 int main(int argc, char *argv[]) {
+  int device_state_filter = DEVICE_STATE_ACTIVE;
   CoInitializeEx(nullptr, COINIT_MULTITHREADED | COINIT_SPEED_OVER_MEMORY);
 
   auto fg = util::fail_guard([]() {
@@ -326,7 +330,7 @@ int main(int argc, char *argv[]) {
     audio::device_t device;
     collection->Item(x, &device);
 
-    audio::print_device(device);
+    audio::print_device(device, device_state_filter);
   }
 
   return 0;

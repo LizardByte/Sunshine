@@ -47,6 +47,7 @@
 #include <Shlwapi.h>
 
 // local includes
+#include "display.h"
 #include "misc.h"
 #include "nvprefs/nvprefs_interface.h"
 #include "src/entry_handler.h"
@@ -55,6 +56,7 @@
 #include "src/platform/common.h"
 #include "src/platform/permissions.h"
 #include "src/utility.h"
+#include "streaming_api.h"
 #include "utf_utils.h"
 
 // UDP_SEND_MSG_SIZE was added in the Windows 10 20H1 SDK
@@ -100,8 +102,6 @@ extern "C" {
 
 namespace {
 
-  std::atomic<bool> used_nt_set_timer_resolution = false;
-
   bool nt_set_timer_resolution_max() {
     ULONG maximum;
     ULONG minimum;
@@ -143,22 +143,42 @@ namespace platf {
    */
   using adapteraddrs_t = util::c_ptr<IP_ADAPTER_ADDRESSES>;
 
-  bool enabled_mouse_keys = false;  ///< Tracks whether Windows Mouse Keys was enabled before Sunshine changed it.
-  MOUSEKEYS previous_mouse_keys_state;  ///< Previous mouse keys state.
+  /**
+   * @brief Own Windows process settings and optional networking resources.
+   */
+  struct runtime_t::impl_t {
+    /**
+     * @brief Bind application dependencies.
+     * @param preferences NVIDIA profile owner.
+     */
+    explicit impl_t(nvprefs::nvprefs_interface &preferences):
+        preferences(preferences) {}
 
-  HANDLE qos_handle = nullptr;  ///< QoS handle.
-
-  decltype(QOSCreateHandle) *fn_QOSCreateHandle = nullptr;  ///< Fn QoS create handle.
-  decltype(QOSAddSocketToFlow) *fn_QOSAddSocketToFlow = nullptr;  ///< Fn QoS add socket to flow.
-  decltype(QOSRemoveSocketFromFlow) *fn_QOSRemoveSocketFromFlow = nullptr;  ///< Fn QoS remove socket from flow.
-
-  HANDLE wlan_handle = nullptr;  ///< Wlan handle.
-
-  decltype(WlanOpenHandle) *fn_WlanOpenHandle = nullptr;  ///< Fn wlan open handle.
-  decltype(WlanCloseHandle) *fn_WlanCloseHandle = nullptr;  ///< Fn wlan close handle.
-  decltype(WlanFreeMemory) *fn_WlanFreeMemory = nullptr;  ///< Fn wlan free memory.
-  decltype(WlanEnumInterfaces) *fn_WlanEnumInterfaces = nullptr;  ///< Fn wlan enum interfaces.
-  decltype(WlanSetInterface) *fn_WlanSetInterface = nullptr;  ///< Fn wlan set interface.
+    nvprefs::nvprefs_interface &preferences;  ///< NVIDIA profile manager.
+    std::shared_ptr<const dxgi::shader_bundle_t> shaders;  ///< Compiled capture shaders.
+    std::unique_ptr<deinit_t> initialization;  ///< COM initialization lifetime.
+    dxgi::factory1_t enumeration_factory;  ///< DXGI GPU change tracker for this host.
+    std::mutex enumeration_mutex;  ///< Serialize native GPU change tracking.
+    bool streaming {};  ///< Whether native streaming settings are active.
+    bool used_nt_set_timer_resolution {};  ///< Timer request method.
+    bool enabled_mouse_keys {};  ///< Whether Mouse Keys must be restored.
+    MOUSEKEYS previous_mouse_keys_state {};  ///< Original Mouse Keys state.
+    std::shared_ptr<const wlan_api_t> wlan;  ///< WLAN library exports.
+    HANDLE wlan_handle {};  ///< Active WLAN client.
+    std::shared_ptr<const qwave_api_t> qos;  ///< QWAVE owner shared with active flows.
+    /**
+     * @brief Apply streaming settings.
+     */
+    void streaming_will_start();
+    /**
+     * @brief Restore streaming settings.
+     */
+    void streaming_will_stop();
+    /**
+     * @brief Enable Mouse Keys when there is no physical mouse.
+     */
+    void enable_mouse_keys();
+  };
 
   std::filesystem::path appdata() {
     std::array<WCHAR, MAX_PATH> sunshine_path;
@@ -1163,35 +1183,14 @@ namespace platf {
     }
   }
 
-  void streaming_will_start() {
-    static std::once_flag load_wlanapi_once_flag;
-    std::call_once(load_wlanapi_once_flag, []() {
-      // wlanapi.dll is not installed by default on Windows Server, so we load it dynamically
-      HMODULE wlanapi = LoadLibraryExA("wlanapi.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
-      if (!wlanapi) {
-        BOOST_LOG(debug) << "wlanapi.dll is not available on this OS"sv;
-        return;
-      }
-
-      fn_WlanOpenHandle = (decltype(fn_WlanOpenHandle)) GetProcAddress(wlanapi, "WlanOpenHandle");
-      fn_WlanCloseHandle = (decltype(fn_WlanCloseHandle)) GetProcAddress(wlanapi, "WlanCloseHandle");
-      fn_WlanFreeMemory = (decltype(fn_WlanFreeMemory)) GetProcAddress(wlanapi, "WlanFreeMemory");
-      fn_WlanEnumInterfaces = (decltype(fn_WlanEnumInterfaces)) GetProcAddress(wlanapi, "WlanEnumInterfaces");
-      fn_WlanSetInterface = (decltype(fn_WlanSetInterface)) GetProcAddress(wlanapi, "WlanSetInterface");
-
-      if (!fn_WlanOpenHandle || !fn_WlanCloseHandle || !fn_WlanFreeMemory || !fn_WlanEnumInterfaces || !fn_WlanSetInterface) {
-        BOOST_LOG(error) << "wlanapi.dll is missing exports?"sv;
-
-        fn_WlanOpenHandle = nullptr;
-        fn_WlanCloseHandle = nullptr;
-        fn_WlanFreeMemory = nullptr;
-        fn_WlanEnumInterfaces = nullptr;
-        fn_WlanSetInterface = nullptr;
-
-        FreeLibrary(wlanapi);
-        return;
-      }
-    });
+  void runtime_t::impl_t::streaming_will_start() {
+    if (streaming) {
+      return;
+    }
+    streaming = true;
+    if (!wlan) {
+      wlan = wlan_api_t::load();
+    }
 
     // Enable MMCSS scheduling for DWM
     DwmEnableMMCSS(true);
@@ -1209,23 +1208,23 @@ namespace platf {
     SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
 
     // Modify NVIDIA control panel settings again, in case they have been changed externally since sunshine launch
-    if (nvprefs_instance.load()) {
-      if (!nvprefs_instance.owning_undo_file()) {
-        nvprefs_instance.restore_from_and_delete_undo_file_if_exists();
+    if (preferences.load()) {
+      if (!preferences.owning_undo_file()) {
+        preferences.restore_from_and_delete_undo_file_if_exists();
       }
-      nvprefs_instance.modify_application_profile();
-      nvprefs_instance.modify_global_profile();
-      nvprefs_instance.unload();
+      preferences.modify_application_profile();
+      preferences.modify_global_profile();
+      preferences.unload();
     }
 
     // Enable low latency mode on all connected WLAN NICs if wlanapi.dll is available
-    if (fn_WlanOpenHandle) {
+    if (wlan) {
       DWORD negotiated_version;
 
-      if (fn_WlanOpenHandle(WLAN_API_MAKE_VERSION(2, 0), nullptr, &negotiated_version, &wlan_handle) == ERROR_SUCCESS) {
+      if (wlan->open(WLAN_API_MAKE_VERSION(2, 0), nullptr, &negotiated_version, &wlan_handle) == ERROR_SUCCESS) {
         PWLAN_INTERFACE_INFO_LIST wlan_interface_list;
 
-        if (fn_WlanEnumInterfaces(wlan_handle, nullptr, &wlan_interface_list) == ERROR_SUCCESS) {
+        if (wlan->enumerate(wlan_handle, nullptr, &wlan_interface_list) == ERROR_SUCCESS) {
           for (DWORD i = 0; i < wlan_interface_list->dwNumberOfItems; i++) {
             if (wlan_interface_list->InterfaceInfo[i].isState == wlan_interface_state_connected) {
               // Enable media streaming mode for 802.11 wireless interfaces to reduce latency and
@@ -1234,16 +1233,16 @@ namespace platf {
               // https://docs.microsoft.com/en-us/windows-hardware/drivers/network/oid-wdi-set-connection-quality
               // https://docs.microsoft.com/en-us/previous-versions/windows/hardware/wireless/native-802-11-media-streaming
               BOOL value = TRUE;
-              auto error = fn_WlanSetInterface(wlan_handle, &wlan_interface_list->InterfaceInfo[i].InterfaceGuid, wlan_intf_opcode_media_streaming_mode, sizeof(value), &value, nullptr);
+              auto error = wlan->set(wlan_handle, &wlan_interface_list->InterfaceInfo[i].InterfaceGuid, wlan_intf_opcode_media_streaming_mode, sizeof(value), &value, nullptr);
               if (error == ERROR_SUCCESS) {
                 BOOST_LOG(info) << "WLAN interface "sv << i << " is now in low latency mode"sv;
               }
             }
           }
 
-          fn_WlanFreeMemory(wlan_interface_list);
+          wlan->free_memory(wlan_interface_list);
         } else {
-          fn_WlanCloseHandle(wlan_handle, nullptr);
+          wlan->close(wlan_handle, nullptr);
           wlan_handle = nullptr;
         }
       }
@@ -1251,7 +1250,10 @@ namespace platf {
     enable_mouse_keys();
   }
 
-  void enable_mouse_keys() {
+  void runtime_t::impl_t::enable_mouse_keys() {
+    if (enabled_mouse_keys) {
+      return;
+    }
     // If there is no mouse connected, enable Mouse Keys to force the cursor to appear
     if (!GetSystemMetrics(SM_MOUSEPRESENT)) {
       BOOST_LOG(info) << "A mouse was not detected. Sunshine will enable Mouse Keys while streaming to force the mouse cursor to appear.";
@@ -1280,7 +1282,11 @@ namespace platf {
     }
   }
 
-  void streaming_will_stop() {
+  void runtime_t::impl_t::streaming_will_stop() {
+    if (!streaming) {
+      return;
+    }
+    streaming = false;
     // Demote ourselves back to normal priority class
     SetPriorityClass(GetCurrentProcess(), NORMAL_PRIORITY_CLASS);
 
@@ -1299,7 +1305,7 @@ namespace platf {
 
     // Closing our WLAN client handle will undo our optimizations
     if (wlan_handle != nullptr) {
-      fn_WlanCloseHandle(wlan_handle, nullptr);
+      wlan->close(wlan_handle, nullptr);
       wlan_handle = nullptr;
     }
 
@@ -1335,16 +1341,16 @@ namespace platf {
     CloseHandle(process_info.hThread);
   }
 
-  void restart() {
+  void restart(lifetime::controller_t &lifetime) {
     // If we're running standalone, we have to respawn ourselves via CreateProcess().
     // If we're running from the service, we should just exit and let it respawn us.
     if (GetConsoleWindow() != nullptr) {
       // Avoid racing with the new process by waiting until we're exiting to start it.
-      atexit(restart_on_exit);
+      lifetime.restart_on_exit(restart_on_exit);
     }
 
     // We use an async exit call here because we can't block the HTTP thread or we'll hang shutdown.
-    lifetime::exit_sunshine(0, true);
+    lifetime.exit_sunshine(0, true);
   }
 
   /**
@@ -1637,25 +1643,27 @@ namespace platf {
      *
      * @param flow_id Flow ID.
      */
-    qos_t(QOS_FLOWID flow_id):
+    qos_t(std::shared_ptr<const qwave_api_t> api, QOS_FLOWID flow_id):
+        api(std::move(api)),
         flow_id(flow_id) {
     }
 
     virtual ~qos_t() {
-      if (!fn_QOSRemoveSocketFromFlow(qos_handle, (SOCKET) nullptr, flow_id, 0)) {
+      if (!api->remove(api->handle, (SOCKET) nullptr, flow_id, 0)) {
         auto winerr = GetLastError();
         BOOST_LOG(warning) << "QOSRemoveSocketFromFlow() failed: "sv << winerr;
       }
     }
 
   private:
+    std::shared_ptr<const qwave_api_t> api;  ///< API and client retained until this flow is removed.
     QOS_FLOWID flow_id;
   };
 
   /**
    * @brief Enables QoS on the given socket for traffic to the specified destination.
    */
-  std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
+  std::unique_ptr<deinit_t> runtime_t::enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
     SOCKADDR_IN saddr_v4;
     SOCKADDR_IN6 saddr_v6;
     PSOCKADDR dest_addr;
@@ -1666,40 +1674,11 @@ namespace platf {
       return nullptr;
     }
 
-    static std::once_flag load_qwave_once_flag;
-    std::call_once(load_qwave_once_flag, []() {
-      // qWAVE is not installed by default on Windows Server, so we load it dynamically
-      HMODULE qwave = LoadLibraryExA("qwave.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
-      if (!qwave) {
-        BOOST_LOG(debug) << "qwave.dll is not available on this OS"sv;
-        return;
-      }
-
-      fn_QOSCreateHandle = (decltype(fn_QOSCreateHandle)) GetProcAddress(qwave, "QOSCreateHandle");
-      fn_QOSAddSocketToFlow = (decltype(fn_QOSAddSocketToFlow)) GetProcAddress(qwave, "QOSAddSocketToFlow");
-      fn_QOSRemoveSocketFromFlow = (decltype(fn_QOSRemoveSocketFromFlow)) GetProcAddress(qwave, "QOSRemoveSocketFromFlow");
-
-      if (!fn_QOSCreateHandle || !fn_QOSAddSocketToFlow || !fn_QOSRemoveSocketFromFlow) {
-        BOOST_LOG(error) << "qwave.dll is missing exports?"sv;
-
-        fn_QOSCreateHandle = nullptr;
-        fn_QOSAddSocketToFlow = nullptr;
-        fn_QOSRemoveSocketFromFlow = nullptr;
-
-        FreeLibrary(qwave);
-        return;
-      }
-
-      QOS_VERSION qos_version {1, 0};
-      if (!fn_QOSCreateHandle(&qos_version, &qos_handle)) {
-        auto winerr = GetLastError();
-        BOOST_LOG(warning) << "QOSCreateHandle() failed: "sv << winerr;
-        return;
-      }
-    });
-
-    // If qWAVE is unavailable, just return
-    if (!fn_QOSAddSocketToFlow || !qos_handle) {
+    if (!impl->qos) {
+      impl->qos = qwave_api_t::load();
+    }
+    auto api = impl->qos;
+    if (!api) {
       return nullptr;
     }
 
@@ -1755,13 +1734,13 @@ namespace platf {
     }
 
     QOS_FLOWID flow_id = 0;
-    if (!fn_QOSAddSocketToFlow(qos_handle, (SOCKET) native_socket, dest_addr, traffic_type, QOS_NON_ADAPTIVE_FLOW, &flow_id)) {
+    if (!api->add(api->handle, (SOCKET) native_socket, dest_addr, traffic_type, QOS_NON_ADAPTIVE_FLOW, &flow_id)) {
       auto winerr = GetLastError();
       BOOST_LOG(warning) << "QOSAddSocketToFlow() failed: "sv << winerr;
       return nullptr;
     }
 
-    return std::make_unique<qos_t>(flow_id);
+    return std::make_unique<qos_t>(std::move(api), flow_id);
   }
 
   /**
@@ -1884,5 +1863,60 @@ namespace platf {
 
   std::string resolve_render_device() {
     return {};
+  }
+}  // namespace platf
+
+namespace platf {
+  runtime_t::runtime_t(safe::mail_t, thread_pool_util::ThreadPool &, lifetime::controller_t &, display_device::manager_t &, nvprefs::nvprefs_interface &preferences):
+      impl(std::make_shared<impl_t>(preferences)) {}
+
+  runtime_t::~runtime_t() {
+    impl->streaming_will_stop();
+  }
+
+  bool runtime_t::initialize() {
+    if (impl->initialization) {
+      return true;
+    }
+    impl->shaders = dxgi::compile_shaders();
+    if (!impl->shaders) {
+      return false;
+    }
+    impl->initialization = platf::init();
+    return static_cast<bool>(impl->initialization);
+  }
+
+  std::vector<std::string> runtime_t::display_names(mem_type_e type) {
+    return platf::display_names(type);
+  }
+
+  std::shared_ptr<display_t> runtime_t::display(mem_type_e type, const std::string &name, const video::config_t &config) {
+    return dxgi::make_display(type, name, config, impl->shaders);
+  }
+
+  /**
+   * @brief Check the runtime's DXGI change tracker.
+   * @param factory Host factory.
+   * @param mutex Host synchronization.
+   * @return Whether adapters changed.
+   */
+  bool dxgi_needs_encoder_reenumeration(dxgi::factory1_t &factory, std::mutex &mutex);
+
+  bool runtime_t::needs_encoder_reenumeration() {
+    return dxgi_needs_encoder_reenumeration(impl->enumeration_factory, impl->enumeration_mutex);
+  }
+
+  void runtime_t::set_capture_requirements(int) {}
+
+  void runtime_t::streaming_will_start() {
+    impl->streaming_will_start();
+  }
+
+  void runtime_t::streaming_will_stop() {
+    impl->streaming_will_stop();
+  }
+
+  void runtime_t::enable_mouse_keys() {
+    impl->enable_mouse_keys();
   }
 }  // namespace platf
