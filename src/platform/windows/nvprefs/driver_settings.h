@@ -5,34 +5,8 @@
 #pragma once
 
 // local includes first so standard library headers are pulled in before nvapi's SAL macros
+#include "nvapi_opensource_wrapper.h"
 #include "undo_data.h"
-
-// nvapi headers
-// disable clang-format header reordering
-// as <NvApiDriverSettings.h> needs types from <nvapi.h>
-// clang-format off
-
-// With GCC/MinGW, nvapi_lite_salend.h (included transitively via nvapi_lite_d3dext.h)
-// undefines all SAL annotation macros (e.g. __success, __in, __out, __inout) after
-// nvapi_lite_salstart.h had defined them. This leaves NVAPI_INTERFACE and other macros
-// that use SAL annotations broken for the rest of nvapi.h. Defining __NVAPI_EMPTY_SAL
-// makes nvapi_lite_salend.h a no-op, preserving the SAL macro definitions throughout.
-// After nvapi.h, we include nvapi_lite_salend.h explicitly (without __NVAPI_EMPTY_SAL)
-// to clean up the SAL macros and prevent them from polluting subsequent includes.
-#if defined(__GNUC__)
-  #define __NVAPI_EMPTY_SAL
-#endif
-
-#include <nvapi.h>
-#include <NvApiDriverSettings.h>
-
-#if defined(__GNUC__)
-  #undef __NVAPI_EMPTY_SAL
-  // Clean up SAL macros that nvapi_lite_salstart.h defined and salend.h was
-  // prevented from cleaning up (due to __NVAPI_EMPTY_SAL above).
-  #include <nvapi_lite_salend.h>
-#endif
-// clang-format on
 
 namespace nvprefs {
 
@@ -41,6 +15,16 @@ namespace nvprefs {
    */
   class driver_settings_t {
   public:
+    /**
+     * @brief Construct an empty driver-settings owner.
+     */
+    driver_settings_t() = default;
+    driver_settings_t(const driver_settings_t &) = delete;
+    driver_settings_t &operator=(const driver_settings_t &) = delete;
+
+    /**
+     * @brief Destroy the session before releasing the driver library.
+     */
     ~driver_settings_t();
 
     /**
@@ -94,7 +78,8 @@ namespace nvprefs {
     bool check_and_modify_application_profile(bool &modified);
 
   private:
-    NvDRSSessionHandle session_handle = nullptr;
+    std::shared_ptr<const api_t> api;  ///< API owner retained until the DRS session is destroyed.
+    NvDRSSessionHandle session_handle = nullptr;  ///< Native driver-settings session owned by this instance.
   };
 
 }  // namespace nvprefs

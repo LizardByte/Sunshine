@@ -9,6 +9,7 @@
 #include <stdexcept>
 
 // local includes
+#include "dynamic_library.h"
 #include "graphics.h"
 #include "src/file_handler.h"
 #include "src/logging.h"
@@ -300,38 +301,46 @@ namespace gl {
 }  // namespace gl
 
 namespace gbm {
-  device_destroy_fn device_destroy;  ///< Device destroy.
-  create_device_fn create_device;  ///< Create device.
+  api_t::api_t(std::shared_ptr<void> library, device_destroy_fn destroy, create_device_fn create):
+      library {std::move(library)},
+      device_destroy {destroy},
+      create_device {create} {
+  }
 
-  /**
-   * @brief Load GBM symbols required for EGL device creation.
-   */
-  int init() {
-    static void *handle {nullptr};
-    static bool funcs_loaded = false;
+  std::shared_ptr<const api_t> api_t::load() {
+    return load(dyn::system_loader());
+  }
 
-    if (funcs_loaded) {
-      return 0;
+  std::shared_ptr<const api_t> api_t::load(const dyn::loader_t &loader) {
+    auto library = loader.open({"libgbm.so.1", "libgbm.so"});
+    if (!library) {
+      return {};
     }
 
-    if (!handle) {
-      handle = dyn::handle({"libgbm.so.1", "libgbm.so"});
-      if (!handle) {
-        return -1;
-      }
-    }
-
-    std::vector<std::tuple<GLADapiproc *, const char *>> funcs {
-      {(GLADapiproc *) &device_destroy, "gbm_device_destroy"},
-      {(GLADapiproc *) &create_device, "gbm_create_device"},
+    device_destroy_fn destroy {};
+    create_device_fn create {};
+    const std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+      {(dyn::apiproc *) &destroy, "gbm_device_destroy"},
+      {(dyn::apiproc *) &create, "gbm_create_device"},
     };
 
-    if (dyn::load(handle, funcs)) {
-      return -1;
+    if (loader.resolve(library.get(), funcs) || !destroy || !create) {
+      return {};
     }
+    return std::make_shared<const api_t>(std::move(library), destroy, create);
+  }
 
-    funcs_loaded = true;
-    return 0;
+  void device_deleter_t::operator()(device *value) const {
+    api->device_destroy(value);
+  }
+
+  gbm_t make_device(std::shared_ptr<const api_t> api, int fd) {
+    auto value = api ? api->create_device(fd) : nullptr;
+    return {value, device_deleter_t {std::move(api)}};
+  }
+
+  int init() {
+    return api_t::load() ? 0 : -1;
   }
 }  // namespace gbm
 

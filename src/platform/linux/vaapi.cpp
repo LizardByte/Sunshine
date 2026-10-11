@@ -181,14 +181,15 @@ namespace va {
     int init(int in_width, int in_height, file_t &&render_device) {
       file = std::move(render_device);
 
-      if (!gbm::create_device) {
+      auto gbm_api = gbm::api_t::load();
+      if (!gbm_api) {
         BOOST_LOG(warning) << "libgbm not initialized"sv;
         return -1;
       }
 
       this->data = (void *) vaapi_init_avcodec_hardware_input_buffer;
 
-      gbm.reset(gbm::create_device(file.el));
+      gbm = gbm::make_device(std::move(gbm_api), file.el);
       if (!gbm) {
         std::array<char, 1024> string;
         BOOST_LOG(error) << "Couldn't create GBM device: ["sv << strerror_r(errno, string.data(), string.size()) << ']';

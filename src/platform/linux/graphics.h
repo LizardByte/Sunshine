@@ -14,6 +14,7 @@
 #include <glad/gl.h>
 
 // local includes
+#include "dynamic_library.h"
 #include "misc.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
@@ -364,13 +365,66 @@ namespace gbm {
    */
   typedef device *(*create_device_fn)(int fd);
 
-  extern device_destroy_fn device_destroy;
-  extern create_device_fn create_device;
+  /**
+   * @brief Immutable GBM functions with ownership of the library that implements them.
+   */
+  struct api_t {
+    /**
+     * @brief Construct a validated API from a library and resolved functions.
+     *
+     * @param library Owner of the loaded library or an injected implementation.
+     * @param destroy Function used to release devices.
+     * @param create Function used to allocate devices.
+     */
+    api_t(std::shared_ptr<void> library, device_destroy_fn destroy, create_device_fn create);
+
+    /**
+     * @brief Load all required GBM functions for a capture or encoding owner.
+     *
+     * @return Validated immutable API, or nullptr when loading fails.
+     */
+    static std::shared_ptr<const api_t> load();
+
+    /**
+     * @brief Load a GBM table through injected library-loading operations.
+     *
+     * @param loader Loading operations for this initialization attempt.
+     * @return Validated immutable API, or nullptr when loading fails.
+     */
+    static std::shared_ptr<const api_t> load(const dyn::loader_t &loader);
+
+    const std::shared_ptr<void> library;  ///< Keep functions valid until all devices have been released.
+    const device_destroy_fn device_destroy;  ///< Release a device created by this API.
+    const create_device_fn create_device;  ///< Create a device from an open DRM file descriptor.
+  };
+
+  /**
+   * @brief Release a GBM device before dropping its loaded-library owner.
+   */
+  struct device_deleter_t {
+    /**
+     * @brief Destroy a device through the API that allocated it.
+     *
+     * @param value Device to release.
+     */
+    void operator()(device *value) const;
+
+    std::shared_ptr<const api_t> api;  ///< API owner retained for the lifetime of this device.
+  };
 
   /**
    * @brief Owning GBM device pointer released with the GBM destroy callback.
    */
-  using gbm_t = util::dyn_safe_ptr<device, &device_destroy>;
+  using gbm_t = std::unique_ptr<device, device_deleter_t>;
+
+  /**
+   * @brief Allocate a device and retain the supplied API until it is released.
+   *
+   * @param api Validated API used to create and destroy the device.
+   * @param fd DRM file descriptor that must outlive the returned device.
+   * @return Owning device, or nullptr when the API or device is unavailable.
+   */
+  gbm_t make_device(std::shared_ptr<const api_t> api, int fd);
 
   /**
    * @brief Load GBM symbols required for EGL device creation.

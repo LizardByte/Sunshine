@@ -21,7 +21,9 @@ extern "C" {
 
 // local includes
 #include "cuda.h"
+#include "dynamic_library.h"
 #include "graphics.h"
+#include "nvfbc_api.h"
 #include "src/logging.h"
 #include "src/utility.h"
 #include "src/video.h"
@@ -428,7 +430,7 @@ namespace cuda {
         return -1;
       }
 
-      gbm.reset(gbm::create_device(file.el));
+      gbm = gbm::make_device(gbm::api_t::load(), file.el);
       if (!gbm) {
         BOOST_LOG(error) << "Couldn't create GBM device: ["sv << util::hex(eglGetError()).to_string_view() << ']';
         return -1;
@@ -694,56 +696,8 @@ namespace cuda {
   }
 
   namespace nvfbc {
-    static PNVFBCCREATEINSTANCE createInstance {};
-    static NVFBC_API_FUNCTION_LIST func {.dwVersion = NVFBC_VERSION};
-
     static constexpr inline NVFBC_BOOL nv_bool(bool b) {
       return b ? NVFBC_TRUE : NVFBC_FALSE;
-    }
-
-    static void *handle {nullptr};
-
-    /**
-     * @brief Load NvFBC and create the CUDA capture helper.
-     *
-     * @return 0 on success; nonzero or negative platform status on failure.
-     */
-    int init() {
-      static bool funcs_loaded = false;
-
-      if (funcs_loaded) {
-        return 0;
-      }
-
-      if (!handle) {
-        handle = dyn::handle({"libnvidia-fbc.so.1", "libnvidia-fbc.so"});
-        if (!handle) {
-          return -1;
-        }
-      }
-
-      std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-        {(dyn::apiproc *) &createInstance, "NvFBCCreateInstance"},
-      };
-
-      if (dyn::load(handle, funcs)) {
-        dlclose(handle);
-        handle = nullptr;
-
-        return -1;
-      }
-
-      auto status = cuda::nvfbc::createInstance(&cuda::nvfbc::func);
-      if (status) {
-        BOOST_LOG(error) << "Unable to create NvFBC instance"sv;
-
-        dlclose(handle);
-        handle = nullptr;
-        return -1;
-      }
-
-      funcs_loaded = true;
-      return 0;
     }
 
     /**
@@ -754,26 +708,28 @@ namespace cuda {
       /**
        * @brief Create an NvFBC session context for a native capture handle.
        *
+       * @param api API that owns the context functions.
        * @param handle Native library or object handle used by the operation.
        */
-      ctx_t(NVFBC_SESSION_HANDLE handle) {
+      ctx_t(std::shared_ptr<const api_t> api, NVFBC_SESSION_HANDLE handle):
+          api {std::move(api)},
+          handle {handle} {
         NVFBC_BIND_CONTEXT_PARAMS params {NVFBC_BIND_CONTEXT_PARAMS_VER};
 
-        if (func.nvFBCBindContext(handle, &params)) {
-          BOOST_LOG(error) << "Couldn't bind NvFBC context to current thread: " << func.nvFBCGetLastErrorStr(handle);
+        if (this->api->functions.nvFBCBindContext(handle, &params)) {
+          BOOST_LOG(error) << "Couldn't bind NvFBC context to current thread: " << this->api->functions.nvFBCGetLastErrorStr(handle);
         }
-
-        this->handle = handle;
       }
 
       ~ctx_t() {
         NVFBC_RELEASE_CONTEXT_PARAMS params {NVFBC_RELEASE_CONTEXT_PARAMS_VER};
-        if (func.nvFBCReleaseContext(handle, &params)) {
-          BOOST_LOG(error) << "Couldn't release NvFBC context from current thread: " << func.nvFBCGetLastErrorStr(handle);
+        if (api->functions.nvFBCReleaseContext(handle, &params)) {
+          BOOST_LOG(error) << "Couldn't release NvFBC context from current thread: " << api->functions.nvFBCGetLastErrorStr(handle);
         }
       }
 
-      NVFBC_SESSION_HANDLE handle;  ///< NVIDIA FBC capture session handle.
+      const std::shared_ptr<const api_t> api;  ///< Keep context functions alive until release completes.
+      const NVFBC_SESSION_HANDLE handle;  ///< NVIDIA FBC capture session handle.
     };
 
     /**
@@ -795,6 +751,7 @@ namespace cuda {
        * @param other Source object whose state is copied or moved into this object.
        */
       handle_t(handle_t &&other):
+          api {std::move(other.api)},
           handle_flags {other.handle_flags},
           handle {other.handle} {
         other.handle_flags.reset();
@@ -807,6 +764,7 @@ namespace cuda {
        * @return Reference or value produced by the operator.
        */
       handle_t &operator=(handle_t &&other) {
+        std::swap(api, other.api);
         std::swap(handle_flags, other.handle_flags);
         std::swap(handle, other.handle);
 
@@ -816,9 +774,13 @@ namespace cuda {
       /**
        * @brief Allocate the underlying object and wrap it in the owning handle.
        *
+       * @param api API retained until the session and its contexts are released.
        * @return Created backend object, or null when creation fails.
        */
-      static std::optional<handle_t> make() {
+      static std::optional<handle_t> make(std::shared_ptr<const api_t> api) {
+        if (!api) {
+          return std::nullopt;
+        }
         NVFBC_CREATE_HANDLE_PARAMS params {.dwVersion = NVFBC_CREATE_HANDLE_PARAMS_VER};
 
         // Set privateData to allow NvFBC on consumer NVIDIA GPUs.
@@ -828,7 +790,8 @@ namespace cuda {
         params.privateDataSize = sizeof(MAGIC_PRIVATE_DATA);
 
         handle_t handle;
-        auto status = func.nvFBCCreateHandle(&handle.handle, &params);
+        handle.api = std::move(api);
+        auto status = handle.api->functions.nvFBCCreateHandle(&handle.handle, &params);
         if (status) {
           BOOST_LOG(error) << "Failed to create session: "sv << handle.last_error();
 
@@ -846,7 +809,7 @@ namespace cuda {
        * @return Human-readable NvFBC error string.
        */
       const char *last_error() {
-        return func.nvFBCGetLastErrorStr(handle);
+        return api->functions.nvFBCGetLastErrorStr(handle);
       }
 
       /**
@@ -857,7 +820,7 @@ namespace cuda {
       std::optional<NVFBC_GET_STATUS_PARAMS> status() {
         NVFBC_GET_STATUS_PARAMS params {.dwVersion = NVFBC_GET_STATUS_PARAMS_VER};
 
-        auto status = func.nvFBCGetStatus(handle, &params);
+        auto status = api->functions.nvFBCGetStatus(handle, &params);
         if (status) {
           BOOST_LOG(error) << "Failed to get NvFBC status: "sv << last_error();
 
@@ -874,7 +837,7 @@ namespace cuda {
        * @return Capture status reported to the streaming pipeline.
        */
       int capture(NVFBC_CREATE_CAPTURE_SESSION_PARAMS &capture_params) {
-        if (func.nvFBCCreateCaptureSession(handle, &capture_params)) {
+        if (api->functions.nvFBCCreateCaptureSession(handle, &capture_params)) {
           BOOST_LOG(error) << "Failed to start capture session: "sv << last_error();
           return -1;
         }
@@ -886,7 +849,7 @@ namespace cuda {
           NVFBC_BUFFER_FORMAT_BGRA,
         };
 
-        if (func.nvFBCToCudaSetUp(handle, &setup_params)) {
+        if (api->functions.nvFBCToCudaSetUp(handle, &setup_params)) {
           BOOST_LOG(error) << "Failed to setup cuda interop with nvFBC: "sv << last_error();
           return -1;
         }
@@ -905,7 +868,7 @@ namespace cuda {
 
         NVFBC_DESTROY_CAPTURE_SESSION_PARAMS params {NVFBC_DESTROY_CAPTURE_SESSION_PARAMS_VER};
 
-        if (func.nvFBCDestroyCaptureSession(handle, &params)) {
+        if (api->functions.nvFBCDestroyCaptureSession(handle, &params)) {
           BOOST_LOG(error) << "Couldn't destroy capture session: "sv << last_error();
 
           return -1;
@@ -930,9 +893,9 @@ namespace cuda {
 
         NVFBC_DESTROY_HANDLE_PARAMS params {NVFBC_DESTROY_HANDLE_PARAMS_VER};
 
-        ctx_t ctx {handle};
-        if (func.nvFBCDestroyHandle(handle, &params)) {
-          BOOST_LOG(error) << "Couldn't destroy session handle: "sv << func.nvFBCGetLastErrorStr(handle);
+        ctx_t ctx {api, handle};
+        if (api->functions.nvFBCDestroyHandle(handle, &params)) {
+          BOOST_LOG(error) << "Couldn't destroy session handle: "sv << api->functions.nvFBCGetLastErrorStr(handle);
         }
 
         handle_flags[SESSION_HANDLE] = false;
@@ -944,9 +907,10 @@ namespace cuda {
         reset();
       }
 
+      std::shared_ptr<const api_t> api;  ///< Own the API for this session and any bound contexts.
       std::bitset<MAX_FLAGS> handle_flags;  ///< Handle flags.
 
-      NVFBC_SESSION_HANDLE handle;  ///< NVIDIA FBC capture session handle.
+      NVFBC_SESSION_HANDLE handle {};  ///< NVIDIA FBC capture session handle.
     };
 
     /**
@@ -962,12 +926,12 @@ namespace cuda {
        * @return 0 on success; nonzero or negative platform status on failure.
        */
       int init(const std::string_view &display_name, const ::video::config_t &config) {
-        auto handle = handle_t::make();
+        auto handle = handle_t::make(api_t::load());
         if (!handle) {
           return -1;
         }
 
-        ctx_t ctx {handle->handle};
+        ctx_t ctx {handle->api, handle->handle};
 
         auto status_params = handle->status();
         if (!status_params) {
@@ -1035,7 +999,7 @@ namespace cuda {
         // Force display_t::capture to initialize handle_t::capture
         cursor_visible = !*cursor;
 
-        ctx_t ctx {handle.handle};
+        ctx_t ctx {handle.api, handle.handle};
         auto fg = util::fail_guard([&]() {
           handle.reset();
         });
@@ -1113,7 +1077,7 @@ namespace cuda {
 
           // Direct Capture may fail the first few times, even if it's possible
           for (int x = 0; x < 3; ++x) {
-            if (auto status = func.nvFBCToCudaGrabFrame(handle.handle, &grab)) {
+            if (auto status = handle.api->functions.nvFBCToCudaGrabFrame(handle.handle, &grab)) {
               if (status == NVFBC_ERR_MUST_RECREATE) {
                 return platf::capture_e::reinit;
               }
@@ -1174,7 +1138,7 @@ namespace cuda {
           (std::uint32_t) timeout.count(),
         };
 
-        if (auto status = func.nvFBCToCudaGrabFrame(handle.handle, &grab)) {
+        if (auto status = handle.api->functions.nvFBCToCudaGrabFrame(handle.handle, &grab)) {
           if (status == NVFBC_ERR_MUST_RECREATE) {
             return platf::capture_e::reinit;
           }
@@ -1278,13 +1242,13 @@ namespace platf {
    * @return NvFBC display names, or an empty list when enumeration fails.
    */
   std::vector<std::string> nvfbc_display_names() {
-    if (cuda::init() || cuda::nvfbc::init()) {
+    if (cuda::init()) {
       return {};
     }
 
     std::vector<std::string> display_names;
 
-    auto handle = cuda::nvfbc::handle_t::make();
+    auto handle = cuda::nvfbc::handle_t::make(cuda::nvfbc::api_t::load());
     if (!handle) {
       return {};
     }

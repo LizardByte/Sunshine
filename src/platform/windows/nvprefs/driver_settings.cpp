@@ -13,9 +13,15 @@ namespace {
   const auto sunshine_application_profile_name = L"SunshineStream";
   const auto sunshine_application_path = L"sunshine.exe";
 
-  void nvapi_error_message(NvAPI_Status status) {
+  /**
+   * @brief Format a driver error through the API that owns the failed session.
+   *
+   * @param api Driver API retained by the session owner.
+   * @param status Driver status to report.
+   */
+  void nvapi_error_message(const nvprefs::api_t &api, NvAPI_Status status) {
     NvAPI_ShortString message = {};
-    NvAPI_GetErrorMessage(status, message);
+    api.call_interface<decltype(NvAPI_GetErrorMessage)>("NvAPI_GetErrorMessage", status, message);
     nvprefs::error_message(std::string("NvAPI error: ") + message);
   }
 
@@ -29,9 +35,7 @@ namespace {
 namespace nvprefs {
 
   driver_settings_t::~driver_settings_t() {
-    if (session_handle) {
-      NvAPI_DRS_DestroySession(session_handle);
-    }
+    destroy();
   }
 
   bool driver_settings_t::init() {
@@ -41,15 +45,15 @@ namespace nvprefs {
 
     NvAPI_Status status;
 
-    status = NvAPI_Initialize();
-    if (status != NVAPI_OK) {
+    api = api_t::load();
+    if (!api) {
       info_message("NvAPI_Initialize() failed, ignore if you don't have NVIDIA video card");
       return false;
     }
 
-    status = NvAPI_DRS_CreateSession(&session_handle);
+    status = api->call_interface<decltype(NvAPI_DRS_CreateSession)>("NvAPI_DRS_CreateSession", &session_handle);
     if (status != NVAPI_OK) {
-      nvapi_error_message(status);
+      nvapi_error_message(*api, status);
       error_message("NvAPI_DRS_CreateSession() failed");
       return false;
     }
@@ -59,10 +63,10 @@ namespace nvprefs {
 
   void driver_settings_t::destroy() {
     if (session_handle) {
-      NvAPI_DRS_DestroySession(session_handle);
+      api->call_interface<decltype(NvAPI_DRS_DestroySession)>("NvAPI_DRS_DestroySession", session_handle);
       session_handle = nullptr;
     }
-    NvAPI_Unload();
+    api.reset();
   }
 
   bool driver_settings_t::load_settings() {
@@ -70,9 +74,9 @@ namespace nvprefs {
       return false;
     }
 
-    NvAPI_Status status = NvAPI_DRS_LoadSettings(session_handle);
+    NvAPI_Status status = api->call_interface<decltype(NvAPI_DRS_LoadSettings)>("NvAPI_DRS_LoadSettings", session_handle);
     if (status != NVAPI_OK) {
-      nvapi_error_message(status);
+      nvapi_error_message(*api, status);
       error_message("NvAPI_DRS_LoadSettings() failed");
       destroy();
       return false;
@@ -86,9 +90,9 @@ namespace nvprefs {
       return false;
     }
 
-    NvAPI_Status status = NvAPI_DRS_SaveSettings(session_handle);
+    NvAPI_Status status = api->call_interface<decltype(NvAPI_DRS_SaveSettings)>("NvAPI_DRS_SaveSettings", session_handle);
     if (status != NVAPI_OK) {
-      nvapi_error_message(status);
+      nvapi_error_message(*api, status);
       error_message("NvAPI_DRS_SaveSettings() failed");
       return false;
     }
@@ -106,16 +110,16 @@ namespace nvprefs {
       NvAPI_Status status;
 
       NvDRSProfileHandle profile_handle = nullptr;
-      status = NvAPI_DRS_GetBaseProfile(session_handle, &profile_handle);
+      status = api->call_interface<decltype(NvAPI_DRS_GetBaseProfile)>("NvAPI_DRS_GetBaseProfile", session_handle, &profile_handle);
       if (status != NVAPI_OK) {
-        nvapi_error_message(status);
+        nvapi_error_message(*api, status);
         error_message("NvAPI_DRS_GetBaseProfile() failed");
         return false;
       }
 
       NVDRS_SETTING setting = {};
       setting.version = NVDRS_SETTING_VER;
-      status = NvAPI_DRS_GetSetting(session_handle, profile_handle, OGL_CPL_PREFER_DXPRESENT_ID, &setting);
+      status = api->call_interface<decltype(NvAPI_DRS_GetSetting)>("NvAPI_DRS_GetSetting", session_handle, profile_handle, OGL_CPL_PREFER_DXPRESENT_ID, &setting);
 
       if (status == NVAPI_OK && setting.settingLocation == NVDRS_CURRENT_PROFILE_LOCATION && setting.u32CurrentValue == swapchain_data->our_value) {
         if (swapchain_data->undo_value) {
@@ -126,18 +130,18 @@ namespace nvprefs {
           setting.settingLocation = NVDRS_CURRENT_PROFILE_LOCATION;
           setting.u32CurrentValue = *swapchain_data->undo_value;
 
-          status = NvAPI_DRS_SetSetting(session_handle, profile_handle, &setting);
+          status = api->call_interface<decltype(NvAPI_DRS_SetSetting)>("NvAPI_DRS_SetSetting", session_handle, profile_handle, &setting);
 
           if (status != NVAPI_OK) {
-            nvapi_error_message(status);
+            nvapi_error_message(*api, status);
             error_message("NvAPI_DRS_SetSetting() OGL_CPL_PREFER_DXPRESENT failed");
             return false;
           }
         } else {
-          status = NvAPI_DRS_DeleteProfileSetting(session_handle, profile_handle, OGL_CPL_PREFER_DXPRESENT_ID);
+          status = api->call_interface<decltype(NvAPI_DRS_DeleteProfileSetting)>("NvAPI_DRS_DeleteProfileSetting", session_handle, profile_handle, OGL_CPL_PREFER_DXPRESENT_ID);
 
           if (status != NVAPI_OK && status != NVAPI_SETTING_NOT_FOUND) {
-            nvapi_error_message(status);
+            nvapi_error_message(*api, status);
             error_message("NvAPI_DRS_DeleteProfileSetting() OGL_CPL_PREFER_DXPRESENT failed");
             return false;
           }
@@ -169,16 +173,16 @@ namespace nvprefs {
     }
 
     NvDRSProfileHandle profile_handle = nullptr;
-    status = NvAPI_DRS_GetBaseProfile(session_handle, &profile_handle);
+    status = api->call_interface<decltype(NvAPI_DRS_GetBaseProfile)>("NvAPI_DRS_GetBaseProfile", session_handle, &profile_handle);
     if (status != NVAPI_OK) {
-      nvapi_error_message(status);
+      nvapi_error_message(*api, status);
       error_message("NvAPI_DRS_GetBaseProfile() failed");
       return false;
     }
 
     NVDRS_SETTING setting = {};
     setting.version = NVDRS_SETTING_VER;
-    status = NvAPI_DRS_GetSetting(session_handle, profile_handle, OGL_CPL_PREFER_DXPRESENT_ID, &setting);
+    status = api->call_interface<decltype(NvAPI_DRS_GetSetting)>("NvAPI_DRS_GetSetting", session_handle, profile_handle, OGL_CPL_PREFER_DXPRESENT_ID, &setting);
 
     // Remember current OpenGL/Vulkan DXGI swapchain setting and change it if needed
     if (status == NVAPI_SETTING_NOT_FOUND || (status == NVAPI_OK && setting.u32CurrentValue != OGL_CPL_PREFER_DXPRESENT_PREFER_ENABLED)) {
@@ -196,16 +200,16 @@ namespace nvprefs {
       setting.settingLocation = NVDRS_CURRENT_PROFILE_LOCATION;
       setting.u32CurrentValue = OGL_CPL_PREFER_DXPRESENT_PREFER_ENABLED;
 
-      status = NvAPI_DRS_SetSetting(session_handle, profile_handle, &setting);
+      status = api->call_interface<decltype(NvAPI_DRS_SetSetting)>("NvAPI_DRS_SetSetting", session_handle, profile_handle, &setting);
       if (status != NVAPI_OK) {
-        nvapi_error_message(status);
+        nvapi_error_message(*api, status);
         error_message("NvAPI_DRS_SetSetting() OGL_CPL_PREFER_DXPRESENT failed");
         return false;
       }
 
       info_message("Changed OGL_CPL_PREFER_DXPRESENT to OGL_CPL_PREFER_DXPRESENT_PREFER_ENABLED for base profile");
     } else if (status != NVAPI_OK) {
-      nvapi_error_message(status);
+      nvapi_error_message(*api, status);
       error_message("NvAPI_DRS_GetSetting() OGL_CPL_PREFER_DXPRESENT failed");
       return false;
     }
@@ -225,16 +229,16 @@ namespace nvprefs {
     fill_nvapi_string(profile_name, sunshine_application_profile_name);
 
     NvDRSProfileHandle profile_handle = nullptr;
-    status = NvAPI_DRS_FindProfileByName(session_handle, profile_name, &profile_handle);
+    status = api->call_interface<decltype(NvAPI_DRS_FindProfileByName)>("NvAPI_DRS_FindProfileByName", session_handle, profile_name, &profile_handle);
 
     if (status != NVAPI_OK) {
       // Create application profile if missing
       NVDRS_PROFILE profile = {};
       profile.version = NVDRS_PROFILE_VER1;
       fill_nvapi_string(profile.profileName, sunshine_application_profile_name);
-      status = NvAPI_DRS_CreateProfile(session_handle, &profile, &profile_handle);
+      status = api->call_interface<decltype(NvAPI_DRS_CreateProfile)>("NvAPI_DRS_CreateProfile", session_handle, &profile, &profile_handle);
       if (status != NVAPI_OK) {
-        nvapi_error_message(status);
+        nvapi_error_message(*api, status);
         error_message("NvAPI_DRS_CreateProfile() failed");
         return false;
       }
@@ -246,7 +250,7 @@ namespace nvprefs {
 
     NVDRS_APPLICATION application = {};
     application.version = NVDRS_APPLICATION_VER_V1;
-    status = NvAPI_DRS_GetApplicationInfo(session_handle, profile_handle, sunshine_path, &application);
+    status = api->call_interface<decltype(NvAPI_DRS_GetApplicationInfo)>("NvAPI_DRS_GetApplicationInfo", session_handle, profile_handle, sunshine_path, &application);
 
     if (status != NVAPI_OK) {
       // Add application to application profile if missing
@@ -256,9 +260,9 @@ namespace nvprefs {
       fill_nvapi_string(application.userFriendlyName, sunshine_application_path);
       fill_nvapi_string(application.launcher, L"");
 
-      status = NvAPI_DRS_CreateApplication(session_handle, profile_handle, &application);
+      status = api->call_interface<decltype(NvAPI_DRS_CreateApplication)>("NvAPI_DRS_CreateApplication", session_handle, profile_handle, &application);
       if (status != NVAPI_OK) {
-        nvapi_error_message(status);
+        nvapi_error_message(*api, status);
         error_message("NvAPI_DRS_CreateApplication() failed");
         return false;
       }
@@ -267,16 +271,16 @@ namespace nvprefs {
 
     NVDRS_SETTING setting = {};
     setting.version = NVDRS_SETTING_VER1;
-    status = NvAPI_DRS_GetSetting(session_handle, profile_handle, PREFERRED_PSTATE_ID, &setting);
+    status = api->call_interface<decltype(NvAPI_DRS_GetSetting)>("NvAPI_DRS_GetSetting", session_handle, profile_handle, PREFERRED_PSTATE_ID, &setting);
 
     if (!get_nvprefs_options().sunshine_high_power_mode) {
       if (status == NVAPI_OK && setting.settingLocation == NVDRS_CURRENT_PROFILE_LOCATION) {
         // User requested to not use high power mode for sunshine.exe,
         // remove the setting from application profile if it's been set previously
 
-        status = NvAPI_DRS_DeleteProfileSetting(session_handle, profile_handle, PREFERRED_PSTATE_ID);
+        status = api->call_interface<decltype(NvAPI_DRS_DeleteProfileSetting)>("NvAPI_DRS_DeleteProfileSetting", session_handle, profile_handle, PREFERRED_PSTATE_ID);
         if (status != NVAPI_OK && status != NVAPI_SETTING_NOT_FOUND) {
-          nvapi_error_message(status);
+          nvapi_error_message(*api, status);
           error_message("NvAPI_DRS_DeleteProfileSetting() PREFERRED_PSTATE failed");
           return false;
         }
@@ -293,9 +297,9 @@ namespace nvprefs {
       setting.settingLocation = NVDRS_CURRENT_PROFILE_LOCATION;
       setting.u32CurrentValue = PREFERRED_PSTATE_PREFER_MAX;
 
-      status = NvAPI_DRS_SetSetting(session_handle, profile_handle, &setting);
+      status = api->call_interface<decltype(NvAPI_DRS_SetSetting)>("NvAPI_DRS_SetSetting", session_handle, profile_handle, &setting);
       if (status != NVAPI_OK) {
-        nvapi_error_message(status);
+        nvapi_error_message(*api, status);
         error_message("NvAPI_DRS_SetSetting() PREFERRED_PSTATE failed");
         return false;
       }

@@ -1766,7 +1766,8 @@ namespace platf {
        * @return 0 on success; nonzero or negative platform status on failure.
        */
       int init(const std::string &display_name, const ::video::config_t &config) {
-        if (!gbm::create_device) {
+        auto gbm_api = gbm::api_t::load();
+        if (!gbm_api) {
           BOOST_LOG(warning) << "libgbm not initialized"sv;
           return -1;
         }
@@ -1775,7 +1776,7 @@ namespace platf {
           return -1;
         }
 
-        gbm.reset(gbm::create_device(card.fd.el));
+        gbm = gbm::make_device(std::move(gbm_api), card.fd.el);
         if (!gbm) {
           BOOST_LOG(error) << "Couldn't create GBM device: ["sv << util::hex(eglGetError()).to_string_view() << ']';
           return -1;
@@ -2289,7 +2290,7 @@ namespace platf {
       return {};
     }
 
-    if (!gbm::create_device) {
+    if (!gbm::api_t::load()) {
       BOOST_LOG(warning) << "libgbm not initialized"sv;
       return {};
     }

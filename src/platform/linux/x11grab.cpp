@@ -20,6 +20,7 @@
 
 // local includes
 #include "cuda.h"
+#include "dynamic_library.h"
 #include "graphics.h"
 #include "misc.h"
 #include "src/config.h"
@@ -178,14 +179,6 @@ namespace platf {
   }  // namespace x11
 
   namespace xcb {
-    static xcb_extension_t *shm_id;
-
-    _FN(shm_get_image_reply, xcb_shm_get_image_reply_t *, (xcb_connection_t * c, xcb_shm_get_image_cookie_t cookie, xcb_generic_error_t **e));
-
-    _FN(shm_get_image_unchecked, xcb_shm_get_image_cookie_t, (xcb_connection_t * c, xcb_drawable_t drawable, int16_t x, int16_t y, uint16_t width, uint16_t height, uint32_t plane_mask, uint8_t format, xcb_shm_seg_t shmseg, uint32_t offset));
-
-    _FN(shm_attach, xcb_void_cookie_t, (xcb_connection_t * c, xcb_shm_seg_t shmseg, uint32_t shmid, uint8_t read_only));
-
     _FN(get_extension_data, xcb_query_extension_reply_t *, (xcb_connection_t * c, xcb_extension_t *ext));
 
     _FN(get_setup, xcb_setup_t *, (xcb_connection_t * c));
@@ -196,39 +189,39 @@ namespace platf {
     _FN(generate_id, std::uint32_t, (xcb_connection_t * c));
 
     /**
-     * @brief Initialize shared-memory support for X11 capture.
-     *
-     * @return 0 when XCB shared-memory functions are loaded; nonzero otherwise.
+     * @brief XCB shared-memory symbols owned by the capture instance that uses them.
      */
-    int init_shm() {
-      static void *handle {nullptr};
-      static bool funcs_loaded = false;
-
-      if (funcs_loaded) {
-        return 0;
-      }
-
-      if (!handle) {
-        handle = dyn::handle({"libxcb-shm.so.0", "libxcb-shm.so"});
-        if (!handle) {
-          return -1;
+    struct shm_api_t {
+      /**
+       * @brief Load and validate all symbols used by the shared-memory capture path.
+       *
+       * @return API owner, or nullptr when the library or a symbol is unavailable.
+       */
+      static std::shared_ptr<const shm_api_t> load() {
+        auto api = std::make_shared<shm_api_t>();
+        api->library = dyn::open({"libxcb-shm.so.0", "libxcb-shm.so"});
+        if (!api->library) {
+          return {};
         }
+
+        const std::vector<std::tuple<dyn::apiproc *, const char *>> symbols {
+          {(dyn::apiproc *) &api->shm_id, "xcb_shm_id"},
+          {(dyn::apiproc *) &api->shm_get_image_reply, "xcb_shm_get_image_reply"},
+          {(dyn::apiproc *) &api->shm_get_image_unchecked, "xcb_shm_get_image_unchecked"},
+          {(dyn::apiproc *) &api->shm_attach, "xcb_shm_attach"},
+        };
+        if (dyn::load(api->library.get(), symbols)) {
+          return {};
+        }
+        return api;
       }
 
-      std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-        {(dyn::apiproc *) &shm_id, "xcb_shm_id"},
-        {(dyn::apiproc *) &shm_get_image_reply, "xcb_shm_get_image_reply"},
-        {(dyn::apiproc *) &shm_get_image_unchecked, "xcb_shm_get_image_unchecked"},
-        {(dyn::apiproc *) &shm_attach, "xcb_shm_attach"},
-      };
-
-      if (dyn::load(handle, funcs)) {
-        return -1;
-      }
-
-      funcs_loaded = true;
-      return 0;
-    }
+      std::shared_ptr<void> library;  ///< Keep the extension descriptor and functions loaded.
+      xcb_extension_t *shm_id {};  ///< Extension descriptor whose cache is managed by XCB.
+      decltype(&xcb_shm_get_image_reply) shm_get_image_reply {};  ///< Read a shared-memory image reply.
+      decltype(&xcb_shm_get_image_unchecked) shm_get_image_unchecked {};  ///< Request an image through SHM.
+      decltype(&xcb_shm_attach) shm_attach {};  ///< Attach a shared-memory segment to the connection.
+    };
 
     /**
      * @brief Initialize XFixes cursor tracking for an X11 display.
@@ -689,6 +682,7 @@ namespace platf {
    * @brief X11 shared-memory image dimensions and identifiers.
    */
   struct shm_attr_t: public x11_attr_t {
+    const std::shared_ptr<const xcb::shm_api_t> shm_api;  ///< API retained until SHM resources are released.
     x11::xdisplay_t shm_xdisplay;  ///< X11 display held separately to prevent races with x11_attr_t::xdisplay.
     xcb_connect_t xcb;  ///< XCB connection used by the shared-memory capture path.
     xcb_screen_t *display;  ///< XCB screen containing the captured root window.
@@ -713,9 +707,11 @@ namespace platf {
      * @brief Open an X11 shared-memory capture backend.
      *
      * @param mem_type Requested memory path for the capture backend.
+     * @param shm_api Validated API retained for the lifetime of shared-memory capture.
      */
-    shm_attr_t(mem_type_e mem_type):
+    shm_attr_t(mem_type_e mem_type, std::shared_ptr<const xcb::shm_api_t> shm_api):
         x11_attr_t(mem_type),
+        shm_api {std::move(shm_api)},
         shm_xdisplay {x11::OpenDisplay(nullptr)} {
       refresh_task_id = task_pool.pushDelayed(&shm_attr_t::delayed_refresh, 2s, this).task_id;
     }
@@ -773,10 +769,10 @@ namespace platf {
         BOOST_LOG(warning) << "X dimensions changed in SHM mode, request reinit"sv;
         return capture_e::reinit;
       } else {
-        auto img_cookie = xcb::shm_get_image_unchecked(xcb.get(), display->root, offset_x, offset_y, width, height, ~0, XCB_IMAGE_FORMAT_Z_PIXMAP, seg, 0);
+        auto img_cookie = shm_api->shm_get_image_unchecked(xcb.get(), display->root, offset_x, offset_y, width, height, ~0, XCB_IMAGE_FORMAT_Z_PIXMAP, seg, 0);
         auto frame_timestamp = std::chrono::steady_clock::now();
 
-        xcb_img_t img_reply {xcb::shm_get_image_reply(xcb.get(), img_cookie, nullptr)};
+        xcb_img_t img_reply {shm_api->shm_get_image_reply(xcb.get(), img_cookie, nullptr)};
         if (!img_reply) {
           BOOST_LOG(error) << "Could not get image reply"sv;
           return capture_e::reinit;
@@ -841,7 +837,7 @@ namespace platf {
         return -1;
       }
 
-      if (!xcb::get_extension_data(xcb.get(), xcb::shm_id)->present) {
+      if (!xcb::get_extension_data(xcb.get(), shm_api->shm_id)->present) {
         BOOST_LOG(error) << "Missing SHM extension"sv;
 
         return -1;
@@ -857,7 +853,7 @@ namespace platf {
         return -1;
       }
 
-      xcb::shm_attach(xcb.get(), seg, shm_id.id, false);
+      shm_api->shm_attach(xcb.get(), seg, shm_id.id, false);
       data.data = shmat(shm_id.id, nullptr, 0);
 
       if ((uintptr_t) data.data == -1) {
@@ -893,14 +889,15 @@ namespace platf {
       return nullptr;
     }
 
-    if (xcb::init_shm() || xcb::init() || x11::init() || x11::rr::init() || x11::fix::init()) {
+    auto shm_api = xcb::shm_api_t::load();
+    if (!shm_api || xcb::init() || x11::init() || x11::rr::init() || x11::fix::init()) {
       BOOST_LOG(error) << "Couldn't init x11 libraries"sv;
 
       return nullptr;
     }
 
     // Attempt to use shared memory X11 to avoid copying the frame
-    auto shm_disp = std::make_shared<shm_attr_t>(hwdevice_type);
+    auto shm_disp = std::make_shared<shm_attr_t>(hwdevice_type, std::move(shm_api));
 
     auto status = shm_disp->init(display_name, config);
     if (status > 0) {
@@ -976,7 +973,7 @@ namespace platf {
    */
   int load_xcb() {
     // This will be called once only
-    static int xcb_status = xcb::init_shm() || xcb::init();
+    static const int xcb_status = !xcb::shm_api_t::load() || xcb::init();
 
     return xcb_status;
   }
