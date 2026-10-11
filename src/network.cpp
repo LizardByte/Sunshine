@@ -18,15 +18,15 @@ namespace ip = boost::asio::ip;
 
 namespace net {
   /**
-   * @brief Pc ips v4.
+   * @brief Immutable IPv4 loopback ranges classified as local to this PC.
    */
-  std::vector<ip::network_v4> pc_ips_v4 {
+  const std::vector<ip::network_v4> pc_ips_v4 {
     ip::make_network_v4("127.0.0.0/8"sv),
   };
   /**
-   * @brief Lan ips v4.
+   * @brief Immutable IPv4 private, shared, and link-local ranges classified as LAN.
    */
-  std::vector<ip::network_v4> lan_ips_v4 {
+  const std::vector<ip::network_v4> lan_ips_v4 {
     ip::make_network_v4("192.168.0.0/16"sv),
     ip::make_network_v4("172.16.0.0/12"sv),
     ip::make_network_v4("10.0.0.0/8"sv),
@@ -35,15 +35,15 @@ namespace net {
   };
 
   /**
-   * @brief Pc ips v6.
+   * @brief Immutable IPv6 loopback ranges classified as local to this PC.
    */
-  std::vector<ip::network_v6> pc_ips_v6 {
+  const std::vector<ip::network_v6> pc_ips_v6 {
     ip::make_network_v6("::1/128"sv),
   };
   /**
-   * @brief Lan ips v6.
+   * @brief Immutable IPv6 unique-local and link-local ranges classified as LAN.
    */
-  std::vector<ip::network_v6> lan_ips_v6 {
+  const std::vector<ip::network_v6> lan_ips_v6 {
     ip::make_network_v6("fc00::/7"sv),
     ip::make_network_v6("fe80::/64"sv),
   };

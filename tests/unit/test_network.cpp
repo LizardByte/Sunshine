@@ -9,6 +9,66 @@
 // local includes
 #include <src/network.h>
 
+/**
+ * @brief Address classifications supplied by the immutable IPv4 and IPv6 range tables.
+ */
+struct NetworkAddressTest: BaseTest, testing::WithParamInterface<std::tuple<std::string, net::net_e>> {};
+
+/**
+ * @brief Preserve loopback, LAN, and WAN classification across each configured range.
+ */
+TEST_P(NetworkAddressTest, ClassifiesAddress) {
+  const auto &[address, expected] = GetParam();
+  EXPECT_EQ(net::from_address(address), expected);
+}
+
+/**
+ * @brief Cover the first and last usable addresses and adjacent addresses for each range.
+ */
+INSTANTIATE_TEST_SUITE_P(
+  NetworkAddressTests,
+  NetworkAddressTest,
+  testing::Values(
+    std::make_tuple("127.0.0.1", net::PC),
+    std::make_tuple("127.255.255.254", net::PC),
+    std::make_tuple("126.255.255.254", net::WAN),
+    std::make_tuple("128.0.0.1", net::WAN),
+    std::make_tuple("192.168.0.1", net::LAN),
+    std::make_tuple("192.168.255.254", net::LAN),
+    std::make_tuple("192.167.255.254", net::WAN),
+    std::make_tuple("192.169.0.1", net::WAN),
+    std::make_tuple("172.16.0.1", net::LAN),
+    std::make_tuple("172.31.255.254", net::LAN),
+    std::make_tuple("172.15.255.254", net::WAN),
+    std::make_tuple("172.32.0.1", net::WAN),
+    std::make_tuple("10.0.0.1", net::LAN),
+    std::make_tuple("10.255.255.254", net::LAN),
+    std::make_tuple("9.255.255.254", net::WAN),
+    std::make_tuple("11.0.0.1", net::WAN),
+    std::make_tuple("100.64.0.1", net::LAN),
+    std::make_tuple("100.127.255.254", net::LAN),
+    std::make_tuple("100.63.255.254", net::WAN),
+    std::make_tuple("100.128.0.1", net::WAN),
+    std::make_tuple("169.254.0.1", net::LAN),
+    std::make_tuple("169.254.255.254", net::LAN),
+    std::make_tuple("169.253.255.254", net::WAN),
+    std::make_tuple("169.255.0.1", net::WAN),
+    std::make_tuple("::1", net::PC),
+    std::make_tuple("::2", net::WAN),
+    std::make_tuple("fc00::1", net::LAN),
+    std::make_tuple("fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", net::LAN),
+    std::make_tuple("fbff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", net::WAN),
+    std::make_tuple("fe00::1", net::WAN),
+    std::make_tuple("fe80::1", net::LAN),
+    std::make_tuple("fe80::ffff:ffff:ffff:ffff", net::LAN),
+    std::make_tuple("fe7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff", net::WAN),
+    std::make_tuple("fe81::1", net::WAN),
+    std::make_tuple("::ffff:127.0.0.1", net::PC),
+    std::make_tuple("::ffff:192.168.1.1", net::LAN),
+    std::make_tuple("::ffff:198.51.100.1", net::WAN)
+  )
+);
+
 struct MdnsInstanceNameTest: BaseTest, testing::WithParamInterface<std::tuple<std::string, std::string>> {};
 
 TEST_P(MdnsInstanceNameTest, Run) {

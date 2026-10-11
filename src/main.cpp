@@ -73,9 +73,9 @@ void on_signal(int sig, FN &&fn) {
 }
 
 /**
- * @brief Cmd to func.
+ * @brief Immutable dispatch table for supported command-line subcommands.
  */
-std::map<std::string_view, std::function<int(const char *name, int argc, char **argv)>> cmd_to_func {
+const std::map<std::string_view, std::function<int(const char *name, int argc, char **argv)>> cmd_to_func {
   {"creds"sv, [](const char *name, int argc, char **argv) {
      return args::creds(name, argc, argv);
    }},
