@@ -75,17 +75,18 @@ namespace config {
      * @return Parsed enum value, or the setting-specific default when the text is unknown.
      */
     nvenc::nvenc_two_pass twopass_from_view(const std::string_view &preset) {
+      using enum nvenc::nvenc_two_pass;
       if (preset == "disabled") {
-        return nvenc::nvenc_two_pass::disabled;
+        return disabled;
       }
       if (preset == "quarter_res") {
-        return nvenc::nvenc_two_pass::quarter_resolution;
+        return quarter_resolution;
       }
       if (preset == "full_res") {
-        return nvenc::nvenc_two_pass::full_resolution;
+        return full_resolution;
       }
       BOOST_LOG(warning) << "config: unknown nvenc_twopass value: " << preset;
-      return nvenc::nvenc_two_pass::quarter_resolution;
+      return quarter_resolution;
     }
 
     /**

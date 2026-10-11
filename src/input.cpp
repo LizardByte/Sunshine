@@ -1659,19 +1659,20 @@ namespace input {
 
     auto bf_new = gamepad_state.buttonFlags;
     switch (gamepad.back_button_state) {
-      case button_state_e::UP:
+      using enum button_state_e;
+      case UP:
         if (!(platf::BACK & bf_new)) {
-          gamepad.back_button_state = button_state_e::NONE;
+          gamepad.back_button_state = NONE;
         }
         gamepad_state.buttonFlags &= ~platf::BACK;
         break;
-      case button_state_e::DOWN:
+      case DOWN:
         if (platf::BACK & bf_new) {
-          gamepad.back_button_state = button_state_e::NONE;
+          gamepad.back_button_state = NONE;
         }
         gamepad_state.buttonFlags |= platf::BACK;
         break;
-      case button_state_e::NONE:
+      case NONE:
         break;
     }
 
@@ -1810,21 +1811,22 @@ namespace input {
    * @return The status of the batching operation.
    */
   batch_result_e batch(PNV_REL_MOUSE_MOVE_PACKET dest, PNV_REL_MOUSE_MOVE_PACKET src) {
+    using enum batch_result_e;
     short deltaX;
     short deltaY;
 
     // Batching is safe as long as the result doesn't overflow a 16-bit integer
     if (!__builtin_add_overflow(util::endian::big(dest->deltaX), util::endian::big(src->deltaX), &deltaX)) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
     if (!__builtin_add_overflow(util::endian::big(dest->deltaY), util::endian::big(src->deltaY), &deltaY)) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Take the sum of deltas
     dest->deltaX = util::endian::big(deltaX);
     dest->deltaY = util::endian::big(deltaY);
-    return batch_result_e::batched;
+    return batched;
   }
 
   /**
@@ -1890,25 +1892,26 @@ namespace input {
    * @return The status of the batching operation.
    */
   batch_result_e batch(PNV_MULTI_CONTROLLER_PACKET dest, PNV_MULTI_CONTROLLER_PACKET src) {
+    using enum batch_result_e;
     // Do not allow batching if the active controllers change
     if (dest->activeGamepadMask != src->activeGamepadMask) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // We can only batch entries for the same controller, but allow batching attempts to continue
     // in case we have more packets for this controller later in the queue.
     if (dest->controllerNumber != src->controllerNumber) {
-      return batch_result_e::not_batchable;
+      return not_batchable;
     }
 
     // Do not allow batching if the button state changes on this controller
     if (dest->buttonFlags != src->buttonFlags || dest->buttonFlags2 != src->buttonFlags2) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Take the latest state
     *dest = *src;
-    return batch_result_e::batched;
+    return batched;
   }
 
   /**
@@ -1918,29 +1921,30 @@ namespace input {
    * @return The status of the batching operation.
    */
   batch_result_e batch(PSS_TOUCH_PACKET dest, PSS_TOUCH_PACKET src) {
+    using enum batch_result_e;
     // Only batch hover or move events
     if (dest->eventType != LI_TOUCH_EVENT_MOVE && dest->eventType != LI_TOUCH_EVENT_HOVER) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Don't batch beyond state changing events
     if (src->eventType != LI_TOUCH_EVENT_MOVE && src->eventType != LI_TOUCH_EVENT_HOVER) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Batched events must be the same pointer ID
     if (dest->pointerId != src->pointerId) {
-      return batch_result_e::not_batchable;
+      return not_batchable;
     }
 
     // The pointer must be in the same state
     if (dest->eventType != src->eventType) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Take the latest state
     *dest = *src;
-    return batch_result_e::batched;
+    return batched;
   }
 
   /**
@@ -1950,29 +1954,30 @@ namespace input {
    * @return The status of the batching operation.
    */
   batch_result_e batch(PSS_PEN_PACKET dest, PSS_PEN_PACKET src) {
+    using enum batch_result_e;
     // Only batch hover or move events
     if (dest->eventType != LI_TOUCH_EVENT_MOVE && dest->eventType != LI_TOUCH_EVENT_HOVER) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Batched events must be the same type
     if (dest->eventType != src->eventType) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Do not allow batching if the button state changes
     if (dest->penButtons != src->penButtons) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Do not batch beyond tool changes
     if (dest->toolType != src->toolType) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Take the latest state
     *dest = *src;
-    return batch_result_e::batched;
+    return batched;
   }
 
   /**
@@ -1982,35 +1987,36 @@ namespace input {
    * @return The status of the batching operation.
    */
   batch_result_e batch(PSS_CONTROLLER_TOUCH_PACKET dest, PSS_CONTROLLER_TOUCH_PACKET src) {
+    using enum batch_result_e;
     // Only batch hover or move events
     if (dest->eventType != LI_TOUCH_EVENT_MOVE && dest->eventType != LI_TOUCH_EVENT_HOVER) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // We can only batch entries for the same controller, but allow batching attempts to continue
     // in case we have more packets for this controller later in the queue.
     if (dest->controllerNumber != src->controllerNumber) {
-      return batch_result_e::not_batchable;
+      return not_batchable;
     }
 
     // Don't batch beyond state changing events
     if (src->eventType != LI_TOUCH_EVENT_MOVE && src->eventType != LI_TOUCH_EVENT_HOVER) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Batched events must be the same pointer ID
     if (dest->pointerId != src->pointerId) {
-      return batch_result_e::not_batchable;
+      return not_batchable;
     }
 
     // The pointer must be in the same state
     if (dest->eventType != src->eventType) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Take the latest state
     *dest = *src;
-    return batch_result_e::batched;
+    return batched;
   }
 
   /**
@@ -2020,20 +2026,21 @@ namespace input {
    * @return The status of the batching operation.
    */
   batch_result_e batch(PSS_CONTROLLER_MOTION_PACKET dest, PSS_CONTROLLER_MOTION_PACKET src) {
+    using enum batch_result_e;
     // We can only batch entries for the same controller, but allow batching attempts to continue
     // in case we have more packets for this controller later in the queue.
     if (dest->controllerNumber != src->controllerNumber) {
-      return batch_result_e::not_batchable;
+      return not_batchable;
     }
 
     // Batched events must be the same sensor
     if (dest->motionType != src->motionType) {
-      return batch_result_e::not_batchable;
+      return not_batchable;
     }
 
     // Take the latest state
     *dest = *src;
-    return batch_result_e::batched;
+    return batched;
   }
 
   /**

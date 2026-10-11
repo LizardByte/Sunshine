@@ -2600,15 +2600,16 @@ namespace video {
     }
 
     {
+      using enum colorspace_e;
       auto encoder_name = encoder.codec_from_config(config).name;
 
       BOOST_LOG(info) << "Creating encoder " << logging::bracket(encoder_name);
 
-      auto color_coding = colorspace.colorspace == colorspace_e::bt2020    ? "HDR (Rec. 2020 + SMPTE 2084 PQ)" :
-                          colorspace.colorspace == colorspace_e::rec601    ? "SDR (Rec. 601)" :
-                          colorspace.colorspace == colorspace_e::rec709    ? "SDR (Rec. 709)" :
-                          colorspace.colorspace == colorspace_e::bt2020sdr ? "SDR (Rec. 2020)" :
-                                                                             "unknown";
+      auto color_coding = colorspace.colorspace == bt2020    ? "HDR (Rec. 2020 + SMPTE 2084 PQ)" :
+                          colorspace.colorspace == rec601    ? "SDR (Rec. 601)" :
+                          colorspace.colorspace == rec709    ? "SDR (Rec. 709)" :
+                          colorspace.colorspace == bt2020sdr ? "SDR (Rec. 2020)" :
+                                                               "unknown";
 
       BOOST_LOG(info) << "Color coding: " << color_coding;
       BOOST_LOG(info) << "Color depth: " << colorspace.bit_depth << "-bit";
@@ -3695,57 +3696,59 @@ namespace video {
   }
 
   /**
-   * @brief Map base dev type values.
+   * @brief Map an FFmpeg hardware device type to Sunshine's capture memory type.
    */
   platf::mem_type_e map_base_dev_type(AVHWDeviceType type) {
+    using enum platf::mem_type_e;
     switch (type) {
       case AV_HWDEVICE_TYPE_D3D11VA:
-        return platf::mem_type_e::dxgi;
+        return dxgi;
       case AV_HWDEVICE_TYPE_VAAPI:
-        return platf::mem_type_e::vaapi;
+        return vaapi;
 #ifdef SUNSHINE_BUILD_VULKAN
       case AV_HWDEVICE_TYPE_VULKAN:
-        return platf::mem_type_e::vulkan;
+        return vulkan;
 #endif
       case AV_HWDEVICE_TYPE_CUDA:
-        return platf::mem_type_e::cuda;
+        return cuda;
       case AV_HWDEVICE_TYPE_NONE:
-        return platf::mem_type_e::system;
+        return system;
       case AV_HWDEVICE_TYPE_VIDEOTOOLBOX:
-        return platf::mem_type_e::videotoolbox;
+        return videotoolbox;
       default:
-        return platf::mem_type_e::unknown;
+        return unknown;
     }
 
-    return platf::mem_type_e::unknown;
+    return unknown;
   }
 
   /**
-   * @brief Map pix fmt values.
+   * @brief Map an FFmpeg pixel format to Sunshine's pixel format.
    */
   platf::pix_fmt_e map_pix_fmt(AVPixelFormat fmt) {
+    using enum platf::pix_fmt_e;
     switch (fmt) {
       case AV_PIX_FMT_VUYX:
-        return platf::pix_fmt_e::ayuv;
+        return ayuv;
       case AV_PIX_FMT_XV30:
-        return platf::pix_fmt_e::y410;
+        return y410;
       case AV_PIX_FMT_YUV420P10:
-        return platf::pix_fmt_e::yuv420p10;
+        return yuv420p10;
       case AV_PIX_FMT_YUV420P:
-        return platf::pix_fmt_e::yuv420p;
+        return yuv420p;
       case AV_PIX_FMT_NV12:
-        return platf::pix_fmt_e::nv12;
+        return nv12;
       case AV_PIX_FMT_P010:
-        return platf::pix_fmt_e::p010;
+        return p010;
       case AV_PIX_FMT_YUV444P:
-        return platf::pix_fmt_e::yuv444p;
+        return yuv444p;
       case AV_PIX_FMT_YUV444P16:
-        return platf::pix_fmt_e::yuv444p16;
+        return yuv444p16;
       default:
-        return platf::pix_fmt_e::unknown;
+        return unknown;
     }
 
-    return platf::pix_fmt_e::unknown;
+    return unknown;
   }
 
 }  // namespace video

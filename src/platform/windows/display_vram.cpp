@@ -833,23 +833,24 @@ namespace platf::dxgi {
      */
     int init(std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p, pix_fmt_e pix_fmt) {
       switch (pix_fmt) {
-        case pix_fmt_e::nv12:
+        using enum pix_fmt_e;
+        case nv12:
           format = DXGI_FORMAT_NV12;
           break;
 
-        case pix_fmt_e::p010:
+        case p010:
           format = DXGI_FORMAT_P010;
           break;
 
-        case pix_fmt_e::ayuv:
+        case ayuv:
           format = DXGI_FORMAT_AYUV;
           break;
 
-        case pix_fmt_e::yuv444p16:
+        case yuv444p16:
           format = DXGI_FORMAT_R16_UINT;
           break;
 
-        case pix_fmt_e::y410:
+        case y410:
           format = DXGI_FORMAT_Y410;
           break;
 

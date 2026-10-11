@@ -26,33 +26,34 @@ namespace video {
    * @brief Derive Sunshine colorspace metadata from client stream configuration.
    */
   sunshine_colorspace_t colorspace_from_client_config(const config_t &config, bool hdr_display) {
+    using enum colorspace_e;
     sunshine_colorspace_t colorspace;
 
     /* See video::config_t declaration for details */
 
     if (config.dynamicRange > 0 && hdr_display) {
       // Rec. 2020 with ST 2084 perceptual quantizer
-      colorspace.colorspace = colorspace_e::bt2020;
+      colorspace.colorspace = bt2020;
     } else {
       switch (config.encoderCscMode >> 1) {
         case 0:
           // Rec. 601
-          colorspace.colorspace = colorspace_e::rec601;
+          colorspace.colorspace = rec601;
           break;
 
         case 1:
           // Rec. 709
-          colorspace.colorspace = colorspace_e::rec709;
+          colorspace.colorspace = rec709;
           break;
 
         case 2:
           // Rec. 2020
-          colorspace.colorspace = colorspace_e::bt2020sdr;
+          colorspace.colorspace = bt2020sdr;
           break;
 
         default:
           BOOST_LOG(error) << "Unknown video colorspace in csc, falling back to Rec. 709";
-          colorspace.colorspace = colorspace_e::rec709;
+          colorspace.colorspace = rec709;
           break;
       }
     }
@@ -74,9 +75,9 @@ namespace video {
         break;
     }
 
-    if (colorspace.colorspace == colorspace_e::bt2020sdr && colorspace.bit_depth != 10) {
+    if (colorspace.colorspace == bt2020sdr && colorspace.bit_depth != 10) {
       BOOST_LOG(error) << "BT.2020 SDR colorspace expects 10-bit color depth, falling back to Rec. 709";
-      colorspace.colorspace = colorspace_e::rec709;
+      colorspace.colorspace = rec709;
     }
 
     return colorspace;
@@ -129,23 +130,28 @@ namespace video {
     return avcodec_colorspace;
   }
 
+  /**
+   * @brief Select static RGB-to-YUV conversion vectors for the requested colorspace and range.
+   * @note Unknown colorspaces fall back to Rec. 709.
+   */
   const color_t *color_vectors_from_colorspace(const sunshine_colorspace_t &colorspace, bool unorm_output) {
+    using enum colorspace_e;
     constexpr auto generate_color_vectors = [](const sunshine_colorspace_t &colorspace, bool unorm_output) -> color_t {
       // "Table 4 – Interpretation of matrix coefficients (MatrixCoefficients) value" section of ITU-T H.273
       double Kr;
       double Kb;
       switch (colorspace.colorspace) {
-        case colorspace_e::rec601:
+        case rec601:
           Kr = 0.299;
           Kb = 0.114;
           break;
-        case colorspace_e::rec709:
+        case rec709:
         default:
           Kr = 0.2126;
           Kb = 0.0722;
           break;
-        case colorspace_e::bt2020:
-        case colorspace_e::bt2020sdr:
+        case bt2020:
+        case bt2020sdr:
           Kr = 0.2627;
           Kb = 0.0593;
           break;
@@ -209,45 +215,45 @@ namespace video {
     };
 
     static constexpr color_t colors[] = {
-      generate_color_vectors({colorspace_e::rec601, false, 8}, false),
-      generate_color_vectors({colorspace_e::rec601, true, 8}, false),
-      generate_color_vectors({colorspace_e::rec601, false, 10}, false),
-      generate_color_vectors({colorspace_e::rec601, true, 10}, false),
-      generate_color_vectors({colorspace_e::rec709, false, 8}, false),
-      generate_color_vectors({colorspace_e::rec709, true, 8}, false),
-      generate_color_vectors({colorspace_e::rec709, false, 10}, false),
-      generate_color_vectors({colorspace_e::rec709, true, 10}, false),
-      generate_color_vectors({colorspace_e::bt2020, false, 8}, false),
-      generate_color_vectors({colorspace_e::bt2020, true, 8}, false),
-      generate_color_vectors({colorspace_e::bt2020, false, 10}, false),
-      generate_color_vectors({colorspace_e::bt2020, true, 10}, false),
+      generate_color_vectors({rec601, false, 8}, false),
+      generate_color_vectors({rec601, true, 8}, false),
+      generate_color_vectors({rec601, false, 10}, false),
+      generate_color_vectors({rec601, true, 10}, false),
+      generate_color_vectors({rec709, false, 8}, false),
+      generate_color_vectors({rec709, true, 8}, false),
+      generate_color_vectors({rec709, false, 10}, false),
+      generate_color_vectors({rec709, true, 10}, false),
+      generate_color_vectors({bt2020, false, 8}, false),
+      generate_color_vectors({bt2020, true, 8}, false),
+      generate_color_vectors({bt2020, false, 10}, false),
+      generate_color_vectors({bt2020, true, 10}, false),
 
-      generate_color_vectors({colorspace_e::rec601, false, 8}, true),
-      generate_color_vectors({colorspace_e::rec601, true, 8}, true),
-      generate_color_vectors({colorspace_e::rec601, false, 10}, true),
-      generate_color_vectors({colorspace_e::rec601, true, 10}, true),
-      generate_color_vectors({colorspace_e::rec709, false, 8}, true),
-      generate_color_vectors({colorspace_e::rec709, true, 8}, true),
-      generate_color_vectors({colorspace_e::rec709, false, 10}, true),
-      generate_color_vectors({colorspace_e::rec709, true, 10}, true),
-      generate_color_vectors({colorspace_e::bt2020, false, 8}, true),
-      generate_color_vectors({colorspace_e::bt2020, true, 8}, true),
-      generate_color_vectors({colorspace_e::bt2020, false, 10}, true),
-      generate_color_vectors({colorspace_e::bt2020, true, 10}, true),
+      generate_color_vectors({rec601, false, 8}, true),
+      generate_color_vectors({rec601, true, 8}, true),
+      generate_color_vectors({rec601, false, 10}, true),
+      generate_color_vectors({rec601, true, 10}, true),
+      generate_color_vectors({rec709, false, 8}, true),
+      generate_color_vectors({rec709, true, 8}, true),
+      generate_color_vectors({rec709, false, 10}, true),
+      generate_color_vectors({rec709, true, 10}, true),
+      generate_color_vectors({bt2020, false, 8}, true),
+      generate_color_vectors({bt2020, true, 8}, true),
+      generate_color_vectors({bt2020, false, 10}, true),
+      generate_color_vectors({bt2020, true, 10}, true),
     };
 
     const color_t *result = nullptr;
 
     switch (colorspace.colorspace) {
-      case colorspace_e::rec601:
+      case rec601:
         result = &colors[0];
         break;
-      case colorspace_e::rec709:
+      case rec709:
       default:
         result = &colors[4];
         break;
-      case colorspace_e::bt2020:
-      case colorspace_e::bt2020sdr:
+      case bt2020:
+      case bt2020sdr:
         result = &colors[8];
         break;
     }
