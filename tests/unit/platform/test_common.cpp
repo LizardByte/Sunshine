@@ -63,7 +63,7 @@ TEST_P(UdpSourceAddressTest, SendsTheExpectedDatagramFromTheRequestedAddress) {
     const std::string_view headers = "headerheader";
     const std::string_view payloads = "payloadpayload";
     std::vector<platf::buffer_descriptor_t> buffers {{payloads.data(), payloads.size()}};
-    platf::batched_send_info_t info {
+    platf::batched_send_info_t batch_info {
       with_header ? headers.data() : nullptr,
       with_header ? header.size() : 0,
       buffers,
@@ -75,9 +75,9 @@ TEST_P(UdpSourceAddressTest, SendsTheExpectedDatagramFromTheRequestedAddress) {
       port,
       address
     };
-    ASSERT_TRUE(platf::send_batch(info));
+    ASSERT_TRUE(platf::send_batch(batch_info));
   } else {
-    platf::send_info_t info {
+    platf::send_info_t packet_info {
       with_header ? header.data() : nullptr,
       with_header ? header.size() : 0,
       payload.data(),
@@ -87,24 +87,24 @@ TEST_P(UdpSourceAddressTest, SendsTheExpectedDatagramFromTheRequestedAddress) {
       port,
       address
     };
-    ASSERT_TRUE(platf::send(info));
+    ASSERT_TRUE(platf::send(packet_info));
   }
 
   for (auto packet = 0; packet < (batched ? 2 : 1); ++packet) {
     std::array<char, 64> bytes;
     boost::asio::ip::udp::endpoint peer;
-    boost::system::error_code error;
+    boost::system::error_code receive_error;
     std::size_t received = 0;
     bool completed = false;
-    receiver.async_receive_from(boost::asio::buffer(bytes), peer, [&](const auto &result, std::size_t size) {
-      error = result;
+    receiver.async_receive_from(boost::asio::buffer(bytes), peer, [&receive_error, &received, &completed](const auto &result, std::size_t size) {
+      receive_error = result;
       received = size;
       completed = true;
     });
     context.restart();
     context.run_for(std::chrono::seconds {2});
     ASSERT_TRUE(completed);
-    ASSERT_FALSE(error) << error.message();
+    ASSERT_FALSE(receive_error) << receive_error.message();
     EXPECT_EQ(peer.address(), address);
     EXPECT_EQ(std::string_view(bytes.data(), received), with_header ? "headerpayload" : "payload");
   }

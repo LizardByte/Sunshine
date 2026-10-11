@@ -173,6 +173,18 @@ bool RunTerminationHelper(HANDLE console_token, DWORD pid) {
   return exit_code == 0;
 }
 
+/**
+ * @brief Terminate Sunshine gracefully, forcing termination if it does not exit within 20 seconds.
+ *
+ * @param console_token Token for the console session running Sunshine.
+ * @param process_info Handles and identifier of the running Sunshine process.
+ */
+void TerminateSunshine(HANDLE console_token, const PROCESS_INFORMATION &process_info) {
+  if (!RunTerminationHelper(console_token, process_info.dwProcessId) || WaitForSingleObject(process_info.hProcess, 20000) != WAIT_OBJECT_0) {
+    TerminateProcess(process_info.hProcess, ERROR_PROCESS_ABORTED);
+  }
+}
+
 VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
   service_status_handle = RegisterServiceCtrlHandlerEx(SERVICE_NAME, HandlerEx, nullptr);
   if (service_status_handle == nullptr) {
@@ -291,11 +303,7 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
           // Fall-through to terminate Sunshine.exe and start it again.
         case WAIT_OBJECT_0:
           // The service is shutting down, so try to gracefully terminate Sunshine.exe.
-          // If it doesn't terminate in 20 seconds, we will forcefully terminate it.
-          if (!RunTerminationHelper(console_token, process_info.dwProcessId) || WaitForSingleObject(process_info.hProcess, 20000) != WAIT_OBJECT_0) {
-            // If it won't terminate gracefully, kill it now
-            TerminateProcess(process_info.hProcess, ERROR_PROCESS_ABORTED);
-          }
+          TerminateSunshine(console_token, process_info);
           still_running = false;
           break;
 
@@ -314,9 +322,7 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
         default:
           // Stop the service rather than orphaning Sunshine after an unexpected wait failure.
           SetEvent(stop_event);
-          if (!RunTerminationHelper(console_token, process_info.dwProcessId) || WaitForSingleObject(process_info.hProcess, 20000) != WAIT_OBJECT_0) {
-            TerminateProcess(process_info.hProcess, ERROR_PROCESS_ABORTED);
-          }
+          TerminateSunshine(console_token, process_info);
           still_running = false;
           break;
       }
@@ -352,8 +358,6 @@ int DoGracefulTermination(DWORD pid) {
 }
 
 int main(int argc, char *argv[]) {
-  static const std::array<SERVICE_TABLE_ENTRY, 2> service_table = {{{(LPSTR) SERVICE_NAME, ServiceMain}, {nullptr, nullptr}}};
-
   // Check if this is a reinvocation of ourselves to send Ctrl-C to Sunshine.exe
   if (argc == 3 && strcmp(argv[1], "--terminate") == 0) {
     return DoGracefulTermination(atol(argv[2]));
@@ -375,5 +379,7 @@ int main(int argc, char *argv[]) {
   }
 
   // Trigger our ServiceMain()
+  std::string service_name {SERVICE_NAME};
+  const std::array<SERVICE_TABLE_ENTRY, 2> service_table = {{{service_name.data(), ServiceMain}, {nullptr, nullptr}}};
   return StartServiceCtrlDispatcher(service_table.data());
 }
