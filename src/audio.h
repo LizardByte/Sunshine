@@ -51,7 +51,7 @@ namespace audio {
   /**
    * @brief Opus layouts and bitrates advertised for each supported stream mode.
    */
-  extern std::array<opus_stream_config_t, MAX_STREAM_CONFIG> stream_configs;
+  extern const std::array<opus_stream_config_t, MAX_STREAM_CONFIG> stream_configs;
 
   /**
    * @brief Audio capture and encoder settings for a stream.

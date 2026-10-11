@@ -8,6 +8,7 @@
 
 // standard includes
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <random>
 #include <type_traits>
@@ -21,19 +22,19 @@ TEST(UuidTest, PreservesNativeLayoutAndCanonicalFormatting) {
   static_assert(alignof(uuid_util::uuid_t) == alignof(std::uint64_t));
   static_assert(std::is_trivially_copyable_v<uuid_util::uuid_t>);
   const uuid_util::uuid_t uuid {.b8 = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF}};
-  EXPECT_EQ(uuid.string(), "00112233-4455-6677-8899-AABBCCDDEEFF");
+  EXPECT_EQ(uuid.string(), "00112233-4455-6677-8899-AABBCCDDEEFF");  // NOSONAR(cpp:S6232): Calling a union member function does not access an inactive data member.
 }
 
 TEST(UuidTest, GenerationPreservesDrawOrderAndMasks) {
-  std::default_random_engine engine {42};
-  auto expected_engine = engine;
+  std::default_random_engine engine {42};  // NOSONAR(cpp:S2245): Deterministic regression fixture; no security-sensitive values are generated.
+  auto expected_engine = engine;  // NOSONAR(cpp:S2245): Copy the deterministic fixture to verify draw order independently.
   std::uniform_int_distribution<std::uint8_t> distribution(0, 255);
   std::array<std::uint8_t, 16> expected;
   for (auto &byte : expected) {
     byte = distribution(expected_engine);
   }
-  expected[7] &= 0b00101111;
-  expected[9] &= 0b10011111;
+  expected[7] = std::to_integer<std::uint8_t>(std::byte {expected[7]} & std::byte {0b00101111});
+  expected[9] = std::to_integer<std::uint8_t>(std::byte {expected[9]} & std::byte {0b10011111});
 
   const auto uuid = uuid_util::uuid_t::generate(engine);
   EXPECT_EQ(uuid.b8, expected);

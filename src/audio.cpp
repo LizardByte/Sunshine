@@ -49,7 +49,7 @@ namespace audio {
   /**
    * @brief Opus stream layouts and bitrates advertised to clients.
    */
-  std::array<opus_stream_config_t, MAX_STREAM_CONFIG> stream_configs {{
+  const std::array<opus_stream_config_t, MAX_STREAM_CONFIG> stream_configs {{
     {
       SAMPLE_RATE,
       2,

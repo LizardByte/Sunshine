@@ -831,7 +831,7 @@ namespace platf::dxgi {
   /**
    * @brief Names for DXGI_FORMAT values used in diagnostic logging.
    */
-  std::array<const char *, 133> format_str = {
+  const std::array<const char *, 133> format_str = {
     "DXGI_FORMAT_UNKNOWN",
     "DXGI_FORMAT_R32G32B32A32_TYPELESS",
     "DXGI_FORMAT_R32G32B32A32_FLOAT",

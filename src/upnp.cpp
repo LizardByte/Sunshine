@@ -208,7 +208,7 @@ namespace upnp {
         BOOST_LOG(debug) << "Mapping entry not found for "sv << mapping.port.wan;
       } else if (err == UPNPCOMMAND_SUCCESS) {
         // Some routers change the description, so we can't check that here
-        if (!std::strcmp(intClient.data(), lan_addr.c_str())) {
+        if (std::string_view {intClient.data()} == lan_addr) {
           if (std::atoi(leaseDuration.data()) == 0) {
             BOOST_LOG(debug) << "Static mapping entry found for "sv << mapping.port.wan;
 

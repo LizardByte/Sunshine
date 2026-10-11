@@ -180,28 +180,24 @@ namespace platf {
 
     auto family = socket_address->sa_family;
     if (family == AF_INET6) {
-      inet_ntop(AF_INET6, &((sockaddr_in6 *) socket_address)->sin6_addr, data.data(), INET6_ADDRSTRLEN);
+      inet_ntop(AF_INET6, &((const sockaddr_in6 *) socket_address)->sin6_addr, data.data(), INET6_ADDRSTRLEN);
     } else if (family == AF_INET) {
-      inet_ntop(AF_INET, &((sockaddr_in *) socket_address)->sin_addr, data.data(), INET_ADDRSTRLEN);
+      inet_ntop(AF_INET, &((const sockaddr_in *) socket_address)->sin_addr, data.data(), INET_ADDRSTRLEN);
     }
 
     return std::string {data.data()};
   }
 
   std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const ip_addr) {
-    std::array<char, INET6_ADDRSTRLEN> data = {};
-
     auto family = ip_addr->sa_family;
     std::uint16_t port = 0;
     if (family == AF_INET6) {
-      inet_ntop(AF_INET6, &((sockaddr_in6 *) ip_addr)->sin6_addr, data.data(), INET6_ADDRSTRLEN);
-      port = ((sockaddr_in6 *) ip_addr)->sin6_port;
+      port = ((const sockaddr_in6 *) ip_addr)->sin6_port;
     } else if (family == AF_INET) {
-      inet_ntop(AF_INET, &((sockaddr_in *) ip_addr)->sin_addr, data.data(), INET_ADDRSTRLEN);
-      port = ((sockaddr_in *) ip_addr)->sin_port;
+      port = ((const sockaddr_in *) ip_addr)->sin_port;
     }
 
-    return {port, std::string {data.data()}};
+    return {port, from_sockaddr(ip_addr)};
   }
 
   /**
@@ -1463,6 +1459,47 @@ namespace platf {
     return saddr_v6;
   }
 
+  /**
+   * @brief Write the source IP address into the first ancillary control message.
+   *
+   * @param msg Socket message with control storage sized for packet information.
+   * @param source_address Local IP address to use for outgoing packets.
+   * @return Bytes occupied by the packet-information control message.
+   */
+  static ULONG populate_source_pktinfo(WSAMSG &msg, const boost::asio::ip::address &source_address) {
+    ULONG cmbuflen = 0;
+    auto cm = WSA_CMSG_FIRSTHDR(&msg);
+    if (source_address.is_v6()) {
+      IN6_PKTINFO pktInfo;
+
+      SOCKADDR_IN6 saddr_v6 = to_sockaddr(source_address.to_v6(), 0);
+      pktInfo.ipi6_addr = saddr_v6.sin6_addr;
+      pktInfo.ipi6_ifindex = 0;
+
+      cmbuflen += WSA_CMSG_SPACE(sizeof(pktInfo));
+
+      cm->cmsg_level = IPPROTO_IPV6;
+      cm->cmsg_type = IPV6_PKTINFO;
+      cm->cmsg_len = WSA_CMSG_LEN(sizeof(pktInfo));
+      memcpy(WSA_CMSG_DATA(cm), &pktInfo, sizeof(pktInfo));
+    } else {
+      IN_PKTINFO pktInfo;
+
+      SOCKADDR_IN saddr_v4 = to_sockaddr(source_address.to_v4(), 0);
+      pktInfo.ipi_addr = saddr_v4.sin_addr;
+      pktInfo.ipi_ifindex = 0;
+
+      cmbuflen += WSA_CMSG_SPACE(sizeof(pktInfo));
+
+      cm->cmsg_level = IPPROTO_IP;
+      cm->cmsg_type = IP_PKTINFO;
+      cm->cmsg_len = WSA_CMSG_LEN(sizeof(pktInfo));
+      memcpy(WSA_CMSG_DATA(cm), &pktInfo, sizeof(pktInfo));
+    }
+
+    return cmbuflen;
+  }
+
   // Use UDP segmentation offload if it is supported by the OS. If the NIC is capable, this will use
   // hardware acceleration to reduce CPU usage. Support for USO was introduced in Windows 10 20H1.
   bool send_batch(batched_send_info_t &send_info) {
@@ -1517,44 +1554,15 @@ namespace platf {
 
     // At most, one DWORD option and one PKTINFO option
     std::array<char, WSA_CMSG_SPACE(sizeof(DWORD)) + std::max(WSA_CMSG_SPACE(sizeof(IN6_PKTINFO)), WSA_CMSG_SPACE(sizeof(IN_PKTINFO)))> cmbuf = {};
-    ULONG cmbuflen = 0;
-
     msg.Control.buf = cmbuf.data();
     msg.Control.len = cmbuf.size();
 
-    auto cm = WSA_CMSG_FIRSTHDR(&msg);
-    if (send_info.source_address.is_v6()) {
-      IN6_PKTINFO pktInfo;
-
-      SOCKADDR_IN6 saddr_v6 = to_sockaddr(send_info.source_address.to_v6(), 0);
-      pktInfo.ipi6_addr = saddr_v6.sin6_addr;
-      pktInfo.ipi6_ifindex = 0;
-
-      cmbuflen += WSA_CMSG_SPACE(sizeof(pktInfo));
-
-      cm->cmsg_level = IPPROTO_IPV6;
-      cm->cmsg_type = IPV6_PKTINFO;
-      cm->cmsg_len = WSA_CMSG_LEN(sizeof(pktInfo));
-      memcpy(WSA_CMSG_DATA(cm), &pktInfo, sizeof(pktInfo));
-    } else {
-      IN_PKTINFO pktInfo;
-
-      SOCKADDR_IN saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
-      pktInfo.ipi_addr = saddr_v4.sin_addr;
-      pktInfo.ipi_ifindex = 0;
-
-      cmbuflen += WSA_CMSG_SPACE(sizeof(pktInfo));
-
-      cm->cmsg_level = IPPROTO_IP;
-      cm->cmsg_type = IP_PKTINFO;
-      cm->cmsg_len = WSA_CMSG_LEN(sizeof(pktInfo));
-      memcpy(WSA_CMSG_DATA(cm), &pktInfo, sizeof(pktInfo));
-    }
+    auto cmbuflen = populate_source_pktinfo(msg, send_info.source_address);
 
     if (send_info.block_count > 1) {
       cmbuflen += WSA_CMSG_SPACE(sizeof(DWORD));
 
-      cm = WSA_CMSG_NXTHDR(&msg, cm);
+      auto cm = WSA_CMSG_NXTHDR(&msg, WSA_CMSG_FIRSTHDR(&msg));
       cm->cmsg_level = IPPROTO_UDP;
       cm->cmsg_type = UDP_SEND_MSG_SIZE;
       cm->cmsg_len = WSA_CMSG_LEN(sizeof(DWORD));
@@ -1602,39 +1610,10 @@ namespace platf {
     msg.dwFlags = 0;
 
     std::array<char, std::max(WSA_CMSG_SPACE(sizeof(IN6_PKTINFO)), WSA_CMSG_SPACE(sizeof(IN_PKTINFO)))> cmbuf = {};
-    ULONG cmbuflen = 0;
-
     msg.Control.buf = cmbuf.data();
     msg.Control.len = cmbuf.size();
 
-    auto cm = WSA_CMSG_FIRSTHDR(&msg);
-    if (send_info.source_address.is_v6()) {
-      IN6_PKTINFO pktInfo;
-
-      SOCKADDR_IN6 saddr_v6 = to_sockaddr(send_info.source_address.to_v6(), 0);
-      pktInfo.ipi6_addr = saddr_v6.sin6_addr;
-      pktInfo.ipi6_ifindex = 0;
-
-      cmbuflen += WSA_CMSG_SPACE(sizeof(pktInfo));
-
-      cm->cmsg_level = IPPROTO_IPV6;
-      cm->cmsg_type = IPV6_PKTINFO;
-      cm->cmsg_len = WSA_CMSG_LEN(sizeof(pktInfo));
-      memcpy(WSA_CMSG_DATA(cm), &pktInfo, sizeof(pktInfo));
-    } else {
-      IN_PKTINFO pktInfo;
-
-      SOCKADDR_IN saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
-      pktInfo.ipi_addr = saddr_v4.sin_addr;
-      pktInfo.ipi_ifindex = 0;
-
-      cmbuflen += WSA_CMSG_SPACE(sizeof(pktInfo));
-
-      cm->cmsg_level = IPPROTO_IP;
-      cm->cmsg_type = IP_PKTINFO;
-      cm->cmsg_len = WSA_CMSG_LEN(sizeof(pktInfo));
-      memcpy(WSA_CMSG_DATA(cm), &pktInfo, sizeof(pktInfo));
-    }
+    auto cmbuflen = populate_source_pktinfo(msg, send_info.source_address);
 
     msg.Control.len = cmbuflen;
 

@@ -295,7 +295,7 @@ TEST(UtilityBufferTests, MoveConstructionTransfersAllocationAndEmptiesSource) {
   EXPECT_EQ(destination.size(), 2U);
   EXPECT_EQ(destination.begin(), allocation);
   EXPECT_EQ(destination[1], 9);
-  EXPECT_EQ(source.size(), 0U);
+  EXPECT_EQ(source.size(), 0U);  // NOSONAR(cpp:S5272): buffer_t specifies a zero logical count after move construction.
   EXPECT_EQ(source.begin(), source.end());
 }
 
@@ -310,7 +310,7 @@ TEST(UtilityBufferTests, MoveAssignmentExchangesBothAllocationsAndLogicalSizes) 
   EXPECT_EQ(destination.size(), 2U);
   EXPECT_EQ(destination.begin(), source_allocation);
   EXPECT_EQ(destination[1], 9);
-  EXPECT_EQ(source.size(), 3U);
+  EXPECT_EQ(source.size(), 3U);  // NOSONAR(cpp:S5272): buffer_t move assignment exchanges both allocations and logical counts.
   EXPECT_EQ(source.begin(), destination_allocation);
   EXPECT_EQ(source[2], 7);
 }
@@ -331,6 +331,11 @@ TEST(UtilityHexTests, IteratorsAndViewsExposeExactlyTheFormattedBytes) {
 TEST(UtilityFromHexTests, ShortInputPadsUnusedBytesWithZeros) {
   EXPECT_EQ(util::from_hex<std::uint64_t>("ABCD"), util::endian::little(std::uint64_t {0xABCD}));
   EXPECT_EQ(util::from_hex<std::uint64_t>("ABCD", true), util::endian::big(std::uint64_t {0xABCD}));
+}
+
+TEST(UtilityFromHexTests, DecodesIntoAByteArrayWithoutPointerTypePunning) {
+  const auto bytes = util::from_hex<std::array<std::uint8_t, 4>>("12:34:56:78", true);
+  EXPECT_EQ(bytes, (std::array<std::uint8_t, 4> {0x12, 0x34, 0x56, 0x78}));
 }
 
 TEST(UtilityAppendStructTests, AppendsDataCorrectly) {

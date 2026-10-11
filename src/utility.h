@@ -7,6 +7,7 @@
 // standard includes
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <condition_variable>
 #include <cstddef>
 #include <memory>
@@ -681,7 +682,7 @@ namespace util {
       std::reverse(std::begin(buf), std::end(buf));
     }
 
-    return *reinterpret_cast<T *>(buf.data());
+    return std::bit_cast<T>(buf);
   }
 
   /**
@@ -1470,7 +1471,7 @@ namespace util {
         _els {0} {};
 
     /**
-     * @brief Construct an owning contiguous buffer.
+     * @brief Move an owning contiguous buffer and leave the source logically empty.
      *
      * @param o Source object used for comparison or assignment.
      */
@@ -1492,7 +1493,7 @@ namespace util {
     }
 
     /**
-     * @brief Assign state from another instance while preserving ownership semantics.
+     * @brief Exchange allocations and logical counts with the source buffer.
      *
      * @param o Source object used for comparison or assignment.
      * @return Reference returned by the operator overload.

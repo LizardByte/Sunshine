@@ -23,7 +23,7 @@ namespace platf::dxgi {
   /**
    * @brief Diagnostic names indexed by DXGI_FORMAT.
    */
-  extern std::array<const char *, 133> format_str;
+  extern const std::array<const char *, 133> format_str;
 
   // Add D3D11_CREATE_DEVICE_DEBUG here to enable the D3D11 debug runtime.
   // You should have a debugger like WinDbg attached to receive debug messages.

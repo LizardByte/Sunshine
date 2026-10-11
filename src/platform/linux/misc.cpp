@@ -695,6 +695,60 @@ namespace platf {
   }
 
   /**
+   * @brief Write the source IP address into the first ancillary control message.
+   *
+   * @param msg Socket message with control storage sized for packet information.
+   * @param source_address Local IP address to use for outgoing packets.
+   * @return Bytes occupied by the packet-information control message.
+   */
+  static socklen_t populate_source_pktinfo(msghdr &msg, const boost::asio::ip::address &source_address) {
+    socklen_t cmbuflen = 0;
+    auto pktinfo_cm = CMSG_FIRSTHDR(&msg);
+    if (source_address.is_v6()) {
+      struct in6_pktinfo pktInfo;
+
+      struct sockaddr_in6 saddr_v6 = to_sockaddr(source_address.to_v6(), 0);
+      pktInfo.ipi6_addr = saddr_v6.sin6_addr;
+      pktInfo.ipi6_ifindex = 0;
+
+      cmbuflen += CMSG_SPACE(sizeof(pktInfo));
+
+      pktinfo_cm->cmsg_level = IPPROTO_IPV6;
+      pktinfo_cm->cmsg_type = IPV6_PKTINFO;
+      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
+      memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
+    } else {
+#ifdef IP_PKTINFO
+      struct in_pktinfo pktInfo;
+
+      struct sockaddr_in saddr_v4 = to_sockaddr(source_address.to_v4(), 0);
+      pktInfo.ipi_spec_dst = saddr_v4.sin_addr;
+      pktInfo.ipi_ifindex = 0;
+
+      cmbuflen += CMSG_SPACE(sizeof(pktInfo));
+
+      pktinfo_cm->cmsg_level = IPPROTO_IP;
+      pktinfo_cm->cmsg_type = IP_PKTINFO;
+      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
+      memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
+#elif defined(IP_SENDSRCADDR)
+      // FreeBSD uses IP_SENDSRCADDR with struct in_addr instead of IP_PKTINFO
+      struct sockaddr_in saddr_v4 = to_sockaddr(source_address.to_v4(), 0);
+      struct in_addr src_addr = saddr_v4.sin_addr;
+
+      cmbuflen += CMSG_SPACE(sizeof(src_addr));
+
+      pktinfo_cm->cmsg_level = IPPROTO_IP;
+      pktinfo_cm->cmsg_type = IP_SENDSRCADDR;
+      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(src_addr));
+      memcpy(CMSG_DATA(pktinfo_cm), &src_addr, sizeof(src_addr));
+#endif
+    }
+
+    return cmbuflen;
+  }
+
+  /**
    * @brief Send multiple fixed-size UDP payload blocks using the platform backend.
    */
   bool send_batch(batched_send_info_t &send_info) {
@@ -726,54 +780,12 @@ namespace platf {
       struct cmsghdr alignment;
     } cmbuf = {};  // Must be zeroed for CMSG_NXTHDR()
 
-    socklen_t cmbuflen = 0;
-
     msg.msg_control = cmbuf.buf.data();
     msg.msg_controllen = cmbuf.buf.size();
 
     // The PKTINFO option will always be first, then we will conditionally
     // append the UDP_SEGMENT option next if applicable.
-    auto pktinfo_cm = CMSG_FIRSTHDR(&msg);
-    if (send_info.source_address.is_v6()) {
-      struct in6_pktinfo pktInfo;
-
-      struct sockaddr_in6 saddr_v6 = to_sockaddr(send_info.source_address.to_v6(), 0);
-      pktInfo.ipi6_addr = saddr_v6.sin6_addr;
-      pktInfo.ipi6_ifindex = 0;
-
-      cmbuflen += CMSG_SPACE(sizeof(pktInfo));
-
-      pktinfo_cm->cmsg_level = IPPROTO_IPV6;
-      pktinfo_cm->cmsg_type = IPV6_PKTINFO;
-      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
-      memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
-    } else {
-#ifdef IP_PKTINFO
-      struct in_pktinfo pktInfo;
-
-      struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
-      pktInfo.ipi_spec_dst = saddr_v4.sin_addr;
-      pktInfo.ipi_ifindex = 0;
-
-      cmbuflen += CMSG_SPACE(sizeof(pktInfo));
-
-      pktinfo_cm->cmsg_level = IPPROTO_IP;
-      pktinfo_cm->cmsg_type = IP_PKTINFO;
-      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
-      memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
-#elif defined(IP_SENDSRCADDR)
-      // FreeBSD uses IP_SENDSRCADDR with struct in_addr instead of IP_PKTINFO
-      struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
-      struct in_addr src_addr = saddr_v4.sin_addr;
-
-      cmbuflen += CMSG_SPACE(sizeof(src_addr));
-
-      pktinfo_cm->cmsg_level = IPPROTO_IP;
-      pktinfo_cm->cmsg_type = IP_SENDSRCADDR;
-      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(src_addr));
-      memcpy(CMSG_DATA(pktinfo_cm), &src_addr, sizeof(src_addr));
-#endif
-    }
+    auto cmbuflen = populate_source_pktinfo(msg, send_info.source_address);
 
     auto const max_iovs_per_msg = send_info.payload_buffers.size() + (send_info.headers ? 1 : 0);
 
@@ -819,7 +831,7 @@ namespace platf {
           msg.msg_controllen = cmbuflen + CMSG_SPACE(sizeof(uint16_t));
 
           // Enable GSO to perform segmentation of our buffer for us
-          auto cm = CMSG_NXTHDR(&msg, pktinfo_cm);
+          auto cm = CMSG_NXTHDR(&msg, CMSG_FIRSTHDR(&msg));
           cm->cmsg_level = SOL_UDP;
           cm->cmsg_type = UDP_SEGMENT;
           cm->cmsg_len = CMSG_LEN(sizeof(uint16_t));
@@ -954,52 +966,10 @@ namespace platf {
       struct cmsghdr alignment;
     } cmbuf;
 
-    socklen_t cmbuflen = 0;
-
     msg.msg_control = cmbuf.buf.data();
     msg.msg_controllen = cmbuf.buf.size();
 
-    auto pktinfo_cm = CMSG_FIRSTHDR(&msg);
-    if (send_info.source_address.is_v6()) {
-      struct in6_pktinfo pktInfo;
-
-      struct sockaddr_in6 saddr_v6 = to_sockaddr(send_info.source_address.to_v6(), 0);
-      pktInfo.ipi6_addr = saddr_v6.sin6_addr;
-      pktInfo.ipi6_ifindex = 0;
-
-      cmbuflen += CMSG_SPACE(sizeof(pktInfo));
-
-      pktinfo_cm->cmsg_level = IPPROTO_IPV6;
-      pktinfo_cm->cmsg_type = IPV6_PKTINFO;
-      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
-      memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
-    } else {
-#ifdef IP_PKTINFO
-      struct in_pktinfo pktInfo;
-
-      struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
-      pktInfo.ipi_spec_dst = saddr_v4.sin_addr;
-      pktInfo.ipi_ifindex = 0;
-
-      cmbuflen += CMSG_SPACE(sizeof(pktInfo));
-
-      pktinfo_cm->cmsg_level = IPPROTO_IP;
-      pktinfo_cm->cmsg_type = IP_PKTINFO;
-      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
-      memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
-#elif defined(IP_SENDSRCADDR)
-      // FreeBSD uses IP_SENDSRCADDR with struct in_addr instead of IP_PKTINFO
-      struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
-      struct in_addr src_addr = saddr_v4.sin_addr;
-
-      cmbuflen += CMSG_SPACE(sizeof(src_addr));
-
-      pktinfo_cm->cmsg_level = IPPROTO_IP;
-      pktinfo_cm->cmsg_type = IP_SENDSRCADDR;
-      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(src_addr));
-      memcpy(CMSG_DATA(pktinfo_cm), &src_addr, sizeof(src_addr));
-#endif
-    }
+    auto cmbuflen = populate_source_pktinfo(msg, send_info.source_address);
 
     std::array<iovec, 2> iovs;
     int iovlen = 0;

@@ -154,7 +154,7 @@ bool RunTerminationHelper(HANDLE console_token, DWORD pid) {
   // Execute ourselves as a detached process in the user session with the --terminate argument.
   // This will allow us to attach to Sunshine's console and send it a Ctrl-C event.
   PROCESS_INFORMATION process_info;
-  if (!CreateProcessAsUserW(console_token, module_path.data(), (LPWSTR) command.c_str(), nullptr, nullptr, FALSE, CREATE_UNICODE_ENVIRONMENT | DETACHED_PROCESS, nullptr, nullptr, &startup_info, &process_info)) {
+  if (!CreateProcessAsUserW(console_token, module_path.data(), command.data(), nullptr, nullptr, FALSE, CREATE_UNICODE_ENVIRONMENT | DETACHED_PROCESS, nullptr, nullptr, &startup_info, &process_info)) {
     return false;
   }
 
@@ -311,6 +311,14 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
             still_running = false;
             break;
           }
+        default:
+          // Stop the service rather than orphaning Sunshine after an unexpected wait failure.
+          SetEvent(stop_event);
+          if (!RunTerminationHelper(console_token, process_info.dwProcessId) || WaitForSingleObject(process_info.hProcess, 20000) != WAIT_OBJECT_0) {
+            TerminateProcess(process_info.hProcess, ERROR_PROCESS_ABORTED);
+          }
+          still_running = false;
+          break;
       }
     } while (still_running);
 
@@ -362,7 +370,9 @@ int main(int argc, char *argv[]) {
       *last_sep = 0;
     }
   }
-  SetCurrentDirectoryW(module_path.data());
+  if (!SetCurrentDirectoryW(module_path.data())) {
+    return GetLastError();
+  }
 
   // Trigger our ServiceMain()
   return StartServiceCtrlDispatcher(service_table.data());

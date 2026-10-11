@@ -47,8 +47,7 @@ namespace nvprefs {
     if (!pimpl->loaded) {
       // Check %ProgramData% variable, need it for storing undo file
       std::array<wchar_t, MAX_PATH> program_data_env;
-      auto get_env_result = GetEnvironmentVariableW(L"ProgramData", program_data_env.data(), program_data_env.size());
-      if (get_env_result == 0 || get_env_result >= MAX_PATH || !std::filesystem::is_directory(program_data_env.data())) {
+      if (auto get_env_result = GetEnvironmentVariableW(L"ProgramData", program_data_env.data(), program_data_env.size()); get_env_result == 0 || get_env_result >= MAX_PATH || !std::filesystem::is_directory(program_data_env.data())) {
         error_message("Missing or malformed %ProgramData% environment variable");
         return false;
       }
