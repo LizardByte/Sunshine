@@ -45,7 +45,7 @@ TEST(SocketAddressTest, UnsupportedAddressFamiliesProduceEmptyAddressesAndZeroPo
 
 #if defined(_WIN32) || defined(__linux__) || defined(__FreeBSD__)
 /**
- * @brief Exercise source-address control messages for both UDP send APIs and optional headers.
+ * @brief Exercise source-address control messages on bound UDP sockets with optional headers.
  */
 class UdpSourceAddressTest: public testing::TestWithParam<std::tuple<bool, bool, bool>> {};
 
@@ -54,7 +54,8 @@ TEST_P(UdpSourceAddressTest, SendsTheExpectedDatagramFromTheRequestedAddress) {
   auto address = boost::asio::ip::make_address(ipv6 ? "::1" : "127.0.0.1");
   boost::asio::io_context context;
   boost::asio::ip::udp::socket receiver(context, {address, 0});
-  boost::asio::ip::udp::socket sender(context, receiver.local_endpoint().protocol());
+  // FreeBSD requires a bound port before accepting IP_SENDSRCADDR.
+  boost::asio::ip::udp::socket sender(context, {receiver.local_endpoint().protocol(), 0});
   const auto port = receiver.local_endpoint().port();
   const auto native_socket = static_cast<std::uintptr_t>(sender.native_handle());
   const std::string_view header = "header";
