@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <future>
 #include <memory>
+#include <sstream>
 
 // platform includes
 #include <AppKit/AppKit.h>
@@ -289,7 +290,7 @@ namespace platf {
     if (id == "system_audio") {
       const bool settings_opened = open_privacy_settings(@"Privacy_ScreenCapture");
       if (!request_system_audio_permission()) {
-        BOOST_LOG(warning) << "System audio recording permission or tap setup is unavailable"sv;
+        logging::warning("System audio recording permission or tap setup is unavailable"sv);
       }
       return settings_opened;
     }
@@ -323,7 +324,7 @@ namespace platf {
     }
     [defaults setBool:YES forKey:system_audio_requested_key];
     if (!request_system_audio_permission()) {
-      BOOST_LOG(warning) << "System audio recording permission or tap setup is unavailable"sv;
+      logging::warning("System audio recording permission or tap setup is unavailable"sv);
     }
   }
 
@@ -337,8 +338,8 @@ namespace platf {
 
   std::unique_ptr<deinit_t> init(const config::settings_t &settings) {
     if (!screen_recording_granted()) {
-      BOOST_LOG(error) << "No screen capture permission!"sv;
-      BOOST_LOG(error) << "Please activate Sunshine in System Settings -> Privacy & Security -> Screen & System Audio Recording"sv;
+      logging::error("No screen capture permission!"sv);
+      logging::error("Please activate Sunshine in System Settings -> Privacy & Security -> Screen & System Audio Recording"sv);
       return nullptr;
     }
     // Record that we determined that we have the screen capture permission.
@@ -408,7 +409,7 @@ namespace platf {
 
     for (auto pos = ifaddrs.get(); pos != nullptr; pos = pos->ifa_next) {
       if (pos->ifa_addr && address == from_sockaddr(pos->ifa_addr)) {
-        BOOST_LOG(verbose) << "Looking for MAC of "sv << pos->ifa_name;
+        logging::verbose("Looking for MAC of {}", pos->ifa_name);
 
         struct ifaddrs *ifap, *ifaptr;
         unsigned char *ptr;
@@ -429,14 +430,14 @@ namespace platf {
           freeifaddrs(ifap);
 
           if (ifaptr != nullptr) {
-            BOOST_LOG(verbose) << "Found MAC of "sv << pos->ifa_name << ": "sv << mac_address;
+            logging::verbose("Found MAC of {}: {}", pos->ifa_name, mac_address);
             return mac_address;
           }
         }
       }
     }
 
-    BOOST_LOG(warning) << "Unable to find MAC address for "sv << address;
+    logging::warning("Unable to find MAC address for {}", address);
     return "00:00:00:00:00:00"s;
   }
 
@@ -473,9 +474,11 @@ namespace platf {
     std::error_code ec;
     auto child = run_command(false, false, cmd, working_dir, _env, nullptr, ec, nullptr);
     if (ec) {
-      BOOST_LOG(warning) << "Couldn't open url ["sv << url << "]: System: "sv << ec.message();
+      logging::warning([&](std::ostream &out) {
+        out << "Couldn't open url ["sv << url << "]: System: "sv << ec.message();
+      });
     } else {
-      BOOST_LOG(info) << "Opened url ["sv << url << "]"sv;
+      logging::info("Opened url [{}]", url);
       child.detach();
     }
   }
@@ -497,7 +500,7 @@ namespace platf {
         mac_priority = QOS_CLASS_USER_INTERACTIVE;
         break;
       default:
-        BOOST_LOG(error) << "Unknown thread priority: "sv << (int) priority;
+        logging::error("Unknown thread priority: {}", (int) priority);
         return;
     }
 
@@ -556,7 +559,9 @@ namespace platf {
     char executable[2048];
     uint32_t size = sizeof(executable);
     if (_NSGetExecutablePath(executable, &size) < 0) {
-      BOOST_LOG(fatal) << "NSGetExecutablePath() failed: "sv << errno;
+      logging::fatal([&](std::ostream &out) {
+        out << "NSGetExecutablePath() failed: "sv << errno;
+      });
       return;
     }
 
@@ -572,7 +577,9 @@ namespace platf {
     // WindowServer retains stale state and silently refuses to show new tray icons.
     pid_t child = fork();
     if (child < 0) {
-      BOOST_LOG(fatal) << "fork() failed: "sv << errno;
+      logging::fatal([&](std::ostream &out) {
+        out << "fork() failed: "sv << errno;
+      });
       return;
     }
 
@@ -620,10 +627,12 @@ namespace platf {
 
   bool request_process_group_exit(std::uintptr_t native_handle) {
     if (killpg((pid_t) native_handle, SIGTERM) == 0 || errno == ESRCH) {
-      BOOST_LOG(debug) << "Successfully sent SIGTERM to process group: "sv << native_handle;
+      logging::debug("Successfully sent SIGTERM to process group: {}", native_handle);
       return true;
     } else {
-      BOOST_LOG(warning) << "Unable to send SIGTERM to process group ["sv << native_handle << "]: "sv << errno;
+      logging::warning([&](std::ostream &out) {
+        out << "Unable to send SIGTERM to process group ["sv << native_handle << "]: "sv << errno;
+      });
       return false;
     }
   }
@@ -746,7 +755,9 @@ namespace platf {
       pfd.events = POLLOUT;
 
       if (poll(&pfd, 1, -1) != 1) {
-        BOOST_LOG(warning) << "poll() failed: "sv << errno;
+        logging::warning([&](std::ostream &out) {
+          out << "poll() failed: "sv << errno;
+        });
         break;
       }
 
@@ -755,7 +766,9 @@ namespace platf {
     }
 
     if (bytes_sent < 0) {
-      BOOST_LOG(warning) << "sendmsg() failed: "sv << errno;
+      logging::warning([&](std::ostream &out) {
+        out << "sendmsg() failed: "sv << errno;
+      });
       return false;
     }
 
@@ -789,7 +802,9 @@ namespace platf {
         for (const auto &tuple : options) {
           auto reset_val = std::get<2>(tuple);
           if (setsockopt(sockfd, std::get<0>(tuple), std::get<1>(tuple), &reset_val, sizeof(reset_val)) < 0) {
-            BOOST_LOG(warning) << "Failed to reset option: "sv << errno;
+            logging::warning([&](std::ostream &out) {
+              out << "Failed to reset option: "sv << errno;
+            });
           }
         }
       }
@@ -817,7 +832,7 @@ namespace platf {
         service_type = NET_SERVICE_TYPE_VO;
         break;
       default:
-        BOOST_LOG(error) << "Unknown traffic type: "sv << (int) data_type;
+        logging::error("Unknown traffic type: {}", (int) data_type);
         break;
     }
 
@@ -826,7 +841,9 @@ namespace platf {
         // Reset SO_NET_SERVICE_TYPE to best-effort when QoS is disabled
         reset_options.emplace_back(std::make_tuple(SOL_SOCKET, SO_NET_SERVICE_TYPE, NET_SERVICE_TYPE_BE));
       } else {
-        BOOST_LOG(error) << "Failed to set SO_NET_SERVICE_TYPE: "sv << errno;
+        logging::error([&](std::ostream &out) {
+          out << "Failed to set SO_NET_SERVICE_TYPE: "sv << errno;
+        });
       }
     }
 
@@ -852,7 +869,7 @@ namespace platf {
           dscp = 48;
           break;
         default:
-          BOOST_LOG(error) << "Unknown traffic type: "sv << (int) data_type;
+          logging::error("Unknown traffic type: {}", (int) data_type);
           break;
       }
 
@@ -864,7 +881,9 @@ namespace platf {
           // Reset TOS to -1 when QoS is disabled
           reset_options.emplace_back(std::make_tuple(level, option, -1));
         } else {
-          BOOST_LOG(error) << "Failed to set TOS/TCLASS: "sv << errno;
+          logging::error([&](std::ostream &out) {
+            out << "Failed to set TOS/TCLASS: "sv << errno;
+          });
         }
       }
     }
@@ -876,7 +895,7 @@ namespace platf {
     try {
       return boost::asio::ip::host_name();
     } catch (boost::system::system_error &err) {
-      BOOST_LOG(error) << "Failed to get hostname: "sv << err.what();
+      logging::error("Failed to get hostname: {}", err.what());
       return "Sunshine"s;
     }
   }
@@ -923,7 +942,9 @@ namespace dyn {
 
     ss << ']';
 
-    BOOST_LOG(error) << ss.str();
+    logging::error([&](std::ostream &out) {
+      out << ss.str();
+    });
 
     return nullptr;
   }
@@ -936,7 +957,7 @@ namespace dyn {
       *fn = (void (*)()) dlsym(handle, name);
 
       if (!*fn && strict) {
-        BOOST_LOG(error) << "Couldn't find function: "sv << name;
+        logging::error("Couldn't find function: {}", name);
 
         err = -1;
       }

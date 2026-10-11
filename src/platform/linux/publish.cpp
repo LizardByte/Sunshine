@@ -77,19 +77,19 @@ namespace platf::publish {
     bool start(const std::string &instance_name) {
       poll.reset(api->simple_poll_new());
       if (!poll) {
-        BOOST_LOG(error) << "Failed to create simple poll object."sv;
+        logging::error("Failed to create simple poll object."sv);
         return false;
       }
       name.reset(api->strdup(instance_name.c_str()));
       if (!name) {
-        BOOST_LOG(error) << "Failed to allocate Avahi service name."sv;
+        logging::error("Failed to allocate Avahi service name."sv);
         return false;
       }
       int avahi_error {};
       // The callback can run synchronously, before client_new returns.
       client.reset(api->client_new(api->simple_poll_get(poll.get()), avahi::ClientFlags(0), client_callback, this, &avahi_error));
       if (!client) {
-        BOOST_LOG(error) << "Failed to create client: "sv << api->strerror(avahi_error);
+        logging::error("Failed to create client: {}", api->strerror(avahi_error));
         return false;
       }
       poll_thread = std::jthread {[this]() {
@@ -131,7 +131,7 @@ namespace platf::publish {
       if (name) {
         return true;
       }
-      BOOST_LOG(error) << "Failed to allocate alternative Avahi service name."sv;
+      logging::error("Failed to allocate alternative Avahi service name."sv);
       api->simple_poll_quit(poll.get());
       return false;
     }
@@ -147,19 +147,19 @@ namespace platf::publish {
 
       switch (state) {
         case avahi::ENTRY_GROUP_ESTABLISHED:
-          BOOST_LOG(info) << "Avahi service " << name.get() << " successfully established.";
+          logging::info("Avahi service {} successfully established.", name.get());
           break;
         case avahi::ENTRY_GROUP_COLLISION:
           if (!rename_service()) {
             break;
           }
 
-          BOOST_LOG(info) << "Avahi service name collision, renaming service to " << name.get();
+          logging::info("Avahi service name collision, renaming service to {}", name.get());
 
           create_services(api->entry_group_get_client(g));
           break;
         case avahi::ENTRY_GROUP_FAILURE:
-          BOOST_LOG(error) << "Avahi entry group failure: " << api->strerror(api->client_errno(api->entry_group_get_client(g)));
+          logging::error("Avahi entry group failure: {}", api->strerror(api->client_errno(api->entry_group_get_client(g))));
           api->simple_poll_quit(poll.get());
           break;
         case avahi::ENTRY_GROUP_UNCOMMITED:
@@ -179,7 +179,7 @@ namespace platf::publish {
 
       if (!group) {
         if (!(group = api->entry_group_new(c, entry_group_callback, this))) {
-          BOOST_LOG(error) << "api->entry_group_new() failed: "sv << api->strerror(api->client_errno(c));
+          logging::error("api->entry_group_new() failed: {}", api->strerror(api->client_errno(c)));
           return;
         }
       }
@@ -190,7 +190,7 @@ namespace platf::publish {
       }
 
       if (api->entry_group_is_empty(group)) {
-        BOOST_LOG(info) << "Adding avahi service "sv << name.get();
+        logging::info("Adding avahi service {}", name.get());
 
         ret = api->entry_group_add_service(
           group,
@@ -211,7 +211,7 @@ namespace platf::publish {
             if (!rename_service()) {
               return;
             }
-            BOOST_LOG(info) << "Service name collision, renaming service to "sv << name.get();
+            logging::info("Service name collision, renaming service to {}", name.get());
 
             api->entry_group_reset(group);
 
@@ -221,13 +221,13 @@ namespace platf::publish {
             return;
           }
 
-          BOOST_LOG(error) << "Failed to add "sv << platf::SERVICE_TYPE << " service: "sv << api->strerror(ret);
+          logging::error("Failed to add {} service: {}", platf::SERVICE_TYPE, api->strerror(ret));
           return;
         }
 
         ret = api->entry_group_commit(group);
         if (ret < 0) {
-          BOOST_LOG(error) << "Failed to commit entry group: "sv << api->strerror(ret);
+          logging::error("Failed to commit entry group: {}", api->strerror(ret));
           return;
         }
       }
@@ -247,7 +247,7 @@ namespace platf::publish {
           create_services(c);
           break;
         case avahi::CLIENT_FAILURE:
-          BOOST_LOG(error) << "Client failure: "sv << api->strerror(api->client_errno(c));
+          logging::error("Client failure: {}", api->strerror(api->client_errno(c)));
           api->simple_poll_quit(poll.get());
           break;
         case avahi::CLIENT_S_COLLISION:

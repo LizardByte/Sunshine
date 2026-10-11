@@ -71,7 +71,7 @@ namespace cuda {
    * @param description Human-readable description used in log output.
    */
   void pass_error(const std::string_view &sv, const char *name, const char *description) {
-    BOOST_LOG(error) << sv << name << ':' << description;
+    logging::error("{}{}:{}", sv, name, description);
   }
 
   /**
@@ -98,7 +98,7 @@ namespace cuda {
       cdf->cuGetErrorName(result, &name);
       cdf->cuGetErrorString(result, &description);
 
-      BOOST_LOG(error) << sv << name << ':' << description;
+      logging::error("{}{}:{}", sv, name, description);
       return -1;
     }
 
@@ -144,7 +144,7 @@ namespace cuda {
   int init() {
     auto status = cuda_load_functions(&cdf, nullptr);
     if (status) {
-      BOOST_LOG(error) << "Couldn't load cuda: "sv << status;
+      logging::error("Couldn't load cuda: {}", static_cast<int>(status));
 
       return -1;
     }
@@ -168,7 +168,7 @@ namespace cuda {
      */
     int init(int in_width, int in_height) {
       if (!cdf) {
-        BOOST_LOG(warning) << "cuda not initialized"sv;
+        logging::warning("cuda not initialized"sv);
         return -1;
       }
 
@@ -194,13 +194,13 @@ namespace cuda {
       auto hwframe_ctx = (AVHWFramesContext *) hw_frames_ctx->data;
 
       if (hwframe_ctx->sw_format != AV_PIX_FMT_NV12 && hwframe_ctx->sw_format != AV_PIX_FMT_YUV444P) {
-        BOOST_LOG(error) << "cuda::cuda_t doesn't support any format other than AV_PIX_FMT_NV12 and AV_PIX_FMT_YUV444P"sv;
+        logging::error("cuda::cuda_t doesn't support any format other than AV_PIX_FMT_NV12 and AV_PIX_FMT_YUV444P"sv);
         return -1;
       }
 
       if (!frame->buf[0]) {
         if (av_hwframe_get_buffer(hw_frames_ctx, frame, 0)) {
-          BOOST_LOG(error) << "Couldn't get hwframe for NVENC"sv;
+          logging::error("Couldn't get hwframe for NVENC"sv);
           return -1;
         }
       }
@@ -362,7 +362,7 @@ namespace cuda {
     // use sysfs to look up the DRM device name from the PCI ID.
     std::array<char, 13> pci_bus_id;
     CU_CHECK(cdf->cuDeviceGetPCIBusId(pci_bus_id.data(), pci_bus_id.size(), device), "Couldn't get CUDA device PCI bus ID");
-    BOOST_LOG(debug) << "Found CUDA device with PCI bus ID: "sv << pci_bus_id.data();
+    logging::debug("Found CUDA device with PCI bus ID: {}", pci_bus_id.data());
 
     // Linux uses lowercase hexadecimal while CUDA uses uppercase
     std::transform(pci_bus_id.begin(), pci_bus_id.end(), pci_bus_id.begin(), [](char c) {
@@ -381,17 +381,17 @@ namespace cuda {
           continue;
         }
 
-        BOOST_LOG(debug) << "Found DRM primary node: "sv << filestring;
+        logging::debug("Found DRM primary node: {}", filestring);
 
         fs::path dri_path {"/dev/dri"sv};
         auto device_path = dri_path / file;
         return platf::kms::privileged_open_drm_card_fd(device_path.c_str());
       }
     } catch (const std::filesystem::filesystem_error &err) {
-      BOOST_LOG(error) << "Failed to read sysfs: "sv << err.what();
+      logging::error("Failed to read sysfs: {}", err.what());
     }
 
-    BOOST_LOG(error) << "Unable to find DRM device with PCI bus ID: "sv << pci_bus_id.data();
+    logging::error("Unable to find DRM device with PCI bus ID: {}", pci_bus_id.data());
     return -1;
   }
 
@@ -426,13 +426,17 @@ namespace cuda {
       file = std::move(open_drm_fd_for_cuda_device(0));
       if (file.el < 0) {
         std::array<char, 1024> string;
-        BOOST_LOG(error) << "Couldn't open DRM FD for CUDA device: "sv << strerror_r(errno, string.data(), string.size());
+        logging::error([&](std::ostream &out) {
+          out << "Couldn't open DRM FD for CUDA device: "sv << strerror_r(errno, string.data(), string.size());
+        });
         return -1;
       }
 
       gbm = gbm::make_device(gbm::api_t::load(), file.el);
       if (!gbm) {
-        BOOST_LOG(error) << "Couldn't create GBM device: ["sv << util::hex(eglGetError()).to_string_view() << ']';
+        logging::error([&](std::ostream &out) {
+          out << "Couldn't create GBM device: ["sv << util::hex(eglGetError()).to_string_view() << ']';
+        });
         return -1;
       }
 
@@ -472,13 +476,13 @@ namespace cuda {
       auto hw_frames_ctx = (AVHWFramesContext *) hw_frames_ctx_buf->data;
 
       if (hw_frames_ctx->sw_format != AV_PIX_FMT_NV12 && hw_frames_ctx->sw_format != AV_PIX_FMT_YUV444P && hw_frames_ctx->sw_format != AV_PIX_FMT_P010LE && hw_frames_ctx->sw_format != AV_PIX_FMT_YUV444P16LE) {
-        BOOST_LOG(error) << "cuda::gl_cuda_vram_t doesn't support any format other than AV_PIX_FMT_NV12, AV_PIX_FMT_P010LE, AV_PIX_FMT_YUV444P and AV_PIX_FMT_YUV444P16LE"sv;
+        logging::error("cuda::gl_cuda_vram_t doesn't support any format other than AV_PIX_FMT_NV12, AV_PIX_FMT_P010LE, AV_PIX_FMT_YUV444P and AV_PIX_FMT_YUV444P16LE"sv);
         return -1;
       }
 
       if (!frame->buf[0]) {
         if (av_hwframe_get_buffer(hw_frames_ctx_buf, frame, 0)) {
-          BOOST_LOG(error) << "Couldn't get hwframe for NVENC_GL"sv;
+          logging::error("Couldn't get hwframe for NVENC_GL"sv);
           return -1;
         }
       }
@@ -717,14 +721,14 @@ namespace cuda {
         NVFBC_BIND_CONTEXT_PARAMS params {NVFBC_BIND_CONTEXT_PARAMS_VER};
 
         if (this->api->functions.nvFBCBindContext(handle, &params)) {
-          BOOST_LOG(error) << "Couldn't bind NvFBC context to current thread: " << this->api->functions.nvFBCGetLastErrorStr(handle);
+          logging::error("Couldn't bind NvFBC context to current thread: {}", this->api->functions.nvFBCGetLastErrorStr(handle));
         }
       }
 
       ~ctx_t() {
         NVFBC_RELEASE_CONTEXT_PARAMS params {NVFBC_RELEASE_CONTEXT_PARAMS_VER};
         if (api->functions.nvFBCReleaseContext(handle, &params)) {
-          BOOST_LOG(error) << "Couldn't release NvFBC context from current thread: " << api->functions.nvFBCGetLastErrorStr(handle);
+          logging::error("Couldn't release NvFBC context from current thread: {}", api->functions.nvFBCGetLastErrorStr(handle));
         }
       }
 
@@ -793,7 +797,7 @@ namespace cuda {
         handle.api = std::move(api);
         auto status = handle.api->functions.nvFBCCreateHandle(&handle.handle, &params);
         if (status) {
-          BOOST_LOG(error) << "Failed to create session: "sv << handle.last_error();
+          logging::error("Failed to create session: {}", handle.last_error());
 
           return std::nullopt;
         }
@@ -822,7 +826,7 @@ namespace cuda {
 
         auto status = api->functions.nvFBCGetStatus(handle, &params);
         if (status) {
-          BOOST_LOG(error) << "Failed to get NvFBC status: "sv << last_error();
+          logging::error("Failed to get NvFBC status: {}", last_error());
 
           return std::nullopt;
         }
@@ -838,7 +842,7 @@ namespace cuda {
        */
       int capture(NVFBC_CREATE_CAPTURE_SESSION_PARAMS &capture_params) {
         if (api->functions.nvFBCCreateCaptureSession(handle, &capture_params)) {
-          BOOST_LOG(error) << "Failed to start capture session: "sv << last_error();
+          logging::error("Failed to start capture session: {}", last_error());
           return -1;
         }
 
@@ -850,7 +854,7 @@ namespace cuda {
         };
 
         if (api->functions.nvFBCToCudaSetUp(handle, &setup_params)) {
-          BOOST_LOG(error) << "Failed to setup cuda interop with nvFBC: "sv << last_error();
+          logging::error("Failed to setup cuda interop with nvFBC: {}", last_error());
           return -1;
         }
         return 0;
@@ -869,7 +873,7 @@ namespace cuda {
         NVFBC_DESTROY_CAPTURE_SESSION_PARAMS params {NVFBC_DESTROY_CAPTURE_SESSION_PARAMS_VER};
 
         if (api->functions.nvFBCDestroyCaptureSession(handle, &params)) {
-          BOOST_LOG(error) << "Couldn't destroy capture session: "sv << last_error();
+          logging::error("Couldn't destroy capture session: {}", last_error());
 
           return -1;
         }
@@ -895,7 +899,7 @@ namespace cuda {
 
         ctx_t ctx {api, handle};
         if (api->functions.nvFBCDestroyHandle(handle, &params)) {
-          BOOST_LOG(error) << "Couldn't destroy session handle: "sv << api->functions.nvFBCGetLastErrorStr(handle);
+          logging::error("Couldn't destroy session handle: {}", api->functions.nvFBCGetLastErrorStr(handle));
         }
 
         handle_flags[SESSION_HANDLE] = false;
@@ -944,12 +948,12 @@ namespace cuda {
             auto monitor_nr = util::from_view(display_name);
 
             if (monitor_nr < 0 || monitor_nr >= status_params->dwOutputNum) {
-              BOOST_LOG(warning) << "Can't stream monitor ["sv << monitor_nr << "], it needs to be between [0] and ["sv << status_params->dwOutputNum - 1 << "], defaulting to virtual desktop"sv;
+              logging::warning("Can't stream monitor [{}], it needs to be between [0] and [{}], defaulting to virtual desktop", monitor_nr, status_params->dwOutputNum - 1);
             } else {
               streamedMonitor = monitor_nr;
             }
           } else {
-            BOOST_LOG(warning) << "XrandR not available, streaming entire virtual desktop"sv;
+            logging::warning("XrandR not available, streaming entire virtual desktop"sv);
           }
         }
 
@@ -1027,7 +1031,7 @@ namespace cuda {
               }
               break;
             default:
-              BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
+              logging::error("Unrecognized capture status [{}]", (int) status);
               return status;
           }
         }
@@ -1082,7 +1086,7 @@ namespace cuda {
                 return platf::capture_e::reinit;
               }
 
-              BOOST_LOG(error) << "Couldn't capture nvFramebuffer: "sv << handle.last_error();
+              logging::error("Couldn't capture nvFramebuffer: {}", handle.last_error());
 
               return platf::capture_e::error;
             }
@@ -1091,11 +1095,11 @@ namespace cuda {
               break;
             }
 
-            BOOST_LOG(debug) << "Direct capture failed attempt ["sv << x << ']';
+            logging::debug("Direct capture failed attempt [{}]", x);
           }
 
           if (!info.bDirectCapture) {
-            BOOST_LOG(debug) << "Direct capture failed, trying the extra copy method"sv;
+            logging::debug("Direct capture failed, trying the extra copy method"sv);
             // Direct capture failed
             capture_params.bPushModel = nv_bool(false);
             capture_params.bWithCursor = nv_bool(false);
@@ -1143,7 +1147,7 @@ namespace cuda {
             return platf::capture_e::reinit;
           }
 
-          BOOST_LOG(error) << "Couldn't capture nvFramebuffer: "sv << handle.last_error();
+          logging::error("Couldn't capture nvFramebuffer: {}", handle.last_error());
           return platf::capture_e::error;
         }
 
@@ -1223,7 +1227,7 @@ namespace platf {
    */
   std::shared_ptr<display_t> nvfbc_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     if (hwdevice_type != mem_type_e::cuda) {
-      BOOST_LOG(error) << "Could not initialize nvfbc display with the given hw device type"sv;
+      logging::error("Could not initialize nvfbc display with the given hw device type"sv);
       return nullptr;
     }
 
@@ -1259,20 +1263,20 @@ namespace platf {
     }
 
     if (!status_params->bIsCapturePossible) {
-      BOOST_LOG(error) << "NVidia driver doesn't support NvFBC screencasting"sv;
+      logging::error("NVidia driver doesn't support NvFBC screencasting"sv);
     }
 
-    BOOST_LOG(info) << "Found ["sv << status_params->dwOutputNum << "] outputs"sv;
-    BOOST_LOG(info) << "Virtual Desktop: "sv << status_params->screenSize.w << 'x' << status_params->screenSize.h;
-    BOOST_LOG(info) << "XrandR: "sv << (status_params->bXRandRAvailable ? "available"sv : "unavailable"sv);
+    logging::info("Found [{}] outputs", status_params->dwOutputNum);
+    logging::info("Virtual Desktop: {}x{}", status_params->screenSize.w, status_params->screenSize.h);
+    logging::info("XrandR: {}", (status_params->bXRandRAvailable ? "available"sv : "unavailable"sv));
 
     for (auto x = 0; x < status_params->dwOutputNum; ++x) {
       auto &output = status_params->outputs[x];
-      BOOST_LOG(info) << "-- Output --"sv;
-      BOOST_LOG(debug) << "  ID: "sv << output.dwId;
-      BOOST_LOG(debug) << "  Name: "sv << output.name;
-      BOOST_LOG(info) << "  Resolution: "sv << output.trackedBox.w << 'x' << output.trackedBox.h;
-      BOOST_LOG(info) << "  Offset: "sv << output.trackedBox.x << 'x' << output.trackedBox.y;
+      logging::info("-- Output --"sv);
+      logging::debug("  ID: {}", output.dwId);
+      logging::debug("  Name: {}", output.name);
+      logging::info("  Resolution: {}x{}", output.trackedBox.w, output.trackedBox.h);
+      logging::info("  Offset: {}x{}", output.trackedBox.x, output.trackedBox.y);
       display_names.emplace_back(std::to_string(x));
     }
 

@@ -514,7 +514,9 @@ namespace input {
     constexpr auto VK_F1 = 0x70;
     constexpr auto VK_F13 = 0x7C;
 
-    BOOST_LOG(debug) << "Apply Shortcut: 0x"sv << util::hex((std::uint8_t) keyCode).to_string_view();
+    logging::debug([&](std::ostream &out) {
+      out << "Apply Shortcut: 0x"sv << util::hex((std::uint8_t) keyCode).to_string_view();
+    });
 
     if (keyCode >= VK_F1 && keyCode <= VK_F13) {
       host.mail->event<int>(mail::switch_display)->raise(keyCode - VK_F1);
@@ -536,11 +538,12 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void print(PNV_REL_MOUSE_MOVE_PACKET packet) {
-    BOOST_LOG(debug)
-      << "--begin relative mouse move packet--"sv << std::endl
-      << "deltaX ["sv << util::endian::big(packet->deltaX) << ']' << std::endl
-      << "deltaY ["sv << util::endian::big(packet->deltaY) << ']' << std::endl
-      << "--end relative mouse move packet--"sv;
+    logging::debug([&](std::ostream &out) {
+      out << "--begin relative mouse move packet--"sv << std::endl
+          << "deltaX ["sv << util::endian::big(packet->deltaX) << ']' << std::endl
+          << "deltaY ["sv << util::endian::big(packet->deltaY) << ']' << std::endl
+          << "--end relative mouse move packet--"sv;
+    });
   }
 
   /**
@@ -549,13 +552,14 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void print(PNV_ABS_MOUSE_MOVE_PACKET packet) {
-    BOOST_LOG(debug)
-      << "--begin absolute mouse move packet--"sv << std::endl
-      << "x      ["sv << util::endian::big(packet->x) << ']' << std::endl
-      << "y      ["sv << util::endian::big(packet->y) << ']' << std::endl
-      << "width  ["sv << util::endian::big(packet->width) << ']' << std::endl
-      << "height ["sv << util::endian::big(packet->height) << ']' << std::endl
-      << "--end absolute mouse move packet--"sv;
+    logging::debug([&](std::ostream &out) {
+      out << "--begin absolute mouse move packet--"sv << std::endl
+          << "x      ["sv << util::endian::big(packet->x) << ']' << std::endl
+          << "y      ["sv << util::endian::big(packet->y) << ']' << std::endl
+          << "width  ["sv << util::endian::big(packet->width) << ']' << std::endl
+          << "height ["sv << util::endian::big(packet->height) << ']' << std::endl
+          << "--end absolute mouse move packet--"sv;
+    });
   }
 
   /**
@@ -564,11 +568,12 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void print(PNV_MOUSE_BUTTON_PACKET packet) {
-    BOOST_LOG(debug)
-      << "--begin mouse button packet--"sv << std::endl
-      << "action ["sv << util::hex(packet->header.magic).to_string_view() << ']' << std::endl
-      << "button ["sv << util::hex(packet->button).to_string_view() << ']' << std::endl
-      << "--end mouse button packet--"sv;
+    logging::debug([&](std::ostream &out) {
+      out << "--begin mouse button packet--"sv << std::endl
+          << "action ["sv << util::hex(packet->header.magic).to_string_view() << ']' << std::endl
+          << "button ["sv << util::hex(packet->button).to_string_view() << ']' << std::endl
+          << "--end mouse button packet--"sv;
+    });
   }
 
   /**
@@ -577,10 +582,11 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void print(PNV_SCROLL_PACKET packet) {
-    BOOST_LOG(debug)
-      << "--begin mouse scroll packet--"sv << std::endl
-      << "scrollAmt1 ["sv << util::endian::big(packet->scrollAmt1) << ']' << std::endl
-      << "--end mouse scroll packet--"sv;
+    logging::debug([&](std::ostream &out) {
+      out << "--begin mouse scroll packet--"sv << std::endl
+          << "scrollAmt1 ["sv << util::endian::big(packet->scrollAmt1) << ']' << std::endl
+          << "--end mouse scroll packet--"sv;
+    });
   }
 
   /**
@@ -589,10 +595,11 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void print(PSS_HSCROLL_PACKET packet) {
-    BOOST_LOG(debug)
-      << "--begin mouse hscroll packet--"sv << std::endl
-      << "scrollAmount ["sv << util::endian::big(packet->scrollAmount) << ']' << std::endl
-      << "--end mouse hscroll packet--"sv;
+    logging::debug([&](std::ostream &out) {
+      out << "--begin mouse hscroll packet--"sv << std::endl
+          << "scrollAmount ["sv << util::endian::big(packet->scrollAmount) << ']' << std::endl
+          << "--end mouse hscroll packet--"sv;
+    });
   }
 
   /**
@@ -601,13 +608,14 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void print(PNV_KEYBOARD_PACKET packet) {
-    BOOST_LOG(debug)
-      << "--begin keyboard packet--"sv << std::endl
-      << "keyAction ["sv << util::hex(packet->header.magic).to_string_view() << ']' << std::endl
-      << "keyCode ["sv << util::hex(packet->keyCode).to_string_view() << ']' << std::endl
-      << "modifiers ["sv << util::hex(packet->modifiers).to_string_view() << ']' << std::endl
-      << "flags ["sv << util::hex(packet->flags).to_string_view() << ']' << std::endl
-      << "--end keyboard packet--"sv;
+    logging::debug([&](std::ostream &out) {
+      out << "--begin keyboard packet--"sv << std::endl
+          << "keyAction ["sv << util::hex(packet->header.magic).to_string_view() << ']' << std::endl
+          << "keyCode ["sv << util::hex(packet->keyCode).to_string_view() << ']' << std::endl
+          << "modifiers ["sv << util::hex(packet->modifiers).to_string_view() << ']' << std::endl
+          << "flags ["sv << util::hex(packet->flags).to_string_view() << ']' << std::endl
+          << "--end keyboard packet--"sv;
+    });
   }
 
   /**
@@ -617,10 +625,7 @@ namespace input {
    */
   void print(PNV_UNICODE_PACKET packet) {
     std::string text(packet->text, util::endian::big(packet->header.size) - sizeof(packet->header.magic));
-    BOOST_LOG(debug)
-      << "--begin unicode packet--"sv << std::endl
-      << "text ["sv << text << ']' << std::endl
-      << "--end unicode packet--"sv;
+    logging::debug("--begin unicode packet--\ntext [{}]\n--end unicode packet--", text);
   }
 
   /**
@@ -630,18 +635,19 @@ namespace input {
    */
   void print(PNV_MULTI_CONTROLLER_PACKET packet) {
     // Moonlight spams controller packet even when not necessary
-    BOOST_LOG(verbose)
-      << "--begin controller packet--"sv << std::endl
-      << "controllerNumber ["sv << packet->controllerNumber << ']' << std::endl
-      << "activeGamepadMask ["sv << util::hex(packet->activeGamepadMask).to_string_view() << ']' << std::endl
-      << "buttonFlags ["sv << util::hex((uint32_t) packet->buttonFlags | (packet->buttonFlags2 << 16)).to_string_view() << ']' << std::endl
-      << "leftTrigger ["sv << util::hex(packet->leftTrigger).to_string_view() << ']' << std::endl
-      << "rightTrigger ["sv << util::hex(packet->rightTrigger).to_string_view() << ']' << std::endl
-      << "leftStickX ["sv << packet->leftStickX << ']' << std::endl
-      << "leftStickY ["sv << packet->leftStickY << ']' << std::endl
-      << "rightStickX ["sv << packet->rightStickX << ']' << std::endl
-      << "rightStickY ["sv << packet->rightStickY << ']' << std::endl
-      << "--end controller packet--"sv;
+    logging::verbose([&](std::ostream &out) {
+      out << "--begin controller packet--"sv << std::endl
+          << "controllerNumber ["sv << packet->controllerNumber << ']' << std::endl
+          << "activeGamepadMask ["sv << util::hex(packet->activeGamepadMask).to_string_view() << ']' << std::endl
+          << "buttonFlags ["sv << util::hex((uint32_t) packet->buttonFlags | (packet->buttonFlags2 << 16)).to_string_view() << ']' << std::endl
+          << "leftTrigger ["sv << util::hex(packet->leftTrigger).to_string_view() << ']' << std::endl
+          << "rightTrigger ["sv << util::hex(packet->rightTrigger).to_string_view() << ']' << std::endl
+          << "leftStickX ["sv << packet->leftStickX << ']' << std::endl
+          << "leftStickY ["sv << packet->leftStickY << ']' << std::endl
+          << "rightStickX ["sv << packet->rightStickX << ']' << std::endl
+          << "rightStickY ["sv << packet->rightStickY << ']' << std::endl
+          << "--end controller packet--"sv;
+    });
   }
 
   /**
@@ -649,17 +655,18 @@ namespace input {
    * @param packet The touch packet.
    */
   void print(PSS_TOUCH_PACKET packet) {
-    BOOST_LOG(debug)
-      << "--begin touch packet--"sv << std::endl
-      << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
-      << "pointerId ["sv << util::hex(packet->pointerId).to_string_view() << ']' << std::endl
-      << "x ["sv << from_netfloat(packet->x) << ']' << std::endl
-      << "y ["sv << from_netfloat(packet->y) << ']' << std::endl
-      << "pressureOrDistance ["sv << from_netfloat(packet->pressureOrDistance) << ']' << std::endl
-      << "contactAreaMajor ["sv << from_netfloat(packet->contactAreaMajor) << ']' << std::endl
-      << "contactAreaMinor ["sv << from_netfloat(packet->contactAreaMinor) << ']' << std::endl
-      << "rotation ["sv << (uint32_t) packet->rotation << ']' << std::endl
-      << "--end touch packet--"sv;
+    logging::debug([&](std::ostream &out) {
+      out << "--begin touch packet--"sv << std::endl
+          << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
+          << "pointerId ["sv << util::hex(packet->pointerId).to_string_view() << ']' << std::endl
+          << "x ["sv << from_netfloat(packet->x) << ']' << std::endl
+          << "y ["sv << from_netfloat(packet->y) << ']' << std::endl
+          << "pressureOrDistance ["sv << from_netfloat(packet->pressureOrDistance) << ']' << std::endl
+          << "contactAreaMajor ["sv << from_netfloat(packet->contactAreaMajor) << ']' << std::endl
+          << "contactAreaMinor ["sv << from_netfloat(packet->contactAreaMinor) << ']' << std::endl
+          << "rotation ["sv << (uint32_t) packet->rotation << ']' << std::endl
+          << "--end touch packet--"sv;
+    });
   }
 
   /**
@@ -667,19 +674,20 @@ namespace input {
    * @param packet The pen packet.
    */
   void print(PSS_PEN_PACKET packet) {
-    BOOST_LOG(debug)
-      << "--begin pen packet--"sv << std::endl
-      << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
-      << "toolType ["sv << util::hex(packet->toolType).to_string_view() << ']' << std::endl
-      << "penButtons ["sv << util::hex(packet->penButtons).to_string_view() << ']' << std::endl
-      << "x ["sv << from_netfloat(packet->x) << ']' << std::endl
-      << "y ["sv << from_netfloat(packet->y) << ']' << std::endl
-      << "pressureOrDistance ["sv << from_netfloat(packet->pressureOrDistance) << ']' << std::endl
-      << "contactAreaMajor ["sv << from_netfloat(packet->contactAreaMajor) << ']' << std::endl
-      << "contactAreaMinor ["sv << from_netfloat(packet->contactAreaMinor) << ']' << std::endl
-      << "rotation ["sv << (uint32_t) packet->rotation << ']' << std::endl
-      << "tilt ["sv << (uint32_t) packet->tilt << ']' << std::endl
-      << "--end pen packet--"sv;
+    logging::debug([&](std::ostream &out) {
+      out << "--begin pen packet--"sv << std::endl
+          << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
+          << "toolType ["sv << util::hex(packet->toolType).to_string_view() << ']' << std::endl
+          << "penButtons ["sv << util::hex(packet->penButtons).to_string_view() << ']' << std::endl
+          << "x ["sv << from_netfloat(packet->x) << ']' << std::endl
+          << "y ["sv << from_netfloat(packet->y) << ']' << std::endl
+          << "pressureOrDistance ["sv << from_netfloat(packet->pressureOrDistance) << ']' << std::endl
+          << "contactAreaMajor ["sv << from_netfloat(packet->contactAreaMajor) << ']' << std::endl
+          << "contactAreaMinor ["sv << from_netfloat(packet->contactAreaMinor) << ']' << std::endl
+          << "rotation ["sv << (uint32_t) packet->rotation << ']' << std::endl
+          << "tilt ["sv << (uint32_t) packet->tilt << ']' << std::endl
+          << "--end pen packet--"sv;
+    });
   }
 
   /**
@@ -687,13 +695,14 @@ namespace input {
    * @param packet The controller arrival packet.
    */
   void print(PSS_CONTROLLER_ARRIVAL_PACKET packet) {
-    BOOST_LOG(debug)
-      << "--begin controller arrival packet--"sv << std::endl
-      << "controllerNumber ["sv << (uint32_t) packet->controllerNumber << ']' << std::endl
-      << "type ["sv << util::hex(packet->type).to_string_view() << ']' << std::endl
-      << "capabilities ["sv << util::hex(packet->capabilities).to_string_view() << ']' << std::endl
-      << "supportedButtonFlags ["sv << util::hex(packet->supportedButtonFlags).to_string_view() << ']' << std::endl
-      << "--end controller arrival packet--"sv;
+    logging::debug([&](std::ostream &out) {
+      out << "--begin controller arrival packet--"sv << std::endl
+          << "controllerNumber ["sv << (uint32_t) packet->controllerNumber << ']' << std::endl
+          << "type ["sv << util::hex(packet->type).to_string_view() << ']' << std::endl
+          << "capabilities ["sv << util::hex(packet->capabilities).to_string_view() << ']' << std::endl
+          << "supportedButtonFlags ["sv << util::hex(packet->supportedButtonFlags).to_string_view() << ']' << std::endl
+          << "--end controller arrival packet--"sv;
+    });
   }
 
   /**
@@ -701,15 +710,16 @@ namespace input {
    * @param packet The controller touch packet.
    */
   void print(PSS_CONTROLLER_TOUCH_PACKET packet) {
-    BOOST_LOG(debug)
-      << "--begin controller touch packet--"sv << std::endl
-      << "controllerNumber ["sv << (uint32_t) packet->controllerNumber << ']' << std::endl
-      << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
-      << "pointerId ["sv << util::hex(packet->pointerId).to_string_view() << ']' << std::endl
-      << "x ["sv << from_netfloat(packet->x) << ']' << std::endl
-      << "y ["sv << from_netfloat(packet->y) << ']' << std::endl
-      << "pressure ["sv << from_netfloat(packet->pressure) << ']' << std::endl
-      << "--end controller touch packet--"sv;
+    logging::debug([&](std::ostream &out) {
+      out << "--begin controller touch packet--"sv << std::endl
+          << "controllerNumber ["sv << (uint32_t) packet->controllerNumber << ']' << std::endl
+          << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
+          << "pointerId ["sv << util::hex(packet->pointerId).to_string_view() << ']' << std::endl
+          << "x ["sv << from_netfloat(packet->x) << ']' << std::endl
+          << "y ["sv << from_netfloat(packet->y) << ']' << std::endl
+          << "pressure ["sv << from_netfloat(packet->pressure) << ']' << std::endl
+          << "--end controller touch packet--"sv;
+    });
   }
 
   /**
@@ -717,14 +727,15 @@ namespace input {
    * @param packet The controller motion packet.
    */
   void print(PSS_CONTROLLER_MOTION_PACKET packet) {
-    BOOST_LOG(verbose)
-      << "--begin controller motion packet--"sv << std::endl
-      << "controllerNumber ["sv << util::hex(packet->controllerNumber).to_string_view() << ']' << std::endl
-      << "motionType ["sv << util::hex(packet->motionType).to_string_view() << ']' << std::endl
-      << "x ["sv << from_netfloat(packet->x) << ']' << std::endl
-      << "y ["sv << from_netfloat(packet->y) << ']' << std::endl
-      << "z ["sv << from_netfloat(packet->z) << ']' << std::endl
-      << "--end controller motion packet--"sv;
+    logging::verbose([&](std::ostream &out) {
+      out << "--begin controller motion packet--"sv << std::endl
+          << "controllerNumber ["sv << util::hex(packet->controllerNumber).to_string_view() << ']' << std::endl
+          << "motionType ["sv << util::hex(packet->motionType).to_string_view() << ']' << std::endl
+          << "x ["sv << from_netfloat(packet->x) << ']' << std::endl
+          << "y ["sv << from_netfloat(packet->y) << ']' << std::endl
+          << "z ["sv << from_netfloat(packet->z) << ']' << std::endl
+          << "--end controller motion packet--"sv;
+    });
   }
 
   /**
@@ -732,12 +743,13 @@ namespace input {
    * @param packet The controller battery packet.
    */
   void print(PSS_CONTROLLER_BATTERY_PACKET packet) {
-    BOOST_LOG(verbose)
-      << "--begin controller battery packet--"sv << std::endl
-      << "controllerNumber ["sv << util::hex(packet->controllerNumber).to_string_view() << ']' << std::endl
-      << "batteryState ["sv << util::hex(packet->batteryState).to_string_view() << ']' << std::endl
-      << "batteryPercentage ["sv << util::hex(packet->batteryPercentage).to_string_view() << ']' << std::endl
-      << "--end controller battery packet--"sv;
+    logging::verbose([&](std::ostream &out) {
+      out << "--begin controller battery packet--"sv << std::endl
+          << "controllerNumber ["sv << util::hex(packet->controllerNumber).to_string_view() << ']' << std::endl
+          << "batteryState ["sv << util::hex(packet->batteryState).to_string_view() << ']' << std::endl
+          << "batteryPercentage ["sv << util::hex(packet->batteryPercentage).to_string_view() << ']' << std::endl
+          << "--end controller battery packet--"sv;
+    });
   }
 
   /**
@@ -863,7 +875,7 @@ namespace input {
     refresh_touch_port(input);
     auto &touch_port = input->touch_port;
     if (!touch_port) {
-      BOOST_LOG(verbose) << "Ignoring early absolute input without a touch port"sv;
+      logging::verbose("Ignoring early absolute input without a touch port"sv);
       return std::nullopt;
     }
 
@@ -959,7 +971,7 @@ namespace input {
     // Prevent divide by zero
     // Don't expect it to happen, but just in case
     if (!packet->width || !packet->height) {
-      BOOST_LOG(warning) << "Moonlight passed invalid dimensions"sv;
+      logging::warning("Moonlight passed invalid dimensions"sv);
 
       return;
     }
@@ -1410,13 +1422,13 @@ namespace input {
   int alloc_gamepad(std::shared_ptr<input_t> &input, int client_index, const platf::gamepad_arrival_t &arrival) {
     auto &host = input->host;
     if (client_index < 0 || client_index >= input->gamepads.size()) {
-      BOOST_LOG(warning) << "ControllerNumber out of range ["sv << client_index << ']';
+      logging::warning("ControllerNumber out of range [{}]", client_index);
       return -1;
     }
 
     auto &gamepad = input->gamepads[client_index];
     if (gamepad.id >= 0) {
-      BOOST_LOG(warning) << "ControllerNumber already allocated ["sv << client_index << ']';
+      logging::warning("ControllerNumber already allocated [{}]", client_index);
       return gamepad.id;
     }
 
@@ -1463,7 +1475,7 @@ namespace input {
     const float monitor_logical_w = (touch_port.width * touch_port.scalar_inv) / touch_port.scalar_tpcoords;
     const float monitor_logical_h = (touch_port.height * touch_port.scalar_inv) / touch_port.scalar_tpcoords;
     if (monitor_logical_w <= 0.0f || monitor_logical_h <= 0.0f) {
-      BOOST_LOG(warning) << "Ignoring touch/pen input due to invalid logical touch dimensions"sv;
+      logging::warning("Ignoring touch/pen input due to invalid logical touch dimensions"sv);
       return std::nullopt;
     }
 
@@ -1598,13 +1610,13 @@ namespace input {
     }
 
     if (packet->controllerNumber < 0 || packet->controllerNumber >= input->gamepads.size()) {
-      BOOST_LOG(warning) << "ControllerNumber out of range ["sv << packet->controllerNumber << ']';
+      logging::warning("ControllerNumber out of range [{}]", static_cast<char>(packet->controllerNumber));
       return;
     }
 
     auto &gamepad = input->gamepads[packet->controllerNumber];
     if (gamepad.id < 0) {
-      BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
+      logging::warning("ControllerNumber [{}] not allocated", static_cast<char>(packet->controllerNumber));
       return;
     }
 
@@ -1632,13 +1644,13 @@ namespace input {
     }
 
     if (packet->controllerNumber < 0 || packet->controllerNumber >= input->gamepads.size()) {
-      BOOST_LOG(warning) << "ControllerNumber out of range ["sv << packet->controllerNumber << ']';
+      logging::warning("ControllerNumber out of range [{}]", static_cast<char>(packet->controllerNumber));
       return;
     }
 
     auto &gamepad = input->gamepads[packet->controllerNumber];
     if (gamepad.id < 0) {
-      BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
+      logging::warning("ControllerNumber [{}] not allocated", static_cast<char>(packet->controllerNumber));
       return;
     }
 
@@ -1665,13 +1677,13 @@ namespace input {
     }
 
     if (packet->controllerNumber < 0 || packet->controllerNumber >= input->gamepads.size()) {
-      BOOST_LOG(warning) << "ControllerNumber out of range ["sv << packet->controllerNumber << ']';
+      logging::warning("ControllerNumber out of range [{}]", static_cast<char>(packet->controllerNumber));
       return;
     }
 
     auto &gamepad = input->gamepads[packet->controllerNumber];
     if (gamepad.id < 0) {
-      BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
+      logging::warning("ControllerNumber [{}] not allocated", static_cast<char>(packet->controllerNumber));
       return;
     }
 
@@ -1697,7 +1709,7 @@ namespace input {
     }
 
     if (packet->controllerNumber < 0 || packet->controllerNumber >= input->gamepads.size()) {
-      BOOST_LOG(warning) << "ControllerNumber out of range ["sv << packet->controllerNumber << ']';
+      logging::warning("ControllerNumber out of range [{}]", static_cast<char>(packet->controllerNumber));
 
       return;
     }
@@ -1720,7 +1732,7 @@ namespace input {
     // If this gamepad has not been initialized, ignore it.
     // This could happen when platf::alloc_gamepad fails
     if (gamepad.id < 0) {
-      BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
+      logging::warning("ControllerNumber [{}] not allocated", static_cast<char>(packet->controllerNumber));
       return;
     }
 
@@ -2324,13 +2336,14 @@ namespace input {
     NV_INPUT_HEADER header {};
     if (!validate_input_packet(input_data, &header)) {
       if (input_data.size() >= sizeof(header)) {
-        BOOST_LOG(warning)
-          << "Dropping malformed input packet type ["sv
-          << util::hex(util::endian::little(header.magic)).to_string_view()
-          << "] with declared payload size ["sv << util::endian::big(header.size)
-          << "] and actual size ["sv << input_data.size() << ']';
+        logging::warning([&](std::ostream &out) {
+          out << "Dropping malformed input packet type ["sv
+              << util::hex(util::endian::little(header.magic)).to_string_view()
+              << "] with declared payload size ["sv << util::endian::big(header.size)
+              << "] and actual size ["sv << input_data.size() << ']';
+        });
       } else {
-        BOOST_LOG(warning) << "Dropping malformed input packet with actual size ["sv << input_data.size() << ']';
+        logging::warning("Dropping malformed input packet with actual size [{}]", input_data.size());
       }
       return;
     }

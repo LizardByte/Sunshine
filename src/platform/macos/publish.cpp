@@ -24,7 +24,7 @@ namespace platf::publish {
 
       void operator()(pointer serviceRef) {
         DNSServiceRefDeallocate(serviceRef);
-        BOOST_LOG(info) << "Deregistered DNS service."sv;
+        logging::info("Deregistered DNS service."sv);
       }
     };
 
@@ -52,7 +52,7 @@ namespace platf::publish {
             auto timeout = timeval {.tv_sec = 3, .tv_usec = 0};  // 3 second timeout
             const auto ready = select(socket + 1, &fdset, nullptr, nullptr, &timeout);
             if (ready == -1) {
-              BOOST_LOG(error) << "Failed to obtain response from DNS service."sv;
+              logging::error("Failed to obtain response from DNS service."sv);
               break;
             } else if (ready != 0) {
               DNSServiceProcessResult(serviceRef);
@@ -83,10 +83,10 @@ namespace platf::publish {
      */
     void registrationCallback(DNSServiceRef /*serviceRef*/, DNSServiceFlags /*flags*/, DNSServiceErrorType errorCode, const char * /*name*/, const char * /*regtype*/, const char * /*domain*/, void * /*context*/) {
       if (errorCode != kDNSServiceErr_NoError) {
-        BOOST_LOG(error) << "Failed to register DNS service: Error "sv << errorCode;
+        logging::error("Failed to register DNS service: Error {}", errorCode);
         return;
       }
-      BOOST_LOG(info) << "Successfully registered DNS service."sv;
+      logging::info("Successfully registered DNS service."sv);
     }
   }  // anonymous namespace
 
@@ -118,7 +118,7 @@ namespace platf::publish {
       nullptr  // context
     );
     if (status != kDNSServiceErr_NoError) {
-      BOOST_LOG(error) << "Failed immediately to register DNS service: Error "sv << status;
+      logging::error("Failed immediately to register DNS service: Error {}", status);
       return nullptr;
     }
     return std::make_unique<deinit_t>(serviceRef);

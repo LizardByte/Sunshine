@@ -57,12 +57,12 @@ namespace test_utils {
       if (test_passed) {
         // XPass: Test was expected to fail but passed
         const std::string message = "XPASS: Test unexpectedly passed (expected to fail: " + marker.reason + ")";
-        BOOST_LOG(warning) << message;
+        logging::warning(message);
         GTEST_SKIP() << "XPASS: Test unexpectedly passed (expected to fail: " << marker.reason << ")";
       } else {
         // XFail: Test failed as expected
         const std::string message = "XFAIL: Test failed as expected (" + marker.reason + ")";
-        BOOST_LOG(info) << message;
+        logging::info(message);
         GTEST_SKIP() << "XFAIL: " << marker.reason;
       }
     }
@@ -80,7 +80,7 @@ namespace test_utils {
   inline bool checkEqual(const T1 &actual, const T2 &expected, const std::string &message = "") {
     bool result = (actual == expected);
     if (!message.empty()) {
-      BOOST_LOG(debug) << "Assertion check: " << message << " - " << (result ? "PASSED" : "FAILED");
+      logging::debug("Assertion check: {} - {}", message, (result ? "PASSED" : "FAILED"));
     }
     return result;
   }
@@ -96,7 +96,7 @@ namespace test_utils {
   inline bool checkNotEqual(const T1 &actual, const T2 &expected, const std::string &message = "") {
     const bool result = (actual != expected);
     if (!message.empty()) {
-      BOOST_LOG(debug) << "Assertion check: " << message << " - " << (result ? "PASSED" : "FAILED");
+      logging::debug("Assertion check: {} - {}", message, (result ? "PASSED" : "FAILED"));
     }
     return result;
   }

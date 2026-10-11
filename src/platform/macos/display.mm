@@ -164,7 +164,7 @@ namespace platf {
 
         return device;
       } else {
-        BOOST_LOG(error) << "Unsupported Pixel Format."sv;
+        logging::error("Unsupported Pixel Format."sv);
         return nullptr;
       }
     }
@@ -250,22 +250,22 @@ namespace platf {
    */
   std::shared_ptr<display_t> mac_display(platf::mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config, display_device::manager_t &displays) {
     if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::videotoolbox) {
-      BOOST_LOG(error) << "Could not initialize display with the given hw device type."sv;
+      logging::error("Could not initialize display with the given hw device type."sv);
       return nullptr;
     }
 
     auto display = std::make_shared<av_display_t>();
 
-    BOOST_LOG(debug) << "Waking display for capture selector ["sv << display_name << ']';
+    logging::debug("Waking display for capture selector [{}]", display_name);
     if (!display_device::wake_display(display_name, 1s)) {
-      BOOST_LOG(debug) << "Display wake attempt did not expose the requested display ["sv << display_name << ']';
+      logging::debug("Display wake attempt did not expose the requested display [{}]", display_name);
     }
 
     display->display_power_guard = display_device::keep_display_awake("Sunshine display capture");
     if (display->display_power_guard) {
-      BOOST_LOG(debug) << "Keeping display awake for capture"sv;
+      logging::debug("Keeping display awake for capture"sv);
     } else {
-      BOOST_LOG(debug) << "Unable to create display sleep prevention assertion"sv;
+      logging::debug("Unable to create display sleep prevention assertion"sv);
     }
 
     // Default to main display
@@ -274,23 +274,20 @@ namespace platf {
     if (const auto configured_display_id {parse_display_id(display_name)}) {
       display->display_id = *configured_display_id;
     } else if (!display_name.empty()) {
-      BOOST_LOG(warning) << "Configured display ["sv << display_name
-                         << "] is not a valid macOS capture display id. Falling back to main display ["sv
-                         << display->display_id << "]."sv;
+      logging::warning("Configured display [{}] is not a valid macOS capture display id. Falling back to main display [{}].", display_name, display->display_id);
     }
 
     // Print all displays available with their names and ids
-    BOOST_LOG(debug) << "Detecting displays"sv;
+    logging::debug("Detecting displays"sv);
     for (const auto &device : displays.enumerate_devices()) {
       if (device.m_display_name.empty()) {
         continue;
       }
 
-      BOOST_LOG(debug) << "Detected display: "sv << device.m_friendly_name
-                       << " (id: "sv << device.m_display_name << ") connected: true"sv;
+      logging::debug("Detected display: {} (id: {}) connected: true", device.m_friendly_name, device.m_display_name);
     }
 
-    BOOST_LOG(info) << "Configuring selected display ("sv << display->display_id << ") to stream"sv;
+    logging::info("Configuring selected display ({}) to stream", display->display_id);
 
     const auto selected_display_bounds = CGDisplayBounds(display->display_id);
     const auto desktop_bounds = active_desktop_bounds(display->display_id);
@@ -305,15 +302,13 @@ namespace platf {
     display->env_width = display->env_logical_width;
     display->env_height = display->env_logical_height;
 
-    BOOST_LOG(debug) << "Selected display bounds: "sv << display->offset_x << 'x' << display->offset_y << ' '
-                     << display->logical_width << 'x' << display->logical_height;
-    BOOST_LOG(debug) << "Active desktop bounds: "sv << display->env_offset_x << 'x' << display->env_offset_y << ' '
-                     << display->env_logical_width << 'x' << display->env_logical_height;
+    logging::debug("Selected display bounds: {}x{} {}x{}", display->offset_x, display->offset_y, display->logical_width, display->logical_height);
+    logging::debug("Active desktop bounds: {}x{} {}x{}", display->env_offset_x, display->env_offset_y, display->env_logical_width, display->env_logical_height);
 
     display->av_capture = [[AVVideo alloc] initWithDisplay:display->display_id frameRate:config.framerate];
 
     if (!display->av_capture) {
-      BOOST_LOG(error) << "Video setup failed."sv;
+      logging::error("Video setup failed."sv);
       return nullptr;
     }
 

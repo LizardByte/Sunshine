@@ -10,6 +10,7 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <sstream>
 #include <thread>
 #include <unordered_map>
 #include <utility>
@@ -86,7 +87,7 @@ namespace config {
       if (preset == "full_res") {
         return full_resolution;
       }
-      BOOST_LOG(warning) << "config: unknown nvenc_twopass value: " << preset;
+      logging::warning("config: unknown nvenc_twopass value: {}", preset);
       return quarter_resolution;
     }
 
@@ -107,7 +108,7 @@ namespace config {
       if (preset == "enabled") {
         return force_enabled;
       }
-      BOOST_LOG(warning) << "config: unknown nvenc_split_encode value: " << preset;
+      logging::warning("config: unknown nvenc_split_encode value: {}", preset);
       return driver_decides;
     }
 
@@ -1001,7 +1002,9 @@ namespace config {
       // 1. We didn't reach the end, or
       // 2. We reached the end but the last character was the matching closing bracket
       if (endl == end && end == begin_val + 1) {
-        BOOST_LOG(warning) << "config: Missing ']' in config option: " << to_string(begin, end_name);
+        logging::warning([&](std::ostream &out) {
+          out << "config: Missing ']' in config option: " << to_string(begin, end_name);
+        });
         return std::make_pair(endl, std::nullopt);
       }
     }
@@ -1051,11 +1054,11 @@ namespace config {
     }
     file_content += std::format("{} = {}\n", name, value);
     if (file_handler::write_file(settings_.sunshine.config_file.c_str(), file_content) != 0) {
-      BOOST_LOG(warning) << "Failed to persist automatically selected config option '"sv << name << "'"sv;
+      logging::warning("Failed to persist automatically selected config option '{}'", name);
       return false;
     }
 
-    BOOST_LOG(info) << "Automatically selected config option '"sv << name << "' = "sv << value;
+    logging::info("Automatically selected config option '{}' = {}", name, value);
     return true;
   }
 
@@ -1516,7 +1519,7 @@ namespace config {
 
     // The list needs to be a multiple of 2
     if (list.size() % 2) {
-      BOOST_LOG(warning) << "config: expected "sv << name << " to have a multiple of two elements --> not "sv << list.size();
+      logging::warning("config: expected {} to have a multiple of two elements --> not {}", name, list.size());
       return;
     }
 
@@ -1551,7 +1554,7 @@ namespace config {
           settings_.sunshine.flags[config::flag::UPNP].flip();
           break;
         default:
-          BOOST_LOG(warning) << "config: Unrecognized flag: ["sv << *line << ']' << std::endl;
+          logging::warning("config: Unrecognized flag: [{}]\n", *line);
           ret = -1;
       }
 
@@ -1586,7 +1589,7 @@ namespace config {
     for (auto &[name, val] : vars) {
       bool is_redacted = std::ranges::find(config::redacted_config, name) != config::redacted_config.end();
 
-      BOOST_LOG(info) << "config: '"sv << name << "' = "sv << (is_redacted ? "[redacted]" : val);
+      logging::info("config: '{}' = {}", name, (is_redacted ? "[redacted]" : val));
 
       if (save) {
         settings_.modified_config_settings[name] = val;
@@ -1770,11 +1773,11 @@ namespace config {
         settings_.sunshine.csrf_allowed_origins.push_back(origin);
       } else {
         csrf_invalid_config = true;
-        BOOST_LOG(warning) << "Invalid 'csrf_allowed_origins' entry rejected: "sv << origin;
+        logging::warning("Invalid 'csrf_allowed_origins' entry rejected: {}", origin);
       }
     }
     if (csrf_invalid_config) {
-      BOOST_LOG(warning) << "Please refer to: https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2configuration.html#csrf_allowed_origins"sv;
+      logging::warning("Please refer to: https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2configuration.html#csrf_allowed_origins"sv);
     }
 
     int to = -1;
@@ -1842,7 +1845,7 @@ namespace config {
     string_restricted_f(vars, "gamepad"s, settings_.input.gamepad, get_supported_gamepad_options());
 #ifdef _WIN32
     if (settings_.input.gamepad_driver == GAMEPAD_DRIVER_VIGEMBUS && settings_.input.gamepad != "auto"sv && settings_.input.gamepad != "x360"sv && settings_.input.gamepad != "ds4"sv) {
-      BOOST_LOG(warning) << "Gamepad type '"sv << settings_.input.gamepad << "' is not supported by ViGEmBus; using automatic selection"sv;
+      logging::warning("Gamepad type '{}' is not supported by ViGEmBus; using automatic selection", settings_.input.gamepad);
       settings_.input.gamepad = "auto";
     }
 #endif
@@ -2045,9 +2048,9 @@ namespace config {
       apply_config(std::move(vars));
       config_loaded = true;
     } catch (const std::filesystem::filesystem_error &err) {
-      BOOST_LOG(fatal) << "Failed to apply config: "sv << err.what();
+      logging::fatal("Failed to apply config: {}", err.what());
     } catch (const boost::filesystem::filesystem_error &err) {
-      BOOST_LOG(fatal) << "Failed to apply config: "sv << err.what();
+      logging::fatal("Failed to apply config: {}", err.what());
     }
 
 #ifdef _WIN32
@@ -2056,7 +2059,7 @@ namespace config {
     // so that service instance will do the work instead.
 
     if (!config_loaded && !shortcut_launch) {
-      BOOST_LOG(fatal) << "To relaunch Sunshine successfully, use the shortcut in the Start Menu. Do not run Sunshine.exe manually."sv;
+      logging::fatal("To relaunch Sunshine successfully, use the shortcut in the Start Menu. Do not run Sunshine.exe manually."sv);
       std::this_thread::sleep_for(10s);
 #else
     if (!config_loaded) {
@@ -2091,7 +2094,7 @@ namespace config {
         shell_exec_info.nShow = SW_NORMAL;
         if (!ShellExecuteExW(&shell_exec_info)) {
           auto winerr = GetLastError();
-          BOOST_LOG(error) << "Failed executing shell command: " << winerr << std::endl;
+          logging::error("Failed executing shell command: {}\n", winerr);
           return 1;
         }
 

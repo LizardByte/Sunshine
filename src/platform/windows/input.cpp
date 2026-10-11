@@ -279,7 +279,7 @@ namespace platf {
       client_t client {vigem_alloc()};
       VIGEM_ERROR status = vigem_connect(client.get());
       if (!VIGEM_SUCCESS(status)) {
-        BOOST_LOG(warning) << "ViGEmBus is not installed or running, so its limited Xbox 360 and DualShock 4 gamepad support is unavailable"sv;
+        logging::warning("ViGEmBus is not installed or running, so its limited Xbox 360 and DualShock 4 gamepad support is unavailable"sv);
         return -1;
       } else {
         vigem_disconnect(client.get());
@@ -306,12 +306,12 @@ namespace platf {
 
       // Establish a connect to the ViGEm driver if we don't have one yet
       if (!client) {
-        BOOST_LOG(debug) << "Connecting to ViGEmBus driver"sv;
+        logging::debug("Connecting to ViGEmBus driver"sv);
         client.reset(vigem_alloc());
 
         auto status = vigem_connect(client.get());
         if (!VIGEM_SUCCESS(status)) {
-          BOOST_LOG(warning) << "Couldn't setup connection to ViGEm for gamepad support ["sv << util::hex(status).to_string_view() << ']';
+          logging::warning("Couldn't setup connection to ViGEm for gamepad support [{}]", util::hex(status).to_string_view());
           client.reset();
           return -1;
         }
@@ -340,7 +340,7 @@ namespace platf {
 
       auto status = vigem_target_add(client.get(), gamepad.gp.get());
       if (!VIGEM_SUCCESS(status)) {
-        BOOST_LOG(error) << "Couldn't add Gamepad to ViGEm connection ["sv << util::hex(status).to_string_view() << ']';
+        logging::error("Couldn't add Gamepad to ViGEm connection [{}]", util::hex(status).to_string_view());
 
         return -1;
       }
@@ -354,7 +354,7 @@ namespace platf {
       }
 
       if (!VIGEM_SUCCESS(status)) {
-        BOOST_LOG(warning) << "Couldn't register notifications for rumble support ["sv << util::hex(status).to_string_view() << ']';
+        logging::warning("Couldn't register notifications for rumble support [{}]", util::hex(status).to_string_view());
       }
 
       return 0;
@@ -408,7 +408,7 @@ namespace platf {
       if (gamepad.gp && vigem_target_is_attached(gamepad.gp.get())) {
         auto status = vigem_target_remove(client.get(), gamepad.gp.get());
         if (!VIGEM_SUCCESS(status)) {
-          BOOST_LOG(warning) << "Couldn't detach gamepad from ViGEm ["sv << util::hex(status).to_string_view() << ']';
+          logging::warning("Couldn't detach gamepad from ViGEm [{}]", util::hex(status).to_string_view());
         }
       }
 
@@ -423,7 +423,7 @@ namespace platf {
         }
       }
       if (disconnect) {
-        BOOST_LOG(debug) << "Disconnecting from ViGEmBus driver"sv;
+        logging::debug("Disconnecting from ViGEmBus driver"sv);
         vigem_disconnect(client.get());
         client.reset();
       }
@@ -496,7 +496,7 @@ namespace platf {
           if (gamepad.gp && vigem_target_is_attached(gamepad.gp.get())) {
             auto status = vigem_target_remove(client.get(), gamepad.gp.get());
             if (!VIGEM_SUCCESS(status)) {
-              BOOST_LOG(warning) << "Couldn't detach gamepad from ViGEm ["sv << util::hex(status).to_string_view() << ']';
+              logging::warning("Couldn't detach gamepad from ViGEm [{}]", util::hex(status).to_string_view());
             }
           }
         }
@@ -518,9 +518,10 @@ namespace platf {
     std::uint8_t /* led_number */,
     void *userdata
   ) {
-    BOOST_LOG(debug)
-      << "largeMotor: "sv << (int) largeMotor << std::endl
-      << "smallMotor: "sv << (int) smallMotor;
+    logging::debug([&](std::ostream &out) {
+      out << "largeMotor: "sv << (int) largeMotor << std::endl
+          << "smallMotor: "sv << (int) smallMotor;
+    });
 
     auto *context = static_cast<vigem_t *>(userdata);
     context->defer_feedback([target, largeMotor, smallMotor](vigem_t &context) {
@@ -536,12 +537,13 @@ namespace platf {
     DS4_LIGHTBAR_COLOR led_color,
     void *userdata
   ) {
-    BOOST_LOG(debug)
-      << "largeMotor: "sv << (int) largeMotor << std::endl
-      << "smallMotor: "sv << (int) smallMotor << std::endl
-      << "LED: "sv << util::hex(led_color.Red).to_string_view() << ' '
-      << util::hex(led_color.Green).to_string_view() << ' '
-      << util::hex(led_color.Blue).to_string_view() << std::endl;
+    logging::debug([&](std::ostream &out) {
+      out << "largeMotor: "sv << (int) largeMotor << std::endl
+          << "smallMotor: "sv << (int) smallMotor << std::endl
+          << "LED: "sv << util::hex(led_color.Red).to_string_view() << ' '
+          << util::hex(led_color.Green).to_string_view() << ' '
+          << util::hex(led_color.Blue).to_string_view() << std::endl;
+    });
 
     auto *context = static_cast<vigem_t *>(userdata);
     context->defer_feedback([target, largeMotor, smallMotor, led_color](vigem_t &context) {
@@ -607,9 +609,9 @@ namespace platf {
 
     if (auto &raw = *result; settings.input.controller && !should_use_virtualhid_gamepads(raw) && virtualhid::should_try_vigembus_fallback(settings.input.gamepad, false, settings.input.gamepad_driver)) {
       if (settings.input.gamepad_driver == config::GAMEPAD_DRIVER_VIGEMBUS) {
-        BOOST_LOG(info) << "ViGEmBus is selected as the only virtual gamepad driver"sv;
+        logging::info("ViGEmBus is selected as the only virtual gamepad driver"sv);
       } else if (raw.virtualhid.runtime && raw.virtualhid.runtime->capabilities().supports_gamepad) {
-        BOOST_LOG(info) << "Virtual HID Driver license is not valid; using the ViGEmBus gamepad fallback"sv;
+        logging::info("Virtual HID Driver license is not valid; using the ViGEmBus gamepad fallback"sv);
       }
       auto vigem = std::make_shared<vigem_t>(scheduler);
       if (!vigem->init()) {
@@ -651,16 +653,15 @@ namespace platf {
   bool should_allocate_vigembus_gamepad(const config::settings_t &settings, std::string_view driver, const bool virtualhid_selected) {
     if (!virtualhid::should_try_vigembus_fallback(settings.input.gamepad, virtualhid_selected, driver)) {
       if (driver == config::GAMEPAD_DRIVER_VIRTUALHID && !virtualhid_selected) {
-        BOOST_LOG(warning) << "Virtual HID Driver is selected but is unavailable or unlicensed; ViGEmBus fallback is disabled by configuration"sv;
+        logging::warning("Virtual HID Driver is selected but is unavailable or unlicensed; ViGEmBus fallback is disabled by configuration"sv);
       } else {
-        BOOST_LOG(warning) << "libvirtualhid could not create the requested gamepad profile, and ViGEm fallback cannot emulate "sv << settings.input.gamepad;
+        logging::warning("libvirtualhid could not create the requested gamepad profile, and ViGEm fallback cannot emulate {}", settings.input.gamepad);
       }
       return false;
     }
 
     if (!virtualhid_selected && !virtualhid::should_try_vigembus_fallback(settings.input.gamepad, true, driver)) {
-      BOOST_LOG(warning) << "Configured gamepad profile '"sv << settings.input.gamepad
-                         << "' is unavailable; using ViGEmBus automatic selection because Virtual HID Driver is not usable"sv;
+      logging::warning("Configured gamepad profile '{}' is unavailable; using ViGEmBus automatic selection because Virtual HID Driver is not usable", settings.input.gamepad);
     }
     return true;
   }
@@ -739,44 +740,44 @@ namespace platf {
     VIGEM_TARGET_TYPE selectedGamepadType;
 
     if (settings.input.gamepad == "x360"sv) {
-      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox 360 controller (manual selection)"sv;
+      logging::info("Gamepad {} will be Xbox 360 controller (manual selection)", id.globalIndex);
       selectedGamepadType = Xbox360Wired;
     } else if (settings.input.gamepad == "ds4"sv) {
-      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 4 controller (manual selection)"sv;
+      logging::info("Gamepad {} will be DualShock 4 controller (manual selection)", id.globalIndex);
       selectedGamepadType = DualShock4Wired;
     } else if (metadata.type == LI_CTYPE_PS) {
-      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 4 controller (auto-selected by client-reported type)"sv;
+      logging::info("Gamepad {} will be DualShock 4 controller (auto-selected by client-reported type)", id.globalIndex);
       selectedGamepadType = DualShock4Wired;
     } else if (metadata.type == LI_CTYPE_XBOX) {
-      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox 360 controller (auto-selected by client-reported type)"sv;
+      logging::info("Gamepad {} will be Xbox 360 controller (auto-selected by client-reported type)", id.globalIndex);
       selectedGamepadType = Xbox360Wired;
     } else if (settings.input.motion_as_ds4 && (metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO))) {
-      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 4 controller (auto-selected by motion sensor presence)"sv;
+      logging::info("Gamepad {} will be DualShock 4 controller (auto-selected by motion sensor presence)", id.globalIndex);
       selectedGamepadType = DualShock4Wired;
     } else if (settings.input.touchpad_as_ds4 && (metadata.capabilities & LI_CCAP_TOUCHPAD)) {
-      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 4 controller (auto-selected by touchpad presence)"sv;
+      logging::info("Gamepad {} will be DualShock 4 controller (auto-selected by touchpad presence)", id.globalIndex);
       selectedGamepadType = DualShock4Wired;
     } else {
-      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox 360 controller (default)"sv;
+      logging::info("Gamepad {} will be Xbox 360 controller (default)", id.globalIndex);
       selectedGamepadType = Xbox360Wired;
     }
 
     if (selectedGamepadType == Xbox360Wired) {
       if (metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO)) {
-        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " has motion sensors, but they are not usable when emulating an Xbox 360 controller"sv;
+        logging::warning("Gamepad {} has motion sensors, but they are not usable when emulating an Xbox 360 controller", id.globalIndex);
       }
       if (metadata.capabilities & LI_CCAP_TOUCHPAD) {
-        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " has a touchpad, but it is not usable when emulating an Xbox 360 controller"sv;
+        logging::warning("Gamepad {} has a touchpad, but it is not usable when emulating an Xbox 360 controller", id.globalIndex);
       }
       if (metadata.capabilities & LI_CCAP_RGB_LED) {
-        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " has an RGB LED, but it is not usable when emulating an Xbox 360 controller"sv;
+        logging::warning("Gamepad {} has an RGB LED, but it is not usable when emulating an Xbox 360 controller", id.globalIndex);
       }
     } else if (selectedGamepadType == DualShock4Wired) {
       if (!(metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO))) {
-        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " is emulating a DualShock 4 controller, but the client gamepad doesn't have motion sensors active"sv;
+        logging::warning("Gamepad {} is emulating a DualShock 4 controller, but the client gamepad doesn't have motion sensors active", id.globalIndex);
       }
       if (!(metadata.capabilities & LI_CCAP_TOUCHPAD)) {
-        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " is emulating a DualShock 4 controller, but the client gamepad doesn't have a touchpad"sv;
+        logging::warning("Gamepad {} is emulating a DualShock 4 controller, but the client gamepad doesn't have a touchpad", id.globalIndex);
       }
     }
 
@@ -1053,7 +1054,7 @@ namespace platf {
       // Send the report to the virtual device
       auto status = vigem_target_ds4_update_ex(vigem->client.get(), gamepad.gp.get(), gamepad.report.ds4);
       if (!VIGEM_SUCCESS(status)) {
-        BOOST_LOG(warning) << "Couldn't send gamepad input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
+        logging::warning("Couldn't send gamepad input to ViGEm [{}]", util::hex(status).to_string_view());
         return;
       }
 
@@ -1100,7 +1101,7 @@ namespace platf {
       x360_update_state(gamepad, gamepad_state);
       status = vigem_target_x360_update(vigem->client.get(), gamepad.gp.get(), gamepad.report.x360);
       if (!VIGEM_SUCCESS(status)) {
-        BOOST_LOG(warning) << "Couldn't send gamepad input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
+        logging::warning("Couldn't send gamepad input to ViGEm [{}]", util::hex(status).to_string_view());
       }
     } else {
       ds4_update_state(raw->virtualhid.settings.get(), gamepad, gamepad_state);
@@ -1158,7 +1159,7 @@ namespace platf {
         report.sCurrentTouch.bIsUpTrackingNum2 &= ~0x80;
         report.sCurrentTouch.bIsUpTrackingNum2++;
       } else {
-        BOOST_LOG(warning) << "No more free pointer indices! Did the client miss an touch up event?"sv;
+        logging::warning("No more free pointer indices! Did the client miss an touch up event?"sv);
         return;
       }
     } else if (touch.eventType == LI_TOUCH_EVENT_CANCEL_ALL) {
@@ -1174,7 +1175,7 @@ namespace platf {
     } else {
       auto i = gamepad.pointer_id_map.find(touch.pointerId);
       if (i == gamepad.pointer_id_map.end()) {
-        BOOST_LOG(warning) << "Pointer ID not found! Did the client miss a touch down event?"sv;
+        logging::warning("Pointer ID not found! Did the client miss a touch down event?"sv);
         return;
       }
 
@@ -1194,7 +1195,7 @@ namespace platf {
         // Free the pointer index
         gamepad.available_pointers |= (1 << pointerIndex);
       } else if (touch.eventType != LI_TOUCH_EVENT_MOVE) {
-        BOOST_LOG(warning) << "Unsupported touch event for gamepad: "sv << (uint32_t) touch.eventType;
+        logging::warning("Unsupported touch event for gamepad: {}", (uint32_t) touch.eventType);
         return;
       }
     }
@@ -1398,7 +1399,7 @@ namespace platf {
           caps |= platform_caps::pen_touch;
         }
       } else {
-        BOOST_LOG(warning) << "Unable to create libvirtualhid runtime for touch/pen capability detection"sv;
+        logging::warning("Unable to create libvirtualhid runtime for touch/pen capability detection"sv);
       }
     }
 

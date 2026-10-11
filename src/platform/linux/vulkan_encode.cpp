@@ -127,7 +127,7 @@ namespace vk {
     ci.pApplicationInfo = &app;
     VkInstance inst = VK_NULL_HANDLE;
     if (vkCreateInstance(&ci, nullptr, &inst) != VK_SUCCESS) {
-      BOOST_LOG(warning) << "[vulkan] Failed to create instance for modifier query"sv;
+      logging::warning("[vulkan] Failed to create instance for modifier query"sv);
       return result;
     }
 
@@ -156,8 +156,10 @@ namespace vk {
     for (const auto &[drm_fmt, vk_fmt] : formats_to_query) {
       auto modifiers = query_format_modifiers(phys_dev, vk_fmt);
       if (!modifiers.empty()) {
-        BOOST_LOG(debug) << "[vulkan] Format 0x"sv << std::hex << drm_fmt << std::dec
-                         << " has "sv << modifiers.size() << " supported modifiers"sv;
+        logging::debug([&](std::ostream &out) {
+          out << "[vulkan] Format 0x"sv << std::hex << drm_fmt << std::dec
+              << " has "sv << modifiers.size() << " supported modifiers"sv;
+        });
         result[drm_fmt] = std::move(modifiers);
       }
     }
@@ -267,12 +269,11 @@ namespace vk {
     }
 
     *max_level = enc_caps.maxQualityLevels;
-    BOOST_LOG(debug) << "[vulkan] Driver max quality level: "sv << *max_level;
+    logging::debug("[vulkan] Driver max quality level: {}", *max_level);
 
     // If requested level is 0 or within range, try to validate it
     if (requested_level > *max_level) {
-      BOOST_LOG(warning) << "[vulkan] Requested quality level "sv << requested_level
-                         << " exceeds max "sv << *max_level << ", using max"sv;
+      logging::warning("[vulkan] Requested quality level {} exceeds max {}, using max", requested_level, *max_level);
       requested_level = *max_level;
     }
 
@@ -410,7 +411,7 @@ namespace vk {
   do { \
     VkResult _r = (expr); \
     if (_r != VK_SUCCESS) { \
-      BOOST_LOG(error) << #expr << " failed: " << _r; \
+      logging::error("{} failed: {}", #expr, static_cast<int>(_r)); \
       return -1; \
     } \
   } while (0)
@@ -422,7 +423,7 @@ namespace vk {
   do { \
     VkResult _r = (expr); \
     if (_r != VK_SUCCESS) { \
-      BOOST_LOG(error) << #expr << " failed: " << _r; \
+      logging::error("{} failed: {}", #expr, static_cast<int>(_r)); \
       return false; \
     } \
   } while (0)
@@ -518,11 +519,9 @@ namespace vk {
 
           if (validated_quality == target_quality) {
             av_dict_set_int(options, "quality", validated_quality, 0);
-            BOOST_LOG(info) << "[vulkan] Encoder quality set to "sv << validated_quality
-                            << " ("sv << preset_name << "), driver range: 0-"sv << max_quality;
+            logging::info("[vulkan] Encoder quality set to {} ({}), driver range: 0-{}", validated_quality, preset_name, max_quality);
           } else {
-            BOOST_LOG(warning) << "[vulkan] Quality level "sv << target_quality
-                               << " is not supported by the driver; using default"sv;
+            logging::warning("[vulkan] Quality level {} is not supported by the driver; using default", target_quality);
           }
         }
       }
@@ -550,7 +549,7 @@ namespace vk {
       {
         VkPhysicalDeviceProperties p;
         vkGetPhysicalDeviceProperties(vk_dev.phys_dev, &p);
-        BOOST_LOG(info) << "Vulkan encode using GPU: " << p.deviceName;
+        logging::info("Vulkan encode using GPU: {}", p.deviceName);
       }
 
       // Find a compute-capable queue family from FFmpeg's context
@@ -562,7 +561,7 @@ namespace vk {
         }
       }
       if (vk_dev.compute_qf < 0) {
-        BOOST_LOG(error) << "No compute queue family in Vulkan device"sv;
+        logging::error("No compute queue family in Vulkan device"sv);
         return -1;
       }
 
@@ -635,7 +634,7 @@ namespace vk {
       // Get encoder target frame
       if (!frame->buf[0]) {
         if (av_hwframe_get_buffer(hw_frames_ctx, frame, 0) < 0) {
-          BOOST_LOG(error) << "Failed to get Vulkan frame"sv;
+          logging::error("Failed to get Vulkan frame"sv);
           return -1;
         }
       }
@@ -649,7 +648,7 @@ namespace vk {
       if (descriptor.sequence > sequence) {
         sequence = descriptor.sequence;
         if (!import_dmabuf(descriptor.sd)) {
-          BOOST_LOG(error) << "Failed to import DMA-BUF"sv;
+          logging::error("Failed to import DMA-BUF"sv);
           return -1;
         }
         descriptors_dirty = true;
@@ -852,7 +851,9 @@ namespace vk {
         case DRM_FORMAT_ARGB16161616F:
           return {VK_FORMAT_R16G16B16A16_SFLOAT, bgr_swap};
         default:
-          BOOST_LOG(warning) << "Unknown DRM fourcc 0x" << std::hex << fourcc << std::dec << ", assuming B8G8R8A8";
+          logging::warning([&](std::ostream &out) {
+            out << "Unknown DRM fourcc 0x" << std::hex << fourcc << std::dec << ", assuming B8G8R8A8";
+          });
           return {VK_FORMAT_B8G8R8A8_UNORM, identity};
       }
     }
@@ -942,9 +943,11 @@ namespace vk {
       auto res = vkCreateImage(vk_dev.dev, &img_ci, nullptr, &src.image);
       if (res != VK_SUCCESS) {
         close(fd);
-        BOOST_LOG(error) << "vkCreateImage for DMA-BUF failed: " << res
-                         << " (modifier=0x" << std::hex << sd.modifier << std::dec
-                         << ", pitch=" << sd.pitches[0] << ", offset=" << sd.offsets[0] << ")";
+        logging::error([&](std::ostream &out) {
+          out << "vkCreateImage for DMA-BUF failed: " << res
+              << " (modifier=0x" << std::hex << sd.modifier << std::dec
+              << ", pitch=" << sd.pitches[0] << ", offset=" << sd.offsets[0] << ")";
+        });
         return false;
       }
 
@@ -967,7 +970,7 @@ namespace vk {
       VkDeviceMemory src_mem = VK_NULL_HANDLE;
       res = vkAllocateMemory(vk_dev.dev, &alloc_info, nullptr, &src_mem);
       if (res != VK_SUCCESS) {
-        BOOST_LOG(error) << "vkAllocateMemory for DMA-BUF failed: " << res;
+        logging::error("vkAllocateMemory for DMA-BUF failed: {}", static_cast<int>(res));
         vkDestroyImage(vk_dev.dev, src.image, nullptr);
         src.image = VK_NULL_HANDLE;
         return false;
@@ -1223,7 +1226,7 @@ namespace vk {
       auto res = vkQueueSubmit(vk_dev.compute_queue, 1, &submit, VK_NULL_HANDLE);
 
       if (res != VK_SUCCESS) {
-        BOOST_LOG(error) << "vkQueueSubmit failed: " << res;
+        logging::error("vkQueueSubmit failed: {}", static_cast<int>(res));
         return -1;
       }
 

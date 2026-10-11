@@ -125,7 +125,9 @@ namespace dyn {
 
     ss << ']';
 
-    BOOST_LOG(error) << ss.str();
+    logging::error([&](std::ostream &out) {
+      out << ss.str();
+    });
 
     return nullptr;
   }
@@ -141,7 +143,7 @@ namespace dyn {
       *fn = SUNSHINE_GNUC_EXTENSION(apiproc) dlsym(handle, name);
 
       if (!*fn && strict) {
-        BOOST_LOG(error) << "Couldn't find function: "sv << name;
+        logging::error("Couldn't find function: {}", name);
 
         err = -1;
       }
@@ -210,7 +212,9 @@ namespace platf {
 #ifdef SUNSHINE_BUILD_DRM
     int fd = open(path.c_str(), flags | O_CLOEXEC);
     if (fd < 0) {
-      BOOST_LOG(error) << "Couldn't open: "sv << path.string() << ": "sv << strerror(errno);
+      logging::error([&](std::ostream &out) {
+        out << "Couldn't open: "sv << path.string() << ": "sv << strerror(errno);
+      });
       return -1;
     }
 
@@ -232,35 +236,47 @@ namespace platf {
         return 1;  ///< Ioctl reached the master path but the magic (0) was invalid; we are master.
       }
 
-      BOOST_LOG(warning) << "Couldn't determine DRM master state for "sv << path.string() << ": "sv << strerror(err);
+      logging::warning([&](std::ostream &out) {
+        out << "Couldn't determine DRM master state for "sv << path.string() << ": "sv << strerror(err);
+      });
       return -1;
     };
 
     auto master = is_master();
     if (master < 0) {
-      BOOST_LOG(warning) << "Proceeding without dropping DRM master for "sv << path.string()
-                         << "; compositor VT switches may fail."sv;
+      logging::warning([&](std::ostream &out) {
+        out << "Proceeding without dropping DRM master for "sv << path.string()
+            << "; compositor VT switches may fail."sv;
+      });
       return fd;
     }
 
     if (master) {
       if (drmDropMaster(fd)) {
         auto err = errno;
-        BOOST_LOG(warning) << "Couldn't drop DRM master for "sv << path.string() << ": "sv << strerror(err)
-                           << ", Compositor VT switches may fail."sv;
+        logging::warning([&](std::ostream &out) {
+          out << "Couldn't drop DRM master for "sv << path.string() << ": "sv << strerror(err)
+              << ", Compositor VT switches may fail."sv;
+        });
         return fd;
       }
 
-      BOOST_LOG(info) << "Dropped DRM master for "sv << path.string();
+      logging::info([&](std::ostream &out) {
+        out << "Dropped DRM master for "sv << path.string();
+      });
 
       master = is_master();
       if (master < 0) {
-        BOOST_LOG(warning) << "Could not re-verify DRM master state after drop for "sv << path.string() << "."sv;
+        logging::warning([&](std::ostream &out) {
+          out << "Could not re-verify DRM master state after drop for "sv << path.string() << "."sv;
+        });
         return fd;
       }
 
       if (master) {
-        BOOST_LOG(warning) << "Still DRM master after drop for "sv << path.string() << "."sv;
+        logging::warning([&](std::ostream &out) {
+          out << "Still DRM master after drop for "sv << path.string() << "."sv;
+        });
         return fd;
       }
     }
@@ -268,7 +284,9 @@ namespace platf {
     return fd;
 #else
   #ifndef __FreeBSD__
-    BOOST_LOG(info) << "Sunshine compiled without DRM support. Cannot control Linux DRM master state for "sv << path.string();
+    logging::info([&](std::ostream &out) {
+      out << "Sunshine compiled without DRM support. Cannot control Linux DRM master state for "sv << path.string();
+    });
   #endif
     return open(path.c_str(), flags | O_CLOEXEC);
 #endif
@@ -465,7 +483,7 @@ namespace platf {
     }
 #endif
 
-    BOOST_LOG(warning) << "Unable to find MAC address for "sv << address;
+    logging::warning("Unable to find MAC address for {}", address);
     return "00:00:00:00:00:00"s;
   }
 
@@ -503,9 +521,11 @@ namespace platf {
     std::error_code ec;
     auto child = run_command(false, false, cmd, working_dir, _env, nullptr, ec, nullptr);
     if (ec) {
-      BOOST_LOG(warning) << "Couldn't open url ["sv << url << "]: System: "sv << ec.message();
+      logging::warning([&](std::ostream &out) {
+        out << "Couldn't open url ["sv << url << "]: System: "sv << ec.message();
+      });
     } else {
-      BOOST_LOG(info) << "Opened url ["sv << url << "]"sv;
+      logging::info("Opened url [{}]", url);
       child.detach();
     }
   }
@@ -537,7 +557,7 @@ namespace platf {
         linux_nice = -15;
         break;
       default:
-        BOOST_LOG(debug) << "Unknown thread priority: "sv << std::to_underlying(priority);
+        logging::debug("Unknown thread priority: {}", std::to_underlying(priority));
         return;
     }
 
@@ -561,9 +581,9 @@ namespace platf {
 
       if (!err) {
         success = true;
-        BOOST_LOG(debug) << "RTKit: Successfully set priority to "sv << linux_nice;
+        logging::debug("RTKit: Successfully set priority to {}", linux_nice);
       } else {
-        BOOST_LOG(debug) << "RTKit: Could not set priority: "sv << err->message;
+        logging::debug("RTKit: Could not set priority: {}", err->message);
         g_clear_error(&err);
       }
     }
@@ -571,9 +591,11 @@ namespace platf {
     if (!success) {
       // This will run on FreeBSD OR Linux if RTKit failed/was missing
       if (setpriority(PRIO_PROCESS, 0, linux_nice) == -1) {
-        BOOST_LOG(warning) << "setpriority failed for nice "sv << linux_nice << ": "sv << strerror(errno);
+        logging::warning([&](std::ostream &out) {
+          out << "setpriority failed for nice "sv << linux_nice << ": "sv << strerror(errno);
+        });
       } else {
-        BOOST_LOG(debug) << "setpriority success for nice "sv << linux_nice;
+        logging::debug("setpriority success for nice {}", linux_nice);
       }
     }
   }
@@ -612,7 +634,9 @@ namespace platf {
     std::array<char, PATH_MAX> executable;
     ssize_t len = readlink("/proc/self/exe", executable.data(), executable.size() - 1);
     if (len == -1) {
-      BOOST_LOG(fatal) << "readlink() failed: "sv << errno;
+      logging::fatal([&](std::ostream &out) {
+        out << "readlink() failed: "sv << errno;
+      });
       return;
     }
     executable[len] = '\0';
@@ -625,7 +649,9 @@ namespace platf {
 
     // Re-exec ourselves with the same arguments
     if (execv(executable.data(), argv) < 0) {
-      BOOST_LOG(fatal) << "execv() failed: "sv << errno;
+      logging::fatal([&](std::ostream &out) {
+        out << "execv() failed: "sv << errno;
+      });
       return;
     }
   }
@@ -644,10 +670,12 @@ namespace platf {
 
   bool request_process_group_exit(std::uintptr_t native_handle) {
     if (kill(-((pid_t) native_handle), SIGTERM) == 0 || errno == ESRCH) {
-      BOOST_LOG(debug) << "Successfully sent SIGTERM to process group: "sv << native_handle;
+      logging::debug("Successfully sent SIGTERM to process group: {}", native_handle);
       return true;
     } else {
-      BOOST_LOG(warning) << "Unable to send SIGTERM to process group ["sv << native_handle << "]: "sv << errno;
+      logging::warning([&](std::ostream &out) {
+        out << "Unable to send SIGTERM to process group ["sv << native_handle << "]: "sv << errno;
+      });
       return false;
     }
   }
@@ -854,7 +882,9 @@ namespace platf {
             pfd.events = POLLOUT;
 
             if (poll(&pfd, 1, -1) != 1) {
-              BOOST_LOG(warning) << "poll() failed: "sv << errno;
+              logging::warning([&](std::ostream &out) {
+                out << "poll() failed: "sv << errno;
+              });
               break;
             }
 
@@ -862,7 +892,9 @@ namespace platf {
             continue;
           }
 
-          BOOST_LOG(verbose) << "sendmsg() failed: "sv << errno;
+          logging::verbose([&](std::ostream &out) {
+            out << "sendmsg() failed: "sv << errno;
+          });
           break;
         }
 
@@ -916,7 +948,9 @@ namespace platf {
             pfd.events = POLLOUT;
 
             if (poll(&pfd, 1, -1) != 1) {
-              BOOST_LOG(warning) << "poll() failed: "sv << errno;
+              logging::warning([&](std::ostream &out) {
+                out << "poll() failed: "sv << errno;
+              });
               break;
             }
 
@@ -924,7 +958,9 @@ namespace platf {
             continue;
           }
 
-          BOOST_LOG(warning) << "sendmmsg() failed: "sv << errno;
+          logging::warning([&](std::ostream &out) {
+            out << "sendmmsg() failed: "sv << errno;
+          });
           return false;
         }
 
@@ -998,7 +1034,9 @@ namespace platf {
       pfd.events = POLLOUT;
 
       if (poll(&pfd, 1, -1) != 1) {
-        BOOST_LOG(warning) << "poll() failed: "sv << errno;
+        logging::warning([&](std::ostream &out) {
+          out << "poll() failed: "sv << errno;
+        });
         break;
       }
 
@@ -1007,7 +1045,9 @@ namespace platf {
     }
 
     if (bytes_sent < 0) {
-      BOOST_LOG(warning) << "sendmsg() failed: "sv << errno;
+      logging::warning([&](std::ostream &out) {
+        out << "sendmsg() failed: "sv << errno;
+      });
       return false;
     }
 
@@ -1150,7 +1190,9 @@ namespace platf {
         for (const auto &tuple : options) {
           auto reset_val = std::get<2>(tuple);
           if (setsockopt(sockfd, std::get<0>(tuple), std::get<1>(tuple), &reset_val, sizeof(reset_val)) < 0) {
-            BOOST_LOG(warning) << "Failed to reset option: "sv << errno;
+            logging::warning([&](std::ostream &out) {
+              out << "Failed to reset option: "sv << errno;
+            });
           }
         }
       }
@@ -1194,7 +1236,7 @@ namespace platf {
           dscp = 48;
           break;
         default:
-          BOOST_LOG(error) << "Unknown traffic type: "sv << (int) data_type;
+          logging::error("Unknown traffic type: {}", (int) data_type);
           break;
       }
 
@@ -1206,7 +1248,9 @@ namespace platf {
           // Reset TOS to -1 when QoS is disabled
           reset_options.emplace_back(std::make_tuple(level, option, -1));
         } else {
-          BOOST_LOG(error) << "Failed to set TOS/TCLASS: "sv << errno;
+          logging::error([&](std::ostream &out) {
+            out << "Failed to set TOS/TCLASS: "sv << errno;
+          });
         }
       }
     }
@@ -1219,14 +1263,16 @@ namespace platf {
     // 6 is the highest priority that can be used without SYS_CAP_ADMIN.
 #ifndef SO_PRIORITY
     // FreeBSD doesn't support SO_PRIORITY, so we skip this
-    BOOST_LOG(debug) << "SO_PRIORITY not supported on this platform, skipping traffic priority setting";
+    logging::debug("SO_PRIORITY not supported on this platform, skipping traffic priority setting");
 #else
     int priority = data_type == qos_data_type_e::audio ? 6 : 5;
     if (setsockopt(sockfd, SOL_SOCKET, SO_PRIORITY, &priority, sizeof(priority)) == 0) {
       // Reset SO_PRIORITY to 0 when QoS is disabled
       reset_options.emplace_back(std::make_tuple(SOL_SOCKET, SO_PRIORITY, 0));
     } else {
-      BOOST_LOG(error) << "Failed to set SO_PRIORITY: "sv << errno;
+      logging::error([&](std::ostream &out) {
+        out << "Failed to set SO_PRIORITY: "sv << errno;
+      });
     }
 #endif
 
@@ -1237,7 +1283,7 @@ namespace platf {
     try {
       return boost::asio::ip::host_name();
     } catch (boost::system::system_error &err) {
-      BOOST_LOG(error) << "Failed to get hostname: "sv << err.what();
+      logging::error("Failed to get hostname: {}", err.what());
       return "Sunshine"s;
     }
   }
@@ -1343,16 +1389,18 @@ namespace platf {
       case available:
         return true;
       case unreachable:
-        BOOST_LOG(debug) << "[portalgrab] xdg-desktop-portal not reachable; skipping Portal capture."sv;
+        logging::debug("[portalgrab] xdg-desktop-portal not reachable; skipping Portal capture."sv);
         return false;
       case stale_token:
-        BOOST_LOG(warning) << "[portalgrab] Saved portal token did not produce a session; discarding and restarting."sv;
+        logging::warning("[portalgrab] Saved portal token did not produce a session; discarding and restarting."sv);
         portal::clear_saved_token();
         platf::restart(lifetime);
         return false;
       case no_token:
-        BOOST_LOG(fatal) << "Portal capture is awaiting user permission. "sv
-                         << "The current session will attempt to use a fallback capture method."sv;
+        logging::fatal(
+          "Portal capture is awaiting user permission. "
+          "The current session will attempt to use a fallback capture method."
+        );
         std::call_once(xdg_worker_flag, [this]() {
           xdg_worker = std::jthread([this]() {
             try {
@@ -1360,12 +1408,12 @@ namespace platf {
               if (!portal_display_names(false, mail).empty()) {
                 platf::restart(lifetime);
               } else {
-                BOOST_LOG(error) << "[portalgrab] Portal session token was not negotiated."sv;
+                logging::error("[portalgrab] Portal session token was not negotiated."sv);
               }
             } catch (const std::exception &e) {
-              BOOST_LOG(error) << "[portalgrab] Exception caught in xdg_worker: "sv << e.what();
+              logging::error("[portalgrab] Exception caught in xdg_worker: {}", e.what());
             } catch (...) {
-              BOOST_LOG(error) << "[portalgrab] Unknown exception caught in xdg_worker"sv;
+              logging::error("[portalgrab] Unknown exception caught in xdg_worker"sv);
             }
           });
         });
@@ -1446,14 +1494,14 @@ namespace platf {
 
 #ifdef SUNSHINE_BUILD_DRM
     if (sources[source::KMS]) {
-      BOOST_LOG(info) << "Screencasting with KMS"sv;
+      logging::info("Screencasting with KMS"sv);
       return kms_display(settings, hwdevice_type, display_name, config, *kms_state, window_system, hevc_mode);
     }
 #endif
 
 #ifdef SUNSHINE_BUILD_CUDA
     if (sources[source::NVFBC] && hwdevice_type == mem_type_e::cuda) {
-      BOOST_LOG(info) << "Screencasting with NvFBC"sv;
+      logging::info("Screencasting with NvFBC"sv);
       return nvfbc_display(hwdevice_type, display_name, config);
     }
 #endif
@@ -1465,25 +1513,25 @@ namespace platf {
 
 #ifdef SUNSHINE_BUILD_WAYLAND
     if (sources[source::WAYLAND]) {
-      BOOST_LOG(info) << "Screencasting with Wayland's protocol"sv;
+      logging::info("Screencasting with Wayland's protocol"sv);
       return wl_display(settings, hwdevice_type, display_name, config);
     }
 #endif
 #ifdef SUNSHINE_BUILD_X11
     if (sources[source::X11]) {
-      BOOST_LOG(info) << "Screencasting with X11"sv;
+      logging::info("Screencasting with X11"sv);
       return x11_display(settings, hwdevice_type, display_name, config, scheduler);
     }
 #endif
 #ifdef SUNSHINE_BUILD_PORTAL
     if (sources[source::PORTAL]) {
-      BOOST_LOG(info) << "Screencasting with XDG portal"sv;
+      logging::info("Screencasting with XDG portal"sv);
       return portal_display(settings, hwdevice_type, display_name, config, mail);
     }
 #endif
 #ifdef SUNSHINE_BUILD_KWIN
     if (sources[source::KWIN]) {
-      BOOST_LOG(info) << "Screencasting with KWin ScreenCast"sv;
+      logging::info("Screencasting with KWin ScreenCast"sv);
       return kwin_display(settings, hwdevice_type, display_name, config);
     }
 #endif
@@ -1526,7 +1574,7 @@ namespace platf {
 #if defined(SUNSHINE_BUILD_X11) || defined(SUNSHINE_BUILD_CUDA)
     if (std::string v; lizardbyte::common::get_env("DISPLAY", v) && window_system != window_system_e::WAYLAND) {
       if (lizardbyte::common::get_env("WAYLAND_DISPLAY", v)) {
-        BOOST_LOG(warning) << "Wayland detected, yet sunshine will use X11 for screencasting, screencasting will only work on XWayland applications"sv;
+        logging::warning("Wayland detected, yet sunshine will use X11 for screencasting, screencasting will only work on XWayland applications"sv);
       }
 
       window_system = window_system_e::X11;
@@ -1581,12 +1629,12 @@ namespace platf {
 #endif
 
     if (sources.none()) {
-      BOOST_LOG(error) << "Unable to initialize capture method"sv;
+      logging::error("Unable to initialize capture method"sv);
       return false;
     }
 
     if (!gladLoaderLoadEGL(NULL)) {
-      BOOST_LOG(error) << "Failed to load EGL library symbols"sv;
+      logging::error("Failed to load EGL library symbols"sv);
       return false;
     }
 
@@ -1686,14 +1734,14 @@ namespace platf {
     const auto caps_to_check = all_caps ? ELEVATED_PRIVILEGES_FULL : ELEVATED_PRIVILEGES_ADMIN;
     const cap_t caps = cap_get_proc();
     if (!caps) {
-      BOOST_LOG(error) << "[misc] has_elevated_privileges failed to get process capabilities."sv;
+      logging::error("[misc] has_elevated_privileges failed to get process capabilities."sv);
       return false;
     }
     for (const auto c : caps_to_check) {
       cap_flag_value_t cap_flags_value;
       cap_get_flag(caps, c, CAP_EFFECTIVE, &cap_flags_value);
       if (cap_flags_value == CAP_SET) {
-        BOOST_LOG(debug) << "[misc] has_elevated_privileges found effective cap:"sv << c;
+        logging::debug("[misc] has_elevated_privileges found effective cap:{}", c);
         return true;
       }
     }
@@ -1701,7 +1749,7 @@ namespace platf {
       cap_flag_value_t cap_flags_value;
       cap_get_flag(caps, c, CAP_PERMITTED, &cap_flags_value);
       if (cap_flags_value == CAP_SET) {
-        BOOST_LOG(debug) << "[misc] has_elevated_privileges found permitted cap:"sv << c;
+        logging::debug("[misc] has_elevated_privileges found permitted cap:{}", c);
         return true;
       }
     }
@@ -1716,7 +1764,7 @@ namespace platf {
     const auto caps_to_drop = all_caps ? ELEVATED_PRIVILEGES_FULL : ELEVATED_PRIVILEGES_ADMIN;
     const cap_t caps = cap_get_proc();
     if (!caps) {
-      BOOST_LOG(error) << "[misc] drop_elevated_privileges failed to get process capabilities"sv;
+      logging::error("[misc] drop_elevated_privileges failed to get process capabilities"sv);
       return;
     }
 
@@ -1724,18 +1772,22 @@ namespace platf {
     cap_set_flag(caps, CAP_PERMITTED, caps_to_drop.size(), caps_to_drop.data(), CAP_CLEAR);
 
     if (cap_set_proc(caps) != 0) {
-      BOOST_LOG(error) << "[misc] drop_elevated_privileges failed to prune capabilities: "sv << std::strerror(errno);
+      logging::error([&](std::ostream &out) {
+        out << "[misc] drop_elevated_privileges failed to prune capabilities: "sv << std::strerror(errno);
+      });
       failed = true;
     }
     cap_free(caps);
 
     // Reset dumpable AFTER the caps have been pruned to ensure /proc/pid/root is accessible.
     if (prctl(PR_SET_DUMPABLE, 1) != 0) {
-      BOOST_LOG(error) << "[misc] drop_elevated_privileges failed to set PR_SET_DUMPABLE: "sv << std::strerror(errno);
+      logging::error([&](std::ostream &out) {
+        out << "[misc] drop_elevated_privileges failed to set PR_SET_DUMPABLE: "sv << std::strerror(errno);
+      });
       failed = true;
     }
     if (!failed) {
-      BOOST_LOG(info) << "[misc] drop_elevated_privileges succeeded in dropping capabilities"sv;
+      logging::info("[misc] drop_elevated_privileges succeeded in dropping capabilities"sv);
     }
 #endif
   }

@@ -73,7 +73,7 @@ namespace video {
         return true;
       }
 
-      BOOST_LOG(error) << "No display devices are active at the moment! Cannot probe the encoders.";
+      logging::error("No display devices are active at the moment! Cannot probe the encoders.");
       return false;
     }
   }  // namespace
@@ -182,7 +182,7 @@ namespace video {
     }
 
     const auto mode = config.chromaSamplingType == 1 ? "YUV 4:4:4 dynamic range"sv : "dynamic range"sv;
-    BOOST_LOG(warning) << video_format.name << ": "sv << mode << " not supported, falling back to SDR"sv;
+    logging::warning("{}: {} not supported, falling back to SDR", video_format.name, mode);
     config.dynamicRange = 0;
     return config;
   }
@@ -267,7 +267,9 @@ namespace video {
     auto status = sws_scale_frame(sws.get(), requires_padding ? sws_output_frame.get() : sw_frame.get(), sws_input_frame.get());
     if (status < 0) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
-      BOOST_LOG(error) << "Couldn't scale frame: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
+      logging::error([&](std::ostream &out) {
+        out << "Couldn't scale frame: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
+      });
       return -1;
     }
 
@@ -293,7 +295,9 @@ namespace video {
       auto status = av_hwframe_transfer_data(frame, sw_frame.get(), 0);
       if (status < 0) {
         std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
-        BOOST_LOG(error) << "Failed to transfer image data to hardware frame: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
+        logging::error([&](std::ostream &out) {
+          out << "Failed to transfer image data to hardware frame: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
+        });
         return -1;
       }
     }
@@ -395,14 +399,18 @@ namespace video {
     av_dict_free(&options);
     if (status < 0) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
-      BOOST_LOG(error) << "Failed to set SWS options: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
+      logging::error([&](std::ostream &out) {
+        out << "Failed to set SWS options: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
+      });
       return -1;
     }
 
     status = sws_init_context(sws.get(), nullptr, nullptr);
     if (status < 0) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
-      BOOST_LOG(error) << "Failed to initialize SWS: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
+      logging::error([&](std::ostream &out) {
+        out << "Failed to initialize SWS: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
+      });
       return -1;
     }
 
@@ -528,7 +536,7 @@ namespace video {
      * @param last_frame Last frame.
      */
     void invalidate_ref_frames(int64_t first_frame, int64_t last_frame) override {
-      BOOST_LOG(error) << "Encoder doesn't support reference frame invalidation";
+      logging::error("Encoder doesn't support reference frame invalidation");
       request_idr_frame();
     }
 
@@ -1606,7 +1614,7 @@ namespace video {
 
     // If we now have no displays, let's put the old display array back and fail
     if (display_names.empty() && !old_display_names.empty()) {
-      BOOST_LOG(error) << "No displays were found after reenumeration!"sv;
+      logging::error("No displays were found after reenumeration!"sv);
       display_names = std::move(old_display_names);
       return;
     } else if (display_names.empty()) {
@@ -1626,7 +1634,7 @@ namespace video {
       }
 
       // The old display was removed, so we'll start back at the first display again
-      BOOST_LOG(warning) << "Previous active display ["sv << current_display_name << "] is no longer present"sv;
+      logging::warning("Previous active display [{}] is no longer present", current_display_name);
     } else {
       for (int x = 0; x < display_names.size(); ++x) {
         if (display_names[x] == output_name) {
@@ -1891,7 +1899,7 @@ namespace video {
         case platf::capture_e::interrupted:
           return;
         default:
-          BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
+          logging::error("Unrecognized capture status [{}]", std::to_underlying(status));
           return;
       }
     }
@@ -1920,7 +1928,9 @@ namespace video {
     auto ret = avcodec_send_frame(ctx.get(), frame);
     if (ret < 0) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> err_str {0};
-      BOOST_LOG(error) << "Could not send a frame for encoding: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, ret);
+      logging::error([&](std::ostream &out) {
+        out << "Could not send a frame for encoding: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, ret);
+      });
 
       return -1;
     }
@@ -1937,11 +1947,11 @@ namespace video {
       }
 
       if (av_packet->flags & AV_PKT_FLAG_KEY) {
-        BOOST_LOG(debug) << "Frame "sv << frame_nr << ": IDR Keyframe (AV_FRAME_FLAG_KEY)"sv;
+        logging::debug("Frame {}: IDR Keyframe (AV_FRAME_FLAG_KEY)", frame_nr);
       }
 
       if ((frame->flags & AV_FRAME_FLAG_KEY) && !(av_packet->flags & AV_PKT_FLAG_KEY)) {
-        BOOST_LOG(error) << "Encoder did not produce IDR frame when requested!"sv;
+        logging::error("Encoder did not produce IDR frame when requested!"sv);
       }
 
       if (session.inject) {
@@ -1994,12 +2004,12 @@ namespace video {
   int encode_nvenc(int64_t frame_nr, nvenc_encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
     auto encoded_frame = session.encode_frame(frame_nr);
     if (encoded_frame.data.empty()) {
-      BOOST_LOG(error) << "NvENC returned empty packet";
+      logging::error("NvENC returned empty packet");
       return -1;
     }
 
     if (frame_nr != encoded_frame.frame_index) {
-      BOOST_LOG(error) << "NvENC frame index mismatch " << frame_nr << " " << encoded_frame.frame_index;
+      logging::error("NvENC frame index mismatch {} {}", frame_nr, encoded_frame.frame_index);
     }
 
     auto packet = std::make_unique<packet_raw_generic>(std::move(encoded_frame.data), encoded_frame.frame_index, encoded_frame.idr);
@@ -2061,31 +2071,31 @@ namespace video {
 
     auto &video_format = encoder.codec_from_config(config);
     if (!video_format[encoder_t::PASSED] || !disp->is_codec_supported(video_format.name, config)) {
-      BOOST_LOG(error) << encoder.name << ": "sv << video_format.name << " mode not supported"sv;
+      logging::error("{}: {} mode not supported", encoder.name, video_format.name);
       return nullptr;
     }
 
     if (config.chromaSamplingType == 1) {
       if (!video_format[encoder_t::YUV444]) {
-        BOOST_LOG(error) << video_format.name << ": YUV 4:4:4 not supported"sv;
+        logging::error("{}: YUV 4:4:4 not supported", video_format.name);
         return nullptr;
       }
 
       if (config.dynamicRange && !video_format[encoder_t::DYNAMIC_RANGE_YUV444]) {
-        BOOST_LOG(error) << video_format.name << ": YUV 4:4:4 dynamic range not supported"sv;
+        logging::error("{}: YUV 4:4:4 dynamic range not supported", video_format.name);
         return nullptr;
       }
 
     } else {
       if (config.dynamicRange && !video_format[encoder_t::DYNAMIC_RANGE]) {
-        BOOST_LOG(error) << video_format.name << ": dynamic range not supported"sv;
+        logging::error("{}: dynamic range not supported", video_format.name);
         return nullptr;
       }
     }
 
     auto codec = avcodec_find_encoder_by_name(video_format.name.c_str());
     if (!codec) {
-      BOOST_LOG(error) << "Couldn't open ["sv << video_format.name << ']';
+      logging::error("Couldn't open [{}]", video_format.name);
 
       return nullptr;
     }
@@ -2155,7 +2165,7 @@ namespace video {
         if (video_format[encoder_t::REF_FRAMES_RESTRICT]) {
           ctx->refs = config.numRefFrames;
         } else {
-          BOOST_LOG(warning) << "Client requested reference frame limit, but encoder doesn't support it!"sv;
+          logging::warning("Client requested reference frame limit, but encoder doesn't support it!"sv);
         }
       }
 
@@ -2199,7 +2209,9 @@ namespace video {
           auto err = av_hwdevice_ctx_create_derived(&derived_context, platform_formats->avcodec_derived_dev_type, encoding_stream_context.get(), 0);
           if (err) {
             std::array<char, AV_ERROR_MAX_STRING_SIZE> err_str {0};
-            BOOST_LOG(error) << "Failed to derive device context: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, err);
+            logging::error([&](std::ostream &out) {
+              out << "Failed to derive device context: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, err);
+            });
 
             return nullptr;
           }
@@ -2298,7 +2310,7 @@ namespace video {
       }
 
       auto bitrate = ((settings.video.max_bitrate > 0) ? std::min(config.bitrate, settings.video.max_bitrate) : config.bitrate) * 1000;
-      BOOST_LOG(info) << "Streaming bitrate is " << bitrate;
+      logging::info("Streaming bitrate is {}", bitrate);
       ctx->rc_max_rate = bitrate;
       ctx->bit_rate = bitrate;
 
@@ -2338,16 +2350,18 @@ namespace video {
         std::array<char, AV_ERROR_MAX_STRING_SIZE> err_str {0};
 
         if (!video_format.fallback_options.empty() && retries == 0) {
-          BOOST_LOG(info)
-            << "Retrying with fallback configuration options for ["sv << video_format.name << "] after error: "sv
-            << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, status);
+          logging::info([&](std::ostream &out) {
+            out << "Retrying with fallback configuration options for ["sv << video_format.name << "] after error: "sv
+                << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, status);
+          });
 
           continue;
         } else {
-          BOOST_LOG(error)
-            << "Could not open codec ["sv
-            << video_format.name << "]: "sv
-            << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, status);
+          logging::error([&](std::ostream &out) {
+            out << "Could not open codec ["sv
+                << video_format.name << "]: "sv
+                << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, status);
+          });
 
           return nullptr;
         }
@@ -2396,7 +2410,7 @@ namespace video {
           clm->MaxFALL = hdr_metadata.maxFrameAverageLightLevel;
         }
       } else {
-        BOOST_LOG(error) << "Couldn't get display hdr metadata when colorspace selection indicates it should have one";
+        logging::error("Couldn't get display hdr metadata when colorspace selection indicates it should have one");
       }
     }
 
@@ -2509,9 +2523,9 @@ namespace video {
     auto fail_guard = util::fail_guard([&encoder, &session] {
       if (encoder.flags & ASYNC_TEARDOWN) {
         std::jthread encoder_teardown_thread {[session = std::move(session)]() mutable {
-          BOOST_LOG(info) << "Starting async encoder teardown";
+          logging::info("Starting async encoder teardown");
           session.reset();
-          BOOST_LOG(info) << "Async encoder teardown complete";
+          logging::info("Async encoder teardown complete");
         }};
         encoder_teardown_thread.detach();
       }
@@ -2520,7 +2534,9 @@ namespace video {
     // set max frame time based on client-requested target framerate.
     double minimum_fps_target = (host.settings.video.minimum_fps_target > 0.0) ? host.settings.video.minimum_fps_target : (config.framerate / 2);
     std::chrono::duration<double, std::milli> max_frametime {1000.0 / minimum_fps_target};
-    BOOST_LOG(info) << "Minimum FPS target set to ~"sv << minimum_fps_target << "fps ("sv << max_frametime.count() << "ms)"sv;
+    logging::info([&](std::ostream &out) {
+      out << "Minimum FPS target set to ~"sv << minimum_fps_target << "fps ("sv << max_frametime.count() << "ms)"sv;
+    });
 
     auto shutdown_event = mail->event<bool>(mail::shutdown);
     auto packets = host.mail->queue<packet_t>(mail::video_packets);
@@ -2563,7 +2579,7 @@ namespace video {
         if (auto img = images->pop(max_frametime)) {
           frame_timestamp = img->frame_timestamp;
           if (session->convert(*img)) {
-            BOOST_LOG(error) << "Could not convert image"sv;
+            logging::error("Could not convert image"sv);
             return;
           }
         } else if (!images->running()) {
@@ -2586,7 +2602,7 @@ namespace video {
       }
 
       if (encode(frame_nr++, *session, packets, channel_data, frame_timestamp)) {
-        BOOST_LOG(error) << "Could not encode video packet"sv;
+        logging::error("Could not encode video packet"sv);
         return;
       }
 
@@ -2687,11 +2703,11 @@ namespace video {
     {
       auto encoder_name = encoder.codec_from_config(config).name;
 
-      BOOST_LOG(info) << "Creating encoder " << logging::bracket(encoder_name);
+      logging::info("Creating encoder [{}]", encoder_name);
 
-      BOOST_LOG(info) << "Color coding: " << colorspace_to_string(colorspace.colorspace);
-      BOOST_LOG(info) << "Color depth: " << colorspace.bit_depth << "-bit";
-      BOOST_LOG(info) << "Color range: " << (colorspace.full_range ? "JPEG" : "MPEG");
+      logging::info("Color coding: {}", colorspace_to_string(colorspace.colorspace));
+      logging::info("Color depth: {}-bit", colorspace.bit_depth);
+      logging::info("Color range: {}", (colorspace.full_range ? "JPEG" : "MPEG"));
     }
 
     if (dynamic_cast<const encoder_platform_formats_avcodec *>(encoder.platform_formats.get())) {
@@ -2736,7 +2752,7 @@ namespace video {
       if (disp->get_hdr_metadata(hdr_info->metadata)) {
         hdr_info->enabled = true;
       } else {
-        BOOST_LOG(error) << "Couldn't get display hdr metadata when colorspace selection indicates it should have one";
+        logging::error("Couldn't get display hdr metadata when colorspace selection indicates it should have one");
       }
     }
     ctx.hdr_events->raise(std::move(hdr_info));
@@ -2748,7 +2764,7 @@ namespace video {
 
     // Load the initial image to prepare for encoding
     if (session->convert(img)) {
-      BOOST_LOG(error) << "Could not convert initial image"sv;
+      logging::error("Could not convert initial image"sv);
       return std::nullopt;
     }
 
@@ -2862,7 +2878,7 @@ namespace video {
           }
 
           if (frame_captured && pos->session->convert(*img)) {
-            BOOST_LOG(error) << "Could not convert image"sv;
+            logging::error("Could not convert image"sv);
             ctx->shutdown_event->raise(true);
 
             continue;
@@ -2874,7 +2890,7 @@ namespace video {
           }
 
           if (encode(ctx->frame_nr++, *pos->session, ctx->packets, ctx->channel_data, frame_timestamp)) {
-            BOOST_LOG(error) << "Could not encode video packet"sv;
+            logging::error("Could not encode video packet"sv);
             ctx->shutdown_event->raise(true);
 
             continue;
@@ -3015,7 +3031,7 @@ namespace video {
         if (display->get_hdr_metadata(hdr_info->metadata)) {
           hdr_info->enabled = true;
         } else {
-          BOOST_LOG(error) << "Couldn't get display hdr metadata when colorspace selection indicates it should have one";
+          logging::error("Couldn't get display hdr metadata when colorspace selection indicates it should have one");
         }
       }
       hdr_event->raise(std::move(hdr_info));
@@ -3106,7 +3122,7 @@ namespace video {
 
     auto packet = packets->pop();
     if (!packet->is_idr()) {
-      BOOST_LOG(error) << "First packet type is not an IDR frame"sv;
+      logging::error("First packet type is not an IDR frame"sv);
 
       return -1;
     }
@@ -3139,9 +3155,9 @@ namespace video {
     const auto output_name {host.displays.map_output_name(host.settings.video.output_name)};
     std::shared_ptr<platf::display_t> disp;
 
-    BOOST_LOG(info) << "Trying encoder ["sv << encoder.name << ']';
+    logging::info("Trying encoder [{}]", encoder.name);
     auto fg = util::fail_guard([&]() {
-      BOOST_LOG(info) << "Encoder ["sv << encoder.name << "] failed"sv;
+      logging::info("Encoder [{}] failed", encoder.name);
     });
 
     auto test_hevc = host.probed.active_hevc_mode >= 2 || (host.probed.active_hevc_mode == 0 && !(encoder.flags & H264_ONLY));
@@ -3162,7 +3178,7 @@ namespace video {
     }
     if (!disp->is_codec_supported(encoder.h264.name, config_autoselect)) {
       fg.disable();
-      BOOST_LOG(info) << "Encoder ["sv << encoder.name << "] is not supported on this GPU"sv;
+      logging::info("Encoder [{}] is not supported on this GPU", encoder.name);
       return false;
     }
 
@@ -3208,7 +3224,7 @@ namespace video {
         encoder.hevc[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_hevc >= 0;
         encoder.hevc[encoder_t::PASSED] = max_ref_frames_hevc >= 0 || autoselect_hevc >= 0;
       } else {
-        BOOST_LOG(info) << "Encoder ["sv << encoder.hevc.name << "] is not supported on this GPU"sv;
+        logging::info("Encoder [{}] is not supported on this GPU", encoder.hevc.name);
         encoder.hevc.capabilities.reset();
       }
     } else {
@@ -3236,7 +3252,7 @@ namespace video {
         encoder.av1[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_av1 >= 0;
         encoder.av1[encoder_t::PASSED] = max_ref_frames_av1 >= 0 || autoselect_av1 >= 0;
       } else {
-        BOOST_LOG(info) << "Encoder ["sv << encoder.av1.name << "] is not supported on this GPU"sv;
+        logging::info("Encoder [{}] is not supported on this GPU", encoder.av1.name);
         encoder.av1.capabilities.reset();
       }
     } else {
@@ -3323,10 +3339,10 @@ namespace video {
     encoder.hevc[encoder_t::VUI_PARAMETERS] = encoder.hevc[encoder_t::VUI_PARAMETERS] && !host.settings.sunshine.flags[config::flag::FORCE_VIDEO_HEADER_REPLACE];
 
     if (!encoder.h264[encoder_t::VUI_PARAMETERS]) {
-      BOOST_LOG(warning) << encoder.name << ": h264 missing sps->vui parameters"sv;
+      logging::warning("{}: h264 missing sps->vui parameters", encoder.name);
     }
     if (encoder.hevc[encoder_t::PASSED] && !encoder.hevc[encoder_t::VUI_PARAMETERS]) {
-      BOOST_LOG(warning) << encoder.name << ": hevc missing sps->vui parameters"sv;
+      logging::warning("{}: hevc missing sps->vui parameters", encoder.name);
     }
 
     fg.disable();
@@ -3366,16 +3382,16 @@ namespace video {
     auto adjust_encoder_constraints_hevc = [&](encoder_t *encoder) {
       // If we can't satisfy both the encoder and codec requirement, prefer the encoder over codec support
       if (host.probed.active_hevc_mode == 5 && !encoder->hevc[encoder_t::DYNAMIC_RANGE] && !encoder->hevc[encoder_t::DYNAMIC_RANGE_YUV444]) {
-        BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support HEVC Main10 Rext10_444 on this system"sv;
+        logging::warning("Encoder [{}] does not support HEVC Main10 Rext10_444 on this system", encoder->name);
         host.probed.active_hevc_mode = 0;
       } else if (host.probed.active_hevc_mode == 4 && !encoder->hevc[encoder_t::DYNAMIC_RANGE_YUV444]) {
-        BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support HEVC Rext10_444 on this system"sv;
+        logging::warning("Encoder [{}] does not support HEVC Rext10_444 on this system", encoder->name);
         host.probed.active_hevc_mode = 0;
       } else if (host.probed.active_hevc_mode == 3 && !encoder->hevc[encoder_t::DYNAMIC_RANGE]) {
-        BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support HEVC Main10 on this system"sv;
+        logging::warning("Encoder [{}] does not support HEVC Main10 on this system", encoder->name);
         host.probed.active_hevc_mode = 0;
       } else if (host.probed.active_hevc_mode == 2 && !encoder->hevc[encoder_t::PASSED]) {
-        BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support HEVC on this system"sv;
+        logging::warning("Encoder [{}] does not support HEVC on this system", encoder->name);
         host.probed.active_hevc_mode = 0;
       }
     };
@@ -3383,16 +3399,16 @@ namespace video {
     auto adjust_encoder_constraints_av1 = [&](encoder_t *encoder) {
       // If we can't satisfy both the encoder and codec requirement, prefer the encoder over codec support
       if (host.probed.active_av1_mode == 5 && !encoder->av1[encoder_t::DYNAMIC_RANGE] && !encoder->av1[encoder_t::DYNAMIC_RANGE_YUV444]) {
-        BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support AV1 Main10 Rext10_444 on this system"sv;
+        logging::warning("Encoder [{}] does not support AV1 Main10 Rext10_444 on this system", encoder->name);
         host.probed.active_av1_mode = 0;
       } else if (host.probed.active_av1_mode == 4 && !encoder->av1[encoder_t::DYNAMIC_RANGE_YUV444]) {
-        BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support AV1 Rext10_444 on this system"sv;
+        logging::warning("Encoder [{}] does not support AV1 Rext10_444 on this system", encoder->name);
         host.probed.active_av1_mode = 0;
       } else if (host.probed.active_av1_mode == 3 && !encoder->av1[encoder_t::DYNAMIC_RANGE]) {
-        BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support AV1 Main10 on this system"sv;
+        logging::warning("Encoder [{}] does not support AV1 Main10 on this system", encoder->name);
         host.probed.active_av1_mode = 0;
       } else if (host.probed.active_av1_mode == 2 && !encoder->av1[encoder_t::PASSED]) {
-        BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support AV1 on this system"sv;
+        logging::warning("Encoder [{}] does not support AV1 on this system", encoder->name);
         host.probed.active_av1_mode = 0;
       }
     };
@@ -3421,11 +3437,11 @@ namespace video {
       });
 
       if (host.chosen_encoder == nullptr) {
-        BOOST_LOG(error) << "Couldn't find any working encoder matching ["sv << host.settings.video.encoder << ']';
+        logging::error("Couldn't find any working encoder matching [{}]", host.settings.video.encoder);
       }
     }
 
-    BOOST_LOG(info) << "// Testing for available encoders, this may generate errors. You can safely ignore those errors. //"sv;
+    logging::info("// Testing for available encoders, this may generate errors. You can safely ignore those errors. //"sv);
 
     // If we haven't found an encoder yet, but we want one with specific codec support, search for that now.
     if (host.chosen_encoder == nullptr && (host.probed.active_hevc_mode >= 2 || host.probed.active_av1_mode >= 2)) {
@@ -3467,7 +3483,7 @@ namespace video {
       });
 
       if (host.chosen_encoder == nullptr) {
-        BOOST_LOG(error) << "Couldn't find any working encoder that meets HEVC/AV1 requirements"sv;
+        logging::error("Couldn't find any working encoder that meets HEVC/AV1 requirements"sv);
       }
     }
 
@@ -3496,18 +3512,18 @@ namespace video {
 
     if (host.chosen_encoder == nullptr) {
       const auto output_name {host.displays.map_output_name(host.settings.video.output_name)};
-      BOOST_LOG(fatal) << "Unable to find display or encoder during startup."sv;
+      logging::fatal("Unable to find display or encoder during startup."sv);
       if (!host.settings.video.adapter_name.empty() || !output_name.empty()) {
-        BOOST_LOG(fatal) << "Please ensure your manually chosen GPU and monitor are connected and powered on."sv;
+        logging::fatal("Please ensure your manually chosen GPU and monitor are connected and powered on."sv);
       } else {
-        BOOST_LOG(fatal) << "Please check that a display is connected and powered on."sv;
+        logging::fatal("Please check that a display is connected and powered on."sv);
       }
       return -1;
     }
 
-    BOOST_LOG(info);
-    BOOST_LOG(info) << "// Ignore any errors mentioned above, they are not relevant. //"sv;
-    BOOST_LOG(info);
+    logging::info(""sv);
+    logging::info("// Ignore any errors mentioned above, they are not relevant. //"sv);
+    logging::info(""sv);
 
     auto &encoder = *host.chosen_encoder;
 
@@ -3519,34 +3535,40 @@ namespace video {
     host.probed.yuv444[2] = encoder.av1[encoder_t::PASSED] &&
                             encoder.av1[encoder_t::YUV444];
 
-    BOOST_LOG(debug) << "------  h264 ------"sv;
+    logging::debug("------  h264 ------"sv);
     for (int x = 0; x < encoder_t::MAX_FLAGS; ++x) {
       auto flag = static_cast<encoder_t::flag_e>(x);
-      BOOST_LOG(debug) << encoder_t::from_flag(flag) << (encoder.h264[flag] ? ": supported"sv : ": unsupported"sv);
+      logging::debug([&](std::ostream &out) {
+        out << encoder_t::from_flag(flag) << (encoder.h264[flag] ? ": supported"sv : ": unsupported"sv);
+      });
     }
-    BOOST_LOG(debug) << "-------------------"sv;
-    BOOST_LOG(info) << "Found H.264 encoder: "sv << encoder.h264.name << " ["sv << encoder.name << ']';
+    logging::debug("-------------------"sv);
+    logging::info("Found H.264 encoder: {} [{}]", encoder.h264.name, encoder.name);
 
     if (encoder.hevc[encoder_t::PASSED]) {
-      BOOST_LOG(debug) << "------  hevc ------"sv;
+      logging::debug("------  hevc ------"sv);
       for (int x = 0; x < encoder_t::MAX_FLAGS; ++x) {
         auto flag = static_cast<encoder_t::flag_e>(x);
-        BOOST_LOG(debug) << encoder_t::from_flag(flag) << (encoder.hevc[flag] ? ": supported"sv : ": unsupported"sv);
+        logging::debug([&](std::ostream &out) {
+          out << encoder_t::from_flag(flag) << (encoder.hevc[flag] ? ": supported"sv : ": unsupported"sv);
+        });
       }
-      BOOST_LOG(debug) << "-------------------"sv;
+      logging::debug("-------------------"sv);
 
-      BOOST_LOG(info) << "Found HEVC encoder: "sv << encoder.hevc.name << " ["sv << encoder.name << ']';
+      logging::info("Found HEVC encoder: {} [{}]", encoder.hevc.name, encoder.name);
     }
 
     if (encoder.av1[encoder_t::PASSED]) {
-      BOOST_LOG(debug) << "------  av1 ------"sv;
+      logging::debug("------  av1 ------"sv);
       for (int x = 0; x < encoder_t::MAX_FLAGS; ++x) {
         auto flag = static_cast<encoder_t::flag_e>(x);
-        BOOST_LOG(debug) << encoder_t::from_flag(flag) << (encoder.av1[flag] ? ": supported"sv : ": unsupported"sv);
+        logging::debug([&](std::ostream &out) {
+          out << encoder_t::from_flag(flag) << (encoder.av1[flag] ? ": supported"sv : ": unsupported"sv);
+        });
       }
-      BOOST_LOG(debug) << "-------------------"sv;
+      logging::debug("-------------------"sv);
 
-      BOOST_LOG(info) << "Found AV1 encoder: "sv << encoder.av1.name << " ["sv << encoder.name << ']';
+      logging::info("Found AV1 encoder: {} [{}]", encoder.av1.name, encoder.name);
     }
 
     // 2 - passed
@@ -3565,7 +3587,7 @@ namespace video {
           host.probed.active_hevc_mode += 2;
         }
       }
-      BOOST_LOG(debug) << "ENCODER STATUS ACTIVE_HEVC_MODE: "sv << host.probed.active_hevc_mode;
+      logging::debug("ENCODER STATUS ACTIVE_HEVC_MODE: {}", host.probed.active_hevc_mode);
     }
 
     if (host.probed.active_av1_mode == 0) {
@@ -3579,7 +3601,7 @@ namespace video {
           host.probed.active_av1_mode += 2;
         }
       }
-      BOOST_LOG(debug) << "ENCODER STATUS ACTIVE_AV1_MODE: "sv << host.probed.active_av1_mode;
+      logging::debug("ENCODER STATUS ACTIVE_AV1_MODE: {}", host.probed.active_av1_mode);
     }
 
     return 0;
@@ -3608,7 +3630,9 @@ namespace video {
     auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VAAPI, render_device.empty() ? nullptr : render_device.c_str(), nullptr, 0);
     if (status < 0) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
-      BOOST_LOG(error) << "Failed to create a VAAPI device: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
+      logging::error([&](std::ostream &out) {
+        out << "Failed to create a VAAPI device: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
+      });
       return -1;
     }
 
@@ -3636,7 +3660,7 @@ namespace video {
 
     auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VULKAN, render_device.c_str(), nullptr, 0);
     if (status >= 0) {
-      BOOST_LOG(info) << "Using Vulkan device: "sv << render_device;
+      logging::info("Using Vulkan device: {}", render_device);
       return hw_device_buf;
     }
 
@@ -3645,12 +3669,12 @@ namespace video {
     for (auto device : devices) {
       status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VULKAN, device, nullptr, 0);
       if (status >= 0) {
-        BOOST_LOG(info) << "Using Vulkan device index: "sv << device;
+        logging::info("Using Vulkan device index: {}", device);
         return hw_device_buf;
       }
     }
 
-    BOOST_LOG(error) << "Failed to create a Vulkan device"sv;
+    logging::error("Failed to create a Vulkan device"sv);
     return -1;
   }
 #endif
@@ -3664,7 +3688,9 @@ namespace video {
     auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_CUDA, nullptr, nullptr, 1 /* AV_CUDA_USE_PRIMARY_CONTEXT */);
     if (status < 0) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
-      BOOST_LOG(error) << "Failed to create a CUDA device: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
+      logging::error([&](std::ostream &out) {
+        out << "Failed to create a CUDA device: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
+      });
       return -1;
     }
 
@@ -3680,7 +3706,9 @@ namespace video {
     auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VIDEOTOOLBOX, nullptr, nullptr, 0);
     if (status < 0) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
-      BOOST_LOG(error) << "Failed to create a VideoToolbox device: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
+      logging::error([&](std::ostream &out) {
+        out << "Failed to create a VideoToolbox device: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
+      });
       return -1;
     }
 
@@ -3718,7 +3746,9 @@ namespace video {
     auto err = av_hwdevice_ctx_init(ctx_buf.get());
     if (err) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> err_str {0};
-      BOOST_LOG(error) << "Failed to create FFMpeg hardware device context: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, err);
+      logging::error([&](std::ostream &out) {
+        out << "Failed to create FFMpeg hardware device context: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, err);
+      });
 
       return err;
     }

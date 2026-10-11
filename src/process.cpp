@@ -7,6 +7,7 @@
 // standard includes
 #include <array>
 #include <filesystem>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
@@ -91,7 +92,7 @@ namespace proc {
         // Request processes in the group to exit gracefully
         if (platf::request_process_group_exit((std::uintptr_t) group.native_handle())) {
           // If the request was successful, wait for a little while for them to exit.
-          BOOST_LOG(info) << "Successfully requested the app to exit. Waiting up to "sv << exit_timeout.count() << " seconds for it to close."sv;
+          logging::info("Successfully requested the app to exit. Waiting up to {} seconds for it to close.", exit_timeout.count());
 
           // group::wait_for() and similar functions are broken and deprecated, so we use a simple polling loop
           while (platf::process_group_running((std::uintptr_t) group.native_handle()) && (--exit_timeout).count() >= 0) {
@@ -99,15 +100,15 @@ namespace proc {
           }
 
           if (exit_timeout.count() < 0) {
-            BOOST_LOG(warning) << "App did not fully exit within the timeout. Terminating the app's remaining processes."sv;
+            logging::warning("App did not fully exit within the timeout. Terminating the app's remaining processes."sv);
           } else {
-            BOOST_LOG(info) << "All app processes have successfully exited."sv;
+            logging::info("All app processes have successfully exited."sv);
           }
         } else {
-          BOOST_LOG(info) << "App did not respond to a graceful termination request. Forcefully terminating the app's processes."sv;
+          logging::info("App did not respond to a graceful termination request. Forcefully terminating the app's processes."sv);
         }
       } else {
-        BOOST_LOG(info) << "No graceful exit timeout was specified for this app. Forcefully terminating the app's processes."sv;
+        logging::info("No graceful exit timeout was specified for this app. Forcefully terminating the app's processes."sv);
       }
 
       // We always call terminate() even if we waited successfully for all processes above.
@@ -140,15 +141,15 @@ namespace proc {
       parts = boost::program_options::split_unix(cmd);
 #endif
     } catch (boost::escaped_list_error &err) {
-      BOOST_LOG(error) << "Boost failed to parse command ["sv << cmd << "] because " << err.what();
+      logging::error("Boost failed to parse command [{}] because {}", cmd, err.what());
       return boost::filesystem::path();
     }
     if (parts.empty()) {
-      BOOST_LOG(error) << "Unable to parse command: "sv << cmd;
+      logging::error("Unable to parse command: {}", cmd);
       return boost::filesystem::path();
     }
 
-    BOOST_LOG(debug) << "Parsed target ["sv << parts.at(0) << "] from command ["sv << cmd << ']';
+    logging::debug("Parsed target [{}] from command [{}]", parts.at(0), cmd);
 
     // If the target is a URL, don't parse any further here
     if (parts.at(0).find("://") != std::string::npos) {
@@ -160,12 +161,14 @@ namespace proc {
     if (!cmd_path.is_absolute()) {
       cmd_path = boost::process::v1::search_path(parts.at(0));
       if (cmd_path.empty()) {
-        BOOST_LOG(error) << "Unable to find executable ["sv << parts.at(0) << "]. Is it in your PATH?"sv;
+        logging::error("Unable to find executable [{}]. Is it in your PATH?", parts.at(0));
         return boost::filesystem::path();
       }
     }
 
-    BOOST_LOG(debug) << "Resolved target ["sv << parts.at(0) << "] to path ["sv << cmd_path << ']';
+    logging::debug([&](std::ostream &out) {
+      out << "Resolved target ["sv << parts.at(0) << "] to path ["sv << cmd_path << ']';
+    });
 
     // Now that we have a complete path, we can just use parent_path()
     return cmd_path.parent_path();
@@ -177,7 +180,7 @@ namespace proc {
     const auto stripped_command = boost::trim_copy(command);
     if (stripped_command.empty() || stripped_command.starts_with(host_command_prefix)) {
       if (!stripped_command.empty()) {
-        BOOST_LOG(warning) << "Command ["sv << stripped_command << "] already includes [flatpak-spawn --host], which is no longer required for Flatpak builds."sv;
+        logging::warning("Command [{}] already includes [flatpak-spawn --host], which is no longer required for Flatpak builds.", stripped_command);
       }
       return stripped_command;
     }
@@ -197,7 +200,7 @@ namespace proc {
     });
 
     if (iter == _apps.end()) {
-      BOOST_LOG(error) << "Couldn't find app with ID ["sv << app_id << ']';
+      logging::error("Couldn't find app with ID [{}]", app_id);
       return 404;
     }
 
@@ -264,11 +267,13 @@ namespace proc {
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
                                               find_working_directory(command, _env) :
                                               boost::filesystem::path(_app.working_dir);
-      BOOST_LOG(info) << "Executing Do Cmd: ["sv << command << ']';
+      logging::info("Executing Do Cmd: [{}]", command);
       auto child = platf::run_command(cmd.elevated, true, command, working_dir, _env, _pipe.get(), ec, nullptr);
 
       if (ec) {
-        BOOST_LOG(error) << "Couldn't run ["sv << command << "]: System: "sv << ec.message();
+        logging::error([&](std::ostream &out) {
+          out << "Couldn't run ["sv << command << "]: System: "sv << ec.message();
+        });
         // We don't want any prep commands failing launch of the desktop.
         // This is to prevent the issue where users reboot their PC and need to log in with Sunshine.
         // permission_denied is typically returned when the user impersonation fails, which can happen when user is not signed in yet.
@@ -279,12 +284,14 @@ namespace proc {
 
       child.wait(ec);
       if (ec) {
-        BOOST_LOG(error) << '[' << command << "] wait failed with error code ["sv << ec << ']';
+        logging::error([&](std::ostream &out) {
+          out << '[' << command << "] wait failed with error code ["sv << ec << ']';
+        });
         return -1;
       }
       auto ret = child.exit_code();
       if (ret != 0) {
-        BOOST_LOG(error) << '[' << command << "] exited with code ["sv << ret << ']';
+        logging::error("[{}] exited with code [{}]", command, ret);
         return -1;
       }
     }
@@ -294,27 +301,35 @@ namespace proc {
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
                                               find_working_directory(command, _env) :
                                               boost::filesystem::path(_app.working_dir);
-      BOOST_LOG(info) << "Spawning ["sv << command << "] in ["sv << working_dir << ']';
+      logging::info([&](std::ostream &out) {
+        out << "Spawning ["sv << command << "] in ["sv << working_dir << ']';
+      });
       auto child = platf::run_command(_app.elevated, true, command, working_dir, _env, _pipe.get(), ec, nullptr);
       if (ec) {
-        BOOST_LOG(warning) << "Couldn't spawn ["sv << command << "]: System: "sv << ec.message();
+        logging::warning([&](std::ostream &out) {
+          out << "Couldn't spawn ["sv << command << "]: System: "sv << ec.message();
+        });
       } else {
         child.detach();
       }
     }
 
     if (_app.cmd.empty()) {
-      BOOST_LOG(info) << "Executing [Desktop]"sv;
+      logging::info("Executing [Desktop]"sv);
       placebo = true;
     } else {
       const auto command = prepare_command(_app.cmd);
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
                                               find_working_directory(command, _env) :
                                               boost::filesystem::path(_app.working_dir);
-      BOOST_LOG(info) << "Executing: ["sv << command << "] in ["sv << working_dir << ']';
+      logging::info([&](std::ostream &out) {
+        out << "Executing: ["sv << command << "] in ["sv << working_dir << ']';
+      });
       _process = platf::run_command(_app.elevated, true, command, working_dir, _env, _pipe.get(), ec, &_process_group);
       if (ec) {
-        BOOST_LOG(warning) << "Couldn't run ["sv << command << "]: System: "sv << ec.message();
+        logging::warning([&](std::ostream &out) {
+          out << "Couldn't run ["sv << command << "]: System: "sv << ec.message();
+        });
         return -1;
       }
     }
@@ -346,15 +361,15 @@ namespace proc {
       // The app is still running only if the initial process launched is still running
       return _app_id;
     } else if (_app.auto_detach && _process.native_exit_code() == 0 && std::chrono::steady_clock::now() - _app_launch_time < 5s) {
-      BOOST_LOG(info) << "App exited gracefully within 5 seconds of launch. Treating the app as a detached command."sv;
-      BOOST_LOG(info) << "Adjust this behavior in the Applications tab or apps.json if this is not what you want."sv;
+      logging::info("App exited gracefully within 5 seconds of launch. Treating the app as a detached command."sv);
+      logging::info("Adjust this behavior in the Applications tab or apps.json if this is not what you want."sv);
       placebo = true;
       return _app_id;
     }
 
     // Perform cleanup actions now if needed
     if (_process) {
-      BOOST_LOG(info) << "App exited with code ["sv << _process.native_exit_code() << ']';
+      logging::info("App exited with code [{}]", _process.native_exit_code());
       terminate();
     }
 
@@ -382,18 +397,20 @@ namespace proc {
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
                                               find_working_directory(command, _env) :
                                               boost::filesystem::path(_app.working_dir);
-      BOOST_LOG(info) << "Executing Undo Cmd: ["sv << command << ']';
+      logging::info("Executing Undo Cmd: [{}]", command);
       auto child = platf::run_command(cmd.elevated, true, command, working_dir, _env, _pipe.get(), ec, nullptr);
 
       if (ec) {
-        BOOST_LOG(warning) << "System: "sv << ec.message();
+        logging::warning([&](std::ostream &out) {
+          out << "System: "sv << ec.message();
+        });
       }
 
       child.wait();
       auto ret = child.exit_code();
 
       if (ret != 0) {
-        BOOST_LOG(warning) << "Return code ["sv << ret << ']';
+        logging::warning("Return code [{}]", ret);
       }
     }
 
@@ -606,7 +623,9 @@ namespace proc {
     if (auto full_image_path = std::filesystem::path(SUNSHINE_ASSETS_DIR) / app_image_path; std::filesystem::exists(full_image_path)) {
       // Validate PNG signature
       if (!check_valid_png(full_image_path)) {
-        BOOST_LOG(warning) << "Invalid PNG file at path ["sv << full_image_path << ']';
+        logging::warning([&](std::ostream &out) {
+          out << "Invalid PNG file at path ["sv << full_image_path << ']';
+        });
         return DEFAULT_APP_IMAGE_PATH;
       }
       return full_image_path.string();
@@ -620,13 +639,17 @@ namespace proc {
     // check if specified image exists
     if (std::error_code code; !std::filesystem::exists(app_image_path, code)) {
       // return default box image if image does not exist
-      BOOST_LOG(warning) << "Couldn't find app image at path ["sv << app_image_path << ']';
+      logging::warning([&](std::ostream &out) {
+        out << "Couldn't find app image at path ["sv << app_image_path << ']';
+      });
       return DEFAULT_APP_IMAGE_PATH;
     }
 
     // Validate PNG signature
     if (!check_valid_png(app_image_path)) {
-      BOOST_LOG(warning) << "Invalid PNG file at path ["sv << app_image_path << ']';
+      logging::warning([&](std::ostream &out) {
+        out << "Invalid PNG file at path ["sv << app_image_path << ']';
+      });
       return DEFAULT_APP_IMAGE_PATH;
     }
 
@@ -848,7 +871,7 @@ namespace proc {
         std::move(apps)
       };
     } catch (std::exception &e) {
-      BOOST_LOG(error) << e.what();
+      logging::error(e.what());
     }
 
     return std::nullopt;

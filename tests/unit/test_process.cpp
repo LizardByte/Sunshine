@@ -616,11 +616,9 @@ TEST_F(ProcessRefreshTest, FileTimeType_DefaultValueComparison) {
   // We cannot assert the comparison direction since it is platform-dependent.
   // Instead, just log and document both cases.
   if (now_time <= default_time) {
-    BOOST_LOG(info) << "file_time_type::clock::now() <= file_time_type{} is TRUE on this platform "
-                    << "(this is the UCRT64 case that requires the optional sentinel)";
+    logging::info("file_time_type::clock::now() <= file_time_type{} is TRUE on this platform (this is the UCRT64 case that requires the optional sentinel)");
   } else {
-    BOOST_LOG(info) << "file_time_type::clock::now() > file_time_type{} on this platform "
-                    << "(default-init guard would have worked, but optional is still safer)";
+    logging::info("file_time_type::clock::now() > file_time_type{} on this platform (default-init guard would have worked, but optional is still safer)");
   }
 
   // The actual correctness is verified by Refresh_ParsesFileOnFirstCall above —

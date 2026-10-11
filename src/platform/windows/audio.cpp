@@ -365,7 +365,7 @@ namespace platf::audio {
     );
 
     if (FAILED(status)) {
-      BOOST_LOG(error) << "Couldn't activate Device: [0x"sv << util::hex(status).to_string_view() << ']';
+      logging::error("Couldn't activate Device: [0x{}]", util::hex(status).to_string_view());
 
       return nullptr;
     }
@@ -377,7 +377,7 @@ namespace platf::audio {
       wave_format_t mixer_waveformat;
       status = audio_client->GetMixFormat(&mixer_waveformat);
       if (FAILED(status)) {
-        BOOST_LOG(error) << "Couldn't get mix format for audio device: [0x"sv << util::hex(status).to_string_view() << ']';
+        logging::error("Couldn't get mix format for audio device: [0x{}]", util::hex(status).to_string_view());
         return nullptr;
       }
 
@@ -387,9 +387,7 @@ namespace platf::audio {
         capture_waveformat.dwChannelMask = waveformatext_pointer->dwChannelMask;
       }
 
-      BOOST_LOG(info) << "Audio mixer format is "sv << mixer_waveformat->wBitsPerSample << "-bit, "sv
-                      << mixer_waveformat->nSamplesPerSec << " Hz, "sv
-                      << ((mixer_waveformat->nSamplesPerSec != 48000) ? "will be resampled to 48000 by Windows"sv : "no resampling needed"sv);
+      logging::info("Audio mixer format is {}-bit, {} Hz, {}", mixer_waveformat->wBitsPerSample, mixer_waveformat->nSamplesPerSec, (mixer_waveformat->nSamplesPerSec != 48000) ? "will be resampled to 48000 by Windows"sv : "no resampling needed"sv);
     }
 
     status = audio_client->Initialize(
@@ -403,11 +401,13 @@ namespace platf::audio {
     );
 
     if (status) {
-      BOOST_LOG(error) << "Couldn't initialize audio client for ["sv << format.name << "]: [0x"sv << util::hex(status).to_string_view() << ']';
+      logging::error("Couldn't initialize audio client for [{}]: [0x{}]", format.name, util::hex(status).to_string_view());
       return nullptr;
     }
 
-    BOOST_LOG(info) << "Audio capture format is "sv << logging::bracket(waveformat_to_pretty_string(capture_waveformat));
+    logging::info([&](std::ostream &out) {
+      out << "Audio capture format is "sv << logging::bracket(waveformat_to_pretty_string(capture_waveformat));
+    });
 
     return audio_client;
   }
@@ -428,7 +428,7 @@ namespace platf::audio {
     );
 
     if (FAILED(status)) {
-      BOOST_LOG(error) << "Couldn't get default audio endpoint [0x"sv << util::hex(status).to_string_view() << ']';
+      logging::error("Couldn't get default audio endpoint [0x{}]", util::hex(status).to_string_view());
 
       return nullptr;
     }
@@ -610,7 +610,7 @@ namespace platf::audio {
     int init(std::uint32_t sample_rate, std::uint32_t frame_size, std::uint32_t channels_out, bool continuous, device_t capture_device) {
       audio_event.reset(CreateEventA(nullptr, FALSE, FALSE, nullptr));
       if (!audio_event) {
-        BOOST_LOG(error) << "Couldn't create Event handle"sv;
+        logging::error("Couldn't create Event handle"sv);
 
         return -1;
       }
@@ -626,14 +626,14 @@ namespace platf::audio {
       );
 
       if (FAILED(status)) {
-        BOOST_LOG(error) << "Couldn't create Device Enumerator [0x"sv << util::hex(status).to_string_view() << ']';
+        logging::error("Couldn't create Device Enumerator [0x{}]", util::hex(status).to_string_view());
 
         return -1;
       }
 
       status = device_enum->RegisterEndpointNotificationCallback(&endpt_notification);
       if (FAILED(status)) {
-        BOOST_LOG(error) << "Couldn't register endpoint notification [0x"sv << util::hex(status).to_string_view() << ']';
+        logging::error("Couldn't register endpoint notification [0x{}]", util::hex(status).to_string_view());
 
         return -1;
       }
@@ -646,23 +646,22 @@ namespace platf::audio {
 
       for (const auto &format : formats) {
         if (format.channel_count != channels_out) {
-          BOOST_LOG(debug) << "Skipping audio format ["sv << format.name << "] with channel count ["sv
-                           << format.channel_count << " != "sv << channels_out << ']';
+          logging::debug("Skipping audio format [{}] with channel count [{} != {}]", format.name, format.channel_count, channels_out);
           continue;
         }
 
-        BOOST_LOG(debug) << "Trying audio format ["sv << format.name << ']';
+        logging::debug("Trying audio format [{}]", format.name);
         audio_client = make_audio_client(device, format);
 
         if (audio_client) {
-          BOOST_LOG(debug) << "Found audio format ["sv << format.name << ']';
+          logging::debug("Found audio format [{}]", format.name);
           channels = channels_out;
           break;
         }
       }
 
       if (!audio_client) {
-        BOOST_LOG(error) << "Couldn't find supported format for audio"sv;
+        logging::error("Couldn't find supported format for audio"sv);
         return -1;
       }
 
@@ -674,7 +673,7 @@ namespace platf::audio {
       std::uint32_t frames;
       status = audio_client->GetBufferSize(&frames);
       if (FAILED(status)) {
-        BOOST_LOG(error) << "Couldn't acquire the number of audio frames [0x"sv << util::hex(status).to_string_view() << ']';
+        logging::error("Couldn't acquire the number of audio frames [0x{}]", util::hex(status).to_string_view());
 
         return -1;
       }
@@ -685,14 +684,14 @@ namespace platf::audio {
 
       status = audio_client->GetService(IID_IAudioCaptureClient, (void **) &audio_capture);
       if (FAILED(status)) {
-        BOOST_LOG(error) << "Couldn't initialize audio capture client [0x"sv << util::hex(status).to_string_view() << ']';
+        logging::error("Couldn't initialize audio capture client [0x{}]", util::hex(status).to_string_view());
 
         return -1;
       }
 
       status = audio_client->SetEventHandle(audio_event.get());
       if (FAILED(status)) {
-        BOOST_LOG(error) << "Couldn't set event handle [0x"sv << util::hex(status).to_string_view() << ']';
+        logging::error("Couldn't set event handle [0x{}]", util::hex(status).to_string_view());
 
         return -1;
       }
@@ -701,13 +700,15 @@ namespace platf::audio {
         DWORD task_index = 0;
         mmcss_task_handle = AvSetMmThreadCharacteristics("Pro Audio", &task_index);
         if (!mmcss_task_handle) {
-          BOOST_LOG(error) << "Couldn't associate audio capture thread with Pro Audio MMCSS task [0x" << util::hex(GetLastError()).to_string_view() << ']';
+          logging::error([&](std::ostream &out) {
+            out << "Couldn't associate audio capture thread with Pro Audio MMCSS task [0x" << util::hex(GetLastError()).to_string_view() << ']';
+          });
         }
       }
 
       status = audio_client->Start();
       if (FAILED(status)) {
-        BOOST_LOG(error) << "Couldn't start recording [0x"sv << util::hex(status).to_string_view() << ']';
+        logging::error("Couldn't start recording [0x{}]", util::hex(status).to_string_view());
 
         return -1;
       }
@@ -779,7 +780,7 @@ namespace platf::audio {
         case WAIT_TIMEOUT:
           return capture_e::timeout;
         default:
-          BOOST_LOG(error) << "Couldn't wait for audio event: [0x"sv << util::hex(status).to_string_view() << ']';
+          logging::error("Couldn't wait for audio event: [0x{}]", util::hex(status).to_string_view());
           return capture_e::error;
       }
 
@@ -803,19 +804,19 @@ namespace platf::audio {
           case AUDCLNT_E_DEVICE_INVALIDATED:
             return capture_e::reinit;
           default:
-            BOOST_LOG(error) << "Couldn't capture audio [0x"sv << util::hex(status).to_string_view() << ']';
+            logging::error("Couldn't capture audio [0x{}]", util::hex(status).to_string_view());
             return capture_e::error;
         }
 
         if (buffer_flags & AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY) {
-          BOOST_LOG(debug) << "Audio capture signaled buffer discontinuity";
+          logging::debug("Audio capture signaled buffer discontinuity");
         }
 
         sample_aligned.uninitialized = std::end(sample_buf) - sample_buf_pos;
         auto n = std::min(sample_aligned.uninitialized, block_aligned.audio_sample_size * channels);
 
         if (n < block_aligned.audio_sample_size * channels) {
-          BOOST_LOG(warning) << "Audio capture buffer overflow";
+          logging::warning("Audio capture buffer overflow");
         }
 
         if (buffer_flags & AUDCLNT_BUFFERFLAGS_SILENT) {
@@ -886,7 +887,7 @@ namespace platf::audio {
 
       if (settings.audio.external_audio) {
         if (settings.audio.sink.empty()) {
-          BOOST_LOG(error) << "external_audio requires an explicit audio_sink";
+          logging::error("external_audio requires an explicit audio_sink");
           return std::nullopt;
         }
         sink.host = settings.audio.sink;
@@ -929,7 +930,7 @@ namespace platf::audio {
           "virtual-"s + formats[2].name + device_id,
         });
       } else if (!settings.audio.virtual_sink.empty()) {
-        BOOST_LOG(warning) << "Couldn't find the specified virtual audio sink " << settings.audio.virtual_sink;
+        logging::warning("Couldn't find the specified virtual audio sink {}", settings.audio.virtual_sink);
       }
 
       return sink;
@@ -1013,7 +1014,7 @@ namespace platf::audio {
       const auto &requested_sink = settings.audio.external_audio || assigned_sink.empty() ? settings.audio.sink : assigned_sink;
 
       if (settings.audio.external_audio && requested_sink.empty()) {
-        BOOST_LOG(error) << "external_audio requires an explicit audio_sink";
+        logging::error("external_audio requires an explicit audio_sink");
         return nullptr;
       }
 
@@ -1024,11 +1025,11 @@ namespace platf::audio {
       if (!requested_sink.empty()) {
         capture_device = get_sink_device(requested_sink);
         if (!capture_device) {
-          BOOST_LOG(error) << "Couldn't resolve audio sink ["sv << requested_sink << "] to a capture device"sv;
+          logging::error("Couldn't resolve audio sink [{}] to a capture device", requested_sink);
           return nullptr;
         }
 
-        BOOST_LOG(info) << "Capturing audio from sink ["sv << requested_sink << ']';
+        logging::info("Capturing audio from sink [{}]", requested_sink);
       }
 
       if (mic->init(sample_rate, frame_size, channels, continuous_audio, std::move(capture_device))) {
@@ -1039,7 +1040,7 @@ namespace platf::audio {
       auto virtual_sink_info = extract_virtual_sink_info(assigned_sink);
       if (virtual_sink_info && !settings.audio.external_audio) {
         mic->default_endpt_changed_cb = [this] {
-          BOOST_LOG(info) << "Resetting sink to ["sv << assigned_sink << "] after default changed";
+          logging::info("Resetting sink to [{}] after default changed", assigned_sink);
           set_sink(assigned_sink);
         };
       }
@@ -1072,7 +1073,7 @@ namespace platf::audio {
         if (matched) {
           return matched->second;
         } else {
-          BOOST_LOG(error) << "Couldn't find audio sink " << sink;
+          logging::error("Couldn't find audio sink {}", sink);
           return std::nullopt;
         }
       }
@@ -1089,7 +1090,7 @@ namespace platf::audio {
         if (SUCCEEDED(current_default_dev->OpenPropertyStore(STGM_READ, &prop)) && SUCCEEDED(prop->GetValue(PKEY_AudioEngine_DeviceFormat, &current_device_format.prop))) {
           auto *format = (WAVEFORMATEXTENSIBLE *) current_device_format.prop.blob.pBlobData;
           wanted_bits_per_sample = format->Samples.wValidBitsPerSample;
-          BOOST_LOG(info) << "Virtual audio device will use "sv << wanted_bits_per_sample << "-bit to match default device"sv;
+          logging::info("Virtual audio device will use {}-bit to match default device", wanted_bits_per_sample);
         }
       }
 
@@ -1108,12 +1109,14 @@ namespace platf::audio {
 
         WAVEFORMATEXTENSIBLE p {};
         if (SUCCEEDED(policy->SetDeviceFormat(device_id_copy.c_str(), waveformat_copy_pointer, (WAVEFORMATEX *) &p))) {
-          BOOST_LOG(info) << "Changed virtual audio sink format to " << logging::bracket(waveformat_to_pretty_string(waveformat));
+          logging::info([&](std::ostream &out) {
+            out << "Changed virtual audio sink format to " << logging::bracket(waveformat_to_pretty_string(waveformat));
+          });
           return device_id;
         }
       }
 
-      BOOST_LOG(error) << "Couldn't set virtual audio sink waveformat";
+      logging::error("Couldn't set virtual audio sink waveformat");
       return std::nullopt;
     }
 
@@ -1139,9 +1142,9 @@ namespace platf::audio {
         if (status) {
           // Depending on the format of the string, we could get either of these errors
           if (status == HRESULT_FROM_WIN32(ERROR_NOT_FOUND) || status == E_INVALIDARG) {
-            BOOST_LOG(warning) << "Audio sink not found: "sv << sink;
+            logging::warning("Audio sink not found: {}", sink);
           } else {
-            BOOST_LOG(warning) << "Couldn't set ["sv << sink << "] to role ["sv << x << "]: 0x"sv << util::hex(status).to_string_view();
+            logging::warning("Couldn't set [{}] to role [{}]: 0x{}", sink, x, util::hex(status).to_string_view());
           }
 
           ++failure;
@@ -1216,7 +1219,7 @@ namespace platf::audio {
       collection_t collection;
       auto status = device_enum->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &collection);
       if (FAILED(status)) {
-        BOOST_LOG(error) << "Couldn't enumerate: [0x"sv << util::hex(status).to_string_view() << ']';
+        logging::error("Couldn't enumerate: [0x{}]", util::hex(status).to_string_view());
         return std::nullopt;
       }
 
@@ -1312,7 +1315,7 @@ namespace platf::audio {
       // Disable the Steam Streaming Speakers temporarily to allow the OS to pick a new default.
       auto hr = policy->SetEndpointVisibility(steam_device_id.c_str(), FALSE);
       if (FAILED(hr)) {
-        BOOST_LOG(warning) << "Failed to disable Steam audio device: "sv << util::hex(hr).to_string_view();
+        logging::warning("Failed to disable Steam audio device: {}", util::hex(hr).to_string_view());
         return;
       }
 
@@ -1322,7 +1325,7 @@ namespace platf::audio {
       // Enable the Steam Streaming Speakers again
       hr = policy->SetEndpointVisibility(steam_device_id.c_str(), TRUE);
       if (FAILED(hr)) {
-        BOOST_LOG(warning) << "Failed to enable Steam audio device: "sv << util::hex(hr).to_string_view();
+        logging::warning("Failed to enable Steam audio device: {}", util::hex(hr).to_string_view());
         return;
       }
 
@@ -1340,7 +1343,7 @@ namespace platf::audio {
         policy->SetDefaultEndpoint(new_default_id.get(), (ERole) x);
       }
 
-      BOOST_LOG(info) << "Successfully reset default audio device"sv;
+      logging::info("Successfully reset default audio device"sv);
     }
 
     /**
@@ -1353,7 +1356,7 @@ namespace platf::audio {
       // so we have to load it at runtime. It's Vista or later, so it will always be available.
       auto newdev = LoadLibraryExW(L"newdev.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
       if (!newdev) {
-        BOOST_LOG(error) << "newdev.dll failed to load"sv;
+        logging::error("newdev.dll failed to load"sv);
         return false;
       }
       auto fg = util::fail_guard([newdev]() {
@@ -1362,7 +1365,7 @@ namespace platf::audio {
 
       auto fn_DiInstallDriverW = (decltype(DiInstallDriverW) *) GetProcAddress(newdev, "DiInstallDriverW");
       if (!fn_DiInstallDriverW) {
-        BOOST_LOG(error) << "DiInstallDriverW() is missing"sv;
+        logging::error("DiInstallDriverW() is missing"sv);
         return false;
       }
 
@@ -1373,7 +1376,7 @@ namespace platf::audio {
       std::array<WCHAR, MAX_PATH> driver_path = {};
       ExpandEnvironmentStringsW(STEAM_AUDIO_DRIVER_PATH, driver_path.data(), driver_path.size());
       if (fn_DiInstallDriverW(nullptr, driver_path.data(), 0, nullptr)) {
-        BOOST_LOG(info) << "Successfully installed Steam Streaming Speakers"sv;
+        logging::info("Successfully installed Steam Streaming Speakers"sv);
 
         // Wait for 5 seconds to allow the audio subsystem to reconfigure things before
         // modifying the default audio device or enumerating devices again.
@@ -1395,21 +1398,21 @@ namespace platf::audio {
         auto err = GetLastError();
         switch (err) {
           case ERROR_ACCESS_DENIED:
-            BOOST_LOG(warning) << "Administrator privileges are required to install Steam Streaming Speakers"sv;
+            logging::warning("Administrator privileges are required to install Steam Streaming Speakers"sv);
             break;
           case ERROR_FILE_NOT_FOUND:
           case ERROR_PATH_NOT_FOUND:
-            BOOST_LOG(info) << "Steam audio drivers not found. This is expected if you don't have Steam installed."sv;
+            logging::info("Steam audio drivers not found. This is expected if you don't have Steam installed."sv);
             break;
           default:
-            BOOST_LOG(warning) << "Failed to install Steam audio drivers: "sv << err;
+            logging::warning("Failed to install Steam audio drivers: {}", err);
             break;
         }
 
         return false;
       }
 #else
-      BOOST_LOG(warning) << "Unable to install Steam Streaming Speakers on unknown architecture"sv;
+      logging::warning("Unable to install Steam Streaming Speakers on unknown architecture"sv);
       return false;
 #endif
     }
@@ -1433,7 +1436,7 @@ namespace platf::audio {
         );
 
         if (FAILED(status)) {
-          BOOST_LOG(error) << "Couldn't create audio policy config: [0x"sv << util::hex(status).to_string_view() << ']';
+          logging::error("Couldn't create audio policy config: [0x{}]", util::hex(status).to_string_view());
 
           return -1;
         }
@@ -1448,7 +1451,7 @@ namespace platf::audio {
       );
 
       if (FAILED(status)) {
-        BOOST_LOG(error) << "Couldn't create Device Enumerator: [0x"sv << util::hex(status).to_string_view() << ']';
+        logging::error("Couldn't create Device Enumerator: [0x{}]", util::hex(status).to_string_view());
         return -1;
       }
 

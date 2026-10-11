@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <format>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <utility>
 
@@ -319,7 +320,7 @@ namespace nvhttp {
         try {
           pt::read_json(settings.nvhttp.file_state, root);
         } catch (std::exception &e) {
-          BOOST_LOG(error) << "Couldn't read "sv << settings.nvhttp.file_state << ": "sv << e.what();
+          logging::error("Couldn't read {}: {}", settings.nvhttp.file_state, e.what());
           return;
         }
       }
@@ -344,7 +345,7 @@ namespace nvhttp {
       try {
         pt::write_json(settings.nvhttp.file_state, root);
       } catch (std::exception &e) {
-        BOOST_LOG(error) << "Couldn't write "sv << settings.nvhttp.file_state << ": "sv << e.what();
+        logging::error("Couldn't write {}: {}", settings.nvhttp.file_state, e.what());
         return;
       }
     }
@@ -374,7 +375,7 @@ namespace nvhttp {
 
         auto certificate = crypto::x509(named_cert.cert);
         if (!certificate) {
-          BOOST_LOG(warning) << "Ignoring invalid paired-client certificate"sv;
+          logging::warning("Ignoring invalid paired-client certificate"sv);
           continue;
         }
 
@@ -423,7 +424,7 @@ namespace nvhttp {
      */
     void load_state() {
       if (!fs::exists(settings.nvhttp.file_state)) {
-        BOOST_LOG(info) << "File "sv << settings.nvhttp.file_state << " doesn't exist"sv;
+        logging::info("File {} doesn't exist", settings.nvhttp.file_state);
         http_state.set_unique_id(uuid_util::uuid_t::generate().string());
         return;
       }
@@ -432,7 +433,7 @@ namespace nvhttp {
       try {
         pt::read_json(settings.nvhttp.file_state, tree);
       } catch (std::exception &e) {
-        BOOST_LOG(error) << "Couldn't read "sv << settings.nvhttp.file_state << ": "sv << e.what();
+        logging::error("Couldn't read {}: {}", settings.nvhttp.file_state, e.what());
 
         return;
       }
@@ -962,22 +963,22 @@ namespace nvhttp {
      */
     template<class T>
     void print_req(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
-      BOOST_LOG(debug) << "TUNNEL :: "sv << (std::is_same_v<T, SunshineHTTPS> ? "HTTPS"sv : "NONE"sv);
+      logging::debug("TUNNEL :: {}", (std::is_same_v<T, SunshineHTTPS> ? "HTTPS"sv : "NONE"sv));
 
-      BOOST_LOG(debug) << "METHOD :: "sv << request->method;
-      BOOST_LOG(debug) << "DESTINATION :: "sv << request->path;
+      logging::debug("METHOD :: {}", request->method);
+      logging::debug("DESTINATION :: {}", request->path);
 
       for (auto &[name, val] : request->header) {
-        BOOST_LOG(debug) << name << " -- " << val;
+        logging::debug("{} -- {}", name, val);
       }
 
-      BOOST_LOG(debug) << " [--] "sv;
+      logging::debug(" [--] "sv);
 
       for (auto &[name, val] : request->parse_query_string()) {
-        BOOST_LOG(debug) << name << " -- " << val;
+        logging::debug("{} -- {}", name, val);
       }
 
-      BOOST_LOG(debug) << " [--] "sv;
+      logging::debug(" [--] "sv);
     }
 
     /**
@@ -1031,7 +1032,7 @@ namespace nvhttp {
       sess.async_insert_pin.device_name = get_arg(args, "devicename");
       sess.async_insert_pin.address = net::addr_to_normalized_string(request->remote_endpoint().address());
 
-      BOOST_LOG(debug) << sess.client.cert;
+      logging::debug("{}", sess.client.cert);
       const bool pin_stdin = settings.sunshine.flags[config::flag::PIN_STDIN];
       if (!pin_stdin) {
         sess.async_insert_pin.response = response;
@@ -1405,7 +1406,7 @@ namespace nvhttp {
         std::ostringstream data;
 
         if (tree.empty()) {
-          BOOST_LOG(error) << EMPTY_PROPERTY_TREE_ERROR_MSG;
+          logging::error(EMPTY_PROPERTY_TREE_ERROR_MSG);
         }
 
         pt::write_xml(data, tree);
@@ -1469,7 +1470,7 @@ namespace nvhttp {
 
       auto encryption_mode = net::encryption_mode_for_address(settings, request->remote_endpoint().address());
       if (!launch_session->rtsp_cipher && encryption_mode == config::ENCRYPTION_MODE_MANDATORY) {
-        BOOST_LOG(error) << "Rejecting client that cannot comply with mandatory encryption requirement"sv;
+        logging::error("Rejecting client that cannot comply with mandatory encryption requirement"sv);
 
         tree.put("root.<xmlattr>.status_code", 403);
         tree.put("root.<xmlattr>.status_message", "Encryption is mandatory for this host but unsupported by the client");
@@ -1522,7 +1523,7 @@ namespace nvhttp {
         std::ostringstream data;
 
         if (tree.empty()) {
-          BOOST_LOG(error) << EMPTY_PROPERTY_TREE_ERROR_MSG;
+          logging::error(EMPTY_PROPERTY_TREE_ERROR_MSG);
         }
 
         pt::write_xml(data, tree);
@@ -1581,7 +1582,7 @@ namespace nvhttp {
 
       auto encryption_mode = net::encryption_mode_for_address(settings, request->remote_endpoint().address());
       if (!launch_session->rtsp_cipher && encryption_mode == config::ENCRYPTION_MODE_MANDATORY) {
-        BOOST_LOG(error) << "Rejecting client that cannot comply with mandatory encryption requirement"sv;
+        logging::error("Rejecting client that cannot comply with mandatory encryption requirement"sv);
 
         tree.put("root.<xmlattr>.status_code", 403);
         tree.put("root.<xmlattr>.status_message", "Encryption is mandatory for this host but unsupported by the client");
@@ -1703,7 +1704,7 @@ namespace nvhttp {
 #endif
         };
         if (!x509) {
-          BOOST_LOG(info) << "unknown -- denied"sv;
+          logging::info("unknown -- denied"sv);
           return 0;
         }
 
@@ -1714,13 +1715,13 @@ namespace nvhttp {
 
           X509_NAME_oneline(X509_get_subject_name(x509.get()), subject_name.data(), subject_name.size());
 
-          BOOST_LOG(debug) << subject_name.data() << " -- "sv << (verified ? "verified"sv : "denied"sv);
+          logging::debug("{} -- {}", subject_name.data(), (verified ? "verified"sv : "denied"sv));
         });
 
         std::lock_guard lock {client_auth_mutex()};
         auto err_str = verify_client_certificate(x509.get());
         if (err_str) {
-          BOOST_LOG(warning) << "SSL Verification error :: "sv << err_str;
+          logging::warning("SSL Verification error :: {}", err_str);
 
           return verified;
         }
@@ -1729,7 +1730,7 @@ namespace nvhttp {
         auto pem = crypto::pem(x509);
         auto [enabled, client_name] = get_client_status(pem);
         if (!enabled) {
-          BOOST_LOG(info) << "Client is disabled -- denied"sv;
+          logging::info("Client is disabled -- denied"sv);
           return verified;
         }
 
@@ -1809,7 +1810,7 @@ namespace nvhttp {
             return;
           }
 
-          BOOST_LOG(fatal) << "Couldn't start http server on ports ["sv << port_https << ", "sv << port_https << "]: "sv << err.what();
+          logging::fatal("Couldn't start http server on ports [{}, {}]: {}", port_https, port_https, err.what());
           shutdown_event->raise(true);
           return;
         }

@@ -76,7 +76,7 @@ namespace platf::virtualhid {
 
     void log_failure(std::string_view operation, const lvh::OperationStatus &status) {
       if (!status.ok()) {
-        BOOST_LOG(warning) << operation << ": "sv << status.message();
+        logging::warning("{}: {}", operation, status.message());
       }
     }
 
@@ -89,16 +89,16 @@ namespace platf::virtualhid {
     void log_virtualhid_message(lvh::LogLevel level, const std::string &message) {
       switch (level) {
         case lvh::LogLevel::debug:
-          BOOST_LOG(debug) << "[libvirtualhid] "sv << message;
+          logging::debug("[libvirtualhid] {}", message);
           break;
         case lvh::LogLevel::info:
-          BOOST_LOG(info) << "[libvirtualhid] "sv << message;
+          logging::info("[libvirtualhid] {}", message);
           break;
         case lvh::LogLevel::warning:
-          BOOST_LOG(warning) << "[libvirtualhid] "sv << message;
+          logging::warning("[libvirtualhid] {}", message);
           break;
         case lvh::LogLevel::error:
-          BOOST_LOG(error) << "[libvirtualhid] "sv << message;
+          logging::error("[libvirtualhid] {}", message);
           break;
       }
     }
@@ -194,27 +194,27 @@ namespace platf::virtualhid {
       }
 
       if (metadata.type == LI_CTYPE_PS) {
-        BOOST_LOG(info) << "Gamepad will be DualSense controller (auto-selected by client-reported type)"sv;
+        logging::info("Gamepad will be DualSense controller (auto-selected by client-reported type)"sv);
         return profile_for_name("ds5"sv);
       }
       if (metadata.type == LI_CTYPE_NINTENDO) {
-        BOOST_LOG(info) << "Gamepad will be Nintendo Switch Pro controller (auto-selected by client-reported type)"sv;
+        logging::info("Gamepad will be Nintendo Switch Pro controller (auto-selected by client-reported type)"sv);
         return profile_for_name("switch"sv);
       }
       if (metadata.type == LI_CTYPE_XBOX) {
-        BOOST_LOG(info) << "Gamepad will be Xbox Series controller (auto-selected by client-reported type)"sv;
+        logging::info("Gamepad will be Xbox Series controller (auto-selected by client-reported type)"sv);
         return profile_for_name("xseries"sv);
       }
       if (settings.input.motion_as_ds4 && (metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO))) {
-        BOOST_LOG(info) << "Gamepad will be DualSense controller (auto-selected by motion sensor presence)"sv;
+        logging::info("Gamepad will be DualSense controller (auto-selected by motion sensor presence)"sv);
         return profile_for_name("ds5"sv);
       }
       if (settings.input.touchpad_as_ds4 && (metadata.capabilities & LI_CCAP_TOUCHPAD)) {
-        BOOST_LOG(info) << "Gamepad will be DualSense controller (auto-selected by touchpad presence)"sv;
+        logging::info("Gamepad will be DualSense controller (auto-selected by touchpad presence)"sv);
         return profile_for_name("ds5"sv);
       }
 
-      BOOST_LOG(info) << "Gamepad will be Xbox Series controller (default)"sv;
+      logging::info("Gamepad will be Xbox Series controller (default)"sv);
       return profile_for_name("xseries"sv);
     }
 
@@ -271,22 +271,22 @@ namespace platf::virtualhid {
 
     void warn_unsupported_client_features(int global_index, const gamepad_arrival_t &metadata, const lvh::GamepadProfileSupport &support) {
       if ((metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO)) && !support.supports_motion) {
-        BOOST_LOG(warning) << "Gamepad "sv << global_index << " has motion sensors, but the selected virtual profile cannot expose them"sv;
+        logging::warning("Gamepad {} has motion sensors, but the selected virtual profile cannot expose them", global_index);
       }
       if ((metadata.capabilities & LI_CCAP_TOUCHPAD) && !support.supports_touchpad) {
-        BOOST_LOG(warning) << "Gamepad "sv << global_index << " has a touchpad, but the selected virtual profile cannot expose it"sv;
+        logging::warning("Gamepad {} has a touchpad, but the selected virtual profile cannot expose it", global_index);
       }
       if ((metadata.capabilities & LI_CCAP_RGB_LED) && !support.supports_rgb_led) {
-        BOOST_LOG(warning) << "Gamepad "sv << global_index << " has an RGB LED, but the selected virtual profile cannot expose it"sv;
+        logging::warning("Gamepad {} has an RGB LED, but the selected virtual profile cannot expose it", global_index);
       }
     }
 
     void warn_missing_client_features(int global_index, const gamepad_arrival_t &metadata, const lvh::GamepadProfileSupport &support) {
       if (support.supports_motion && !(metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO))) {
-        BOOST_LOG(warning) << "Gamepad "sv << global_index << " is emulating a motion-capable controller, but the client gamepad does not have motion sensors active"sv;
+        logging::warning("Gamepad {} is emulating a motion-capable controller, but the client gamepad does not have motion sensors active", global_index);
       }
       if (support.supports_touchpad && !(metadata.capabilities & LI_CCAP_TOUCHPAD)) {
-        BOOST_LOG(warning) << "Gamepad "sv << global_index << " is emulating a touchpad-capable controller, but the client gamepad does not have a touchpad"sv;
+        logging::warning("Gamepad {} is emulating a touchpad-capable controller, but the client gamepad does not have a touchpad", global_index);
       }
     }
 
@@ -347,7 +347,7 @@ namespace platf::virtualhid {
         case BUTTON_X2:
           return extra;
         default:
-          BOOST_LOG(warning) << "Unknown mouse button: "sv << button;
+          logging::warning("Unknown mouse button: {}", button);
           return std::nullopt;
       }
     }
@@ -553,7 +553,7 @@ namespace platf::virtualhid {
       gamepad_driver {settings.input.gamepad_driver},
       runtime {create_runtime(backend)} {
     if (!runtime) {
-      BOOST_LOG(warning) << "Unable to create libvirtualhid runtime"sv;
+      logging::warning("Unable to create libvirtualhid runtime"sv);
       return;
     }
 
@@ -693,7 +693,7 @@ namespace platf::virtualhid {
 
     for (auto &[name, is_enabled, reason_disabled] : gamepads) {
       if (!is_enabled) {
-        BOOST_LOG(warning) << "Gamepad "sv << name << " is disabled due to "sv << reason_disabled;
+        logging::warning("Gamepad {} is disabled due to {}", name, reason_disabled);
       }
     }
 
@@ -730,7 +730,7 @@ namespace platf::virtualhid {
       return -1;
     }
     if (id.globalIndex < 0 || id.globalIndex >= static_cast<int>(context.gamepads.size())) {
-      BOOST_LOG(warning) << "Invalid libvirtualhid gamepad index: "sv << id.globalIndex;
+      logging::warning("Invalid libvirtualhid gamepad index: {}", id.globalIndex);
       return -1;
     }
 
@@ -739,9 +739,9 @@ namespace platf::virtualhid {
     auto profile = selection.profile();
     profile.name = std::format("Sunshine {}", profile.name);
     if (settings.input.gamepad != "auto"sv) {
-      BOOST_LOG(info) << "Gamepad "sv << id.globalIndex << " will be "sv << profile.name << " (manual selection)"sv;
+      logging::info("Gamepad {} will be {} (manual selection)", id.globalIndex, profile.name);
     } else {
-      BOOST_LOG(info) << "Gamepad "sv << id.globalIndex << " will be "sv << profile.name;
+      logging::info("Gamepad {} will be {}", id.globalIndex, profile.name);
     }
 
     lvh::CreateGamepadOptions options;
@@ -854,7 +854,7 @@ namespace platf::virtualhid {
         return !id.has_value();
       });
       if (slot == gamepad->touch_ids.end()) {
-        BOOST_LOG(warning) << "No free libvirtualhid gamepad touch slots"sv;
+        logging::warning("No free libvirtualhid gamepad touch slots"sv);
         return;
       }
       *slot = touch.pointerId;

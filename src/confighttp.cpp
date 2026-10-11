@@ -15,6 +15,7 @@
 #include <fstream>
 #include <new>
 #include <optional>
+#include <sstream>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -535,20 +536,20 @@ namespace confighttp {
    * @param request The HTTP request object.
    */
   void print_req(const req_https_t &request) {
-    BOOST_LOG(debug) << "METHOD :: "sv << request->method;
-    BOOST_LOG(debug) << "DESTINATION :: "sv << request->path;
+    logging::debug("METHOD :: {}", request->method);
+    logging::debug("DESTINATION :: {}", request->path);
 
     for (auto &[name, val] : request->header) {
-      BOOST_LOG(debug) << name << " -- " << (name == "Authorization" ? "CREDENTIALS REDACTED" : val);
+      logging::debug("{} -- {}", name, (name == "Authorization" ? "CREDENTIALS REDACTED" : val));
     }
 
-    BOOST_LOG(debug) << " [--] "sv;
+    logging::debug(" [--] "sv);
 
     for (auto &[name, val] : request->parse_query_string()) {
-      BOOST_LOG(debug) << name << " -- " << val;
+      logging::debug("{} -- {}", name, val);
     }
 
-    BOOST_LOG(debug) << " [--] "sv;
+    logging::debug(" [--] "sv);
   }
 
   /**
@@ -571,7 +572,7 @@ namespace confighttp {
    */
   void send_unauthorized(const resp_https_t &response, const req_https_t &request) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
-    BOOST_LOG(info) << "Web UI: ["sv << address << "] -- not authorized"sv;
+    logging::info("Web UI: [{}] -- not authorized", address);
 
     constexpr auto code = SimpleWeb::StatusCode::client_error_unauthorized;
 
@@ -598,7 +599,7 @@ namespace confighttp {
    */
   void send_redirect(const resp_https_t &response, const req_https_t &request, const char *path) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
-    BOOST_LOG(info) << "Web UI: ["sv << address << "] -- not authorized"sv;
+    logging::info("Web UI: [{}] -- not authorized", address);
     const SimpleWeb::CaseInsensitiveMultimap headers {
       {"Location", path},
       {"X-Frame-Options", "DENY"},
@@ -618,7 +619,7 @@ namespace confighttp {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
 
     if (const auto ip_type = net::from_address(address); ip_type > http_state.origin_web_ui_allowed()) {
-      BOOST_LOG(info) << "Web UI: ["sv << address << "] -- denied"sv;
+      logging::info("Web UI: [{}] -- denied", address);
       response->write(SimpleWeb::StatusCode::client_error_forbidden);
       return false;
     }
@@ -790,7 +791,7 @@ namespace confighttp {
 
     if (token_it == csrf_tokens.end()) {
       auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
-      BOOST_LOG(error) << "Web UI: ["sv << address << "] -- CSRF token validation failed: no token found for client"sv;
+      logging::error("Web UI: [{}] -- CSRF token validation failed: no token found for client", address);
       bad_request(response, request, "Invalid CSRF token");
       return false;
     }
@@ -798,14 +799,14 @@ namespace confighttp {
     if (const auto now = std::chrono::steady_clock::now(); token_it->second.expiration < now) {
       csrf_tokens.erase(token_it);
       auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
-      BOOST_LOG(error) << "Web UI: ["sv << address << "] -- CSRF token validation failed: token expired"sv;
+      logging::error("Web UI: [{}] -- CSRF token validation failed: token expired", address);
       bad_request(response, request, "CSRF token expired");
       return false;
     }
 
     if (token_it->second.token != provided_token) {
       auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
-      BOOST_LOG(error) << "Web UI: ["sv << address << "] -- CSRF token validation failed: token mismatch"sv;
+      logging::error("Web UI: [{}] -- CSRF token validation failed: token mismatch", address);
       bad_request(response, request, "Invalid CSRF token");
       return false;
     }
@@ -862,8 +863,8 @@ namespace confighttp {
       const auto query_it = query_params.find("csrf_token");
       if (query_it == query_params.end()) {
         auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
-        BOOST_LOG(error) << "Web UI: ["sv << address << "] -- CSRF protection blocked request from origin: "sv << blocked_origin;
-        BOOST_LOG(error) << "Web UI: To allow this origin, add it to the 'csrf_allowed_origins' option in your Sunshine configuration"sv;
+        logging::error("Web UI: [{}] -- CSRF protection blocked request from origin: {}", address, blocked_origin);
+        logging::error("Web UI: To allow this origin, add it to the 'csrf_allowed_origins' option in your Sunshine configuration"sv);
         bad_request(response, request, "Missing CSRF token");
         return false;
       }
@@ -995,7 +996,9 @@ namespace confighttp {
 
     // Don't do anything if the file does not exist or is outside the assets directory
     if (!isChildPath(filePath, nodeModulesPath)) {
-      BOOST_LOG(warning) << "Someone requested a path " << filePath << " that is outside the assets folder";
+      logging::warning([&](std::ostream &out) {
+        out << "Someone requested a path " << filePath << " that is outside the assets folder";
+      });
       bad_request(response, request);
       return;
     }
@@ -1100,7 +1103,7 @@ namespace confighttp {
 
       send_response(response, file_tree);
     } catch (std::exception &e) {
-      BOOST_LOG(warning) << "GetApps: "sv << e.what();
+      logging::warning("GetApps: {}", e.what());
       bad_request(response, request, e.what());
     }
   }
@@ -1159,7 +1162,7 @@ namespace confighttp {
       nlohmann::json output_tree;
       nlohmann::json input_tree = nlohmann::json::parse(ss);
       std::string file = file_handler::read_file(settings.stream.file_apps.c_str());
-      BOOST_LOG(info) << file;
+      logging::info(file);
       nlohmann::json file_tree = nlohmann::json::parse(file);
 
       if (input_tree["prep-cmd"].empty()) {
@@ -1200,7 +1203,7 @@ namespace confighttp {
       output_tree["status"] = true;
       send_response(response, output_tree);
     } catch (std::exception &e) {
-      BOOST_LOG(warning) << "SaveApp: "sv << e.what();
+      logging::warning("SaveApp: {}", e.what());
       bad_request(response, request, e.what());
     }
   }
@@ -1277,7 +1280,7 @@ namespace confighttp {
       output_tree["result"] = std::format("application {} deleted", index);
       send_response(response, output_tree);
     } catch (std::exception &e) {
-      BOOST_LOG(warning) << "DeleteApp: "sv << e.what();
+      logging::warning("DeleteApp: {}", e.what());
       bad_request(response, request, e.what());
     }
   }
@@ -1354,7 +1357,7 @@ namespace confighttp {
 
       send_response(response, output_tree);
     } catch (nlohmann::json::exception &e) {
-      BOOST_LOG(warning) << "Update Client: "sv << e.what();
+      logging::warning("Update Client: {}", e.what());
       bad_request(response, request, e.what());
     }
   }
@@ -1404,7 +1407,7 @@ namespace confighttp {
 
       send_response(response, output_tree);
     } catch (std::exception &e) {
-      BOOST_LOG(warning) << "Unpair: "sv << e.what();
+      logging::warning("Unpair: {}", e.what());
       bad_request(response, request, e.what());
     }
   }
@@ -1532,7 +1535,7 @@ namespace confighttp {
       output_tree["status"] = true;
       send_response(response, output_tree);
     } catch (std::exception &e) {
-      BOOST_LOG(warning) << "SaveConfig: "sv << e.what();
+      logging::warning("SaveConfig: {}", e.what());
       bad_request(response, request, e.what());
     }
   }
@@ -1577,7 +1580,7 @@ namespace confighttp {
 
       // Check if we got the default image path (means validation failed or no image configured)
       if (validated_path == DEFAULT_APP_IMAGE_PATH) {
-        BOOST_LOG(debug) << "Application at index " << index << " does not have a valid cover image";
+        logging::debug("Application at index {} does not have a valid cover image", index);
         not_found(response, request, "Cover image not found");
         return;
       }
@@ -1585,7 +1588,9 @@ namespace confighttp {
       // Open and stream the validated file
       std::ifstream in(validated_path, std::ios::binary);
       if (!in) {
-        BOOST_LOG(warning) << "Unable to read cover image file: " << validated_path;
+        logging::warning([&](std::ostream &out) {
+          out << "Unable to read cover image file: " << validated_path;
+        });
         bad_request(response, request, "Unable to read cover image file");
         return;
       }
@@ -1597,7 +1602,7 @@ namespace confighttp {
 
       response->write(SimpleWeb::StatusCode::success_ok, in, headers);
     } catch (std::exception &e) {
-      BOOST_LOG(warning) << "GetCover: "sv << e.what();
+      logging::warning("GetCover: {}", e.what());
       bad_request(response, request, e.what());
     }
   }
@@ -1660,7 +1665,7 @@ namespace confighttp {
       output_tree["path"] = path;
       send_response(response, output_tree);
     } catch (std::exception &e) {
-      BOOST_LOG(warning) << "UploadCover: "sv << e.what();
+      logging::warning("UploadCover: {}", e.what());
       bad_request(response, request, e.what());
     }
   }
@@ -1764,7 +1769,7 @@ namespace confighttp {
 
       send_response(response, output_tree);
     } catch (std::exception &e) {
-      BOOST_LOG(warning) << "SavePassword: "sv << e.what();
+      logging::warning("SavePassword: {}", e.what());
       bad_request(response, request, e.what());
     }
   }
@@ -1833,7 +1838,7 @@ namespace confighttp {
       output_tree["status"] = gamestream.cancel_pairing(pairing_id);
       send_response(response, output_tree);
     } catch (nlohmann::json::exception &e) {
-      BOOST_LOG(warning) << "CancelPairing: "sv << e.what();
+      logging::warning("CancelPairing: {}", e.what());
       bad_request(response, request, e.what());
     }
   }
@@ -1894,7 +1899,7 @@ namespace confighttp {
       output_tree["status"] = gamestream.pin(pairing_id, pin, name);
       send_response(response, output_tree);
     } catch (std::exception &e) {
-      BOOST_LOG(warning) << "SavePin: "sv << e.what();
+      logging::warning("SavePin: {}", e.what());
       bad_request(response, request, e.what());
     }
   }
@@ -1949,7 +1954,9 @@ namespace confighttp {
     std::error_code ec;
     fs::remove(portal_token_path_provider()(), ec);
     if (ec) {
-      BOOST_LOG(error) << "Failed to delete XDG Portal restore token: "sv << ec.message();
+      logging::error([&](std::ostream &out) {
+        out << "Failed to delete XDG Portal restore token: "sv << ec.message();
+      });
       status = false;
     }
 #endif
@@ -2304,12 +2311,14 @@ namespace confighttp {
         file_entry["type"] = is_dir ? "directory" : "file";
         entries.push_back(file_entry);
       } catch (const fs::filesystem_error &e) {
-        BOOST_LOG(debug) << "BrowseDirectory: skipping entry due to error: "sv << e.what();
+        logging::debug("BrowseDirectory: skipping entry due to error: {}", e.what());
       }
     }
 
     if (iter_ec) {
-      BOOST_LOG(debug) << "BrowseDirectory: directory iteration error: "sv << iter_ec.message();
+      logging::debug([&](std::ostream &out) {
+        out << "BrowseDirectory: directory iteration error: "sv << iter_ec.message();
+      });
     }
 
     // Sort: directories first, then files; both case-insensitively alphabetical
@@ -2408,7 +2417,7 @@ namespace confighttp {
       output_tree["entries"] = build_browse_entries(dir_path, type_str);
       send_response(response, output_tree);
     } catch (const fs::filesystem_error &e) {
-      BOOST_LOG(warning) << "BrowseDirectory: "sv << e.what();
+      logging::warning("BrowseDirectory: {}", e.what());
       bad_request(response, request, e.what());
     }
   }
@@ -2516,7 +2525,7 @@ namespace confighttp {
       try {
         platf::set_thread_name("confighttp::tcp");
         server->start([&display_addr](const unsigned short port) {
-          BOOST_LOG(info) << "Configuration UI available at [https://"sv << display_addr << ":" << port << "]";
+          logging::info("Configuration UI available at [https://{}:{}]", display_addr, port);
         });
       } catch (boost::system::system_error &err) {
         // It's possible the exception gets thrown after calling server->stop() from a different thread
@@ -2524,7 +2533,7 @@ namespace confighttp {
           return;
         }
 
-        BOOST_LOG(fatal) << "Couldn't start Configuration HTTPS server on port ["sv << port_https << "]: "sv << err.what();
+        logging::fatal("Couldn't start Configuration HTTPS server on port [{}]: {}", port_https, err.what());
         shutdown_event->raise(true);
         return;
       }

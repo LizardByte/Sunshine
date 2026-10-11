@@ -8,6 +8,7 @@
 // local includes
 #include "src/config.h"
 #include "src/logging.h"
+#include "src/platform/windows/utf_utils.h"
 
 namespace nvprefs {
 
@@ -15,28 +16,32 @@ namespace nvprefs {
    * @brief Forward an informational NVPrefs message to the logger.
    */
   void info_message(const std::wstring &message) {
-    BOOST_LOG(info) << "nvprefs: " << message;
+    logging::info([&](std::ostream &out) {
+      out << "nvprefs: " << utf_utils::to_utf8(message);
+    });
   }
 
   /**
    * @brief Forward an informational NVPrefs message to the logger.
    */
   void info_message(const std::string &message) {
-    BOOST_LOG(info) << "nvprefs: " << message;
+    logging::info("nvprefs: {}", message);
   }
 
   /**
    * @brief Forward an NVPrefs error message to the logger.
    */
   void error_message(const std::wstring &message) {
-    BOOST_LOG(error) << "nvprefs: " << message;
+    logging::error([&](std::ostream &out) {
+      out << "nvprefs: " << utf_utils::to_utf8(message);
+    });
   }
 
   /**
    * @brief Forward an NVPrefs error message to the logger.
    */
   void error_message(const std::string &message) {
-    BOOST_LOG(error) << "nvprefs: " << message;
+    logging::error("nvprefs: {}", message);
   }
 
   /**

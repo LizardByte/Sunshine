@@ -201,7 +201,7 @@ namespace platf::dxgi {
         blend_cursor_color(cursor, img, true);
         break;
       default:
-        BOOST_LOG(warning) << "Unsupported cursor format ["sv << cursor.shape_info.Type << ']';
+        logging::warning("Unsupported cursor format [{}]", cursor.shape_info.Type);
     }
   }
 
@@ -239,7 +239,7 @@ namespace platf::dxgi {
       UINT dummy;
       status = dup.dup->GetFramePointerShape(img_data.size(), img_data.data(), &dummy, &cursor.shape_info);
       if (FAILED(status)) {
-        BOOST_LOG(error) << "Failed to get new pointer shape [0x"sv << util::hex(status).to_string_view() << ']';
+        logging::error("Failed to get new pointer shape [0x{}]", util::hex(status).to_string_view());
 
         return capture_e::error;
       }
@@ -257,7 +257,7 @@ namespace platf::dxgi {
         status = res->QueryInterface(IID_ID3D11Texture2D, (void **) &src);
 
         if (FAILED(status)) {
-          BOOST_LOG(error) << "Couldn't query interface [0x"sv << util::hex(status).to_string_view() << ']';
+          logging::error("Couldn't query interface [0x{}]", util::hex(status).to_string_view());
           return capture_e::error;
         }
 
@@ -267,7 +267,7 @@ namespace platf::dxgi {
         // If we don't know the capture format yet, grab it from this texture and create the staging texture
         if (capture_format == DXGI_FORMAT_UNKNOWN) {
           capture_format = desc.Format;
-          BOOST_LOG(info) << "Capture format ["sv << dxgi_format_to_string(capture_format) << ']';
+          logging::info("Capture format [{}]", dxgi_format_to_string(capture_format));
 
           D3D11_TEXTURE2D_DESC t {};
           t.Width = width;
@@ -282,7 +282,7 @@ namespace platf::dxgi {
           auto status = device->CreateTexture2D(&t, nullptr, &texture);
 
           if (FAILED(status)) {
-            BOOST_LOG(error) << "Failed to create staging texture [0x"sv << util::hex(status).to_string_view() << ']';
+            logging::error("Failed to create staging texture [0x{}]", util::hex(status).to_string_view());
             return capture_e::error;
           }
         }
@@ -290,14 +290,14 @@ namespace platf::dxgi {
         // It's possible for our display enumeration to race with mode changes and result in
         // mismatched image pool and desktop texture sizes. If this happens, just reinit again.
         if (desc.Width != width || desc.Height != height) {
-          BOOST_LOG(info) << "Capture size changed ["sv << width << 'x' << height << " -> "sv << desc.Width << 'x' << desc.Height << ']';
+          logging::info("Capture size changed [{}x{} -> {}x{}]", width, height, desc.Width, desc.Height);
           return capture_e::reinit;
         }
 
         // It's also possible for the capture format to change on the fly. If that happens,
         // reinitialize capture to try format detection again and create new images.
         if (capture_format != desc.Format) {
-          BOOST_LOG(info) << "Capture format changed ["sv << dxgi_format_to_string(capture_format) << " -> "sv << dxgi_format_to_string(desc.Format) << ']';
+          logging::info("Capture format changed [{} -> {}]", dxgi_format_to_string(capture_format), dxgi_format_to_string(desc.Format));
           return capture_e::reinit;
         }
 
@@ -313,7 +313,7 @@ namespace platf::dxgi {
 
     // If we don't know the final capture format yet, encode a dummy image
     if (capture_format == DXGI_FORMAT_UNKNOWN) {
-      BOOST_LOG(debug) << "Capture format is still unknown. Encoding a blank image"sv;
+      logging::debug("Capture format is still unknown. Encoding a blank image"sv);
 
       if (dummy_img(img)) {
         return capture_e::error;
@@ -322,7 +322,7 @@ namespace platf::dxgi {
       // Map the staging texture for CPU access (making it inaccessible for the GPU)
       status = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &img_info);
       if (FAILED(status)) {
-        BOOST_LOG(error) << "Failed to map texture [0x"sv << util::hex(status).to_string_view() << ']';
+        logging::error("Failed to map texture [0x{}]", util::hex(status).to_string_view());
 
         return capture_e::error;
       }
@@ -369,7 +369,7 @@ namespace platf::dxgi {
   int display_ram_t::complete_img(platf::img_t *img, bool dummy) {
     // If this is not a dummy image, we must know the format by now
     if (!dummy && capture_format == DXGI_FORMAT_UNKNOWN) {
-      BOOST_LOG(error) << "display_ram_t::complete_img() called with unknown capture format!";
+      logging::error("display_ram_t::complete_img() called with unknown capture format!");
       return -1;
     }
 

@@ -183,9 +183,7 @@ namespace audio {
     opus_multistream_encoder_ctl(opus.get(), OPUS_SET_BITRATE(stream.bitrate));
     opus_multistream_encoder_ctl(opus.get(), OPUS_SET_VBR(0));
 
-    BOOST_LOG(info) << "Opus initialized: "sv << stream.sampleRate / 1000 << " kHz, "sv
-                    << stream.channelCount << " channels, "sv
-                    << stream.bitrate / 1000 << " kbps (total), LOWDELAY"sv;
+    logging::info("Opus initialized: {} kHz, {} channels, {} kbps (total), LOWDELAY", stream.sampleRate / 1000, stream.channelCount, stream.bitrate / 1000);
 
     auto frame_size = config.packetDuration * stream.sampleRate / 1000;
     while (auto sample = samples->pop()) {
@@ -193,7 +191,9 @@ namespace audio {
 
       int bytes = opus_multistream_encode_float(opus.get(), sample->data(), frame_size, std::begin(packet), (opus_int32) packet.size());
       if (bytes < 0) {
-        BOOST_LOG(error) << "Couldn't encode audio: "sv << opus_strerror(bytes);
+        logging::error([&](std::ostream &out) {
+          out << "Couldn't encode audio: "sv << opus_strerror(bytes);
+        });
         packets->stop();
 
         return;
@@ -226,7 +226,7 @@ namespace audio {
     }
 
     auto init_failure_fg = util::fail_guard([&shutdown_event]() {
-      BOOST_LOG(error) << "Unable to initialize audio capture. The stream will not have audio."sv;
+      logging::error("Unable to initialize audio capture. The stream will not have audio."sv);
 
       // Wait for shutdown to be signalled if we fail init.
       // This allows streaming to continue without audio.
@@ -311,12 +311,12 @@ namespace audio {
         case platf::capture_e::timeout:
           continue;
         case platf::capture_e::reinit:
-          BOOST_LOG(info) << "Reinitializing audio capture"sv;
+          logging::info("Reinitializing audio capture"sv);
           mic.reset();
           do {
             mic = control->microphone(stream.mapping, stream.channelCount, stream.sampleRate, frame_size, continuous_audio, host_audio);
             if (!mic) {
-              BOOST_LOG(warning) << "Couldn't re-initialize audio input"sv;
+              logging::warning("Couldn't re-initialize audio input"sv);
             }
           } while (!mic && !shutdown_event->view(5s));
           continue;
@@ -376,7 +376,7 @@ namespace audio {
   int start_audio_control(audio_ctx_t &ctx, const config::settings_t &settings, const std::function<std::unique_ptr<platf::audio_control_t>()> &factory) {
     ctx.fallback_sink = settings.audio.sink;
     auto fg = util::fail_guard([]() {
-      BOOST_LOG(warning) << "There will be no audio"sv;
+      logging::warning("There will be no audio"sv);
     });
 
     ctx.sink_flag = std::make_unique<std::atomic_bool>(false);

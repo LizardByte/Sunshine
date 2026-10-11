@@ -126,14 +126,14 @@ TEST_P(ExternalCommandTest, RunExternalCommand) {
   // Use the xfail condition and reason from test data
   XFAIL_IF(xfail_condition, xfail_reason);
 
-  BOOST_LOG(info) << "Running external command test: " << description;
-  BOOST_LOG(debug) << "Command: " << command;
+  logging::info("Running external command test: {}", description);
+  logging::debug("Command: {}", command);
 
   auto [exit_code, output] = runCommand(command, working_directory);
 
-  BOOST_LOG(debug) << "Command exit code: " << exit_code;
+  logging::debug("Command exit code: {}", exit_code);
   if (!output.empty()) {
-    BOOST_LOG(debug) << "Command output: " << output;
+    logging::debug("Command output: {}", output);
   }
 
   if (should_succeed) {

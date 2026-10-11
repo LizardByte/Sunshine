@@ -64,13 +64,13 @@ namespace wl {
 
     drm_fd = accessors.open_render_node(render_path.c_str());
     if (drm_fd < 0) {
-      BOOST_LOG(error) << "[wayland] Failed to open DRM render node: "sv << render_path;
+      logging::error("[wayland] Failed to open DRM render node: {}", render_path);
       return false;
     }
 
     device = accessors.create_device(drm_fd);
     if (!device) {
-      BOOST_LOG(error) << "[wayland] Failed to create GBM device"sv;
+      logging::error("[wayland] Failed to create GBM device"sv);
       reset();
       return false;
     }
@@ -118,17 +118,17 @@ namespace wl {
     }
 
     if (!display_name) {
-      BOOST_LOG(error) << "[wayland] Environment variable WAYLAND_DISPLAY has not been defined"sv;
+      logging::error("[wayland] Environment variable WAYLAND_DISPLAY has not been defined"sv);
       return -1;
     }
 
     display_internal.reset(wl_display_connect(display_name));
     if (!display_internal) {
-      BOOST_LOG(error) << "[wayland] Couldn't connect to Wayland display: "sv << display_name;
+      logging::error("[wayland] Couldn't connect to Wayland display: {}", display_name);
       return -1;
     }
 
-    BOOST_LOG(info) << "[wayland] Found display ["sv << display_name << ']';
+    logging::info("[wayland] Found display [{}]", display_name);
 
     return 0;
   }
@@ -191,26 +191,26 @@ namespace wl {
   inline void monitor_t::xdg_name(zxdg_output_v1 *, const char *name) {
     this->name = name;
 
-    BOOST_LOG(info) << "[wayland] Name: "sv << this->name;
+    logging::info("[wayland] Name: {}", this->name);
   }
 
   void monitor_t::xdg_description(zxdg_output_v1 *, const char *description) {
     this->description = description;
 
-    BOOST_LOG(info) << "[wayland] Found monitor: "sv << this->description;
+    logging::info("[wayland] Found monitor: {}", this->description);
   }
 
   void monitor_t::xdg_position(zxdg_output_v1 *, std::int32_t x, std::int32_t y) {
     viewport.offset_x = x;
     viewport.offset_y = y;
 
-    BOOST_LOG(info) << "[wayland] Offset: "sv << x << 'x' << y;
+    logging::info("[wayland] Offset: {}x{}", x, y);
   }
 
   void monitor_t::xdg_size(zxdg_output_v1 *, std::int32_t width, std::int32_t height) {
     viewport.logical_width = width;
     viewport.logical_height = height;
-    BOOST_LOG(info) << "[wayland] Logical size: "sv << width << 'x' << height;
+    logging::info("[wayland] Logical size: {}x{}", width, height);
   }
 
   void monitor_t::wl_mode(
@@ -220,7 +220,7 @@ namespace wl {
     std::int32_t height,
     std::int32_t refresh
   ) {
-    BOOST_LOG(info) << "[wayland] Resolution: "sv << width << 'x' << height;
+    logging::info("[wayland] Resolution: {}x{}", width, height);
 
     if (!(flags & WL_OUTPUT_MODE_CURRENT)) {
       return;
@@ -272,28 +272,28 @@ namespace wl {
     const char *interface,
     std::uint32_t version
   ) {
-    BOOST_LOG(debug) << "[wayland] Available interface: "sv << interface << '(' << id << ") version "sv << version;
+    logging::debug("[wayland] Available interface: {}({}) version {}", interface, id, version);
 
     if (!std::strcmp(interface, wl_output_interface.name)) {
-      BOOST_LOG(info) << "[wayland] Found interface: "sv << interface << '(' << id << ") version "sv << version;
+      logging::info("[wayland] Found interface: {}({}) version {}", interface, id, version);
       monitors.emplace_back(
         std::make_unique<monitor_t>(
           (wl_output *) wl_registry_bind(registry, id, &wl_output_interface, 2)
         )
       );
     } else if (!std::strcmp(interface, zxdg_output_manager_v1_interface.name)) {
-      BOOST_LOG(info) << "[wayland] Found interface: "sv << interface << '(' << id << ") version "sv << version;
+      logging::info("[wayland] Found interface: {}({}) version {}", interface, id, version);
       output_manager = (zxdg_output_manager_v1 *) wl_registry_bind(registry, id, &zxdg_output_manager_v1_interface, version);
 
       this->interface[XDG_OUTPUT] = true;
     } else if (!std::strcmp(interface, zwlr_screencopy_manager_v1_interface.name)) {
-      BOOST_LOG(info) << "[wayland] Found interface: "sv << interface << '(' << id << ") version "sv << version;
+      logging::info("[wayland] Found interface: {}({}) version {}", interface, id, version);
       screencopy_manager = (zwlr_screencopy_manager_v1 *) wl_registry_bind(registry, id, &zwlr_screencopy_manager_v1_interface, version);
       screencopy_version = version;
 
       this->interface[WLR_EXPORT_DMABUF] = true;
     } else if (!std::strcmp(interface, zwp_linux_dmabuf_v1_interface.name)) {
-      BOOST_LOG(info) << "[wayland] Found interface: "sv << interface << '(' << id << ") version "sv << version;
+      logging::info("[wayland] Found interface: {}({}) version {}", interface, id, version);
       dmabuf_interface = (zwp_linux_dmabuf_v1 *) wl_registry_bind(registry, id, &zwp_linux_dmabuf_v1_interface, std::min(version, 3u));
       zwp_linux_dmabuf_v1_add_listener(dmabuf_interface, &dmabuf_listener, this);
 
@@ -302,7 +302,7 @@ namespace wl {
   }
 
   void interface_t::del_interface(wl_registry *registry, uint32_t id) {
-    BOOST_LOG(info) << "[wayland] Delete: "sv << id;
+    logging::info("[wayland] Delete: {}", id);
   }
 
   // Initialize GBM
@@ -349,8 +349,10 @@ namespace wl {
       }
 
       if (!common.empty()) {
-        BOOST_LOG(debug) << "[wayland] Format 0x"sv << std::hex << format << std::dec
-                         << " has "sv << common.size() << " common modifiers"sv;
+        logging::debug([&](std::ostream &out) {
+          out << "[wayland] Format 0x"sv << std::hex << format << std::dec
+              << " has "sv << common.size() << " common modifiers"sv;
+        });
         result[format] = std::move(common);
       }
     }
@@ -447,7 +449,7 @@ namespace wl {
   // Flags callback
   void dmabuf_t::flags(zwlr_screencopy_frame_v1 *frame, std::uint32_t flags) {
     y_invert = flags & ZWLR_SCREENCOPY_FRAME_V1_FLAGS_Y_INVERT;
-    BOOST_LOG(verbose) << "Frame flags: "sv << flags << (y_invert ? " (y_invert)" : "");
+    logging::verbose("Frame flags: {}{}", flags, (y_invert ? " (y_invert)" : ""));
   }
 
   std::optional<std::uint32_t> export_gbm_bo_planes(gbm_bo *bo, frame_t &frame, const gbm_bo_accessors_t &accessors) {
@@ -455,7 +457,7 @@ namespace wl {
 
     const auto plane_count = accessors.get_plane_count(bo);
     if (plane_count <= 0 || plane_count > static_cast<int>(std::size(frame.sd.fds))) {
-      BOOST_LOG(error) << "[wayland] GBM buffer has unsupported plane count ["sv << plane_count << ']';
+      logging::error("[wayland] GBM buffer has unsupported plane count [{}]", plane_count);
       return std::nullopt;
     }
 
@@ -463,7 +465,7 @@ namespace wl {
     for (auto plane = 0; plane < plane_count; ++plane) {
       frame.sd.fds[plane] = accessors.get_fd_for_plane(bo, plane);
       if (frame.sd.fds[plane] < 0) {
-        BOOST_LOG(error) << "[wayland] Failed to export DMA-BUF plane ["sv << plane << ']';
+        logging::error("[wayland] Failed to export DMA-BUF plane [{}]", plane);
         frame.destroy();
         return std::nullopt;
       }
@@ -478,7 +480,7 @@ namespace wl {
   // DMA-BUF creation helper
   void dmabuf_t::create_and_copy_dmabuf(zwlr_screencopy_frame_v1 *frame) {
     if (!init_gbm()) {
-      BOOST_LOG(error) << "Failed to initialize GBM"sv;
+      logging::error("Failed to initialize GBM"sv);
       zwlr_screencopy_frame_v1_destroy(frame);
       status = REINIT;
       return;
@@ -498,7 +500,7 @@ namespace wl {
     }
 
     if (!current_bo) {
-      BOOST_LOG(error) << "Failed to create GBM buffer"sv;
+      logging::error("Failed to create GBM buffer"sv);
       zwlr_screencopy_frame_v1_destroy(frame);
       status = REINIT;
       return;
@@ -551,11 +553,11 @@ namespace wl {
       create_and_copy_dmabuf(frame);
     } else if (shm_info.supported) {
       // SHM fallback would go here
-      BOOST_LOG(warning) << "[wayland] SHM capture not implemented"sv;
+      logging::warning("[wayland] SHM capture not implemented"sv);
       zwlr_screencopy_frame_v1_destroy(frame);
       status = REINIT;
     } else {
-      BOOST_LOG(error) << "[wayland] No supported buffer types"sv;
+      logging::error("[wayland] No supported buffer types"sv);
       zwlr_screencopy_frame_v1_destroy(frame);
       status = REINIT;
     }
@@ -591,7 +593,7 @@ namespace wl {
     auto frame = static_cast<zwlr_screencopy_frame_v1 *>(data);
     auto self = static_cast<dmabuf_t *>(zwlr_screencopy_frame_v1_get_user_data(frame));
 
-    BOOST_LOG(error) << "[wayland] Failed to create buffer from params"sv;
+    logging::error("[wayland] Failed to create buffer from params"sv);
     self->cleanup_gbm();
     self->get_next_frame()->destroy();
 
@@ -632,7 +634,7 @@ namespace wl {
 
   // Failed callback
   void dmabuf_t::failed(zwlr_screencopy_frame_v1 *frame) {
-    BOOST_LOG(error) << "[wayland] Frame capture failed"sv;
+    logging::error("[wayland] Frame capture failed"sv);
 
     // Clean up resources
     cleanup_gbm();
@@ -700,7 +702,7 @@ namespace wl {
     display.roundtrip();
 
     if (!interface[interface_t::XDG_OUTPUT]) {
-      BOOST_LOG(error) << "[wayland] Missing Wayland wire XDG_OUTPUT"sv;
+      logging::error("[wayland] Missing Wayland wire XDG_OUTPUT"sv);
       return {};
     }
 

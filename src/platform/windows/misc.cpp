@@ -259,7 +259,7 @@ namespace platf {
         }
       }
     }
-    BOOST_LOG(warning) << "Unable to find MAC address for "sv << address;
+    logging::warning("Unable to find MAC address for {}", address);
     return "00:00:00:00:00:00"s;
   }
 
@@ -271,14 +271,14 @@ namespace platf {
     auto hDesk = OpenInputDesktop(DF_ALLOWOTHERACCOUNTHOOK, FALSE, GENERIC_ALL);
     if (!hDesk) {
       auto err = GetLastError();
-      BOOST_LOG(error) << "Failed to Open Input Desktop [0x"sv << util::hex(err).to_string_view() << ']';
+      logging::error("Failed to Open Input Desktop [0x{}]", util::hex(err).to_string_view());
 
       return nullptr;
     }
 
     if (!SetThreadDesktop(hDesk)) {
       auto err = GetLastError();
-      BOOST_LOG(error) << "Failed to sync desktop to thread [0x"sv << util::hex(err).to_string_view() << ']';
+      logging::error("Failed to sync desktop to thread [0x{}]", util::hex(err).to_string_view());
     }
 
     CloseDesktop(hDesk);
@@ -294,7 +294,7 @@ namespace platf {
 
     DWORD bytes = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, status, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), err_string.data(), err_string.size(), nullptr);
 
-    BOOST_LOG(error) << prefix << ": "sv << std::string_view {err_string.data(), bytes};
+    logging::error("{}: {}", prefix, std::string_view {err_string.data(), bytes});
   }
 
   /**
@@ -323,11 +323,15 @@ namespace platf {
     if (ret) {
       if (!CheckTokenMembership(user_token, AdministratorsGroup, &ret)) {
         ret = false;
-        BOOST_LOG(error) << "Failed to verify token membership for administrative access: " << GetLastError();
+        logging::error([&](std::ostream &out) {
+          out << "Failed to verify token membership for administrative access: " << GetLastError();
+        });
       }
       FreeSid(AdministratorsGroup);
     } else {
-      BOOST_LOG(error) << "Unable to allocate SID to check administrative access: " << GetLastError();
+      logging::error([&](std::ostream &out) {
+        out << "Unable to allocate SID to check administrative access: " << GetLastError();
+      });
     }
 
     return ret;
@@ -349,13 +353,13 @@ namespace platf {
     consoleSessionId = WTSGetActiveConsoleSessionId();
     if (0xFFFFFFFF == consoleSessionId) {
       // If there is no active console session, log a warning and return null
-      BOOST_LOG(warning) << "There isn't an active user session, therefore it is not possible to execute commands under the users profile.";
+      logging::warning("There isn't an active user session, therefore it is not possible to execute commands under the users profile.");
       return nullptr;
     }
 
     // Get the user token for the active console session
     if (!WTSQueryUserToken(consoleSessionId, &userToken)) {
-      BOOST_LOG(debug) << "QueryUserToken failed, this would prevent commands from launching under the users profile.";
+      logging::debug("QueryUserToken failed, this would prevent commands from launching under the users profile.");
       return nullptr;
     }
 
@@ -365,7 +369,9 @@ namespace platf {
     // Elevation - Limited: User is an admin, has UAC enabled.
     // Elevation - Full:    User is an admin, has UAC disabled.
     if (!GetTokenInformation(userToken, TokenElevationType, &elevationType, sizeof(TOKEN_ELEVATION_TYPE), &dwSize)) {
-      BOOST_LOG(debug) << "Retrieving token information failed: " << GetLastError();
+      logging::debug([&](std::ostream &out) {
+        out << "Retrieving token information failed: " << GetLastError();
+      });
       CloseHandle(userToken);
       return nullptr;
     }
@@ -374,8 +380,7 @@ namespace platf {
     // The documentation for this scenario is conflicting, so we'll double check to see if user is actually an admin.
     if (elevated && (elevationType == TokenElevationTypeDefault && !IsUserAdmin(userToken))) {
       // We don't have to strip the token or do anything here, but let's give the user a warning so they're aware what is happening.
-      BOOST_LOG(warning) << "This command requires elevation and the current user account logged in does not have administrator rights. "
-                         << "For security reasons Sunshine will retain the same access level as the current user and will not elevate it.";
+      logging::warning("This command requires elevation and the current user account logged in does not have administrator rights. For security reasons Sunshine will retain the same access level as the current user and will not elevate it.");
     }
 
     // User has a limited token, this means they have UAC enabled and is an Administrator
@@ -384,7 +389,9 @@ namespace platf {
       // Retrieve the administrator token that is linked to the limited token
       if (!GetTokenInformation(userToken, TokenLinkedToken, reinterpret_cast<void *>(&linkedToken), sizeof(TOKEN_LINKED_TOKEN), &dwSize)) {
         // If the retrieval failed, log an error message and return null
-        BOOST_LOG(error) << "Retrieving linked token information failed: " << GetLastError();
+        logging::error([&](std::ostream &out) {
+          out << "Retrieving linked token information failed: " << GetLastError();
+        });
         CloseHandle(userToken);
 
         // There is no scenario where this should be hit, except for an actual error.
@@ -455,7 +462,9 @@ namespace platf {
     // Allocate memory for the SID structure
     SystemSid = LocalAlloc(LMEM_FIXED, dwSize);
     if (SystemSid == nullptr) {
-      BOOST_LOG(error) << "Failed to allocate memory for the SID structure: " << GetLastError();
+      logging::error([&](std::ostream &out) {
+        out << "Failed to allocate memory for the SID structure: " << GetLastError();
+      });
       return false;
     }
 
@@ -464,11 +473,15 @@ namespace platf {
     if (ret) {
       // Check if the current process token contains this SID
       if (!CheckTokenMembership(nullptr, SystemSid, &ret)) {
-        BOOST_LOG(error) << "Failed to check token membership: " << GetLastError();
+        logging::error([&](std::ostream &out) {
+          out << "Failed to check token membership: " << GetLastError();
+        });
         ret = false;
       }
     } else {
-      BOOST_LOG(error) << "Failed to create a SID for the local system account. This may happen if the system is out of memory or if the SID buffer is too small: " << GetLastError();
+      logging::error([&](std::ostream &out) {
+        out << "Failed to create a SID for the local system account. This may happen if the system is out of memory or if the SID buffer is too small: " << GetLastError();
+      });
     }
 
     // Free the memory allocated for the SID structure
@@ -585,11 +598,11 @@ namespace platf {
     if (process_launched) {
       // If the launch was successful, create a new bp::child object representing the new process
       auto child = bp::child((bp::pid_t) process_info.dwProcessId);
-      BOOST_LOG(info) << cmd << " running with PID "sv << child.id();
+      logging::info("{} running with PID {}", cmd, child.id());
       return child;
     } else {
       auto winerror = GetLastError();
-      BOOST_LOG(error) << "Failed to launch process: "sv << winerror;
+      logging::error("Failed to launch process: {}", winerror);
       ec = std::make_error_code(std::errc::invalid_argument);
       // We must NOT attach the failed process here, since this case can potentially be induced by ACL
       // manipulation (denying yourself execute permission) to cause an escalation of privilege.
@@ -613,7 +626,7 @@ namespace platf {
     if (!ImpersonateLoggedOnUser(user_token)) {
       auto winerror = GetLastError();
       // Log the failure of impersonating the user and its error code
-      BOOST_LOG(error) << "Failed to impersonate user: "sv << winerror;
+      logging::error("Failed to impersonate user: {}", winerror);
       ec = std::make_error_code(std::errc::permission_denied);
       return ec;
     }
@@ -627,7 +640,7 @@ namespace platf {
     if (!RevertToSelf()) {
       auto winerror = GetLastError();
       // Log the failure of reverting to self and its error code
-      BOOST_LOG(fatal) << "Failed to revert to self after impersonation: "sv << winerror;
+      logging::fatal("Failed to revert to self after impersonation: {}", winerror);
       DebugBreak();
     }
 
@@ -693,7 +706,7 @@ namespace platf {
     if (token) {
       auto err = RegOpenUserClassesRoot(token, 0, GENERIC_ALL, &user_classes_root);
       if (err != ERROR_SUCCESS) {
-        BOOST_LOG(error) << "Failed to open classes root for target user: "sv << err;
+        logging::error("Failed to open classes root for target user: {}", err);
         return false;
       }
     }
@@ -709,7 +722,7 @@ namespace platf {
         // RegOpenCurrentUser() doesn't take a token. It assumes we're impersonating the desired user.
         auto err = RegOpenCurrentUser(GENERIC_ALL, &user_key);
         if (err != ERROR_SUCCESS) {
-          BOOST_LOG(error) << "Failed to open user key for target user: "sv << err;
+          logging::error("Failed to open user key for target user: {}", err);
           user_key = nullptr;
         }
       });
@@ -725,13 +738,13 @@ namespace platf {
 
     auto err = RegOverridePredefKey(HKEY_CLASSES_ROOT, user_classes_root);
     if (err != ERROR_SUCCESS) {
-      BOOST_LOG(error) << "Failed to override HKEY_CLASSES_ROOT: "sv << err;
+      logging::error("Failed to override HKEY_CLASSES_ROOT: {}", err);
       return false;
     }
 
     err = RegOverridePredefKey(HKEY_CURRENT_USER, user_key);
     if (err != ERROR_SUCCESS) {
-      BOOST_LOG(error) << "Failed to override HKEY_CURRENT_USER: "sv << err;
+      logging::error("Failed to override HKEY_CURRENT_USER: {}", err);
       RegOverridePredefKey(HKEY_CLASSES_ROOT, nullptr);
       return false;
     }
@@ -812,7 +825,7 @@ namespace platf {
     auto raw_cmd_parts = boost::program_options::split_winmain(raw_cmd_w);
     if (raw_cmd_parts.empty()) {
       // This is highly unexpected, but we'll just return the raw string and hope for the best.
-      BOOST_LOG(warning) << "Failed to split command string: "sv << raw_cmd;
+      logging::warning("Failed to split command string: {}", raw_cmd);
       return utf_utils::from_utf8(raw_cmd);
     }
 
@@ -826,7 +839,9 @@ namespace platf {
       DWORD out_len = scheme.size();
       res = UrlGetPartW(raw_target.c_str(), scheme.data(), &out_len, URL_PART_SCHEME, 0);
       if (res != S_OK) {
-        BOOST_LOG(warning) << "Failed to extract URL scheme from URL: "sv << raw_target << " ["sv << util::hex(res).to_string_view() << ']';
+        logging::warning([&](std::ostream &out) {
+          out << "Failed to extract URL scheme from URL: "sv << utf_utils::to_utf8(raw_target) << " ["sv << util::hex(res).to_string_view() << ']';
+        });
         return utf_utils::from_utf8(raw_cmd);
       }
 
@@ -875,7 +890,7 @@ namespace platf {
       //
       // FIXME: Maybe we can improve this in the future.
       if (res == HRESULT_FROM_WIN32(ERROR_NO_ASSOCIATION)) {
-        BOOST_LOG(warning) << "Using trampoline to handle target: "sv << raw_cmd;
+        logging::warning("Using trampoline to handle target: {}", raw_cmd);
         std::wcscpy(shell_command_string.data(), L"cmd.exe /c start \"\" /wait \"%1\" %*");
         needs_cmd_escaping = true;
 
@@ -891,7 +906,7 @@ namespace platf {
     }
 
     if (res != S_OK) {
-      BOOST_LOG(warning) << "Failed to query command string for raw command: "sv << raw_cmd << " ["sv << util::hex(res).to_string_view() << ']';
+      logging::warning("Failed to query command string for raw command: {} [{}]", raw_cmd, util::hex(res).to_string_view());
       return utf_utils::from_utf8(raw_cmd);
     }
 
@@ -995,7 +1010,7 @@ namespace platf {
           break;
 
         default:
-          BOOST_LOG(warning) << "Unsupported argument replacement: %%" << next_char;
+          logging::warning("Unsupported argument replacement: %%{}", next_char);
           break;
       }
 
@@ -1006,7 +1021,9 @@ namespace platf {
       match_pos += match_replacement.size();
     }
 
-    BOOST_LOG(info) << "Resolved user-provided command '"sv << raw_cmd << "' to '"sv << cmd_string << '\'';
+    logging::info([&](std::ostream &out) {
+      out << "Resolved user-provided command '"sv << raw_cmd << "' to '"sv << utf_utils::to_utf8(cmd_string) << '\'';
+    });
     return cmd_string;
   }
 
@@ -1144,9 +1161,11 @@ namespace platf {
 
     auto child = run_command(false, false, url, working_dir, _env, nullptr, ec, nullptr);
     if (ec) {
-      BOOST_LOG(warning) << "Couldn't open url ["sv << url << "]: System: "sv << ec.message();
+      logging::warning([&](std::ostream &out) {
+        out << "Couldn't open url ["sv << url << "]: System: "sv << ec.message();
+      });
     } else {
-      BOOST_LOG(info) << "Opened url ["sv << url << "]"sv;
+      logging::info("Opened url [{}]", url);
       child.detach();
     }
   }
@@ -1172,13 +1191,13 @@ namespace platf {
         win32_priority = THREAD_PRIORITY_HIGHEST;
         break;
       default:
-        BOOST_LOG(error) << "Unknown thread priority: "sv << (int) priority;
+        logging::error("Unknown thread priority: {}", (int) priority);
         return;
     }
 
     if (!SetThreadPriority(GetCurrentThread(), win32_priority)) {
       auto winerr = GetLastError();
-      BOOST_LOG(warning) << "Unable to set thread priority to "sv << win32_priority << ": "sv << winerr;
+      logging::warning("Unable to set thread priority to {}: {}", win32_priority, winerr);
     }
   }
 
@@ -1186,7 +1205,7 @@ namespace platf {
     std::wstring wname = utf_utils::from_utf8(std::string {name});
     HRESULT hr = SetThreadDescription(GetCurrentThread(), wname.c_str());
     if (FAILED(hr)) {
-      BOOST_LOG(error) << "SetThreadDescription failed: " << hr;
+      logging::error("SetThreadDescription failed: {}", hr);
     }
   }
 
@@ -1206,7 +1225,7 @@ namespace platf {
     if (nt_set_timer_resolution_max()) {
       used_nt_set_timer_resolution = true;
     } else {
-      BOOST_LOG(error) << "NtSetTimerResolution() failed, falling back to timeBeginPeriod()";
+      logging::error("NtSetTimerResolution() failed, falling back to timeBeginPeriod()");
       timeBeginPeriod(1);
       used_nt_set_timer_resolution = false;
     }
@@ -1242,7 +1261,7 @@ namespace platf {
               BOOL value = TRUE;
               auto error = wlan->set(wlan_handle, &wlan_interface_list->InterfaceInfo[i].InterfaceGuid, wlan_intf_opcode_media_streaming_mode, sizeof(value), &value, nullptr);
               if (error == ERROR_SUCCESS) {
-                BOOST_LOG(info) << "WLAN interface "sv << i << " is now in low latency mode"sv;
+                logging::info("WLAN interface {} is now in low latency mode", i);
               }
             }
           }
@@ -1263,7 +1282,7 @@ namespace platf {
     }
     // If there is no mouse connected, enable Mouse Keys to force the cursor to appear
     if (!GetSystemMetrics(SM_MOUSEPRESENT)) {
-      BOOST_LOG(info) << "A mouse was not detected. Sunshine will enable Mouse Keys while streaming to force the mouse cursor to appear.";
+      logging::info("A mouse was not detected. Sunshine will enable Mouse Keys while streaming to force the mouse cursor to appear.");
 
       // Get the current state of Mouse Keys so we can restore it when streaming is over
       previous_mouse_keys_state.cbSize = sizeof(previous_mouse_keys_state);
@@ -1280,11 +1299,11 @@ namespace platf {
           enabled_mouse_keys = true;
         } else {
           auto winerr = GetLastError();
-          BOOST_LOG(warning) << "Unable to enable Mouse Keys: "sv << winerr;
+          logging::warning("Unable to enable Mouse Keys: {}", winerr);
         }
       } else {
         auto winerr = GetLastError();
-        BOOST_LOG(warning) << "Unable to get current state of Mouse Keys: "sv << winerr;
+        logging::warning("Unable to get current state of Mouse Keys: {}", winerr);
       }
     }
   }
@@ -1301,7 +1320,7 @@ namespace platf {
     if (used_nt_set_timer_resolution) {
       used_nt_set_timer_resolution = false;
       if (!nt_set_timer_resolution_min()) {
-        BOOST_LOG(error) << "nt_set_timer_resolution_min() failed even though nt_set_timer_resolution_max() succeeded";
+        logging::error("nt_set_timer_resolution_min() failed even though nt_set_timer_resolution_max() succeeded");
       }
     } else {
       timeEndPeriod(1);
@@ -1321,7 +1340,7 @@ namespace platf {
       enabled_mouse_keys = false;
       if (!SystemParametersInfoW(SPI_SETMOUSEKEYS, 0, &previous_mouse_keys_state, 0)) {
         auto winerr = GetLastError();
-        BOOST_LOG(warning) << "Unable to restore original state of Mouse Keys: "sv << winerr;
+        logging::warning("Unable to restore original state of Mouse Keys: {}", winerr);
       }
     }
   }
@@ -1336,14 +1355,14 @@ namespace platf {
     std::array<WCHAR, MAX_PATH> executable;
     if (GetModuleFileNameW(nullptr, executable.data(), executable.size()) == 0) {
       auto winerr = GetLastError();
-      BOOST_LOG(fatal) << "Failed to get Sunshine path: "sv << winerr;
+      logging::fatal("Failed to get Sunshine path: {}", winerr);
       return;
     }
 
     PROCESS_INFORMATION process_info;
     if (!CreateProcessW(executable.data(), GetCommandLineW(), nullptr, nullptr, false, CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT, nullptr, nullptr, (LPSTARTUPINFOW) &startup_info, &process_info)) {
       auto winerr = GetLastError();
-      BOOST_LOG(fatal) << "Unable to restart Sunshine: "sv << winerr;
+      logging::fatal("Unable to restart Sunshine: {}", winerr);
       return;
     }
 
@@ -1385,11 +1404,11 @@ namespace platf {
     if (enum_ctx->process_ids.find(wnd_process_id) != enum_ctx->process_ids.end()) {
       // Send an async WM_CLOSE message to this window
       if (SendNotifyMessageW(hwnd, WM_CLOSE, 0, 0)) {
-        BOOST_LOG(debug) << "Sent WM_CLOSE to PID: "sv << wnd_process_id;
+        logging::debug("Sent WM_CLOSE to PID: {}", wnd_process_id);
         enum_ctx->requested_exit = true;
       } else {
         auto error = GetLastError();
-        BOOST_LOG(warning) << "Failed to send WM_CLOSE to PID ["sv << wnd_process_id << "]: " << error;
+        logging::warning("Failed to send WM_CLOSE to PID [{}]: {}", wnd_process_id, error);
       }
     }
 
@@ -1418,7 +1437,7 @@ namespace platf {
 
     if (!success) {
       auto err = GetLastError();
-      BOOST_LOG(warning) << "Failed to enumerate processes in group: "sv << err;
+      logging::warning("Failed to enumerate processes in group: {}", err);
       return false;
     } else if (process_id_list->NumberOfProcessIdsInList == 0) {
       // If all processes are already dead, treat it as a success
@@ -1443,7 +1462,7 @@ namespace platf {
 
     if (!QueryInformationJobObject((HANDLE) native_handle, JobObjectBasicAccountingInformation, &accounting_info, sizeof(accounting_info), nullptr)) {
       auto err = GetLastError();
-      BOOST_LOG(error) << "Failed to get job accounting info: "sv << err;
+      logging::error("Failed to get job accounting info: {}", err);
       return false;
     }
 
@@ -1636,7 +1655,7 @@ namespace platf {
     DWORD bytes_sent;
     if (WSASendMsg((SOCKET) send_info.native_socket, &msg, 0, &bytes_sent, nullptr, nullptr) == SOCKET_ERROR) {
       auto winerr = WSAGetLastError();
-      BOOST_LOG(warning) << "WSASendMsg() failed: "sv << winerr;
+      logging::warning("WSASendMsg() failed: {}", winerr);
       return false;
     }
 
@@ -1662,7 +1681,7 @@ namespace platf {
     virtual ~qos_t() {
       if (!api->remove(api->handle, (SOCKET) nullptr, flow_id, 0)) {
         auto winerr = GetLastError();
-        BOOST_LOG(warning) << "QOSRemoveSocketFromFlow() failed: "sv << winerr;
+        logging::warning("QOSRemoveSocketFromFlow() failed: {}", winerr);
       }
     }
 
@@ -1703,7 +1722,7 @@ namespace platf {
         empty.sin6_family = AF_INET6;
         if (connect((SOCKET) native_socket, (PSOCKADDR) &empty, sizeof(empty)) < 0) {
           auto wsaerr = WSAGetLastError();
-          BOOST_LOG(error) << "qWAVE dual-stack workaround failed: "sv << wsaerr;
+          logging::error("qWAVE dual-stack workaround failed: {}", wsaerr);
         }
       }
     });
@@ -1723,9 +1742,9 @@ namespace platf {
       if (address_v6.is_v4_mapped()) {
         if (connect((SOCKET) native_socket, (PSOCKADDR) &saddr_v6, sizeof(saddr_v6)) < 0) {
           auto wsaerr = WSAGetLastError();
-          BOOST_LOG(error) << "qWAVE dual-stack workaround failed: "sv << wsaerr;
+          logging::error("qWAVE dual-stack workaround failed: {}", wsaerr);
         } else {
-          BOOST_LOG(debug) << "Using qWAVE connect() workaround for QoS tagging"sv;
+          logging::debug("Using qWAVE connect() workaround for QoS tagging"sv);
           using_connect_hack = true;
           dest_addr = nullptr;
         }
@@ -1744,14 +1763,14 @@ namespace platf {
         traffic_type = QOSTrafficTypeAudioVideo;
         break;
       default:
-        BOOST_LOG(error) << "Unknown traffic type: "sv << (int) data_type;
+        logging::error("Unknown traffic type: {}", (int) data_type);
         return nullptr;
     }
 
     QOS_FLOWID flow_id = 0;
     if (!api->add(api->handle, (SOCKET) native_socket, dest_addr, traffic_type, QOS_NON_ADAPTIVE_FLOW, &flow_id)) {
       auto winerr = GetLastError();
-      BOOST_LOG(warning) << "QOSAddSocketToFlow() failed: "sv << winerr;
+      logging::warning("QOSAddSocketToFlow() failed: {}", winerr);
       return nullptr;
     }
 
@@ -1791,7 +1810,9 @@ namespace platf {
   std::string get_host_name() {
     std::array<WCHAR, 256> hostname;
     if (GetHostNameW(hostname.data(), hostname.size()) == SOCKET_ERROR) {
-      BOOST_LOG(error) << "GetHostNameW() failed: "sv << WSAGetLastError();
+      logging::error([&](std::ostream &out) {
+        out << "GetHostNameW() failed: "sv << WSAGetLastError();
+      });
       return "Sunshine"s;
     }
     return utf_utils::to_utf8(hostname.data());
@@ -1808,7 +1829,9 @@ namespace platf {
       if (!timer) {
         timer = CreateWaitableTimerEx(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
         if (!timer) {
-          BOOST_LOG(error) << "Unable to create high_precision_timer, CreateWaitableTimerEx() failed: " << GetLastError();
+          logging::error([&](std::ostream &out) {
+            out << "Unable to create high_precision_timer, CreateWaitableTimerEx() failed: " << GetLastError();
+          });
         }
       }
     }
@@ -1821,15 +1844,15 @@ namespace platf {
 
     void sleep_for(const std::chrono::nanoseconds &duration) override {
       if (!timer) {
-        BOOST_LOG(error) << "Attempting high_precision_timer::sleep_for() with uninitialized timer";
+        logging::error("Attempting high_precision_timer::sleep_for() with uninitialized timer");
         return;
       }
       if (duration < 0s) {
-        BOOST_LOG(error) << "Attempting high_precision_timer::sleep_for() with negative duration";
+        logging::error("Attempting high_precision_timer::sleep_for() with negative duration");
         return;
       }
       if (duration > 5s) {
-        BOOST_LOG(error) << "Attempting high_precision_timer::sleep_for() with unexpectedly large duration (>5s)";
+        logging::error("Attempting high_precision_timer::sleep_for() with unexpectedly large duration (>5s)");
         return;
       }
 

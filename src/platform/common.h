@@ -634,7 +634,7 @@ namespace platf {
      * @return Status from updating frame.
      */
     virtual int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
-      BOOST_LOG(error) << "Illegal call to hwdevice_t::set_frame(). Did you forget to override it?";
+      logging::error("Illegal call to hwdevice_t::set_frame(). Did you forget to override it?");
       return -1;
     };
 
@@ -816,7 +816,7 @@ namespace platf {
 
   protected:
     // collect capture timing data (at loglevel debug)
-    logging::time_delta_periodic_logger sleep_overshoot_logger = {debug, "Frame capture sleep overshoot"};  ///< Periodic logger for capture sleep overshoot measurements.
+    logging::time_delta_periodic_logger sleep_overshoot_logger = {logging::level_e::debug, "Frame capture sleep overshoot"};  ///< Periodic logger for capture sleep overshoot measurements.
   };
 
   /**

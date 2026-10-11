@@ -131,22 +131,30 @@ INSTANTIATE_TEST_SUITE_P(
 TEST_P(MouseHIDTest, MoveInputTest) {
   util::point_t mouse_delta = GetParam();
 
-  BOOST_LOG(tests) << "MoveInputTest:: got param: " << mouse_delta;
+  logging::tests([&](std::ostream &out) {
+    out << "MoveInputTest:: got param: " << mouse_delta;
+  });
   platf::input_t input = platf::input(config_.values(), infrastructure_.scheduler());
-  BOOST_LOG(tests) << "MoveInputTest:: init input";
+  logging::tests("MoveInputTest:: init input");
 
-  BOOST_LOG(tests) << "MoveInputTest:: get current mouse loc";
+  logging::tests("MoveInputTest:: get current mouse loc");
   auto old_loc = platf::get_mouse_loc(input);
   if (!old_loc) {
     GTEST_SKIP() << "Mouse location is not observable in this environment";
   }
-  BOOST_LOG(tests) << "MoveInputTest:: got current mouse loc: " << *old_loc;
+  logging::tests([&](std::ostream &out) {
+    out << "MoveInputTest:: got current mouse loc: " << *old_loc;
+  });
 
-  BOOST_LOG(tests) << "MoveInputTest:: move: " << mouse_delta;
+  logging::tests([&](std::ostream &out) {
+    out << "MoveInputTest:: move: " << mouse_delta;
+  });
   platf::move_mouse(input, mouse_delta.x, mouse_delta.y);
-  BOOST_LOG(tests) << "MoveInputTest:: moved: " << mouse_delta;
+  logging::tests([&](std::ostream &out) {
+    out << "MoveInputTest:: moved: " << mouse_delta;
+  });
 
-  BOOST_LOG(tests) << "MoveInputTest:: get updated mouse loc";
+  logging::tests("MoveInputTest:: get updated mouse loc");
   auto new_loc = wait_for_mouse_location(input, [old_loc = *old_loc, &mouse_delta](const auto &location) {
     return is_relative_axis_moved(location.x - old_loc.x, mouse_delta.x) &&
            is_relative_axis_moved(location.y - old_loc.y, mouse_delta.y);
@@ -154,14 +162,16 @@ TEST_P(MouseHIDTest, MoveInputTest) {
   if (!new_loc) {
     GTEST_SKIP() << "Virtual mouse movement is not observable in this environment";
   }
-  BOOST_LOG(tests) << "MoveInputTest:: got updated mouse loc: " << *new_loc;
+  logging::tests([&](std::ostream &out) {
+    out << "MoveInputTest:: got updated mouse loc: " << *new_loc;
+  });
 
   bool has_input_moved = old_loc->x != new_loc->x && old_loc->y != new_loc->y;
 
   if (!has_input_moved) {
-    BOOST_LOG(tests) << "MoveInputTest:: haven't moved";
+    logging::tests("MoveInputTest:: haven't moved");
   } else {
-    BOOST_LOG(tests) << "MoveInputTest:: moved";
+    logging::tests("MoveInputTest:: moved");
   }
 
   EXPECT_TRUE(has_input_moved);
@@ -173,40 +183,50 @@ TEST_P(MouseHIDTest, MoveInputTest) {
 
 TEST_P(MouseHIDTest, AbsMoveInputTest) {
   util::point_t mouse_pos = GetParam();
-  BOOST_LOG(tests) << "AbsMoveInputTest:: got param: " << mouse_pos;
+  logging::tests([&](std::ostream &out) {
+    out << "AbsMoveInputTest:: got param: " << mouse_pos;
+  });
 
   platf::input_t input = platf::input(config_.values(), infrastructure_.scheduler());
-  BOOST_LOG(tests) << "AbsMoveInputTest:: init input";
+  logging::tests("AbsMoveInputTest:: init input");
 
-  BOOST_LOG(tests) << "AbsMoveInputTest:: get current mouse loc";
+  logging::tests("AbsMoveInputTest:: get current mouse loc");
   auto old_loc = platf::get_mouse_loc(input);
   if (!old_loc) {
     GTEST_SKIP() << "Mouse location is not observable in this environment";
   }
-  BOOST_LOG(tests) << "AbsMoveInputTest:: got current mouse loc: " << *old_loc;
+  logging::tests([&](std::ostream &out) {
+    out << "AbsMoveInputTest:: got current mouse loc: " << *old_loc;
+  });
 
   const auto abs_port = absolute_mouse_test_port();
   const auto expected_pos = expected_absolute_mouse_location(mouse_pos, abs_port);
-  BOOST_LOG(tests) << "AbsMoveInputTest:: touch port: " << abs_port.offset_x << 'x' << abs_port.offset_y << ' ' << abs_port.width << 'x' << abs_port.height;
-  BOOST_LOG(tests) << "AbsMoveInputTest:: move: " << mouse_pos;
+  logging::tests("AbsMoveInputTest:: touch port: {}x{} {}x{}", abs_port.offset_x, abs_port.offset_y, abs_port.width, abs_port.height);
+  logging::tests([&](std::ostream &out) {
+    out << "AbsMoveInputTest:: move: " << mouse_pos;
+  });
   platf::abs_mouse(input, abs_port, mouse_pos.x, mouse_pos.y);
-  BOOST_LOG(tests) << "AbsMoveInputTest:: moved: " << mouse_pos;
+  logging::tests([&](std::ostream &out) {
+    out << "AbsMoveInputTest:: moved: " << mouse_pos;
+  });
 
-  BOOST_LOG(tests) << "AbsMoveInputTest:: get updated mouse loc";
+  logging::tests("AbsMoveInputTest:: get updated mouse loc");
   auto new_loc = wait_for_mouse_location(input, [&expected_pos](const auto &location) {
     return is_near(location.x, expected_pos.x) && is_near(location.y, expected_pos.y);
   });
   if (!new_loc) {
     GTEST_SKIP() << "Absolute virtual mouse movement is not observable in this environment";
   }
-  BOOST_LOG(tests) << "AbsMoveInputTest:: got updated mouse loc: " << *new_loc;
+  logging::tests([&](std::ostream &out) {
+    out << "AbsMoveInputTest:: got updated mouse loc: " << *new_loc;
+  });
 
   bool has_input_moved = old_loc->x != new_loc->x || old_loc->y != new_loc->y;
 
   if (!has_input_moved) {
-    BOOST_LOG(tests) << "AbsMoveInputTest:: haven't moved";
+    logging::tests("AbsMoveInputTest:: haven't moved");
   } else {
-    BOOST_LOG(tests) << "AbsMoveInputTest:: moved";
+    logging::tests("AbsMoveInputTest:: moved");
   }
 
   // Verify we moved to the absolute coordinate

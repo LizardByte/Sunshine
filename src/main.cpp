@@ -116,7 +116,7 @@ LRESULT CALLBACK SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
  */
 WINAPI BOOL ConsoleCtrlHandler(DWORD type) {
   if (type == CTRL_CLOSE_EVENT) {
-    BOOST_LOG(info) << "Console closed handler called";
+    logging::info("Console closed handler called");
     lifetime::signal_guard_t::native_exit(0, false);
   }
   return FALSE;
@@ -144,18 +144,18 @@ void mainThreadLoop(const config::settings_t &settings, const std::shared_ptr<sa
 #endif
 
   if (!run_loop) {
-    BOOST_LOG(info) << "No main thread features enabled, skipping event loop"sv;
+    logging::info("No main thread features enabled, skipping event loop"sv);
     // Wait for shutdown
     shutdown_event->view();
     return;
   }
 
   // Main thread event loop
-  BOOST_LOG(info) << "Starting main loop"sv;
+  logging::info("Starting main loop"sv);
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
   system_tray::run_tray_until_exit(shutdown_event);
 #endif
-  BOOST_LOG(info) << "Main loop has exited"sv;
+  logging::info("Main loop has exited"sv);
 }
 
 /**
@@ -246,13 +246,13 @@ int main(int argc, char *argv[]) {
 
   auto log_deinit_guard = logging::init(settings.sunshine.min_log_level, settings.sunshine.log_file);
   if (!log_deinit_guard) {
-    BOOST_LOG(error) << "Logging failed to initialize"sv;
+    logging::error("Logging failed to initialize"sv);
   }
 
   // logging can begin at this point
   // if anything is logged prior to this point, it will appear in stdout, but not in the log viewer in the UI
   // the version should be printed to the log before anything else
-  BOOST_LOG(info) << PROJECT_NAME << " version: " << PROJECT_VERSION << " commit: " << PROJECT_VERSION_COMMIT;
+  logging::info("{} version: {} commit: {}", PROJECT_NAME, PROJECT_VERSION, PROJECT_VERSION_COMMIT);
 
   // Log publisher metadata
   log_publisher_data();
@@ -264,11 +264,11 @@ int main(int argc, char *argv[]) {
   if (!settings.sunshine.cmd.name.empty()) {
     auto fn = cmd_to_func.find(settings.sunshine.cmd.name);
     if (fn == std::end(cmd_to_func)) {
-      BOOST_LOG(fatal) << "Unknown command: "sv << settings.sunshine.cmd.name;
+      logging::fatal("Unknown command: {}", settings.sunshine.cmd.name);
 
-      BOOST_LOG(info) << "Possible commands:"sv;
+      logging::info("Possible commands:"sv);
       for (auto &[key, _] : cmd_to_func) {
-        BOOST_LOG(info) << '\t' << key;
+        logging::info("\t{}", key);
       }
 
       return 7;
@@ -290,10 +290,10 @@ int main(int argc, char *argv[]) {
 
   http::state_t http_state {configuration};
   if (http_state.initialize()) {
-    BOOST_LOG(fatal) << "HTTP interface failed to initialize"sv;
+    logging::fatal("HTTP interface failed to initialize"sv);
 
 #ifdef _WIN32
-    BOOST_LOG(fatal) << "To relaunch Sunshine successfully, use the shortcut in the Start Menu. Do not run Sunshine.exe manually."sv;
+    logging::fatal("To relaunch Sunshine successfully, use the shortcut in the Start Menu. Do not run Sunshine.exe manually."sv);
     std::this_thread::sleep_for(10s);
 #endif
 
@@ -325,10 +325,10 @@ int main(int argc, char *argv[]) {
   auto shutdown_event = host_mail->event<bool>(mail::shutdown);
   lifetime::signal_guard_t signals {lifetime};
   signals.on_signal(SIGINT, [&force_shutdown, &displays, &task_pool, &settings, shutdown_event]() {
-    BOOST_LOG(info) << "Interrupt handler called"sv;
+    logging::info("Interrupt handler called"sv);
 
     auto task = []() {
-      BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;
+      logging::fatal("10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv);
       logging::log_flush();
       lifetime::debug_trap();
     };
@@ -345,10 +345,10 @@ int main(int argc, char *argv[]) {
   });
 
   signals.on_signal(SIGTERM, [&force_shutdown, &displays, &task_pool, &settings, shutdown_event]() {
-    BOOST_LOG(info) << "Terminate handler called"sv;
+    logging::info("Terminate handler called"sv);
 
     auto task = []() {
-      BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;
+      logging::fatal("10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv);
       logging::log_flush();
       lifetime::debug_trap();
     };
@@ -385,7 +385,7 @@ int main(int argc, char *argv[]) {
     wnd_class.lpfnWndProc = SessionMonitorWindowProc;
     if (!RegisterClassA(&wnd_class)) {
       session_monitor_hwnd_promise.set_value(nullptr);
-      BOOST_LOG(error) << "Failed to register session monitor window class"sv << std::endl;
+      logging::error("Failed to register session monitor window class\n");
       return;
     }
 
@@ -407,7 +407,7 @@ int main(int argc, char *argv[]) {
     session_monitor_hwnd_promise.set_value(wnd);
 
     if (!wnd) {
-      BOOST_LOG(error) << "Failed to create session monitor window"sv << std::endl;
+      logging::error("Failed to create session monitor window\n");
       return;
     }
 
@@ -443,7 +443,7 @@ int main(int argc, char *argv[]) {
 #endif
   };
   if (!platform.initialize()) {
-    BOOST_LOG(error) << "Platform failed to initialize"sv;
+    logging::error("Platform failed to initialize"sv);
   }
 
   // Capture the pre-request state so access granted during this launch causes
@@ -457,12 +457,12 @@ int main(int argc, char *argv[]) {
   inputs.initialize();
 
   if (settings.input.controller && inputs.probe_gamepads()) {
-    BOOST_LOG(warning) << "No gamepad input is available"sv;
+    logging::warning("No gamepad input is available"sv);
   }
 
   video::service_t videos {settings, host_mail, infrastructure.cursor(), displays, platform};
   if (videos.probe_encoders()) {
-    BOOST_LOG(error) << "Video failed to find working encoder"sv;
+    logging::error("Video failed to find working encoder"sv);
   }
 
   std::unique_ptr<platf::deinit_t> mDNS;
@@ -498,13 +498,13 @@ int main(int argc, char *argv[]) {
 #ifdef _WIN32
   // If we're using the default port and GameStream is enabled, warn the user
   if (settings.sunshine.port == 47989 && is_gamestream_enabled()) {
-    BOOST_LOG(fatal) << "GameStream is still enabled in GeForce Experience! This *will* cause streaming problems with Sunshine!"sv;
-    BOOST_LOG(fatal) << "Disable GameStream on the SHIELD tab in GeForce Experience or change the Port setting on the Advanced tab in the Sunshine Web UI."sv;
+    logging::fatal("GameStream is still enabled in GeForce Experience! This *will* cause streaming problems with Sunshine!"sv);
+    logging::fatal("Disable GameStream on the SHIELD tab in GeForce Experience or change the Port setting on the Advanced tab in the Sunshine Web UI."sv);
   }
 #endif
 
   if (tray_is_enabled && settings.sunshine.system_tray) {
-    BOOST_LOG(info) << "Starting system tray"sv;
+    logging::info("Starting system tray"sv);
 #if defined(_WIN32) || defined(__APPLE__)
     system_tray::prepare_tray_virtualhid_license(settings);
     system_tray::prepare_tray_virtualhid_driver(settings);
@@ -535,7 +535,7 @@ int main(int argc, char *argv[]) {
     permission_watcher = std::jthread([&lifetime, &settings](std::stop_token stop) {
       while (!stop.stop_requested()) {
         if (platf::required_permissions_granted(platf::get_permission_statuses(settings))) {
-          BOOST_LOG(info) << "Required permissions granted; restarting Sunshine"sv;
+          logging::info("Required permissions granted; restarting Sunshine"sv);
           platf::restart(lifetime);
           return;
         }

@@ -334,7 +334,7 @@ namespace NVENC_NAMESPACE {
       uint64_t last_encoded_frame_index = 0;
       bool rfi_needs_confirmation = false;
       std::pair<uint64_t, uint64_t> last_rfi_range;
-      logging::min_max_avg_periodic_logger<double> frame_size_logger = {debug, "NvEnc: encoded frame sizes in kB", ""};
+      logging::min_max_avg_periodic_logger<double> frame_size_logger = {logging::level_e::debug, "NvEnc: encoded frame sizes in kB", ""};
     } encoder_state;
   };
 

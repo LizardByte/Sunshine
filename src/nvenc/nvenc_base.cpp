@@ -206,20 +206,19 @@ namespace NVENC_NAMESPACE {
     const auto supported_width = get_encoder_cap(encode_guid, NV_ENC_CAPS_WIDTH_MAX);
     const auto supported_height = get_encoder_cap(encode_guid, NV_ENC_CAPS_HEIGHT_MAX);
     if (encoder_params.width > supported_width || encoder_params.height > supported_height) {
-      BOOST_LOG(error) << "NvEnc: gpu max encode resolution " << supported_width << "x" << supported_height
-                       << ", requested " << encoder_params.width << "x" << encoder_params.height;
+      logging::error("NvEnc: gpu max encode resolution {}x{}, requested {}x{}", supported_width, supported_height, encoder_params.width, encoder_params.height);
       return false;
     }
     if (buffer_is_10bit(buffer_format) && !get_encoder_cap(encode_guid, NV_ENC_CAPS_SUPPORT_10BIT_ENCODE)) {
-      BOOST_LOG(error) << "NvEnc: gpu doesn't support 10-bit encode";
+      logging::error("NvEnc: gpu doesn't support 10-bit encode");
       return false;
     }
     if (buffer_is_yuv444(buffer_format) && !get_encoder_cap(encode_guid, NV_ENC_CAPS_SUPPORT_YUV444_ENCODE)) {
-      BOOST_LOG(error) << "NvEnc: gpu doesn't support YUV444 encode";
+      logging::error("NvEnc: gpu doesn't support YUV444 encode");
       return false;
     }
     if (async_event_handle && !get_encoder_cap(encode_guid, NV_ENC_CAPS_ASYNC_ENCODE_SUPPORT)) {
-      BOOST_LOG(warning) << "NvEnc: gpu doesn't support async encode";
+      logging::warning("NvEnc: gpu doesn't support async encode");
       async_event_handle = nullptr;
     }
     encoder_params.rfi = get_encoder_cap(encode_guid, NV_ENC_CAPS_SUPPORT_REF_PIC_INVALIDATION);
@@ -246,7 +245,7 @@ namespace NVENC_NAMESPACE {
     }
 #else
     if (config.split_frame_encoding == ::nvenc::nvenc_split_frame_encoding::force_enabled) {
-      BOOST_LOG(warning) << "NvEnc: split-frame encoding requires NVENC API 13.0; ignoring forced mode";
+      logging::warning("NvEnc: split-frame encoding requires NVENC API 13.0; ignoring forced mode");
     }
 #endif
   }
@@ -332,7 +331,7 @@ namespace NVENC_NAMESPACE {
       return;
     }
     if (!get_encoder_cap(encode_guid, NV_ENC_CAPS_SUPPORT_INTRA_REFRESH)) {
-      BOOST_LOG(error) << "NvEnc: Client asked for intra-refresh but the encoder does not support intra-refresh";
+      logging::error("NvEnc: Client asked for intra-refresh but the encoder does not support intra-refresh");
       return;
     }
     format_config.enableIntraRefresh = 1;
@@ -345,7 +344,7 @@ namespace NVENC_NAMESPACE {
     if (get_encoder_cap(encode_guid, NV_ENC_CAPS_SINGLE_SLICE_INTRA_REFRESH)) {
       format_config.singleSliceIntraRefresh = 1;
     } else {
-      BOOST_LOG(warning) << "NvEnc: Single Slice Intra Refresh not supported";
+      logging::warning("NvEnc: Single Slice Intra Refresh not supported");
     }
 #endif
   }
@@ -488,21 +487,21 @@ namespace NVENC_NAMESPACE {
 
   bool nvenc_base::initialize_encoder_resources(NV_ENC_INITIALIZE_PARAMS &init_params) {
     if (nvenc_failed(nvenc->nvEncInitializeEncoder(encoder, &init_params))) {
-      BOOST_LOG(error) << "NvEnc: NvEncInitializeEncoder() failed: " << last_nvenc_error_string;
+      logging::error("NvEnc: NvEncInitializeEncoder() failed: {}", last_nvenc_error_string);
       return false;
     }
     if (async_event_handle) {
       NV_ENC_EVENT_PARAMS event_params = {.version = NV_ENC_EVENT_PARAMS_VER};
       event_params.completionEvent = async_event_handle;
       if (nvenc_failed(nvenc->nvEncRegisterAsyncEvent(encoder, &event_params))) {
-        BOOST_LOG(error) << "NvEnc: NvEncRegisterAsyncEvent() failed: " << last_nvenc_error_string;
+        logging::error("NvEnc: NvEncRegisterAsyncEvent() failed: {}", last_nvenc_error_string);
         return false;
       }
     }
 
     NV_ENC_CREATE_BITSTREAM_BUFFER create_bitstream_buffer = {.version = NV_ENC_CREATE_BITSTREAM_BUFFER_VER};
     if (nvenc_failed(nvenc->nvEncCreateBitstreamBuffer(encoder, &create_bitstream_buffer))) {
-      BOOST_LOG(error) << "NvEnc: NvEncCreateBitstreamBuffer() failed: " << last_nvenc_error_string;
+      logging::error("NvEnc: NvEncCreateBitstreamBuffer() failed: {}", last_nvenc_error_string);
       return false;
     }
     output_bitstream = create_bitstream_buffer.bitstreamBuffer;
@@ -557,9 +556,11 @@ namespace NVENC_NAMESPACE {
     }
 #endif
 
-    BOOST_LOG(info) << "NvEnc: created encoder v" << NVENC_SDK_VERSION << " "
-                    << video_format_name(client_config.videoFormat)
-                    << quality_preset_string_from_guid(init_params.presetGUID) << extra;
+    logging::info([&](std::ostream &out) {
+      out << "NvEnc: created encoder v" << NVENC_SDK_VERSION << " "
+          << video_format_name(client_config.videoFormat)
+          << quality_preset_string_from_guid(init_params.presetGUID) << extra;
+    });
   }
 
   bool nvenc_base::create_encoder(
@@ -581,7 +582,7 @@ namespace NVENC_NAMESPACE {
     const auto colorspace = nvenc_colorspace_from_sunshine_colorspace(sunshine_colorspace);
     const auto buffer_format = nvenc_format_from_sunshine_format(sunshine_buffer_format);
     if (buffer_format == NV_ENC_BUFFER_FORMAT_UNDEFINED) {
-      BOOST_LOG(error) << "NvEnc: unsupported input pixel format";
+      logging::error("NvEnc: unsupported input pixel format");
       return false;
     }
     encoder_params.width = client_config.width;
@@ -594,18 +595,18 @@ namespace NVENC_NAMESPACE {
     session_params.deviceType = device_type;
     session_params.apiVersion = NVENCAPI_VERSION;
     if (nvenc_failed(nvenc->nvEncOpenEncodeSessionEx(&session_params, &encoder))) {
-      BOOST_LOG(error) << "NvEnc: NvEncOpenEncodeSessionEx() failed: " << last_nvenc_error_string;
+      logging::error("NvEnc: NvEncOpenEncodeSessionEx() failed: {}", last_nvenc_error_string);
       return false;
     }
 
     std::uint32_t encode_guid_count = 0;
     if (nvenc_failed(nvenc->nvEncGetEncodeGUIDCount(encoder, &encode_guid_count))) {
-      BOOST_LOG(error) << "NvEnc: NvEncGetEncodeGUIDCount() failed: " << last_nvenc_error_string;
+      logging::error("NvEnc: NvEncGetEncodeGUIDCount() failed: {}", last_nvenc_error_string);
       return false;
     }
     std::vector<GUID> encode_guids(encode_guid_count);
     if (nvenc_failed(nvenc->nvEncGetEncodeGUIDs(encoder, encode_guids.data(), static_cast<std::uint32_t>(encode_guids.size()), &encode_guid_count))) {
-      BOOST_LOG(error) << "NvEnc: NvEncGetEncodeGUIDs() failed: " << last_nvenc_error_string;
+      logging::error("NvEnc: NvEncGetEncodeGUIDs() failed: {}", last_nvenc_error_string);
       return false;
     }
 
@@ -623,11 +624,11 @@ namespace NVENC_NAMESPACE {
         break;
 #endif
       default:
-        BOOST_LOG(error) << "NvEnc: unknown video format " << client_config.videoFormat;
+        logging::error("NvEnc: unknown video format {}", client_config.videoFormat);
         return false;
     }
     if (!contains_guid(encode_guids, init_params.encodeGUID)) {
-      BOOST_LOG(error) << "NvEnc: encoding format is not supported by the gpu";
+      logging::error("NvEnc: encoding format is not supported by the gpu");
       return false;
     }
     if (!validate_encoder_capabilities(init_params.encodeGUID, buffer_format)) {
@@ -654,7 +655,7 @@ namespace NVENC_NAMESPACE {
       .presetCfg = {.version = NV_ENC_CONFIG_VER},
     };
     if (nvenc_failed(nvenc->nvEncGetEncodePresetConfigEx(encoder, init_params.encodeGUID, init_params.presetGUID, init_params.tuningInfo, &preset_config))) {
-      BOOST_LOG(error) << "NvEnc: NvEncGetEncodePresetConfigEx() failed: " << last_nvenc_error_string;
+      logging::error("NvEnc: NvEncGetEncodePresetConfigEx() failed: {}", last_nvenc_error_string);
       return false;
     }
 
@@ -668,8 +669,10 @@ namespace NVENC_NAMESPACE {
     }
 
     auto frame_size_format = stat_trackers::two_digits_after_decimal();
-    BOOST_LOG(debug) << "NvEnc: requested encoded frame size "
-                     << frame_size_format % (client_config.bitrate / 8. / client_config.framerate) << " kB";
+    logging::debug([&](std::ostream &out) {
+      out << "NvEnc: requested encoded frame size "
+          << frame_size_format % (client_config.bitrate / 8. / client_config.framerate) << " kB";
+    });
     log_created_encoder(init_params, enc_config, config, client_config, buffer_format);
 
     encoder_state = {};
@@ -680,7 +683,7 @@ namespace NVENC_NAMESPACE {
   void nvenc_base::destroy_encoder() {
     if (output_bitstream) {
       if (nvenc_failed(nvenc->nvEncDestroyBitstreamBuffer(encoder, output_bitstream))) {
-        BOOST_LOG(error) << "NvEnc: NvEncDestroyBitstreamBuffer() failed: " << last_nvenc_error_string;
+        logging::error("NvEnc: NvEncDestroyBitstreamBuffer() failed: {}", last_nvenc_error_string);
       }
       output_bitstream = nullptr;
     }
@@ -688,18 +691,18 @@ namespace NVENC_NAMESPACE {
       NV_ENC_EVENT_PARAMS event_params = {.version = NV_ENC_EVENT_PARAMS_VER};
       event_params.completionEvent = async_event_handle;
       if (nvenc_failed(nvenc->nvEncUnregisterAsyncEvent(encoder, &event_params))) {
-        BOOST_LOG(error) << "NvEnc: NvEncUnregisterAsyncEvent() failed: " << last_nvenc_error_string;
+        logging::error("NvEnc: NvEncUnregisterAsyncEvent() failed: {}", last_nvenc_error_string);
       }
     }
     if (registered_input_buffer) {
       if (nvenc_failed(nvenc->nvEncUnregisterResource(encoder, registered_input_buffer))) {
-        BOOST_LOG(error) << "NvEnc: NvEncUnregisterResource() failed: " << last_nvenc_error_string;
+        logging::error("NvEnc: NvEncUnregisterResource() failed: {}", last_nvenc_error_string);
       }
       registered_input_buffer = nullptr;
     }
     if (encoder) {
       if (nvenc_failed(nvenc->nvEncDestroyEncoder(encoder))) {
-        BOOST_LOG(error) << "NvEnc: NvEncDestroyEncoder() failed: " << last_nvenc_error_string;
+        logging::error("NvEnc: NvEncDestroyEncoder() failed: {}", last_nvenc_error_string);
       }
       encoder = nullptr;
     }
@@ -717,7 +720,7 @@ namespace NVENC_NAMESPACE {
     assert(output_bitstream);
 
     if (!synchronize_input_buffer()) {
-      BOOST_LOG(error) << "NvEnc: failed to synchronize input buffer";
+      logging::error("NvEnc: failed to synchronize input buffer");
       return {};
     }
 
@@ -725,12 +728,12 @@ namespace NVENC_NAMESPACE {
     mapped_input_buffer.registeredResource = registered_input_buffer;
 
     if (nvenc_failed(nvenc->nvEncMapInputResource(encoder, &mapped_input_buffer))) {
-      BOOST_LOG(error) << "NvEnc: NvEncMapInputResource() failed: " << last_nvenc_error_string;
+      logging::error("NvEnc: NvEncMapInputResource() failed: {}", last_nvenc_error_string);
       return {};
     }
     auto unmap_guard = util::fail_guard([&] {
       if (nvenc_failed(nvenc->nvEncUnmapInputResource(encoder, mapped_input_buffer.mappedResource))) {
-        BOOST_LOG(error) << "NvEnc: NvEncUnmapInputResource() failed: " << last_nvenc_error_string;
+        logging::error("NvEnc: NvEncUnmapInputResource() failed: {}", last_nvenc_error_string);
       }
     });
 
@@ -746,7 +749,7 @@ namespace NVENC_NAMESPACE {
     pic_params.completionEvent = async_event_handle;
 
     if (nvenc_failed(nvenc->nvEncEncodePicture(encoder, &pic_params))) {
-      BOOST_LOG(error) << "NvEnc: NvEncEncodePicture() failed: " << last_nvenc_error_string;
+      logging::error("NvEnc: NvEncEncodePicture() failed: {}", last_nvenc_error_string);
       return {};
     }
 
@@ -755,12 +758,12 @@ namespace NVENC_NAMESPACE {
     lock_bitstream.doNotWait = async_event_handle ? 1 : 0;
 
     if (async_event_handle && !wait_for_async_event(100)) {
-      BOOST_LOG(error) << "NvEnc: frame " << frame_index << " encode wait timeout";
+      logging::error("NvEnc: frame {} encode wait timeout", frame_index);
       return {};
     }
 
     if (nvenc_failed(nvenc->nvEncLockBitstream(encoder, &lock_bitstream))) {
-      BOOST_LOG(error) << "NvEnc: NvEncLockBitstream() failed: " << last_nvenc_error_string;
+      logging::error("NvEnc: NvEncLockBitstream() failed: {}", last_nvenc_error_string);
       return {};
     }
 
@@ -780,11 +783,11 @@ namespace NVENC_NAMESPACE {
     encoder_state.last_encoded_frame_index = frame_index;
 
     if (encoded_frame.idr) {
-      BOOST_LOG(debug) << "NvEnc: idr frame " << encoded_frame.frame_index;
+      logging::debug("NvEnc: idr frame {}", encoded_frame.frame_index);
     }
 
     if (nvenc_failed(nvenc->nvEncUnlockBitstream(encoder, lock_bitstream.outputBitstream))) {
-      BOOST_LOG(error) << "NvEnc: NvEncUnlockBitstream() failed: " << last_nvenc_error_string;
+      logging::error("NvEnc: NvEncUnlockBitstream() failed: {}", last_nvenc_error_string);
     }
 
     encoder_state.frame_size_logger.collect_and_log(encoded_frame.data.size() / 1000.);
@@ -798,30 +801,30 @@ namespace NVENC_NAMESPACE {
     }
 
     if (first_frame >= encoder_state.last_rfi_range.first && last_frame <= encoder_state.last_rfi_range.second) {
-      BOOST_LOG(debug) << "NvEnc: rfi request " << first_frame << "-" << last_frame << " already done";
+      logging::debug("NvEnc: rfi request {}-{} already done", first_frame, last_frame);
       return true;
     }
 
     encoder_state.rfi_needs_confirmation = true;
 
     if (last_frame < first_frame) {
-      BOOST_LOG(error) << "NvEnc: invaid rfi request " << first_frame << "-" << last_frame << ", generating IDR";
+      logging::error("NvEnc: invaid rfi request {}-{}, generating IDR", first_frame, last_frame);
       return false;
     }
 
-    BOOST_LOG(debug) << "NvEnc: rfi request " << first_frame << "-" << last_frame << " expanding to last encoded frame " << encoder_state.last_encoded_frame_index;
+    logging::debug("NvEnc: rfi request {}-{} expanding to last encoded frame {}", first_frame, last_frame, encoder_state.last_encoded_frame_index);
     last_frame = encoder_state.last_encoded_frame_index;
 
     encoder_state.last_rfi_range = {first_frame, last_frame};
 
     if (last_frame - first_frame + 1 >= encoder_params.ref_frames_in_dpb) {
-      BOOST_LOG(debug) << "NvEnc: rfi request too large, generating IDR";
+      logging::debug("NvEnc: rfi request too large, generating IDR");
       return false;
     }
 
     for (auto i = first_frame; i <= last_frame; i++) {
       if (nvenc_failed(nvenc->nvEncInvalidateRefFrames(encoder, i))) {
-        BOOST_LOG(error) << "NvEnc: NvEncInvalidateRefFrames() " << i << " failed: " << last_nvenc_error_string;
+        logging::error("NvEnc: NvEncInvalidateRefFrames() {} failed: {}", i, last_nvenc_error_string);
         return false;
       }
     }

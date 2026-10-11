@@ -248,7 +248,7 @@ namespace net {
 
     // Ensure port is in the range of 1024-65535
     if (mapped_port < 1024 || mapped_port > 65535) {
-      BOOST_LOG(warning) << "Port out of range: "sv << mapped_port;
+      logging::warning("Port out of range: {}", mapped_port);
     }
 
     return mapped_port;

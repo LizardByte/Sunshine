@@ -8,26 +8,30 @@
 #include "../tests_log_checker.h"
 
 // standard includes
+#include <array>
 #include <filesystem>
 #include <format>
 #include <fstream>
 #include <iterator>
 #include <random>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>
+#include <tuple>
+#include <vector>
 
 // local includes
 #include <src/logging.h>
 
 namespace {
   std::array log_levels = {
-    std::tuple("verbose", &verbose),
-    std::tuple("debug", &debug),
-    std::tuple("info", &info),
-    std::tuple("warning", &warning),
-    std::tuple("error", &error),
-    std::tuple("fatal", &fatal),
+    std::tuple("verbose", logging::level_e::verbose),
+    std::tuple("debug", logging::level_e::debug),
+    std::tuple("info", logging::level_e::info),
+    std::tuple("warning", logging::level_e::warning),
+    std::tuple("error", logging::level_e::error),
+    std::tuple("fatal", logging::level_e::fatal),
   };
 
   constexpr auto log_file = "test_sunshine.log";
@@ -140,14 +144,12 @@ INSTANTIATE_TEST_SUITE_P(
 );
 
 TEST_P(LogLevelsTest, PutMessage) {
-  auto [label, plogger] = GetParam();
-  ASSERT_TRUE(plogger);
-  auto &logger = *plogger;
+  auto [label, level] = GetParam();
 
   std::random_device rand_dev;
   std::mt19937_64 rand_gen(rand_dev());
   auto test_message = std::format("{}{}", rand_gen(), rand_gen());
-  BOOST_LOG(logger) << test_message;
+  logging::log(level, test_message);
 
   ASSERT_TRUE(log_checker::line_contains(log_file, test_message));
 }
@@ -157,13 +159,13 @@ TEST_F(LogRotationTest, LoggingOwnerRemovesOnlyItsOwnSink) {
   auto first = logging::init(0, log_path.string());
   auto second = logging::init(0, second_path.string());
 
-  BOOST_LOG(info) << "both sinks receive this record";
+  logging::info("both sinks receive this record");
   logging::log_flush();
   EXPECT_NE(read_log_file(log_path).find("both sinks receive this record"), std::string::npos);
   EXPECT_NE(read_log_file(second_path).find("both sinks receive this record"), std::string::npos);
 
   first.reset();
-  BOOST_LOG(info) << "remaining sink receives this record";
+  logging::info("remaining sink receives this record");
   logging::log_flush();
   EXPECT_EQ(read_log_file(log_path).find("remaining sink receives this record"), std::string::npos);
   EXPECT_NE(read_log_file(second_path).find("remaining sink receives this record"), std::string::npos);
@@ -175,7 +177,7 @@ TEST_F(LogRotationTest, ManagedLoggerAcceptsConcurrentWriters) {
   for (int writer = 0; writer < 4; ++writer) {
     writers.emplace_back([writer]() {
       for (int record = 0; record < 20; ++record) {
-        BOOST_LOG(info) << std::format("writer {} record {}", writer, record);
+        logging::info("writer {} record {}", writer, record);
       }
     });
   }
@@ -191,19 +193,15 @@ TEST_F(LogRotationTest, ManagedLoggerAcceptsConcurrentWriters) {
 }
 
 TEST_F(BaseTest, RejectsUnsupportedLoggerSeverity) {
-  EXPECT_THROW(logging::logger_t {99}.get(), std::invalid_argument);
+  EXPECT_THROW(logging::log(static_cast<logging::level_e>(99), "invalid severity"), std::invalid_argument);
 }
 
 /**
- * @brief Runtime severity handles preserve test logging across shared production objects.
+ * @brief Runtime test severity preserves logging across shared production objects.
  */
 TEST_F(LogRotationTest, ManagedLoggerPreservesRuntimeTestSeverity) {
   auto owner = logging::init(0, log_path.string());
-  const auto severity = tests.get().default_severity();
-  const logging::logger_t logger {severity};
-
-  EXPECT_EQ(&logger.get(), &logging::tests_source::get());
-  BOOST_LOG(logger) << "runtime test severity is accepted";
+  logging::log(logging::test_level, "runtime test severity is accepted");
 
   EXPECT_TRUE(log_checker::line_equals(log_path.string(), "Tests: runtime test severity is accepted"));
 }

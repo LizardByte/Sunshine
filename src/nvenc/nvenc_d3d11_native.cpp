@@ -30,7 +30,7 @@ namespace NVENC_NAMESPACE {
 
   bool nvenc_d3d11_native::create_and_register_input_buffer() {
     if (encoder_params.buffer_format == NV_ENC_BUFFER_FORMAT_YUV444_10BIT) {
-      BOOST_LOG(error) << "NvEnc: 10-bit 4:4:4 encoding is incompatible with D3D11 surface formats, use CUDA interop";
+      logging::error("NvEnc: 10-bit 4:4:4 encoding is incompatible with D3D11 surface formats, use CUDA interop");
       return false;
     }
 
@@ -45,7 +45,7 @@ namespace NVENC_NAMESPACE {
       desc.Usage = D3D11_USAGE_DEFAULT;
       desc.BindFlags = D3D11_BIND_RENDER_TARGET;
       if (d3d_device->CreateTexture2D(&desc, nullptr, &d3d_input_texture) != S_OK) {
-        BOOST_LOG(error) << "NvEnc: couldn't create input texture";
+        logging::error("NvEnc: couldn't create input texture");
         return false;
       }
     }
@@ -60,7 +60,7 @@ namespace NVENC_NAMESPACE {
       register_resource.bufferUsage = NV_ENC_INPUT_IMAGE;
 
       if (nvenc_failed(nvenc->nvEncRegisterResource(encoder, &register_resource))) {
-        BOOST_LOG(error) << "NvEnc: NvEncRegisterResource() failed: " << last_nvenc_error_string;
+        logging::error("NvEnc: NvEncRegisterResource() failed: {}", last_nvenc_error_string);
         return false;
       }
 

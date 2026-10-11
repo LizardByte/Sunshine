@@ -420,7 +420,7 @@ namespace video {
     const codec_t &codec_from_config(const config_t &config) const {
       switch (config.videoFormat) {
         default:
-          BOOST_LOG(error) << "Unknown video format " << config.videoFormat << ", falling back to H.264";
+          logging::error("Unknown video format {}, falling back to H.264", config.videoFormat);
           // fallthrough
         case 0:
           return h264;

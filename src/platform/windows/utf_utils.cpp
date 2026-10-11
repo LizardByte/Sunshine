@@ -22,7 +22,7 @@ namespace utf_utils {
     auto output_size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, string.data(), string.size(), nullptr, 0);
     if (output_size == 0) {
       auto winerr = GetLastError();
-      BOOST_LOG(error) << "Failed to get UTF-16 buffer size: "sv << winerr;
+      logging::error("Failed to get UTF-16 buffer size: {}", winerr);
       return {};
     }
 
@@ -31,7 +31,7 @@ namespace utf_utils {
     output_size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, string.data(), string.size(), output.data(), output.size());
     if (output_size == 0) {
       auto winerr = GetLastError();
-      BOOST_LOG(error) << "Failed to convert string to UTF-16: "sv << winerr;
+      logging::error("Failed to convert string to UTF-16: {}", winerr);
       return {};
     }
 
@@ -48,7 +48,7 @@ namespace utf_utils {
     auto output_size = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, string.data(), string.size(), nullptr, 0, nullptr, nullptr);
     if (output_size == 0) {
       auto winerr = GetLastError();
-      BOOST_LOG(error) << "Failed to get UTF-8 buffer size: "sv << winerr;
+      logging::error("Failed to get UTF-8 buffer size: {}", winerr);
       return {};
     }
 
@@ -57,7 +57,7 @@ namespace utf_utils {
     output_size = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, string.data(), string.size(), output.data(), output.size(), nullptr, nullptr);
     if (output_size == 0) {
       auto winerr = GetLastError();
-      BOOST_LOG(error) << "Failed to convert string to UTF-8: "sv << winerr;
+      logging::error("Failed to convert string to UTF-8: {}", winerr);
       return {};
     }
 

@@ -31,14 +31,14 @@ namespace NVENC_NAMESPACE {
       GetProcAddress(dll.get(), "NvEncodeAPICreateInstance")
     );
     if (!create_instance) {
-      BOOST_LOG(error) << "NvEnc: No NvEncodeAPICreateInstance() in NVENC driver library";
+      logging::error("NvEnc: No NvEncodeAPICreateInstance() in NVENC driver library");
       return false;
     }
 
     auto new_nvenc = std::make_unique<NV_ENCODE_API_FUNCTION_LIST>();
     new_nvenc->version = NV_ENCODE_API_FUNCTION_LIST_VER;
     if (nvenc_failed(create_instance(new_nvenc.get()))) {
-      BOOST_LOG(error) << "NvEnc: NvEncodeAPICreateInstance() failed: " << last_nvenc_error_string;
+      logging::error("NvEnc: NvEncodeAPICreateInstance() failed: {}", last_nvenc_error_string);
       return false;
     }
 

@@ -148,16 +148,16 @@ namespace pipewire {
   public:
     pipewire_t():
         loop(pw_thread_loop_new("Pipewire thread", nullptr)) {
-      BOOST_LOG(debug) << "[pipewire] Start PW thread loop"sv;
+      logging::debug("[pipewire] Start PW thread loop"sv);
       pw_thread_loop_start(loop);
     }
 
     ~pipewire_t() {
-      BOOST_LOG(debug) << "[pipewire] Destroying pipewire_t"sv;
+      logging::debug("[pipewire] Destroying pipewire_t"sv);
       pw_thread_loop_lock(loop);
 
       // Lock the frame mutex to stop fill_img
-      BOOST_LOG(debug) << "[pipewire] Stop fill_img"sv;
+      logging::debug("[pipewire] Stop fill_img"sv);
       {
         std::scoped_lock lock(stream_data.frame_mutex);
         stream_data.frame_ready = false;
@@ -166,34 +166,34 @@ namespace pipewire {
 
       // Release pipewire stream
       if (stream_data.stream) {
-        BOOST_LOG(debug) << "[pipewire] Disconnect stream"sv;
+        logging::debug("[pipewire] Disconnect stream"sv);
         pw_stream_disconnect(stream_data.stream);
-        BOOST_LOG(debug) << "[pipewire] Destroy stream"sv;
+        logging::debug("[pipewire] Destroy stream"sv);
         pw_stream_destroy(stream_data.stream);
         stream_data.stream = nullptr;
       }
       // Release pipewire core
       if (core) {
-        BOOST_LOG(debug) << "[pipewire] Disconnect PW core"sv;
+        logging::debug("[pipewire] Disconnect PW core"sv);
         pw_core_disconnect(core);
         core = nullptr;
       }
       // Release pipewire context
       if (context) {
-        BOOST_LOG(debug) << "[pipewire] Destroy PW context"sv;
+        logging::debug("[pipewire] Destroy PW context"sv);
         pw_context_destroy(context);
         context = nullptr;
       }
       // Release pipewire file descriptor
       if (fd >= 0) {
-        BOOST_LOG(debug) << "[pipewire] Close pipewire_fd"sv;
+        logging::debug("[pipewire] Close pipewire_fd"sv);
         close(fd);
       }
       // Release pipewire thread loop
-      BOOST_LOG(debug) << "[pipewire] Stop PW thread loop"sv;
+      logging::debug("[pipewire] Stop PW thread loop"sv);
       pw_thread_loop_unlock(loop);
       pw_thread_loop_stop(loop);
-      BOOST_LOG(debug) << "[pipewire] Destroy PW thread loop"sv;
+      logging::debug("[pipewire] Destroy PW thread loop"sv);
       pw_thread_loop_destroy(loop);
     }
 
@@ -242,11 +242,12 @@ namespace pipewire {
       bool pacing_required = variable_rate || rate_comparison > 0;
 
       if (!variable_rate && rate_comparison < 0) {
-        BOOST_LOG(warning)
-          << "[pipewire] Sunshine frame pacing: disabled (negotiated rate lower than requested rate)"sv;
+        logging::warning("[pipewire] Sunshine frame pacing: disabled (negotiated rate lower than requested rate)"sv);
       } else {
-        BOOST_LOG(info) << "[pipewire] Sunshine frame pacing: "sv
-                        << (pacing_required ? std::format("enabled ({}ms)", std::chrono::duration<double, std::milli>(requested_delay).count()) : "disabled (event-driven capture)");
+        logging::info([&](std::ostream &out) {
+          out << "[pipewire] Sunshine frame pacing: "sv
+              << (pacing_required ? std::format("enabled ({}ms)", std::chrono::duration<double, std::milli>(requested_delay).count()) : "disabled (event-driven capture)");
+        });
       }
 
       return pacing_required;
@@ -277,10 +278,10 @@ namespace pipewire {
       stream_data.shared = std::move(shared_state);
 
       pw_thread_loop_lock(loop);
-      BOOST_LOG(debug) << "[pipewire] Setup PW context"sv;
+      logging::debug("[pipewire] Setup PW context"sv);
       context = pw_context_new(pw_thread_loop_get_loop(loop), nullptr, 0);
       if (context) {
-        BOOST_LOG(debug) << "[pipewire] Connect PW context to fd"sv;
+        logging::debug("[pipewire] Connect PW context to fd"sv);
         if (fd >= 0) {
           core = pw_context_connect_fd(context, fd, nullptr, 0);
         } else {
@@ -289,11 +290,15 @@ namespace pipewire {
         if (core) {
           pw_core_add_listener(core, &core_listener, &core_events, nullptr);
         } else {
-          BOOST_LOG(debug) << "[pipewire] Failed to connect to PW core. Error: "sv << errno << "(" << strerror(errno) << ")"sv;
+          logging::debug([&](std::ostream &out) {
+            out << "[pipewire] Failed to connect to PW core. Error: "sv << errno << "(" << strerror(errno) << ")"sv;
+          });
           return -1;
         }
       } else {
-        BOOST_LOG(debug) << "[pipewire] Failed to setup PW context. Error: "sv << errno << "(" << strerror(errno) << ")"sv;
+        logging::debug([&](std::ostream &out) {
+          out << "[pipewire] Failed to setup PW context. Error: "sv << errno << "(" << strerror(errno) << ")"sv;
+        });
         return -1;
       }
 
@@ -318,14 +323,14 @@ namespace pipewire {
       int result = 0;
       if (!stream_data.stream) {
         if (!core) {
-          BOOST_LOG(debug) << "[pipewire] PW core not available. Cannot ensure stream."sv;
+          logging::debug("[pipewire] PW core not available. Cannot ensure stream."sv);
           pw_thread_loop_unlock(loop);
           return -1;
         }
 
         struct pw_properties *props = pw_properties_new(PW_KEY_MEDIA_TYPE, "Video", PW_KEY_MEDIA_CATEGORY, "Capture", PW_KEY_MEDIA_ROLE, "Screen", nullptr);
 
-        BOOST_LOG(debug) << "[pipewire] Create PW stream"sv;
+        logging::debug("[pipewire] Create PW stream"sv);
         stream_data.stream = pw_stream_new(core, "Sunshine Video Capture", props);
         pw_stream_add_listener(stream_data.stream, &stream_data.stream_listener, &stream_events, &stream_data);
 
@@ -360,7 +365,7 @@ namespace pipewire {
         // Connection via pipewire object serial if it is supported and the serial is valid (lower 32-bits != SPA_ID_INVALID, see also PW_KEY_OBJECT_SERIAL docs)
         if (SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL && (object_serial & SPA_ID_INVALID) != SPA_ID_INVALID) {
           pw_properties_setf(props, PW_KEY_TARGET_OBJECT, "%" PRIu64, object_serial);
-          BOOST_LOG(debug) << "[pipewire] Connect PW stream - fd: "sv << fd << " object serial: "sv << object_serial;
+          logging::debug("[pipewire] Connect PW stream - fd: {} object serial: {}", fd, object_serial);
           result = pw_stream_connect(stream_data.stream, PW_DIRECTION_INPUT, PW_ID_ANY, (enum pw_stream_flags)(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params.data(), n_params);
           if (result < 0) {
             // Unset object serial for retry with node id
@@ -371,7 +376,7 @@ namespace pipewire {
         }
         // Connection via legacy (and deprecated) pipewire node id
         if (result < 0) {
-          BOOST_LOG(debug) << "[pipewire] Connect PW stream - fd: "sv << fd << " node: "sv << node;
+          logging::debug("[pipewire] Connect PW stream - fd: {} node: {}", fd, node);
           result = pw_stream_connect(stream_data.stream, PW_DIRECTION_INPUT, node, (enum pw_stream_flags)(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params.data(), n_params);
         }
       }
@@ -565,8 +570,7 @@ namespace pipewire {
           break;
       }
 
-      BOOST_LOG(info) << "[pipewire] Using frame_timestamp (pts) metadata source: "sv
-                      << (use_pts ? "Pipewire (via compositor)" : PROJECT_NAME);
+      logging::info("[pipewire] Using frame_timestamp (pts) metadata source: {}", (use_pts ? "Pipewire (via compositor)" : PROJECT_NAME));
       return use_pts;
     }
 
@@ -763,11 +767,11 @@ namespace pipewire {
     }
 
     static void on_core_info_cb([[maybe_unused]] void *user_data, const struct pw_core_info *pw_info) {
-      BOOST_LOG(info) << "[pipewire] Connected to pipewire version "sv << pw_info->version;
+      logging::info("[pipewire] Connected to pipewire version {}", pw_info->version);
     }
 
     static void on_core_error_cb([[maybe_unused]] void *user_data, const uint32_t id, const int seq, [[maybe_unused]] int res, const char *message) {
-      BOOST_LOG(info) << "[pipewire] Pipewire Error, id:"sv << id << " seq:"sv << seq << " message: "sv << message;
+      logging::info("[pipewire] Pipewire Error, id:{} seq:{} message: {}", id, seq, message);
     }
 
     constexpr static const struct pw_core_events core_events = {
@@ -778,11 +782,9 @@ namespace pipewire {
 
     static void on_stream_state_changed(void *user_data, enum pw_stream_state old, enum pw_stream_state state, const char *err_msg) {
       if (err_msg != nullptr) {
-        BOOST_LOG(info) << "[pipewire] PipeWire stream error '" << err_msg << "' on state: " << pw_stream_state_as_string(old)
-                        << " -> " << pw_stream_state_as_string(state);
+        logging::info("[pipewire] PipeWire stream error '{}' on state: {} -> {}", err_msg, pw_stream_state_as_string(old), pw_stream_state_as_string(state));
       } else {
-        BOOST_LOG(info) << "[pipewire] PipeWire stream state: " << pw_stream_state_as_string(old)
-                        << " -> " << pw_stream_state_as_string(state);
+        logging::info("[pipewire] PipeWire stream state: {} -> {}", pw_stream_state_as_string(old), pw_stream_state_as_string(state));
       }
 
       auto *d = static_cast<stream_data_t *>(user_data);
@@ -891,16 +893,14 @@ namespace pipewire {
         return;
       }
 
-      BOOST_LOG(info) << "[pipewire] Video format: "sv << d->format.info.raw.format;
-      BOOST_LOG(info) << "[pipewire] Size: "sv << d->format.info.raw.size.width << "x"sv << d->format.info.raw.size.height;
-      BOOST_LOG(info) << "[pipewire] Color primaries: "sv << d->format.info.raw.color_primaries;
-      BOOST_LOG(info) << "[pipewire] Transfer function: "sv << d->format.info.raw.transfer_function;
+      logging::info("[pipewire] Video format: {}", static_cast<int>(d->format.info.raw.format));
+      logging::info("[pipewire] Size: {}x{}", d->format.info.raw.size.width, d->format.info.raw.size.height);
+      logging::info("[pipewire] Color primaries: {}", static_cast<int>(d->format.info.raw.color_primaries));
+      logging::info("[pipewire] Transfer function: {}", static_cast<int>(d->format.info.raw.transfer_function));
       if (d->format.info.raw.max_framerate.num == 0 && d->format.info.raw.max_framerate.denom == 1) {
-        BOOST_LOG(info) << "[pipewire] Compositor negotiated frame rate: 0/1 (variable rate capture)"sv;
+        logging::info("[pipewire] Compositor negotiated frame rate: 0/1 (variable rate capture)"sv);
       } else {
-        BOOST_LOG(info) << "[pipewire] Compositor negotiated frame rate: "sv
-                        << d->format.info.raw.framerate.num << "/"sv << d->format.info.raw.framerate.denom
-                        << ", max: "sv << d->format.info.raw.max_framerate.num << "/"sv << d->format.info.raw.max_framerate.denom;
+        logging::info("[pipewire] Compositor negotiated frame rate: {}/{}, max: {}/{}", d->format.info.raw.framerate.num, d->format.info.raw.framerate.denom, d->format.info.raw.max_framerate.num, d->format.info.raw.max_framerate.denom);
       }
 
       int physical_w = d->format.info.raw.size.width;
@@ -933,10 +933,10 @@ namespace pipewire {
 
       uint32_t buffer_types = 0;
       if (spa_pod_find_prop(param, nullptr, SPA_FORMAT_VIDEO_modifier) != nullptr && d->drm_format) {
-        BOOST_LOG(info) << "[pipewire] using DMA-BUF buffers"sv;
+        logging::info("[pipewire] using DMA-BUF buffers"sv);
         buffer_types |= 1 << SPA_DATA_DmaBuf;
       } else {
-        BOOST_LOG(info) << "[pipewire] using memory buffers"sv;
+        logging::info("[pipewire] using memory buffers"sv);
         buffer_types |= 1 << SPA_DATA_MemPtr;
       }
 
@@ -1025,13 +1025,13 @@ namespace pipewire {
         int desktop_logical_width = 0;
         int desktop_logical_height = 0;
         for (const auto &monitor : wl::monitors()) {
-          BOOST_LOG(debug) << "[pipewire] Found output: '"sv << monitor->name << "' offset: "sv << monitor->viewport.offset_x << 'x' << monitor->viewport.offset_y << " resolution: "sv << monitor->viewport.width << 'x' << monitor->viewport.height << " logical resolution: "sv << monitor->viewport.logical_width << 'x' << monitor->viewport.logical_height;
+          logging::debug("[pipewire] Found output: '{}' offset: {}x{} resolution: {}x{} logical resolution: {}x{}", monitor->name, monitor->viewport.offset_x, monitor->viewport.offset_y, monitor->viewport.width, monitor->viewport.height, monitor->viewport.logical_width, monitor->viewport.logical_height);
           // If logical_width and logical_height are not valid try to update them to correct values by matching to monitor
           // position/dimension or position/logical dimensions here since we're iterating for maximum environment size anyway
           if ((logical_width <= 0 || logical_height <= 0) && monitor->viewport.offset_x == offset_x && monitor->viewport.offset_y == offset_y && ((monitor->viewport.width == width && monitor->viewport.height == height) || (monitor->viewport.logical_width == width && monitor->viewport.logical_height == height))) {
             this->logical_width = monitor->viewport.logical_width;
             this->logical_height = monitor->viewport.logical_height;
-            BOOST_LOG(debug) << "[pipewire] Set logical resolution: "sv << logical_width << 'x' << logical_height;
+            logging::debug("[pipewire] Set logical resolution: {}x{}", logical_width, logical_height);
           }
           // Update desktop dimensions to setup maximum environment size over all screens
           desktop_width = std::max(desktop_width, monitor->viewport.offset_x + monitor->viewport.width);
@@ -1043,12 +1043,12 @@ namespace pipewire {
         if (env_height <= 0 || env_width <= 0) {
           this->env_width = desktop_width;
           this->env_height = desktop_height;
-          BOOST_LOG(debug) << "[pipewire] Set desktop resolution: "sv << env_width << 'x' << env_height;
+          logging::debug("[pipewire] Set desktop resolution: {}x{}", env_width, env_height);
         }
         if (env_logical_height <= 0 || env_logical_width <= 0) {
           this->env_logical_width = desktop_logical_width;
           this->env_logical_height = desktop_logical_height;
-          BOOST_LOG(debug) << "[pipewire] Set desktop logical resolution: "sv << env_logical_width << 'x' << env_logical_height;
+          logging::debug("[pipewire] Set desktop logical resolution: {}x{}", env_logical_width, env_logical_height);
         }
       }
     }
@@ -1072,11 +1072,11 @@ namespace pipewire {
 
       const AVRational fps = (pipewire.negotiate_variable_rate ? AVRational {0, 1} : ::video::framerate_to_rational(config));
       if (fps.den != 1) {
-        BOOST_LOG(info) << "[pipewire] Requested frame rate: "sv << fps.num << "/"sv << fps.den << ", approx. "sv << av_q2d(fps) << " fps"sv;
+        logging::info("[pipewire] Requested frame rate: {}/{}, approx. {:.6g} fps", fps.num, fps.den, av_q2d(fps));
       } else if (fps.num == 0 && fps.den == 1) {
-        BOOST_LOG(info) << "[pipewire] Requested variable frame rate (Sunshine pacing required: "sv << std::chrono::duration<double, std::milli>(delay).count() << "ms)"sv;
+        logging::info("[pipewire] Requested variable frame rate (Sunshine pacing required: {:.6g}ms)", std::chrono::duration<double, std::milli>(delay).count());
       } else {
-        BOOST_LOG(info) << "[pipewire] Requested frame rate: "sv << fps.num << "fps"sv;
+        logging::info("[pipewire] Requested frame rate: {}fps", fps.num);
       }
       this->target_framerate = fps;
       mem_type = hwdevice_type;
@@ -1090,10 +1090,10 @@ namespace pipewire {
       uint64_t pipewire_object_serial = SPA_ID_INVALID;  // Default for invalid stream from pipewire docs for PW_KEY_OBJECT_SERIAL
       // Fetch stream info
       if (configure_stream(display_name, pipewire_fd, pipewire_node, pipewire_object_serial) < 0 || (pipewire_node == PW_ID_ANY && (pipewire_object_serial & SPA_ID_INVALID) == SPA_ID_INVALID)) {
-        BOOST_LOG(error) << "[pipewire] Could not find display with name: '"sv << display_name << "'";
+        logging::error("[pipewire] Could not find display with name: '{}'", display_name);
         return -1;
       }
-      BOOST_LOG(info) << "[pipewire] Streaming display '"sv << display_name << "' offset: "sv << offset_x << "x"sv << offset_y << " resolution: "sv << width << "x"sv << height;
+      logging::info("[pipewire] Streaming display '{}' offset: {}x{} resolution: {}x{}", display_name, offset_x, offset_y, width, height);
 
       // Verify or update display parameters for streaming to ensure absolute touch inputs work as expected
       verify_and_update_display_parameters();
@@ -1112,13 +1112,13 @@ namespace pipewire {
       }
 
       if (pipewire.init(pipewire_fd, pipewire_node, pipewire_object_serial, shared_state) < 0) {
-        BOOST_LOG(error) << "[pipewire] Failed to init pipewire. pipewire_t::init() failed.";
+        logging::error("[pipewire] Failed to init pipewire. pipewire_t::init() failed.");
         return -1;
       }
 
       // Start PipeWire now so format negotiation can proceed before capture start
       if (pipewire.ensure_stream(mem_type, width, height, target_framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia) < 0) {
-        BOOST_LOG(error) << "[pipewire] Failed to ensure pipewire stream. pipewire_t::init() failed.";
+        logging::error("[pipewire] Failed to ensure pipewire stream. pipewire_t::init() failed.");
         return -1;
       }
 
@@ -1139,7 +1139,7 @@ namespace pipewire {
       if (negotiated_w > 0 && negotiated_h > 0 && (negotiated_w != width || negotiated_h != height)) {
         width = negotiated_w;
         height = negotiated_h;
-        BOOST_LOG(info) << "[pipewire] Using negotiated Resolution: "sv << width << "x" << height;
+        logging::info("[pipewire] Using negotiated Resolution: {}x{}", width, height);
 
         // Reset and update display parameters for negotiated resolution
         env_width = 0;
@@ -1230,7 +1230,7 @@ namespace pipewire {
       auto next_frame = std::chrono::steady_clock::now();
 
       if (pipewire.ensure_stream(mem_type, width, height, target_framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia) < 0) {
-        BOOST_LOG(error) << "[pipewire] Failed to ensure pipewire stream. capture() failed with error.";
+        logging::error("[pipewire] Failed to ensure pipewire stream. capture() failed with error.");
         return platf::capture_e::error;
       }
       sleep_overshoot_logger.reset();
@@ -1246,7 +1246,7 @@ namespace pipewire {
             return status;
           }
           // Re-init the capture if the stream is dead for any other reason
-          BOOST_LOG(warning) << "[pipewire] PipeWire stream disconnected. Forcing session reset."sv;
+          logging::warning("[pipewire] PipeWire stream disconnected. Forcing session reset."sv);
           return platf::capture_e::reinit;
         }
 
@@ -1265,23 +1265,23 @@ namespace pipewire {
           case platf::capture_e::timeout:
             if (!pull_free_image_cb(img_out)) {
               // Detect if shutdown is pending
-              BOOST_LOG(debug) << "[pipewire] PipeWire: timeout -> shutdown pending -> interrupt nudge";
+              logging::debug("[pipewire] PipeWire: timeout -> shutdown pending -> interrupt nudge");
               pipewire.frame_cv().notify_all();
               return platf::capture_e::interrupted;
             }
             if (!push_captured_image_cb(std::move(img_out), false)) {
-              BOOST_LOG(debug) << "[pipewire] PipeWire: timeout -> !push_captured_image_cb -> ok";
+              logging::debug("[pipewire] PipeWire: timeout -> !push_captured_image_cb -> ok");
               return platf::capture_e::ok;
             }
             break;
           case platf::capture_e::ok:
             if (!push_captured_image_cb(std::move(img_out), true)) {
-              BOOST_LOG(debug) << "[pipewire] PipeWire: ok -> !push_captured_image_cb -> ok";
+              logging::debug("[pipewire] PipeWire: ok -> !push_captured_image_cb -> ok");
               return platf::capture_e::ok;
             }
             break;
           default:
-            BOOST_LOG(error) << "[pipewire] Unrecognized capture status ["sv << std::to_underlying(status) << ']';
+            logging::error("[pipewire] Unrecognized capture status [{}]", std::to_underlying(status));
             return status;
         }
       }
@@ -1421,7 +1421,7 @@ namespace pipewire {
       img->sequence = ++sequence;
 
       if (retries > 0) {
-        BOOST_LOG(debug) << "[pipewire] Processed frame after " << retries << " redundant events."sv;
+        logging::debug("[pipewire] Processed frame after {} redundant events.", retries);
       }
     }
 
@@ -1454,7 +1454,7 @@ namespace pipewire {
       eglQueryDmaBufFormatsEXT(egl_display, MAX_DMABUF_FORMATS, dmabuf_formats.data(), &num_dmabuf_formats);
 
       if (num_dmabuf_formats > MAX_DMABUF_FORMATS) {
-        BOOST_LOG(warning) << "[pipewire] Some DMA-BUF formats are being ignored"sv;
+        logging::warning("[pipewire] Some DMA-BUF formats are being ignored"sv);
       }
 
       for (const auto &fmt : format_map) {
@@ -1471,7 +1471,7 @@ namespace pipewire {
         eglQueryDmaBufModifiersEXT(egl_display, fmt.fourcc, MAX_DMABUF_MODIFIERS, mods.data(), nullptr, &num_modifiers);
 
         if (num_modifiers > MAX_DMABUF_MODIFIERS) {
-          BOOST_LOG(warning) << "[pipewire] Some DMA-BUF modifiers are being ignored"sv;
+          logging::warning("[pipewire] Some DMA-BUF modifiers are being ignored"sv);
         }
 
         dmabuf_infos[n_dmabuf_infos].format = fmt.pw_format;
@@ -1511,13 +1511,13 @@ namespace pipewire {
         bool intel_present = check_intel("/sys/class/drm/card0/device/vendor") ||
                              check_intel("/sys/class/drm/card1/device/vendor");
         if (intel_present) {
-          BOOST_LOG(info) << "[pipewire] Hybrid GPU system detected (Intel + discrete) - CUDA will use memory buffers"sv;
+          logging::info("[pipewire] Hybrid GPU system detected (Intel + discrete) - CUDA will use memory buffers"sv);
           display_is_nvidia = false;
         } else {
           // No Intel GPU found, check if NVIDIA is present
           const char *vendor = eglQueryString(egl_display.get(), EGL_VENDOR);
           if (vendor && std::string_view(vendor).contains("NVIDIA")) {
-            BOOST_LOG(info) << "[pipewire] Pure NVIDIA system - DMA-BUF will be enabled for CUDA"sv;
+            logging::info("[pipewire] Pure NVIDIA system - DMA-BUF will be enabled for CUDA"sv);
             display_is_nvidia = true;
           }
         }

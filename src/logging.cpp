@@ -4,17 +4,22 @@
  */
 // standard includes
 #include <array>
+#include <ctime>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <sstream>
+#include <stdexcept>
+#include <vector>
 
 // lib includes
 #include <boost/core/null_deleter.hpp>
 #include <boost/format.hpp>
-#include <boost/log/attributes/clock.hpp>
+#include <boost/log/attributes/function.hpp>
 #include <boost/log/common.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/sinks.hpp>
+#include <boost/log/sources/global_logger_storage.hpp>
 #include <boost/log/sources/severity_logger.hpp>
 #include <boost/log/utility/exception_handler.hpp>
 
@@ -37,94 +42,205 @@ using namespace std::literals;
 namespace bl = boost::log;
 
 BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", int)
+BOOST_LOG_ATTRIBUTE_KEYWORD(timestamp, "Timestamp", std::chrono::system_clock::time_point)
 
 namespace logging {
-  logger_t::logger_type &logger_t::get() const {
-    switch (severity_) {
-      case 0:
-        return verbose_source::get();
-      case 1:
-        return debug_source::get();
-      case 2:
-        return info_source::get();
-      case 3:
-        return warning_source::get();
-      case 4:
-        return error_source::get();
-      case 5:
-        return fatal_source::get();
-#ifdef SUNSHINE_TESTS
-      case 10:
-        return tests_source::get();
-#endif
-      default:
-        throw std::invalid_argument {"Unsupported log severity"};
+  namespace {
+    /**
+     * @brief Boost-managed source shared by all Sunshine logging functions.
+     */
+    BOOST_LOG_INLINE_GLOBAL_LOGGER_INIT(log_source, bl::sources::severity_logger_mt<int>) {
+      logger_type source;
+      source.add_attribute("Timestamp", bl::attributes::make_function([]() {
+                             return std::chrono::system_clock::now();
+                           }));
+      return source;
     }
-  }
 
-  deinit_t::deinit_t(boost::shared_ptr<text_sink> sink, boost::shared_ptr<boost::log::sinks::sink> platform_sink):
-      sink_ {std::move(sink)},
-      platform_sink_ {std::move(platform_sink)} {
-  }
+    /**
+     * @brief Validate a severity and select its displayed name.
+     * @param level Message severity.
+     * @return Name prefixed to formatted messages.
+     * @throws std::invalid_argument If this build does not support the severity.
+     */
+    std::string_view level_name(level_e level) {
+#ifdef SUNSHINE_TESTS
+      if (level == test_level) {
+        return "Tests"sv;
+      }
+#endif
+      switch (level) {
+        case level_e::verbose:
+          return "Verbose"sv;
+        case level_e::debug:
+          return "Debug"sv;
+        case level_e::info:
+          return "Info"sv;
+        case level_e::warning:
+          return "Warning"sv;
+        case level_e::error:
+          return "Error"sv;
+        case level_e::fatal:
+          return "Fatal"sv;
+        default:
+          throw std::invalid_argument {"Unsupported log severity"};
+      }
+    }
+
+    /**
+     * @brief Convert a backend record into the public structured message.
+     * @param record Accepted backend record.
+     * @return Message shared with every registered output.
+     */
+    message_t make_message(const bl::record_view &record) {
+      return {
+        static_cast<level_e>(record[severity].get()),
+        record[timestamp].get(),
+        record[bl::expressions::smessage].get(),
+      };
+    }
+
+    /**
+     * @brief Format a backend record for the existing file and console outputs.
+     * @param record Backend record being formatted.
+     * @param output Stream receiving the formatted line.
+     */
+    void formatter(const bl::record_view &record, bl::formatting_ostream &output) {
+      output << format_message(make_message(record));
+    }
+
+    /**
+     * @brief Adapt an application output to the Boost delivery machinery.
+     */
+    class output_backend_t: public bl::sinks::basic_sink_backend<bl::sinks::synchronized_feeding> {
+    public:
+      /**
+       * @brief Retain the application output while it is registered.
+       * @param output Application output receiving messages.
+       */
+      explicit output_backend_t(std::shared_ptr<sink_t> output):
+          output_ {std::move(output)} {}
+
+      /**
+       * @brief Deliver one structured message to the application output.
+       * @param record Accepted backend record.
+       */
+      void consume(const bl::record_view &record) {
+        output_->consume(make_message(record));
+      }
+
+    private:
+      std::shared_ptr<sink_t> output_;  ///< Application output retained by this backend.
+    };
+
+    /**
+     * @brief Asynchronous file and console output.
+     */
+    using text_sink = bl::sinks::asynchronous_sink<bl::sinks::text_ostream_backend>;
+  }  // namespace
+
+  /**
+   * @brief Own backend registrations and their optional worker shutdown functions.
+   */
+  struct deinit_t::impl_t {
+    /**
+     * @brief One registered output and its worker shutdown operation.
+     */
+    struct registration_t {
+      boost::shared_ptr<bl::sinks::sink> sink;  ///< Registered output.
+      std::function<void()> stop;  ///< Stops a worker thread, when present.
+    };
+
+    std::vector<registration_t> registrations;  ///< Outputs owned by this registration.
+  };
+
+  deinit_t::deinit_t(std::unique_ptr<impl_t> impl):
+      impl_ {std::move(impl)} {}
 
   deinit_t::~deinit_t() {
     auto core = bl::core::get();
-    core->remove_sink(sink_);
-    if (platform_sink_) {
-      core->remove_sink(platform_sink_);
-      platform_sink_->flush();
+    for (auto &registration : impl_->registrations) {
+      core->remove_sink(registration.sink);
     }
-    sink_->stop();
-    sink_->flush();
+    for (auto &registration : impl_->registrations) {
+      if (registration.stop) {
+        registration.stop();
+      }
+      registration.sink->flush();
+    }
   }
 
-  /**
-   * @brief Format a Boost.Log record for Sunshine log output.
-   */
-  void formatter(const boost::log::record_view &view, boost::log::formatting_ostream &os) {
-    constexpr const char *message = "Message";
-    constexpr const char *severity = "Severity";
-
-    auto log_level = view.attribute_values()[severity].extract<int>().get();
-
-    std::string_view log_type;
-    switch (log_level) {
-      case 0:
-        log_type = "Verbose: "sv;
-        break;
-      case 1:
-        log_type = "Debug: "sv;
-        break;
-      case 2:
-        log_type = "Info: "sv;
-        break;
-      case 3:
-        log_type = "Warning: "sv;
-        break;
-      case 4:
-        log_type = "Error: "sv;
-        break;
-      case 5:
-        log_type = "Fatal: "sv;
-        break;
-#ifdef SUNSHINE_TESTS
-      case 10:
-        log_type = "Tests: "sv;
-        break;
+  std::string format_message(const message_t &message) {
+    const auto seconds = std::chrono::floor<std::chrono::seconds>(message.timestamp);
+    const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(message.timestamp - seconds).count();
+    const auto time = std::chrono::system_clock::to_time_t(seconds);
+    std::tm local_time {};
+#ifdef _WIN32
+    localtime_s(&local_time, &time);
+#else
+    localtime_r(&time, &local_time);
 #endif
-    };
-
-    auto now = std::chrono::system_clock::now();
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-      now - std::chrono::time_point_cast<std::chrono::seconds>(now)
-    );
-
-    auto t = std::chrono::system_clock::to_time_t(now);
-    auto lt = *std::localtime(&t);
-
-    os << "["sv << std::put_time(&lt, "%Y-%m-%d %H:%M:%S.") << boost::format("%03u") % ms.count() << "]: "sv
-       << log_type << view.attribute_values()[message].extract<std::string>();
+    std::ostringstream output;
+    output << '[' << std::put_time(&local_time, "%Y-%m-%d %H:%M:%S.")
+           << std::setfill('0') << std::setw(3) << milliseconds
+           << "]: " << level_name(message.level) << ": " << message.text;
+    return output.str();
   }
+
+  bool is_enabled(level_e level) {
+    static_cast<void>(level_name(level));
+    return static_cast<bool>(log_source::get().open_record(bl::keywords::severity = static_cast<int>(level)));
+  }
+
+  void detail::write(level_e level, const void *context, writer_t writer) {
+    static_cast<void>(level_name(level));
+    auto &source = log_source::get();
+    auto record = source.open_record(bl::keywords::severity = static_cast<int>(level));
+    if (!record) {
+      return;
+    }
+    std::ostringstream message;
+    writer(context, message);
+    bl::record_ostream output {record};
+    output << message.view();
+    output.flush();
+    source.push_record(std::move(record));
+  }
+
+  std::unique_ptr<deinit_t> add_sink(std::shared_ptr<sink_t> sink, int min_log_level, bool asynchronous) {
+    if (!sink) {
+      throw std::invalid_argument {"A logging output must not be null"};
+    }
+    auto backend = boost::make_shared<output_backend_t>(std::move(sink));
+    auto impl = std::make_unique<deinit_t::impl_t>();
+    if (asynchronous) {
+      auto output = boost::make_shared<bl::sinks::asynchronous_sink<output_backend_t>>(backend);
+      output->set_filter(severity >= min_log_level);
+      output->set_exception_handler(bl::make_exception_suppressor());
+      impl->registrations.push_back({output, [output]() {
+                                       output->stop();
+                                     }});
+    } else {
+      auto output = boost::make_shared<bl::sinks::synchronous_sink<output_backend_t>>(backend);
+      output->set_filter(severity >= min_log_level);
+      output->set_exception_handler(bl::make_exception_suppressor());
+      impl->registrations.push_back({output, {}});
+    }
+    auto owner = std::unique_ptr<deinit_t> {new deinit_t {std::move(impl)}};
+    bl::core::get()->add_sink(owner->impl_->registrations.front().sink);
+    return owner;
+  }
+
+#ifdef SUNSHINE_TESTS
+  testing::scoped_disable_t::scoped_disable_t():
+      previous_ {bl::core::get()->get_logging_enabled()} {
+    bl::core::get()->set_logging_enabled(false);
+  }
+
+  testing::scoped_disable_t::~scoped_disable_t() {
+    bl::core::get()->set_logging_enabled(previous_);
+  }
+#endif
 #ifdef __ANDROID__
   namespace sinks = boost::log::sinks;
   namespace expr = boost::log::expressions;
@@ -199,15 +315,21 @@ namespace logging {
     // This is particularly important when running from a Windows service.
     sink->locked_backend()->auto_flush(true);
 
-    boost::shared_ptr<boost::log::sinks::sink> platform_sink;
 #ifdef __ANDROID__
-    platform_sink = boost::make_shared<sinks::synchronous_sink<android_sink_backend>>();
+    auto platform_sink = boost::make_shared<sinks::synchronous_sink<android_sink_backend>>();
 #endif
-    auto owner = std::make_unique<deinit_t>(sink, platform_sink);
+    auto impl = std::make_unique<deinit_t::impl_t>();
+    impl->registrations.push_back({sink, [sink]() {
+                                     sink->stop();
+                                   }});
+#ifdef __ANDROID__
+    impl->registrations.push_back({platform_sink, {}});
+#endif
+    auto owner = std::unique_ptr<deinit_t> {new deinit_t {std::move(impl)}};
     bl::core::get()->add_sink(sink);
-    if (platform_sink) {
-      bl::core::get()->add_sink(platform_sink);
-    }
+#ifdef __ANDROID__
+    bl::core::get()->add_sink(platform_sink);
+#endif
     return owner;
   }
 
@@ -226,16 +348,16 @@ namespace logging {
       if (level <= AV_LOG_ERROR) {
         // We print AV_LOG_FATAL at the error level. FFmpeg prints things as fatal that
         // are expected in some cases, such as lack of codec support or similar things.
-        BOOST_LOG(error) << buffer.data();
+        logging::error(buffer.data());
       } else if (level <= AV_LOG_WARNING) {
-        BOOST_LOG(warning) << buffer.data();
+        logging::warning(buffer.data());
       } else if (level <= AV_LOG_INFO) {
-        BOOST_LOG(info) << buffer.data();
+        logging::info(buffer.data());
       } else if (level <= AV_LOG_VERBOSE) {
         // AV_LOG_VERBOSE is less verbose than AV_LOG_DEBUG
-        BOOST_LOG(debug) << buffer.data();
+        logging::debug(buffer.data());
       } else {
-        BOOST_LOG(verbose) << buffer.data();
+        logging::verbose(buffer.data());
       }
     });
   }
@@ -249,22 +371,22 @@ namespace logging {
     display_device::Logger::get().setCustomCallback([](const display_device::Logger::LogLevel level, const std::string &message) {
       switch (level) {
         case display_device::Logger::LogLevel::verbose:
-          BOOST_LOG(verbose) << message;
+          logging::verbose(message);
           break;
         case display_device::Logger::LogLevel::debug:
-          BOOST_LOG(debug) << message;
+          logging::debug(message);
           break;
         case display_device::Logger::LogLevel::info:
-          BOOST_LOG(info) << message;
+          logging::info(message);
           break;
         case display_device::Logger::LogLevel::warning:
-          BOOST_LOG(warning) << message;
+          logging::warning(message);
           break;
         case display_device::Logger::LogLevel::error:
-          BOOST_LOG(error) << message;
+          logging::error(message);
           break;
         case display_device::Logger::LogLevel::fatal:
-          BOOST_LOG(fatal) << message;
+          logging::fatal(message);
           break;
       }
     });

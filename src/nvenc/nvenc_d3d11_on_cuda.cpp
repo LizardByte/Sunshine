@@ -27,21 +27,21 @@ namespace NVENC_NAMESPACE {
 
         if (cuda_d3d_input_texture) {
           if (cuda_failed(cuda_functions.cuGraphicsUnregisterResource(cuda_d3d_input_texture))) {
-            BOOST_LOG(error) << "NvEnc: cuGraphicsUnregisterResource() failed: error " << last_cuda_error;
+            logging::error("NvEnc: cuGraphicsUnregisterResource() failed: error {}", static_cast<int>(last_cuda_error));
           }
           cuda_d3d_input_texture = nullptr;
         }
 
         if (cuda_surface) {
           if (cuda_failed(cuda_functions.cuMemFree(cuda_surface))) {
-            BOOST_LOG(error) << "NvEnc: cuMemFree() failed: error " << last_cuda_error;
+            logging::error("NvEnc: cuMemFree() failed: error {}", static_cast<int>(last_cuda_error));
           }
           cuda_surface = 0;
         }
       }
 
       if (cuda_failed(cuda_functions.cuCtxDestroy(cuda_context))) {
-        BOOST_LOG(error) << "NvEnc: cuCtxDestroy() failed: error " << last_cuda_error;
+        logging::error("NvEnc: cuCtxDestroy() failed: error {}", static_cast<int>(last_cuda_error));
       }
       cuda_context = nullptr;
     }
@@ -69,12 +69,12 @@ namespace NVENC_NAMESPACE {
         return location != nullptr;
       };
       if (!load_function(cuda_functions.cuInit, "cuInit") || !load_function(cuda_functions.cuD3D11GetDevice, "cuD3D11GetDevice") || !load_function(cuda_functions.cuCtxCreate, "cuCtxCreate_v2") || !load_function(cuda_functions.cuCtxDestroy, "cuCtxDestroy_v2") || !load_function(cuda_functions.cuCtxPushCurrent, "cuCtxPushCurrent_v2") || !load_function(cuda_functions.cuCtxPopCurrent, "cuCtxPopCurrent_v2") || !load_function(cuda_functions.cuMemAllocPitch, "cuMemAllocPitch_v2") || !load_function(cuda_functions.cuMemFree, "cuMemFree_v2") || !load_function(cuda_functions.cuGraphicsD3D11RegisterResource, "cuGraphicsD3D11RegisterResource") || !load_function(cuda_functions.cuGraphicsUnregisterResource, "cuGraphicsUnregisterResource") || !load_function(cuda_functions.cuGraphicsMapResources, "cuGraphicsMapResources") || !load_function(cuda_functions.cuGraphicsUnmapResources, "cuGraphicsUnmapResources") || !load_function(cuda_functions.cuGraphicsSubResourceGetMappedArray, "cuGraphicsSubResourceGetMappedArray") || !load_function(cuda_functions.cuMemcpy2D, "cuMemcpy2D_v2")) {
-        BOOST_LOG(error) << "NvEnc: missing CUDA functions in " << dll_name;
+        logging::error("NvEnc: missing CUDA functions in {}", dll_name);
         FreeLibrary(cuda_functions.dll);
         cuda_functions = {};
       }
     } else {
-      BOOST_LOG(debug) << "NvEnc: couldn't load CUDA dynamic library " << dll_name;
+      logging::debug("NvEnc: couldn't load CUDA dynamic library {}", dll_name);
     }
 
     if (cuda_functions.dll) {
@@ -85,10 +85,10 @@ namespace NVENC_NAMESPACE {
         if (cuda_succeeded(cuda_functions.cuInit(0)) && cuda_succeeded(cuda_functions.cuD3D11GetDevice(&cuda_device, dxgi_adapter)) && cuda_succeeded(cuda_functions.cuCtxCreate(&cuda_context, CU_CTX_SCHED_BLOCKING_SYNC, cuda_device)) && cuda_succeeded(cuda_functions.cuCtxPopCurrent(&cuda_context))) {
           device = cuda_context;
         } else {
-          BOOST_LOG(error) << "NvEnc: couldn't create CUDA interop context: error " << last_cuda_error;
+          logging::error("NvEnc: couldn't create CUDA interop context: error {}", static_cast<int>(last_cuda_error));
         }
       } else {
-        BOOST_LOG(error) << "NvEnc: couldn't get DXGI adapter for CUDA interop";
+        logging::error("NvEnc: couldn't get DXGI adapter for CUDA interop");
       }
     }
 
@@ -97,7 +97,7 @@ namespace NVENC_NAMESPACE {
 
   bool nvenc_d3d11_on_cuda::create_and_register_input_buffer() {
     if (encoder_params.buffer_format != NV_ENC_BUFFER_FORMAT_YUV444_10BIT) {
-      BOOST_LOG(error) << "NvEnc: CUDA interop is expected to be used only for 10-bit 4:4:4 encoding";
+      logging::error("NvEnc: CUDA interop is expected to be used only for 10-bit 4:4:4 encoding");
       return false;
     }
 
@@ -113,7 +113,7 @@ namespace NVENC_NAMESPACE {
       desc.BindFlags = D3D11_BIND_RENDER_TARGET;
 
       if (d3d_device->CreateTexture2D(&desc, nullptr, &d3d_input_texture) != S_OK) {
-        BOOST_LOG(error) << "NvEnc: couldn't create input texture";
+        logging::error("NvEnc: couldn't create input texture");
         return false;
       }
     }
@@ -126,7 +126,7 @@ namespace NVENC_NAMESPACE {
 
       if (!cuda_d3d_input_texture) {
         if (cuda_failed(cuda_functions.cuGraphicsD3D11RegisterResource(&cuda_d3d_input_texture, d3d_input_texture, CU_GRAPHICS_REGISTER_FLAGS_NONE))) {
-          BOOST_LOG(error) << "NvEnc: cuGraphicsD3D11RegisterResource() failed: error " << last_cuda_error;
+          logging::error("NvEnc: cuGraphicsD3D11RegisterResource() failed: error {}", static_cast<int>(last_cuda_error));
           return false;
         }
       }
@@ -137,7 +137,7 @@ namespace NVENC_NAMESPACE {
                                                        encoder_params.width * 2,
                                                        encoder_params.height * 3,
                                                        16))) {
-          BOOST_LOG(error) << "NvEnc: cuMemAllocPitch() failed: error " << last_cuda_error;
+          logging::error("NvEnc: cuMemAllocPitch() failed: error {}", static_cast<int>(last_cuda_error));
           return false;
         }
       }
@@ -154,7 +154,7 @@ namespace NVENC_NAMESPACE {
       register_resource.bufferUsage = NV_ENC_INPUT_IMAGE;
 
       if (nvenc_failed(nvenc->nvEncRegisterResource(encoder, &register_resource))) {
-        BOOST_LOG(error) << "NvEnc: NvEncRegisterResource() failed: " << last_nvenc_error_string;
+        logging::error("NvEnc: NvEncRegisterResource() failed: {}", last_nvenc_error_string);
         return false;
       }
 
@@ -171,13 +171,13 @@ namespace NVENC_NAMESPACE {
     }
 
     if (cuda_failed(cuda_functions.cuGraphicsMapResources(1, &cuda_d3d_input_texture, 0))) {
-      BOOST_LOG(error) << "NvEnc: cuGraphicsMapResources() failed: error " << last_cuda_error;
+      logging::error("NvEnc: cuGraphicsMapResources() failed: error {}", static_cast<int>(last_cuda_error));
       return false;
     }
 
     auto unmap = [&]() -> bool {
       if (cuda_failed(cuda_functions.cuGraphicsUnmapResources(1, &cuda_d3d_input_texture, 0))) {
-        BOOST_LOG(error) << "NvEnc: cuGraphicsUnmapResources() failed: error " << last_cuda_error;
+        logging::error("NvEnc: cuGraphicsUnmapResources() failed: error {}", static_cast<int>(last_cuda_error));
         return false;
       }
       return true;
@@ -186,7 +186,7 @@ namespace NVENC_NAMESPACE {
 
     CUarray input_texture_array;
     if (cuda_failed(cuda_functions.cuGraphicsSubResourceGetMappedArray(&input_texture_array, cuda_d3d_input_texture, 0, 0))) {
-      BOOST_LOG(error) << "NvEnc: cuGraphicsSubResourceGetMappedArray() failed: error " << last_cuda_error;
+      logging::error("NvEnc: cuGraphicsSubResourceGetMappedArray() failed: error {}", static_cast<int>(last_cuda_error));
       return false;
     }
 
@@ -202,7 +202,7 @@ namespace NVENC_NAMESPACE {
       copy_params.Height = encoder_params.height * 3;
 
       if (cuda_failed(cuda_functions.cuMemcpy2D(&copy_params))) {
-        BOOST_LOG(error) << "NvEnc: cuMemcpy2D() failed: error " << last_cuda_error;
+        logging::error("NvEnc: cuMemcpy2D() failed: error {}", static_cast<int>(last_cuda_error));
         return false;
       }
     }
@@ -225,7 +225,7 @@ namespace NVENC_NAMESPACE {
     if (pushed_context) {
       CUcontext popped_context;
       if (parent.cuda_failed(parent.cuda_functions.cuCtxPopCurrent(&popped_context))) {
-        BOOST_LOG(error) << "NvEnc: cuCtxPopCurrent() failed: error " << parent.last_cuda_error;
+        logging::error("NvEnc: cuCtxPopCurrent() failed: error {}", static_cast<int>(parent.last_cuda_error));
       }
     }
   }
@@ -234,7 +234,7 @@ namespace NVENC_NAMESPACE {
     if (cuda_context && cuda_succeeded(cuda_functions.cuCtxPushCurrent(cuda_context))) {
       return {*this, cuda_context};
     } else {
-      BOOST_LOG(error) << "NvEnc: cuCtxPushCurrent() failed: error " << last_cuda_error;
+      logging::error("NvEnc: cuCtxPushCurrent() failed: error {}", static_cast<int>(last_cuda_error));
       return {*this, nullptr};
     }
   }

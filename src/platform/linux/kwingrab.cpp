@@ -16,6 +16,7 @@
 #include <memory>
 #include <pwd.h>
 #include <ranges>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -78,7 +79,7 @@ namespace kwin {
 
       // If we do not have a system permission, check if we need a temporary permission via user's application directory
       if (is_permission_system_deactivated()) {
-        BOOST_LOG(info) << "[kwingrab] No permission desktop file necessary. KWin permission system deactivated.";
+        logging::info("[kwingrab] No permission desktop file necessary. KWin permission system deactivated.");
         create_file = false;
         initialized = true;
         return;
@@ -87,13 +88,13 @@ namespace kwin {
       // User: Check and (if necessary) update user's XDG applications for permission
       auto user_applications = get_xdg_user_applications_path();
       if (user_applications.empty()) {
-        BOOST_LOG(error) << "[kwingrab] Failed to determine user application directory. Cannot continue with permission setup.";
+        logging::error("[kwingrab] Failed to determine user application directory. Cannot continue with permission setup.");
         return;
       }
       // Create non-existing application directory so we can write into it
       if (!std::filesystem::exists(user_applications) && !std::filesystem::create_directories(user_applications)) {
         // In case of failure log and return
-        BOOST_LOG(error) << "[kwingrab] Failed to create application directory. Cannot continue with permission setup.";
+        logging::error("[kwingrab] Failed to create application directory. Cannot continue with permission setup.");
         create_file = false;
         initialized = true;
         return;
@@ -106,19 +107,19 @@ namespace kwin {
           auto entry_executablepath = get_executable_from_desktop_file(entry);
           if (!entry_executablepath.empty() && entry_executablepath == executablepath) {
             // This entry is exactly the one we need
-            BOOST_LOG(debug) << "[kwingrab] Ignoring current temporary KWin wayland permission file: "sv << entry;
+            logging::debug("[kwingrab] Ignoring current temporary KWin wayland permission file: {}", entry);
             create_file = false;
             continue;
           }
           if (!entry_executablepath.empty() && std::filesystem::exists(entry_executablepath)) {
             // This entry is for another sunshine executable that still exists
-            BOOST_LOG(debug) << "[kwingrab] Ignoring other valid temporary KWin wayland permission file: "sv << entry;
+            logging::debug("[kwingrab] Ignoring other valid temporary KWin wayland permission file: {}", entry);
             continue;
           }
           if (std::filesystem::remove(path)) {
-            BOOST_LOG(info) << "[kwingrab] Removed stale temporary KWin wayland permission file: "sv << entry << " executable: "sv << entry_executablepath;
+            logging::info("[kwingrab] Removed stale temporary KWin wayland permission file: {} executable: {}", entry, entry_executablepath);
           } else {
-            BOOST_LOG(warning) << "[kwingrab] Failed to remove stale temporary KWin wayland permission file: "sv << entry << " executable: "sv << entry_executablepath;
+            logging::warning("[kwingrab] Failed to remove stale temporary KWin wayland permission file: {} executable: {}", entry, entry_executablepath);
           }
         }
       }
@@ -138,10 +139,10 @@ namespace kwin {
                      << "NoDisplay=true" << std::endl;
           filestream.close();
           // Give KWin time to catch up to the new desktop file
-          BOOST_LOG(info) << "[kwingrab] Created temporary KWin wayland permission file: "sv << user_filepath << " - Waiting 3 seconds for KDE to pick up new file.";
+          logging::info("[kwingrab] Created temporary KWin wayland permission file: {} - Waiting 3 seconds for KDE to pick up new file.", user_filepath);
           std::this_thread::sleep_for(std::chrono::milliseconds(3000));
         } else {
-          BOOST_LOG(warning) << "[kwingrab] Failed to open temporary KWin wayland permission file: "sv << user_filepath;
+          logging::warning("[kwingrab] Failed to open temporary KWin wayland permission file: {}", user_filepath);
         }
       }
 
@@ -234,7 +235,7 @@ namespace kwin {
         if (std::filesystem::exists(filename)) {
           auto file_executablepath = get_executable_from_desktop_file(filename);
           if (file_executablepath == executablepath) {
-            BOOST_LOG(info) << "[kwingrab] Found matching system KWin desktop permission file: "sv << filename;
+            logging::info("[kwingrab] Found matching system KWin desktop permission file: {}", filename);
             return true;
           }
         }
@@ -325,13 +326,13 @@ namespace kwin {
 
       std::string wl_name;
       if (!lizardbyte::common::get_env("WAYLAND_DISPLAY", wl_name)) {
-        BOOST_LOG(error) << "[kwingrab] WAYLAND_DISPLAY not set"sv;
+        logging::error("[kwingrab] WAYLAND_DISPLAY not set"sv);
         return -1;
       }
 
       wl_display = wl_display_connect(wl_name.c_str());
       if (!wl_display) {
-        BOOST_LOG(error) << "[kwingrab] cannot connect to Wayland display: "sv << wl_name;
+        logging::error("[kwingrab] cannot connect to Wayland display: {}", wl_name);
         return -1;
       }
 
@@ -343,7 +344,7 @@ namespace kwin {
       wl_display_roundtrip(wl_display);
 
       if (!is_kwin_screencasting_available()) {
-        BOOST_LOG(debug) << "[kwingrab] zkde_screencast_unstable_v1 not found in registry."sv;
+        logging::debug("[kwingrab] zkde_screencast_unstable_v1 not found in registry."sv);
         return -1;
       }
 
@@ -374,7 +375,7 @@ namespace kwin {
       });
       std::vector<std::string> output_names;
       for (const auto &output_parameter : sorted_outputs) {
-        BOOST_LOG(info) << "[kwingrab] Found output: "sv << output_parameter->name << " order: "sv << output_parameter->order << " position: "sv << output_parameter->pos_x << "x"sv << output_parameter->pos_y << " resolution: "sv << output_parameter->width << "x"sv << output_parameter->height;
+        logging::info("[kwingrab] Found output: {} order: {} position: {}x{} resolution: {}x{}", output_parameter->name, output_parameter->order, output_parameter->pos_x, output_parameter->pos_y, output_parameter->width, output_parameter->height);
         output_names.emplace_back(output_parameter->name);
       }
       return output_names;
@@ -401,7 +402,7 @@ namespace kwin {
     int start(const std::string_view &output_name) {
       // Try find correct output by name
       if (outputs.empty()) {
-        BOOST_LOG(error) << "[kwingrab] no wl_output found"sv;
+        logging::error("[kwingrab] no wl_output found"sv);
         return -1;
       }
       struct wl_output *output = nullptr;
@@ -427,12 +428,16 @@ namespace kwin {
       } else {
         // No screencast protocol found. Output an error based on newly initialized permission file.
         if (screencast_permission_helper_t::is_newly_initialized()) {
-          BOOST_LOG(error) << "[kwingrab] zkde_screencast_unstable_v1 not found in registry. "sv
-                              "A new permission desktop file was automatically created but might now have been recognized yet. "sv
-                              "Try restarting sunshine or set KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 to fully disable permission checks."sv;
+          logging::error(
+            "[kwingrab] zkde_screencast_unstable_v1 not found in registry. "
+            "A new permission desktop file was automatically created but might now have been recognized yet. "
+            "Try restarting sunshine or set KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 to fully disable permission checks."
+          );
         } else {
-          BOOST_LOG(error) << "[kwingrab] zkde_screencast_unstable_v1 not found in registry. Check permission desktop file "sv
-                              "for sunshine binary or set KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 to fully disable permission checks."sv;
+          logging::error(
+            "[kwingrab] zkde_screencast_unstable_v1 not found in registry. Check permission desktop file "
+            "for sunshine binary or set KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 to fully disable permission checks."
+          );
         }
         return -1;
       }
@@ -442,30 +447,27 @@ namespace kwin {
       }
 
       if (stream_failed) {
-        BOOST_LOG(error) << "[kwingrab] stream_output failed: "sv << stream_error_msg;
+        logging::error("[kwingrab] stream_output failed: {}", stream_error_msg);
         return -1;
       }
       // Check for valid node_id and/or object serial values here, stream_ready is just an internal flag
       if (out_node_id == PW_ID_ANY && (out_objectserial & SPA_ID_INVALID) == SPA_ID_INVALID) {
-        BOOST_LOG(error) << "[kwingrab] timeout waiting for created event"sv;
+        logging::error("[kwingrab] timeout waiting for created event"sv);
         return -1;
       }
 
       if ((out_objectserial & SPA_ID_INVALID) == SPA_ID_INVALID) {
-        BOOST_LOG(info) << "[kwingrab] Pipewire stream created: node="sv << out_node_id;
+        logging::info("[kwingrab] Pipewire stream created: node={}", out_node_id);
       } else {
-        BOOST_LOG(info) << "[kwingrab] Pipewire stream created: objectserial="sv << out_objectserial << " (node="sv << out_node_id << ")"sv;
+        logging::info("[kwingrab] Pipewire stream created: objectserial={} (node={})", out_objectserial, out_node_id);
       }
 
       if (out_params->width == 0 || out_params->height == 0) {
-        BOOST_LOG(error) << "[kwingrab] could not determine output dimensions"sv;
+        logging::error("[kwingrab] could not determine output dimensions"sv);
         return -1;
       }
 
-      BOOST_LOG(info) << "[kwingrab] Screencasting output"sv
-                      << " name "sv << out_params->name
-                      << " position "sv << out_params->pos_x << "x"sv << out_params->pos_y
-                      << " resolution "sv << out_params->width << "x"sv << out_params->height;
+      logging::info("[kwingrab] Screencasting output name {} position {}x{} resolution {}x{}", out_params->name, out_params->pos_x, out_params->pos_y, out_params->width, out_params->height);
       return 0;
     }
 
@@ -505,7 +507,7 @@ namespace kwin {
         }
 
         if (poll(&pfd, 1, remaining.count()) > 0 && (pfd.revents & POLLIN) && wl_display_dispatch(wl_display) < 0) {
-          BOOST_LOG(error) << "[kwingrab] wl_display_dispatch failed"sv;
+          logging::error("[kwingrab] wl_display_dispatch failed"sv);
           return -1;
         }
       }
@@ -532,7 +534,7 @@ namespace kwin {
           wl_registry_bind(reg, name, &kde_output_order_v1_interface, bind_ver)
         );
         kde_output_order_v1_add_listener(self->kde_output_order, &output_order_listener, self);
-        BOOST_LOG(debug) << "[kwingrab] bound kde_output_order_v1 version "sv << bind_ver;
+        logging::debug("[kwingrab] bound kde_output_order_v1 version {}", bind_ver);
       } else if (!std::strcmp(interface, zkde_screencast_unstable_v1_interface.name)) {
         // Bind version 1 to 6 â€” We use stream_output from v1 for node_id (deprecated but good as a fall-back)
         //                       but also try to get the newer (re-use safe) pipewire objectserial from v6
@@ -540,7 +542,7 @@ namespace kwin {
         self->kde_screencast_v1_ = static_cast<struct zkde_screencast_unstable_v1 *>(
           wl_registry_bind(reg, name, &zkde_screencast_unstable_v1_interface, bind_ver)
         );
-        BOOST_LOG(debug) << "[kwingrab] bound zkde_screencast_unstable_v1 version "sv << bind_ver;
+        logging::debug("[kwingrab] bound zkde_screencast_unstable_v1 version {}", bind_ver);
       } else if (!std::strcmp(interface, wl_output_interface.name)) {
         // Bind version 4 - we need wl_output name for matching
         uint32_t bind_ver = std::min(version, static_cast<uint32_t>(4));
@@ -551,10 +553,14 @@ namespace kwin {
         const auto [_, inserted] = self->outputs.try_emplace(output, std::make_shared<output_parameter_t>());
         if (inserted) {
           wl_output_add_listener(output, &output_listener, self);
-          BOOST_LOG(debug) << "[kwingrab] bound wl_output version "sv << bind_ver << " instance: "sv << output;
+          logging::debug([&](std::ostream &out) {
+            out << "[kwingrab] bound wl_output version "sv << bind_ver << " instance: "sv << output;
+          });
         } else {
           // If we for some odd reason cannot add the output to the map clean it up and log a warning
-          BOOST_LOG(warning) << "[kwingrab] Ignoring output "sv << output << " because map emplace failed."sv;
+          logging::warning([&](std::ostream &out) {
+            out << "[kwingrab] Ignoring output "sv << output << " because map emplace failed."sv;
+          });
           wl_output_destroy(output);
         }
       }
@@ -631,7 +637,7 @@ namespace kwin {
     // ScreenCast v1 stream listener
     static void on_stream_closed(void *data, struct zkde_screencast_stream_unstable_v1 *stream [[maybe_unused]]) {
       auto *self = static_cast<screencast_t *>(data);
-      BOOST_LOG(warning) << "[kwingrab] stream closed by server"sv;
+      logging::warning("[kwingrab] stream closed by server"sv);
       self->stream_failed = false;
       self->stream_ready = false;
       self->stream_error_msg = "stream closed by server";
@@ -642,7 +648,7 @@ namespace kwin {
       self->out_node_id = node;
       self->stream_failed = false;
       self->stream_ready = true;
-      BOOST_LOG(debug) << "[kwingrab] created event, node_id="sv << node;
+      logging::debug("[kwingrab] created event, node_id={}", node);
     }
 
     static void on_stream_failed(void *data, struct zkde_screencast_stream_unstable_v1 *stream [[maybe_unused]], const char *err_msg) {
@@ -650,14 +656,14 @@ namespace kwin {
       self->stream_failed = true;
       self->stream_ready = false;
       self->stream_error_msg = err_msg ? err_msg : "unknown error";
-      BOOST_LOG(error) << "[kwingrab] failed event: "sv << self->stream_error_msg;
+      logging::error("[kwingrab] failed event: {}", self->stream_error_msg);
     }
 
     static void on_stream_serial(void *data, struct zkde_screencast_stream_unstable_v1 *stream [[maybe_unused]], uint32_t object_serial_hi, uint32_t object_serial_low) {
       auto *self = static_cast<screencast_t *>(data);
       self->out_objectserial = static_cast<uint64_t>(object_serial_hi) << 32 | object_serial_low;
       // serial event always preceded the created event with the node id, so we only set stream_ready in created for v1
-      BOOST_LOG(debug) << "[kwingrab] serial event, objectserial="sv << self->out_objectserial;
+      logging::debug("[kwingrab] serial event, objectserial={}", self->out_objectserial);
     }
 
     static constexpr struct zkde_screencast_stream_unstable_v1_listener stream_listener = {
@@ -727,7 +733,7 @@ namespace platf {
    */
   std::shared_ptr<display_t> kwin_display(const config::settings_t &settings, mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     if (!pipewire::pipewire_display_t::init_pipewire_and_check_hwdevice_type(hwdevice_type)) {
-      BOOST_LOG(error) << "[kwingrab] Could not initialize pipewire-based display with the given hw device type."sv;
+      logging::error("[kwingrab] Could not initialize pipewire-based display with the given hw device type."sv);
       return nullptr;
     }
 

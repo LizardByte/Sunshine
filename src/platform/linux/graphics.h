@@ -171,7 +171,7 @@ namespace gl {
     void bind(It it_begin, It it_end) {
       using namespace std::literals;
       if (std::distance(it_begin, it_end) > size()) {
-        BOOST_LOG(warning) << "To many elements to bind"sv;
+        logging::warning("To many elements to bind"sv);
         return;
       }
 

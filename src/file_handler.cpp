@@ -34,7 +34,7 @@ namespace file_handler {
 
   std::string read_file(const char *path) {
     if (!std::filesystem::exists(path)) {
-      BOOST_LOG(debug) << "Missing file: " << path;
+      logging::debug("Missing file: {}", path);
       return {};
     }
 

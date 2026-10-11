@@ -8,7 +8,7 @@
 namespace ca {
 
   // Display FourCC error codes, with fallback to integer.
-  // Usage: BOOST_LOG(error) << ca::Status(err);
+  // Usage: logging::error([&](std::ostream &out) { out << ca::Status(err); });
 
   // Some CoreAudio error examples:
   // kAudioHardwareNoError = 0,

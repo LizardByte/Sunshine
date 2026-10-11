@@ -192,7 +192,7 @@ namespace va {
 
       auto gbm_api = gbm::api_t::load();
       if (!gbm_api) {
-        BOOST_LOG(warning) << "libgbm not initialized"sv;
+        logging::warning("libgbm not initialized"sv);
         return -1;
       }
 
@@ -201,7 +201,9 @@ namespace va {
       gbm = gbm::make_device(std::move(gbm_api), file.el);
       if (!gbm) {
         std::array<char, 1024> string;
-        BOOST_LOG(error) << "Couldn't create GBM device: ["sv << strerror_r(errno, string.data(), string.size()) << ']';
+        logging::error([&](std::ostream &out) {
+          out << "Couldn't create GBM device: ["sv << strerror_r(errno, string.data(), string.size()) << ']';
+        });
         return -1;
       }
 
@@ -233,7 +235,7 @@ namespace va {
       int num_eps;
       auto status = vaQueryConfigEntrypoints(va_display, profile, entrypoints.data(), &num_eps);
       if (status != VA_STATUS_SUCCESS) {
-        BOOST_LOG(error) << "Failed to query VA entrypoints: "sv << vaErrorStr(status);
+        logging::error("Failed to query VA entrypoints: {}", vaErrorStr(status));
         return (VAEntrypoint) 0;
       }
       entrypoints.resize(num_eps);
@@ -263,7 +265,7 @@ namespace va {
       int num_profs;
       auto status = vaQueryConfigProfiles(va_display, profiles.data(), &num_profs);
       if (status != VA_STATUS_SUCCESS) {
-        BOOST_LOG(error) << "Failed to query VA profiles: "sv << vaErrorStr(status);
+        logging::error("Failed to query VA profiles: {}", vaErrorStr(status));
         return false;
       }
       profiles.resize(num_profs);
@@ -304,7 +306,7 @@ namespace va {
         }
       }
 
-      BOOST_LOG(error) << "Unknown encoder profile: "sv << ctx->profile;
+      logging::error("Unknown encoder profile: {}", static_cast<int>(ctx->profile));
       return VAProfileNone;
     }
 
@@ -330,10 +332,10 @@ namespace va {
       auto vendor = vaQueryVendorString(va_display);
 
       if (va_entrypoint == VAEntrypointEncSliceLP) {
-        BOOST_LOG(info) << "Using LP encoding mode"sv;
+        logging::info("Using LP encoding mode"sv);
         av_dict_set_int(options, "low_power", 1, 0);
       } else {
-        BOOST_LOG(info) << "Using normal encoding mode"sv;
+        logging::info("Using normal encoding mode"sv);
       }
 
       // When the compression_level AVOption is set, vaapi_encode.c assigns the value to VAEncMiscParameterBufferQualityLevel
@@ -362,7 +364,7 @@ namespace va {
       }
       if (target_quality > 0) {
         ctx->compression_level = target_quality;
-        BOOST_LOG(info) << "[VAAPI] Quality level set to "sv << ctx->compression_level << " (fastest level: "sv << quality_attr.value << ")"sv;
+        logging::info("[VAAPI] Quality level set to {} (fastest level: {})", ctx->compression_level, quality_attr.value);
       }
 
       VAConfigAttrib rc_attr = {.type = VAConfigAttribRateControl};
@@ -379,7 +381,7 @@ namespace va {
         slice_attr.value = 1;
       }
       if (ctx->slices > slice_attr.value) {
-        BOOST_LOG(info) << "Limiting slice count to encoder maximum: "sv << slice_attr.value;
+        logging::info("Limiting slice count to encoder maximum: {}", slice_attr.value);
         ctx->slices = slice_attr.value;
       }
 
@@ -436,10 +438,10 @@ namespace va {
       });
       av_dict_set(options, "rc_mode", rc_mode.c_str(), 0);
       if (rc_val == VA_RC_CQP || rc_val == VA_RC_ICQ || rc_val == VA_RC_QVBR) {
-        BOOST_LOG(warning) << "[VAAPI] Applying QP for compatible rate control method (QP value: "sv << settings.video.qp << ")"sv;
+        logging::warning("[VAAPI] Applying QP for compatible rate control method (QP value: {})", settings.video.qp);
         av_dict_set_int(options, "qp", settings.video.qp, 0);
       }
-      BOOST_LOG(info) << "[VAAPI] Using "sv << rc_mode << " rate control "sv << rc_vbv << rc_whitelist;
+      logging::info("[VAAPI] Using {} rate control {}{}", rc_mode, rc_vbv, rc_whitelist);
     }
 
     /**
@@ -455,7 +457,7 @@ namespace va {
 
       if (!frame->buf[0]) {
         if (av_hwframe_get_buffer(hw_frames_ctx_buf, frame, 0)) {
-          BOOST_LOG(error) << "Couldn't get hwframe for VAAPI"sv;
+          logging::error("Couldn't get hwframe for VAAPI"sv);
           return -1;
         }
       }
@@ -472,7 +474,7 @@ namespace va {
         &prime
       );
       if (status) {
-        BOOST_LOG(error) << "Couldn't export va surface handle: ["sv << (int) surface << "]: "sv << vaErrorStr(status);
+        logging::error("Couldn't export va surface handle: [{}]: {}", (int) surface, vaErrorStr(status));
 
         return -1;
       }
@@ -484,7 +486,7 @@ namespace va {
       }
 
       if (prime.num_layers != 2) {
-        BOOST_LOG(error) << "Invalid layer count for VA surface: expected 2, got "sv << prime.num_layers;
+        logging::error("Invalid layer count for VA surface: expected 2, got {}", prime.num_layers);
         return -1;
       }
 
@@ -676,8 +678,24 @@ namespace va {
     unsigned int driver_quirks;
   } AVVAAPIDeviceContext;
 
-  static void __log(void *level, const char *msg) {
-    BOOST_LOG(*(logging::logger_t::logger_type *) level) << msg;
+  /**
+   * @brief Forward a VA-API error diagnostic to the application logger.
+   * @param context Unused native callback context.
+   * @param msg Diagnostic message supplied by VA-API.
+   */
+  static void log_vaapi_error(void *context, const char *msg) {
+    static_cast<void>(context);
+    logging::error(msg);
+  }
+
+  /**
+   * @brief Forward a VA-API informational diagnostic to the application logger.
+   * @param context Unused native callback context.
+   * @param msg Diagnostic message supplied by VA-API.
+   */
+  static void log_vaapi_info(void *context, const char *msg) {
+    static_cast<void>(context);
+    logging::info(msg);
   }
 
   static void vaapi_hwdevice_ctx_free(AVHWDeviceContext *ctx) {
@@ -706,24 +724,28 @@ namespace va {
 
     va::display_t display {vaGetDisplayDRM(fd)};
     if (!display) {
-      BOOST_LOG(error) << "Couldn't open a va display from DRM with device: "sv << platf::resolve_render_device(va->settings);
+      logging::error([&](std::ostream &out) {
+        out << "Couldn't open a va display from DRM with device: "sv << platf::resolve_render_device(va->settings);
+      });
       return -1;
     }
 
     va->va_display = display.get();
 
-    vaSetErrorCallback(display.get(), __log, &error.get());
-    vaSetErrorCallback(display.get(), __log, &info.get());
+    vaSetErrorCallback(display.get(), log_vaapi_error, nullptr);
+    vaSetErrorCallback(display.get(), log_vaapi_info, nullptr);
 
     int major;
     int minor;
     auto status = vaInitialize(display.get(), &major, &minor);
     if (status) {
-      BOOST_LOG(error) << "Couldn't initialize va display: "sv << vaErrorStr(status);
+      logging::error("Couldn't initialize va display: {}", vaErrorStr(status));
       return -1;
     }
 
-    BOOST_LOG(info) << "vaapi vendor: "sv << vaQueryVendorString(display.get());
+    logging::info([&](std::ostream &out) {
+      out << "vaapi vendor: "sv << vaQueryVendorString(display.get());
+    });
 
     *hw_device_buf = av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_VAAPI);
     auto ctx = (AVHWDeviceContext *) (*hw_device_buf)->data;
@@ -738,7 +760,9 @@ namespace va {
     auto err = av_hwdevice_ctx_init(*hw_device_buf);
     if (err) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> err_str {0};
-      BOOST_LOG(error) << "Failed to create FFMpeg hardware device context: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, err);
+      logging::error([&](std::ostream &out) {
+        out << "Failed to create FFMpeg hardware device context: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, err);
+      });
 
       return err;
     }
@@ -753,7 +777,7 @@ namespace va {
     int count;
     auto status = vaQueryConfigEntrypoints(display, profile, entrypoints.data(), &count);
     if (status) {
-      BOOST_LOG(error) << "Couldn't query entrypoints: "sv << vaErrorStr(status);
+      logging::error("Couldn't query entrypoints: {}", vaErrorStr(status));
       return false;
     }
     entrypoints.resize(count);
@@ -779,7 +803,7 @@ namespace va {
 
       std::string_view render_device {string.data(), (std::size_t) bytes};
 
-      BOOST_LOG(error) << "Couldn't open a va display from DRM with device: "sv << render_device;
+      logging::error("Couldn't open a va display from DRM with device: {}", render_device);
       return false;
     }
 
@@ -787,7 +811,7 @@ namespace va {
     int minor;
     auto status = vaInitialize(display.get(), &major, &minor);
     if (status) {
-      BOOST_LOG(error) << "Couldn't initialize va display: "sv << vaErrorStr(status);
+      logging::error("Couldn't initialize va display: {}", vaErrorStr(status));
       return false;
     }
 
@@ -838,7 +862,9 @@ namespace va {
     file_t file = ::open(render_device.c_str(), O_RDWR);  // NOSONAR(cpp:S1874): `_sopen_s` not available
     if (file.el < 0) {
       std::array<char, 1024> string;
-      BOOST_LOG(error) << "Couldn't open "sv << render_device << ": " << strerror_r(errno, string.data(), string.size());
+      logging::error([&](std::ostream &out) {
+        out << "Couldn't open "sv << render_device << ": " << strerror_r(errno, string.data(), string.size());
+      });
 
       return nullptr;
     }

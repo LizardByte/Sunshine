@@ -5,132 +5,323 @@
 #pragma once
 
 // standard includes
+#include <chrono>
+#include <concepts>
 #include <cstddef>
 #include <filesystem>
 #include <format>
+#include <functional>
+#include <memory>
+#include <ostream>
 #include <string>
+#include <string_view>
 #include <system_error>
-
-// lib includes
-#include <boost/log/common.hpp>
-#include <boost/log/sinks.hpp>
-#include <boost/log/sources/global_logger_storage.hpp>
-#include <boost/log/sources/severity_logger.hpp>
+#include <type_traits>
+#include <utility>
 
 /**
- * @brief Boost.Log asynchronous text sink used by Sunshine logging.
+ * @brief Application logging functions and independently registered outputs.
+ *
+ * Text and ordinary values can be logged directly. Formatting runs only when
+ * an output accepts the severity; use a builder to defer expensive arguments.
+ * @code
+ * logging::info("Server started");
+ * logging::warning("Unknown preset: {}", preset);
+ * logging::debug([&](std::ostream &output) {
+ *   output << collect_diagnostics();
+ * });
+ * @endcode
  */
-using text_sink = boost::log::sinks::asynchronous_sink<boost::log::sinks::text_ostream_backend>;
-
 namespace logging {
   /**
-   * @brief Boost-managed, thread-safe verbose logging source.
+   * @brief Severity levels shared by every logging output.
    */
-  BOOST_LOG_INLINE_GLOBAL_LOGGER_CTOR_ARGS(verbose_source, boost::log::sources::severity_logger_mt<int>, (0))
-  /**
-   * @brief Boost-managed, thread-safe debug logging source.
-   */
-  BOOST_LOG_INLINE_GLOBAL_LOGGER_CTOR_ARGS(debug_source, boost::log::sources::severity_logger_mt<int>, (1))
-  /**
-   * @brief Boost-managed, thread-safe informational logging source.
-   */
-  BOOST_LOG_INLINE_GLOBAL_LOGGER_CTOR_ARGS(info_source, boost::log::sources::severity_logger_mt<int>, (2))
-  /**
-   * @brief Boost-managed, thread-safe warning logging source.
-   */
-  BOOST_LOG_INLINE_GLOBAL_LOGGER_CTOR_ARGS(warning_source, boost::log::sources::severity_logger_mt<int>, (3))
-  /**
-   * @brief Boost-managed, thread-safe error logging source.
-   */
-  BOOST_LOG_INLINE_GLOBAL_LOGGER_CTOR_ARGS(error_source, boost::log::sources::severity_logger_mt<int>, (4))
-  /**
-   * @brief Boost-managed, thread-safe fatal logging source.
-   */
-  BOOST_LOG_INLINE_GLOBAL_LOGGER_CTOR_ARGS(fatal_source, boost::log::sources::severity_logger_mt<int>, (5))
-#ifdef SUNSHINE_TESTS
-  /**
-   * @brief Boost-managed source available only for test output.
-   */
-  BOOST_LOG_INLINE_GLOBAL_LOGGER_CTOR_ARGS(tests_source, boost::log::sources::severity_logger_mt<int>, (10))
-#endif
-
-  /**
-   * @brief Immutable severity handle preserving existing BOOST_LOG call sites.
-   *
-   * Boost.Log global storage initializes and synchronizes the mutable source.
-   */
-  class logger_t {
-  public:
-    using logger_type = boost::log::sources::severity_logger_mt<int>;  ///< Managed source type.
-    using char_type = logger_type::char_type;  ///< Character type required by Boost.Log.
-
-    /**
-     * @brief Select the managed source for a severity.
-     * @param severity Default severity for this handle.
-     */
-    constexpr explicit logger_t(int severity):
-        severity_ {severity} {
-    }
-
-    /**
-     * @brief Access the Boost-managed source for this severity.
-     *
-     * Resolve the source in the linked logging implementation so shared encoder
-     * objects use the executable's production or test severity set.
-     *
-     * @return Thread-safe logging source.
-     * @throws std::invalid_argument If this build does not support the severity.
-     */
-    logger_type &get() const;
-
-    /**
-     * @brief Convert a severity handle for periodic logger construction.
-     * @return Managed logging source.
-     */
-    operator logger_type &() const {
-      return get();
-    }
-
-    /**
-     * @brief Open a record using the managed source.
-     * @return Record accepted by the configured sinks.
-     */
-    boost::log::record open_record() const {
-      return get().open_record();
-    }
-
-    /**
-     * @brief Open a record with Boost.Log named arguments.
-     * @param args Named attributes supplied by Boost.Log.
-     * @return Record accepted by the configured sinks.
-     */
-    template<typename Args>
-    boost::log::record open_record(const Args &args) const {
-      return get().open_record(args);
-    }
-
-    /**
-     * @brief Submit a completed record to the configured sinks.
-     * @param record Record to publish.
-     */
-    void push_record(boost::log::record &&record) const {
-      get().push_record(std::move(record));
-    }
-
-  private:
-    int severity_;  ///< Severity selected by the immutable handle.
+  enum class level_e {
+    verbose = 0,  ///< Verbose diagnostics.
+    debug = 1,  ///< Debug diagnostics.
+    info = 2,  ///< Informational messages.
+    warning = 3,  ///< Recoverable problems.
+    error = 4,  ///< Errors.
+    fatal = 5,  ///< Fatal errors.
   };
-}  // namespace logging
 
-inline constexpr logging::logger_t verbose {0};  ///< Verbose.
-inline constexpr logging::logger_t debug {1};  ///< Debug.
-inline constexpr logging::logger_t info {2};  ///< Info.
-inline constexpr logging::logger_t warning {3};  ///< Warning.
-inline constexpr logging::logger_t error {4};  ///< Error.
-inline constexpr logging::logger_t fatal {5};  ///< Fatal.
+  /**
+   * @brief A structured message delivered to a registered logging sink.
+   */
+  struct message_t {
+    level_e level;  ///< Severity of the message.
+    std::chrono::system_clock::time_point timestamp;  ///< Time the record was opened.
+    std::string text;  ///< UTF-8 message text, without the timestamp or severity prefix.
+  };
+
+  /**
+   * @brief Interface for additional outputs such as a webhook or a test buffer.
+   */
+  class sink_t {
+  public:
+    /**
+     * @brief Destroy a logging output.
+     */
+    virtual ~sink_t() = default;
+
+    /**
+     * @brief Consume an accepted message on this sink's delivery thread.
+     * @param message Structured logging message, valid for this call; copy it to retain it.
+     */
+    virtual void consume(const message_t &message) = 0;
+  };
+
+  /**
+   * @brief Format a structured message using Sunshine's timestamp and severity prefix.
+   * @param message Structured logging message.
+   * @return A formatted line without an added trailing newline.
+   */
+  std::string format_message(const message_t &message);
+
+  /**
+   * @brief Check whether any registered output accepts a severity.
+   * @param level Severity to check.
+   * @return True when a record at this level is accepted.
+   * @throws std::invalid_argument If this build does not support the severity.
+   */
+  bool is_enabled(level_e level);
+
+  namespace detail {
+    /**
+     * @brief Type-erased, synchronous message writer.
+     */
+    using writer_t = void (*)(const void *, std::ostream &);
+
+    /**
+     * @brief Open a record and run its writer only when an output accepts it.
+     * @param level Message severity.
+     * @param context Writer object borrowed for the duration of the call.
+     * @param writer Function that writes the message.
+     */
+    void write(level_e level, const void *context, writer_t writer);
+  }  // namespace detail
+
+  /**
+   * @brief Log a message without evaluating its builder when the severity is disabled.
+   * @tparam Builder A callable object accepting a standard output stream.
+   * @param level Message severity.
+   * @param builder Message builder invoked synchronously at most once.
+   * @throws std::invalid_argument If this build does not support the severity.
+   */
+  template<typename Builder>
+    requires std::is_object_v<Builder> && std::invocable<const Builder &, std::ostream &>
+  void log(level_e level, const Builder &builder) {
+    detail::write(level, &builder, [](const void *context, std::ostream &output) {
+      (*static_cast<const Builder *>(context))(output);
+    });
+  }
+
+  /**
+   * @brief Log an already available message.
+   * @param level Message severity.
+   * @param message UTF-8 message text.
+   */
+  inline void log(level_e level, std::string_view message) {
+    log(level, [message](std::ostream &output) {
+      output << message;
+    });
+  }
+
+  /**
+   * @brief Format and log a message when an output accepts its severity.
+   * @tparam Args Types of the formatting arguments.
+   * @param level Message severity.
+   * @param format Compile-time checked format string.
+   * @param args Formatting arguments; use a builder to defer computing these values.
+   */
+  template<typename... Args>
+    requires(sizeof...(Args) > 0)
+  void log(level_e level, std::format_string<Args...> format, Args &&...args) {
+    log(level, [&](std::ostream &output) {
+      output << std::format(format, std::forward<Args>(args)...);
+    });
+  }
+
+  /**
+   * @brief Write a verbose message through the configured outputs.
+   * @tparam Message Type of the text or lazy stream builder.
+   * @param message Text or a lazy stream builder.
+   */
+  template<typename Message>
+  void verbose(Message &&message) {
+    log(level_e::verbose, std::forward<Message>(message));
+  }
+
+  /**
+   * @brief Format a verbose message when its severity is enabled.
+   * @tparam Args Types of the formatting arguments.
+   * @param format Compile-time checked format string.
+   * @param args Formatting arguments; use a builder to defer computing these values.
+   */
+  template<typename... Args>
+    requires(sizeof...(Args) > 0)
+  void verbose(std::format_string<Args...> format, Args &&...args) {
+    log(level_e::verbose, format, std::forward<Args>(args)...);
+  }
+
+  /**
+   * @brief Write a debug message through the configured outputs.
+   * @tparam Message Type of the text or lazy stream builder.
+   * @param message Text or a lazy stream builder.
+   */
+  template<typename Message>
+  void debug(Message &&message) {
+    log(level_e::debug, std::forward<Message>(message));
+  }
+
+  /**
+   * @brief Format a debug message when its severity is enabled.
+   * @tparam Args Types of the formatting arguments.
+   * @param format Compile-time checked format string.
+   * @param args Formatting arguments; use a builder to defer computing these values.
+   */
+  template<typename... Args>
+    requires(sizeof...(Args) > 0)
+  void debug(std::format_string<Args...> format, Args &&...args) {
+    log(level_e::debug, format, std::forward<Args>(args)...);
+  }
+
+  /**
+   * @brief Write an informational message through the configured outputs.
+   * @tparam Message Type of the text or lazy stream builder.
+   * @param message Text or a lazy stream builder.
+   */
+  template<typename Message>
+  void info(Message &&message) {
+    log(level_e::info, std::forward<Message>(message));
+  }
+
+  /**
+   * @brief Format an informational message when its severity is enabled.
+   * @tparam Args Types of the formatting arguments.
+   * @param format Compile-time checked format string.
+   * @param args Formatting arguments; use a builder to defer computing these values.
+   */
+  template<typename... Args>
+    requires(sizeof...(Args) > 0)
+  void info(std::format_string<Args...> format, Args &&...args) {
+    log(level_e::info, format, std::forward<Args>(args)...);
+  }
+
+  /**
+   * @brief Write a warning message through the configured outputs.
+   * @tparam Message Type of the text or lazy stream builder.
+   * @param message Text or a lazy stream builder.
+   */
+  template<typename Message>
+  void warning(Message &&message) {
+    log(level_e::warning, std::forward<Message>(message));
+  }
+
+  /**
+   * @brief Format a warning message when its severity is enabled.
+   * @tparam Args Types of the formatting arguments.
+   * @param format Compile-time checked format string.
+   * @param args Formatting arguments; use a builder to defer computing these values.
+   */
+  template<typename... Args>
+    requires(sizeof...(Args) > 0)
+  void warning(std::format_string<Args...> format, Args &&...args) {
+    log(level_e::warning, format, std::forward<Args>(args)...);
+  }
+
+  /**
+   * @brief Write an error message through the configured outputs.
+   * @tparam Message Type of the text or lazy stream builder.
+   * @param message Text or a lazy stream builder.
+   */
+  template<typename Message>
+  void error(Message &&message) {
+    log(level_e::error, std::forward<Message>(message));
+  }
+
+  /**
+   * @brief Format an error message when its severity is enabled.
+   * @tparam Args Types of the formatting arguments.
+   * @param format Compile-time checked format string.
+   * @param args Formatting arguments; use a builder to defer computing these values.
+   */
+  template<typename... Args>
+    requires(sizeof...(Args) > 0)
+  void error(std::format_string<Args...> format, Args &&...args) {
+    log(level_e::error, format, std::forward<Args>(args)...);
+  }
+
+  /**
+   * @brief Write a fatal message through the configured outputs.
+   * @tparam Message Type of the text or lazy stream builder.
+   * @param message Text or a lazy stream builder.
+   */
+  template<typename Message>
+  void fatal(Message &&message) {
+    log(level_e::fatal, std::forward<Message>(message));
+  }
+
+  /**
+   * @brief Format a fatal message when its severity is enabled.
+   * @tparam Args Types of the formatting arguments.
+   * @param format Compile-time checked format string.
+   * @param args Formatting arguments; use a builder to defer computing these values.
+   */
+  template<typename... Args>
+    requires(sizeof...(Args) > 0)
+  void fatal(std::format_string<Args...> format, Args &&...args) {
+    log(level_e::fatal, format, std::forward<Args>(args)...);
+  }
+
 #ifdef SUNSHINE_TESTS
-inline constexpr logging::logger_t tests {10};  ///< Automatic test output.
+  inline constexpr level_e test_level {static_cast<level_e>(10)};  ///< Severity reserved for test output.
+
+  /**
+   * @brief Write a test event through the configured outputs.
+   * @tparam Message Type of the text or lazy stream builder.
+   * @param message Text or a lazy stream builder.
+   */
+  template<typename Message>
+  void tests(Message &&message) {
+    log(test_level, std::forward<Message>(message));
+  }
+
+  /**
+   * @brief Format a test message when its severity is enabled.
+   * @tparam Args Types of the formatting arguments.
+   * @param format Compile-time checked format string.
+   * @param args Formatting arguments; use a builder to defer computing these values.
+   */
+  template<typename... Args>
+    requires(sizeof...(Args) > 0)
+  void tests(std::format_string<Args...> format, Args &&...args) {
+    log(test_level, format, std::forward<Args>(args)...);
+  }
+
+  namespace testing {
+    /**
+     * @brief Temporarily disable logging while testing lazy message construction.
+     */
+    class scoped_disable_t {
+    public:
+      /**
+       * @brief Disable logging and remember its previous enabled state.
+       */
+      scoped_disable_t();
+      scoped_disable_t(const scoped_disable_t &) = delete;
+      scoped_disable_t &operator=(const scoped_disable_t &) = delete;
+      /**
+       * @brief Restore the logging state that preceded this scope.
+       */
+      ~scoped_disable_t();
+
+    private:
+      bool previous_;  ///< Enabled state restored when the scope ends.
+    };
+  }  // namespace testing
 #endif
+}  // namespace logging
 
 #include "stat_trackers.h"
 
@@ -184,32 +375,42 @@ namespace logging {
    */
   class deinit_t {
   public:
-    /**
-     * @brief Own the sinks registered by one logging initialization.
-     * @param sink Asynchronous text sink.
-     * @param platform_sink Additional platform sink, when present.
-     */
-    deinit_t(boost::shared_ptr<text_sink> sink, boost::shared_ptr<boost::log::sinks::sink> platform_sink = {});
-
     deinit_t(const deinit_t &) = delete;
     deinit_t &operator=(const deinit_t &) = delete;
     /**
-     * @brief Restores logging state when the logging subsystem shuts down.
+     * @brief Unregister and flush only the outputs owned by this registration.
      */
     ~deinit_t();
 
   private:
-    boost::shared_ptr<text_sink> sink_;  ///< Sink whose registration this owner controls.
-    boost::shared_ptr<boost::log::sinks::sink> platform_sink_;  ///< Optional platform sink.
+    /**
+     * @brief Backend-specific output ownership.
+     */
+    struct impl_t;
+    /**
+     * @brief Take ownership of the registered backend outputs.
+     * @param impl Backend-specific output ownership.
+     */
+    explicit deinit_t(std::unique_ptr<impl_t> impl);
+    std::unique_ptr<impl_t> impl_;  ///< Backend-specific output ownership.
+
+    friend std::unique_ptr<deinit_t> init(int min_log_level, const std::string &log_file);
+    friend std::unique_ptr<deinit_t> add_sink(std::shared_ptr<sink_t> sink, int min_log_level, bool asynchronous);
   };
 
   /**
-   * @brief Format a Boost.Log record for Sunshine log output.
+   * @brief Register an additional output without changing existing logging callers.
    *
-   * @param view Boost.Log record view being formatted.
-   * @param os Boost.Log output stream receiving formatted text.
+   * Keep the returned owner alive while the output is needed. Destroying it
+   * unregisters the output and drains any queued messages.
+   *
+   * @param sink Output receiving structured messages.
+   * @param min_log_level Minimum accepted severity.
+   * @param asynchronous Queue messages for a worker thread when true; flushing may deliver on the caller.
+   * @return Owner of this output registration.
+   * @throws std::invalid_argument If the output is null.
    */
-  void formatter(const boost::log::record_view &view, boost::log::formatting_ostream &os);
+  [[nodiscard]] std::unique_ptr<deinit_t> add_sink(std::shared_ptr<sink_t> sink, int min_log_level = 0, bool asynchronous = true);
 
   /**
    * @brief Rotate the current log file and initialize the logging system.
@@ -254,7 +455,7 @@ namespace logging {
   /**
    * @brief A helper class for tracking and logging numerical values across a period of time
    * @examples
-   * min_max_avg_periodic_logger<int> logger(debug, "Test time value", "ms", 5s);
+   * min_max_avg_periodic_logger<int> logger(level_e::debug, "Test time value", "ms", 5s);
    * logger.collect_and_log(1);
    * // ...
    * logger.collect_and_log(2);
@@ -275,12 +476,12 @@ namespace logging {
      * @param units Unit label appended to tracked numeric values.
      * @param interval_in_seconds Interval in seconds.
      */
-    min_max_avg_periodic_logger(boost::log::sources::severity_logger_mt<int> &severity, std::string_view message, std::string_view units, std::chrono::seconds interval_in_seconds = std::chrono::seconds(20)):
+    min_max_avg_periodic_logger(level_e severity, std::string_view message, std::string_view units, std::chrono::seconds interval_in_seconds = std::chrono::seconds(20)):
         severity(severity),
         message(message),
         units(units),
         interval(interval_in_seconds),
-        enabled(static_cast<bool>(severity.open_record())) {
+        enabled(logging::is_enabled(severity)) {
     }
 
     /**
@@ -293,9 +494,13 @@ namespace logging {
         auto print_info = [&](const T &min_value, const T &max_value, double avg_value) {
           auto f = stat_trackers::two_digits_after_decimal();
           if constexpr (std::is_floating_point_v<T>) {
-            BOOST_LOG(severity.get()) << message << " (min/max/avg): " << f % min_value << units << "/" << f % max_value << units << "/" << f % avg_value << units;
+            log(severity, [&](std::ostream &output) {
+              output << message << " (min/max/avg): " << f % min_value << units << "/" << f % max_value << units << "/" << f % avg_value << units;
+            });
           } else {
-            BOOST_LOG(severity.get()) << message << " (min/max/avg): " << min_value << units << "/" << max_value << units << "/" << f % avg_value << units;
+            log(severity, [&](std::ostream &output) {
+              output << message << " (min/max/avg): " << min_value << units << "/" << max_value << units << "/" << f % avg_value << units;
+            });
           }
         };
         tracker.collect_and_callback_on_interval(value, print_info, interval);
@@ -332,7 +537,7 @@ namespace logging {
     }
 
   private:
-    std::reference_wrapper<boost::log::sources::severity_logger_mt<int>> severity;
+    level_e severity;  ///< Severity used for periodic messages.
     std::string message;
     std::string units;
     std::chrono::seconds interval;
@@ -343,7 +548,7 @@ namespace logging {
   /**
    * @brief A helper class for tracking and logging short time intervals across a period of time
    * @examples
-   * time_delta_periodic_logger logger(debug, "Test duration", 5s);
+   * time_delta_periodic_logger logger(level_e::debug, "Test duration", 5s);
    * logger.first_point_now();
    * // ...
    * logger.second_point_now_and_log();
@@ -364,7 +569,7 @@ namespace logging {
      * @param message Message text to log or report.
      * @param interval_in_seconds Interval in seconds.
      */
-    time_delta_periodic_logger(boost::log::sources::severity_logger_mt<int> &severity, std::string_view message, std::chrono::seconds interval_in_seconds = std::chrono::seconds(20)):
+    time_delta_periodic_logger(level_e severity, std::string_view message, std::chrono::seconds interval_in_seconds = std::chrono::seconds(20)):
         logger(severity, message, "ms", interval_in_seconds) {
     }
 

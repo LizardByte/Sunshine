@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <future>
 #include <ranges>
+#include <sstream>
 #include <stdexcept>
 #include <thread>
 #include <unistd.h>
@@ -56,18 +57,18 @@ namespace platf {
 
           cap_value_t sys_admin = CAP_SYS_ADMIN;
           if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &sys_admin, CAP_SET) || cap_set_proc(caps)) {
-            BOOST_LOG(error) << "Failed to gain CAP_SYS_ADMIN"sv;
+            logging::error("Failed to gain CAP_SYS_ADMIN"sv);
           }
         }
 
         ~cap_sys_admin() {
           cap_value_t sys_admin = CAP_SYS_ADMIN;
           if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &sys_admin, CAP_CLEAR)) {
-            BOOST_LOG(error) << "Failed to clear CAP_SYS_ADMIN capability flag"sv;
+            logging::error("Failed to clear CAP_SYS_ADMIN capability flag"sv);
           } else if (cap_set_proc(caps)) {
             // CAP_SYS_ADMIN may already have been dropped by privileged_drm_worker.
             if (errno != EPERM) {
-              BOOST_LOG(error) << "Failed to drop CAP_SYS_ADMIN"sv;
+              logging::error("Failed to drop CAP_SYS_ADMIN"sv);
             }
           }
           cap_free(caps);
@@ -146,7 +147,7 @@ namespace platf {
               sigset_t all;
               sigfillset(&all);
               if (pthread_sigmask(SIG_BLOCK, &all, nullptr) != 0) {
-                BOOST_LOG(error) << "Failed to block signals in drm_worker"sv;
+                logging::error("Failed to block signals in drm_worker"sv);
                 queue_.stop();
                 return;
               }
@@ -480,7 +481,7 @@ namespace platf {
         }
       }
 
-      BOOST_LOG(error) << "Unknown Monitor connector type ["sv << string << "]: Please report this to the GitHub issue tracker"sv;
+      logging::error("Unknown Monitor connector type [{}]: Please report this to the GitHub issue tracker", string);
       return DRM_MODE_CONNECTOR_Unknown;
     }
 
@@ -524,7 +525,9 @@ namespace platf {
         for (; plane_p != end; ++plane_p) {
           plane_t plane = drmModeGetPlane(fd, *plane_p);
           if (!plane) {
-            BOOST_LOG(error) << "Couldn't get drm plane ["sv << (end - plane_p) << "]: "sv << strerror(errno);
+            logging::error([&](std::ostream &out) {
+              out << "Couldn't get drm plane ["sv << (end - plane_p) << "]: "sv << strerror(errno);
+            });
             continue;
           }
 
@@ -718,45 +721,47 @@ namespace platf {
         }
 
         version_t ver {drmGetVersion(fd.el)};
-        BOOST_LOG(info) << path << " -> "sv << ((ver && ver->name) ? ver->name : "UNKNOWN");
+        logging::info("{} -> {}", path, ((ver && ver->name) ? ver->name : "UNKNOWN"));
 
         // Open the render node for this card to share with libva.
         // If it fails, we'll just share the primary node instead.
         char *rendernode_path = drmGetRenderDeviceNameFromFd(fd.el);
         if (rendernode_path) {
-          BOOST_LOG(debug) << "Opening render node: "sv << rendernode_path;
+          logging::debug("Opening render node: {}", rendernode_path);
           render_fd.el = open(rendernode_path, O_RDWR);
           if (render_fd.el < 0) {
-            BOOST_LOG(warning) << "Couldn't open render node: "sv << rendernode_path << ": "sv << strerror(errno);
+            logging::warning([&](std::ostream &out) {
+              out << "Couldn't open render node: "sv << rendernode_path << ": "sv << strerror(errno);
+            });
             render_fd.el = dup(fd.el);
           }
           free(rendernode_path);
         } else {
-          BOOST_LOG(warning) << "No render device name for: "sv << path;
+          logging::warning("No render device name for: {}", path);
           render_fd.el = dup(fd.el);
         }
 
         if (drmSetClientCap(fd.el, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1)) {
-          BOOST_LOG(error) << "GPU driver doesn't support universal planes: "sv << path;
+          logging::error("GPU driver doesn't support universal planes: {}", path);
           return -1;
         }
 
         if (drmSetClientCap(fd.el, DRM_CLIENT_CAP_ATOMIC, 1)) {
-          BOOST_LOG(warning) << "GPU driver doesn't support atomic mode-setting: "sv << path;
+          logging::warning("GPU driver doesn't support atomic mode-setting: {}", path);
 #if defined(SUNSHINE_BUILD_X11)
           // We won't be able to capture the mouse cursor with KMS on non-atomic drivers,
           // so fall back to X11 if it's available and the user didn't explicitly force KMS.
           if (window_system == window_system_e::X11 && settings.video.capture != "kms") {
-            BOOST_LOG(info) << "Avoiding KMS capture under X11 due to lack of atomic mode-setting"sv;
+            logging::info("Avoiding KMS capture under X11 due to lack of atomic mode-setting"sv);
             return -1;
           }
 #endif
-          BOOST_LOG(warning) << "Cursor capture may fail without atomic mode-setting support!"sv;
+          logging::warning("Cursor capture may fail without atomic mode-setting support!"sv);
         }
 
         plane_res.reset(drmModeGetPlaneResources(fd.el));
         if (!plane_res) {
-          BOOST_LOG(error) << "Couldn't get drm plane resources"sv;
+          logging::error("Couldn't get drm plane resources"sv);
           return -1;
         }
 
@@ -872,7 +877,7 @@ namespace platf {
           return *value;
         }
 
-        BOOST_LOG(error) << "Failed to determine panel orientation, defaulting to landscape.";
+        logging::error("Failed to determine panel orientation, defaulting to landscape.");
         return DRM_MODE_ROTATE_0;
       }
 
@@ -911,7 +916,7 @@ namespace platf {
       std::vector<connector_t> monitors(conn_type_count_t &conn_type_count) {
         auto resources = res();
         if (!resources) {
-          BOOST_LOG(error) << "Couldn't get connector resources"sv;
+          logging::error("Couldn't get connector resources"sv);
           return {};
         }
 
@@ -1092,23 +1097,14 @@ namespace platf {
      */
     void print(plane_t::pointer plane, fb_t::pointer fb, crtc_t::pointer crtc) {
       if (crtc) {
-        BOOST_LOG(debug) << "crtc("sv << crtc->x << ", "sv << crtc->y << ')';
-        BOOST_LOG(debug) << "crtc("sv << crtc->width << ", "sv << crtc->height << ')';
-        BOOST_LOG(debug) << "plane->possible_crtcs == "sv << plane->possible_crtcs;
+        logging::debug("crtc({}, {})", crtc->x, crtc->y);
+        logging::debug("crtc({}, {})", crtc->width, crtc->height);
+        logging::debug("plane->possible_crtcs == {}", plane->possible_crtcs);
       }
 
-      BOOST_LOG(debug)
-        << "x("sv << plane->x
-        << ") y("sv << plane->y
-        << ") crtc_x("sv << plane->crtc_x
-        << ") crtc_y("sv << plane->crtc_y
-        << ") crtc_id("sv << plane->crtc_id
-        << ')';
+      logging::debug("x({}) y({}) crtc_x({}) crtc_y({}) crtc_id({})", plane->x, plane->y, plane->crtc_x, plane->crtc_y, plane->crtc_id);
 
-      BOOST_LOG(debug)
-        << "Resolution: "sv << fb->width << 'x' << fb->height
-        << ": Pitch: "sv << fb->pitches[0]
-        << ": Offset: "sv << fb->offsets[0];
+      logging::debug("Resolution: {}x{}: Pitch: {}: Offset: {}", fb->width, fb->height, fb->pitches[0], fb->offsets[0]);
 
       std::stringstream ss;
 
@@ -1119,7 +1115,9 @@ namespace platf {
 
       ss << util::view(plane->formats[plane->count_formats - 1]) << ']';
 
-      BOOST_LOG(debug) << ss.str();
+      logging::debug([&](std::ostream &out) {
+        out << ss.str();
+      });
     }
 
     /**
@@ -1138,12 +1136,12 @@ namespace platf {
       for (auto &card_descriptor : state.card_descriptors) {
         for (const auto &monitor_descriptor : card_descriptor.crtc_to_monitor | std::views::values) {
           if (display_name == std::format("{}-{}", drmModeGetConnectorTypeName(monitor_descriptor.type), monitor_descriptor.index)) {
-            BOOST_LOG(info) << "Mapped '"sv << display_name << "' to kmsgrab monitor index " << monitor_descriptor.monitor_index;
+            logging::info("Mapped '{}' to kmsgrab monitor index {}", display_name, monitor_descriptor.monitor_index);
             return monitor_descriptor.monitor_index;
           }
         }
       }
-      BOOST_LOG(warning) << "Couldn't map '"sv << display_name << "' to a monitor index. Falling back to first monitor in list (index=0).";
+      logging::warning("Couldn't map '{}' to a monitor index. Falling back to first monitor in list (index=0).", display_name);
       return 0;  // Fallback to first index if nothing can be matched
     }
 
@@ -1205,7 +1203,9 @@ namespace platf {
           // Skip non-Nvidia cards if we're looking for CUDA devices
           // unless NVENC is selected manually by the user
           if (mem_type == mem_type_e::cuda && !card.is_nvidia()) {
-            BOOST_LOG(debug) << file << " is not a CUDA device"sv;
+            logging::debug([&](std::ostream &out) {
+              out << file << " is not a CUDA device"sv;
+            });
             if (settings.video.encoder != "nvenc") {
               continue;
             }
@@ -1215,7 +1215,9 @@ namespace platf {
           // This is important for hybrid GPU laptops where the display
           // may be connected through NVIDIA but rendering happens on Intel
           if (mem_type == mem_type_e::vaapi && card.is_nvidia()) {
-            BOOST_LOG(debug) << file << " is an NVIDIA card, skipping for VAAPI"sv;
+            logging::debug([&](std::ostream &out) {
+              out << file << " is an NVIDIA card, skipping for VAAPI"sv;
+            });
             continue;
           }
 
@@ -1237,12 +1239,14 @@ namespace platf {
 
             auto fb = card.fb(plane.get());
             if (!fb) {
-              BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
+              logging::error([&](std::ostream &out) {
+                out << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
+              });
               return -1;
             }
 
             if (!fb->handles[0]) {
-              BOOST_LOG(error) << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Probably not permitted"sv;
+              logging::error("Couldn't get handle for DRM Framebuffer [{}]: Probably not permitted", plane->fb_id);
               return -1;
             }
 
@@ -1253,18 +1257,22 @@ namespace platf {
 
               auto fb_fd = card.handleFD(fb->handles[i]);
               if (fb_fd.el < 0) {
-                BOOST_LOG(error) << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
+                logging::error([&](std::ostream &out) {
+                  out << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
+                });
                 continue;
               }
             }
 
             auto crtc = card.crtc(plane->crtc_id);
             if (!crtc) {
-              BOOST_LOG(error) << "Couldn't get CRTC info: "sv << strerror(errno);
+              logging::error([&](std::ostream &out) {
+                out << "Couldn't get CRTC info: "sv << strerror(errno);
+              });
               continue;
             }
 
-            BOOST_LOG(info) << "Found monitor for DRM screencasting"sv;
+            logging::info("Found monitor for DRM screencasting"sv);
 
             // We need to find the correct /dev/dri/card{nr} to correlate the crtc_id with the monitor descriptor
             auto pos = std::find_if(std::begin(state.card_descriptors), std::end(state.card_descriptors), [&](card_descriptor_t &cd) {
@@ -1274,7 +1282,9 @@ namespace platf {
             if (pos == std::end(state.card_descriptors)) {
               // This code path shouldn't happen, but it's there just in case.
               // card_descriptors is part of the guesswork after all.
-              BOOST_LOG(error) << "Couldn't find ["sv << entry.path() << "]: This shouldn't have happened :/"sv;
+              logging::error([&](std::ostream &out) {
+                out << "Couldn't find ["sv << entry.path() << "]: This shouldn't have happened :/"sv;
+              });
               return -1;
             }
 
@@ -1305,13 +1315,13 @@ namespace platf {
 
               switch (card.get_panel_orientation(plane->plane_id)) {
                 case DRM_MODE_ROTATE_270:
-                  BOOST_LOG(debug) << "Detected panel orientation at 90, swapping width and height.";
+                  logging::debug("Detected panel orientation at 90, swapping width and height.");
                   width = viewport.height;
                   height = viewport.width;
                   break;
                 case DRM_MODE_ROTATE_90:
                 case DRM_MODE_ROTATE_180:
-                  BOOST_LOG(warning) << "Panel orientation is unsupported, screen capture may not work correctly.";
+                  logging::warning("Panel orientation is unsupported, screen capture may not work correctly.");
                   break;
               }
 
@@ -1322,7 +1332,7 @@ namespace platf {
             // This code path shouldn't happen, but it's there just in case.
             // crtc_to_monitor is part of the guesswork after all.
             else {
-              BOOST_LOG(warning) << "Couldn't find crtc_id, this shouldn't have happened :\\"sv;
+              logging::warning("Couldn't find crtc_id, this shouldn't have happened :\\"sv);
               width = crtc->width;
               height = crtc->height;
               offset_x = crtc->x;
@@ -1337,7 +1347,7 @@ namespace platf {
             kms::conn_type_count_t conn_type_count;
             for (auto &connector : card.monitors(conn_type_count)) {
               if (connector.crtc_id == crtc_id) {
-                BOOST_LOG(info) << "Found connector ID ["sv << connector.connector_id << ']';
+                logging::info("Found connector ID [{}]", connector.connector_id);
 
                 connector_id = connector.connector_id;
 
@@ -1351,7 +1361,7 @@ namespace platf {
           }
         }
 
-        BOOST_LOG(error) << "Couldn't find monitor ["sv << monitor_index << ']';
+        logging::error("Couldn't find monitor [{}]", monitor_index);
         return -1;
 
       // Neatly break from nested for loop
@@ -1375,16 +1385,16 @@ namespace platf {
             // We assume a 1:1 mapping between cursor planes and CRTCs, which seems to
             // match the behavior of drivers in the real world. If it's violated, we'll
             // proceed anyway but print a warning in the log.
-            BOOST_LOG(warning) << "Cursor plane spans multiple CRTCs!"sv;
+            logging::warning("Cursor plane spans multiple CRTCs!"sv);
           }
 
-          BOOST_LOG(info) << "Found cursor plane ["sv << plane->plane_id << ']';
+          logging::info("Found cursor plane [{}]", plane->plane_id);
           cursor_plane_id = plane->plane_id;
           break;
         }
 
         if (cursor_plane_id < 0) {
-          BOOST_LOG(warning) << "No KMS cursor plane found. Cursor may not be displayed while streaming!"sv;
+          logging::warning("No KMS cursor plane found. Cursor may not be displayed while streaming!"sv);
         }
 
         return 0;
@@ -1402,23 +1412,29 @@ namespace platf {
 
         prop_blob_t hdr_metadata_blob = drmModeGetPropertyBlob(card.fd.el, *hdr_metadata_blob_id);
         if (hdr_metadata_blob == nullptr) {
-          BOOST_LOG(error) << "Unable to get HDR metadata blob: "sv << strerror(errno);
+          logging::error([&](std::ostream &out) {
+            out << "Unable to get HDR metadata blob: "sv << strerror(errno);
+          });
           return false;
         }
 
         if (hdr_metadata_blob->length < sizeof(uint32_t) + sizeof(hdr_metadata_infoframe)) {
-          BOOST_LOG(error) << "HDR metadata blob is too small: "sv << hdr_metadata_blob->length;
+          logging::error("HDR metadata blob is too small: {}", hdr_metadata_blob->length);
           return false;
         }
 
         auto raw_metadata = (hdr_output_metadata *) hdr_metadata_blob->data;
         if (raw_metadata->metadata_type != 0) {  // HDMI_STATIC_METADATA_TYPE1
-          BOOST_LOG(error) << "Unknown HDMI_STATIC_METADATA_TYPE value: "sv << raw_metadata->metadata_type;
+          logging::error([&](std::ostream &out) {
+            out << "Unknown HDMI_STATIC_METADATA_TYPE value: "sv << raw_metadata->metadata_type;
+          });
           return false;
         }
 
         if (raw_metadata->hdmi_metadata_type1.metadata_type != 0) {  // Static Metadata Type 1
-          BOOST_LOG(error) << "Unknown secondary metadata type value: "sv << raw_metadata->hdmi_metadata_type1.metadata_type;
+          logging::error([&](std::ostream &out) {
+            out << "Unknown secondary metadata type value: "sv << raw_metadata->hdmi_metadata_type1.metadata_type;
+          });
           return false;
         }
 
@@ -1428,15 +1444,17 @@ namespace platf {
           case 0:  // HDMI_EOTF_TRADITIONAL_GAMMA_SDR
             return false;
           case 1:  // HDMI_EOTF_TRADITIONAL_GAMMA_HDR
-            BOOST_LOG(warning) << "Unsupported HDR EOTF: Traditional Gamma"sv;
+            logging::warning("Unsupported HDR EOTF: Traditional Gamma"sv);
             return true;
           case 2:  // HDMI_EOTF_SMPTE_ST2084
             return true;
           case 3:  // HDMI_EOTF_BT_2100_HLG
-            BOOST_LOG(warning) << "Unsupported HDR EOTF: HLG"sv;
+            logging::warning("Unsupported HDR EOTF: HLG"sv);
             return true;
           default:
-            BOOST_LOG(warning) << "Unsupported HDR EOTF: "sv << raw_metadata->hdmi_metadata_type1.eotf;
+            logging::warning([&](std::ostream &out) {
+              out << "Unsupported HDR EOTF: "sv << raw_metadata->hdmi_metadata_type1.eotf;
+            });
             return true;
         }
       }
@@ -1455,7 +1473,9 @@ namespace platf {
 
         prop_blob_t hdr_metadata_blob = drmModeGetPropertyBlob(card.fd.el, *hdr_metadata_blob_id);
         if (hdr_metadata_blob == nullptr) {
-          BOOST_LOG(error) << "Unable to get HDR metadata blob: "sv << strerror(errno);
+          logging::error([&](std::ostream &out) {
+            out << "Unable to get HDR metadata blob: "sv << strerror(errno);
+          });
           return false;
         }
 
@@ -1518,15 +1538,15 @@ namespace platf {
         }
 
         if (!prop_crtc_w || !prop_crtc_h || !prop_crtc_x || !prop_crtc_y) {
-          BOOST_LOG(error) << "Cursor plane is missing required plane CRTC properties!"sv;
-          BOOST_LOG(error) << "Atomic mode-setting must be enabled to capture the cursor!"sv;
+          logging::error("Cursor plane is missing required plane CRTC properties!"sv);
+          logging::error("Atomic mode-setting must be enabled to capture the cursor!"sv);
           cursor_plane_id = -1;
           captured_cursor.visible = false;
           return;
         }
         if (!prop_src_x || !prop_src_y || !prop_src_w || !prop_src_h) {
-          BOOST_LOG(error) << "Cursor plane is missing required plane SRC properties!"sv;
-          BOOST_LOG(error) << "Atomic mode-setting must be enabled to capture the cursor!"sv;
+          logging::error("Cursor plane is missing required plane SRC properties!"sv);
+          logging::error("Atomic mode-setting must be enabled to capture the cursor!"sv);
           cursor_plane_id = -1;
           captured_cursor.visible = false;
           return;
@@ -1547,10 +1567,10 @@ namespace platf {
           captured_cursor.visible = false;
           captured_cursor.fb_id = 0;
         } else if (plane->fb_id != captured_cursor.fb_id) {
-          BOOST_LOG(debug) << "Refreshing cursor image after FB changed"sv;
+          logging::debug("Refreshing cursor image after FB changed"sv);
           cursor_dirty = true;
         } else if (*prop_src_x != captured_cursor.prop_src_x || *prop_src_y != captured_cursor.prop_src_y || *prop_src_w != captured_cursor.prop_src_w || *prop_src_h != captured_cursor.prop_src_h) {
-          BOOST_LOG(debug) << "Refreshing cursor image after source dimensions changed"sv;
+          logging::debug("Refreshing cursor image after source dimensions changed"sv);
           cursor_dirty = true;
         }
 
@@ -1565,7 +1585,7 @@ namespace platf {
 
           // All known cursor planes in the wild are 32 bpp
           if (!is_cursor_32bpp_format(fb->pixel_format)) {
-            BOOST_LOG(error) << "Unsupported cursor format: "sv << fb->pixel_format;
+            logging::error("Unsupported cursor format: {}", fb->pixel_format);
             captured_cursor.visible = false;
             cursor_plane_id = -1;
             return;
@@ -1573,7 +1593,7 @@ namespace platf {
 
           // All known cursor planes in the wild require linear buffers
           if (fb->modifier != DRM_FORMAT_MOD_LINEAR && fb->modifier != DRM_FORMAT_MOD_INVALID) {
-            BOOST_LOG(error) << "Unsupported non-linear cursor modifier: "sv << fb->modifier;
+            logging::error("Unsupported non-linear cursor modifier: {}", fb->modifier);
             captured_cursor.visible = false;
             cursor_plane_id = -1;
             return;
@@ -1587,7 +1607,7 @@ namespace platf {
 
           // Check for a legal source rectangle
           if (src_x + src_w > fb->width || src_y + src_h > fb->height) {
-            BOOST_LOG(error) << "Illegal source size: ["sv << src_x + src_w << ',' << src_y + src_h << "] > ["sv << fb->width << ',' << fb->height << ']';
+            logging::error("Illegal source size: [{},{}] > [{},{}]", src_x + src_w, src_y + src_h, fb->width, fb->height);
             captured_cursor.visible = false;
             return;
           }
@@ -1607,7 +1627,9 @@ namespace platf {
             drm_mode_map_dumb map = {};
             map.handle = fb->handles[0];
             if (drmIoctl(card.fd.el, DRM_IOCTL_MODE_MAP_DUMB, &map) < 0) {
-              BOOST_LOG(error) << "Failed to map cursor FB as dumb buffer: "sv << strerror(errno);
+              logging::error([&](std::ostream &out) {
+                out << "Failed to map cursor FB as dumb buffer: "sv << strerror(errno);
+              });
               captured_cursor.visible = false;
               return;
             }
@@ -1616,7 +1638,9 @@ namespace platf {
           }
 
           if (mapped_data == MAP_FAILED) {
-            BOOST_LOG(error) << "Failed to mmap cursor FB: "sv << strerror(errno);
+            logging::error([&](std::ostream &out) {
+              out << "Failed to mmap cursor FB: "sv << strerror(errno);
+            });
             captured_cursor.visible = false;
             return;
           }
@@ -1681,7 +1705,7 @@ namespace platf {
         if (connector_id) {
           auto connector_props = card.connector_props(*connector_id);
           if (hdr_metadata_blob_id != card.prop_value_by_name(connector_props, "HDR_OUTPUT_METADATA"sv)) {
-            BOOST_LOG(info) << "Reinitializing capture after HDR metadata change"sv;
+            logging::info("Reinitializing capture after HDR metadata change"sv);
             return capture_e::reinit;
           }
         }
@@ -1692,20 +1716,21 @@ namespace platf {
         // A plane that stays without a framebuffer will not get the picture back by itself:
         // the compositor has moved it to another plane, or restarted. Pick a plane again.
         if (const auto now = std::chrono::steady_clock::now(); empty_plane_timer.update(plane->fb_id != 0, now)) {
-          BOOST_LOG(info) << "Reinitializing capture: plane ["sv << plane_id << "] has had no framebuffer for "sv
-                          << std::chrono::duration_cast<std::chrono::milliseconds>(empty_plane_timer.empty_for(now)).count() << "ms"sv;
+          logging::info("Reinitializing capture: plane [{}] has had no framebuffer for {}ms", plane_id, std::chrono::duration_cast<std::chrono::milliseconds>(empty_plane_timer.empty_for(now)).count());
           return capture_e::reinit;
         }
 
         auto fb = card.fb(plane.get());
         if (!fb) {
           // This can happen if the display is being reconfigured while streaming
-          BOOST_LOG(warning) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
+          logging::warning([&](std::ostream &out) {
+            out << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
+          });
           return capture_e::timeout;
         }
 
         if (!fb->handles[0]) {
-          BOOST_LOG(error) << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Probably not permitted"sv;
+          logging::error("Couldn't get handle for DRM Framebuffer [{}]: Probably not permitted", plane->fb_id);
           return capture_e::error;
         }
 
@@ -1722,7 +1747,9 @@ namespace platf {
 
           file[y] = card.handleFD(fb->handles[y]);
           if (file[y].el < 0) {
-            BOOST_LOG(error) << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
+            logging::error([&](std::ostream &out) {
+              out << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
+            });
             return capture_e::error;
           }
 
@@ -1800,7 +1827,7 @@ namespace platf {
       int init(const std::string &display_name, const ::video::config_t &config) {
         auto gbm_api = gbm::api_t::load();
         if (!gbm_api) {
-          BOOST_LOG(warning) << "libgbm not initialized"sv;
+          logging::warning("libgbm not initialized"sv);
           return -1;
         }
 
@@ -1810,7 +1837,9 @@ namespace platf {
 
         gbm = gbm::make_device(std::move(gbm_api), card.fd.el);
         if (!gbm) {
-          BOOST_LOG(error) << "Couldn't create GBM device: ["sv << util::hex(eglGetError()).to_string_view() << ']';
+          logging::error([&](std::ostream &out) {
+            out << "Couldn't create GBM device: ["sv << util::hex(eglGetError()).to_string_view() << ']';
+          });
           return -1;
         }
 
@@ -1855,7 +1884,7 @@ namespace platf {
               }
               break;
             default:
-              BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
+              logging::error("Unrecognized capture status [{}]", (int) status);
               return status;
           }
         }
@@ -1973,7 +2002,7 @@ namespace platf {
         int w;
         gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &w);
         gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &h);
-        BOOST_LOG(debug) << "width and height: w "sv << w << " h "sv << h;
+        logging::debug("width and height: w {} h {}", w, h);
 
         if (!pull_free_image_cb(img_out)) {
           return platf::capture_e::interrupted;
@@ -2064,7 +2093,9 @@ namespace platf {
         }
 #endif
 
-        BOOST_LOG(error) << "Unsupported pixel format for egl::display_vram_t: "sv << platf::from_pix_fmt(pix_fmt);
+        logging::error([&](std::ostream &out) {
+          out << "Unsupported pixel format for egl::display_vram_t: "sv << platf::from_pix_fmt(pix_fmt);
+        });
         return nullptr;
       }
 
@@ -2125,7 +2156,7 @@ namespace platf {
               }
               break;
             default:
-              BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
+              logging::error("Unrecognized capture status [{}]", (int) status);
               return status;
           }
         }
@@ -2197,14 +2228,14 @@ namespace platf {
 
 #ifdef SUNSHINE_BUILD_VAAPI
         if (mem_type == mem_type_e::vaapi && !va::validate(card.render_fd.el, hevc_mode)) {
-          BOOST_LOG(warning) << "Monitor "sv << display_name << " doesn't support hardware encoding. Reverting back to GPU -> RAM -> GPU"sv;
+          logging::warning("Monitor {} doesn't support hardware encoding. Reverting back to GPU -> RAM -> GPU", display_name);
           return -1;
         }
 #endif
 
 #ifndef SUNSHINE_BUILD_CUDA
         if (mem_type == mem_type_e::cuda) {
-          BOOST_LOG(warning) << "Attempting to use NVENC without CUDA support. Reverting back to GPU -> RAM -> GPU"sv;
+          logging::warning("Attempting to use NVENC without CUDA support. Reverting back to GPU -> RAM -> GPU"sv);
           return -1;
         }
 #endif
@@ -2263,7 +2294,7 @@ namespace platf {
   void correlate_to_wayland(std::vector<kms::card_descriptor_t> &cds) {
     auto monitors = wl::monitors();
 
-    BOOST_LOG(info) << "-------- Start of KMS monitor list --------"sv;
+    logging::info("-------- Start of KMS monitor list --------"sv);
 
     for (auto &monitor : monitors) {
       std::string_view name = monitor->name;
@@ -2295,24 +2326,20 @@ namespace platf {
               monitor_descriptor.viewport.width != monitor->viewport.width ||
               monitor_descriptor.viewport.height != monitor->viewport.height
             ) {
-              BOOST_LOG(warning)
-                << "Mismatch on expected Resolution compared to actual resolution: "sv
-                << monitor_descriptor.viewport.width << 'x' << monitor_descriptor.viewport.height
-                << " vs "sv
-                << monitor->viewport.width << 'x' << monitor->viewport.height;
+              logging::warning("Mismatch on expected Resolution compared to actual resolution: {}x{} vs {}x{}", monitor_descriptor.viewport.width, monitor_descriptor.viewport.height, monitor->viewport.width, monitor->viewport.height);
             }
 
-            BOOST_LOG(info) << "Monitor " << monitor_descriptor.monitor_index << " is "sv << name << ": "sv << monitor->description;
+            logging::info("Monitor {} is {}: {}", monitor_descriptor.monitor_index, name, monitor->description);
             goto break_for_loop;
           }
         }
       }
     break_for_loop:
 
-      BOOST_LOG(verbose) << "Reduced to name: "sv << name << ": "sv << index;
+      logging::verbose("Reduced to name: {}: {}", name, index);
     }
 
-    BOOST_LOG(info) << "--------- End of KMS monitor list ---------"sv;
+    logging::info("--------- End of KMS monitor list ---------"sv);
   }
 
   // A list of names of displays accepted as display_name
@@ -2329,12 +2356,12 @@ namespace platf {
     int count = 0;
 
     if (!fs::exists("/dev/dri")) {
-      BOOST_LOG(warning) << "Couldn't find /dev/dri, kmsgrab won't be enabled"sv;
+      logging::warning("Couldn't find /dev/dri, kmsgrab won't be enabled"sv);
       return {};
     }
 
     if (!gbm::api_t::load()) {
-      BOOST_LOG(warning) << "libgbm not initialized"sv;
+      logging::warning("libgbm not initialized"sv);
       return {};
     }
 
@@ -2360,9 +2387,11 @@ namespace platf {
       // Skip non-Nvidia cards if we're looking for CUDA devices
       // unless NVENC is selected manually by the user
       if (hwdevice_type == mem_type_e::cuda && !card.is_nvidia()) {
-        BOOST_LOG(debug) << file << " is not a CUDA device"sv;
+        logging::debug([&](std::ostream &out) {
+          out << file << " is not a CUDA device"sv;
+        });
         if (settings.video.encoder == "nvenc") {
-          BOOST_LOG(warning) << "Using NVENC with your display connected to a different GPU may not work properly!"sv;
+          logging::warning("Using NVENC with your display connected to a different GPU may not work properly!"sv);
         } else {
           continue;
         }
@@ -2372,7 +2401,9 @@ namespace platf {
       // This is important for hybrid GPU laptops where the display
       // may be connected through NVIDIA but rendering happens on Intel
       if (hwdevice_type == mem_type_e::vaapi && card.is_nvidia()) {
-        BOOST_LOG(debug) << file << " is an NVIDIA card, skipping for VAAPI"sv;
+        logging::debug([&](std::ostream &out) {
+          out << file << " is an NVIDIA card, skipping for VAAPI"sv;
+        });
         continue;
       }
 
@@ -2391,15 +2422,18 @@ namespace platf {
 
         auto fb = card.fb(plane.get());
         if (!fb) {
-          BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
+          logging::error([&](std::ostream &out) {
+            out << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
+          });
           continue;
         }
 
         if (!fb->handles[0]) {
-          BOOST_LOG(error) << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Probably not permitted"sv;
+          logging::error("Couldn't get handle for DRM Framebuffer [{}]: Probably not permitted", plane->fb_id);
 #if defined(SUNSHINE_BUILD_FLATPAK) || defined(SUNSHINE_BUILD_APPIMAGE)
-          BOOST_LOG((settings.video.capture == "kms") ? fatal : error)
-            << "AppImage and Flatpak do not support KMS capture. Use another capture method."sv;
+          logging::log((settings.video.capture == "kms") ? logging::level_e::fatal : logging::level_e::error, [&](std::ostream &out) {
+            out << "AppImage and Flatpak do not support KMS capture. Use another capture method."sv;
+          });
 #endif
           break;
         }
@@ -2407,7 +2441,9 @@ namespace platf {
         // This appears to return the offset of the monitor
         auto crtc = card.crtc(plane->crtc_id);
         if (!crtc) {
-          BOOST_LOG(error) << "Couldn't get CRTC info: "sv << strerror(errno);
+          logging::error([&](std::ostream &out) {
+            out << "Couldn't get CRTC info: "sv << strerror(errno);
+          });
           continue;
         }
 
@@ -2444,9 +2480,9 @@ namespace platf {
     capture_geometry_t desktop;
     for (auto &card_descriptor : cds) {
       for (auto &[_, monitor_descriptor] : card_descriptor.crtc_to_monitor) {
-        BOOST_LOG(debug) << "Monitor description"sv;
-        BOOST_LOG(debug) << "Resolution: "sv << monitor_descriptor.viewport.width << 'x' << monitor_descriptor.viewport.height;
-        BOOST_LOG(debug) << "Offset: "sv << monitor_descriptor.viewport.offset_x << 'x' << monitor_descriptor.viewport.offset_y;
+        logging::debug("Monitor description"sv);
+        logging::debug("Resolution: {}x{}", monitor_descriptor.viewport.width, monitor_descriptor.viewport.height);
+        logging::debug("Offset: {}x{}", monitor_descriptor.viewport.offset_x, monitor_descriptor.viewport.offset_y);
 
         desktop.include(monitor_descriptor.viewport);
       }
@@ -2457,11 +2493,13 @@ namespace platf {
     state.env_logical_width = desktop.logical_width;
     state.env_logical_height = desktop.logical_height;
 
-    BOOST_LOG(debug) << "Desktop resolution: "sv << state.env_width << 'x' << state.env_height;
+    logging::debug("Desktop resolution: {}x{}", state.env_width, state.env_height);
 
     state.card_descriptors = std::move(cds);
 
-    BOOST_LOG(debug) << "Final KMS display_names return list: " << (display_names | std::views::join_with(' ') | std::ranges::to<std::string>());
+    logging::debug([&](std::ostream &out) {
+      out << "Final KMS display_names return list: " << (display_names | std::views::join_with(' ') | std::ranges::to<std::string>());
+    });
     return display_names;
   }
 

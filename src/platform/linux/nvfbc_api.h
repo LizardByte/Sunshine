@@ -48,12 +48,12 @@ namespace cuda::nvfbc {
 
       NVFBC_API_FUNCTION_LIST functions {.dwVersion = NVFBC_VERSION};
       if (create_instance(&functions)) {
-        BOOST_LOG(error) << "Unable to create NvFBC instance";
+        logging::error("Unable to create NvFBC instance");
         return {};
       }
 
       if (!functions.nvFBCCreateHandle || !functions.nvFBCDestroyHandle || !functions.nvFBCGetStatus || !functions.nvFBCGetLastErrorStr || !functions.nvFBCBindContext || !functions.nvFBCReleaseContext || !functions.nvFBCCreateCaptureSession || !functions.nvFBCDestroyCaptureSession || !functions.nvFBCToCudaSetUp || !functions.nvFBCToCudaGrabFrame) {
-        BOOST_LOG(error) << "NvFBC function table is incomplete";
+        logging::error("NvFBC function table is incomplete");
         return {};
       }
       return std::shared_ptr<const api_t>(new api_t(std::move(library), functions));

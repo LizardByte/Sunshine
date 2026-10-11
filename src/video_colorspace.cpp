@@ -73,7 +73,7 @@ namespace video {
           break;
 
         default:
-          BOOST_LOG(error) << "Unknown video colorspace in csc, falling back to Rec. 709";
+          logging::error("Unknown video colorspace in csc, falling back to Rec. 709");
           colorspace.colorspace = rec709;
           break;
       }
@@ -91,13 +91,13 @@ namespace video {
         break;
 
       default:
-        BOOST_LOG(error) << "Unknown dynamicRange value, falling back to 10-bit color depth";
+        logging::error("Unknown dynamicRange value, falling back to 10-bit color depth");
         colorspace.bit_depth = 10;
         break;
     }
 
     if (colorspace.colorspace == bt2020sdr && colorspace.bit_depth != 10) {
-      BOOST_LOG(error) << "BT.2020 SDR colorspace expects 10-bit color depth, falling back to Rec. 709";
+      logging::error("BT.2020 SDR colorspace expects 10-bit color depth, falling back to Rec. 709");
       colorspace.colorspace = rec709;
     }
 

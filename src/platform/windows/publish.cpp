@@ -235,21 +235,21 @@ namespace platf::publish {
         port(net::map_port(settings, nvhttp::PORT_HTTP)),
         existing_instance(nullptr) {
       if (service(port, true, existing_instance)) {
-        BOOST_LOG(error) << "Unable to register Sunshine mDNS service"sv;
+        logging::error("Unable to register Sunshine mDNS service"sv);
         return;
       }
 
-      BOOST_LOG(info) << "Registered Sunshine mDNS service"sv;
+      logging::info("Registered Sunshine mDNS service"sv);
     }
 
     ~mdns_registration_t() override {
       if (existing_instance) {
         if (service(port, false, existing_instance)) {
-          BOOST_LOG(error) << "Unable to unregister Sunshine mDNS service"sv;
+          logging::error("Unable to unregister Sunshine mDNS service"sv);
           return;
         }
 
-        BOOST_LOG(info) << "Unregistered Sunshine mDNS service"sv;
+        logging::info("Unregistered Sunshine mDNS service"sv);
       }
     }
 
@@ -274,7 +274,7 @@ namespace platf::publish {
     _DnsServiceRegister = (_DnsServiceRegister_fn) GetProcAddress(handle, "DnsServiceRegister");
 
     if (!(_DnsServiceFreeInstance && _DnsServiceDeRegister && _DnsServiceRegister)) {
-      BOOST_LOG(error) << "mDNS service not available in dnsapi.dll"sv;
+      logging::error("mDNS service not available in dnsapi.dll"sv);
       return -1;
     }
 
@@ -290,7 +290,7 @@ namespace platf::publish {
     HMODULE handle = LoadLibrary("dnsapi.dll");
 
     if (!handle || load_funcs(handle)) {
-      BOOST_LOG(error) << "Couldn't load dnsapi.dll, You'll need to add PC manually from Moonlight"sv;
+      logging::error("Couldn't load dnsapi.dll, You'll need to add PC manually from Moonlight"sv);
       return nullptr;
     }
 

@@ -623,7 +623,7 @@ namespace stream {
 
     auto bytes = session->control.cipher.encrypt(plaintext, packet->payload(), &iv);
     if (bytes <= 0) {
-      BOOST_LOG(error) << "Couldn't encrypt control data"sv;
+      logging::error("Couldn't encrypt control data"sv);
       return {};
     }
 
@@ -759,13 +759,13 @@ namespace stream {
         if (session_p->control.connect_data != connect_data) {
           continue;
         } else {
-          BOOST_LOG(debug) << "Initialized new control stream session by connect data match [v2]"sv;
+          logging::debug("Initialized new control stream session by connect data match [v2]"sv);
         }
       } else {
         if (session_p->control.expected_peer_address != peer_addr) {
           continue;
         } else {
-          BOOST_LOG(debug) << "Initialized new control stream session by IP address match [v1]"sv;
+          logging::debug("Initialized new control stream session by IP address match [v1]"sv);
         }
       }
 
@@ -783,12 +783,14 @@ namespace stream {
       try {
         session_p->localAddress = boost::asio::ip::make_address(local_address);
       } catch (const boost::system::system_error &e) {
-        BOOST_LOG(error) << "boost::system::system_error in address parsing: " << e.what() << " (code: " << e.code() << ")"sv;
+        logging::error([&](std::ostream &out) {
+          out << "boost::system::system_error in address parsing: " << e.what() << " (code: " << e.code() << ")"sv;
+        });
         throw;
       }
 
-      BOOST_LOG(debug) << "Control local address ["sv << local_address << ']';
-      BOOST_LOG(debug) << "Control peer address ["sv << peer_addr << ':' << peer_port << ']';
+      logging::debug("Control local address [{}]", local_address);
+      logging::debug("Control peer address [{}:{}]", peer_addr, peer_port);
 
       // Insert this into the map for O(1) lookups in the future
       auto ptslg = _peer_to_session.lock();
@@ -809,17 +811,20 @@ namespace stream {
   void control_server_t::call(std::uint16_t type, session_t *session, const std::string_view &payload, bool reinjected) {
     // If we are using the encrypted control stream protocol, drop any messages that come off the wire unencrypted
     if (session->config.controlProtocolType == 13 && !reinjected && type != packetTypes[IDX_ENCRYPTED]) {
-      BOOST_LOG(error) << "Dropping unencrypted message on encrypted control stream: "sv << util::hex(type).to_string_view();
+      logging::error([&](std::ostream &out) {
+        out << "Dropping unencrypted message on encrypted control stream: "sv << util::hex(type).to_string_view();
+      });
       return;
     }
 
     auto cb = _map_type_cb.find(type);
     if (cb == std::end(_map_type_cb)) {
-      BOOST_LOG(debug)
-        << "type [Unknown] { "sv << util::hex(type).to_string_view() << " }"sv << std::endl
-        << "---data---"sv << std::endl
-        << util::hex_vec(payload) << std::endl
-        << "---end data---"sv;
+      logging::debug([&](std::ostream &out) {
+        out << "type [Unknown] { "sv << util::hex(type).to_string_view() << " }"sv << std::endl
+            << "---data---"sv << std::endl
+            << util::hex_vec(payload) << std::endl
+            << "---end data---"sv;
+      });
     } else {
       cb->second(session, payload);
     }
@@ -832,7 +837,9 @@ namespace stream {
     if (res > 0) {
       auto session = get_session(event.peer, event.data);
       if (!session) {
-        BOOST_LOG(warning) << "Rejected connection from ["sv << platf::from_sockaddr((sockaddr *) &event.peer->address.address) << "]: it's not properly set up"sv;
+        logging::warning([&](std::ostream &out) {
+          out << "Rejected connection from ["sv << platf::from_sockaddr((sockaddr *) &event.peer->address.address) << "]: it's not properly set up"sv;
+        });
         enet_peer_disconnect_now(event.peer, 0);
 
         return;
@@ -851,10 +858,10 @@ namespace stream {
           }
           break;
         case ENET_EVENT_TYPE_CONNECT:
-          BOOST_LOG(info) << "CLIENT CONNECTED"sv;
+          logging::info("CLIENT CONNECTED"sv);
           break;
         case ENET_EVENT_TYPE_DISCONNECT:
-          BOOST_LOG(info) << "CLIENT DISCONNECTED"sv;
+          logging::info("CLIENT DISCONNECTED"sv);
           // No more clients to send video data to ^_^
           if (session->state == session::state_e::RUNNING) {
             session::stop(*session);
@@ -934,7 +941,7 @@ namespace stream {
         parity_shards = minparityshards;
         fecpercentage = (100 * parity_shards) / data_shards;
 
-        BOOST_LOG(verbose) << "Increasing FEC percentage to "sv << fecpercentage << " to meet parity shard minimum"sv << std::endl;
+        logging::verbose("Increasing FEC percentage to {} to meet parity shard minimum\n", fecpercentage);
       }
 
       auto nr_shards = data_shards + parity_shards;
@@ -1079,7 +1086,7 @@ namespace stream {
    */
   int send_feedback_msg(session_t *session, platf::gamepad_feedback_msg_t &msg) {
     if (!session->control.peer) {
-      BOOST_LOG(warning) << "Couldn't send gamepad feedback data, still waiting for PING from Moonlight"sv;
+      logging::warning("Couldn't send gamepad feedback data, still waiting for PING from Moonlight"sv);
       // Still waiting for PING from Moonlight
       return -1;
     }
@@ -1097,7 +1104,9 @@ namespace stream {
       plaintext.lowfreq = util::endian::little(data.lowfreq);
       plaintext.highfreq = util::endian::little(data.highfreq);
 
-      BOOST_LOG(verbose) << "Rumble: "sv << msg.id << " :: "sv << util::hex(data.lowfreq).to_string_view() << " :: "sv << util::hex(data.highfreq).to_string_view();
+      logging::verbose([&](std::ostream &out) {
+        out << "Rumble: "sv << msg.id << " :: "sv << util::hex(data.lowfreq).to_string_view() << " :: "sv << util::hex(data.highfreq).to_string_view();
+      });
       std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
         encrypted_payload;
 
@@ -1113,7 +1122,9 @@ namespace stream {
       plaintext.left = util::endian::little(data.left_trigger);
       plaintext.right = util::endian::little(data.right_trigger);
 
-      BOOST_LOG(verbose) << "Rumble triggers: "sv << msg.id << " :: "sv << util::hex(data.left_trigger).to_string_view() << " :: "sv << util::hex(data.right_trigger).to_string_view();
+      logging::verbose([&](std::ostream &out) {
+        out << "Rumble triggers: "sv << msg.id << " :: "sv << util::hex(data.left_trigger).to_string_view() << " :: "sv << util::hex(data.right_trigger).to_string_view();
+      });
       std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
         encrypted_payload;
 
@@ -1129,7 +1140,9 @@ namespace stream {
       plaintext.reportrate = util::endian::little(data.report_rate);
       plaintext.type = data.motion_type;
 
-      BOOST_LOG(verbose) << "Motion event state: "sv << msg.id << " :: "sv << util::hex(data.report_rate).to_string_view() << " :: "sv << util::hex(data.motion_type).to_string_view();
+      logging::verbose([&](std::ostream &out) {
+        out << "Motion event state: "sv << msg.id << " :: "sv << util::hex(data.report_rate).to_string_view() << " :: "sv << util::hex(data.motion_type).to_string_view();
+      });
       std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
         encrypted_payload;
 
@@ -1146,7 +1159,9 @@ namespace stream {
       plaintext.g = data.g;
       plaintext.b = data.b;
 
-      BOOST_LOG(verbose) << "RGB: "sv << msg.id << " :: "sv << util::hex(data.r).to_string_view() << util::hex(data.g).to_string_view() << util::hex(data.b).to_string_view();
+      logging::verbose([&](std::ostream &out) {
+        out << "RGB: "sv << msg.id << " :: "sv << util::hex(data.r).to_string_view() << util::hex(data.g).to_string_view() << util::hex(data.b).to_string_view();
+      });
       std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
         encrypted_payload;
 
@@ -1162,7 +1177,9 @@ namespace stream {
       plaintext.solid = data.solid;
       plaintext.flashing = data.flashing;
 
-      BOOST_LOG(verbose) << "Player LEDs: "sv << msg.id << " :: solid "sv << util::hex(data.solid).to_string_view() << " :: flashing "sv << util::hex(data.flashing).to_string_view();
+      logging::verbose([&](std::ostream &out) {
+        out << "Player LEDs: "sv << msg.id << " :: solid "sv << util::hex(data.solid).to_string_view() << " :: flashing "sv << util::hex(data.flashing).to_string_view();
+      });
       std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
         encrypted_payload;
 
@@ -1184,13 +1201,15 @@ namespace stream {
 
       payload = encode_control(session, util::view(plaintext), encrypted_payload);
     } else {
-      BOOST_LOG(error) << "Unknown gamepad feedback message type"sv;
+      logging::error("Unknown gamepad feedback message type"sv);
       return -1;
     }
 
     if (session->broadcast_ref->control_server.send(payload, session->control.peer)) {
       TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &session->control.peer->address.address));
-      BOOST_LOG(warning) << "Couldn't send gamepad feedback to ["sv << addr << ':' << port << ']';
+      logging::warning([&](std::ostream &out) {
+        out << "Couldn't send gamepad feedback to ["sv << addr << ':' << port << ']';
+      });
 
       return -1;
     }
@@ -1207,7 +1226,7 @@ namespace stream {
    */
   int send_hdr_mode(session_t *session, video::hdr_info_t hdr_info) {
     if (!session->control.peer) {
-      BOOST_LOG(warning) << "Couldn't send HDR mode, still waiting for PING from Moonlight"sv;
+      logging::warning("Couldn't send HDR mode, still waiting for PING from Moonlight"sv);
       // Still waiting for PING from Moonlight
       return -1;
     }
@@ -1225,12 +1244,14 @@ namespace stream {
     auto payload = encode_control(session, util::view(plaintext), encrypted_payload);
     if (session->broadcast_ref->control_server.send(payload, session->control.peer)) {
       TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &session->control.peer->address.address));
-      BOOST_LOG(warning) << "Couldn't send HDR mode to ["sv << addr << ':' << port << ']';
+      logging::warning([&](std::ostream &out) {
+        out << "Couldn't send HDR mode to ["sv << addr << ':' << port << ']';
+      });
 
       return -1;
     }
 
-    BOOST_LOG(debug) << "Sent HDR mode: " << hdr_info->enabled;
+    logging::debug("Sent HDR mode: {}", static_cast<int>(hdr_info->enabled));
     return 0;
   }
 
@@ -1242,15 +1263,15 @@ namespace stream {
   void controlBroadcastThread(control_server_t *server) {
     const auto &host_mail = server->owner->host_mail;
     server->map(packetTypes[IDX_PERIODIC_PING], [](session_t *session, const std::string_view &payload) {
-      BOOST_LOG(verbose) << "type [IDX_PERIODIC_PING]"sv;
+      logging::verbose("type [IDX_PERIODIC_PING]"sv);
     });
 
     server->map(packetTypes[IDX_START_A], [&](session_t *session, const std::string_view &payload) {
-      BOOST_LOG(debug) << "type [IDX_START_A]"sv;
+      logging::debug("type [IDX_START_A]"sv);
     });
 
     server->map(packetTypes[IDX_START_B], [&](session_t *session, const std::string_view &payload) {
-      BOOST_LOG(debug) << "type [IDX_START_B]"sv;
+      logging::debug("type [IDX_START_B]"sv);
     });
 
     server->map(packetTypes[IDX_LOSS_STATS], [&](session_t *session, const std::string_view &payload) {
@@ -1260,17 +1281,11 @@ namespace stream {
 
       auto lastGoodFrame = stats[3];
 
-      BOOST_LOG(verbose)
-        << "type [IDX_LOSS_STATS]"sv << std::endl
-        << "---begin stats---" << std::endl
-        << "loss count since last report [" << count << ']' << std::endl
-        << "time in milli since last report [" << t.count() << ']' << std::endl
-        << "last good frame [" << lastGoodFrame << ']' << std::endl
-        << "---end stats---";
+      logging::verbose("type [IDX_LOSS_STATS]\n---begin stats---\nloss count since last report [{}]\ntime in milli since last report [{}]\nlast good frame [{}]\n---end stats---", count, t.count(), lastGoodFrame);
     });
 
     server->map(packetTypes[IDX_REQUEST_IDR_FRAME], [&](session_t *session, const std::string_view &payload) {
-      BOOST_LOG(debug) << "type [IDX_REQUEST_IDR_FRAME]"sv;
+      logging::debug("type [IDX_REQUEST_IDR_FRAME]"sv);
 
       session->video.idr_events->raise(true);
     });
@@ -1280,16 +1295,13 @@ namespace stream {
       auto firstFrame = frames[0];
       auto lastFrame = frames[1];
 
-      BOOST_LOG(debug)
-        << "type [IDX_INVALIDATE_REF_FRAMES]"sv << std::endl
-        << "firstFrame [" << firstFrame << ']' << std::endl
-        << "lastFrame [" << lastFrame << ']';
+      logging::debug("type [IDX_INVALIDATE_REF_FRAMES]\nfirstFrame [{}]\nlastFrame [{}]", firstFrame, lastFrame);
 
       session->video.invalidate_ref_frames_events->raise(std::make_pair(firstFrame, lastFrame));
     });
 
     server->map(packetTypes[IDX_INPUT_DATA], [&](session_t *session, const std::string_view &payload) {
-      BOOST_LOG(debug) << "type [IDX_INPUT_DATA]"sv;
+      logging::debug("type [IDX_INPUT_DATA]"sv);
 
       auto tagged_cipher_length = util::endian::big(*(int32_t *) payload.data());
       std::string_view tagged_cipher {payload.data() + sizeof(tagged_cipher_length), (size_t) tagged_cipher_length};
@@ -1301,7 +1313,7 @@ namespace stream {
       if (cipher.decrypt(tagged_cipher, plaintext, &iv)) {
         // something went wrong :(
 
-        BOOST_LOG(error) << "Failed to verify tag"sv;
+        logging::error("Failed to verify tag"sv);
 
         session::stop(*session);
         return;
@@ -1315,7 +1327,7 @@ namespace stream {
     });
 
     server->map(packetTypes[IDX_ENCRYPTED], [server](session_t *session, const std::string_view &payload) {
-      BOOST_LOG(verbose) << "type [IDX_ENCRYPTED]"sv;
+      logging::verbose("type [IDX_ENCRYPTED]"sv);
 
       auto header = (control_encrypted_p) (payload.data() - 2);
 
@@ -1323,7 +1335,7 @@ namespace stream {
       auto seq = util::endian::little(header->seq);
 
       if (length < (16 + 4 + 4)) {
-        BOOST_LOG(warning) << "Control: Runt packet"sv;
+        logging::warning("Control: Runt packet"sv);
         return;
       }
 
@@ -1356,7 +1368,7 @@ namespace stream {
       if (cipher.decrypt(tagged_cipher, plaintext, &iv)) {
         // something went wrong :(
 
-        BOOST_LOG(error) << "Failed to verify tag"sv;
+        logging::error("Failed to verify tag"sv);
 
         session::stop(*session);
         return;
@@ -1366,7 +1378,7 @@ namespace stream {
       std::string_view next_payload {(char *) plaintext.data() + 4, plaintext.size() - 4};
 
       if (type == packetTypes[IDX_ENCRYPTED]) {
-        BOOST_LOG(error) << "Bad packet type [IDX_ENCRYPTED] found"sv;
+        logging::error("Bad packet type [IDX_ENCRYPTED] found"sv);
         session::stop(*session);
         return;
       }
@@ -1407,7 +1419,7 @@ namespace stream {
 
           if (now > session->pingTimeout) {
             auto address = session->control.peer ? platf::from_sockaddr((sockaddr *) &session->control.peer->address.address) : session->control.expected_peer_address;
-            BOOST_LOG(info) << address << ": Ping Timeout"sv;
+            logging::info("{}: Ping Timeout", address);
             session::stop(*session);
           }
 
@@ -1454,7 +1466,7 @@ namespace stream {
 
       // Don't break until any pending sessions either expire or connect
       if (server->owner->processes.running() == 0 && !has_session_awaiting_peer) {
-        BOOST_LOG(info) << "Process terminated"sv;
+        logging::info("Process terminated"sv);
         break;
       }
 
@@ -1483,7 +1495,9 @@ namespace stream {
 
         if (server->send(payload, session->control.peer)) {
           TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &session->control.peer->address.address));
-          BOOST_LOG(warning) << "Couldn't send termination code to ["sv << addr << ':' << port << ']';
+          logging::warning([&](std::ostream &out) {
+            out << "Couldn't send termination code to ["sv << addr << ':' << port << ']';
+          });
         }
       }
 
@@ -1550,7 +1564,9 @@ namespace stream {
         });
 
         auto type_str = buf_elem ? "AUDIO"sv : "VIDEO"sv;
-        BOOST_LOG(verbose) << "Recv: "sv << peer.address().to_string() << ':' << peer.port() << " :: " << type_str;
+        logging::verbose([&](std::ostream &out) {
+          out << "Recv: "sv << peer.address().to_string() << ':' << peer.port() << " :: " << type_str;
+        });
 
         populate_peer_to_session();
 
@@ -1560,7 +1576,9 @@ namespace stream {
         }
 
         if (ec || !bytes) {
-          BOOST_LOG(error) << "Couldn't receive data from udp socket: "sv << ec.message();
+          logging::error([&](std::ostream &out) {
+            out << "Couldn't receive data from udp socket: "sv << ec.message();
+          });
           return;
         }
 
@@ -1568,7 +1586,9 @@ namespace stream {
           // For legacy PING packets, find the matching session by address.
           auto it = peer_to_session.find(peer.address());
           if (it != std::end(peer_to_session)) {
-            BOOST_LOG(debug) << "RAISE: "sv << peer.address().to_string() << ':' << peer.port() << " :: " << type_str;
+            logging::debug([&](std::ostream &out) {
+              out << "RAISE: "sv << peer.address().to_string() << ':' << peer.port() << " :: " << type_str;
+            });
             it->second->raise(peer, std::string {buf[buf_elem].data(), bytes});
           }
         } else if (bytes >= sizeof(SS_PING)) {
@@ -1577,7 +1597,9 @@ namespace stream {
           // For new PING packets that include a client identifier, search by payload.
           auto it = peer_to_session.find(std::string {ping->payload, sizeof(ping->payload)});
           if (it != std::end(peer_to_session)) {
-            BOOST_LOG(debug) << "RAISE: "sv << peer.address().to_string() << ':' << peer.port() << " :: " << type_str;
+            logging::debug([&](std::ostream &out) {
+              out << "RAISE: "sv << peer.address().to_string() << ':' << peer.port() << " :: " << type_str;
+            });
             it->second->raise(peer, std::string {buf[buf_elem].data(), bytes});
           }
         }
@@ -1611,17 +1633,17 @@ namespace stream {
     platf::set_thread_name("stream::videoBroadcast");
     platf::adjust_thread_priority(platf::thread_priority_e::high);
 
-    logging::min_max_avg_periodic_logger<double> frame_processing_latency_logger(debug, "Frame processing latency", "ms");
+    logging::min_max_avg_periodic_logger<double> frame_processing_latency_logger(logging::level_e::debug, "Frame processing latency", "ms");
 
-    logging::time_delta_periodic_logger frame_send_batch_latency_logger(debug, "Network: each send_batch() latency");
-    logging::time_delta_periodic_logger frame_fec_latency_logger(debug, "Network: each FEC block latency");
-    logging::time_delta_periodic_logger frame_network_latency_logger(debug, "Network: frame's overall network latency");
+    logging::time_delta_periodic_logger frame_send_batch_latency_logger(logging::level_e::debug, "Network: each send_batch() latency");
+    logging::time_delta_periodic_logger frame_fec_latency_logger(logging::level_e::debug, "Network: each FEC block latency");
+    logging::time_delta_periodic_logger frame_network_latency_logger(logging::level_e::debug, "Network: frame's overall network latency");
 
     crypto::aes_t iv(12);
 
     auto timer = platf::create_high_precision_timer();
     if (!timer || !*timer) {
-      BOOST_LOG(error) << "Failed to create timer, aborting video broadcast thread";
+      logging::error("Failed to create timer, aborting video broadcast thread");
       return;
     }
 
@@ -1705,7 +1727,7 @@ namespace stream {
       // If the number of FEC blocks needed exceeds the protocol limit, turn off FEC for this frame.
       // For normal FEC percentages, this should only happen for enormous frames (over 800 packets at 20%).
       if (fec_blocks_needed > MAX_FEC_BLOCKS) {
-        BOOST_LOG(warning) << "Skipping FEC for abnormally large encoded frame (needed "sv << fec_blocks_needed << " FEC blocks)"sv;
+        logging::warning("Skipping FEC for abnormally large encoded frame (needed {} FEC blocks)", fec_blocks_needed);
         fecPercentage = 0;
         fec_blocks_needed = MAX_FEC_BLOCKS;
       }
@@ -1714,7 +1736,7 @@ namespace stream {
       auto fec_blocks_begin = std::begin(fec_blocks);
       auto fec_blocks_end = std::begin(fec_blocks) + fec_blocks_needed;
 
-      BOOST_LOG(verbose) << "Generating "sv << fec_blocks_needed << " FEC blocks"sv;
+      logging::verbose("Generating {} FEC blocks", fec_blocks_needed);
 
       // Align individual FEC blocks to blocksize
       auto unaligned_size = payload.size() / fec_blocks_needed;
@@ -1723,7 +1745,9 @@ namespace stream {
       // If we exceed the 10-bit FEC packet index (which means our frame exceeded 4096 packets),
       // the frame will be unrecoverable. Log an error for this case.
       if (aligned_size / blocksize >= 1024) {
-        BOOST_LOG(error) << "Encoder produced a frame too large to send! Is the encoder broken? (needed "sv << (aligned_size / blocksize) << " packets)"sv;
+        logging::error([&](std::ostream &out) {
+          out << "Encoder produced a frame too large to send! Is the encoder broken? (needed "sv << (aligned_size / blocksize) << " packets)"sv;
+        });
       }
 
       // Split the data into aligned FEC blocks
@@ -1873,7 +1897,7 @@ namespace stream {
               // Use a batched send if it's supported on this platform
               if (!platf::send_batch(batch_info)) {
                 // Batched send is not available, so send each packet individually
-                BOOST_LOG(verbose) << "Falling back to unbatched send"sv;
+                logging::verbose("Falling back to unbatched send"sv);
                 for (auto y = 0; y < current_batch_size; y++) {
                   auto send_info = platf::send_info_t {
                     shards.prefix(next_shard_to_send + y),
@@ -1904,11 +1928,13 @@ namespace stream {
 
           frame_network_latency_logger.second_point_now_and_log();
 
-          BOOST_LOG(verbose) << "Sent Frame seq ["sv << packet->frame_index() << "] pts ["sv << timestamp
-                             << "] shards ["sv << shards.size() << "/"sv << shards.percentage << "%]"sv
-                             << (frame_is_dupe ? " Dupe" : "")
-                             << (packet->is_idr() ? " Key" : "")
-                             << (packet->after_ref_frame_invalidation ? " RFI" : "");
+          logging::verbose([&](std::ostream &out) {
+            out << "Sent Frame seq ["sv << packet->frame_index() << "] pts ["sv << timestamp
+                << "] shards ["sv << shards.size() << "/"sv << shards.percentage << "%]"sv
+                << (frame_is_dupe ? " Dupe" : "")
+                << (packet->is_idr() ? " Key" : "")
+                << (packet->after_ref_frame_invalidation ? " RFI" : "");
+          });
 
           ++blockIndex;
           lowseq += shards.size();
@@ -1916,7 +1942,7 @@ namespace stream {
 
         session->video.lowseq = lowseq;
       } catch (const std::exception &e) {
-        BOOST_LOG(error) << "Broadcast video failed "sv << e.what();
+        logging::error("Broadcast video failed {}", e.what());
         std::this_thread::sleep_for(100ms);
       }
     }
@@ -1971,11 +1997,11 @@ namespace stream {
 
       auto bytes = encode_audio(session->config.encryptionFlagsEnabled & SS_ENC_AUDIO, packet_data, shards_p[sequenceNumber % RTPA_DATA_SHARDS], iv, session->audio.cipher);
       if (bytes < 0) {
-        BOOST_LOG(error) << "Couldn't encode audio packet"sv;
+        logging::error("Couldn't encode audio packet"sv);
         break;
       }
 
-      BOOST_LOG(verbose) << "Audio [seq "sv << sequenceNumber << ", pts "sv << timestamp << "] ::  send..."sv;
+      logging::verbose("Audio [seq {}, pts {}] ::  send...", sequenceNumber, timestamp);
 
       audio_packet.rtp.sequenceNumber = util::endian::big(sequenceNumber);
       audio_packet.rtp.timestamp = util::endian::big(timestamp);
@@ -2023,11 +2049,13 @@ namespace stream {
               session->localAddress,
             };
             platf::send(send_info);
-            BOOST_LOG(verbose) << "Audio FEC ["sv << (sequenceNumber & ~(RTPA_DATA_SHARDS - 1)) << ' ' << x << "] ::  send..."sv;
+            logging::verbose([&](std::ostream &out) {
+              out << "Audio FEC ["sv << (sequenceNumber & ~(RTPA_DATA_SHARDS - 1)) << ' ' << x << "] ::  send..."sv;
+            });
           }
         }
       } catch (const std::exception &e) {
-        BOOST_LOG(error) << "Broadcast audio failed "sv << e.what();
+        logging::error("Broadcast audio failed {}", e.what());
         std::this_thread::sleep_for(100ms);
       }
     }
@@ -2046,7 +2074,7 @@ namespace stream {
     auto audio_port = net::map_port(ctx.owner->settings, AUDIO_STREAM_PORT);
 
     if (ctx.control_server.bind(ctx.owner->settings, address_family, control_port)) {
-      BOOST_LOG(error) << "Couldn't bind Control server to port ["sv << control_port << "], likely another process already bound to the port"sv;
+      logging::error("Couldn't bind Control server to port [{}], likely another process already bound to the port", control_port);
 
       return -1;
     }
@@ -2054,7 +2082,9 @@ namespace stream {
     boost::system::error_code ec;
     ctx.video_sock.open(protocol, ec);
     if (ec) {
-      BOOST_LOG(fatal) << "Couldn't open socket for Video server: "sv << ec.message();
+      logging::fatal([&](std::ostream &out) {
+        out << "Couldn't open socket for Video server: "sv << ec.message();
+      });
 
       return -1;
     }
@@ -2063,33 +2093,41 @@ namespace stream {
     try {
       ctx.video_sock.set_option(boost::asio::socket_base::send_buffer_size(1024 * 1024));
     } catch (...) {
-      BOOST_LOG(error) << "Failed to set video socket send buffer size (SO_SENDBUF)";
+      logging::error("Failed to set video socket send buffer size (SO_SENDBUF)");
     }
 
     auto bind_addr_str = net::get_bind_address(ctx.owner->settings, address_family);
     const auto bind_addr = boost::asio::ip::make_address(bind_addr_str, ec);
     if (ec) {
-      BOOST_LOG(fatal) << "Invalid bind address: "sv << bind_addr_str << " - " << ec.message();
+      logging::fatal([&](std::ostream &out) {
+        out << "Invalid bind address: "sv << bind_addr_str << " - " << ec.message();
+      });
       return -1;
     }
 
     ctx.video_sock.bind(udp::endpoint(bind_addr, video_port), ec);
     if (ec) {
-      BOOST_LOG(fatal) << "Couldn't bind Video server to port ["sv << video_port << "]: "sv << ec.message();
+      logging::fatal([&](std::ostream &out) {
+        out << "Couldn't bind Video server to port ["sv << video_port << "]: "sv << ec.message();
+      });
 
       return -1;
     }
 
     ctx.audio_sock.open(protocol, ec);
     if (ec) {
-      BOOST_LOG(fatal) << "Couldn't open socket for Audio server: "sv << ec.message();
+      logging::fatal([&](std::ostream &out) {
+        out << "Couldn't open socket for Audio server: "sv << ec.message();
+      });
 
       return -1;
     }
 
     ctx.audio_sock.bind(udp::endpoint(bind_addr, audio_port), ec);
     if (ec) {
-      BOOST_LOG(fatal) << "Couldn't bind Audio server to port ["sv << audio_port << "]: "sv << ec.message();
+      logging::fatal([&](std::ostream &out) {
+        out << "Couldn't bind Audio server to port ["sv << audio_port << "]: "sv << ec.message();
+      });
 
       return -1;
     }
@@ -2130,15 +2168,15 @@ namespace stream {
     video_packets.reset();
     audio_packets.reset();
 
-    BOOST_LOG(debug) << "Waiting for main listening thread to end..."sv;
+    logging::debug("Waiting for main listening thread to end..."sv);
     ctx.recv_thread.join();
-    BOOST_LOG(debug) << "Waiting for main video thread to end..."sv;
+    logging::debug("Waiting for main video thread to end..."sv);
     ctx.video_thread.join();
-    BOOST_LOG(debug) << "Waiting for main audio thread to end..."sv;
+    logging::debug("Waiting for main audio thread to end..."sv);
     ctx.audio_thread.join();
-    BOOST_LOG(debug) << "Waiting for main control thread to end..."sv;
+    logging::debug("Waiting for main control thread to end..."sv);
     ctx.control_thread.join();
-    BOOST_LOG(debug) << "All broadcasting threads ended"sv;
+    logging::debug("All broadcasting threads ended"sv);
 
     broadcast_shutdown_event->reset();
   }
@@ -2188,12 +2226,18 @@ namespace stream {
       TUPLE_2D_REF(recv_peer, msg, *msg_opt);
       if (msg.find(expected_payload) != std::string::npos) {
         // Match the new PING payload format
-        BOOST_LOG(debug) << "Received ping [v2] from "sv << recv_peer.address() << ':' << recv_peer.port() << " ["sv << util::hex_vec(msg) << ']';
+        logging::debug([&](std::ostream &out) {
+          out << "Received ping [v2] from "sv << recv_peer.address() << ':' << recv_peer.port() << " ["sv << util::hex_vec(msg) << ']';
+        });
       } else if (!(session->config.mlFeatureFlags & ML_FF_SESSION_ID_V1) && msg == "PING"sv) {
         // Match the legacy fixed PING payload only if the new type is not supported
-        BOOST_LOG(debug) << "Received ping [v1] from "sv << recv_peer.address() << ':' << recv_peer.port() << " ["sv << util::hex_vec(msg) << ']';
+        logging::debug([&](std::ostream &out) {
+          out << "Received ping [v1] from "sv << recv_peer.address() << ':' << recv_peer.port() << " ["sv << util::hex_vec(msg) << ']';
+        });
       } else {
-        BOOST_LOG(debug) << "Received non-ping from "sv << recv_peer.address() << ':' << recv_peer.port() << " ["sv << util::hex_vec(msg) << ']';
+        logging::debug([&](std::ostream &out) {
+          out << "Received non-ping from "sv << recv_peer.address() << ':' << recv_peer.port() << " ["sv << util::hex_vec(msg) << ']';
+        });
         current_time = std::chrono::steady_clock::now();
         continue;
       }
@@ -2203,7 +2247,7 @@ namespace stream {
       return 0;
     }
 
-    BOOST_LOG(error) << "Initial Ping Timeout"sv;
+    logging::error("Initial Ping Timeout"sv);
     return -1;
   }
 
@@ -2230,7 +2274,7 @@ namespace stream {
     auto address = session->video.peer.address();
     session->video.qos = session->owner->platform.enable_socket_qos(ref->video_sock.native_handle(), address, session->video.peer.port(), platf::qos_data_type_e::video, session->config.videoQosType != 0);
 
-    BOOST_LOG(debug) << "Start capturing Video"sv;
+    logging::debug("Start capturing Video"sv);
     session->owner->videos.capture(session->mail, session->config.monitor, session);
   }
 
@@ -2257,7 +2301,7 @@ namespace stream {
     auto address = session->audio.peer.address();
     session->audio.qos = session->owner->platform.enable_socket_qos(ref->audio_sock.native_handle(), address, session->audio.peer.port(), platf::qos_data_type_e::audio, session->config.audioQosType != 0);
 
-    BOOST_LOG(debug) << "Start capturing Audio"sv;
+    logging::debug("Start capturing Audio"sv);
     session->owner->audios.capture(session->mail, session->config.audio, session);
   }
 
@@ -2299,7 +2343,7 @@ namespace stream {
       // GPU scheduling enabled. If this happens, we will terminate ourselves and the service can restart.
       // The alternative is that Sunshine can never start another session until it's manually restarted.
       auto task = []() {
-        BOOST_LOG(fatal) << "Hang detected! Session failed to terminate in 10 seconds."sv;
+        logging::fatal("Hang detected! Session failed to terminate in 10 seconds."sv);
         logging::log_flush();
         lifetime::debug_trap();
       };
@@ -2309,14 +2353,14 @@ namespace stream {
         session.owner->scheduler.cancel(force_kill);
       });
 
-      BOOST_LOG(debug) << "Waiting for video to end..."sv;
+      logging::debug("Waiting for video to end..."sv);
       session.videoThread.join();
-      BOOST_LOG(debug) << "Waiting for audio to end..."sv;
+      logging::debug("Waiting for audio to end..."sv);
       session.audioThread.join();
-      BOOST_LOG(debug) << "Waiting for control to end..."sv;
+      logging::debug("Waiting for control to end..."sv);
       session.controlEnd.view();
       // Reset input on session stop to avoid stuck repeated keys
-      BOOST_LOG(debug) << "Resetting Input..."sv;
+      logging::debug("Resetting Input..."sv);
       input::reset(session.input);
 
       // If this is the last session, invoke the platform callbacks
@@ -2339,7 +2383,7 @@ namespace stream {
         session.owner->platform.streaming_will_stop();
       }
 
-      BOOST_LOG(debug) << "Session ended"sv;
+      logging::debug("Session ended"sv);
     }
 
     /**
@@ -2354,7 +2398,7 @@ namespace stream {
       }
 
       session.control.expected_peer_address = addr_string;
-      BOOST_LOG(debug) << "Expecting incoming session connections from "sv << addr_string;
+      logging::debug("Expecting incoming session connections from {}", addr_string);
 
       // Insert this session into the session list
       {
@@ -2422,7 +2466,7 @@ namespace stream {
       session->video.lowseq = 0;
       session->video.ping_payload = launch_session.av_ping_payload;
       if (config.encryptionFlagsEnabled & SS_ENC_VIDEO) {
-        BOOST_LOG(info) << "Video encryption enabled"sv;
+        logging::info("Video encryption enabled"sv);
         session->video.cipher = crypto::cipher::gcm_t {
           launch_session.gcm_key,
           false

@@ -29,7 +29,7 @@ namespace platf {
 
   bool request_microphone_permission(AVAuthorizationStatus authorization_status, const microphone_permission_request_t &request_access) {
     if (authorization_status == AVAuthorizationStatusNotDetermined) {
-      BOOST_LOG(info) << "Requesting microphone permission for the configured audio sink."sv;
+      logging::info("Requesting microphone permission for the configured audio sink."sv);
     }
 
     auto permission_granted = std::atomic<bool> {authorization_status == AVAuthorizationStatusAuthorized};
@@ -46,9 +46,9 @@ namespace platf {
 
     if (!permission_granted.load()) {
       if (authorization_status == AVAuthorizationStatusRestricted) {
-        BOOST_LOG(error) << "Microphone access is restricted by macOS."sv;
+        logging::error("Microphone access is restricted by macOS."sv);
       } else {
-        BOOST_LOG(error) << "Microphone access was denied. Enable Sunshine in System Settings -> Privacy & Security -> Microphone."sv;
+        logging::error("Microphone access was denied. Enable Sunshine in System Settings -> Privacy & Security -> Microphone."sv);
       }
     }
 
@@ -224,10 +224,10 @@ namespace platf {
 
 + (NSArray<AVCaptureDevice *> *)microphones {
   using namespace std::literals;
-  BOOST_LOG(debug) << "Discovering microphones"sv;
+  logging::debug("Discovering microphones"sv);
 
   if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:((NSOperatingSystemVersion) {10, 15, 0})]) {
-    BOOST_LOG(debug) << "Using modern AVCaptureDeviceDiscoverySession API"sv;
+    logging::debug("Using modern AVCaptureDeviceDiscoverySession API"sv);
     // This will generate a warning about AVCaptureDeviceDiscoverySession being
     // unavailable before macOS 10.15, but we have a guard to prevent it from
     // being called on those earlier systems.
@@ -240,18 +240,18 @@ namespace platf {
                                                                                                                mediaType:AVMediaTypeAudio
                                                                                                                 position:AVCaptureDevicePositionUnspecified];
     NSArray *devices = discoverySession.devices;
-    BOOST_LOG(debug) << "Found "sv << [devices count] << " devices using discovery session"sv;
+    logging::debug("Found {} devices using discovery session", [devices count]);
     return devices;
 #pragma clang diagnostic pop
   } else {
-    BOOST_LOG(debug) << "Using legacy AVCaptureDevice API"sv;
+    logging::debug("Using legacy AVCaptureDevice API"sv);
     // We're intentionally using a deprecated API here specifically for versions
     // of macOS where it's not deprecated, so we can ignore any deprecation
     // warnings:
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
     NSArray *devices = [AVCaptureDevice devicesWithMediaType:AVMediaTypeAudio];
-    BOOST_LOG(debug) << "Found "sv << [devices count] << " devices using legacy API"sv;
+    logging::debug("Found {} devices using legacy API", [devices count]);
     return devices;
 #pragma clang diagnostic pop
   }
@@ -259,14 +259,14 @@ namespace platf {
 
 + (NSArray<NSString *> *)microphoneNames {
   using namespace std::literals;
-  BOOST_LOG(debug) << "Retrieving microphone names"sv;
+  logging::debug("Retrieving microphone names"sv);
   NSMutableArray *result = [NSMutableArray array];
 
   for (AVCaptureDevice *device in [AVAudio microphones]) {
     [result addObject:[device localizedName]];
   }
 
-  BOOST_LOG(info) << "Found "sv << [result count] << " microphones"sv;
+  logging::info("Found {} microphones", [result count]);
   return result;
 }
 
@@ -274,20 +274,26 @@ namespace platf {
   using namespace std::literals;
 
   if (name == nil) {
-    BOOST_LOG(warning) << "Microphone not found: (nil)"sv;
+    logging::warning("Microphone not found: (nil)"sv);
     return nil;
   }
 
-  BOOST_LOG(debug) << "Searching for microphone: "sv << [name UTF8String];
+  logging::debug([&](std::ostream &out) {
+    out << "Searching for microphone: "sv << [name UTF8String];
+  });
 
   for (AVCaptureDevice *device in [AVAudio microphones]) {
     if ([[device localizedName] isEqualToString:name]) {
-      BOOST_LOG(info) << "Found microphone: "sv << [name UTF8String];
+      logging::info([&](std::ostream &out) {
+        out << "Found microphone: "sv << [name UTF8String];
+      });
       return device;
     }
   }
 
-  BOOST_LOG(warning) << "Microphone not found: "sv << [name UTF8String];
+  logging::warning([&](std::ostream &out) {
+    out << "Microphone not found: "sv << [name UTF8String];
+  });
   return nil;
 }
 
@@ -295,26 +301,30 @@ namespace platf {
   using namespace std::literals;
 
   if (device == nil) {
-    BOOST_LOG(error) << "Cannot setup microphone: device is nil"sv;
+    logging::error("Cannot setup microphone: device is nil"sv);
     return -1;
   }
 
-  BOOST_LOG(info) << "Setting up microphone: "sv << [[device localizedName] UTF8String] << " with "sv << sampleRate << "Hz, "sv << frameSize << " frames, "sv << (int) channels << " channels"sv;
+  logging::info([&](std::ostream &out) {
+    out << "Setting up microphone: "sv << [[device localizedName] UTF8String] << " with "sv << sampleRate << "Hz, "sv << frameSize << " frames, "sv << (int) channels << " channels"sv;
+  });
 
   self.audioCaptureSession = [[AVCaptureSession alloc] init];
 
   NSError *nsError;
   AVCaptureDeviceInput *audioInput = [AVCaptureDeviceInput deviceInputWithDevice:device error:&nsError];
   if (audioInput == nil) {
-    BOOST_LOG(error) << "Failed to create audio input from device: "sv << (nsError ? [[nsError localizedDescription] UTF8String] : "unknown error"sv);
+    logging::error([&](std::ostream &out) {
+      out << "Failed to create audio input from device: "sv << (nsError ? [[nsError localizedDescription] UTF8String] : "unknown error"sv);
+    });
     return -1;
   }
 
   if ([self.audioCaptureSession canAddInput:audioInput]) {
     [self.audioCaptureSession addInput:audioInput];
-    BOOST_LOG(debug) << "Successfully added audio input to capture session"sv;
+    logging::debug("Successfully added audio input to capture session"sv);
   } else {
-    BOOST_LOG(error) << "Cannot add audio input to capture session"sv;
+    logging::error("Cannot add audio input to capture session"sv);
     [audioInput dealloc];
     return -1;
   }
@@ -329,7 +339,7 @@ namespace platf {
     (NSString *) AVLinearPCMIsFloatKey: @YES,
     (NSString *) AVLinearPCMIsNonInterleaved: @NO
   }];
-  BOOST_LOG(debug) << "Configured audio output with settings: "sv << sampleRate << "Hz, "sv << (int) channels << " channels, 32-bit float"sv;
+  logging::debug("Configured audio output with settings: {}Hz, {} channels, 32-bit float", sampleRate, (int) channels);
 
   dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, DISPATCH_QUEUE_PRIORITY_HIGH);
   dispatch_queue_t recordingQueue = dispatch_queue_create("audioSamplingQueue", qos);
@@ -338,9 +348,9 @@ namespace platf {
 
   if ([self.audioCaptureSession canAddOutput:audioOutput]) {
     [self.audioCaptureSession addOutput:audioOutput];
-    BOOST_LOG(debug) << "Successfully added audio output to capture session"sv;
+    logging::debug("Successfully added audio output to capture session"sv);
   } else {
-    BOOST_LOG(error) << "Cannot add audio output to capture session"sv;
+    logging::error("Cannot add audio output to capture session"sv);
     [audioInput release];
     [audioOutput release];
     return -1;
@@ -350,10 +360,10 @@ namespace platf {
 
   // Initialize buffer and signal
   [self initializeAudioBuffer:channels];
-  BOOST_LOG(debug) << "Audio buffer initialized for microphone capture"sv;
+  logging::debug("Audio buffer initialized for microphone capture"sv);
 
   [self.audioCaptureSession startRunning];
-  BOOST_LOG(info) << "Audio capture session started successfully"sv;
+  logging::info("Audio capture session started successfully"sv);
 
   [audioInput release];
   [audioOutput release];
@@ -391,7 +401,7 @@ namespace platf {
 
 - (int)setupSystemTap:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels {
   using namespace std::literals;
-  BOOST_LOG(debug) << "setupSystemTap called with sampleRate:"sv << sampleRate << " frameSize:"sv << frameSize << " channels:"sv << (int) channels;
+  logging::debug("setupSystemTap called with sampleRate:{} frameSize:{} channels:{}", sampleRate, frameSize, (int) channels);
 
   // 1. Initialize system tap components
   if ([self initializeSystemTapContext:sampleRate frameSize:frameSize channels:channels] != 0) {
@@ -431,7 +441,7 @@ namespace platf {
 
   [tapDescription release];
 
-  BOOST_LOG(debug) << "System tap setup completed successfully!"sv;
+  logging::debug("System tap setup completed successfully!"sv);
   return 0;
 }
 
@@ -463,7 +473,7 @@ namespace platf {
   OSStatus result = AudioObjectGetPropertyData(deviceID, &addr, 0, NULL, ioDataSize, outData);
 
   if (result != noErr) {
-    BOOST_LOG(warning) << "Failed to get device property (selector: "sv << selector << ", scope: "sv << scope << ", element: "sv << element << ") with status: "sv << result;
+    logging::warning("Failed to get device property (selector: {}, scope: {}, element: {}) with status: {}", selector, scope, element, result);
   }
 
   return result;
@@ -476,50 +486,50 @@ namespace platf {
  */
 - (void)cleanupSystemTapContext:(id)tapDescription {
   using namespace std::literals;
-  BOOST_LOG(debug) << "Starting system tap context cleanup"sv;
+  logging::debug("Starting system tap context cleanup"sv);
 
   // Clean up in reverse order of creation
   if (self->ioProcID && self->aggregateDeviceID != kAudioObjectUnknown) {
     AudioDeviceStop(self->aggregateDeviceID, self->ioProcID);
     AudioDeviceDestroyIOProcID(self->aggregateDeviceID, self->ioProcID);
     self->ioProcID = NULL;
-    BOOST_LOG(debug) << "IOProc stopped and destroyed"sv;
+    logging::debug("IOProc stopped and destroyed"sv);
   }
 
   if (self->aggregateDeviceID != kAudioObjectUnknown) {
     AudioHardwareDestroyAggregateDevice(self->aggregateDeviceID);
     self->aggregateDeviceID = kAudioObjectUnknown;
-    BOOST_LOG(debug) << "Aggregate device destroyed"sv;
+    logging::debug("Aggregate device destroyed"sv);
   }
 
   if (self->tapObjectID != kAudioObjectUnknown) {
     AudioHardwareDestroyProcessTap(self->tapObjectID);
     self->tapObjectID = kAudioObjectUnknown;
-    BOOST_LOG(debug) << "Process tap destroyed"sv;
+    logging::debug("Process tap destroyed"sv);
   }
 
   if (self->ioProcData) {
     if (self->ioProcData->conversionBuffer) {
       free(self->ioProcData->conversionBuffer);
       self->ioProcData->conversionBuffer = NULL;
-      BOOST_LOG(debug) << "Conversion buffer freed"sv;
+      logging::debug("Conversion buffer freed"sv);
     }
     if (self->ioProcData->audioConverter) {
       AudioConverterDispose(self->ioProcData->audioConverter);
       self->ioProcData->audioConverter = NULL;
-      BOOST_LOG(debug) << "AudioConverter disposed"sv;
+      logging::debug("AudioConverter disposed"sv);
     }
     free(self->ioProcData);
     self->ioProcData = NULL;
-    BOOST_LOG(debug) << "IOProc data freed"sv;
+    logging::debug("IOProc data freed"sv);
   }
 
   if (tapDescription) {
     [tapDescription release];
-    BOOST_LOG(debug) << "Tap description released"sv;
+    logging::debug("Tap description released"sv);
   }
 
-  BOOST_LOG(debug) << "System tap context cleanup completed"sv;
+  logging::debug("System tap context cleanup completed"sv);
 }
 
 // MARK: - Buffer Management Methods
@@ -527,7 +537,7 @@ namespace platf {
 
 - (void)initializeAudioBuffer:(UInt8)channels {
   using namespace std::literals;
-  BOOST_LOG(debug) << "Initializing audio buffer for "sv << (int) channels << " channels"sv;
+  logging::debug("Initializing audio buffer for {} channels", (int) channels);
 
   // Cleanup any existing circular buffer first
   TPCircularBufferCleanup(&self->audioSampleBuffer);
@@ -544,12 +554,12 @@ namespace platf {
   }
   self->audioSemaphore = dispatch_semaphore_create(0);
 
-  BOOST_LOG(debug) << "Audio buffer initialized successfully with size: "sv << ringBufferSize << " bytes"sv;
+  logging::debug("Audio buffer initialized successfully with size: {} bytes", ringBufferSize);
 }
 
 - (void)cleanupAudioBuffer {
   using namespace std::literals;
-  BOOST_LOG(debug) << "Cleaning up audio buffer"sv;
+  logging::debug("Cleaning up audio buffer"sv);
 
   // Signal any waiting threads before cleanup and release semaphore
   if (self->audioSemaphore) {
@@ -561,7 +571,7 @@ namespace platf {
   // Cleanup the circular buffer
   TPCircularBufferCleanup(&self->audioSampleBuffer);
 
-  BOOST_LOG(debug) << "Audio buffer cleanup completed"sv;
+  logging::debug("Audio buffer cleanup completed"sv);
 }
 
 /**
@@ -570,7 +580,7 @@ namespace platf {
  */
 - (void)dealloc {
   using namespace std::literals;
-  BOOST_LOG(debug) << "AVAudio dealloc started"sv;
+  logging::debug("AVAudio dealloc started"sv);
 
   // Cleanup system tap resources using the generalized method
   [self cleanupSystemTapContext:nil];
@@ -579,14 +589,14 @@ namespace platf {
   if (self.audioCaptureSession) {
     [self.audioCaptureSession stopRunning];
     self.audioCaptureSession = nil;
-    BOOST_LOG(debug) << "Audio capture session stopped and released"sv;
+    logging::debug("Audio capture session stopped and released"sv);
   }
   self.audioConnection = nil;
 
   // Use our centralized buffer cleanup method (handles signal and buffer cleanup)
   [self cleanupAudioBuffer];
 
-  BOOST_LOG(debug) << "AVAudio dealloc completed"sv;
+  logging::debug("AVAudio dealloc completed"sv);
   [super dealloc];
 }
 
@@ -598,12 +608,12 @@ namespace platf {
 
   // Check macOS version requirement
   if (![[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:((NSOperatingSystemVersion) {14, 0, 0})]) {
-    BOOST_LOG(error) << "macOS version requirement not met (need 14.0+)"sv;
+    logging::error("macOS version requirement not met (need 14.0+)"sv);
     return -1;
   }
 
   NSOperatingSystemVersion version = [[NSProcessInfo processInfo] operatingSystemVersion];
-  BOOST_LOG(debug) << "macOS version check passed (running "sv << version.majorVersion << "."sv << version.minorVersion << "."sv << version.patchVersion << ")"sv;
+  logging::debug("macOS version check passed (running {}.{}.{})", version.majorVersion, version.minorVersion, version.patchVersion);
 
   // Initialize Core Audio objects
   self->tapObjectID = kAudioObjectUnknown;
@@ -613,7 +623,7 @@ namespace platf {
   // Create IOProc data structure with client requirements
   self->ioProcData = (AVAudioIOProcData *) malloc(sizeof(AVAudioIOProcData));
   if (!self->ioProcData) {
-    BOOST_LOG(error) << "Failed to allocate IOProc data structure"sv;
+    logging::error("Failed to allocate IOProc data structure"sv);
     return -1;
   }
 
@@ -625,14 +635,14 @@ namespace platf {
   self->ioProcData->conversionBuffer = NULL;
   self->ioProcData->conversionBufferSize = 0;
 
-  BOOST_LOG(debug) << "System tap initialization completed"sv;
+  logging::debug("System tap initialization completed"sv);
   return 0;
 }
 
 - (CATapDescription *)createSystemTapDescriptionForChannels:(UInt8)channels {
   using namespace std::literals;
 
-  BOOST_LOG(debug) << "Creating tap description for "sv << (int) channels << " channels (using stereo tap)"sv;
+  logging::debug("Creating tap description for {} channels (using stereo tap)", (int) channels);
   NSArray *excludeProcesses = @[];
 
   // Always use stereo tap - it handles mono by duplicating to left/right channels
@@ -647,24 +657,26 @@ namespace platf {
 
   if (std::getenv("SUNSHINE_PUBLIC_AUDIO_TAP")) {
     // Shows the tap in Audio MIDI Setup and HALLab where it's easier to inspect
-    BOOST_LOG(debug) << "Setting tap as public (visible in Audio MIDI Setup and HALLab)"sv;
+    logging::debug("Setting tap as public (visible in Audio MIDI Setup and HALLab)"sv);
     [tapDescription setPrivate:NO];
   } else {
-    BOOST_LOG(debug) << "Setting tap as private (hidden from Audio MIDI Setup and HALLab)"sv;
+    logging::debug("Setting tap as private (hidden from Audio MIDI Setup and HALLab)"sv);
     [tapDescription setPrivate:YES];
   }
 
   // Set mute behavior based on the hostAudioEnabled property
   if (self.hostAudioEnabled) {
     tapDescription.muteBehavior = CATapUnmuted;  // Audio to both tap and speakers
-    BOOST_LOG(debug) << "Core Audio tap: Host audio enabled (unmuted)"sv;
+    logging::debug("Core Audio tap: Host audio enabled (unmuted)"sv);
   } else {
     tapDescription.muteBehavior = CATapMuted;  // Audio to tap only, speakers muted
-    BOOST_LOG(debug) << "Core Audio tap: Host audio disabled (muted)"sv;
+    logging::debug("Core Audio tap: Host audio disabled (muted)"sv);
   }
 
   // Create the tap
-  BOOST_LOG(debug) << "Creating process tap with name: "sv << [uniqueName UTF8String];
+  logging::debug([&](std::ostream &out) {
+    out << "Creating process tap with name: "sv << [uniqueName UTF8String];
+  });
 
   // Use direct API call like the reference implementation
   OSStatus status = AudioHardwareCreateProcessTap(tapDescription, &self->tapObjectID);
@@ -672,12 +684,14 @@ namespace platf {
   [uniqueUUID release];
 
   if (status != noErr) {
-    BOOST_LOG(error) << "AudioHardwareCreateProcessTap failed: "sv << ca::Status(status);
+    logging::error([&](std::ostream &out) {
+      out << "AudioHardwareCreateProcessTap failed: "sv << ca::Status(status);
+    });
     [tapDescription release];
     return nil;
   }
 
-  BOOST_LOG(debug) << "Process tap created successfully with ID: "sv << self->tapObjectID;
+  logging::debug("Process tap created successfully with ID: {}", self->tapObjectID);
   return tapDescription;
 }
 
@@ -690,7 +704,7 @@ namespace platf {
     tapUIDString = [[tapDescription UUID] UUIDString];
   }
   if (!tapUIDString) {
-    BOOST_LOG(error) << "Failed to get tap UUID from description"sv;
+    logging::error("Failed to get tap UUID from description"sv);
     return kAudioHardwareUnspecifiedError;
   }
 
@@ -709,14 +723,18 @@ namespace platf {
     @kAudioAggregateDeviceIsPrivateKey: std::getenv("SUNSHINE_PUBLIC_AUDIO_TAP") ? @NO : @YES,
   };
 
-  BOOST_LOG(debug) << "Creating aggregate device with tap UID: "sv << [tapUIDString UTF8String];
+  logging::debug([&](std::ostream &out) {
+    out << "Creating aggregate device with tap UID: "sv << [tapUIDString UTF8String];
+  });
   OSStatus status = AudioHardwareCreateAggregateDevice((CFDictionaryRef) aggregateProperties, &self->aggregateDeviceID);
   if (status != noErr && status != 'ExtA') {
-    BOOST_LOG(error) << "AudioHardwareCreateAggregateDevice failed: " << ca::Status(status);
+    logging::error([&](std::ostream &out) {
+      out << "AudioHardwareCreateAggregateDevice failed: " << ca::Status(status);
+    });
     return status;
   }
 
-  BOOST_LOG(debug) << "Aggregate device created with ID: "sv << self->aggregateDeviceID;
+  logging::debug("Aggregate device created with ID: {}", self->aggregateDeviceID);
 
   // Configure the aggregate device
   if (self->aggregateDeviceID != kAudioObjectUnknown) {
@@ -730,9 +748,9 @@ namespace platf {
     UInt32 sampleRateSize = sizeof(Float64);
     OSStatus sampleRateResult = AudioObjectSetPropertyData(self->aggregateDeviceID, &sampleRateAddr, 0, NULL, sampleRateSize, &deviceSampleRate);
     if (sampleRateResult != noErr) {
-      BOOST_LOG(warning) << "Failed to set aggregate device sample rate: "sv << sampleRateResult;
+      logging::warning("Failed to set aggregate device sample rate: {}", sampleRateResult);
     } else {
-      BOOST_LOG(debug) << "Set aggregate device sample rate to "sv << sampleRate << "Hz"sv;
+      logging::debug("Set aggregate device sample rate to {}Hz", sampleRate);
     }
 
     // Set buffer size on the aggregate device
@@ -745,13 +763,13 @@ namespace platf {
     UInt32 frameSizeSize = sizeof(UInt32);
     OSStatus bufferSizeResult = AudioObjectSetPropertyData(self->aggregateDeviceID, &bufferSizeAddr, 0, NULL, frameSizeSize, &deviceFrameSize);
     if (bufferSizeResult != noErr) {
-      BOOST_LOG(warning) << "Failed to set aggregate device buffer size: "sv << bufferSizeResult;
+      logging::warning("Failed to set aggregate device buffer size: {}", bufferSizeResult);
     } else {
-      BOOST_LOG(debug) << "Set aggregate device buffer size to "sv << frameSize << " frames"sv;
+      logging::debug("Set aggregate device buffer size to {} frames", frameSize);
     }
   }
 
-  BOOST_LOG(debug) << "Aggregate device created and configured successfully"sv;
+  logging::debug("Aggregate device created and configured successfully"sv);
   return noErr;
 }
 
@@ -775,13 +793,14 @@ namespace platf {
                                                  data:&aggregateDeviceSampleRate];
 
   if (sampleRateStatus != noErr) {
-    BOOST_LOG(error) << "Failed to get device sample rate, falling back to client rate (" << clientSampleRate << "Hz): " << ca::Status(sampleRateStatus);
+    logging::error([&](std::ostream &out) {
+      out << "Failed to get device sample rate, falling back to client rate (" << clientSampleRate << "Hz): " << ca::Status(sampleRateStatus);
+    });
     aggregateDeviceSampleRate = (Float64) clientSampleRate;
   } else if (aggregateDeviceSampleRate <= 0.0) {
     // API returned noErr but the value is invalid (e.g. 0 from a UInt32→Float64 casting issue).
     // Treat it as a failure rather than silently proceeding with an invalid rate.
-    BOOST_LOG(error) << "getDeviceProperty returned noErr but got invalid sample rate: "sv
-                     << aggregateDeviceSampleRate << "Hz - falling back to client rate (" << clientSampleRate << "Hz)"sv;
+    logging::error("getDeviceProperty returned noErr but got invalid sample rate: {:.6g}Hz - falling back to client rate ({}Hz)", aggregateDeviceSampleRate, clientSampleRate);
     aggregateDeviceSampleRate = (Float64) clientSampleRate;
   }
 
@@ -801,23 +820,21 @@ namespace platf {
       OSStatus streamConfigStatus = AudioObjectGetPropertyData(self->aggregateDeviceID, &streamConfigAddr, 0, NULL, &streamConfigSize, streamConfig);
       if (streamConfigStatus == noErr && streamConfig->mNumberBuffers > 0) {
         aggregateDeviceChannels = streamConfig->mBuffers[0].mNumberChannels;
-        BOOST_LOG(debug) << "Device reports "sv << aggregateDeviceChannels << " input channels"sv;
+        logging::debug("Device reports {} input channels", aggregateDeviceChannels);
       } else {
-        BOOST_LOG(error) << "Failed to get stream configuration, falling back to client channels (" << (int) clientChannels << "): "sv << streamConfigStatus;
+        logging::error("Failed to get stream configuration, falling back to client channels ({}): {}", (int) clientChannels, streamConfigStatus);
       }
       free(streamConfig);
     }
   } else {
-    BOOST_LOG(error) << "Failed to get stream configuration size, falling back to client channels (" << (int) clientChannels << "): "sv << streamConfigSizeStatus;
+    logging::error("Failed to get stream configuration size, falling back to client channels ({}): {}", (int) clientChannels, streamConfigSizeStatus);
   }
 
-  BOOST_LOG(debug) << "Device properties - Sample Rate: "sv << aggregateDeviceSampleRate << "Hz, Channels: "sv << aggregateDeviceChannels;
+  logging::debug("Device properties - Sample Rate: {:.6g}Hz, Channels: {}", aggregateDeviceSampleRate, aggregateDeviceChannels);
 
   // Create AudioConverter based on actual device properties vs client requirements
   BOOL needsConversion = (aggregateDeviceSampleRate != clientSampleRate) || (aggregateDeviceChannels != clientChannels);
-  BOOST_LOG(debug) << "needsConversion: "sv << (needsConversion ? "YES" : "NO")
-                   << " (device: "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch"
-                   << " -> client: "sv << clientSampleRate << "Hz/" << (int) clientChannels << "ch)"sv;
+  logging::debug("needsConversion: {} (device: {:.6g}Hz/{}ch -> client: {}Hz/{}ch)", (needsConversion ? "YES" : "NO"), aggregateDeviceSampleRate, aggregateDeviceChannels, clientSampleRate, (int) clientChannels);
 
   if (needsConversion) {
     AudioStreamBasicDescription sourceFormat {};
@@ -842,12 +859,14 @@ namespace platf {
 
     OSStatus converterStatus = AudioConverterNew(&sourceFormat, &targetFormat, &self->ioProcData->audioConverter);
     if (converterStatus != noErr) {
-      BOOST_LOG(error) << "AudioConverterNew failed: " << ca::Status(converterStatus);
+      logging::error([&](std::ostream &out) {
+        out << "AudioConverterNew failed: " << ca::Status(converterStatus);
+      });
       return converterStatus;
     }
-    BOOST_LOG(debug) << "AudioConverter created successfully for "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch -> " << clientSampleRate << "Hz/" << (int) clientChannels << "ch"sv;
+    logging::debug("AudioConverter created successfully for {:.6g}Hz/{}ch -> {}Hz/{}ch", aggregateDeviceSampleRate, aggregateDeviceChannels, clientSampleRate, (int) clientChannels);
   } else {
-    BOOST_LOG(debug) << "No conversion needed - formats match (device: "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch)"sv;
+    logging::debug("No conversion needed - formats match (device: {:.6g}Hz/{}ch)", aggregateDeviceSampleRate, aggregateDeviceChannels);
   }
 
   // Pre-allocate conversion buffer for real-time use (eliminates malloc in audio callback)
@@ -856,7 +875,7 @@ namespace platf {
   self->ioProcData->conversionBuffer = (float *) malloc(self->ioProcData->conversionBufferSize);
 
   if (!self->ioProcData->conversionBuffer) {
-    BOOST_LOG(error) << "Failed to allocate conversion buffer"sv;
+    logging::error("Failed to allocate conversion buffer"sv);
     if (self->ioProcData->audioConverter) {
       AudioConverterDispose(self->ioProcData->audioConverter);
       self->ioProcData->audioConverter = NULL;
@@ -864,13 +883,13 @@ namespace platf {
     return kAudioHardwareUnspecifiedError;
   }
 
-  BOOST_LOG(debug) << "Pre-allocated conversion buffer: "sv << self->ioProcData->conversionBufferSize << " bytes ("sv << maxFrames << " frames)"sv;
+  logging::debug("Pre-allocated conversion buffer: {} bytes ({} frames)", self->ioProcData->conversionBufferSize, maxFrames);
 
   // Store the actual device format for use in the IOProc
   self->ioProcData->aggregateDeviceSampleRate = aggregateDeviceSampleRate;
   self->ioProcData->aggregateDeviceChannels = aggregateDeviceChannels;
 
-  BOOST_LOG(debug) << "Device properties and converter configuration completed"sv;
+  logging::debug("Device properties and converter configuration completed"sv);
   return noErr;
 }
 
@@ -878,23 +897,27 @@ namespace platf {
   using namespace std::literals;
 
   // Create IOProc
-  BOOST_LOG(debug) << "Creating IOProc for aggregate device ID: "sv << self->aggregateDeviceID;
+  logging::debug("Creating IOProc for aggregate device ID: {}", self->aggregateDeviceID);
   OSStatus status = AudioDeviceCreateIOProcID(self->aggregateDeviceID, platf::systemAudioIOProc, self->ioProcData, &self->ioProcID);
   if (status != kAudioHardwareNoError) {
-    BOOST_LOG(error) << "AudioDeviceCreateIOProcID failed: " << ca::Status(status);
+    logging::error([&](std::ostream &out) {
+      out << "AudioDeviceCreateIOProcID failed: " << ca::Status(status);
+    });
     return status;
   }
 
   // Start the IOProc
-  BOOST_LOG(debug) << "Starting IOProc for aggregate device";
+  logging::debug("Starting IOProc for aggregate device");
   status = AudioDeviceStart(self->aggregateDeviceID, self->ioProcID);
   if (status != kAudioHardwareNoError) {
-    BOOST_LOG(error) << "AudioDeviceStart failed: " << ca::Status(status);
+    logging::error([&](std::ostream &out) {
+      out << "AudioDeviceStart failed: " << ca::Status(status);
+    });
     AudioDeviceDestroyIOProcID(self->aggregateDeviceID, self->ioProcID);
     return status;
   }
 
-  BOOST_LOG(debug) << "System tap IO proc created and started successfully"sv;
+  logging::debug("System tap IO proc created and started successfully"sv);
   return noErr;
 }
 

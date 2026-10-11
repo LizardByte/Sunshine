@@ -264,10 +264,10 @@ namespace display_device {
      * std::optional<Resolution> resolution;
      * if (parse_resolution_string("1920x1080", resolution)) {
      *   if (resolution) {
-     *     BOOST_LOG(info) << "Value was specified";
+     *     logging::info("Value was specified");
      *   }
      *   else {
-     *     BOOST_LOG(info) << "Value was empty";
+     *     logging::info("Value was empty");
      *   }
      * }
      * @examples_end
@@ -284,10 +284,9 @@ namespace display_device {
           };
           return true;
         } catch (const std::out_of_range &) {
-          BOOST_LOG(error) << "Failed to parse resolution string " << trimmed_input << " (number out of range).";
+          logging::error("Failed to parse resolution string {} (number out of range).", trimmed_input);
         } catch (const std::exception &err) {
-          BOOST_LOG(error) << "Failed to parse resolution string " << trimmed_input << ":\n"
-                           << err.what();
+          logging::error("Failed to parse resolution string {}:\n{}", trimmed_input, err.what());
         }
       } else {
         if (trimmed_input.empty()) {
@@ -295,7 +294,7 @@ namespace display_device {
           return true;
         }
 
-        BOOST_LOG(error) << "Failed to parse resolution string " << trimmed_input << R"(. It must match a "1920x1080" pattern!)";
+        logging::error("Failed to parse resolution string {}. It must match a \"1920x1080\" pattern!", trimmed_input);
       }
 
       return false;
@@ -312,10 +311,10 @@ namespace display_device {
      * std::optional<FloatingPoint> refresh_rate;
      * if (parse_refresh_rate_string("59.95", refresh_rate)) {
      *   if (refresh_rate) {
-     *     BOOST_LOG(info) << "Value was specified";
+     *     logging::info("Value was specified");
      *   }
      *   else {
-     *     BOOST_LOG(info) << "Value was empty";
+     *     logging::info("Value was empty");
      *   }
      * }
      * @examples_end
@@ -365,10 +364,9 @@ namespace display_device {
           }
           return true;
         } catch (const std::out_of_range &) {
-          BOOST_LOG(error) << "Failed to parse refresh rate string " << trimmed_input << " (number out of range).";
+          logging::error("Failed to parse refresh rate string {} (number out of range).", trimmed_input);
         } catch (const std::exception &err) {
-          BOOST_LOG(error) << "Failed to parse refresh rate string " << trimmed_input << ":\n"
-                           << err.what();
+          logging::error("Failed to parse refresh rate string {}:\n{}", trimmed_input, err.what());
         }
       } else {
         if (trimmed_input.empty()) {
@@ -376,7 +374,9 @@ namespace display_device {
           return true;
         }
 
-        BOOST_LOG(error) << "Failed to parse refresh rate string " << trimmed_input << ". Must have a pattern of " << (allow_decimal_point ? R"("123" or "123.456")" : R"("123")") << "!";
+        logging::error([&](std::ostream &out) {
+          out << "Failed to parse refresh rate string " << trimmed_input << ". Must have a pattern of " << (allow_decimal_point ? R"("123" or "123.456")" : R"("123")") << "!";
+        });
       }
 
       return false;
@@ -435,14 +435,14 @@ namespace display_device {
         case resolution_option_e::automatic:
           {
             if (!session.enable_sops) {
-              BOOST_LOG(warning) << R"(Sunshine is configured to change resolution automatically, but the "Optimize game settings" is not set in the client! Resolution will not be changed.)";
+              logging::warning(R"(Sunshine is configured to change resolution automatically, but the "Optimize game settings" is not set in the client! Resolution will not be changed.)");
             } else if (session.width >= 0 && session.height >= 0) {
               config.m_resolution = Resolution {
                 static_cast<unsigned int>(session.width),
                 static_cast<unsigned int>(session.height)
               };
             } else {
-              BOOST_LOG(error) << "Resolution provided by client session config is invalid: " << session.width << "x" << session.height;
+              logging::error("Resolution provided by client session config is invalid: {}x{}", session.width, session.height);
               return false;
             }
             break;
@@ -450,15 +450,15 @@ namespace display_device {
         case resolution_option_e::manual:
           {
             if (!session.enable_sops) {
-              BOOST_LOG(warning) << R"(Sunshine is configured to change resolution manually, but the "Optimize game settings" is not set in the client! Resolution will not be changed.)";
+              logging::warning(R"(Sunshine is configured to change resolution manually, but the "Optimize game settings" is not set in the client! Resolution will not be changed.)");
             } else {
               if (!parse_resolution_string(video_config.dd.manual_resolution, config.m_resolution)) {
-                BOOST_LOG(error) << "Failed to parse manual resolution string!";
+                logging::error("Failed to parse manual resolution string!");
                 return false;
               }
 
               if (!config.m_resolution) {
-                BOOST_LOG(error) << "Manual resolution must be specified!";
+                logging::error("Manual resolution must be specified!");
                 return false;
               }
             }
@@ -495,7 +495,7 @@ namespace display_device {
             if (session.fps >= 0) {
               config.m_refresh_rate = Rational {static_cast<unsigned int>(session.fps), 1};
             } else {
-              BOOST_LOG(error) << "FPS value provided by client session config is invalid: " << session.fps;
+              logging::error("FPS value provided by client session config is invalid: {}", session.fps);
               return false;
             }
             break;
@@ -503,12 +503,12 @@ namespace display_device {
         case refresh_rate_option_e::manual:
           {
             if (!parse_refresh_rate_string(video_config.dd.manual_refresh_rate, config.m_refresh_rate)) {
-              BOOST_LOG(error) << "Failed to parse manual refresh rate string!";
+              logging::error("Failed to parse manual refresh rate string!");
               return false;
             }
 
             if (!config.m_refresh_rate) {
-              BOOST_LOG(error) << "Manual refresh rate must be specified!";
+              logging::error("Manual refresh rate must be specified!");
               return false;
             }
             break;
@@ -664,10 +664,10 @@ namespace display_device {
       }()};
 
       if (remapping_list.empty()) {
-        BOOST_LOG(debug) << "No values are available for display mode remapping.";
+        logging::debug("No values are available for display mode remapping.");
         return true;
       }
-      BOOST_LOG(debug) << "Trying to remap display modes...";
+      logging::debug("Trying to remap display modes...");
 
       const auto entry_to_string {[type = *remapping_type](const config::video_t::dd_t::mode_remapping_entry_t &entry) {
         const bool mapping_resolution {is_resolution_mapped(type)};
@@ -684,39 +684,51 @@ namespace display_device {
       for (const auto &entry : remapping_list) {
         const auto parsed_entry {parse_remapping_entry(entry, *remapping_type)};
         if (!parsed_entry) {
-          BOOST_LOG(error) << "Failed to parse remapping entry from:\n"
-                           << entry_to_string(entry);
+          logging::error([&](std::ostream &out) {
+            out << "Failed to parse remapping entry from:\n"
+                << entry_to_string(entry);
+          });
           return false;
         }
 
         if (!parsed_entry->final_resolution && !parsed_entry->final_refresh_rate) {
-          BOOST_LOG(error) << "At least one final value must be set for remapping display modes! Entry:\n"
-                           << entry_to_string(entry);
+          logging::error([&](std::ostream &out) {
+            out << "At least one final value must be set for remapping display modes! Entry:\n"
+                << entry_to_string(entry);
+          });
           return false;
         }
 
         if (!session.enable_sops && (parsed_entry->requested_resolution || parsed_entry->final_resolution)) {
-          BOOST_LOG(warning) << R"(Skipping remapping entry, because the "Optimize game settings" is not set in the client! Entry:\n)"
-                             << entry_to_string(entry);
+          logging::warning([&](std::ostream &out) {
+            out << R"(Skipping remapping entry, because the "Optimize game settings" is not set in the client! Entry:\n)"
+                << entry_to_string(entry);
+          });
           continue;
         }
 
         // Note: at this point config should already have parsed resolution set.
         if (parsed_entry->requested_resolution && parsed_entry->requested_resolution != config.m_resolution) {
-          BOOST_LOG(verbose) << "Skipping remapping because requested resolutions do not match! Entry:\n"
-                             << entry_to_string(entry);
+          logging::verbose([&](std::ostream &out) {
+            out << "Skipping remapping because requested resolutions do not match! Entry:\n"
+                << entry_to_string(entry);
+          });
           continue;
         }
 
         // Note: at this point config should already have parsed refresh rate set.
         if (parsed_entry->requested_fps && parsed_entry->requested_fps != config.m_refresh_rate) {
-          BOOST_LOG(verbose) << "Skipping remapping because requested FPS do not match! Entry:\n"
-                             << entry_to_string(entry);
+          logging::verbose([&](std::ostream &out) {
+            out << "Skipping remapping because requested FPS do not match! Entry:\n"
+                << entry_to_string(entry);
+          });
           continue;
         }
 
-        BOOST_LOG(info) << "Remapping requested display mode. Entry:\n"
-                        << entry_to_string(entry);
+        logging::info([&](std::ostream &out) {
+          out << "Remapping requested display mode. Entry:\n"
+              << entry_to_string(entry);
+        });
         if (parsed_entry->final_resolution) {
           config.m_resolution = parsed_entry->final_resolution;
         }
@@ -821,8 +833,10 @@ namespace display_device {
         return parsed_devices;
       }()};
       if (available_devices == tried_out_devices) {
-        BOOST_LOG(debug) << "Skipping reverting configuration, because no newly added/removed devices were detected since last check. Currently available devices:\n"
-                         << toJson(available_devices);
+        logging::debug([&](std::ostream &out) {
+          out << "Skipping reverting configuration, because no newly added/removed devices were detected since last check. Currently available devices:\n"
+              << toJson(available_devices);
+        });
         return;
       }
 
@@ -841,11 +855,15 @@ namespace display_device {
 
       // Try again only after a device is added or removed. That includes redocking a display whose settings are still saved.
       if (result == Ok) {
-        BOOST_LOG(info) << "Recovered the available display layout, but settings for an unavailable display are still pending. Will retry once devices are added or removed. Currently available devices:\n"
-                        << toJson(available_devices);
+        logging::info([&](std::ostream &out) {
+          out << "Recovered the available display layout, but settings for an unavailable display are still pending. Will retry once devices are added or removed. Currently available devices:\n"
+              << toJson(available_devices);
+        });
       } else {
-        BOOST_LOG(warning) << "Failed to revert display device configuration (will retry once devices are added or removed). Enabling all of the available devices:\n"
-                           << toJson(available_devices);
+        logging::warning([&](std::ostream &out) {
+          out << "Failed to revert display device configuration (will retry once devices are added or removed). Enabling all of the available devices:\n"
+              << toJson(available_devices);
+        });
       }
       tried_out_devices.swap(available_devices);
     }
@@ -889,7 +907,7 @@ namespace display_device {
     try {
       revert_configuration_unlocked(*impl, revert_option_e::try_once);
     } catch (const std::exception &error) {
-      BOOST_LOG(fatal) << error.what();
+      logging::fatal(error.what());
     }
     impl->sm_instance.reset();
   }
@@ -909,8 +927,10 @@ namespace display_device {
       const auto available_devices {impl->sm_instance->execute([](auto &settings_iface) {
         return settings_iface.enumAvailableDevices();
       })};
-      BOOST_LOG(info) << "Currently available display devices:\n"
-                      << toJson(available_devices);
+      logging::info([&](std::ostream &out) {
+        out << "Currently available display devices:\n"
+            << toJson(available_devices);
+      });
 
       // In case we have failed to revert configuration before shutting down, we should
       // do it now.
@@ -964,12 +984,12 @@ namespace display_device {
     }
 
     if (const auto *disabled {std::get_if<configuration_disabled_tag_t>(&result)}; disabled) {
-      BOOST_LOG(info) << "Display device configuration is disabled. Reverting any active display device configuration.";
+      logging::info("Display device configuration is disabled. Reverting any active display device configuration.");
       revert_configuration();
       return;
     }
 
-    BOOST_LOG(error) << "Failed to parse display device configuration. Display settings will not be changed.";
+    logging::error("Failed to parse display device configuration. Display settings will not be changed.");
     // Error details should already be logged for failed_to_parse_tag_t case, and we also don't
     // want to revert active configuration in case we have any
   }
@@ -981,8 +1001,10 @@ namespace display_device {
       return;
     }
 
-    BOOST_LOG(info) << "Scheduling display device configuration:\n"
-                    << toJson(config);
+    logging::info([&](std::ostream &out) {
+      out << "Scheduling display device configuration:\n"
+          << toJson(config);
+    });
 
     impl->sm_instance->schedule([config](auto &settings_iface, auto &stop_token) {
       using enum SettingsManagerInterface::ApplyResult;
@@ -991,11 +1013,11 @@ namespace display_device {
       // In other cases, when we either fail or succeed we just want to stop...
       const auto result {settings_iface.applySettings(config)};
       if (result == Ok) {
-        BOOST_LOG(info) << "Display device configuration applied successfully.";
+        logging::info("Display device configuration applied successfully.");
       } else if (result == ApiTemporarilyUnavailable) {
-        BOOST_LOG(warning) << "Display device configuration API is temporarily unavailable. Will retry.";
+        logging::warning("Display device configuration API is temporarily unavailable. Will retry.");
       } else {
-        BOOST_LOG(error) << "Display device configuration failed with result: " << apply_result_name(result);
+        logging::error("Display device configuration failed with result: {}", apply_result_name(result));
       }
 
       if (result != ApiTemporarilyUnavailable) {
@@ -1050,7 +1072,7 @@ namespace display_device {
     const auto hdr_state {parse_hdr_option(video_config, session)};
 #ifdef __APPLE__
     if (hdr_state) {
-      BOOST_LOG(info) << "Ignoring HDR display device request on macOS because macOS HDR changes are not supported by libdisplaydevice.";
+      logging::info("Ignoring HDR display device request on macOS because macOS HDR changes are not supported by libdisplaydevice.");
     }
 #else
     config.m_hdr_state = hdr_state;
@@ -1058,7 +1080,7 @@ namespace display_device {
 
 #ifdef __APPLE__
     if (config.m_device_prep != SingleDisplayConfiguration::DevicePreparation::VerifyOnly) {
-      BOOST_LOG(warning) << "macOS libdisplaydevice currently supports only VerifyOnly display preparation. The requested preparation mode will fail.";
+      logging::warning("macOS libdisplaydevice currently supports only VerifyOnly display preparation. The requested preparation mode will fail.");
     }
 #endif
 

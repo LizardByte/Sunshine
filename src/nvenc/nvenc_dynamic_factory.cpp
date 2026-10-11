@@ -59,7 +59,7 @@ namespace nvenc {
   std::shared_ptr<nvenc_dynamic_factory> nvenc_dynamic_factory::get(const nvenc_runtime_api &runtime_api) {
     auto dll = runtime_api.load_driver();
     if (!dll) {
-      BOOST_LOG(debug) << "NvEnc: Couldn't load NvEnc library " << nvenc_dll_name;
+      logging::debug("NvEnc: Couldn't load NvEnc library {}", nvenc_dll_name);
       return {};
     }
 
@@ -67,13 +67,13 @@ namespace nvenc {
       runtime_api.get_symbol(dll.get(), "NvEncodeAPIGetMaxSupportedVersion")
     );
     if (!get_max_version) {
-      BOOST_LOG(error) << "NvEnc: No NvEncodeAPIGetMaxSupportedVersion() in " << nvenc_dll_name;
+      logging::error("NvEnc: No NvEncodeAPIGetMaxSupportedVersion() in {}", nvenc_dll_name);
       return {};
     }
 
     std::uint32_t packed_max_version = 0;
     if (get_max_version(&packed_max_version) != 0U) {
-      BOOST_LOG(error) << "NvEnc: NvEncodeAPIGetMaxSupportedVersion() failed";
+      logging::error("NvEnc: NvEncodeAPIGetMaxSupportedVersion() failed");
       return {};
     }
 
@@ -114,7 +114,7 @@ namespace nvenc {
 
       case nvenc_sdk_version::unsupported:
       default:
-        BOOST_LOG(error) << "NvEnc: minimum required driver version is " << minimum_driver_version;
+        logging::error("NvEnc: minimum required driver version is {}", minimum_driver_version);
         return {};
     }
   }

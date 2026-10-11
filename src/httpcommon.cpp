@@ -68,7 +68,7 @@ namespace http {
       return -1;
     }
     if (!user_creds_exist(settings.sunshine.credentials_file)) {
-      BOOST_LOG(info) << "Open the Web UI to set your new username and password and getting started";
+      logging::info("Open the Web UI to set your new username and password and getting started");
     } else if (reload_user_creds(settings.sunshine.credentials_file, store)) {
       return -1;
     }
@@ -103,7 +103,7 @@ namespace http {
       try {
         pt::read_json(file, outputTree);
       } catch (std::exception &e) {
-        BOOST_LOG(error) << "Couldn't read user credentials: "sv << e.what();
+        logging::error("Couldn't read user credentials: {}", e.what());
         return -1;
       }
     }
@@ -115,11 +115,11 @@ namespace http {
     try {
       pt::write_json(file, outputTree);
     } catch (std::exception &e) {
-      BOOST_LOG(error) << "error writing to the credentials file, perhaps try this again as an administrator? Details: "sv << e.what();
+      logging::error("error writing to the credentials file, perhaps try this again as an administrator? Details: {}", e.what());
       return -1;
     }
 
-    BOOST_LOG(info) << "New credentials have been created"sv;
+    logging::info("New credentials have been created"sv);
     return 0;
   }
 
@@ -138,7 +138,7 @@ namespace http {
              inputTree.find("password") != inputTree.not_found() &&
              inputTree.find("salt") != inputTree.not_found();
     } catch (std::exception &e) {
-      BOOST_LOG(error) << "validating user credentials: "sv << e.what();
+      logging::error("validating user credentials: {}", e.what());
     }
 
     return false;
@@ -154,7 +154,7 @@ namespace http {
       config::credentials_t credentials {inputTree.get<std::string>("username"), inputTree.get<std::string>("password"), inputTree.get<std::string>("salt")};
       store.update_credentials(std::move(credentials));
     } catch (std::exception &e) {
-      BOOST_LOG(error) << "loading user credentials: "sv << e.what();
+      logging::error("loading user credentials: {}", e.what());
       return -1;
     }
     return 0;
@@ -177,37 +177,45 @@ namespace http {
     std::error_code err_code {};
     fs::create_directories(pkey_dir, err_code);
     if (err_code) {
-      BOOST_LOG(error) << "Couldn't create directory ["sv << pkey_dir << "] :"sv << err_code.message();
+      logging::error([&](std::ostream &out) {
+        out << "Couldn't create directory ["sv << pkey_dir << "] :"sv << err_code.message();
+      });
       return -1;
     }
 
     fs::create_directories(cert_dir, err_code);
     if (err_code) {
-      BOOST_LOG(error) << "Couldn't create directory ["sv << cert_dir << "] :"sv << err_code.message();
+      logging::error([&](std::ostream &out) {
+        out << "Couldn't create directory ["sv << cert_dir << "] :"sv << err_code.message();
+      });
       return -1;
     }
 
     if (file_handler::write_file(pkey.c_str(), creds.pkey)) {
-      BOOST_LOG(error) << "Couldn't open ["sv << pkey << ']';
+      logging::error("Couldn't open [{}]", pkey);
       return -1;
     }
 
     if (file_handler::write_file(cert.c_str(), creds.x509)) {
-      BOOST_LOG(error) << "Couldn't open ["sv << cert << ']';
+      logging::error("Couldn't open [{}]", cert);
       return -1;
     }
 
     fs::permissions(pkey_path, fs::perms::owner_read | fs::perms::owner_write, fs::perm_options::replace, err_code);
 
     if (err_code) {
-      BOOST_LOG(error) << "Couldn't change permissions of ["sv << pkey << "] :"sv << err_code.message();
+      logging::error([&](std::ostream &out) {
+        out << "Couldn't change permissions of ["sv << pkey << "] :"sv << err_code.message();
+      });
       return -1;
     }
 
     fs::permissions(cert_path, fs::perms::owner_read | fs::perms::group_read | fs::perms::others_read | fs::perms::owner_write, fs::perm_options::replace, err_code);
 
     if (err_code) {
-      BOOST_LOG(error) << "Couldn't change permissions of ["sv << cert << "] :"sv << err_code.message();
+      logging::error([&](std::ostream &out) {
+        out << "Couldn't change permissions of ["sv << cert << "] :"sv << err_code.message();
+      });
       return -1;
     }
 
@@ -220,19 +228,21 @@ namespace http {
   bool download_file(const std::string &url, const std::string &file, long ssl_version) {
     CURL *curl = curl_easy_init();
     if (!curl) {
-      BOOST_LOG(error) << "Couldn't create CURL instance";
+      logging::error("Couldn't create CURL instance");
       return false;
     }
 
     if (std::string file_dir = file_handler::get_parent_directory(file); !file_handler::make_directory(file_dir)) {
-      BOOST_LOG(error) << "Couldn't create directory ["sv << file_dir << ']';
+      logging::error([&](std::ostream &out) {
+        out << "Couldn't create directory ["sv << file_dir << ']';
+      });
       curl_easy_cleanup(curl);
       return false;
     }
 
     FILE *fp = fopen(file.c_str(), "wb");
     if (!fp) {
-      BOOST_LOG(error) << "Couldn't open ["sv << file << ']';
+      logging::error("Couldn't open [{}]", file);
       curl_easy_cleanup(curl);
       return false;
     }
@@ -244,7 +254,7 @@ namespace http {
 
     CURLcode result = curl_easy_perform(curl);
     if (result != CURLE_OK) {
-      BOOST_LOG(error) << "Couldn't download ["sv << url << ", code:" << result << ']';
+      logging::error("Couldn't download [{}, code:{}]", url, static_cast<int>(result));
     }
 
     curl_easy_cleanup(curl);

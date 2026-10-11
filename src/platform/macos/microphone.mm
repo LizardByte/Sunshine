@@ -41,7 +41,7 @@ namespace platf {
           // Using 5 second timeout to prevent indefinite hanging
           dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, 5LL * NSEC_PER_SEC);
           if (dispatch_semaphore_wait(av_audio_capture->audioSemaphore, timeout) != 0) {
-            BOOST_LOG(warning) << "Audio sample timeout - no audio data received within 5 seconds"sv;
+            logging::warning("Audio sample timeout - no audio data received within 5 seconds"sv);
 
             // Fill with silence and return to prevent hanging
             std::fill(sample_in.begin(), sample_in.end(), 0.0f);
@@ -86,7 +86,7 @@ namespace platf {
      * @return Status from updating sink.
      */
     int set_sink(const std::string &sink) override {
-      BOOST_LOG(warning) << "audio_control_t::set_sink() unimplemented: "sv << sink;
+      logging::warning("audio_control_t::set_sink() unimplemented: {}", sink);
       return 0;
     }
 
@@ -107,39 +107,41 @@ namespace platf {
 
       // Set the host audio enabled flag from the stream configuration
       mic->av_audio_capture.hostAudioEnabled = host_audio_enabled ? YES : NO;
-      BOOST_LOG(debug) << "Set hostAudioEnabled to: "sv << (host_audio_enabled ? "YES" : "NO");
+      logging::debug("Set hostAudioEnabled to: {}", (host_audio_enabled ? "YES" : "NO"));
 
       if (settings.audio.sink.empty()) {
         // Use macOS system-wide audio tap
-        BOOST_LOG(info) << "Using macOS system audio tap for capture."sv;
-        BOOST_LOG(info) << "Sample rate: "sv << sample_rate << ", Frame size: "sv << frame_size << ", Channels: "sv << channels;
+        logging::info("Using macOS system audio tap for capture."sv);
+        logging::info("Sample rate: {}, Frame size: {}, Channels: {}", sample_rate, frame_size, channels);
 
         if ([mic->av_audio_capture setupSystemTap:sample_rate frameSize:frame_size channels:channels]) {
-          BOOST_LOG(error) << "Failed to setup system audio tap."sv;
+          logging::error("Failed to setup system audio tap."sv);
           return nullptr;
         }
       } else {
         // Use specified macOS audio sink
         const char *audio_sink = settings.audio.sink.c_str();
-        BOOST_LOG(info) << "Using configured audio sink "sv << audio_sink << " for capture."sv;
+        logging::info("Using configured audio sink {} for capture.", audio_sink);
 
         if (!request_microphone_permission()) {
           return nullptr;
         }
 
         if ((audio_capture_device = [AVAudio findMicrophone:[NSString stringWithUTF8String:audio_sink]]) == nullptr) {
-          BOOST_LOG(error) << "opening microphone '"sv << audio_sink << "' failed. Please set a valid input source in the Sunshine config."sv;
-          BOOST_LOG(error) << "Available inputs:"sv;
+          logging::error("opening microphone '{}' failed. Please set a valid input source in the Sunshine config.", audio_sink);
+          logging::error("Available inputs:"sv);
 
           for (NSString *name in [AVAudio microphoneNames]) {
-            BOOST_LOG(error) << "\t"sv << [name UTF8String];
+            logging::error([&](std::ostream &out) {
+              out << "\t"sv << [name UTF8String];
+            });
           }
 
           return nullptr;
         }
 
         if ([mic->av_audio_capture setupMicrophone:audio_capture_device sampleRate:sample_rate frameSize:frame_size channels:channels]) {
-          BOOST_LOG(error) << "Failed to setup microphone."sv;
+          logging::error("Failed to setup microphone."sv);
           return nullptr;
         }
       }
@@ -148,7 +150,7 @@ namespace platf {
     }
 
     bool is_sink_available(const std::string &sink) override {
-      BOOST_LOG(warning) << "audio_control_t::is_sink_available() unimplemented: "sv << sink;
+      logging::warning("audio_control_t::is_sink_available() unimplemented: {}", sink);
       return true;
     }
 

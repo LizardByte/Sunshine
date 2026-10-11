@@ -72,7 +72,9 @@ namespace gl {
   void drain_errors(const std::string_view &prefix) {
     GLenum err;
     while ((err = ctx.GetError()) != GL_NO_ERROR) {
-      BOOST_LOG(error) << "GL: "sv << prefix << ": ["sv << util::hex(err).to_string_view() << ']';
+      logging::error([&](std::ostream &out) {
+        out << "GL: "sv << prefix << ": ["sv << util::hex(err).to_string_view() << ']';
+      });
     }
   }
 
@@ -249,7 +251,7 @@ namespace gl {
   std::optional<buffer_t> program_t::uniform(const char *block, std::pair<const char *, std::string_view> *members, std::size_t count) {
     auto i = ctx.GetUniformBlockIndex(handle(), block);
     if (i == GL_INVALID_INDEX) {
-      BOOST_LOG(error) << "Couldn't find index of ["sv << block << ']';
+      logging::error("Couldn't find index of [{}]", block);
       return std::nullopt;
     }
 
@@ -274,7 +276,7 @@ namespace gl {
       if (indices[x] == GL_INVALID_INDEX) {
         error_flag = true;
 
-        BOOST_LOG(error) << "Couldn't find ["sv << block << '.' << members[x].first << ']';
+        logging::error("Couldn't find [{}.{}]", block, members[x].first);
       }
     }
 
@@ -362,7 +364,7 @@ namespace egl {
         cap_free(caps);
 
         if (value != CAP_SET) {
-          BOOST_LOG(debug) << "Failed to verify CAP_SYS_NICE effective capability"sv;
+          logging::debug("Failed to verify CAP_SYS_NICE effective capability"sv);
           return false;
         }
 
@@ -374,14 +376,14 @@ namespace egl {
 
         cap_value_t sys_nice = CAP_SYS_NICE;
         if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &sys_nice, CAP_SET) || cap_set_proc(caps)) {
-          BOOST_LOG(debug) << "Failed to gain CAP_SYS_NICE";
+          logging::debug("Failed to gain CAP_SYS_NICE");
         }
       }
 
       ~cap_sys_nice() {
         cap_value_t sys_nice = CAP_SYS_NICE;
         if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &sys_nice, CAP_CLEAR) || cap_set_proc(caps)) {
-          BOOST_LOG(debug) << "Failed to drop CAP_SYS_NICE";
+          logging::debug("Failed to drop CAP_SYS_NICE");
         }
         cap_free(caps);
       }
@@ -413,17 +415,21 @@ namespace egl {
 #endif
 
             if (!eglBindAPI(EGL_OPENGL_API)) {
-              BOOST_LOG(error) << "Couldn't bind API in privileged thread: ["sv << util::hex(eglGetError()).to_string_view() << ']';
+              logging::error([&](std::ostream &out) {
+                out << "Couldn't bind API in privileged thread: ["sv << util::hex(eglGetError()).to_string_view() << ']';
+              });
               return EGL_NO_CONTEXT;
             }
             EGLContext privileged_ctx = eglCreateContext(display, config, share_context, attrib_list);
             if (privileged_ctx == EGL_NO_CONTEXT) {
-              BOOST_LOG(error) << "Couldn't create EGL context in privileged thread: ["sv << util::hex(eglGetError()).to_string_view() << ']';
+              logging::error([&](std::ostream &out) {
+                out << "Couldn't create EGL context in privileged thread: ["sv << util::hex(eglGetError()).to_string_view() << ']';
+              });
             }
             return privileged_ctx;
           });
         } catch (const privileged_egl_worker_stopped &e) {
-          BOOST_LOG(error) << "Couldn't execute privileged EGL context creation: "sv << e.what();
+          logging::error("Couldn't execute privileged EGL context creation: {}", e.what());
           return EGL_NO_CONTEXT;
         }
       }
@@ -439,7 +445,7 @@ namespace egl {
             sigset_t all;
             sigfillset(&all);
             if (pthread_sigmask(SIG_BLOCK, &all, nullptr) != 0) {
-              BOOST_LOG(error) << "Failed to block signals in egl_worker"sv;
+              logging::error("Failed to block signals in egl_worker"sv);
               queue_.stop();
               return;
             }
@@ -518,7 +524,7 @@ namespace egl {
         native_display_p = std::get<2>(native_display);
         break;
       default:
-        BOOST_LOG(error) << "egl::make_display(): Index ["sv << native_display.index() << "] not implemented"sv;
+        logging::error("egl::make_display(): Index [{}] not implemented", native_display.index());
         return nullptr;
     }
 
@@ -532,8 +538,10 @@ namespace egl {
     }
 
     if (raw_display == EGL_NO_DISPLAY) {
-      BOOST_LOG(error) << "Couldn't open EGL display: ["sv
-                       << util::hex(eglGetError()).to_string_view() << ']';
+      logging::error([&](std::ostream &out) {
+        out << "Couldn't open EGL display: ["sv
+            << util::hex(eglGetError()).to_string_view() << ']';
+      });
       return nullptr;
     }
     display_t display {raw_display};
@@ -541,12 +549,14 @@ namespace egl {
     int major;
     int minor;
     if (!eglInitialize(display.get(), &major, &minor)) {
-      BOOST_LOG(error) << "Couldn't initialize EGL display: ["sv << util::hex(eglGetError()).to_string_view() << ']';
+      logging::error([&](std::ostream &out) {
+        out << "Couldn't initialize EGL display: ["sv << util::hex(eglGetError()).to_string_view() << ']';
+      });
       return nullptr;
     }
 
     if (!gladLoaderLoadEGL(display.get())) {
-      BOOST_LOG(error) << "Failed to reload EGL for initialized display"sv;
+      logging::error("Failed to reload EGL for initialized display"sv);
       return nullptr;
     }
 
@@ -555,8 +565,8 @@ namespace egl {
     const char *vendor = eglQueryString(display.get(), EGL_VENDOR);
     const char *apis = eglQueryString(display.get(), EGL_CLIENT_APIS);
 
-    BOOST_LOG(debug) << "EGL: ["sv << vendor << "]: version ["sv << version << ']';
-    BOOST_LOG(debug) << "API's supported: ["sv << apis << ']';
+    logging::debug("EGL: [{}]: version [{}]", vendor, version);
+    logging::debug("API's supported: [{}]", apis);
 
     std::array<const char *, 4> extensions {
       "EGL_KHR_create_context",
@@ -567,7 +577,7 @@ namespace egl {
 
     for (auto ext : extensions) {
       if (!std::strstr(extension_st, ext)) {
-        BOOST_LOG(error) << "Missing extension: ["sv << ext << ']';
+        logging::error("Missing extension: [{}]", ext);
         return nullptr;
       }
     }
@@ -590,12 +600,16 @@ namespace egl {
     int count;
     EGLConfig conf;
     if (!eglChooseConfig(display, conf_attr.data(), &conf, 1, &count)) {
-      BOOST_LOG(error) << "Couldn't set config attributes: ["sv << util::hex(eglGetError()).to_string_view() << ']';
+      logging::error([&](std::ostream &out) {
+        out << "Couldn't set config attributes: ["sv << util::hex(eglGetError()).to_string_view() << ']';
+      });
       return std::nullopt;
     }
 
     if (!eglBindAPI(EGL_OPENGL_API)) {
-      BOOST_LOG(error) << "Couldn't bind API: ["sv << util::hex(eglGetError()).to_string_view() << ']';
+      logging::error([&](std::ostream &out) {
+        out << "Couldn't bind API: ["sv << util::hex(eglGetError()).to_string_view() << ']';
+      });
       return std::nullopt;
     }
 
@@ -607,7 +621,7 @@ namespace egl {
 
     // Only add the high priority attribute if the driver explicitly supports it
     if (extension_st && std::string_view(extension_st).contains("EGL_IMG_context_priority"sv)) {
-      BOOST_LOG(debug) << "EGL: High priority context supported"sv;
+      logging::debug("EGL: High priority context supported"sv);
       attr.push_back(EGL_CONTEXT_PRIORITY_LEVEL_IMG);
       attr.push_back(EGL_CONTEXT_PRIORITY_HIGH_IMG);
     }
@@ -627,26 +641,26 @@ namespace egl {
         actual_priority_str = "HIGH";
       }
       if (nice_warning) {
-        BOOST_LOG(warning) << "EGL: context priority set to "sv << actual_priority_str << " but CAP_SYS_NICE capability is missing"sv;
+        logging::warning("EGL: context priority set to {} but CAP_SYS_NICE capability is missing", actual_priority_str);
       } else {
-        BOOST_LOG(info) << "EGL: context priority set to "sv << actual_priority_str;
+        logging::info("EGL: context priority set to {}", actual_priority_str);
       }
     }
 
     if (!eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, raw_ctx)) {
-      BOOST_LOG(error) << "Couldn't make current display"sv;
+      logging::error("Couldn't make current display"sv);
       return std::nullopt;
     }
 
     if (!gladLoadGLContext(&gl::ctx, eglGetProcAddress)) {
-      BOOST_LOG(error) << "Couldn't load OpenGL library"sv;
+      logging::error("Couldn't load OpenGL library"sv);
       return std::nullopt;
     }
 
     gl::egl_image_target_texture_2d_fn =
       (gl::PFNGLEGLIMAGETARGETTEXTURE2DOESPROC) (GLADapiproc) eglGetProcAddress("glEGLImageTargetTexture2DOES");
     if (!gl::egl_image_target_texture_2d_fn) {
-      BOOST_LOG(warning) << "GL: glEGLImageTargetTexture2DOES not available; DMA-BUF import will fail"sv;
+      logging::warning("GL: glEGLImageTargetTexture2DOES not available; DMA-BUF import will fail"sv);
     }
 
     // GetString returns const GLubyte* (unsigned char*); convert to std::string safely (avoids sonar cpp:S6996).
@@ -661,10 +675,10 @@ namespace egl {
     const auto gl_renderer = gl_string(gl::ctx.GetString(GL_RENDERER));
     const auto gl_version = gl_string(gl::ctx.GetString(GL_VERSION));
     const auto gl_shader = gl_string(gl::ctx.GetString(GL_SHADING_LANGUAGE_VERSION));
-    BOOST_LOG(debug) << "GL: vendor: "sv << gl_vendor;
-    BOOST_LOG(debug) << "GL: renderer: "sv << gl_renderer;
-    BOOST_LOG(debug) << "GL: version: "sv << gl_version;
-    BOOST_LOG(debug) << "GL: shader: "sv << gl_shader;
+    logging::debug("GL: vendor: {}", gl_vendor);
+    logging::debug("GL: renderer: {}", gl_renderer);
+    logging::debug("GL: version: {}", gl_version);
+    logging::debug("GL: shader: {}", gl_shader);
 
     gl::ctx.PixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
@@ -787,14 +801,16 @@ namespace egl {
     };
 
     if (!rgb->xrgb8) {
-      BOOST_LOG(error) << "Couldn't import RGB Image: "sv << util::hex(eglGetError()).to_string_view();
+      logging::error([&](std::ostream &out) {
+        out << "Couldn't import RGB Image: "sv << util::hex(eglGetError()).to_string_view();
+      });
 
       return std::nullopt;
     }
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
     if (!gl::egl_image_target_texture_2d()) {
-      BOOST_LOG(error) << "glEGLImageTargetTexture2DOES is not available; cannot import RGB DMA-BUF"sv;
+      logging::error("glEGLImageTargetTexture2DOES is not available; cannot import RGB DMA-BUF"sv);
       return std::nullopt;
     }
     gl::egl_image_target_texture_2d()(GL_TEXTURE_2D, rgb->xrgb8);
@@ -900,14 +916,16 @@ namespace egl {
     };
 
     if (!nv12->r8 || !nv12->bg88) {
-      BOOST_LOG(error) << "Couldn't import YUV target: "sv << util::hex(eglGetError()).to_string_view();
+      logging::error([&](std::ostream &out) {
+        out << "Couldn't import YUV target: "sv << util::hex(eglGetError()).to_string_view();
+      });
 
       return std::nullopt;
     }
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, nv12->tex[0]);
     if (!gl::egl_image_target_texture_2d()) {
-      BOOST_LOG(error) << "glEGLImageTargetTexture2DOES is not available; cannot import YUV DMA-BUF"sv;
+      logging::error("glEGLImageTargetTexture2DOES is not available; cannot import YUV DMA-BUF"sv);
       return std::nullopt;
     }
     gl::egl_image_target_texture_2d()(GL_TEXTURE_2D, nv12->r8);
@@ -954,14 +972,16 @@ namespace egl {
     };
 
     if (!yuv444->r8 || !yuv444->g8 || !yuv444->b8) {
-      BOOST_LOG(error) << "Couldn't import YUV target: "sv << util::hex(eglGetError()).to_string_view();
+      logging::error([&](std::ostream &out) {
+        out << "Couldn't import YUV target: "sv << util::hex(eglGetError()).to_string_view();
+      });
 
       return std::nullopt;
     }
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, yuv444->tex[0]);
     if (!gl::egl_image_target_texture_2d()) {
-      BOOST_LOG(error) << "glEGLImageTargetTexture2DOES is not available; cannot import YUV DMA-BUF"sv;
+      logging::error("glEGLImageTargetTexture2DOES is not available; cannot import YUV DMA-BUF"sv);
       return std::nullopt;
     }
     gl::egl_image_target_texture_2d()(GL_TEXTURE_2D, yuv444->r8);
@@ -1009,7 +1029,7 @@ namespace egl {
       y_format = GL_R16;
       uv_format = GL_RG16;
     } else {
-      BOOST_LOG(error) << "Unsupported target pixel format: "sv << format;
+      logging::error("Unsupported target pixel format: {}", static_cast<int>(format));
       return std::nullopt;
     }
 
@@ -1056,7 +1076,7 @@ namespace egl {
       u_format = GL_R16;
       v_format = GL_R16;
     } else {
-      BOOST_LOG(error) << "Unsupported target pixel format: "sv << format;
+      logging::error("Unsupported target pixel format: {}", static_cast<int>(format));
       return std::nullopt;
     }
 
@@ -1188,7 +1208,7 @@ namespace egl {
         gl_drain_errors;
 
         if (compiled_source.has_right()) {
-          BOOST_LOG(error) << sources[x] << ": "sv << compiled_source.right();
+          logging::error("{}: {}", sources[x], compiled_source.right());
           error_flag = true;
         }
       }
@@ -1199,7 +1219,7 @@ namespace egl {
 
       auto program = gl::program_t::link(compiled_sources[3].left(), compiled_sources[4].left());
       if (program.has_right()) {
-        BOOST_LOG(error) << "GL linker: "sv << program.right();
+        logging::error("GL linker: {}", program.right());
         return std::nullopt;
       }
 
@@ -1208,7 +1228,7 @@ namespace egl {
 
       program = gl::program_t::link(compiled_sources[1].left(), compiled_sources[0].left());
       if (program.has_right()) {
-        BOOST_LOG(error) << "GL linker: "sv << program.right();
+        logging::error("GL linker: {}", program.right());
         return std::nullopt;
       }
 
@@ -1217,7 +1237,7 @@ namespace egl {
 
       program = gl::program_t::link(compiled_sources[3].left(), compiled_sources[2].left());
       if (program.has_right()) {
-        BOOST_LOG(error) << "GL linker: "sv << program.right();
+        logging::error("GL linker: {}", program.right());
         return std::nullopt;
       }
 
@@ -1227,7 +1247,7 @@ namespace egl {
 
     auto loc_width_i = gl::ctx.GetUniformLocation(sws.program[1].handle(), "width_i");
     if (loc_width_i < 0) {
-      BOOST_LOG(error) << "Couldn't find uniform [width_i]"sv;
+      logging::error("Couldn't find uniform [width_i]"sv);
       return std::nullopt;
     }
 
@@ -1293,7 +1313,7 @@ namespace egl {
         gl_drain_errors;
 
         if (compiled_source.has_right()) {
-          BOOST_LOG(error) << sources[x] << ": "sv << compiled_source.right();
+          logging::error("{}: {}", sources[x], compiled_source.right());
           error_flag = true;
         }
       }
@@ -1304,7 +1324,7 @@ namespace egl {
 
       auto program = gl::program_t::link(compiled_sources[0].left(), compiled_sources[4].left());
       if (program.has_right()) {
-        BOOST_LOG(error) << "GL linker (cursor shader): "sv << program.right();
+        logging::error("GL linker (cursor shader): {}", program.right());
         return std::nullopt;
       }
 
@@ -1313,7 +1333,7 @@ namespace egl {
 
       program = gl::program_t::link(compiled_sources[0].left(), compiled_sources[1].left());
       if (program.has_right()) {
-        BOOST_LOG(error) << "GL linker (V - shader): "sv << program.right();
+        logging::error("GL linker (V - shader): {}", program.right());
         return std::nullopt;
       }
 
@@ -1322,7 +1342,7 @@ namespace egl {
 
       program = gl::program_t::link(compiled_sources[0].left(), compiled_sources[2].left());
       if (program.has_right()) {
-        BOOST_LOG(error) << "GL linker (U - shader): "sv << program.right();
+        logging::error("GL linker (U - shader): {}", program.right());
         return std::nullopt;
       }
 
@@ -1331,7 +1351,7 @@ namespace egl {
 
       program = gl::program_t::link(compiled_sources[0].left(), compiled_sources[3].left());
       if (program.has_right()) {
-        BOOST_LOG(error) << "GL linker (Y - shader): "sv << program.right();
+        logging::error("GL linker (Y - shader): {}", program.right());
         return std::nullopt;
       }
 
@@ -1388,7 +1408,7 @@ namespace egl {
         break;
 
       default:
-        BOOST_LOG(error) << "Unsupported pixel format for EGL frame: "sv << (int) format;
+        logging::error("Unsupported pixel format for EGL frame: {}", (int) format);
         return std::nullopt;
     }
 
@@ -1456,7 +1476,9 @@ namespace egl {
 #ifndef NDEBUG
       auto status = gl::ctx.CheckFramebufferStatus(GL_FRAMEBUFFER);
       if (status != GL_FRAMEBUFFER_COMPLETE) {
-        BOOST_LOG(error) << "Pass Cursor: CheckFramebufferStatus() --> [0x"sv << util::hex(status).to_string_view() << ']';
+        logging::error([&](std::ostream &out) {
+          out << "Pass Cursor: CheckFramebufferStatus() --> [0x"sv << util::hex(status).to_string_view() << ']';
+        });
         return;
       }
 #endif
@@ -1479,7 +1501,9 @@ namespace egl {
 #ifndef NDEBUG
       auto status = gl::ctx.CheckFramebufferStatus(GL_FRAMEBUFFER);
       if (status != GL_FRAMEBUFFER_COMPLETE) {
-        BOOST_LOG(error) << "Pass "sv << x << ": CheckFramebufferStatus() --> [0x"sv << util::hex(status).to_string_view() << ']';
+        logging::error([&](std::ostream &out) {
+          out << "Pass "sv << x << ": CheckFramebufferStatus() --> [0x"sv << util::hex(status).to_string_view() << ']';
+        });
         return -1;
       }
 #endif

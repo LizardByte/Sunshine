@@ -405,7 +405,7 @@ namespace platf {
     xcursor_t overlay {x11::fix::GetCursorImage(display)};
 
     if (!overlay) {
-      BOOST_LOG(error) << "Couldn't get cursor from XFixesGetCursorImage"sv;
+      logging::error("Couldn't get cursor from XFixesGetCursorImage"sv);
       return;
     }
 
@@ -493,7 +493,7 @@ namespace platf {
      */
     int init(const std::string &display_name, const ::video::config_t &config) {
       if (!xdisplay) {
-        BOOST_LOG(error) << "Could not open X11 display"sv;
+        logging::error("Could not open X11 display"sv);
         return -1;
       }
 
@@ -530,15 +530,14 @@ namespace platf {
 
       if (result_found && result->crtc) {
         crtc_info_t crt_info {x11::rr::GetCrtcInfo(xdisplay.get(), screenr.get(), result->crtc)};
-        BOOST_LOG(info)
-          << "Streaming display: "sv << result->name << " with res "sv << crt_info->width << 'x' << crt_info->height << " offset by "sv << crt_info->x << 'x' << crt_info->y;
+        logging::info("Streaming display: {} with res {}x{} offset by {}x{}", result->name, crt_info->width, crt_info->height, crt_info->x, crt_info->y);
 
         width = crt_info->width;
         height = crt_info->height;
         offset_x = crt_info->x;
         offset_y = crt_info->y;
       } else {
-        BOOST_LOG(warning) << "Couldn't get info for requested display ["sv << display_name << "], defaulting to recording entire virtual desktop"sv;
+        logging::warning("Couldn't get info for requested display [{}], defaulting to recording entire virtual desktop", display_name);
         width = xattr.width;
         height = xattr.height;
       }
@@ -582,7 +581,7 @@ namespace platf {
             }
             break;
           default:
-            BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
+            logging::error("Unrecognized capture status [{}]", (int) status);
             return status;
         }
       }
@@ -604,7 +603,7 @@ namespace platf {
 
       // The whole X server changed, so we must reinit everything
       if (xattr.width != env_width || xattr.height != env_height) {
-        BOOST_LOG(warning) << "X dimensions changed in non-SHM mode, request reinit"sv;
+        logging::warning("X dimensions changed in non-SHM mode, request reinit"sv);
         return capture_e::reinit;
       }
 
@@ -754,7 +753,7 @@ namespace platf {
             }
             break;
           default:
-            BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
+            logging::error("Unrecognized capture status [{}]", (int) status);
             return status;
         }
       }
@@ -774,7 +773,7 @@ namespace platf {
     capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
       // The whole X server changed, so we must reinit everything
       if (xattr.width != env_width || xattr.height != env_height) {
-        BOOST_LOG(warning) << "X dimensions changed in SHM mode, request reinit"sv;
+        logging::warning("X dimensions changed in SHM mode, request reinit"sv);
         return capture_e::reinit;
       } else {
         auto img_cookie = shm_api->shm_get_image_unchecked(xcb.get(), display->root, offset_x, offset_y, width, height, ~0, XCB_IMAGE_FORMAT_Z_PIXMAP, seg, 0);
@@ -782,7 +781,7 @@ namespace platf {
 
         xcb_img_t img_reply {shm_api->shm_get_image_reply(xcb.get(), img_cookie, nullptr)};
         if (!img_reply) {
-          BOOST_LOG(error) << "Could not get image reply"sv;
+          logging::error("Could not get image reply"sv);
           return capture_e::reinit;
         }
 
@@ -846,7 +845,7 @@ namespace platf {
       }
 
       if (!xcb::get_extension_data(xcb.get(), shm_api->shm_id)->present) {
-        BOOST_LOG(error) << "Missing SHM extension"sv;
+        logging::error("Missing SHM extension"sv);
 
         return -1;
       }
@@ -857,7 +856,7 @@ namespace platf {
 
       shm_id.id = shmget(IPC_PRIVATE, frame_size(), IPC_CREAT | 0777);
       if (shm_id.id == -1) {
-        BOOST_LOG(error) << "shmget failed"sv;
+        logging::error("shmget failed"sv);
         return -1;
       }
 
@@ -865,7 +864,7 @@ namespace platf {
       data.data = shmat(shm_id.id, nullptr, 0);
 
       if ((uintptr_t) data.data == -1) {
-        BOOST_LOG(error) << "shmat failed"sv;
+        logging::error("shmat failed"sv);
 
         return -1;
       }
@@ -895,13 +894,13 @@ namespace platf {
    */
   std::shared_ptr<display_t> x11_display(const config::settings_t &settings, platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config, thread_pool_util::ThreadPool &scheduler) {
     if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda) {
-      BOOST_LOG(error) << "Could not initialize x11 display with the given hw device type"sv;
+      logging::error("Could not initialize x11 display with the given hw device type"sv);
       return nullptr;
     }
 
     auto shm_api = xcb::shm_api_t::load();
     if (!shm_api || xcb::init() || x11::init() || x11::rr::init() || x11::fix::init()) {
-      BOOST_LOG(error) << "Couldn't init x11 libraries"sv;
+      logging::error("Couldn't init x11 libraries"sv);
 
       return nullptr;
     }
@@ -935,12 +934,12 @@ namespace platf {
    */
   std::vector<std::string> x11_display_names() {
     if (load_x11() || load_xcb()) {
-      BOOST_LOG(error) << "Couldn't init x11 libraries"sv;
+      logging::error("Couldn't init x11 libraries"sv);
 
       return {};
     }
 
-    BOOST_LOG(info) << "Detecting displays"sv;
+    logging::info("Detecting displays"sv);
 
     x11::xdisplay_t xdisplay {x11::OpenDisplay(nullptr)};
     if (!xdisplay) {
@@ -956,7 +955,9 @@ namespace platf {
     for (int x = 0; x < output; ++x) {
       output_info_t out_info {x11::rr::GetOutputInfo(xdisplay.get(), screenr.get(), screenr->outputs[x])};
       if (out_info) {
-        BOOST_LOG(info) << "Detected display: "sv << out_info->name << " (id: "sv << monitor++ << ")"sv << out_info->name << " connected: "sv << (out_info->connection == RR_Connected);
+        logging::info([&](std::ostream &out) {
+          out << "Detected display: "sv << out_info->name << " (id: "sv << monitor++ << ")"sv << out_info->name << " connected: "sv << (out_info->connection == RR_Connected);
+        });
         names.emplace_back(out_info->name);
       }
     }

@@ -123,9 +123,9 @@ namespace wl {
       delay = ::video::capture_frame_interval(config);
       const AVRational fps = ::video::framerate_to_rational(config);
       if (fps.den != 1) {
-        BOOST_LOG(info) << "[wlgrab] Requested frame rate [" << fps.num << "/" << fps.den << ", approx. " << av_q2d(fps) << " fps]";
+        logging::info("[wlgrab] Requested frame rate [{}/{}, approx. {:.6g} fps]", fps.num, fps.den, av_q2d(fps));
       } else {
-        BOOST_LOG(info) << "[wlgrab] Requested frame rate [" << fps.num << "fps]";
+        logging::info("[wlgrab] Requested frame rate [{}fps]", fps.num);
       }
 
       mem_type = hwdevice_type;
@@ -139,12 +139,12 @@ namespace wl {
       display.roundtrip();
 
       if (!interface[wl::interface_t::XDG_OUTPUT]) {
-        BOOST_LOG(error) << "[wlgrab] Missing Wayland wire for xdg_output"sv;
+        logging::error("[wlgrab] Missing Wayland wire for xdg_output"sv);
         return -1;
       }
 
       if (!interface[wl::interface_t::WLR_EXPORT_DMABUF]) {
-        BOOST_LOG(error) << "[wlgrab] Missing Wayland wire for wlr-export-dmabuf"sv;
+        logging::error("[wlgrab] Missing Wayland wire for wlr-export-dmabuf"sv);
         return -1;
       }
 
@@ -194,7 +194,7 @@ namespace wl {
       const double stream_fps = av_q2d(fps);
       const double output_fps = monitor->refresh_mhz / 1000.0;
       event_driven = use_damage_capture(interface.screencopy_version, stream_fps, monitor->refresh_mhz);
-      BOOST_LOG(info) << "[wlgrab] Frame capture: "sv << (event_driven ? "event-driven"sv : "paced"sv) << " (output "sv << output_fps << " Hz, stream "sv << stream_fps << " fps)"sv;
+      logging::info("[wlgrab] Frame capture: {} (output {:.6g} Hz, stream {:.6g} fps)", (event_driven ? "event-driven"sv : "paced"sv), output_fps, stream_fps);
 
       offset_x = monitor->viewport.offset_x;
       offset_y = monitor->viewport.offset_y;
@@ -212,12 +212,12 @@ namespace wl {
       this->env_logical_width = desktop.logical_width;
       this->env_logical_height = desktop.logical_height;
 
-      BOOST_LOG(info) << "[wlgrab] Selected monitor ["sv << monitor->description << "] for streaming"sv;
-      BOOST_LOG(debug) << "[wlgrab] Offset: "sv << offset_x << 'x' << offset_y;
-      BOOST_LOG(debug) << "[wlgrab] Resolution: "sv << width << 'x' << height;
-      BOOST_LOG(debug) << "[wlgrab] Logical Resolution: "sv << logical_width << 'x' << logical_height;
-      BOOST_LOG(debug) << "[wlgrab] Desktop Resolution: "sv << env_width << 'x' << env_height;
-      BOOST_LOG(debug) << "[wlgrab] Logical Desktop Resolution: "sv << env_logical_width << 'x' << env_logical_height;
+      logging::info("[wlgrab] Selected monitor [{}] for streaming", monitor->description);
+      logging::debug("[wlgrab] Offset: {}x{}", offset_x, offset_y);
+      logging::debug("[wlgrab] Resolution: {}x{}", width, height);
+      logging::debug("[wlgrab] Logical Resolution: {}x{}", logical_width, logical_height);
+      logging::debug("[wlgrab] Desktop Resolution: {}x{}", env_width, env_height);
+      logging::debug("[wlgrab] Logical Desktop Resolution: {}x{}", env_logical_width, env_logical_height);
 
       return 0;
     }
@@ -343,7 +343,7 @@ namespace wl {
             }
             break;
           default:
-            BOOST_LOG(error) << "[wlgrab] Unrecognized capture status ["sv << std::to_underlying(status) << ']';
+            logging::error("[wlgrab] Unrecognized capture status [{}]", std::to_underlying(status));
             return status;
         }
       }
@@ -418,7 +418,7 @@ namespace wl {
       int w;
       gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &w);
       gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &h);
-      BOOST_LOG(debug) << "[wlgrab] width and height: w "sv << w << " h "sv << h;
+      logging::debug("[wlgrab] width and height: w {} h {}", w, h);
 
       gl::ctx.GetTextureSubImage((*rgb_opt)->tex[0], 0, 0, 0, 0, width, height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out->height * img_out->row_pitch, img_out->data);
       gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
@@ -610,7 +610,7 @@ namespace wl {
         if (!encoder_modifiers.empty()) {
           intersected_modifiers = wl::intersect_modifiers(interface.supported_modifiers, encoder_modifiers);
           if (intersected_modifiers.empty()) {
-            BOOST_LOG(warning) << "[wlgrab] No common modifiers between compositor and vulkan encoder"sv;
+            logging::warning("[wlgrab] No common modifiers between compositor and vulkan encoder"sv);
           }
         }
       }
@@ -629,7 +629,7 @@ namespace platf {
    */
   std::shared_ptr<display_t> wl_display(const config::settings_t &settings, mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda && hwdevice_type != platf::mem_type_e::vulkan) {
-      BOOST_LOG(error) << "[wlgrab] Could not initialize display with the given hw device type."sv;
+      logging::error("[wlgrab] Could not initialize display with the given hw device type."sv);
       return nullptr;
     }
 
@@ -647,7 +647,7 @@ namespace platf {
 
 #ifndef SUNSHINE_BUILD_CUDA
     if (hwdevice_type == platf::mem_type_e::cuda) {
-      BOOST_LOG(warning) << "This build does not include CUDA support. Falling back to GPU -> RAM -> GPU for NVENC."sv;
+      logging::warning("This build does not include CUDA support. Falling back to GPU -> RAM -> GPU for NVENC."sv);
     }
 #endif
 
@@ -676,12 +676,12 @@ namespace platf {
     display.roundtrip();
 
     if (!interface[wl::interface_t::XDG_OUTPUT]) {
-      BOOST_LOG(warning) << "[wlgrab] Missing Wayland wire for xdg_output"sv;
+      logging::warning("[wlgrab] Missing Wayland wire for xdg_output"sv);
       return {};
     }
 
     if (!interface[wl::interface_t::WLR_EXPORT_DMABUF]) {
-      BOOST_LOG(warning) << "[wlgrab] Missing Wayland wire for wlr-export-dmabuf"sv;
+      logging::warning("[wlgrab] Missing Wayland wire for wlr-export-dmabuf"sv);
       return {};
     }
 
@@ -691,17 +691,17 @@ namespace platf {
 
     display.roundtrip();
 
-    BOOST_LOG(info) << "[wlgrab] -------- Start of Wayland monitor list --------"sv;
+    logging::info("[wlgrab] -------- Start of Wayland monitor list --------"sv);
 
     for (int x = 0; x < interface.monitors.size(); ++x) {
       auto monitor = interface.monitors[x].get();
 
-      BOOST_LOG(info) << "[wlgrab] Monitor " << x << " is "sv << monitor->name << ": "sv << monitor->description;
+      logging::info("[wlgrab] Monitor {} is {}: {}", x, monitor->name, monitor->description);
 
       display_names.emplace_back(monitor->name.empty() ? std::to_string(x) : monitor->name);
     }
 
-    BOOST_LOG(info) << "[wlgrab] --------- End of Wayland monitor list ---------"sv;
+    logging::info("[wlgrab] --------- End of Wayland monitor list ---------"sv);
 
     return display_names;
   }

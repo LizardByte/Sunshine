@@ -106,19 +106,19 @@ namespace platf::dxgi {
     winrt::com_ptr<::IInspectable> d3d_comhandle;
     try {
       if (!winrt::GraphicsCaptureSession::IsSupported()) {
-        BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows!"sv;
+        logging::error("Screen capture is not supported on this device for this release of Windows!"sv);
         return -1;
       }
       if (FAILED(status = display->device->QueryInterface(IID_IDXGIDevice, (void **) &dxgi))) {
-        BOOST_LOG(error) << "Failed to query DXGI interface from device [0x"sv << util::hex(status).to_string_view() << ']';
+        logging::error("Failed to query DXGI interface from device [0x{}]", util::hex(status).to_string_view());
         return -1;
       }
       if (FAILED(status = winrt::CreateDirect3D11DeviceFromDXGIDevice(*&dxgi, d3d_comhandle.put()))) {
-        BOOST_LOG(error) << "Failed to query WinRT DirectX interface from device [0x"sv << util::hex(status).to_string_view() << ']';
+        logging::error("Failed to query WinRT DirectX interface from device [0x{}]", util::hex(status).to_string_view());
         return -1;
       }
     } catch (winrt::hresult_error &e) {
-      BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows: failed to acquire device: [0x"sv << util::hex(e.code()).to_string_view() << ']';
+      logging::error("Screen capture is not supported on this device for this release of Windows: failed to acquire device: [0x{}]", util::hex(e.code()).to_string_view());
       return -1;
     }
 
@@ -128,7 +128,7 @@ namespace platf::dxgi {
 
     auto monitor_factory = winrt::get_activation_factory<winrt::GraphicsCaptureItem, IGraphicsCaptureItemInterop>();
     if (monitor_factory == nullptr || FAILED(status = monitor_factory->CreateForMonitor(output_desc.Monitor, winrt::guid_of<winrt::IGraphicsCaptureItem>(), winrt::put_abi(item)))) {
-      BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows: failed to acquire display: [0x"sv << util::hex(status).to_string_view() << ']';
+      logging::error("Screen capture is not supported on this device for this release of Windows: failed to acquire display: [0x{}]", util::hex(status).to_string_view());
       return -1;
     }
 
@@ -143,31 +143,31 @@ namespace platf::dxgi {
       capture_session = frame_pool.CreateCaptureSession(item);
       frame_pool.FrameArrived({this, &wgc_capture_t::on_frame_arrived});
     } catch (winrt::hresult_error &e) {
-      BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows: failed to create capture session: [0x"sv << util::hex(e.code()).to_string_view() << ']';
+      logging::error("Screen capture is not supported on this device for this release of Windows: failed to create capture session: [0x{}]", util::hex(e.code()).to_string_view());
       return -1;
     }
     try {
       if (winrt::ApiInformation::IsPropertyPresent(L"Windows.Graphics.Capture.GraphicsCaptureSession", L"IsBorderRequired")) {
         capture_session.IsBorderRequired(false);
       } else {
-        BOOST_LOG(warning) << "Can't disable colored border around capture area on this version of Windows";
+        logging::warning("Can't disable colored border around capture area on this version of Windows");
       }
     } catch (winrt::hresult_error &e) {
-      BOOST_LOG(warning) << "Screen capture may not be fully supported on this device for this release of Windows: failed to disable border around capture area: [0x"sv << util::hex(e.code()).to_string_view() << ']';
+      logging::warning("Screen capture may not be fully supported on this device for this release of Windows: failed to disable border around capture area: [0x{}]", util::hex(e.code()).to_string_view());
     }
     try {
       if (winrt::ApiInformation::IsPropertyPresent(L"Windows.Graphics.Capture.GraphicsCaptureSession", L"MinUpdateInterval")) {
         capture_session.MinUpdateInterval(4ms);  // 250Hz
       } else {
-        BOOST_LOG(warning) << "Can't set MinUpdateInterval on this version of Windows";
+        logging::warning("Can't set MinUpdateInterval on this version of Windows");
       }
     } catch (winrt::hresult_error &e) {
-      BOOST_LOG(warning) << "Screen capture may be capped to 60fps on this device for this release of Windows: failed to set MinUpdateInterval: [0x"sv << util::hex(e.code()).to_string_view() << ']';
+      logging::warning("Screen capture may be capped to 60fps on this device for this release of Windows: failed to set MinUpdateInterval: [0x{}]", util::hex(e.code()).to_string_view());
     }
     try {
       capture_session.StartCapture();
     } catch (winrt::hresult_error &e) {
-      BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows: failed to start capture: [0x"sv << util::hex(e.code()).to_string_view() << ']';
+      logging::error("Screen capture is not supported on this device for this release of Windows: failed to start capture: [0x{}]", util::hex(e.code()).to_string_view());
       return -1;
     }
     return 0;
@@ -183,7 +183,7 @@ namespace platf::dxgi {
     try {
       frame = sender.TryGetNextFrame();
     } catch (winrt::hresult_error &e) {
-      BOOST_LOG(warning) << "Failed to capture frame: "sv << e.code();
+      logging::warning("Failed to capture frame: {}", static_cast<std::int32_t>(e.code()));
       return;
     }
     if (frame != nullptr) {
@@ -281,7 +281,7 @@ namespace platf::dxgi {
     // Create the staging texture if it doesn't exist. It should match the source in size and format.
     if (texture == nullptr) {
       capture_format = desc.Format;
-      BOOST_LOG(info) << "Capture format ["sv << dxgi_format_to_string(capture_format) << ']';
+      logging::info("Capture format [{}]", dxgi_format_to_string(capture_format));
 
       D3D11_TEXTURE2D_DESC t {};
       t.Width = width;
@@ -296,7 +296,7 @@ namespace platf::dxgi {
       auto status = device->CreateTexture2D(&t, nullptr, &texture);
 
       if (FAILED(status)) {
-        BOOST_LOG(error) << "Failed to create staging texture [0x"sv << util::hex(status).to_string_view() << ']';
+        logging::error("Failed to create staging texture [0x{}]", util::hex(status).to_string_view());
         return capture_e::error;
       }
     }
@@ -304,13 +304,13 @@ namespace platf::dxgi {
     // It's possible for our display enumeration to race with mode changes and result in
     // mismatched image pool and desktop texture sizes. If this happens, just reinit again.
     if (desc.Width != width || desc.Height != height) {
-      BOOST_LOG(info) << "Capture size changed ["sv << width << 'x' << height << " -> "sv << desc.Width << 'x' << desc.Height << ']';
+      logging::info("Capture size changed [{}x{} -> {}x{}]", width, height, desc.Width, desc.Height);
       return capture_e::reinit;
     }
     // It's also possible for the capture format to change on the fly. If that happens,
     // reinitialize capture to try format detection again and create new images.
     if (capture_format != desc.Format) {
-      BOOST_LOG(info) << "Capture format changed ["sv << dxgi_format_to_string(capture_format) << " -> "sv << dxgi_format_to_string(desc.Format) << ']';
+      logging::info("Capture format changed [{} -> {}]", dxgi_format_to_string(capture_format), dxgi_format_to_string(desc.Format));
       return capture_e::reinit;
     }
 
@@ -324,7 +324,7 @@ namespace platf::dxgi {
 
     // Map the staging texture for CPU access (making it inaccessible for the GPU)
     if (FAILED(status = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &img_info))) {
-      BOOST_LOG(error) << "Failed to map texture [0x"sv << util::hex(status).to_string_view() << ']';
+      logging::error("Failed to map texture [0x{}]", util::hex(status).to_string_view());
 
       return capture_e::error;
     }

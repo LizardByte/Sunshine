@@ -14,6 +14,7 @@ extern "C" {
 #include <cctype>
 #include <format>
 #include <set>
+#include <sstream>
 #include <unordered_map>
 #include <utility>
 
@@ -162,7 +163,7 @@ namespace rtsp_stream {
      */
     void read() {
       if (begin == std::end(msg_buf) || (session->rtsp_cipher && begin + sizeof(encrypted_rtsp_header_t) >= std::end(msg_buf))) {
-        BOOST_LOG(error) << "RTSP: read(): Exceeded maximum rtsp packet size: "sv << msg_buf.size();
+        logging::error("RTSP: read(): Exceeded maximum rtsp packet size: {}", msg_buf.size());
 
         respond(sock, *session, nullptr, 400, "BAD REQUEST", 0, {});
 
@@ -195,19 +196,23 @@ namespace rtsp_stream {
      * @param bytes The number of bytes read.
      */
     static void handle_read_encrypted_header(std::shared_ptr<socket_t> &socket, const boost::system::error_code &ec, std::size_t bytes) {
-      BOOST_LOG(debug) << "handle_read_encrypted_header(): Handle read of size: "sv << bytes << " bytes"sv;
+      logging::debug("handle_read_encrypted_header(): Handle read of size: {} bytes", bytes);
 
       auto sock_close = util::fail_guard([&socket]() {
         boost::system::error_code ec;
         socket->sock.close(ec);
 
         if (ec) {
-          BOOST_LOG(error) << "RTSP: handle_read_encrypted_header(): Couldn't close tcp socket: "sv << ec.message();
+          logging::error([&](std::ostream &out) {
+            out << "RTSP: handle_read_encrypted_header(): Couldn't close tcp socket: "sv << ec.message();
+          });
         }
       });
 
       if (ec || bytes < sizeof(encrypted_rtsp_header_t)) {
-        BOOST_LOG(error) << "RTSP: handle_read_encrypted_header(): Couldn't read from tcp socket: "sv << ec.message();
+        logging::error([&](std::ostream &out) {
+          out << "RTSP: handle_read_encrypted_header(): Couldn't read from tcp socket: "sv << ec.message();
+        });
 
         respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", 0, {});
         return;
@@ -215,7 +220,7 @@ namespace rtsp_stream {
 
       auto header = (encrypted_rtsp_header_t *) socket->begin;
       if (!header->is_encrypted()) {
-        BOOST_LOG(error) << "RTSP: handle_read_encrypted_header(): Rejecting unencrypted RTSP message"sv;
+        logging::error("RTSP: handle_read_encrypted_header(): Rejecting unencrypted RTSP message"sv);
 
         respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", 0, {});
         return;
@@ -225,7 +230,7 @@ namespace rtsp_stream {
 
       // Check if we have enough space to read this message
       if (socket->begin + sizeof(*header) + payload_length >= std::end(socket->msg_buf)) {
-        BOOST_LOG(error) << "RTSP: handle_read_encrypted_header(): Exceeded maximum rtsp packet size: "sv << socket->msg_buf.size();
+        logging::error("RTSP: handle_read_encrypted_header(): Exceeded maximum rtsp packet size: {}", socket->msg_buf.size());
 
         respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", 0, {});
         return;
@@ -244,14 +249,16 @@ namespace rtsp_stream {
      * @param bytes The number of bytes read.
      */
     static void handle_read_encrypted_message(std::shared_ptr<socket_t> &socket, const boost::system::error_code &ec, std::size_t bytes) {
-      BOOST_LOG(debug) << "handle_read_encrypted(): Handle read of size: "sv << bytes << " bytes"sv;
+      logging::debug("handle_read_encrypted(): Handle read of size: {} bytes", bytes);
 
       auto sock_close = util::fail_guard([&socket]() {
         boost::system::error_code ec;
         socket->sock.close(ec);
 
         if (ec) {
-          BOOST_LOG(error) << "RTSP: handle_read_encrypted_message(): Couldn't close tcp socket: "sv << ec.message();
+          logging::error([&](std::ostream &out) {
+            out << "RTSP: handle_read_encrypted_message(): Couldn't close tcp socket: "sv << ec.message();
+          });
         }
       });
 
@@ -260,7 +267,9 @@ namespace rtsp_stream {
       auto seq = util::endian::big<std::uint32_t>(header->sequenceNumber);
 
       if (ec || bytes < payload_length) {
-        BOOST_LOG(error) << "RTSP: handle_read_encrypted(): Couldn't read from tcp socket: "sv << ec.message();
+        logging::error([&](std::ostream &out) {
+          out << "RTSP: handle_read_encrypted(): Couldn't read from tcp socket: "sv << ec.message();
+        });
 
         respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", 0, {});
         return;
@@ -281,7 +290,7 @@ namespace rtsp_stream {
 
       std::vector<uint8_t> plaintext;
       if (socket->session->rtsp_cipher->decrypt(std::string_view {(const char *) header->tag.data(), sizeof(header->tag) + bytes}, plaintext, &iv)) {
-        BOOST_LOG(error) << "Failed to verify RTSP message tag"sv;
+        logging::error("Failed to verify RTSP message tag"sv);
 
         respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", 0, {});
         return;
@@ -289,7 +298,7 @@ namespace rtsp_stream {
 
       msg_t req {new msg_t::element_type {}};
       if (auto status = parseRtspMessage(req.get(), (char *) plaintext.data(), (int) plaintext.size())) {
-        BOOST_LOG(error) << "Malformed RTSP message: ["sv << status << ']';
+        logging::error("Malformed RTSP message: [{}]", status);
 
         respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", 0, {});
         return;
@@ -307,7 +316,7 @@ namespace rtsp_stream {
      */
     void read_plaintext_payload() {
       if (begin == std::end(msg_buf)) {
-        BOOST_LOG(error) << "RTSP: read_plaintext_payload(): Exceeded maximum rtsp packet size: "sv << msg_buf.size();
+        logging::error("RTSP: read_plaintext_payload(): Exceeded maximum rtsp packet size: {}", msg_buf.size());
 
         respond(sock, *session, nullptr, 400, "BAD REQUEST", 0, {});
 
@@ -335,19 +344,23 @@ namespace rtsp_stream {
      * @param bytes The number of bytes read.
      */
     static void handle_plaintext_payload(std::shared_ptr<socket_t> &socket, const boost::system::error_code &ec, std::size_t bytes) {
-      BOOST_LOG(debug) << "handle_plaintext_payload(): Handle read of size: "sv << bytes << " bytes"sv;
+      logging::debug("handle_plaintext_payload(): Handle read of size: {} bytes", bytes);
 
       auto sock_close = util::fail_guard([&socket]() {
         boost::system::error_code ec;
         socket->sock.close(ec);
 
         if (ec) {
-          BOOST_LOG(error) << "RTSP: handle_plaintext_payload(): Couldn't close tcp socket: "sv << ec.message();
+          logging::error([&](std::ostream &out) {
+            out << "RTSP: handle_plaintext_payload(): Couldn't close tcp socket: "sv << ec.message();
+          });
         }
       });
 
       if (ec) {
-        BOOST_LOG(error) << "RTSP: handle_plaintext_payload(): Couldn't read from tcp socket: "sv << ec.message();
+        logging::error([&](std::ostream &out) {
+          out << "RTSP: handle_plaintext_payload(): Couldn't read from tcp socket: "sv << ec.message();
+        });
 
         return;
       }
@@ -355,7 +368,7 @@ namespace rtsp_stream {
       auto end = socket->begin + bytes;
       msg_t req {new msg_t::element_type {}};
       if (auto status = parseRtspMessage(req.get(), socket->msg_buf.data(), (int) (end - socket->msg_buf.data()))) {
-        BOOST_LOG(error) << "Malformed RTSP message: ["sv << status << ']';
+        logging::error("Malformed RTSP message: [{}]", status);
 
         respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", 0, {});
         return;
@@ -370,7 +383,7 @@ namespace rtsp_stream {
       auto content_length = 0;
       for (auto option = req->options; option != nullptr; option = option->next) {
         if ("Content-length"sv == option->option) {
-          BOOST_LOG(debug) << "Found Content-Length: "sv << option->content << " bytes"sv;
+          logging::debug("Found Content-Length: {} bytes", option->content);
 
           // If content_length > bytes read, then we need to store current data read,
           // to be appended by the next read.
@@ -386,7 +399,9 @@ namespace rtsp_stream {
 
       if (end - socket->crlf >= content_length) {
         if (end - socket->crlf > content_length) {
-          BOOST_LOG(warning) << "(end - socket->crlf) > content_length -- "sv << (std::size_t) (end - socket->crlf) << " > "sv << content_length;
+          logging::warning([&](std::ostream &out) {
+            out << "(end - socket->crlf) > content_length -- "sv << (std::size_t) (end - socket->crlf) << " > "sv << content_length;
+          });
         }
 
         fg.disable();
@@ -405,16 +420,20 @@ namespace rtsp_stream {
      * @param bytes The number of bytes read.
      */
     static void handle_read_plaintext(std::shared_ptr<socket_t> &socket, const boost::system::error_code &ec, std::size_t bytes) {
-      BOOST_LOG(debug) << "handle_read_plaintext(): Handle read of size: "sv << bytes << " bytes"sv;
+      logging::debug("handle_read_plaintext(): Handle read of size: {} bytes", bytes);
 
       if (ec) {
-        BOOST_LOG(error) << "RTSP: handle_read_plaintext(): Couldn't read from tcp socket: "sv << ec.message();
+        logging::error([&](std::ostream &out) {
+          out << "RTSP: handle_read_plaintext(): Couldn't read from tcp socket: "sv << ec.message();
+        });
 
         boost::system::error_code ec;
         socket->sock.close(ec);
 
         if (ec) {
-          BOOST_LOG(error) << "RTSP: handle_read_plaintext(): Couldn't close tcp socket: "sv << ec.message();
+          logging::error([&](std::ostream &out) {
+            out << "RTSP: handle_read_plaintext(): Couldn't close tcp socket: "sv << ec.message();
+          });
         }
 
         return;
@@ -512,7 +531,9 @@ namespace rtsp_stream {
       auto bind_addr_str = net::get_bind_address(settings, af);
       const auto bind_addr = boost::asio::ip::make_address(bind_addr_str, ec);
       if (ec) {
-        BOOST_LOG(error) << "Invalid bind address: "sv << bind_addr_str << " - " << ec.message();
+        logging::error([&](std::ostream &out) {
+          out << "Invalid bind address: "sv << bind_addr_str << " - " << ec.message();
+        });
         return -1;
       }
 
@@ -563,7 +584,9 @@ namespace rtsp_stream {
      */
     void handle_accept(const boost::system::error_code &ec) {
       if (ec) {
-        BOOST_LOG(error) << "Couldn't accept incoming connections: "sv << ec.message();
+        logging::error([&](std::ostream &out) {
+          out << "Couldn't accept incoming connections: "sv << ec.message();
+        });
 
         // Stop server
         clear();
@@ -579,7 +602,7 @@ namespace rtsp_stream {
         socket->read();
       } else {
         // This can happen due to normal things like port scanning, so let's not make these visible by default
-        BOOST_LOG(debug) << "No pending session for incoming RTSP connection"sv;
+        logging::debug("No pending session for incoming RTSP connection"sv);
 
         // If there is no session pending, close the connection immediately
         boost::system::error_code ec;
@@ -626,7 +649,7 @@ namespace rtsp_stream {
         if (!ec) {
           auto discarded = launch_event.pop(0s);
           if (discarded) {
-            BOOST_LOG(debug) << "Event timeout: "sv << discarded->unique_id;
+            logging::debug("Event timeout: {}", discarded->unique_id);
           }
         }
       });
@@ -642,7 +665,7 @@ namespace rtsp_stream {
       auto launch_session = launch_event.view(0s);
       if (launch_session) {
         if (launch_session->id != launch_session_id) {
-          BOOST_LOG(error) << "Attempted to clear unexpected session: "sv << launch_session_id << " vs "sv << launch_session->id;
+          logging::error("Attempted to clear unexpected session: {} vs {}", launch_session_id, launch_session->id);
         } else {
           raised_timer.cancel();
           launch_event.pop();
@@ -719,7 +742,9 @@ namespace rtsp_stream {
     void insert(const std::shared_ptr<stream::session_t> &session) {
       auto lg = _session_slots.lock();
       _session_slots->emplace(session);
-      BOOST_LOG(info) << "New streaming session started [active sessions: "sv << _session_slots->size() << ']';
+      logging::info([&](std::ostream &out) {
+        out << "New streaming session started [active sessions: "sv << _session_slots->size() << ']';
+      });
     }
 
     /**
@@ -838,7 +863,9 @@ namespace rtsp_stream {
       bytes_send += sock.send(boost::asio::buffer(sv.substr(bytes_send)), 0, ec);
 
       if (ec) {
-        BOOST_LOG(error) << "RTSP: Couldn't send data over tcp socket: "sv << ec.message();
+        logging::error([&](std::ostream &out) {
+          out << "RTSP: Couldn't send data over tcp socket: "sv << ec.message();
+        });
         return -1;
       }
     }
@@ -867,11 +894,12 @@ namespace rtsp_stream {
 
     int serialized_len;
     util::c_ptr<char> raw_resp {serializeRtspMessage(resp.get(), &serialized_len)};
-    BOOST_LOG(debug)
-      << "---Begin Response---"sv << std::endl
-      << std::string_view {raw_resp.get(), (std::size_t) serialized_len} << std::endl
-      << std::string_view {payload.first, (std::size_t) payload.second} << std::endl
-      << "---End Response---"sv << std::endl;
+    logging::debug([&](std::ostream &out) {
+      out << "---Begin Response---"sv << std::endl
+          << std::string_view {raw_resp.get(), (std::size_t) serialized_len} << std::endl
+          << std::string_view {payload.first, (std::size_t) payload.second} << std::endl
+          << "---End Response---"sv << std::endl;
+    });
 
     // Encrypt the RTSP message if encryption is enabled
     if (session.rtsp_cipher) {
@@ -1223,16 +1251,15 @@ namespace rtsp_stream {
       // Limit the packetsize to avoid fragmentation with clients that cannot configure this value
       if (server->settings.stream.packetsize && server->settings.stream.packetsize < config.packetsize) {
         if (server->settings.stream.packetsize < config::PACKETSIZE_MIN || server->settings.stream.packetsize > config::PACKETSIZE_MAX) {
-          BOOST_LOG(warning) << "packetsize range: ["sv << config::PACKETSIZE_MIN << "-"sv << config::PACKETSIZE_MAX
-                             << "] invalid value: "sv << server->settings.stream.packetsize;
+          logging::warning("packetsize range: [{}-{}] invalid value: {}", config::PACKETSIZE_MIN, config::PACKETSIZE_MAX, server->settings.stream.packetsize);
         } else {
           if (server->settings.stream.packetsize < config::PACKETSIZE_SMALL) {
-            BOOST_LOG(info) << "packetsize is small < "sv << config::PACKETSIZE_SMALL << " bytes, reduce bitrate if the stream breaks"sv;
+            logging::info("packetsize is small < {} bytes, reduce bitrate if the stream breaks", config::PACKETSIZE_SMALL);
           } else if (server->settings.stream.packetsize > config::PACKETSIZE_LARGE) {
-            BOOST_LOG(info) << "packetsize is large > "sv << config::PACKETSIZE_LARGE << " bytes, jumbo frames may be used"sv;
+            logging::info("packetsize is large > {} bytes, jumbo frames may be used", config::PACKETSIZE_LARGE);
           }
 
-          BOOST_LOG(info) << "packetsize limit: "sv << config.packetsize << " -> "sv << server->settings.stream.packetsize << " bytes"sv;
+          logging::info("packetsize limit: {} -> {} bytes", config.packetsize, server->settings.stream.packetsize);
           config.packetsize = server->settings.stream.packetsize;
         }
       }
@@ -1273,7 +1300,7 @@ namespace rtsp_stream {
       for (auto option = req->options; option != nullptr; option = option->next) {
         if ("Host"sv == option->option) {
           std::string_view content {option->content};
-          BOOST_LOG(debug) << "Found Host: "sv << content;
+          logging::debug("Found Host: {}", content);
           config.audio.flags[audio::config_t::HIGH_QUALITY] = (content.find("0.0.0.0"sv) == std::string::npos);
         }
       }
@@ -1301,7 +1328,7 @@ namespace rtsp_stream {
       config.audio.flags[audio::config_t::CUSTOM_SURROUND_PARAMS] = valid;
     }
     if (session.continuous_audio) {
-      BOOST_LOG(info) << "Client requested continuous audio"sv;
+      logging::info("Client requested continuous audio"sv);
       config.audio.flags[audio::config_t::CONTINUOUS_AUDIO] = true;
     }
 
@@ -1310,7 +1337,7 @@ namespace rtsp_stream {
     // too low, we'll allow it to exceed the limits rather than reducing the encoding bitrate
     // down to nearly nothing.
     if (configuredBitrateKbps) {
-      BOOST_LOG(debug) << "Client configured bitrate is "sv << configuredBitrateKbps << " Kbps"sv;
+      logging::debug("Client configured bitrate is {} Kbps", configuredBitrateKbps);
 
       // If the FEC percentage isn't too high, adjust the configured bitrate to ensure video
       // traffic doesn't exceed the user's selected bitrate when the FEC shards are included.
@@ -1327,19 +1354,19 @@ namespace rtsp_stream {
       // traffic (capped at 10% reduction).
       configuredBitrateKbps -= std::min((std::int64_t) 500, configuredBitrateKbps / 10);
 
-      BOOST_LOG(debug) << "Final adjusted video encoding bitrate is "sv << configuredBitrateKbps << " Kbps"sv;
+      logging::debug("Final adjusted video encoding bitrate is {} Kbps", configuredBitrateKbps);
       config.monitor.bitrate = (int) configuredBitrateKbps;
     }
 
     if (config.monitor.videoFormat == 1 && capabilities.active_hevc_mode == 1) {
-      BOOST_LOG(warning) << "HEVC is disabled, yet the client requested HEVC"sv;
+      logging::warning("HEVC is disabled, yet the client requested HEVC"sv);
 
       respond(sock, session, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
       return;
     }
 
     if (config.monitor.videoFormat == 2 && capabilities.active_av1_mode == 1) {
-      BOOST_LOG(warning) << "AV1 is disabled, yet the client requested AV1"sv;
+      logging::warning("AV1 is disabled, yet the client requested AV1"sv);
 
       respond(sock, session, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
       return;
@@ -1348,7 +1375,7 @@ namespace rtsp_stream {
     // Check that any required encryption is enabled
     auto encryption_mode = net::encryption_mode_for_address(server->settings, sock.remote_endpoint().address());
     if (encryption_mode == config::ENCRYPTION_MODE_MANDATORY && (config.encryptionFlagsEnabled & (SS_ENC_VIDEO | SS_ENC_AUDIO)) != (SS_ENC_VIDEO | SS_ENC_AUDIO)) {
-      BOOST_LOG(error) << "Rejecting client that cannot comply with mandatory encryption requirement"sv;
+      logging::error("Rejecting client that cannot comply with mandatory encryption requirement"sv);
 
       respond(sock, session, &option, 403, "Forbidden", req->sequenceNumber, {});
       return;
@@ -1358,7 +1385,7 @@ namespace rtsp_stream {
     server->insert(stream_session);
 
     if (stream::session::start(*stream_session, sock.remote_endpoint().address().to_string())) {
-      BOOST_LOG(error) << "Failed to start a streaming session"sv;
+      logging::error("Failed to start a streaming session"sv);
 
       server->remove(stream_session);
       respond(sock, session, &option, 500, "Internal Server Error", req->sequenceNumber, {});
@@ -1402,7 +1429,9 @@ namespace rtsp_stream {
 
     boost::system::error_code ec;
     if (server.bind(net::af_from_enum_string(server.settings.sunshine.address_family), net::map_port(server.settings, rtsp_stream::RTSP_SETUP_PORT), ec)) {
-      BOOST_LOG(fatal) << "Couldn't bind RTSP server to port ["sv << net::map_port(server.settings, rtsp_stream::RTSP_SETUP_PORT) << "], " << ec.message();
+      logging::fatal([&](std::ostream &out) {
+        out << "Couldn't bind RTSP server to port ["sv << net::map_port(server.settings, rtsp_stream::RTSP_SETUP_PORT) << "], " << ec.message();
+      });
       shutdown_event->raise(true);
 
       return;
@@ -1445,10 +1474,10 @@ namespace rtsp_stream {
     auto seqnm = msg->sequenceNumber;
     std::string_view messageBuffer {msg->messageBuffer};
 
-    BOOST_LOG(debug) << "type ["sv << type << ']';
-    BOOST_LOG(debug) << "sequence number ["sv << seqnm << ']';
-    BOOST_LOG(debug) << "protocol :: "sv << protocol;
-    BOOST_LOG(debug) << "payload :: "sv << payload;
+    logging::debug("type [{}]", type);
+    logging::debug("sequence number [{}]", seqnm);
+    logging::debug("protocol :: {}", protocol);
+    logging::debug("payload :: {}", payload);
 
     if (msg->type == TYPE_RESPONSE) {
       auto &resp = msg->message.response;
@@ -1456,27 +1485,25 @@ namespace rtsp_stream {
       auto statuscode = resp.statusCode;
       std::string_view status {resp.statusString};
 
-      BOOST_LOG(debug) << "statuscode :: "sv << statuscode;
-      BOOST_LOG(debug) << "status :: "sv << status;
+      logging::debug("statuscode :: {}", statuscode);
+      logging::debug("status :: {}", status);
     } else {
       auto &req = msg->message.request;
 
       std::string_view command {req.command};
       std::string_view target {req.target};
 
-      BOOST_LOG(debug) << "command :: "sv << command;
-      BOOST_LOG(debug) << "target :: "sv << target;
+      logging::debug("command :: {}", command);
+      logging::debug("target :: {}", target);
     }
 
     for (auto option = msg->options; option != nullptr; option = option->next) {
       std::string_view content {option->content};
       std::string_view name {option->option};
 
-      BOOST_LOG(debug) << name << " :: "sv << content;
+      logging::debug("{} :: {}", name, content);
     }
 
-    BOOST_LOG(debug) << "---Begin MessageBuffer---"sv << std::endl
-                     << messageBuffer << std::endl
-                     << "---End MessageBuffer---"sv << std::endl;
+    logging::debug("---Begin MessageBuffer---\n{}\n---End MessageBuffer---\n", messageBuffer);
   }
 }  // namespace rtsp_stream

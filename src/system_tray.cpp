@@ -184,7 +184,7 @@ namespace system_tray {
   #endif
 
   void tray_open_ui_cb([[maybe_unused]] struct tray_menu *item) {
-    BOOST_LOG(info) << "Opening UI from system tray"sv;
+    logging::info("Opening UI from system tray"sv);
     if (item && item->context) {
       launch_ui(static_cast<application_binding_t *>(item->context)->settings);
     }
@@ -204,7 +204,7 @@ namespace system_tray {
 
   #if defined(_WIN32) || defined(__APPLE__)
   void tray_virtualhid_license_cb([[maybe_unused]] struct tray_menu *item) {
-    BOOST_LOG(info) << "Opening Virtual HID Broker license settings from system tray"sv;
+    logging::info("Opening Virtual HID Broker license settings from system tray"sv);
     if (!item || !item->context) {
       return;
     }
@@ -217,13 +217,13 @@ namespace system_tray {
   }
 
   void tray_virtualhid_download_cb([[maybe_unused]] struct tray_menu *item) {
-    BOOST_LOG(info) << "Opening Virtual HID Broker download from system tray"sv;
+    logging::info("Opening Virtual HID Broker download from system tray"sv);
     platf::open_url(std::string {LIBVIRTUALHID_RELEASES_URL});
   }
   #endif
 
   /**
-   * @brief Forwards Qt log messages to Sunshine's BOOST_LOG logger.
+   * @brief Forward Qt messages through Sunshine logging functions.
    * @param level Log level: 0=debug, 1=info, 2=warning, 3=error.
    * @param msg The message string from Qt.
    */
@@ -233,22 +233,22 @@ namespace system_tray {
     }
     switch (level) {
       case 0:
-        BOOST_LOG(debug) << "Qt: " << msg;
+        logging::debug("Qt: {}", msg);
         break;
       case 1:
-        BOOST_LOG(info) << "Qt: " << msg;
+        logging::info("Qt: {}", msg);
         break;
       case 2:
-        BOOST_LOG(warning) << "Qt: " << msg;
+        logging::warning("Qt: {}", msg);
         break;
       default:
-        BOOST_LOG(error) << "Qt: " << msg;
+        logging::error("Qt: {}", msg);
         break;
     }
   }
 
   void tray_reset_display_device_config_cb([[maybe_unused]] struct tray_menu *item) {
-    BOOST_LOG(info) << "Resetting display device config from system tray"sv;
+    logging::info("Resetting display device config from system tray"sv);
 
     if (item && item->context) {
       std::ignore = static_cast<application_binding_t *>(item->context)->displays.reset_persistence();
@@ -256,7 +256,7 @@ namespace system_tray {
   }
 
   void tray_restart_cb([[maybe_unused]] struct tray_menu *item) {
-    BOOST_LOG(info) << "Restarting from system tray"sv;
+    logging::info("Restarting from system tray"sv);
 
     if (item && item->context) {
       platf::restart(static_cast<application_binding_t *>(item->context)->lifetime);
@@ -264,7 +264,7 @@ namespace system_tray {
   }
 
   void tray_quit_cb([[maybe_unused]] struct tray_menu *item) {
-    BOOST_LOG(info) << "Quitting from system tray"sv;
+    logging::info("Quitting from system tray"sv);
     if (!item || !item->context) {
       return;
     }
@@ -645,7 +645,7 @@ namespace system_tray {
       open_bound_ui("/troubleshooting#virtualhid");
     };
 
-    BOOST_LOG(warning) << notification_text;
+    logging::warning(notification_text);
     if (tray_initialized_state().load()) {
       tray_update(&tray);
     }
@@ -692,7 +692,9 @@ namespace system_tray {
       (std::filesystem::path {executable.data()}.parent_path() / utf_utils::from_utf8(relativePath)).lexically_normal();
     auto full = utf_utils::to_utf8(full_path.wstring());
 
-    BOOST_LOG(debug) << "System Tray: using " << full << " for icon path";
+    logging::debug([&](std::ostream &out) {
+      out << "System Tray: using " << full << " for icon path";
+    });
 
     const auto it = g_cache.try_emplace(relativePath, std::move(full)).first;
     return it->second.c_str();
@@ -727,7 +729,9 @@ namespace system_tray {
       full = std::string(resourcesPath) + "/" + relativePath;
     }
 
-    BOOST_LOG(debug) << "System Tray: using " << full << " for icon path";
+    logging::debug([&](std::ostream &out) {
+      out << "System Tray: using " << full << " for icon path";
+    });
 
     const auto it = g_cache.try_emplace(relativePath, std::move(full)).first;
     return it->second.c_str();
@@ -788,7 +792,7 @@ namespace system_tray {
       PSECURITY_DESCRIPTOR sd;
       auto security_error = GetSecurityInfo(GetCurrentThread(), SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, nullptr, nullptr, &old_dacl, nullptr, &sd);
       if (security_error != ERROR_SUCCESS) {
-        BOOST_LOG(warning) << "GetSecurityInfo() failed: "sv << security_error;
+        logging::warning("GetSecurityInfo() failed: {}", security_error);
         return 1;
       }
 
@@ -800,7 +804,7 @@ namespace system_tray {
       PSID world_sid;
       if (!AllocateAndInitializeSid(&sid_authority, 1, SECURITY_WORLD_RID, 0, 0, 0, 0, 0, 0, 0, &world_sid)) {
         security_error = GetLastError();
-        BOOST_LOG(warning) << "AllocateAndInitializeSid() failed: "sv << security_error;
+        logging::warning("AllocateAndInitializeSid() failed: {}", security_error);
         return 1;
       }
 
@@ -818,7 +822,7 @@ namespace system_tray {
       PACL new_dacl;
       security_error = SetEntriesInAcl(1, &ea, old_dacl, &new_dacl);
       if (security_error != ERROR_SUCCESS) {
-        BOOST_LOG(warning) << "SetEntriesInAcl() failed: "sv << security_error;
+        logging::warning("SetEntriesInAcl() failed: {}", security_error);
         return 1;
       }
 
@@ -828,7 +832,7 @@ namespace system_tray {
 
       security_error = SetSecurityInfo(GetCurrentThread(), SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, nullptr, nullptr, new_dacl, nullptr);
       if (security_error != ERROR_SUCCESS) {
-        BOOST_LOG(warning) << "SetSecurityInfo() failed: "sv << security_error;
+        logging::warning("SetSecurityInfo() failed: {}", security_error);
         return 1;
       }
     }
@@ -855,14 +859,14 @@ namespace system_tray {
         return 1;
       }
       if (tray_init(&tray) < 0) {
-        BOOST_LOG(warning) << "Failed to create system tray"sv;
+        logging::warning("Failed to create system tray"sv);
         return 1;
       }
 
       tray_initialized_state().store(true);
     }
 
-    BOOST_LOG(info) << "System tray created"sv;
+    logging::info("System tray created"sv);
     return 0;
   }
 
@@ -872,7 +876,7 @@ namespace system_tray {
 
   int process_tray_events() {
     if (!tray_initialized_state().load()) {
-      BOOST_LOG(error) << "System tray is not initialized"sv;
+      logging::error("System tray is not initialized"sv);
       return 1;
     }
 
@@ -999,12 +1003,12 @@ namespace system_tray {
    */
   static void tray_thread_worker(const std::stop_token stop_token) {
     platf::set_thread_name("system_tray");
-    BOOST_LOG(info) << "System tray thread started"sv;
+    logging::info("System tray thread started"sv);
 
     // Initialize the tray in this thread
     if (init_tray_with_stop_token(stop_token) != 0) {
       if (!stop_token.stop_requested()) {
-        BOOST_LOG(error) << "Failed to initialize tray in thread"sv;
+        logging::error("Failed to initialize tray in thread"sv);
       }
       return;
     }
@@ -1019,22 +1023,22 @@ namespace system_tray {
       tray_initialized_state().store(false);
     }
 
-    BOOST_LOG(info) << "System tray thread ended"sv;
+    logging::info("System tray thread ended"sv);
   }
 
   int init_tray_threaded() {
     try {
       auto &worker = tray_worker_thread();
       if (worker.joinable()) {
-        BOOST_LOG(error) << "System tray thread is already running"sv;
+        logging::error("System tray thread is already running"sv);
         return 1;
       }
       worker = std::jthread(tray_thread_worker);
 
-      BOOST_LOG(info) << "System tray thread initialized successfully"sv;
+      logging::info("System tray thread initialized successfully"sv);
       return 0;
     } catch (const std::system_error &e) {
-      BOOST_LOG(error) << "Failed to create tray thread: " << e.what();
+      logging::error("Failed to create tray thread: {}", e.what());
       return 1;
     }
   }

@@ -171,9 +171,9 @@ namespace lifetime {
 }  // namespace lifetime
 
 void log_publisher_data() {
-  BOOST_LOG(info) << "Package Publisher: "sv << SUNSHINE_PUBLISHER_NAME;
-  BOOST_LOG(info) << "Publisher Website: "sv << SUNSHINE_PUBLISHER_WEBSITE;
-  BOOST_LOG(info) << "Get support: "sv << SUNSHINE_PUBLISHER_ISSUE_URL;
+  logging::info("Package Publisher: {}", SUNSHINE_PUBLISHER_NAME);
+  logging::info("Publisher Website: {}", SUNSHINE_PUBLISHER_WEBSITE);
+  logging::info("Get support: {}", SUNSHINE_PUBLISHER_ISSUE_URL);
 }
 
 #ifdef _WIN32
@@ -207,14 +207,14 @@ namespace service_ctrl {
       scm_handle = OpenSCManagerA(nullptr, nullptr, SC_MANAGER_CONNECT);
       if (!scm_handle) {
         auto winerr = GetLastError();
-        BOOST_LOG(error) << "OpenSCManager() failed: "sv << winerr;
+        logging::error("OpenSCManager() failed: {}", winerr);
         return;
       }
 
       service_handle = OpenServiceA(scm_handle, "SunshineService", service_desired_access);
       if (!service_handle) {
         auto winerr = GetLastError();
-        BOOST_LOG(error) << "OpenService() failed: "sv << winerr;
+        logging::error("OpenService() failed: {}", winerr);
         return;
       }
     }
@@ -242,7 +242,7 @@ namespace service_ctrl {
       if (!StartServiceA(service_handle, 0, nullptr)) {
         auto winerr = GetLastError();
         if (winerr != ERROR_SERVICE_ALREADY_RUNNING) {
-          BOOST_LOG(error) << "StartService() failed: "sv << winerr;
+          logging::error("StartService() failed: {}", winerr);
           return false;
         }
       }
@@ -263,7 +263,7 @@ namespace service_ctrl {
 
       if (!QueryServiceStatus(service_handle, &status)) {
         auto winerr = GetLastError();
-        BOOST_LOG(error) << "QueryServiceStatus() failed: "sv << winerr;
+        logging::error("QueryServiceStatus() failed: {}", winerr);
         return false;
       }
 
@@ -303,7 +303,7 @@ namespace service_ctrl {
     } while (sc.query_service_status(status) && status.dwCurrentState == SERVICE_START_PENDING);
 
     if (status.dwCurrentState != SERVICE_RUNNING) {
-      BOOST_LOG(error) << std::format("{} failed to start: {}"sv, platf::SERVICE_NAME, status.dwWin32ExitCode);
+      logging::error("{} failed to start: {}", platf::SERVICE_NAME, status.dwWin32ExitCode);
       return false;
     }
 
@@ -334,7 +334,7 @@ namespace service_ctrl {
       } while (err == ERROR_INSUFFICIENT_BUFFER);
 
       if (err != NO_ERROR) {
-        BOOST_LOG(error) << "Failed to query TCP table: "sv << err;
+        logging::error("Failed to query TCP table: {}", err);
         return false;
       }
 
