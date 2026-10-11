@@ -325,6 +325,9 @@ TEST(WindowsAudioTest, DefaultDeviceIsUsedWhenNoSinkWasRequested) {
 
 /**
  * @brief Exercise capture-only mode with fixture-owned audio configuration.
+ *
+ * Subprocess checks use std::_Exit after the controller helpers return to avoid
+ * destroying the active GoogleTest logging environment during static teardown.
  */
 class ExternalAudioTest: public testing::Test {
 protected:
@@ -415,7 +418,7 @@ TEST_F(ExternalAudioTest, DisabledModeStillRequiresPolicyInterface) {
 
 TEST_F(ExternalAudioTest, RequiresExplicitSink) {
   settings.audio.sink.clear();
-  EXPECT_EXIT(std::exit(platf::audio::tests::configured_sink_info(settings) ? 1 : 0), testing::ExitedWithCode(0), "");
+  EXPECT_EXIT(std::_Exit(platf::audio::tests::configured_sink_info(settings) ? 1 : 0), testing::ExitedWithCode(0), "");
   fake_device_enumerator_t enumerator {L"endpoint-id"};
   EXPECT_FALSE(platf::audio::tests::microphone_available(settings, {}, {}, &enumerator));
   EXPECT_EQ(enumerator.get_default_device_calls, 0);
@@ -426,7 +429,7 @@ TEST_F(ExternalAudioTest, SkipsDefaultAndVirtualDeviceDiscovery) {
   EXPECT_EXIT(
     {
       const auto sinks = platf::audio::tests::configured_sink_info(settings);
-      std::exit(sinks && sinks->host == "configured-id" && !sinks->null ? 0 : 1);
+      std::_Exit(sinks && sinks->host == "configured-id" && !sinks->null ? 0 : 1);
     },
     testing::ExitedWithCode(0),
     ""
@@ -434,8 +437,8 @@ TEST_F(ExternalAudioTest, SkipsDefaultAndVirtualDeviceDiscovery) {
 }
 
 TEST_F(ExternalAudioTest, SinkChangesDoNotAccessPolicyOrFormatInterfaces) {
-  EXPECT_EXIT(std::exit(platf::audio::tests::set_external_sink(settings, "virtual-Stereoendpoint-id")), testing::ExitedWithCode(0), "");
-  EXPECT_EXIT(std::exit(platf::audio::tests::set_external_sink(settings, "other-endpoint")), testing::ExitedWithCode(0), "");
+  EXPECT_EXIT(std::_Exit(platf::audio::tests::set_external_sink(settings, "virtual-Stereoendpoint-id")), testing::ExitedWithCode(0), "");
+  EXPECT_EXIT(std::_Exit(platf::audio::tests::set_external_sink(settings, "other-endpoint")), testing::ExitedWithCode(0), "");
 }
 
 TEST_F(ExternalAudioTest, ConfiguredSinkWinsOverAssignedSink) {
