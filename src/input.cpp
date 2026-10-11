@@ -2437,7 +2437,7 @@ namespace input {
     }
 
     if (!inputs.empty()) {
-      dispatch_input_task(host, [inputs = std::move(inputs), &host]() {
+      dispatch_input_task(host, [inputs = std::move(inputs)]() {
         destroy_gamepads(inputs);
       });
     }
@@ -2458,7 +2458,7 @@ namespace input {
       state.inputs.erase(iter);
     }
 
-    dispatch_input_task(host, [input = std::move(input), &host]() {
+    dispatch_input_task(host, [input = std::move(input)]() {
       destroy_gamepads(input);
     });
   }
@@ -2572,7 +2572,7 @@ namespace input {
     }
 
     if (resumed) {
-      dispatch_input_task(host, [input, mail = std::move(mail), &host]() {
+      dispatch_input_task(host, [input, mail = std::move(mail)]() {
         rebind_input(input, mail);
       });
     }

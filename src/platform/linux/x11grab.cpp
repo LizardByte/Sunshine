@@ -26,7 +26,6 @@
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
-#include "src/scheduler.h"
 #include "src/thread_pool.h"
 #include "src/video.h"
 #include "vaapi.h"
@@ -718,9 +717,9 @@ namespace platf {
      * @param scheduler Host scheduler for periodic display-attribute refreshes.
      */
     shm_attr_t(const config::settings_t &settings, mem_type_e mem_type, std::shared_ptr<const xcb::shm_api_t> shm_api, thread_pool_util::ThreadPool &scheduler):
-        scheduler(scheduler),
         x11_attr_t(settings, mem_type),
         shm_api {std::move(shm_api)},
+        scheduler(scheduler),
         shm_xdisplay {x11::OpenDisplay(nullptr)} {
       refresh_task_id = scheduler.pushDelayed(&shm_attr_t::delayed_refresh, 2s, this).task_id;
     }
