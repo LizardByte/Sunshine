@@ -1,6 +1,6 @@
 /**
  * @file tests/unit/test_config.cpp
- * @brief Tests for Sunshine configuration persistence helpers.
+ * @brief Tests for Sunshine configuration parsing and persistence helpers.
  */
 
 // test includes
@@ -165,6 +165,32 @@ TEST_F(ConfigPersistenceTest, ParsesFp16SdrGammaEncodedOption) {
 
   config::apply_config_for_test("fp16_sdr_gamma_encoded = disabled\n");
   EXPECT_FALSE(config::video.fp16_sdr_gamma_encoded);
+}
+
+TEST_F(ConfigPersistenceTest, ParsesFecPercentagesAndRejectsOutOfRangeValues) {
+  const auto original_stream = config::stream;
+  const auto restore_stream = util::fail_guard([original_stream]() {
+    config::stream = original_stream;
+  });
+  const auto apps_file = config_file().parent_path() / "sunshine_test_config_apps.json";
+  ASSERT_EQ(file_handler::write_file(apps_file.string().c_str(), "{}"), 0);
+  config::stream.file_apps = apps_file.string();
+
+  constexpr std::array cases {
+    std::pair {0, 0},
+    std::pair {1, 1},
+    std::pair {20, 20},
+    std::pair {99, 99},
+    std::pair {100, 100},
+    std::pair {-1, 20},
+    std::pair {101, 20},
+    std::pair {255, 20},
+  };
+  for (const auto &[setting, expected] : cases) {
+    config::stream.fec_percentage = 20;
+    config::apply_config_for_test("fec_percentage = " + std::to_string(setting) + "\n");
+    EXPECT_EQ(config::stream.fec_percentage, expected) << setting;
+  }
 }
 
 TEST_F(ConfigPersistenceTest, ParsesNvencTwoPassModesAndDefaultsUnknownValues) {
