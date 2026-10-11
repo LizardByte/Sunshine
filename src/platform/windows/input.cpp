@@ -14,6 +14,7 @@
 #endif
 
 // platform includes
+#include <array>
 #include <Windows.h>
 
 // standard includes
@@ -1132,7 +1133,7 @@ namespace platf {
     // Touchpad is 1920x943 according to ViGEm
     uint16_t x = touch.x * 1920;
     uint16_t y = touch.y * 943;
-    uint8_t touchData[] = {
+    std::array<uint8_t, 3> touchData = {
       (uint8_t) (x & 0xFF),  // Low 8 bits of X
       (uint8_t) ((x >> 8 & 0x0F) | (y & 0x0F) << 4),  // High 4 bits of X and low 4 bits of Y
       (uint8_t) (y >> 4 & 0xFF)  // High 8 bits of Y
@@ -1141,9 +1142,9 @@ namespace platf {
     report.sCurrentTouch.bPacketCounter++;
     if (touch.eventType != LI_TOUCH_EVENT_CANCEL_ALL) {
       if (pointerIndex == 0) {
-        memcpy(report.sCurrentTouch.bTouchData1, touchData, sizeof(touchData));
+        memcpy(report.sCurrentTouch.bTouchData1, touchData.data(), touchData.size());
       } else {
-        memcpy(report.sCurrentTouch.bTouchData2, touchData, sizeof(touchData));
+        memcpy(report.sCurrentTouch.bTouchData2, touchData.data(), touchData.size());
       }
     }
 

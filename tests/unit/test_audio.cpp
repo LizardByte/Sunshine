@@ -11,6 +11,21 @@
 
 using namespace audio;
 
+TEST(AudioLayoutTest, CustomMappingRemainsContiguousAndUsesAllEightChannels) {
+  const stream_params_t params {8, 6, 2, {0, 1, 4, 5, 2, 3, 6, 7}};
+  auto copy = params;
+  EXPECT_EQ(copy.channelCount, 8);
+  EXPECT_EQ(copy.streams, 6);
+  EXPECT_EQ(copy.coupledStreams, 2);
+  EXPECT_EQ(copy.mapping.size(), 8U);
+  EXPECT_EQ(copy.mapping.back(), 7);
+  EXPECT_EQ(copy.mapping.data() + 7, &copy.mapping[7]);
+  copy.mapping[0] = 7;
+  EXPECT_EQ(params.mapping[0], 0);
+  EXPECT_EQ(stream_configs.size(), MAX_STREAM_CONFIG);
+  EXPECT_EQ(stream_configs[HIGH_SURROUND71].channelCount, 8);
+}
+
 struct AudioTest: PlatformTestSuite, testing::WithParamInterface<std::tuple<std::basic_string_view<char>, config_t>> {
   void SetUp() override {
     BaseTest::SetUp();

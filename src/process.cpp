@@ -5,6 +5,7 @@
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 // standard includes
+#include <array>
 #include <filesystem>
 #include <string>
 #include <thread>
@@ -629,18 +630,18 @@ namespace proc {
     }
 
     // Read file and update calculated SHA
-    char buf[1024 * 16];
+    std::array<char, 1024 * 16> buf;
     std::ifstream file(filename, std::ifstream::binary);
     while (file.good()) {
-      file.read(buf, sizeof(buf));
-      if (!EVP_DigestUpdate(ctx.get(), buf, file.gcount())) {
+      file.read(buf.data(), buf.size());
+      if (!EVP_DigestUpdate(ctx.get(), buf.data(), file.gcount())) {
         return std::nullopt;
       }
     }
     file.close();
 
-    unsigned char result[SHA256_DIGEST_LENGTH];
-    if (!EVP_DigestFinal_ex(ctx.get(), result, nullptr)) {
+    std::array<unsigned char, SHA256_DIGEST_LENGTH> result;
+    if (!EVP_DigestFinal_ex(ctx.get(), result.data(), nullptr)) {
       return std::nullopt;
     }
 

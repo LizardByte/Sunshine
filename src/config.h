@@ -256,7 +256,7 @@ namespace config {
 
     std::string file_apps;  ///< Path to the configured applications file.
 
-    int fec_percentage;  ///< Percentage of forward-error-correction packets to add to the stream.
+    int fec_percentage;  ///< Percentage of forward-error-correction packets to add to the stream (0-100); 0 disables FEC.
 
     // Video encryption settings for LAN and WAN streams
     int lan_encryption_mode;  ///< Video encryption policy for LAN clients.

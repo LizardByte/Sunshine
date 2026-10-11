@@ -255,6 +255,89 @@ TEST(UtilityBufferTests, CopyConstruction) {
   EXPECT_EQ(buf1[0], 55);
 }
 
+TEST(UtilityBufferTests, SizeConstructionValueInitializesEveryElement) {
+  const util::buffer_t<int> buf(4);
+  EXPECT_EQ(buf.end() - buf.begin(), 4);
+  EXPECT_TRUE(std::ranges::all_of(buf, [](int value) {
+    return value == 0;
+  }));
+}
+
+TEST(UtilityBufferTests, LogicalResizeRetainsAllocationAndHiddenElements) {
+  util::buffer_t buf(4, 7);
+  auto *allocation = buf.begin();
+  buf[3] = 99;
+  buf.fake_resize(2);
+  EXPECT_EQ(buf.size(), 2U);
+  EXPECT_EQ(buf.begin(), allocation);
+  EXPECT_EQ(buf.end(), allocation + 2);
+
+  const util::buffer_t<int> copy(buf);
+  EXPECT_EQ(copy.size(), 2U);
+  EXPECT_NE(copy.begin(), allocation);
+  EXPECT_EQ(copy[0], 7);
+  EXPECT_EQ(copy[1], 7);
+  buf[0] = 10;
+  EXPECT_EQ(copy[0], 7);
+
+  buf.fake_resize(0);
+  EXPECT_EQ(buf.begin(), buf.end());
+  buf.fake_resize(4);
+  EXPECT_EQ(buf.begin(), allocation);
+  EXPECT_EQ(buf[3], 99);
+}
+
+TEST(UtilityBufferTests, MoveConstructionTransfersAllocationAndEmptiesSource) {
+  util::buffer_t source(4, 9);
+  source.fake_resize(2);
+  auto *allocation = source.begin();
+  const util::buffer_t<int> destination(std::move(source));
+  EXPECT_EQ(destination.size(), 2U);
+  EXPECT_EQ(destination.begin(), allocation);
+  EXPECT_EQ(destination[1], 9);
+  EXPECT_EQ(source.size(), 0U);  // NOSONAR(cpp:S5272): buffer_t specifies a zero logical count after move construction.
+  EXPECT_EQ(source.begin(), source.end());
+}
+
+TEST(UtilityBufferTests, MoveAssignmentExchangesBothAllocationsAndLogicalSizes) {
+  util::buffer_t source(4, 9);
+  source.fake_resize(2);
+  util::buffer_t destination(3, 7);
+  auto *source_allocation = source.begin();
+  auto *destination_allocation = destination.begin();
+
+  EXPECT_EQ(&(destination = std::move(source)), &destination);
+  EXPECT_EQ(destination.size(), 2U);
+  EXPECT_EQ(destination.begin(), source_allocation);
+  EXPECT_EQ(destination[1], 9);
+  EXPECT_EQ(source.size(), 3U);  // NOSONAR(cpp:S5272): buffer_t move assignment exchanges both allocations and logical counts.
+  EXPECT_EQ(source.begin(), destination_allocation);
+  EXPECT_EQ(source[2], 7);
+}
+
+TEST(UtilityHexTests, IteratorsAndViewsExposeExactlyTheFormattedBytes) {
+  auto hex = util::hex(std::uint16_t {0xABCD});
+  EXPECT_EQ(hex.end() - hex.begin(), 4);
+  EXPECT_EQ(std::string(hex.begin(), hex.end()), "ABCD");
+  *hex.begin() = '0';
+  const auto &constant_hex = hex;
+  EXPECT_EQ(constant_hex.end() - constant_hex.begin(), 4);
+  EXPECT_EQ(constant_hex.cbegin(), constant_hex.begin());
+  EXPECT_EQ(constant_hex.cend(), constant_hex.end());
+  EXPECT_EQ(constant_hex.to_string_view(), "0BCD");
+  EXPECT_EQ(constant_hex.to_string(), "0BCD");
+}
+
+TEST(UtilityFromHexTests, ShortInputPadsUnusedBytesWithZeros) {
+  EXPECT_EQ(util::from_hex<std::uint64_t>("ABCD"), util::endian::little(std::uint64_t {0xABCD}));
+  EXPECT_EQ(util::from_hex<std::uint64_t>("ABCD", true), util::endian::big(std::uint64_t {0xABCD}));
+}
+
+TEST(UtilityFromHexTests, DecodesIntoAByteArrayWithoutPointerTypePunning) {
+  const auto bytes = util::from_hex<std::array<std::uint8_t, 4>>("12:34:56:78", true);
+  EXPECT_EQ(bytes, (std::array<std::uint8_t, 4> {0x12, 0x34, 0x56, 0x78}));
+}
+
 TEST(UtilityAppendStructTests, AppendsDataCorrectly) {
   struct test_struct_t {
     std::uint8_t a;

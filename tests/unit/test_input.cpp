@@ -1,6 +1,6 @@
 /**
  * @file tests/unit/test_input.cpp
- * @brief Tests for retained stream input and virtual gamepad lifecycle behavior.
+ * @brief Tests for input packet batching, retained stream input, and virtual gamepad lifecycle behavior.
  */
 
 // test includes
@@ -57,6 +57,38 @@ namespace {
       std::memcpy(packet.data(), &header, std::min(packet.size(), sizeof(header)));
     }
     return packet;
+  }
+
+  /**
+   * @brief Verify batching a repeated packet around a potentially different packet.
+   *
+   * @tparam Packet Fixed-size protocol packet type.
+   * @param original Packet repeated before and after the different packet.
+   * @param different Packet that may introduce a batching boundary.
+   * @param magic Protocol identifier shared by the packets.
+   * @param expected Expected number of dispatched packets.
+   */
+  template<class Packet>
+  void expect_packet_dispatches(Packet original, Packet different, std::uint32_t magic, std::size_t expected) {
+    SCOPED_TRACE(magic);
+    auto stream_input = input::alloc(std::make_shared<safe::mail_raw_t>(), "packet-batching");
+    ASSERT_NE(stream_input, nullptr);
+    std::size_t dispatch_count = 0;
+    input::testing::set_input_packet_hook([magic, &dispatch_count](std::uint32_t dispatched_magic) {
+      EXPECT_EQ(dispatched_magic, magic);
+      ++dispatch_count;
+    });
+    for (auto packet : {original, different, original}) {
+      packet.header.size = util::endian::big<std::uint32_t>(sizeof(packet) - sizeof(packet.header.size));
+      packet.header.magic = util::endian::little(magic);
+      std::vector<std::uint8_t> bytes(sizeof(packet));
+      std::memcpy(bytes.data(), &packet, sizeof(packet));
+      input::passthrough(stream_input, std::move(bytes));
+    }
+    input::testing::process_queued_messages(stream_input);
+    input::testing::set_input_packet_hook({});
+    EXPECT_EQ(dispatch_count, expected);
+    EXPECT_EQ(input::testing::queued_input_packet_count(stream_input), 0);
   }
 
   /**
@@ -360,6 +392,81 @@ TEST_F(InputGamepadSessionTest, YieldsAfterBoundedPacketBatch) {
   input::testing::process_queued_messages(scheduled.back());
   EXPECT_EQ(input::testing::queued_input_packet_count(stream_input), 0);
   EXPECT_EQ(scheduled.size(), 2);
+}
+
+TEST_F(InputGamepadSessionTest, BatchesContinuousPacketsWithoutCrossingStateChanges) {
+  ASSERT_FALSE(task_pool.running());
+  config::input.mouse = false;
+  config::input.controller = false;
+  config::input.native_pen_touch = false;
+  input::testing::set_input_task_sink([](std::shared_ptr<input::input_t>) {
+  });
+
+  NV_MULTI_CONTROLLER_PACKET controller {};
+  expect_packet_dispatches(controller, controller, MULTI_CONTROLLER_MAGIC_GEN5, 1);
+  auto changed_controller = controller;
+  changed_controller.controllerNumber = 1;
+  expect_packet_dispatches(controller, changed_controller, MULTI_CONTROLLER_MAGIC_GEN5, 2);
+  changed_controller = controller;
+  changed_controller.activeGamepadMask = 1;
+  expect_packet_dispatches(controller, changed_controller, MULTI_CONTROLLER_MAGIC_GEN5, 3);
+  changed_controller = controller;
+  changed_controller.buttonFlags = 1;
+  expect_packet_dispatches(controller, changed_controller, MULTI_CONTROLLER_MAGIC_GEN5, 3);
+  changed_controller = controller;
+  changed_controller.buttonFlags2 = 1;
+  expect_packet_dispatches(controller, changed_controller, MULTI_CONTROLLER_MAGIC_GEN5, 3);
+
+  SS_TOUCH_PACKET touch {};
+  touch.eventType = LI_TOUCH_EVENT_MOVE;
+  expect_packet_dispatches(touch, touch, SS_TOUCH_MAGIC, 1);
+  auto changed_touch = touch;
+  changed_touch.pointerId = 1;
+  expect_packet_dispatches(touch, changed_touch, SS_TOUCH_MAGIC, 2);
+  changed_touch = touch;
+  changed_touch.eventType = LI_TOUCH_EVENT_DOWN;
+  expect_packet_dispatches(touch, changed_touch, SS_TOUCH_MAGIC, 3);
+  changed_touch.eventType = LI_TOUCH_EVENT_HOVER;
+  expect_packet_dispatches(touch, changed_touch, SS_TOUCH_MAGIC, 3);
+
+  SS_PEN_PACKET pen {};
+  pen.eventType = LI_TOUCH_EVENT_MOVE;
+  expect_packet_dispatches(pen, pen, SS_PEN_MAGIC, 1);
+  auto changed_pen = pen;
+  changed_pen.eventType = LI_TOUCH_EVENT_DOWN;
+  expect_packet_dispatches(pen, changed_pen, SS_PEN_MAGIC, 3);
+  changed_pen.eventType = LI_TOUCH_EVENT_HOVER;
+  expect_packet_dispatches(pen, changed_pen, SS_PEN_MAGIC, 3);
+  changed_pen = pen;
+  changed_pen.penButtons = 1;
+  expect_packet_dispatches(pen, changed_pen, SS_PEN_MAGIC, 3);
+  changed_pen = pen;
+  changed_pen.toolType = 1;
+  expect_packet_dispatches(pen, changed_pen, SS_PEN_MAGIC, 3);
+
+  SS_CONTROLLER_TOUCH_PACKET controller_touch {};
+  controller_touch.eventType = LI_TOUCH_EVENT_MOVE;
+  expect_packet_dispatches(controller_touch, controller_touch, SS_CONTROLLER_TOUCH_MAGIC, 1);
+  auto changed_controller_touch = controller_touch;
+  changed_controller_touch.controllerNumber = 1;
+  expect_packet_dispatches(controller_touch, changed_controller_touch, SS_CONTROLLER_TOUCH_MAGIC, 2);
+  changed_controller_touch = controller_touch;
+  changed_controller_touch.pointerId = 1;
+  expect_packet_dispatches(controller_touch, changed_controller_touch, SS_CONTROLLER_TOUCH_MAGIC, 2);
+  changed_controller_touch = controller_touch;
+  changed_controller_touch.eventType = LI_TOUCH_EVENT_DOWN;
+  expect_packet_dispatches(controller_touch, changed_controller_touch, SS_CONTROLLER_TOUCH_MAGIC, 3);
+  changed_controller_touch.eventType = LI_TOUCH_EVENT_HOVER;
+  expect_packet_dispatches(controller_touch, changed_controller_touch, SS_CONTROLLER_TOUCH_MAGIC, 3);
+
+  SS_CONTROLLER_MOTION_PACKET motion {};
+  expect_packet_dispatches(motion, motion, SS_CONTROLLER_MOTION_MAGIC, 1);
+  auto changed_motion = motion;
+  changed_motion.controllerNumber = 1;
+  expect_packet_dispatches(motion, changed_motion, SS_CONTROLLER_MOTION_MAGIC, 2);
+  changed_motion = motion;
+  changed_motion.motionType = 1;
+  expect_packet_dispatches(motion, changed_motion, SS_CONTROLLER_MOTION_MAGIC, 2);
 }
 
 TEST_F(InputGamepadSessionTest, ReusesGamepadsAcrossPauseAndDestroysThemOnTermination) {

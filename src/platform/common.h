@@ -884,6 +884,8 @@ namespace platf {
 
   std::filesystem::path appdata();
 
+  std::filesystem::path get_xdg_restore_token_path();  ///< XDG restore token path.
+
   /**
    * @brief Return the hardware MAC address associated with a network address.
    *
@@ -896,14 +898,14 @@ namespace platf {
    * @brief Convert a socket address to a printable IP address.
    *
    * @param ip_addr Socket address to format.
-   * @return Value converted from sockaddr.
+   * @return Printable address, or an empty string for an unsupported address family.
    */
   std::string from_sockaddr(const sockaddr *const);
   /**
    * @brief Convert a socket address to a port and printable IP address.
    *
    * @param ip_addr Socket address to format.
-   * @return Value converted from sockaddr ex.
+   * @return Port in network byte order and printable address, or zero and an empty string for an unsupported family.
    */
   std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const);
 

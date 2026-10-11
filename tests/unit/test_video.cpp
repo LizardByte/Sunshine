@@ -26,6 +26,47 @@ extern "C" {
 
 using namespace std::literals;
 
+TEST(VideoFormatMappingTest, MapsSupportedHardwareDevicesAndRejectsUnsupportedOnes) {
+  using enum platf::mem_type_e;
+  const std::array cases {
+    std::pair {AV_HWDEVICE_TYPE_D3D11VA, dxgi},
+    std::pair {AV_HWDEVICE_TYPE_VAAPI, vaapi},
+    std::pair {AV_HWDEVICE_TYPE_CUDA, cuda},
+    std::pair {AV_HWDEVICE_TYPE_NONE, system},
+    std::pair {AV_HWDEVICE_TYPE_VIDEOTOOLBOX, videotoolbox},
+#ifdef SUNSHINE_BUILD_VULKAN
+    std::pair {AV_HWDEVICE_TYPE_VULKAN, vulkan},
+#else
+    std::pair {AV_HWDEVICE_TYPE_VULKAN, unknown},
+#endif
+    std::pair {AV_HWDEVICE_TYPE_DXVA2, unknown},
+  };
+
+  for (const auto &[format, expected] : cases) {
+    EXPECT_EQ(video::map_base_dev_type(format), expected) << format;
+  }
+}
+
+TEST(VideoFormatMappingTest, MapsSupportedPixelFormatsAndRejectsUnsupportedOnes) {
+  using enum platf::pix_fmt_e;
+  const std::array cases {
+    std::pair {AV_PIX_FMT_VUYX, ayuv},
+    std::pair {AV_PIX_FMT_XV30, y410},
+    std::pair {AV_PIX_FMT_YUV420P10, yuv420p10},
+    std::pair {AV_PIX_FMT_YUV420P, yuv420p},
+    std::pair {AV_PIX_FMT_NV12, nv12},
+    std::pair {AV_PIX_FMT_P010, p010},
+    std::pair {AV_PIX_FMT_YUV444P, yuv444p},
+    std::pair {AV_PIX_FMT_YUV444P16, yuv444p16},
+    std::pair {AV_PIX_FMT_NONE, unknown},
+    std::pair {AV_PIX_FMT_RGB24, unknown},
+  };
+
+  for (const auto &[format, expected] : cases) {
+    EXPECT_EQ(video::map_pix_fmt(format), expected) << format;
+  }
+}
+
 struct EncoderTest: PlatformTestSuite, testing::WithParamInterface<video::encoder_t *> {
   void SetUp() override {
     BaseTest::SetUp();

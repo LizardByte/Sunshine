@@ -3,6 +3,7 @@
  * @brief Definitions for KMS screen capture.
  */
 // standard includes
+#include <array>
 #include <errno.h>
 #include <fcntl.h>
 #include <filesystem>
@@ -239,9 +240,9 @@ namespace platf {
           height {fb->height} {
         pixel_format = DRM_FORMAT_XRGB8888;
         modifier = DRM_FORMAT_MOD_INVALID;
-        std::fill_n(handles, 4, 0);
-        std::fill_n(pitches, 4, 0);
-        std::fill_n(offsets, 4, 0);
+        handles.fill(0);
+        pitches.fill(0);
+        offsets.fill(0);
         handles[0] = fb->handle;
         pitches[0] = fb->pitch;
       }
@@ -261,9 +262,9 @@ namespace platf {
         pixel_format = fb2->pixel_format;
         modifier = (fb2->flags & DRM_MODE_FB_MODIFIERS) ? fb2->modifier : DRM_FORMAT_MOD_INVALID;
 
-        memcpy(handles, fb2->handles, sizeof(handles));
-        memcpy(pitches, fb2->pitches, sizeof(pitches));
-        memcpy(offsets, fb2->offsets, sizeof(offsets));
+        std::copy_n(fb2->handles, handles.size(), handles.begin());
+        std::copy_n(fb2->pitches, pitches.size(), pitches.begin());
+        std::copy_n(fb2->offsets, offsets.size(), offsets.begin());
       }
 
       ~wrapper_fb() {
@@ -291,9 +292,9 @@ namespace platf {
       uint32_t height;  ///< Framebuffer height in pixels.
       uint32_t pixel_format;  ///< DRM fourcc pixel format for the framebuffer.
       uint64_t modifier;  ///< DRM format modifier describing framebuffer memory layout.
-      uint32_t handles[4];  ///< GEM handles for each framebuffer plane.
-      uint32_t pitches[4];  ///< Row stride in bytes for each framebuffer plane.
-      uint32_t offsets[4];  ///< Byte offset to the first pixel for each framebuffer plane.
+      std::array<uint32_t, 4> handles;  ///< GEM handles for each framebuffer plane.
+      std::array<uint32_t, 4> pitches;  ///< Row stride in bytes for each framebuffer plane.
+      std::array<uint32_t, 4> offsets;  ///< Byte offset to the first pixel for each framebuffer plane.
     };
 
     /**
@@ -576,6 +577,109 @@ namespace platf {
       std::uint64_t prop_src_h;  ///< Prop src h.
       std::uint32_t fb_id;  ///< Fb ID.
     };
+
+    /**
+     * @brief Return whether a DRM fourcc value is a supported 32-bit KMS cursor format.
+     *
+     * @param fmt DRM pixel format to inspect.
+     * @return True when the format is one of the 8 accepted 32-bit cursor layouts,
+     *         otherwise false.
+     */
+    bool is_cursor_32bpp_format(uint32_t fmt) {
+      return fmt == DRM_FORMAT_XRGB8888 ||
+             fmt == DRM_FORMAT_XBGR8888 ||
+             fmt == DRM_FORMAT_RGBX8888 ||
+             fmt == DRM_FORMAT_BGRX8888 ||
+             fmt == DRM_FORMAT_ARGB8888 ||
+             fmt == DRM_FORMAT_ABGR8888 ||
+             fmt == DRM_FORMAT_RGBA8888 ||
+             fmt == DRM_FORMAT_BGRA8888;
+    }
+
+    /**
+     * @brief Convert a single 32-bit pixel to the little-endian ARGB8888 layout used by the capture pipeline.
+     *
+     * Rewrites the pixel in place to [B, G, R, A] byte order.
+     *
+     * @param[in,out] p Pointer to the source pixel bytes in the given format.
+     * @param[in] fmt DRM pixel format of the source pixel.
+     * @param[in] x_is_alpha True for cursor buffers where the kernel hardcodes DRM_FORMAT_HOST_XRGB8888
+     *                   (see virtgpu_gem.c) but the fourth byte actually carries per-pixel alpha.
+     *                   Set false for scanout buffers or formats with real alpha channels.
+     * @return true if the format is supported; false otherwise.
+     */
+    bool convert_pixel_to_argb8888(std::uint8_t *p, std::uint32_t fmt, bool x_is_alpha = false) {
+      const auto c0 = p[0];
+      const auto c1 = p[1];
+      const auto c2 = p[2];
+      const auto c3 = p[3];
+
+      std::uint8_t b;
+      std::uint8_t g;
+      std::uint8_t r;
+      std::uint8_t a;
+
+      switch (fmt) {
+        case DRM_FORMAT_XRGB8888:
+          b = c0;
+          g = c1;
+          r = c2;
+          a = x_is_alpha ? c3 : 255;
+          break;
+        case DRM_FORMAT_XBGR8888:
+          b = c2;
+          g = c1;
+          r = c0;
+          a = x_is_alpha ? c3 : 255;
+          break;
+        case DRM_FORMAT_RGBX8888:
+          b = c1;
+          g = c2;
+          r = c3;
+          a = x_is_alpha ? c0 : 255;
+          break;
+        case DRM_FORMAT_BGRX8888:
+          b = c3;
+          g = c2;
+          r = c1;
+          a = x_is_alpha ? c0 : 255;
+          break;
+
+        case DRM_FORMAT_ARGB8888:
+          b = c0;
+          g = c1;
+          r = c2;
+          a = c3;
+          break;
+        case DRM_FORMAT_ABGR8888:
+          b = c2;
+          g = c1;
+          r = c0;
+          a = c3;
+          break;
+        case DRM_FORMAT_RGBA8888:
+          b = c1;
+          g = c2;
+          r = c3;
+          a = c0;
+          break;
+        case DRM_FORMAT_BGRA8888:
+          b = c3;
+          g = c2;
+          r = c1;
+          a = c0;
+          break;
+
+        default:
+          return false;
+      }
+
+      p[0] = b;
+      p[1] = g;
+      p[2] = r;
+      p[3] = a;
+      return true;
+    }
 
     /**
      * @brief DRM card, render node, and plane metadata used for KMS capture.
@@ -1431,9 +1535,9 @@ namespace platf {
             return;
           }
 
-          // All known cursor planes in the wild are ARGB8888
-          if (fb->pixel_format != DRM_FORMAT_ARGB8888) {
-            BOOST_LOG(error) << "Unsupported non-ARGB8888 cursor format: "sv << fb->pixel_format;
+          // All known cursor planes in the wild are 32 bpp
+          if (!is_cursor_32bpp_format(fb->pixel_format)) {
+            BOOST_LOG(error) << "Unsupported cursor format: "sv << fb->pixel_format;
             captured_cursor.visible = false;
             cursor_plane_id = -1;
             return;
@@ -1512,6 +1616,17 @@ namespace platf {
           drmIoctl(plane_fd.el, DMA_BUF_IOCTL_SYNC, &sync);
 
           munmap(mapped_data, mapped_size);
+
+          if (fb->pixel_format != DRM_FORMAT_ARGB8888) {
+            // Convert the copied pixels to the format expected by the rest of code.
+            for (std::size_t i = 0; i < captured_cursor.pixels.size(); i += 4) {
+              convert_pixel_to_argb8888(
+                captured_cursor.pixels.data() + i,
+                fb->pixel_format,
+                true
+              );
+            }
+          }
 
           captured_cursor.visible = true;
           captured_cursor.src_w = src_w;
@@ -1800,12 +1915,12 @@ namespace platf {
        * @return Capture status reported to the streaming pipeline.
        */
       capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
-        file_t fb_fd[4];
+        std::array<file_t, 4> fb_fd;
 
         egl::surface_descriptor_t sd;
 
         std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
-        auto status = refresh(fb_fd, &sd, frame_timestamp);
+        auto status = refresh(fb_fd.data(), &sd, frame_timestamp);
         if (status != capture_e::ok) {
           return status;
         }
@@ -1931,7 +2046,7 @@ namespace platf {
         img->pixel_pitch = 4;
 
         img->sequence = 0;
-        std::fill_n(img->sd.fds, 4, -1);
+        img->sd.fds.fill(-1);
 
         return img;
       }
@@ -1990,7 +2105,7 @@ namespace platf {
        * @return Capture status reported to the streaming pipeline.
        */
       capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds /* timeout */, bool cursor) {
-        file_t fb_fd[4];
+        std::array<file_t, 4> fb_fd;
 
         if (!pull_free_image_cb(img_out)) {
           return platf::capture_e::interrupted;
@@ -1998,7 +2113,7 @@ namespace platf {
         auto img = (egl::img_descriptor_t *) img_out.get();
         img->reset();
 
-        auto status = refresh(fb_fd, &img->sd, img->frame_timestamp);
+        auto status = refresh(fb_fd.data(), &img->sd, img->frame_timestamp);
         if (status != capture_e::ok) {
           return status;
         }

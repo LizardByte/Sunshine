@@ -530,7 +530,7 @@ namespace wl {
       img->frame_timestamp = current_frame->frame_timestamp;
 
       // Prevent dmabuf from closing the file descriptors.
-      std::fill_n(current_frame->sd.fds, 4, -1);
+      current_frame->sd.fds.fill(-1);
 
       return platf::capture_e::ok;
     }
@@ -550,7 +550,7 @@ namespace wl {
       img->data = nullptr;
 
       // File descriptors aren't open
-      std::fill_n(img->sd.fds, 4, -1);
+      img->sd.fds.fill(-1);
 
       return img;
     }

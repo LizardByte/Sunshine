@@ -126,11 +126,11 @@ namespace confighttp {
     auto &portal_token_path_provider() {
   #ifdef SUNSHINE_TESTS
       static portal_token_path_provider_t path_provider = []() {
-        return platf::appdata() / "portal_token";
+        return platf::get_xdg_restore_token_path();
       };
   #else
       static const portal_token_path_provider_t path_provider = []() {
-        return platf::appdata() / "portal_token";
+        return platf::get_xdg_restore_token_path();
       };
   #endif
       return path_provider;
@@ -189,7 +189,7 @@ namespace confighttp {
 
   void reset_portal_token_path_provider_for_testing() {
     portal_token_path_provider() = []() {
-      return platf::appdata() / "portal_token";
+      return platf::get_xdg_restore_token_path();
     };
   }
 

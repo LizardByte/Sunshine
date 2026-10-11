@@ -4,6 +4,7 @@
  */
 // standard includes
 #include <algorithm>
+#include <array>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -75,17 +76,18 @@ namespace config {
      * @return Parsed enum value, or the setting-specific default when the text is unknown.
      */
     nvenc::nvenc_two_pass twopass_from_view(const std::string_view &preset) {
+      using enum nvenc::nvenc_two_pass;
       if (preset == "disabled") {
-        return nvenc::nvenc_two_pass::disabled;
+        return disabled;
       }
       if (preset == "quarter_res") {
-        return nvenc::nvenc_two_pass::quarter_resolution;
+        return quarter_resolution;
       }
       if (preset == "full_res") {
-        return nvenc::nvenc_two_pass::full_resolution;
+        return full_resolution;
       }
       BOOST_LOG(warning) << "config: unknown nvenc_twopass value: " << preset;
-      return nvenc::nvenc_two_pass::quarter_resolution;
+      return quarter_resolution;
     }
 
     /**
@@ -1806,7 +1808,7 @@ namespace config {
     }
 #endif
 
-    int_between_f(vars, "fec_percentage", stream.fec_percentage, {1, 255});
+    int_between_f(vars, "fec_percentage", stream.fec_percentage, {0, 100});
 
     map_int_int_f(vars, "keybindings"s, input.keybindings);
 
@@ -2085,14 +2087,14 @@ namespace config {
     if (shortcut_launch) {
       if (!service_ctrl::is_service_running()) {
         // If the service isn't running, relaunch ourselves as admin to start it
-        WCHAR executable[MAX_PATH];
-        GetModuleFileNameW(nullptr, executable, ARRAYSIZE(executable));
+        std::array<WCHAR, MAX_PATH> executable;
+        GetModuleFileNameW(nullptr, executable.data(), executable.size());
 
         SHELLEXECUTEINFOW shell_exec_info {};
         shell_exec_info.cbSize = sizeof(shell_exec_info);
         shell_exec_info.fMask = SEE_MASK_NOASYNC | SEE_MASK_NO_CONSOLE | SEE_MASK_NOCLOSEPROCESS;
         shell_exec_info.lpVerb = L"runas";
-        shell_exec_info.lpFile = executable;
+        shell_exec_info.lpFile = executable.data();
         shell_exec_info.lpParameters = L"--shortcut-admin";
         shell_exec_info.nShow = SW_NORMAL;
         if (!ShellExecuteExW(&shell_exec_info)) {

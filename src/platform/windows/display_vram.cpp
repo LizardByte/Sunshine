@@ -3,6 +3,7 @@
  * @brief Definitions for handling video ram.
  */
 // standard includes
+#include <array>
 #include <cmath>
 
 // platform includes
@@ -728,7 +729,7 @@ namespace platf::dxgi {
       out_UV_viewport = {offsetX / 2, offsetY / 2, out_width_f / 2, out_height_f / 2, 0.0f, 1.0f};
       out_UV_viewport_for_clear = {0, 0, (float) out_width / 2, (float) out_height / 2, 0.0f, 1.0f};
 
-      float subsample_offset_in[16 / sizeof(float)] {1.0f / (float) out_width_f, 1.0f / (float) out_height_f};  // aligned to 16-byte
+      std::array<float, 16 / sizeof(float)> subsample_offset_in {1.0f / (float) out_width_f, 1.0f / (float) out_height_f};  // aligned to 16-byte
       subsample_offset = make_buffer(device.get(), subsample_offset_in);
 
       if (!subsample_offset) {
@@ -739,7 +740,7 @@ namespace platf::dxgi {
 
       {
         int32_t rotation_modifier = display->display_rotation == DXGI_MODE_ROTATION_UNSPECIFIED ? 0 : display->display_rotation - 1;
-        int32_t rotation_data[16 / sizeof(int32_t)] {-rotation_modifier};  // aligned to 16-byte
+        std::array<int32_t, 16 / sizeof(int32_t)> rotation_data {-rotation_modifier};  // aligned to 16-byte
         auto rotation = make_buffer(device.get(), rotation_data);
         if (!rotation) {
           BOOST_LOG(error) << "Failed to create display rotation vertex constant buffer";
@@ -808,11 +809,11 @@ namespace platf::dxgi {
 
       if (rtv_simple_clear) {
         // Clear the RTVs to ensure the aspect ratio padding is black
-        const float y_black[] = {0.0f, 0.0f, 0.0f, 0.0f};
-        device_ctx->ClearRenderTargetView(out_Y_or_YUV_rtv.get(), y_black);
+        const std::array<float, 4> y_black = {0.0f, 0.0f, 0.0f, 0.0f};
+        device_ctx->ClearRenderTargetView(out_Y_or_YUV_rtv.get(), y_black.data());
         if (out_UV_rtv) {
-          const float uv_black[] = {0.5f, 0.5f, 0.5f, 0.5f};
-          device_ctx->ClearRenderTargetView(out_UV_rtv.get(), uv_black);
+          const std::array<float, 4> uv_black = {0.5f, 0.5f, 0.5f, 0.5f};
+          device_ctx->ClearRenderTargetView(out_UV_rtv.get(), uv_black.data());
         }
         rtvs_cleared = true;
       } else {
@@ -833,23 +834,24 @@ namespace platf::dxgi {
      */
     int init(std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p, pix_fmt_e pix_fmt) {
       switch (pix_fmt) {
-        case pix_fmt_e::nv12:
+        using enum pix_fmt_e;
+        case nv12:
           format = DXGI_FORMAT_NV12;
           break;
 
-        case pix_fmt_e::p010:
+        case p010:
           format = DXGI_FORMAT_P010;
           break;
 
-        case pix_fmt_e::ayuv:
+        case ayuv:
           format = DXGI_FORMAT_AYUV;
           break;
 
-        case pix_fmt_e::yuv444p16:
+        case yuv444p16:
           format = DXGI_FORMAT_R16_UINT;
           break;
 
-        case pix_fmt_e::y410:
+        case y410:
           format = DXGI_FORMAT_Y410;
           break;
 
@@ -858,7 +860,7 @@ namespace platf::dxgi {
           return -1;
       }
 
-      D3D_FEATURE_LEVEL featureLevels[] {
+      std::array<D3D_FEATURE_LEVEL, 7> featureLevels {
         D3D_FEATURE_LEVEL_11_1,
         D3D_FEATURE_LEVEL_11_0,
         D3D_FEATURE_LEVEL_10_1,
@@ -873,8 +875,8 @@ namespace platf::dxgi {
         D3D_DRIVER_TYPE_UNKNOWN,
         nullptr,
         D3D11_CREATE_DEVICE_FLAGS | D3D11_CREATE_DEVICE_VIDEO_SUPPORT,
-        featureLevels,
-        sizeof(featureLevels) / sizeof(D3D_FEATURE_LEVEL),
+        featureLevels.data(),
+        featureLevels.size(),
         D3D11_SDK_VERSION,
         &device,
         nullptr,
@@ -1196,8 +1198,8 @@ namespace platf::dxgi {
       if (!frame->buf[0]) {
         auto err = av_hwframe_get_buffer(hw_frames_ctx, frame, 0);
         if (err) {
-          char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
-          BOOST_LOG(error) << "Failed to get hwframe buffer: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
+          std::array<char, AV_ERROR_MAX_STRING_SIZE> err_str {0};
+          BOOST_LOG(error) << "Failed to get hwframe buffer: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, err);
           return -1;
         }
       }
@@ -1211,8 +1213,8 @@ namespace platf::dxgi {
 
         auto err = av_hwframe_map(d3d11_frame.get(), frame, AV_HWFRAME_MAP_WRITE | AV_HWFRAME_MAP_OVERWRITE);
         if (err) {
-          char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
-          BOOST_LOG(error) << "Failed to map D3D11 frame: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
+          std::array<char, AV_ERROR_MAX_STRING_SIZE> err_str {0};
+          BOOST_LOG(error) << "Failed to map D3D11 frame: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, err);
           return -1;
         }
 
@@ -1742,8 +1744,8 @@ namespace platf::dxgi {
           }
 
           if (reclear_dummy) {
-            const float rgb_black[] = {0.0f, 0.0f, 0.0f, 0.0f};
-            device_ctx->ClearRenderTargetView(d3d_img->capture_rt.get(), rgb_black);
+            const std::array<float, 4> rgb_black = {0.0f, 0.0f, 0.0f, 0.0f};
+            device_ctx->ClearRenderTargetView(d3d_img->capture_rt.get(), rgb_black.data());
           }
 
           if (blend_mouse_cursor_flag) {
@@ -1798,7 +1800,7 @@ namespace platf::dxgi {
 
     {
       int32_t rotation_modifier = display_rotation == DXGI_MODE_ROTATION_UNSPECIFIED ? 0 : display_rotation - 1;
-      int32_t rotation_data[16 / sizeof(int32_t)] {rotation_modifier};  // aligned to 16-byte
+      std::array<int32_t, 16 / sizeof(int32_t)> rotation_data {rotation_modifier};  // aligned to 16-byte
       auto rotation = make_buffer(device.get(), rotation_data);
       if (!rotation) {
         BOOST_LOG(error) << "Failed to create display rotation vertex constant buffer";
@@ -1818,7 +1820,7 @@ namespace platf::dxgi {
       // Use a 300 nit target for the mouse cursor. We should really get
       // the user's SDR white level in nits, but there is no API that
       // provides that information to Win32 apps.
-      float white_multiplier_data[16 / sizeof(float)] {300.0f / 80.f};  // aligned to 16-byte
+      std::array<float, 16 / sizeof(float)> white_multiplier_data {300.0f / 80.f};  // aligned to 16-byte
       auto white_multiplier = make_buffer(device.get(), white_multiplier_data);
       if (!white_multiplier) {
         BOOST_LOG(warning) << "Failed to create cursor blending (normalized white) white multiplier constant buffer";

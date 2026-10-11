@@ -3,6 +3,7 @@
  * @brief Definitions for UPnP port mapping.
  */
 // standard includes
+#include <array>
 #include <stddef.h>  // workaround for type_t error in miniupnpc 2.3.3, see https://github.com/miniupnp/miniupnp/commit/e263ab6f56c382e10fed31347ec68095d691a0e8
 
 // lib includes
@@ -145,10 +146,10 @@ namespace upnp {
 
             for (auto it = std::begin(mappings); it != std::end(mappings) && !shutdown_event->peek(); ++it) {
               auto mapping = *it;
-              char uniqueId[8];
+              std::array<char, 8> uniqueId;
 
               // Open a pinhole for the LAN port, since there will be no WAN->LAN port mapping on IPv6
-              err = UPNP_AddPinhole(urls->controlURL_6FC, data.IPv6FC.servicetype, "", "0", lan_addr.data(), mapping.port.lan.c_str(), mapping.port.proto.c_str(), mapping_period.c_str(), uniqueId);
+              err = UPNP_AddPinhole(urls->controlURL_6FC, data.IPv6FC.servicetype, "", "0", lan_addr.data(), mapping.port.lan.c_str(), mapping.port.proto.c_str(), mapping_period.c_str(), uniqueId.data());
               if (err == UPNPCOMMAND_SUCCESS) {
                 BOOST_LOG(debug) << "Successfully created pinhole for "sv << mapping.port.proto << ' ' << mapping.port.lan;
               } else {
@@ -180,11 +181,11 @@ namespace upnp {
      * @return `true` on success.
      */
     bool map_upnp_port(const IGDdatas &data, const urls_t &urls, const std::string &lan_addr, const mapping_t &mapping) {
-      char intClient[16];
-      char intPort[6];
-      char desc[80];
-      char enabled[4];
-      char leaseDuration[16];
+      std::array<char, 16> intClient;
+      std::array<char, 6> intPort;
+      std::array<char, 80> desc;
+      std::array<char, 4> enabled;
+      std::array<char, 16> leaseDuration;
       bool indefinite = false;
 
       // First check if this port is already mapped successfully
@@ -197,27 +198,27 @@ namespace upnp {
         mapping.port.proto.c_str(),
         nullptr,
         // Out params
-        intClient,
-        intPort,
-        desc,
-        enabled,
-        leaseDuration
+        intClient.data(),
+        intPort.data(),
+        desc.data(),
+        enabled.data(),
+        leaseDuration.data()
       );
       if (err == 714) {  // NoSuchEntryInArray
         BOOST_LOG(debug) << "Mapping entry not found for "sv << mapping.port.wan;
       } else if (err == UPNPCOMMAND_SUCCESS) {
         // Some routers change the description, so we can't check that here
-        if (!std::strcmp(intClient, lan_addr.c_str())) {
-          if (std::atoi(leaseDuration) == 0) {
+        if (std::string_view {intClient.data()} == lan_addr) {
+          if (std::atoi(leaseDuration.data()) == 0) {
             BOOST_LOG(debug) << "Static mapping entry found for "sv << mapping.port.wan;
 
             // It's a static mapping, so we're done here
             return true;
           } else {
-            BOOST_LOG(debug) << "Mapping entry found for "sv << mapping.port.wan << " ("sv << leaseDuration << " seconds remaining)"sv;
+            BOOST_LOG(debug) << "Mapping entry found for "sv << mapping.port.wan << " ("sv << leaseDuration.data() << " seconds remaining)"sv;
           }
         } else {
-          BOOST_LOG(warning) << "UPnP conflict detected with: "sv << intClient;
+          BOOST_LOG(warning) << "UPnP conflict detected with: "sv << intClient.data();
 
           // Some UPnP IGDs won't let unauthenticated clients delete other conflicting port mappings
           // for security reasons, but we will give it a try anyway.

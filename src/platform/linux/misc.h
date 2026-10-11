@@ -65,6 +65,24 @@ namespace portal {
   void clear_saved_token();
 
   /**
+   * @brief Get path of the XDG Portal restore token.
+   *
+   * @return Path of token that may include the session desktop as a suffix (e.g. .gnome, .kde).
+   */
+  std::filesystem::path get_saved_token_path();
+
+  #ifdef SUNSHINE_TESTS
+  /**
+   * @brief Resolve and migrate a saved token using isolated test inputs.
+   *
+   * @param directory Directory containing test tokens.
+   * @param desktop Session desktop used to select the token suffix.
+   * @return Path of the selected test token.
+   */
+  std::filesystem::path get_saved_token_path_for_testing(const std::filesystem::path &directory, const std::string &desktop);
+  #endif
+
+  /**
    * @brief Check if the Portal service responds to a DBus Ping within 2 seconds.
    *
    * @return True if the Portal is reachable.

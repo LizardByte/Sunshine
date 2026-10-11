@@ -281,6 +281,11 @@ target_compile_options(${PROJECT_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSH
 target_link_options(${PROJECT_NAME} PRIVATE ${SUNSHINE_LINK_OPTIONS})
 
 if (WIN32)
+    # Compile the utility test with the SDK 13.1 implementation namespace and headers.
+    set_source_files_properties(unit/test_nvenc_utils.cpp PROPERTIES
+            COMPILE_DEFINITIONS "NVENC_NAMESPACE=nvenc_1301;NVENC_SDK_VERSION=1301"
+            INCLUDE_DIRECTORIES "${NV_CODEC_HEADERS_13_1_INCLUDE_DIR}")
+
     # prefer static libraries since we're linking statically
     # this fixes libcurl linking errors when using non MSYS2 version of CMake
     set_target_properties(${PROJECT_NAME} PROPERTIES LINK_SEARCH_START_STATIC 1)

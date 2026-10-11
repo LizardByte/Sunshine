@@ -2069,6 +2069,7 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
         <td>Description</td>
         <td colspan="2">
             Percentage of error correcting packets per data packet in each video frame.
+            Set to <code>0</code> to disable forward error correction.
             @warning{Higher values can correct for more network packet loss,
             but at the cost of increasing bandwidth usage.}
         </td>
@@ -2081,7 +2082,7 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     </tr>
     <tr>
         <td>Range</td>
-        <td colspan="2">1-255</td>
+        <td colspan="2">0-100</td>
     </tr>
     <tr>
         <td>Example</td>

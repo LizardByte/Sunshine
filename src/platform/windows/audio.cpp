@@ -5,6 +5,7 @@
 #define INITGUID
 
 // standard includes
+#include <array>
 #include <format>
 #include <functional>
 #include <type_traits>
@@ -137,7 +138,7 @@ namespace {
   using virtual_sink_waveformats_t = std::vector<WAVEFORMATEXTENSIBLE>;
 
   /**
-   * @brief List of supported waveformats for an N-channel virtual audio device
+   * @brief Build supported waveformats in preference order for an N-channel virtual audio device.
    * @tparam channel_count Number of virtual audio channels
    * @returns std::vector<WAVEFORMATEXTENSIBLE>
    * @note The list of virtual formats returned are sorted in preference order and the first valid
@@ -146,40 +147,41 @@ namespace {
    */
   template<WORD channel_count>
   virtual_sink_waveformats_t create_virtual_sink_waveformats() {
+    using enum sample_format_e;
     if constexpr (channel_count == 2) {
       auto channel_mask = waveformat_mask_stereo;
       // The 32-bit formats are a lower priority for stereo because using one will disable Dolby/DTS
       // spatial audio mode if the user enabled it on the Steam speaker.
       return {
-        create_waveformat(sample_format_e::s24in32, channel_count, channel_mask),
-        create_waveformat(sample_format_e::s24, channel_count, channel_mask),
-        create_waveformat(sample_format_e::s16, channel_count, channel_mask),
-        create_waveformat(sample_format_e::f32, channel_count, channel_mask),
-        create_waveformat(sample_format_e::s32, channel_count, channel_mask),
+        create_waveformat(s24in32, channel_count, channel_mask),
+        create_waveformat(s24, channel_count, channel_mask),
+        create_waveformat(s16, channel_count, channel_mask),
+        create_waveformat(f32, channel_count, channel_mask),
+        create_waveformat(s32, channel_count, channel_mask),
       };
     } else if (channel_count == 6) {
       auto channel_mask1 = waveformat_mask_surround51_with_backspeakers;
       auto channel_mask2 = waveformat_mask_surround51_with_sidespeakers;
       return {
-        create_waveformat(sample_format_e::f32, channel_count, channel_mask1),
-        create_waveformat(sample_format_e::f32, channel_count, channel_mask2),
-        create_waveformat(sample_format_e::s32, channel_count, channel_mask1),
-        create_waveformat(sample_format_e::s32, channel_count, channel_mask2),
-        create_waveformat(sample_format_e::s24in32, channel_count, channel_mask1),
-        create_waveformat(sample_format_e::s24in32, channel_count, channel_mask2),
-        create_waveformat(sample_format_e::s24, channel_count, channel_mask1),
-        create_waveformat(sample_format_e::s24, channel_count, channel_mask2),
-        create_waveformat(sample_format_e::s16, channel_count, channel_mask1),
-        create_waveformat(sample_format_e::s16, channel_count, channel_mask2),
+        create_waveformat(f32, channel_count, channel_mask1),
+        create_waveformat(f32, channel_count, channel_mask2),
+        create_waveformat(s32, channel_count, channel_mask1),
+        create_waveformat(s32, channel_count, channel_mask2),
+        create_waveformat(s24in32, channel_count, channel_mask1),
+        create_waveformat(s24in32, channel_count, channel_mask2),
+        create_waveformat(s24, channel_count, channel_mask1),
+        create_waveformat(s24, channel_count, channel_mask2),
+        create_waveformat(s16, channel_count, channel_mask1),
+        create_waveformat(s16, channel_count, channel_mask2),
       };
     } else if (channel_count == 8) {
       auto channel_mask = waveformat_mask_surround71;
       return {
-        create_waveformat(sample_format_e::f32, channel_count, channel_mask),
-        create_waveformat(sample_format_e::s32, channel_count, channel_mask),
-        create_waveformat(sample_format_e::s24in32, channel_count, channel_mask),
-        create_waveformat(sample_format_e::s24, channel_count, channel_mask),
-        create_waveformat(sample_format_e::s16, channel_count, channel_mask),
+        create_waveformat(f32, channel_count, channel_mask),
+        create_waveformat(s32, channel_count, channel_mask),
+        create_waveformat(s24in32, channel_count, channel_mask),
+        create_waveformat(s24, channel_count, channel_mask),
+        create_waveformat(s16, channel_count, channel_mask),
       };
     }
   }
@@ -1183,11 +1185,12 @@ namespace platf::audio {
      * @return Field list requiring every supported endpoint field to match the name.
      */
     audio_control_t::match_fields_list_t match_all_fields(const std::wstring &name) {
+      using enum match_field_e;
       return {
-        {match_field_e::device_id, name},  // {0.0.0.00000000}.{29dd7668-45b2-4846-882d-950f55bf7eb8}
-        {match_field_e::device_friendly_name, name},  // Digital Audio (S/PDIF) (High Definition Audio Device)
-        {match_field_e::device_description, name},  // Digital Audio (S/PDIF)
-        {match_field_e::adapter_friendly_name, name},  // High Definition Audio Device
+        {device_id, name},  // {0.0.0.00000000}.{29dd7668-45b2-4846-882d-950f55bf7eb8}
+        {device_friendly_name, name},  // Digital Audio (S/PDIF) (High Definition Audio Device)
+        {device_description, name},  // Digital Audio (S/PDIF)
+        {adapter_friendly_name, name},  // High Definition Audio Device
       };
     }
 
@@ -1358,9 +1361,9 @@ namespace platf::audio {
       auto old_default_dev = default_device(device_enum);
 
       // Install the Steam Streaming Speakers driver
-      WCHAR driver_path[MAX_PATH] = {};
-      ExpandEnvironmentStringsW(STEAM_AUDIO_DRIVER_PATH, driver_path, ARRAYSIZE(driver_path));
-      if (fn_DiInstallDriverW(nullptr, driver_path, 0, nullptr)) {
+      std::array<WCHAR, MAX_PATH> driver_path = {};
+      ExpandEnvironmentStringsW(STEAM_AUDIO_DRIVER_PATH, driver_path.data(), driver_path.size());
+      if (fn_DiInstallDriverW(nullptr, driver_path.data(), 0, nullptr)) {
         BOOST_LOG(info) << "Successfully installed Steam Streaming Speakers"sv;
 
         // Wait for 5 seconds to allow the audio subsystem to reconfigure things before
@@ -1456,6 +1459,25 @@ namespace platf::audio {
 
 #ifdef SUNSHINE_TESTS
   namespace tests {
+    /**
+     * @brief Build production virtual speaker formats without initializing audio hardware.
+     *
+     * @param channel_count Supported virtual speaker channel count.
+     * @return Preferred waveformats, or an empty list for unsupported channel counts.
+     */
+    std::vector<WAVEFORMATEXTENSIBLE> virtual_sink_waveformats(WORD channel_count) {
+      switch (channel_count) {
+        case 2:
+          return create_virtual_sink_waveformats<2>();
+        case 6:
+          return create_virtual_sink_waveformats<6>();
+        case 8:
+          return create_virtual_sink_waveformats<8>();
+        default:
+          return {};
+      }
+    }
+
     /**
      * @brief Exercise controller initialization with a supplied COM factory.
      * @param create_instance Factory providing or rejecting the requested interfaces.

@@ -3,6 +3,7 @@
  * @brief Definitions for audio capture and encoding.
  */
 // standard includes
+#include <array>
 #include <thread>
 
 // lib includes
@@ -48,7 +49,7 @@ namespace audio {
   /**
    * @brief Opus stream layouts and bitrates advertised to clients.
    */
-  opus_stream_config_t stream_configs[MAX_STREAM_CONFIG] {
+  const std::array<opus_stream_config_t, MAX_STREAM_CONFIG> stream_configs {{
     {
       SAMPLE_RATE,
       2,
@@ -97,7 +98,7 @@ namespace audio {
       platf::speaker::map_surround71.data(),
       2048000,
     },
-  };
+  }};
 
   /**
    * @brief Encode captured PCM samples into Opus packets on the audio worker thread.
@@ -352,6 +353,6 @@ namespace audio {
     stream.channelCount = params.channelCount;
     stream.streams = params.streams;
     stream.coupledStreams = params.coupledStreams;
-    stream.mapping = params.mapping;
+    stream.mapping = params.mapping.data();
   }
 }  // namespace audio

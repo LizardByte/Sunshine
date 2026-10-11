@@ -4,6 +4,7 @@
  */
 
 // standard includes
+#include <array>
 #include <cstring>
 #include <fstream>
 #include <future>
@@ -54,7 +55,7 @@ constexpr int IDX_SET_RGB_LED = 14;  ///< Control-stream message index for set r
 constexpr int IDX_SET_ADAPTIVE_TRIGGERS = 15;  ///< Control-stream message index for set adaptive triggers.
 constexpr int IDX_SET_PLAYER_LEDS = 16;  ///< Control-stream message index for set player indicator LEDs.
 
-static const short packetTypes[] = {
+static const std::array<short, 17> packetTypes = {
   0x0305,  // Start A
   0x0307,  // Start B
   0x0301,  // Invalidate reference frames
@@ -125,7 +126,7 @@ namespace stream {
     // zero padding, such as AV1 (Sunshine extension).
     boost::endian::little_uint16_at lastPayloadLen;  ///< Last payload len.
 
-    std::uint8_t unknown[2];  ///< Reserved bytes with no known client-visible meaning.
+    std::array<std::uint8_t, 2> unknown;  ///< Reserved bytes with no known client-visible meaning.
   };
 
   static_assert(
@@ -147,7 +148,7 @@ namespace stream {
     }
 
     RTP_PACKET rtp;  ///< RTP header that prefixes this payload.
-    char reserved[4];  ///< Reserved protocol padding bytes.
+    std::array<char, 4> reserved;  ///< Reserved protocol padding bytes.
 
     NV_VIDEO_PACKET packet;  ///< GameStream video packet header.
   };
@@ -159,9 +160,9 @@ namespace stream {
     /**
      * @brief IV.
      */
-    std::uint8_t iv[12];  // 12-byte IV is ideal for AES-GCM
+    std::array<std::uint8_t, 12> iv;  // 12-byte IV is ideal for AES-GCM
     std::uint32_t frameNumber;  ///< Frame number.
-    std::uint8_t tag[16];  ///< Authentication tag appended to the encrypted payload.
+    std::array<std::uint8_t, 16> tag;  ///< Authentication tag appended to the encrypted payload.
   };
 
   /**
@@ -269,8 +270,8 @@ namespace stream {
     std::uint8_t event_flags;
     std::uint8_t type_left;  ///< Adaptive-trigger mode for the left trigger.
     std::uint8_t type_right;  ///< Adaptive-trigger mode for the right trigger.
-    std::uint8_t left[DS_EFFECT_PAYLOAD_SIZE];  ///< Left adaptive-trigger effect payload.
-    std::uint8_t right[DS_EFFECT_PAYLOAD_SIZE];  ///< Right adaptive-trigger effect payload.
+    std::array<std::uint8_t, DS_EFFECT_PAYLOAD_SIZE> left;  ///< Left adaptive-trigger effect payload.
+    std::array<std::uint8_t, DS_EFFECT_PAYLOAD_SIZE> right;  ///< Right adaptive-trigger effect payload.
   };
 
   /**
@@ -316,6 +317,15 @@ namespace stream {
   };
 
 #pragma pack(pop)
+
+  static_assert(sizeof(video_packet_raw_t) == sizeof(RTP_PACKET) + 4 + sizeof(NV_VIDEO_PACKET));
+  static_assert(offsetof(video_packet_raw_t, packet) == sizeof(RTP_PACKET) + 4);
+  static_assert(sizeof(video_packet_enc_prefix_t) == 32);
+  static_assert(offsetof(video_packet_enc_prefix_t, frameNumber) == 12);
+  static_assert(offsetof(video_packet_enc_prefix_t, tag) == 16);
+  static_assert(sizeof(control_adaptive_triggers_t) == 9 + 2 * DS_EFFECT_PAYLOAD_SIZE);
+  static_assert(offsetof(control_adaptive_triggers_t, left) == 9);
+  static_assert(offsetof(control_adaptive_triggers_t, right) == 9 + DS_EFFECT_PAYLOAD_SIZE);
 
   /**
    * @brief Round a byte count up to the next PKCS#7 padding boundary.
@@ -1097,9 +1107,9 @@ namespace stream {
       plaintext.id = util::endian::little(msg.id);
       plaintext.event_flags = msg.data.adaptive_triggers.event_flags;
       plaintext.type_left = msg.data.adaptive_triggers.type_left;
-      std::ranges::copy(msg.data.adaptive_triggers.left, plaintext.left);
+      std::ranges::copy(msg.data.adaptive_triggers.left, plaintext.left.begin());
       plaintext.type_right = msg.data.adaptive_triggers.type_right;
-      std::ranges::copy(msg.data.adaptive_triggers.right, plaintext.right);
+      std::ranges::copy(msg.data.adaptive_triggers.right, plaintext.right.begin());
 
       std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
         encrypted_payload;
@@ -1434,8 +1444,8 @@ namespace stream {
 
     udp::endpoint peer;
 
-    std::array<char, 2048> buf[2];
-    std::function<void(const boost::system::error_code, size_t)> recv_func[2];
+    std::array<std::array<char, 2048>, 2> buf;
+    std::array<std::function<void(const boost::system::error_code, size_t)>, 2> recv_func;
 
     platf::set_thread_name("stream::recv");
 
@@ -1762,8 +1772,8 @@ namespace stream {
               // Encrypt the target buffer in place
               auto *prefix = (video_packet_enc_prefix_t *) shards.prefix(x);
               prefix->frameNumber = (std::uint32_t) packet->frame_index();
-              std::copy(std::begin(iv), std::end(iv), prefix->iv);
-              session->video.cipher->encrypt(std::string_view {(char *) inspect, (size_t) blocksize}, prefix->tag, (uint8_t *) inspect, &iv);
+              std::copy(std::begin(iv), std::end(iv), prefix->iv.begin());
+              session->video.cipher->encrypt(std::string_view {(char *) inspect, (size_t) blocksize}, prefix->tag.data(), (uint8_t *) inspect, &iv);
             }
 
             if (x - next_shard_to_send + 1 >= send_batch_size || x + 1 == shards.size()) {

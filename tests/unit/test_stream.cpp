@@ -25,25 +25,25 @@ namespace stream {
 }  // namespace stream
 
 TEST(ConcatAndInsertTests, ConcatNoInsertionTest) {
-  char b1[] = {'a', 'b'};
-  char b2[] = {'c', 'd', 'e'};
-  auto res = stream::concat_and_insert(0, 2, std::string_view {b1, sizeof(b1)}, std::string_view {b2, sizeof(b2)});
+  std::array<char, 2> b1 = {'a', 'b'};
+  std::array<char, 3> b2 = {'c', 'd', 'e'};
+  auto res = stream::concat_and_insert(0, 2, std::string_view {b1.data(), b1.size()}, std::string_view {b2.data(), b2.size()});
   auto expected = std::vector<uint8_t> {'a', 'b', 'c', 'd', 'e'};
   ASSERT_EQ(res, expected);
 }
 
 TEST(ConcatAndInsertTests, ConcatLargeStrideTest) {
-  char b1[] = {'a', 'b'};
-  char b2[] = {'c', 'd', 'e'};
-  auto res = stream::concat_and_insert(1, sizeof(b1) + sizeof(b2) + 1, std::string_view {b1, sizeof(b1)}, std::string_view {b2, sizeof(b2)});
+  std::array<char, 2> b1 = {'a', 'b'};
+  std::array<char, 3> b2 = {'c', 'd', 'e'};
+  auto res = stream::concat_and_insert(1, b1.size() + b2.size() + 1, std::string_view {b1.data(), b1.size()}, std::string_view {b2.data(), b2.size()});
   auto expected = std::vector<uint8_t> {0, 'a', 'b', 'c', 'd', 'e'};
   ASSERT_EQ(res, expected);
 }
 
 TEST(ConcatAndInsertTests, ConcatSmallStrideTest) {
-  char b1[] = {'a', 'b'};
-  char b2[] = {'c', 'd', 'e'};
-  auto res = stream::concat_and_insert(1, 1, std::string_view {b1, sizeof(b1)}, std::string_view {b2, sizeof(b2)});
+  std::array<char, 2> b1 = {'a', 'b'};
+  std::array<char, 3> b2 = {'c', 'd', 'e'};
+  auto res = stream::concat_and_insert(1, 1, std::string_view {b1.data(), b1.size()}, std::string_view {b2.data(), b2.size()});
   auto expected = std::vector<uint8_t> {0, 'a', 0, 'b', 0, 'c', 0, 'd', 0, 'e'};
   ASSERT_EQ(res, expected);
 }
