@@ -5,6 +5,7 @@
 #pragma once
 
 // standard includes
+#include <array>
 #include <random>
 
 /**
@@ -15,10 +16,10 @@ namespace uuid_util {
    * @brief UUID value exposed through multiple integer views.
    */
   union uuid_t {
-    std::uint8_t b8[16];  ///< UUID bytes.
-    std::uint16_t b16[8];  ///< UUID viewed as 16-bit words.
-    std::uint32_t b32[4];  ///< UUID viewed as 32-bit words.
-    std::uint64_t b64[2];  ///< UUID viewed as 64-bit words.
+    std::array<std::uint8_t, 16> b8;  ///< UUID bytes.
+    std::array<std::uint16_t, 8> b16;  ///< UUID viewed as 16-bit words.
+    std::array<std::uint32_t, 4> b32;  ///< UUID viewed as 32-bit words.
+    std::array<std::uint64_t, 2> b64;  ///< UUID viewed as 64-bit words.
 
     /**
      * @brief Generate a UUID value.
@@ -66,7 +67,7 @@ namespace uuid_util {
       auto hex = util::hex(*this, true);
       auto hex_view = hex.to_string_view();
 
-      std::string_view slices[] = {
+      std::array<std::string_view, 4> slices = {
         hex_view.substr(0, 8),
         hex_view.substr(8, 4),
         hex_view.substr(12, 4),

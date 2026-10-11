@@ -3,6 +3,7 @@
  * @brief Definitions for the Windows display base code.
  */
 // standard includes
+#include <array>
 #include <cmath>
 #include <thread>
 
@@ -366,7 +367,7 @@ namespace platf::dxgi {
    * @return True when Desktop Duplication can capture the requested output.
    */
   bool test_dxgi_duplication(adapter_t &adapter, output_t &output, bool enumeration_only) {
-    D3D_FEATURE_LEVEL featureLevels[] {
+    std::array<D3D_FEATURE_LEVEL, 7> featureLevels {
       D3D_FEATURE_LEVEL_11_1,
       D3D_FEATURE_LEVEL_11_0,
       D3D_FEATURE_LEVEL_10_1,
@@ -382,8 +383,8 @@ namespace platf::dxgi {
       D3D_DRIVER_TYPE_UNKNOWN,
       nullptr,
       D3D11_CREATE_DEVICE_FLAGS,
-      featureLevels,
-      sizeof(featureLevels) / sizeof(D3D_FEATURE_LEVEL),
+      featureLevels.data(),
+      featureLevels.size(),
       D3D11_SDK_VERSION,
       &device,
       nullptr,
@@ -561,7 +562,7 @@ namespace platf::dxgi {
       return -1;
     }
 
-    D3D_FEATURE_LEVEL featureLevels[] {
+    std::array<D3D_FEATURE_LEVEL, 7> featureLevels {
       D3D_FEATURE_LEVEL_11_1,
       D3D_FEATURE_LEVEL_11_0,
       D3D_FEATURE_LEVEL_10_1,
@@ -582,8 +583,8 @@ namespace platf::dxgi {
       D3D_DRIVER_TYPE_UNKNOWN,
       nullptr,
       D3D11_CREATE_DEVICE_FLAGS,
-      featureLevels,
-      sizeof(featureLevels) / sizeof(D3D_FEATURE_LEVEL),
+      featureLevels.data(),
+      featureLevels.size(),
       D3D11_SDK_VERSION,
       &device,
       &feature_level,
@@ -830,7 +831,7 @@ namespace platf::dxgi {
   /**
    * @brief Names for DXGI_FORMAT values used in diagnostic logging.
    */
-  const char *format_str[] = {
+  const std::array<const char *, 133> format_str = {
     "DXGI_FORMAT_UNKNOWN",
     "DXGI_FORMAT_R32G32B32A32_TYPELESS",
     "DXGI_FORMAT_R32G32B32A32_FLOAT",
@@ -973,7 +974,7 @@ namespace platf::dxgi {
   }
 
   const char *display_base_t::colorspace_to_string(DXGI_COLOR_SPACE_TYPE type) {
-    const char *type_str[] = {
+    std::array<const char *, 25> type_str = {
       "DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709",
       "DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709",
       "DXGI_COLOR_SPACE_RGB_STUDIO_G22_NONE_P709",
@@ -1001,7 +1002,7 @@ namespace platf::dxgi {
       "DXGI_COLOR_SPACE_YCBCR_STUDIO_G24_TOPLEFT_P2020",
     };
 
-    if (type < ARRAYSIZE(type_str)) {
+    if (type < type_str.size()) {
       return type_str[type];
     } else {
       return "UNKNOWN";

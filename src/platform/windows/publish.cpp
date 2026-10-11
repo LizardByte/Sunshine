@@ -5,6 +5,7 @@
 // platform includes
 // WinSock2.h must be included before Windows.h
 // clang-format off
+#include <array>
 #include <WinSock2.h>
 #include <Windows.h>
 // clang-format on
@@ -171,11 +172,11 @@ namespace platf::publish {
     // Most clients aren't strictly checking TXT record compliance with RFC 1035,
     // but Apple's mDNS resolver does and rejects the entire answer if an invalid
     // TXT record is present.
-    PWCHAR keys[] = {nullptr};
-    PWCHAR values[] = {nullptr};
+    std::array<PWCHAR, 1> keys = {nullptr};
+    std::array<PWCHAR, 1> values = {nullptr};
     instance.dwPropertyCount = 1;
-    instance.keys = keys;
-    instance.values = values;
+    instance.keys = keys.data();
+    instance.values = values.data();
 
     DNS_SERVICE_REGISTER_REQUEST req {};
     req.Version = DNS_QUERY_REQUEST_VERSION1;

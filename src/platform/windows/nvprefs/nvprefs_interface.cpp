@@ -3,6 +3,7 @@
  * @brief Definitions for nvidia preferences interface.
  */
 // standard includes
+#include <array>
 #include <cassert>
 
 // local includes
@@ -45,15 +46,14 @@ namespace nvprefs {
   bool nvprefs_interface::load() {
     if (!pimpl->loaded) {
       // Check %ProgramData% variable, need it for storing undo file
-      wchar_t program_data_env[MAX_PATH];
-      auto get_env_result = GetEnvironmentVariableW(L"ProgramData", program_data_env, MAX_PATH);
-      if (get_env_result == 0 || get_env_result >= MAX_PATH || !std::filesystem::is_directory(program_data_env)) {
+      std::array<wchar_t, MAX_PATH> program_data_env;
+      if (auto get_env_result = GetEnvironmentVariableW(L"ProgramData", program_data_env.data(), program_data_env.size()); get_env_result == 0 || get_env_result >= MAX_PATH || !std::filesystem::is_directory(program_data_env.data())) {
         error_message("Missing or malformed %ProgramData% environment variable");
         return false;
       }
 
       // Prepare undo file path variables
-      pimpl->undo_folder_path = std::filesystem::path(program_data_env) / sunshine_program_data_folder;
+      pimpl->undo_folder_path = std::filesystem::path(program_data_env.data()) / sunshine_program_data_folder;
       pimpl->undo_file_path = pimpl->undo_folder_path / nvprefs_undo_file_name;
 
       // Dynamically load nvapi library and load driver settings

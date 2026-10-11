@@ -5,6 +5,7 @@
 #define INITGUID
 
 // platform includes
+#include <array>
 #include <Audioclient.h>
 #include <iostream>
 #include <locale>
@@ -59,50 +60,71 @@ namespace audio {
     PROPVARIANT prop;
   };
 
+  /**
+   * @brief Speaker layout available for audio device probing.
+   */
   struct format_t {
-    std::string_view name;
-    int channels;
-    int channel_mask;
-  } formats[] {
-    {"Mono"sv,
-     1,
-     SPEAKER_FRONT_CENTER},
-    {"Stereo"sv,
-     2,
-     SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT},
-    {"Quadraphonic"sv,
-     4,
-     SPEAKER_FRONT_LEFT |
-       SPEAKER_FRONT_RIGHT |
-       SPEAKER_BACK_LEFT |
-       SPEAKER_BACK_RIGHT},
-    {"Surround 5.1 (Side)"sv,
-     6,
-     SPEAKER_FRONT_LEFT |
-       SPEAKER_FRONT_RIGHT |
-       SPEAKER_FRONT_CENTER |
-       SPEAKER_LOW_FREQUENCY |
-       SPEAKER_SIDE_LEFT |
-       SPEAKER_SIDE_RIGHT},
-    {"Surround 5.1 (Back)"sv,
-     6,
-     SPEAKER_FRONT_LEFT |
-       SPEAKER_FRONT_RIGHT |
-       SPEAKER_FRONT_CENTER |
-       SPEAKER_LOW_FREQUENCY |
-       SPEAKER_BACK_LEFT |
-       SPEAKER_BACK_RIGHT},
-    {"Surround 7.1"sv,
-     8,
-     SPEAKER_FRONT_LEFT |
-       SPEAKER_FRONT_RIGHT |
-       SPEAKER_FRONT_CENTER |
-       SPEAKER_LOW_FREQUENCY |
-       SPEAKER_BACK_LEFT |
-       SPEAKER_BACK_RIGHT |
-       SPEAKER_SIDE_LEFT |
-       SPEAKER_SIDE_RIGHT}
+    std::string_view name;  ///< Display name of the speaker layout.
+    int channels;  ///< Number of channels in the layout.
+    int channel_mask;  ///< Windows speaker-position mask.
   };
+
+  /**
+   * @brief Speaker layouts tested when probing an audio device.
+   */
+  const std::array<format_t, 6> formats {{
+    {
+      "Mono"sv,
+      1,
+      SPEAKER_FRONT_CENTER,
+    },
+    {
+      "Stereo"sv,
+      2,
+      SPEAKER_FRONT_LEFT |
+        SPEAKER_FRONT_RIGHT,
+    },
+    {
+      "Quadraphonic"sv,
+      4,
+      SPEAKER_FRONT_LEFT |
+        SPEAKER_FRONT_RIGHT |
+        SPEAKER_BACK_LEFT |
+        SPEAKER_BACK_RIGHT,
+    },
+    {
+      "Surround 5.1 (Side)"sv,
+      6,
+      SPEAKER_FRONT_LEFT |
+        SPEAKER_FRONT_RIGHT |
+        SPEAKER_FRONT_CENTER |
+        SPEAKER_LOW_FREQUENCY |
+        SPEAKER_SIDE_LEFT |
+        SPEAKER_SIDE_RIGHT,
+    },
+    {
+      "Surround 5.1 (Back)"sv,
+      6,
+      SPEAKER_FRONT_LEFT |
+        SPEAKER_FRONT_RIGHT |
+        SPEAKER_FRONT_CENTER |
+        SPEAKER_LOW_FREQUENCY |
+        SPEAKER_BACK_LEFT |
+        SPEAKER_BACK_RIGHT,
+    },
+    {
+      "Surround 7.1"sv,
+      8,
+      SPEAKER_FRONT_LEFT |
+        SPEAKER_FRONT_RIGHT |
+        SPEAKER_FRONT_CENTER |
+        SPEAKER_LOW_FREQUENCY |
+        SPEAKER_BACK_LEFT |
+        SPEAKER_BACK_RIGHT |
+        SPEAKER_SIDE_LEFT |
+        SPEAKER_SIDE_RIGHT,
+    },
+  }};
 
   void set_wave_format(audio::wave_format_t &wave_format, const format_t &format) {
     wave_format->nChannels = format.channels;

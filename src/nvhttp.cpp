@@ -7,6 +7,7 @@
 
 // standard includes
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <filesystem>
 #include <format>
@@ -521,8 +522,8 @@ namespace nvhttp {
     launch_session->client_name = last_verified_client_name;
 
     // Generate the unique identifiers for this connection that we will send later during RTSP handshake
-    unsigned char raw_payload[8];
-    RAND_bytes(raw_payload, sizeof(raw_payload));
+    std::array<unsigned char, 8> raw_payload;
+    RAND_bytes(raw_payload.data(), raw_payload.size());
     launch_session->av_ping_payload = util::hex_vec(raw_payload);
     RAND_bytes((unsigned char *) &launch_session->control_connect_data, sizeof(launch_session->control_connect_data));
 
@@ -1651,11 +1652,11 @@ namespace nvhttp {
       int verified = 0;
 
       auto fg = util::fail_guard([&]() {
-        char subject_name[256];
+        std::array<char, 256> subject_name;
 
-        X509_NAME_oneline(X509_get_subject_name(x509.get()), subject_name, sizeof(subject_name));
+        X509_NAME_oneline(X509_get_subject_name(x509.get()), subject_name.data(), subject_name.size());
 
-        BOOST_LOG(debug) << subject_name << " -- "sv << (verified ? "verified"sv : "denied"sv);
+        BOOST_LOG(debug) << subject_name.data() << " -- "sv << (verified ? "verified"sv : "denied"sv);
       });
 
       std::lock_guard lock {client_auth_mutex()};

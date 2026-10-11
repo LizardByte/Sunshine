@@ -5,6 +5,7 @@
 #define INITGUID
 
 // standard includes
+#include <array>
 #include <format>
 #include <functional>
 #include <type_traits>
@@ -1360,9 +1361,9 @@ namespace platf::audio {
       auto old_default_dev = default_device(device_enum);
 
       // Install the Steam Streaming Speakers driver
-      WCHAR driver_path[MAX_PATH] = {};
-      ExpandEnvironmentStringsW(STEAM_AUDIO_DRIVER_PATH, driver_path, ARRAYSIZE(driver_path));
-      if (fn_DiInstallDriverW(nullptr, driver_path, 0, nullptr)) {
+      std::array<WCHAR, MAX_PATH> driver_path = {};
+      ExpandEnvironmentStringsW(STEAM_AUDIO_DRIVER_PATH, driver_path.data(), driver_path.size());
+      if (fn_DiInstallDriverW(nullptr, driver_path.data(), 0, nullptr)) {
         BOOST_LOG(info) << "Successfully installed Steam Streaming Speakers"sv;
 
         // Wait for 5 seconds to allow the audio subsystem to reconfigure things before

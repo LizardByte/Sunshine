@@ -1202,7 +1202,7 @@ namespace pipewire {
       img->serial = std::numeric_limits<decltype(img->serial)>::max();
       img->data = nullptr;
       img->data_owned = false;
-      std::fill_n(img->sd.fds, 4, -1);
+      img->sd.fds.fill(-1);
 
       return img;
     }

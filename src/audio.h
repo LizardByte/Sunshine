@@ -9,6 +9,7 @@
 #include "thread_safe.h"
 #include "utility.h"
 
+#include <array>
 #include <bitset>
 
 namespace audio {
@@ -44,10 +45,13 @@ namespace audio {
     int channelCount;  ///< Number of audio channels in the Opus layout.
     int streams;  ///< Number of Opus streams in the custom layout.
     int coupledStreams;  ///< Number of stereo-coupled Opus streams.
-    std::uint8_t mapping[8];  ///< Channel mapping table for up to eight speakers.
+    std::array<std::uint8_t, 8> mapping;  ///< Channel mapping table for up to eight speakers.
   };
 
-  extern opus_stream_config_t stream_configs[MAX_STREAM_CONFIG];
+  /**
+   * @brief Opus layouts and bitrates advertised for each supported stream mode.
+   */
+  extern const std::array<opus_stream_config_t, MAX_STREAM_CONFIG> stream_configs;
 
   /**
    * @brief Audio capture and encoder settings for a stream.
