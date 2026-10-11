@@ -95,10 +95,13 @@ namespace rtsp_stream {
     std::uint32_t sequenceNumber;  ///< Sequence number.
 
     // This field is the AES GCM authentication tag
-    std::uint8_t tag[16];  ///< Authentication tag appended to the encrypted payload.
+    std::array<std::uint8_t, 16> tag;  ///< Authentication tag appended to the encrypted payload.
   };
 
 #pragma pack(pop)
+
+  static_assert(sizeof(encrypted_rtsp_header_t) == 24);
+  static_assert(offsetof(encrypted_rtsp_header_t, tag) == 8);
 
   class rtsp_server_t;
 
@@ -277,7 +280,7 @@ namespace rtsp_stream {
       iv[11] = 'R';  // RTSP
 
       std::vector<uint8_t> plaintext;
-      if (socket->session->rtsp_cipher->decrypt(std::string_view {(const char *) header->tag, sizeof(header->tag) + bytes}, plaintext, &iv)) {
+      if (socket->session->rtsp_cipher->decrypt(std::string_view {(const char *) header->tag.data(), sizeof(header->tag) + bytes}, plaintext, &iv)) {
         BOOST_LOG(error) << "Failed to verify RTSP message tag"sv;
 
         respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", 0, {});
@@ -851,7 +854,7 @@ namespace rtsp_stream {
       header->sequenceNumber = util::endian::big<std::uint32_t>(session.rtsp_iv_counter);
 
       // Encrypt the RTSP message in place
-      session.rtsp_cipher->encrypt(std::string_view {(const char *) header->payload(), (std::size_t) payload_length}, header->tag, &iv);
+      session.rtsp_cipher->encrypt(std::string_view {(const char *) header->payload(), (std::size_t) payload_length}, header->tag.data(), &iv);
 
       // Send the full encrypted message
       send(sock, std::string_view {(char *) message.data(), message.size()});
@@ -968,7 +971,7 @@ namespace rtsp_stream {
 
     for (int x = 0; x < audio::MAX_STREAM_CONFIG; ++x) {
       auto &stream_config = audio::stream_configs[x];
-      std::uint8_t mapping[platf::speaker::MAX_SPEAKERS];
+      std::array<std::uint8_t, platf::speaker::MAX_SPEAKERS> mapping;
 
       auto mapping_p = stream_config.mapping;
 
@@ -978,10 +981,10 @@ namespace rtsp_stream {
        * To work around this, rotate channels to the left from index '3'
        */
       if (x == audio::SURROUND51 || x == audio::SURROUND71) {
-        std::copy_n(mapping_p, stream_config.channelCount, mapping);
-        std::rotate(mapping + 3, mapping + 4, mapping + audio::MAX_STREAM_CONFIG);
+        std::copy_n(mapping_p, stream_config.channelCount, mapping.begin());
+        std::rotate(mapping.begin() + 3, mapping.begin() + 4, mapping.begin() + audio::MAX_STREAM_CONFIG);
 
-        mapping_p = mapping;
+        mapping_p = mapping.data();
       }
 
       ss << "a=fmtp:97 surround-params="sv << stream_config.channelCount << stream_config.streams << stream_config.coupledStreams;
@@ -1005,7 +1008,7 @@ namespace rtsp_stream {
    * @param req Parsed RTSP request being handled.
    */
   void cmd_setup(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
-    OPTION_ITEM options[4] {};
+    std::array<OPTION_ITEM, 4> options {};
 
     auto &seqn = options[0];
     auto &session_option = options[1];

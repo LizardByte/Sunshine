@@ -3,6 +3,8 @@
  * @brief Definitions for VA-API hardware accelerated capture.
  */
 // standard includes
+#include <array>
+#include <cstddef>
 #include <fcntl.h>
 #include <format>
 #include <sstream>
@@ -13,6 +15,7 @@ extern "C" {
 #include <libavutil/pixdesc.h>
 #include <va/va.h>
 #include <va/va_drm.h>
+#include <va/va_drmcommon.h>
 #if !VA_CHECK_VERSION(1, 9, 0)
   /**
    * @brief Stub vaSyncBuffer when building against libva before 2.9.0.
@@ -101,7 +104,10 @@ namespace va {
     // Number of distinct DRM objects making up the surface.
     uint32_t num_objects;  ///< Num objects.
 
-    struct {
+    /**
+     * @brief Backing DRM PRIME object with its file descriptor and layout.
+     */
+    struct object_t {
       // DRM PRIME file descriptor for this object.
       // Needs to be closed manually
       int fd;  ///< DRM PRIME file descriptor for this object; the owner must close it.
@@ -110,12 +116,17 @@ namespace va {
       uint32_t size;  ///< Total byte size of the DRM object.
       // Format modifier applied to this object, not sure what that means
       uint64_t drm_format_modifier;  ///< DRM format modifier applied to this object.
-    } objects[4];  ///< DRM PRIME backing objects referenced by the descriptor..
+    };
+
+    std::array<object_t, 4> objects;  ///< DRM PRIME backing objects referenced by the descriptor.
 
     // Number of layers making up the surface.
     uint32_t num_layers;  ///< Num layers.
 
-    struct {
+    /**
+     * @brief DRM layer describing the planes of an exported surface.
+     */
+    struct layer_t {
       // DRM format fourcc of this layer (DRM_FOURCC_*).
       uint32_t drm_format;  ///< DRM fourcc pixel format for this layer.
 
@@ -123,15 +134,22 @@ namespace va {
       uint32_t num_planes;  ///< Number of image planes in this layer.
 
       // references objects --> DRMPRIMESurfaceDescriptor.objects[object_index[0]]
-      uint32_t object_index[4];  ///< Index of the backing DRM object for each plane.
+      std::array<uint32_t, 4> object_index;  ///< Index of the backing DRM object for each plane.
 
       // Offset within the object of each plane.
-      uint32_t offset[4];  ///< Byte offset of each plane within its backing object.
+      std::array<uint32_t, 4> offset;  ///< Byte offset of each plane within its backing object.
 
       // Pitch of each plane.
-      uint32_t pitch[4];  ///< Row pitch in bytes for each plane.
-    } layers[4];  ///< DRM PRIME layer descriptions for the frame..
+      std::array<uint32_t, 4> pitch;  ///< Row pitch in bytes for each plane.
+    };
+
+    std::array<layer_t, 4> layers;  ///< DRM PRIME layer descriptions for the frame.
   };
+
+  static_assert(sizeof(DRMPRIMESurfaceDescriptor) == sizeof(VADRMPRIMESurfaceDescriptor));
+  static_assert(alignof(DRMPRIMESurfaceDescriptor) == alignof(VADRMPRIMESurfaceDescriptor));
+  static_assert(offsetof(DRMPRIMESurfaceDescriptor, objects) == offsetof(VADRMPRIMESurfaceDescriptor, objects));
+  static_assert(offsetof(DRMPRIMESurfaceDescriptor, layers) == offsetof(VADRMPRIMESurfaceDescriptor, layers));
 
   /**
    * @brief VA display handle released with `vaTerminate`.
@@ -172,8 +190,8 @@ namespace va {
 
       gbm.reset(gbm::create_device(file.el));
       if (!gbm) {
-        char string[1024];
-        BOOST_LOG(error) << "Couldn't create GBM device: ["sv << strerror_r(errno, string, sizeof(string)) << ']';
+        std::array<char, 1024> string;
+        BOOST_LOG(error) << "Couldn't create GBM device: ["sv << strerror_r(errno, string.data(), string.size()) << ']';
         return -1;
       }
 
@@ -211,7 +229,7 @@ namespace va {
       entrypoints.resize(num_eps);
 
       // Sorted in order of descending preference
-      VAEntrypoint ep_preferences[] = {
+      std::array<VAEntrypoint, 3> ep_preferences = {
         VAEntrypointEncSliceLP,
         VAEntrypointEncSlice,
         VAEntrypointEncPicture
@@ -460,7 +478,7 @@ namespace va {
         return -1;
       }
 
-      egl::surface_descriptor_t sds[2] = {};
+      std::array<egl::surface_descriptor_t, 2> sds = {};
       for (int plane = 0; plane < 2; ++plane) {
         auto &sd = sds[plane];
         auto &layer = prime.layers[plane];
@@ -474,7 +492,7 @@ namespace va {
         // The modifier must be the same for all planes
         sd.modifier = prime.objects[layer.object_index[0]].drm_format_modifier;
 
-        std::fill_n(sd.fds, 4, -1);
+        sd.fds.fill(-1);
         for (int x = 0; x < layer.num_planes; ++x) {
           sd.fds[x] = prime.objects[layer.object_index[x]].fd;
           sd.pitches[x] = layer.pitch[x];
@@ -705,8 +723,8 @@ namespace va {
 
     auto err = av_hwdevice_ctx_init(*hw_device_buf);
     if (err) {
-      char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
-      BOOST_LOG(error) << "Failed to create FFMpeg hardware device context: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
+      std::array<char, AV_ERROR_MAX_STRING_SIZE> err_str {0};
+      BOOST_LOG(error) << "Failed to create FFMpeg hardware device context: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, err);
 
       return err;
     }
@@ -741,11 +759,11 @@ namespace va {
   bool validate(int fd) {
     va::display_t display {vaGetDisplayDRM(fd)};
     if (!display) {
-      char string[1024];
+      std::array<char, 1024> string;
 
-      auto bytes = readlink(std::format("/proc/self/fd/{}", fd).c_str(), string, sizeof(string));
+      auto bytes = readlink(std::format("/proc/self/fd/{}", fd).c_str(), string.data(), string.size());
 
-      std::string_view render_device {string, (std::size_t) bytes};
+      std::string_view render_device {string.data(), (std::size_t) bytes};
 
       BOOST_LOG(error) << "Couldn't open a va display from DRM with device: "sv << render_device;
       return false;
@@ -805,8 +823,8 @@ namespace va {
 
     file_t file = ::open(render_device.c_str(), O_RDWR);  // NOSONAR(cpp:S1874): `_sopen_s` not available
     if (file.el < 0) {
-      char string[1024];
-      BOOST_LOG(error) << "Couldn't open "sv << render_device << ": " << strerror_r(errno, string, sizeof(string));
+      std::array<char, 1024> string;
+      BOOST_LOG(error) << "Couldn't open "sv << render_device << ": " << strerror_r(errno, string.data(), string.size());
 
       return nullptr;
     }

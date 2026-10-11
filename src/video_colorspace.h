@@ -4,6 +4,8 @@
  */
 #pragma once
 
+#include <array>
+
 extern "C" {
 #include <libavutil/pixfmt.h>
 }
@@ -80,11 +82,11 @@ namespace video {
    * @brief Pair of Sunshine and AVCodec colorimetry descriptions.
    */
   struct alignas(16) color_t {
-    float color_vec_y[4];  ///< Color vec y.
-    float color_vec_u[4];  ///< Color vec u.
-    float color_vec_v[4];  ///< Color vec v.
-    float range_y[2];  ///< Range y.
-    float range_uv[2];  ///< Range uv.
+    std::array<float, 4> color_vec_y;  ///< Color vec y.
+    std::array<float, 4> color_vec_u;  ///< Color vec u.
+    std::array<float, 4> color_vec_v;  ///< Color vec v.
+    std::array<float, 2> range_y;  ///< Range y.
+    std::array<float, 2> range_uv;  ///< Range uv.
   };
 
   /**

@@ -680,7 +680,7 @@ namespace wl {
 
   frame_t::frame_t() {
     // File descriptors aren't open
-    std::fill_n(sd.fds, 4, -1);
+    sd.fds.fill(-1);
   };
 
   /**

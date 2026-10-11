@@ -3,6 +3,7 @@
  * @brief Miscellaneous definitions for Windows.
  */
 // standard includes
+#include <array>
 #include <csignal>
 #include <filesystem>
 #include <iomanip>
@@ -160,9 +161,9 @@ namespace platf {
   decltype(WlanSetInterface) *fn_WlanSetInterface = nullptr;  ///< Fn wlan set interface.
 
   std::filesystem::path appdata() {
-    WCHAR sunshine_path[MAX_PATH];
-    GetModuleFileNameW(nullptr, sunshine_path, _countof(sunshine_path));
-    return std::filesystem::path {sunshine_path}.remove_filename() / L"config"sv;
+    std::array<WCHAR, MAX_PATH> sunshine_path;
+    GetModuleFileNameW(nullptr, sunshine_path.data(), sunshine_path.size());
+    return std::filesystem::path {sunshine_path.data()}.remove_filename() / L"config"sv;
   }
 
   /**
@@ -175,32 +176,32 @@ namespace platf {
   }
 
   std::string from_sockaddr(const sockaddr *const socket_address) {
-    char data[INET6_ADDRSTRLEN] = {};
+    std::array<char, INET6_ADDRSTRLEN> data = {};
 
     auto family = socket_address->sa_family;
     if (family == AF_INET6) {
-      inet_ntop(AF_INET6, &((sockaddr_in6 *) socket_address)->sin6_addr, data, INET6_ADDRSTRLEN);
+      inet_ntop(AF_INET6, &((sockaddr_in6 *) socket_address)->sin6_addr, data.data(), INET6_ADDRSTRLEN);
     } else if (family == AF_INET) {
-      inet_ntop(AF_INET, &((sockaddr_in *) socket_address)->sin_addr, data, INET_ADDRSTRLEN);
+      inet_ntop(AF_INET, &((sockaddr_in *) socket_address)->sin_addr, data.data(), INET_ADDRSTRLEN);
     }
 
-    return std::string {data};
+    return std::string {data.data()};
   }
 
   std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const ip_addr) {
-    char data[INET6_ADDRSTRLEN] = {};
+    std::array<char, INET6_ADDRSTRLEN> data = {};
 
     auto family = ip_addr->sa_family;
     std::uint16_t port = 0;
     if (family == AF_INET6) {
-      inet_ntop(AF_INET6, &((sockaddr_in6 *) ip_addr)->sin6_addr, data, INET6_ADDRSTRLEN);
+      inet_ntop(AF_INET6, &((sockaddr_in6 *) ip_addr)->sin6_addr, data.data(), INET6_ADDRSTRLEN);
       port = ((sockaddr_in6 *) ip_addr)->sin6_port;
     } else if (family == AF_INET) {
-      inet_ntop(AF_INET, &((sockaddr_in *) ip_addr)->sin_addr, data, INET_ADDRSTRLEN);
+      inet_ntop(AF_INET, &((sockaddr_in *) ip_addr)->sin_addr, data.data(), INET_ADDRSTRLEN);
       port = ((sockaddr_in *) ip_addr)->sin_port;
     }
 
-    return {port, std::string {data}};
+    return {port, std::string {data.data()}};
   }
 
   /**
@@ -266,11 +267,11 @@ namespace platf {
    * @brief Write status details to the log.
    */
   void print_status(const std::string_view &prefix, HRESULT status) {
-    char err_string[1024];
+    std::array<char, 1024> err_string;
 
-    DWORD bytes = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, status, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), err_string, sizeof(err_string), nullptr);
+    DWORD bytes = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, status, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), err_string.data(), err_string.size(), nullptr);
 
-    BOOST_LOG(error) << prefix << ": "sv << std::string_view {err_string, bytes};
+    BOOST_LOG(error) << prefix << ": "sv << std::string_view {err_string.data(), bytes};
   }
 
   /**
@@ -1320,15 +1321,15 @@ namespace platf {
     STARTUPINFOEXW startup_info {};
     startup_info.StartupInfo.cb = sizeof(startup_info);
 
-    WCHAR executable[MAX_PATH];
-    if (GetModuleFileNameW(nullptr, executable, ARRAYSIZE(executable)) == 0) {
+    std::array<WCHAR, MAX_PATH> executable;
+    if (GetModuleFileNameW(nullptr, executable.data(), executable.size()) == 0) {
       auto winerr = GetLastError();
       BOOST_LOG(fatal) << "Failed to get Sunshine path: "sv << winerr;
       return;
     }
 
     PROCESS_INFORMATION process_info;
-    if (!CreateProcessW(executable, GetCommandLineW(), nullptr, nullptr, false, CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT, nullptr, nullptr, (LPSTARTUPINFOW) &startup_info, &process_info)) {
+    if (!CreateProcessW(executable.data(), GetCommandLineW(), nullptr, nullptr, false, CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT, nullptr, nullptr, (LPSTARTUPINFOW) &startup_info, &process_info)) {
       auto winerr = GetLastError();
       BOOST_LOG(fatal) << "Unable to restart Sunshine: "sv << winerr;
       return;
@@ -1515,11 +1516,11 @@ namespace platf {
     msg.dwFlags = 0;
 
     // At most, one DWORD option and one PKTINFO option
-    char cmbuf[WSA_CMSG_SPACE(sizeof(DWORD)) + std::max(WSA_CMSG_SPACE(sizeof(IN6_PKTINFO)), WSA_CMSG_SPACE(sizeof(IN_PKTINFO)))] = {};
+    std::array<char, WSA_CMSG_SPACE(sizeof(DWORD)) + std::max(WSA_CMSG_SPACE(sizeof(IN6_PKTINFO)), WSA_CMSG_SPACE(sizeof(IN_PKTINFO)))> cmbuf = {};
     ULONG cmbuflen = 0;
 
-    msg.Control.buf = cmbuf;
-    msg.Control.len = sizeof(cmbuf);
+    msg.Control.buf = cmbuf.data();
+    msg.Control.len = cmbuf.size();
 
     auto cm = WSA_CMSG_FIRSTHDR(&msg);
     if (send_info.source_address.is_v6()) {
@@ -1585,7 +1586,7 @@ namespace platf {
       msg.namelen = sizeof(taddr_v4);
     }
 
-    WSABUF bufs[2];
+    std::array<WSABUF, 2> bufs;
     DWORD bufcount = 0;
     if (send_info.header) {
       bufs[bufcount].buf = (char *) send_info.header;
@@ -1596,15 +1597,15 @@ namespace platf {
     bufs[bufcount].len = send_info.payload_size;
     bufcount++;
 
-    msg.lpBuffers = bufs;
+    msg.lpBuffers = bufs.data();
     msg.dwBufferCount = bufcount;
     msg.dwFlags = 0;
 
-    char cmbuf[std::max(WSA_CMSG_SPACE(sizeof(IN6_PKTINFO)), WSA_CMSG_SPACE(sizeof(IN_PKTINFO)))] = {};
+    std::array<char, std::max(WSA_CMSG_SPACE(sizeof(IN6_PKTINFO)), WSA_CMSG_SPACE(sizeof(IN_PKTINFO)))> cmbuf = {};
     ULONG cmbuflen = 0;
 
-    msg.Control.buf = cmbuf;
-    msg.Control.len = sizeof(cmbuf);
+    msg.Control.buf = cmbuf.data();
+    msg.Control.len = cmbuf.size();
 
     auto cm = WSA_CMSG_FIRSTHDR(&msg);
     if (send_info.source_address.is_v6()) {
@@ -1813,12 +1814,12 @@ namespace platf {
   }
 
   std::string get_host_name() {
-    WCHAR hostname[256];
-    if (GetHostNameW(hostname, ARRAYSIZE(hostname)) == SOCKET_ERROR) {
+    std::array<WCHAR, 256> hostname;
+    if (GetHostNameW(hostname.data(), hostname.size()) == SOCKET_ERROR) {
       BOOST_LOG(error) << "GetHostNameW() failed: "sv << WSAGetLastError();
       return "Sunshine"s;
     }
-    return utf_utils::to_utf8(hostname);
+    return utf_utils::to_utf8(hostname.data());
   }
 
   /**

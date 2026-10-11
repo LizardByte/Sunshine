@@ -5,6 +5,8 @@
 // this include
 #include "video_colorspace.h"
 
+#include <array>
+
 // local includes
 #include "logging.h"
 #include "video.h"
@@ -233,7 +235,7 @@ namespace video {
       return color_vectors;
     };
 
-    static constexpr color_t colors[] = {
+    static constexpr std::array<color_t, 24> colors = {
       generate_color_vectors({rec601, false, 8}, false),
       generate_color_vectors({rec601, true, 8}, false),
       generate_color_vectors({rec601, false, 10}, false),

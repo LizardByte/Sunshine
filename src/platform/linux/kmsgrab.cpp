@@ -3,6 +3,7 @@
  * @brief Definitions for KMS screen capture.
  */
 // standard includes
+#include <array>
 #include <errno.h>
 #include <fcntl.h>
 #include <filesystem>
@@ -239,9 +240,9 @@ namespace platf {
           height {fb->height} {
         pixel_format = DRM_FORMAT_XRGB8888;
         modifier = DRM_FORMAT_MOD_INVALID;
-        std::fill_n(handles, 4, 0);
-        std::fill_n(pitches, 4, 0);
-        std::fill_n(offsets, 4, 0);
+        handles.fill(0);
+        pitches.fill(0);
+        offsets.fill(0);
         handles[0] = fb->handle;
         pitches[0] = fb->pitch;
       }
@@ -261,9 +262,9 @@ namespace platf {
         pixel_format = fb2->pixel_format;
         modifier = (fb2->flags & DRM_MODE_FB_MODIFIERS) ? fb2->modifier : DRM_FORMAT_MOD_INVALID;
 
-        memcpy(handles, fb2->handles, sizeof(handles));
-        memcpy(pitches, fb2->pitches, sizeof(pitches));
-        memcpy(offsets, fb2->offsets, sizeof(offsets));
+        std::copy_n(fb2->handles, handles.size(), handles.begin());
+        std::copy_n(fb2->pitches, pitches.size(), pitches.begin());
+        std::copy_n(fb2->offsets, offsets.size(), offsets.begin());
       }
 
       ~wrapper_fb() {
@@ -291,9 +292,9 @@ namespace platf {
       uint32_t height;  ///< Framebuffer height in pixels.
       uint32_t pixel_format;  ///< DRM fourcc pixel format for the framebuffer.
       uint64_t modifier;  ///< DRM format modifier describing framebuffer memory layout.
-      uint32_t handles[4];  ///< GEM handles for each framebuffer plane.
-      uint32_t pitches[4];  ///< Row stride in bytes for each framebuffer plane.
-      uint32_t offsets[4];  ///< Byte offset to the first pixel for each framebuffer plane.
+      std::array<uint32_t, 4> handles;  ///< GEM handles for each framebuffer plane.
+      std::array<uint32_t, 4> pitches;  ///< Row stride in bytes for each framebuffer plane.
+      std::array<uint32_t, 4> offsets;  ///< Byte offset to the first pixel for each framebuffer plane.
     };
 
     /**
@@ -1914,12 +1915,12 @@ namespace platf {
        * @return Capture status reported to the streaming pipeline.
        */
       capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
-        file_t fb_fd[4];
+        std::array<file_t, 4> fb_fd;
 
         egl::surface_descriptor_t sd;
 
         std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
-        auto status = refresh(fb_fd, &sd, frame_timestamp);
+        auto status = refresh(fb_fd.data(), &sd, frame_timestamp);
         if (status != capture_e::ok) {
           return status;
         }
@@ -2045,7 +2046,7 @@ namespace platf {
         img->pixel_pitch = 4;
 
         img->sequence = 0;
-        std::fill_n(img->sd.fds, 4, -1);
+        img->sd.fds.fill(-1);
 
         return img;
       }
@@ -2104,7 +2105,7 @@ namespace platf {
        * @return Capture status reported to the streaming pipeline.
        */
       capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds /* timeout */, bool cursor) {
-        file_t fb_fd[4];
+        std::array<file_t, 4> fb_fd;
 
         if (!pull_free_image_cb(img_out)) {
           return platf::capture_e::interrupted;
@@ -2112,7 +2113,7 @@ namespace platf {
         auto img = (egl::img_descriptor_t *) img_out.get();
         img->reset();
 
-        auto status = refresh(fb_fd, &img->sd, img->frame_timestamp);
+        auto status = refresh(fb_fd.data(), &img->sd, img->frame_timestamp);
         if (status != capture_e::ok) {
           return status;
         }

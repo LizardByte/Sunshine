@@ -8,11 +8,30 @@
 
 // standard includes
 #include <array>
+#include <cstddef>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 // local includes
 #include <src/video.h>
+
+TEST(VideoColorspaceTest, PreservesShaderConstantBufferLayout) {
+  static_assert(std::is_standard_layout_v<video::color_t>);
+  static_assert(std::is_trivially_copyable_v<video::color_t>);
+  static_assert(sizeof(video::color_t) == 64);
+  static_assert(alignof(video::color_t) == 16);
+  static_assert(offsetof(video::color_t, color_vec_y) == 0);
+  static_assert(offsetof(video::color_t, color_vec_u) == 16);
+  static_assert(offsetof(video::color_t, color_vec_v) == 32);
+  static_assert(offsetof(video::color_t, range_y) == 48);
+  static_assert(offsetof(video::color_t, range_uv) == 56);
+
+  const auto *vectors = video::color_vectors_from_colorspace({video::colorspace_e::rec709, false, 8}, false);
+  ASSERT_NE(vectors, nullptr);
+  EXPECT_EQ(vectors->range_y, (std::array<float, 2> {1.0f, 0.0f}));
+  EXPECT_EQ(vectors->range_uv, (std::array<float, 2> {1.0f, 0.0f}));
+}
 
 TEST(VideoColorspaceTest, DescribesEveryColorspaceAndUnknownValues) {
   using enum video::colorspace_e;

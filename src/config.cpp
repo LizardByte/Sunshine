@@ -4,6 +4,7 @@
  */
 // standard includes
 #include <algorithm>
+#include <array>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -2086,14 +2087,14 @@ namespace config {
     if (shortcut_launch) {
       if (!service_ctrl::is_service_running()) {
         // If the service isn't running, relaunch ourselves as admin to start it
-        WCHAR executable[MAX_PATH];
-        GetModuleFileNameW(nullptr, executable, ARRAYSIZE(executable));
+        std::array<WCHAR, MAX_PATH> executable;
+        GetModuleFileNameW(nullptr, executable.data(), executable.size());
 
         SHELLEXECUTEINFOW shell_exec_info {};
         shell_exec_info.cbSize = sizeof(shell_exec_info);
         shell_exec_info.fMask = SEE_MASK_NOASYNC | SEE_MASK_NO_CONSOLE | SEE_MASK_NOCLOSEPROCESS;
         shell_exec_info.lpVerb = L"runas";
-        shell_exec_info.lpFile = executable;
+        shell_exec_info.lpFile = executable.data();
         shell_exec_info.lpParameters = L"--shortcut-admin";
         shell_exec_info.nShow = SW_NORMAL;
         if (!ShellExecuteExW(&shell_exec_info)) {

@@ -5,6 +5,7 @@
 #pragma once
 
 // standard includes
+#include <array>
 #include <optional>
 #include <string_view>
 
@@ -496,11 +497,11 @@ namespace egl {
   struct surface_descriptor_t {
     int width;  ///< Frame or display width in pixels.
     int height;  ///< Frame or display height in pixels.
-    int fds[4];  ///< DMA-BUF file descriptors for up to four planes.
+    std::array<int, 4> fds;  ///< DMA-BUF file descriptors for up to four planes.
     std::uint32_t fourcc;  ///< DRM fourcc pixel format for the buffer.
     std::uint64_t modifier;  ///< DRM format modifier describing the buffer layout.
-    std::uint32_t pitches[4];  ///< Row stride in bytes for each DMA-BUF plane.
-    std::uint32_t offsets[4];  ///< Byte offset to the first pixel for each DMA-BUF plane.
+    std::array<std::uint32_t, 4> pitches;  ///< Row stride in bytes for each DMA-BUF plane.
+    std::array<std::uint32_t, 4> offsets;  ///< Byte offset to the first pixel for each DMA-BUF plane.
   };
 
   /**
