@@ -163,7 +163,7 @@ namespace portal {
           // to this session type; if wrong, we're no worse off than not migrating.
           std::filesystem::rename(legacy_path, suffixed_path, ec);
           if (ec) {
-            logging::error([&](std::ostream &out) {
+            logging::error([&ec](std::ostream &out) {
               out << "[portalgrab] Portal restore token migration failed: "sv << ec.message();
             });
           } else {

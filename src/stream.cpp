@@ -783,7 +783,7 @@ namespace stream {
       try {
         session_p->localAddress = boost::asio::ip::make_address(local_address);
       } catch (const boost::system::system_error &e) {
-        logging::error([&](std::ostream &out) {
+        logging::error([&e](std::ostream &out) {
           out << "boost::system::system_error in address parsing: " << e.what() << " (code: " << e.code() << ")"sv;
         });
         throw;
@@ -811,7 +811,7 @@ namespace stream {
   void control_server_t::call(std::uint16_t type, session_t *session, const std::string_view &payload, bool reinjected) {
     // If we are using the encrypted control stream protocol, drop any messages that come off the wire unencrypted
     if (session->config.controlProtocolType == 13 && !reinjected && type != packetTypes[IDX_ENCRYPTED]) {
-      logging::error([&](std::ostream &out) {
+      logging::error([&type](std::ostream &out) {
         out << "Dropping unencrypted message on encrypted control stream: "sv << util::hex(type).to_string_view();
       });
       return;
@@ -819,7 +819,7 @@ namespace stream {
 
     auto cb = _map_type_cb.find(type);
     if (cb == std::end(_map_type_cb)) {
-      logging::debug([&](std::ostream &out) {
+      logging::debug([&type, &payload](std::ostream &out) {
         out << "type [Unknown] { "sv << util::hex(type).to_string_view() << " }"sv << std::endl
             << "---data---"sv << std::endl
             << util::hex_vec(payload) << std::endl
@@ -837,7 +837,7 @@ namespace stream {
     if (res > 0) {
       auto session = get_session(event.peer, event.data);
       if (!session) {
-        logging::warning([&](std::ostream &out) {
+        logging::warning([&event](std::ostream &out) {
           out << "Rejected connection from ["sv << platf::from_sockaddr((sockaddr *) &event.peer->address.address) << "]: it's not properly set up"sv;
         });
         enet_peer_disconnect_now(event.peer, 0);
@@ -1104,7 +1104,7 @@ namespace stream {
       plaintext.lowfreq = util::endian::little(data.lowfreq);
       plaintext.highfreq = util::endian::little(data.highfreq);
 
-      logging::verbose([&](std::ostream &out) {
+      logging::verbose([&msg, &data](std::ostream &out) {
         out << "Rumble: "sv << msg.id << " :: "sv << util::hex(data.lowfreq).to_string_view() << " :: "sv << util::hex(data.highfreq).to_string_view();
       });
       std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
@@ -1122,7 +1122,7 @@ namespace stream {
       plaintext.left = util::endian::little(data.left_trigger);
       plaintext.right = util::endian::little(data.right_trigger);
 
-      logging::verbose([&](std::ostream &out) {
+      logging::verbose([&msg, &data](std::ostream &out) {
         out << "Rumble triggers: "sv << msg.id << " :: "sv << util::hex(data.left_trigger).to_string_view() << " :: "sv << util::hex(data.right_trigger).to_string_view();
       });
       std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
@@ -1140,7 +1140,7 @@ namespace stream {
       plaintext.reportrate = util::endian::little(data.report_rate);
       plaintext.type = data.motion_type;
 
-      logging::verbose([&](std::ostream &out) {
+      logging::verbose([&msg, &data](std::ostream &out) {
         out << "Motion event state: "sv << msg.id << " :: "sv << util::hex(data.report_rate).to_string_view() << " :: "sv << util::hex(data.motion_type).to_string_view();
       });
       std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
@@ -1159,7 +1159,7 @@ namespace stream {
       plaintext.g = data.g;
       plaintext.b = data.b;
 
-      logging::verbose([&](std::ostream &out) {
+      logging::verbose([&msg, &data](std::ostream &out) {
         out << "RGB: "sv << msg.id << " :: "sv << util::hex(data.r).to_string_view() << util::hex(data.g).to_string_view() << util::hex(data.b).to_string_view();
       });
       std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
@@ -1177,7 +1177,7 @@ namespace stream {
       plaintext.solid = data.solid;
       plaintext.flashing = data.flashing;
 
-      logging::verbose([&](std::ostream &out) {
+      logging::verbose([&msg, &data](std::ostream &out) {
         out << "Player LEDs: "sv << msg.id << " :: solid "sv << util::hex(data.solid).to_string_view() << " :: flashing "sv << util::hex(data.flashing).to_string_view();
       });
       std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
@@ -1207,7 +1207,7 @@ namespace stream {
 
     if (session->broadcast_ref->control_server.send(payload, session->control.peer)) {
       TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &session->control.peer->address.address));
-      logging::warning([&](std::ostream &out) {
+      logging::warning([&addr, &port](std::ostream &out) {
         out << "Couldn't send gamepad feedback to ["sv << addr << ':' << port << ']';
       });
 
@@ -1244,7 +1244,7 @@ namespace stream {
     auto payload = encode_control(session, util::view(plaintext), encrypted_payload);
     if (session->broadcast_ref->control_server.send(payload, session->control.peer)) {
       TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &session->control.peer->address.address));
-      logging::warning([&](std::ostream &out) {
+      logging::warning([&addr, &port](std::ostream &out) {
         out << "Couldn't send HDR mode to ["sv << addr << ':' << port << ']';
       });
 
@@ -1266,15 +1266,15 @@ namespace stream {
       logging::verbose("type [IDX_PERIODIC_PING]"sv);
     });
 
-    server->map(packetTypes[IDX_START_A], [&](session_t *session, const std::string_view &payload) {
+    server->map(packetTypes[IDX_START_A], [](session_t *session, const std::string_view &payload) {
       logging::debug("type [IDX_START_A]"sv);
     });
 
-    server->map(packetTypes[IDX_START_B], [&](session_t *session, const std::string_view &payload) {
+    server->map(packetTypes[IDX_START_B], [](session_t *session, const std::string_view &payload) {
       logging::debug("type [IDX_START_B]"sv);
     });
 
-    server->map(packetTypes[IDX_LOSS_STATS], [&](session_t *session, const std::string_view &payload) {
+    server->map(packetTypes[IDX_LOSS_STATS], [](session_t *session, const std::string_view &payload) {
       int32_t *stats = (int32_t *) payload.data();
       auto count = stats[0];
       std::chrono::milliseconds t {stats[1]};
@@ -1495,7 +1495,7 @@ namespace stream {
 
         if (server->send(payload, session->control.peer)) {
           TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &session->control.peer->address.address));
-          logging::warning([&](std::ostream &out) {
+          logging::warning([&addr, &port](std::ostream &out) {
             out << "Couldn't send termination code to ["sv << addr << ':' << port << ']';
           });
         }
@@ -1564,7 +1564,7 @@ namespace stream {
         });
 
         auto type_str = buf_elem ? "AUDIO"sv : "VIDEO"sv;
-        logging::verbose([&](std::ostream &out) {
+        logging::verbose([&peer, &type_str](std::ostream &out) {
           out << "Recv: "sv << peer.address().to_string() << ':' << peer.port() << " :: " << type_str;
         });
 
@@ -1576,7 +1576,7 @@ namespace stream {
         }
 
         if (ec || !bytes) {
-          logging::error([&](std::ostream &out) {
+          logging::error([&ec](std::ostream &out) {
             out << "Couldn't receive data from udp socket: "sv << ec.message();
           });
           return;
@@ -1586,7 +1586,7 @@ namespace stream {
           // For legacy PING packets, find the matching session by address.
           auto it = peer_to_session.find(peer.address());
           if (it != std::end(peer_to_session)) {
-            logging::debug([&](std::ostream &out) {
+            logging::debug([&peer, &type_str](std::ostream &out) {
               out << "RAISE: "sv << peer.address().to_string() << ':' << peer.port() << " :: " << type_str;
             });
             it->second->raise(peer, std::string {buf[buf_elem].data(), bytes});
@@ -1597,7 +1597,7 @@ namespace stream {
           // For new PING packets that include a client identifier, search by payload.
           auto it = peer_to_session.find(std::string {ping->payload, sizeof(ping->payload)});
           if (it != std::end(peer_to_session)) {
-            logging::debug([&](std::ostream &out) {
+            logging::debug([&peer, &type_str](std::ostream &out) {
               out << "RAISE: "sv << peer.address().to_string() << ':' << peer.port() << " :: " << type_str;
             });
             it->second->raise(peer, std::string {buf[buf_elem].data(), bytes});
@@ -2082,7 +2082,7 @@ namespace stream {
     boost::system::error_code ec;
     ctx.video_sock.open(protocol, ec);
     if (ec) {
-      logging::fatal([&](std::ostream &out) {
+      logging::fatal([&ec](std::ostream &out) {
         out << "Couldn't open socket for Video server: "sv << ec.message();
       });
 
@@ -2099,7 +2099,7 @@ namespace stream {
     auto bind_addr_str = net::get_bind_address(ctx.owner->settings, address_family);
     const auto bind_addr = boost::asio::ip::make_address(bind_addr_str, ec);
     if (ec) {
-      logging::fatal([&](std::ostream &out) {
+      logging::fatal([&bind_addr_str, &ec](std::ostream &out) {
         out << "Invalid bind address: "sv << bind_addr_str << " - " << ec.message();
       });
       return -1;
@@ -2107,7 +2107,7 @@ namespace stream {
 
     ctx.video_sock.bind(udp::endpoint(bind_addr, video_port), ec);
     if (ec) {
-      logging::fatal([&](std::ostream &out) {
+      logging::fatal([&video_port, &ec](std::ostream &out) {
         out << "Couldn't bind Video server to port ["sv << video_port << "]: "sv << ec.message();
       });
 
@@ -2116,7 +2116,7 @@ namespace stream {
 
     ctx.audio_sock.open(protocol, ec);
     if (ec) {
-      logging::fatal([&](std::ostream &out) {
+      logging::fatal([&ec](std::ostream &out) {
         out << "Couldn't open socket for Audio server: "sv << ec.message();
       });
 
@@ -2125,7 +2125,7 @@ namespace stream {
 
     ctx.audio_sock.bind(udp::endpoint(bind_addr, audio_port), ec);
     if (ec) {
-      logging::fatal([&](std::ostream &out) {
+      logging::fatal([&audio_port, &ec](std::ostream &out) {
         out << "Couldn't bind Audio server to port ["sv << audio_port << "]: "sv << ec.message();
       });
 
@@ -2226,16 +2226,16 @@ namespace stream {
       TUPLE_2D_REF(recv_peer, msg, *msg_opt);
       if (msg.find(expected_payload) != std::string::npos) {
         // Match the new PING payload format
-        logging::debug([&](std::ostream &out) {
+        logging::debug([&recv_peer, &msg](std::ostream &out) {
           out << "Received ping [v2] from "sv << recv_peer.address() << ':' << recv_peer.port() << " ["sv << util::hex_vec(msg) << ']';
         });
       } else if (!(session->config.mlFeatureFlags & ML_FF_SESSION_ID_V1) && msg == "PING"sv) {
         // Match the legacy fixed PING payload only if the new type is not supported
-        logging::debug([&](std::ostream &out) {
+        logging::debug([&recv_peer, &msg](std::ostream &out) {
           out << "Received ping [v1] from "sv << recv_peer.address() << ':' << recv_peer.port() << " ["sv << util::hex_vec(msg) << ']';
         });
       } else {
-        logging::debug([&](std::ostream &out) {
+        logging::debug([&recv_peer, &msg](std::ostream &out) {
           out << "Received non-ping from "sv << recv_peer.address() << ':' << recv_peer.port() << " ["sv << util::hex_vec(msg) << ']';
         });
         current_time = std::chrono::steady_clock::now();

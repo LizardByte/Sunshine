@@ -98,7 +98,7 @@ TEST(WindowsNetworkingOwnerTest, MissingLibrariesSkipSymbolLookup) {
   platf::networking_loader_t missing {[](const char *) {
                                         return std::shared_ptr<void> {};
                                       },
-                                      [&](void *, const char *) -> void * {
+                                      [&resolutions](void *, const char *) -> void * {
                                         ++resolutions;
                                         return nullptr;
                                       }};
@@ -113,7 +113,7 @@ TEST(WindowsNetworkingOwnerTest, EveryMissingWlanExportDiscardsLibraryAndCanRetr
     auto partial = loader([missing](void *, const char *name) {
       return std::string_view(name) == missing ? nullptr : complete_export(name);
     },
-                          [&]() {
+                          [&unloaded]() {
                             ++unloaded;
                           });
     EXPECT_FALSE(platf::wlan_api_t::load(partial)) << missing;
@@ -127,7 +127,7 @@ TEST(WindowsNetworkingOwnerTest, CompleteWlanTableRetainsLibraryUntilLastResourc
   auto api = platf::wlan_api_t::load(loader([](void *, const char *name) {
     return complete_export(name);
   },
-                                            [&]() {
+                                            [&unloaded]() {
                                               ++unloaded;
                                             }));
   ASSERT_TRUE(api);
@@ -144,7 +144,7 @@ TEST(WindowsNetworkingOwnerTest, EveryMissingQwaveExportDiscardsLibraryAndCanRet
     auto partial = loader([missing](void *, const char *name) {
       return std::string_view(name) == missing ? nullptr : complete_export(name);
     },
-                          [&]() {
+                          [&unloaded]() {
                             ++unloaded;
                           });
     EXPECT_FALSE(platf::qwave_api_t::load(partial)) << missing;
@@ -158,7 +158,7 @@ TEST(WindowsNetworkingOwnerTest, FailedClientCreationReleasesLibraryWithoutClosi
   auto rejected = loader([](void *, const char *name) {
     return std::string_view(name) == "QOSCreateHandle" ? reinterpret_cast<void *>(&reject_qos) : complete_export(name);
   },
-                         [&]() {
+                         [&unloaded]() {
                            ++unloaded;
                          });
   EXPECT_FALSE(platf::qwave_api_t::load(rejected));
@@ -171,11 +171,11 @@ TEST(WindowsNetworkingOwnerTest, LastFlowClosesClientBeforeLibraryUnload) {
   auto api = platf::qwave_api_t::load(loader([](void *, const char *name) {
     return complete_export(name);
   },
-                                             [&]() {
+                                             [&events]() {
                                                events.emplace_back("library");
                                              }));
   ASSERT_TRUE(api);
-  static_cast<fake_qos_t *>(api->handle)->close = [&]() {
+  static_cast<fake_qos_t *>(api->handle)->close = [&events]() {
     events.emplace_back("client");
   };
   auto flow = api;
@@ -188,17 +188,17 @@ TEST(WindowsNetworkingOwnerTest, LastFlowClosesClientBeforeLibraryUnload) {
 TEST(WindowsServiceOwnerTest, StopReportsDeadlineBeforeSignalingOnlyItsOwner) {
   std::vector<std::string> events;
   SERVICE_STATUS snapshot {};
-  service::state_t first {{[&](SERVICE_STATUS_HANDLE handle, LPSERVICE_STATUS state) {
+  service::state_t first {{[&snapshot, &events](SERVICE_STATUS_HANDLE handle, LPSERVICE_STATUS state) {
                              snapshot = *state;
                              events.emplace_back("status");
                              return TRUE;
                            },
-                           [&](HANDLE handle) {
+                           [&events](HANDLE handle) {
                              EXPECT_EQ(handle, reinterpret_cast<HANDLE>(1));
                              events.emplace_back("stop");
                              return TRUE;
                            },
-                           [&](HANDLE handle) {
+                           [&events](HANDLE handle) {
                              events.emplace_back("close");
                              return TRUE;
                            }}};
@@ -215,7 +215,7 @@ TEST(WindowsServiceOwnerTest, SessionControlsSignalOnlyConsoleConnectAndUnsuppor
   service::state_t state {{[](SERVICE_STATUS_HANDLE, LPSERVICE_STATUS) {
                              return TRUE;
                            },
-                           [&](HANDLE handle) {
+                           [&signals](HANDLE handle) {
                              EXPECT_EQ(handle, reinterpret_cast<HANDLE>(2));
                              ++signals;
                              return TRUE;
@@ -240,7 +240,7 @@ TEST(WindowsServiceOwnerTest, PartialStartupAndRepeatedInstancesReleaseOnlyOwned
                                            [](HANDLE) {
                                              return TRUE;
                                            },
-                                           [&](HANDLE handle) {
+                                           [&closed](HANDLE handle) {
                                              closed.emplace_back(handle);
                                              return TRUE;
                                            }};

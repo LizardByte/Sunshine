@@ -405,7 +405,7 @@ namespace platf::audio {
       return nullptr;
     }
 
-    logging::info([&](std::ostream &out) {
+    logging::info([&capture_waveformat](std::ostream &out) {
       out << "Audio capture format is "sv << logging::bracket(waveformat_to_pretty_string(capture_waveformat));
     });
 
@@ -700,7 +700,7 @@ namespace platf::audio {
         DWORD task_index = 0;
         mmcss_task_handle = AvSetMmThreadCharacteristics("Pro Audio", &task_index);
         if (!mmcss_task_handle) {
-          logging::error([&](std::ostream &out) {
+          logging::error([](std::ostream &out) {
             out << "Couldn't associate audio capture thread with Pro Audio MMCSS task [0x" << util::hex(GetLastError()).to_string_view() << ']';
           });
         }
@@ -1109,7 +1109,7 @@ namespace platf::audio {
 
         WAVEFORMATEXTENSIBLE p {};
         if (SUCCEEDED(policy->SetDeviceFormat(device_id_copy.c_str(), waveformat_copy_pointer, (WAVEFORMATEX *) &p))) {
-          logging::info([&](std::ostream &out) {
+          logging::info([&waveformat](std::ostream &out) {
             out << "Changed virtual audio sink format to " << logging::bracket(waveformat_to_pretty_string(waveformat));
           });
           return device_id;

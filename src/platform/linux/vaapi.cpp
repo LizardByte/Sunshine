@@ -724,7 +724,7 @@ namespace va {
 
     va::display_t display {vaGetDisplayDRM(fd)};
     if (!display) {
-      logging::error([&](std::ostream &out) {
+      logging::error([&va](std::ostream &out) {
         out << "Couldn't open a va display from DRM with device: "sv << platf::resolve_render_device(va->settings);
       });
       return -1;
@@ -743,7 +743,7 @@ namespace va {
       return -1;
     }
 
-    logging::info([&](std::ostream &out) {
+    logging::info([&display](std::ostream &out) {
       out << "vaapi vendor: "sv << vaQueryVendorString(display.get());
     });
 
@@ -760,7 +760,7 @@ namespace va {
     auto err = av_hwdevice_ctx_init(*hw_device_buf);
     if (err) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> err_str {0};
-      logging::error([&](std::ostream &out) {
+      logging::error([&err_str, &err](std::ostream &out) {
         out << "Failed to create FFMpeg hardware device context: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, err);
       });
 

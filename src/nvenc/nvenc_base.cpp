@@ -669,7 +669,7 @@ namespace NVENC_NAMESPACE {
     }
 
     auto frame_size_format = stat_trackers::two_digits_after_decimal();
-    logging::debug([&](std::ostream &out) {
+    logging::debug([&frame_size_format, &client_config](std::ostream &out) {
       out << "NvEnc: requested encoded frame size "
           << frame_size_format % (client_config.bitrate / 8. / client_config.framerate) << " kB";
     });

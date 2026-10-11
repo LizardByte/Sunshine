@@ -692,7 +692,7 @@ namespace system_tray {
       (std::filesystem::path {executable.data()}.parent_path() / utf_utils::from_utf8(relativePath)).lexically_normal();
     auto full = utf_utils::to_utf8(full_path.wstring());
 
-    logging::debug([&](std::ostream &out) {
+    logging::debug([&full](std::ostream &out) {
       out << "System Tray: using " << full << " for icon path";
     });
 

@@ -421,7 +421,7 @@ int main(int argc, char *argv[]) {
     }
   });
 
-  auto session_monitor_join_thread_guard = util::fail_guard([&]() {
+  auto session_monitor_join_thread_guard = util::fail_guard([&session_monitor_hwnd_future, &session_monitor_thread]() {
     if (HWND session_monitor_hwnd = session_monitor_hwnd_future.get()) {
       PostMessage(session_monitor_hwnd, WM_CLOSE, 0, 0);
     }
@@ -485,13 +485,13 @@ int main(int argc, char *argv[]) {
   nvhttp::service_t gamestream {settings, http_state, processes, displays, videos, rtsp, host_mail};
   confighttp::service_t web {configuration, gamestream, http_state, processes, displays, inputs, rtsp, lifetime, host_mail};
   system_tray::application_binding_t tray_binding {settings, lifetime, displays};
-  std::jthread httpThread {[&]() {
+  std::jthread httpThread {[&gamestream]() {
     gamestream.start();
   }};
-  std::jthread configThread {[&]() {
+  std::jthread configThread {[&web]() {
     web.start();
   }};
-  std::jthread rtspThread {[&]() {
+  std::jthread rtspThread {[&rtsp]() {
     rtsp.start();
   }};
 

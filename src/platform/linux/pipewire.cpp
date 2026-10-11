@@ -244,7 +244,7 @@ namespace pipewire {
       if (!variable_rate && rate_comparison < 0) {
         logging::warning("[pipewire] Sunshine frame pacing: disabled (negotiated rate lower than requested rate)"sv);
       } else {
-        logging::info([&](std::ostream &out) {
+        logging::info([&pacing_required, &requested_delay](std::ostream &out) {
           out << "[pipewire] Sunshine frame pacing: "sv
               << (pacing_required ? std::format("enabled ({}ms)", std::chrono::duration<double, std::milli>(requested_delay).count()) : "disabled (event-driven capture)");
         });
@@ -290,13 +290,13 @@ namespace pipewire {
         if (core) {
           pw_core_add_listener(core, &core_listener, &core_events, nullptr);
         } else {
-          logging::debug([&](std::ostream &out) {
+          logging::debug([](std::ostream &out) {
             out << "[pipewire] Failed to connect to PW core. Error: "sv << errno << "(" << strerror(errno) << ")"sv;
           });
           return -1;
         }
       } else {
-        logging::debug([&](std::ostream &out) {
+        logging::debug([](std::ostream &out) {
           out << "[pipewire] Failed to setup PW context. Error: "sv << errno << "(" << strerror(errno) << ")"sv;
         });
         return -1;

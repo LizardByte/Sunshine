@@ -485,7 +485,7 @@ namespace platf {
         // Count of all virtual sinks that are created by us
         int nullcount = 0;
 
-        cb_t<pa_sink_info *> f = [&](ctx_t::pointer ctx, const pa_sink_info *sink_info, int eol) {
+        cb_t<pa_sink_info *> f = [this, &alarm, &nullcount](ctx_t::pointer ctx, const pa_sink_info *sink_info, int eol) {
           if (!sink_info) {
             if (!eol) {
               logging::error("Couldn't get pulseaudio sink info: {}", pa_strerror(pa_context_errno(ctx)));
@@ -577,7 +577,7 @@ namespace platf {
         std::string sink_name;
         auto alarm = safe::make_alarm<int>();
 
-        cb_simple_t<pa_server_info *> server_f = [&](ctx_t::pointer ctx, const pa_server_info *server_info) {
+        cb_simple_t<pa_server_info *> server_f = [&alarm, &sink_name](ctx_t::pointer ctx, const pa_server_info *server_info) {
           if (!server_info) {
             logging::error("Couldn't get pulseaudio server info: {}", pa_strerror(pa_context_errno(ctx)));
             alarm->ring(-1);
@@ -609,7 +609,7 @@ namespace platf {
           return monitor_name;
         }
 
-        cb_t<pa_sink_info *> sink_f = [&](ctx_t::pointer ctx, const pa_sink_info *sink_info, int eol) {
+        cb_t<pa_sink_info *> sink_f = [&sink_name, &alarm, &monitor_name](ctx_t::pointer ctx, const pa_sink_info *sink_info, int eol) {
           if (!sink_info) {
             if (!eol) {
               logging::error("Couldn't get pulseaudio sink info for [{}]: {}", sink_name, pa_strerror(pa_context_errno(ctx)));

@@ -50,18 +50,18 @@ TEST(ThreadSafeShared, InitializesIndependentAutomaticOwnersAndRecreatesReleased
   int first_constructions = 0;
   int second_constructions = 0;
   int destructions = 0;
-  auto first = safe::make_shared<int>([&](int &value) {
+  auto first = safe::make_shared<int>([&first_constructions](int &value) {
     value = ++first_constructions;
     return 0;
   },
-                                      [&](int &) {
+                                      [&destructions](int &) {
                                         ++destructions;
                                       });
-  auto second = safe::make_shared<int>([&](int &value) {
+  auto second = safe::make_shared<int>([&second_constructions](int &value) {
     value = 100 + ++second_constructions;
     return 0;
   },
-                                       [&](int &) {
+                                       [&destructions](int &) {
                                          ++destructions;
                                        });
 

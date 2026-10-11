@@ -244,7 +244,7 @@ TEST(ConfigStoreTest, ConcurrentCredentialReadersSeeCompleteUpdates) {
   config.update_credentials({"alice", "alice", "alice"});
   std::atomic<bool> done {false};
   std::atomic<bool> consistent {true};
-  std::thread writer {[&]() {
+  std::thread writer {[&config, &done]() {
     for (int index = 0; index < 1000; ++index) {
       const auto value = index % 2 ? "alice" : "bob";
       config.update_credentials({value, value, value});

@@ -38,7 +38,7 @@ TEST(ShaderBundleTest, CompilesCompleteImmutableBundleWithCorrectProfiles) {
   std::set<std::string> paths;
   int vertices = 0;
   int pixels = 0;
-  const auto bundle = platf::dxgi::compile_shaders([&](const std::string &path, const char *profile) {
+  const auto bundle = platf::dxgi::compile_shaders([&paths, &vertices, &pixels](const std::string &path, const char *profile) {
     EXPECT_TRUE(paths.insert(path).second);
     EXPECT_TRUE(path.ends_with(".hlsl"));
     if (std::string_view {profile} == "vs_5_0") {

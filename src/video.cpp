@@ -267,7 +267,7 @@ namespace video {
     auto status = sws_scale_frame(sws.get(), requires_padding ? sws_output_frame.get() : sw_frame.get(), sws_input_frame.get());
     if (status < 0) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
-      logging::error([&](std::ostream &out) {
+      logging::error([&string, &status](std::ostream &out) {
         out << "Couldn't scale frame: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
       });
       return -1;
@@ -295,7 +295,7 @@ namespace video {
       auto status = av_hwframe_transfer_data(frame, sw_frame.get(), 0);
       if (status < 0) {
         std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
-        logging::error([&](std::ostream &out) {
+        logging::error([&string, &status](std::ostream &out) {
           out << "Failed to transfer image data to hardware frame: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
         });
         return -1;
@@ -399,7 +399,7 @@ namespace video {
     av_dict_free(&options);
     if (status < 0) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
-      logging::error([&](std::ostream &out) {
+      logging::error([&string, &status](std::ostream &out) {
         out << "Failed to set SWS options: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
       });
       return -1;
@@ -408,7 +408,7 @@ namespace video {
     status = sws_init_context(sws.get(), nullptr, nullptr);
     if (status < 0) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
-      logging::error([&](std::ostream &out) {
+      logging::error([&string, &status](std::ostream &out) {
         out << "Failed to initialize SWS: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
       });
       return -1;
@@ -1928,7 +1928,7 @@ namespace video {
     auto ret = avcodec_send_frame(ctx.get(), frame);
     if (ret < 0) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> err_str {0};
-      logging::error([&](std::ostream &out) {
+      logging::error([&err_str, &ret](std::ostream &out) {
         out << "Could not send a frame for encoding: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, ret);
       });
 
@@ -2209,7 +2209,7 @@ namespace video {
           auto err = av_hwdevice_ctx_create_derived(&derived_context, platform_formats->avcodec_derived_dev_type, encoding_stream_context.get(), 0);
           if (err) {
             std::array<char, AV_ERROR_MAX_STRING_SIZE> err_str {0};
-            logging::error([&](std::ostream &out) {
+            logging::error([&err_str, &err](std::ostream &out) {
               out << "Failed to derive device context: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, err);
             });
 
@@ -2264,10 +2264,10 @@ namespace video {
             [&](int v) {
               av_dict_set_int(&options, option.name.c_str(), v, 0);
             },
-            [&](const int *v) {
+            [&options, &option](const int *v) {
               av_dict_set_int(&options, option.name.c_str(), *v, 0);
             },
-            [&](const std::optional<int> *v) {
+            [&options, &option](const std::optional<int> *v) {
               if (*v) {
                 av_dict_set_int(&options, option.name.c_str(), **v, 0);
               }
@@ -2278,7 +2278,7 @@ namespace video {
             [&](const std::string &v) {
               av_dict_set(&options, option.name.c_str(), v.c_str(), 0);
             },
-            [&](const std::string *v) {
+            [&options, &option](const std::string *v) {
               if (!v->empty()) {
                 av_dict_set(&options, option.name.c_str(), v->c_str(), 0);
               }
@@ -2350,14 +2350,14 @@ namespace video {
         std::array<char, AV_ERROR_MAX_STRING_SIZE> err_str {0};
 
         if (!video_format.fallback_options.empty() && retries == 0) {
-          logging::info([&](std::ostream &out) {
+          logging::info([&video_format, &err_str, &status](std::ostream &out) {
             out << "Retrying with fallback configuration options for ["sv << video_format.name << "] after error: "sv
                 << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, status);
           });
 
           continue;
         } else {
-          logging::error([&](std::ostream &out) {
+          logging::error([&video_format, &err_str, &status](std::ostream &out) {
             out << "Could not open codec ["sv
                 << video_format.name << "]: "sv
                 << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, status);
@@ -2534,7 +2534,7 @@ namespace video {
     // set max frame time based on client-requested target framerate.
     double minimum_fps_target = (host.settings.video.minimum_fps_target > 0.0) ? host.settings.video.minimum_fps_target : (config.framerate / 2);
     std::chrono::duration<double, std::milli> max_frametime {1000.0 / minimum_fps_target};
-    logging::info([&](std::ostream &out) {
+    logging::info([&minimum_fps_target, &max_frametime](std::ostream &out) {
       out << "Minimum FPS target set to ~"sv << minimum_fps_target << "fps ("sv << max_frametime.count() << "ms)"sv;
     });
 
@@ -3630,7 +3630,7 @@ namespace video {
     auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VAAPI, render_device.empty() ? nullptr : render_device.c_str(), nullptr, 0);
     if (status < 0) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
-      logging::error([&](std::ostream &out) {
+      logging::error([&string, &status](std::ostream &out) {
         out << "Failed to create a VAAPI device: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
       });
       return -1;
@@ -3688,7 +3688,7 @@ namespace video {
     auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_CUDA, nullptr, nullptr, 1 /* AV_CUDA_USE_PRIMARY_CONTEXT */);
     if (status < 0) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
-      logging::error([&](std::ostream &out) {
+      logging::error([&string, &status](std::ostream &out) {
         out << "Failed to create a CUDA device: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
       });
       return -1;
@@ -3706,7 +3706,7 @@ namespace video {
     auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VIDEOTOOLBOX, nullptr, nullptr, 0);
     if (status < 0) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
-      logging::error([&](std::ostream &out) {
+      logging::error([&string, &status](std::ostream &out) {
         out << "Failed to create a VideoToolbox device: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
       });
       return -1;
@@ -3746,7 +3746,7 @@ namespace video {
     auto err = av_hwdevice_ctx_init(ctx_buf.get());
     if (err) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> err_str {0};
-      logging::error([&](std::ostream &out) {
+      logging::error([&err_str, &err](std::ostream &out) {
         out << "Failed to create FFMpeg hardware device context: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, err);
       });
 

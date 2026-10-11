@@ -525,7 +525,7 @@ namespace platf {
         for (; plane_p != end; ++plane_p) {
           plane_t plane = drmModeGetPlane(fd, *plane_p);
           if (!plane) {
-            logging::error([&](std::ostream &out) {
+            logging::error([this](std::ostream &out) {
               out << "Couldn't get drm plane ["sv << (end - plane_p) << "]: "sv << strerror(errno);
             });
             continue;
@@ -730,7 +730,7 @@ namespace platf {
           logging::debug("Opening render node: {}", rendernode_path);
           render_fd.el = open(rendernode_path, O_RDWR);
           if (render_fd.el < 0) {
-            logging::warning([&](std::ostream &out) {
+            logging::warning([&rendernode_path](std::ostream &out) {
               out << "Couldn't open render node: "sv << rendernode_path << ": "sv << strerror(errno);
             });
             render_fd.el = dup(fd.el);
@@ -1115,7 +1115,7 @@ namespace platf {
 
       ss << util::view(plane->formats[plane->count_formats - 1]) << ']';
 
-      logging::debug([&](std::ostream &out) {
+      logging::debug([&ss](std::ostream &out) {
         out << ss.str();
       });
     }
@@ -1203,7 +1203,7 @@ namespace platf {
           // Skip non-Nvidia cards if we're looking for CUDA devices
           // unless NVENC is selected manually by the user
           if (mem_type == mem_type_e::cuda && !card.is_nvidia()) {
-            logging::debug([&](std::ostream &out) {
+            logging::debug([&file](std::ostream &out) {
               out << file << " is not a CUDA device"sv;
             });
             if (settings.video.encoder != "nvenc") {
@@ -1215,7 +1215,7 @@ namespace platf {
           // This is important for hybrid GPU laptops where the display
           // may be connected through NVIDIA but rendering happens on Intel
           if (mem_type == mem_type_e::vaapi && card.is_nvidia()) {
-            logging::debug([&](std::ostream &out) {
+            logging::debug([&file](std::ostream &out) {
               out << file << " is an NVIDIA card, skipping for VAAPI"sv;
             });
             continue;
@@ -1239,7 +1239,7 @@ namespace platf {
 
             auto fb = card.fb(plane.get());
             if (!fb) {
-              logging::error([&](std::ostream &out) {
+              logging::error([&plane](std::ostream &out) {
                 out << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
               });
               return -1;
@@ -1257,7 +1257,7 @@ namespace platf {
 
               auto fb_fd = card.handleFD(fb->handles[i]);
               if (fb_fd.el < 0) {
-                logging::error([&](std::ostream &out) {
+                logging::error([&fb](std::ostream &out) {
                   out << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
                 });
                 continue;
@@ -1266,7 +1266,7 @@ namespace platf {
 
             auto crtc = card.crtc(plane->crtc_id);
             if (!crtc) {
-              logging::error([&](std::ostream &out) {
+              logging::error([](std::ostream &out) {
                 out << "Couldn't get CRTC info: "sv << strerror(errno);
               });
               continue;
@@ -1282,7 +1282,7 @@ namespace platf {
             if (pos == std::end(state.card_descriptors)) {
               // This code path shouldn't happen, but it's there just in case.
               // card_descriptors is part of the guesswork after all.
-              logging::error([&](std::ostream &out) {
+              logging::error([&entry](std::ostream &out) {
                 out << "Couldn't find ["sv << entry.path() << "]: This shouldn't have happened :/"sv;
               });
               return -1;
@@ -1412,7 +1412,7 @@ namespace platf {
 
         prop_blob_t hdr_metadata_blob = drmModeGetPropertyBlob(card.fd.el, *hdr_metadata_blob_id);
         if (hdr_metadata_blob == nullptr) {
-          logging::error([&](std::ostream &out) {
+          logging::error([](std::ostream &out) {
             out << "Unable to get HDR metadata blob: "sv << strerror(errno);
           });
           return false;
@@ -1425,14 +1425,14 @@ namespace platf {
 
         auto raw_metadata = (hdr_output_metadata *) hdr_metadata_blob->data;
         if (raw_metadata->metadata_type != 0) {  // HDMI_STATIC_METADATA_TYPE1
-          logging::error([&](std::ostream &out) {
+          logging::error([&raw_metadata](std::ostream &out) {
             out << "Unknown HDMI_STATIC_METADATA_TYPE value: "sv << raw_metadata->metadata_type;
           });
           return false;
         }
 
         if (raw_metadata->hdmi_metadata_type1.metadata_type != 0) {  // Static Metadata Type 1
-          logging::error([&](std::ostream &out) {
+          logging::error([&raw_metadata](std::ostream &out) {
             out << "Unknown secondary metadata type value: "sv << raw_metadata->hdmi_metadata_type1.metadata_type;
           });
           return false;
@@ -1452,7 +1452,7 @@ namespace platf {
             logging::warning("Unsupported HDR EOTF: HLG"sv);
             return true;
           default:
-            logging::warning([&](std::ostream &out) {
+            logging::warning([&raw_metadata](std::ostream &out) {
               out << "Unsupported HDR EOTF: "sv << raw_metadata->hdmi_metadata_type1.eotf;
             });
             return true;
@@ -1473,7 +1473,7 @@ namespace platf {
 
         prop_blob_t hdr_metadata_blob = drmModeGetPropertyBlob(card.fd.el, *hdr_metadata_blob_id);
         if (hdr_metadata_blob == nullptr) {
-          logging::error([&](std::ostream &out) {
+          logging::error([](std::ostream &out) {
             out << "Unable to get HDR metadata blob: "sv << strerror(errno);
           });
           return false;
@@ -1627,7 +1627,7 @@ namespace platf {
             drm_mode_map_dumb map = {};
             map.handle = fb->handles[0];
             if (drmIoctl(card.fd.el, DRM_IOCTL_MODE_MAP_DUMB, &map) < 0) {
-              logging::error([&](std::ostream &out) {
+              logging::error([](std::ostream &out) {
                 out << "Failed to map cursor FB as dumb buffer: "sv << strerror(errno);
               });
               captured_cursor.visible = false;
@@ -1638,7 +1638,7 @@ namespace platf {
           }
 
           if (mapped_data == MAP_FAILED) {
-            logging::error([&](std::ostream &out) {
+            logging::error([](std::ostream &out) {
               out << "Failed to mmap cursor FB: "sv << strerror(errno);
             });
             captured_cursor.visible = false;
@@ -1723,7 +1723,7 @@ namespace platf {
         auto fb = card.fb(plane.get());
         if (!fb) {
           // This can happen if the display is being reconfigured while streaming
-          logging::warning([&](std::ostream &out) {
+          logging::warning([&plane](std::ostream &out) {
             out << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
           });
           return capture_e::timeout;
@@ -2387,7 +2387,7 @@ namespace platf {
       // Skip non-Nvidia cards if we're looking for CUDA devices
       // unless NVENC is selected manually by the user
       if (hwdevice_type == mem_type_e::cuda && !card.is_nvidia()) {
-        logging::debug([&](std::ostream &out) {
+        logging::debug([&file](std::ostream &out) {
           out << file << " is not a CUDA device"sv;
         });
         if (settings.video.encoder == "nvenc") {
@@ -2401,7 +2401,7 @@ namespace platf {
       // This is important for hybrid GPU laptops where the display
       // may be connected through NVIDIA but rendering happens on Intel
       if (hwdevice_type == mem_type_e::vaapi && card.is_nvidia()) {
-        logging::debug([&](std::ostream &out) {
+        logging::debug([&file](std::ostream &out) {
           out << file << " is an NVIDIA card, skipping for VAAPI"sv;
         });
         continue;
@@ -2422,7 +2422,7 @@ namespace platf {
 
         auto fb = card.fb(plane.get());
         if (!fb) {
-          logging::error([&](std::ostream &out) {
+          logging::error([&plane](std::ostream &out) {
             out << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
           });
           continue;
@@ -2441,7 +2441,7 @@ namespace platf {
         // This appears to return the offset of the monitor
         auto crtc = card.crtc(plane->crtc_id);
         if (!crtc) {
-          logging::error([&](std::ostream &out) {
+          logging::error([](std::ostream &out) {
             out << "Couldn't get CRTC info: "sv << strerror(errno);
           });
           continue;
@@ -2497,7 +2497,7 @@ namespace platf {
 
     state.card_descriptors = std::move(cds);
 
-    logging::debug([&](std::ostream &out) {
+    logging::debug([&display_names](std::ostream &out) {
       out << "Final KMS display_names return list: " << (display_names | std::views::join_with(' ') | std::ranges::to<std::string>());
     });
     return display_names;

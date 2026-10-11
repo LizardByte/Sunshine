@@ -1004,7 +1004,7 @@ namespace cuda {
         cursor_visible = !*cursor;
 
         ctx_t ctx {handle.api, handle.handle};
-        auto fg = util::fail_guard([&]() {
+        auto fg = util::fail_guard([this]() {
           handle.reset();
         });
 

@@ -420,14 +420,14 @@ namespace platf::dxgi {
     auto status = D3DCompileFromFile(wFile.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, entrypoint, shader_model, flags, 0, &compiled_p, &msg_p);
 
     if (msg_p) {
-      logging::warning([&](std::ostream &out) {
+      logging::warning([&msg_p](std::ostream &out) {
         out << std::string_view {(const char *) msg_p->GetBufferPointer(), msg_p->GetBufferSize() - 1};
       });
       msg_p->Release();
     }
 
     if (status) {
-      logging::error([&](std::ostream &out) {
+      logging::error([&file, &status](std::ostream &out) {
         out << "Couldn't compile ["sv << file << "] [0x"sv << util::hex(status).to_string_view() << ']';
       });
       return nullptr;
@@ -752,7 +752,7 @@ namespace platf::dxgi {
 
         auto status = device->CreateRenderTargetView(output_texture.get(), &rtv_desc, &rt);
         if (FAILED(status)) {
-          logging::error([&](std::ostream &out) {
+          logging::error([&status](std::ostream &out) {
             out << "Failed to create render target view: " << util::log_hex(status);
           });
           return false;
@@ -825,7 +825,7 @@ namespace platf::dxgi {
           break;
 
         default:
-          logging::error([&](std::ostream &out) {
+          logging::error([&pix_fmt](std::ostream &out) {
             out << "D3D11 backend doesn't support pixel format: " << from_pix_fmt(pix_fmt);
           });
           return -1;
@@ -1021,7 +1021,7 @@ namespace platf::dxgi {
       texture2d_t texture;
       auto status = device->CreateTexture2D(&texture_desc, &texture_data, &texture);
       if (FAILED(status)) {
-        logging::error([&](std::ostream &out) {
+        logging::error([&status](std::ostream &out) {
           out << "Failed to create black texture: " << util::log_hex(status);
         });
         return {};
@@ -1030,7 +1030,7 @@ namespace platf::dxgi {
       shader_res_t resource_view;
       status = device->CreateShaderResourceView(texture.get(), nullptr, &resource_view);
       if (FAILED(status)) {
-        logging::error([&](std::ostream &out) {
+        logging::error([&status](std::ostream &out) {
           out << "Failed to create black texture resource view: " << util::log_hex(status);
         });
         return {};
@@ -1176,7 +1176,7 @@ namespace platf::dxgi {
         auto err = av_hwframe_get_buffer(hw_frames_ctx, frame, 0);
         if (err) {
           std::array<char, AV_ERROR_MAX_STRING_SIZE> err_str {0};
-          logging::error([&](std::ostream &out) {
+          logging::error([&err_str, &err](std::ostream &out) {
             out << "Failed to get hwframe buffer: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, err);
           });
           return -1;
@@ -1193,7 +1193,7 @@ namespace platf::dxgi {
         auto err = av_hwframe_map(d3d11_frame.get(), frame, AV_HWFRAME_MAP_WRITE | AV_HWFRAME_MAP_OVERWRITE);
         if (err) {
           std::array<char, AV_ERROR_MAX_STRING_SIZE> err_str {0};
-          logging::error([&](std::ostream &out) {
+          logging::error([&err_str, &err](std::ostream &out) {
             out << "Failed to map D3D11 frame: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, err);
           });
           return -1;

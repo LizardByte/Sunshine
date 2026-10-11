@@ -62,7 +62,7 @@ TEST(NvapiApiTest, LooksUpNamesByValueAndForwardsArguments) {
 
 TEST(NvapiApiTest, RetainsTheLibraryUntilItsLastApiOwnerIsReleased) {
   bool unloaded = false;
-  auto library = std::shared_ptr<void>(new int(1), [&](void *value) {
+  auto library = std::shared_ptr<void>(new int(1), [&unloaded](void *value) {
     unloaded = true;
     delete static_cast<int *>(value);
   });
@@ -82,7 +82,7 @@ TEST(NvapiApiTest, MissingLibrarySkipsSymbolLookup) {
     [](const char *) -> std::shared_ptr<void> {
       return {};
     },
-    [&](void *, const char *) -> void * {
+    [&resolved](void *, const char *) -> void * {
       resolved = true;
       return nullptr;
     },
@@ -94,8 +94,8 @@ TEST(NvapiApiTest, MissingLibrarySkipsSymbolLookup) {
 TEST(NvapiApiTest, MissingResolverReleasesTheLibrary) {
   bool unloaded = false;
   const nvprefs::api_t::loader_t loader {
-    [&](const char *) {
-      return std::shared_ptr<void>(new int(7), [&](void *value) {
+    [&unloaded](const char *) {
+      return std::shared_ptr<void>(new int(7), [&unloaded](void *value) {
         unloaded = true;
         delete static_cast<int *>(value);
       });
@@ -114,7 +114,7 @@ TEST(NvapiApiTest, FailedLoadingCanBeRetriedWithoutPublishingPartialState) {
   int attempts = 0;
   int unloads = 0;
   const nvprefs::api_t::loader_t loader {
-    [&](const char *name) -> std::shared_ptr<void> {
+    [&attempts, &unloads](const char *name) -> std::shared_ptr<void> {
   #if defined(_M_ARM64) || defined(__aarch64__)
       EXPECT_STREQ(name, "nvapia64.dll");
   #elif defined(_WIN64)
@@ -125,7 +125,7 @@ TEST(NvapiApiTest, FailedLoadingCanBeRetriedWithoutPublishingPartialState) {
       if (++attempts == 1) {
         return {};
       }
-      return {new int(11), [&](void *value) {
+      return {new int(11), [&unloads](void *value) {
                 ++unloads;
                 delete static_cast<int *>(value);
               }};

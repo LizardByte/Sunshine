@@ -27,7 +27,7 @@
  * @code
  * logging::info("Server started");
  * logging::warning("Unknown preset: {}", preset);
- * logging::debug([&](std::ostream &output) {
+ * logging::debug([](std::ostream &output) {
  *   output << collect_diagnostics();
  * });
  * @endcode
@@ -137,7 +137,7 @@ namespace logging {
   template<typename... Args>
     requires(sizeof...(Args) > 0)
   void log(level_e level, std::format_string<Args...> format, Args &&...args) {
-    log(level, [&](std::ostream &output) {
+    log(level, [&format, &args...](std::ostream &output) {
       output << std::format(format, std::forward<Args>(args)...);
     });
   }
@@ -494,11 +494,11 @@ namespace logging {
         auto print_info = [&](const T &min_value, const T &max_value, double avg_value) {
           auto f = stat_trackers::two_digits_after_decimal();
           if constexpr (std::is_floating_point_v<T>) {
-            log(severity, [&](std::ostream &output) {
+            log(severity, [this, &f, &min_value, &max_value, &avg_value](std::ostream &output) {
               output << message << " (min/max/avg): " << f % min_value << units << "/" << f % max_value << units << "/" << f % avg_value << units;
             });
           } else {
-            log(severity, [&](std::ostream &output) {
+            log(severity, [this, &f, &min_value, &max_value, &avg_value](std::ostream &output) {
               output << message << " (min/max/avg): " << min_value << units << "/" << max_value << units << "/" << f % avg_value << units;
             });
           }

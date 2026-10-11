@@ -1402,7 +1402,7 @@ namespace nvhttp {
 
       pt::ptree tree;
       bool revert_display_configuration {false};
-      auto g = util::fail_guard([&]() {
+      auto g = util::fail_guard([this, &tree, &response, &revert_display_configuration]() {
         std::ostringstream data;
 
         if (tree.empty()) {
@@ -1519,7 +1519,7 @@ namespace nvhttp {
       print_req<SunshineHTTPS>(request);
 
       pt::ptree tree;
-      auto g = util::fail_guard([&]() {
+      auto g = util::fail_guard([&tree, &response]() {
         std::ostringstream data;
 
         if (tree.empty()) {
@@ -1710,7 +1710,7 @@ namespace nvhttp {
 
         int verified = 0;
 
-        auto fg = util::fail_guard([&]() {
+        auto fg = util::fail_guard([&x509, &verified]() {
           std::array<char, 256> subject_name;
 
           X509_NAME_oneline(X509_get_subject_name(x509.get()), subject_name.data(), subject_name.size());

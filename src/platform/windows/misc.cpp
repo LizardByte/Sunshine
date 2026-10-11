@@ -323,13 +323,13 @@ namespace platf {
     if (ret) {
       if (!CheckTokenMembership(user_token, AdministratorsGroup, &ret)) {
         ret = false;
-        logging::error([&](std::ostream &out) {
+        logging::error([](std::ostream &out) {
           out << "Failed to verify token membership for administrative access: " << GetLastError();
         });
       }
       FreeSid(AdministratorsGroup);
     } else {
-      logging::error([&](std::ostream &out) {
+      logging::error([](std::ostream &out) {
         out << "Unable to allocate SID to check administrative access: " << GetLastError();
       });
     }
@@ -369,7 +369,7 @@ namespace platf {
     // Elevation - Limited: User is an admin, has UAC enabled.
     // Elevation - Full:    User is an admin, has UAC disabled.
     if (!GetTokenInformation(userToken, TokenElevationType, &elevationType, sizeof(TOKEN_ELEVATION_TYPE), &dwSize)) {
-      logging::debug([&](std::ostream &out) {
+      logging::debug([](std::ostream &out) {
         out << "Retrieving token information failed: " << GetLastError();
       });
       CloseHandle(userToken);
@@ -389,7 +389,7 @@ namespace platf {
       // Retrieve the administrator token that is linked to the limited token
       if (!GetTokenInformation(userToken, TokenLinkedToken, reinterpret_cast<void *>(&linkedToken), sizeof(TOKEN_LINKED_TOKEN), &dwSize)) {
         // If the retrieval failed, log an error message and return null
-        logging::error([&](std::ostream &out) {
+        logging::error([](std::ostream &out) {
           out << "Retrieving linked token information failed: " << GetLastError();
         });
         CloseHandle(userToken);
@@ -462,7 +462,7 @@ namespace platf {
     // Allocate memory for the SID structure
     SystemSid = LocalAlloc(LMEM_FIXED, dwSize);
     if (SystemSid == nullptr) {
-      logging::error([&](std::ostream &out) {
+      logging::error([](std::ostream &out) {
         out << "Failed to allocate memory for the SID structure: " << GetLastError();
       });
       return false;
@@ -473,13 +473,13 @@ namespace platf {
     if (ret) {
       // Check if the current process token contains this SID
       if (!CheckTokenMembership(nullptr, SystemSid, &ret)) {
-        logging::error([&](std::ostream &out) {
+        logging::error([](std::ostream &out) {
           out << "Failed to check token membership: " << GetLastError();
         });
         ret = false;
       }
     } else {
-      logging::error([&](std::ostream &out) {
+      logging::error([](std::ostream &out) {
         out << "Failed to create a SID for the local system account. This may happen if the system is out of memory or if the SID buffer is too small: " << GetLastError();
       });
     }
@@ -718,7 +718,7 @@ namespace platf {
 
     HKEY user_key = nullptr;
     if (token) {
-      impersonate_current_user(token, [&]() {
+      impersonate_current_user(token, [&user_key]() {
         // RegOpenCurrentUser() doesn't take a token. It assumes we're impersonating the desired user.
         auto err = RegOpenCurrentUser(GENERIC_ALL, &user_key);
         if (err != ERROR_SUCCESS) {
@@ -839,7 +839,7 @@ namespace platf {
       DWORD out_len = scheme.size();
       res = UrlGetPartW(raw_target.c_str(), scheme.data(), &out_len, URL_PART_SCHEME, 0);
       if (res != S_OK) {
-        logging::warning([&](std::ostream &out) {
+        logging::warning([&raw_target, &res](std::ostream &out) {
           out << "Failed to extract URL scheme from URL: "sv << utf_utils::to_utf8(raw_target) << " ["sv << util::hex(res).to_string_view() << ']';
         });
         return utf_utils::from_utf8(raw_cmd);
@@ -1021,7 +1021,7 @@ namespace platf {
       match_pos += match_replacement.size();
     }
 
-    logging::info([&](std::ostream &out) {
+    logging::info([&raw_cmd, &cmd_string](std::ostream &out) {
       out << "Resolved user-provided command '"sv << raw_cmd << "' to '"sv << utf_utils::to_utf8(cmd_string) << '\'';
     });
     return cmd_string;
@@ -1116,7 +1116,7 @@ namespace platf {
       }
 
       // Open the process as the current user account, elevation is handled in the token itself.
-      ec = impersonate_current_user(user_token, [&]() {
+      ec = impersonate_current_user(user_token, [&cloned_env, &cmd, &start_dir, &user_token, &creation_flags, &ret, &startup_info, &process_info]() {
         std::wstring env_block = create_environment_block(cloned_env);
         std::wstring wcmd = resolve_command_string(cmd, start_dir, user_token, creation_flags);
         ret = CreateProcessAsUserW(user_token, nullptr, (LPWSTR) wcmd.c_str(), nullptr, nullptr, !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES), creation_flags, env_block.data(), start_dir.empty() ? nullptr : start_dir.c_str(), (LPSTARTUPINFOW) &startup_info, &process_info);
@@ -1161,7 +1161,7 @@ namespace platf {
 
     auto child = run_command(false, false, url, working_dir, _env, nullptr, ec, nullptr);
     if (ec) {
-      logging::warning([&](std::ostream &out) {
+      logging::warning([&url, &ec](std::ostream &out) {
         out << "Couldn't open url ["sv << url << "]: System: "sv << ec.message();
       });
     } else {
@@ -1716,7 +1716,7 @@ namespace platf {
       return nullptr;
     }
 
-    auto disconnect_fg = util::fail_guard([&]() {
+    auto disconnect_fg = util::fail_guard([&using_connect_hack, &native_socket]() {
       if (using_connect_hack) {
         SOCKADDR_IN6 empty = {};
         empty.sin6_family = AF_INET6;
@@ -1810,7 +1810,7 @@ namespace platf {
   std::string get_host_name() {
     std::array<WCHAR, 256> hostname;
     if (GetHostNameW(hostname.data(), hostname.size()) == SOCKET_ERROR) {
-      logging::error([&](std::ostream &out) {
+      logging::error([](std::ostream &out) {
         out << "GetHostNameW() failed: "sv << WSAGetLastError();
       });
       return "Sunshine"s;
@@ -1829,7 +1829,7 @@ namespace platf {
       if (!timer) {
         timer = CreateWaitableTimerEx(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
         if (!timer) {
-          logging::error([&](std::ostream &out) {
+          logging::error([](std::ostream &out) {
             out << "Unable to create high_precision_timer, CreateWaitableTimerEx() failed: " << GetLastError();
           });
         }

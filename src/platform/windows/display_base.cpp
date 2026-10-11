@@ -136,7 +136,7 @@ namespace platf::dxgi {
     if (display->client_frame_rate_strict.Numerator > 0) {
       int num = display->client_frame_rate_strict.Numerator;
       int den = display->client_frame_rate_strict.Denominator;
-      logging::info([&](std::ostream &out) {
+      logging::info([&num, &den](std::ostream &out) {
         out << "Requested frame rate [" << num << "/" << den << " exactly " << av_q2d(AVRational {num, den}) << " fps]";
       });
     } else {
@@ -605,7 +605,7 @@ namespace platf::dxgi {
     adapter->GetDesc(&adapter_desc);
 
     auto description = utf_utils::to_utf8(adapter_desc.Description);
-    logging::info([&](std::ostream &out) {
+    logging::info([this, &description, &adapter_desc](std::ostream &out) {
       out << std::endl
           << "Device Description : " << description << std::endl
           << "Device Vendor ID   : 0x"sv << util::hex(adapter_desc.VendorId).to_string_view() << std::endl
@@ -742,7 +742,7 @@ namespace platf::dxgi {
       DXGI_OUTPUT_DESC1 desc1;
       output6->GetDesc1(&desc1);
 
-      logging::info([&](std::ostream &out) {
+      logging::info([this, &desc1](std::ostream &out) {
         out << std::endl
             << "Colorspace         : "sv << colorspace_to_string(desc1.ColorSpace) << std::endl
             << "Bits Per Color     : "sv << desc1.BitsPerColor << std::endl
@@ -1086,7 +1086,7 @@ namespace platf {
       DXGI_ADAPTER_DESC1 adapter_desc;
       adapter->GetDesc1(&adapter_desc);
 
-      logging::debug([&](std::ostream &out) {
+      logging::debug([&adapter_desc](std::ostream &out) {
         out << std::endl
             << "====== ADAPTER ====="sv << std::endl
             << "Device Name      : "sv << utf_utils::to_utf8(adapter_desc.Description) << std::endl
@@ -1111,7 +1111,7 @@ namespace platf {
         auto width = desc.DesktopCoordinates.right - desc.DesktopCoordinates.left;
         auto height = desc.DesktopCoordinates.bottom - desc.DesktopCoordinates.top;
 
-        logging::debug([&](std::ostream &out) {
+        logging::debug([&device_name, &desc, &width, &height](std::ostream &out) {
           out << "    Output Name       : "sv << device_name << std::endl
               << "    AttachedToDesktop : "sv << (desc.AttachedToDesktop ? "yes"sv : "no"sv) << std::endl
               << "    Resolution        : "sv << width << 'x' << height << std::endl

@@ -125,7 +125,7 @@ namespace dyn {
 
     ss << ']';
 
-    logging::error([&](std::ostream &out) {
+    logging::error([&ss](std::ostream &out) {
       out << ss.str();
     });
 
@@ -284,7 +284,7 @@ namespace platf {
     return fd;
 #else
   #ifndef __FreeBSD__
-    logging::info([&](std::ostream &out) {
+    logging::info([&path](std::ostream &out) {
       out << "Sunshine compiled without DRM support. Cannot control Linux DRM master state for "sv << path.string();
     });
   #endif
@@ -521,7 +521,7 @@ namespace platf {
     std::error_code ec;
     auto child = run_command(false, false, cmd, working_dir, _env, nullptr, ec, nullptr);
     if (ec) {
-      logging::warning([&](std::ostream &out) {
+      logging::warning([&url, &ec](std::ostream &out) {
         out << "Couldn't open url ["sv << url << "]: System: "sv << ec.message();
       });
     } else {
@@ -591,7 +591,7 @@ namespace platf {
     if (!success) {
       // This will run on FreeBSD OR Linux if RTKit failed/was missing
       if (setpriority(PRIO_PROCESS, 0, linux_nice) == -1) {
-        logging::warning([&](std::ostream &out) {
+        logging::warning([&linux_nice](std::ostream &out) {
           out << "setpriority failed for nice "sv << linux_nice << ": "sv << strerror(errno);
         });
       } else {
@@ -634,7 +634,7 @@ namespace platf {
     std::array<char, PATH_MAX> executable;
     ssize_t len = readlink("/proc/self/exe", executable.data(), executable.size() - 1);
     if (len == -1) {
-      logging::fatal([&](std::ostream &out) {
+      logging::fatal([](std::ostream &out) {
         out << "readlink() failed: "sv << errno;
       });
       return;
@@ -649,7 +649,7 @@ namespace platf {
 
     // Re-exec ourselves with the same arguments
     if (execv(executable.data(), argv) < 0) {
-      logging::fatal([&](std::ostream &out) {
+      logging::fatal([](std::ostream &out) {
         out << "execv() failed: "sv << errno;
       });
       return;
@@ -673,7 +673,7 @@ namespace platf {
       logging::debug("Successfully sent SIGTERM to process group: {}", native_handle);
       return true;
     } else {
-      logging::warning([&](std::ostream &out) {
+      logging::warning([&native_handle](std::ostream &out) {
         out << "Unable to send SIGTERM to process group ["sv << native_handle << "]: "sv << errno;
       });
       return false;
@@ -882,7 +882,7 @@ namespace platf {
             pfd.events = POLLOUT;
 
             if (poll(&pfd, 1, -1) != 1) {
-              logging::warning([&](std::ostream &out) {
+              logging::warning([](std::ostream &out) {
                 out << "poll() failed: "sv << errno;
               });
               break;
@@ -892,7 +892,7 @@ namespace platf {
             continue;
           }
 
-          logging::verbose([&](std::ostream &out) {
+          logging::verbose([](std::ostream &out) {
             out << "sendmsg() failed: "sv << errno;
           });
           break;
@@ -948,7 +948,7 @@ namespace platf {
             pfd.events = POLLOUT;
 
             if (poll(&pfd, 1, -1) != 1) {
-              logging::warning([&](std::ostream &out) {
+              logging::warning([](std::ostream &out) {
                 out << "poll() failed: "sv << errno;
               });
               break;
@@ -958,7 +958,7 @@ namespace platf {
             continue;
           }
 
-          logging::warning([&](std::ostream &out) {
+          logging::warning([](std::ostream &out) {
             out << "sendmmsg() failed: "sv << errno;
           });
           return false;
@@ -1034,7 +1034,7 @@ namespace platf {
       pfd.events = POLLOUT;
 
       if (poll(&pfd, 1, -1) != 1) {
-        logging::warning([&](std::ostream &out) {
+        logging::warning([](std::ostream &out) {
           out << "poll() failed: "sv << errno;
         });
         break;
@@ -1045,7 +1045,7 @@ namespace platf {
     }
 
     if (bytes_sent < 0) {
-      logging::warning([&](std::ostream &out) {
+      logging::warning([](std::ostream &out) {
         out << "sendmsg() failed: "sv << errno;
       });
       return false;
@@ -1190,7 +1190,7 @@ namespace platf {
         for (const auto &tuple : options) {
           auto reset_val = std::get<2>(tuple);
           if (setsockopt(sockfd, std::get<0>(tuple), std::get<1>(tuple), &reset_val, sizeof(reset_val)) < 0) {
-            logging::warning([&](std::ostream &out) {
+            logging::warning([](std::ostream &out) {
               out << "Failed to reset option: "sv << errno;
             });
           }
@@ -1248,7 +1248,7 @@ namespace platf {
           // Reset TOS to -1 when QoS is disabled
           reset_options.emplace_back(std::make_tuple(level, option, -1));
         } else {
-          logging::error([&](std::ostream &out) {
+          logging::error([](std::ostream &out) {
             out << "Failed to set TOS/TCLASS: "sv << errno;
           });
         }
@@ -1270,7 +1270,7 @@ namespace platf {
       // Reset SO_PRIORITY to 0 when QoS is disabled
       reset_options.emplace_back(std::make_tuple(SOL_SOCKET, SO_PRIORITY, 0));
     } else {
-      logging::error([&](std::ostream &out) {
+      logging::error([](std::ostream &out) {
         out << "Failed to set SO_PRIORITY: "sv << errno;
       });
     }
@@ -1772,7 +1772,7 @@ namespace platf {
     cap_set_flag(caps, CAP_PERMITTED, caps_to_drop.size(), caps_to_drop.data(), CAP_CLEAR);
 
     if (cap_set_proc(caps) != 0) {
-      logging::error([&](std::ostream &out) {
+      logging::error([](std::ostream &out) {
         out << "[misc] drop_elevated_privileges failed to prune capabilities: "sv << std::strerror(errno);
       });
       failed = true;
@@ -1781,7 +1781,7 @@ namespace platf {
 
     // Reset dumpable AFTER the caps have been pruned to ensure /proc/pid/root is accessible.
     if (prctl(PR_SET_DUMPABLE, 1) != 0) {
-      logging::error([&](std::ostream &out) {
+      logging::error([](std::ostream &out) {
         out << "[misc] drop_elevated_privileges failed to set PR_SET_DUMPABLE: "sv << std::strerror(errno);
       });
       failed = true;

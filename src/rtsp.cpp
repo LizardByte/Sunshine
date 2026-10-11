@@ -203,14 +203,14 @@ namespace rtsp_stream {
         socket->sock.close(ec);
 
         if (ec) {
-          logging::error([&](std::ostream &out) {
+          logging::error([&ec](std::ostream &out) {
             out << "RTSP: handle_read_encrypted_header(): Couldn't close tcp socket: "sv << ec.message();
           });
         }
       });
 
       if (ec || bytes < sizeof(encrypted_rtsp_header_t)) {
-        logging::error([&](std::ostream &out) {
+        logging::error([&ec](std::ostream &out) {
           out << "RTSP: handle_read_encrypted_header(): Couldn't read from tcp socket: "sv << ec.message();
         });
 
@@ -256,7 +256,7 @@ namespace rtsp_stream {
         socket->sock.close(ec);
 
         if (ec) {
-          logging::error([&](std::ostream &out) {
+          logging::error([&ec](std::ostream &out) {
             out << "RTSP: handle_read_encrypted_message(): Couldn't close tcp socket: "sv << ec.message();
           });
         }
@@ -267,7 +267,7 @@ namespace rtsp_stream {
       auto seq = util::endian::big<std::uint32_t>(header->sequenceNumber);
 
       if (ec || bytes < payload_length) {
-        logging::error([&](std::ostream &out) {
+        logging::error([&ec](std::ostream &out) {
           out << "RTSP: handle_read_encrypted(): Couldn't read from tcp socket: "sv << ec.message();
         });
 
@@ -351,14 +351,14 @@ namespace rtsp_stream {
         socket->sock.close(ec);
 
         if (ec) {
-          logging::error([&](std::ostream &out) {
+          logging::error([&ec](std::ostream &out) {
             out << "RTSP: handle_plaintext_payload(): Couldn't close tcp socket: "sv << ec.message();
           });
         }
       });
 
       if (ec) {
-        logging::error([&](std::ostream &out) {
+        logging::error([&ec](std::ostream &out) {
           out << "RTSP: handle_plaintext_payload(): Couldn't read from tcp socket: "sv << ec.message();
         });
 
@@ -399,7 +399,7 @@ namespace rtsp_stream {
 
       if (end - socket->crlf >= content_length) {
         if (end - socket->crlf > content_length) {
-          logging::warning([&](std::ostream &out) {
+          logging::warning([&end, &socket, &content_length](std::ostream &out) {
             out << "(end - socket->crlf) > content_length -- "sv << (std::size_t) (end - socket->crlf) << " > "sv << content_length;
           });
         }
@@ -423,7 +423,7 @@ namespace rtsp_stream {
       logging::debug("handle_read_plaintext(): Handle read of size: {} bytes", bytes);
 
       if (ec) {
-        logging::error([&](std::ostream &out) {
+        logging::error([&ec](std::ostream &out) {
           out << "RTSP: handle_read_plaintext(): Couldn't read from tcp socket: "sv << ec.message();
         });
 
@@ -431,7 +431,7 @@ namespace rtsp_stream {
         socket->sock.close(ec);
 
         if (ec) {
-          logging::error([&](std::ostream &out) {
+          logging::error([&ec](std::ostream &out) {
             out << "RTSP: handle_read_plaintext(): Couldn't close tcp socket: "sv << ec.message();
           });
         }
@@ -531,7 +531,7 @@ namespace rtsp_stream {
       auto bind_addr_str = net::get_bind_address(settings, af);
       const auto bind_addr = boost::asio::ip::make_address(bind_addr_str, ec);
       if (ec) {
-        logging::error([&](std::ostream &out) {
+        logging::error([&bind_addr_str, &ec](std::ostream &out) {
           out << "Invalid bind address: "sv << bind_addr_str << " - " << ec.message();
         });
         return -1;
@@ -584,7 +584,7 @@ namespace rtsp_stream {
      */
     void handle_accept(const boost::system::error_code &ec) {
       if (ec) {
-        logging::error([&](std::ostream &out) {
+        logging::error([&ec](std::ostream &out) {
           out << "Couldn't accept incoming connections: "sv << ec.message();
         });
 
@@ -742,7 +742,7 @@ namespace rtsp_stream {
     void insert(const std::shared_ptr<stream::session_t> &session) {
       auto lg = _session_slots.lock();
       _session_slots->emplace(session);
-      logging::info([&](std::ostream &out) {
+      logging::info([this](std::ostream &out) {
         out << "New streaming session started [active sessions: "sv << _session_slots->size() << ']';
       });
     }
@@ -863,7 +863,7 @@ namespace rtsp_stream {
       bytes_send += sock.send(boost::asio::buffer(sv.substr(bytes_send)), 0, ec);
 
       if (ec) {
-        logging::error([&](std::ostream &out) {
+        logging::error([&ec](std::ostream &out) {
           out << "RTSP: Couldn't send data over tcp socket: "sv << ec.message();
         });
         return -1;
@@ -894,7 +894,7 @@ namespace rtsp_stream {
 
     int serialized_len;
     util::c_ptr<char> raw_resp {serializeRtspMessage(resp.get(), &serialized_len)};
-    logging::debug([&](std::ostream &out) {
+    logging::debug([&raw_resp, &serialized_len, &payload](std::ostream &out) {
       out << "---Begin Response---"sv << std::endl
           << std::string_view {raw_resp.get(), (std::size_t) serialized_len} << std::endl
           << std::string_view {payload.first, (std::size_t) payload.second} << std::endl

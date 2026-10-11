@@ -16,7 +16,7 @@ namespace nvprefs {
    * @brief Forward an informational NVPrefs message to the logger.
    */
   void info_message(const std::wstring &message) {
-    logging::info([&](std::ostream &out) {
+    logging::info([&message](std::ostream &out) {
       out << "nvprefs: " << utf_utils::to_utf8(message);
     });
   }
@@ -32,7 +32,7 @@ namespace nvprefs {
    * @brief Forward an NVPrefs error message to the logger.
    */
   void error_message(const std::wstring &message) {
-    logging::error([&](std::ostream &out) {
+    logging::error([&message](std::ostream &out) {
       out << "nvprefs: " << utf_utils::to_utf8(message);
     });
   }

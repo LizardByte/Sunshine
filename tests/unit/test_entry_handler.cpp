@@ -94,7 +94,7 @@ TEST(EntryHandlerTests, RearmsTerminationSignalsBeforeInvokingOwnedCallbacks) {
     lifetime::signal_guard_t guard {controller};
     int signals = 0;
     int repeated_result = -1;
-    guard.on_signal(signal, [&]() {
+    guard.on_signal(signal, [&signal, &signals, &repeated_result]() {
       if (++signals == 1) {
         repeated_result = std::raise(signal);
       }
@@ -140,7 +140,7 @@ TEST(EntryHandlerTests, RequestedRestartRunsAfterDependentCleanup) {
   bool restarted = false;
   {
     lifetime::controller_t controller;
-    controller.restart_on_exit([&]() {
+    controller.restart_on_exit([&cleaned, &restarted]() {
       EXPECT_TRUE(cleaned);
       restarted = true;
     });
@@ -165,7 +165,12 @@ TEST(EntryHandlerTests, InfrastructureDestructionJoinsWorkBeforeDependencyCleanu
   std::promise<void> release;
   const auto released = release.get_future().share();
   owner->scheduler().start(1);
-  auto task = owner->scheduler().push([&]() {
+  auto task = owner->scheduler().push([&started, &released, &mailbox, &owner
+#ifdef _WIN32
+                                       ,
+                                       &preferences
+#endif
+  ]() {
     started.set_value();
     released.wait();
     const bool dependencies_alive = !mailbox.expired() && owner->cursor();

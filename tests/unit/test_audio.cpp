@@ -128,7 +128,7 @@ TEST(AudioOwnerTest, RetainedContextSurvivesOwnerAndRestoresOriginalSink) {
   std::vector<std::string> restored;
   audio::audio_ctx_ref_t retained;
   {
-    audio::service_t owner {settings, std::make_shared<safe::mail_raw_t>(), [&]() {
+    audio::service_t owner {settings, std::make_shared<safe::mail_raw_t>(), [&restored]() {
                               return std::make_unique<fake_audio_control_t>(restored, platf::sink_t {"original", {}});
                             }};
     retained = owner.context();
@@ -149,7 +149,7 @@ TEST(AudioOwnerTest, FailedInitializationAndSinkDiscoveryCanBeRetried) {
   settings.audio.sink = "configured";
   std::vector<std::string> restored;
   int attempts {};
-  audio::service_t owner {settings, std::make_shared<safe::mail_raw_t>(), [&]() -> std::unique_ptr<platf::audio_control_t> {
+  audio::service_t owner {settings, std::make_shared<safe::mail_raw_t>(), [&attempts, &restored]() -> std::unique_ptr<platf::audio_control_t> {
                             ++attempts;
                             if (attempts == 1) {
                               return nullptr;
@@ -182,10 +182,10 @@ TEST(AudioOwnerTest, IndependentOwnersDoNotShareControlOrRestoration) {
   config::settings_t second_settings;
   std::vector<std::string> first_restored;
   std::vector<std::string> second_restored;
-  audio::service_t first {first_settings, std::make_shared<safe::mail_raw_t>(), [&]() {
+  audio::service_t first {first_settings, std::make_shared<safe::mail_raw_t>(), [&first_restored]() {
                             return std::make_unique<fake_audio_control_t>(first_restored, platf::sink_t {"first", {}});
                           }};
-  audio::service_t second {second_settings, std::make_shared<safe::mail_raw_t>(), [&]() {
+  audio::service_t second {second_settings, std::make_shared<safe::mail_raw_t>(), [&second_restored]() {
                              return std::make_unique<fake_audio_control_t>(second_restored, platf::sink_t {"second", {}});
                            }};
   auto first_context = first.context();
@@ -203,7 +203,7 @@ TEST(AudioOwnerTest, IndependentOwnersDoNotShareControlOrRestoration) {
 TEST(AudioOwnerTest, EmptyAndUnavailableSinksKeepRoutingUnchanged) {
   config::settings_t settings;
   std::vector<std::string> restored;
-  audio::service_t owner {settings, std::make_shared<safe::mail_raw_t>(), [&]() {
+  audio::service_t owner {settings, std::make_shared<safe::mail_raw_t>(), [&restored]() {
                             return std::make_unique<fake_audio_control_t>(restored, platf::sink_t {});
                           }};
   auto empty = owner.context();
@@ -227,7 +227,7 @@ TEST(AudioOwnerTest, DisabledCaptureDoesNotInitializeDevices) {
   const auto shutdown_event = session_mail->event<bool>(mail::shutdown);
   shutdown_event->raise(true);
   int attempts {};
-  audio::service_t owner {settings, host_mail, [&]() -> std::unique_ptr<platf::audio_control_t> {
+  audio::service_t owner {settings, host_mail, [&attempts]() -> std::unique_ptr<platf::audio_control_t> {
                             ++attempts;
                             return nullptr;
                           }};

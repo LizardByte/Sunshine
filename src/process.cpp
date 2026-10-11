@@ -166,7 +166,7 @@ namespace proc {
       }
     }
 
-    logging::debug([&](std::ostream &out) {
+    logging::debug([&parts, &cmd_path](std::ostream &out) {
       out << "Resolved target ["sv << parts.at(0) << "] to path ["sv << cmd_path << ']';
     });
 
@@ -271,7 +271,7 @@ namespace proc {
       auto child = platf::run_command(cmd.elevated, true, command, working_dir, _env, _pipe.get(), ec, nullptr);
 
       if (ec) {
-        logging::error([&](std::ostream &out) {
+        logging::error([&command, &ec](std::ostream &out) {
           out << "Couldn't run ["sv << command << "]: System: "sv << ec.message();
         });
         // We don't want any prep commands failing launch of the desktop.
@@ -284,7 +284,7 @@ namespace proc {
 
       child.wait(ec);
       if (ec) {
-        logging::error([&](std::ostream &out) {
+        logging::error([&command, &ec](std::ostream &out) {
           out << '[' << command << "] wait failed with error code ["sv << ec << ']';
         });
         return -1;
@@ -301,12 +301,12 @@ namespace proc {
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
                                               find_working_directory(command, _env) :
                                               boost::filesystem::path(_app.working_dir);
-      logging::info([&](std::ostream &out) {
+      logging::info([&command, &working_dir](std::ostream &out) {
         out << "Spawning ["sv << command << "] in ["sv << working_dir << ']';
       });
       auto child = platf::run_command(_app.elevated, true, command, working_dir, _env, _pipe.get(), ec, nullptr);
       if (ec) {
-        logging::warning([&](std::ostream &out) {
+        logging::warning([&command, &ec](std::ostream &out) {
           out << "Couldn't spawn ["sv << command << "]: System: "sv << ec.message();
         });
       } else {
@@ -322,12 +322,12 @@ namespace proc {
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
                                               find_working_directory(command, _env) :
                                               boost::filesystem::path(_app.working_dir);
-      logging::info([&](std::ostream &out) {
+      logging::info([&command, &working_dir](std::ostream &out) {
         out << "Executing: ["sv << command << "] in ["sv << working_dir << ']';
       });
       _process = platf::run_command(_app.elevated, true, command, working_dir, _env, _pipe.get(), ec, &_process_group);
       if (ec) {
-        logging::warning([&](std::ostream &out) {
+        logging::warning([&command, &ec](std::ostream &out) {
           out << "Couldn't run ["sv << command << "]: System: "sv << ec.message();
         });
         return -1;
@@ -401,7 +401,7 @@ namespace proc {
       auto child = platf::run_command(cmd.elevated, true, command, working_dir, _env, _pipe.get(), ec, nullptr);
 
       if (ec) {
-        logging::warning([&](std::ostream &out) {
+        logging::warning([&ec](std::ostream &out) {
           out << "System: "sv << ec.message();
         });
       }
@@ -639,7 +639,7 @@ namespace proc {
     // check if specified image exists
     if (std::error_code code; !std::filesystem::exists(app_image_path, code)) {
       // return default box image if image does not exist
-      logging::warning([&](std::ostream &out) {
+      logging::warning([&app_image_path](std::ostream &out) {
         out << "Couldn't find app image at path ["sv << app_image_path << ']';
       });
       return DEFAULT_APP_IMAGE_PATH;
@@ -647,7 +647,7 @@ namespace proc {
 
     // Validate PNG signature
     if (!check_valid_png(app_image_path)) {
-      logging::warning([&](std::ostream &out) {
+      logging::warning([&app_image_path](std::ostream &out) {
         out << "Invalid PNG file at path ["sv << app_image_path << ']';
       });
       return DEFAULT_APP_IMAGE_PATH;

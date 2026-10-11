@@ -553,12 +553,12 @@ namespace kwin {
         const auto [_, inserted] = self->outputs.try_emplace(output, std::make_shared<output_parameter_t>());
         if (inserted) {
           wl_output_add_listener(output, &output_listener, self);
-          logging::debug([&](std::ostream &out) {
+          logging::debug([&bind_ver, &output](std::ostream &out) {
             out << "[kwingrab] bound wl_output version "sv << bind_ver << " instance: "sv << output;
           });
         } else {
           // If we for some odd reason cannot add the output to the map clean it up and log a warning
-          logging::warning([&](std::ostream &out) {
+          logging::warning([&output](std::ostream &out) {
             out << "[kwingrab] Ignoring output "sv << output << " because map emplace failed."sv;
           });
           wl_output_destroy(output);

@@ -1118,7 +1118,7 @@ TEST_F(VirtualHidDeviceTest, DeferredVigemFeedbackDropsExpiredOwnersAndRunsForRe
   });
   expired_owner.reset();
   infrastructure_.scheduler().start(1);
-  const auto stop_worker = util::fail_guard([&]() {
+  const auto stop_worker = util::fail_guard([this]() {
     infrastructure_.scheduler().stop();
     infrastructure_.scheduler().join();
   });

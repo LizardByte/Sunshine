@@ -177,7 +177,7 @@ namespace http {
     std::error_code err_code {};
     fs::create_directories(pkey_dir, err_code);
     if (err_code) {
-      logging::error([&](std::ostream &out) {
+      logging::error([&pkey_dir, &err_code](std::ostream &out) {
         out << "Couldn't create directory ["sv << pkey_dir << "] :"sv << err_code.message();
       });
       return -1;
@@ -185,7 +185,7 @@ namespace http {
 
     fs::create_directories(cert_dir, err_code);
     if (err_code) {
-      logging::error([&](std::ostream &out) {
+      logging::error([&cert_dir, &err_code](std::ostream &out) {
         out << "Couldn't create directory ["sv << cert_dir << "] :"sv << err_code.message();
       });
       return -1;
@@ -204,7 +204,7 @@ namespace http {
     fs::permissions(pkey_path, fs::perms::owner_read | fs::perms::owner_write, fs::perm_options::replace, err_code);
 
     if (err_code) {
-      logging::error([&](std::ostream &out) {
+      logging::error([&pkey, &err_code](std::ostream &out) {
         out << "Couldn't change permissions of ["sv << pkey << "] :"sv << err_code.message();
       });
       return -1;
@@ -213,7 +213,7 @@ namespace http {
     fs::permissions(cert_path, fs::perms::owner_read | fs::perms::group_read | fs::perms::others_read | fs::perms::owner_write, fs::perm_options::replace, err_code);
 
     if (err_code) {
-      logging::error([&](std::ostream &out) {
+      logging::error([&cert, &err_code](std::ostream &out) {
         out << "Couldn't change permissions of ["sv << cert << "] :"sv << err_code.message();
       });
       return -1;
@@ -233,7 +233,7 @@ namespace http {
     }
 
     if (std::string file_dir = file_handler::get_parent_directory(file); !file_handler::make_directory(file_dir)) {
-      logging::error([&](std::ostream &out) {
+      logging::error([&file_dir](std::ostream &out) {
         out << "Couldn't create directory ["sv << file_dir << ']';
       });
       curl_easy_cleanup(curl);

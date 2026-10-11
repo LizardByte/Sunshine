@@ -514,7 +514,7 @@ namespace input {
     constexpr auto VK_F1 = 0x70;
     constexpr auto VK_F13 = 0x7C;
 
-    logging::debug([&](std::ostream &out) {
+    logging::debug([&keyCode](std::ostream &out) {
       out << "Apply Shortcut: 0x"sv << util::hex((std::uint8_t) keyCode).to_string_view();
     });
 
@@ -538,7 +538,7 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void print(PNV_REL_MOUSE_MOVE_PACKET packet) {
-    logging::debug([&](std::ostream &out) {
+    logging::debug([&packet](std::ostream &out) {
       out << "--begin relative mouse move packet--"sv << std::endl
           << "deltaX ["sv << util::endian::big(packet->deltaX) << ']' << std::endl
           << "deltaY ["sv << util::endian::big(packet->deltaY) << ']' << std::endl
@@ -552,7 +552,7 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void print(PNV_ABS_MOUSE_MOVE_PACKET packet) {
-    logging::debug([&](std::ostream &out) {
+    logging::debug([&packet](std::ostream &out) {
       out << "--begin absolute mouse move packet--"sv << std::endl
           << "x      ["sv << util::endian::big(packet->x) << ']' << std::endl
           << "y      ["sv << util::endian::big(packet->y) << ']' << std::endl
@@ -568,7 +568,7 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void print(PNV_MOUSE_BUTTON_PACKET packet) {
-    logging::debug([&](std::ostream &out) {
+    logging::debug([&packet](std::ostream &out) {
       out << "--begin mouse button packet--"sv << std::endl
           << "action ["sv << util::hex(packet->header.magic).to_string_view() << ']' << std::endl
           << "button ["sv << util::hex(packet->button).to_string_view() << ']' << std::endl
@@ -582,7 +582,7 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void print(PNV_SCROLL_PACKET packet) {
-    logging::debug([&](std::ostream &out) {
+    logging::debug([&packet](std::ostream &out) {
       out << "--begin mouse scroll packet--"sv << std::endl
           << "scrollAmt1 ["sv << util::endian::big(packet->scrollAmt1) << ']' << std::endl
           << "--end mouse scroll packet--"sv;
@@ -595,7 +595,7 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void print(PSS_HSCROLL_PACKET packet) {
-    logging::debug([&](std::ostream &out) {
+    logging::debug([&packet](std::ostream &out) {
       out << "--begin mouse hscroll packet--"sv << std::endl
           << "scrollAmount ["sv << util::endian::big(packet->scrollAmount) << ']' << std::endl
           << "--end mouse hscroll packet--"sv;
@@ -608,7 +608,7 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void print(PNV_KEYBOARD_PACKET packet) {
-    logging::debug([&](std::ostream &out) {
+    logging::debug([&packet](std::ostream &out) {
       out << "--begin keyboard packet--"sv << std::endl
           << "keyAction ["sv << util::hex(packet->header.magic).to_string_view() << ']' << std::endl
           << "keyCode ["sv << util::hex(packet->keyCode).to_string_view() << ']' << std::endl
@@ -635,7 +635,7 @@ namespace input {
    */
   void print(PNV_MULTI_CONTROLLER_PACKET packet) {
     // Moonlight spams controller packet even when not necessary
-    logging::verbose([&](std::ostream &out) {
+    logging::verbose([&packet](std::ostream &out) {
       out << "--begin controller packet--"sv << std::endl
           << "controllerNumber ["sv << packet->controllerNumber << ']' << std::endl
           << "activeGamepadMask ["sv << util::hex(packet->activeGamepadMask).to_string_view() << ']' << std::endl
@@ -655,7 +655,7 @@ namespace input {
    * @param packet The touch packet.
    */
   void print(PSS_TOUCH_PACKET packet) {
-    logging::debug([&](std::ostream &out) {
+    logging::debug([&packet](std::ostream &out) {
       out << "--begin touch packet--"sv << std::endl
           << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
           << "pointerId ["sv << util::hex(packet->pointerId).to_string_view() << ']' << std::endl
@@ -674,7 +674,7 @@ namespace input {
    * @param packet The pen packet.
    */
   void print(PSS_PEN_PACKET packet) {
-    logging::debug([&](std::ostream &out) {
+    logging::debug([&packet](std::ostream &out) {
       out << "--begin pen packet--"sv << std::endl
           << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
           << "toolType ["sv << util::hex(packet->toolType).to_string_view() << ']' << std::endl
@@ -695,7 +695,7 @@ namespace input {
    * @param packet The controller arrival packet.
    */
   void print(PSS_CONTROLLER_ARRIVAL_PACKET packet) {
-    logging::debug([&](std::ostream &out) {
+    logging::debug([&packet](std::ostream &out) {
       out << "--begin controller arrival packet--"sv << std::endl
           << "controllerNumber ["sv << (uint32_t) packet->controllerNumber << ']' << std::endl
           << "type ["sv << util::hex(packet->type).to_string_view() << ']' << std::endl
@@ -710,7 +710,7 @@ namespace input {
    * @param packet The controller touch packet.
    */
   void print(PSS_CONTROLLER_TOUCH_PACKET packet) {
-    logging::debug([&](std::ostream &out) {
+    logging::debug([&packet](std::ostream &out) {
       out << "--begin controller touch packet--"sv << std::endl
           << "controllerNumber ["sv << (uint32_t) packet->controllerNumber << ']' << std::endl
           << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
@@ -727,7 +727,7 @@ namespace input {
    * @param packet The controller motion packet.
    */
   void print(PSS_CONTROLLER_MOTION_PACKET packet) {
-    logging::verbose([&](std::ostream &out) {
+    logging::verbose([&packet](std::ostream &out) {
       out << "--begin controller motion packet--"sv << std::endl
           << "controllerNumber ["sv << util::hex(packet->controllerNumber).to_string_view() << ']' << std::endl
           << "motionType ["sv << util::hex(packet->motionType).to_string_view() << ']' << std::endl
@@ -743,7 +743,7 @@ namespace input {
    * @param packet The controller battery packet.
    */
   void print(PSS_CONTROLLER_BATTERY_PACKET packet) {
-    logging::verbose([&](std::ostream &out) {
+    logging::verbose([&packet](std::ostream &out) {
       out << "--begin controller battery packet--"sv << std::endl
           << "controllerNumber ["sv << util::hex(packet->controllerNumber).to_string_view() << ']' << std::endl
           << "batteryState ["sv << util::hex(packet->batteryState).to_string_view() << ']' << std::endl
@@ -1026,7 +1026,7 @@ namespace input {
      * when the last mouse coordinates were absolute
      */
     if (button == BUTTON_LEFT && release && !input->mouse_left_button_timeout) {
-      auto f = [=, &host]() {
+      auto f = [input, release, &host]() {
         auto left_released = host.mouse_press[BUTTON_LEFT];
         if (left_released) {
           // Already released left button
@@ -2336,7 +2336,7 @@ namespace input {
     NV_INPUT_HEADER header {};
     if (!validate_input_packet(input_data, &header)) {
       if (input_data.size() >= sizeof(header)) {
-        logging::warning([&](std::ostream &out) {
+        logging::warning([&header, &input_data](std::ostream &out) {
           out << "Dropping malformed input packet type ["sv
               << util::hex(util::endian::little(header.magic)).to_string_view()
               << "] with declared payload size ["sv << util::endian::big(header.size)

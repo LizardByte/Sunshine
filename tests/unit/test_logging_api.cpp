@@ -354,11 +354,11 @@ TEST(LoggingApiTest, RejectedRecordsDoNotEvaluateLazyBuilders) {
   {
     logging::testing::scoped_disable_t disabled;
     EXPECT_FALSE(logging::is_enabled(logging::level_e::info));
-    logging::log(logging::level_e::info, [&](std::ostream &out) {
+    logging::log(logging::level_e::info, [&calls](std::ostream &out) {
       ++calls;
       out << "filtered generic message";
     });
-    logging::info([&](std::ostream &out) {
+    logging::info([&calls](std::ostream &out) {
       ++calls;
       out << "filtered named message";
     });
@@ -376,7 +376,7 @@ TEST(LoggingApiTest, RejectedRecordsDoNotEvaluateLazyBuilders) {
   }
 
   EXPECT_TRUE(logging::is_enabled(logging::level_e::info));
-  logging::info([&](std::ostream &out) {
+  logging::info([&calls](std::ostream &out) {
     ++calls;
     out << "accepted after restoration";
   });
@@ -395,7 +395,7 @@ TEST(LoggingApiTest, LazyBuilderPreservesManipulatorsBoostFormatAndCustomValues)
   auto second_owner = logging::add_sink(second, 0, false);
   int calls = 0;
 
-  logging::log(logging::level_e::info, [&](std::ostream &out) {
+  logging::log(logging::level_e::info, [&calls](std::ostream &out) {
     ++calls;
     out << std::hex << std::setfill('0') << std::setw(4) << 42 << ' '
         << std::boolalpha << true << std::endl

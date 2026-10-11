@@ -156,7 +156,7 @@ namespace vk {
     for (const auto &[drm_fmt, vk_fmt] : formats_to_query) {
       auto modifiers = query_format_modifiers(phys_dev, vk_fmt);
       if (!modifiers.empty()) {
-        logging::debug([&](std::ostream &out) {
+        logging::debug([&drm_fmt, &modifiers](std::ostream &out) {
           out << "[vulkan] Format 0x"sv << std::hex << drm_fmt << std::dec
               << " has "sv << modifiers.size() << " supported modifiers"sv;
         });
@@ -851,7 +851,7 @@ namespace vk {
         case DRM_FORMAT_ARGB16161616F:
           return {VK_FORMAT_R16G16B16A16_SFLOAT, bgr_swap};
         default:
-          logging::warning([&](std::ostream &out) {
+          logging::warning([&fourcc](std::ostream &out) {
             out << "Unknown DRM fourcc 0x" << std::hex << fourcc << std::dec << ", assuming B8G8R8A8";
           });
           return {VK_FORMAT_B8G8R8A8_UNORM, identity};
@@ -943,7 +943,7 @@ namespace vk {
       auto res = vkCreateImage(vk_dev.dev, &img_ci, nullptr, &src.image);
       if (res != VK_SUCCESS) {
         close(fd);
-        logging::error([&](std::ostream &out) {
+        logging::error([&res, &sd](std::ostream &out) {
           out << "vkCreateImage for DMA-BUF failed: " << res
               << " (modifier=0x" << std::hex << sd.modifier << std::dec
               << ", pitch=" << sd.pitches[0] << ", offset=" << sd.offsets[0] << ")";

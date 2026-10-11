@@ -374,7 +374,7 @@ namespace display_device {
           return true;
         }
 
-        logging::error([&](std::ostream &out) {
+        logging::error([&trimmed_input, &allow_decimal_point](std::ostream &out) {
           out << "Failed to parse refresh rate string " << trimmed_input << ". Must have a pattern of " << (allow_decimal_point ? R"("123" or "123.456")" : R"("123")") << "!";
         });
       }
@@ -684,7 +684,7 @@ namespace display_device {
       for (const auto &entry : remapping_list) {
         const auto parsed_entry {parse_remapping_entry(entry, *remapping_type)};
         if (!parsed_entry) {
-          logging::error([&](std::ostream &out) {
+          logging::error([&entry_to_string, &entry](std::ostream &out) {
             out << "Failed to parse remapping entry from:\n"
                 << entry_to_string(entry);
           });
@@ -692,7 +692,7 @@ namespace display_device {
         }
 
         if (!parsed_entry->final_resolution && !parsed_entry->final_refresh_rate) {
-          logging::error([&](std::ostream &out) {
+          logging::error([&entry_to_string, &entry](std::ostream &out) {
             out << "At least one final value must be set for remapping display modes! Entry:\n"
                 << entry_to_string(entry);
           });
@@ -700,7 +700,7 @@ namespace display_device {
         }
 
         if (!session.enable_sops && (parsed_entry->requested_resolution || parsed_entry->final_resolution)) {
-          logging::warning([&](std::ostream &out) {
+          logging::warning([&entry_to_string, &entry](std::ostream &out) {
             out << R"(Skipping remapping entry, because the "Optimize game settings" is not set in the client! Entry:\n)"
                 << entry_to_string(entry);
           });
@@ -709,7 +709,7 @@ namespace display_device {
 
         // Note: at this point config should already have parsed resolution set.
         if (parsed_entry->requested_resolution && parsed_entry->requested_resolution != config.m_resolution) {
-          logging::verbose([&](std::ostream &out) {
+          logging::verbose([&entry_to_string, &entry](std::ostream &out) {
             out << "Skipping remapping because requested resolutions do not match! Entry:\n"
                 << entry_to_string(entry);
           });
@@ -718,14 +718,14 @@ namespace display_device {
 
         // Note: at this point config should already have parsed refresh rate set.
         if (parsed_entry->requested_fps && parsed_entry->requested_fps != config.m_refresh_rate) {
-          logging::verbose([&](std::ostream &out) {
+          logging::verbose([&entry_to_string, &entry](std::ostream &out) {
             out << "Skipping remapping because requested FPS do not match! Entry:\n"
                 << entry_to_string(entry);
           });
           continue;
         }
 
-        logging::info([&](std::ostream &out) {
+        logging::info([&entry_to_string, &entry](std::ostream &out) {
           out << "Remapping requested display mode. Entry:\n"
               << entry_to_string(entry);
         });
@@ -833,7 +833,7 @@ namespace display_device {
         return parsed_devices;
       }()};
       if (available_devices == tried_out_devices) {
-        logging::debug([&](std::ostream &out) {
+        logging::debug([&available_devices](std::ostream &out) {
           out << "Skipping reverting configuration, because no newly added/removed devices were detected since last check. Currently available devices:\n"
               << toJson(available_devices);
         });
@@ -855,12 +855,12 @@ namespace display_device {
 
       // Try again only after a device is added or removed. That includes redocking a display whose settings are still saved.
       if (result == Ok) {
-        logging::info([&](std::ostream &out) {
+        logging::info([&available_devices](std::ostream &out) {
           out << "Recovered the available display layout, but settings for an unavailable display are still pending. Will retry once devices are added or removed. Currently available devices:\n"
               << toJson(available_devices);
         });
       } else {
-        logging::warning([&](std::ostream &out) {
+        logging::warning([&available_devices](std::ostream &out) {
           out << "Failed to revert display device configuration (will retry once devices are added or removed). Enabling all of the available devices:\n"
               << toJson(available_devices);
         });
@@ -927,7 +927,7 @@ namespace display_device {
       const auto available_devices {impl->sm_instance->execute([](auto &settings_iface) {
         return settings_iface.enumAvailableDevices();
       })};
-      logging::info([&](std::ostream &out) {
+      logging::info([&available_devices](std::ostream &out) {
         out << "Currently available display devices:\n"
             << toJson(available_devices);
       });
@@ -1001,7 +1001,7 @@ namespace display_device {
       return;
     }
 
-    logging::info([&](std::ostream &out) {
+    logging::info([&config](std::ostream &out) {
       out << "Scheduling display device configuration:\n"
           << toJson(config);
     });

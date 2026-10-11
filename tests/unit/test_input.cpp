@@ -596,12 +596,12 @@ TEST_F(InputGamepadSessionTest, RetargetsRelativeMouseFromLatestStreamGeometry) 
 TEST_F(InputGamepadSessionTest, LicensedBackendChoiceIsSerializedWithoutChangingStartupSettings) {
   const auto path = std::filesystem::temp_directory_path() / "sunshine_test_runtime_gamepad_policy.conf";  // NOSONAR(cpp:S5443): safe for tests
   std::filesystem::remove(path);
-  const auto remove_file = util::fail_guard([&]() {
+  const auto remove_file = util::fail_guard([&path]() {
     std::filesystem::remove(path);
   });
   config_.edit_startup().sunshine.config_file = path.string();
   infrastructure_.scheduler().start(1);
-  const auto stop_worker = util::fail_guard([&]() {
+  const auto stop_worker = util::fail_guard([this]() {
     infrastructure_.scheduler().stop();
     infrastructure_.scheduler().join();
   });
@@ -621,7 +621,7 @@ TEST_F(InputGamepadSessionTest, LicensedBackendChoiceIsSerializedWithoutChanging
 
 TEST_F(InputGamepadSessionTest, LicensedBackendChoiceHonorsSavedPreferencesAndPersistenceFailures) {
   const auto path = std::filesystem::temp_directory_path() / "sunshine_test_existing_gamepad_policy.conf";  // NOSONAR(cpp:S5443): safe for tests
-  const auto remove_file = util::fail_guard([&]() {
+  const auto remove_file = util::fail_guard([&path]() {
     std::filesystem::remove(path);
   });
   config_.edit_startup().sunshine.config_file = path.string();
@@ -638,7 +638,7 @@ TEST_F(InputGamepadSessionTest, LicensedBackendChoiceHonorsSavedPreferencesAndPe
 TEST_F(InputGamepadSessionTest, LicensedBackendChoiceCanPrecedePlatformInitialization) {
   const auto path = std::filesystem::temp_directory_path() / "sunshine_test_inactive_gamepad_policy.conf";  // NOSONAR(cpp:S5443): safe for tests
   std::filesystem::remove(path);
-  const auto remove_file = util::fail_guard([&]() {
+  const auto remove_file = util::fail_guard([&path]() {
     std::filesystem::remove(path);
   });
   config_.edit_startup().sunshine.config_file = path.string();

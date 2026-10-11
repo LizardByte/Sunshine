@@ -349,7 +349,7 @@ namespace wl {
       }
 
       if (!common.empty()) {
-        logging::debug([&](std::ostream &out) {
+        logging::debug([&format, &common](std::ostream &out) {
           out << "[wayland] Format 0x"sv << std::hex << format << std::dec
               << " has "sv << common.size() << " common modifiers"sv;
         });

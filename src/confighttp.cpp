@@ -630,7 +630,7 @@ namespace confighttp {
       return false;
     }
 
-    auto fg = util::fail_guard([&]() {
+    auto fg = util::fail_guard([&response, &request]() {
       send_unauthorized(response, request);
     });
 
@@ -996,7 +996,7 @@ namespace confighttp {
 
     // Don't do anything if the file does not exist or is outside the assets directory
     if (!isChildPath(filePath, nodeModulesPath)) {
-      logging::warning([&](std::ostream &out) {
+      logging::warning([&filePath](std::ostream &out) {
         out << "Someone requested a path " << filePath << " that is outside the assets folder";
       });
       bad_request(response, request);
@@ -1588,7 +1588,7 @@ namespace confighttp {
       // Open and stream the validated file
       std::ifstream in(validated_path, std::ios::binary);
       if (!in) {
-        logging::warning([&](std::ostream &out) {
+        logging::warning([&validated_path](std::ostream &out) {
           out << "Unable to read cover image file: " << validated_path;
         });
         bad_request(response, request, "Unable to read cover image file");
@@ -2316,7 +2316,7 @@ namespace confighttp {
     }
 
     if (iter_ec) {
-      logging::debug([&](std::ostream &out) {
+      logging::debug([&iter_ec](std::ostream &out) {
         out << "BrowseDirectory: directory iteration error: "sv << iter_ec.message();
       });
     }

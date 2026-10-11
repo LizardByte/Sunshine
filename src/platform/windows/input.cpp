@@ -518,7 +518,7 @@ namespace platf {
     std::uint8_t /* led_number */,
     void *userdata
   ) {
-    logging::debug([&](std::ostream &out) {
+    logging::debug([&largeMotor, &smallMotor](std::ostream &out) {
       out << "largeMotor: "sv << (int) largeMotor << std::endl
           << "smallMotor: "sv << (int) smallMotor;
     });
@@ -537,7 +537,7 @@ namespace platf {
     DS4_LIGHTBAR_COLOR led_color,
     void *userdata
   ) {
-    logging::debug([&](std::ostream &out) {
+    logging::debug([&largeMotor, &smallMotor, &led_color](std::ostream &out) {
       out << "largeMotor: "sv << (int) largeMotor << std::endl
           << "smallMotor: "sv << (int) smallMotor << std::endl
           << "LED: "sv << util::hex(led_color.Red).to_string_view() << ' '
