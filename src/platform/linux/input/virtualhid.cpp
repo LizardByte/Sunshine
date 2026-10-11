@@ -18,17 +18,17 @@
 using namespace std::literals;
 
 namespace platf {
-  platform_caps::caps_t get_capabilities() {
+  platform_caps::caps_t get_capabilities(const config::settings_t &settings) {
     platform_caps::caps_t caps = 0;
     const auto runtime = virtualhid::create_runtime();
     if (!runtime) {
       return caps;
     }
 
-    if (const auto &capabilities = runtime->capabilities(); config::input.native_pen_touch && (capabilities.supports_touchscreen || capabilities.supports_pen_tablet)) {
+    if (const auto &capabilities = runtime->capabilities(); settings.input.native_pen_touch && (capabilities.supports_touchscreen || capabilities.supports_pen_tablet)) {
       caps |= platform_caps::pen_touch;
     }
-    if (virtualhid::configured_gamepad_supports_controller_extensions()) {
+    if (virtualhid::configured_gamepad_supports_controller_extensions(settings)) {
       caps |= platform_caps::controller_touch;
     }
 
@@ -66,8 +66,8 @@ namespace platf {
 #endif
   }
 
-  std::vector<supported_gamepad_t> &supported_gamepads(input_t *input) {
-    static std::vector<supported_gamepad_t> gamepads;
+  std::vector<supported_gamepad_t> supported_gamepads(input_t *input) {
+    std::vector<supported_gamepad_t> gamepads;
     if (!input || !input->get()) {
       gamepads = virtualhid::static_supported_gamepads();
       return gamepads;

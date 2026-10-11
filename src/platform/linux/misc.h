@@ -145,7 +145,7 @@ namespace platf {
     }
   }
 
-#if defined(__linux__) && defined(SUNSHINE_BUILD_DRM)
+#ifdef SUNSHINE_BUILD_DRM
   namespace kms {
     /**
      * @brief Runtime-owned KMS discovery cache, snapshotted by capture resources.
@@ -156,6 +156,7 @@ namespace platf {
      * @return Independent discovery state.
      */
     std::shared_ptr<capture_state_t> make_capture_state();
+  #ifdef __linux__
     /**
      * @brief Force-construct the DRM privileged worker thread while the calling
      *        thread still holds CAP_SYS_ADMIN in CAP_PERMITTED.
@@ -177,6 +178,7 @@ namespace platf {
      * @return A file descriptor on success, or `-1` on failure.
      */
     int privileged_open_drm_card_fd(const char *path);
+  #endif
   }  // namespace kms
 #endif
 }  // namespace platf

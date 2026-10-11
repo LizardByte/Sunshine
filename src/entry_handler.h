@@ -3,6 +3,7 @@
  * @brief Declarations for entry handling functions.
  */
 #pragma once
+#include "config.h"
 
 // standard includes
 #include <atomic>
@@ -19,20 +20,22 @@
 
 /**
  * @brief Build the URL used to launch the Web UI.
+ * @param settings Application settings containing the bind address and base port.
  * @param path Optional path to append to the base URL.
  * @return HTTPS URL using the configured bind address and Web UI port.
  * @examples
- * get_launch_ui_url();
- * get_launch_ui_url("/pin");
+ * get_launch_ui_url(settings);
+ * get_launch_ui_url(settings, "/pin");
  * @examples_end
  */
-std::string get_launch_ui_url(const std::optional<std::string> &path = std::nullopt);
+std::string get_launch_ui_url(const config::settings_t &settings, const std::optional<std::string> &path = std::nullopt);
 
 /**
  * @brief Launch the Web UI.
+ * @param settings Application settings containing the bind address and base port.
  * @param path Optional path to append to the base URL.
  */
-void launch_ui(const std::optional<std::string> &path = std::nullopt);
+void launch_ui(const config::settings_t &settings, const std::optional<std::string> &path = std::nullopt);
 
 /**
  * @brief Functions for handling command line arguments.
@@ -40,16 +43,17 @@ void launch_ui(const std::optional<std::string> &path = std::nullopt);
 namespace args {
   /**
    * @brief Reset the user credentials.
+   * @param settings Application settings containing the credentials file path.
    * @param name The name of the program.
    * @param argc The number of arguments.
    * @param argv The arguments.
    * @examples
-   * creds("sunshine", 2, {"new_username", "new_password"});
+   * creds(settings, "sunshine", 2, {"new_username", "new_password"});
    * @examples_end
    *
    * @return Process exit code from updating the stored credentials.
    */
-  int creds(const char *name, int argc, char *argv[]);
+  int creds(const config::settings_t &settings, const char *name, int argc, char *argv[]);
 
   /**
    * @brief Print help to stdout, then exit.
@@ -238,12 +242,13 @@ namespace service_ctrl {
 
   /**
    * @brief Wait for the UI to be ready after Sunshine startup.
+   * @param settings Application settings containing the Web UI endpoint.
    * @examples
-   * wait_for_ui_ready();
+   * wait_for_ui_ready(settings);
    * @examples_end
    *
    * @return True when the requested service or UI readiness condition is satisfied.
    */
-  bool wait_for_ui_ready();
+  bool wait_for_ui_ready(const config::settings_t &settings);
 }  // namespace service_ctrl
 #endif

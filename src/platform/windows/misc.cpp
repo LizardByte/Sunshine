@@ -127,7 +127,7 @@ namespace bp = boost::process::v1;
 using namespace std::literals;
 
 namespace platf {
-  std::vector<permission_status_t> get_permission_statuses() {
+  std::vector<permission_status_t> get_permission_statuses(const config::settings_t &settings) {
     return {{"config_directory", can_access_directory(appdata()) ? "granted" : "denied", true, true}};
   }
 
@@ -147,17 +147,23 @@ namespace platf {
    * @brief Own Windows process settings and optional networking resources.
    */
   struct runtime_t::impl_t {
+    const config::settings_t &settings;  ///< Immutable settings for this platform owner.
+
     /**
      * @brief Bind application dependencies.
+     * @param settings Immutable startup settings for this host.
      * @param preferences NVIDIA profile owner.
      */
-    explicit impl_t(nvprefs::nvprefs_interface &preferences):
+    explicit impl_t(const config::settings_t &settings, nvprefs::nvprefs_interface &preferences):
+        settings(settings),
         preferences(preferences) {}
 
     nvprefs::nvprefs_interface &preferences;  ///< NVIDIA profile manager.
     std::shared_ptr<const dxgi::shader_bundle_t> shaders;  ///< Compiled capture shaders.
     std::unique_ptr<deinit_t> initialization;  ///< COM initialization lifetime.
     dxgi::factory1_t enumeration_factory;  ///< DXGI GPU change tracker for this host.
+    std::mutex streaming_mutex;  ///< Serialize process settings and Mouse Keys changes.
+    std::mutex qos_mutex;  ///< Serialize optional QWAVE client creation.
     std::mutex enumeration_mutex;  ///< Serialize native GPU change tracking.
     bool streaming {};  ///< Whether native streaming settings are active.
     bool used_nt_set_timer_resolution {};  ///< Timer request method.
@@ -259,6 +265,7 @@ namespace platf {
 
   /**
    * @brief Synchronize thread desktop.
+   * @return Handle value of the selected desktop, or null if the desktop could not be opened.
    */
   HDESK syncThreadDesktop() {
     auto hDesk = OpenInputDesktop(DF_ALLOWOTHERACCOUNTHOOK, FALSE, GENERIC_ALL);
@@ -1212,8 +1219,8 @@ namespace platf {
       if (!preferences.owning_undo_file()) {
         preferences.restore_from_and_delete_undo_file_if_exists();
       }
-      preferences.modify_application_profile();
-      preferences.modify_global_profile();
+      preferences.modify_application_profile(settings);
+      preferences.modify_global_profile(settings);
       preferences.unload();
     }
 
@@ -1251,7 +1258,7 @@ namespace platf {
   }
 
   void runtime_t::impl_t::enable_mouse_keys() {
-    if (enabled_mouse_keys) {
+    if (!streaming || enabled_mouse_keys) {
       return;
     }
     // If there is no mouse connected, enable Mouse Keys to force the cursor to appear
@@ -1319,6 +1326,9 @@ namespace platf {
     }
   }
 
+  /**
+   * @brief Launch a replacement Sunshine process after application cleanup completes.
+   */
   void restart_on_exit() {
     STARTUPINFOEXW startup_info {};
     startup_info.StartupInfo.cb = sizeof(startup_info);
@@ -1641,6 +1651,7 @@ namespace platf {
     /**
      * @brief Store a Windows QoS flow ID for cleanup on destruction.
      *
+     * @param api QWAVE client and loaded library retained until the flow is removed.
      * @param flow_id Flow ID.
      */
     qos_t(std::shared_ptr<const qwave_api_t> api, QOS_FLOWID flow_id):
@@ -1674,10 +1685,14 @@ namespace platf {
       return nullptr;
     }
 
-    if (!impl->qos) {
-      impl->qos = qwave_api_t::load();
+    std::shared_ptr<const qwave_api_t> api;
+    {
+      std::lock_guard guard(impl->qos_mutex);
+      if (!impl->qos) {
+        impl->qos = qwave_api_t::load();
+      }
+      api = impl->qos;
     }
-    auto api = impl->qos;
     if (!api) {
       return nullptr;
     }
@@ -1745,6 +1760,7 @@ namespace platf {
 
   /**
    * @brief Read the current Windows high-resolution performance counter.
+   * @return Current counter value, or zero when the native query fails.
    */
   int64_t qpc_counter() {
     LARGE_INTEGER performance_counter;
@@ -1756,6 +1772,7 @@ namespace platf {
 
   /**
    * @brief Convert the difference between two QPC readings to nanoseconds.
+   * @return Elapsed duration, or zero when the counter frequency cannot be queried.
    */
   std::chrono::nanoseconds qpc_time_difference(int64_t performance_counter1, int64_t performance_counter2) {
     auto get_frequency = []() {
@@ -1834,6 +1851,10 @@ namespace platf {
     return std::make_unique<win32_high_precision_timer>();
   }
 
+  /**
+   * @brief Read the four-part version embedded in a Windows executable or library.
+   * @return Whether a valid version resource was read.
+   */
   bool getFileVersionInfo(const std::filesystem::path &file_path, std::string &version_str) {
     DWORD handle = 0;
     DWORD size = GetFileVersionInfoSizeW(file_path.wstring().c_str(), &handle);
@@ -1861,16 +1882,17 @@ namespace platf {
     return true;
   }
 
-  std::string resolve_render_device() {
+  std::string resolve_render_device(const config::settings_t &settings) {
     return {};
   }
 }  // namespace platf
 
 namespace platf {
-  runtime_t::runtime_t(safe::mail_t, thread_pool_util::ThreadPool &, lifetime::controller_t &, display_device::manager_t &, nvprefs::nvprefs_interface &preferences):
-      impl(std::make_shared<impl_t>(preferences)) {}
+  runtime_t::runtime_t(const config::settings_t &settings, safe::mail_t, thread_pool_util::ThreadPool &, lifetime::controller_t &, display_device::manager_t &, nvprefs::nvprefs_interface &preferences):
+      impl(std::make_shared<impl_t>(settings, preferences)) {}
 
   runtime_t::~runtime_t() {
+    std::lock_guard guard(impl->streaming_mutex);
     impl->streaming_will_stop();
   }
 
@@ -1882,7 +1904,7 @@ namespace platf {
     if (!impl->shaders) {
       return false;
     }
-    impl->initialization = platf::init();
+    impl->initialization = platf::init(impl->settings);
     return static_cast<bool>(impl->initialization);
   }
 
@@ -1891,13 +1913,11 @@ namespace platf {
   }
 
   std::shared_ptr<display_t> runtime_t::display(mem_type_e type, const std::string &name, const video::config_t &config) {
-    return dxgi::make_display(type, name, config, impl->shaders);
+    return dxgi::make_display(impl->settings, type, name, config, impl->shaders);
   }
 
   /**
    * @brief Check the runtime's DXGI change tracker.
-   * @param factory Host factory.
-   * @param mutex Host synchronization.
    * @return Whether adapters changed.
    */
   bool dxgi_needs_encoder_reenumeration(dxgi::factory1_t &factory, std::mutex &mutex);
@@ -1909,14 +1929,17 @@ namespace platf {
   void runtime_t::set_capture_requirements(int) {}
 
   void runtime_t::streaming_will_start() {
+    std::lock_guard guard(impl->streaming_mutex);
     impl->streaming_will_start();
   }
 
   void runtime_t::streaming_will_stop() {
+    std::lock_guard guard(impl->streaming_mutex);
     impl->streaming_will_stop();
   }
 
   void runtime_t::enable_mouse_keys() {
+    std::lock_guard guard(impl->streaming_mutex);
     impl->enable_mouse_keys();
   }
 }  // namespace platf

@@ -101,6 +101,16 @@ namespace wl {
   class wlr_t: public platf::display_t {
   public:
     /**
+     * @brief Bind host codec policy to this capture.
+     * @param settings Host settings.
+     */
+    explicit wlr_t(const config::settings_t &settings):
+        settings(settings),
+        dmabuf(settings) {}
+
+    const config::settings_t &settings;  ///< Host codec policy.
+
+    /**
      * @brief Initialize Wayland screencopy capture for the selected output.
      *
      * @param hwdevice_type Hardware device type requested for capture or encode.
@@ -372,6 +382,8 @@ namespace wl {
    */
   class wlr_ram_t: public wlr_t {
   public:
+    using wlr_t::wlr_t;  ///< Construct with host codec policy.
+
     /**
      * @brief Capture a display frame into the provided image object.
      *
@@ -453,7 +465,7 @@ namespace wl {
     std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(platf::pix_fmt_e pix_fmt) override {
 #ifdef SUNSHINE_BUILD_VAAPI
       if (mem_type == platf::mem_type_e::vaapi) {
-        return va::make_avcodec_encode_device(width, height, false);
+        return va::make_avcodec_encode_device(settings, width, height, false);
       }
 #endif
 
@@ -491,6 +503,8 @@ namespace wl {
    */
   class wlr_vram_t: public wlr_t {
   public:
+    using wlr_t::wlr_t;  ///< Construct with host codec policy.
+
     /**
      * @brief Capture a display frame into the provided image object.
      *
@@ -557,7 +571,7 @@ namespace wl {
     std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(platf::pix_fmt_e pix_fmt) override {
 #ifdef SUNSHINE_BUILD_VAAPI
       if (mem_type == platf::mem_type_e::vaapi) {
-        return va::make_avcodec_encode_device(width, height, 0, 0, true);
+        return va::make_avcodec_encode_device(settings, width, height, 0, 0, true);
       }
 #endif
 
@@ -568,7 +582,7 @@ namespace wl {
 #endif
 
       if (mem_type == platf::mem_type_e::vulkan) {
-        return vk::make_avcodec_encode_device_vram(width, height, 0, 0);
+        return vk::make_avcodec_encode_device_vram(settings, width, height, 0, 0);
       }
 
       return std::make_unique<platf::avcodec_encode_device_t>();
@@ -592,7 +606,7 @@ namespace wl {
      */
     void init_encoder_modifiers(platf::mem_type_e hwdevice_type) {
       if (hwdevice_type == platf::mem_type_e::vulkan) {
-        encoder_modifiers = vk::get_supported_capture_modifiers();
+        encoder_modifiers = vk::get_supported_capture_modifiers(settings);
         if (!encoder_modifiers.empty()) {
           intersected_modifiers = wl::intersect_modifiers(interface.supported_modifiers, encoder_modifiers);
           if (intersected_modifiers.empty()) {
@@ -613,14 +627,14 @@ namespace platf {
   /**
    * @brief Create a Wayland capture backend for the requested memory type.
    */
-  std::shared_ptr<display_t> wl_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
+  std::shared_ptr<display_t> wl_display(const config::settings_t &settings, mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda && hwdevice_type != platf::mem_type_e::vulkan) {
       BOOST_LOG(error) << "[wlgrab] Could not initialize display with the given hw device type."sv;
       return nullptr;
     }
 
     if (wl::use_vram_capture(hwdevice_type)) {
-      auto wlr = std::make_shared<wl::wlr_vram_t>();
+      auto wlr = std::make_shared<wl::wlr_vram_t>(settings);
       if (wlr->init(hwdevice_type, display_name, config)) {
         return nullptr;
       }
@@ -637,7 +651,7 @@ namespace platf {
     }
 #endif
 
-    auto wlr = std::make_shared<wl::wlr_ram_t>();
+    auto wlr = std::make_shared<wl::wlr_ram_t>(settings);
     if (wlr->init(hwdevice_type, display_name, config)) {
       return nullptr;
     }

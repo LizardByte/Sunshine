@@ -22,6 +22,7 @@
 #include "src/config.h"
 #include "src/globals.h"
 #include "src/platform/virtualhid_input.h"
+#include "src/utility.h"
 
 #if defined(_WIN32) || defined(__APPLE__)
   #include <libvirtualhid/license.hpp>
@@ -46,37 +47,22 @@ namespace {
    */
   class VirtualHidInputTest: public ::testing::TestWithParam<gamepad_capabilities_case_t> {
   protected:
-    /**
-     * @brief Preserve the configured gamepad.
-     */
-    void SetUp() override {
-      original_gamepad = config::input.gamepad;
-    }
-
-    /**
-     * @brief Restore the configured gamepad.
-     */
-    void TearDown() override {
-      config::input.gamepad = std::move(original_gamepad);
-    }
-
-  private:
-    std::string original_gamepad;  ///< Configured gamepad restored after each test.
+    config::store_t config_;  ///< Configuration isolated to this profile test.
   };
 
 }  // namespace
 
 TEST_P(VirtualHidInputTest, ReportsExpectedTouchpadSupport) {
   const auto &test_case = GetParam();
-  config::input.gamepad = test_case.gamepad;
-  EXPECT_EQ(platf::virtualhid::configured_gamepad_supports_touchpad(), test_case.expected_touchpad) << test_case.gamepad;
+  config_.edit_startup().input.gamepad = test_case.gamepad;
+  EXPECT_EQ(platf::virtualhid::configured_gamepad_supports_touchpad(config_.values()), test_case.expected_touchpad) << test_case.gamepad;
 }
 
 TEST_P(VirtualHidInputTest, ReportsExpectedControllerExtensionSupport) {
   const auto &test_case = GetParam();
-  config::input.gamepad = test_case.gamepad;
+  config_.edit_startup().input.gamepad = test_case.gamepad;
   EXPECT_EQ(
-    platf::virtualhid::configured_gamepad_supports_controller_extensions(),
+    platf::virtualhid::configured_gamepad_supports_controller_extensions(config_.values()),
     test_case.expected_controller_extensions
   ) << test_case.gamepad;
 }
@@ -106,14 +92,14 @@ namespace {
    */
   class VirtualHidDeviceTest: public ::testing::Test {
   protected:
+    config::store_t config_;  ///< Configuration owned by this device fixture.
     runtime::infrastructure_t infrastructure_;  ///< Host resources owned by this input fixture.
 
     /**
      * @brief Preserve input configuration and create fake virtual devices.
      */
     void SetUp() override {
-      original_input = config::input;
-      context_ = std::make_unique<platf::virtualhid::input_context_t>(lvh::BackendKind::fake);
+      context_ = std::make_unique<platf::virtualhid::input_context_t>(config_.values(), lvh::BackendKind::fake);
       client_ = std::make_unique<platf::virtualhid::client_context_t>(*context_);
       const auto *test_info = ::testing::UnitTest::GetInstance()->current_test_info();
       const std::string queue_name = std::string {"virtualhid-input-test-"} + test_info->test_suite_name() + '-' + test_info->name();
@@ -133,7 +119,6 @@ namespace {
       client_.reset();
       context_.reset();
       feedback_queue_.reset();
-      config::input = std::move(original_input);
     }
 
     /**
@@ -153,7 +138,7 @@ namespace {
       int global_index = 0,
       std::uint8_t client_index = 3
     ) {
-      config::input.gamepad = profile;
+      config_.edit_startup().input.gamepad = profile;
       const platf::gamepad_id_t id {global_index, client_index};
       const platf::gamepad_arrival_t metadata {type, capabilities, 0};
       if (platf::virtualhid::alloc_gamepad(*context_, id, metadata, feedback_queue_) != 0) {
@@ -192,7 +177,6 @@ namespace {
     }
 
   private:
-    config::input_t original_input;  ///< Input configuration restored after each test.
     std::unique_ptr<platf::virtualhid::input_context_t> context_;  ///< Shared fake virtual devices.
     std::unique_ptr<platf::virtualhid::client_context_t> client_;  ///< Per-client fake touch and pen devices.
     platf::feedback_queue_t feedback_queue_;  ///< Captured gamepad feedback messages.
@@ -298,12 +282,12 @@ TEST_F(VirtualHidDeviceTest, ReportsStaticAndRuntimeGamepadChoices) {
 
 #if defined(_WIN32) || defined(__APPLE__)
 TEST_F(VirtualHidDeviceTest, NoneSelectionHidesAvailableGamepads) {
-  config::input.gamepad_driver = config::GAMEPAD_DRIVER_NONE;
-  auto platform_input = platf::input(infrastructure_.scheduler());
+  config_.edit_startup().input.gamepad_driver = config::GAMEPAD_DRIVER_NONE;
+  auto platform_input = platf::input(config_.values(), infrastructure_.scheduler());
   ASSERT_TRUE(platform_input);
 
   EXPECT_TRUE(platf::supported_gamepads(std::addressof(platform_input)).empty());
-  EXPECT_EQ(platf::get_capabilities() & platf::platform_caps::controller_touch, 0U);
+  EXPECT_EQ(platf::get_capabilities(config_.values()) & platf::platform_caps::controller_touch, 0U);
 }
 
 TEST_F(VirtualHidDeviceTest, BrokerCreatesAndUpdatesEveryGamepadProfileWhenLicensed) {
@@ -311,8 +295,8 @@ TEST_F(VirtualHidDeviceTest, BrokerCreatesAndUpdatesEveryGamepadProfileWhenLicen
     GTEST_SKIP() << "Virtual HID Broker is not activated";
   }
 
-  config::input.gamepad_driver = config::GAMEPAD_DRIVER_VIRTUALHID;
-  auto platform_input = platf::input(infrastructure_.scheduler());
+  config_.edit_startup().input.gamepad_driver = config::GAMEPAD_DRIVER_VIRTUALHID;
+  auto platform_input = platf::input(config_.values(), infrastructure_.scheduler());
   ASSERT_TRUE(platform_input);
   const auto &context = platf::virtualhid::get_input_context(platform_input);
   if (!context.runtime || !context.runtime->capabilities().supports_gamepad) {
@@ -328,7 +312,7 @@ TEST_F(VirtualHidDeviceTest, BrokerCreatesAndUpdatesEveryGamepadProfileWhenLicen
   const platf::gamepad_id_t id {0, 0};
   const platf::gamepad_arrival_t metadata {LI_CTYPE_UNKNOWN, 0, 0};
   for (const auto profile : profiles) {
-    config::input.gamepad = profile;
+    config_.edit_startup().input.gamepad = profile;
     ASSERT_EQ(platf::alloc_gamepad(platform_input, id, metadata, nullptr), 0) << profile;
     platf::gamepad_update(platform_input, 0, {platf::A, 255, 0, 0, 0, 0, 0});
     const auto *adapter = platf::virtualhid::gamepad_adapter_for_testing(platf::virtualhid::get_input_context(platform_input), 0);
@@ -343,7 +327,7 @@ TEST_F(VirtualHidDeviceTest, RejectsUnavailableAndInvalidGamepadSlots) {
   const platf::gamepad_arrival_t metadata {LI_CTYPE_XBOX, 0, 0};
   const platf::gamepad_id_t valid_id {0, 0};
 
-  platf::virtualhid::input_context_t no_runtime {lvh::BackendKind::fake};
+  platf::virtualhid::input_context_t no_runtime {config_.values(), lvh::BackendKind::fake};
   no_runtime.runtime.reset();
   no_runtime.refresh_keyboard();
   no_runtime.refresh_mouse();
@@ -379,8 +363,8 @@ TEST_F(VirtualHidDeviceTest, RoutesLibvirtualhidDiagnosticsToSunshineLog) {
 
 TEST_F(VirtualHidDeviceTest, AllocatesManualProfileAndTranslatesFullState) {
   const auto active_devices_before_gamepad = context()->runtime->active_device_count();
-  config::input.ds4_back_as_touchpad_click = true;
-  config::input.virtualhid_randomize_mac = false;
+  config_.edit_startup().input.ds4_back_as_touchpad_click = true;
+  config_.edit_startup().input.virtualhid_randomize_mac = false;
   const auto capabilities = static_cast<std::uint16_t>(LI_CCAP_ACCEL | LI_CCAP_GYRO | LI_CCAP_TOUCHPAD | LI_CCAP_RGB_LED | LI_CCAP_BATTERY_STATE);
   auto *adapter = allocate_gamepad("ds5"sv, LI_CTYPE_PS, capabilities, 1, 4);
   ASSERT_NE(adapter, nullptr);
@@ -425,7 +409,7 @@ TEST_F(VirtualHidDeviceTest, AllocatesManualProfileAndTranslatesFullState) {
   EXPECT_FLOAT_EQ(state.left_trigger, 128.0F / 255.0F);
   EXPECT_FLOAT_EQ(state.right_trigger, 1.0F);
 
-  config::input.ds4_back_as_touchpad_click = false;
+  config_.edit_startup().input.ds4_back_as_touchpad_click = false;
   platf::virtualhid::gamepad_update(*context(), 1, {platf::BACK, 0, 0, 0, 0, 0, 0});
   EXPECT_FALSE(adapter->state().buttons.test(touchpad));
 
@@ -467,7 +451,7 @@ TEST_F(VirtualHidDeviceTest, FallsBackForUnknownManualProfileAndRandomizesPlaySt
   EXPECT_EQ(fallback->gamepad()->metadata().client_type, lvh::ClientControllerType::unknown);
   EXPECT_EQ(fallback->gamepad()->metadata().stable_id, "sunshine-gamepad-0");
 
-  config::input.virtualhid_randomize_mac = true;
+  config_.edit_startup().input.virtualhid_randomize_mac = true;
   auto *randomized = allocate_gamepad("ds4"sv, LI_CTYPE_PS, 0, 1);
   ASSERT_NE(randomized, nullptr);
   const auto &stable_id = randomized->gamepad()->metadata().stable_id;
@@ -770,7 +754,7 @@ TEST_F(VirtualHidDeviceTest, TranslatesMouseAndKeyboardInput) {
   EXPECT_EQ(mouse_event.kind, lvh::MouseEventKind::horizontal_scroll);
   EXPECT_EQ(mouse_event.high_resolution_scroll, -240);
 
-  config::input.always_send_scancodes = true;
+  config_.edit_startup().input.always_send_scancodes = true;
   platf::virtualhid::keyboard_update(*context(), 0x41, false, 0);
   auto keyboard_event = context()->keyboard->last_submitted_event();
   EXPECT_EQ(keyboard_event.key_code, 0x41);
@@ -1034,10 +1018,10 @@ TEST_F(VirtualHidDeviceTest, TranslatesPenButtonsToolsAndTransitions) {
 }
 
 TEST_F(VirtualHidDeviceTest, PlatformWrappersForwardToVirtualHidContext) {
-  auto platform_input = platf::input(infrastructure_.scheduler());
+  auto platform_input = platf::input(config_.values(), infrastructure_.scheduler());
   ASSERT_TRUE(platform_input);
   auto &platform_context = platf::virtualhid::get_input_context(platform_input);
-  platform_context = platf::virtualhid::input_context_t {lvh::BackendKind::fake};
+  platform_context = platf::virtualhid::input_context_t {config_.values(), lvh::BackendKind::fake};
   ASSERT_NE(platform_context.mouse, nullptr);
   ASSERT_NE(platform_context.keyboard, nullptr);
 
@@ -1061,7 +1045,7 @@ TEST_F(VirtualHidDeviceTest, PlatformWrappersForwardToVirtualHidContext) {
   platf::unicode(platform_input, text.data(), static_cast<int>(text.size()));
   EXPECT_EQ(platform_context.keyboard->submit_count(), keyboard_count + 1);
 
-  config::input.gamepad = "ds5";
+  config_.edit_startup().input.gamepad = "ds5";
   const auto capabilities = static_cast<std::uint16_t>(LI_CCAP_ACCEL | LI_CCAP_GYRO | LI_CCAP_TOUCHPAD | LI_CCAP_BATTERY_STATE);
   const platf::gamepad_id_t gamepad_id {0, 2};
   const platf::gamepad_arrival_t gamepad_metadata {LI_CTYPE_PS, capabilities, 0};
@@ -1088,23 +1072,23 @@ TEST_F(VirtualHidDeviceTest, PlatformWrappersForwardToVirtualHidContext) {
 #endif
   EXPECT_FALSE(platf::supported_gamepads(nullptr).empty());
 #ifdef _WIN32
-  config::input.gamepad_driver = config::GAMEPAD_DRIVER_VIGEMBUS;
+  platform_context.gamepad_driver = config::GAMEPAD_DRIVER_VIGEMBUS;
   const auto &vigembus_gamepads = platf::supported_gamepads(std::addressof(platform_input));
-  config::input.gamepad_driver = config::GAMEPAD_DRIVER_ALL;
+  platform_context.gamepad_driver = config::GAMEPAD_DRIVER_ALL;
   ASSERT_EQ(vigembus_gamepads.size(), 3U);
   EXPECT_EQ(vigembus_gamepads[0].name, "auto");
   EXPECT_EQ(vigembus_gamepads[1].name, "x360");
   EXPECT_EQ(vigembus_gamepads[2].name, "ds4");
 #endif
 #ifdef __APPLE__
-  const auto controller_touch = platf::get_capabilities() & platf::platform_caps::controller_touch;
+  const auto controller_touch = platf::get_capabilities(config_.values()) & platf::platform_caps::controller_touch;
   if (lvh::get_license_status().license.licensed()) {
     EXPECT_NE(controller_touch, 0U);
   } else {
     EXPECT_EQ(controller_touch, 0U);
   }
 #else
-  EXPECT_NE(platf::get_capabilities() & platf::platform_caps::controller_touch, 0U);
+  EXPECT_NE(platf::get_capabilities(config_.values()) & platf::platform_caps::controller_touch, 0U);
 #endif
 
   platf::free_gamepad(platform_input, 0);
@@ -1125,3 +1109,30 @@ TEST_F(VirtualHidDeviceTest, PlatformWrappersForwardToVirtualHidContext) {
   platf::pen_update(platform_client.get(), viewport, {LI_TOUCH_EVENT_HOVER, LI_TOOL_TYPE_PEN, 0, LI_TILT_UNKNOWN, LI_ROT_UNKNOWN, 0.25F, 0.5F, 0.5F, 0.0F, 0.0F});
   EXPECT_EQ(platform_client_context.pen->last_submitted_tool().tool, lvh::PenToolType::pen);
 }
+
+#ifdef _WIN32
+TEST_F(VirtualHidDeviceTest, DeferredVigemFeedbackDropsExpiredOwnersAndRunsForRetainedOwners) {
+  int callbacks = 0;
+  auto expired_owner = platf::virtualhid::queue_vigem_feedback_for_testing(infrastructure_.scheduler(), [&]() {
+    ++callbacks;
+  });
+  expired_owner.reset();
+  infrastructure_.scheduler().start(1);
+  const auto stop_worker = util::fail_guard([&]() {
+    infrastructure_.scheduler().stop();
+    infrastructure_.scheduler().join();
+  });
+  infrastructure_.scheduler().push([]() {
+                             })
+    .get();
+  EXPECT_EQ(callbacks, 0);
+
+  auto retained_owner = platf::virtualhid::queue_vigem_feedback_for_testing(infrastructure_.scheduler(), [&]() {
+    ++callbacks;
+  });
+  infrastructure_.scheduler().push([]() {
+                             })
+    .get();
+  EXPECT_EQ(callbacks, 1);
+}
+#endif

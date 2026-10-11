@@ -42,10 +42,10 @@ namespace nvprefs {
   /**
    * @brief Get nvprefs options.
    */
-  nvprefs_options get_nvprefs_options() {
+  nvprefs_options get_nvprefs_options(const config::settings_t &settings) {
     nvprefs_options options;
-    options.opengl_vulkan_on_dxgi = config::video.nv_opengl_vulkan_on_dxgi;
-    options.sunshine_high_power_mode = config::video.nv_sunshine_high_power_mode;
+    options.opengl_vulkan_on_dxgi = settings.video.nv_opengl_vulkan_on_dxgi;
+    options.sunshine_high_power_mode = settings.video.nv_sunshine_high_power_mode;
     return options;
   }
 

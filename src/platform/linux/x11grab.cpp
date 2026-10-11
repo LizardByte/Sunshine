@@ -455,6 +455,7 @@ namespace platf {
    * @brief X11 display, window, and attribute handles for capture.
    */
   struct x11_attr_t: public display_t {
+    const config::settings_t &settings;  ///< Host settings used by encode-device creation.
     std::chrono::nanoseconds delay;  ///< Delay before the timer task becomes eligible to run.
 
     x11::xdisplay_t xdisplay;  ///< X11 display connection used for capture.
@@ -472,9 +473,11 @@ namespace platf {
     /**
      * @brief Open the X11 display and initialize capture attributes.
      *
+     * @param settings Immutable startup settings for this host.
      * @param mem_type Requested memory path for the capture backend.
      */
-    x11_attr_t(mem_type_e mem_type):
+    x11_attr_t(const config::settings_t &settings, mem_type_e mem_type):
+        settings(settings),
         xdisplay {x11::OpenDisplay(nullptr)},
         xwindow {},
         xattr {},
@@ -646,7 +649,7 @@ namespace platf {
     std::unique_ptr<avcodec_encode_device_t> make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
 #ifdef SUNSHINE_BUILD_VAAPI
       if (mem_type == mem_type_e::vaapi) {
-        return va::make_avcodec_encode_device(width, height, false);
+        return va::make_avcodec_encode_device(settings, width, height, false);
       }
 #endif
 
@@ -709,12 +712,14 @@ namespace platf {
     /**
      * @brief Open an X11 shared-memory capture backend.
      *
+     * @param settings Immutable startup settings for this host.
      * @param mem_type Requested memory path for the capture backend.
      * @param shm_api Validated API retained for the lifetime of shared-memory capture.
+     * @param scheduler Host scheduler for periodic display-attribute refreshes.
      */
-    shm_attr_t(mem_type_e mem_type, std::shared_ptr<const xcb::shm_api_t> shm_api, thread_pool_util::ThreadPool &scheduler):
+    shm_attr_t(const config::settings_t &settings, mem_type_e mem_type, std::shared_ptr<const xcb::shm_api_t> shm_api, thread_pool_util::ThreadPool &scheduler):
         scheduler(scheduler),
-        x11_attr_t(mem_type),
+        x11_attr_t(settings, mem_type),
         shm_api {std::move(shm_api)},
         shm_xdisplay {x11::OpenDisplay(nullptr)} {
       refresh_task_id = scheduler.pushDelayed(&shm_attr_t::delayed_refresh, 2s, this).task_id;
@@ -882,12 +887,14 @@ namespace platf {
   /**
    * @brief Create an X11 display capture backend.
    *
+   * @param settings Immutable startup settings for this host.
    * @param hwdevice_type Hardware device type requested for capture or encode.
    * @param display_name Display name.
    * @param config Configuration values to apply.
+   * @param scheduler Host scheduler for periodic display-attribute refreshes.
    * @return X11 display backend, or nullptr when initialization fails.
    */
-  std::shared_ptr<display_t> x11_display(platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config, thread_pool_util::ThreadPool &scheduler) {
+  std::shared_ptr<display_t> x11_display(const config::settings_t &settings, platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config, thread_pool_util::ThreadPool &scheduler) {
     if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda) {
       BOOST_LOG(error) << "Could not initialize x11 display with the given hw device type"sv;
       return nullptr;
@@ -901,7 +908,7 @@ namespace platf {
     }
 
     // Attempt to use shared memory X11 to avoid copying the frame
-    auto shm_disp = std::make_shared<shm_attr_t>(hwdevice_type, std::move(shm_api), scheduler);
+    auto shm_disp = std::make_shared<shm_attr_t>(settings, hwdevice_type, std::move(shm_api), scheduler);
 
     auto status = shm_disp->init(display_name, config);
     if (status > 0) {
@@ -914,7 +921,7 @@ namespace platf {
     }
 
     // Fallback
-    auto x11_disp = std::make_shared<x11_attr_t>(hwdevice_type);
+    auto x11_disp = std::make_shared<x11_attr_t>(settings, hwdevice_type);
     if (x11_disp->init(display_name, config)) {
       return nullptr;
     }
@@ -1056,7 +1063,7 @@ namespace platf {
     /**
      * @brief Release cursor context resources.
      *
-     * @param ctx Native context object used by the operation or callback.
+     * @param ctx Cursor context wrapping the X11 display connection to close.
      */
     void freeCursorCtx(cursor_ctx_t::pointer ctx) {
       CloseDisplay((xdisplay_t::pointer) ctx);

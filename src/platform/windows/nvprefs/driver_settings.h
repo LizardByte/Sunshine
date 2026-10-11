@@ -3,6 +3,7 @@
  * @brief Declarations for nvidia driver settings.
  */
 #pragma once
+#include "src/config.h"
 
 // local includes first so standard library headers are pulled in before nvapi's SAL macros
 #include "nvapi_opensource_wrapper.h"
@@ -64,18 +65,20 @@ namespace nvprefs {
     /**
      * @brief Compare and update global NVIDIA profile settings.
      *
+     * @param settings Immutable startup settings for this host.
      * @param undo_data Driver settings captured before Sunshine modified them.
      * @return True when the NVIDIA driver-settings operation succeeds.
      */
-    bool check_and_modify_global_profile(std::optional<undo_data_t> &undo_data);
+    bool check_and_modify_global_profile(const config::settings_t &settings, std::optional<undo_data_t> &undo_data);
 
     /**
      * @brief Compare and update Sunshine NVIDIA application profile settings.
      *
+     * @param settings Immutable startup settings for this host.
      * @param modified Whether NVIDIA driver settings were changed and need saving.
      * @return True when the NVIDIA driver-settings operation succeeds.
      */
-    bool check_and_modify_application_profile(bool &modified);
+    bool check_and_modify_application_profile(const config::settings_t &settings, bool &modified);
 
   private:
     std::shared_ptr<const api_t> api;  ///< API owner retained until the DRS session is destroyed.

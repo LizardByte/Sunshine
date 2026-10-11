@@ -152,13 +152,13 @@ namespace dyn {
 }  // namespace dyn
 
 namespace platf {
-  std::vector<permission_status_t> get_permission_statuses() {
+  std::vector<permission_status_t> get_permission_statuses(const config::settings_t &settings) {
     // Match libvirtualhid's device paths and its read/write access check.
     bool input_access = access("/dev/uinput", R_OK | W_OK) == 0;
 #ifndef __FreeBSD__
     input_access = input_access || access("/dev/input/uinput", R_OK | W_OK) == 0;
 #endif
-    return {{"input", input_access ? "granted" : "denied", config::input.keyboard || config::input.mouse || config::input.controller, true}};
+    return {{"input", input_access ? "granted" : "denied", settings.input.keyboard || settings.input.mouse || settings.input.controller, true}};
   }
 
   bool request_permission(std::string_view id) {
@@ -632,6 +632,7 @@ namespace platf {
 
   /**
    * @brief Restart the Sunshine process through the platform launcher.
+   * @param lifetime Application controller that schedules the restart after cleanup.
    */
   void restart(lifetime::controller_t &lifetime) {
     // Gracefully clean up and restart ourselves instead of exiting
@@ -1044,13 +1045,17 @@ namespace platf {
    * @brief Own capture discovery and deferred portal work for one host.
    */
   struct runtime_t::impl_t {
+    const config::settings_t &settings;  ///< Immutable settings for this platform owner.
+
     /**
      * @brief Bind narrow host dependencies.
+     * @param settings Immutable startup settings for this host.
      * @param mail Host mailbox.
      * @param scheduler Host scheduler.
      * @param lifetime Exit controller.
      */
-    impl_t(safe::mail_t mail, thread_pool_util::ThreadPool &scheduler, lifetime::controller_t &lifetime):
+    impl_t(const config::settings_t &settings, safe::mail_t mail, thread_pool_util::ThreadPool &scheduler, lifetime::controller_t &lifetime):
+        settings(settings),
         mail(std::move(mail)),
         scheduler(scheduler),
         lifetime(lifetime) {}
@@ -1129,6 +1134,7 @@ namespace platf {
     /**
      * @brief Apply Linux socket priority and DSCP QoS settings for scoped cleanup.
      *
+     * @param count Shared number of active socket-priority scopes for this host.
      * @param sockfd Native socket descriptor whose options are updated.
      * @param options Request options or socket options to apply.
      */
@@ -1255,12 +1261,13 @@ namespace platf {
   /**
    * @brief Create a Wayland display capture backend.
    *
+   * @param settings Immutable startup settings for this host.
    * @param hwdevice_type Hardware device type requested for capture or encode.
    * @param display_name Display name.
    * @param config Configuration values to apply.
    * @return Display backend, or nullptr when Wayland capture initialization fails.
    */
-  std::shared_ptr<display_t> wl_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
+  std::shared_ptr<display_t> wl_display(const config::settings_t &settings, mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
   /**
    * @brief Check whether Wayland capture is available for the current session.
@@ -1273,17 +1280,17 @@ namespace platf {
 #endif
 
 #ifdef SUNSHINE_BUILD_DRM
-  std::vector<std::string> kms_display_names(mem_type_e hwdevice_type, kms::capture_state_t &state, window_system_e window_system);
-  std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config, const kms::capture_state_t &state, window_system_e window_system, int hevc_mode);
+  std::vector<std::string> kms_display_names(const config::settings_t &settings, mem_type_e hwdevice_type, kms::capture_state_t &state, window_system_e window_system);
+  std::shared_ptr<display_t> kms_display(const config::settings_t &settings, mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config, const kms::capture_state_t &state, window_system_e window_system, int hevc_mode);
 
   bool runtime_t::impl_t::verify_kms() {
-    return !kms_display_names(mem_type_e::unknown, *kms_state, window_system).empty();
+    return !kms_display_names(settings, mem_type_e::unknown, *kms_state, window_system).empty();
   }
 #endif
 
 #ifdef SUNSHINE_BUILD_X11
   std::vector<std::string> x11_display_names();
-  std::shared_ptr<display_t> x11_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config, thread_pool_util::ThreadPool &scheduler);
+  std::shared_ptr<display_t> x11_display(const config::settings_t &settings, mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config, thread_pool_util::ThreadPool &scheduler);
 
   bool runtime_t::impl_t::verify_x11() {
     return window_system == window_system_e::X11 && !x11_display_names().empty();
@@ -1292,7 +1299,7 @@ namespace platf {
 
 #ifdef SUNSHINE_BUILD_PORTAL
   std::vector<std::string> portal_display_names(bool allow_start_timeout, safe::mail_t mail);
-  std::shared_ptr<display_t> portal_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config, safe::mail_t mail);
+  std::shared_ptr<display_t> portal_display(const config::settings_t &settings, mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config, safe::mail_t mail);
 
   /**
    * @brief Enumerates possible Portal probe responses.
@@ -1371,7 +1378,7 @@ namespace platf {
 
 #ifdef SUNSHINE_BUILD_KWIN
   std::vector<std::string> kwin_display_names();
-  std::shared_ptr<display_t> kwin_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
+  std::shared_ptr<display_t> kwin_display(const config::settings_t &settings, mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
   bool verify_kwin() {
     return !kwin_display_names().empty();
@@ -1395,7 +1402,7 @@ namespace platf {
 #endif
 #ifdef SUNSHINE_BUILD_DRM
     if (sources[source::KMS]) {
-      return kms_display_names(hwdevice_type, *kms_state, window_system);
+      return kms_display_names(settings, hwdevice_type, *kms_state, window_system);
     }
 #endif
 #ifdef SUNSHINE_BUILD_X11
@@ -1417,15 +1424,15 @@ namespace platf {
   }
 
   /**
-   * @brief Report whether encoder backends should be probed again before streaming.
+   * @brief Report whether a render-node change requires another encoder probe.
    *
-   * @return Always `true` because Linux GPU changes are not tracked by this backend.
+   * @return Whether the configured render node differs from the previous probe.
    */
   bool runtime_t::impl_t::needs_encoder_reenumeration() {
     // Only re-probe if the GPU render device changed (hotplug, driver reload).
     // Full re-probing on every reconnect leaks ~20 MB due to FFmpeg CBS
     // allocations during HEVC/AV1 codec validation.
-    auto current = platf::resolve_render_device();
+    auto current = platf::resolve_render_device(settings);
     if (current == last_render_device) {
       return false;
     }
@@ -1440,7 +1447,7 @@ namespace platf {
 #ifdef SUNSHINE_BUILD_DRM
     if (sources[source::KMS]) {
       BOOST_LOG(info) << "Screencasting with KMS"sv;
-      return kms_display(hwdevice_type, display_name, config, *kms_state, window_system, hevc_mode);
+      return kms_display(settings, hwdevice_type, display_name, config, *kms_state, window_system, hevc_mode);
     }
 #endif
 
@@ -1459,25 +1466,25 @@ namespace platf {
 #ifdef SUNSHINE_BUILD_WAYLAND
     if (sources[source::WAYLAND]) {
       BOOST_LOG(info) << "Screencasting with Wayland's protocol"sv;
-      return wl_display(hwdevice_type, display_name, config);
+      return wl_display(settings, hwdevice_type, display_name, config);
     }
 #endif
 #ifdef SUNSHINE_BUILD_X11
     if (sources[source::X11]) {
       BOOST_LOG(info) << "Screencasting with X11"sv;
-      return x11_display(hwdevice_type, display_name, config, scheduler);
+      return x11_display(settings, hwdevice_type, display_name, config, scheduler);
     }
 #endif
 #ifdef SUNSHINE_BUILD_PORTAL
     if (sources[source::PORTAL]) {
       BOOST_LOG(info) << "Screencasting with XDG portal"sv;
-      return portal_display(hwdevice_type, display_name, config, mail);
+      return portal_display(settings, hwdevice_type, display_name, config, mail);
     }
 #endif
 #ifdef SUNSHINE_BUILD_KWIN
     if (sources[source::KWIN]) {
       BOOST_LOG(info) << "Screencasting with KWin ScreenCast"sv;
-      return kwin_display(hwdevice_type, display_name, config);
+      return kwin_display(settings, hwdevice_type, display_name, config);
     }
 #endif
 
@@ -1500,7 +1507,7 @@ namespace platf {
     // only if the user explicitly selects Vulkan so that the autoprobe path will select VAAPI on
     // such systems.
     // Ref: https://gitlab.freedesktop.org/mesa/mesa/-/work_items/16457
-    if (config::video.encoder == "vulkan") {
+    if (settings.video.encoder == "vulkan") {
       // enable Vulkan video extensions for AMD RADV
       lizardbyte::common::set_env("RADV_PERFTEST", "video_encode");
       // Above is deprecated on Mesa 26.1+ and replaced by (keep both to ensure best compatibility):
@@ -1527,7 +1534,7 @@ namespace platf {
 #endif
 
     // Avoid mutating config directly if Portal needs to run in fallback capture mode.
-    std::string selected_capture = config::video.capture;
+    std::string selected_capture = settings.video.capture;
 
     // When Portal is explicitly selected, probe it first so other capture methods can be considered for fallback capture.
 #ifdef SUNSHINE_BUILD_PORTAL
@@ -1568,7 +1575,7 @@ namespace platf {
     }
 #endif
 #ifdef SUNSHINE_BUILD_PORTAL
-    if (portal_available || (config::video.capture.empty() && sources.none() && verify_portal())) {
+    if (portal_available || (settings.video.capture.empty() && sources.none() && verify_portal())) {
       sources[source::PORTAL] = true;
     }
 #endif
@@ -1658,9 +1665,9 @@ namespace platf {
 #endif
   }
 
-  std::string resolve_render_device() {
-    if (!config::video.adapter_name.empty()) {
-      return config::video.adapter_name;
+  std::string resolve_render_device(const config::settings_t &settings) {
+    if (!settings.video.adapter_name.empty()) {
+      return settings.video.adapter_name;
     }
     auto detected = find_render_node_with_display();
     return detected.empty() ? "/dev/dri/renderD128" : detected;
@@ -1735,8 +1742,8 @@ namespace platf {
 }  // namespace platf
 
 namespace platf {
-  runtime_t::runtime_t(safe::mail_t mail, thread_pool_util::ThreadPool &scheduler, lifetime::controller_t &lifetime, display_device::manager_t &):
-      impl(std::make_shared<impl_t>(std::move(mail), scheduler, lifetime)) {}
+  runtime_t::runtime_t(const config::settings_t &settings, safe::mail_t mail, thread_pool_util::ThreadPool &scheduler, lifetime::controller_t &lifetime, display_device::manager_t &):
+      impl(std::make_shared<impl_t>(settings, std::move(mail), scheduler, lifetime)) {}
 
   runtime_t::~runtime_t() = default;
 

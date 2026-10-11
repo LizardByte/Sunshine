@@ -19,7 +19,12 @@ namespace http {
   class state_t {
   public:
     /**
-     * @brief Initialize credentials and host HTTP policy.
+     * @brief Bind the configuration and coherent credential store.
+     * @param store Application configuration owner.
+     */
+    explicit state_t(config::store_t &store);
+    /**
+     * @brief Initialize credentials and host HTTP policy before worker threads start.
      * @return Zero on success, nonzero if credentials cannot be initialized.
      */
     int initialize();
@@ -40,6 +45,7 @@ namespace http {
     net::net_e origin_web_ui_allowed() const;
 
   private:
+    config::store_t &store;  ///< Application settings and authentication owner.
     std::string host_unique_id;  ///< Persistent host identity shared with GameStream clients.
     net::net_e allowed_origin {};  ///< Web UI origin policy initialized before handlers start.
   };
@@ -62,10 +68,11 @@ namespace http {
   /**
    * @brief Reload Web UI user credentials from disk.
    *
-   * @param file Destination path for the downloaded content.
+   * @param file Credentials file to read.
+   * @param store Owner receiving the complete authentication tuple.
    * @return 0 when credentials reload successfully; nonzero on failure.
    */
-  int reload_user_creds(const std::string &file);
+  int reload_user_creds(const std::string &file, config::store_t &store);
   /**
    * @brief Download a URL to a local file using libcurl.
    *

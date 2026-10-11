@@ -1,7 +1,7 @@
 /**
  * @file src/platform/linux/vulkan_encode.cpp
  * @brief Vulkan-native encoder: DMA-BUF -> Vulkan compute (RGB->YUV) -> Vulkan Video encode.
- *        No EGL/GL dependency — all GPU work stays in a single Vulkan queue.
+ *        No EGL/GL dependency â€” all GPU work stays in a single Vulkan queue.
  */
 #include <algorithm>
 #include <array>
@@ -116,7 +116,7 @@ namespace vk {
    *
    * @return Map of DRM format to supported modifiers, or empty map if query fails.
    */
-  std::map<std::uint32_t, std::vector<std::uint64_t>> get_supported_capture_modifiers() {
+  std::map<std::uint32_t, std::vector<std::uint64_t>> get_supported_capture_modifiers(const config::settings_t &settings) {
     std::map<std::uint32_t, std::vector<std::uint64_t>> result;
 
     // Create temporary Vulkan instance
@@ -143,7 +143,7 @@ namespace vk {
     vkEnumeratePhysicalDevices(inst, &count, devs.data());
 
     // Find the device matching the render node that will be used for encoding
-    VkPhysicalDevice phys_dev = find_device_by_render_node(devs, platf::resolve_render_device());
+    VkPhysicalDevice phys_dev = find_device_by_render_node(devs, platf::resolve_render_device(settings));
 
     // Common capture formats (ARGB/XRGB variants)
     static const std::array<std::pair<uint32_t, VkFormat>, 4> formats_to_query = {{
@@ -363,9 +363,9 @@ namespace vk {
     return result;
   }
 
-  static int create_vulkan_hwdevice(AVBufferRef **hw_device_buf) {
+  static int create_vulkan_hwdevice(const config::settings_t &settings, AVBufferRef **hw_device_buf) {
     // Resolve render device path to Vulkan device index
-    if (auto render_path = platf::resolve_render_device(); render_path[0] == '/') {
+    if (auto render_path = platf::resolve_render_device(settings); render_path[0] == '/') {
       if (auto idx = find_vulkan_index_for_render_node(render_path.c_str()); !idx.empty() && av_hwdevice_ctx_create(hw_device_buf, AV_HWDEVICE_TYPE_VULKAN, idx.c_str(), nullptr, 0) >= 0) {
         return 0;
       }
@@ -432,6 +432,15 @@ namespace vk {
    */
   class vk_vram_t: public platf::avcodec_encode_device_t {
   public:
+    /**
+     * @brief Bind immutable Vulkan encoder policy.
+     * @param settings Host settings.
+     */
+    explicit vk_vram_t(const config::settings_t &settings):
+        settings(settings) {}
+
+    const config::settings_t &settings;  ///< Host settings retained by hardware callbacks.
+
     ~vk_vram_t() override {
       cleanup_pipeline();
     }
@@ -465,14 +474,14 @@ namespace vk {
       // Having rc_min_rate == rc_max_rate == bit_rate in VBR mode prevents the encoder from
       // undershooting on simple frames, which builds up headroom that causes large overshoots
       // on complex frames.
-      if (config::video.vk.rc_mode == 4) {
+      if (settings.video.vk.rc_mode == 4) {
         ctx->rc_min_rate = 0;
       }
 
       // Map quality preset to driver's quality range (same abstraction as VAAPI)
       // 1 = speed, 2 = balanced (default), 3 = quality
       // Note: Vulkan quality is 0 = fastest, higher = slower/better quality
-      int quality_preset = config::video.vk.quality;
+      int quality_preset = settings.video.vk.quality;
       if (quality_preset > 0 && ctx->hw_frames_ctx) {
         // Reuse FFmpeg's Vulkan instance and device instead of creating new ones
         auto *frames_ctx = (AVHWFramesContext *) ctx->hw_frames_ctx->data;
@@ -633,7 +642,7 @@ namespace vk {
 
       // Import new DMA-BUF as VkImage when capture sequence changes
       if (descriptor.sequence == 0) {
-        // Dummy frame — clear the target
+        // Dummy frame â€” clear the target
         return 0;
       }
 
@@ -1057,7 +1066,7 @@ namespace vk {
       }
 
       if (num_imgs == 1) {
-        // Single multiplane image — create plane views
+        // Single multiplane image â€” create plane views
         VkImageViewCreateInfo view_ci = {.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
         view_ci.image = vk_frame->img[0];
         view_ci.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -1111,7 +1120,7 @@ namespace vk {
 
       // Rotate to next command buffer. With CMD_RING_SIZE slots, the buffer
       // we're about to reuse was submitted CMD_RING_SIZE frames ago.
-      // At 60fps that's ~50ms for a <1ms compute dispatch — always complete.
+      // At 60fps that's ~50ms for a <1ms compute dispatch â€” always complete.
       // No fences, no semaphore waits, no CPU blocking.
       auto cmd_buf = cmd.ring[cmd.ring_idx];
       cmd.ring_idx = (cmd.ring_idx + 1) % CMD_RING_SIZE;
@@ -1249,7 +1258,7 @@ namespace vk {
 
     void destroy_src_image() {
       if (src.image) {
-        // Defer destruction — the GPU may still be using this image.
+        // Defer destruction â€” the GPU may still be using this image.
         // By the time we wrap around (4 frames later), it's guaranteed done.
         auto &slot = defer_ring[defer_idx];
         if (slot.view) {
@@ -1316,8 +1325,8 @@ namespace vk {
       }
     }
 
-    static int init_hw_device(platf::avcodec_encode_device_t *, AVBufferRef **hw_device_buf) {
-      return create_vulkan_hwdevice(hw_device_buf);
+    static int init_hw_device(platf::avcodec_encode_device_t *device, AVBufferRef **hw_device_buf) {
+      return create_vulkan_hwdevice(static_cast<vk_vram_t *>(device)->settings, hw_device_buf);
     }
 
     // Dimensions
@@ -1355,7 +1364,7 @@ namespace vk {
 
     compute_pipeline_t compute = {};
 
-    // Command submission — ring of buffers to avoid reuse while in-flight.
+    // Command submission â€” ring of buffers to avoid reuse while in-flight.
     // No CPU waits: by the time we wrap around, the old submission is long done.
     static constexpr int CMD_RING_SIZE = 3;
 
@@ -1407,31 +1416,31 @@ namespace vk {
 
   // Free functions
 
-  int vulkan_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *, AVBufferRef **hw_device_buf) {
-    return create_vulkan_hwdevice(hw_device_buf);
+  int vulkan_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *device, AVBufferRef **hw_device_buf) {
+    return create_vulkan_hwdevice(static_cast<vk_vram_t *>(device)->settings, hw_device_buf);
   }
 
-  bool validate() {
+  bool validate(const config::settings_t &settings) {
     if (!avcodec_find_encoder_by_name("h264_vulkan") && !avcodec_find_encoder_by_name("hevc_vulkan")) {
       return false;
     }
     AVBufferRef *dev = nullptr;
-    if (create_vulkan_hwdevice(&dev) < 0) {
+    if (create_vulkan_hwdevice(settings, &dev) < 0) {
       return false;
     }
     av_buffer_unref(&dev);
     return true;
   }
 
-  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device_vram(int w, int h, int offset_x, int offset_y) {
-    auto dev = std::make_unique<vk_vram_t>();
+  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device_vram(const config::settings_t &settings, int w, int h, int offset_x, int offset_y) {
+    auto dev = std::make_unique<vk_vram_t>(settings);
     if (dev->init(w, h, offset_x, offset_y) < 0) {
       return nullptr;
     }
     return dev;
   }
 
-  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device_ram(int, int) {
+  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device_ram(const config::settings_t &, int, int) {
     return nullptr;
   }
 

@@ -3,6 +3,7 @@
  * @brief Declarations for the Web UI Config HTTP server.
  */
 #pragma once
+#include "config.h"
 
 // standard includes
 #include <chrono>
@@ -186,6 +187,7 @@ namespace confighttp {
   public:
     /**
      * @brief Bind dependencies before registering HTTP callbacks.
+     * @param configuration Owned startup settings and synchronized credentials.
      * @param gamestream GameStream pairing and client state.
      * @param http_state Host HTTP identity and origin policy.
      * @param processes Application process owner.
@@ -195,7 +197,7 @@ namespace confighttp {
      * @param lifetime Application termination controller.
      * @param host_mail Application shutdown mailbox.
      */
-    service_t(nvhttp::service_t &gamestream, http::state_t &http_state, proc::proc_t &processes, display_device::manager_t &displays, input::service_t &inputs, rtsp_stream::service_t &rtsp, lifetime::controller_t &lifetime, safe::mail_t host_mail);
+    service_t(config::store_t &configuration, nvhttp::service_t &gamestream, http::state_t &http_state, proc::proc_t &processes, display_device::manager_t &displays, input::service_t &inputs, rtsp_stream::service_t &rtsp, lifetime::controller_t &lifetime, safe::mail_t host_mail);
     service_t(const service_t &) = delete;
     service_t &operator=(const service_t &) = delete;
 
@@ -227,32 +229,9 @@ namespace confighttp {
      */
     void reset_portal_token_path_provider_for_testing();
 #endif
-    /**
-     * @brief Handle authenticate for this Web UI service.
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request to process.
-     * @return Result of the request.
-     */
     bool authenticate(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle get_client_id for this Web UI service.
-     * @return Result of the request.
-     */
     std::string get_client_id(const req_https_t &request);
-    /**
-     * @brief Handle generate_csrf_token for this Web UI service.
-     * @return Result of the request.
-     */
     std::string generate_csrf_token(const std::string &client_id);
-    /**
-     * @brief Handle validate stored csrf token for this Web UI service.
-     *
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request from the client.
-     * @param client_id Identity bound to the CSRF token.
-     * @param provided_token CSRF token supplied by the client.
-     * @return Result of the requested operation.
-     */
     bool validate_stored_csrf_token(const resp_https_t &response, const req_https_t &request, const std::string_view client_id, const std::string_view provided_token);
     /**
      * @brief Validate CSRF token.
@@ -288,135 +267,24 @@ namespace confighttp {
      * @param request HTTP request data from the client.
      */
     void getFallbackPage(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle get favicon image for this Web UI service.
-     *
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request from the client.
-     */
     void getFaviconImage(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle get sunshine logo image for this Web UI service.
-     *
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request from the client.
-     */
     void getSunshineLogoImage(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle getAsset for this Web UI service.
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request to process.
-     */
     void getAsset(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle getCSRFToken for this Web UI service.
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request to process.
-     */
     void getCSRFToken(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle get apps for this Web UI service.
-     *
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request from the client.
-     */
     void getApps(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle save app for this Web UI service.
-     *
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request from the client.
-     */
     void saveApp(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle close app for this Web UI service.
-     *
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request from the client.
-     */
     void closeApp(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle delete app for this Web UI service.
-     *
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request from the client.
-     */
     void deleteApp(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle get clients for this Web UI service.
-     *
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request from the client.
-     */
     void getClients(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle update client for this Web UI service.
-     *
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request from the client.
-     */
     void updateClient(resp_https_t response, req_https_t request);
-    /**
-     * @brief Handle unpair for this Web UI service.
-     *
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request from the client.
-     */
     void unpair(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle unpair all for this Web UI service.
-     *
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request from the client.
-     */
     void unpairAll(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle get config for this Web UI service.
-     *
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request from the client.
-     */
     void getConfig(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle getLocale for this Web UI service.
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request to process.
-     */
     void getLocale(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle save config for this Web UI service.
-     *
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request from the client.
-     */
     void saveConfig(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle get cover for this Web UI service.
-     *
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request from the client.
-     */
     void getCover(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle upload cover for this Web UI service.
-     *
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request from the client.
-     */
     void uploadCover(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle get logs for this Web UI service.
-     *
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request from the client.
-     */
     void getLogs(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle save password for this Web UI service.
-     *
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request from the client.
-     */
     void savePassword(const resp_https_t &response, const req_https_t &request);
     /**
      * @brief List authenticated pairing requests awaiting operator approval.
@@ -439,25 +307,8 @@ namespace confighttp {
      * @param request HTTP request data from the client.
      */
     void savePin(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle reset display device persistence for this Web UI service.
-     *
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request from the client.
-     */
     void resetDisplayDevicePersistence(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle resetPortalToken for this Web UI service.
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request to process.
-     */
     void resetPortalToken(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle restart for this Web UI service.
-     *
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request from the client.
-     */
     void restart(const resp_https_t &response, const req_https_t &request);
     /**
      * @brief Return the host's permission statuses to the Web UI.
@@ -480,29 +331,9 @@ namespace confighttp {
      * @param request Authenticated, CSRF protected request.
      */
     void requestPermission(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle getVirtualInputStatus for this Web UI service.
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request to process.
-     */
     void getVirtualInputStatus(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle getVirtualInputLicense for this Web UI service.
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request to process.
-     */
     void getVirtualInputLicense(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle updateVirtualInputLicense for this Web UI service.
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request to process.
-     */
     void updateVirtualInputLicense(const resp_https_t &response, const req_https_t &request);
-    /**
-     * @brief Handle browseDirectory for this Web UI service.
-     * @param response HTTPS response to populate.
-     * @param request HTTPS request to process.
-     */
     void browseDirectory(const resp_https_t &response, const req_https_t &request);
     /**
      * @brief Handle start for this Web UI service.
@@ -510,11 +341,6 @@ namespace confighttp {
     void start();
 
   private:
-    /**
-     * @brief Return current license details after authenticating a request.
-     * @param response HTTPS response receiving license details.
-     * @param request HTTPS request to authenticate.
-     */
     void get_virtual_input_license(const resp_https_t &response, const req_https_t &request);
 
     /**
@@ -539,6 +365,8 @@ namespace confighttp {
     std::function<std::filesystem::path()> token_path_provider;  ///< Bound portal token path query.
 #endif
     std::function<lvh::LicenseResult()> license_provider = lvh::get_license_status;  ///< Bound license status query.
+    config::store_t &configuration;  ///< Startup settings and synchronized credentials.
+    const config::settings_t &settings;  ///< Settings retained by the application.
     nvhttp::service_t &gamestream;  ///< Pairing and client state.
     http::state_t &http_state;  ///< Host HTTP identity and origin policy.
     proc::proc_t &processes;  ///< Application process owner.

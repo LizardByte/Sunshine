@@ -46,7 +46,9 @@ namespace upnp {
   /**
    * @brief Start UPnP port mapping and return its shutdown guard.
    *
+   * @param settings Application network configuration.
+   * @param host_mail Application-owned shutdown mailbox.
    * @return Start status.
    */
-  [[nodiscard]] std::unique_ptr<platf::deinit_t> start();
+  [[nodiscard]] std::unique_ptr<platf::deinit_t> start(const config::settings_t &settings, safe::mail_t host_mail);
 }  // namespace upnp

@@ -103,14 +103,14 @@ namespace nvprefs {
     return true;
   }
 
-  bool nvprefs_interface::modify_application_profile() {
+  bool nvprefs_interface::modify_application_profile(const config::settings_t &settings) {
     if (!pimpl->loaded) {
       return false;
     }
 
     // Modify and save sunshine.exe application profile settings, if needed
     bool modified = false;
-    if (!pimpl->driver_settings.check_and_modify_application_profile(modified)) {
+    if (!pimpl->driver_settings.check_and_modify_application_profile(settings, modified)) {
       error_message("Failed to modify application profile settings");
       return false;
     } else if (modified) {
@@ -127,14 +127,14 @@ namespace nvprefs {
     return true;
   }
 
-  bool nvprefs_interface::modify_global_profile() {
+  bool nvprefs_interface::modify_global_profile(const config::settings_t &settings) {
     if (!pimpl->loaded) {
       return false;
     }
 
     // Modify but not save global profile settings, if needed
     std::optional<undo_data_t> undo_data;
-    if (!pimpl->driver_settings.check_and_modify_global_profile(undo_data)) {
+    if (!pimpl->driver_settings.check_and_modify_global_profile(settings, undo_data)) {
       error_message("Couldn't modify global profile settings");
       return false;
     } else if (!undo_data) {

@@ -3,6 +3,7 @@
  * @brief Declarations for nvidia preferences interface.
  */
 #pragma once
+#include "src/config.h"
 
 // standard includes
 #include <memory>
@@ -39,16 +40,18 @@ namespace nvprefs {
     /**
      * @brief Apply Sunshine-specific NVIDIA application profile changes.
      *
+     * @param settings Immutable startup settings for this host.
      * @return True when the NVIDIA preferences operation succeeds.
      */
-    bool modify_application_profile();
+    bool modify_application_profile(const config::settings_t &settings);
 
     /**
      * @brief Apply Sunshine-specific NVIDIA global profile changes.
      *
+     * @param settings Immutable startup settings for this host.
      * @return True when the NVIDIA preferences operation succeeds.
      */
-    bool modify_global_profile();
+    bool modify_global_profile(const config::settings_t &settings);
 
     /**
      * @brief Check whether this interface owns the active undo file.

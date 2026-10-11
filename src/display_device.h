@@ -27,6 +27,10 @@ namespace rtsp_stream {
   struct launch_session_t;
 }
 
+namespace audio {
+  class service_t;
+}
+
 namespace display_device {
 
   /**
@@ -64,7 +68,7 @@ namespace display_device {
    *
    * @examples
    * const std::shared_ptr<rtsp_stream::launch_session_t> launch_session;
-   * const config::video_t &video_config { config::video };
+   * const config::video_t &video_config { settings.video };
    *
    * const auto config { parse_configuration(video_config, *launch_session) };
    * if (const auto *parsed_config { std::get_if<SingleDisplayConfiguration>(&result) }; parsed_config) {
@@ -105,14 +109,15 @@ namespace display_device {
      * @brief Initialize the implementation and perform the initial state recovery (if needed).
      * @param persistence_filepath File location for reading/saving persistent state.
      * @param video_config User's video related configuration.
+     * @param audios Host audio owner shared with display recovery.
      * @note Destroy the manager after all consumers stop to restore pending settings.
      *
      * @examples
-     * const config::video_t &video_config { config::video };
-     * initialize("/my/persitence/file.state", video_config);
+     * const config::video_t &video_config { settings.video };
+     * initialize("/my/persitence/file.state", video_config, audios);
      * @examples_end
      */
-    void initialize(const std::filesystem::path &persistence_filepath, const config::video_t &video_config);
+    void initialize(const std::filesystem::path &persistence_filepath, const config::video_t &video_config, audio::service_t &audios);
 
     /**
      * @brief Map the output name to a specific display.
@@ -120,7 +125,7 @@ namespace display_device {
      * @returns Mapped display name or empty string if the output name could not be mapped.
      *
      * @examples
-     * const auto mapped_name_config { map_output_name(config::video.output_name) };
+     * const auto mapped_name_config { displays.map_output_name(settings.video.output_name) };
      * const auto mapped_name_custom { map_output_name("{some-device-id}") };
      * @examples_end
      */
@@ -135,7 +140,7 @@ namespace display_device {
      *
      * @examples
      * const std::shared_ptr<rtsp_stream::launch_session_t> launch_session;
-     * const config::video_t &video_config { config::video };
+     * const config::video_t &video_config { settings.video };
      *
      * configure_display(video_config, *launch_session);
      * @examples_end

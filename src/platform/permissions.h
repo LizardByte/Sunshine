@@ -3,6 +3,7 @@
  * @brief Cross-platform permission status and request interface.
  */
 #pragma once
+#include "src/config.h"
 
 // standard includes
 #include <filesystem>
@@ -25,9 +26,10 @@ namespace platf {
   /**
    * @brief Query access needed by Sunshine on the current platform.
    *
+   * @param settings Immutable host configuration determining which permissions are required.
    * @return Permission status records for the Web UI.
    */
-  std::vector<permission_status_t> get_permission_statuses();
+  std::vector<permission_status_t> get_permission_statuses(const config::settings_t &settings);
 
   /**
    * @brief Determine whether all verifiable required permissions are granted.

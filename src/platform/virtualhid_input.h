@@ -5,6 +5,7 @@
 #pragma once
 
 // standard includes
+#include <functional>
 #include <memory>
 #include <optional>
 #include <set>
@@ -25,16 +26,11 @@ namespace platf::virtualhid {
    */
   struct input_context_t {
     /**
-     * @brief Construct the libvirtualhid input context using the platform-default backend.
-     */
-    input_context_t();
-
-    /**
-     * @brief Construct the libvirtualhid input context using a selected backend.
-     *
+     * @brief Bind immutable host settings and construct libvirtualhid devices.
+     * @param settings Startup configuration owned by the host.
      * @param backend Backend used to create the libvirtualhid runtime.
      */
-    explicit input_context_t(lvh::BackendKind backend);
+    explicit input_context_t(const config::settings_t &settings, lvh::BackendKind backend = lvh::BackendKind::platform_default);
 
     /**
      * @brief Recreate the shared keyboard using the runtime's current driver and license state.
@@ -61,6 +57,8 @@ namespace platf::virtualhid {
      */
     void update_mouse_viewport(const touch_port_t &touch_port);
 
+    std::reference_wrapper<const config::settings_t> settings;  ///< Host startup configuration shared by these devices.
+    std::string gamepad_driver;  ///< Runtime backend choice serialized by the host input service.
     std::unique_ptr<lvh::Runtime> runtime;  ///< libvirtualhid runtime.
     std::unique_ptr<lvh::Keyboard> keyboard;  ///< Shared virtual keyboard.
     std::unique_ptr<lvh::Mouse> mouse;  ///< Shared virtual mouse.
@@ -342,9 +340,10 @@ namespace platf::virtualhid {
   /**
    * @brief Return whether the configured gamepad profile can expose touchpad input.
    *
+   * @param settings Immutable host controller profile settings.
    * @return True when controller touchpad input should be advertised.
    */
-  bool configured_gamepad_supports_touchpad();
+  bool configured_gamepad_supports_touchpad(const config::settings_t &settings);
 
   /**
    * @brief Return whether the configured gamepad profile needs Moonlight controller extensions.
@@ -352,8 +351,19 @@ namespace platf::virtualhid {
    * Moonlight uses the controller-touch feature flag to authorize both controller
    * touchpad and motion packets.
    *
+   * @param settings Immutable host controller profile settings.
    * @return True when controller touchpad or motion input should be advertised.
    */
-  bool configured_gamepad_supports_controller_extensions();
+  bool configured_gamepad_supports_controller_extensions(const config::settings_t &settings);
+
+#if defined(_WIN32) && defined(SUNSHINE_TESTS)
+  /**
+   * @brief Queue a ViGEm callback using an inactive owner for lifetime tests.
+   * @param scheduler Fixture scheduler that executes the deferred callback.
+   * @param callback Recorder invoked only while the returned backend owner is retained.
+   * @return Inactive backend owner whose reset must suppress its pending feedback.
+   */
+  std::shared_ptr<void> queue_vigem_feedback_for_testing(thread_pool_util::ThreadPool &scheduler, std::function<void()> callback);
+#endif
 
 }  // namespace platf::virtualhid

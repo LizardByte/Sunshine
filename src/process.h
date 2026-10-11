@@ -93,8 +93,11 @@ namespace proc {
   public:
     /**
      * @brief Construct an inactive process owner without platform dependencies.
+     * @param settings Startup preparation commands that outlive this owner.
      */
-    proc_t() = default;
+    explicit proc_t(const config::settings_t &settings):
+        settings {&settings} {}
+
     /**
      * @brief Transfer process ownership and leave the source inactive.
      * @param other Process owner to adopt.
@@ -109,18 +112,22 @@ namespace proc {
 
     /**
      * @brief Construct a process owner with display restoration for completed applications.
+     * @param settings Startup preparation commands that outlive this owner.
      * @param displays Display manager that outlives this process owner.
      */
-    explicit proc_t(display_device::manager_t &displays):
+    proc_t(const config::settings_t &settings, display_device::manager_t &displays):
+        settings {&settings},
         displays {&displays} {
     }
 
     /**
      * @brief Construct a process owner with input and display cleanup dependencies.
+     * @param settings Startup preparation commands that outlive this owner.
      * @param displays Display manager that outlives this owner.
      * @param inputs Host input service that outlives this owner.
      */
-    proc_t(display_device::manager_t &displays, input::service_t &inputs):
+    proc_t(const config::settings_t &settings, display_device::manager_t &displays, input::service_t &inputs):
+        settings {&settings},
         inputs {&inputs},
         displays {&displays} {
     }
@@ -134,13 +141,16 @@ namespace proc {
     /**
      * @brief Construct a process manager.
      *
+     * @param settings Startup preparation commands that outlive this owner.
      * @param env Environment used when launching processes.
      * @param apps Application launch contexts.
      */
     proc_t(
+      const config::settings_t &settings,
       boost::process::v1::environment &&env,
       std::vector<ctx_t> &&apps
     ):
+        settings {&settings},
         _app_id(0),
         _env(std::move(env)),
         _apps(std::move(apps)) {
@@ -216,6 +226,7 @@ namespace proc {
 #endif
 
   private:
+    const config::settings_t *settings;  ///< Startup preparation commands shared with application configuration.
     int _app_id {};  ///< Active application identifier, or zero before the first launch.
     input::service_t *inputs {};  ///< Optional host input cleanup dependency.
     display_device::manager_t *displays {};  ///< Optional display restoration dependency.
@@ -267,9 +278,10 @@ namespace proc {
    * @brief Parse serialized text into the corresponding runtime representation.
    *
    * @param file_name File name.
+   * @param settings Startup preparation commands to append to applications.
    * @return Parsed value or parse status.
    */
-  std::optional<proc::proc_t> parse(const std::string &file_name);
+  std::optional<proc::proc_t> parse(const std::string &file_name, const config::settings_t &settings);
 
   /**
    * @brief Terminates all child processes in a process group.

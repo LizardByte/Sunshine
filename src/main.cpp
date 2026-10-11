@@ -32,61 +32,41 @@
 #endif
 
 // local includes
+#include "audio.h"
 #include "confighttp.h"
 #include "display_device.h"
 #include "entry_handler.h"
 #include "globals.h"
 #include "httpcommon.h"
+#include "input.h"
 #include "logging.h"
 #include "main.h"
 #include "nvhttp.h"
 #include "platform/permissions.h"
 #include "process.h"
+#include "rtsp.h"
+#include "stream.h"
 #include "system_tray.h"
 #include "upnp.h"
 #include "video.h"
 
 using namespace std::literals;
 
-std::map<int, std::function<void()>> signal_handlers;  ///< Signal handlers.
-
-/**
- * @brief Forward a POSIX signal to the registered Sunshine handler.
- *
- * @param sig Native signal number being handled.
- */
-void on_signal_forwarder(int sig) {
-  signal_handlers.at(sig)();
-}
-
-/**
- * @brief Register the handler invoked for a POSIX signal.
- *
- * @param sig Native signal number being handled.
- * @param fn Signal handler function to install.
- */
-template<class FN>
-void on_signal(int sig, FN &&fn) {
-  signal_handlers.emplace(sig, std::forward<FN>(fn));
-
-  std::signal(sig, on_signal_forwarder);
-}
-
 /**
  * @brief Immutable dispatch table for supported command-line subcommands.
  */
-const std::map<std::string_view, std::function<int(const char *name, int argc, char **argv)>> cmd_to_func {
-  {"creds"sv, [](const char *name, int argc, char **argv) {
-     return args::creds(name, argc, argv);
+const std::map<std::string_view, std::function<int(const config::settings_t &settings, const char *name, int argc, char **argv)>> cmd_to_func {
+  {"creds"sv, [](const config::settings_t &settings, const char *name, int argc, char **argv) {
+     return args::creds(settings, name, argc, argv);
    }},
-  {"help"sv, [](const char *name, int argc, char **argv) {
+  {"help"sv, [](const config::settings_t &settings, const char *name, int argc, char **argv) {
      return args::help(name);
    }},
-  {"version"sv, [](const char *name, int argc, char **argv) {
+  {"version"sv, [](const config::settings_t &settings, const char *name, int argc, char **argv) {
      return args::version();
    }},
 #ifdef _WIN32
-  {"restore-nvprefs-undo"sv, [](const char *name, int argc, char **argv) {
+  {"restore-nvprefs-undo"sv, [](const config::settings_t &settings, const char *name, int argc, char **argv) {
      return args::restore_nvprefs_undo();
    }},
 #endif
@@ -103,6 +83,10 @@ const std::map<std::string_view, std::function<int(const char *name, int argc, c
  * @return Process or platform callback exit code.
  */
 LRESULT CALLBACK SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+  if (uMsg == WM_NCCREATE) {
+    const auto create = reinterpret_cast<const CREATESTRUCTA *>(lParam);
+    SetWindowLongPtrA(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(create->lpCreateParams));
+  }
   switch (uMsg) {
     case WM_CLOSE:
       DestroyWindow(hwnd);
@@ -114,7 +98,9 @@ LRESULT CALLBACK SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
       {
         // Terminate ourselves with a blocking exit call
         std::cout << "Received WM_ENDSESSION"sv << std::endl;
-        lifetime::exit_sunshine(0, false);
+        if (const auto controller = reinterpret_cast<lifetime::controller_t *>(GetWindowLongPtrA(hwnd, GWLP_USERDATA))) {
+          controller->exit_sunshine(0, true);
+        }
         return 0;
       }
     default:
@@ -131,7 +117,7 @@ LRESULT CALLBACK SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
 WINAPI BOOL ConsoleCtrlHandler(DWORD type) {
   if (type == CTRL_CLOSE_EVENT) {
     BOOST_LOG(info) << "Console closed handler called";
-    lifetime::exit_sunshine(0, false);
+    lifetime::signal_guard_t::native_exit(0, false);
   }
   return FALSE;
 }
@@ -146,14 +132,15 @@ constexpr bool tray_is_enabled = false;
 /**
  * @brief Run the main event loop until Sunshine is asked to exit.
  *
+ * @param settings Application settings used by the event loop.
  * @param shutdown_event Shutdown event.
  */
-void mainThreadLoop(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) {
+void mainThreadLoop(const config::settings_t &settings, const std::shared_ptr<safe::event_t<bool>> &shutdown_event) {
   bool run_loop = false;
 
   // Conditions that would require the main thread event loop
 #ifndef _WIN32
-  run_loop = tray_is_enabled && config::sunshine.system_tray;  // On Windows, tray runs in separate thread, so no main loop needed for tray
+  run_loop = tray_is_enabled && settings.sunshine.system_tray;  // On Windows, tray runs in separate thread, so no main loop needed for tray
 #endif
 
   if (!run_loop) {
@@ -226,7 +213,15 @@ int main(int argc, char *argv[]) {
   }
 #endif
 
-  lifetime::argv = argv;
+  runtime::infrastructure_t infrastructure {argv};
+  auto &task_pool = infrastructure.scheduler();
+  auto &lifetime = infrastructure.lifetime();
+  const auto host_mail = infrastructure.mailbox();
+  config::store_t configuration;
+  const auto &settings = configuration.values();
+#ifdef _WIN32
+  auto &nvprefs_instance = infrastructure.preferences();
+#endif
 
   task_pool_util::TaskPool::task_id_t force_shutdown = nullptr;
 
@@ -244,14 +239,12 @@ int main(int argc, char *argv[]) {
   std::locale::global(std::locale(std::locale(), new std::codecvt_utf8<wchar_t>));
 #pragma GCC diagnostic pop
 
-  mail::man = std::make_shared<safe::mail_raw_t>();
-
   // parse config file
-  if (config::parse(argc, argv)) {
+  if (configuration.parse(argc, argv)) {
     return 0;
   }
 
-  auto log_deinit_guard = logging::init(config::sunshine.min_log_level, config::sunshine.log_file);
+  auto log_deinit_guard = logging::init(settings.sunshine.min_log_level, settings.sunshine.log_file);
   if (!log_deinit_guard) {
     BOOST_LOG(error) << "Logging failed to initialize"sv;
   }
@@ -265,13 +258,13 @@ int main(int argc, char *argv[]) {
   log_publisher_data();
 
   // Log modified_config_settings
-  config::log_config_settings(config::modified_config_settings, false);
-  config::modified_config_settings.clear();
+  configuration.log_config_settings(settings.modified_config_settings, false);
+  configuration.edit_startup().modified_config_settings.clear();
 
-  if (!config::sunshine.cmd.name.empty()) {
-    auto fn = cmd_to_func.find(config::sunshine.cmd.name);
+  if (!settings.sunshine.cmd.name.empty()) {
+    auto fn = cmd_to_func.find(settings.sunshine.cmd.name);
     if (fn == std::end(cmd_to_func)) {
-      BOOST_LOG(fatal) << "Unknown command: "sv << config::sunshine.cmd.name;
+      BOOST_LOG(fatal) << "Unknown command: "sv << settings.sunshine.cmd.name;
 
       BOOST_LOG(info) << "Possible commands:"sv;
       for (auto &[key, _] : cmd_to_func) {
@@ -281,19 +274,30 @@ int main(int argc, char *argv[]) {
       return 7;
     }
 
-    return fn->second(argv[0], config::sunshine.cmd.argc, config::sunshine.cmd.argv);
+    return fn->second(settings, argv[0], settings.sunshine.cmd.argc, settings.sunshine.cmd.argv);
   }
 
 #ifdef _WIN32
-  config::select_all_gamepad_drivers_if_licensed(lvh::get_license_status().license.licensed());
+  configuration.select_all_gamepad_drivers_if_licensed(lvh::get_license_status().license.licensed());
 #endif
 
   // Adding guard here first as it also performs recovery after crash,
   // otherwise people could theoretically end up without display output.
   // It also should be destroyed before forced shutdown to expedite the cleanup.
-  auto display_device_deinit_guard = display_device::init(platf::appdata() / "display_device.state", config::video);
-  if (!display_device_deinit_guard) {
-    BOOST_LOG(error) << "Display device session failed to initialize"sv;
+  audio::service_t audios {settings, host_mail};
+  display_device::manager_t displays;
+  displays.initialize(platf::appdata() / "display_device.state", settings.video, audios);
+
+  http::state_t http_state {configuration};
+  if (http_state.initialize()) {
+    BOOST_LOG(fatal) << "HTTP interface failed to initialize"sv;
+
+#ifdef _WIN32
+    BOOST_LOG(fatal) << "To relaunch Sunshine successfully, use the shortcut in the Start Menu. Do not run Sunshine.exe manually."sv;
+    std::this_thread::sleep_for(10s);
+#endif
+
+    return -1;
   }
 
 #ifdef _WIN32
@@ -302,25 +306,79 @@ int main(int argc, char *argv[]) {
     // Restore global settings to the undo file left by improper termination of sunshine.exe
     nvprefs_instance.restore_from_and_delete_undo_file_if_exists();
     // Modify application settings for sunshine.exe
-    nvprefs_instance.modify_application_profile();
+    nvprefs_instance.modify_application_profile(settings);
     // Modify global settings, undo file is produced in the process to restore after improper termination
-    nvprefs_instance.modify_global_profile();
+    nvprefs_instance.modify_global_profile(settings);
     // Unload dynamic library to survive driver re-installation
     nvprefs_instance.unload();
   }
 
+#endif
+
+  task_pool.start(1);
+  auto scheduler_guard = util::fail_guard([&task_pool]() {
+    task_pool.stop();
+    task_pool.join();
+  });
+
+  // Create signal handler after logging has been initialized
+  auto shutdown_event = host_mail->event<bool>(mail::shutdown);
+  lifetime::signal_guard_t signals {lifetime};
+  signals.on_signal(SIGINT, [&force_shutdown, &displays, &task_pool, &settings, shutdown_event]() {
+    BOOST_LOG(info) << "Interrupt handler called"sv;
+
+    auto task = []() {
+      BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;
+      logging::log_flush();
+      lifetime::debug_trap();
+    };
+    force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
+
+    // Break out of the main loop
+    shutdown_event->raise(true);
+
+    if (tray_is_enabled && settings.sunshine.system_tray) {
+      system_tray::end_tray();
+    }
+
+    displays.revert_configuration();
+  });
+
+  signals.on_signal(SIGTERM, [&force_shutdown, &displays, &task_pool, &settings, shutdown_event]() {
+    BOOST_LOG(info) << "Terminate handler called"sv;
+
+    auto task = []() {
+      BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;
+      logging::log_flush();
+      lifetime::debug_trap();
+    };
+    force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
+
+    // Break out of the main loop
+    shutdown_event->raise(true);
+
+    if (tray_is_enabled && settings.sunshine.system_tray) {
+      system_tray::end_tray();
+    }
+
+    displays.revert_configuration();
+  });
+
+#ifdef _WIN32
+  // Terminate gracefully on Windows when console window is closed
+  SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
+  auto console_handler_guard = util::fail_guard([]() {
+    SetConsoleCtrlHandler(ConsoleCtrlHandler, FALSE);
+  });
   // Wait as long as possible to terminate Sunshine.exe during logoff/shutdown
   SetProcessShutdownParameters(0x100, SHUTDOWN_NORETRY);
 
   // We must create a hidden window to receive shutdown notifications since we load gdi32.dll
   std::promise<HWND> session_monitor_hwnd_promise;
   auto session_monitor_hwnd_future = session_monitor_hwnd_promise.get_future();
-  std::promise<void> session_monitor_join_thread_promise;
-  auto session_monitor_join_thread_future = session_monitor_join_thread_promise.get_future();
 
   std::jthread session_monitor_thread([&]() {
     platf::set_thread_name("session_monitor");
-    session_monitor_join_thread_promise.set_value_at_thread_exit();
 
     WNDCLASSA wnd_class {};
     wnd_class.lpszClassName = "SunshineSessionMonitorClass";
@@ -343,7 +401,7 @@ int main(int argc, char *argv[]) {
       nullptr,
       nullptr,
       nullptr,
-      nullptr
+      &lifetime
     );
 
     session_monitor_hwnd_promise.set_value(wnd);
@@ -364,151 +422,92 @@ int main(int argc, char *argv[]) {
   });
 
   auto session_monitor_join_thread_guard = util::fail_guard([&]() {
-    if (session_monitor_hwnd_future.wait_for(1s) == std::future_status::ready) {
-      if (HWND session_monitor_hwnd = session_monitor_hwnd_future.get()) {
-        PostMessage(session_monitor_hwnd, WM_CLOSE, 0, 0);
-      }
-
-      if (session_monitor_join_thread_future.wait_for(1s) == std::future_status::ready) {
-        session_monitor_thread.join();
-        return;
-      } else {
-        BOOST_LOG(warning) << "session_monitor_join_thread_future reached timeout";
-      }
-    } else {
-      BOOST_LOG(warning) << "session_monitor_hwnd_future reached timeout";
+    if (HWND session_monitor_hwnd = session_monitor_hwnd_future.get()) {
+      PostMessage(session_monitor_hwnd, WM_CLOSE, 0, 0);
     }
-
-    session_monitor_thread.detach();
+    session_monitor_thread.join();
   });
-
 #endif
 
-  task_pool.start(1);
-
-  // Create signal handler after logging has been initialized
-  auto shutdown_event = mail::man->event<bool>(mail::shutdown);
-  on_signal(SIGINT, [&force_shutdown, &display_device_deinit_guard, shutdown_event]() {
-    BOOST_LOG(info) << "Interrupt handler called"sv;
-
-    auto task = []() {
-      BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;
-      logging::log_flush();
-      lifetime::debug_trap();
-    };
-    force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
-
-    // Break out of the main loop
-    shutdown_event->raise(true);
-
-    if (tray_is_enabled && config::sunshine.system_tray) {
-      system_tray::end_tray();
-    }
-
-    display_device_deinit_guard = nullptr;
-  });
-
-  on_signal(SIGTERM, [&force_shutdown, &display_device_deinit_guard, shutdown_event]() {
-    BOOST_LOG(info) << "Terminate handler called"sv;
-
-    auto task = []() {
-      BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;
-      logging::log_flush();
-      lifetime::debug_trap();
-    };
-    force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
-
-    // Break out of the main loop
-    shutdown_event->raise(true);
-
-    if (tray_is_enabled && config::sunshine.system_tray) {
-      system_tray::end_tray();
-    }
-
-    display_device_deinit_guard = nullptr;
-  });
-
-#ifdef _WIN32
-  // Terminate gracefully on Windows when console window is closed
-  SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
-#endif
-
-  proc::refresh(config::stream.file_apps);
+  input::service_t inputs {settings, task_pool, host_mail, infrastructure.cursor()};
+  proc::proc_t processes {settings, displays, inputs};
+  processes.refresh(settings.stream.file_apps);
 
   // If any of the following fail, we log an error and continue event though sunshine will not function correctly.
   // This allows access to the UI to fix configuration problems or view the logs.
 
-  auto platf_deinit_guard = platf::init();
-  if (!platf_deinit_guard) {
+  platf::runtime_t platform {settings, host_mail, task_pool, lifetime, displays
+#ifdef _WIN32
+                             ,
+                             nvprefs_instance
+#endif
+  };
+  if (!platform.initialize()) {
     BOOST_LOG(error) << "Platform failed to initialize"sv;
   }
 
   // Capture the pre-request state so access granted during this launch causes
   // one clean restart after every verifiable required permission is available.
-  const bool permission_restart_needed = !platf::required_permissions_granted(platf::get_permission_statuses());
+  const bool permission_restart_needed = !platf::required_permissions_granted(platf::get_permission_statuses(settings));
 #ifdef __APPLE__
-  platf::request_startup_permissions(tray_is_enabled && config::sunshine.system_tray);
+  platf::request_startup_permissions(settings, tray_is_enabled && settings.sunshine.system_tray);
 #endif
 
-  auto proc_deinit_guard = proc::init();
-  if (!proc_deinit_guard) {
-    BOOST_LOG(error) << "Proc failed to initialize"sv;
-  }
-
   reed_solomon_init();
-  auto input_deinit_guard = input::init();
+  inputs.initialize();
 
-  if (config::input.controller && input::probe_gamepads()) {
+  if (settings.input.controller && inputs.probe_gamepads()) {
     BOOST_LOG(warning) << "No gamepad input is available"sv;
   }
 
-  if (video::probe_encoders()) {
+  video::service_t videos {settings, host_mail, infrastructure.cursor(), displays, platform};
+  if (videos.probe_encoders()) {
     BOOST_LOG(error) << "Video failed to find working encoder"sv;
   }
 
-  if (http::init()) {
-    BOOST_LOG(fatal) << "HTTP interface failed to initialize"sv;
-
-#ifdef _WIN32
-    BOOST_LOG(fatal) << "To relaunch Sunshine successfully, use the shortcut in the Start Menu. Do not run Sunshine.exe manually."sv;
-    std::this_thread::sleep_for(10s);
-#endif
-
-    return -1;
-  }
-
   std::unique_ptr<platf::deinit_t> mDNS;
-  auto sync_mDNS = std::async(std::launch::async, [&mDNS]() {
-    mDNS = platf::publish::start();
+  auto sync_mDNS = std::async(std::launch::async, [&mDNS, &settings]() {
+    mDNS = platf::publish::start(settings);
   });
 
   std::unique_ptr<platf::deinit_t> upnp_unmap;
-  auto sync_upnp = std::async(std::launch::async, [&upnp_unmap]() {
-    upnp_unmap = upnp::start();
+  auto sync_upnp = std::async(std::launch::async, [&upnp_unmap, &settings, host_mail]() {
+    upnp_unmap = upnp::start(settings, host_mail);
   });
 
   // FIXME: Temporary workaround: Simple-Web_server needs to be updated or replaced
   if (shutdown_event->peek()) {
-    return lifetime::desired_exit_code;
+    return lifetime.exit_code();
   }
 
-  std::jthread httpThread {nvhttp::start};
-  std::jthread configThread {confighttp::start};
-  std::jthread rtspThread {rtsp_stream::start};
+  stream::service_t streams {settings, host_mail, task_pool, inputs, videos, processes, displays, platform, audios};
+  rtsp_stream::service_t rtsp {settings, streams, inputs, videos, host_mail};
+  nvhttp::service_t gamestream {settings, http_state, processes, displays, videos, rtsp, host_mail};
+  confighttp::service_t web {configuration, gamestream, http_state, processes, displays, inputs, rtsp, lifetime, host_mail};
+  system_tray::application_binding_t tray_binding {settings, lifetime, displays};
+  std::jthread httpThread {[&]() {
+    gamestream.start();
+  }};
+  std::jthread configThread {[&]() {
+    web.start();
+  }};
+  std::jthread rtspThread {[&]() {
+    rtsp.start();
+  }};
 
 #ifdef _WIN32
   // If we're using the default port and GameStream is enabled, warn the user
-  if (config::sunshine.port == 47989 && is_gamestream_enabled()) {
+  if (settings.sunshine.port == 47989 && is_gamestream_enabled()) {
     BOOST_LOG(fatal) << "GameStream is still enabled in GeForce Experience! This *will* cause streaming problems with Sunshine!"sv;
     BOOST_LOG(fatal) << "Disable GameStream on the SHIELD tab in GeForce Experience or change the Port setting on the Advanced tab in the Sunshine Web UI."sv;
   }
 #endif
 
-  if (tray_is_enabled && config::sunshine.system_tray) {
+  if (tray_is_enabled && settings.sunshine.system_tray) {
     BOOST_LOG(info) << "Starting system tray"sv;
 #if defined(_WIN32) || defined(__APPLE__)
-    system_tray::prepare_tray_virtualhid_license();
-    system_tray::prepare_tray_virtualhid_driver();
+    system_tray::prepare_tray_virtualhid_license(settings);
+    system_tray::prepare_tray_virtualhid_driver(settings);
 #endif
 #ifdef _WIN32
     // TODO: Windows has a weird bug where when running as a service and on the first Windows boot,
@@ -525,19 +524,19 @@ int main(int argc, char *argv[]) {
 #ifdef __APPLE__
   std::jthread macos_audio_permission_requester;
   if (!permission_restart_needed) {
-    macos_audio_permission_requester = std::jthread([]() {
-      platf::request_startup_system_audio_permission();
+    macos_audio_permission_requester = std::jthread([&settings]() {
+      platf::request_startup_system_audio_permission(settings);
     });
   }
 #endif
 
   std::jthread permission_watcher;
   if (permission_restart_needed) {
-    permission_watcher = std::jthread([](std::stop_token stop) {
+    permission_watcher = std::jthread([&lifetime, &settings](std::stop_token stop) {
       while (!stop.stop_requested()) {
-        if (platf::required_permissions_granted(platf::get_permission_statuses())) {
+        if (platf::required_permissions_granted(platf::get_permission_statuses(settings))) {
           BOOST_LOG(info) << "Required permissions granted; restarting Sunshine"sv;
-          platf::restart();
+          platf::restart(lifetime);
           return;
         }
         std::this_thread::sleep_for(2s);
@@ -545,7 +544,7 @@ int main(int argc, char *argv[]) {
     });
   }
 
-  mainThreadLoop(shutdown_event);
+  mainThreadLoop(settings, shutdown_event);
 
   permission_watcher.request_stop();
   if (permission_watcher.joinable()) {
@@ -572,5 +571,5 @@ int main(int argc, char *argv[]) {
   }
 #endif
 
-  return lifetime::desired_exit_code;
+  return lifetime.exit_code();
 }

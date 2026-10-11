@@ -330,6 +330,15 @@ namespace platf {
       };
 
     public:
+      const config::settings_t &settings;  ///< Configuration retained until this PulseAudio controller stops.
+
+      /**
+       * @brief Bind the configured sink before creating PulseAudio resources.
+       * @param settings Host audio settings.
+       */
+      explicit server_t(const config::settings_t &settings):
+          settings {settings} {}
+
       loop_t loop;  ///< PulseAudio threaded mainloop instance.
       ctx_t ctx;  ///< PulseAudio threaded mainloop context.
       std::string requested_sink;  ///< Requested sink.
@@ -642,7 +651,7 @@ namespace platf {
         // An attempt was made to always use default to match the switching mechanic,
         // but this happens right after the swap so the default returned by PA was not
         // the new one just set!
-        auto sink_name = config::audio.sink;
+        auto sink_name = settings.audio.sink;
         if (sink_name.empty()) {
           sink_name = requested_sink;
         }
@@ -716,8 +725,8 @@ namespace platf {
   /**
    * @brief Create the platform audio controller.
    */
-  std::unique_ptr<audio_control_t> audio_control() {
-    auto audio = std::make_unique<pa::server_t>();
+  std::unique_ptr<audio_control_t> audio_control(const config::settings_t &settings) {
+    auto audio = std::make_unique<pa::server_t>(settings);
 
     if (audio->init()) {
       return nullptr;

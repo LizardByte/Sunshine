@@ -185,7 +185,9 @@ namespace system_tray {
 
   void tray_open_ui_cb([[maybe_unused]] struct tray_menu *item) {
     BOOST_LOG(info) << "Opening UI from system tray"sv;
-    launch_ui();
+    if (item && item->context) {
+      launch_ui(static_cast<application_binding_t *>(item->context)->settings);
+    }
   }
 
   void tray_donate_github_cb([[maybe_unused]] struct tray_menu *item) {
@@ -203,10 +205,14 @@ namespace system_tray {
   #if defined(_WIN32) || defined(__APPLE__)
   void tray_virtualhid_license_cb([[maybe_unused]] struct tray_menu *item) {
     BOOST_LOG(info) << "Opening Virtual HID Broker license settings from system tray"sv;
+    if (!item || !item->context) {
+      return;
+    }
+    const auto &settings = static_cast<application_binding_t *>(item->context)->settings;
     #ifdef _WIN32
-    launch_ui(config::input.gamepad_driver == config::GAMEPAD_DRIVER_VIGEMBUS ? "/config#gamepad_driver" : "/troubleshooting#virtualhid-license");
+    launch_ui(settings, settings.input.gamepad_driver == config::GAMEPAD_DRIVER_VIGEMBUS ? "/config#gamepad_driver" : "/troubleshooting#virtualhid-license");
     #else
-    launch_ui("/troubleshooting#virtualhid-license");
+    launch_ui(settings, "/troubleshooting#virtualhid-license");
     #endif
   }
 
@@ -244,28 +250,36 @@ namespace system_tray {
   void tray_reset_display_device_config_cb([[maybe_unused]] struct tray_menu *item) {
     BOOST_LOG(info) << "Resetting display device config from system tray"sv;
 
-    std::ignore = display_device::reset_persistence();
+    if (item && item->context) {
+      std::ignore = static_cast<application_binding_t *>(item->context)->displays.reset_persistence();
+    }
   }
 
   void tray_restart_cb([[maybe_unused]] struct tray_menu *item) {
     BOOST_LOG(info) << "Restarting from system tray"sv;
 
-    platf::restart();
+    if (item && item->context) {
+      platf::restart(static_cast<application_binding_t *>(item->context)->lifetime);
+    }
   }
 
   void tray_quit_cb([[maybe_unused]] struct tray_menu *item) {
     BOOST_LOG(info) << "Quitting from system tray"sv;
+    if (!item || !item->context) {
+      return;
+    }
+    auto &lifetime = static_cast<application_binding_t *>(item->context)->lifetime;
 
   #ifdef _WIN32
     // If we're running in a service, return a special status to
     // tell it to terminate too, otherwise it will just respawn us.
     if (GetConsoleWindow() == nullptr) {
-      lifetime::exit_sunshine(ERROR_SHUTDOWN_IN_PROGRESS, true);
+      lifetime.exit_sunshine(ERROR_SHUTDOWN_IN_PROGRESS, true);
       return;
     }
   #endif
 
-    lifetime::exit_sunshine(0, true);
+    lifetime.exit_sunshine(0, true);
   }
 
   #if defined(_WIN32) || defined(__APPLE__)
@@ -345,6 +359,46 @@ namespace system_tray {
     .allIconPaths = {TRAY_ICON, TRAY_ICON_LOCKED, TRAY_ICON_PLAYING, TRAY_ICON_PAUSING},
   #endif
   };
+
+  application_binding_t::application_binding_t(const config::settings_t &settings, lifetime::controller_t &lifetime, display_device::manager_t &displays):
+      settings {settings},
+      lifetime {lifetime},
+      displays {displays} {
+    for (auto item = tray.menu; item->text; ++item) {
+      item->context = this;
+      if (item->submenu) {
+        for (auto child = item->submenu; child->text; ++child) {
+          child->context = this;
+        }
+      }
+    }
+  }
+
+  application_binding_t::~application_binding_t() {
+    end_tray();
+    for (auto item = tray.menu; item->text; ++item) {
+      if (item->context == this) {
+        item->context = nullptr;
+      }
+      if (item->submenu) {
+        for (auto child = item->submenu; child->text; ++child) {
+          if (child->context == this) {
+            child->context = nullptr;
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * @brief Open a Web UI route from a native notification lacking a userdata parameter.
+   * @param path Route opened using the application's bound settings.
+   */
+  void open_bound_ui(const std::optional<std::string> &path) {
+    if (tray.menu[0].context) {
+      launch_ui(static_cast<application_binding_t *>(tray.menu[0].context)->settings, path);
+    }
+  }
 
   #ifdef SUNSHINE_TESTS
   const struct tray &tray_data_for_testing() {
@@ -446,6 +500,7 @@ namespace system_tray {
       .text = menu_text[index].c_str(),
       .disabled = disabled,
       .cb = callback,
+      .context = tray.menu[0].context,
     };
   }
 
@@ -511,36 +566,36 @@ namespace system_tray {
     tray.notification_icon = nullptr;
   }
 
-  void update_tray_virtualhid_license(const lvh::LicenseStatus &license, const bool notify_if_unlicensed) {
+  void update_tray_virtualhid_license(const config::settings_t &settings, const lvh::LicenseStatus &license, const bool notify_if_unlicensed) {
     const std::scoped_lock lock(tray_state_mutex());
     clear_tray_notification();
     rebuild_virtualhid_license_menu(license);
 
     #ifdef _WIN32
-    if (config::input.controller && config::input.gamepad_driver.empty()) {
+    if (settings.input.controller && settings.input.gamepad_driver.empty()) {
       tray.notification_title = "Choose a Gamepad Backend";
       tray.notification_text =
         "Choose a gamepad backend in Input settings. Virtual HID Broker is a paid upgrade; ViGEmBus is limited and has reached end of life.";
       tray.notification_icon = tray.allIconPaths[4];
       tray.notification_cb = []() {
-        launch_ui("/config#gamepad_driver");
+        open_bound_ui("/config#gamepad_driver");
       };
-    } else if (config::input.controller && config::input.gamepad_driver != config::GAMEPAD_DRIVER_NONE && config::input.gamepad_driver != config::GAMEPAD_DRIVER_VIGEMBUS && notify_if_unlicensed && !license.licensed()) {
+    } else if (settings.input.controller && settings.input.gamepad_driver != config::GAMEPAD_DRIVER_NONE && settings.input.gamepad_driver != config::GAMEPAD_DRIVER_VIGEMBUS && notify_if_unlicensed && !license.licensed()) {
       tray.notification_title = "Virtual HID Broker License";
       tray.notification_text =
         "Get or manage a license, or use the limited, end-of-life ViGEmBus driver.";
       tray.notification_icon = tray.allIconPaths[4];
       tray.notification_cb = []() {
-        launch_ui("/troubleshooting#virtualhid-license");
+        open_bound_ui("/troubleshooting#virtualhid-license");
       };
     }
     #else
-    if (config::input.controller && config::input.gamepad_driver != config::GAMEPAD_DRIVER_NONE && notify_if_unlicensed && !license.licensed()) {
+    if (settings.input.controller && settings.input.gamepad_driver != config::GAMEPAD_DRIVER_NONE && notify_if_unlicensed && !license.licensed()) {
       if (license.service_available) {
         tray.notification_title = "Virtual HID Broker License";
         tray.notification_text = "Activate a machine license to use virtual gamepads. Click to manage the license.";
         tray.notification_cb = []() {
-          launch_ui("/troubleshooting#virtualhid-license");
+          open_bound_ui("/troubleshooting#virtualhid-license");
         };
       } else {
         tray.notification_title = "Virtual HID Broker Is Unavailable";
@@ -558,22 +613,17 @@ namespace system_tray {
     }
   }
 
-  void prepare_tray_virtualhid_license() {
+  void prepare_tray_virtualhid_license(const config::settings_t &settings) {
     const auto result = lvh::get_license_status();
-    update_tray_virtualhid_license(result.license, !result.license.licensed());
+    update_tray_virtualhid_license(settings, result.license, !result.license.licensed());
   }
 
-  void update_tray_virtualhid_driver(
-    const bool installed,
-    const std::string_view version,
-    const bool version_compatible,
-    const std::string_view supported_versions
-  ) {
-    if (config::input.gamepad_driver == config::GAMEPAD_DRIVER_NONE || !installed || version_compatible) {
+  void update_tray_virtualhid_driver(const config::settings_t &settings, const bool installed, const std::string_view version, const bool version_compatible, const std::string_view supported_versions) {
+    if (settings.input.gamepad_driver == config::GAMEPAD_DRIVER_NONE || !installed || version_compatible) {
       return;
     }
     #ifdef _WIN32
-    if (config::input.gamepad_driver.empty() || config::input.gamepad_driver == config::GAMEPAD_DRIVER_VIGEMBUS) {
+    if (settings.input.gamepad_driver.empty() || settings.input.gamepad_driver == config::GAMEPAD_DRIVER_VIGEMBUS) {
       return;
     }
     #endif
@@ -592,7 +642,7 @@ namespace system_tray {
     tray.notification_text = notification_text.c_str();
     tray.notification_icon = tray.allIconPaths[4];
     tray.notification_cb = []() {
-      launch_ui("/troubleshooting#virtualhid");
+      open_bound_ui("/troubleshooting#virtualhid");
     };
 
     BOOST_LOG(warning) << notification_text;
@@ -601,14 +651,9 @@ namespace system_tray {
     }
   }
 
-  void prepare_tray_virtualhid_driver() {
+  void prepare_tray_virtualhid_driver(const config::settings_t &settings) {
     const auto status = confighttp::get_virtualhid_driver_status();
-    update_tray_virtualhid_driver(
-      status.value("installed", false),
-      status.value("version", std::string {}),
-      status.value("version_compatible", false),
-      status.value("supported_versions", std::string {})
-    );
+    update_tray_virtualhid_driver(settings, status.value("installed", false), status.value("version", std::string {}), status.value("version_compatible", false), status.value("supported_versions", std::string {}));
   }
   #endif
 
@@ -941,7 +986,7 @@ namespace system_tray {
     tray.notification_icon = tray.allIconPaths[1];
     tray.tooltip = PROJECT_NAME;
     tray.notification_cb = []() {
-      launch_ui("/pin");
+      open_bound_ui("/pin");
     };
     tray_update(&tray);
   }
@@ -994,5 +1039,18 @@ namespace system_tray {
     }
   }
 
+}  // namespace system_tray
+#endif
+
+#if !defined(SUNSHINE_TRAY) || SUNSHINE_TRAY < 1
+  #include "system_tray.h"
+
+namespace system_tray {
+  application_binding_t::application_binding_t(const config::settings_t &settings, lifetime::controller_t &lifetime, display_device::manager_t &displays):
+      settings {settings},
+      lifetime {lifetime},
+      displays {displays} {}
+
+  application_binding_t::~application_binding_t() = default;
 }  // namespace system_tray
 #endif

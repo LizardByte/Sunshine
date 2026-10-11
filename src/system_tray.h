@@ -3,11 +3,20 @@
  * @brief Declarations for the system tray icon and notification system.
  */
 #pragma once
+#include "config.h"
 
 // standard includes
 #include <memory>
 #include <string>
 #include <string_view>
+
+namespace lifetime {
+  class controller_t;
+}
+
+namespace display_device {
+  class manager_t;
+}
 
 namespace safe {
   template<class T>
@@ -24,6 +33,28 @@ namespace lvh {
  * @brief Handles the system tray icon and notification system.
  */
 namespace system_tray {
+  /**
+   * @brief Bind native tray callbacks to the application's scoped owners.
+   */
+  class application_binding_t {
+  public:
+    /**
+     * @brief Attach callback userdata before creating the native tray.
+     * @param settings Application settings used by native callbacks.
+     * @param lifetime Application termination controller.
+     * @param displays Display restoration owner.
+     */
+    application_binding_t(const config::settings_t &settings, lifetime::controller_t &lifetime, display_device::manager_t &displays);
+    /** @brief Stop native callbacks before their dependencies are destroyed. */
+    ~application_binding_t();
+    application_binding_t(const application_binding_t &) = delete;
+    application_binding_t &operator=(const application_binding_t &) = delete;
+
+    const config::settings_t &settings;  ///< Settings used by native UI callbacks.
+    lifetime::controller_t &lifetime;  ///< Application termination controller.
+    display_device::manager_t &displays;  ///< Display restoration owner.
+  };
+
   /**
    * @brief Callback for opening the UI from the system tray.
    * @param item The tray menu item.
@@ -132,15 +163,17 @@ namespace system_tray {
   /**
    * @brief Update the Virtual HID Broker license submenu and optional notification.
    *
+   * @param settings Application input configuration.
    * @param license Latest machine license details.
    * @param notify_if_unlicensed Whether to notify the user when the broker needs a license.
    */
-  void update_tray_virtualhid_license(const lvh::LicenseStatus &license, bool notify_if_unlicensed);
+  void update_tray_virtualhid_license(const config::settings_t &settings, const lvh::LicenseStatus &license, bool notify_if_unlicensed);
 
   /**
    * @brief Query the Virtual HID Broker license and prepare the startup tray state.
+   * @param settings Application input configuration.
    */
-  void prepare_tray_virtualhid_license();
+  void prepare_tray_virtualhid_license(const config::settings_t &settings);
 
   /**
    * @brief Show an update notification for an unsupported Virtual HID Broker.
@@ -149,21 +182,18 @@ namespace system_tray {
    * or the Windows backend choice does not use the broker.
    *
    * @param installed Whether the broker is installed.
+   * @param settings Application input configuration.
    * @param version Installed broker version.
    * @param version_compatible Whether Sunshine supports the installed version.
    * @param supported_versions User-visible supported version range.
    */
-  void update_tray_virtualhid_driver(
-    bool installed,
-    std::string_view version,
-    bool version_compatible,
-    std::string_view supported_versions
-  );
+  void update_tray_virtualhid_driver(const config::settings_t &settings, bool installed, std::string_view version, bool version_compatible, std::string_view supported_versions);
 
   /**
    * @brief Query the Virtual HID Broker version and prepare its startup notification.
+   * @param settings Application input configuration.
    */
-  void prepare_tray_virtualhid_driver();
+  void prepare_tray_virtualhid_driver(const config::settings_t &settings);
 #endif
 
   /**

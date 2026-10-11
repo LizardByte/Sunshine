@@ -534,7 +534,7 @@ namespace kwin {
         kde_output_order_v1_add_listener(self->kde_output_order, &output_order_listener, self);
         BOOST_LOG(debug) << "[kwingrab] bound kde_output_order_v1 version "sv << bind_ver;
       } else if (!std::strcmp(interface, zkde_screencast_unstable_v1_interface.name)) {
-        // Bind version 1 to 6 — We use stream_output from v1 for node_id (deprecated but good as a fall-back)
+        // Bind version 1 to 6 â€” We use stream_output from v1 for node_id (deprecated but good as a fall-back)
         //                       but also try to get the newer (re-use safe) pipewire objectserial from v6
         uint32_t bind_ver = std::min(version, static_cast<uint32_t>(6));
         self->kde_screencast_v1_ = static_cast<struct zkde_screencast_unstable_v1 *>(
@@ -675,6 +675,16 @@ namespace kwin {
    */
   class kwin_t: public pipewire::pipewire_display_t {
   public:
+    using pipewire::pipewire_display_t::pipewire_display_t;  ///< Construct with host codec policy.
+
+    /**
+     * @brief Start the selected KWin screencast and expose its PipeWire stream.
+     * @param display_name Selected KWin output name.
+     * @param out_pipewire_fd Set to -1 to connect to the local PipeWire core.
+     * @param out_pipewire_node Resulting capture node identifier.
+     * @param out_pipewire_objectserial Resulting capture object serial.
+     * @return Zero when the stream is ready, or -1 on failure.
+     */
     int configure_stream(const std::string &display_name, int &out_pipewire_fd, uint32_t &out_pipewire_node, uint64_t &out_pipewire_objectserial) override {
       screencast = std::make_unique<screencast_t>();
       if (screencast->init(true) < 0) {
@@ -709,18 +719,19 @@ namespace platf {
   /**
    * @brief Create a KWin screencast display backend.
    *
+   * @param settings Immutable startup settings for this host.
    * @param hwdevice_type Hardware device type requested for capture or encode.
    * @param display_name Display name.
    * @param config Configuration values to apply.
    * @return KWin/PipeWire display backend, or nullptr when initialization fails.
    */
-  std::shared_ptr<display_t> kwin_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
+  std::shared_ptr<display_t> kwin_display(const config::settings_t &settings, mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     if (!pipewire::pipewire_display_t::init_pipewire_and_check_hwdevice_type(hwdevice_type)) {
       BOOST_LOG(error) << "[kwingrab] Could not initialize pipewire-based display with the given hw device type."sv;
       return nullptr;
     }
 
-    auto display = std::make_shared<kwin::kwin_t>();
+    auto display = std::make_shared<kwin::kwin_t>(settings);
     if (display->init(hwdevice_type, display_name, config)) {
       return nullptr;
     }

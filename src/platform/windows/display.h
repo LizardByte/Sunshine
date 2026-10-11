@@ -211,13 +211,14 @@ namespace platf::dxgi {
 
   /**
    * @brief Construct a Windows capture backend retaining its compiled shader resources.
+   * @param settings Immutable startup settings for this host.
    * @param hwdevice_type Encoder memory type.
    * @param display_name Requested display.
    * @param config Streaming configuration.
    * @param shaders Immutable complete bytecode bundle.
    * @return Initialized capture backend, or null on failure.
    */
-  std::shared_ptr<display_t> make_display(mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config, std::shared_ptr<const shader_bundle_t> shaders);
+  std::shared_ptr<display_t> make_display(const config::settings_t &settings, mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config, std::shared_ptr<const shader_bundle_t> shaders);
 
   /**
    * @brief D3D depth-stencil state handle type.
@@ -397,6 +398,14 @@ namespace platf::dxgi {
    */
   class display_base_t: public display_t {
   public:
+    /**
+     * @brief Retain the host's immutable capture configuration.
+     * @param settings Host settings.
+     */
+    explicit display_base_t(const config::settings_t &settings):
+        settings(settings) {}
+
+    const config::settings_t &settings;  ///< Host settings outliving this capture resource.
     /**
      * @brief Initialize D3D11 desktop duplication for the selected output.
      *
@@ -583,6 +592,7 @@ namespace platf::dxgi {
    */
   class display_ram_t: public display_base_t {
   public:
+    using display_base_t::display_base_t;  ///< Construct with host settings.
     /**
      * @brief Allocate an image buffer compatible with this display backend.
      *
@@ -630,9 +640,11 @@ namespace platf::dxgi {
   public:
     /**
      * @brief Retain the shader bundle for every capture and conversion resource.
+     * @param settings Immutable startup settings for this host.
      * @param shaders Complete bytecode compiled by the platform owner.
      */
-    explicit display_vram_t(std::shared_ptr<const shader_bundle_t> shaders):
+    explicit display_vram_t(const config::settings_t &settings, std::shared_ptr<const shader_bundle_t> shaders):
+        display_base_t(settings),
         shaders {std::move(shaders)} {}
 
     std::shared_ptr<const shader_bundle_t> shaders;  ///< Immutable capture and encoder bytecode.
@@ -733,6 +745,7 @@ namespace platf::dxgi {
    */
   class display_ddup_ram_t: public display_ram_t {
   public:
+    using display_ram_t::display_ram_t;  ///< Construct with host settings.
     /**
      * @brief Initialize shared D3D capture resources for a RAM frame.
      *
@@ -869,6 +882,7 @@ namespace platf::dxgi {
     wgc_capture_t dup;
 
   public:
+    using display_ram_t::display_ram_t;  ///< Construct with host settings.
     /**
      * @brief Initialize shared D3D capture resources for a GPU frame.
      *

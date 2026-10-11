@@ -33,11 +33,12 @@ namespace input {
 
     /**
      * @brief Bind the host scheduler, mailbox, and cursor preference.
+     * @param settings Immutable host startup configuration.
      * @param scheduler Scheduler serializing input work.
      * @param mail Host mailbox carrying display selection.
      * @param cursor Host cursor visibility preference.
      */
-    service_t(thread_pool_util::ThreadPool &scheduler, safe::mail_t mail, bool &cursor);
+    service_t(const config::settings_t &settings, thread_pool_util::ThreadPool &scheduler, safe::mail_t mail, bool &cursor);
     service_t(const service_t &) = delete;
     service_t &operator=(const service_t &) = delete;
     /**
@@ -73,6 +74,20 @@ namespace input {
     void refresh_virtual_input();
 
     /**
+     * @brief Persist a newly licensed user's backend choice on the input scheduler.
+     * @param config Store providing the immutable configuration file path.
+     * @param licensed Whether Virtual HID Driver has an active license.
+     * @return Whether the preference was persisted and selected for this input service.
+     */
+    bool select_all_gamepad_drivers_if_licensed(config::store_t &config, bool licensed);
+
+    /**
+     * @brief Copy startup input settings with the service's current backend policy.
+     * @return Input configuration safe for UI and tray inspection.
+     */
+    config::input_t configuration_snapshot() const;
+
+    /**
      * @brief Allocate or resume input state for a paired client.
      * @param mail Mailbox for the active transport session.
      * @param session_id Stable paired-client identity.
@@ -106,7 +121,7 @@ namespace input {
 #ifdef SUNSHINE_TESTS
   namespace testing {
     /**
-     * @brief Replace the global platform input backend for a unit test.
+     * @brief Replace the fixture's platform input backend for a unit test.
      *
      * @param input Test-owned platform input backend.
      * @param service Fixture-owned host input service.

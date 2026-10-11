@@ -574,7 +574,7 @@ namespace platf::dxgi {
 
       const bool downscaling = display->width > width || display->height > height;
 
-      const auto fp16_transfer = select_fp16_transfer(format, display->is_hdr(), config::video.fp16_sdr_gamma_encoded);
+      const auto fp16_transfer = select_fp16_transfer(format, display->is_hdr(), display->settings.video.fp16_sdr_gamma_encoded);
       if (fp16_transfer == fp16_transfer_e::gamma_encoded) {
         BOOST_LOG(info) << "Treating FP16 SDR capture as gamma-encoded (fp16_sdr_gamma_encoded)"sv;
       }
@@ -1244,7 +1244,7 @@ namespace platf::dxgi {
         return false;
       }
 
-      if (!nvenc_d3d->create_encoder(config::video.nv, client_config, colorspace, buffer_format)) {
+      if (!nvenc_d3d->create_encoder(base.display->settings.video.nv, client_config, colorspace, buffer_format)) {
         return false;
       }
 

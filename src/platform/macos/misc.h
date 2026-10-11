@@ -8,6 +8,7 @@
 #include <vector>
 
 // local includes
+#include "src/config.h"
 #include "src/platform/permissions.h"
 
 namespace platf {
@@ -51,17 +52,19 @@ namespace platf {
   /**
    * @brief Request missing permissions needed at startup.
    *
+   * @param settings Immutable startup settings for this host.
    * @param notifications_enabled Whether the running build shows tray notifications.
    */
-  void request_startup_permissions(bool notifications_enabled);
+  void request_startup_permissions(const config::settings_t &settings, bool notifications_enabled);
 
   /**
    * @brief Probe system audio once on startup when no custom sink is configured.
    *
    * The operating system has no passive tap authorization query. Later streams
    * may request access again if the user removes permission.
+   * @param settings Immutable startup settings for this host.
    */
-  void request_startup_system_audio_permission();
+  void request_startup_system_audio_permission(const config::settings_t &settings);
 
   /**
    * @brief Decide whether a one-time startup system audio probe is due.

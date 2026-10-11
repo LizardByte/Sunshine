@@ -46,6 +46,7 @@ namespace proc {
   namespace pt = boost::property_tree;
 
   proc_t::proc_t(proc_t &&other):
+      settings {other.settings},
       _app_id {std::exchange(other._app_id, 0)},
       inputs {std::exchange(other.inputs, nullptr)},
       displays {std::exchange(other.displays, nullptr)},
@@ -65,6 +66,7 @@ namespace proc {
   proc_t &proc_t::operator=(proc_t &&other) {
     if (this != &other) {
       terminate();
+      settings = other.settings;
       _app_id = std::exchange(other._app_id, 0);
       inputs = std::exchange(other.inputs, nullptr);
       displays = std::exchange(other.displays, nullptr);
@@ -720,7 +722,7 @@ namespace proc {
   /**
    * @brief Parse serialized text into the corresponding runtime representation.
    */
-  std::optional<proc::proc_t> parse(const std::string &file_name) {
+  std::optional<proc::proc_t> parse(const std::string &file_name, const config::settings_t &settings) {
     pt::ptree tree;
 
     try {
@@ -756,15 +758,15 @@ namespace proc {
 
         std::vector<proc::cmd_t> prep_cmds;
         if (!exclude_global_prep.value_or(false)) {
-          prep_cmds.reserve(config::sunshine.prep_cmds.size());
-          for (auto &prep_cmd : config::sunshine.prep_cmds) {
+          prep_cmds.reserve(settings.sunshine.prep_cmds.size());
+          for (auto &prep_cmd : settings.sunshine.prep_cmds) {
             auto do_cmd = parse_env_val(this_env, prep_cmd.do_cmd);
             auto undo_cmd = parse_env_val(this_env, prep_cmd.undo_cmd);
 
             prep_cmds.emplace_back(
               std::move(do_cmd),
               std::move(undo_cmd),
-              std::move(prep_cmd.elevated)
+              bool {prep_cmd.elevated}
             );
           }
         }
@@ -841,6 +843,7 @@ namespace proc {
       }
 
       return proc::proc_t {
+        settings,
         std::move(this_env),
         std::move(apps)
       };
@@ -876,7 +879,7 @@ namespace proc {
       return;
     }
 
-    auto proc_opt = proc::parse(file_name);
+    auto proc_opt = proc::parse(file_name, *settings);
 
     if (proc_opt) {
       update_apps_and_env(std::move(*proc_opt));

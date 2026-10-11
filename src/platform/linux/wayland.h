@@ -290,7 +290,11 @@ namespace wl {
       REINIT,  ///< Reinitialize the frame
     };
 
-    dmabuf_t();
+    /**
+     * @brief Retain the host's render-device policy for DMA-BUF allocation.
+     * @param settings Immutable settings outliving this capture resource.
+     */
+    explicit dmabuf_t(const config::settings_t &settings);
     ~dmabuf_t();
 
     dmabuf_t(dmabuf_t &&) = delete;
@@ -401,6 +405,7 @@ namespace wl {
       return current_frame == &frames[0] ? &frames[1] : &frames[0];
     }
 
+    const config::settings_t &settings;  ///< Host GPU selection retained by DMA-BUF callbacks.
     status_e status;  ///< Current state of the active screencopy request.
     bool with_damage {false};  ///< Ask the compositor for the next frame that differs, rather than for a frame now.
     std::array<frame_t, 2> frames;  ///< Double-buffered frame descriptors.

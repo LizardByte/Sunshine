@@ -488,7 +488,7 @@ namespace platf::dxgi {
       return -1;
     }
 
-    auto adapter_name = utf_utils::from_utf8(config::video.adapter_name);
+    auto adapter_name = utf_utils::from_utf8(settings.video.adapter_name);
     auto output_name = utf_utils::from_utf8(display_name);
 
     adapter_t::pointer adapter_p;
@@ -684,7 +684,7 @@ namespace platf::dxgi {
             // As of 2023.07, NVIDIA driver has unfixed bug(s) where "realtime" can cause unrecoverable encoding freeze or outright driver crash
             // This issue happens more frequently with HAGS, in DX12 games or when VRAM is filled close to max capacity
             // Track OBS to see if they find better workaround or NVIDIA fixes it on their end, they seem to be in communication
-            if (hags_enabled && !config::video.nv_realtime_hags) {
+            if (hags_enabled && !settings.video.nv_realtime_hags) {
               priority = D3DKMT_SCHEDULINGPRIORITYCLASS_HIGH;
             }
           }
@@ -1014,21 +1014,20 @@ namespace platf::dxgi {
 namespace platf {
   /**
    * Pick a display adapter and capture method.
-   * @param hwdevice_type enables possible use of hardware encoder
    */
-  std::shared_ptr<display_t> dxgi::make_display(mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config, std::shared_ptr<const shader_bundle_t> shaders) {
+  std::shared_ptr<display_t> dxgi::make_display(const config::settings_t &settings, mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config, std::shared_ptr<const shader_bundle_t> shaders) {
     if (hwdevice_type == mem_type_e::dxgi && !shaders) {
       return nullptr;
     }
-    if (config::video.capture == "ddx" || config::video.capture.empty()) {
+    if (settings.video.capture == "ddx" || settings.video.capture.empty()) {
       if (hwdevice_type == mem_type_e::dxgi) {
-        auto disp = std::make_shared<dxgi::display_ddup_vram_t>(shaders);
+        auto disp = std::make_shared<dxgi::display_ddup_vram_t>(settings, shaders);
 
         if (!disp->init(config, display_name)) {
           return disp;
         }
       } else if (hwdevice_type == mem_type_e::system) {
-        auto disp = std::make_shared<dxgi::display_ddup_ram_t>();
+        auto disp = std::make_shared<dxgi::display_ddup_ram_t>(settings);
 
         if (!disp->init(config, display_name)) {
           return disp;
@@ -1036,15 +1035,15 @@ namespace platf {
       }
     }
 
-    if (config::video.capture == "wgc" || config::video.capture.empty()) {
+    if (settings.video.capture == "wgc" || settings.video.capture.empty()) {
       if (hwdevice_type == mem_type_e::dxgi) {
-        auto disp = std::make_shared<dxgi::display_wgc_vram_t>(shaders);
+        auto disp = std::make_shared<dxgi::display_wgc_vram_t>(settings, shaders);
 
         if (!disp->init(config, display_name)) {
           return disp;
         }
       } else if (hwdevice_type == mem_type_e::system) {
-        auto disp = std::make_shared<dxgi::display_wgc_ram_t>();
+        auto disp = std::make_shared<dxgi::display_wgc_ram_t>(settings);
 
         if (!disp->init(config, display_name)) {
           return disp;

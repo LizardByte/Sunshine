@@ -7,6 +7,7 @@
 // standard includes
 #include <bitset>
 #include <chrono>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -38,9 +39,6 @@ namespace config {
   inline constexpr std::string_view GAMEPAD_DRIVER_VIGEMBUS = "vigembus";  ///< Allow only ViGEmBus for Windows gamepads.
   inline constexpr std::string_view GAMEPAD_DRIVER_NONE = "none";  ///< Disable virtual gamepads on Windows and macOS.
 
-  // track modified config options
-  inline std::unordered_map<std::string, std::string> modified_config_settings;  ///< Configuration keys changed during the current parse or UI update.
-
   // sensitive values that should be redacted from logging
   /**
    * @brief Configuration keys whose values must be hidden in logs.
@@ -48,14 +46,6 @@ namespace config {
   inline constexpr std::array redacted_config = {
     "csrf_allowed_origins"
   };
-
-  /**
-   * @brief Log configuration entries and optionally mark them for persistence.
-   *
-   * @param vars Parsed configuration entries to log.
-   * @param save Whether modified configuration values should be written back to disk.
-   */
-  void log_config_settings(const std::unordered_map<std::string, std::string> &vars, bool save);
 
   /**
    * @brief Video encoder, capture, and color settings loaded from configuration.
@@ -368,10 +358,6 @@ namespace config {
     std::bitset<flag::FLAG_SIZE> flags;  ///< Runtime flags parsed from command-line options.
     std::string credentials_file;  ///< Path to the stored pairing credentials file.
 
-    std::string username;  ///< Username for the local Web UI account.
-    std::string password;  ///< Password hash or secret for the local Web UI account.
-    std::string salt;  ///< Salt used when hashing the Web UI password.
-
     std::string config_file;  ///< Path to the active Sunshine configuration file.
 
     /**
@@ -397,30 +383,119 @@ namespace config {
     std::vector<std::string> csrf_allowed_origins;  ///< Additional origins allowed by CSRF validation.
   };
 
-  extern video_t video;
-  extern audio_t audio;
-  extern stream_t stream;
-  extern nvhttp_t nvhttp;
-  extern input_t input;
-  extern sunshine_t sunshine;
+  /**
+   * @brief Configuration groups owned by one application.
+   */
+  struct settings_t {
+    /**
+     * @brief Populate the established defaults before file and command-line overrides.
+     */
+    settings_t();
+
+    video_t video;  ///< Encoder and capture configuration.
+    audio_t audio;  ///< Audio capture configuration.
+    stream_t stream;  ///< Transport and application-list configuration.
+    nvhttp_t nvhttp;  ///< Pairing and GameStream HTTP configuration.
+    input_t input;  ///< Input emulation configuration.
+    sunshine_t sunshine;  ///< Application, startup, and Web UI configuration.
+    std::unordered_map<std::string, std::string> modified_config_settings;  ///< Values recorded during this store's parse or UI updates.
+  };
+
+  /**
+   * @brief Coherent Web UI authentication values.
+   */
+  struct credentials_t {
+    std::string username;  ///< Local Web UI account name.
+    std::string password;  ///< Password hash stored for the account.
+    std::string salt;  ///< Salt used to derive the password hash.
+  };
+
+  /**
+   * @brief Owns startup settings and synchronizes runtime credential updates.
+   */
+  class store_t {
+  public:
+    /**
+     * @brief Read startup configuration after all startup edits have completed.
+     * @return The configuration groups owned by this store.
+     */
+    const settings_t &values() const;
+
+    /**
+     * @brief Edit configuration before application workers begin reading it.
+     * @return Mutable startup configuration; callers must finish edits before starting workers.
+     */
+    settings_t &edit_startup();
+
+    /**
+     * @brief Copy all authentication values under one lock.
+     * @return A consistent account name, password hash, and salt.
+     */
+    credentials_t credentials_snapshot() const;
+
+    /**
+     * @brief Replace all authentication values as one synchronized update.
+     * @param credentials Complete account values to install.
+     */
+    void update_credentials(credentials_t credentials);
+
+    /**
+     * @brief Parse file and command-line overrides into this store.
+     * @param argc Number of command-line arguments.
+     * @param argv Command-line argument vector.
+     * @return Zero on success, or the existing command-line and configuration error status.
+     */
+    int parse(int argc, char *argv[]);
+
+    /**
+     * @brief Log parsed configuration entries and optionally record them as modified.
+     * @param vars Parsed entries to log.
+     * @param save Whether to record the entries for persistence.
+     */
+    void log_config_settings(const std::unordered_map<std::string, std::string> &vars, bool save);
+
+    /**
+     * @brief Append a configuration option when the active file does not define it.
+     * @param name Configuration option name.
+     * @param value Configuration option value.
+     * @return Whether the option was appended successfully.
+     */
+    bool persist_config_option_if_missing(std::string_view name, std::string_view value);
+
+    /**
+     * @brief Select all gamepad drivers for a licensed user without a saved choice.
+     * @param virtualhid_licensed Whether Virtual HID Driver has an active machine license.
+     * @return Whether the `all` preference was persisted and applied.
+     */
+    bool select_all_gamepad_drivers_if_licensed(bool virtualhid_licensed);
 
 #ifdef SUNSHINE_TESTS
-  /**
-   * @brief Parse and apply serialized configuration text for unit tests.
-   *
-   * @param file_content Raw configuration text to parse and apply.
-   */
-  void apply_config_for_test(std::string_view file_content);
+    /**
+     * @brief Parse and apply serialized startup configuration for unit tests.
+     * @param file_content Configuration text to apply.
+     */
+    void apply_config_for_test(std::string_view file_content);
 #endif
 
-  /**
-   * @brief Parse serialized text into the corresponding runtime representation.
-   *
-   * @param argc Number of command-line arguments.
-   * @param argv Command-line argument vector.
-   * @return 0 on success; nonzero when command-line or configuration parsing fails.
-   */
-  int parse(int argc, char *argv[]);
+  private:
+    /**
+     * @brief Apply validated file and command-line values to this store.
+     * @param vars Parsed entries whose known keys are consumed.
+     */
+    void apply_config(std::unordered_map<std::string, std::string> &&vars);
+
+    /**
+     * @brief Toggle the command-line flags selected by their character codes.
+     * @param line Null-terminated flag character sequence.
+     * @return Zero when all flags are recognized, or minus one otherwise.
+     */
+    int apply_flags(const char *line);
+
+    settings_t settings_;  ///< Startup configuration read by application services.
+    mutable std::mutex credentials_mutex_;  ///< Protects the complete authentication tuple.
+    credentials_t credentials_;  ///< Runtime Web UI authentication values.
+  };
+
   /**
    * @brief Parse Sunshine configuration text into key-value entries.
    *
@@ -429,23 +504,4 @@ namespace config {
    */
   std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content);
 
-  /**
-   * @brief Persist a configuration option when the active file does not already define it.
-   *
-   * Existing text and comments are retained because the new setting is appended rather
-   * than serializing the complete configuration again.
-   *
-   * @param name Configuration option name.
-   * @param value Configuration option value.
-   * @return True when the option was appended successfully; otherwise, false.
-   */
-  bool persist_config_option_if_missing(std::string_view name, std::string_view value);
-
-  /**
-   * @brief Select all available gamepad drivers when a licensed user has not made a choice.
-   *
-   * @param virtualhid_licensed Whether Virtual HID Driver has an active machine license.
-   * @return True when the `all` preference was persisted and applied; otherwise, false.
-   */
-  bool select_all_gamepad_drivers_if_licensed(bool virtualhid_licensed);
 }  // namespace config

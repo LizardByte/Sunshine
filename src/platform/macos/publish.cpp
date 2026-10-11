@@ -97,11 +97,11 @@ namespace platf::publish {
    * our Sunshine service. Registration will occur asynchronously (unless it fails immediately,
    * which is probably only possible if the host machine is misconfigured).
    *
-   * @return Either `nullptr` (if the registration fails immediately) or a `uniqur_ptr<deinit_t>`,
+   * @return Either `nullptr` (if the registration fails immediately) or a `unique_ptr<deinit_t>`,
    *         which will manage polling for a response from the mDNS service, and then, when
    *         deconstructed, will deregister the service.
    */
-  [[nodiscard]] std::unique_ptr<::platf::deinit_t> start() {
+  [[nodiscard]] std::unique_ptr<::platf::deinit_t> start(const config::settings_t &settings) {
     auto serviceRef = DNSServiceRef {};
     const auto status = DNSServiceRegister(
       &serviceRef,
@@ -111,7 +111,7 @@ namespace platf::publish {
       platf::SERVICE_TYPE,
       nullptr,  // domain
       nullptr,  // host
-      htons(net::map_port(nvhttp::PORT_HTTP)),
+      htons(net::map_port(settings, nvhttp::PORT_HTTP)),
       0,  // txtLen
       nullptr,  // txtRecord
       registrationCallback,

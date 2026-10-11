@@ -207,16 +207,22 @@ namespace input {
   struct service_t::impl_t: std::enable_shared_from_this<service_t::impl_t> {
     /**
      * @brief Bind the host dependencies without opening platform devices.
+     * @param settings Immutable host startup configuration.
      * @param scheduler Scheduler serializing host input work.
      * @param mail Host mailbox carrying display selection.
      * @param cursor Host cursor visibility preference.
      */
-    impl_t(thread_pool_util::ThreadPool &scheduler, safe::mail_t mail, bool &cursor):
+    impl_t(const config::settings_t &settings, thread_pool_util::ThreadPool &scheduler, safe::mail_t mail, bool &cursor):
+        settings {settings},
+        gamepad_driver {settings.input.gamepad_driver},
         scheduler {scheduler},
         mail {std::move(mail)},
         cursor {cursor} {
     }
 
+    const config::settings_t &settings;  ///< Immutable host startup configuration.
+    std::string gamepad_driver;  ///< Runtime backend choice serialized with host input work.
+    mutable std::mutex gamepad_driver_mutex;  ///< Protects policy snapshots requested by UI threads.
     thread_pool_util::ThreadPool &scheduler;  ///< Host input task scheduler.
     safe::mail_t mail;  ///< Host communication mailbox.
     bool &cursor;  ///< Host cursor visibility preference.
@@ -828,7 +834,7 @@ namespace input {
    */
   void passthrough(std::shared_ptr<input_t> &input, PNV_REL_MOUSE_MOVE_PACKET packet) {
     auto &host = input->host;
-    if (!config::input.mouse) {
+    if (!host.settings.input.mouse) {
       return;
     }
 
@@ -939,7 +945,7 @@ namespace input {
    */
   void passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET packet) {
     auto &host = input->host;
-    if (!config::input.mouse) {
+    if (!host.settings.input.mouse) {
       return;
     }
 
@@ -979,7 +985,7 @@ namespace input {
    */
   void passthrough(std::shared_ptr<input_t> &input, PNV_MOUSE_BUTTON_PACKET packet) {
     auto &host = input->host;
-    if (!config::input.mouse) {
+    if (!host.settings.input.mouse) {
       return;
     }
 
@@ -1042,12 +1048,13 @@ namespace input {
   /**
    * @brief Apply configured keybinding remaps to a platform keycode.
    *
+   * @param host Input service providing immutable keybinding settings.
    * @param keycode Platform keycode being translated or emitted.
    * @return Remapped keycode when configured, otherwise the original keycode.
    */
-  short map_keycode(short keycode) {
-    auto it = config::input.keybindings.find(keycode);
-    if (it != std::end(config::input.keybindings)) {
+  short map_keycode(service_t::impl_t &host, short keycode) {
+    auto it = host.settings.input.keybindings.find(keycode);
+    if (it != std::end(host.settings.input.keybindings)) {
       return it->second;
     }
 
@@ -1213,7 +1220,7 @@ namespace input {
       }
     }
 
-    emit_keyboard_update(host, map_keycode(key_code), release, flags, extended);
+    emit_keyboard_update(host, map_keycode(host, key_code), release, flags, extended);
 
     if (!release) {
       // Raise any synthetic modifier keys we pressed
@@ -1251,7 +1258,7 @@ namespace input {
 
     send_key_and_modifiers(host, key_code, false, flags, synthetic_modifiers, state.extended);
 
-    host.key_press_repeat_id = host.scheduler.pushDelayed(repeat_key, config::input.key_repeat_period, std::move(owner), key_code, flags, synthetic_modifiers).task_id;
+    host.key_press_repeat_id = host.scheduler.pushDelayed(repeat_key, host.settings.input.key_repeat_period, std::move(owner), key_code, flags, synthetic_modifiers).task_id;
   }
 
   /**
@@ -1262,7 +1269,7 @@ namespace input {
    */
   void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
     auto &host = input->host;
-    if (!config::input.keyboard) {
+    if (!host.settings.input.keyboard) {
       return;
     }
 
@@ -1273,7 +1280,7 @@ namespace input {
 
     // Right-alt maps to meta, so it must not also register as ALT
     int modifiers = packet->modifiers;
-    if (config::input.key_rightalt_to_key_win && input->alt_keys.right_pressed && !input->alt_keys.left_pressed) {
+    if (host.settings.input.key_rightalt_to_key_win && input->alt_keys.right_pressed && !input->alt_keys.left_pressed) {
       modifiers &= ~MODIFIER_ALT;
     }
 
@@ -1307,8 +1314,8 @@ namespace input {
           host.scheduler.cancel(host.key_press_repeat_id);
         }
 
-        if (config::input.key_repeat_delay.count() > 0) {
-          host.key_press_repeat_id = host.scheduler.pushDelayed(repeat_key, config::input.key_repeat_delay, input->owner, keyCode, packet->flags, synthetic_modifiers).task_id;
+        if (host.settings.input.key_repeat_delay.count() > 0) {
+          host.key_press_repeat_id = host.scheduler.pushDelayed(repeat_key, host.settings.input.key_repeat_delay, input->owner, keyCode, packet->flags, synthetic_modifiers).task_id;
         }
       } else {
         // Already released
@@ -1336,11 +1343,11 @@ namespace input {
    */
   void passthrough(std::shared_ptr<input_t> &input, PNV_SCROLL_PACKET packet) {
     auto &host = input->host;
-    if (!config::input.mouse) {
+    if (!host.settings.input.mouse) {
       return;
     }
 
-    if (config::input.high_resolution_scrolling) {
+    if (host.settings.input.high_resolution_scrolling) {
       platf::scroll(host.platf_input, util::endian::big(packet->scrollAmt1));
     } else {
       input->accumulated_vscroll_delta += util::endian::big(packet->scrollAmt1);
@@ -1360,11 +1367,11 @@ namespace input {
    */
   void passthrough(std::shared_ptr<input_t> &input, PSS_HSCROLL_PACKET packet) {
     auto &host = input->host;
-    if (!config::input.mouse) {
+    if (!host.settings.input.mouse) {
       return;
     }
 
-    if (config::input.high_resolution_scrolling) {
+    if (host.settings.input.high_resolution_scrolling) {
       platf::hscroll(host.platf_input, util::endian::big(packet->scrollAmount));
     } else {
       input->accumulated_hscroll_delta += util::endian::big(packet->scrollAmount);
@@ -1384,7 +1391,7 @@ namespace input {
    * @param host Host input or video service and its capture dependencies.
    */
   void passthrough(service_t::impl_t &host, const NV_UNICODE_PACKET *packet) {
-    if (!config::input.keyboard) {
+    if (!host.settings.input.keyboard) {
       return;
     }
 
@@ -1433,7 +1440,8 @@ namespace input {
    * @param packet The controller arrival packet.
    */
   void passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_ARRIVAL_PACKET packet) {
-    if (!config::input.controller || config::input.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
+    auto &host = input->host;
+    if (!host.settings.input.controller || host.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
       return;
     }
 
@@ -1492,7 +1500,8 @@ namespace input {
    */
   template<typename Packet>
   std::optional<absolute_pointer_data_t> prepare_absolute_pointer_data(std::shared_ptr<input_t> &input, Packet packet) {
-    if (!config::input.mouse) {
+    auto &host = input->host;
+    if (!host.settings.input.mouse) {
       return std::nullopt;
     }
 
@@ -1584,7 +1593,7 @@ namespace input {
    */
   void passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_TOUCH_PACKET packet) {
     auto &host = input->host;
-    if (!config::input.controller || config::input.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
+    if (!host.settings.input.controller || host.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
       return;
     }
 
@@ -1618,7 +1627,7 @@ namespace input {
    */
   void passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_MOTION_PACKET packet) {
     auto &host = input->host;
-    if (!config::input.controller || config::input.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
+    if (!host.settings.input.controller || host.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
       return;
     }
 
@@ -1651,7 +1660,7 @@ namespace input {
    */
   void passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_BATTERY_PACKET packet) {
     auto &host = input->host;
-    if (!config::input.controller || config::input.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
+    if (!host.settings.input.controller || host.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
       return;
     }
 
@@ -1683,7 +1692,7 @@ namespace input {
    */
   void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET packet) {
     auto &host = input->host;
-    if (!config::input.controller || config::input.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
+    if (!host.settings.input.controller || host.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
       return;
     }
 
@@ -1752,7 +1761,7 @@ namespace input {
     if (platf::BACK & bf) {
       if (platf::BACK & bf_new) {
         // Don't emulate home button if timeout < 0
-        if (config::input.back_button_timeout >= 0ms) {
+        if (host.settings.input.back_button_timeout >= 0ms) {
           auto f = [input, controller = packet->controllerNumber, &host]() {
             auto &gamepad = input->gamepads[controller];
 
@@ -1777,7 +1786,7 @@ namespace input {
             gamepad.back_timeout_id = nullptr;
           };
 
-          gamepad.back_timeout_id = host.scheduler.pushDelayed(std::move(f), config::input.back_button_timeout).task_id;
+          gamepad.back_timeout_id = host.scheduler.pushDelayed(std::move(f), host.settings.input.back_button_timeout).task_id;
         }
       } else if (gamepad.back_timeout_id) {
         host.scheduler.cancel(gamepad.back_timeout_id);
@@ -2363,7 +2372,7 @@ namespace input {
         // host.key_press is keyed on the client's unmapped virtual-key code, but the press was
         // emitted through map_keycode(). Release the host key that actually went down,
         // otherwise a remapped modifier stays latched after the client disconnects.
-        emit_keyboard_update(host, map_keycode(vk_from_kpid(key) & 0x00FF), true, flags_from_kpid(key), state.extended);
+        emit_keyboard_update(host, map_keycode(host, vk_from_kpid(key) & 0x00FF), true, flags_from_kpid(key), state.extended);
         state.pressed = false;
       }
     }
@@ -2454,8 +2463,8 @@ namespace input {
     });
   }
 
-  service_t::service_t(thread_pool_util::ThreadPool &scheduler, safe::mail_t mail, bool &cursor):
-      impl_ {std::make_shared<impl_t>(scheduler, std::move(mail), cursor)} {
+  service_t::service_t(const config::settings_t &settings, thread_pool_util::ThreadPool &scheduler, safe::mail_t mail, bool &cursor):
+      impl_ {std::make_shared<impl_t>(settings, scheduler, std::move(mail), cursor)} {
   }
 
   service_t::~service_t() {
@@ -2483,7 +2492,7 @@ namespace input {
   }
 
   bool service_t::initialize() {
-    impl_->platf_input = platf::input(impl_->scheduler);
+    impl_->platf_input = platf::input(impl_->settings, impl_->scheduler);
     return static_cast<bool>(impl_->platf_input);
   }
 
@@ -2491,11 +2500,35 @@ namespace input {
    * @brief Probe connected gamepads and update input capability state.
    */
   bool service_t::probe_gamepads() {
-    auto &host = *impl_;
-    const auto &gamepads = platf::supported_gamepads(std::addressof(host.platf_input));
-    return std::ranges::none_of(gamepads, [](const auto &gamepad) {
-      return gamepad.is_enabled && gamepad.name != "auto";
-    });
+    auto probe = [owner = impl_]() {
+      const auto gamepads = platf::supported_gamepads(std::addressof(owner->platf_input));
+      return std::ranges::none_of(gamepads, [](const auto &gamepad) {
+        return gamepad.is_enabled && gamepad.name != "auto";
+      });
+    };
+    return impl_->scheduler.running() ? impl_->scheduler.push(std::move(probe)).get() : probe();
+  }
+
+  bool service_t::select_all_gamepad_drivers_if_licensed(config::store_t &config, bool licensed) {
+    auto select = [owner = impl_, &config, licensed]() {
+      if (!licensed || !owner->gamepad_driver.empty() || !config.persist_config_option_if_missing("gamepad_driver", config::GAMEPAD_DRIVER_ALL)) {
+        return false;
+      }
+      std::lock_guard lock {owner->gamepad_driver_mutex};
+      owner->gamepad_driver = config::GAMEPAD_DRIVER_ALL;
+      if (owner->platf_input) {
+        platf::virtualhid::get_input_context(owner->platf_input).gamepad_driver = owner->gamepad_driver;
+      }
+      return true;
+    };
+    return impl_->scheduler.running() ? impl_->scheduler.push(std::move(select)).get() : select();
+  }
+
+  config::input_t service_t::configuration_snapshot() const {
+    std::lock_guard lock {impl_->gamepad_driver_mutex};
+    auto result = impl_->settings.input;
+    result.gamepad_driver = impl_->gamepad_driver;
+    return result;
   }
 
   void service_t::refresh_virtual_input() {

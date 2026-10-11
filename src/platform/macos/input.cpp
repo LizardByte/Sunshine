@@ -32,7 +32,7 @@ namespace platf {
     return util::point_t {current.x, current.y};
   }
 
-  platform_caps::caps_t get_capabilities() {
+  platform_caps::caps_t get_capabilities(const config::settings_t &settings) {
     platform_caps::caps_t caps = 0;
     const auto runtime = virtualhid::create_runtime();
     if (!runtime) {
@@ -40,24 +40,25 @@ namespace platf {
     }
 
     const auto &capabilities = runtime->capabilities();
-    if (config::input.gamepad_driver != config::GAMEPAD_DRIVER_NONE && capabilities.supports_gamepad && lvh::get_license_status().license.licensed() && virtualhid::configured_gamepad_supports_controller_extensions()) {
+    if (settings.input.gamepad_driver != config::GAMEPAD_DRIVER_NONE && capabilities.supports_gamepad && lvh::get_license_status().license.licensed() && virtualhid::configured_gamepad_supports_controller_extensions(settings)) {
       caps |= platform_caps::controller_touch;
     }
-    if (config::input.native_pen_touch && (capabilities.supports_touchscreen || capabilities.supports_pen_tablet)) {
+    if (settings.input.native_pen_touch && (capabilities.supports_touchscreen || capabilities.supports_pen_tablet)) {
       caps |= platform_caps::pen_touch;
     }
 
     return caps;
   }
 
-  std::vector<supported_gamepad_t> &supported_gamepads(input_t *input) {
-    static std::vector<supported_gamepad_t> gamepads;
+  std::vector<supported_gamepad_t> supported_gamepads(input_t *input) {
+    std::vector<supported_gamepad_t> gamepads;
     if (!input || !input->get()) {
       gamepads = virtualhid::static_supported_gamepads();
       return gamepads;
     }
 
-    if (config::input.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
+    const auto &driver = virtualhid::get_input_context(*input).gamepad_driver;
+    if (driver == config::GAMEPAD_DRIVER_NONE) {
       gamepads.clear();
       return gamepads;
     }

@@ -472,15 +472,18 @@ namespace rtsp_stream {
    */
   class rtsp_server_t {
   public:
+    const config::settings_t &settings;  ///< Startup transport and encryption policy.
     stream::service_t &streams;  ///< Session allocation owner.
     video::service_t &videos;  ///< Encoder capability owner.
 
     /**
      * @brief Bind the host services used by RTSP handlers.
+     * @param settings Startup transport and encryption policy.
      * @param streams Stream allocation owner.
      * @param videos Encoder capability owner.
      */
-    rtsp_server_t(stream::service_t &streams, video::service_t &videos):
+    rtsp_server_t(const config::settings_t &settings, stream::service_t &streams, video::service_t &videos):
+        settings {settings},
         streams {streams},
         videos {videos} {
     }
@@ -498,7 +501,7 @@ namespace rtsp_stream {
      * @return Network operation status.
      */
     int bind(net::af_e af, std::uint16_t port, boost::system::error_code &ec) {
-      af = net::get_effective_address_family(af);
+      af = net::get_effective_address_family(settings, af);
       acceptor.open(af == net::IPV4 ? tcp::v4() : tcp::v6(), ec);
       if (ec) {
         return -1;
@@ -506,7 +509,7 @@ namespace rtsp_stream {
 
       acceptor.set_option(boost::asio::socket_base::reuse_address {true});
 
-      auto bind_addr_str = net::get_bind_address(af);
+      auto bind_addr_str = net::get_bind_address(settings, af);
       const auto bind_addr = boost::asio::ip::make_address(bind_addr_str, ec);
       if (ec) {
         BOOST_LOG(error) << "Invalid bind address: "sv << bind_addr_str << " - " << ec.message();
@@ -618,7 +621,7 @@ namespace rtsp_stream {
       launch_event.raise(std::move(launch_session));
 
       // Arm the timer to expire this launch session if the client times out
-      raised_timer.expires_after(config::stream.ping_timeout);
+      raised_timer.expires_after(settings.stream.ping_timeout);
       raised_timer.async_wait([this](const boost::system::error_code &ec) {
         if (!ec) {
           auto discarded = launch_event.pop(0s);
@@ -763,20 +766,21 @@ namespace rtsp_stream {
 
     /**
      * @brief Bind services before listener callbacks can run.
+     * @param settings Startup transport and encryption policy.
      * @param streams Session allocation owner.
      * @param inputs Host input cleanup owner.
      * @param videos Encoder capability owner.
      * @param host_mail Application shutdown mailbox.
      */
-    impl_t(stream::service_t &streams, input::service_t &inputs, video::service_t &videos, safe::mail_t host_mail):
-        server {streams, videos},
+    impl_t(const config::settings_t &settings, stream::service_t &streams, input::service_t &inputs, video::service_t &videos, safe::mail_t host_mail):
+        server {settings, streams, videos},
         inputs {inputs},
         host_mail {std::move(host_mail)} {
     }
   };
 
-  service_t::service_t(stream::service_t &streams, input::service_t &inputs, video::service_t &videos, safe::mail_t host_mail):
-      impl {std::make_shared<impl_t>(streams, inputs, videos, std::move(host_mail))} {
+  service_t::service_t(const config::settings_t &settings, stream::service_t &streams, input::service_t &inputs, video::service_t &videos, safe::mail_t host_mail):
+      impl {std::make_shared<impl_t>(settings, streams, inputs, videos, std::move(host_mail))} {
   }
 
   service_t::~service_t() {
@@ -975,14 +979,14 @@ namespace rtsp_stream {
     std::stringstream ss;
 
     // Tell the client about our supported features
-    ss << "a=x-ss-general.featureFlags:" << (uint32_t) platf::get_capabilities() << std::endl;
+    ss << "a=x-ss-general.featureFlags:" << (uint32_t) platf::get_capabilities(server->settings) << std::endl;
 
     // Always request new control stream encryption if the client supports it
     uint32_t encryption_flags_supported = SS_ENC_CONTROL_V2 | SS_ENC_AUDIO;
     uint32_t encryption_flags_requested = SS_ENC_CONTROL_V2;
 
     // Determine the encryption desired for this remote endpoint
-    auto encryption_mode = net::encryption_mode_for_address(sock.remote_endpoint().address());
+    auto encryption_mode = net::encryption_mode_for_address(server->settings, sock.remote_endpoint().address());
     if (encryption_mode != config::ENCRYPTION_MODE_NEVER) {
       // Advertise support for video encryption if it's not disabled
       encryption_flags_supported |= SS_ENC_VIDEO;
@@ -1074,11 +1078,11 @@ namespace rtsp_stream {
 
     std::uint16_t port;
     if (type == "audio"sv) {
-      port = net::map_port(stream::AUDIO_STREAM_PORT);
+      port = net::map_port(server->settings, stream::AUDIO_STREAM_PORT);
     } else if (type == "video"sv) {
-      port = net::map_port(stream::VIDEO_STREAM_PORT);
+      port = net::map_port(server->settings, stream::VIDEO_STREAM_PORT);
     } else if (type == "control"sv) {
-      port = net::map_port(stream::CONTROL_PORT);
+      port = net::map_port(server->settings, stream::CONTROL_PORT);
     } else {
       cmd_not_found(sock, session, std::move(req));
 
@@ -1217,19 +1221,19 @@ namespace rtsp_stream {
       }
 
       // Limit the packetsize to avoid fragmentation with clients that cannot configure this value
-      if (config::stream.packetsize && config::stream.packetsize < config.packetsize) {
-        if (config::stream.packetsize < config::PACKETSIZE_MIN || config::stream.packetsize > config::PACKETSIZE_MAX) {
+      if (server->settings.stream.packetsize && server->settings.stream.packetsize < config.packetsize) {
+        if (server->settings.stream.packetsize < config::PACKETSIZE_MIN || server->settings.stream.packetsize > config::PACKETSIZE_MAX) {
           BOOST_LOG(warning) << "packetsize range: ["sv << config::PACKETSIZE_MIN << "-"sv << config::PACKETSIZE_MAX
-                             << "] invalid value: "sv << config::stream.packetsize;
+                             << "] invalid value: "sv << server->settings.stream.packetsize;
         } else {
-          if (config::stream.packetsize < config::PACKETSIZE_SMALL) {
+          if (server->settings.stream.packetsize < config::PACKETSIZE_SMALL) {
             BOOST_LOG(info) << "packetsize is small < "sv << config::PACKETSIZE_SMALL << " bytes, reduce bitrate if the stream breaks"sv;
-          } else if (config::stream.packetsize > config::PACKETSIZE_LARGE) {
+          } else if (server->settings.stream.packetsize > config::PACKETSIZE_LARGE) {
             BOOST_LOG(info) << "packetsize is large > "sv << config::PACKETSIZE_LARGE << " bytes, jumbo frames may be used"sv;
           }
 
-          BOOST_LOG(info) << "packetsize limit: "sv << config.packetsize << " -> "sv << config::stream.packetsize << " bytes"sv;
-          config.packetsize = config::stream.packetsize;
+          BOOST_LOG(info) << "packetsize limit: "sv << config.packetsize << " -> "sv << server->settings.stream.packetsize << " bytes"sv;
+          config.packetsize = server->settings.stream.packetsize;
         }
       }
 
@@ -1310,8 +1314,8 @@ namespace rtsp_stream {
 
       // If the FEC percentage isn't too high, adjust the configured bitrate to ensure video
       // traffic doesn't exceed the user's selected bitrate when the FEC shards are included.
-      if (config::stream.fec_percentage <= 80) {
-        configuredBitrateKbps /= 100.f / (100 - config::stream.fec_percentage);
+      if (server->settings.stream.fec_percentage <= 80) {
+        configuredBitrateKbps /= 100.f / (100 - server->settings.stream.fec_percentage);
       }
 
       // Adjust the bitrate to account for audio traffic bandwidth usage (capped at 20% reduction).
@@ -1342,7 +1346,7 @@ namespace rtsp_stream {
     }
 
     // Check that any required encryption is enabled
-    auto encryption_mode = net::encryption_mode_for_address(sock.remote_endpoint().address());
+    auto encryption_mode = net::encryption_mode_for_address(server->settings, sock.remote_endpoint().address());
     if (encryption_mode == config::ENCRYPTION_MODE_MANDATORY && (config.encryptionFlagsEnabled & (SS_ENC_VIDEO | SS_ENC_AUDIO)) != (SS_ENC_VIDEO | SS_ENC_AUDIO)) {
       BOOST_LOG(error) << "Rejecting client that cannot comply with mandatory encryption requirement"sv;
 
@@ -1397,8 +1401,8 @@ namespace rtsp_stream {
     server.map("PLAY"sv, &cmd_play);
 
     boost::system::error_code ec;
-    if (server.bind(net::af_from_enum_string(config::sunshine.address_family), net::map_port(rtsp_stream::RTSP_SETUP_PORT), ec)) {
-      BOOST_LOG(fatal) << "Couldn't bind RTSP server to port ["sv << net::map_port(rtsp_stream::RTSP_SETUP_PORT) << "], " << ec.message();
+    if (server.bind(net::af_from_enum_string(server.settings.sunshine.address_family), net::map_port(server.settings, rtsp_stream::RTSP_SETUP_PORT), ec)) {
+      BOOST_LOG(fatal) << "Couldn't bind RTSP server to port ["sv << net::map_port(server.settings, rtsp_stream::RTSP_SETUP_PORT) << "], " << ec.message();
       shutdown_event->raise(true);
 
       return;

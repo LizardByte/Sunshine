@@ -164,9 +164,10 @@ struct PlatformTestSuite: BaseTest {
    */
   static void SetUpTestSuite() {
     ASSERT_FALSE(platform_);
+    settings_ = std::make_unique<config::store_t>();
     infrastructure_ = std::make_unique<runtime::infrastructure_t>();
     displays_ = std::make_unique<display_device::manager_t>();
-    platform_ = std::make_unique<platf::runtime_t>(infrastructure_->mailbox(), infrastructure_->scheduler(), infrastructure_->lifetime(), *displays_
+    platform_ = std::make_unique<platf::runtime_t>(settings_->values(), infrastructure_->mailbox(), infrastructure_->scheduler(), infrastructure_->lifetime(), *displays_
 #ifdef _WIN32
                                                    ,
                                                    infrastructure_->preferences()
@@ -182,6 +183,7 @@ struct PlatformTestSuite: BaseTest {
     platform_.reset();
     displays_.reset();
     infrastructure_.reset();
+    settings_.reset();
   }
 
 protected:
@@ -194,6 +196,7 @@ protected:
   }
 
 private:
+  inline static std::unique_ptr<config::store_t> settings_;  ///< Immutable suite configuration.
   inline static std::unique_ptr<runtime::infrastructure_t> infrastructure_;  ///< Suite scheduler and mailbox.
   inline static std::unique_ptr<display_device::manager_t> displays_;  ///< Suite display manager.
   inline static std::unique_ptr<platf::runtime_t> platform_;  ///< Suite platform resources.

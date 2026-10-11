@@ -311,7 +311,7 @@ namespace wl {
       return true;
     }
 
-    return gbm.init(platf::resolve_render_device(), gbm_device_accessors);
+    return gbm.init(platf::resolve_render_device(settings), gbm_device_accessors);
   }
 
   // Cleanup GBM
@@ -358,7 +358,8 @@ namespace wl {
     return result;
   }
 
-  dmabuf_t::dmabuf_t():
+  dmabuf_t::dmabuf_t(const config::settings_t &settings):
+      settings(settings),
       status {READY},
       frames {},
       current_frame {&frames[0]},

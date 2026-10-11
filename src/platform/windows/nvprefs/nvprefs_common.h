@@ -3,6 +3,7 @@
  * @brief Declarations for common nvidia preferences.
  */
 #pragma once
+#include "src/config.h"
 
 // platform includes
 // disable clang-format header reordering
@@ -95,8 +96,9 @@ namespace nvprefs {
   /**
    * @brief Get nvprefs options.
    *
+   * @param settings Immutable startup settings for this host.
    * @return Parsed command-line options for NVIDIA profile preference handling.
    */
-  nvprefs_options get_nvprefs_options();
+  nvprefs_options get_nvprefs_options(const config::settings_t &settings);
 
 }  // namespace nvprefs

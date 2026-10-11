@@ -11,6 +11,10 @@
 #include "crypto.h"
 #include "thread_safe.h"
 
+namespace config {
+  struct settings_t;
+}
+
 namespace stream {
   class service_t;
 }
@@ -66,12 +70,13 @@ namespace rtsp_stream {
   public:
     /**
      * @brief Bind the session owners without opening the listening socket.
+     * @param settings Startup transport and encryption policy.
      * @param streams Host stream and broadcast owner.
      * @param inputs Host input owner for client cleanup.
      * @param videos Encoder capabilities used in RTSP negotiation.
      * @param host_mail Host mailbox for listener shutdown.
      */
-    service_t(stream::service_t &streams, input::service_t &inputs, video::service_t &videos, safe::mail_t host_mail);
+    service_t(const config::settings_t &settings, stream::service_t &streams, input::service_t &inputs, video::service_t &videos, safe::mail_t host_mail);
     /**
      * @brief Stop and release listener state after the server loop has exited.
      */

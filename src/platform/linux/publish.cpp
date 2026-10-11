@@ -280,8 +280,8 @@ namespace platf::publish {
     return publisher;
   }
 
-  [[nodiscard]] std::unique_ptr<::platf::deinit_t> start() {
+  [[nodiscard]] std::unique_ptr<::platf::deinit_t> start(const config::settings_t &settings) {
     platf::set_thread_name("publish::avahi");
-    return start(avahi::api_t::load(), net::mdns_instance_name(platf::get_host_name()), net::map_port(nvhttp::PORT_HTTP));
+    return start(avahi::api_t::load(), net::mdns_instance_name(platf::get_host_name()), net::map_port(settings, nvhttp::PORT_HTTP));
   }
 }  // namespace platf::publish

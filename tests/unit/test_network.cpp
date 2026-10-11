@@ -95,19 +95,7 @@ INSTANTIATE_TEST_SUITE_P(
  */
 class BindAddressTest: public BaseTest {
 protected:
-  std::string original_bind_address;
-
-  void SetUp() override {
-    BaseTest::SetUp();
-    // Save the original bind_address config
-    original_bind_address = config::sunshine.bind_address;
-  }
-
-  void TearDown() override {
-    // Restore the original bind_address config
-    config::sunshine.bind_address = original_bind_address;
-    BaseTest::TearDown();
-  }
+  config::store_t configuration;  ///< Configuration isolated to this fixture.
 };
 
 /**
@@ -115,9 +103,9 @@ protected:
  */
 TEST_F(BindAddressTest, DefaultBehaviorIPv4) {
   // Clear bind_address to test the default behavior
-  config::sunshine.bind_address = "";
+  configuration.edit_startup().sunshine.bind_address = "";
 
-  const auto bind_addr = net::get_bind_address(net::af_e::IPV4);
+  const auto bind_addr = net::get_bind_address(configuration.values(), net::af_e::IPV4);
   ASSERT_EQ(bind_addr, "0.0.0.0");
 }
 
@@ -126,9 +114,9 @@ TEST_F(BindAddressTest, DefaultBehaviorIPv4) {
  */
 TEST_F(BindAddressTest, DefaultBehaviorIPv6) {
   // Clear bind_address to test the default behavior
-  config::sunshine.bind_address = "";
+  configuration.edit_startup().sunshine.bind_address = "";
 
-  const auto bind_addr = net::get_bind_address(net::af_e::BOTH);
+  const auto bind_addr = net::get_bind_address(configuration.values(), net::af_e::BOTH);
   ASSERT_EQ(bind_addr, "::");
 }
 
@@ -136,57 +124,57 @@ TEST_F(BindAddressTest, DefaultBehaviorIPv6) {
  * @brief Test that an empty bind address preserves the configured address family.
  */
 TEST_F(BindAddressTest, EmptyAddressPreservesConfiguredFamily) {
-  config::sunshine.bind_address = "";
+  configuration.edit_startup().sunshine.bind_address = "";
 
-  EXPECT_EQ(net::get_effective_address_family(net::af_e::IPV4), net::af_e::IPV4);
-  EXPECT_EQ(net::get_effective_address_family(net::af_e::BOTH), net::af_e::BOTH);
+  EXPECT_EQ(net::get_effective_address_family(configuration.values(), net::af_e::IPV4), net::af_e::IPV4);
+  EXPECT_EQ(net::get_effective_address_family(configuration.values(), net::af_e::BOTH), net::af_e::BOTH);
 }
 
 /**
  * @brief Test that an explicit IPv4 bind address selects an IPv4 socket.
  */
 TEST_F(BindAddressTest, IPv4AddressSelectsIPv4Family) {
-  config::sunshine.bind_address = "192.0.2.101";
+  configuration.edit_startup().sunshine.bind_address = "192.0.2.101";
 
-  EXPECT_EQ(net::get_effective_address_family(net::af_e::IPV4), net::af_e::IPV4);
-  EXPECT_EQ(net::get_effective_address_family(net::af_e::BOTH), net::af_e::IPV4);
+  EXPECT_EQ(net::get_effective_address_family(configuration.values(), net::af_e::IPV4), net::af_e::IPV4);
+  EXPECT_EQ(net::get_effective_address_family(configuration.values(), net::af_e::BOTH), net::af_e::IPV4);
 }
 
 /**
  * @brief Test that an explicit IPv6 bind address does not override the configured family.
  */
 TEST_F(BindAddressTest, IPv6AddressPreservesConfiguredFamily) {
-  config::sunshine.bind_address = "2001:db8::1";
+  configuration.edit_startup().sunshine.bind_address = "2001:db8::1";
 
-  EXPECT_EQ(net::get_effective_address_family(net::af_e::IPV4), net::af_e::IPV4);
-  EXPECT_EQ(net::get_effective_address_family(net::af_e::BOTH), net::af_e::BOTH);
+  EXPECT_EQ(net::get_effective_address_family(configuration.values(), net::af_e::IPV4), net::af_e::IPV4);
+  EXPECT_EQ(net::get_effective_address_family(configuration.values(), net::af_e::BOTH), net::af_e::BOTH);
 }
 
 /**
  * @brief Test that invalid bind addresses preserve the configured family for downstream error reporting.
  */
 TEST_F(BindAddressTest, InvalidAddressPreservesConfiguredFamily) {
-  config::sunshine.bind_address = "not-an-address";
+  configuration.edit_startup().sunshine.bind_address = "not-an-address";
 
-  EXPECT_EQ(net::get_effective_address_family(net::af_e::IPV4), net::af_e::IPV4);
-  EXPECT_EQ(net::get_effective_address_family(net::af_e::BOTH), net::af_e::BOTH);
+  EXPECT_EQ(net::get_effective_address_family(configuration.values(), net::af_e::IPV4), net::af_e::IPV4);
+  EXPECT_EQ(net::get_effective_address_family(configuration.values(), net::af_e::BOTH), net::af_e::BOTH);
 }
 
 /**
  * @brief Test that bind addresses are formatted for use as URL hosts.
  */
 TEST_F(BindAddressTest, AddressFormatsAsUrlHost) {
-  config::sunshine.bind_address = "";
-  EXPECT_EQ(net::get_bind_address_url_host(), "localhost");
+  configuration.edit_startup().sunshine.bind_address = "";
+  EXPECT_EQ(net::get_bind_address_url_host(configuration.values()), "localhost");
 
-  config::sunshine.bind_address = "198.51.100.56";
-  EXPECT_EQ(net::get_bind_address_url_host(), "198.51.100.56");
+  configuration.edit_startup().sunshine.bind_address = "198.51.100.56";
+  EXPECT_EQ(net::get_bind_address_url_host(configuration.values()), "198.51.100.56");
 
-  config::sunshine.bind_address = "2001:db8::1";
-  EXPECT_EQ(net::get_bind_address_url_host(), "[2001:db8::1]");
+  configuration.edit_startup().sunshine.bind_address = "2001:db8::1";
+  EXPECT_EQ(net::get_bind_address_url_host(configuration.values()), "[2001:db8::1]");
 
-  config::sunshine.bind_address = "not-an-address";
-  EXPECT_EQ(net::get_bind_address_url_host(), "not-an-address");
+  configuration.edit_startup().sunshine.bind_address = "not-an-address";
+  EXPECT_EQ(net::get_bind_address_url_host(configuration.values()), "not-an-address");
 }
 
 /**
@@ -194,9 +182,9 @@ TEST_F(BindAddressTest, AddressFormatsAsUrlHost) {
  */
 TEST_F(BindAddressTest, ConfiguredIPv4Address) {
   // Set a specific IPv4 address
-  config::sunshine.bind_address = "192.168.1.100";
+  configuration.edit_startup().sunshine.bind_address = "192.168.1.100";
 
-  const auto bind_addr = net::get_bind_address(net::af_e::IPV4);
+  const auto bind_addr = net::get_bind_address(configuration.values(), net::af_e::IPV4);
   ASSERT_EQ(bind_addr, "192.168.1.100");
 }
 
@@ -205,9 +193,9 @@ TEST_F(BindAddressTest, ConfiguredIPv4Address) {
  */
 TEST_F(BindAddressTest, ConfiguredIPv6Address) {
   // Set a specific IPv6 address
-  config::sunshine.bind_address = "::1";
+  configuration.edit_startup().sunshine.bind_address = "::1";
 
-  const auto bind_addr = net::get_bind_address(net::af_e::BOTH);
+  const auto bind_addr = net::get_bind_address(configuration.values(), net::af_e::BOTH);
   ASSERT_EQ(bind_addr, "::1");
 }
 
@@ -217,9 +205,9 @@ TEST_F(BindAddressTest, ConfiguredIPv6Address) {
 TEST_F(BindAddressTest, ConfiguredAddressOverridesFamily) {
   // Set a specific IPv6 address but request IPv4 family
   // The configured address should still be returned
-  config::sunshine.bind_address = "2001:db8::1";
+  configuration.edit_startup().sunshine.bind_address = "2001:db8::1";
 
-  const auto bind_addr = net::get_bind_address(net::af_e::IPV4);
+  const auto bind_addr = net::get_bind_address(configuration.values(), net::af_e::IPV4);
   ASSERT_EQ(bind_addr, "2001:db8::1");
 }
 
@@ -228,13 +216,13 @@ TEST_F(BindAddressTest, ConfiguredAddressOverridesFamily) {
  */
 TEST_F(BindAddressTest, LoopbackAddresses) {
   // Test IPv4 loopback
-  config::sunshine.bind_address = "127.0.0.1";
-  const auto bind_addr_v4 = net::get_bind_address(net::af_e::IPV4);
+  configuration.edit_startup().sunshine.bind_address = "127.0.0.1";
+  const auto bind_addr_v4 = net::get_bind_address(configuration.values(), net::af_e::IPV4);
   ASSERT_EQ(bind_addr_v4, "127.0.0.1");
 
   // Test IPv6 loopback
-  config::sunshine.bind_address = "::1";
-  const auto bind_addr_v6 = net::get_bind_address(net::af_e::BOTH);
+  configuration.edit_startup().sunshine.bind_address = "::1";
+  const auto bind_addr_v6 = net::get_bind_address(configuration.values(), net::af_e::BOTH);
   ASSERT_EQ(bind_addr_v6, "::1");
 }
 
@@ -243,13 +231,13 @@ TEST_F(BindAddressTest, LoopbackAddresses) {
  */
 TEST_F(BindAddressTest, LinkLocalAddresses) {
   // Test IPv4 link-local
-  config::sunshine.bind_address = "169.254.1.1";
-  const auto bind_addr_v4 = net::get_bind_address(net::af_e::IPV4);
+  configuration.edit_startup().sunshine.bind_address = "169.254.1.1";
+  const auto bind_addr_v4 = net::get_bind_address(configuration.values(), net::af_e::IPV4);
   ASSERT_EQ(bind_addr_v4, "169.254.1.1");
 
   // Test IPv6 link-local
-  config::sunshine.bind_address = "fe80::1";
-  const auto bind_addr_v6 = net::get_bind_address(net::af_e::BOTH);
+  configuration.edit_startup().sunshine.bind_address = "fe80::1";
+  const auto bind_addr_v6 = net::get_bind_address(configuration.values(), net::af_e::BOTH);
   ASSERT_EQ(bind_addr_v6, "fe80::1");
 }
 

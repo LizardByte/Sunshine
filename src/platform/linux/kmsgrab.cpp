@@ -416,6 +416,10 @@ namespace platf {
       std::vector<card_descriptor_t> card_descriptors;  ///< Discovered card metadata.
     };
 
+    /**
+     * @brief Create independent KMS discovery state for one platform runtime.
+     * @return Empty discovery owner retained by the runtime.
+     */
     std::shared_ptr<capture_state_t> make_capture_state() {
       return std::make_shared<capture_state_t>();
     }
@@ -702,10 +706,12 @@ namespace platf {
       /**
        * @brief Open a DRM connector and cache its monitor metadata.
        *
+       * @param settings Immutable startup settings for this host.
        * @param path Filesystem path for the DRM device or resource.
+       * @param window_system Desktop protocol used to select DRM access behavior.
        * @return 0 on success; nonzero or negative platform status on failure.
        */
-      int init(const char *path, window_system_e window_system) {
+      int init(const config::settings_t &settings, const char *path, window_system_e window_system) {
         fd.el = platf::kms::privileged_drm_worker::open_drm_card_fd_privileged(path);
         if (fd.el < 0) {
           return -1;
@@ -740,7 +746,7 @@ namespace platf {
 #if defined(SUNSHINE_BUILD_X11)
           // We won't be able to capture the mouse cursor with KMS on non-atomic drivers,
           // so fall back to X11 if it's available and the user didn't explicitly force KMS.
-          if (window_system == window_system_e::X11 && config::video.capture != "kms") {
+          if (window_system == window_system_e::X11 && settings.video.capture != "kms") {
             BOOST_LOG(info) << "Avoiding KMS capture under X11 due to lack of atomic mode-setting"sv;
             return -1;
           }
@@ -1120,6 +1126,7 @@ namespace platf {
      * @brief Map display name to monitor index
      *
      * @param display_name Name of the display to determine monitor index for (or monitor index string value)
+     * @param state Monitor inventory owned by this capture backend.
      * @return monitor's display index
      */
     static int64_t map_display_name_to_monitor_index(const std::string_view &display_name, const capture_state_t &state) {
@@ -1148,15 +1155,25 @@ namespace platf {
       /**
        * @brief Initialize common KMS display state for the requested memory type.
        *
+       * @param settings Immutable startup settings for this host.
        * @param mem_type Mem type.
+       * @param state Discovery snapshot copied into the capture resource.
+       * @param window_system Desktop protocol active when capture starts.
+       * @param hevc_mode Required HEVC capability for VAAPI device validation.
        */
-      display_t(mem_type_e mem_type, const capture_state_t &state, window_system_e window_system, int hevc_mode):
+      display_t(const config::settings_t &settings, mem_type_e mem_type, const capture_state_t &state, window_system_e window_system, int hevc_mode):
           platf::display_t(),
-          mem_type {mem_type},
+          settings(settings),
           state(state),
           window_system(window_system),
-          hevc_mode(hevc_mode) {
+          hevc_mode(hevc_mode),
+          mem_type {mem_type} {
       }
+
+      const config::settings_t &settings;  ///< Host encoder and capture settings.
+      capture_state_t state;  ///< Immutable discovery snapshot for this capture resource.
+      window_system_e window_system;  ///< Session type when this resource was created.
+      int hevc_mode;  ///< Codec validation requirement for this resource.
 
       /**
        * @brief Initialize the base KMS capture state for the selected monitor.
@@ -1165,10 +1182,6 @@ namespace platf {
        * @param config Configuration values to apply.
        * @return 0 on success; nonzero or negative platform status on failure.
        */
-      capture_state_t state;  ///< Immutable discovery snapshot for this capture resource.
-      window_system_e window_system;  ///< Session type when this resource was created.
-      int hevc_mode;  ///< Codec validation requirement for this resource.
-
       int init(const std::string &display_name, const ::video::config_t &config) {
         delay = ::video::capture_frame_interval(config);
 
@@ -1185,7 +1198,7 @@ namespace platf {
           }
 
           kms::card_t card;
-          if (card.init(entry.path().c_str(), window_system)) {
+          if (card.init(settings, entry.path().c_str(), window_system)) {
             continue;
           }
 
@@ -1193,7 +1206,7 @@ namespace platf {
           // unless NVENC is selected manually by the user
           if (mem_type == mem_type_e::cuda && !card.is_nvidia()) {
             BOOST_LOG(debug) << file << " is not a CUDA device"sv;
-            if (config::video.encoder != "nvenc") {
+            if (settings.video.encoder != "nvenc") {
               continue;
             }
           }
@@ -1767,10 +1780,14 @@ namespace platf {
       /**
        * @brief Initialize a KMS display backend that copies frames through RAM.
        *
+       * @param settings Immutable startup settings for this host.
        * @param mem_type Mem type.
+       * @param state Discovery snapshot copied into the capture resource.
+       * @param window_system Desktop protocol active when capture starts.
+       * @param hevc_mode Required HEVC capability for VAAPI device validation.
        */
-      display_ram_t(mem_type_e mem_type, const capture_state_t &state, window_system_e window_system, int hevc_mode):
-          display_t(mem_type, state, window_system, hevc_mode) {
+      display_ram_t(const config::settings_t &settings, mem_type_e mem_type, const capture_state_t &state, window_system_e window_system, int hevc_mode):
+          display_t(settings, mem_type, state, window_system, hevc_mode) {
       }
 
       /**
@@ -1855,7 +1872,7 @@ namespace platf {
       std::unique_ptr<avcodec_encode_device_t> make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
 #ifdef SUNSHINE_BUILD_VAAPI
         if (mem_type == mem_type_e::vaapi) {
-          return va::make_avcodec_encode_device(width, height, false);
+          return va::make_avcodec_encode_device(settings, width, height, false);
         }
 #endif
 
@@ -2012,10 +2029,14 @@ namespace platf {
       /**
        * @brief Initialize a KMS display backend that exports frames as GPU resources.
        *
+       * @param settings Immutable startup settings for this host.
        * @param mem_type Mem type.
+       * @param state Discovery snapshot copied into the capture resource.
+       * @param window_system Desktop protocol active when capture starts.
+       * @param hevc_mode Required HEVC capability for VAAPI device validation.
        */
-      display_vram_t(mem_type_e mem_type, const capture_state_t &state, window_system_e window_system, int hevc_mode):
-          display_t(mem_type, state, window_system, hevc_mode) {
+      display_vram_t(const config::settings_t &settings, mem_type_e mem_type, const capture_state_t &state, window_system_e window_system, int hevc_mode):
+          display_t(settings, mem_type, state, window_system, hevc_mode) {
       }
 
       /**
@@ -2027,13 +2048,13 @@ namespace platf {
       std::unique_ptr<avcodec_encode_device_t> make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
 #ifdef SUNSHINE_BUILD_VAAPI
         if (mem_type == mem_type_e::vaapi) {
-          return va::make_avcodec_encode_device(width, height, dup(card.render_fd.el), img_offset_x, img_offset_y, true);
+          return va::make_avcodec_encode_device(settings, width, height, dup(card.render_fd.el), img_offset_x, img_offset_y, true);
         }
 #endif
 
 #ifdef SUNSHINE_BUILD_VULKAN
         if (mem_type == mem_type_e::vulkan) {
-          return vk::make_avcodec_encode_device_vram(width, height, img_offset_x, img_offset_y);
+          return vk::make_avcodec_encode_device_vram(settings, width, height, img_offset_x, img_offset_y);
         }
 #endif
 
@@ -2199,14 +2220,18 @@ namespace platf {
   /**
    * @brief Create a KMS display capture backend.
    *
+   * @param settings Immutable startup settings for this host.
    * @param hwdevice_type Hardware device type requested for capture or encode.
    * @param display_name Display name.
    * @param config Configuration values to apply.
+   * @param state Discovery snapshot copied into the capture resource.
+   * @param window_system Desktop protocol active when capture starts.
+   * @param hevc_mode Required HEVC capability for VAAPI device validation.
    * @return KMS display backend, or nullptr when initialization fails.
    */
-  std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config, const kms::capture_state_t &state, window_system_e window_system, int hevc_mode) {
+  std::shared_ptr<display_t> kms_display(const config::settings_t &settings, mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config, const kms::capture_state_t &state, window_system_e window_system, int hevc_mode) {
     if (hwdevice_type == mem_type_e::vaapi || hwdevice_type == mem_type_e::cuda || hwdevice_type == mem_type_e::vulkan) {
-      auto disp = std::make_shared<kms::display_vram_t>(hwdevice_type, state, window_system, hevc_mode);
+      auto disp = std::make_shared<kms::display_vram_t>(settings, hwdevice_type, state, window_system, hevc_mode);
 
       if (!disp->init(display_name, config)) {
         return disp;
@@ -2215,7 +2240,7 @@ namespace platf {
       // In the case of failure, attempt the old method for VAAPI
     }
 
-    auto disp = std::make_shared<kms::display_ram_t>(hwdevice_type, state, window_system, hevc_mode);
+    auto disp = std::make_shared<kms::display_ram_t>(settings, hwdevice_type, state, window_system, hevc_mode);
 
     if (disp->init(display_name, config)) {
       return nullptr;
@@ -2294,10 +2319,13 @@ namespace platf {
   /**
    * @brief Enumerate display names accepted by the KMS backend.
    *
+   * @param settings Immutable startup settings for this host.
    * @param hwdevice_type Hardware device type requested for capture or encode.
+   * @param state Runtime-owned cache updated with the current discovery snapshot.
+   * @param window_system Desktop protocol used to select DRM access behavior.
    * @return KMS display names, or an empty list when KMS capture is unavailable.
    */
-  std::vector<std::string> kms_display_names(mem_type_e hwdevice_type, kms::capture_state_t &state, window_system_e window_system) {
+  std::vector<std::string> kms_display_names(const config::settings_t &settings, mem_type_e hwdevice_type, kms::capture_state_t &state, window_system_e window_system) {
     int count = 0;
 
     if (!fs::exists("/dev/dri")) {
@@ -2325,7 +2353,7 @@ namespace platf {
       }
 
       kms::card_t card;
-      if (card.init(entry.path().c_str(), window_system)) {
+      if (card.init(settings, entry.path().c_str(), window_system)) {
         continue;
       }
 
@@ -2333,7 +2361,7 @@ namespace platf {
       // unless NVENC is selected manually by the user
       if (hwdevice_type == mem_type_e::cuda && !card.is_nvidia()) {
         BOOST_LOG(debug) << file << " is not a CUDA device"sv;
-        if (config::video.encoder == "nvenc") {
+        if (settings.video.encoder == "nvenc") {
           BOOST_LOG(warning) << "Using NVENC with your display connected to a different GPU may not work properly!"sv;
         } else {
           continue;
@@ -2370,7 +2398,7 @@ namespace platf {
         if (!fb->handles[0]) {
           BOOST_LOG(error) << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Probably not permitted"sv;
 #if defined(SUNSHINE_BUILD_FLATPAK) || defined(SUNSHINE_BUILD_APPIMAGE)
-          BOOST_LOG((config::video.capture == "kms") ? fatal : error)
+          BOOST_LOG((settings.video.capture == "kms") ? fatal : error)
             << "AppImage and Flatpak do not support KMS capture. Use another capture method."sv;
 #endif
           break;

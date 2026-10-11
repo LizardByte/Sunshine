@@ -241,7 +241,7 @@ namespace portal {
     GVariant *response;  ///< DBus response payload returned by the portal.
     guint subscription_id;  ///< Subscription ID.
     std::string request_path;  ///< For Request.Close() on cancellation.
-    GDBusConnection *conn;  ///< Borrowed — owned by the calling dbus_t/portal_t.
+    GDBusConnection *conn;  ///< Borrowed â€” owned by the calling dbus_t/portal_t.
   };
 
   /**
@@ -1012,9 +1012,11 @@ namespace portal {
   public:
     /**
      * @brief Bind portal response loops to their host.
+     * @param settings Immutable startup settings for this host.
      * @param mail Host mailbox.
      */
-    explicit portal_t(safe::mail_t mail):
+    explicit portal_t(const config::settings_t &settings, safe::mail_t mail):
+        pipewire::pipewire_display_t(settings),
         dbus(std::move(mail)) {}
 
     int configure_stream(const std::string &display_name, int &out_pipewire_fd, uint32_t &out_pipewire_node, uint64_t &out_pipewire_object_serial [[maybe_unused]]) override {
@@ -1104,19 +1106,21 @@ namespace platf {
   /**
    * @brief Create a portal-based display capture backend.
    *
+   * @param settings Immutable startup settings for this host.
    * @param hwdevice_type Hardware device type requested for capture or encode.
    * @param display_name Display name.
    * @param config Configuration values to apply.
+   * @param mail Host mailbox used to stop pending Portal response waits.
    * @return Display backend backed by xdg-desktop-portal and PipeWire, or nullptr.
    */
-  std::shared_ptr<display_t> portal_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config, safe::mail_t mail) {
+  std::shared_ptr<display_t> portal_display(const config::settings_t &settings, mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config, safe::mail_t mail) {
     using enum platf::mem_type_e;
     if (!pipewire::pipewire_display_t::init_pipewire_and_check_hwdevice_type(hwdevice_type)) {
       BOOST_LOG(error) << "[portalgrab] Could not initialize pipewire-based display with the given hw device type."sv;
       return nullptr;
     }
 
-    auto portal = std::make_shared<portal::portal_t>(std::move(mail));
+    auto portal = std::make_shared<portal::portal_t>(settings, std::move(mail));
     if (portal->init(hwdevice_type, display_name, config)) {
       return nullptr;
     }
@@ -1128,6 +1132,7 @@ namespace platf {
    * @brief Enumerate capture targets available through xdg-desktop-portal.
    *
    * @param allow_start_timeout True if "Start" DBus call is allowed to time out.
+   * @param mail Host mailbox used to stop pending Portal response waits.
    * @return Portal display names, or an empty list when portal discovery fails.
    */
   std::vector<std::string> portal_display_names(bool allow_start_timeout, safe::mail_t mail) {

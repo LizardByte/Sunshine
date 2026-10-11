@@ -171,6 +171,15 @@ namespace va {
   class va_t: public platf::avcodec_encode_device_t {
   public:
     /**
+     * @brief Bind immutable codec policy.
+     * @param settings Host settings.
+     */
+    explicit va_t(const config::settings_t &settings):
+        settings(settings) {}
+
+    const config::settings_t &settings;  ///< Host policy for this encoder device.
+
+    /**
      * @brief Initialize VAAPI display, EGL, and conversion resources.
      *
      * @param in_width In width.
@@ -333,7 +342,7 @@ namespace va {
       if (status != VA_STATUS_SUCCESS || quality_attr.value == VA_ATTRIB_NOT_SUPPORTED) {
         quality_attr.value = 0;
       }
-      auto vaapi_quality = config::video.vaapi.vaapi_quality.value_or(0);
+      auto vaapi_quality = settings.video.vaapi.vaapi_quality.value_or(0);
       auto target_quality = 0;
       switch (vaapi_quality) {
         default:
@@ -389,10 +398,10 @@ namespace va {
       // If a user-supplied rate control is detected, override the whitelist logic to allow
       // full user control of both the rate control and strict VBV settings.
       auto auto_whitelist = false;
-      auto rc_mode = config::video.vaapi.vaapi_rc_str;
+      auto rc_mode = settings.video.vaapi.vaapi_rc_str;
       auto rc_vbv = "with standard VBV size";
       auto rc_whitelist = "";
-      auto rc_val = config::video.vaapi.vaapi_rc.value_or(0);
+      auto rc_val = settings.video.vaapi.vaapi_rc.value_or(0);
 
       // Detect whitelisted configurations
       if ((vendor && std::string_view(vendor).contains("Intel") == true) || ctx->codec_id == AV_CODEC_ID_AV1) {
@@ -416,7 +425,7 @@ namespace va {
         rc_val = VA_RC_CQP;
       }
 
-      if (config::video.vaapi.strict_rc_buffer || auto_whitelist) {
+      if (settings.video.vaapi.strict_rc_buffer || auto_whitelist) {
         ctx->rc_buffer_size = ctx->bit_rate * ctx->framerate.den / ctx->framerate.num;
         rc_vbv = "with single frame VBV size";
       }
@@ -427,8 +436,8 @@ namespace va {
       });
       av_dict_set(options, "rc_mode", rc_mode.c_str(), 0);
       if (rc_val == VA_RC_CQP || rc_val == VA_RC_ICQ || rc_val == VA_RC_QVBR) {
-        BOOST_LOG(warning) << "[VAAPI] Applying QP for compatible rate control method (QP value: "sv << config::video.qp << ")"sv;
-        av_dict_set_int(options, "qp", config::video.qp, 0);
+        BOOST_LOG(warning) << "[VAAPI] Applying QP for compatible rate control method (QP value: "sv << settings.video.qp << ")"sv;
+        av_dict_set_int(options, "qp", settings.video.qp, 0);
       }
       BOOST_LOG(info) << "[VAAPI] Using "sv << rc_mode << " rate control "sv << rc_vbv << rc_whitelist;
     }
@@ -547,6 +556,8 @@ namespace va {
    */
   class va_ram_t: public va_t {
   public:
+    using va_t::va_t;  ///< Construct with immutable codec policy.
+
     /**
      * @brief Convert a captured VAAPI frame into system-memory encoder input.
      *
@@ -566,6 +577,8 @@ namespace va {
    */
   class va_vram_t: public va_t {
   public:
+    using va_t::va_t;  ///< Construct with immutable codec policy.
+
     /**
      * @brief Convert a captured VAAPI frame into GPU encoder input.
      *
@@ -693,7 +706,7 @@ namespace va {
 
     va::display_t display {vaGetDisplayDRM(fd)};
     if (!display) {
-      BOOST_LOG(error) << "Couldn't open a va display from DRM with device: "sv << platf::resolve_render_device();
+      BOOST_LOG(error) << "Couldn't open a va display from DRM with device: "sv << platf::resolve_render_device(va->settings);
       return -1;
     }
 
@@ -796,9 +809,9 @@ namespace va {
   /**
    * @brief Create AVCodec encode device.
    */
-  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(int width, int height, file_t &&card, int offset_x, int offset_y, bool vram) {
+  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(const config::settings_t &settings, int width, int height, file_t &&card, int offset_x, int offset_y, bool vram) {
     if (vram) {
-      auto egl = std::make_unique<va::va_vram_t>();
+      auto egl = std::make_unique<va::va_vram_t>(settings);
       if (egl->init(width, height, std::move(card), offset_x, offset_y)) {
         return nullptr;
       }
@@ -807,7 +820,7 @@ namespace va {
     }
 
     else {
-      auto egl = std::make_unique<va::va_ram_t>();
+      auto egl = std::make_unique<va::va_ram_t>(settings);
       if (egl->init(width, height, std::move(card))) {
         return nullptr;
       }
@@ -819,8 +832,8 @@ namespace va {
   /**
    * @brief Create AVCodec encode device.
    */
-  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(int width, int height, int offset_x, int offset_y, bool vram) {
-    auto render_device = platf::resolve_render_device();
+  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(const config::settings_t &settings, int width, int height, int offset_x, int offset_y, bool vram) {
+    auto render_device = platf::resolve_render_device(settings);
 
     file_t file = ::open(render_device.c_str(), O_RDWR);  // NOSONAR(cpp:S1874): `_sopen_s` not available
     if (file.el < 0) {
@@ -830,10 +843,10 @@ namespace va {
       return nullptr;
     }
 
-    return make_avcodec_encode_device(width, height, std::move(file), offset_x, offset_y, vram);
+    return make_avcodec_encode_device(settings, width, height, std::move(file), offset_x, offset_y, vram);
   }
 
-  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(int width, int height, bool vram) {
-    return make_avcodec_encode_device(width, height, 0, 0, vram);
+  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(const config::settings_t &settings, int width, int height, bool vram) {
+    return make_avcodec_encode_device(settings, width, height, 0, 0, vram);
   }
 }  // namespace va

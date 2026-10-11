@@ -26,25 +26,25 @@ extern "C" {
 
 using namespace std::literals;
 
-std::string get_launch_ui_url(const std::optional<std::string> &path) {
-  std::string url = std::format("https://{}:{}", net::get_bind_address_url_host(), static_cast<int>(net::map_port(confighttp::PORT_HTTPS)));
+std::string get_launch_ui_url(const config::settings_t &settings, const std::optional<std::string> &path) {
+  std::string url = std::format("https://{}:{}", net::get_bind_address_url_host(settings), static_cast<int>(net::map_port(settings, confighttp::PORT_HTTPS)));
   if (path) {
     url += *path;
   }
   return url;
 }
 
-void launch_ui(const std::optional<std::string> &path) {
-  platf::open_url(get_launch_ui_url(path));
+void launch_ui(const config::settings_t &settings, const std::optional<std::string> &path) {
+  platf::open_url(get_launch_ui_url(settings, path));
 }
 
 namespace args {
-  int creds(const char *name, int argc, char *argv[]) {
+  int creds(const config::settings_t &settings, const char *name, int argc, char *argv[]) {
     if (argc < 2 || argv[0] == "help"sv || argv[1] == "help"sv) {
-      help(name);
+      return help(name);
     }
 
-    http::save_user_creds(config::sunshine.credentials_file, argv[0], argv[1]);
+    http::save_user_creds(settings.sunshine.credentials_file, argv[0], argv[1]);
 
     return 0;
   }
@@ -311,7 +311,7 @@ namespace service_ctrl {
     return true;
   }
 
-  bool wait_for_ui_ready() {
+  bool wait_for_ui_ready(const config::settings_t &settings) {
     std::cout << "Waiting for Web UI to be ready...";
 
     // Wait up to 30 seconds for the web UI to start
@@ -338,7 +338,7 @@ namespace service_ctrl {
         return false;
       }
 
-      uint16_t port_nbo = htons(net::map_port(confighttp::PORT_HTTPS));
+      uint16_t port_nbo = htons(net::map_port(settings, confighttp::PORT_HTTPS));
       for (DWORD i = 0; i < tcp_table->dwNumEntries; i++) {
         auto &entry = tcp_table->table[i];
 

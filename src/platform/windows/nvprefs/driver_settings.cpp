@@ -159,7 +159,7 @@ namespace nvprefs {
     return true;
   }
 
-  bool driver_settings_t::check_and_modify_global_profile(std::optional<undo_data_t> &undo_data) {
+  bool driver_settings_t::check_and_modify_global_profile(const config::settings_t &settings, std::optional<undo_data_t> &undo_data) {
     if (!session_handle) {
       return false;
     }
@@ -167,7 +167,7 @@ namespace nvprefs {
     undo_data.reset();
     NvAPI_Status status;
 
-    if (!get_nvprefs_options().opengl_vulkan_on_dxgi) {
+    if (!get_nvprefs_options(settings).opengl_vulkan_on_dxgi) {
       // User requested to leave OpenGL/Vulkan DXGI swapchain setting alone
       return true;
     }
@@ -217,7 +217,7 @@ namespace nvprefs {
     return true;
   }
 
-  bool driver_settings_t::check_and_modify_application_profile(bool &modified) {
+  bool driver_settings_t::check_and_modify_application_profile(const config::settings_t &settings, bool &modified) {
     if (!session_handle) {
       return false;
     }
@@ -273,7 +273,7 @@ namespace nvprefs {
     setting.version = NVDRS_SETTING_VER1;
     status = api->call_interface<decltype(NvAPI_DRS_GetSetting)>("NvAPI_DRS_GetSetting", session_handle, profile_handle, PREFERRED_PSTATE_ID, &setting);
 
-    if (!get_nvprefs_options().sunshine_high_power_mode) {
+    if (!get_nvprefs_options(settings).sunshine_high_power_mode) {
       if (status == NVAPI_OK && setting.settingLocation == NVDRS_CURRENT_PROFILE_LOCATION) {
         // User requested to not use high power mode for sunshine.exe,
         // remove the setting from application profile if it's been set previously

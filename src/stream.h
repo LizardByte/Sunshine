@@ -108,6 +108,7 @@ namespace stream {
   public:
     /**
      * @brief Bind the host dependencies without opening streaming sockets.
+     * @param settings Startup transport and capture configuration.
      * @param host_mail Application packet and shutdown mailbox.
      * @param scheduler Application task scheduler.
      * @param inputs Host input owner.
@@ -115,8 +116,9 @@ namespace stream {
      * @param processes Application process owner.
      * @param displays Display settings and restore owner.
      * @param platform Native streaming hooks and socket priority owner.
+     * @param audios Shared host audio capture owner.
      */
-    service_t(safe::mail_t host_mail, thread_pool_util::ThreadPool &scheduler, input::service_t &inputs, video::service_t &videos, proc::proc_t &processes, display_device::manager_t &displays, platf::runtime_t &platform);
+    service_t(const config::settings_t &settings, safe::mail_t host_mail, thread_pool_util::ThreadPool &scheduler, input::service_t &inputs, video::service_t &videos, proc::proc_t &processes, display_device::manager_t &displays, platf::runtime_t &platform, audio::service_t &audios);
     /**
      * @brief Release the broadcast owner after all session references stop.
      */

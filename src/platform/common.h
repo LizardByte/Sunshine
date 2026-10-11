@@ -928,14 +928,16 @@ namespace platf {
   /**
    * @brief Create the platform audio controller.
    *
+   * @param settings Immutable startup settings for this host.
    * @return Platform audio controller, or nullptr when audio control is unavailable.
    */
-  std::unique_ptr<audio_control_t> audio_control();
+  std::unique_ptr<audio_control_t> audio_control(const config::settings_t &settings);
 
   /**
    * @brief Get the display_t instance for the given hwdevice_type.
    * If display_name is empty, use the first monitor that's compatible you can find
    * If you require to use this parameter in a separate thread, make a copy of it.
+   * @param hwdevice_type Memory type requested by the encoder.
    * @param display_name The name of the monitor that SHOULD be displayed
    * @param config Stream configuration
    * @return The display_t instance based on hwdevice_type.
@@ -1131,20 +1133,29 @@ namespace platf {
    */
   class runtime_t {
   public:
+#ifdef _WIN32
     /**
      * @brief Bind the application services used by platform resources.
+     * @param settings Immutable startup settings.
      * @param mail Application mailbox.
      * @param scheduler Scheduler for deferred native input and capture work.
      * @param lifetime Application exit and restart controller.
      * @param displays Display configuration manager.
      * @param preferences NVIDIA preference manager on Windows.
      */
-    runtime_t(safe::mail_t mail, thread_pool_util::ThreadPool &scheduler, lifetime::controller_t &lifetime, display_device::manager_t &displays
-#ifdef _WIN32
-              ,
-              nvprefs::nvprefs_interface &preferences
+    runtime_t(const config::settings_t &settings, safe::mail_t mail, thread_pool_util::ThreadPool &scheduler, lifetime::controller_t &lifetime, display_device::manager_t &displays, nvprefs::nvprefs_interface &preferences);
 #endif
-    );
+#if !defined(_WIN32) || defined(DOXYGEN)
+    /**
+     * @brief Bind the application services used by Unix platform resources.
+     * @param settings Immutable startup settings.
+     * @param mail Application mailbox.
+     * @param scheduler Scheduler for deferred native input and capture work.
+     * @param lifetime Application exit and restart controller.
+     * @param displays Display configuration manager.
+     */
+    runtime_t(const config::settings_t &settings, safe::mail_t mail, thread_pool_util::ThreadPool &scheduler, lifetime::controller_t &lifetime, display_device::manager_t &displays);
+#endif
     /**
      * @brief Release platform resources after their consumers stop.
      */
@@ -1240,9 +1251,11 @@ namespace platf {
   /**
    * @brief Create the platform input backend for a stream.
    *
+   * @param settings Immutable host input configuration.
+   * @param scheduler Scheduler serializing platform input callbacks.
    * @return Platform-specific input backend for the active stream.
    */
-  input_t input(thread_pool_util::ThreadPool &scheduler);
+  input_t input(const config::settings_t &settings, thread_pool_util::ThreadPool &scheduler);
   /**
    * @brief Get the current mouse position for platform input tests.
    *
@@ -1404,23 +1417,30 @@ namespace platf {
 
   /**
    * @brief Get the supported platform capabilities to advertise to the client.
+   * @param settings Immutable startup settings for this host.
    * @return Capability flags.
    */
-  platform_caps::caps_t get_capabilities();
+  platform_caps::caps_t get_capabilities(const config::settings_t &settings);
 
   constexpr auto SERVICE_NAME = "Sunshine";  ///< mDNS service instance name advertised for GameStream discovery.
   constexpr auto SERVICE_TYPE = "_nvstream._tcp";  ///< mDNS service type advertised for GameStream discovery.
 
   namespace publish {
-    [[nodiscard]] std::unique_ptr<deinit_t> start();
-  }
+    /**
+     * @brief Advertise this host's configured HTTP service through mDNS.
+     * @param settings Immutable startup settings containing the host's listening port.
+     * @return Registration owner that removes the advertisement when destroyed, or null on failure.
+     */
+    [[nodiscard]] std::unique_ptr<deinit_t> start(const config::settings_t &settings);
+  }  // namespace publish
 
   /**
    * @brief Initialize the platform-specific high precision timer.
    *
+   * @param settings Immutable startup settings for this host.
    * @return Cleanup handle for initialized platform resources, or null if none are needed.
    */
-  [[nodiscard]] std::unique_ptr<deinit_t> init();
+  [[nodiscard]] std::unique_ptr<deinit_t> init(const config::settings_t &settings);
 
   /**
    * @brief Returns the current computer name in UTF-8.
@@ -1430,12 +1450,13 @@ namespace platf {
 
   /**
    * @brief Resolves the render device path to use for hardware encoding.
-   * @details If `config::video.adapter_name` is set, returns that.
+   * @details If the host's video adapter name is set, returns that.
    *          Otherwise, auto-detects the GPU with a connected display via `find_render_node_with_display()`.
    *          Falls back to `/dev/dri/renderD128` if detection fails.
+   * @param settings Immutable startup settings for this host.
    * @return Resolved render device path (may be empty on non-Linux platforms).
    */
-  std::string resolve_render_device();
+  std::string resolve_render_device(const config::settings_t &settings);
 
   /**
    * @brief Gets the supported gamepads for this platform backend.
@@ -1443,7 +1464,7 @@ namespace platf {
    * @param input Pointer to the platform's `input_t` or `nullptr`.
    * @return Vector of gamepad options and status.
    */
-  std::vector<supported_gamepad_t> &supported_gamepads(input_t *input);
+  std::vector<supported_gamepad_t> supported_gamepads(input_t *input);
 
   /**
    * @brief Platform timer object used for precise frame pacing.

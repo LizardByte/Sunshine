@@ -126,13 +126,13 @@ namespace net {
     return BOTH;
   }
 
-  af_e get_effective_address_family(const af_e af) {
-    if (af != BOTH || config::sunshine.bind_address.empty()) {
+  af_e get_effective_address_family(const config::settings_t &settings, const af_e af) {
+    if (af != BOTH || settings.sunshine.bind_address.empty()) {
       return af;
     }
 
     boost::system::error_code ec;
-    const auto bind_address = ip::make_address(config::sunshine.bind_address, ec);
+    const auto bind_address = ip::make_address(settings.sunshine.bind_address, ec);
     return !ec && bind_address.is_v4() ? IPV4 : af;
   }
 
@@ -148,10 +148,10 @@ namespace net {
     return "::"sv;
   }
 
-  std::string get_bind_address(const af_e af) {
+  std::string get_bind_address(const config::settings_t &settings, const af_e af) {
     // If bind_address is configured, use it
-    if (!config::sunshine.bind_address.empty()) {
-      return config::sunshine.bind_address;
+    if (!settings.sunshine.bind_address.empty()) {
+      return settings.sunshine.bind_address;
     }
 
     // Otherwise use the wildcard address for the given address family
@@ -185,36 +185,36 @@ namespace net {
     }
   }
 
-  std::string get_bind_address_url_host() {
-    if (config::sunshine.bind_address.empty()) {
+  std::string get_bind_address_url_host(const config::settings_t &settings) {
+    if (settings.sunshine.bind_address.empty()) {
       return "localhost";
     }
 
     boost::system::error_code ec;
-    const auto bind_address = ip::make_address(config::sunshine.bind_address, ec);
-    return ec ? config::sunshine.bind_address : addr_to_url_escaped_string(bind_address);
+    const auto bind_address = ip::make_address(settings.sunshine.bind_address, ec);
+    return ec ? settings.sunshine.bind_address : addr_to_url_escaped_string(bind_address);
   }
 
-  int encryption_mode_for_address(boost::asio::ip::address address) {
+  int encryption_mode_for_address(const config::settings_t &settings, boost::asio::ip::address address) {
     auto nettype = net::from_address(address.to_string());
     if (nettype == net::net_e::PC || nettype == net::net_e::LAN) {
-      return config::stream.lan_encryption_mode;
+      return settings.stream.lan_encryption_mode;
     } else {
-      return config::stream.wan_encryption_mode;
+      return settings.stream.wan_encryption_mode;
     }
   }
 
   /**
    * @brief Create an ENet host with the requested address family.
    */
-  host_t host_create(af_e af, ENetAddress &addr, std::uint16_t port) {
+  host_t host_create(const config::settings_t &settings, af_e af, ENetAddress &addr, std::uint16_t port) {
     static std::once_flag enet_init_flag;
     std::call_once(enet_init_flag, []() {
       enet_initialize();
     });
 
-    af = get_effective_address_family(af);
-    const auto bind_addr = net::get_bind_address(af);
+    af = get_effective_address_family(settings, af);
+    const auto bind_addr = net::get_bind_address(settings, af);
     enet_address_set_host(&addr, bind_addr.c_str());
     enet_address_set_port(&addr, port);
 
@@ -242,9 +242,9 @@ namespace net {
     enet_host_destroy(host);
   }
 
-  std::uint16_t map_port(int port) {
+  std::uint16_t map_port(const config::settings_t &settings, int port) {
     // calculate the port from the config port
-    auto mapped_port = (std::uint16_t) ((int) config::sunshine.port + port);
+    auto mapped_port = (std::uint16_t) ((int) settings.sunshine.port + port);
 
     // Ensure port is in the range of 1024-65535
     if (mapped_port < 1024 || mapped_port > 65535) {

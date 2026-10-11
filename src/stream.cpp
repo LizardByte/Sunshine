@@ -387,12 +387,13 @@ namespace stream {
     /**
      * @brief Bind the underlying socket or graphics resource to its target.
      *
+     * @param settings Startup listener binding policy.
      * @param address_family Address family.
      * @param port TCP or UDP port number.
      * @return Network operation status.
      */
-    int bind(net::af_e address_family, std::uint16_t port) {
-      _host = net::host_create(address_family, _addr, port);
+    int bind(const config::settings_t &settings, net::af_e address_family, std::uint16_t port) {
+      _host = net::host_create(settings, address_family, _addr, port);
 
       return !(bool) _host;
     }
@@ -653,6 +654,8 @@ namespace stream {
    * @brief Explicit host dependencies and lazy broadcast resources shared by stream sessions.
    */
   struct runtime_context_t {
+    const config::settings_t &settings;  ///< Startup transport and capture policy.
+    audio::service_t &audios;  ///< Audio control shared with display restoration.
     safe::mail_t host_mail;  ///< Host packet and shutdown mailbox.
     thread_pool_util::ThreadPool &scheduler;  ///< Host scheduler used for shutdown deadlines.
     input::service_t &inputs;  ///< Shared host input owner.
@@ -664,6 +667,7 @@ namespace stream {
 
     /**
      * @brief Bind host services and attach them to each lazy broadcast instance.
+     * @param settings Startup transport and capture configuration.
      * @param host_mail Host mailbox.
      * @param scheduler Host scheduler.
      * @param inputs Host input owner.
@@ -671,8 +675,11 @@ namespace stream {
      * @param processes Host process owner.
      * @param displays Host display owner.
      * @param platform Native streaming resources.
+     * @param audios Shared host audio capture owner.
      */
-    runtime_context_t(safe::mail_t host_mail, thread_pool_util::ThreadPool &scheduler, input::service_t &inputs, video::service_t &videos, proc::proc_t &processes, display_device::manager_t &displays, platf::runtime_t &platform):
+    runtime_context_t(const config::settings_t &settings, safe::mail_t host_mail, thread_pool_util::ThreadPool &scheduler, input::service_t &inputs, video::service_t &videos, proc::proc_t &processes, display_device::manager_t &displays, platf::runtime_t &platform, audio::service_t &audios):
+        settings {settings},
+        audios {audios},
         host_mail {std::move(host_mail)},
         scheduler {scheduler},
         inputs {inputs},
@@ -696,8 +703,8 @@ namespace stream {
     using runtime_context_t::runtime_context_t;
   };
 
-  service_t::service_t(safe::mail_t host_mail, thread_pool_util::ThreadPool &scheduler, input::service_t &inputs, video::service_t &videos, proc::proc_t &processes, display_device::manager_t &displays, platf::runtime_t &platform):
-      impl {std::make_shared<impl_t>(std::move(host_mail), scheduler, inputs, videos, processes, displays, platform)} {
+  service_t::service_t(const config::settings_t &settings, safe::mail_t host_mail, thread_pool_util::ThreadPool &scheduler, input::service_t &inputs, video::service_t &videos, proc::proc_t &processes, display_device::manager_t &displays, platf::runtime_t &platform, audio::service_t &audios):
+      impl {std::make_shared<impl_t>(settings, std::move(host_mail), scheduler, inputs, videos, processes, displays, platform, audios)} {
   }
 
   service_t::~service_t() = default;
@@ -831,7 +838,7 @@ namespace stream {
         return;
       }
 
-      session->pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
+      session->pingTimeout = std::chrono::steady_clock::now() + session->owner->settings.stream.ping_timeout;
 
       switch (event.type) {
         case ENET_EVENT_TYPE_RECEIVE:
@@ -1592,8 +1599,10 @@ namespace stream {
    * @brief Run the broadcast video sender thread.
    *
    * @param sock Socket used to read or write the protocol message.
+   * @param host_mail Host packet and shutdown mailbox.
+   * @param settings Startup packet redundancy policy.
    */
-  void videoBroadcastThread(udp::socket &sock, safe::mail_t host_mail) {
+  void videoBroadcastThread(udp::socket &sock, safe::mail_t host_mail, const config::settings_t &settings) {
     auto shutdown_event = host_mail->event<bool>(mail::broadcast_shutdown);
     auto packets = host_mail->queue<video::packet_t>(mail::video_packets);
     auto video_epoch = std::chrono::steady_clock::now();
@@ -1668,7 +1677,7 @@ namespace stream {
         frame_header.frame_processing_latency = 0;
       }
 
-      auto fecPercentage = config::stream.fec_percentage;
+      auto fecPercentage = settings.stream.fec_percentage;
 
       // Insert space for packet headers
       auto blocksize = session->config.packetsize + MAX_RTP_HEADER_SIZE;
@@ -1919,6 +1928,7 @@ namespace stream {
    * @brief Run the broadcast audio sender thread.
    *
    * @param sock Socket used to read or write the protocol message.
+   * @param host_mail Host packet and shutdown mailbox.
    */
   void audioBroadcastThread(udp::socket &sock, safe::mail_t host_mail) {
     auto shutdown_event = host_mail->event<bool>(mail::broadcast_shutdown);
@@ -2029,13 +2039,13 @@ namespace stream {
    * @brief Bind the GameStream UDP and control sockets used for a streaming session.
    */
   int start_broadcast(broadcast_ctx_t &ctx) {
-    auto address_family = net::get_effective_address_family(net::af_from_enum_string(config::sunshine.address_family));
+    auto address_family = net::get_effective_address_family(ctx.owner->settings, net::af_from_enum_string(ctx.owner->settings.sunshine.address_family));
     auto protocol = address_family == net::IPV4 ? udp::v4() : udp::v6();
-    auto control_port = net::map_port(CONTROL_PORT);
-    auto video_port = net::map_port(VIDEO_STREAM_PORT);
-    auto audio_port = net::map_port(AUDIO_STREAM_PORT);
+    auto control_port = net::map_port(ctx.owner->settings, CONTROL_PORT);
+    auto video_port = net::map_port(ctx.owner->settings, VIDEO_STREAM_PORT);
+    auto audio_port = net::map_port(ctx.owner->settings, AUDIO_STREAM_PORT);
 
-    if (ctx.control_server.bind(address_family, control_port)) {
+    if (ctx.control_server.bind(ctx.owner->settings, address_family, control_port)) {
       BOOST_LOG(error) << "Couldn't bind Control server to port ["sv << control_port << "], likely another process already bound to the port"sv;
 
       return -1;
@@ -2056,7 +2066,7 @@ namespace stream {
       BOOST_LOG(error) << "Failed to set video socket send buffer size (SO_SENDBUF)";
     }
 
-    auto bind_addr_str = net::get_bind_address(address_family);
+    auto bind_addr_str = net::get_bind_address(ctx.owner->settings, address_family);
     const auto bind_addr = boost::asio::ip::make_address(bind_addr_str, ec);
     if (ec) {
       BOOST_LOG(fatal) << "Invalid bind address: "sv << bind_addr_str << " - " << ec.message();
@@ -2086,7 +2096,7 @@ namespace stream {
 
     ctx.message_queue_queue = std::make_shared<message_queue_queue_t::element_type>(30);
 
-    ctx.video_thread = std::jthread {videoBroadcastThread, std::ref(ctx.video_sock), ctx.owner->host_mail};
+    ctx.video_thread = std::jthread {videoBroadcastThread, std::ref(ctx.video_sock), ctx.owner->host_mail, std::cref(ctx.owner->settings)};
     ctx.audio_thread = std::jthread {audioBroadcastThread, std::ref(ctx.audio_sock), ctx.owner->host_mail};
     ctx.control_thread = std::jthread {controlBroadcastThread, &ctx.control_server};
 
@@ -2167,10 +2177,10 @@ namespace stream {
     auto start_time = std::chrono::steady_clock::now();
     auto current_time = start_time;
 
-    while (current_time - start_time < config::stream.ping_timeout) {
+    while (current_time - start_time < session->owner->settings.stream.ping_timeout) {
       auto delta_time = current_time - start_time;
 
-      auto msg_opt = messages->pop(config::stream.ping_timeout - delta_time);
+      auto msg_opt = messages->pop(session->owner->settings.stream.ping_timeout - delta_time);
       if (!msg_opt) {
         break;
       }
@@ -2211,7 +2221,7 @@ namespace stream {
     while_starting_do_nothing(session->state);
 
     auto ref = session->owner->broadcast.ref();
-    auto error = recv_ping(session, ref, socket_e::video, session->video.ping_payload, session->video.peer, config::stream.ping_timeout);
+    auto error = recv_ping(session, ref, socket_e::video, session->video.ping_payload, session->video.peer, session->owner->settings.stream.ping_timeout);
     if (error < 0) {
       return;
     }
@@ -2238,7 +2248,7 @@ namespace stream {
     while_starting_do_nothing(session->state);
 
     auto ref = session->owner->broadcast.ref();
-    auto error = recv_ping(session, ref, socket_e::audio, session->audio.ping_payload, session->audio.peer, config::stream.ping_timeout);
+    auto error = recv_ping(session, ref, socket_e::audio, session->audio.ping_payload, session->audio.peer, session->owner->settings.stream.ping_timeout);
     if (error < 0) {
       return;
     }
@@ -2248,7 +2258,7 @@ namespace stream {
     session->audio.qos = session->owner->platform.enable_socket_qos(ref->audio_sock.native_handle(), address, session->audio.peer.port(), platf::qos_data_type_e::audio, session->config.audioQosType != 0);
 
     BOOST_LOG(debug) << "Start capturing Audio"sv;
-    audio::capture(session->owner->host_mail, session->mail, session->config.audio, session);
+    session->owner->audios.capture(session->mail, session->config.audio, session);
   }
 
   namespace session {
@@ -2311,7 +2321,7 @@ namespace stream {
 
       // If this is the last session, invoke the platform callbacks
       if (--session.broadcast_ref->running_sessions == 0) {
-        bool revert_display_config {config::video.dd.config_revert_on_disconnect};
+        bool revert_display_config {session.owner->settings.video.dd.config_revert_on_disconnect};
         if (session.owner->processes.running()) {
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
           system_tray::update_tray_pausing(session.owner->processes.get_last_run_app_name());
@@ -2359,7 +2369,7 @@ namespace stream {
       session.audio.peer.address(addr);
       session.audio.peer.port(0);
 
-      session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
+      session.pingTimeout = std::chrono::steady_clock::now() + session.owner->settings.stream.ping_timeout;
 
       session.audioThread = std::jthread {audioThread, &session};
       session.videoThread = std::jthread {videoThread, &session};
@@ -2378,7 +2388,11 @@ namespace stream {
     }
 
     /**
-     * @brief Allocate and initialize platform input state for a stream.
+     * @brief Allocate stopped session state and retain its explicit host dependencies.
+     * @param owner Host service state retained until all session resources release.
+     * @param config Negotiated transport and encoder settings.
+     * @param launch_session Client identity, encryption keys, and connection callback.
+     * @return Newly allocated session; workers and platform input start separately.
      */
     std::shared_ptr<session_t> alloc(std::shared_ptr<runtime_context_t> owner, config_t &config, rtsp_stream::launch_session_t &launch_session) {
       auto session = std::make_shared<session_t>();

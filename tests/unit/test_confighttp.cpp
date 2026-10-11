@@ -100,6 +100,7 @@ X4wnh1bwdiidqpcgyuKossLOPxbS786WmsesaAWPnpoY6M8aija+ALwNNuWWmyMg
  */
 class ConfigHttpTest: public BaseTest {  // NOSONAR(cpp:S3656): protected members are intentional for test fixture subclassing
 protected:
+  config::credentials_t credentials;  ///< Complete authentication values owned by this fixture.
   test_utils::server_context_t context;  ///< Services owned by this HTTPS fixture.
   std::unique_ptr<confighttp::service_t> web;  ///< Handlers bound to the fixture services.
   std::unique_ptr<SimpleWeb::Server<SimpleWeb::HTTPS>> server;
@@ -108,11 +109,6 @@ protected:
   unsigned short port = 0;
   std::atomic_size_t permission_queries {0};  ///< Queries made by this fixture's permission handler.
 
-  std::string saved_username;
-  std::string saved_password;
-  std::string saved_salt;
-  std::string saved_locale;
-  std::vector<std::string> saved_csrf_allowed_origins;
   std::filesystem::path test_web_dir;
   std::filesystem::path cert_file;
   std::filesystem::path key_file;
@@ -120,7 +116,7 @@ protected:
 
   void SetUp() override {
     BaseTest::SetUp();
-    web = std::make_unique<confighttp::service_t>(context.gamestream, context.http_state, context.processes, context.displays, context.inputs, context.rtsp, context.infrastructure.lifetime(), context.host_mail);
+    web = std::make_unique<confighttp::service_t>(context.configuration, context.gamestream, context.http_state, context.processes, context.displays, context.inputs, context.rtsp, context.infrastructure.lifetime(), context.host_mail);
     const auto handler = [this](auto method) {
       return [this, method](const auto &response, const auto &request) {
         (web.get()->*method)(response, request);
@@ -137,23 +133,21 @@ protected:
     });
 
     // Save current config
-    saved_username = config::sunshine.username;
-    saved_password = config::sunshine.password;
-    saved_salt = config::sunshine.salt;
-    saved_locale = config::sunshine.locale;
-    saved_csrf_allowed_origins = config::sunshine.csrf_allowed_origins;
 
     // Set up test credentials
-    config::sunshine.username = "testuser";
-    config::sunshine.salt = "testsalt";
-    config::sunshine.password = util::hex(crypto::hash("testpass" + config::sunshine.salt)).to_string();
+    credentials.username = "testuser";
+    context.configuration.update_credentials(credentials);
+    credentials.salt = "testsalt";
+    context.configuration.update_credentials(credentials);
+    credentials.password = util::hex(crypto::hash("testpass" + credentials.salt)).to_string();
+    context.configuration.update_credentials(credentials);
 
     // Set test locale
-    config::sunshine.locale = "en";
+    context.configuration.edit_startup().sunshine.locale = "en";
 
     // Set test web UI port (will be used in SetUp after server starts)
     // For now, just set the base defaults - we'll add the port-specific ones after server starts
-    config::sunshine.csrf_allowed_origins = {
+    context.configuration.edit_startup().sunshine.csrf_allowed_origins = {
       "https://localhost",
       "https://127.0.0.1",
       "https://[::1]"
@@ -376,9 +370,9 @@ protected:
     ASSERT_NE(port, 0) << "Server failed to start";
 
     // Now that we have the port, add it to CSRF allowed origins
-    config::sunshine.csrf_allowed_origins.push_back(std::format("https://localhost:{}", port));
-    config::sunshine.csrf_allowed_origins.push_back(std::format("https://127.0.0.1:{}", port));
-    config::sunshine.csrf_allowed_origins.push_back(std::format("https://[::1]:{}", port));
+    context.configuration.edit_startup().sunshine.csrf_allowed_origins.push_back(std::format("https://localhost:{}", port));
+    context.configuration.edit_startup().sunshine.csrf_allowed_origins.push_back(std::format("https://127.0.0.1:{}", port));
+    context.configuration.edit_startup().sunshine.csrf_allowed_origins.push_back(std::format("https://[::1]:{}", port));
 
     // Set up client
     client = std::make_unique<SimpleWeb::Client<SimpleWeb::HTTPS>>(std::format("localhost:{}", port), false);
@@ -395,11 +389,6 @@ protected:
     web->reset_virtual_input_license_status_provider_for_testing();
     web->reset_portal_token_path_provider_for_testing();
 
-    config::sunshine.username = saved_username;
-    config::sunshine.password = saved_password;
-    config::sunshine.salt = saved_salt;
-    config::sunshine.locale = saved_locale;
-    config::sunshine.csrf_allowed_origins = saved_csrf_allowed_origins;
     context.gamestream.expire_pair_sessions(std::chrono::steady_clock::time_point::max());
 
     // Clean up test HTML file from WEB_DIR
@@ -1121,14 +1110,16 @@ TEST_F(ConfigHttpTest, GetPageRedirectsWhenUsernameSet) {
 // Test: web->getPage() doesn't redirect when username is empty
 TEST_F(ConfigHttpTest, GetPageNoRedirectWhenUsernameEmpty) {
   // Temporarily clear username
-  const std::string saved = config::sunshine.username;
-  config::sunshine.username = "";
+  const std::string saved = credentials.username;
+  credentials.username = "";
+  context.configuration.update_credentials(credentials);
 
   const auto response = client->request("GET", "/page-redirect-test");
   ASSERT_EQ(response->status_code, "200 OK");
 
   // Restore username
-  config::sunshine.username = saved;
+  credentials.username = saved;
+  context.configuration.update_credentials(credentials);
 }
 
 // Test: browser routes fall back to the SPA entry document

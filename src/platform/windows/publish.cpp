@@ -149,7 +149,14 @@ namespace platf::publish {
     alarm->ring(pInstance);
   }
 
-  static int service(bool enable, PDNS_SERVICE_INSTANCE &existing_instance) {
+  /**
+   * @brief Register or remove a service using the registration owner's HTTP port.
+   * @param port Mapped HTTP port advertised by this registration.
+   * @param enable Whether to register rather than remove the service.
+   * @param existing_instance Registered native instance retained until successful removal.
+   * @return Zero on success, or a negative value when registration or removal fails.
+   */
+  static int service(std::uint16_t port, bool enable, PDNS_SERVICE_INSTANCE &existing_instance) {
     auto alarm = safe::make_alarm<PDNS_SERVICE_INSTANCE>();
 
     std::wstring domain = utf_utils::from_utf8(SERVICE_TYPE_DOMAIN);
@@ -160,7 +167,7 @@ namespace platf::publish {
 
     DNS_SERVICE_INSTANCE instance {};
     instance.pszInstanceName = name.data();
-    instance.wPort = net::map_port(nvhttp::PORT_HTTP);
+    instance.wPort = port;
     instance.pszHostName = host.data();
 
     // Setting these values ensures Windows mDNS answers comply with RFC 1035.
@@ -220,9 +227,14 @@ namespace platf::publish {
    */
   class mdns_registration_t: public ::platf::deinit_t {
   public:
-    mdns_registration_t():
+    /**
+     * @brief Register the host's service using a snapshot of its configured port.
+     * @param settings Immutable startup settings for this host.
+     */
+    explicit mdns_registration_t(const config::settings_t &settings):
+        port(net::map_port(settings, nvhttp::PORT_HTTP)),
         existing_instance(nullptr) {
-      if (service(true, existing_instance)) {
+      if (service(port, true, existing_instance)) {
         BOOST_LOG(error) << "Unable to register Sunshine mDNS service"sv;
         return;
       }
@@ -232,7 +244,7 @@ namespace platf::publish {
 
     ~mdns_registration_t() override {
       if (existing_instance) {
-        if (service(false, existing_instance)) {
+        if (service(port, false, existing_instance)) {
           BOOST_LOG(error) << "Unable to unregister Sunshine mDNS service"sv;
           return;
         }
@@ -242,7 +254,8 @@ namespace platf::publish {
     }
 
   private:
-    PDNS_SERVICE_INSTANCE existing_instance;
+    const std::uint16_t port;  ///< Configured HTTP port retained for the registration's lifetime.
+    PDNS_SERVICE_INSTANCE existing_instance;  ///< Native instance removed before releasing this owner.
   };
 
   /**
@@ -269,7 +282,11 @@ namespace platf::publish {
     return 0;
   }
 
-  std::unique_ptr<::platf::deinit_t> start() {
+  /**
+   * @brief Load DNS-SD support and advertise this host's configured HTTP service.
+   * @return Service registration owner, or null when DNS-SD is unavailable.
+   */
+  std::unique_ptr<::platf::deinit_t> start(const config::settings_t &settings) {
     HMODULE handle = LoadLibrary("dnsapi.dll");
 
     if (!handle || load_funcs(handle)) {
@@ -277,6 +294,6 @@ namespace platf::publish {
       return nullptr;
     }
 
-    return std::make_unique<mdns_registration_t>();
+    return std::make_unique<mdns_registration_t>(settings);
   }
 }  // namespace platf::publish

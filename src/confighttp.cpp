@@ -614,6 +614,7 @@ namespace confighttp {
    * @return True if the user is authenticated, false otherwise.
    */
   bool service_t::authenticate(const resp_https_t &response, const req_https_t &request) {
+    const auto credentials = configuration.credentials_snapshot();
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
 
     if (const auto ip_type = net::from_address(address); ip_type > http_state.origin_web_ui_allowed()) {
@@ -623,7 +624,7 @@ namespace confighttp {
     }
 
     // If credentials are shown, redirect the user to a /welcome page
-    if (config::sunshine.username.empty()) {
+    if (credentials.username.empty()) {
       send_redirect(response, request, "/welcome");
       return false;
     }
@@ -648,7 +649,7 @@ namespace confighttp {
     const auto username = authData.substr(0, index);
     const auto password = authData.substr(index + 1);
 
-    if (const auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string(); !boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
+    if (const auto hash = util::hex(crypto::hash(password + credentials.salt)).to_string(); !boost::iequals(username, credentials.username) || hash != credentials.password) {
       return false;
     }
 
@@ -734,8 +735,9 @@ namespace confighttp {
    * @return A unique identifier based on username or IP address.
    */
   std::string service_t::get_client_id(const req_https_t &request) {
+    const auto credentials = configuration.credentials_snapshot();
     // Try to use the authenticated username as client ID
-    if (const auto auth = request->header.find("authorization"); !config::sunshine.username.empty() && auth != request->header.end()) {
+    if (const auto auth = request->header.find("authorization"); !credentials.username.empty() && auth != request->header.end()) {
       if (const auto &rawAuth = auth->second; rawAuth.rfind("Basic "sv, 0) == 0) {
         auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr("Basic "sv.length()));
         if (const auto index = static_cast<int>(authData.find(':')); index < authData.size() - 1) {
@@ -816,8 +818,8 @@ namespace confighttp {
    */
   bool service_t::validate_csrf_token(const resp_https_t &response, const req_https_t &request, const std::string &client_id) {
     // Helper function to check if a URL starts with any allowed origin
-    auto is_allowed_origin = [](const std::string_view url) {
-      return std::ranges::any_of(config::sunshine.csrf_allowed_origins, [&url](const std::string &allowed_origin) {
+    auto is_allowed_origin = [this](const std::string_view url) {
+      return std::ranges::any_of(settings.sunshine.csrf_allowed_origins, [&url](const std::string &allowed_origin) {
         // Ensure exact prefix match (with ":" or "/" after to prevent malicious.com matching allowed.com)
         if (url.rfind(allowed_origin, 0) != 0) {  // rfind with pos=0 checks if the url starts with allowed_origin
           return false;
@@ -877,7 +879,7 @@ namespace confighttp {
    * @brief Validates the application index and sends an error response if invalid.
    */
   bool service_t::check_app_index(const resp_https_t &response, const req_https_t &request, int index) {
-    std::string file = file_handler::read_file(config::stream.file_apps.c_str());
+    std::string file = file_handler::read_file(settings.stream.file_apps.c_str());
     nlohmann::json file_tree = nlohmann::json::parse(file);
     if (const auto &apps = file_tree["apps"]; index < 0 || index >= static_cast<int>(apps.size())) {
       std::string error;
@@ -893,8 +895,9 @@ namespace confighttp {
   }
 
   void service_t::getPage(const resp_https_t &response, const req_https_t &request, const bool require_auth, const bool redirect_if_username) {
+    const auto credentials = configuration.credentials_snapshot();
     // Special handling for welcome page: redirect if the username is already set
-    if (redirect_if_username && !config::sunshine.username.empty()) {
+    if (redirect_if_username && !credentials.username.empty()) {
       send_redirect(response, request, "/");
       return;
     }
@@ -1057,7 +1060,7 @@ namespace confighttp {
     print_req(request);
 
     try {
-      std::string content = file_handler::read_file(config::stream.file_apps.c_str());
+      std::string content = file_handler::read_file(settings.stream.file_apps.c_str());
       nlohmann::json file_tree = nlohmann::json::parse(content);
 
       // Legacy versions of Sunshine used strings for boolean and integers, let's convert them
@@ -1155,7 +1158,7 @@ namespace confighttp {
       // TODO: Input Validation
       nlohmann::json output_tree;
       nlohmann::json input_tree = nlohmann::json::parse(ss);
-      std::string file = file_handler::read_file(config::stream.file_apps.c_str());
+      std::string file = file_handler::read_file(settings.stream.file_apps.c_str());
       BOOST_LOG(info) << file;
       nlohmann::json file_tree = nlohmann::json::parse(file);
 
@@ -1191,8 +1194,8 @@ namespace confighttp {
         return a["name"].get<std::string>() < b["name"].get<std::string>();
       });
 
-      file_handler::write_file(config::stream.file_apps.c_str(), file_tree.dump(4));
-      processes.refresh(config::stream.file_apps);
+      file_handler::write_file(settings.stream.file_apps.c_str(), file_tree.dump(4));
+      processes.refresh(settings.stream.file_apps);
 
       output_tree["status"] = true;
       send_response(response, output_tree);
@@ -1256,7 +1259,7 @@ namespace confighttp {
         return;
       }
 
-      std::string file = file_handler::read_file(config::stream.file_apps.c_str());
+      std::string file = file_handler::read_file(settings.stream.file_apps.c_str());
       nlohmann::json file_tree = nlohmann::json::parse(file);
       auto &apps = file_tree["apps"];
 
@@ -1267,8 +1270,8 @@ namespace confighttp {
       }
       file_tree["apps"] = new_apps;
 
-      file_handler::write_file(config::stream.file_apps.c_str(), file_tree.dump(4));
-      processes.refresh(config::stream.file_apps);
+      file_handler::write_file(settings.stream.file_apps.c_str(), file_tree.dump(4));
+      processes.refresh(settings.stream.file_apps);
 
       output_tree["status"] = true;
       output_tree["result"] = std::format("application {} deleted", index);
@@ -1452,7 +1455,7 @@ namespace confighttp {
     output_tree["platform"] = SUNSHINE_PLATFORM;
     output_tree["version"] = PROJECT_VERSION;
 
-    auto vars = config::parse_config(file_handler::read_file(config::sunshine.config_file.c_str()));
+    auto vars = config::parse_config(file_handler::read_file(settings.sunshine.config_file.c_str()));
 
     for (auto &[name, value] : vars) {
       output_tree[name] = std::move(value);
@@ -1475,7 +1478,7 @@ namespace confighttp {
 
     nlohmann::json output_tree;
     output_tree["status"] = true;
-    output_tree["locale"] = config::sunshine.locale;
+    output_tree["locale"] = settings.sunshine.locale;
     send_response(response, output_tree);
   }
 
@@ -1525,7 +1528,7 @@ namespace confighttp {
         // we should migrate the config file to straight JSON and get rid of all this nonsense
         config_stream << k << " = " << (v.is_string() ? v.get<std::string>() : v.dump()) << std::endl;
       }
-      file_handler::write_file(config::sunshine.config_file.c_str(), config_stream.str());
+      file_handler::write_file(settings.sunshine.config_file.c_str(), config_stream.str());
       output_tree["status"] = true;
       send_response(response, output_tree);
     } catch (std::exception &e) {
@@ -1556,7 +1559,7 @@ namespace confighttp {
         return;
       }
 
-      std::string file = file_handler::read_file(config::stream.file_apps.c_str());
+      std::string file = file_handler::read_file(settings.stream.file_apps.c_str());
       nlohmann::json file_tree = nlohmann::json::parse(file);
       auto &apps = file_tree["apps"];
 
@@ -1676,7 +1679,7 @@ namespace confighttp {
 
     print_req(request);
 
-    std::string content = file_handler::read_file(config::sunshine.log_file.c_str());
+    std::string content = file_handler::read_file(settings.sunshine.log_file.c_str());
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/plain");
     headers.emplace("X-Frame-Options", "DENY");
@@ -1702,10 +1705,11 @@ namespace confighttp {
    * @api_examples{/api/password|:| POST|:| {"currentUsername":"admin","currentPassword":"admin","newUsername":"admin","newPassword":"admin","confirmNewPassword":"admin"}}
    */
   void service_t::savePassword(const resp_https_t &response, const req_https_t &request) {
+    const auto credentials = configuration.credentials_snapshot();
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!config::sunshine.username.empty() && !authenticate(response, request)) {
+    if (!credentials.username.empty() && !authenticate(response, request)) {
       return;
     }
 
@@ -1735,13 +1739,13 @@ namespace confighttp {
       if (newUsername.empty()) {
         errors.emplace_back("Invalid Username");
       } else {
-        auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
-        if (config::sunshine.username.empty() || (boost::iequals(username, config::sunshine.username) && hash == config::sunshine.password)) {
+        auto hash = util::hex(crypto::hash(password + credentials.salt)).to_string();
+        if (credentials.username.empty() || (boost::iequals(username, credentials.username) && hash == credentials.password)) {
           if (newPassword.empty() || newPassword != confirmPassword) {
             errors.emplace_back("Password Mismatch");
           } else {
-            http::save_user_creds(config::sunshine.credentials_file, newUsername, newPassword);
-            http::reload_user_creds(config::sunshine.credentials_file);
+            http::save_user_creds(settings.sunshine.credentials_file, newUsername, newPassword);
+            http::reload_user_creds(settings.sunshine.credentials_file, configuration);
             output_tree["status"] = true;
           }
         } else {
@@ -1985,7 +1989,9 @@ namespace confighttp {
    * @api_examples{/api/permissions|:| GET|:| null}
    */
   void service_t::getPermissions(const resp_https_t &response, const req_https_t &request) {
-    make_permissions_handler(platf::get_permission_statuses)(response, request);
+    make_permissions_handler([this]() {
+      return platf::get_permission_statuses(settings);
+    })(response, request);
   }
 
   permissions_handler_t service_t::make_permissions_handler(permission_status_provider_t provider) {
@@ -2202,10 +2208,12 @@ namespace confighttp {
       }
 
 #ifdef _WIN32
-      config::select_all_gamepad_drivers_if_licensed(result.license.licensed());
+      inputs.select_all_gamepad_drivers_if_licensed(configuration, result.license.licensed());
 #endif
 #if (defined(_WIN32) || defined(__APPLE__)) && defined(SUNSHINE_TRAY) && SUNSHINE_TRAY >= 1
-      system_tray::update_tray_virtualhid_license(result.license, false);
+      auto tray_settings = settings;
+      tray_settings.input = inputs.configuration_snapshot();
+      system_tray::update_tray_virtualhid_license(tray_settings, result.license, false);
 #endif
 #ifdef _WIN32
       if (result.status.ok()) {
@@ -2408,7 +2416,9 @@ namespace confighttp {
   /**
    * @brief Start the HTTPS configuration server.
    */
-  service_t::service_t(nvhttp::service_t &gamestream, http::state_t &http_state, proc::proc_t &processes, display_device::manager_t &displays, input::service_t &inputs, rtsp_stream::service_t &rtsp, lifetime::controller_t &lifetime, safe::mail_t host_mail):
+  service_t::service_t(config::store_t &configuration, nvhttp::service_t &gamestream, http::state_t &http_state, proc::proc_t &processes, display_device::manager_t &displays, input::service_t &inputs, rtsp_stream::service_t &rtsp, lifetime::controller_t &lifetime, safe::mail_t host_mail):
+      configuration {configuration},
+      settings {configuration.values()},
       gamestream {gamestream},
       http_state {http_state},
       processes {processes},
@@ -2428,10 +2438,10 @@ namespace confighttp {
     platf::set_thread_name("confighttp");
     const auto shutdown_event = host_mail->event<bool>(mail::shutdown);
 
-    const auto port_https = net::map_port(PORT_HTTPS);
-    const auto address_family = net::af_from_enum_string(config::sunshine.address_family);
+    const auto port_https = net::map_port(settings, PORT_HTTPS);
+    const auto address_family = net::af_from_enum_string(settings.sunshine.address_family);
 
-    https_server_t server {config::nvhttp.cert, config::nvhttp.pkey};
+    https_server_t server {settings.nvhttp.cert, settings.nvhttp.pkey};
 
     // Helper to create SPA entry handlers without repeating the signature
     auto page_handler = [this](bool require_auth = true, bool redirect_if_username = false) {
@@ -2497,10 +2507,10 @@ namespace confighttp {
     server.resource["^/assets\\/.+$"]["GET"] = bind(&service_t::getAsset);
 
     server.config.reuse_address = true;
-    server.config.address = net::get_bind_address(address_family);
+    server.config.address = net::get_bind_address(settings, address_family);
     server.config.port = port_https;
 
-    const auto display_addr = net::get_bind_address_url_host();
+    const auto display_addr = net::get_bind_address_url_host(settings);
 
     auto accept_and_run = [&](auto *server) {
       try {

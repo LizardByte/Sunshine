@@ -20,15 +20,17 @@ namespace va {
    * offset_y --> Vertical offset of the image in the texture
    * file_t card --> The file descriptor of the render device used for encoding
    *
+   * @param settings Immutable startup settings for this host.
    * @param width Frame or display width in pixels.
    * @param height Frame or display height in pixels.
    * @param vram Whether the image should use GPU memory instead of system memory.
    * @return Constructed AVCodec encode device object.
    */
-  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(int width, int height, bool vram);
+  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(const config::settings_t &settings, int width, int height, bool vram);
   /**
    * @brief Create AVCodec encode device.
    *
+   * @param settings Immutable startup settings for this host.
    * @param width Frame or display width in pixels.
    * @param height Frame or display height in pixels.
    * @param offset_x Offset x.
@@ -36,10 +38,11 @@ namespace va {
    * @param vram Whether the image should use GPU memory instead of system memory.
    * @return Constructed AVCodec encode device object.
    */
-  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(int width, int height, int offset_x, int offset_y, bool vram);
+  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(const config::settings_t &settings, int width, int height, int offset_x, int offset_y, bool vram);
   /**
    * @brief Create AVCodec encode device.
    *
+   * @param settings Immutable startup settings for this host.
    * @param width Frame or display width in pixels.
    * @param height Frame or display height in pixels.
    * @param card Video device path or render node used for VAAPI.
@@ -48,7 +51,7 @@ namespace va {
    * @param vram Whether the image should use GPU memory instead of system memory.
    * @return Constructed AVCodec encode device object.
    */
-  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(int width, int height, file_t &&card, int offset_x, int offset_y, bool vram);
+  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(const config::settings_t &settings, int width, int height, file_t &&card, int offset_x, int offset_y, bool vram);
 
   // Ensure the render device pointed to by fd is capable of encoding h264 with the hevc_mode configured
   /**

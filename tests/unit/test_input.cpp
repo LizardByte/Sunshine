@@ -12,6 +12,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <future>
 #include <limits>
 #include <memory>
@@ -26,6 +27,7 @@ extern "C" {
 
 // local includes
 #include "src/config.h"
+#include "src/file_handler.h"
 #include "src/input.h"
 #include "src/platform/virtualhid_input.h"
 #include "src/utility.h"
@@ -96,22 +98,22 @@ namespace {
    */
   class InputGamepadSessionTest: public ::testing::Test {
   protected:
+    config::store_t config_;  ///< Configuration owned by this fixture.
     runtime::infrastructure_t infrastructure_;  ///< Infrastructure owned by this input fixture.
-    input::service_t inputs_ {infrastructure_.scheduler(), infrastructure_.mailbox(), infrastructure_.cursor()};  ///< Fixture-owned host input service.
+    input::service_t inputs_ {config_.values(), infrastructure_.scheduler(), infrastructure_.mailbox(), infrastructure_.cursor()};  ///< Fixture-owned host input service.
 
     /**
      * @brief Preserve configuration and install observable fake devices.
      */
     void SetUp() override {
-      original_input_ = config::input;
-      config::input.controller = true;
-      config::input.mouse = true;
-      config::input.gamepad = "xseries";
+      config_.edit_startup().input.controller = true;
+      config_.edit_startup().input.mouse = true;
+      config_.edit_startup().input.gamepad = "xseries";
 
-      auto platform_input = platf::input(infrastructure_.scheduler());
+      auto platform_input = platf::input(config_.values(), infrastructure_.scheduler());
       ASSERT_TRUE(platform_input);
       auto &context = platf::virtualhid::get_input_context(platform_input);
-      context = platf::virtualhid::input_context_t {lvh::BackendKind::fake};
+      context = platf::virtualhid::input_context_t {config_.values(), lvh::BackendKind::fake};
       context_ = &context;
       runtime_ = context.runtime.get();
       ASSERT_NE(runtime_, nullptr);
@@ -128,7 +130,6 @@ namespace {
       input::testing::set_platform_input(inputs_, {});
       context_ = nullptr;
       runtime_ = nullptr;
-      config::input = std::move(original_input_);
     }
 
     /**
@@ -152,7 +153,6 @@ namespace {
   private:
     platf::virtualhid::input_context_t *context_ = nullptr;  ///< Fake input context installed in the global backend.
     lvh::Runtime *runtime_ = nullptr;  ///< Fake runtime installed in the global input backend.
-    config::input_t original_input_;  ///< Input configuration restored after each test.
   };
 }  // namespace
 
@@ -293,7 +293,7 @@ TEST_F(InputGamepadSessionTest, RejectsMalformedBatchablePacketsAtQueueIngress) 
 
 TEST_F(InputGamepadSessionTest, SerializesArrivalAndStatePacketsForOneController) {
   ASSERT_FALSE(infrastructure_.scheduler().running());
-  config::input.gamepad = "auto";
+  config_.edit_startup().input.gamepad = "auto";
 
   auto stream_input = inputs_.alloc(std::make_shared<safe::mail_raw_t>(), "simultaneous-controller-packets");
   ASSERT_NE(stream_input, nullptr);
@@ -399,9 +399,9 @@ TEST_F(InputGamepadSessionTest, YieldsAfterBoundedPacketBatch) {
 
 TEST_F(InputGamepadSessionTest, BatchesContinuousPacketsWithoutCrossingStateChanges) {
   ASSERT_FALSE(infrastructure_.scheduler().running());
-  config::input.mouse = false;
-  config::input.controller = false;
-  config::input.native_pen_touch = false;
+  config_.edit_startup().input.mouse = false;
+  config_.edit_startup().input.controller = false;
+  config_.edit_startup().input.native_pen_touch = false;
   input::testing::set_input_task_sink(inputs_, [](std::shared_ptr<input::input_t>) {
   });
 
@@ -522,11 +522,11 @@ TEST_F(InputGamepadSessionTest, RefreshesSharedVirtualInputAfterLicenseStateChan
 
 TEST_F(InputGamepadSessionTest, IndependentHostServicesDoNotShareRetainedSessionsOrGamepadSlots) {
   runtime::infrastructure_t other_infrastructure;
-  input::service_t other_inputs {other_infrastructure.scheduler(), other_infrastructure.mailbox(), other_infrastructure.cursor()};
-  auto other_platform = platf::input(other_infrastructure.scheduler());
+  input::service_t other_inputs {config_.values(), other_infrastructure.scheduler(), other_infrastructure.mailbox(), other_infrastructure.cursor()};
+  auto other_platform = platf::input(config_.values(), other_infrastructure.scheduler());
   ASSERT_TRUE(other_platform);
   auto &other_context = platf::virtualhid::get_input_context(other_platform);
-  other_context = platf::virtualhid::input_context_t {lvh::BackendKind::fake};
+  other_context = platf::virtualhid::input_context_t {config_.values(), lvh::BackendKind::fake};
   input::testing::set_platform_input(other_inputs, std::move(other_platform));
 
   auto first = inputs_.alloc(std::make_shared<safe::mail_raw_t>(), "same-client");
@@ -591,4 +591,69 @@ TEST_F(InputGamepadSessionTest, RetargetsRelativeMouseFromLatestStreamGeometry) 
   EXPECT_EQ(mouse_event.x, -5);
   EXPECT_EQ(mouse_event.y, 9);
   EXPECT_EQ(context().mouse_viewport.offset_x, 0);
+}
+
+TEST_F(InputGamepadSessionTest, LicensedBackendChoiceIsSerializedWithoutChangingStartupSettings) {
+  const auto path = std::filesystem::temp_directory_path() / "sunshine_test_runtime_gamepad_policy.conf";  // NOSONAR(cpp:S5443): safe for tests
+  std::filesystem::remove(path);
+  const auto remove_file = util::fail_guard([&]() {
+    std::filesystem::remove(path);
+  });
+  config_.edit_startup().sunshine.config_file = path.string();
+  infrastructure_.scheduler().start(1);
+  const auto stop_worker = util::fail_guard([&]() {
+    infrastructure_.scheduler().stop();
+    infrastructure_.scheduler().join();
+  });
+
+  EXPECT_FALSE(inputs_.select_all_gamepad_drivers_if_licensed(config_, false));
+  EXPECT_TRUE(inputs_.select_all_gamepad_drivers_if_licensed(config_, true));
+  EXPECT_EQ(inputs_.configuration_snapshot().gamepad_driver, config::GAMEPAD_DRIVER_ALL);
+  EXPECT_EQ(context().gamepad_driver, config::GAMEPAD_DRIVER_ALL);
+  EXPECT_TRUE(config_.values().input.gamepad_driver.empty());
+  EXPECT_EQ(file_handler::read_file(path.string().c_str()), "gamepad_driver = all\n");
+  EXPECT_FALSE(inputs_.select_all_gamepad_drivers_if_licensed(config_, true));
+  EXPECT_FALSE(inputs_.probe_gamepads());
+  auto snapshot = inputs_.configuration_snapshot();
+  snapshot.gamepad_driver = config::GAMEPAD_DRIVER_NONE;
+  EXPECT_EQ(inputs_.configuration_snapshot().gamepad_driver, config::GAMEPAD_DRIVER_ALL);
+}
+
+TEST_F(InputGamepadSessionTest, LicensedBackendChoiceHonorsSavedPreferencesAndPersistenceFailures) {
+  const auto path = std::filesystem::temp_directory_path() / "sunshine_test_existing_gamepad_policy.conf";  // NOSONAR(cpp:S5443): safe for tests
+  const auto remove_file = util::fail_guard([&]() {
+    std::filesystem::remove(path);
+  });
+  config_.edit_startup().sunshine.config_file = path.string();
+  ASSERT_EQ(file_handler::write_file(path.string().c_str(), "gamepad_driver = vigembus\n"), 0);
+  EXPECT_FALSE(inputs_.select_all_gamepad_drivers_if_licensed(config_, true));
+  EXPECT_TRUE(inputs_.configuration_snapshot().gamepad_driver.empty());
+  EXPECT_EQ(file_handler::read_file(path.string().c_str()), "gamepad_driver = vigembus\n");
+
+  config_.edit_startup().sunshine.config_file.clear();
+  EXPECT_FALSE(inputs_.select_all_gamepad_drivers_if_licensed(config_, true));
+  EXPECT_TRUE(inputs_.configuration_snapshot().gamepad_driver.empty());
+}
+
+TEST_F(InputGamepadSessionTest, LicensedBackendChoiceCanPrecedePlatformInitialization) {
+  const auto path = std::filesystem::temp_directory_path() / "sunshine_test_inactive_gamepad_policy.conf";  // NOSONAR(cpp:S5443): safe for tests
+  std::filesystem::remove(path);
+  const auto remove_file = util::fail_guard([&]() {
+    std::filesystem::remove(path);
+  });
+  config_.edit_startup().sunshine.config_file = path.string();
+  input::service_t inactive {config_.values(), infrastructure_.scheduler(), infrastructure_.mailbox(), infrastructure_.cursor()};
+
+  EXPECT_TRUE(inactive.select_all_gamepad_drivers_if_licensed(config_, true));
+  EXPECT_EQ(inactive.configuration_snapshot().gamepad_driver, config::GAMEPAD_DRIVER_ALL);
+  EXPECT_TRUE(inputs_.configuration_snapshot().gamepad_driver.empty());
+}
+
+TEST_F(InputGamepadSessionTest, ExplicitStartupBackendChoiceRemainsSelectedAfterLicensing) {
+  config::store_t explicit_config;
+  explicit_config.edit_startup().input.gamepad_driver = config::GAMEPAD_DRIVER_NONE;
+  input::service_t explicit_inputs {explicit_config.values(), infrastructure_.scheduler(), infrastructure_.mailbox(), infrastructure_.cursor()};
+
+  EXPECT_FALSE(explicit_inputs.select_all_gamepad_drivers_if_licensed(explicit_config, true));
+  EXPECT_EQ(explicit_inputs.configuration_snapshot().gamepad_driver, config::GAMEPAD_DRIVER_NONE);
 }

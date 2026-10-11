@@ -61,7 +61,8 @@ protected:
 
   mutable int time_offset {};  ///< Timestamp offset local to this fixture.
   fs::path test_dir;
-  proc::proc_t process;  ///< Process and configuration cache owned by each fixture.
+  config::settings_t settings;  ///< Configuration owned by each process fixture.
+  proc::proc_t process {settings};  ///< Process and configuration cache owned by each fixture.
 };
 
 // Tests for check_valid_png function
@@ -344,7 +345,8 @@ protected:
 
   mutable int time_offset {};  ///< Timestamp offset local to this fixture.
   fs::path test_dir;
-  proc::proc_t process;  ///< Process and configuration cache owned by each fixture.
+  config::settings_t settings;  ///< Configuration owned by each process fixture.
+  proc::proc_t process {settings};  ///< Process and configuration cache owned by each fixture.
 };
 
 /**
@@ -352,7 +354,7 @@ protected:
  */
 class ProcessUpdateTest: public ProcessRefreshTest {  // NOSONAR(cpp:S3656): protected members are intentional for test fixture subclassing
 protected:
-  proc::proc_t saved_process;
+  proc::proc_t saved_process {settings};
 
   void SetUp() override {
     ProcessRefreshTest::SetUp();
@@ -366,7 +368,7 @@ protected:
     ctx.id = "42";
     apps_initial.push_back(std::move(ctx));
 
-    proc::proc_t target(std::move(env), std::move(apps_initial));
+    proc::proc_t target(settings, std::move(env), std::move(apps_initial));
     process = std::move(target);
 
     auto launch_session = std::make_shared<rtsp_stream::launch_session_t>();
@@ -400,7 +402,7 @@ protected:
     ctx_new.name = "NewApp";
     ctx_new.id = "99";
     apps_new.push_back(std::move(ctx_new));
-    return proc::proc_t(std::move(env2), std::move(apps_new));
+    return proc::proc_t(settings, std::move(env2), std::move(apps_new));
   }
 };
 
@@ -413,7 +415,7 @@ TEST_F(ProcessRefreshTest, UpdateAppsAndEnv_UpdatesAppsList) {
   ctx_a.id = "100";
   apps_initial.push_back(std::move(ctx_a));
 
-  proc::proc_t target(std::move(env), std::move(apps_initial));
+  proc::proc_t target(settings, std::move(env), std::move(apps_initial));
   ASSERT_EQ(target.get_apps().size(), 1u);
   EXPECT_EQ(target.get_apps()[0].name, "AppA");
 
@@ -429,7 +431,7 @@ TEST_F(ProcessRefreshTest, UpdateAppsAndEnv_UpdatesAppsList) {
   ctx_c.id = "300";
   apps_new.push_back(std::move(ctx_c));
 
-  proc::proc_t source(std::move(env2), std::move(apps_new));
+  proc::proc_t source(settings, std::move(env2), std::move(apps_new));
 
   // Act
   target.update_apps_and_env(std::move(source));
@@ -469,7 +471,7 @@ TEST_F(ProcessRefreshTest, Refresh_ParsesFileOnFirstCall) {
 
   // Save and clear the fixture-owned process manager
   auto saved = std::move(process);
-  process = proc::proc_t {};
+  process = proc::proc_t {settings};
 
   ASSERT_TRUE(process.get_apps().empty());
 
@@ -490,7 +492,7 @@ TEST_F(ProcessRefreshTest, Refresh_SkipsUnchangedFile) {
   writeAppsJson(apps_file, {"OriginalApp"});
 
   auto saved = std::move(process);
-  process = proc::proc_t {};
+  process = proc::proc_t {settings};
 
   // First refresh — should parse
   process.refresh(apps_file.string());
@@ -513,7 +515,7 @@ TEST_F(ProcessRefreshTest, Refresh_ReparseAfterFileModified) {
   writeAppsJson(apps_file, {"BeforeEdit"});
 
   auto saved = std::move(process);
-  process = proc::proc_t {};
+  process = proc::proc_t {settings};
 
   process.refresh(apps_file.string());
   ASSERT_EQ(process.get_apps().size(), 1u);
@@ -535,7 +537,7 @@ TEST_F(ProcessRefreshTest, Refresh_ReparseAfterFileMtimeDecreased) {
   writeAppsJson(apps_file, {"Initial"});
 
   auto saved = std::move(process);
-  process = proc::proc_t {};
+  process = proc::proc_t {settings};
 
   process.refresh(apps_file.string());
   ASSERT_EQ(process.get_apps().size(), 1u);
@@ -562,7 +564,7 @@ TEST_F(ProcessRefreshTest, Refresh_PreservesRunningAppDuringReparse) {
   writeAppsJson(apps_file, {"Desktop"});
 
   auto saved = std::move(process);
-  process = proc::proc_t {};
+  process = proc::proc_t {settings};
 
   // Initial parse
   process.refresh(apps_file.string());
@@ -632,8 +634,8 @@ TEST_F(ProcessRefreshTest, FileTimeType_DefaultValueComparison) {
 TEST_F(ProcessRefreshTest, IndependentOwnersParseAnUnchangedFile) {
   const auto apps_file = test_dir / "independent.json";
   writeAppsJson(apps_file, {"Shared configuration"});
-  proc::proc_t first;
-  proc::proc_t second;
+  proc::proc_t first {settings};
+  proc::proc_t second {settings};
   first.refresh(apps_file.string());
   second.refresh(apps_file.string());
   ASSERT_EQ(first.get_apps().size(), 1u);
@@ -659,7 +661,7 @@ TEST_F(ProcessUpdateTest, MoveConstructionTransfersActiveApplication) {
  * @brief Move assignment preserves active state, including when assigning an owner to itself.
  */
 TEST_F(ProcessUpdateTest, MoveAssignmentTransfersAndSelfAssignmentPreservesApplication) {
-  proc::proc_t destination;
+  proc::proc_t destination {settings};
   destination = std::move(process);
   EXPECT_EQ(destination.running(), 42);
   EXPECT_EQ(process.running(), 0);
@@ -668,4 +670,28 @@ TEST_F(ProcessUpdateTest, MoveAssignmentTransfersAndSelfAssignmentPreservesAppli
   EXPECT_EQ(destination.running(), 42);
   destination.terminate();
   EXPECT_EQ(destination.running(), 0);
+}
+
+/**
+ * @brief Application parsing reads preparation commands from the supplied configuration owner.
+ */
+TEST_F(ProcessRefreshTest, IndependentConfigurationOwnersSupplyTheirOwnPreparationCommands) {
+  const auto file = test_dir / "owned_configuration.json";
+  writeAppsJson(file, {"Configured application"});
+  config::settings_t first_settings;
+  config::settings_t second_settings;
+  first_settings.sunshine.prep_cmds.emplace_back(std::string {"first"}, false);
+  second_settings.sunshine.prep_cmds.emplace_back(std::string {"second"}, true);
+  proc::proc_t first {first_settings};
+  proc::proc_t second {second_settings};
+  first.refresh(file.string());
+  second.refresh(file.string());
+  ASSERT_EQ(first.get_apps().size(), 1u);
+  ASSERT_EQ(second.get_apps().size(), 1u);
+  ASSERT_EQ(first.get_apps().front().prep_cmds.size(), 1u);
+  ASSERT_EQ(second.get_apps().front().prep_cmds.size(), 1u);
+  EXPECT_EQ(first.get_apps().front().prep_cmds.front().do_cmd, "first");
+  EXPECT_FALSE(first.get_apps().front().prep_cmds.front().elevated);
+  EXPECT_EQ(second.get_apps().front().prep_cmds.front().do_cmd, "second");
+  EXPECT_TRUE(second.get_apps().front().prep_cmds.front().elevated);
 }

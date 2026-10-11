@@ -973,6 +973,15 @@ namespace pipewire {
   class pipewire_display_t: public platf::display_t {
   public:
     /**
+     * @brief Bind host codec policy to a PipeWire capture.
+     * @param settings Host settings.
+     */
+    explicit pipewire_display_t(const config::settings_t &settings):
+        settings(settings) {}
+
+    const config::settings_t &settings;  ///< Host codec policy.
+
+    /**
      * @brief Initialize pipewire and check hwdevice type.
      *
      * @param hwdevice_type Hardware device type requested for capture or encode.
@@ -1289,13 +1298,13 @@ namespace pipewire {
     std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(platf::pix_fmt_e pix_fmt) override {
 #ifdef SUNSHINE_BUILD_VAAPI
       if (mem_type == platf::mem_type_e::vaapi) {
-        return va::make_avcodec_encode_device(width, height, n_dmabuf_infos > 0);
+        return va::make_avcodec_encode_device(settings, width, height, n_dmabuf_infos > 0);
       }
 #endif
 
 #ifdef SUNSHINE_BUILD_VULKAN
       if (mem_type == platf::mem_type_e::vulkan && n_dmabuf_infos > 0) {
-        return vk::make_avcodec_encode_device_vram(width, height, 0, 0);
+        return vk::make_avcodec_encode_device_vram(settings, width, height, 0, 0);
       }
 #endif
 

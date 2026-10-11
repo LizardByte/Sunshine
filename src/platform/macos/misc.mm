@@ -210,7 +210,7 @@ namespace platf {
     return !has_custom_sink && !previously_requested;
   }
 
-  std::vector<permission_status_t> get_permission_statuses() {
+  std::vector<permission_status_t> get_permission_statuses(const config::settings_t &settings) {
     const auto microphone_authorization = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio];
     std::string microphone_status = "unknown";
     switch (microphone_authorization) {
@@ -238,9 +238,9 @@ namespace platf {
 
     std::vector<permission_status_t> statuses {
       {"screen_recording", screen_granted ? "granted" : "denied", true, true, true},
-      {"input", input_granted ? "granted" : "denied", config::input.keyboard || config::input.mouse, true, true},
-      {"microphone", microphone_status, !config::audio.sink.empty(), true, true},
-      {"system_audio", "on_use", config::audio.sink.empty(), false, true},
+      {"input", input_granted ? "granted" : "denied", settings.input.keyboard || settings.input.mouse, true, true},
+      {"microphone", microphone_status, !settings.audio.sink.empty(), true, true},
+      {"system_audio", "on_use", settings.audio.sink.empty(), false, true},
     };
     if (supports_local_network_privacy(static_cast<int>([[NSProcessInfo processInfo] operatingSystemVersion].majorVersion))) {
       statuses.push_back({"local_network", "on_use", true, false, true});
@@ -302,8 +302,8 @@ namespace platf {
     return false;
   }
 
-  void request_startup_permissions(bool notifications_enabled) {
-    for (const auto &permission : get_permission_statuses()) {
+  void request_startup_permissions(const config::settings_t &settings, bool notifications_enabled) {
+    for (const auto &permission : get_permission_statuses(settings)) {
       if (should_request_startup_permission(permission, notifications_enabled)) {
         if (permission.id == "screen_recording") {
           request_screen_recording(true);
@@ -316,9 +316,9 @@ namespace platf {
     }
   }
 
-  void request_startup_system_audio_permission() {
+  void request_startup_system_audio_permission(const config::settings_t &settings) {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    if (!should_request_startup_system_audio_permission(!config::audio.sink.empty(), [defaults boolForKey:system_audio_requested_key])) {
+    if (!should_request_startup_system_audio_permission(!settings.audio.sink.empty(), [defaults boolForKey:system_audio_requested_key])) {
       return;
     }
     [defaults setBool:YES forKey:system_audio_requested_key];
@@ -335,7 +335,7 @@ namespace platf {
     return screen_capture_allowed;
   }
 
-  std::unique_ptr<deinit_t> init() {
+  std::unique_ptr<deinit_t> init(const config::settings_t &settings) {
     if (!screen_recording_granted()) {
       BOOST_LOG(error) << "No screen capture permission!"sv;
       BOOST_LOG(error) << "Please activate Sunshine in System Settings -> Privacy & Security -> Screen & System Audio Recording"sv;
@@ -550,6 +550,7 @@ namespace platf {
    * signals (SIGINT, SIGTERM, SIGHUP) to the child and blocks in waitpid().
    * This keeps the shell tracking the original PID as its foreground job,
    * preserving Ctrl+C and terminal log output.
+   * @param argv Arguments used to launch the replacement Sunshine process.
    */
   void restart_on_exit(char **argv) {
     char executable[2048];
@@ -898,7 +899,7 @@ namespace platf {
     return std::make_unique<macos_high_precision_timer>();
   }
 
-  std::string resolve_render_device() {
+  std::string resolve_render_device(const config::settings_t &settings) {
     return {};
   }
 }  // namespace platf
@@ -950,28 +951,31 @@ namespace platf {
    * @brief Own the macOS platform initialization and explicit display manager.
    */
   struct runtime_t::impl_t {
+    const config::settings_t &settings;  ///< Immutable settings for this platform owner.
     display_device::manager_t &displays;  ///< Display manager for discovery.
     std::unique_ptr<deinit_t> initialization;  ///< Native initialization lifetime.
 
     /**
      * @brief Bind display discovery.
+     * @param settings Immutable startup settings for this host.
      * @param displays Display manager.
      */
-    explicit impl_t(display_device::manager_t &displays):
+    explicit impl_t(const config::settings_t &settings, display_device::manager_t &displays):
+        settings(settings),
         displays(displays) {}
   };
 
   std::shared_ptr<display_t> mac_display(mem_type_e type, const std::string &name, const video::config_t &config, display_device::manager_t &displays);
   std::vector<std::string> mac_display_names(mem_type_e type, display_device::manager_t &displays);
 
-  runtime_t::runtime_t(safe::mail_t, thread_pool_util::ThreadPool &, lifetime::controller_t &, display_device::manager_t &displays):
-      impl(std::make_shared<impl_t>(displays)) {}
+  runtime_t::runtime_t(const config::settings_t &settings, safe::mail_t, thread_pool_util::ThreadPool &, lifetime::controller_t &, display_device::manager_t &displays):
+      impl(std::make_shared<impl_t>(settings, displays)) {}
 
   runtime_t::~runtime_t() = default;
 
   bool runtime_t::initialize() {
     if (!impl->initialization) {
-      impl->initialization = platf::init();
+      impl->initialization = platf::init(impl->settings);
     }
     return static_cast<bool>(impl->initialization);
   }

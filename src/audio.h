@@ -87,6 +87,7 @@ namespace audio {
     std::unique_ptr<platf::audio_control_t> control;  ///< Platform audio-control implementation.
 
     bool restore_sink;  ///< Whether Sunshine should restore the original sink when capture ends.
+    std::string fallback_sink;  ///< Configured sink captured for this context lifetime.
     platf::sink_t sink;  ///< Original sink captured before Sunshine switched devices.
   };
 
@@ -99,31 +100,49 @@ namespace audio {
    */
   using packet_t = std::pair<void *, buffer_t>;
   /**
-   * @brief Shared mailbox reference to the global audio context.
+   * @brief Shared reference retaining one audio owner and its lazy context.
    */
-  using audio_ctx_ref_t = safe::shared_t<audio_ctx_t>::ptr_t;
+  using audio_ctx_ref_t = std::shared_ptr<audio_ctx_t>;
 
   /**
-   * @brief Capture, encode, and publish audio packets for a stream.
-   *
-   * @param host_mail Host mailbox used to publish encoded audio packets.
-   * @param mail Session mailbox used for capture shutdown.
-   * @param config Audio capture and encoder settings.
-   * @param channel_data Platform-specific capture channel pointer.
+   * @brief Own the audio control context shared by captures and display restoration.
    */
-  void capture(safe::mail_t host_mail, safe::mail_t mail, config_t config, void *channel_data);
+  class service_t {
+  public:
+    /**
+     * @brief Bind host configuration and packet delivery without opening audio devices.
+     * @param settings Application startup settings that outlive this owner and retained contexts.
+     * @param host_mail Host mailbox receiving encoded packets.
+     */
+    service_t(const config::settings_t &settings, safe::mail_t host_mail);
+    /**
+     * @brief Bind an explicit audio backend factory for controlled initialization.
+     * @param settings Host audio configuration that outlives retained context references.
+     * @param host_mail Host packet mailbox.
+     * @param factory Factory invoked when the first context reference is acquired.
+     */
+    service_t(const config::settings_t &settings, safe::mail_t host_mail, std::function<std::unique_ptr<platf::audio_control_t>()> factory);
+    /** @brief Release audio resources after retained context references finish. */
+    ~service_t();
+    service_t(const service_t &) = delete;
+    service_t &operator=(const service_t &) = delete;
+    /**
+     * @brief Capture and publish audio for one transport session.
+     * @param mail Session shutdown mailbox.
+     * @param config Negotiated audio layout and encoding settings.
+     * @param channel_data Session pointer carried by encoded packets.
+     */
+    void capture(safe::mail_t mail, config_t config, void *channel_data);
+    /**
+     * @brief Retain the shared audio control and original sink until it can be restored.
+     * @return Retained context; its control is null when backend initialization failed.
+     */
+    audio_ctx_ref_t context();
 
-  /**
-   * @brief Get the reference to the audio context.
-   * @returns A shared pointer reference to audio context.
-   * @note Aside from the configuration purposes, it can be used to extend the
-   *       audio sink lifetime to capture sink earlier and restore it later.
-   *
-   * @examples
-   * audio_ctx_ref_t audio = get_audio_ctx_ref()
-   * @examples_end
-   */
-  audio_ctx_ref_t get_audio_ctx_ref();
+  private:
+    struct impl_t;  ///< Lazy audio control and its explicit dependencies.
+    std::shared_ptr<impl_t> impl;  ///< Retained by active captures and context references.
+  };
 
   /**
    * @brief Check if the audio sink held by audio context is available.
@@ -132,7 +151,7 @@ namespace audio {
    *       tries to restore original sink).
    *
    * @examples
-   * audio_ctx_ref_t audio = get_audio_ctx_ref()
+   * audio_ctx_ref_t audio = audios.context()
    * if (audio.get()) {
    *     return is_audio_ctx_sink_available(*audio.get());
    * }

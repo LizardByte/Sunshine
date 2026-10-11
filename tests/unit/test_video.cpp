@@ -69,9 +69,11 @@ TEST(VideoFormatMappingTest, MapsSupportedPixelFormatsAndRejectsUnsupportedOnes)
 }
 
 TEST(VideoServiceOwnershipTest, SnapshotChangesDoNotMutateServiceStateAndUnprobedCaptureStopsItsSession) {
+  const config::store_t config;
   runtime::infrastructure_t infrastructure;
   display_device::manager_t displays;
   platf::runtime_t platform {
+    config.values(),
     infrastructure.mailbox(),
     infrastructure.scheduler(),
     infrastructure.lifetime(),
@@ -81,8 +83,8 @@ TEST(VideoServiceOwnershipTest, SnapshotChangesDoNotMutateServiceStateAndUnprobe
     infrastructure.preferences()
 #endif
   };
-  video::service_t first {infrastructure.mailbox(), infrastructure.cursor(), displays, platform};
-  video::service_t second {std::make_shared<safe::mail_raw_t>(), infrastructure.cursor(), displays, platform};
+  video::service_t first {config.values(), infrastructure.mailbox(), infrastructure.cursor(), displays, platform};
+  video::service_t second {config.values(), std::make_shared<safe::mail_raw_t>(), infrastructure.cursor(), displays, platform};
   auto snapshot = first.capabilities();
   snapshot.active_hevc_mode = 5;
   snapshot.yuv444.fill(true);
@@ -97,24 +99,32 @@ TEST(VideoServiceOwnershipTest, SnapshotChangesDoNotMutateServiceStateAndUnprobe
 }
 
 TEST(VideoEncoderOwnershipTest, DescriptorCopiesKeepProbeCapabilitiesIndependent) {
-  auto first = video::software;
-  auto second = video::software;
+  const config::store_t config;
+  auto prototype = video::make_software(config.values());
+  auto first = prototype;
+  auto second = prototype;
   first.h264[video::encoder_t::PASSED] = true;
   first.hevc[video::encoder_t::DYNAMIC_RANGE] = true;
   EXPECT_FALSE(second.h264[video::encoder_t::PASSED]);
   EXPECT_FALSE(second.hevc[video::encoder_t::DYNAMIC_RANGE]);
-  EXPECT_FALSE(video::software.h264[video::encoder_t::PASSED]);
+  EXPECT_FALSE(prototype.h264[video::encoder_t::PASSED]);
   EXPECT_EQ(first.platform_formats, second.platform_formats);
 }
 
-struct EncoderTest: PlatformTestSuite, testing::WithParamInterface<const video::encoder_t *> {
+/**
+ * @brief Factory constructing an encoder descriptor for one immutable host configuration.
+ */
+using EncoderFactory = video::encoder_t (*)(const config::settings_t &);
+
+struct EncoderTest: PlatformTestSuite, testing::WithParamInterface<EncoderFactory> {
+  config::store_t config_;  ///< Immutable encoder fixture configuration.
   runtime::infrastructure_t infrastructure_;  ///< Infrastructure owned by this encoder fixture.
   display_device::manager_t displays_;  ///< Display configuration owner for encoder validation.
-  video::service_t videos_ {infrastructure_.mailbox(), infrastructure_.cursor(), displays_, platform()};  ///< Fixture-owned video service.
+  video::service_t videos_ {config_.values(), infrastructure_.mailbox(), infrastructure_.cursor(), displays_, platform()};  ///< Fixture-owned video service.
 
   void SetUp() override {
     BaseTest::SetUp();
-    auto encoder = *GetParam();
+    auto encoder = GetParam()(config_.values());
     if (!videos_.validate_encoder(encoder, false)) {
       // Encoder failed validation,
       // if it's software - fail, otherwise skip
@@ -132,43 +142,46 @@ INSTANTIATE_TEST_SUITE_P(
   EncoderTest,
   testing::Values(
 #if !defined(__APPLE__)
-    &video::nvenc,
+    &video::make_nvenc,
 #endif
 #ifdef _WIN32
-    &video::amdvce,
-    &video::quicksync,
+    &video::make_amdvce,
+    &video::make_quicksync,
 #endif
 #if defined(__linux__) || defined(__FreeBSD__)
-    &video::vaapi,
+    &video::make_vaapi,
 #endif
 #ifdef __APPLE__
-    &video::videotoolbox,
+    &video::make_videotoolbox,
 #endif
-    &video::software
+    &video::make_software
   ),
   [](const auto &info) {
-    return std::string(info.param->name);
+    const config::store_t config;
+    return std::string(info.param(config.values()).name);
   }
 );
 
 #if !defined(_WIN32) && !defined(__APPLE__)
 TEST(NvencAvcodecOptionsTest, UsesVersionStablePresetAndSpatialAqNames) {
+  const config::store_t config;
+  const auto encoder = video::make_nvenc(config.values());
   const std::array codecs {
-    &video::nvenc.av1,
-    &video::nvenc.hevc,
-    &video::nvenc.h264,
+    &encoder.av1,
+    &encoder.hevc,
+    &encoder.h264,
   };
 
   for (const auto *codec : codecs) {
     const auto preset = std::ranges::find(codec->common_options, "preset"sv, &video::encoder_t::option_t::name);
     ASSERT_NE(codec->common_options.end(), preset);
-    ASSERT_TRUE(std::holds_alternative<std::string *>(preset->value));
-    EXPECT_EQ(&config::video.nv_legacy.preset, std::get<std::string *>(preset->value));
+    ASSERT_TRUE(std::holds_alternative<const std::string *>(preset->value));
+    EXPECT_EQ(&config.values().video.nv_legacy.preset, std::get<const std::string *>(preset->value));
 
     const auto spatial_aq = std::ranges::find(codec->common_options, "spatial-aq"sv, &video::encoder_t::option_t::name);
     ASSERT_NE(codec->common_options.end(), spatial_aq);
-    ASSERT_TRUE(std::holds_alternative<int *>(spatial_aq->value));
-    EXPECT_EQ(&config::video.nv_legacy.spatial_aq, std::get<int *>(spatial_aq->value));
+    ASSERT_TRUE(std::holds_alternative<const int *>(spatial_aq->value));
+    EXPECT_EQ(&config.values().video.nv_legacy.spatial_aq, std::get<const int *>(spatial_aq->value));
 
     EXPECT_EQ(
       codec->common_options.end(),
@@ -264,20 +277,26 @@ INSTANTIATE_TEST_SUITE_P(
 
 #ifdef _WIN32
 TEST(AmfH264OptionsTest, CoderUsesConfiguredValue) {
-  const auto coder_option = std::ranges::find(video::amdvce.h264.common_options, "coder"sv, &video::encoder_t::option_t::name);
+  const config::store_t config;
+  const auto encoder = video::make_amdvce(config.values());
+  const auto coder_option = std::ranges::find(encoder.h264.common_options, "coder"sv, &video::encoder_t::option_t::name);
 
-  ASSERT_NE(video::amdvce.h264.common_options.end(), coder_option);
-  ASSERT_TRUE(std::holds_alternative<int *>(coder_option->value));
-  EXPECT_EQ(&config::video.amd.amd_coder, std::get<int *>(coder_option->value));
+  ASSERT_NE(encoder.h264.common_options.end(), coder_option);
+  ASSERT_TRUE(std::holds_alternative<const int *>(coder_option->value));
+  EXPECT_EQ(&config.values().video.amd.amd_coder, std::get<const int *>(coder_option->value));
 }
 
 /**
  * @brief Parameterized coverage for the AMF maximum access-unit-size option mappings.
  */
-struct AmfMaxAuSizeOptionsTest: testing::TestWithParam<std::tuple<const video::encoder_t::codec_t *, bool>> {};
+struct AmfMaxAuSizeOptionsTest: testing::TestWithParam<std::tuple<int, bool>> {};
 
 TEST_P(AmfMaxAuSizeOptionsTest, UsesConfiguredValueForSupportedCodecsOnly) {
-  const auto &[codec, supported] = GetParam();
+  const auto &[index, supported] = GetParam();
+  const config::store_t config;
+  const auto encoder = video::make_amdvce(config.values());
+  const auto *codec = index == 0 ? &encoder.h264 : index == 1 ? &encoder.hevc :
+                                                                &encoder.av1;
   const auto option = std::ranges::find(codec->common_options, "max_au_size"sv, &video::encoder_t::option_t::name);
 
   if (!supported) {
@@ -286,17 +305,17 @@ TEST_P(AmfMaxAuSizeOptionsTest, UsesConfiguredValueForSupportedCodecsOnly) {
   }
 
   ASSERT_NE(codec->common_options.end(), option);
-  ASSERT_TRUE(std::holds_alternative<std::optional<int> *>(option->value));
-  EXPECT_EQ(&config::video.amd.amd_max_au_size, std::get<std::optional<int> *>(option->value));
+  ASSERT_TRUE(std::holds_alternative<const std::optional<int> *>(option->value));
+  EXPECT_EQ(&config.values().video.amd.amd_max_au_size, std::get<const std::optional<int> *>(option->value));
 }
 
 INSTANTIATE_TEST_SUITE_P(
   AmfCodecOptions,
   AmfMaxAuSizeOptionsTest,
   testing::Values(
-    std::make_tuple(&video::amdvce.h264, true),
-    std::make_tuple(&video::amdvce.hevc, true),
-    std::make_tuple(&video::amdvce.av1, false)
+    std::make_tuple(0, true),
+    std::make_tuple(1, true),
+    std::make_tuple(2, false)
   )
 );
 #endif
@@ -309,35 +328,18 @@ using AmfMaxAuSizeConfigParam = std::tuple<std::string_view, std::optional<int>>
 struct AmfMaxAuSizeConfigTest: BaseTest, testing::WithParamInterface<AmfMaxAuSizeConfigParam> {
   void SetUp() override {
     BaseTest::SetUp();
-    config::video.amd.amd_max_au_size.reset();
-    config::stream.file_apps = SUNSHINE_SOURCE_DIR "/tests/unit/test_video.cpp";
+    config_.edit_startup().video.amd.amd_max_au_size.reset();
+    config_.edit_startup().stream.file_apps = SUNSHINE_SOURCE_DIR "/tests/unit/test_video.cpp";
   }
 
-  void TearDown() override {
-    config::video = original_video;
-    config::audio = original_audio;
-    config::stream = original_stream;
-    config::nvhttp = original_nvhttp;
-    config::input = original_input;
-    config::sunshine = original_sunshine;
-    config::modified_config_settings = original_modified_config_settings;
-    BaseTest::TearDown();
-  }
-
-  config::video_t original_video {config::video};  ///< Video configuration restored after each parameterized test.
-  config::audio_t original_audio {config::audio};  ///< Audio configuration restored after each parameterized test.
-  config::stream_t original_stream {config::stream};  ///< Stream configuration restored after each parameterized test.
-  config::nvhttp_t original_nvhttp {config::nvhttp};  ///< HTTP configuration restored after each parameterized test.
-  config::input_t original_input {config::input};  ///< Input configuration restored after each parameterized test.
-  config::sunshine_t original_sunshine {config::sunshine};  ///< Core configuration restored after each parameterized test.
-  decltype(config::modified_config_settings) original_modified_config_settings {config::modified_config_settings};  ///< Modified settings restored after each parameterized test.
+  config::store_t config_;  ///< Configuration isolated to this parser test.
 };
 
 TEST_P(AmfMaxAuSizeConfigTest, AcceptsOnlyFfmpegSupportedRange) {
   const auto &[setting, expected] = GetParam();
-  config::apply_config_for_test(setting);
+  config_.apply_config_for_test(setting);
 
-  EXPECT_EQ(expected, config::video.amd.amd_max_au_size);
+  EXPECT_EQ(expected, config_.edit_startup().video.amd.amd_max_au_size);
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -440,7 +442,7 @@ TEST(SoftwareEncoderConversion, Bgr0AndNv12) {
   frame->height = h;
   frame->format = AV_PIX_FMT_YUV420P;
 
-  video::avcodec_software_encode_device_t device;
+  video::avcodec_software_encode_device_t device {2};
   ASSERT_EQ(device.init(w, h, frame, AV_PIX_FMT_YUV420P, false), 0);
   // set_frame() takes ownership of the frame; the device frees it on destruction.
   ASSERT_EQ(device.set_frame(frame, nullptr), 0);

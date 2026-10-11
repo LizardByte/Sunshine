@@ -245,7 +245,7 @@ namespace platf {
   /**
    * @brief ViGEm client connection and virtual gamepad collection.
    */
-  class vigem_t {
+  class vigem_t: public std::enable_shared_from_this<vigem_t> {
   public:
     /**
      * @brief Bind deferred gamepad work to the application scheduler.
@@ -255,6 +255,18 @@ namespace platf {
         scheduler(scheduler) {}
 
     thread_pool_util::ThreadPool &scheduler;  ///< Scheduler that outlives this input context.
+
+    /**
+     * @brief Queue native feedback while allowing a replaced backend to expire.
+     * @param callback Feedback operation invoked only while this owner remains alive.
+     */
+    void defer_feedback(std::function<void(vigem_t &)> callback) {
+      scheduler.push([owner = weak_from_this(), callback = std::move(callback)]() {
+        if (auto context = owner.lock()) {
+          callback(*context);
+        }
+      });
+    }
 
     /**
      * @brief Connect to ViGEm and prepare virtual gamepad slots.
@@ -390,6 +402,9 @@ namespace platf {
         gamepad.repeat_task = nullptr;
       }
 
+      if (gamepad.gp) {
+        vigem_target_x360_unregister_notification(gamepad.gp.get());
+      }
       if (gamepad.gp && vigem_target_is_attached(gamepad.gp.get())) {
         auto status = vigem_target_remove(client.get(), gamepad.gp.get());
         if (!VIGEM_SUCCESS(status)) {
@@ -475,6 +490,9 @@ namespace platf {
     ~vigem_t() {
       if (client) {
         for (auto &gamepad : gamepads) {
+          if (gamepad.gp) {
+            vigem_target_x360_unregister_notification(gamepad.gp.get());
+          }
           if (gamepad.gp && vigem_target_is_attached(gamepad.gp.get())) {
             auto status = vigem_target_remove(client.get(), gamepad.gp.get());
             if (!VIGEM_SUCCESS(status)) {
@@ -504,7 +522,10 @@ namespace platf {
       << "largeMotor: "sv << (int) largeMotor << std::endl
       << "smallMotor: "sv << (int) smallMotor;
 
-    static_cast<vigem_t *>(userdata)->scheduler.push(&vigem_t::rumble, (vigem_t *) userdata, target, largeMotor, smallMotor);
+    auto *context = static_cast<vigem_t *>(userdata);
+    context->defer_feedback([target, largeMotor, smallMotor](vigem_t &context) {
+      context.rumble(target, largeMotor, smallMotor);
+    });
   }
 
   void CALLBACK ds4_notify(
@@ -522,8 +543,11 @@ namespace platf {
       << util::hex(led_color.Green).to_string_view() << ' '
       << util::hex(led_color.Blue).to_string_view() << std::endl;
 
-    static_cast<vigem_t *>(userdata)->scheduler.push(&vigem_t::rumble, (vigem_t *) userdata, target, largeMotor, smallMotor);
-    static_cast<vigem_t *>(userdata)->scheduler.push(&vigem_t::set_rgb_led, (vigem_t *) userdata, target, led_color.Red, led_color.Green, led_color.Blue);
+    auto *context = static_cast<vigem_t *>(userdata);
+    context->defer_feedback([target, largeMotor, smallMotor, led_color](vigem_t &context) {
+      context.rumble(target, largeMotor, smallMotor);
+      context.set_rgb_led(target, led_color.Red, led_color.Green, led_color.Blue);
+    });
   }
 
   /**
@@ -532,14 +556,16 @@ namespace platf {
   struct input_raw_t {
     /**
      * @brief Bind input fallback resources to their scheduler.
+     * @param settings Immutable host input configuration.
      * @param scheduler Application scheduler.
      */
-    explicit input_raw_t(thread_pool_util::ThreadPool &scheduler):
-        scheduler(scheduler) {}
+    explicit input_raw_t(const config::settings_t &settings, thread_pool_util::ThreadPool &scheduler):
+        scheduler(scheduler),
+        virtualhid {settings} {}
 
     thread_pool_util::ThreadPool &scheduler;  ///< Application scheduler.
     virtualhid::input_context_t virtualhid;  ///< libvirtualhid input context.
-    std::unique_ptr<vigem_t> vigem;  ///< ViGEm fallback context.
+    std::shared_ptr<vigem_t> vigem;  ///< ViGEm fallback owner observed weakly by queued native callbacks.
   };
 
   /**
@@ -558,7 +584,7 @@ namespace platf {
 
     const auto &capabilities = raw.virtualhid.runtime->capabilities();
     const auto licensed = !capabilities.requires_installed_driver || lvh::get_license_status().license.licensed();
-    return virtualhid::should_use_gamepad_runtime(capabilities, config::input.gamepad_driver, licensed);
+    return virtualhid::should_use_gamepad_runtime(capabilities, raw.virtualhid.gamepad_driver, licensed);
   }
 
   /**
@@ -576,16 +602,16 @@ namespace platf {
     };
   }
 
-  input_t input(thread_pool_util::ThreadPool &scheduler) {
-    input_t result {new input_raw_t {scheduler}};
+  input_t input(const config::settings_t &settings, thread_pool_util::ThreadPool &scheduler) {
+    input_t result {new input_raw_t {settings, scheduler}};
 
-    if (auto &raw = *result; config::input.controller && !should_use_virtualhid_gamepads(raw) && virtualhid::should_try_vigembus_fallback(config::input.gamepad, false, config::input.gamepad_driver)) {
-      if (config::input.gamepad_driver == config::GAMEPAD_DRIVER_VIGEMBUS) {
+    if (auto &raw = *result; settings.input.controller && !should_use_virtualhid_gamepads(raw) && virtualhid::should_try_vigembus_fallback(settings.input.gamepad, false, settings.input.gamepad_driver)) {
+      if (settings.input.gamepad_driver == config::GAMEPAD_DRIVER_VIGEMBUS) {
         BOOST_LOG(info) << "ViGEmBus is selected as the only virtual gamepad driver"sv;
       } else if (raw.virtualhid.runtime && raw.virtualhid.runtime->capabilities().supports_gamepad) {
         BOOST_LOG(info) << "Virtual HID Driver license is not valid; using the ViGEmBus gamepad fallback"sv;
       }
-      auto vigem = std::make_unique<vigem_t>(scheduler);
+      auto vigem = std::make_shared<vigem_t>(scheduler);
       if (!vigem->init()) {
         raw.vigem = std::move(vigem);
       }
@@ -605,7 +631,7 @@ namespace platf {
       return true;
     }
 
-    auto vigem = std::make_unique<vigem_t>(raw->scheduler);
+    auto vigem = std::make_shared<vigem_t>(raw->scheduler);
     if (vigem->init()) {
       return false;
     }
@@ -617,21 +643,23 @@ namespace platf {
   /**
    * @brief Check and explain whether a gamepad allocation may use ViGEmBus.
    *
+   * @param settings Immutable host controller profile settings.
+   * @param driver Service-owned runtime driver policy.
    * @param virtualhid_selected Whether Virtual HID Driver was selected for the allocation.
    * @return True when the allocation may continue through ViGEmBus.
    */
-  bool should_allocate_vigembus_gamepad(const bool virtualhid_selected) {
-    if (!virtualhid::should_try_vigembus_fallback(config::input.gamepad, virtualhid_selected, config::input.gamepad_driver)) {
-      if (config::input.gamepad_driver == config::GAMEPAD_DRIVER_VIRTUALHID && !virtualhid_selected) {
+  bool should_allocate_vigembus_gamepad(const config::settings_t &settings, std::string_view driver, const bool virtualhid_selected) {
+    if (!virtualhid::should_try_vigembus_fallback(settings.input.gamepad, virtualhid_selected, driver)) {
+      if (driver == config::GAMEPAD_DRIVER_VIRTUALHID && !virtualhid_selected) {
         BOOST_LOG(warning) << "Virtual HID Driver is selected but is unavailable or unlicensed; ViGEmBus fallback is disabled by configuration"sv;
       } else {
-        BOOST_LOG(warning) << "libvirtualhid could not create the requested gamepad profile, and ViGEm fallback cannot emulate "sv << config::input.gamepad;
+        BOOST_LOG(warning) << "libvirtualhid could not create the requested gamepad profile, and ViGEm fallback cannot emulate "sv << settings.input.gamepad;
       }
       return false;
     }
 
-    if (!virtualhid_selected && !virtualhid::should_try_vigembus_fallback(config::input.gamepad, true, config::input.gamepad_driver)) {
-      BOOST_LOG(warning) << "Configured gamepad profile '"sv << config::input.gamepad
+    if (!virtualhid_selected && !virtualhid::should_try_vigembus_fallback(settings.input.gamepad, true, driver)) {
+      BOOST_LOG(warning) << "Configured gamepad profile '"sv << settings.input.gamepad
                          << "' is unavailable; using ViGEmBus automatic selection because Virtual HID Driver is not usable"sv;
     }
     return true;
@@ -640,6 +668,16 @@ namespace platf {
   virtualhid::input_context_t &virtualhid::get_input_context(input_t &input) {
     return input->virtualhid;
   }
+
+#ifdef SUNSHINE_TESTS
+  std::shared_ptr<void> virtualhid::queue_vigem_feedback_for_testing(thread_pool_util::ThreadPool &scheduler, std::function<void()> callback) {
+    auto owner = std::make_shared<vigem_t>(scheduler);
+    owner->defer_feedback([callback = std::move(callback)](vigem_t &) {
+      callback();
+    });
+    return owner;
+  }
+#endif
 
   std::optional<util::point_t> get_mouse_loc(input_t & /*input*/) {
     POINT p;
@@ -683,13 +721,14 @@ namespace platf {
 
   int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
     auto raw = (input_raw_t *) input.get();
+    const auto &settings = raw->virtualhid.settings.get();
     const auto use_virtualhid = should_use_virtualhid_gamepads(*raw);
 
     if (use_virtualhid && virtualhid::alloc_gamepad(raw->virtualhid, id, metadata, feedback_queue) == 0) {
       return 0;
     }
 
-    if (!should_allocate_vigembus_gamepad(use_virtualhid)) {
+    if (!should_allocate_vigembus_gamepad(raw->virtualhid.settings.get(), raw->virtualhid.gamepad_driver, use_virtualhid)) {
       return -1;
     }
 
@@ -699,10 +738,10 @@ namespace platf {
 
     VIGEM_TARGET_TYPE selectedGamepadType;
 
-    if (config::input.gamepad == "x360"sv) {
+    if (settings.input.gamepad == "x360"sv) {
       BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox 360 controller (manual selection)"sv;
       selectedGamepadType = Xbox360Wired;
-    } else if (config::input.gamepad == "ds4"sv) {
+    } else if (settings.input.gamepad == "ds4"sv) {
       BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 4 controller (manual selection)"sv;
       selectedGamepadType = DualShock4Wired;
     } else if (metadata.type == LI_CTYPE_PS) {
@@ -711,10 +750,10 @@ namespace platf {
     } else if (metadata.type == LI_CTYPE_XBOX) {
       BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox 360 controller (auto-selected by client-reported type)"sv;
       selectedGamepadType = Xbox360Wired;
-    } else if (config::input.motion_as_ds4 && (metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO))) {
+    } else if (settings.input.motion_as_ds4 && (metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO))) {
       BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 4 controller (auto-selected by motion sensor presence)"sv;
       selectedGamepadType = DualShock4Wired;
-    } else if (config::input.touchpad_as_ds4 && (metadata.capabilities & LI_CCAP_TOUCHPAD)) {
+    } else if (settings.input.touchpad_as_ds4 && (metadata.capabilities & LI_CCAP_TOUCHPAD)) {
       BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 4 controller (auto-selected by touchpad presence)"sv;
       selectedGamepadType = DualShock4Wired;
     } else {
@@ -931,7 +970,13 @@ namespace platf {
     return (DS4_BUTTONS) buttons;
   }
 
-  static DS4_SPECIAL_BUTTONS ds4_special_buttons(const gamepad_state_t &gamepad_state) {
+  /**
+   * @brief Map special DS4 buttons using this host's touchpad preferences.
+   * @param settings Immutable host input configuration.
+   * @param gamepad_state Client button and trigger state.
+   * @return Special button mask for the DS4 report.
+   */
+  static DS4_SPECIAL_BUTTONS ds4_special_buttons(const config::settings_t &settings, const gamepad_state_t &gamepad_state) {
     int buttons {};
 
     if (gamepad_state.buttonFlags & HOME) {
@@ -944,7 +989,7 @@ namespace platf {
     }
 
     // PlayStation-style emulation: check if BACK should also trigger touchpad click
-    if (config::input.ds4_back_as_touchpad_click && virtualhid::configured_gamepad_supports_touchpad() && (gamepad_state.buttonFlags & BACK)) {
+    if (settings.input.ds4_back_as_touchpad_click && virtualhid::configured_gamepad_supports_touchpad(settings) && (gamepad_state.buttonFlags & BACK)) {
       buttons |= DS4_SPECIAL_BUTTON_TOUCHPAD;
     }
 
@@ -963,14 +1008,15 @@ namespace platf {
 
   /**
    * @brief Update a DS4 report from Sunshine gamepad state.
+   * @param settings Immutable host input configuration.
    * @param gamepad The gamepad to update.
    * @param gamepad_state The gamepad button/axis state sent from the client.
    */
-  static void ds4_update_state(gamepad_context_t &gamepad, const gamepad_state_t &gamepad_state) {
+  static void ds4_update_state(const config::settings_t &settings, gamepad_context_t &gamepad, const gamepad_state_t &gamepad_state) {
     auto &report = gamepad.report.ds4.Report;
 
     report.wButtons = static_cast<uint16_t>(ds4_buttons(gamepad_state)) | static_cast<uint16_t>(ds4_dpad(gamepad_state));
-    report.bSpecial = ds4_special_buttons(gamepad_state);
+    report.bSpecial = ds4_special_buttons(settings, gamepad_state);
 
     report.bTriggerL = gamepad_state.lt;
     report.bTriggerR = gamepad_state.rt;
@@ -1013,7 +1059,13 @@ namespace platf {
 
       // Repeat at least every 100ms to keep the 16-bit timestamp field from overflowing
       gamepad.last_report_ts = now;
-      gamepad.repeat_task = vigem->scheduler.pushDelayed(ds4_update_ts_and_send, 100ms, vigem, nr).task_id;
+      gamepad.repeat_task = vigem->scheduler.pushDelayed([owner = vigem->weak_from_this(), nr]() {
+                                              if (auto context = owner.lock()) {
+                                                ds4_update_ts_and_send(context.get(), nr);
+                                              }
+                                            },
+                                                         100ms)
+                              .task_id;
     }
   }
 
@@ -1051,7 +1103,7 @@ namespace platf {
         BOOST_LOG(warning) << "Couldn't send gamepad input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
       }
     } else {
-      ds4_update_state(gamepad, gamepad_state);
+      ds4_update_state(raw->virtualhid.settings.get(), gamepad, gamepad_state);
       ds4_update_ts_and_send(vigem, nr);
     }
   }
@@ -1284,26 +1336,27 @@ namespace platf {
     std::default_delete<input_raw_t> {}(input);
   }
 
-  std::vector<supported_gamepad_t> &supported_gamepads(input_t *input) {
-    static std::vector<supported_gamepad_t> gps;
+  std::vector<supported_gamepad_t> supported_gamepads(input_t *input) {
+    std::vector<supported_gamepad_t> gps;
     if (!input || !input->get()) {
       gps = virtualhid::static_supported_gamepads();
       return gps;
     }
 
     const auto raw = (input_raw_t *) input->get();
-    if (config::input.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
+    const auto &driver = raw->virtualhid.gamepad_driver;
+    if (driver == config::GAMEPAD_DRIVER_NONE) {
       gps.clear();
       return gps;
     }
 
-    if (config::input.gamepad_driver == config::GAMEPAD_DRIVER_VIGEMBUS) {
+    if (driver == config::GAMEPAD_DRIVER_VIGEMBUS) {
       gps = vigembus_supported_gamepads(raw->vigem != nullptr);
       return gps;
     }
 
     if (!raw->virtualhid.runtime) {
-      if (config::input.gamepad_driver == config::GAMEPAD_DRIVER_VIRTUALHID) {
+      if (driver == config::GAMEPAD_DRIVER_VIRTUALHID) {
         gps = virtualhid::static_supported_gamepads();
         for (auto &gamepad : gps) {
           gamepad.is_enabled = false;
@@ -1317,7 +1370,7 @@ namespace platf {
 
     const auto &capabilities = raw->virtualhid.runtime->capabilities();
     const auto licensed = !capabilities.requires_installed_driver || lvh::get_license_status().license.licensed();
-    if (const auto use_virtualhid = virtualhid::should_use_gamepad_runtime(capabilities, config::input.gamepad_driver, licensed); !use_virtualhid && config::input.gamepad_driver != config::GAMEPAD_DRIVER_VIRTUALHID) {
+    if (const auto use_virtualhid = virtualhid::should_use_gamepad_runtime(capabilities, driver, licensed); !use_virtualhid && driver != config::GAMEPAD_DRIVER_VIRTUALHID) {
       gps = vigembus_supported_gamepads(raw->vigem != nullptr);
       return gps;
     }
@@ -1330,14 +1383,14 @@ namespace platf {
    * @brief Returns the supported platform capabilities to advertise to the client.
    * @return Capability flags.
    */
-  platform_caps::caps_t get_capabilities() {
+  platform_caps::caps_t get_capabilities(const config::settings_t &settings) {
     platform_caps::caps_t caps = 0;
 
-    if (config::input.gamepad_driver != config::GAMEPAD_DRIVER_NONE && virtualhid::configured_gamepad_supports_controller_extensions()) {
+    if (settings.input.gamepad_driver != config::GAMEPAD_DRIVER_NONE && virtualhid::configured_gamepad_supports_controller_extensions(settings)) {
       caps |= platform_caps::controller_touch;
     }
 
-    if (config::input.native_pen_touch) {
+    if (settings.input.native_pen_touch) {
       const auto runtime = virtualhid::create_runtime();
       if (runtime) {
         const auto &capabilities = runtime->capabilities();

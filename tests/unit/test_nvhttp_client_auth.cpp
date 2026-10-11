@@ -29,12 +29,12 @@ protected:
    */
   void SetUp() override {
     BaseTest::SetUp();
-    original_state_file = config::nvhttp.file_state;
-    original_fresh_state = config::sunshine.flags[config::flag::FRESH_STATE];
+    original_state_file = configuration.edit_startup().nvhttp.file_state;
+    original_fresh_state = configuration.edit_startup().sunshine.flags[config::flag::FRESH_STATE];
     state_file = fs::path {SUNSHINE_TEST_BIN_DIR} / "client_authorization_state.json";
 
-    config::nvhttp.file_state = state_file.string();
-    config::sunshine.flags[config::flag::FRESH_STATE] = false;
+    configuration.edit_startup().nvhttp.file_state = state_file.string();
+    configuration.edit_startup().sunshine.flags[config::flag::FRESH_STATE] = false;
     gamestream.test_reset_client_state();
 
     std::error_code remove_error;
@@ -49,8 +49,8 @@ protected:
     std::error_code remove_error;
     fs::remove(state_file, remove_error);
 
-    config::nvhttp.file_state = original_state_file;
-    config::sunshine.flags[config::flag::FRESH_STATE] = original_fresh_state;
+    configuration.edit_startup().nvhttp.file_state = original_state_file;
+    configuration.edit_startup().sunshine.flags[config::flag::FRESH_STATE] = original_fresh_state;
     BaseTest::TearDown();
   }
 

@@ -867,6 +867,15 @@ namespace platf::audio {
    */
   class audio_control_t: public ::platf::audio_control_t {
   public:
+    const config::settings_t &settings;  ///< Configuration retained for this controller's lifetime.
+
+    /**
+     * @brief Bind audio routing policy without initializing Windows resources.
+     * @param settings Host configuration.
+     */
+    explicit audio_control_t(const config::settings_t &settings):
+        settings {settings} {}
+
     /**
      * @brief Query host and virtual sink names available to Sunshine.
      *
@@ -875,12 +884,12 @@ namespace platf::audio {
     std::optional<sink_t> sink_info() override {
       sink_t sink;
 
-      if (config::audio.external_audio) {
-        if (config::audio.sink.empty()) {
+      if (settings.audio.external_audio) {
+        if (settings.audio.sink.empty()) {
           BOOST_LOG(error) << "external_audio requires an explicit audio_sink";
           return std::nullopt;
         }
-        sink.host = config::audio.sink;
+        sink.host = settings.audio.sink;
         return sink;
       }
 
@@ -901,10 +910,10 @@ namespace platf::audio {
       // this device can be either user-configured or
       // the Steam Streaming Speakers we use by default.
       match_fields_list_t match_list;
-      if (config::audio.virtual_sink.empty()) {
+      if (settings.audio.virtual_sink.empty()) {
         match_list = match_steam_speakers();
       } else {
-        match_list = match_all_fields(utf_utils::from_utf8(config::audio.virtual_sink));
+        match_list = match_all_fields(utf_utils::from_utf8(settings.audio.virtual_sink));
       }
 
       // Search for the virtual audio sink device currently present in the system.
@@ -919,8 +928,8 @@ namespace platf::audio {
           "virtual-"s + formats[1].name + device_id,
           "virtual-"s + formats[2].name + device_id,
         });
-      } else if (!config::audio.virtual_sink.empty()) {
-        BOOST_LOG(warning) << "Couldn't find the specified virtual audio sink " << config::audio.virtual_sink;
+      } else if (!settings.audio.virtual_sink.empty()) {
+        BOOST_LOG(warning) << "Couldn't find the specified virtual audio sink " << settings.audio.virtual_sink;
       }
 
       return sink;
@@ -1001,9 +1010,9 @@ namespace platf::audio {
       auto mic = std::make_unique<mic_wasapi_t>();
 
       // External routing pins capture to the configured sink; otherwise prefer the session's assigned sink.
-      const auto &requested_sink = config::audio.external_audio || assigned_sink.empty() ? config::audio.sink : assigned_sink;
+      const auto &requested_sink = settings.audio.external_audio || assigned_sink.empty() ? settings.audio.sink : assigned_sink;
 
-      if (config::audio.external_audio && requested_sink.empty()) {
+      if (settings.audio.external_audio && requested_sink.empty()) {
         BOOST_LOG(error) << "external_audio requires an explicit audio_sink";
         return nullptr;
       }
@@ -1028,7 +1037,7 @@ namespace platf::audio {
 
       // If this is a virtual sink, set a callback that will change the sink back if it's changed
       auto virtual_sink_info = extract_virtual_sink_info(assigned_sink);
-      if (virtual_sink_info && !config::audio.external_audio) {
+      if (virtual_sink_info && !settings.audio.external_audio) {
         mic->default_endpt_changed_cb = [this] {
           BOOST_LOG(info) << "Resetting sink to ["sv << assigned_sink << "] after default changed";
           set_sink(assigned_sink);
@@ -1115,7 +1124,7 @@ namespace platf::audio {
      * @return Status from updating sink.
      */
     int set_sink(const std::string &sink) override {
-      if (config::audio.external_audio) {
+      if (settings.audio.external_audio) {
         return 0;
       }
 
@@ -1274,7 +1283,7 @@ namespace platf::audio {
      * @brief Resets the default audio device from Steam Streaming Speakers.
      */
     void reset_default_device() {
-      if (config::audio.external_audio) {
+      if (settings.audio.external_audio) {
         return;
       }
 
@@ -1414,7 +1423,7 @@ namespace platf::audio {
      */
     template<typename CreateInstance = decltype(&CoCreateInstance)>
     int init(const CreateInstance &create_instance = &CoCreateInstance) {
-      if (!config::audio.external_audio) {
+      if (!settings.audio.external_audio) {
         auto status = create_instance(
           CLSID_CPolicyConfigClient,
           nullptr,
@@ -1480,30 +1489,33 @@ namespace platf::audio {
 
     /**
      * @brief Exercise controller initialization with a supplied COM factory.
+     * @param settings Host audio configuration.
      * @param create_instance Factory providing or rejecting the requested interfaces.
      * @return Status from controller initialization.
      */
-    int initialize_audio_control(const std::function<std::remove_pointer_t<decltype(&CoCreateInstance)>> &create_instance) {
-      audio_control_t control;
+    int initialize_audio_control(const config::settings_t &settings, const std::function<std::remove_pointer_t<decltype(&CoCreateInstance)>> &create_instance) {
+      audio_control_t control {settings};
       return control.init(create_instance);
     }
 
     /**
      * @brief Exercise sink discovery without initializing Windows policy interfaces.
+     * @param settings Host audio configuration.
      * @return Sinks reported by the production controller for the current configuration.
      */
-    std::optional<sink_t> configured_sink_info() {
-      audio_control_t control;
+    std::optional<sink_t> configured_sink_info(const config::settings_t &settings) {
+      audio_control_t control {settings};
       return control.sink_info();
     }
 
     /**
      * @brief Exercise the external-routing sink-change guard without policy interfaces.
+     * @param settings Host audio configuration.
      * @param sink Sink a caller attempts to select.
      * @return Status from the production sink setter.
      */
-    int set_external_sink(const std::string &sink) {
-      audio_control_t control;
+    int set_external_sink(const config::settings_t &settings, const std::string &sink) {
+      audio_control_t control {settings};
       control.reset_default_device();
       return control.set_sink(sink);
     }
@@ -1516,7 +1528,8 @@ namespace platf::audio {
      * @return `true` when the sink resolves to an active endpoint.
      */
     bool sink_device_available(const std::string &sink, IMMDeviceEnumerator *device_enum) {
-      audio_control_t control;
+      const config::settings_t settings;
+      audio_control_t control {settings};
       device_enum->AddRef();
       control.device_enum.reset(device_enum);
       return static_cast<bool>(control.get_sink_device(sink));
@@ -1525,20 +1538,21 @@ namespace platf::audio {
     /**
      * @brief Exercise microphone creation with controlled assigned and configured sinks.
      *
+     * @param base_settings Host audio configuration copied for this test invocation.
      * @param assigned_sink Sink selected by the shared audio context.
      * @param configured_sink Sink configured by the user.
      * @param device_enum Device enumerator supplied by the test.
      * @return `true` when microphone initialization succeeds.
      */
-    bool microphone_available(const std::string &assigned_sink, const std::string &configured_sink, IMMDeviceEnumerator *device_enum) {
-      audio_control_t control;
+    bool microphone_available(const config::settings_t &base_settings, const std::string &assigned_sink, const std::string &configured_sink, IMMDeviceEnumerator *device_enum) {
+      auto settings = base_settings;
+      settings.audio.sink = configured_sink;
+      audio_control_t control {settings};
       device_enum->AddRef();
       control.device_enum.reset(device_enum);
       control.assigned_sink = assigned_sink;
 
-      auto previous_configured_sink = std::exchange(config::audio.sink, configured_sink);
       auto microphone = control.microphone(nullptr, 2, 48000, 240, false, false);
-      config::audio.sink = std::move(previous_configured_sink);
       return static_cast<bool>(microphone);
     }
 
@@ -1613,8 +1627,8 @@ namespace platf {
     int init();
   }  // namespace dxgi
 
-  std::unique_ptr<audio_control_t> audio_control() {
-    auto control = std::make_unique<audio::audio_control_t>();
+  std::unique_ptr<audio_control_t> audio_control(const config::settings_t &settings) {
+    auto control = std::make_unique<audio::audio_control_t>(settings);
 
     if (control->init()) {
       return nullptr;
@@ -1622,7 +1636,7 @@ namespace platf {
 
     // Install Steam Streaming Speakers if needed. We do this during audio_control() to ensure
     // the sink information returned includes the new Steam Streaming Speakers device.
-    if (!config::audio.external_audio && config::audio.install_steam_drivers && !control->find_device_id(control->match_steam_speakers())) {
+    if (!settings.audio.external_audio && settings.audio.install_steam_drivers && !control->find_device_id(control->match_steam_speakers())) {
       // This is best effort. Don't fail if it doesn't work.
       control->install_steam_audio_drivers();
     }
@@ -1630,13 +1644,13 @@ namespace platf {
     return control;
   }
 
-  std::unique_ptr<deinit_t> init() {
+  std::unique_ptr<deinit_t> init(const config::settings_t &settings) {
     // Initialize COM
     auto co_init = std::make_unique<platf::audio::co_init_t>();
 
     // If Steam Streaming Speakers are currently the default audio device,
     // change the default to something else (if another device is available).
-    audio::audio_control_t audio_ctrl;
+    audio::audio_control_t audio_ctrl {settings};
     if (audio_ctrl.init() == 0) {
       audio_ctrl.reset_default_device();
     }

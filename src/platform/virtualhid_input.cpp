@@ -182,9 +182,15 @@ namespace platf::virtualhid {
       return gamepad_profiles[3];  // Xbox Series.
     }
 
-    const gamepad_profile_t &profile_for_metadata(const gamepad_arrival_t &metadata) {
-      if (config::input.gamepad != "auto"sv) {
-        return profile_for_name(config::input.gamepad);
+    /**
+     * @brief Select a configured or client-reported controller profile.
+     * @param settings Immutable host input configuration.
+     * @param metadata Client-reported controller type and capabilities.
+     * @return Profile selected for this controller.
+     */
+    const gamepad_profile_t &profile_for_metadata(const config::settings_t &settings, const gamepad_arrival_t &metadata) {
+      if (settings.input.gamepad != "auto"sv) {
+        return profile_for_name(settings.input.gamepad);
       }
 
       if (metadata.type == LI_CTYPE_PS) {
@@ -199,11 +205,11 @@ namespace platf::virtualhid {
         BOOST_LOG(info) << "Gamepad will be Xbox Series controller (auto-selected by client-reported type)"sv;
         return profile_for_name("xseries"sv);
       }
-      if (config::input.motion_as_ds4 && (metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO))) {
+      if (settings.input.motion_as_ds4 && (metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO))) {
         BOOST_LOG(info) << "Gamepad will be DualSense controller (auto-selected by motion sensor presence)"sv;
         return profile_for_name("ds5"sv);
       }
-      if (config::input.touchpad_as_ds4 && (metadata.capabilities & LI_CCAP_TOUCHPAD)) {
+      if (settings.input.touchpad_as_ds4 && (metadata.capabilities & LI_CCAP_TOUCHPAD)) {
         BOOST_LOG(info) << "Gamepad will be DualSense controller (auto-selected by touchpad presence)"sv;
         return profile_for_name("ds5"sv);
       }
@@ -223,19 +229,34 @@ namespace platf::virtualhid {
       );
     }
 
-    std::string gamepad_stable_id(const gamepad_id_t &id, const lvh::DeviceProfile &profile) {
+    /**
+     * @brief Generate a controller identity using the host's MAC policy.
+     * @param settings Immutable host input configuration.
+     * @param id Controller slot and client index.
+     * @param profile Virtual controller profile.
+     * @return Stable identifier or randomized private MAC address.
+     */
+    std::string gamepad_stable_id(const config::settings_t &settings, const gamepad_id_t &id, const lvh::DeviceProfile &profile) {
       if (profile.gamepad_kind != lvh::GamepadProfileKind::dualshock4 && profile.gamepad_kind != lvh::GamepadProfileKind::dualsense) {
         return std::format("sunshine-gamepad-{}", id.globalIndex);
       }
 
-      if (config::input.virtualhid_randomize_mac || id.globalIndex < 0 || id.globalIndex > 255) {
+      if (settings.input.virtualhid_randomize_mac || id.globalIndex < 0 || id.globalIndex > 255) {
         return random_private_mac();
       }
 
       return std::format("02:00:00:00:00:{:02x}", id.globalIndex);
     }
 
-    lvh::GamepadMetadata gamepad_metadata(const gamepad_id_t &id, const gamepad_arrival_t &metadata, const lvh::DeviceProfile &profile) {
+    /**
+     * @brief Build Virtual HID metadata for one client controller.
+     * @param settings Immutable host input configuration.
+     * @param id Controller slot and client index.
+     * @param metadata Client-reported controller features.
+     * @param profile Selected virtual controller profile.
+     * @return Device metadata used by the Virtual HID runtime.
+     */
+    lvh::GamepadMetadata gamepad_metadata(const config::settings_t &settings, const gamepad_id_t &id, const gamepad_arrival_t &metadata, const lvh::DeviceProfile &profile) {
       lvh::GamepadMetadata result;
       result.global_index = id.globalIndex;
       result.client_relative_index = id.clientRelativeIndex;
@@ -244,7 +265,7 @@ namespace platf::virtualhid {
       result.has_touchpad = metadata.capabilities & LI_CCAP_TOUCHPAD;
       result.has_rgb_led = metadata.capabilities & LI_CCAP_RGB_LED;
       result.has_battery = metadata.capabilities & LI_CCAP_BATTERY_STATE;
-      result.stable_id = gamepad_stable_id(id, profile);
+      result.stable_id = gamepad_stable_id(settings, id, profile);
       return result;
     }
 
@@ -269,7 +290,14 @@ namespace platf::virtualhid {
       }
     }
 
-    lvh::GamepadState make_gamepad_state(const gamepad_state_t &state, const lvh::GamepadProfileSupport &support) {
+    /**
+     * @brief Translate controller input using this host's button policy.
+     * @param settings Immutable host input configuration.
+     * @param state Client button, stick, and trigger state.
+     * @param support Features supported by the virtual controller.
+     * @return State to submit to the Virtual HID adapter.
+     */
+    lvh::GamepadState make_gamepad_state(const config::settings_t &settings, const gamepad_state_t &state, const lvh::GamepadProfileSupport &support) {
       using enum lvh::GamepadButton;
 
       lvh::GamepadState result;
@@ -293,7 +321,7 @@ namespace platf::virtualhid {
       result.buttons.set(misc1, support.supports_misc1_button && (flags & MISC_BUTTON));
       result.buttons.set(touchpad, support.supports_touchpad_button && (flags & TOUCHPAD_BUTTON));
 
-      if (support.supports_touchpad_button && config::input.ds4_back_as_touchpad_click && configured_gamepad_supports_touchpad() && (flags & BACK)) {
+      if (support.supports_touchpad_button && settings.input.ds4_back_as_touchpad_click && configured_gamepad_supports_touchpad(settings) && (flags & BACK)) {
         result.buttons.set(touchpad);
       }
 
@@ -370,7 +398,16 @@ namespace platf::virtualhid {
       };
     }
 
-    lvh::KeyboardEvent keyboard_event(std::uint16_t modcode, bool release, std::uint8_t flags, bool extended) {
+    /**
+     * @brief Translate keyboard input using the host's scan-code preference.
+     * @param settings Immutable host input configuration.
+     * @param modcode Client key code.
+     * @param release Whether this event releases the key.
+     * @param flags Client key-code flags.
+     * @param extended Whether the key is an extended scan code.
+     * @return Event to submit to the Virtual HID keyboard.
+     */
+    lvh::KeyboardEvent keyboard_event(const config::settings_t &settings, std::uint16_t modcode, bool release, std::uint8_t flags, bool extended) {
       lvh::KeyboardEvent event {
         .key_code = modcode,
         .pressed = !release,
@@ -379,8 +416,9 @@ namespace platf::virtualhid {
 
 #ifdef _WIN32
       event.uses_normalized_key_code = (static_cast<std::byte>(flags) & static_cast<std::byte>(SS_KBE_FLAG_NON_NORMALIZED)) == std::byte {};
-      event.prefer_native_scan_code = config::input.always_send_scancodes;
+      event.prefer_native_scan_code = settings.input.always_send_scancodes;
 #else
+      (void) settings;
       (void) flags;
 #endif
       return event;
@@ -510,10 +548,9 @@ namespace platf::virtualhid {
 
   }  // namespace
 
-  input_context_t::input_context_t():
-      input_context_t {lvh::BackendKind::platform_default} {}
-
-  input_context_t::input_context_t(lvh::BackendKind backend):
+  input_context_t::input_context_t(const config::settings_t &settings, lvh::BackendKind backend):
+      settings {settings},
+      gamepad_driver {settings.input.gamepad_driver},
       runtime {create_runtime(backend)} {
     if (!runtime) {
       BOOST_LOG(warning) << "Unable to create libvirtualhid runtime"sv;
@@ -697,10 +734,11 @@ namespace platf::virtualhid {
       return -1;
     }
 
-    const auto &selection = profile_for_metadata(metadata);
+    const auto &settings = context.settings.get();
+    const auto &selection = profile_for_metadata(settings, metadata);
     auto profile = selection.profile();
     profile.name = std::format("Sunshine {}", profile.name);
-    if (config::input.gamepad != "auto"sv) {
+    if (settings.input.gamepad != "auto"sv) {
       BOOST_LOG(info) << "Gamepad "sv << id.globalIndex << " will be "sv << profile.name << " (manual selection)"sv;
     } else {
       BOOST_LOG(info) << "Gamepad "sv << id.globalIndex << " will be "sv << profile.name;
@@ -708,7 +746,7 @@ namespace platf::virtualhid {
 
     lvh::CreateGamepadOptions options;
     options.profile = profile;
-    options.metadata = gamepad_metadata(id, metadata, profile);
+    options.metadata = gamepad_metadata(settings, id, metadata, profile);
     auto created = lvh::GamepadStateAdapter::create(*context.runtime, options);
     if (!created) {
       log_failure("create libvirtualhid gamepad"sv, created.status);
@@ -781,7 +819,7 @@ namespace platf::virtualhid {
     }
 
     auto &gamepad = context.gamepads[nr];
-    auto updated_state = make_gamepad_state(state, gamepad->adapter->support());
+    auto updated_state = make_gamepad_state(context.settings.get(), state, gamepad->adapter->support());
     const auto &cached_state = gamepad->adapter->state();
     updated_state.acceleration = cached_state.acceleration;
     updated_state.gyroscope = cached_state.gyroscope;
@@ -940,7 +978,7 @@ namespace platf::virtualhid {
 
   void keyboard_update(input_context_t &context, std::uint16_t modcode, bool release, std::uint8_t flags, bool extended) {
     if (context.keyboard) {
-      log_failure("submit libvirtualhid keyboard input"sv, context.keyboard->submit(keyboard_event(modcode, release, flags, extended)));
+      log_failure("submit libvirtualhid keyboard input"sv, context.keyboard->submit(keyboard_event(context.settings.get(), modcode, release, flags, extended)));
     }
   }
 
@@ -1075,21 +1113,21 @@ namespace platf::virtualhid {
     log_failure("submit libvirtualhid pen state"sv, context.pen->place_tool(state));
   }
 
-  bool configured_gamepad_supports_touchpad() {
-    if (config::input.gamepad == "auto"sv) {
+  bool configured_gamepad_supports_touchpad(const config::settings_t &settings) {
+    if (settings.input.gamepad == "auto"sv) {
       return true;
     }
 
-    const auto profile = profile_for_name(config::input.gamepad).profile();
+    const auto profile = profile_for_name(settings.input.gamepad).profile();
     return lvh::gamepad_profile_support(profile).supports_touchpad;
   }
 
-  bool configured_gamepad_supports_controller_extensions() {
-    if (config::input.gamepad == "auto"sv) {
+  bool configured_gamepad_supports_controller_extensions(const config::settings_t &settings) {
+    if (settings.input.gamepad == "auto"sv) {
       return true;
     }
 
-    const auto profile = profile_for_name(config::input.gamepad).profile();
+    const auto profile = profile_for_name(settings.input.gamepad).profile();
     const auto &support = lvh::gamepad_profile_support(profile);
     return support.supports_touchpad || support.supports_motion;
   }
@@ -1103,6 +1141,13 @@ namespace platf {
    * @brief Global libvirtualhid devices shared by clients.
    */
   struct input_raw_t {
+    /**
+     * @brief Construct virtual devices using this host's startup settings.
+     * @param settings Immutable host configuration.
+     */
+    explicit input_raw_t(const config::settings_t &settings):
+        virtualhid {settings} {}
+
     virtualhid::input_context_t virtualhid;  ///< libvirtualhid input context.
   };
 
@@ -1125,9 +1170,9 @@ namespace platf {
 
   }  // namespace
 
-  input_t input(thread_pool_util::ThreadPool &scheduler) {
+  input_t input(const config::settings_t &settings, thread_pool_util::ThreadPool &scheduler) {
     (void) scheduler;
-    return {new input_raw_t {}};
+    return {new input_raw_t {settings}};
   }
 
   std::unique_ptr<client_input_t> allocate_client_input_context(input_t &input) {

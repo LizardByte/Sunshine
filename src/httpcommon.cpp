@@ -37,7 +37,7 @@ namespace http {
   namespace fs = std::filesystem;
   namespace pt = boost::property_tree;
 
-  int reload_user_creds(const std::string &file);
+  int reload_user_creds(const std::string &file, config::store_t &store);
   /**
    * @brief Check whether the Web UI credentials file exists and is readable.
    *
@@ -46,26 +46,30 @@ namespace http {
    */
   bool user_creds_exist(const std::string &file);
 
+  state_t::state_t(config::store_t &store):
+      store {store} {}
+
   /**
    * @brief Load persisted HTTP credentials and initialize shared request state.
    */
   int state_t::initialize() {
-    bool clean_slate = config::sunshine.flags[config::flag::FRESH_STATE];
-    allowed_origin = net::from_enum_string(config::nvhttp.origin_web_ui_allowed);
+    auto &settings = store.edit_startup();
+    bool clean_slate = settings.sunshine.flags[config::flag::FRESH_STATE];
+    allowed_origin = net::from_enum_string(settings.nvhttp.origin_web_ui_allowed);
 
     if (clean_slate) {
       host_unique_id = uuid_util::uuid_t::generate().string();
       auto dir = std::filesystem::temp_directory_path() / "Sunshine"sv;
-      config::nvhttp.cert = (dir / ("cert-"s + host_unique_id)).string();
-      config::nvhttp.pkey = (dir / ("pkey-"s + host_unique_id)).string();
+      settings.nvhttp.cert = (dir / ("cert-"s + host_unique_id)).string();
+      settings.nvhttp.pkey = (dir / ("pkey-"s + host_unique_id)).string();
     }
 
-    if ((!fs::exists(config::nvhttp.pkey) || !fs::exists(config::nvhttp.cert)) && create_creds(config::nvhttp.pkey, config::nvhttp.cert)) {
+    if ((!fs::exists(settings.nvhttp.pkey) || !fs::exists(settings.nvhttp.cert)) && create_creds(settings.nvhttp.pkey, settings.nvhttp.cert)) {
       return -1;
     }
-    if (!user_creds_exist(config::sunshine.credentials_file)) {
+    if (!user_creds_exist(settings.sunshine.credentials_file)) {
       BOOST_LOG(info) << "Open the Web UI to set your new username and password and getting started";
-    } else if (reload_user_creds(config::sunshine.credentials_file)) {
+    } else if (reload_user_creds(settings.sunshine.credentials_file, store)) {
       return -1;
     }
     return 0;
@@ -143,13 +147,12 @@ namespace http {
   /**
    * @brief Reload the Web UI credentials from disk.
    */
-  int reload_user_creds(const std::string &file) {
+  int reload_user_creds(const std::string &file, config::store_t &store) {
     pt::ptree inputTree;
     try {
       pt::read_json(file, inputTree);
-      config::sunshine.username = inputTree.get<std::string>("username");
-      config::sunshine.password = inputTree.get<std::string>("password");
-      config::sunshine.salt = inputTree.get<std::string>("salt");
+      config::credentials_t credentials {inputTree.get<std::string>("username"), inputTree.get<std::string>("password"), inputTree.get<std::string>("salt")};
+      store.update_credentials(std::move(credentials));
     } catch (std::exception &e) {
       BOOST_LOG(error) << "loading user credentials: "sv << e.what();
       return -1;
@@ -185,26 +188,26 @@ namespace http {
     }
 
     if (file_handler::write_file(pkey.c_str(), creds.pkey)) {
-      BOOST_LOG(error) << "Couldn't open ["sv << config::nvhttp.pkey << ']';
+      BOOST_LOG(error) << "Couldn't open ["sv << pkey << ']';
       return -1;
     }
 
     if (file_handler::write_file(cert.c_str(), creds.x509)) {
-      BOOST_LOG(error) << "Couldn't open ["sv << config::nvhttp.cert << ']';
+      BOOST_LOG(error) << "Couldn't open ["sv << cert << ']';
       return -1;
     }
 
     fs::permissions(pkey_path, fs::perms::owner_read | fs::perms::owner_write, fs::perm_options::replace, err_code);
 
     if (err_code) {
-      BOOST_LOG(error) << "Couldn't change permissions of ["sv << config::nvhttp.pkey << "] :"sv << err_code.message();
+      BOOST_LOG(error) << "Couldn't change permissions of ["sv << pkey << "] :"sv << err_code.message();
       return -1;
     }
 
     fs::permissions(cert_path, fs::perms::owner_read | fs::perms::group_read | fs::perms::others_read | fs::perms::owner_write, fs::perm_options::replace, err_code);
 
     if (err_code) {
-      BOOST_LOG(error) << "Couldn't change permissions of ["sv << config::nvhttp.cert << "] :"sv << err_code.message();
+      BOOST_LOG(error) << "Couldn't change permissions of ["sv << cert << "] :"sv << err_code.message();
       return -1;
     }
 

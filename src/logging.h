@@ -148,7 +148,6 @@ inline constexpr logging::logger_t fatal {5};  ///< Fatal.
 inline constexpr logging::logger_t tests {10};  ///< Automatic test output.
 #endif
 
-#include "config.h"
 #include "stat_trackers.h"
 
 /**
@@ -297,7 +296,7 @@ namespace logging {
         message(message),
         units(units),
         interval(interval_in_seconds),
-        enabled(config::sunshine.min_log_level <= severity.default_severity()) {
+        enabled(static_cast<bool>(severity.open_record())) {
     }
 
     /**

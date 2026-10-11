@@ -56,7 +56,8 @@ TEST(PlatformPermissionsTest, DirectoryAccessRequiresAnExistingDirectory) {
 
 #ifdef _WIN32
 TEST(PlatformPermissionsTest, WindowsConfigStatusMatchesDirectoryAccess) {
-  const auto permissions = platf::get_permission_statuses();
+  const config::store_t configuration;
+  const auto permissions = platf::get_permission_statuses(configuration.values());
   ASSERT_EQ(permissions.size(), 1U);
   EXPECT_EQ(permissions.front().id, "config_directory");
   EXPECT_EQ(permissions.front().status, platf::can_access_directory(platf::appdata()) ? "granted" : "denied");
@@ -72,11 +73,13 @@ TEST(PlatformPermissionsTest, UnixInputStatusMatchesVirtualInputDeviceAccess) {
   #ifndef __FreeBSD__
   input_access = input_access || access("/dev/input/uinput", R_OK | W_OK) == 0;
   #endif
-  const auto permissions = platf::get_permission_statuses();
+  const config::store_t configuration;
+  const auto permissions = platf::get_permission_statuses(configuration.values());
   ASSERT_EQ(permissions.size(), 1U);
   EXPECT_EQ(permissions.front().id, "input");
   EXPECT_EQ(permissions.front().status, input_access ? "granted" : "denied");
-  EXPECT_EQ(permissions.front().required, config::input.keyboard || config::input.mouse || config::input.controller);
+  const auto &input = configuration.values().input;
+  EXPECT_EQ(permissions.front().required, input.keyboard || input.mouse || input.controller);
   EXPECT_FALSE(permissions.front().requestable);
   EXPECT_FALSE(platf::request_permission("input"));
 }

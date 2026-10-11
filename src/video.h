@@ -133,6 +133,13 @@ namespace video {
   class avcodec_software_encode_device_t: public platf::avcodec_encode_device_t {
   public:
     /**
+     * @brief Set the number of software color-conversion threads for this device.
+     * @param min_threads Startup minimum conversion thread count.
+     */
+    explicit avcodec_software_encode_device_t(int min_threads):
+        min_threads_ {min_threads} {}
+
+    /**
      * @brief Convert a captured image into the encoder input representation.
      *
      * @param img Image or frame object to read from or populate.
@@ -187,6 +194,7 @@ namespace video {
     avcodec_frame_t sw_frame;  ///< Sw frame.
     avcodec_frame_t sws_input_frame;  ///< Sws input frame.
     avcodec_frame_t sws_output_frame;  ///< Sws output frame.
+    int min_threads_;  ///< Immutable conversion thread count selected by this host.
     sws_t sws;  ///< Software scaler used when frames need CPU-side pixel conversion.
     AVPixelFormat sws_src_format {AV_PIX_FMT_BGR0};  ///< Source format the sws context was created with.
 
@@ -348,7 +356,7 @@ namespace video {
       option_t(const option_t &) = default;
 
       std::string name;  ///< Encoder command-line option name.
-      std::variant<int, int *, std::optional<int> *, std::function<int()>, std::string, std::string *, std::function<const std::string(const config_t &)>> value;  ///< Literal, pointer, or callback that supplies the option value.
+      std::variant<int, const int *, const std::optional<int> *, std::function<int()>, std::string, const std::string *, std::function<const std::string(const config_t &)>> value;  ///< Literal, pointer, or callback that supplies the option value.
 
       /**
        * @brief Store a named encoder option and its value source.
@@ -460,24 +468,57 @@ namespace video {
   };
 
   // encoders
-  extern const encoder_t software;
+  /**
+   * @brief Construct an encoder descriptor bound to one host's immutable configuration.
+   * @param settings Host startup configuration.
+   * @return Encoder descriptor with independent probe capabilities.
+   */
+  encoder_t make_software(const config::settings_t &settings);
 
 #if !defined(__APPLE__)
-  extern const encoder_t nvenc;  // available for windows and linux
+  /**
+   * @brief Construct an encoder descriptor bound to one host's immutable configuration.
+   */
+  encoder_t make_nvenc(const config::settings_t &settings);
 #endif
 
 #ifdef _WIN32
-  extern const encoder_t amdvce;
-  extern const encoder_t quicksync;
-  extern const encoder_t mediafoundation;
+  /**
+   * @brief Construct an encoder descriptor bound to one host's immutable configuration.
+   * @param settings Host startup configuration.
+   * @return Encoder descriptor with independent probe capabilities.
+   */
+  encoder_t make_amdvce(const config::settings_t &settings);
+  /**
+   * @brief Construct an encoder descriptor bound to one host's immutable configuration.
+   * @param settings Host startup configuration.
+   * @return Encoder descriptor with independent probe capabilities.
+   */
+  encoder_t make_quicksync(const config::settings_t &settings);
+  /**
+   * @brief Construct an encoder descriptor bound to one host's immutable configuration.
+   * @param settings Host startup configuration.
+   * @return Encoder descriptor with independent probe capabilities.
+   */
+  encoder_t make_mediafoundation(const config::settings_t &settings);
 #endif
 
 #if defined(__linux__) || defined(linux) || defined(__linux) || defined(__FreeBSD__)
-  extern const encoder_t vaapi;
+  /**
+   * @brief Construct an encoder descriptor bound to one host's immutable configuration.
+   * @param settings Host startup configuration.
+   * @return Encoder descriptor with independent probe capabilities.
+   */
+  encoder_t make_vaapi(const config::settings_t &settings);
 #endif
 
 #ifdef __APPLE__
-  extern const encoder_t videotoolbox;
+  /**
+   * @brief Construct an encoder descriptor bound to one host's immutable configuration.
+   * @param settings Host startup configuration.
+   * @return Encoder descriptor with independent probe capabilities.
+   */
+  encoder_t make_videotoolbox(const config::settings_t &settings);
 #endif
 
   /**
@@ -705,11 +746,13 @@ namespace video {
 
     /**
      * @brief Bind host capture dependencies without probing hardware.
+     * @param settings Immutable encoder and capture configuration.
      * @param mail Host packet and display-switch mailbox.
      * @param cursor Host cursor visibility preference.
      * @param displays Display configuration manager.
+     * @param platform Native capture backend owner.
      */
-    service_t(safe::mail_t mail, bool &cursor, display_device::manager_t &displays, platf::runtime_t &platform);
+    service_t(const config::settings_t &settings, safe::mail_t mail, bool &cursor, display_device::manager_t &displays, platf::runtime_t &platform);
     service_t(const service_t &) = delete;
     service_t &operator=(const service_t &) = delete;
     /**

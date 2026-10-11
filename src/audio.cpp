@@ -29,9 +29,60 @@ namespace audio {
    */
   using sample_queue_t = std::shared_ptr<safe::queue_t<std::vector<float>>>;
 
-  static int start_audio_control(audio_ctx_t &ctx);
-  static void stop_audio_control(audio_ctx_t &);
+  /**
+   * @brief Initialize one lazy audio control attempt.
+   * @param ctx Shared sink state to initialize.
+   * @param settings Startup audio routing policy.
+   * @param factory Backend creation operation.
+   * @return Zero; a null context control records initialization failure.
+   */
+  static int start_audio_control(audio_ctx_t &ctx, const config::settings_t &settings, const std::function<std::unique_ptr<platf::audio_control_t>()> &factory);
+  /**
+   * @brief Restore the original sink after the final context reference releases.
+   * @param ctx Shared sink state to release.
+   */
+  static void stop_audio_control(audio_ctx_t &ctx);
+  /**
+   * @brief Apply a client-provided surround channel layout.
+   * @param stream Encoder layout to update.
+   * @param params Negotiated surround parameters.
+   */
   static void apply_surround_params(opus_stream_config_t &stream, const stream_params_t &params);
+
+  /**
+   * @brief Configuration and lazy control resources belonging to one application.
+   */
+  struct service_t::impl_t {
+    const config::settings_t &settings;  ///< Stable startup configuration.
+    safe::mail_t host_mail;  ///< Host packet mailbox.
+    std::function<std::unique_ptr<platf::audio_control_t>()> factory;  ///< Backend creation operation for each lazy initialization.
+    safe::shared_t<audio_ctx_t> control_shared;  ///< Lazy sink context shared by this owner's consumers.
+
+    /**
+     * @brief Attach startup settings before audio control can be initialized.
+     * @param settings Host configuration.
+     * @param host_mail Host packet mailbox.
+     * @param factory Backend creation operation retained for initialization retries.
+     */
+    impl_t(const config::settings_t &settings, safe::mail_t host_mail, std::function<std::unique_ptr<platf::audio_control_t>()> factory):
+        settings {settings},
+        host_mail {std::move(host_mail)},
+        factory {std::move(factory)},
+        control_shared {[this](audio_ctx_t &context) {
+                          return start_audio_control(context, this->settings, this->factory);
+                        },
+                        stop_audio_control} {}
+  };
+
+  service_t::service_t(const config::settings_t &settings, safe::mail_t host_mail):
+      service_t {settings, std::move(host_mail), [&settings]() {
+                   return platf::audio_control(settings);
+                 }} {}
+
+  service_t::service_t(const config::settings_t &settings, safe::mail_t host_mail, std::function<std::unique_ptr<platf::audio_control_t>()> factory):
+      impl {std::make_shared<impl_t>(settings, std::move(host_mail), std::move(factory))} {}
+
+  service_t::~service_t() = default;
 
   /**
    * @brief Select the Opus stream configuration for a channel count and quality tier.
@@ -156,9 +207,11 @@ namespace audio {
   /**
    * @brief Run the capture loop for this backend.
    */
-  void capture(safe::mail_t host_mail, safe::mail_t mail, config_t config, void *channel_data) {
+  void service_t::capture(safe::mail_t mail, config_t config, void *channel_data) {
+    const auto host_mail = impl->host_mail;
+    const auto &settings = impl->settings;
     auto shutdown_event = mail->event<bool>(mail::shutdown);
-    if (!config::audio.stream) {
+    if (!settings.audio.stream) {
       shutdown_event->view();
       return;
     }
@@ -167,7 +220,7 @@ namespace audio {
       apply_surround_params(stream, config.customStreamParams);
     }
 
-    auto ref = get_audio_ctx_ref();
+    auto ref = context();
     if (!ref) {
       return;
     }
@@ -189,9 +242,9 @@ namespace audio {
     // 1. Virtual sink
     // 2. Audio sink
     // 3. Host
-    std::string *sink = &ref->sink.host;
-    if (!config::audio.sink.empty()) {
-      sink = &config::audio.sink;
+    const std::string *sink = &ref->sink.host;
+    if (!settings.audio.sink.empty()) {
+      sink = &settings.audio.sink;
     }
 
     // Prefer the virtual sink if host playback is disabled or there's no other sink
@@ -275,9 +328,20 @@ namespace audio {
     }
   }
 
-  audio_ctx_ref_t get_audio_ctx_ref() {
-    static auto control_shared {safe::make_shared<audio_ctx_t>(start_audio_control, stop_audio_control)};
-    return control_shared.ref();
+  audio_ctx_ref_t service_t::context() {
+    auto ref = impl->control_shared.ref();
+    if (!ref) {
+      return nullptr;
+    }
+
+    /** @brief Keep the shared wrapper alive until its last control reference is released. */
+    struct retained_t {
+      std::shared_ptr<impl_t> owner;  ///< Released after the lazy context reference.
+      safe::shared_t<audio_ctx_t>::ptr_t context;  ///< Triggers final sink restoration before owner destruction.
+    };
+
+    auto retained = std::make_shared<retained_t>(impl, std::move(ref));
+    return audio_ctx_ref_t {retained, retained->context.get()};
   }
 
   bool is_audio_ctx_sink_available(const audio_ctx_t &ctx) {
@@ -285,7 +349,7 @@ namespace audio {
       return false;
     }
 
-    const std::string &sink = ctx.sink.host.empty() ? config::audio.sink : ctx.sink.host;
+    const std::string &sink = ctx.sink.host.empty() ? ctx.fallback_sink : ctx.sink.host;
     if (sink.empty()) {
       return false;
     }
@@ -309,7 +373,8 @@ namespace audio {
     return STEREO;
   }
 
-  int start_audio_control(audio_ctx_t &ctx) {
+  int start_audio_control(audio_ctx_t &ctx, const config::settings_t &settings, const std::function<std::unique_ptr<platf::audio_control_t>()> &factory) {
+    ctx.fallback_sink = settings.audio.sink;
     auto fg = util::fail_guard([]() {
       BOOST_LOG(warning) << "There will be no audio"sv;
     });
@@ -319,7 +384,7 @@ namespace audio {
     // The default sink has not been replaced yet.
     ctx.restore_sink = false;
 
-    if (!(ctx.control = platf::audio_control())) {
+    if (!(ctx.control = factory())) {
       return 0;
     }
 
@@ -343,7 +408,7 @@ namespace audio {
     }
 
     // Change back to the host sink, unless there was none
-    const std::string &sink = ctx.sink.host.empty() ? config::audio.sink : ctx.sink.host;
+    const std::string &sink = ctx.sink.host.empty() ? ctx.fallback_sink : ctx.sink.host;
     if (!sink.empty()) {
       // Best effort, it's allowed to fail
       ctx.control->set_sink(sink);

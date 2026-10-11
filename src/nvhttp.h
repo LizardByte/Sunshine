@@ -25,6 +25,10 @@
 #include "crypto.h"
 #include "thread_safe.h"
 
+namespace config {
+  struct settings_t;
+}
+
 namespace http {
   class state_t;
 }
@@ -219,6 +223,7 @@ namespace nvhttp {
   public:
     /**
      * @brief Bind GameStream state to the application services it uses.
+     * @param settings Application startup configuration.
      * @param http_state Host identity and Web UI policy.
      * @param processes Application process owner.
      * @param displays Display settings owner.
@@ -226,7 +231,7 @@ namespace nvhttp {
      * @param rtsp Pending launch and active session owner.
      * @param host_mail Application mailbox for shutdown coordination.
      */
-    service_t(http::state_t &http_state, proc::proc_t &processes, display_device::manager_t &displays, video::service_t &videos, rtsp_stream::service_t &rtsp, safe::mail_t host_mail);
+    service_t(const config::settings_t &settings, http::state_t &http_state, proc::proc_t &processes, display_device::manager_t &displays, video::service_t &videos, rtsp_stream::service_t &rtsp, safe::mail_t host_mail);
     /**
      * @brief Release pairing state and complete pending waiters after server threads stop.
      */

@@ -5,6 +5,10 @@
 // test includes
 #include "../tests_common.h"
 
+// standard includes
+#include <filesystem>
+#include <fstream>
+
 // lib includes
 #include <curl/curl.h>
 
@@ -71,3 +75,34 @@ INSTANTIATE_TEST_SUITE_P(
     std::make_tuple(URL_2, "hello-redirect.txt")
   )
 );
+
+/**
+ * @brief Credential reload publishes all fields together and preserves them after an incomplete file.
+ */
+TEST(HttpCredentialStoreTest, CompleteReloadAndFailuresPreserveIndependentStores) {
+  config::store_t first;
+  config::store_t second;
+  first.update_credentials({"previous", "previous hash", "previous salt"});
+  second.update_credentials({"other", "other hash", "other salt"});
+  const auto file = std::filesystem::path {SUNSHINE_TEST_BIN_DIR} / "http_credentials_owner.json";
+  {
+    std::ofstream output {file};
+    output << R"({"username":"new","password":"new hash","salt":"new salt"})";
+  }
+  ASSERT_EQ(http::reload_user_creds(file.string(), first), 0);
+  EXPECT_EQ(first.credentials_snapshot().username, "new");
+  EXPECT_EQ(first.credentials_snapshot().password, "new hash");
+  EXPECT_EQ(first.credentials_snapshot().salt, "new salt");
+  EXPECT_EQ(second.credentials_snapshot().username, "other");
+  {
+    std::ofstream output {file};
+    output << R"({"username":"partial","password":"partial hash"})";
+  }
+  EXPECT_NE(http::reload_user_creds(file.string(), first), 0);
+  EXPECT_EQ(first.credentials_snapshot().username, "new");
+  EXPECT_EQ(first.credentials_snapshot().password, "new hash");
+  EXPECT_EQ(first.credentials_snapshot().salt, "new salt");
+  std::filesystem::remove(file);
+  EXPECT_NE(http::reload_user_creds(file.string(), first), 0);
+  EXPECT_EQ(first.credentials_snapshot().username, "new");
+}

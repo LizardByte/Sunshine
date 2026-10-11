@@ -319,24 +319,24 @@ namespace {
    */
   class KeyboardPassthroughTest: public ::testing::Test {
   protected:
+    config::store_t config_;  ///< Configuration owned by this fixture.
     runtime::infrastructure_t infrastructure_;  ///< Infrastructure owned by this keyboard fixture.
-    input::service_t inputs_ {infrastructure_.scheduler(), infrastructure_.mailbox(), infrastructure_.cursor()};  ///< Fixture-owned host input service.
+    input::service_t inputs_ {config_.values(), infrastructure_.scheduler(), infrastructure_.mailbox(), infrastructure_.cursor()};  ///< Fixture-owned host input service.
 
     /**
      * @brief Install a fake platform backend, a keyboard recorder, and a stream.
      */
     void SetUp() override {
-      original_input_ = config::input;
-      config::input.keyboard = true;
-      config::input.keybindings.clear();
-      config::input.key_rightalt_to_key_win = false;
+      config_.edit_startup().input.keyboard = true;
+      config_.edit_startup().input.keybindings.clear();
+      config_.edit_startup().input.key_rightalt_to_key_win = false;
       // Keep every emission on the calling thread so the recorded order is deterministic.
-      config::input.key_repeat_delay = 0ms;
+      config_.edit_startup().input.key_repeat_delay = 0ms;
 
-      auto platform_input = platf::input(infrastructure_.scheduler());
+      auto platform_input = platf::input(config_.values(), infrastructure_.scheduler());
       ASSERT_TRUE(platform_input);
       auto &context = platf::virtualhid::get_input_context(platform_input);
-      context = platf::virtualhid::input_context_t {lvh::BackendKind::fake};
+      context = platf::virtualhid::input_context_t {config_.values(), lvh::BackendKind::fake};
       context_ = &context;
       ASSERT_NE(context_->keyboard, nullptr);
       input::testing::set_platform_input(inputs_, std::move(platform_input));
@@ -360,7 +360,6 @@ namespace {
       stream_.reset();
       context_ = nullptr;
       input::testing::set_platform_input(inputs_, {});
-      config::input = std::move(original_input_);
     }
 
     /**
@@ -434,7 +433,6 @@ namespace {
     std::shared_ptr<input::input_t> stream_;  ///< Stream input state under test.
     std::vector<input::testing::keyboard_event_t> events_;  ///< Keyboard output recorded for the current test.
     platf::virtualhid::input_context_t *context_ = nullptr;  ///< Fake input context installed in the global backend.
-    config::input_t original_input_;  ///< Input configuration restored after each test.
   };
 }  // namespace
 
@@ -647,7 +645,7 @@ TEST_F(KeyboardPassthroughTest, IgnoresRepeatedPressesAndUnmatchedReleases) {
 }
 
 TEST_F(KeyboardPassthroughTest, EmitsRemappedKeycodesFromKeybindings) {
-  config::input.keybindings = {
+  config_.edit_startup().input.keybindings = {
     {VKEY_LWIN, VKEY_LMENU},
     {VKEY_RWIN, VKEY_RMENU},
     {VKEY_LMENU, VKEY_LWIN},
@@ -679,7 +677,7 @@ TEST_F(KeyboardPassthroughTest, DoesNotInjectSyntheticAltWhenAltIsRemappedToMeta
   // gets positional Option and Command. shortcutFlags is compared against the client's modifier
   // bitmask, so it has to track the client keycode. Tracking the remapped host keycode instead
   // left the ALT bit clear and wrapped every following key in a real VKEY_MENU press.
-  config::input.keybindings = {
+  config_.edit_startup().input.keybindings = {
     {VKEY_LWIN, VKEY_LMENU},
     {VKEY_RWIN, VKEY_RMENU},
     {VKEY_LMENU, VKEY_LWIN},
@@ -715,7 +713,7 @@ TEST_F(KeyboardPassthroughTest, DoesNotInjectSyntheticAltWhenAltIsRemappedToMeta
 }
 
 TEST_F(KeyboardPassthroughTest, DoesNotInjectSyntheticAltWhenRightAltIsRemappedToMeta) {
-  config::input.keybindings = {{VKEY_RMENU, VKEY_RWIN}};
+  config_.edit_startup().input.keybindings = {{VKEY_RMENU, VKEY_RWIN}};
 
   press(VKEY_RMENU, MODIFIER_ALT);
   press(VKEY_SPACE, MODIFIER_ALT);
@@ -735,8 +733,8 @@ TEST_F(KeyboardPassthroughTest, DoesNotInjectSyntheticAltWhenRightAltIsRemappedT
 
 TEST_F(KeyboardPassthroughTest, DoesNotInjectSyntheticAltForKeyRightaltToKeyWin) {
   // config.cpp installs this keybinding when the option is enabled.
-  config::input.key_rightalt_to_key_win = true;
-  config::input.keybindings = {{VKEY_RMENU, VKEY_LWIN}};
+  config_.edit_startup().input.key_rightalt_to_key_win = true;
+  config_.edit_startup().input.keybindings = {{VKEY_RMENU, VKEY_LWIN}};
 
   press(VKEY_RMENU, MODIFIER_ALT);
   press(VKEY_SPACE, MODIFIER_ALT);
@@ -755,8 +753,8 @@ TEST_F(KeyboardPassthroughTest, DoesNotInjectSyntheticAltForKeyRightaltToKeyWin)
 }
 
 TEST_F(KeyboardPassthroughTest, KeepsRealAltWhileRightAltMapsToKeyWin) {
-  config::input.key_rightalt_to_key_win = true;
-  config::input.keybindings = {{VKEY_RMENU, VKEY_LWIN}};
+  config_.edit_startup().input.key_rightalt_to_key_win = true;
+  config_.edit_startup().input.keybindings = {{VKEY_RMENU, VKEY_LWIN}};
 
   // Left Alt is a real Alt, so the ALT bit must not be masked away while it is held.
   press(VKEY_LMENU, MODIFIER_ALT);
@@ -814,7 +812,7 @@ TEST_F(KeyboardPassthroughTest, KeepsShiftAndControlSetWhileTheirOtherSideRemain
 
   for (const auto &modifier : cases) {
     SCOPED_TRACE(modifier.name);
-    config::input.keybindings = {{modifier.right, VKEY_LWIN}};
+    config_.edit_startup().input.keybindings = {{modifier.right, VKEY_LWIN}};
 
     press(modifier.left, modifier.bit);
     press(modifier.right, modifier.bit);
@@ -884,7 +882,7 @@ TEST_F(KeyboardPassthroughTest, DeliversKeysThroughTheVirtualKeyboard) {
   EXPECT_EQ(keyboard.last_submitted_event().key_code, VKEY_A);
   EXPECT_FALSE(keyboard.last_submitted_event().pressed);
 
-  config::input.keybindings = {{VKEY_LMENU, VKEY_LWIN}};
+  config_.edit_startup().input.keybindings = {{VKEY_LMENU, VKEY_LWIN}};
   press(VKEY_LMENU, MODIFIER_ALT);
   EXPECT_EQ(keyboard.submit_count(), submitted + 3);
   EXPECT_EQ(keyboard.last_submitted_event().key_code, VKEY_LWIN);
@@ -923,7 +921,7 @@ TEST_F(KeyboardPassthroughTest, ReleasesHeldKeysAsThemselvesWithoutKeybindings) 
 }
 
 TEST_F(KeyboardPassthroughTest, ReleasesTheRemappedHostKeyWhenTheClientDisconnects) {
-  config::input.keybindings = {{VKEY_LMENU, VKEY_LWIN}};
+  config_.edit_startup().input.keybindings = {{VKEY_LMENU, VKEY_LWIN}};
 
   // The press goes down as the remapped host key.
   press(VKEY_LMENU, MODIFIER_ALT);
@@ -938,8 +936,8 @@ TEST_F(KeyboardPassthroughTest, ReleasesTheRemappedHostKeyWhenTheClientDisconnec
 
 TEST_F(KeyboardPassthroughTest, ReleasesTheRemappedRightAltForKeyRightaltToKeyWin) {
   // Mirrors what config parsing installs for the shipped key_rightalt_to_key_win option.
-  config::input.key_rightalt_to_key_win = true;
-  config::input.keybindings = {{VKEY_RMENU, VKEY_LWIN}};
+  config_.edit_startup().input.key_rightalt_to_key_win = true;
+  config_.edit_startup().input.keybindings = {{VKEY_RMENU, VKEY_LWIN}};
 
   press(VKEY_RMENU, MODIFIER_ALT);
   EXPECT_EQ(taken(), (std::vector<std::string> {pressed(VKEY_LWIN)}));

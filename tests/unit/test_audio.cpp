@@ -33,6 +33,7 @@ struct AudioTest: PlatformTestSuite, testing::WithParamInterface<std::tuple<std:
     m_mail = std::make_shared<safe::mail_raw_t>();
   }
 
+  config::settings_t settings;  ///< Host audio settings owned by this fixture.
   config_t m_config;
   safe::mail_t m_mail;
 };
@@ -80,8 +81,156 @@ TEST_P(AudioTest, TestEncode) {
       }
     }
   });
-  audio::capture(m_mail, m_config, nullptr);
+  audio::service_t audios {settings, m_mail};
+  audios.capture(m_mail, m_config, nullptr);
 
   timer.join();
   capture.join();
+}
+
+namespace {
+  /** @brief Fake controller retaining observed routing and initialization state. */
+  struct fake_audio_control_t: platf::audio_control_t {
+    std::vector<std::string> &restored;  ///< Sink restoration requests observed by the fixture.
+    std::optional<platf::sink_t> sinks;  ///< Sink discovery result injected by the fixture.
+
+    /** @brief Bind fixture state. @param restored Observed sink changes. @param sinks Sink discovery result. */
+    fake_audio_control_t(std::vector<std::string> &restored, std::optional<platf::sink_t> sinks):
+        restored {restored},
+        sinks {std::move(sinks)} {}
+
+    /** @brief Record a routing request. @param sink Requested endpoint. @return Zero on success. */
+    int set_sink(const std::string &sink) override {
+      restored.push_back(sink);
+      return 0;
+    }
+
+    /** @brief Supply no microphone because these tests exercise routing ownership. @return Null microphone. */
+    std::unique_ptr<platf::mic_t> microphone(const std::uint8_t *, int, std::uint32_t, std::uint32_t, bool, bool) override {
+      return nullptr;
+    }
+
+    /** @brief Report fixture endpoints as available. @param sink Endpoint to inspect. @return Whether the endpoint is recognized. */
+    bool is_sink_available(const std::string &sink) override {
+      return sink == "original" || sink == "configured";
+    }
+
+    /** @brief Return the configured discovery result. @return Injected sink information. */
+    std::optional<platf::sink_t> sink_info() override {
+      return sinks;
+    }
+  };
+}  // namespace
+
+/** @brief Context references retain shared control after its service is destroyed and restore once. */
+TEST(AudioOwnerTest, RetainedContextSurvivesOwnerAndRestoresOriginalSink) {
+  config::settings_t settings;
+  std::vector<std::string> restored;
+  audio::audio_ctx_ref_t retained;
+  {
+    audio::service_t owner {settings, std::make_shared<safe::mail_raw_t>(), [&]() {
+                              return std::make_unique<fake_audio_control_t>(restored, platf::sink_t {"original", {}});
+                            }};
+    retained = owner.context();
+    auto second = owner.context();
+    ASSERT_TRUE(retained);
+    EXPECT_EQ(retained.get(), second.get());
+    EXPECT_TRUE(audio::is_audio_ctx_sink_available(*retained));
+    retained->restore_sink = true;
+  }
+  EXPECT_TRUE(restored.empty());
+  retained.reset();
+  EXPECT_EQ(restored, std::vector<std::string> {"original"});
+}
+
+/** @brief Failed lazy initialization can be retried after references release their failed attempt. */
+TEST(AudioOwnerTest, FailedInitializationAndSinkDiscoveryCanBeRetried) {
+  config::settings_t settings;
+  settings.audio.sink = "configured";
+  std::vector<std::string> restored;
+  int attempts {};
+  audio::service_t owner {settings, std::make_shared<safe::mail_raw_t>(), [&]() -> std::unique_ptr<platf::audio_control_t> {
+                            ++attempts;
+                            if (attempts == 1) {
+                              return nullptr;
+                            }
+                            return std::make_unique<fake_audio_control_t>(restored, attempts == 2 ? std::nullopt : std::optional<platf::sink_t> {platf::sink_t {}});
+                          }};
+  {
+    auto failed = owner.context();
+    ASSERT_TRUE(failed);
+    EXPECT_FALSE(audio::is_audio_ctx_sink_available(*failed));
+  }
+  {
+    auto failed = owner.context();
+    ASSERT_TRUE(failed);
+    EXPECT_FALSE(failed->control);
+  }
+  auto succeeded = owner.context();
+  ASSERT_TRUE(succeeded);
+  ASSERT_TRUE(succeeded->control);
+  EXPECT_EQ(attempts, 3);
+  EXPECT_TRUE(audio::is_audio_ctx_sink_available(*succeeded));
+  succeeded->restore_sink = true;
+  succeeded.reset();
+  EXPECT_EQ(restored, std::vector<std::string> {"configured"});
+}
+
+/** @brief Independent audio owners preserve separate original sinks and capture contexts. */
+TEST(AudioOwnerTest, IndependentOwnersDoNotShareControlOrRestoration) {
+  config::settings_t first_settings;
+  config::settings_t second_settings;
+  std::vector<std::string> first_restored;
+  std::vector<std::string> second_restored;
+  audio::service_t first {first_settings, std::make_shared<safe::mail_raw_t>(), [&]() {
+                            return std::make_unique<fake_audio_control_t>(first_restored, platf::sink_t {"first", {}});
+                          }};
+  audio::service_t second {second_settings, std::make_shared<safe::mail_raw_t>(), [&]() {
+                             return std::make_unique<fake_audio_control_t>(second_restored, platf::sink_t {"second", {}});
+                           }};
+  auto first_context = first.context();
+  auto second_context = second.context();
+  ASSERT_TRUE(first_context);
+  ASSERT_TRUE(second_context);
+  EXPECT_NE(first_context.get(), second_context.get());
+  first_context->restore_sink = true;
+  first_context.reset();
+  EXPECT_EQ(first_restored, std::vector<std::string> {"first"});
+  EXPECT_TRUE(second_restored.empty());
+}
+
+/** @brief Empty and unavailable endpoints cannot be restored or reported as available. */
+TEST(AudioOwnerTest, EmptyAndUnavailableSinksKeepRoutingUnchanged) {
+  config::settings_t settings;
+  std::vector<std::string> restored;
+  audio::service_t owner {settings, std::make_shared<safe::mail_raw_t>(), [&]() {
+                            return std::make_unique<fake_audio_control_t>(restored, platf::sink_t {});
+                          }};
+  auto empty = owner.context();
+  ASSERT_TRUE(empty);
+  EXPECT_FALSE(audio::is_audio_ctx_sink_available(*empty));
+  empty->restore_sink = true;
+  empty.reset();
+  EXPECT_TRUE(restored.empty());
+  auto unavailable = owner.context();
+  ASSERT_TRUE(unavailable);
+  unavailable->sink.host = "unavailable";
+  EXPECT_FALSE(audio::is_audio_ctx_sink_available(*unavailable));
+}
+
+/** @brief Disabled host audio completes shutdown without initializing an audio backend. */
+TEST(AudioOwnerTest, DisabledCaptureDoesNotInitializeDevices) {
+  config::settings_t settings;
+  settings.audio.stream = false;
+  auto host_mail = std::make_shared<safe::mail_raw_t>();
+  auto session_mail = std::make_shared<safe::mail_raw_t>();
+  const auto shutdown_event = session_mail->event<bool>(mail::shutdown);
+  shutdown_event->raise(true);
+  int attempts {};
+  audio::service_t owner {settings, host_mail, [&]() -> std::unique_ptr<platf::audio_control_t> {
+                            ++attempts;
+                            return nullptr;
+                          }};
+  owner.capture(session_mail, {}, nullptr);
+  EXPECT_EQ(attempts, 0);
 }

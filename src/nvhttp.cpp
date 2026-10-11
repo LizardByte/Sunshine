@@ -69,6 +69,7 @@ namespace nvhttp {
    * @brief Private state and handlers belonging to one GameStream service.
    */
   struct service_t::impl_t {
+    const config::settings_t &settings;  ///< Stable application startup configuration.
     http::state_t &http_state;  ///< Shared host identity.
     proc::proc_t &processes;  ///< Shared application process owner.
     display_device::manager_t &displays;  ///< Display recovery and configuration owner.
@@ -80,6 +81,7 @@ namespace nvhttp {
 
     /**
      * @brief Bind the dependencies before any callbacks are registered.
+     * @param settings Application startup configuration.
      * @param http_state Shared HTTP identity.
      * @param processes Shared process owner.
      * @param displays Shared display owner.
@@ -87,7 +89,8 @@ namespace nvhttp {
      * @param rtsp Pending launch and active-session owner.
      * @param host_mail Application shutdown mailbox.
      */
-    impl_t(http::state_t &http_state, proc::proc_t &processes, display_device::manager_t &displays, video::service_t &videos, rtsp_stream::service_t &rtsp, safe::mail_t host_mail):
+    impl_t(const config::settings_t &settings, http::state_t &http_state, proc::proc_t &processes, display_device::manager_t &displays, video::service_t &videos, rtsp_stream::service_t &rtsp, safe::mail_t host_mail):
+        settings {settings},
         http_state {http_state},
         processes {processes},
         displays {displays},
@@ -312,11 +315,11 @@ namespace nvhttp {
     void save_state() {
       pt::ptree root;
 
-      if (fs::exists(config::nvhttp.file_state)) {
+      if (fs::exists(settings.nvhttp.file_state)) {
         try {
-          pt::read_json(config::nvhttp.file_state, root);
+          pt::read_json(settings.nvhttp.file_state, root);
         } catch (std::exception &e) {
-          BOOST_LOG(error) << "Couldn't read "sv << config::nvhttp.file_state << ": "sv << e.what();
+          BOOST_LOG(error) << "Couldn't read "sv << settings.nvhttp.file_state << ": "sv << e.what();
           return;
         }
       }
@@ -339,9 +342,9 @@ namespace nvhttp {
       root.add_child("root.named_devices"s, named_cert_nodes);
 
       try {
-        pt::write_json(config::nvhttp.file_state, root);
+        pt::write_json(settings.nvhttp.file_state, root);
       } catch (std::exception &e) {
-        BOOST_LOG(error) << "Couldn't write "sv << config::nvhttp.file_state << ": "sv << e.what();
+        BOOST_LOG(error) << "Couldn't write "sv << settings.nvhttp.file_state << ": "sv << e.what();
         return;
       }
     }
@@ -419,17 +422,17 @@ namespace nvhttp {
      * @brief Load state from its backing store.
      */
     void load_state() {
-      if (!fs::exists(config::nvhttp.file_state)) {
-        BOOST_LOG(info) << "File "sv << config::nvhttp.file_state << " doesn't exist"sv;
+      if (!fs::exists(settings.nvhttp.file_state)) {
+        BOOST_LOG(info) << "File "sv << settings.nvhttp.file_state << " doesn't exist"sv;
         http_state.set_unique_id(uuid_util::uuid_t::generate().string());
         return;
       }
 
       pt::ptree tree;
       try {
-        pt::read_json(config::nvhttp.file_state, tree);
+        pt::read_json(settings.nvhttp.file_state, tree);
       } catch (std::exception &e) {
-        BOOST_LOG(error) << "Couldn't read "sv << config::nvhttp.file_state << ": "sv << e.what();
+        BOOST_LOG(error) << "Couldn't read "sv << settings.nvhttp.file_state << ": "sv << e.what();
 
         return;
       }
@@ -515,7 +518,7 @@ namespace nvhttp {
       client_root.named_devices.emplace_back(std::move(named_cert));
       rebuild_client_cert_chain();
 
-      if (!config::sunshine.flags[config::flag::FRESH_STATE]) {
+      if (!settings.sunshine.flags[config::flag::FRESH_STATE]) {
         save_state();
       }
       return uuid;
@@ -653,6 +656,12 @@ namespace nvhttp {
       }
     }
 
+    /**
+     * @brief Insert a pending pairing request after expiring stale requests under the session lock.
+     * @param sess Pairing state to retain until approval or expiry.
+     * @param pairing_id Receives the generated approval identifier on success.
+     * @return Whether the request was added, already pending, or exceeds the pending limit.
+     */
     pair_session_insert_e insert_pair_session(pair_session_t sess, std::string &pairing_id) {
       std::scoped_lock lock {map_id_sess_mutex()};
       const auto now = std::chrono::steady_clock::now();
@@ -678,11 +687,19 @@ namespace nvhttp {
       return pair_session_insert_e::ADDED;
     }
 
+    /**
+     * @brief Expire pending pairing requests while holding the session lock.
+     * @param now Monotonic time used to evaluate completion deadlines.
+     */
     void expire_pair_sessions(const std::chrono::steady_clock::time_point now) {
       std::scoped_lock lock {map_id_sess_mutex()};
       expire_pair_sessions_unlocked(now);
     }
 
+    /**
+     * @brief Snapshot requests awaiting operator approval after expiring stale requests.
+     * @return Pending requests ordered from oldest to newest.
+     */
     std::vector<pending_pairing_t> get_pending_pairings() {
       std::scoped_lock lock {map_id_sess_mutex()};
       expire_pair_sessions_unlocked(std::chrono::steady_clock::now());
@@ -710,6 +727,11 @@ namespace nvhttp {
       return result;
     }
 
+    /**
+     * @brief Cancel an unapproved request and complete its pending response and waiter.
+     * @param pairing_id Approval identifier belonging to the request.
+     * @return Whether an unapproved request was found and cancelled.
+     */
     bool cancel_pairing(const std::string_view pairing_id) {
       if (!is_valid_pairing_id(pairing_id)) {
         return false;
@@ -735,6 +757,10 @@ namespace nvhttp {
       return true;
     }
 
+    /**
+     * @brief Release a client's temporary pairing state and complete its waiter as unsuccessful.
+     * @param sess Pairing session identifying the client to remove.
+     */
     void remove_session(const pair_session_t &sess) {
       std::scoped_lock lock {map_id_sess_mutex()};
       if (const auto sess_it = map_id_sess.find(sess.client.uniqueID); sess_it != map_id_sess.end()) {
@@ -1006,7 +1032,7 @@ namespace nvhttp {
       sess.async_insert_pin.address = net::addr_to_normalized_string(request->remote_endpoint().address());
 
       BOOST_LOG(debug) << sess.client.cert;
-      const bool pin_stdin = config::sunshine.flags[config::flag::PIN_STDIN];
+      const bool pin_stdin = settings.sunshine.flags[config::flag::PIN_STDIN];
       if (!pin_stdin) {
         sess.async_insert_pin.response = response;
       }
@@ -1131,6 +1157,14 @@ namespace nvhttp {
       }
     }
 
+    /**
+     * @brief Approve one pending request and wait for the client to prove the supplied PIN.
+     * @param pairing_id Approval identifier belonging to the pending request.
+     * @param pin PIN supplied by the operator.
+     * @param name Friendly name to persist after successful pairing.
+     * @return Whether the client completed pairing before its bounded completion deadline.
+     * @note The session lock is released while waiting for the client's handshake.
+     */
     bool pin(const std::string_view pairing_id, std::string pin, std::string name) {
       if (!is_valid_pairing_id(pairing_id) || !is_valid_pairing_pin(pin) || !is_valid_pairing_name(name)) {
         return false;
@@ -1163,7 +1197,7 @@ namespace nvhttp {
         }
 
         completion = sess.completion;
-        completion_deadline = std::min(sess.async_insert_pin.expires_at, now + config::stream.ping_timeout);
+        completion_deadline = std::min(sess.async_insert_pin.expires_at, now + settings.stream.ping_timeout);
       }
 
       {
@@ -1250,13 +1284,13 @@ namespace nvhttp {
       pt::ptree tree;
 
       tree.put("root.<xmlattr>.status_code", 200);
-      tree.put("root.hostname", config::nvhttp.sunshine_name);
+      tree.put("root.hostname", settings.nvhttp.sunshine_name);
 
       tree.put("root.appversion", VERSION);
       tree.put("root.GfeVersion", GFE_VERSION);
       tree.put("root.uniqueid", http_state.unique_id());
-      tree.put("root.HttpsPort", net::map_port(PORT_HTTPS));
-      tree.put("root.ExternalPort", net::map_port(PORT_HTTP));
+      tree.put("root.HttpsPort", net::map_port(settings, PORT_HTTPS));
+      tree.put("root.ExternalPort", net::map_port(settings, PORT_HTTP));
       const auto capabilities = videos.capabilities();
       tree.put("root.MaxLumaPixelsHEVC", capabilities.active_hevc_mode > 1 ? "1869449984" : "0");
 
@@ -1286,8 +1320,8 @@ namespace nvhttp {
       const uint32_t codec_mode_flags = get_codec_mode_flags(capabilities);
       tree.put("root.ServerCodecModeSupport", codec_mode_flags);
 
-      if (!config::nvhttp.external_ip.empty()) {
-        tree.put("root.ExternalIP", config::nvhttp.external_ip);
+      if (!settings.nvhttp.external_ip.empty()) {
+        tree.put("root.ExternalIP", settings.nvhttp.external_ip);
       }
 
       auto current_appid = processes.running();
@@ -1302,6 +1336,10 @@ namespace nvhttp {
       response->close_connection_after_response = true;
     }
 
+    /**
+     * @brief Snapshot paired client names, identities, and authorization state under the client lock.
+     * @return JSON array containing the paired clients.
+     */
     nlohmann::json get_all_clients() {
       nlohmann::json named_cert_nodes = nlohmann::json::array();
       std::lock_guard lock {client_auth_mutex()};
@@ -1324,7 +1362,7 @@ namespace nvhttp {
      */
     void applist(resp_https_t response, req_https_t request) {
       print_req<SunshineHTTPS>(request);
-      processes.refresh(config::stream.file_apps);
+      processes.refresh(settings.stream.file_apps);
 
       pt::ptree tree;
 
@@ -1414,7 +1452,7 @@ namespace nvhttp {
         // We want to prepare display only if there are no active sessions at
         // the moment. This should be done before probing encoders as it could
         // change the active displays.
-        displays.configure_display(config::video, *launch_session);
+        displays.configure_display(settings.video, *launch_session);
 
         // Probe encoders again before streaming to ensure our chosen
         // encoder matches the active GPU (which could have changed
@@ -1429,7 +1467,7 @@ namespace nvhttp {
         }
       }
 
-      auto encryption_mode = net::encryption_mode_for_address(request->remote_endpoint().address());
+      auto encryption_mode = net::encryption_mode_for_address(settings, request->remote_endpoint().address());
       if (!launch_session->rtsp_cipher && encryption_mode == config::ENCRYPTION_MODE_MANDATORY) {
         BOOST_LOG(error) << "Rejecting client that cannot comply with mandatory encryption requirement"sv;
 
@@ -1458,7 +1496,7 @@ namespace nvhttp {
           "{}{}:{}",
           launch_session->rtsp_url_scheme,
           net::addr_to_url_escaped_string(request->local_endpoint().address()),
-          static_cast<int>(net::map_port(rtsp_stream::RTSP_SETUP_PORT))
+          static_cast<int>(net::map_port(settings, rtsp_stream::RTSP_SETUP_PORT))
         )
       );
       tree.put("root.gamesession", 1);
@@ -1526,7 +1564,7 @@ namespace nvhttp {
         // We want to prepare display only if there are no active sessions at
         // the moment. This should be done before probing encoders as it could
         // change the active displays.
-        displays.configure_display(config::video, *launch_session);
+        displays.configure_display(settings.video, *launch_session);
 
         // Probe encoders again before streaming to ensure our chosen
         // encoder matches the active GPU (which could have changed
@@ -1541,7 +1579,7 @@ namespace nvhttp {
         }
       }
 
-      auto encryption_mode = net::encryption_mode_for_address(request->remote_endpoint().address());
+      auto encryption_mode = net::encryption_mode_for_address(settings, request->remote_endpoint().address());
       if (!launch_session->rtsp_cipher && encryption_mode == config::ENCRYPTION_MODE_MANDATORY) {
         BOOST_LOG(error) << "Rejecting client that cannot comply with mandatory encryption requirement"sv;
 
@@ -1559,7 +1597,7 @@ namespace nvhttp {
           "{}{}:{}",
           launch_session->rtsp_url_scheme,
           net::addr_to_url_escaped_string(request->local_endpoint().address()),
-          static_cast<int>(net::map_port(rtsp_stream::RTSP_SETUP_PORT))
+          static_cast<int>(net::map_port(settings, rtsp_stream::RTSP_SETUP_PORT))
         )
       );
       tree.put("root.resume", 1);
@@ -1617,42 +1655,42 @@ namespace nvhttp {
       response->close_connection_after_response = true;
     }
 
+    /**
+     * @brief Retain the host credentials used during client pairing.
+     * @param pkey PEM-encoded host private key.
+     * @param cert PEM-encoded host certificate.
+     */
     void setup(const std::string &pkey, const std::string &cert) {
       conf_intern.pkey = pkey;
       conf_intern.servercert = cert;
     }
 
     /**
-     * @brief Check whether a paired client certificate is allowed to connect and retrieve its friendly name.
-     *
-     * @param cert_pem PEM-encoded client certificate to look up.
-     * @return Pair of (bool enabled, string name) where "enabled" is True when the client certificate belongs to an
-               enabled device and "name" is the friendly client name set during pairing.
+     * @brief Load pairing state, serve GameStream HTTP requests, and wait for application shutdown.
      */
-
     void start() {
       platf::set_thread_name("nvhttp");
       auto shutdown_event = host_mail->event<bool>(mail::shutdown);
 
-      auto port_http = net::map_port(PORT_HTTP);
-      auto port_https = net::map_port(PORT_HTTPS);
-      auto address_family = net::af_from_enum_string(config::sunshine.address_family);
+      auto port_http = net::map_port(settings, PORT_HTTP);
+      auto port_https = net::map_port(settings, PORT_HTTPS);
+      auto address_family = net::af_from_enum_string(settings.sunshine.address_family);
 
-      bool clean_slate = config::sunshine.flags[config::flag::FRESH_STATE];
+      bool clean_slate = settings.sunshine.flags[config::flag::FRESH_STATE];
 
       if (!clean_slate) {
         load_state();
       }
 
-      auto pkey = file_handler::read_file(config::nvhttp.pkey.c_str());
-      auto cert = file_handler::read_file(config::nvhttp.cert.c_str());
+      auto pkey = file_handler::read_file(settings.nvhttp.pkey.c_str());
+      auto cert = file_handler::read_file(settings.nvhttp.cert.c_str());
       setup(pkey, cert);
 
       // resume doesn't always get the parameter "localAudioPlayMode"
       // launch will store it in host_audio
       bool host_audio {};
 
-      https_server_t https_server {config::nvhttp.cert, config::nvhttp.pkey};
+      https_server_t https_server {settings.nvhttp.cert, settings.nvhttp.pkey};
       http_server_t http_server;
 
       // Verify certificates after establishing connection
@@ -1743,7 +1781,7 @@ namespace nvhttp {
       };
 
       https_server.config.reuse_address = true;
-      https_server.config.address = net::get_bind_address(address_family);
+      https_server.config.address = net::get_bind_address(settings, address_family);
       https_server.config.port = port_https;
 
       http_server.default_resource["GET"] = [this](auto response, auto request) {
@@ -1757,7 +1795,7 @@ namespace nvhttp {
       };
 
       http_server.config.reuse_address = true;
-      http_server.config.address = net::get_bind_address(address_family);
+      http_server.config.address = net::get_bind_address(settings, address_family);
       http_server.config.port = port_http;
 
       auto accept_and_run = [&](auto *http_server) {
@@ -1789,6 +1827,9 @@ namespace nvhttp {
       tcp.join();
     }
 
+    /**
+     * @brief Remove paired clients and persist the empty trust state under the client lock.
+     */
     void erase_all_clients() {
       std::lock_guard lock {client_auth_mutex()};
       client_root = {};
@@ -1796,6 +1837,11 @@ namespace nvhttp {
       save_state();
     }
 
+    /**
+     * @brief Remove a paired client, rebuild certificate trust, and persist the updated state.
+     * @param uuid Identity of the client to remove.
+     * @return Whether the client entry was found and removed.
+     */
     bool unpair_client(const std::string_view uuid) {
       std::lock_guard lock {client_auth_mutex()};
       bool removed = false;
@@ -1813,6 +1859,12 @@ namespace nvhttp {
       return removed;
     }
 
+    /**
+     * @brief Update authorization for a paired client and persist the rebuilt certificate trust.
+     * @param uuid Identity of the client to update.
+     * @param enabled Whether the client is allowed to connect.
+     * @return Whether the client entry was found and updated.
+     */
     bool set_client_enabled(const std::string_view uuid, bool enabled) {
       std::lock_guard lock {client_auth_mutex()};
       for (auto &named_cert : client_root.named_devices) {
@@ -1827,7 +1879,9 @@ namespace nvhttp {
     }
 
     /**
-     * @brief Get cert by UUID.
+     * @brief Look up a paired client's certificate under the client lock.
+     * @param uuid Identity of the client to inspect.
+     * @return PEM-encoded certificate, or an empty string when the client is unknown.
      */
     std::string get_cert_by_uuid(const std::string_view uuid) {
       std::lock_guard lock {client_auth_mutex()};
@@ -1840,7 +1894,10 @@ namespace nvhttp {
     }
 
     /**
-     * @brief Check whether a paired client certificate is allowed to connect and return its friendly name.
+     * @brief Look up authorization and the friendly name for a verified client certificate.
+     * @param cert_pem PEM-encoded client certificate to inspect.
+     * @return Stored authorization and name, or the legacy enabled result with an empty name when unknown.
+     * @note The caller holds the client authorization lock.
      */
     std::pair<bool, std::string> get_client_status(const std::string_view cert_pem) {
       const client_t &client = client_root;
@@ -1919,8 +1976,8 @@ namespace nvhttp {
 #endif
   };
 
-  service_t::service_t(http::state_t &http_state, proc::proc_t &processes, display_device::manager_t &displays, video::service_t &videos, rtsp_stream::service_t &rtsp, safe::mail_t host_mail):
-      impl {std::make_unique<impl_t>(http_state, processes, displays, videos, rtsp, std::move(host_mail))} {
+  service_t::service_t(const config::settings_t &settings, http::state_t &http_state, proc::proc_t &processes, display_device::manager_t &displays, video::service_t &videos, rtsp_stream::service_t &rtsp, safe::mail_t host_mail):
+      impl {std::make_unique<impl_t>(settings, http_state, processes, displays, videos, rtsp, std::move(host_mail))} {
   }
 
   service_t::~service_t() = default;

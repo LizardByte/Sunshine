@@ -67,6 +67,15 @@ namespace platf {
    * @brief macOS audio control state used to create microphone streams.
    */
   struct macos_audio_control_t: public audio_control_t {
+    const config::settings_t &settings;  ///< Configuration retained for microphone selection.
+
+    /**
+     * @brief Bind the host audio sink policy without creating a microphone.
+     * @param settings Host audio configuration.
+     */
+    explicit macos_audio_control_t(const config::settings_t &settings):
+        settings {settings} {}
+
     AVCaptureDevice *audio_capture_device {};  ///< Audio capture device.
 
   public:
@@ -100,7 +109,7 @@ namespace platf {
       mic->av_audio_capture.hostAudioEnabled = host_audio_enabled ? YES : NO;
       BOOST_LOG(debug) << "Set hostAudioEnabled to: "sv << (host_audio_enabled ? "YES" : "NO");
 
-      if (config::audio.sink.empty()) {
+      if (settings.audio.sink.empty()) {
         // Use macOS system-wide audio tap
         BOOST_LOG(info) << "Using macOS system audio tap for capture."sv;
         BOOST_LOG(info) << "Sample rate: "sv << sample_rate << ", Frame size: "sv << frame_size << ", Channels: "sv << channels;
@@ -111,7 +120,7 @@ namespace platf {
         }
       } else {
         // Use specified macOS audio sink
-        const char *audio_sink = config::audio.sink.c_str();
+        const char *audio_sink = settings.audio.sink.c_str();
         BOOST_LOG(info) << "Using configured audio sink "sv << audio_sink << " for capture."sv;
 
         if (!request_microphone_permission()) {
@@ -155,7 +164,7 @@ namespace platf {
     }
   };
 
-  std::unique_ptr<audio_control_t> audio_control() {
-    return std::make_unique<macos_audio_control_t>();
+  std::unique_ptr<audio_control_t> audio_control(const config::settings_t &settings) {
+    return std::make_unique<macos_audio_control_t>(settings);
   }
 }  // namespace platf

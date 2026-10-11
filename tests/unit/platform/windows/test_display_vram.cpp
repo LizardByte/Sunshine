@@ -75,6 +75,7 @@ TEST_P(ShaderFailureTest, DoesNotPublishPartialBundleAndCanRetry) {
 INSTANTIATE_TEST_SUITE_P(EveryShader, ShaderFailureTest, testing::Range(1, 26));
 
 TEST(ShaderBundleTest, CaptureRetainsBytecodeAfterPlatformOwnerReleasesIt) {
+  config::store_t configuration;
   auto bundle = platf::dxgi::compile_shaders([](const std::string &, const char *) {
     return shader_blob(7);
   });
@@ -82,7 +83,7 @@ TEST(ShaderBundleTest, CaptureRetainsBytecodeAfterPlatformOwnerReleasesIt) {
     return shader_blob(8);
   });
   std::weak_ptr<const platf::dxgi::shader_bundle_t> weak = bundle;
-  auto display = std::make_shared<platf::dxgi::display_ddup_vram_t>(bundle);
+  auto display = std::make_shared<platf::dxgi::display_ddup_vram_t>(configuration.values(), bundle);
   bundle.reset();
   EXPECT_FALSE(weak.expired());
   EXPECT_EQ(*static_cast<unsigned char *>(display->shaders->cursor_vs_hlsl->GetBufferPointer()), 7);
@@ -91,7 +92,6 @@ TEST(ShaderBundleTest, CaptureRetainsBytecodeAfterPlatformOwnerReleasesIt) {
   EXPECT_TRUE(weak.expired());
 }
 
-/**
 TEST(ShaderBundleTest, NativeCompilerBuildsCompleteBundleWithoutCaptureDevice) {
   const auto bundle = platf::dxgi::compile_shaders();
   ASSERT_NE(bundle, nullptr);
@@ -99,6 +99,7 @@ TEST(ShaderBundleTest, NativeCompilerBuildsCompleteBundleWithoutCaptureDevice) {
   EXPECT_GT(bundle->cursor_vs_hlsl->GetBufferSize(), 0);
 }
 
+/**
  * @brief Encoder output format, HDR state, option state, and expected FP16 transfer.
  */
 using Fp16TransferParam = std::tuple<DXGI_FORMAT, bool, bool, fp16_transfer_e>;

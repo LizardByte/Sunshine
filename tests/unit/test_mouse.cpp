@@ -104,6 +104,7 @@ namespace {
 }  // namespace
 
 struct MouseHIDTest: PlatformTestSuite, testing::WithParamInterface<util::point_t> {
+  config::store_t config_;  ///< Configuration owned by this fixture.
   runtime::infrastructure_t infrastructure_;  ///< Scheduler owned by this mouse fixture.
 
   void SetUp() override {
@@ -131,7 +132,7 @@ TEST_P(MouseHIDTest, MoveInputTest) {
   util::point_t mouse_delta = GetParam();
 
   BOOST_LOG(tests) << "MoveInputTest:: got param: " << mouse_delta;
-  platf::input_t input = platf::input(infrastructure_.scheduler());
+  platf::input_t input = platf::input(config_.values(), infrastructure_.scheduler());
   BOOST_LOG(tests) << "MoveInputTest:: init input";
 
   BOOST_LOG(tests) << "MoveInputTest:: get current mouse loc";
@@ -174,7 +175,7 @@ TEST_P(MouseHIDTest, AbsMoveInputTest) {
   util::point_t mouse_pos = GetParam();
   BOOST_LOG(tests) << "AbsMoveInputTest:: got param: " << mouse_pos;
 
-  platf::input_t input = platf::input(infrastructure_.scheduler());
+  platf::input_t input = platf::input(config_.values(), infrastructure_.scheduler());
   BOOST_LOG(tests) << "AbsMoveInputTest:: init input";
 
   BOOST_LOG(tests) << "AbsMoveInputTest:: get current mouse loc";

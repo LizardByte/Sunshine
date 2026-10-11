@@ -71,14 +71,21 @@ namespace upnp {
    */
   class deinit_t: public platf::deinit_t {
   public:
-    deinit_t() {
-      auto rtsp = std::to_string(net::map_port(rtsp_stream::RTSP_SETUP_PORT));
-      auto video = std::to_string(net::map_port(stream::VIDEO_STREAM_PORT));
-      auto audio = std::to_string(net::map_port(stream::AUDIO_STREAM_PORT));
-      auto control = std::to_string(net::map_port(stream::CONTROL_PORT));
-      auto gs_http = std::to_string(net::map_port(nvhttp::PORT_HTTP));
-      auto gs_https = std::to_string(net::map_port(nvhttp::PORT_HTTPS));
-      auto wm_http = std::to_string(net::map_port(confighttp::PORT_HTTPS));
+    /**
+     * @brief Start port mapping with the application's shutdown event.
+     * @param settings Application network configuration.
+     * @param host_mail Application-owned shutdown mailbox.
+     */
+    deinit_t(const config::settings_t &settings, safe::mail_t host_mail):
+        settings {settings},
+        host_mail {std::move(host_mail)} {
+      auto rtsp = std::to_string(net::map_port(settings, rtsp_stream::RTSP_SETUP_PORT));
+      auto video = std::to_string(net::map_port(settings, stream::VIDEO_STREAM_PORT));
+      auto audio = std::to_string(net::map_port(settings, stream::AUDIO_STREAM_PORT));
+      auto control = std::to_string(net::map_port(settings, stream::CONTROL_PORT));
+      auto gs_http = std::to_string(net::map_port(settings, nvhttp::PORT_HTTP));
+      auto gs_https = std::to_string(net::map_port(settings, nvhttp::PORT_HTTPS));
+      auto wm_http = std::to_string(net::map_port(settings, confighttp::PORT_HTTPS));
 
       mappings.assign({
         {{rtsp, rtsp, "TCP"s}, "Sunshine - RTSP"s},
@@ -90,7 +97,7 @@ namespace upnp {
       });
 
       // Only map port for the Web Manager if it is configured to accept connection from WAN
-      if (net::from_enum_string(config::nvhttp.origin_web_ui_allowed) > net::LAN) {
+      if (net::from_enum_string(settings.nvhttp.origin_web_ui_allowed) > net::LAN) {
         mappings.emplace_back(mapping_t {{wm_http, wm_http, "TCP"s}, "Sunshine - Web UI"s});
       }
 
@@ -142,7 +149,7 @@ namespace upnp {
           if (pinholeAllowed) {
             // Create pinholes for each port
             auto mapping_period = std::to_string(PORT_MAPPING_LIFETIME.count());
-            auto shutdown_event = mail::man->event<bool>(mail::shutdown);
+            auto shutdown_event = host_mail->event<bool>(mail::shutdown);
 
             for (auto it = std::begin(mappings); it != std::end(mappings) && !shutdown_event->peek(); ++it) {
               auto mapping = *it;
@@ -311,11 +318,11 @@ namespace upnp {
      */
     void upnp_thread_proc() {
       platf::set_thread_name("upnp");
-      auto shutdown_event = mail::man->event<bool>(mail::shutdown);
+      auto shutdown_event = host_mail->event<bool>(mail::shutdown);
       bool mapped = false;
       IGDdatas data;
       urls_t mapped_urls;
-      auto address_family = net::get_effective_address_family(net::af_from_enum_string(config::sunshine.address_family));
+      auto address_family = net::get_effective_address_family(settings, net::af_from_enum_string(settings.sunshine.address_family));
 
       // Refresh UPnP rules every few minutes. They can be lost if the router reboots,
       // WAN IP address changes, or various other conditions.
@@ -374,17 +381,19 @@ namespace upnp {
     }
 
     std::vector<mapping_t> mappings;  ///< Port mappings Sunshine should keep registered with the gateway.
+    const config::settings_t &settings;  ///< Startup port and address policy.
+    safe::mail_t host_mail;  ///< Application-owned shutdown mailbox.
     std::jthread upnp_thread;  ///< Worker thread that refreshes mappings until shutdown.
   };
 
   /**
    * @brief Start UPnP port mapping and return its shutdown guard.
    */
-  std::unique_ptr<platf::deinit_t> start() {
-    if (!config::sunshine.flags[config::flag::UPNP]) {
+  std::unique_ptr<platf::deinit_t> start(const config::settings_t &settings, safe::mail_t host_mail) {
+    if (!settings.sunshine.flags[config::flag::UPNP]) {
       return nullptr;
     }
 
-    return std::make_unique<deinit_t>();
+    return std::make_unique<deinit_t>(settings, std::move(host_mail));
   }
 }  // namespace upnp

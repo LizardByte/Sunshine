@@ -240,6 +240,14 @@ namespace platf {
     }
   };
 
+  /**
+   * @brief Create an AVFoundation capture backend for the selected display.
+   * @param hwdevice_type Memory type requested by the encoder.
+   * @param display_name Stable display name or numeric capture selector.
+   * @param config Stream resolution and capture configuration.
+   * @param displays Host display manager used to resolve native display identifiers.
+   * @return Initialized capture backend, or null when capture is unavailable.
+   */
   std::shared_ptr<display_t> mac_display(platf::mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config, display_device::manager_t &displays) {
     if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::videotoolbox) {
       BOOST_LOG(error) << "Could not initialize display with the given hw device type."sv;
@@ -321,6 +329,12 @@ namespace platf {
     return display;
   }
 
+  /**
+   * @brief Enumerate display names accepted by AVFoundation capture.
+   * @param hwdevice_type Memory type requested by the encoder.
+   * @param displays Host display manager providing the current display descriptors.
+   * @return Display names, or an empty list when the memory type is unsupported.
+   */
   std::vector<std::string> mac_display_names(mem_type_e hwdevice_type, display_device::manager_t &displays) {
     std::vector<std::string> display_names;
     if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::videotoolbox) {

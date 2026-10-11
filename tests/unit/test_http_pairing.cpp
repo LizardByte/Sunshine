@@ -101,8 +101,8 @@ struct PairingTest: BaseTest, test_utils::server_context_t, testing::WithParamIn
    */
   void SetUp() override {
     BaseTest::SetUp();
-    original_fresh_state = config::sunshine.flags[config::flag::FRESH_STATE];
-    config::sunshine.flags[config::flag::FRESH_STATE] = true;
+    original_fresh_state = configuration.edit_startup().sunshine.flags[config::flag::FRESH_STATE];
+    configuration.edit_startup().sunshine.flags[config::flag::FRESH_STATE] = true;
     gamestream.test_reset_client_state();
   }
 
@@ -111,7 +111,7 @@ struct PairingTest: BaseTest, test_utils::server_context_t, testing::WithParamIn
    */
   void TearDown() override {
     gamestream.test_reset_client_state();
-    config::sunshine.flags[config::flag::FRESH_STATE] = original_fresh_state;
+    configuration.edit_startup().sunshine.flags[config::flag::FRESH_STATE] = original_fresh_state;
     BaseTest::TearDown();
   }
 
@@ -420,9 +420,9 @@ namespace {
     void SetUp() override {
       BaseTest::SetUp();
       gamestream.expire_pair_sessions(std::chrono::steady_clock::time_point::max());
-      original_pin_stdin_ = config::sunshine.flags[config::flag::PIN_STDIN];
-      original_ping_timeout_ = config::stream.ping_timeout;
-      config::sunshine.flags[config::flag::PIN_STDIN] = false;
+      original_pin_stdin_ = configuration.edit_startup().sunshine.flags[config::flag::PIN_STDIN];
+      original_ping_timeout_ = configuration.edit_startup().stream.ping_timeout;
+      configuration.edit_startup().sunshine.flags[config::flag::PIN_STDIN] = false;
 
       server_ = std::make_unique<SimpleWeb::Server<SimpleWeb::HTTP>>();
       server_->config.port = 0;
@@ -460,8 +460,8 @@ namespace {
       }
       client_.reset();
       server_.reset();
-      config::sunshine.flags[config::flag::PIN_STDIN] = original_pin_stdin_;
-      config::stream.ping_timeout = original_ping_timeout_;
+      configuration.edit_startup().sunshine.flags[config::flag::PIN_STDIN] = original_pin_stdin_;
+      configuration.edit_startup().stream.ping_timeout = original_ping_timeout_;
       BaseTest::TearDown();
     }
 
@@ -550,7 +550,7 @@ TEST_F(PairingHttpHandlerTest, PinReturnsCompletedHandshakeResult) {
 
     const auto pairing_id = wait_for_pending_pairing();
     ASSERT_FALSE(pairing_id.empty());
-    config::stream.ping_timeout = std::chrono::seconds {2};
+    configuration.edit_startup().stream.ping_timeout = std::chrono::seconds {2};
     std::packaged_task<bool()> pin_task {[this, &pairing_id]() {
       return gamestream.pin(pairing_id, "5338", "Test client");
     }};
@@ -572,7 +572,7 @@ TEST_F(PairingHttpHandlerTest, PinReturnsFalseWhenClientDoesNotCompleteHandshake
 
   const auto pairing_id = wait_for_pending_pairing();
   ASSERT_FALSE(pairing_id.empty());
-  config::stream.ping_timeout = std::chrono::milliseconds {50};
+  configuration.edit_startup().stream.ping_timeout = std::chrono::milliseconds {50};
   EXPECT_FALSE(gamestream.pin(pairing_id, "0000", "Test client"));
   EXPECT_NE(client_response.get().find("status_code=\"200\""), std::string::npos);
   EXPECT_TRUE(gamestream.get_pending_pairings().empty());
@@ -595,7 +595,7 @@ TEST_F(PairingHttpHandlerTest, DuplicateAndCapacityErrorsReturnImmediately) {
 
 TEST_F(PairingHttpHandlerTest, ConsolePinCompletesOrRejectsTheCertificatePhase) {
   gamestream.setup(PRIVATE_KEY, PUBLIC_CERT);
-  config::sunshine.flags[config::flag::PIN_STDIN] = true;
+  configuration.edit_startup().sunshine.flags[config::flag::PIN_STDIN] = true;
 
   std::istringstream input {"5338\n0000\n"};
   const cin_buffer_guard input_guard {input.rdbuf()};
@@ -604,7 +604,7 @@ TEST_F(PairingHttpHandlerTest, ConsolePinCompletesOrRejectsTheCertificatePhase) 
 }
 
 TEST_F(PairingHttpHandlerTest, ConsolePinReportsSessionExpiration) {
-  config::sunshine.flags[config::flag::PIN_STDIN] = true;
+  configuration.edit_startup().sunshine.flags[config::flag::PIN_STDIN] = true;
   gated_input_buffer input;
   const cin_buffer_guard input_guard {&input};
   std::packaged_task<std::string()> request_task {[this]() {

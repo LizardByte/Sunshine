@@ -136,11 +136,18 @@ namespace display_device {
      */
     class sunshine_audio_context_t: public AudioContextInterface {
     public:
+      /**
+       * @brief Bind the host audio owner used to retain sink restoration state.
+       * @param audios Shared host audio service.
+       */
+      explicit sunshine_audio_context_t(audio::service_t &audios):
+          audios {audios} {}
+
       [[nodiscard]] bool capture() override {
-        return context_scheduler.execute([](auto &audio_context) {
+        return context_scheduler.execute([this](auto &audio_context) {
           // Explicitly releasing the context first in case it was not release yet so that it can be potentially cleaned up.
           audio_context = boost::none;
-          audio_context = audio_context_t {};
+          audio_context = audio_context_t {audios.context()};
 
           // Always say that we have captured it successfully as otherwise the settings change procedure will be aborted.
           return true;
@@ -184,9 +191,8 @@ namespace display_device {
       struct audio_context_t {
         /**
          * @brief A reference to the audio context that will automatically extend the audio session.
-         * @note It is auto-initialized here for convenience.
          */
-        decltype(audio::get_audio_ctx_ref()) audio_ctx_ref {audio::get_audio_ctx_ref()};
+        audio::audio_ctx_ref_t audio_ctx_ref;
 
         /**
          * @brief Will be set to true if the capture was released, but we still have to keep the context around, because the device is not available.
@@ -199,6 +205,7 @@ namespace display_device {
         int retry_counter {15};
       };
 
+      audio::service_t &audios;  ///< Host audio state shared with active capture.
       RetryScheduler<boost::optional<audio_context_t>> context_scheduler {std::make_unique<boost::optional<audio_context_t>>(boost::none)};
     };
 
@@ -382,7 +389,7 @@ namespace display_device {
      *          Empty optional if no preparation nor configuration shall take place.
      *
      * @examples
-     * const config::video_t &video_config { config::video };
+     * const config::video_t &video_config { settings.video };
      * const auto device_prep_option = parse_device_prep_option(video_config);
      * @examples_end
      */
@@ -415,7 +422,7 @@ namespace display_device {
      *
      * @examples
      * const std::shared_ptr<rtsp_stream::launch_session_t> launch_session;
-     * const config::video_t &video_config { config::video };
+     * const config::video_t &video_config { settings.video };
      *
      * SingleDisplayConfiguration config;
      * const bool success = parse_resolution_option(video_config, *launch_session, config);
@@ -473,7 +480,7 @@ namespace display_device {
      *
      * @examples
      * const std::shared_ptr<rtsp_stream::launch_session_t> launch_session;
-     * const config::video_t &video_config { config::video };
+     * const config::video_t &video_config { settings.video };
      *
      * SingleDisplayConfiguration config;
      * const bool success = parse_refresh_rate_option(video_config, *launch_session, config);
@@ -522,7 +529,7 @@ namespace display_device {
      *
      * @examples
      * const std::shared_ptr<rtsp_stream::launch_session_t> launch_session;
-     * const config::video_t &video_config { config::video };
+     * const config::video_t &video_config { settings.video };
      * const auto hdr_option = parse_hdr_option(video_config, *launch_session);
      * @examples_end
      */
@@ -630,7 +637,7 @@ namespace display_device {
      *
      * @examples
      * const std::shared_ptr<rtsp_stream::launch_session_t> launch_session;
-     * const config::video_t &video_config { config::video };
+     * const config::video_t &video_config { settings.video };
      *
      * SingleDisplayConfiguration config;
      * const bool success = remap_display_mode_if_needed(video_config, *launch_session, config);
@@ -739,14 +746,16 @@ namespace display_device {
      * @brief Construct a settings manager interface to manage display device settings.
      * @param persistence_filepath File location for saving persistent state.
      * @param video_config User's video related configuration.
+     * @param persistence_watch Receives the persistence observer used for retry decisions.
+     * @param audios Host audio owner shared with display recovery.
      * @return An interface or nullptr if the OS does not support the interface.
      */
-    std::unique_ptr<SettingsManagerInterface> make_settings_manager([[maybe_unused]] const std::filesystem::path &persistence_filepath, [[maybe_unused]] const config::video_t &video_config, std::shared_ptr<watched_settings_persistence_t> &persistence_watch) {
+    std::unique_ptr<SettingsManagerInterface> make_settings_manager([[maybe_unused]] const std::filesystem::path &persistence_filepath, [[maybe_unused]] const config::video_t &video_config, std::shared_ptr<watched_settings_persistence_t> &persistence_watch, [[maybe_unused]] audio::service_t &audios) {
       persistence_watch.reset();
 #ifdef _WIN32
       return std::make_unique<SettingsManager>(
         std::make_shared<WinDisplayDevice>(std::make_shared<WinApiLayer>(), false),
-        std::make_shared<sunshine_audio_context_t>(),
+        std::make_shared<sunshine_audio_context_t>(audios),
         std::make_unique<PersistentState>(make_persistence_watch(persistence_filepath, persistence_watch)),
         WinWorkarounds {
           .m_hdr_blank_delay = video_config.dd.wa.hdr_toggle_delay != std::chrono::milliseconds::zero() ? std::make_optional(video_config.dd.wa.hdr_toggle_delay) : std::nullopt
@@ -755,7 +764,7 @@ namespace display_device {
 #elif defined(__APPLE__)
       return std::make_unique<MacSettingsManager>(
         std::make_shared<MacDisplayDevice>(std::make_shared<MacApiLayer>()),
-        std::make_shared<sunshine_audio_context_t>(),
+        std::make_shared<sunshine_audio_context_t>(audios),
         std::make_unique<MacPersistentState>(make_persistence_watch(persistence_filepath, persistence_watch)),
         MacWorkarounds {}
       );
@@ -885,7 +894,7 @@ namespace display_device {
     impl->sm_instance.reset();
   }
 
-  void manager_t::initialize(const std::filesystem::path &persistence_filepath, const config::video_t &video_config) {
+  void manager_t::initialize(const std::filesystem::path &persistence_filepath, const config::video_t &video_config, audio::service_t &audios) {
     std::lock_guard lock {impl->mutex};
     // We can support re-init without any issues, however we should make sure to clean up first!
     revert_configuration_unlocked(*impl, revert_option_e::try_once);
@@ -894,7 +903,7 @@ namespace display_device {
 
     // If we fail to create settings manager, this means platform is not supported, and
     // we will need to provided error-free pass-trough in other methods
-    if (auto settings_manager {make_settings_manager(persistence_filepath, video_config, impl->persistence_watch)}) {
+    if (auto settings_manager {make_settings_manager(persistence_filepath, video_config, impl->persistence_watch, audios)}) {
       impl->sm_instance = std::make_unique<RetryScheduler<SettingsManagerInterface>>(std::move(settings_manager));
 
       const auto available_devices {impl->sm_instance->execute([](auto &settings_iface) {
