@@ -21,6 +21,14 @@ namespace video {
   };
 
   /**
+   * @brief Describe a colorspace for encoder diagnostic messages.
+   *
+   * @param colorspace Colorspace to describe.
+   * @return Color coding label, or "unknown" for an unsupported colorspace.
+   */
+  const char *colorspace_to_string(colorspace_e colorspace);
+
+  /**
    * @brief Sunshine colorimetry values derived from stream configuration.
    */
   struct sunshine_colorspace_t {

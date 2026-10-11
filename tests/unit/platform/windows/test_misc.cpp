@@ -12,7 +12,7 @@
   #include <utility>
 
   // platform includes
-  #include <windows.h>
+  #include <Windows.h>
 
   // local includes
   #include <src/platform/common.h>
@@ -23,7 +23,7 @@ TEST(WindowsThreadPriorityTest, MapsEveryPriorityAndIgnoresUnknownValues) {
   const auto thread = GetCurrentThread();
   const auto original_priority = GetThreadPriority(thread);
   ASSERT_NE(original_priority, THREAD_PRIORITY_ERROR_RETURN);
-  const auto restore_priority = util::fail_guard([&]() {
+  const auto restore_priority = util::fail_guard([thread, original_priority]() {
     EXPECT_TRUE(SetThreadPriority(thread, original_priority));
   });
   const std::array cases {

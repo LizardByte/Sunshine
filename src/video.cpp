@@ -2600,18 +2600,11 @@ namespace video {
     }
 
     {
-      using enum colorspace_e;
       auto encoder_name = encoder.codec_from_config(config).name;
 
       BOOST_LOG(info) << "Creating encoder " << logging::bracket(encoder_name);
 
-      auto color_coding = colorspace.colorspace == bt2020    ? "HDR (Rec. 2020 + SMPTE 2084 PQ)" :
-                          colorspace.colorspace == rec601    ? "SDR (Rec. 601)" :
-                          colorspace.colorspace == rec709    ? "SDR (Rec. 709)" :
-                          colorspace.colorspace == bt2020sdr ? "SDR (Rec. 2020)" :
-                                                               "unknown";
-
-      BOOST_LOG(info) << "Color coding: " << color_coding;
+      BOOST_LOG(info) << "Color coding: " << colorspace_to_string(colorspace.colorspace);
       BOOST_LOG(info) << "Color depth: " << colorspace.bit_depth << "-bit";
       BOOST_LOG(info) << "Color range: " << (colorspace.full_range ? "JPEG" : "MPEG");
     }

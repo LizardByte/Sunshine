@@ -16,6 +16,25 @@ extern "C" {
 namespace video {
 
   /**
+   * @brief Describe a colorspace for encoder diagnostic messages.
+   */
+  const char *colorspace_to_string(colorspace_e colorspace) {
+    using enum colorspace_e;
+    switch (colorspace) {
+      case rec601:
+        return "SDR (Rec. 601)";
+      case rec709:
+        return "SDR (Rec. 709)";
+      case bt2020sdr:
+        return "SDR (Rec. 2020)";
+      case bt2020:
+        return "HDR (Rec. 2020 + SMPTE 2084 PQ)";
+      default:
+        return "unknown";
+    }
+  }
+
+  /**
    * @brief Check whether a Sunshine colorspace represents HDR video.
    */
   bool colorspace_is_hdr(const sunshine_colorspace_t &colorspace) {

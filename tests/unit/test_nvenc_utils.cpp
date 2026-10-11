@@ -12,11 +12,7 @@
   #include <gtest/gtest.h>
 
   // local includes
-  #define NVENC_NAMESPACE nvenc_1301
-  #define NVENC_SDK_VERSION 1301
   #include "src/nvenc/nvenc_utils.h"
-  #undef NVENC_SDK_VERSION
-  #undef NVENC_NAMESPACE
 
 TEST(NvencFormatMappingTest, MapsSupportedFormatsAndRejectsUnsupportedOnes) {
   using enum platf::pix_fmt_e;

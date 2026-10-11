@@ -170,7 +170,7 @@ TEST_F(ConfigPersistenceTest, ParsesFp16SdrGammaEncodedOption) {
 TEST_F(ConfigPersistenceTest, ParsesNvencTwoPassModesAndDefaultsUnknownValues) {
   using enum nvenc::nvenc_two_pass;
   const auto original_video = config::video;
-  const auto restore_video = util::fail_guard([&]() {
+  const auto restore_video = util::fail_guard([original_video]() {
     config::video = original_video;
   });
   const auto apps_file = config_file().parent_path() / "sunshine_test_config_apps.json";
