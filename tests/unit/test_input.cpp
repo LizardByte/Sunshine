@@ -613,10 +613,24 @@ TEST_F(InputGamepadSessionTest, LicensedBackendChoiceIsSerializedWithoutChanging
   EXPECT_TRUE(config_.values().input.gamepad_driver.empty());
   EXPECT_EQ(file_handler::read_file(path.string().c_str()), "gamepad_driver = all\n");
   EXPECT_FALSE(inputs_.select_all_gamepad_drivers_if_licensed(config_, true));
-  EXPECT_FALSE(inputs_.probe_gamepads());
   auto snapshot = inputs_.configuration_snapshot();
   snapshot.gamepad_driver = config::GAMEPAD_DRIVER_NONE;
   EXPECT_EQ(inputs_.configuration_snapshot().gamepad_driver, config::GAMEPAD_DRIVER_ALL);
+}
+
+/**
+ * @brief An uninitialized backend reports no concrete gamepad choices before and after worker startup.
+ */
+TEST_F(InputGamepadSessionTest, UninitializedGamepadProbeWorksBeforeAndAfterSchedulerStarts) {
+  input::service_t inactive {config_.values(), infrastructure_.scheduler(), infrastructure_.mailbox(), infrastructure_.cursor()};
+  EXPECT_TRUE(inactive.probe_gamepads());
+
+  infrastructure_.scheduler().start(1);
+  const auto stop_worker = util::fail_guard([this]() {
+    infrastructure_.scheduler().stop();
+    infrastructure_.scheduler().join();
+  });
+  EXPECT_TRUE(inactive.probe_gamepads());
 }
 
 TEST_F(InputGamepadSessionTest, LicensedBackendChoiceHonorsSavedPreferencesAndPersistenceFailures) {
