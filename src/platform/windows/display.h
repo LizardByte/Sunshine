@@ -147,6 +147,78 @@ namespace platf::dxgi {
    * @brief Owning COM pointer for a compiled shader bytecode blob.
    */
   using blob_t = util::safe_ptr<ID3DBlob, Release<ID3DBlob>>;
+
+  /**
+   * @brief Release bytecode through COM's non-const resource API.
+   */
+  struct shader_bytecode_deleter_t {
+    /**
+     * @brief Release the bundle's owned bytecode.
+     * @param blob Bytecode resource to release.
+     */
+    void operator()(ID3DBlob *blob) const {
+      blob->Release();
+    }
+  };
+
+  /**
+   * @brief Bytecode ownership with const-compatible access to the COM read methods.
+   */
+  using shader_bytecode_t = std::unique_ptr<ID3DBlob, shader_bytecode_deleter_t>;
+
+  /**
+   * @brief Compiled bytecode retained by the platform and its capture/encoder resources.
+   */
+  struct shader_bundle_t {
+    shader_bytecode_t convert_yuv420_packed_uv_type0_ps_hlsl;  ///< Convert yuv420 packed uv type0 ps hlsl.
+    shader_bytecode_t convert_yuv420_packed_uv_type0_ps_linear_hlsl;  ///< Convert yuv420 packed uv type0 ps linear hlsl.
+    shader_bytecode_t convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl;  ///< Convert yuv420 packed uv type0 ps perceptual quantizer hlsl.
+    shader_bytecode_t convert_yuv420_packed_uv_type0_vs_hlsl;  ///< Convert yuv420 packed uv type0 vs hlsl.
+    shader_bytecode_t convert_yuv420_packed_uv_type0s_ps_hlsl;  ///< Convert yuv420 packed uv type0s ps hlsl.
+    shader_bytecode_t convert_yuv420_packed_uv_type0s_ps_linear_hlsl;  ///< Convert yuv420 packed uv type0s ps linear hlsl.
+    shader_bytecode_t convert_yuv420_packed_uv_type0s_ps_perceptual_quantizer_hlsl;  ///< Convert yuv420 packed uv type0s ps perceptual quantizer hlsl.
+    shader_bytecode_t convert_yuv420_packed_uv_type0s_vs_hlsl;  ///< Convert yuv420 packed uv type0s vs hlsl.
+    shader_bytecode_t convert_yuv420_planar_y_ps_hlsl;  ///< Convert yuv420 planar y ps hlsl.
+    shader_bytecode_t convert_yuv420_planar_y_ps_linear_hlsl;  ///< Convert yuv420 planar y ps linear hlsl.
+    shader_bytecode_t convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl;  ///< Convert yuv420 planar y ps perceptual quantizer hlsl.
+    shader_bytecode_t convert_yuv420_planar_y_vs_hlsl;  ///< Convert yuv420 planar y vs hlsl.
+    shader_bytecode_t convert_yuv444_packed_ayuv_ps_hlsl;  ///< Convert YUV444 packed ayuv ps hlsl.
+    shader_bytecode_t convert_yuv444_packed_ayuv_ps_linear_hlsl;  ///< Convert YUV444 packed ayuv ps linear hlsl.
+    shader_bytecode_t convert_yuv444_packed_vs_hlsl;  ///< Convert YUV444 packed vs hlsl.
+    shader_bytecode_t convert_yuv444_planar_ps_hlsl;  ///< Convert YUV444 planar ps hlsl.
+    shader_bytecode_t convert_yuv444_planar_ps_linear_hlsl;  ///< Convert YUV444 planar ps linear hlsl.
+    shader_bytecode_t convert_yuv444_planar_ps_perceptual_quantizer_hlsl;  ///< Convert YUV444 planar ps perceptual quantizer hlsl.
+    shader_bytecode_t convert_yuv444_packed_y410_ps_hlsl;  ///< Convert YUV444 packed y410 ps hlsl.
+    shader_bytecode_t convert_yuv444_packed_y410_ps_linear_hlsl;  ///< Convert YUV444 packed y410 ps linear hlsl.
+    shader_bytecode_t convert_yuv444_packed_y410_ps_perceptual_quantizer_hlsl;  ///< Convert YUV444 packed y410 ps perceptual quantizer hlsl.
+    shader_bytecode_t convert_yuv444_planar_vs_hlsl;  ///< Convert YUV444 planar vs hlsl.
+    shader_bytecode_t cursor_ps_hlsl;  ///< Cursor ps hlsl.
+    shader_bytecode_t cursor_ps_normalize_white_hlsl;  ///< Cursor ps normalize white hlsl.
+    shader_bytecode_t cursor_vs_hlsl;  ///< Cursor vs hlsl.
+  };
+
+  /**
+   * @brief Compile one shader from its source path and target profile.
+   */
+  using shader_compiler_t = std::function<blob_t(const std::string &, const char *)>;
+
+  /**
+   * @brief Compile all required conversion and cursor shaders before publishing the bundle.
+   * @param compiler Optional bytecode compiler; defaults to the native D3D compiler.
+   * @return Immutable complete bundle, or null if any compilation fails.
+   */
+  std::shared_ptr<const shader_bundle_t> compile_shaders(shader_compiler_t compiler = {});
+
+  /**
+   * @brief Construct a Windows capture backend retaining its compiled shader resources.
+   * @param hwdevice_type Encoder memory type.
+   * @param display_name Requested display.
+   * @param config Streaming configuration.
+   * @param shaders Immutable complete bytecode bundle.
+   * @return Initialized capture backend, or null on failure.
+   */
+  std::shared_ptr<display_t> make_display(mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config, std::shared_ptr<const shader_bundle_t> shaders);
+
   /**
    * @brief D3D depth-stencil state handle type.
    */
@@ -557,6 +629,14 @@ namespace platf::dxgi {
   class display_vram_t: public display_base_t, public std::enable_shared_from_this<display_vram_t> {
   public:
     /**
+     * @brief Retain the shader bundle for every capture and conversion resource.
+     * @param shaders Complete bytecode compiled by the platform owner.
+     */
+    explicit display_vram_t(std::shared_ptr<const shader_bundle_t> shaders):
+        shaders {std::move(shaders)} {}
+
+    std::shared_ptr<const shader_bundle_t> shaders;  ///< Immutable capture and encoder bytecode.
+    /**
      * @brief Allocate an image buffer compatible with this display backend.
      *
      * @return Allocated img object, or null when unavailable.
@@ -687,6 +767,7 @@ namespace platf::dxgi {
    */
   class display_ddup_vram_t: public display_vram_t {
   public:
+    using display_vram_t::display_vram_t;  ///< Construct with platform-owned shader resources.
     /**
      * @brief Initialize D3D cursor rendering resources for RAM capture.
      *
@@ -821,6 +902,7 @@ namespace platf::dxgi {
     wgc_capture_t dup;
 
   public:
+    using display_vram_t::display_vram_t;  ///< Construct with platform-owned shader resources.
     /**
      * @brief Initialize Windows Graphics Capture frame-pool resources.
      *

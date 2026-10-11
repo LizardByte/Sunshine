@@ -1631,10 +1631,6 @@ namespace platf {
   }
 
   std::unique_ptr<deinit_t> init() {
-    if (dxgi::init()) {
-      return nullptr;
-    }
-
     // Initialize COM
     auto co_init = std::make_unique<platf::audio::co_init_t>();
 

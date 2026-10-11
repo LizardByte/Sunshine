@@ -8,6 +8,8 @@
 
 #ifdef _WIN32
   // standard includes
+  #include <d3dcompiler.h>
+  #include <set>
   #include <tuple>
 
   // local includes
@@ -16,7 +18,87 @@
 using platf::dxgi::fp16_transfer_e;
 using platf::dxgi::select_fp16_transfer;
 
+namespace {
+  /**
+   * @brief Allocate shader bytecode without requiring a GPU or compiling HLSL.
+   * @param value Value identifying the independently compiled resource.
+   * @return Owned bytecode blob.
+   */
+  platf::dxgi::blob_t shader_blob(unsigned char value) {
+    ID3DBlob *raw = nullptr;
+    if (FAILED(D3DCreateBlob(1, &raw))) {
+      return nullptr;
+    }
+    *static_cast<unsigned char *>(raw->GetBufferPointer()) = value;
+    return platf::dxgi::blob_t {raw};
+  }
+}  // namespace
+
+TEST(ShaderBundleTest, CompilesCompleteImmutableBundleWithCorrectProfiles) {
+  std::set<std::string> paths;
+  int vertices = 0;
+  int pixels = 0;
+  const auto bundle = platf::dxgi::compile_shaders([&](const std::string &path, const char *profile) {
+    EXPECT_TRUE(paths.insert(path).second);
+    EXPECT_TRUE(path.ends_with(".hlsl"));
+    if (std::string_view {profile} == "vs_5_0") {
+      ++vertices;
+    } else {
+      EXPECT_EQ(std::string_view {profile}, "ps_5_0");
+      ++pixels;
+    }
+    return shader_blob(1);
+  });
+  ASSERT_NE(bundle, nullptr);
+  EXPECT_EQ(paths.size(), 25);
+  EXPECT_EQ(vertices, 6);
+  EXPECT_EQ(pixels, 19);
+  EXPECT_EQ(bundle->cursor_vs_hlsl->GetBufferSize(), 1);
+}
+
+/** @brief Compilation failure position in the complete shader set. */
+class ShaderFailureTest: public testing::TestWithParam<int> {};
+
+TEST_P(ShaderFailureTest, DoesNotPublishPartialBundleAndCanRetry) {
+  int calls = 0;
+  EXPECT_EQ(platf::dxgi::compile_shaders([&](const std::string &, const char *) {
+              return ++calls == GetParam() ? platf::dxgi::blob_t {nullptr} : shader_blob(1);
+            }),
+            nullptr);
+  EXPECT_EQ(calls, GetParam());
+  EXPECT_NE(platf::dxgi::compile_shaders([](const std::string &, const char *) {
+              return shader_blob(2);
+            }),
+            nullptr);
+}
+
+INSTANTIATE_TEST_SUITE_P(EveryShader, ShaderFailureTest, testing::Range(1, 26));
+
+TEST(ShaderBundleTest, CaptureRetainsBytecodeAfterPlatformOwnerReleasesIt) {
+  auto bundle = platf::dxgi::compile_shaders([](const std::string &, const char *) {
+    return shader_blob(7);
+  });
+  auto independent = platf::dxgi::compile_shaders([](const std::string &, const char *) {
+    return shader_blob(8);
+  });
+  std::weak_ptr<const platf::dxgi::shader_bundle_t> weak = bundle;
+  auto display = std::make_shared<platf::dxgi::display_ddup_vram_t>(bundle);
+  bundle.reset();
+  EXPECT_FALSE(weak.expired());
+  EXPECT_EQ(*static_cast<unsigned char *>(display->shaders->cursor_vs_hlsl->GetBufferPointer()), 7);
+  EXPECT_EQ(*static_cast<unsigned char *>(independent->cursor_vs_hlsl->GetBufferPointer()), 8);
+  display.reset();
+  EXPECT_TRUE(weak.expired());
+}
+
 /**
+TEST(ShaderBundleTest, NativeCompilerBuildsCompleteBundleWithoutCaptureDevice) {
+  const auto bundle = platf::dxgi::compile_shaders();
+  ASSERT_NE(bundle, nullptr);
+  EXPECT_GT(bundle->cursor_ps_hlsl->GetBufferSize(), 0);
+  EXPECT_GT(bundle->cursor_vs_hlsl->GetBufferSize(), 0);
+}
+
  * @brief Encoder output format, HDR state, option state, and expected FP16 transfer.
  */
 using Fp16TransferParam = std::tuple<DXGI_FORMAT, bool, bool, fp16_transfer_e>;
