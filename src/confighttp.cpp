@@ -92,9 +92,6 @@ namespace confighttp {
 
   namespace {
     using license_status_provider_t = std::function<lvh::LicenseResult()>;  ///< Provider for the current libvirtualhid license status.
-#ifdef SUNSHINE_TESTS
-    std::optional<nlohmann::json> permission_status_override;  ///< Deterministic permission statuses for HTTP tests.
-#endif
 #if defined(linux) || defined(__FreeBSD__) || defined(SUNSHINE_TESTS)
     using portal_token_path_provider_t = std::function<fs::path()>;  ///< Provider for the XDG Portal token path.
 #endif
@@ -2017,40 +2014,29 @@ namespace confighttp {
    * @api_examples{/api/permissions|:| GET|:| null}
    */
   void getPermissions(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
-      return;
-    }
+    make_permissions_handler(platf::get_permission_statuses)(response, request);
+  }
 
-    nlohmann::json output_tree;
-    output_tree["permissions"] = nlohmann::json::array();
-#ifdef SUNSHINE_TESTS
-    if (permission_status_override) {
-      output_tree["permissions"] = *permission_status_override;
+  permissions_handler_t make_permissions_handler(permission_status_provider_t provider) {
+    return [provider = std::move(provider)](const resp_https_t &response, const req_https_t &request) {
+      if (!authenticate(response, request)) {
+        return;
+      }
+
+      nlohmann::json output_tree;
+      output_tree["permissions"] = nlohmann::json::array();
+      for (const auto &permission : provider()) {
+        output_tree["permissions"].push_back({
+          {"id", permission.id},
+          {"status", permission.status},
+          {"required", permission.required},
+          {"verifiable", permission.verifiable},
+          {"requestable", permission.requestable},
+        });
+      }
       send_response(response, output_tree);
-      return;
-    }
-#endif
-    for (const auto &permission : platf::get_permission_statuses()) {
-      output_tree["permissions"].push_back({
-        {"id", permission.id},
-        {"status", permission.status},
-        {"required", permission.required},
-        {"verifiable", permission.verifiable},
-        {"requestable", permission.requestable},
-      });
-    }
-    send_response(response, output_tree);
+    };
   }
-
-#ifdef SUNSHINE_TESTS
-  void set_permission_statuses_for_testing(nlohmann::json permissions) {
-    permission_status_override = std::move(permissions);
-  }
-
-  void reset_permission_statuses_for_testing() {
-    permission_status_override.reset();
-  }
-#endif
 
   /**
    * @brief Start a native permission request or open its settings pane.

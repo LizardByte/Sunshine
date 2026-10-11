@@ -12,6 +12,7 @@
 
 // standard includes
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <format>
@@ -102,6 +103,7 @@ protected:
   std::unique_ptr<SimpleWeb::Client<SimpleWeb::HTTPS>> client;
   std::jthread server_thread;
   unsigned short port = 0;
+  std::atomic_size_t permission_queries {0};  ///< Queries made by this fixture's permission handler.
 
   std::string saved_username;
   std::string saved_password;
@@ -124,10 +126,6 @@ protected:
       license.message = "Test license status";
       return lvh::LicenseResult {lvh::OperationStatus::success(), std::move(license)};
     });
-    confighttp::set_permission_statuses_for_testing(nlohmann::json::array({
-      {{"id", "screen_recording"}, {"status", "denied"}, {"required", true}, {"verifiable", true}},
-      {{"id", "notifications"}, {"status", "granted"}, {"required", false}, {"verifiable", true}},
-    }));
 
     // Save current config
     saved_username = config::sunshine.username;
@@ -336,7 +334,17 @@ protected:
     server->resource["^/virtual-input-status-test$"]["GET"] = confighttp::getVirtualInputStatus;
     server->resource["^/virtual-input-license-test$"]["GET"] = confighttp::getVirtualInputLicense;
     server->resource["^/virtual-input-license-test$"]["POST"] = confighttp::updateVirtualInputLicense;
-    server->resource["^/permissions-test$"]["GET"] = confighttp::getPermissions;
+    server->resource["^/permissions-test$"]["GET"] = confighttp::make_permissions_handler([this]() {
+      ++permission_queries;
+      return std::vector<platf::permission_status_t> {
+        {"screen_recording", "denied", true, true},
+        {"notifications", "granted", false, true},
+      };
+    });
+    server->resource["^/permissions-empty-test$"]["GET"] = confighttp::make_permissions_handler([]() {
+      return std::vector<platf::permission_status_t> {};
+    });
+    server->resource["^/permissions-native-test$"]["GET"] = confighttp::getPermissions;
     server->resource["^/permissions-test$"]["POST"] = confighttp::requestPermission;
     server->resource["^/pairing-test$"]["DELETE"] = confighttp::cancelPairing;
     server->resource["^/pairing-test$"]["GET"] = confighttp::getPendingPairings;
@@ -376,7 +384,6 @@ protected:
       server_thread.join();
     }
     confighttp::reset_virtual_input_license_status_provider_for_testing();
-    confighttp::reset_permission_statuses_for_testing();
     confighttp::reset_portal_token_path_provider_for_testing();
 
     config::sunshine.username = saved_username;
@@ -1736,6 +1743,7 @@ TEST_F(ConfigHttpTest, PermissionsEndpointRequiresAuthenticationAndCsrf) {
   SimpleWeb::CaseInsensitiveMultimap headers;
   headers.emplace("Content-Type", "application/json");
   EXPECT_EQ(client->request("GET", "/permissions-test", "", headers)->status_code, "401 Unauthorized");
+  EXPECT_EQ(permission_queries.load(), 0U);
   EXPECT_EQ(client->request("POST", "/permissions-test", R"({"id":"screen_recording"})", headers)->status_code, "401 Unauthorized");
 
   headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
@@ -1756,6 +1764,38 @@ TEST_F(ConfigHttpTest, PermissionsEndpointReturnsRequiredAndOptionalStatuses) {
   EXPECT_EQ(body.at("permissions").at(0).at("id"), "screen_recording");
   EXPECT_TRUE(body.at("permissions").at(0).at("required").get<bool>());
   EXPECT_FALSE(body.at("permissions").at(1).at("required").get<bool>());
+}
+
+/**
+ * @brief Permission handlers retain independent providers without a shared test override.
+ */
+TEST_F(ConfigHttpTest, PermissionsProvidersRemainIndependent) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  for (int attempt = 0; attempt < 2; ++attempt) {
+    const auto populated = client->request("GET", "/permissions-test", "", headers);
+    const auto empty = client->request("GET", "/permissions-empty-test", "", headers);
+    ASSERT_EQ(populated->status_code, "200 OK");
+    ASSERT_EQ(empty->status_code, "200 OK");
+    const auto permissions = nlohmann::json::parse(populated->content.string()).at("permissions");
+    ASSERT_EQ(permissions.size(), 2U);
+    EXPECT_FALSE(permissions.at(0).at("requestable").get<bool>());
+    EXPECT_TRUE(nlohmann::json::parse(empty->content.string()).at("permissions").empty());
+  }
+  EXPECT_EQ(permission_queries.load(), 2U);
+}
+
+/**
+ * @brief The production permission handler queries the native provider after authentication.
+ */
+TEST_F(ConfigHttpTest, PermissionsEndpointQueriesNativeProvider) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  const auto response = client->request("GET", "/permissions-native-test", "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+  EXPECT_TRUE(nlohmann::json::parse(response->content.string()).at("permissions").is_array());
+  EXPECT_EQ(permission_queries.load(), 0U);
 }
 
 TEST_F(ConfigHttpTest, PermissionsEndpointRejectsMalformedAndUnknownRequests) {

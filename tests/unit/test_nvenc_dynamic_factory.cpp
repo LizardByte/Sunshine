@@ -20,18 +20,18 @@
 
 namespace {
 
-  std::uint32_t reported_version;  ///< Version returned by the fake NVENC driver.
-  std::uint32_t reported_status;  ///< Status returned by the fake NVENC driver.
-
   /**
    * @brief Fake implementation of `NvEncodeAPIGetMaxSupportedVersion()`.
    *
+   * @tparam Version Packed API version returned by this immutable fake driver.
+   * @tparam Status NVENC status returned by this immutable fake driver.
    * @param version Receives the configured packed API version.
    * @return Configured NVENC status code.
    */
+  template<std::uint32_t Version, std::uint32_t Status>
   std::uint32_t WINAPI get_fake_max_supported_version(std::uint32_t *version) {
-    *version = reported_version;
-    return reported_status;
+    *version = Version;
+    return Status;
   }
 
   /**
@@ -81,8 +81,11 @@ namespace {
   /**
    * @brief Make runtime operations that expose the fake version query function.
    *
+   * @tparam Version Packed API version returned by this immutable fake driver.
+   * @tparam Status NVENC status returned by this immutable fake driver.
    * @return Runtime operations for a successfully loaded fake NVENC driver.
    */
+  template<std::uint32_t Version, std::uint32_t Status = 0U>
   nvenc::nvenc_runtime_api make_fake_runtime_api() {
     return {
       []() {
@@ -91,7 +94,7 @@ namespace {
       [](HMODULE dll, const char *symbol) {
         EXPECT_EQ(dll, make_fake_dll().get());
         EXPECT_EQ(std::string_view {symbol}, "NvEncodeAPIGetMaxSupportedVersion");
-        return std::bit_cast<FARPROC>(&get_fake_max_supported_version);
+        return std::bit_cast<FARPROC>(&get_fake_max_supported_version<Version, Status>);
       },
     };
   }
@@ -126,35 +129,43 @@ namespace {
   }
 
   TEST(NvencDynamicFactoryTest, HandlesFailedVersionQuery) {
-    reported_version = 1300U;
-    reported_status = 1U;
-
-    EXPECT_FALSE(nvenc::nvenc_dynamic_factory::get(make_fake_runtime_api()));
+    EXPECT_FALSE(nvenc::nvenc_dynamic_factory::get(make_fake_runtime_api<1300U, 1U>()));
   }
 
   TEST(NvencDynamicFactoryTest, RejectsUnsupportedDriver) {
-    reported_version = 10U << 4U;
-    reported_status = 0U;
-
-    EXPECT_FALSE(nvenc::nvenc_dynamic_factory::get(make_fake_runtime_api()));
+    EXPECT_FALSE(nvenc::nvenc_dynamic_factory::get(make_fake_runtime_api<10U << 4U>()));
   }
 
   TEST(NvencDynamicFactoryTest, SelectsSupportedSdkImplementations) {
     using enum nvenc::nvenc_sdk_version;
-    constexpr std::array test_cases {
-      std::pair {11U << 4U, sdk_11_0},
-      std::pair {12U << 4U, sdk_12_0},
-      std::pair {13U << 4U, sdk_13_0},
-      std::pair {(13U << 4U) | 1U, sdk_13_1},
-      std::pair {14U << 4U, sdk_13_1},
+    const std::array test_cases {
+      std::pair {make_fake_runtime_api<11U << 4U>(), sdk_11_0},
+      std::pair {make_fake_runtime_api<12U << 4U>(), sdk_12_0},
+      std::pair {make_fake_runtime_api<13U << 4U>(), sdk_13_0},
+      std::pair {make_fake_runtime_api<(13U << 4U) | 1U>(), sdk_13_1},
+      std::pair {make_fake_runtime_api<14U << 4U>(), sdk_13_1},
     };
-    reported_status = 0U;
 
-    for (const auto &[version, expected] : test_cases) {
-      reported_version = version;
-      const auto factory = nvenc::nvenc_dynamic_factory::get(make_fake_runtime_api());
+    for (const auto &[runtime_api, expected] : test_cases) {
+      const auto factory = nvenc::nvenc_dynamic_factory::get(runtime_api);
       ASSERT_TRUE(factory);
       EXPECT_EQ(factory->sdk_version(), expected);
+    }
+  }
+
+  /**
+   * @brief Interleaved driver queries retain their own immutable responses.
+   */
+  TEST(NvencDynamicFactoryTest, KeepsFakeDriverResponsesIndependent) {
+    const auto old_driver = make_fake_runtime_api<11U << 4U>();
+    const auto new_driver = make_fake_runtime_api<(13U << 4U) | 1U>();
+    for (int attempt = 0; attempt < 2; ++attempt) {
+      const auto old_factory = nvenc::nvenc_dynamic_factory::get(old_driver);
+      const auto new_factory = nvenc::nvenc_dynamic_factory::get(new_driver);
+      ASSERT_TRUE(old_factory);
+      ASSERT_TRUE(new_factory);
+      EXPECT_EQ(old_factory->sdk_version(), nvenc::nvenc_sdk_version::sdk_11_0);
+      EXPECT_EQ(new_factory->sdk_version(), nvenc::nvenc_sdk_version::sdk_13_1);
     }
   }
 
