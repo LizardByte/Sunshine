@@ -39,6 +39,29 @@ namespace bl = boost::log;
 BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", int)
 
 namespace logging {
+  logger_t::logger_type &logger_t::get() const {
+    switch (severity_) {
+      case 0:
+        return verbose_source::get();
+      case 1:
+        return debug_source::get();
+      case 2:
+        return info_source::get();
+      case 3:
+        return warning_source::get();
+      case 4:
+        return error_source::get();
+      case 5:
+        return fatal_source::get();
+#ifdef SUNSHINE_TESTS
+      case 10:
+        return tests_source::get();
+#endif
+      default:
+        throw std::invalid_argument {"Unsupported log severity"};
+    }
+  }
+
   deinit_t::deinit_t(boost::shared_ptr<text_sink> sink, boost::shared_ptr<boost::log::sinks::sink> platform_sink):
       sink_ {std::move(sink)},
       platform_sink_ {std::move(platform_sink)} {
