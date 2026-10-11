@@ -47,12 +47,13 @@ namespace logging {
    * @brief Boost-managed, thread-safe fatal logging source.
    */
   BOOST_LOG_INLINE_GLOBAL_LOGGER_CTOR_ARGS(fatal_source, boost::log::sources::severity_logger_mt<int>, (5))
-#ifdef SUNSHINE_TESTS
   /**
-   * @brief Boost-managed source for test output.
+   * @brief Boost-managed source for test output in shared production and test objects.
+   *
+   * Keep this source available in every translation unit so the logger handle
+   * has the same definition when encoder objects are linked into tests.
    */
   BOOST_LOG_INLINE_GLOBAL_LOGGER_CTOR_ARGS(tests_source, boost::log::sources::severity_logger_mt<int>, (10))
-#endif
 
   /**
    * @brief Immutable severity handle preserving existing BOOST_LOG call sites.
@@ -90,10 +91,8 @@ namespace logging {
           return error_source::get();
         case 5:
           return fatal_source::get();
-#ifdef SUNSHINE_TESTS
         case 10:
           return tests_source::get();
-#endif
         default:
           throw std::invalid_argument {"Unsupported log severity"};
       }

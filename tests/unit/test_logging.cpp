@@ -193,3 +193,17 @@ TEST_F(LogRotationTest, ManagedLoggerAcceptsConcurrentWriters) {
 TEST_F(BaseTest, RejectsUnsupportedLoggerSeverity) {
   EXPECT_THROW(logging::logger_t {99}.get(), std::invalid_argument);
 }
+
+/**
+ * @brief Runtime severity handles preserve test logging across shared production objects.
+ */
+TEST_F(LogRotationTest, ManagedLoggerPreservesRuntimeTestSeverity) {
+  auto owner = logging::init(0, log_path.string());
+  const auto severity = tests.get().default_severity();
+  const logging::logger_t logger {severity};
+
+  EXPECT_EQ(&logger.get(), &logging::tests_source::get());
+  BOOST_LOG(logger) << "runtime test severity is accepted";
+
+  EXPECT_TRUE(log_checker::line_equals(log_path.string(), "Tests: runtime test severity is accepted"));
+}
