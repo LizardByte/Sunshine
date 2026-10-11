@@ -128,11 +128,13 @@ namespace thread_pool_util {
     }
 
     /**
-     * @brief Wait for worker threads owned by the session to exit.
+     * @brief Wait for worker threads owned by the session to exit, including repeated calls.
      */
     void join() {
       for (auto &t : _thread) {
-        t.join();
+        if (t.joinable()) {
+          t.join();
+        }
       }
     }
 

@@ -15,6 +15,7 @@
 #include <random>
 #include <string>
 #include <string_view>
+#include <thread>
 
 // local includes
 #include <src/logging.h>
@@ -149,4 +150,46 @@ TEST_P(LogLevelsTest, PutMessage) {
   BOOST_LOG(logger) << test_message;
 
   ASSERT_TRUE(log_checker::line_contains(log_file, test_message));
+}
+
+TEST_F(LogRotationTest, LoggingOwnerRemovesOnlyItsOwnSink) {
+  const auto second_path = test_directory / "second.log";
+  auto first = logging::init(0, log_path.string());
+  auto second = logging::init(0, second_path.string());
+
+  BOOST_LOG(info) << "both sinks receive this record";
+  logging::log_flush();
+  EXPECT_NE(read_log_file(log_path).find("both sinks receive this record"), std::string::npos);
+  EXPECT_NE(read_log_file(second_path).find("both sinks receive this record"), std::string::npos);
+
+  first.reset();
+  BOOST_LOG(info) << "remaining sink receives this record";
+  logging::log_flush();
+  EXPECT_EQ(read_log_file(log_path).find("remaining sink receives this record"), std::string::npos);
+  EXPECT_NE(read_log_file(second_path).find("remaining sink receives this record"), std::string::npos);
+}
+
+TEST_F(LogRotationTest, ManagedLoggerAcceptsConcurrentWriters) {
+  auto owner = logging::init(0, log_path.string());
+  std::vector<std::jthread> writers;
+  for (int writer = 0; writer < 4; ++writer) {
+    writers.emplace_back([writer]() {
+      for (int record = 0; record < 20; ++record) {
+        BOOST_LOG(info) << std::format("writer {} record {}", writer, record);
+      }
+    });
+  }
+  writers.clear();
+  owner.reset();
+
+  const auto content = read_log_file(log_path);
+  for (int writer = 0; writer < 4; ++writer) {
+    for (int record = 0; record < 20; ++record) {
+      EXPECT_NE(content.find(std::format("writer {} record {}", writer, record)), std::string::npos);
+    }
+  }
+}
+
+TEST_F(BaseTest, RejectsUnsupportedLoggerSeverity) {
+  EXPECT_THROW(logging::logger_t {99}.get(), std::invalid_argument);
 }

@@ -36,29 +36,23 @@ using namespace std::literals;
 
 namespace bl = boost::log;
 
-boost::shared_ptr<boost::log::sinks::asynchronous_sink<boost::log::sinks::text_ostream_backend>> sink;  ///< Sink.
-
-bl::sources::severity_logger<int> verbose {0};  ///< Dominating output.
-bl::sources::severity_logger<int> debug {1};  ///< Follow what is happening.
-bl::sources::severity_logger<int> info {2};  ///< Should be informed about.
-bl::sources::severity_logger<int> warning {3};  ///< Strange events.
-bl::sources::severity_logger<int> error {4};  ///< Recoverable errors.
-bl::sources::severity_logger<int> fatal {5};  ///< Unrecoverable errors.
-#ifdef SUNSHINE_TESTS
-bl::sources::severity_logger<int> tests {10};  ///< Automatic tests output.
-#endif
-
 BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", int)
 
 namespace logging {
-  deinit_t::~deinit_t() {
-    deinit();
+  deinit_t::deinit_t(boost::shared_ptr<text_sink> sink, boost::shared_ptr<boost::log::sinks::sink> platform_sink):
+      sink_ {std::move(sink)},
+      platform_sink_ {std::move(platform_sink)} {
   }
 
-  void deinit() {
-    log_flush();
-    bl::core::get()->remove_sink(sink);
-    sink.reset();
+  deinit_t::~deinit_t() {
+    auto core = bl::core::get();
+    core->remove_sink(sink_);
+    if (platform_sink_) {
+      core->remove_sink(platform_sink_);
+      platform_sink_->flush();
+    }
+    sink_->stop();
+    sink_->flush();
   }
 
   /**
@@ -152,11 +146,6 @@ namespace logging {
 #endif
 
   [[nodiscard]] std::unique_ptr<deinit_t> init(int min_log_level, const std::string &log_file) {
-    if (sink) {
-      // Deinitialize the logging system before reinitializing it. This can probably only ever be hit in tests.
-      deinit();
-    }
-
     const auto log_path = std::filesystem::path {std::u8string {log_file.begin(), log_file.end()}};
     if (const auto rotation_error = rotate_log_file(log_path)) {
       std::cerr << "Failed to rotate log file '" << log_file << "': " << rotation_error.message() << '\n';
@@ -167,7 +156,7 @@ namespace logging {
     setup_libdisplaydevice_logging(min_log_level);
 #endif
 
-    sink = boost::make_shared<text_sink>();
+    auto sink = boost::make_shared<text_sink>();
 
 #ifndef SUNSHINE_TESTS
     boost::shared_ptr<std::ostream> stream {&std::cout, boost::null_deleter()};
@@ -187,13 +176,16 @@ namespace logging {
     // This is particularly important when running from a Windows service.
     sink->locked_backend()->auto_flush(true);
 
-    bl::core::get()->add_sink(sink);
-
+    boost::shared_ptr<boost::log::sinks::sink> platform_sink;
 #ifdef __ANDROID__
-    auto android_sink = boost::make_shared<sinks::synchronous_sink<android_sink_backend>>();
-    bl::core::get()->add_sink(android_sink);
+    platform_sink = boost::make_shared<sinks::synchronous_sink<android_sink_backend>>();
 #endif
-    return std::make_unique<deinit_t>();
+    auto owner = std::make_unique<deinit_t>(sink, platform_sink);
+    bl::core::get()->add_sink(sink);
+    if (platform_sink) {
+      bl::core::get()->add_sink(platform_sink);
+    }
+    return owner;
   }
 
 #ifndef __ANDROID__
@@ -257,9 +249,7 @@ namespace logging {
 #endif
 
   void log_flush() {
-    if (sink) {
-      sink->flush();
-    }
+    bl::core::get()->flush();
   }
 
   void print_help(const char *name) {

@@ -61,9 +61,10 @@ namespace args {
 
 #ifdef _WIN32
   int restore_nvprefs_undo() {
-    if (nvprefs_instance.load()) {
-      nvprefs_instance.restore_from_and_delete_undo_file_if_exists();
-      nvprefs_instance.unload();
+    nvprefs::nvprefs_interface preferences;
+    if (preferences.load()) {
+      preferences.restore_from_and_delete_undo_file_if_exists();
+      preferences.unload();
     }
     return 0;
   }
@@ -71,13 +72,20 @@ namespace args {
 }  // namespace args
 
 namespace lifetime {
-  char **argv;  ///< Command-line argument vector.
-  std::atomic_int desired_exit_code;  ///< Desired exit code.
+  controller_t::controller_t(char **argv):
+      argv_ {argv} {
+  }
 
-  void exit_sunshine(int exit_code, bool async) {
+  controller_t::~controller_t() {
+    if (restart_action_) {
+      restart_action_();
+    }
+  }
+
+  void controller_t::exit_sunshine(int exit_code, bool async) {
     // Store the exit code of the first exit_sunshine() call
     int zero = 0;
-    desired_exit_code.compare_exchange_strong(zero, exit_code);
+    desired_exit_code_.compare_exchange_strong(zero, exit_code);
 
     // Raise SIGINT to start termination
     std::raise(SIGINT);
@@ -97,8 +105,68 @@ namespace lifetime {
 #endif
   }
 
-  char **get_argv() {
-    return argv;
+  int controller_t::exit_code() const {
+    return desired_exit_code_.load();
+  }
+
+  char **controller_t::get_argv() const {
+    return argv_;
+  }
+
+  void controller_t::restart_on_exit(std::function<void()> action) {
+    restart_action_ = std::move(action);
+  }
+
+  std::atomic<signal_guard_t *> &signal_guard_t::native_binding() {
+    static std::atomic<signal_guard_t *> binding {nullptr};
+    return binding;
+  }
+
+  signal_guard_t::signal_guard_t(controller_t &controller):
+      controller_ {controller} {
+    signal_guard_t *empty = nullptr;
+    if (!native_binding().compare_exchange_strong(empty, this)) {
+      throw std::logic_error {"Native signal callbacks already have an application owner"};
+    }
+  }
+
+  signal_guard_t::~signal_guard_t() {
+    for (const auto &[signal, handler] : previous_handlers_) {
+      std::signal(signal, handler);
+    }
+    native_binding().store(nullptr);
+  }
+
+  void signal_guard_t::on_signal(int signal, std::function<void()> handler) {
+    if (signal != SIGINT && signal != SIGTERM) {
+      throw std::invalid_argument {"Only application termination signals can be registered"};
+    }
+    handlers_.insert_or_assign(signal, std::move(handler));
+    if (!previous_handlers_.contains(signal)) {
+      const auto previous = std::signal(signal, &signal_guard_t::forward);
+      if (previous == SIG_ERR) {
+        handlers_.erase(signal);
+        throw std::runtime_error {"Failed to register application signal handler"};
+      }
+      previous_handlers_.emplace(signal, previous);
+    }
+  }
+
+  void signal_guard_t::forward(int signal) {
+    if (auto *guard = native_binding().load()) {
+      const auto handler = guard->handlers_.find(signal);
+      if (handler != guard->handlers_.end()) {
+        // The Windows CRT resets delivered handlers; retain repeated shutdown requests.
+        std::signal(signal, &signal_guard_t::forward);
+        handler->second();
+      }
+    }
+  }
+
+  void signal_guard_t::native_exit(int exit_code, bool async) {
+    if (auto *guard = native_binding().load()) {
+      guard->controller_.exit_sunshine(exit_code, async);
+    }
   }
 }  // namespace lifetime
 

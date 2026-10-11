@@ -722,7 +722,7 @@ namespace safe {
 
     std::array<std::uint8_t, sizeof(element_type)> _object_buf;
 
-    std::uint32_t _count;
+    std::uint32_t _count {0};
     std::mutex _lock;
   };
 

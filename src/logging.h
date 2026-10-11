@@ -14,20 +14,138 @@
 // lib includes
 #include <boost/log/common.hpp>
 #include <boost/log/sinks.hpp>
+#include <boost/log/sources/global_logger_storage.hpp>
+#include <boost/log/sources/severity_logger.hpp>
 
 /**
  * @brief Boost.Log asynchronous text sink used by Sunshine logging.
  */
 using text_sink = boost::log::sinks::asynchronous_sink<boost::log::sinks::text_ostream_backend>;
 
-extern boost::log::sources::severity_logger<int> verbose;  ///< Verbose.
-extern boost::log::sources::severity_logger<int> debug;  ///< Debug.
-extern boost::log::sources::severity_logger<int> info;  ///< Info.
-extern boost::log::sources::severity_logger<int> warning;  ///< Warning.
-extern boost::log::sources::severity_logger<int> error;  ///< Error.
-extern boost::log::sources::severity_logger<int> fatal;  ///< Fatal.
+namespace logging {
+  /**
+   * @brief Boost-managed, thread-safe verbose logging source.
+   */
+  BOOST_LOG_INLINE_GLOBAL_LOGGER_CTOR_ARGS(verbose_source, boost::log::sources::severity_logger_mt<int>, (0))
+  /**
+   * @brief Boost-managed, thread-safe debug logging source.
+   */
+  BOOST_LOG_INLINE_GLOBAL_LOGGER_CTOR_ARGS(debug_source, boost::log::sources::severity_logger_mt<int>, (1))
+  /**
+   * @brief Boost-managed, thread-safe informational logging source.
+   */
+  BOOST_LOG_INLINE_GLOBAL_LOGGER_CTOR_ARGS(info_source, boost::log::sources::severity_logger_mt<int>, (2))
+  /**
+   * @brief Boost-managed, thread-safe warning logging source.
+   */
+  BOOST_LOG_INLINE_GLOBAL_LOGGER_CTOR_ARGS(warning_source, boost::log::sources::severity_logger_mt<int>, (3))
+  /**
+   * @brief Boost-managed, thread-safe error logging source.
+   */
+  BOOST_LOG_INLINE_GLOBAL_LOGGER_CTOR_ARGS(error_source, boost::log::sources::severity_logger_mt<int>, (4))
+  /**
+   * @brief Boost-managed, thread-safe fatal logging source.
+   */
+  BOOST_LOG_INLINE_GLOBAL_LOGGER_CTOR_ARGS(fatal_source, boost::log::sources::severity_logger_mt<int>, (5))
 #ifdef SUNSHINE_TESTS
-extern boost::log::sources::severity_logger<int> tests;
+  /**
+   * @brief Boost-managed source for test output.
+   */
+  BOOST_LOG_INLINE_GLOBAL_LOGGER_CTOR_ARGS(tests_source, boost::log::sources::severity_logger_mt<int>, (10))
+#endif
+
+  /**
+   * @brief Immutable severity handle preserving existing BOOST_LOG call sites.
+   *
+   * Boost.Log global storage initializes and synchronizes the mutable source.
+   */
+  class logger_t {
+  public:
+    using logger_type = boost::log::sources::severity_logger_mt<int>;  ///< Managed source type.
+    using char_type = logger_type::char_type;  ///< Character type required by Boost.Log.
+
+    /**
+     * @brief Select the managed source for a severity.
+     * @param severity Default severity for this handle.
+     */
+    constexpr explicit logger_t(int severity):
+        severity_ {severity} {
+    }
+
+    /**
+     * @brief Access the Boost-managed source for this severity.
+     * @return Thread-safe logging source.
+     */
+    logger_type &get() const {
+      switch (severity_) {
+        case 0:
+          return verbose_source::get();
+        case 1:
+          return debug_source::get();
+        case 2:
+          return info_source::get();
+        case 3:
+          return warning_source::get();
+        case 4:
+          return error_source::get();
+        case 5:
+          return fatal_source::get();
+#ifdef SUNSHINE_TESTS
+        case 10:
+          return tests_source::get();
+#endif
+        default:
+          throw std::invalid_argument {"Unsupported log severity"};
+      }
+    }
+
+    /**
+     * @brief Convert a severity handle for periodic logger construction.
+     * @return Managed logging source.
+     */
+    operator logger_type &() const {
+      return get();
+    }
+
+    /**
+     * @brief Open a record using the managed source.
+     * @return Record accepted by the configured sinks.
+     */
+    boost::log::record open_record() const {
+      return get().open_record();
+    }
+
+    /**
+     * @brief Open a record with Boost.Log named arguments.
+     * @param args Named attributes supplied by Boost.Log.
+     * @return Record accepted by the configured sinks.
+     */
+    template<typename Args>
+    boost::log::record open_record(const Args &args) const {
+      return get().open_record(args);
+    }
+
+    /**
+     * @brief Submit a completed record to the configured sinks.
+     * @param record Record to publish.
+     */
+    void push_record(boost::log::record &&record) const {
+      get().push_record(std::move(record));
+    }
+
+  private:
+    int severity_;  ///< Severity selected by the immutable handle.
+  };
+}  // namespace logging
+
+inline constexpr logging::logger_t verbose {0};  ///< Verbose.
+inline constexpr logging::logger_t debug {1};  ///< Debug.
+inline constexpr logging::logger_t info {2};  ///< Info.
+inline constexpr logging::logger_t warning {3};  ///< Warning.
+inline constexpr logging::logger_t error {4};  ///< Error.
+inline constexpr logging::logger_t fatal {5};  ///< Fatal.
+#ifdef SUNSHINE_TESTS
+inline constexpr logging::logger_t tests {10};  ///< Automatic test output.
 #endif
 
 #include "config.h"
@@ -84,18 +202,23 @@ namespace logging {
   class deinit_t {
   public:
     /**
+     * @brief Own the sinks registered by one logging initialization.
+     * @param sink Asynchronous text sink.
+     * @param platform_sink Additional platform sink, when present.
+     */
+    deinit_t(boost::shared_ptr<text_sink> sink, boost::shared_ptr<boost::log::sinks::sink> platform_sink = {});
+
+    deinit_t(const deinit_t &) = delete;
+    deinit_t &operator=(const deinit_t &) = delete;
+    /**
      * @brief Restores logging state when the logging subsystem shuts down.
      */
     ~deinit_t();
-  };
 
-  /**
-   * @brief Deinitialize the logging system.
-   * @examples
-   * deinit();
-   * @examples_end
-   */
-  void deinit();
+  private:
+    boost::shared_ptr<text_sink> sink_;  ///< Sink whose registration this owner controls.
+    boost::shared_ptr<boost::log::sinks::sink> platform_sink_;  ///< Optional platform sink.
+  };
 
   /**
    * @brief Format a Boost.Log record for Sunshine log output.
@@ -169,7 +292,7 @@ namespace logging {
      * @param units Unit label appended to tracked numeric values.
      * @param interval_in_seconds Interval in seconds.
      */
-    min_max_avg_periodic_logger(boost::log::sources::severity_logger<int> &severity, std::string_view message, std::string_view units, std::chrono::seconds interval_in_seconds = std::chrono::seconds(20)):
+    min_max_avg_periodic_logger(boost::log::sources::severity_logger_mt<int> &severity, std::string_view message, std::string_view units, std::chrono::seconds interval_in_seconds = std::chrono::seconds(20)):
         severity(severity),
         message(message),
         units(units),
@@ -226,7 +349,7 @@ namespace logging {
     }
 
   private:
-    std::reference_wrapper<boost::log::sources::severity_logger<int>> severity;
+    std::reference_wrapper<boost::log::sources::severity_logger_mt<int>> severity;
     std::string message;
     std::string units;
     std::chrono::seconds interval;
@@ -258,7 +381,7 @@ namespace logging {
      * @param message Message text to log or report.
      * @param interval_in_seconds Interval in seconds.
      */
-    time_delta_periodic_logger(boost::log::sources::severity_logger<int> &severity, std::string_view message, std::chrono::seconds interval_in_seconds = std::chrono::seconds(20)):
+    time_delta_periodic_logger(boost::log::sources::severity_logger_mt<int> &severity, std::string_view message, std::chrono::seconds interval_in_seconds = std::chrono::seconds(20)):
         logger(severity, message, "ms", interval_in_seconds) {
     }
 

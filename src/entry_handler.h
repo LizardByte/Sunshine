@@ -6,6 +6,9 @@
 
 // standard includes
 #include <atomic>
+#include <csignal>
+#include <functional>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -89,27 +92,112 @@ namespace args {
  * @brief Functions for handling the lifetime of Sunshine.
  */
 namespace lifetime {
-  extern char **argv;
-  extern std::atomic_int desired_exit_code;
+  /**
+   * @brief Owns command arguments, exit status, and an optional process restart action.
+   */
+  class controller_t {
+  public:
+    /**
+     * @brief Capture the original command arguments for this application lifetime.
+     * @param argv Original argument vector; valid for the controller lifetime.
+     */
+    explicit controller_t(char **argv = nullptr);
+    controller_t(const controller_t &) = delete;
+    controller_t &operator=(const controller_t &) = delete;
+
+    /**
+     * @brief Run a requested restart after the application's resources are released.
+     */
+    ~controller_t();
+
+    /**
+     * @brief Request graceful shutdown and preserve the first nonzero exit status.
+     * @param exit_code Status returned by main().
+     * @param async Whether the caller can return before shutdown completes.
+     */
+    void exit_sunshine(int exit_code, bool async);
+
+    /**
+     * @brief Read the status requested by application shutdown.
+     * @return Requested process exit status.
+     */
+    int exit_code() const;
+
+    /**
+     * @brief Read the original argument vector.
+     * @return Arguments captured at construction.
+     */
+    char **get_argv() const;
+
+    /**
+     * @brief Arrange a restart after this controller's dependents are destroyed.
+     * @param action Process relaunch operation.
+     */
+    void restart_on_exit(std::function<void()> action);
+
+  private:
+    char **argv_;  ///< Original argument vector.
+    std::atomic_int desired_exit_code_ {};  ///< First nonzero requested exit status.
+    std::function<void()> restart_action_;  ///< Relaunch operation owned by this lifetime.
+  };
 
   /**
-   * @brief Terminates Sunshine gracefully with the provided exit code.
-   * @param exit_code The exit code to return from main().
-   * @param async Specifies whether our termination will be non-blocking.
+   * @brief Owns signal callbacks and restores native handlers at the end of their scope.
+   *
+   * POSIX signals and Windows console callbacks cannot carry userdata. Only these
+   * native trampolines use the scoped active binding; application code receives
+   * its controller explicitly.
    */
-  void exit_sunshine(int exit_code, bool async);
+  class signal_guard_t {
+  public:
+    /**
+     * @brief Bind native callbacks to one application lifetime.
+     * @param controller Application shutdown controller.
+     */
+    explicit signal_guard_t(controller_t &controller);
+    signal_guard_t(const signal_guard_t &) = delete;
+    signal_guard_t &operator=(const signal_guard_t &) = delete;
+    /**
+     * @brief Restore the handlers replaced by this guard.
+     */
+    ~signal_guard_t();
+
+    /**
+     * @brief Install an application callback for one POSIX signal.
+     * @param signal Application termination signal, SIGINT or SIGTERM.
+     * @param handler Callback invoked by the native trampoline.
+     */
+    void on_signal(int signal, std::function<void()> handler);
+
+    /**
+     * @brief Request shutdown from a native callback without a userdata argument.
+     * @param exit_code Requested process status.
+     * @param async Whether the callback can return before shutdown completes.
+     */
+    static void native_exit(int exit_code, bool async);
+
+  private:
+    /**
+     * @brief Obtain the binding used exclusively by native callback trampolines.
+     * @return Atomic pointer to the guard registered in the current scope.
+     */
+    static std::atomic<signal_guard_t *> &native_binding();
+    /**
+     * @brief Reinstall a native signal handler before forwarding to its owned callback.
+     * @param signal Signal delivered by the operating system.
+     */
+    static void forward(int signal);
+
+    controller_t &controller_;  ///< Application lifetime receiving console shutdown.
+    std::map<int, std::function<void()>> handlers_;  ///< Callbacks owned by this registration.
+    std::map<int, void (*)(int)> previous_handlers_;  ///< Native handlers restored on destruction.
+  };
 
   /**
    * @brief Breaks into the debugger or terminates Sunshine if no debugger is attached.
    */
   void debug_trap();
 
-  /**
-   * @brief Get the argv array passed to main().
-   *
-   * @return Original argument vector captured from main().
-   */
-  char **get_argv();
 }  // namespace lifetime
 
 /**
