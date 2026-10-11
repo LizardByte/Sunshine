@@ -79,6 +79,9 @@
   #include "src/entry_handler.h"
   #include "system_tray.h"
   #include "thread_safe.h"
+  #ifdef __APPLE__
+    #include "platform/macos/misc.h"
+  #endif
   #ifdef _WIN32
     #include "platform/windows/utf_utils.h"
   #endif
@@ -799,6 +802,10 @@ namespace system_tray {
   #endif
 
     resolve_tray_icon_paths();
+
+  #ifdef __APPLE__
+    platf::install_event_compatibility_fixes();
+  #endif
 
     tray_set_log_callback(qt_log_to_boost);
 
