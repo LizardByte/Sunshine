@@ -2457,7 +2457,7 @@ namespace confighttp {
     };
 
     // Default resource handlers
-    const https_handler_t bad_request_handler = [this](const resp_https_t &response, const req_https_t &request) {
+    const https_handler_t bad_request_handler = [](const resp_https_t &response, const req_https_t &request) {
       bad_request(response, request);
     };
     // error by default

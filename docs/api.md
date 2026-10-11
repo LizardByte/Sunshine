@@ -35,67 +35,67 @@ curl -u user:pass -H "X-CSRF-Token: your_token_here" \
 @endhtmlonly
 
 ## GET /api/csrf-token
-@copydoc confighttp::getCSRFToken()
+@copydoc confighttp::service_t::getCSRFToken()
 
 ## GET /api/apps
-@copydoc confighttp::getApps()
+@copydoc confighttp::service_t::getApps()
 
 ## POST /api/apps
-@copydoc confighttp::saveApp()
+@copydoc confighttp::service_t::saveApp()
 
 ## POST /api/apps/close
-@copydoc confighttp::closeApp()
+@copydoc confighttp::service_t::closeApp()
 
 ## DELETE /api/apps/{index}
-@copydoc confighttp::deleteApp()
+@copydoc confighttp::service_t::deleteApp()
 
 ## GET /api/browse
-@copydoc confighttp::browseDirectory()
+@copydoc confighttp::service_t::browseDirectory()
 
 ## GET /api/clients/list
-@copydoc confighttp::getClients()
+@copydoc confighttp::service_t::getClients()
 
 ## POST /api/clients/unpair
-@copydoc confighttp::unpair()
+@copydoc confighttp::service_t::unpair()
 
 ## POST /api/clients/unpair-all
-@copydoc confighttp::unpairAll()
+@copydoc confighttp::service_t::unpairAll()
 
 ## POST /api/clients/update
-@copydoc confighttp::updateClient()
+@copydoc confighttp::service_t::updateClient()
 
 ## GET /api/config
-@copydoc confighttp::getConfig()
+@copydoc confighttp::service_t::getConfig()
 
 ## GET /api/configLocale
-@copydoc confighttp::getLocale()
+@copydoc confighttp::service_t::getLocale()
 
 ## POST /api/config
-@copydoc confighttp::saveConfig()
+@copydoc confighttp::service_t::saveConfig()
 
 ## GET /api/covers/{index}
-@copydoc confighttp::getCover()
+@copydoc confighttp::service_t::getCover()
 
 ## POST /api/covers/upload
-@copydoc confighttp::uploadCover()
+@copydoc confighttp::service_t::uploadCover()
 
 ## GET /api/logs
-@copydoc confighttp::getLogs()
+@copydoc confighttp::service_t::getLogs()
 
 ## POST /api/password
-@copydoc confighttp::savePassword()
+@copydoc confighttp::service_t::savePassword()
 
 ## POST /api/pin
-@copydoc confighttp::savePin()
+@copydoc confighttp::service_t::savePin()
 
 ## POST /api/reset-display-device-persistence
-@copydoc confighttp::resetDisplayDevicePersistence()
+@copydoc confighttp::service_t::resetDisplayDevicePersistence()
 
 ## POST /api/reset-portal-token
-@copydoc confighttp::resetPortalToken()
+@copydoc confighttp::service_t::resetPortalToken()
 
 ## POST /api/restart
-@copydoc confighttp::restart()
+@copydoc confighttp::service_t::restart()
 
 ## GET /api/virtual-input/status
-@copydoc confighttp::getVirtualInputStatus()
+@copydoc confighttp::service_t::getVirtualInputStatus()

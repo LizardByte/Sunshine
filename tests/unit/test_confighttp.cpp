@@ -123,7 +123,7 @@ protected:
       };
     };
     context.gamestream.expire_pair_sessions(std::chrono::steady_clock::time_point::max());
-    web->set_virtual_input_license_status_provider_for_testing([this]() {
+    web->set_virtual_input_license_status_provider_for_testing([]() {
       lvh::LicenseStatus license;
       license.service_available = true;
       license.state = lvh::LicenseState::licensed;
@@ -205,7 +205,7 @@ protected:
     };
 
     // Add a route to test send_unauthorized
-    server->resource["^/unauthorized-test$"]["GET"] = [this](
+    server->resource["^/unauthorized-test$"]["GET"] = [](
                                                         const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                         const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                       ) {
@@ -214,7 +214,7 @@ protected:
     };
 
     // Add a route to test not_found
-    server->resource["^/notfound-test$"]["GET"] = [this](
+    server->resource["^/notfound-test$"]["GET"] = [](
                                                     const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                     const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                   ) {
@@ -223,7 +223,7 @@ protected:
     };
 
     // Add a route to test bad_request
-    server->resource["^/badrequest-test$"]["GET"] = [this](
+    server->resource["^/badrequest-test$"]["GET"] = [](
                                                       const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                       const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                     ) {
@@ -232,7 +232,7 @@ protected:
     };
 
     // Add a route to test send_response with JSON
-    server->resource["^/json-test$"]["GET"] = [this](
+    server->resource["^/json-test$"]["GET"] = [](
                                                 const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                 [[maybe_unused]] const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                               ) {
@@ -245,7 +245,7 @@ protected:
     };
 
     // Add a route to test send_redirect
-    server->resource["^/redirect-test$"]["GET"] = [this](
+    server->resource["^/redirect-test$"]["GET"] = [](
                                                     const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                     const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                   ) {
@@ -254,7 +254,7 @@ protected:
     };
 
     // Add a route to test check_content_type
-    server->resource["^/content-type-test$"]["POST"] = [this](
+    server->resource["^/content-type-test$"]["POST"] = [](
                                                          const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                          const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                        ) {
@@ -344,7 +344,7 @@ protected:
         {"notifications", "granted", false, true},
       };
     });
-    server->resource["^/permissions-empty-test$"]["GET"] = web->make_permissions_handler([this]() {
+    server->resource["^/permissions-empty-test$"]["GET"] = web->make_permissions_handler([]() {
       return std::vector<platf::permission_status_t> {};
     });
     server->resource["^/permissions-native-test$"]["GET"] = handler(&confighttp::service_t::getPermissions);
@@ -1788,14 +1788,21 @@ TEST_F(ConfigHttpTest, PermissionsProvidersRemainIndependent) {
 
 /**
  * @brief The production permission handler queries the native provider after authentication.
+ *
+ * The standalone macOS test executable has no application bundle for the native
+ * notification center. Mocked permission handlers cover the HTTP behavior there.
  */
 TEST_F(ConfigHttpTest, PermissionsEndpointQueriesNativeProvider) {
+#ifdef __APPLE__
+  GTEST_SKIP() << "Native notification queries require a macOS application bundle";
+#else
   SimpleWeb::CaseInsensitiveMultimap headers;
   headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
   const auto response = client->request("GET", "/permissions-native-test", "", headers);
   ASSERT_EQ(response->status_code, "200 OK");
   EXPECT_TRUE(nlohmann::json::parse(response->content.string()).at("permissions").is_array());
   EXPECT_EQ(permission_queries.load(), 0U);
+#endif
 }
 
 TEST_F(ConfigHttpTest, PermissionsEndpointRejectsMalformedAndUnknownRequests) {
