@@ -110,18 +110,22 @@ namespace display_device {
       bool pending_restores {false};  ///< True while a non-empty settings record is stored.
     };
 
-    /**
-     * @brief A global for the settings manager interface and other settings whose lifetime is managed by `display_device::init(...)`.
-     */
-    struct {
-      std::mutex mutex {};
-      std::chrono::milliseconds config_revert_delay {0};
-      std::unique_ptr<RetryScheduler<SettingsManagerInterface>> sm_instance {nullptr};
-      std::shared_ptr<watched_settings_persistence_t> persistence_watch {};  ///< Observes whether revert left settings stored.
+  }  // namespace
+
+  /**
+   * @brief State and synchronization owned by one display manager.
+   */
+  struct manager_t::impl_t {
+    std::mutex mutex {};  ///< Serializes display settings and scheduler replacement.
+    std::chrono::milliseconds config_revert_delay {0};  ///< Delay before restoring display settings.
+    std::unique_ptr<RetryScheduler<SettingsManagerInterface>> sm_instance {nullptr};  ///< Settings manager and retry worker.
+    std::shared_ptr<watched_settings_persistence_t> persistence_watch {};  ///< Observes whether revert left settings stored.
 #ifdef SUNSHINE_TESTS
-      std::optional<std::chrono::milliseconds> test_retry_interval {};  ///< Override for the revert retry delay.
+    std::optional<std::chrono::milliseconds> test_retry_interval {};  ///< Override for the revert retry delay.
 #endif
-    } DD_DATA;
+  };
+
+  namespace {
 
     /**
      * @brief Helper class for capturing audio context when the API demands it.
@@ -724,9 +728,9 @@ namespace display_device {
      * @param persistence_filepath File location for saving persistent state.
      * @return Persistence wrapper that reports whether a settings record remains stored.
      */
-    std::shared_ptr<watched_settings_persistence_t> make_persistence_watch(const std::filesystem::path &persistence_filepath) {
+    std::shared_ptr<watched_settings_persistence_t> make_persistence_watch(const std::filesystem::path &persistence_filepath, std::shared_ptr<watched_settings_persistence_t> &persistence_watch) {
       auto watch {std::make_shared<watched_settings_persistence_t>(std::make_shared<FileSettingsPersistence>(persistence_filepath))};
-      DD_DATA.persistence_watch = watch;
+      persistence_watch = watch;
       return watch;
     }
 #endif
@@ -737,13 +741,13 @@ namespace display_device {
      * @param video_config User's video related configuration.
      * @return An interface or nullptr if the OS does not support the interface.
      */
-    std::unique_ptr<SettingsManagerInterface> make_settings_manager([[maybe_unused]] const std::filesystem::path &persistence_filepath, [[maybe_unused]] const config::video_t &video_config) {
-      DD_DATA.persistence_watch.reset();
+    std::unique_ptr<SettingsManagerInterface> make_settings_manager([[maybe_unused]] const std::filesystem::path &persistence_filepath, [[maybe_unused]] const config::video_t &video_config, std::shared_ptr<watched_settings_persistence_t> &persistence_watch) {
+      persistence_watch.reset();
 #ifdef _WIN32
       return std::make_unique<SettingsManager>(
         std::make_shared<WinDisplayDevice>(std::make_shared<WinApiLayer>(), false),
         std::make_shared<sunshine_audio_context_t>(),
-        std::make_unique<PersistentState>(make_persistence_watch(persistence_filepath)),
+        std::make_unique<PersistentState>(make_persistence_watch(persistence_filepath, persistence_watch)),
         WinWorkarounds {
           .m_hdr_blank_delay = video_config.dd.wa.hdr_toggle_delay != std::chrono::milliseconds::zero() ? std::make_optional(video_config.dd.wa.hdr_toggle_delay) : std::nullopt
         }
@@ -752,7 +756,7 @@ namespace display_device {
       return std::make_unique<MacSettingsManager>(
         std::make_shared<MacDisplayDevice>(std::make_shared<MacApiLayer>()),
         std::make_shared<sunshine_audio_context_t>(),
-        std::make_unique<MacPersistentState>(make_persistence_watch(persistence_filepath)),
+        std::make_unique<MacPersistentState>(make_persistence_watch(persistence_filepath, persistence_watch)),
         MacWorkarounds {}
       );
 #else
@@ -841,45 +845,59 @@ namespace display_device {
      * @brief Reverts the configuration based on the provided option.
      * @note This is function does not lock mutex.
      */
-    void revert_configuration_unlocked(const revert_option_e option) {
-      if (!DD_DATA.sm_instance) {
+    void revert_configuration_unlocked(auto &data, const revert_option_e option) {
+      if (!data.sm_instance) {
         // Platform is not supported, nothing to do.
         return;
       }
 
       // Note: by default the executor function is immediately executed in the calling thread. With delay, we want to avoid that.
 #ifdef SUNSHINE_TESTS
-      const auto retry_interval {DD_DATA.test_retry_interval.value_or(DEFAULT_RETRY_INTERVAL)};
+      const auto retry_interval {data.test_retry_interval.value_or(DEFAULT_RETRY_INTERVAL)};
 #else
       const auto retry_interval {DEFAULT_RETRY_INTERVAL};
 #endif
       SchedulerOptions scheduler_option {.m_sleep_durations = {retry_interval}};
-      if (option == revert_option_e::try_indefinitely_with_delay && DD_DATA.config_revert_delay > std::chrono::milliseconds::zero()) {
-        scheduler_option.m_sleep_durations = {DD_DATA.config_revert_delay, retry_interval};
+      if (option == revert_option_e::try_indefinitely_with_delay && data.config_revert_delay > std::chrono::milliseconds::zero()) {
+        scheduler_option.m_sleep_durations = {data.config_revert_delay, retry_interval};
         scheduler_option.m_execution = SchedulerOptions::Execution::ScheduledOnly;
       }
 
-      const auto persistence_watch {DD_DATA.persistence_watch};
-      DD_DATA.sm_instance->schedule([try_once = (option == revert_option_e::try_once), tried_out_devices = StringSet {}, persistence_watch](auto &settings_iface, auto &stop_token) mutable {
+      const auto persistence_watch {data.persistence_watch};
+      data.sm_instance->schedule([try_once = (option == revert_option_e::try_once), tried_out_devices = StringSet {}, persistence_watch](auto &settings_iface, auto &stop_token) mutable {
         try_revert_settings(try_once, tried_out_devices, persistence_watch, settings_iface, stop_token);
       },
-                                    scheduler_option);
+                                 scheduler_option);
     }
   }  // namespace
 
-  std::unique_ptr<platf::deinit_t> init(const std::filesystem::path &persistence_filepath, const config::video_t &video_config) {
-    std::lock_guard lock {DD_DATA.mutex};
+  manager_t::manager_t():
+      impl {std::make_unique<impl_t>()} {
+  }
+
+  manager_t::~manager_t() {
+    std::lock_guard lock {impl->mutex};
+    try {
+      revert_configuration_unlocked(*impl, revert_option_e::try_once);
+    } catch (const std::exception &error) {
+      BOOST_LOG(fatal) << error.what();
+    }
+    impl->sm_instance.reset();
+  }
+
+  void manager_t::initialize(const std::filesystem::path &persistence_filepath, const config::video_t &video_config) {
+    std::lock_guard lock {impl->mutex};
     // We can support re-init without any issues, however we should make sure to clean up first!
-    revert_configuration_unlocked(revert_option_e::try_once);
-    DD_DATA.config_revert_delay = video_config.dd.config_revert_delay;
-    DD_DATA.sm_instance = nullptr;
+    revert_configuration_unlocked(*impl, revert_option_e::try_once);
+    impl->config_revert_delay = video_config.dd.config_revert_delay;
+    impl->sm_instance = nullptr;
 
     // If we fail to create settings manager, this means platform is not supported, and
     // we will need to provided error-free pass-trough in other methods
-    if (auto settings_manager {make_settings_manager(persistence_filepath, video_config)}) {
-      DD_DATA.sm_instance = std::make_unique<RetryScheduler<SettingsManagerInterface>>(std::move(settings_manager));
+    if (auto settings_manager {make_settings_manager(persistence_filepath, video_config, impl->persistence_watch)}) {
+      impl->sm_instance = std::make_unique<RetryScheduler<SettingsManagerInterface>>(std::move(settings_manager));
 
-      const auto available_devices {DD_DATA.sm_instance->execute([](auto &settings_iface) {
+      const auto available_devices {impl->sm_instance->execute([](auto &settings_iface) {
         return settings_iface.enumAvailableDevices();
       })};
       BOOST_LOG(info) << "Currently available display devices:\n"
@@ -887,28 +905,8 @@ namespace display_device {
 
       // In case we have failed to revert configuration before shutting down, we should
       // do it now.
-      revert_configuration_unlocked(revert_option_e::try_indefinitely);
+      revert_configuration_unlocked(*impl, revert_option_e::try_indefinitely);
     }
-
-    class deinit_t: public platf::deinit_t {
-    public:
-      ~deinit_t() override {
-        std::lock_guard lock {DD_DATA.mutex};
-        try {
-          // This may throw if used incorrectly. At the moment this will not happen, however
-          // in case some unforeseen changes are made that could raise an exception,
-          // we definitely don't want this to happen in destructor. Especially in the
-          // deinit_t where the outcome does not really matter.
-          revert_configuration_unlocked(revert_option_e::try_once);
-        } catch (std::exception &err) {
-          BOOST_LOG(fatal) << err.what();
-        }
-
-        DD_DATA.sm_instance = nullptr;
-      }
-    };
-
-    return std::make_unique<deinit_t>();
   }
 
   bool wake_display(const std::string &display_name, std::chrono::milliseconds timeout) {
@@ -929,14 +927,14 @@ namespace display_device {
     return display_power->keepDisplayAwake(reason);
   }
 
-  std::string map_output_name(const std::string &output_name) {
-    std::lock_guard lock {DD_DATA.mutex};
-    if (!DD_DATA.sm_instance) {
+  std::string manager_t::map_output_name(const std::string &output_name) {
+    std::lock_guard lock {impl->mutex};
+    if (!impl->sm_instance) {
       // Fallback to giving back the output name if the platform is not supported.
       return output_name;
     }
 
-    const auto mapped_name {DD_DATA.sm_instance->execute([&output_name](auto &settings_iface) {
+    const auto mapped_name {impl->sm_instance->execute([&output_name](auto &settings_iface) {
       return settings_iface.getDisplayName(output_name);
     })};
 
@@ -949,7 +947,7 @@ namespace display_device {
     return mapped_name;
   }
 
-  void configure_display(const config::video_t &video_config, const rtsp_stream::launch_session_t &session) {
+  void manager_t::configure_display(const config::video_t &video_config, const rtsp_stream::launch_session_t &session) {
     const auto result {parse_configuration(video_config, session)};
     if (const auto *parsed_config {std::get_if<SingleDisplayConfiguration>(&result)}; parsed_config) {
       configure_display(*parsed_config);
@@ -967,9 +965,9 @@ namespace display_device {
     // want to revert active configuration in case we have any
   }
 
-  void configure_display(const SingleDisplayConfiguration &config) {
-    std::lock_guard lock {DD_DATA.mutex};
-    if (!DD_DATA.sm_instance) {
+  void manager_t::configure_display(const SingleDisplayConfiguration &config) {
+    std::lock_guard lock {impl->mutex};
+    if (!impl->sm_instance) {
       // Platform is not supported, nothing to do.
       return;
     }
@@ -977,7 +975,7 @@ namespace display_device {
     BOOST_LOG(info) << "Scheduling display device configuration:\n"
                     << toJson(config);
 
-    DD_DATA.sm_instance->schedule([config](auto &settings_iface, auto &stop_token) {
+    impl->sm_instance->schedule([config](auto &settings_iface, auto &stop_token) {
       using enum SettingsManagerInterface::ApplyResult;
 
       // We only want to keep retrying in case of a transient errors.
@@ -995,22 +993,22 @@ namespace display_device {
         stop_token.requestStop();
       }
     },
-                                  {.m_sleep_durations = {DEFAULT_RETRY_INTERVAL}});
+                                {.m_sleep_durations = {DEFAULT_RETRY_INTERVAL}});
   }
 
-  void revert_configuration() {
-    std::lock_guard lock {DD_DATA.mutex};
-    revert_configuration_unlocked(revert_option_e::try_indefinitely_with_delay);
+  void manager_t::revert_configuration() {
+    std::lock_guard lock {impl->mutex};
+    revert_configuration_unlocked(*impl, revert_option_e::try_indefinitely_with_delay);
   }
 
-  bool reset_persistence() {
-    std::lock_guard lock {DD_DATA.mutex};
-    if (!DD_DATA.sm_instance) {
+  bool manager_t::reset_persistence() {
+    std::lock_guard lock {impl->mutex};
+    if (!impl->sm_instance) {
       // Platform is not supported, assume success.
       return true;
     }
 
-    return DD_DATA.sm_instance->execute([](auto &settings_iface, auto &stop_token) {
+    return impl->sm_instance->execute([](auto &settings_iface, auto &stop_token) {
       // Whatever the outcome is we want to stop interfering with the user,
       // so any schedulers need to be stopped.
       stop_token.requestStop();
@@ -1018,14 +1016,14 @@ namespace display_device {
     });
   }
 
-  EnumeratedDeviceList enumerate_devices() {
-    std::lock_guard lock {DD_DATA.mutex};
-    if (!DD_DATA.sm_instance) {
+  EnumeratedDeviceList manager_t::enumerate_devices() {
+    std::lock_guard lock {impl->mutex};
+    if (!impl->sm_instance) {
       // Platform is not supported.
       return {};
     }
 
-    return DD_DATA.sm_instance->execute([](auto &settings_iface) {
+    return impl->sm_instance->execute([](auto &settings_iface) {
       return settings_iface.enumAvailableDevices();
     });
   }
@@ -1112,35 +1110,35 @@ namespace display_device {
     return std::make_shared<watched_settings_persistence_t>(std::make_shared<memory_settings_persistence_t>());
   }
 
-  void test_install_settings_manager(std::unique_ptr<SettingsManagerInterface> manager, const std::shared_ptr<SettingsPersistenceInterface> &persistence) {
-    std::lock_guard lock {DD_DATA.mutex};
-    DD_DATA.sm_instance.reset();
-    DD_DATA.persistence_watch = std::dynamic_pointer_cast<watched_settings_persistence_t>(persistence);
-    if (!manager || !DD_DATA.persistence_watch) {
+  void manager_t::test_install_settings_manager(std::unique_ptr<SettingsManagerInterface> manager, const std::shared_ptr<SettingsPersistenceInterface> &persistence) {
+    std::lock_guard lock {impl->mutex};
+    impl->sm_instance.reset();
+    impl->persistence_watch = std::dynamic_pointer_cast<watched_settings_persistence_t>(persistence);
+    if (!manager || !impl->persistence_watch) {
       return;
     }
 
-    DD_DATA.sm_instance = std::make_unique<RetryScheduler<SettingsManagerInterface>>(std::move(manager));
+    impl->sm_instance = std::make_unique<RetryScheduler<SettingsManagerInterface>>(std::move(manager));
   }
 
-  void test_set_retry_interval(const std::chrono::milliseconds interval) {
-    std::lock_guard lock {DD_DATA.mutex};
-    DD_DATA.test_retry_interval = interval;
+  void manager_t::test_set_retry_interval(const std::chrono::milliseconds interval) {
+    std::lock_guard lock {impl->mutex};
+    impl->test_retry_interval = interval;
   }
 
-  bool test_revert_retry_is_scheduled() {
-    std::lock_guard lock {DD_DATA.mutex};
-    return DD_DATA.sm_instance && DD_DATA.sm_instance->isScheduled();
+  bool manager_t::test_revert_retry_is_scheduled() {
+    std::lock_guard lock {impl->mutex};
+    return impl->sm_instance && impl->sm_instance->isScheduled();
   }
 
-  void test_reset_display_device() {
-    std::lock_guard lock {DD_DATA.mutex};
-    if (DD_DATA.sm_instance) {
-      DD_DATA.sm_instance->stop();
+  void manager_t::test_reset_display_device() {
+    std::lock_guard lock {impl->mutex};
+    if (impl->sm_instance) {
+      impl->sm_instance->stop();
     }
-    DD_DATA.sm_instance.reset();
-    DD_DATA.persistence_watch.reset();
-    DD_DATA.test_retry_interval.reset();
+    impl->sm_instance.reset();
+    impl->persistence_watch.reset();
+    impl->test_retry_interval.reset();
   }
 #endif
 }  // namespace display_device

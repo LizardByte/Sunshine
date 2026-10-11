@@ -648,60 +648,51 @@ namespace {
     mutable std::mutex mutex;  ///< Guards the device list and revert bookkeeping.
   };
 
-  /**
-   * @brief Stop the revert scheduler when a test ends.
-   */
-  class display_device_revert_guard_t {
-  public:
-    ~display_device_revert_guard_t() {
-      display_device::test_reset_display_device();
-    }
-  };
-
   using namespace std::chrono_literals;
 
   /**
    * @brief Wait until the revert scheduler has stopped.
+   * @param displays Display owner whose scheduler is observed.
    * @return True when no retry remains scheduled.
    */
-  bool wait_until_revert_stops() {
-    for (int attempt {0}; attempt < 50 && display_device::test_revert_retry_is_scheduled(); ++attempt) {
+  bool wait_until_revert_stops(display_device::manager_t &displays) {
+    for (int attempt {0}; attempt < 50 && displays.test_revert_retry_is_scheduled(); ++attempt) {
       std::this_thread::sleep_for(5ms);
     }
-    return !display_device::test_revert_retry_is_scheduled();
+    return !displays.test_revert_retry_is_scheduled();
   }
 }  // namespace
 
 using namespace std::chrono_literals;
 
 TEST(DisplayDeviceRevert, CompletedRevertStopsTheRetryLoop) {
-  [[maybe_unused]] const display_device_revert_guard_t guard;
-  display_device::test_set_retry_interval(30ms);
+  display_device::manager_t displays;
+  displays.test_set_retry_interval(30ms);
   const auto persistence {display_device::test_make_watched_persistence()};
   auto manager {std::make_unique<redock_settings_manager_t>(persistence)};
   manager->set_keep_pending(false);
   auto *manager_ptr {manager.get()};
-  display_device::test_install_settings_manager(std::move(manager), persistence);
+  displays.test_install_settings_manager(std::move(manager), persistence);
 
-  display_device::revert_configuration();
+  displays.revert_configuration();
 
   const auto completed {manager_ptr->progress()};
   EXPECT_EQ(completed.revert_calls, 1);
   EXPECT_TRUE(completed.hdr_restored);
-  EXPECT_TRUE(wait_until_revert_stops());
+  EXPECT_TRUE(wait_until_revert_stops(displays));
 }
 
 TEST(DisplayDeviceRevert, RedockRestoresPendingSettings) {
-  [[maybe_unused]] const display_device_revert_guard_t guard;
-  display_device::test_set_retry_interval(30ms);
+  display_device::manager_t displays;
+  displays.test_set_retry_interval(30ms);
   const auto persistence {display_device::test_make_watched_persistence()};
   auto manager {std::make_unique<redock_settings_manager_t>(persistence)};
   auto *manager_ptr {manager.get()};
-  display_device::test_install_settings_manager(std::move(manager), persistence);
+  displays.test_install_settings_manager(std::move(manager), persistence);
 
-  display_device::revert_configuration();
+  displays.revert_configuration();
 
-  EXPECT_TRUE(display_device::test_revert_retry_is_scheduled());
+  EXPECT_TRUE(displays.test_revert_retry_is_scheduled());
   const auto pending {manager_ptr->progress()};
   EXPECT_EQ(pending.revert_calls, 1);
   EXPECT_TRUE(pending.pending_saved);
@@ -710,7 +701,7 @@ TEST(DisplayDeviceRevert, RedockRestoresPendingSettings) {
   // The dock is still absent, so later checks must not treat the pending recovery as finished.
   std::this_thread::sleep_for(80ms);
   EXPECT_EQ(manager_ptr->progress().revert_calls, 1);
-  EXPECT_TRUE(display_device::test_revert_retry_is_scheduled());
+  EXPECT_TRUE(displays.test_revert_retry_is_scheduled());
 
   manager_ptr->redock({
     {.m_device_id = "panel", .m_friendly_name = "Panel"},
@@ -719,5 +710,27 @@ TEST(DisplayDeviceRevert, RedockRestoresPendingSettings) {
 
   ASSERT_TRUE(manager_ptr->wait_for_hdr_restore(2s));
   EXPECT_GE(manager_ptr->progress().revert_calls, 2);
-  EXPECT_TRUE(wait_until_revert_stops());
+  EXPECT_TRUE(wait_until_revert_stops(displays));
+}
+
+/**
+ * @brief Display managers own independent retry state and platform fallbacks.
+ */
+TEST(DisplayDeviceRevert, IndependentOwnersDoNotShareSettingsManagers) {
+  display_device::manager_t first;
+  display_device::manager_t second;
+  first.test_set_retry_interval(30ms);
+  const auto persistence = display_device::test_make_watched_persistence();
+  auto manager = std::make_unique<redock_settings_manager_t>(persistence);
+  manager->set_keep_pending(false);
+  auto *manager_ptr = manager.get();
+  first.test_install_settings_manager(std::move(manager), persistence);
+  EXPECT_EQ(second.map_output_name("original"), "original");
+  EXPECT_TRUE(second.enumerate_devices().empty());
+  EXPECT_TRUE(second.reset_persistence());
+  second.revert_configuration();
+  EXPECT_EQ(manager_ptr->progress().revert_calls, 0);
+  first.revert_configuration();
+  EXPECT_EQ(manager_ptr->progress().revert_calls, 1);
+  EXPECT_TRUE(wait_until_revert_stops(first));
 }

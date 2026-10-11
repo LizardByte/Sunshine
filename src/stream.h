@@ -13,7 +13,20 @@
 // local includes
 #include "audio.h"
 #include "crypto.h"
+#include "thread_pool.h"
 #include "video.h"
+
+namespace input {
+  class service_t;
+}
+
+namespace proc {
+  class proc_t;
+}
+
+namespace display_device {
+  class manager_t;
+}
 
 namespace stream {
   constexpr auto VIDEO_STREAM_PORT = 9;  ///< GameStream base-port offset used for the video UDP stream.
@@ -53,14 +66,6 @@ namespace stream {
     };
 
     /**
-     * @brief Allocate and initialize platform input state for a stream.
-     *
-     * @param config Configuration values to apply.
-     * @param launch_session Launch session.
-     * @return Allocated object or identifier, or an error value on failure.
-     */
-    std::shared_ptr<session_t> alloc(config_t &config, rtsp_stream::launch_session_t &launch_session);
-    /**
      * @brief Start a streaming session for the supplied peer address.
      *
      * @param session Active streaming or pairing session for the request.
@@ -95,4 +100,40 @@ namespace stream {
      */
     const std::string &client_cert(session_t &session);
   }  // namespace session
+
+  /**
+   * @brief Own host broadcast resources and the services used by streaming sessions.
+   */
+  class service_t {
+  public:
+    /**
+     * @brief Bind the host dependencies without opening streaming sockets.
+     * @param host_mail Application packet and shutdown mailbox.
+     * @param scheduler Application task scheduler.
+     * @param inputs Host input owner.
+     * @param videos Host capture and encoder owner.
+     * @param processes Application process owner.
+     * @param displays Display settings and restore owner.
+     * @param platform Native streaming hooks and socket priority owner.
+     */
+    service_t(safe::mail_t host_mail, thread_pool_util::ThreadPool &scheduler, input::service_t &inputs, video::service_t &videos, proc::proc_t &processes, display_device::manager_t &displays, platf::runtime_t &platform);
+    /**
+     * @brief Release the broadcast owner after all session references stop.
+     */
+    ~service_t();
+    service_t(const service_t &) = delete;
+    service_t &operator=(const service_t &) = delete;
+    /**
+     * @brief Allocate and initialize platform input state for a stream.
+     *
+     * @param config Configuration values to apply.
+     * @param launch_session Launch session.
+     * @return Allocated object or identifier, or an error value on failure.
+     */
+    std::shared_ptr<session_t> alloc(config_t &config, rtsp_stream::launch_session_t &launch_session);
+
+  private:
+    struct impl_t;  ///< Private broadcast owner and dependencies.
+    std::shared_ptr<impl_t> impl;  ///< Lifetime shared with allocated stream sessions.
+  };
 }  // namespace stream

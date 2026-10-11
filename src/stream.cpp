@@ -378,8 +378,12 @@ namespace stream {
   /**
    * @brief ENet control server that routes incoming control packets to stream sessions.
    */
+  struct runtime_context_t;  ///< Private host dependencies retained by stream sessions.
+
   class control_server_t {
   public:
+    runtime_context_t *owner {};  ///< Host owner shared by this control server and its sessions.
+
     /**
      * @brief Bind the underlying socket or graphics resource to its target.
      *
@@ -478,6 +482,8 @@ namespace stream {
    * @brief UDP broadcast socket and target address state.
    */
   struct broadcast_ctx_t {
+    runtime_context_t *owner {};  ///< Host dependencies retained throughout broadcast processing.
+    std::atomic_uint running_sessions {};  ///< Host-shared active-session count for platform lifecycle hooks.
     message_queue_queue_t message_queue_queue;  ///< Queues carrying encoded video and audio packets to sender threads.
 
     std::jthread recv_thread;  ///< Thread that receives incoming control-channel messages.
@@ -497,6 +503,8 @@ namespace stream {
    * @brief Runtime state for one audio/video streaming session.
    */
   struct session_t {
+    std::shared_ptr<runtime_context_t> owner;  ///< Host dependencies retained until session workers finish.
+    std::function<void()> on_stream_connected;  ///< RTSP owner callback for consuming the pending launch.
     config_t config;  ///< Stream or encoder configuration captured for the worker.
 
     safe::mail_t mail;  ///< Mailbox used to distribute packets and lifecycle events.
@@ -641,7 +649,58 @@ namespace stream {
    */
   void end_broadcast(broadcast_ctx_t &ctx);
 
-  static auto broadcast = safe::make_shared<broadcast_ctx_t>(start_broadcast, end_broadcast);
+  /**
+   * @brief Explicit host dependencies and lazy broadcast resources shared by stream sessions.
+   */
+  struct runtime_context_t {
+    safe::mail_t host_mail;  ///< Host packet and shutdown mailbox.
+    thread_pool_util::ThreadPool &scheduler;  ///< Host scheduler used for shutdown deadlines.
+    input::service_t &inputs;  ///< Shared host input owner.
+    video::service_t &videos;  ///< Shared video capture owner.
+    proc::proc_t &processes;  ///< Shared application process owner.
+    display_device::manager_t &displays;  ///< Shared display configuration owner.
+    platf::runtime_t &platform;  ///< Native streaming hooks and socket priority owner.
+    safe::shared_t<broadcast_ctx_t> broadcast;  ///< Lazy broadcast resources shared by this owner's sessions.
+
+    /**
+     * @brief Bind host services and attach them to each lazy broadcast instance.
+     * @param host_mail Host mailbox.
+     * @param scheduler Host scheduler.
+     * @param inputs Host input owner.
+     * @param videos Host video owner.
+     * @param processes Host process owner.
+     * @param displays Host display owner.
+     * @param platform Native streaming resources.
+     */
+    runtime_context_t(safe::mail_t host_mail, thread_pool_util::ThreadPool &scheduler, input::service_t &inputs, video::service_t &videos, proc::proc_t &processes, display_device::manager_t &displays, platf::runtime_t &platform):
+        host_mail {std::move(host_mail)},
+        scheduler {scheduler},
+        inputs {inputs},
+        videos {videos},
+        processes {processes},
+        displays {displays},
+        platform {platform},
+        broadcast {[this](auto &context) {
+                     context.owner = this;
+                     context.control_server.owner = this;
+                     return start_broadcast(context);
+                   },
+                   end_broadcast} {
+    }
+  };
+
+  /**
+   * @brief Private stream-service implementation retained by each allocated session.
+   */
+  struct service_t::impl_t: runtime_context_t {
+    using runtime_context_t::runtime_context_t;
+  };
+
+  service_t::service_t(safe::mail_t host_mail, thread_pool_util::ThreadPool &scheduler, input::service_t &inputs, video::service_t &videos, proc::proc_t &processes, display_device::manager_t &displays, platf::runtime_t &platform):
+      impl {std::make_shared<impl_t>(std::move(host_mail), scheduler, inputs, videos, processes, displays, platform)} {
+  }
+
+  service_t::~service_t() = default;
 
   /**
    * @brief Parse a control message from an ENet packet.
@@ -704,7 +763,9 @@ namespace stream {
       }
 
       // Once the control stream connection is established, RTSP session state can be torn down
-      rtsp_stream::launch_session_clear(session_p->launch_session_id);
+      if (session_p->on_stream_connected) {
+        session_p->on_stream_connected();
+      }
 
       session_p->control.peer = peer;
 
@@ -1172,6 +1233,7 @@ namespace stream {
    * @param server RTSP server instance handling the request.
    */
   void controlBroadcastThread(control_server_t *server) {
+    const auto &host_mail = server->owner->host_mail;
     server->map(packetTypes[IDX_PERIODIC_PING], [](session_t *session, const std::string_view &payload) {
       BOOST_LOG(verbose) << "type [IDX_PERIODIC_PING]"sv;
     });
@@ -1318,8 +1380,8 @@ namespace stream {
     // Check for both the full shutdown event and the shutdown event for this
     // broadcast to ensure we can inform connected clients of our graceful
     // termination when we shut down.
-    auto shutdown_event = mail::man->event<bool>(mail::shutdown);
-    auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
+    auto shutdown_event = host_mail->event<bool>(mail::shutdown);
+    auto broadcast_shutdown_event = host_mail->event<bool>(mail::broadcast_shutdown);
     while (!shutdown_event->peek() && !broadcast_shutdown_event->peek()) {
       bool has_session_awaiting_peer = false;
 
@@ -1384,7 +1446,7 @@ namespace stream {
       }
 
       // Don't break until any pending sessions either expire or connect
-      if (proc::proc.running() == 0 && !has_session_awaiting_peer) {
+      if (server->owner->processes.running() == 0 && !has_session_awaiting_peer) {
         BOOST_LOG(info) << "Process terminated"sv;
         break;
       }
@@ -1431,6 +1493,7 @@ namespace stream {
    * @param ctx Native context object used by the operation or callback.
    */
   void recvThread(broadcast_ctx_t &ctx) {
+    const auto &host_mail = ctx.owner->host_mail;
     std::map<av_session_id_t, message_queue_t> peer_to_video_session;
     std::map<av_session_id_t, message_queue_t> peer_to_audio_session;
 
@@ -1438,7 +1501,7 @@ namespace stream {
     auto &audio_sock = ctx.audio_sock;
 
     auto &message_queue_queue = ctx.message_queue_queue;
-    auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
+    auto broadcast_shutdown_event = host_mail->event<bool>(mail::broadcast_shutdown);
 
     auto &io = ctx.io_context;
 
@@ -1530,9 +1593,9 @@ namespace stream {
    *
    * @param sock Socket used to read or write the protocol message.
    */
-  void videoBroadcastThread(udp::socket &sock) {
-    auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
-    auto packets = mail::man->queue<video::packet_t>(mail::video_packets);
+  void videoBroadcastThread(udp::socket &sock, safe::mail_t host_mail) {
+    auto shutdown_event = host_mail->event<bool>(mail::broadcast_shutdown);
+    auto packets = host_mail->queue<video::packet_t>(mail::video_packets);
     auto video_epoch = std::chrono::steady_clock::now();
 
     // Video traffic is sent on this thread
@@ -1857,9 +1920,9 @@ namespace stream {
    *
    * @param sock Socket used to read or write the protocol message.
    */
-  void audioBroadcastThread(udp::socket &sock) {
-    auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
-    auto packets = mail::man->queue<audio::packet_t>(mail::audio_packets);
+  void audioBroadcastThread(udp::socket &sock, safe::mail_t host_mail) {
+    auto shutdown_event = host_mail->event<bool>(mail::broadcast_shutdown);
+    auto packets = host_mail->queue<audio::packet_t>(mail::audio_packets);
 
     audio_packet_t audio_packet;
     fec::rs_t rs {reed_solomon_new(RTPA_DATA_SHARDS, RTPA_FEC_SHARDS)};
@@ -2023,8 +2086,8 @@ namespace stream {
 
     ctx.message_queue_queue = std::make_shared<message_queue_queue_t::element_type>(30);
 
-    ctx.video_thread = std::jthread {videoBroadcastThread, std::ref(ctx.video_sock)};
-    ctx.audio_thread = std::jthread {audioBroadcastThread, std::ref(ctx.audio_sock)};
+    ctx.video_thread = std::jthread {videoBroadcastThread, std::ref(ctx.video_sock), ctx.owner->host_mail};
+    ctx.audio_thread = std::jthread {audioBroadcastThread, std::ref(ctx.audio_sock), ctx.owner->host_mail};
     ctx.control_thread = std::jthread {controlBroadcastThread, &ctx.control_server};
 
     ctx.recv_thread = std::jthread {recvThread, std::ref(ctx)};
@@ -2036,12 +2099,13 @@ namespace stream {
    * @brief Stop broadcast processing.
    */
   void end_broadcast(broadcast_ctx_t &ctx) {
-    auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
+    const auto &host_mail = ctx.owner->host_mail;
+    auto broadcast_shutdown_event = host_mail->event<bool>(mail::broadcast_shutdown);
 
     broadcast_shutdown_event->raise(true);
 
-    auto video_packets = mail::man->queue<video::packet_t>(mail::video_packets);
-    auto audio_packets = mail::man->queue<audio::packet_t>(mail::audio_packets);
+    auto video_packets = host_mail->queue<video::packet_t>(mail::video_packets);
+    auto audio_packets = host_mail->queue<audio::packet_t>(mail::audio_packets);
 
     // Minimize delay stopping video/audio threads
     video_packets->stop();
@@ -2080,7 +2144,7 @@ namespace stream {
    * @param timeout Maximum time to wait for the operation.
    * @return Network operation status.
    */
-  int recv_ping(session_t *session, decltype(broadcast)::ptr_t ref, socket_e type, std::string_view expected_payload, udp::endpoint &peer, std::chrono::milliseconds timeout) {
+  int recv_ping(session_t *session, safe::shared_t<broadcast_ctx_t>::ptr_t ref, socket_e type, std::string_view expected_payload, udp::endpoint &peer, std::chrono::milliseconds timeout) {
     auto messages = std::make_shared<message_queue_t::element_type>(30);
     av_session_id_t session_id = std::string {expected_payload};
 
@@ -2146,7 +2210,7 @@ namespace stream {
 
     while_starting_do_nothing(session->state);
 
-    auto ref = broadcast.ref();
+    auto ref = session->owner->broadcast.ref();
     auto error = recv_ping(session, ref, socket_e::video, session->video.ping_payload, session->video.peer, config::stream.ping_timeout);
     if (error < 0) {
       return;
@@ -2154,10 +2218,10 @@ namespace stream {
 
     // Enable local prioritization and QoS tagging on video traffic if requested by the client
     auto address = session->video.peer.address();
-    session->video.qos = platf::enable_socket_qos(ref->video_sock.native_handle(), address, session->video.peer.port(), platf::qos_data_type_e::video, session->config.videoQosType != 0);
+    session->video.qos = session->owner->platform.enable_socket_qos(ref->video_sock.native_handle(), address, session->video.peer.port(), platf::qos_data_type_e::video, session->config.videoQosType != 0);
 
     BOOST_LOG(debug) << "Start capturing Video"sv;
-    video::capture(session->mail, session->config.monitor, session);
+    session->owner->videos.capture(session->mail, session->config.monitor, session);
   }
 
   /**
@@ -2173,7 +2237,7 @@ namespace stream {
 
     while_starting_do_nothing(session->state);
 
-    auto ref = broadcast.ref();
+    auto ref = session->owner->broadcast.ref();
     auto error = recv_ping(session, ref, socket_e::audio, session->audio.ping_payload, session->audio.peer, config::stream.ping_timeout);
     if (error < 0) {
       return;
@@ -2181,14 +2245,13 @@ namespace stream {
 
     // Enable local prioritization and QoS tagging on audio traffic if requested by the client
     auto address = session->audio.peer.address();
-    session->audio.qos = platf::enable_socket_qos(ref->audio_sock.native_handle(), address, session->audio.peer.port(), platf::qos_data_type_e::audio, session->config.audioQosType != 0);
+    session->audio.qos = session->owner->platform.enable_socket_qos(ref->audio_sock.native_handle(), address, session->audio.peer.port(), platf::qos_data_type_e::audio, session->config.audioQosType != 0);
 
     BOOST_LOG(debug) << "Start capturing Audio"sv;
-    audio::capture(session->mail, session->config.audio, session);
+    audio::capture(session->owner->host_mail, session->mail, session->config.audio, session);
   }
 
   namespace session {
-    std::atomic_uint running_sessions;  ///< Running sessions.
 
     /**
      * @brief Platform handle returned from stream setup.
@@ -2230,10 +2293,10 @@ namespace stream {
         logging::log_flush();
         lifetime::debug_trap();
       };
-      auto force_kill = task_pool.pushDelayed(task, 10s).task_id;
-      auto fg = util::fail_guard([&force_kill]() {
+      auto force_kill = session.owner->scheduler.pushDelayed(task, 10s).task_id;
+      auto fg = util::fail_guard([&session, &force_kill]() {
         // Cancel the kill task if we manage to return from this function
-        task_pool.cancel(force_kill);
+        session.owner->scheduler.cancel(force_kill);
       });
 
       BOOST_LOG(debug) << "Waiting for video to end..."sv;
@@ -2247,23 +2310,23 @@ namespace stream {
       input::reset(session.input);
 
       // If this is the last session, invoke the platform callbacks
-      if (--running_sessions == 0) {
+      if (--session.broadcast_ref->running_sessions == 0) {
         bool revert_display_config {config::video.dd.config_revert_on_disconnect};
-        if (proc::proc.running()) {
+        if (session.owner->processes.running()) {
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
-          system_tray::update_tray_pausing(proc::proc.get_last_run_app_name());
+          system_tray::update_tray_pausing(session.owner->processes.get_last_run_app_name());
 #endif
         } else {
           // We have no app running and also no clients anymore.
           revert_display_config = true;
-          input::terminate_gamepads();
+          session.owner->inputs.terminate_gamepads();
         }
 
         if (revert_display_config) {
-          display_device::revert_configuration();
+          session.owner->displays.revert_configuration();
         }
 
-        platf::streaming_will_stop();
+        session.owner->platform.streaming_will_stop();
       }
 
       BOOST_LOG(debug) << "Session ended"sv;
@@ -2273,9 +2336,9 @@ namespace stream {
      * @brief Start the audio, video, and control workers for a streaming session.
      */
     int start(session_t &session, const std::string &addr_string) {
-      session.input = input::alloc(session.mail, session.input_session_id);
+      session.input = session.owner->inputs.alloc(session.mail, session.input_session_id);
 
-      session.broadcast_ref = broadcast.ref();
+      session.broadcast_ref = session.owner->broadcast.ref();
       if (!session.broadcast_ref) {
         return -1;
       }
@@ -2304,10 +2367,10 @@ namespace stream {
       session.state.store(state_e::RUNNING, std::memory_order_relaxed);
 
       // If this is the first session, invoke the platform callbacks
-      if (++running_sessions == 1) {
-        platf::streaming_will_start();
+      if (++session.broadcast_ref->running_sessions == 1) {
+        session.owner->platform.streaming_will_start();
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
-        system_tray::update_tray_playing(proc::proc.get_last_run_app_name());
+        system_tray::update_tray_playing(session.owner->processes.get_last_run_app_name());
 #endif
       }
 
@@ -2317,8 +2380,10 @@ namespace stream {
     /**
      * @brief Allocate and initialize platform input state for a stream.
      */
-    std::shared_ptr<session_t> alloc(config_t &config, rtsp_stream::launch_session_t &launch_session) {
+    std::shared_ptr<session_t> alloc(std::shared_ptr<runtime_context_t> owner, config_t &config, rtsp_stream::launch_session_t &launch_session) {
       auto session = std::make_shared<session_t>();
+      session->owner = std::move(owner);
+      session->on_stream_connected = launch_session.on_stream_connected;
 
       auto mail = std::make_shared<safe::mail_raw_t>();
 
@@ -2391,4 +2456,8 @@ namespace stream {
       return session;
     }
   }  // namespace session
+
+  std::shared_ptr<session_t> service_t::alloc(config_t &config, rtsp_stream::launch_session_t &launch_session) {
+    return session::alloc(impl, config, launch_session);
+  }
 }  // namespace stream

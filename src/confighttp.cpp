@@ -90,50 +90,34 @@ namespace confighttp {
    */
   using https_handler_t = std::function<void(resp_https_t, req_https_t)>;
 
-  namespace {
-    using license_status_provider_t = std::function<lvh::LicenseResult()>;  ///< Provider for the current libvirtualhid license status.
+  using license_status_provider_t = std::function<lvh::LicenseResult()>;  ///< Provider for the current libvirtualhid license status.
 #if defined(linux) || defined(__FreeBSD__) || defined(SUNSHINE_TESTS)
-    using portal_token_path_provider_t = std::function<fs::path()>;  ///< Provider for the XDG Portal token path.
+  using portal_token_path_provider_t = std::function<fs::path()>;  ///< Provider for the XDG Portal token path.
 #endif
 
-    /**
-     * @brief Return the current libvirtualhid license status provider.
-     *
-     * Unit-test builds expose a mutable provider so the HTTP fixture can avoid
-     * contacting an installed Windows broker. Production builds keep the
-     * provider const and always call libvirtualhid directly.
-     *
-     * @return License status provider for the current build.
-     */
-    auto &virtual_input_license_status_provider() {
-#ifdef SUNSHINE_TESTS
-      static license_status_provider_t status_provider = lvh::get_license_status;
-#else
-      static const license_status_provider_t status_provider = lvh::get_license_status;
-#endif
-      return status_provider;
-    }
+  /**
+   * @brief Return the current libvirtualhid license status provider.
+   *
+   * Unit-test builds expose a mutable provider so the HTTP fixture can avoid
+   * contacting an installed Windows broker. Production builds keep the
+   * provider const and always call libvirtualhid directly.
+   *
+   * @return License status provider for the current build.
+   */
+  license_status_provider_t &service_t::virtual_input_license_status_provider() {
+    return license_provider;
+  }
 
 #if defined(linux) || defined(__FreeBSD__) || defined(SUNSHINE_TESTS)
-    /**
-     * @brief Return the path provider for the saved XDG Portal restore token.
-     *
-     * @return Path provider for the current build.
-     */
-    auto &portal_token_path_provider() {
-  #ifdef SUNSHINE_TESTS
-      static portal_token_path_provider_t path_provider = []() {
-        return platf::get_xdg_restore_token_path();
-      };
-  #else
-      static const portal_token_path_provider_t path_provider = []() {
-        return platf::get_xdg_restore_token_path();
-      };
-  #endif
-      return path_provider;
-    }
+  /**
+   * @brief Return the path provider for the saved XDG Portal restore token.
+   *
+   * @return Path provider for the current build.
+   */
+  portal_token_path_provider_t &service_t::portal_token_path_provider() {
+    return token_path_provider;
+  }
 #endif
-  }  // namespace
 
   /**
    * @brief Client certificate operations accepted by the configuration API.
@@ -172,19 +156,19 @@ namespace confighttp {
   };
 
 #ifdef SUNSHINE_TESTS
-  void set_virtual_input_license_status_provider_for_testing(virtual_input_license_status_provider_t status_provider) {
+  void service_t::set_virtual_input_license_status_provider_for_testing(virtual_input_license_status_provider_t status_provider) {
     virtual_input_license_status_provider() = std::move(status_provider);
   }
 
-  void reset_virtual_input_license_status_provider_for_testing() {
+  void service_t::reset_virtual_input_license_status_provider_for_testing() {
     virtual_input_license_status_provider() = lvh::get_license_status;
   }
 
-  void set_portal_token_path_provider_for_testing(confighttp::portal_token_path_provider_t path_provider) {
+  void service_t::set_portal_token_path_provider_for_testing(confighttp::portal_token_path_provider_t path_provider) {
     portal_token_path_provider() = std::move(path_provider);
   }
 
-  void reset_portal_token_path_provider_for_testing() {
+  void service_t::reset_portal_token_path_provider_for_testing() {
     portal_token_path_provider() = []() {
       return platf::get_xdg_restore_token_path();
     };
@@ -196,17 +180,6 @@ namespace confighttp {
 #endif
 
   // CSRF token management
-  /**
-   * @brief CSRF token value and its expiration deadline.
-   */
-  struct csrf_token_t {
-    std::string token;  ///< Random token value that must be echoed by the client.
-    std::chrono::steady_clock::time_point expiration;  ///< Monotonic deadline after which the token is rejected.
-  };
-
-  std::map<std::string, csrf_token_t, std::less<>> csrf_tokens;  ///< CSRF tokens by client identifier. NOSONAR(cpp:S5421) - intentionally mutable global
-  std::mutex csrf_tokens_mutex;  ///< Mutex protecting CSRF token storage. NOSONAR(cpp:S5421) - intentionally mutable global
-
   // CSRF token configuration
   /**
    * @brief Number of random bytes used when generating a CSRF token.
@@ -365,22 +338,20 @@ namespace confighttp {
     return output_tree;
   }
 
-  namespace {
-    /**
-     * @brief Handle a virtual-input license request using the configured status provider.
-     *
-     * @param response HTTP response object.
-     * @param request Authenticated HTTP request.
-     */
-    void get_virtual_input_license(const resp_https_t &response, const req_https_t &request) {
-      if (!authenticate(response, request)) {
-        return;
-      }
-
-      print_req(request);
-      send_response(response, build_virtualhid_license_status(virtual_input_license_status_provider()()));
+  /**
+   * @brief Handle a virtual-input license request using the configured status provider.
+   *
+   * @param response HTTP response object.
+   * @param request Authenticated HTTP request.
+   */
+  void service_t::get_virtual_input_license(const resp_https_t &response, const req_https_t &request) {
+    if (!authenticate(response, request)) {
+      return;
     }
-  }  // namespace
+
+    print_req(request);
+    send_response(response, build_virtualhid_license_status(virtual_input_license_status_provider()()));
+  }
 
 #ifdef _WIN32
   /**
@@ -642,10 +613,10 @@ namespace confighttp {
    * @param request The HTTP request object.
    * @return True if the user is authenticated, false otherwise.
    */
-  bool authenticate(const resp_https_t &response, const req_https_t &request) {
+  bool service_t::authenticate(const resp_https_t &response, const req_https_t &request) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
 
-    if (const auto ip_type = net::from_address(address); ip_type > http::origin_web_ui_allowed) {
+    if (const auto ip_type = net::from_address(address); ip_type > http_state.origin_web_ui_allowed()) {
       BOOST_LOG(info) << "Web UI: ["sv << address << "] -- denied"sv;
       response->write(SimpleWeb::StatusCode::client_error_forbidden);
       return false;
@@ -762,7 +733,7 @@ namespace confighttp {
    * @param request The HTTP request object.
    * @return A unique identifier based on username or IP address.
    */
-  std::string get_client_id(const req_https_t &request) {
+  std::string service_t::get_client_id(const req_https_t &request) {
     // Try to use the authenticated username as client ID
     if (const auto auth = request->header.find("authorization"); !config::sunshine.username.empty() && auth != request->header.end()) {
       if (const auto &rawAuth = auth->second; rawAuth.rfind("Basic "sv, 0) == 0) {
@@ -782,7 +753,7 @@ namespace confighttp {
    * @param client_id A unique identifier for the client (e.g., session ID or username).
    * @return The generated CSRF token.
    */
-  std::string generate_csrf_token(const std::string &client_id) {
+  std::string service_t::generate_csrf_token(const std::string &client_id) {
     // Generate a cryptographically secure random token
     std::string token = crypto::rand_alphabet(CSRF_TOKEN_SIZE);
 
@@ -811,7 +782,7 @@ namespace confighttp {
    * @param provided_token The token string to validate.
    * @return True if the token is valid, false otherwise.
    */
-  bool validate_stored_csrf_token(const resp_https_t &response, const req_https_t &request, const std::string_view client_id, const std::string_view provided_token) {
+  bool service_t::validate_stored_csrf_token(const resp_https_t &response, const req_https_t &request, const std::string_view client_id, const std::string_view provided_token) {
     std::scoped_lock lock(csrf_tokens_mutex);
     const auto token_it = csrf_tokens.find(client_id);
 
@@ -843,7 +814,7 @@ namespace confighttp {
   /**
    * @brief Validate CSRF token.
    */
-  bool validate_csrf_token(const resp_https_t &response, const req_https_t &request, const std::string &client_id) {
+  bool service_t::validate_csrf_token(const resp_https_t &response, const req_https_t &request, const std::string &client_id) {
     // Helper function to check if a URL starts with any allowed origin
     auto is_allowed_origin = [](const std::string_view url) {
       return std::ranges::any_of(config::sunshine.csrf_allowed_origins, [&url](const std::string &allowed_origin) {
@@ -905,7 +876,7 @@ namespace confighttp {
   /**
    * @brief Validates the application index and sends an error response if invalid.
    */
-  bool check_app_index(const resp_https_t &response, const req_https_t &request, int index) {
+  bool service_t::check_app_index(const resp_https_t &response, const req_https_t &request, int index) {
     std::string file = file_handler::read_file(config::stream.file_apps.c_str());
     nlohmann::json file_tree = nlohmann::json::parse(file);
     if (const auto &apps = file_tree["apps"]; index < 0 || index >= static_cast<int>(apps.size())) {
@@ -921,7 +892,7 @@ namespace confighttp {
     return true;
   }
 
-  void getPage(const resp_https_t &response, const req_https_t &request, const bool require_auth, const bool redirect_if_username) {
+  void service_t::getPage(const resp_https_t &response, const req_https_t &request, const bool require_auth, const bool redirect_if_username) {
     // Special handling for welcome page: redirect if the username is already set
     if (redirect_if_username && !config::sunshine.username.empty()) {
       send_redirect(response, request, "/");
@@ -945,7 +916,7 @@ namespace confighttp {
     response->write(content, headers);
   }
 
-  void getFallbackPage(const resp_https_t &response, const req_https_t &request) {
+  void service_t::getFallbackPage(const resp_https_t &response, const req_https_t &request) {
     const std::string_view path = request->path;
     const auto has_server_prefix = [path](const std::string_view prefix) {
       return path == prefix || (path.starts_with(prefix) && path.length() > prefix.length() && path[prefix.length()] == '/');
@@ -966,7 +937,7 @@ namespace confighttp {
    * @todo combine function with getSunshineLogoImage and possibly getNodeModules
    * @todo use mime_types map
    */
-  void getFaviconImage(const resp_https_t &response, const req_https_t &request) {
+  void service_t::getFaviconImage(const resp_https_t &response, const req_https_t &request) {
     print_req(request);
 
     std::ifstream in(WEB_DIR "images/sunshine.ico", std::ios::binary);
@@ -984,7 +955,7 @@ namespace confighttp {
    * @todo combine function with getFaviconImage and possibly getNodeModules
    * @todo use mime_types map
    */
-  void getSunshineLogoImage(const resp_https_t &response, const req_https_t &request) {
+  void service_t::getSunshineLogoImage(const resp_https_t &response, const req_https_t &request) {
     print_req(request);
 
     std::ifstream in(WEB_DIR "images/logo-sunshine-45.png", std::ios::binary);
@@ -1011,7 +982,7 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    */
-  void getAsset(const resp_https_t &response, const req_https_t &request) {
+  void service_t::getAsset(const resp_https_t &response, const req_https_t &request) {
     print_req(request);
     fs::path webDirPath(WEB_DIR);
     fs::path nodeModulesPath(webDirPath / "assets");
@@ -1056,7 +1027,7 @@ namespace confighttp {
    *
    * @api_examples{/api/csrf-token|:| GET|:| null}
    */
-  void getCSRFToken(const resp_https_t &response, const req_https_t &request) {
+  void service_t::getCSRFToken(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -1078,7 +1049,7 @@ namespace confighttp {
    *
    * @api_examples{/api/apps|:| GET|:| null}
    */
-  void getApps(const resp_https_t &response, const req_https_t &request) {
+  void service_t::getApps(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -1163,7 +1134,7 @@ namespace confighttp {
    *
    * @api_examples{/api/apps|:| POST|:| {"name":"Hello, World!","index":-1}}
    */
-  void saveApp(const resp_https_t &response, const req_https_t &request) {
+  void service_t::saveApp(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
@@ -1221,7 +1192,7 @@ namespace confighttp {
       });
 
       file_handler::write_file(config::stream.file_apps.c_str(), file_tree.dump(4));
-      proc::refresh(config::stream.file_apps);
+      processes.refresh(config::stream.file_apps);
 
       output_tree["status"] = true;
       send_response(response, output_tree);
@@ -1238,7 +1209,7 @@ namespace confighttp {
    *
    * @api_examples{/api/apps/close|:| POST|:| null}
    */
-  void closeApp(const resp_https_t &response, const req_https_t &request) {
+  void service_t::closeApp(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -1250,7 +1221,7 @@ namespace confighttp {
 
     print_req(request);
 
-    proc::proc.terminate();
+    processes.terminate();
 
     nlohmann::json output_tree;
     output_tree["status"] = true;
@@ -1264,7 +1235,7 @@ namespace confighttp {
    *
    * @api_examples{/api/apps/9999|:| DELETE|:| null}
    */
-  void deleteApp(const resp_https_t &response, const req_https_t &request) {
+  void service_t::deleteApp(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -1297,7 +1268,7 @@ namespace confighttp {
       file_tree["apps"] = new_apps;
 
       file_handler::write_file(config::stream.file_apps.c_str(), file_tree.dump(4));
-      proc::refresh(config::stream.file_apps);
+      processes.refresh(config::stream.file_apps);
 
       output_tree["status"] = true;
       output_tree["result"] = std::format("application {} deleted", index);
@@ -1315,14 +1286,14 @@ namespace confighttp {
    *
    * @api_examples{/api/clients/list|:| GET|:| null}
    */
-  void getClients(const resp_https_t &response, const req_https_t &request) {
+  void service_t::getClients(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
 
     print_req(request);
 
-    const nlohmann::json named_certs = nvhttp::get_all_clients();
+    const nlohmann::json named_certs = gamestream.get_all_clients();
 
     nlohmann::json output_tree;
     output_tree["named_certs"] = named_certs;
@@ -1344,7 +1315,7 @@ namespace confighttp {
    *
    * @api_examples{/api/clients/update|:| POST|:| {"uuid":"<uuid>","enabled":true}}
    */
-  void updateClient(resp_https_t response, req_https_t request) {
+  void service_t::updateClient(resp_https_t response, req_https_t request) {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
@@ -1365,16 +1336,16 @@ namespace confighttp {
       nlohmann::json output_tree;
       std::string uuid = input_tree.value("uuid", "");
       bool enabled = input_tree.value("enabled", true);
-      output_tree["status"] = nvhttp::set_client_enabled(uuid, enabled);
+      output_tree["status"] = gamestream.set_client_enabled(uuid, enabled);
 
       if (!enabled && output_tree["status"]) {
-        auto cert = nvhttp::get_cert_by_uuid(uuid);
+        auto cert = gamestream.get_cert_by_uuid(uuid);
         if (!cert.empty()) {
-          rtsp_stream::terminate_sessions_by_cert(cert);
+          rtsp.terminate_sessions_by_cert(cert);
         }
 
-        if (rtsp_stream::session_count() == 0 && proc::proc.running() > 0) {
-          proc::proc.terminate();
+        if (rtsp.session_count() == 0 && processes.running() > 0) {
+          processes.terminate();
         }
       }
 
@@ -1398,7 +1369,7 @@ namespace confighttp {
    *
    * @api_examples{/api/unpair|:| POST|:| {"uuid":"1234"}}
    */
-  void unpair(const resp_https_t &response, const req_https_t &request) {
+  void service_t::unpair(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
@@ -1421,11 +1392,11 @@ namespace confighttp {
       nlohmann::json output_tree;
       const nlohmann::json input_tree = nlohmann::json::parse(ss);
       const std::string uuid = input_tree.value("uuid", "");
-      const bool removed = nvhttp::unpair_client(uuid);
+      const bool removed = gamestream.unpair_client(uuid);
       output_tree["status"] = removed;
 
-      if (removed && nvhttp::get_all_clients().empty()) {
-        proc::proc.terminate();
+      if (removed && gamestream.get_all_clients().empty()) {
+        processes.terminate();
       }
 
       send_response(response, output_tree);
@@ -1442,7 +1413,7 @@ namespace confighttp {
    *
    * @api_examples{/api/clients/unpair-all|:| POST|:| null}
    */
-  void unpairAll(const resp_https_t &response, const req_https_t &request) {
+  void service_t::unpairAll(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -1454,8 +1425,8 @@ namespace confighttp {
 
     print_req(request);
 
-    nvhttp::erase_all_clients();
-    proc::proc.terminate();
+    gamestream.erase_all_clients();
+    processes.terminate();
 
     nlohmann::json output_tree;
     output_tree["status"] = true;
@@ -1469,7 +1440,7 @@ namespace confighttp {
    *
    * @api_examples{/api/config|:| GET|:| null}
    */
-  void getConfig(const resp_https_t &response, const req_https_t &request) {
+  void service_t::getConfig(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -1497,7 +1468,7 @@ namespace confighttp {
    *
    * @api_examples{/api/configLocale|:| GET|:| null}
    */
-  void getLocale(const resp_https_t &response, const req_https_t &request) {
+  void service_t::getLocale(const resp_https_t &response, const req_https_t &request) {
     // we need to return the locale whether authenticated or not
 
     print_req(request);
@@ -1523,7 +1494,7 @@ namespace confighttp {
    *
    * @api_examples{/api/config|:| POST|:| {"key":"value"}}
    */
-  void saveConfig(const resp_https_t &response, const req_https_t &request) {
+  void service_t::saveConfig(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
@@ -1572,7 +1543,7 @@ namespace confighttp {
    *
    * @api_examples{/api/covers/9999 |:| GET|:| null}
    */
-  void getCover(const resp_https_t &response, const req_https_t &request) {
+  void service_t::getCover(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -1642,7 +1613,7 @@ namespace confighttp {
    *
    * @api_examples{/api/covers/upload|:| POST|:| {"key":"igdb_1234","url":"https://images.igdb.com/igdb/image/upload/t_cover_big_2x/abc123.png"}}
    */
-  void uploadCover(const resp_https_t &response, const req_https_t &request) {
+  void service_t::uploadCover(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
@@ -1698,7 +1669,7 @@ namespace confighttp {
    *
    * @api_examples{/api/logs|:| GET|:| null}
    */
-  void getLogs(const resp_https_t &response, const req_https_t &request) {
+  void service_t::getLogs(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -1730,7 +1701,7 @@ namespace confighttp {
    *
    * @api_examples{/api/password|:| POST|:| {"currentUsername":"admin","currentPassword":"admin","newUsername":"admin","newPassword":"admin","confirmNewPassword":"admin"}}
    */
-  void savePassword(const resp_https_t &response, const req_https_t &request) {
+  void service_t::savePassword(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
@@ -1799,7 +1770,7 @@ namespace confighttp {
    *
    * @api_examples{/api/pin|:| GET|:| null}
    */
-  void getPendingPairings(const resp_https_t &response, const req_https_t &request) {
+  void service_t::getPendingPairings(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -1808,7 +1779,7 @@ namespace confighttp {
 
     nlohmann::json output_tree;
     output_tree["pairings"] = nlohmann::json::array();
-    for (const auto &pairing : nvhttp::get_pending_pairings()) {
+    for (const auto &pairing : gamestream.get_pending_pairings()) {
       output_tree["pairings"].push_back({
         {"id", pairing.id},
         {"name", pairing.name},
@@ -1829,7 +1800,7 @@ namespace confighttp {
    *
    * @api_examples{/api/pin|:| DELETE|:| {"pairing_id":"0123456789abcdef0123456789abcdef"}}
    */
-  void cancelPairing(const resp_https_t &response, const req_https_t &request) {
+  void service_t::cancelPairing(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
@@ -1855,7 +1826,7 @@ namespace confighttp {
       }
 
       nlohmann::json output_tree;
-      output_tree["status"] = nvhttp::cancel_pairing(pairing_id);
+      output_tree["status"] = gamestream.cancel_pairing(pairing_id);
       send_response(response, output_tree);
     } catch (nlohmann::json::exception &e) {
       BOOST_LOG(warning) << "CancelPairing: "sv << e.what();
@@ -1880,7 +1851,7 @@ namespace confighttp {
    *
    * @api_examples{/api/pin|:| POST|:| {"pairing_id":"0123456789abcdef0123456789abcdef","pin":"1234","name":"My PC"}}
    */
-  void savePin(const resp_https_t &response, const req_https_t &request) {
+  void service_t::savePin(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
@@ -1916,7 +1887,7 @@ namespace confighttp {
         return;
       }
 
-      output_tree["status"] = nvhttp::pin(pairing_id, pin, name);
+      output_tree["status"] = gamestream.pin(pairing_id, pin, name);
       send_response(response, output_tree);
     } catch (std::exception &e) {
       BOOST_LOG(warning) << "SavePin: "sv << e.what();
@@ -1931,7 +1902,7 @@ namespace confighttp {
    *
    * @api_examples{/api/reset-display-device-persistence|:| POST|:| null}
    */
-  void resetDisplayDevicePersistence(const resp_https_t &response, const req_https_t &request) {
+  void service_t::resetDisplayDevicePersistence(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -1944,7 +1915,7 @@ namespace confighttp {
     print_req(request);
 
     nlohmann::json output_tree;
-    output_tree["status"] = display_device::reset_persistence();
+    output_tree["status"] = displays.reset_persistence();
     send_response(response, output_tree);
   }
 
@@ -1957,7 +1928,7 @@ namespace confighttp {
    *
    * @api_examples{/api/reset-portal-token|:| POST|:| null}
    */
-  void resetPortalToken(const resp_https_t &response, const req_https_t &request) {
+  void service_t::resetPortalToken(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -1992,7 +1963,7 @@ namespace confighttp {
    *
    * @api_examples{/api/restart|:| POST|:| null}
    */
-  void restart(const resp_https_t &response, const req_https_t &request) {
+  void service_t::restart(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -2005,7 +1976,7 @@ namespace confighttp {
     print_req(request);
 
     // We may not return from this call
-    platf::restart();
+    platf::restart(lifetime);
   }
 
   /**
@@ -2013,12 +1984,12 @@ namespace confighttp {
    *
    * @api_examples{/api/permissions|:| GET|:| null}
    */
-  void getPermissions(const resp_https_t &response, const req_https_t &request) {
+  void service_t::getPermissions(const resp_https_t &response, const req_https_t &request) {
     make_permissions_handler(platf::get_permission_statuses)(response, request);
   }
 
-  permissions_handler_t make_permissions_handler(permission_status_provider_t provider) {
-    return [provider = std::move(provider)](const resp_https_t &response, const req_https_t &request) {
+  permissions_handler_t service_t::make_permissions_handler(permission_status_provider_t provider) {
+    return [this, provider = std::move(provider)](const resp_https_t &response, const req_https_t &request) {
       if (!authenticate(response, request)) {
         return;
       }
@@ -2043,7 +2014,7 @@ namespace confighttp {
    *
    * @api_examples{/api/permissions/request|:| POST|:| {"id":"screen_recording"}}
    */
-  void requestPermission(const resp_https_t &response, const req_https_t &request) {
+  void service_t::requestPermission(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -2156,7 +2127,7 @@ namespace confighttp {
    *
    * @api_examples{/api/virtual-input/status|:| GET|:| null}
    */
-  void getVirtualInputStatus(const resp_https_t &response, const req_https_t &request) {
+  void service_t::getVirtualInputStatus(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -2177,7 +2148,7 @@ namespace confighttp {
    *
    * @api_examples{/api/virtual-input/license|:| GET|:| null}
    */
-  void getVirtualInputLicense(const resp_https_t &response, const req_https_t &request) {
+  void service_t::getVirtualInputLicense(const resp_https_t &response, const req_https_t &request) {
     get_virtual_input_license(response, request);
   }
 
@@ -2193,7 +2164,7 @@ namespace confighttp {
    *
    * @api_examples{/api/virtual-input/license|:| POST|:| {"action":"validate"}}
    */
-  void updateVirtualInputLicense(const resp_https_t &response, const req_https_t &request) {
+  void service_t::updateVirtualInputLicense(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -2238,7 +2209,7 @@ namespace confighttp {
 #endif
 #ifdef _WIN32
       if (result.status.ok()) {
-        input::refresh_virtual_input();
+        inputs.refresh_virtual_input();
       }
 #endif
       send_response(response, build_virtualhid_license_status(result));
@@ -2358,7 +2329,7 @@ namespace confighttp {
    *
    * @api_examples{/api/browse?path=/home/user&type=directory|:| GET|:| null}
    */
-  void browseDirectory(const resp_https_t &response, const req_https_t &request) {
+  void service_t::browseDirectory(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -2437,9 +2408,25 @@ namespace confighttp {
   /**
    * @brief Start the HTTPS configuration server.
    */
-  void start() {
+  service_t::service_t(nvhttp::service_t &gamestream, http::state_t &http_state, proc::proc_t &processes, display_device::manager_t &displays, input::service_t &inputs, rtsp_stream::service_t &rtsp, lifetime::controller_t &lifetime, safe::mail_t host_mail):
+      gamestream {gamestream},
+      http_state {http_state},
+      processes {processes},
+      displays {displays},
+      inputs {inputs},
+      rtsp {rtsp},
+      lifetime {lifetime},
+      host_mail {std::move(host_mail)} {
+#if defined(linux) || defined(__FreeBSD__) || defined(SUNSHINE_TESTS)
+    token_path_provider = []() {
+      return platf::get_xdg_restore_token_path();
+    };
+#endif
+  }
+
+  void service_t::start() {
     platf::set_thread_name("confighttp");
-    const auto shutdown_event = mail::man->event<bool>(mail::shutdown);
+    const auto shutdown_event = host_mail->event<bool>(mail::shutdown);
 
     const auto port_https = net::map_port(PORT_HTTPS);
     const auto address_family = net::af_from_enum_string(config::sunshine.address_family);
@@ -2447,14 +2434,20 @@ namespace confighttp {
     https_server_t server {config::nvhttp.cert, config::nvhttp.pkey};
 
     // Helper to create SPA entry handlers without repeating the signature
-    auto page_handler = [](bool require_auth = true, bool redirect_if_username = false) {
-      return [require_auth, redirect_if_username](const resp_https_t &response, const req_https_t &request) {
+    auto page_handler = [this](bool require_auth = true, bool redirect_if_username = false) {
+      return [this, require_auth, redirect_if_username](const resp_https_t &response, const req_https_t &request) {
         getPage(response, request, require_auth, redirect_if_username);
       };
     };
 
+    const auto bind = [this](auto method) {
+      return [this, method](const resp_https_t &response, const req_https_t &request) {
+        (this->*method)(response, request);
+      };
+    };
+
     // Default resource handlers
-    const https_handler_t bad_request_handler = [](const resp_https_t &response, const req_https_t &request) {
+    const https_handler_t bad_request_handler = [this](const resp_https_t &response, const req_https_t &request) {
       bad_request(response, request);
     };
     // error by default
@@ -2462,46 +2455,46 @@ namespace confighttp {
     server.default_resource["PATCH"] = bad_request_handler;
     server.default_resource["POST"] = bad_request_handler;
     server.default_resource["PUT"] = bad_request_handler;
-    server.default_resource["GET"] = getFallbackPage;
+    server.default_resource["GET"] = bind(&service_t::getFallbackPage);
 
     // Public SPA routes with authentication behavior that differs from the default fallback
     server.resource["^/logout/?$"]["GET"] = page_handler(false);
     server.resource["^/welcome/?$"]["GET"] = page_handler(false, true);
 
     // rest api
-    server.resource["^/api/browse$"]["GET"] = browseDirectory;
-    server.resource["^/api/apps$"]["GET"] = getApps;
-    server.resource["^/api/apps$"]["POST"] = saveApp;
-    server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = deleteApp;
-    server.resource["^/api/apps/close$"]["POST"] = closeApp;
-    server.resource["^/api/clients/list$"]["GET"] = getClients;
-    server.resource["^/api/clients/unpair$"]["POST"] = unpair;
-    server.resource["^/api/clients/unpair-all$"]["POST"] = unpairAll;
-    server.resource["^/api/clients/update$"]["POST"] = updateClient;
-    server.resource["^/api/config$"]["GET"] = getConfig;
-    server.resource["^/api/config$"]["POST"] = saveConfig;
-    server.resource["^/api/configLocale$"]["GET"] = getLocale;
-    server.resource["^/api/covers/([0-9]+)$"]["GET"] = getCover;
-    server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
-    server.resource["^/api/csrf-token$"]["GET"] = getCSRFToken;
-    server.resource["^/api/password$"]["POST"] = savePassword;
-    server.resource["^/api/pin$"]["DELETE"] = cancelPairing;
-    server.resource["^/api/pin$"]["GET"] = getPendingPairings;
-    server.resource["^/api/pin$"]["POST"] = savePin;
-    server.resource["^/api/logs$"]["GET"] = getLogs;
-    server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
-    server.resource["^/api/reset-portal-token$"]["POST"] = resetPortalToken;
-    server.resource["^/api/restart$"]["POST"] = restart;
-    server.resource["^/api/permissions$"]["GET"] = getPermissions;
-    server.resource["^/api/permissions/request$"]["POST"] = requestPermission;
-    server.resource["^/api/virtual-input/license$"]["GET"] = getVirtualInputLicense;
-    server.resource["^/api/virtual-input/license$"]["POST"] = updateVirtualInputLicense;
-    server.resource["^/api/virtual-input/status$"]["GET"] = getVirtualInputStatus;
+    server.resource["^/api/browse$"]["GET"] = bind(&service_t::browseDirectory);
+    server.resource["^/api/apps$"]["GET"] = bind(&service_t::getApps);
+    server.resource["^/api/apps$"]["POST"] = bind(&service_t::saveApp);
+    server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = bind(&service_t::deleteApp);
+    server.resource["^/api/apps/close$"]["POST"] = bind(&service_t::closeApp);
+    server.resource["^/api/clients/list$"]["GET"] = bind(&service_t::getClients);
+    server.resource["^/api/clients/unpair$"]["POST"] = bind(&service_t::unpair);
+    server.resource["^/api/clients/unpair-all$"]["POST"] = bind(&service_t::unpairAll);
+    server.resource["^/api/clients/update$"]["POST"] = bind(&service_t::updateClient);
+    server.resource["^/api/config$"]["GET"] = bind(&service_t::getConfig);
+    server.resource["^/api/config$"]["POST"] = bind(&service_t::saveConfig);
+    server.resource["^/api/configLocale$"]["GET"] = bind(&service_t::getLocale);
+    server.resource["^/api/covers/([0-9]+)$"]["GET"] = bind(&service_t::getCover);
+    server.resource["^/api/covers/upload$"]["POST"] = bind(&service_t::uploadCover);
+    server.resource["^/api/csrf-token$"]["GET"] = bind(&service_t::getCSRFToken);
+    server.resource["^/api/password$"]["POST"] = bind(&service_t::savePassword);
+    server.resource["^/api/pin$"]["DELETE"] = bind(&service_t::cancelPairing);
+    server.resource["^/api/pin$"]["GET"] = bind(&service_t::getPendingPairings);
+    server.resource["^/api/pin$"]["POST"] = bind(&service_t::savePin);
+    server.resource["^/api/logs$"]["GET"] = bind(&service_t::getLogs);
+    server.resource["^/api/reset-display-device-persistence$"]["POST"] = bind(&service_t::resetDisplayDevicePersistence);
+    server.resource["^/api/reset-portal-token$"]["POST"] = bind(&service_t::resetPortalToken);
+    server.resource["^/api/restart$"]["POST"] = bind(&service_t::restart);
+    server.resource["^/api/permissions$"]["GET"] = bind(&service_t::getPermissions);
+    server.resource["^/api/permissions/request$"]["POST"] = bind(&service_t::requestPermission);
+    server.resource["^/api/virtual-input/license$"]["GET"] = bind(&service_t::getVirtualInputLicense);
+    server.resource["^/api/virtual-input/license$"]["POST"] = bind(&service_t::updateVirtualInputLicense);
+    server.resource["^/api/virtual-input/status$"]["GET"] = bind(&service_t::getVirtualInputStatus);
 
     // static/dynamic resources
-    server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
-    server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
-    server.resource["^/assets\\/.+$"]["GET"] = getAsset;
+    server.resource["^/images/sunshine.ico$"]["GET"] = bind(&service_t::getFaviconImage);
+    server.resource["^/images/logo-sunshine-45.png$"]["GET"] = bind(&service_t::getSunshineLogoImage);
+    server.resource["^/assets\\/.+$"]["GET"] = bind(&service_t::getAsset);
 
     server.config.reuse_address = true;
     server.config.address = net::get_bind_address(address_family);

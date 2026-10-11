@@ -14,11 +14,36 @@
 namespace http {
 
   /**
-   * @brief Initialize shared HTTP client state.
-   *
-   * @return 0 when HTTP state initializes successfully; nonzero on failure.
+   * @brief Own host identity and Web UI origin policy for one running application.
    */
-  int init();
+  class state_t {
+  public:
+    /**
+     * @brief Initialize credentials and host HTTP policy.
+     * @return Zero on success, nonzero if credentials cannot be initialized.
+     */
+    int initialize();
+    /**
+     * @brief Read the persistent host identity.
+     * @return Current host UUID.
+     */
+    const std::string &unique_id() const;
+    /**
+     * @brief Set the identity read from persistent pairing state.
+     * @param value Host UUID to adopt.
+     */
+    void set_unique_id(std::string value);
+    /**
+     * @brief Read the allowed Web UI network origin.
+     * @return Most remote network category allowed to access the Web UI.
+     */
+    net::net_e origin_web_ui_allowed() const;
+
+  private:
+    std::string host_unique_id;  ///< Persistent host identity shared with GameStream clients.
+    net::net_e allowed_origin {};  ///< Web UI origin policy initialized before handlers start.
+  };
+
   /**
    * @brief Generate HTTPS credential files from the provided key and certificate paths.
    *
@@ -64,8 +89,5 @@ namespace http {
    * @return Host name parsed from the URL, or an empty string when none is present.
    */
   std::string url_get_host(const std::string &url);
-
-  extern std::string unique_id;
-  extern net::net_e origin_web_ui_allowed;
 
 }  // namespace http

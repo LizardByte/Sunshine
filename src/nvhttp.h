@@ -23,6 +23,27 @@
 
 // local includes
 #include "crypto.h"
+#include "thread_safe.h"
+
+namespace http {
+  class state_t;
+}
+
+namespace proc {
+  class proc_t;
+}
+
+namespace display_device {
+  class manager_t;
+}
+
+namespace video {
+  class service_t;
+}
+
+namespace rtsp_stream {
+  class service_t;
+}
 
 /**
  * @brief Contains all the functions and variables related to the nvhttp (GameStream) server.
@@ -70,21 +91,6 @@ namespace nvhttp {
    * @brief Lifetime of an incomplete pairing session.
    */
   constexpr auto PAIRING_SESSION_TIMEOUT = std::chrono::minutes {5};
-
-  /**
-   * @brief Start the nvhttp server.
-   * @examples
-   * nvhttp::start();
-   * @examples_end
-   */
-  void start();
-
-  /**
-   * @brief Setup the nvhttp server.
-   * @param pkey
-   * @param cert
-   */
-  void setup(const std::string &pkey, const std::string &cert);
 
   /**
    * @brief Simple-Web-Server HTTPS backend configured for Sunshine certificate handling.
@@ -207,173 +213,189 @@ namespace nvhttp {
   bool is_valid_pairing_name(std::string_view name);
 
   /**
-   * @brief Insert a newly created pairing session into bounded pending storage.
-   *
-   * @param sess Pairing session to insert.
-   * @param pairing_id Receives the unguessable approval identifier on success.
-   * @return Status describing whether the session was inserted.
+   * @brief Own GameStream authorization, pairing sessions, and request handlers.
    */
-  pair_session_insert_e insert_pair_session(pair_session_t sess, std::string &pairing_id);
-
-  /**
-   * @brief Remove pairing sessions whose completion deadline has passed.
-   *
-   * @param now Monotonic time used to evaluate session deadlines.
-   */
-  void expire_pair_sessions(std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now());
-
-  /**
-   * @brief List pairing requests that are waiting for operator PIN approval.
-   *
-   * @return Pending requests ordered from oldest to newest.
-   */
-  std::vector<pending_pairing_t> get_pending_pairings();
-
-  /**
-   * @brief Cancel a pairing request that is waiting for operator approval.
-   *
-   * @param pairing_id Unguessable approval identifier returned by @ref get_pending_pairings.
-   * @return `true` if the pending request was found and cancelled.
-   */
-  bool cancel_pairing(std::string_view pairing_id);
-
-  /**
-   * @brief removes the temporary pairing session
-   * @param sess
-   */
-  void remove_session(const pair_session_t &sess);
-
-  /**
-   * @brief Pair, phase 1
-   *
-   * Moonlight will send a salt and client certificate, we'll also need the user provided pin.
-   *
-   * PIN and SALT will be used to derive a shared AES key that needs to be stored
-   * in order to be used to decrypt_symmetric in the next phases.
-   *
-   * At this stage we only have to send back our public certificate.
-   * @param sess Pairing session that owns the request state.
-   * @param tree XML property tree used for the response body.
-   * @param pin PIN supplied by the client during pairing.
-   */
-  void getservercert(pair_session_t &sess, boost::property_tree::ptree &tree, const std::string &pin);
-
-  /**
-   * @brief Pair, phase 2
-   *
-   * Using the AES key that we generated in phase 1 we have to decrypt the client challenge,
-   *
-   * We generate a SHA256 hash with the following:
-   *  - Decrypted challenge
-   *  - Server certificate signature
-   *  - Server secret: a randomly generated secret
-   *
-   * The hash + server_challenge will then be AES encrypted and sent as the `challengeresponse` in the returned XML
-   * @param sess Pairing session that owns the request state.
-   * @param tree XML property tree used for the response body.
-   * @param challenge Client challenge bytes from the pairing request.
-   */
-  void clientchallenge(pair_session_t &sess, boost::property_tree::ptree &tree, const std::string &challenge);
-
-  /**
-   * @brief Pair, phase 3
-   *
-   * Moonlight will send back a `serverchallengeresp`: an AES encrypted client hash,
-   * we have to send back the `pairingsecret`:
-   * using our private key we have to sign the certificate_signature + server_secret (generated in phase 2)
-   * @param sess Pairing session that owns the request state.
-   * @param tree XML property tree used for the response body.
-   * @param encrypted_response Encrypted response.
-   */
-  void serverchallengeresp(pair_session_t &sess, boost::property_tree::ptree &tree, const std::string &encrypted_response);
-
-  /**
-   * @brief Pair, phase 4 (final)
-   *
-   * We now have to use everything we exchanged before in order to verify and finally pair the clients
-   *
-   * We'll check the client_hash obtained at phase 3, it should contain the following:
-   *   - The original server_challenge
-   *   - The signature of the X509 client_cert
-   *   - The unencrypted client_pairing_secret
-   * We'll check that SHA256(server_challenge + client_public_cert_signature + client_secret) == client_hash
-   *
-   * Then using the client certificate public key we should be able to verify that
-   * the client secret has been signed by Moonlight
-   * @param sess Pairing session that owns the request state.
-   * @param tree XML property tree used for the response body.
-   * @param client_pairing_secret Client pairing secret.
-   */
-  void clientpairingsecret(pair_session_t &sess, boost::property_tree::ptree &tree, const std::string &client_pairing_secret);
-
-  /**
-   * @brief Apply the user supplied PIN to the explicitly selected pairing request.
-   * @param pairing_id Unguessable identifier of the pairing request to approve.
-   * @param pin The user supplied pin.
-   * @param name The user supplied name.
-   * @return `true` if Moonlight proves the PIN by completing the handshake, `false` otherwise.
-   * @note The handshake wait uses the configured `ping_timeout` and never exceeds the pairing session deadline.
-   * @examples
-   * bool pin_status = nvhttp::pin("0123456789abcdef0123456789abcdef", "1234", "laptop");
-   * @examples_end
-   */
-  bool pin(std::string_view pairing_id, std::string pin, std::string name);
-
-  /**
-   * @brief Remove single client.
-   * @param uuid The UUID of the client to remove.
-   * @examples
-   * nvhttp::unpair_client("4D7BB2DD-5704-A405-B41C-891A022932E1");
-   * @examples_end
-   *
-   * @return True when the client entry was found and removed.
-   */
-  bool unpair_client(std::string_view uuid);
-
-  /**
-   * @brief Enable or disable a client.
-   * @param uuid The UUID of the client.
-   * @param enabled Whether the client should be enabled.
-   * @return true if the client was found and updated.
-   */
-  bool set_client_enabled(std::string_view uuid, bool enabled);
-  /**
-   * @brief Get cert by UUID.
-   *
-   * @param uuid Client UUID being looked up or removed.
-   * @return PEM certificate for the paired client, or an empty string when unknown.
-   */
-  std::string get_cert_by_uuid(std::string_view uuid);
-
-  /**
-   * @brief Get all paired clients.
-   * @return The list of all paired clients.
-   * @examples
-   * nlohmann::json clients = nvhttp::get_all_clients();
-   * @examples_end
-   */
-  nlohmann::json get_all_clients();
-
-  /**
-   * @brief Remove all paired clients.
-   * @examples
-   * nvhttp::erase_all_clients();
-   * @examples_end
-   */
-  void erase_all_clients();
-
+  class service_t {
+  public:
+    /**
+     * @brief Bind GameStream state to the application services it uses.
+     * @param http_state Host identity and Web UI policy.
+     * @param processes Application process owner.
+     * @param displays Display settings owner.
+     * @param videos Encoder capability and capture owner.
+     * @param rtsp Pending launch and active session owner.
+     * @param host_mail Application mailbox for shutdown coordination.
+     */
+    service_t(http::state_t &http_state, proc::proc_t &processes, display_device::manager_t &displays, video::service_t &videos, rtsp_stream::service_t &rtsp, safe::mail_t host_mail);
+    /**
+     * @brief Release pairing state and complete pending waiters after server threads stop.
+     */
+    ~service_t();
+    service_t(const service_t &) = delete;
+    service_t &operator=(const service_t &) = delete;
+    /**
+     * @brief Start the nvhttp server.
+     * @examples
+     * gamestream.start();
+     * @examples_end
+     */
+    void start();
+    /**
+     * @brief Setup the nvhttp server.
+     * @param pkey
+     * @param cert
+     */
+    void setup(const std::string &pkey, const std::string &cert);
+    /**
+     * @brief Insert a newly created pairing session into bounded pending storage.
+     *
+     * @param sess Pairing session to insert.
+     * @param pairing_id Receives the unguessable approval identifier on success.
+     * @return Status describing whether the session was inserted.
+     */
+    pair_session_insert_e insert_pair_session(pair_session_t sess, std::string &pairing_id);
+    /**
+     * @brief Remove pairing sessions whose completion deadline has passed.
+     *
+     * @param now Monotonic time used to evaluate session deadlines.
+     */
+    void expire_pair_sessions(std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now());
+    /**
+     * @brief List pairing requests that are waiting for operator PIN approval.
+     *
+     * @return Pending requests ordered from oldest to newest.
+     */
+    std::vector<pending_pairing_t> get_pending_pairings();
+    /**
+     * @brief Cancel a pairing request that is waiting for operator approval.
+     *
+     * @param pairing_id Unguessable approval identifier returned by @ref get_pending_pairings.
+     * @return `true` if the pending request was found and cancelled.
+     */
+    bool cancel_pairing(std::string_view pairing_id);
+    /**
+     * @brief removes the temporary pairing session
+     * @param sess
+     */
+    void remove_session(const pair_session_t &sess);
+    /**
+     * @brief Pair, phase 1
+     *
+     * Moonlight will send a salt and client certificate, we'll also need the user provided pin.
+     *
+     * PIN and SALT will be used to derive a shared AES key that needs to be stored
+     * in order to be used to decrypt_symmetric in the next phases.
+     *
+     * At this stage we only have to send back our public certificate.
+     * @param sess Pairing session that owns the request state.
+     * @param tree XML property tree used for the response body.
+     * @param pin PIN supplied by the client during pairing.
+     */
+    void getservercert(pair_session_t &sess, boost::property_tree::ptree &tree, const std::string &pin);
+    /**
+     * @brief Pair, phase 2
+     *
+     * Using the AES key that we generated in phase 1 we have to decrypt the client challenge,
+     *
+     * We generate a SHA256 hash with the following:
+     *  - Decrypted challenge
+     *  - Server certificate signature
+     *  - Server secret: a randomly generated secret
+     *
+     * The hash + server_challenge will then be AES encrypted and sent as the `challengeresponse` in the returned XML
+     * @param sess Pairing session that owns the request state.
+     * @param tree XML property tree used for the response body.
+     * @param challenge Client challenge bytes from the pairing request.
+     */
+    void clientchallenge(pair_session_t &sess, boost::property_tree::ptree &tree, const std::string &challenge);
+    /**
+     * @brief Pair, phase 3
+     *
+     * Moonlight will send back a `serverchallengeresp`: an AES encrypted client hash,
+     * we have to send back the `pairingsecret`:
+     * using our private key we have to sign the certificate_signature + server_secret (generated in phase 2)
+     * @param sess Pairing session that owns the request state.
+     * @param tree XML property tree used for the response body.
+     * @param encrypted_response Encrypted response.
+     */
+    void serverchallengeresp(pair_session_t &sess, boost::property_tree::ptree &tree, const std::string &encrypted_response);
+    /**
+     * @brief Pair, phase 4 (final)
+     *
+     * We now have to use everything we exchanged before in order to verify and finally pair the clients
+     *
+     * We'll check the client_hash obtained at phase 3, it should contain the following:
+     *   - The original server_challenge
+     *   - The signature of the X509 client_cert
+     *   - The unencrypted client_pairing_secret
+     * We'll check that SHA256(server_challenge + client_public_cert_signature + client_secret) == client_hash
+     *
+     * Then using the client certificate public key we should be able to verify that
+     * the client secret has been signed by Moonlight
+     * @param sess Pairing session that owns the request state.
+     * @param tree XML property tree used for the response body.
+     * @param client_pairing_secret Client pairing secret.
+     */
+    void clientpairingsecret(pair_session_t &sess, boost::property_tree::ptree &tree, const std::string &client_pairing_secret);
+    /**
+     * @brief Apply the user supplied PIN to the explicitly selected pairing request.
+     * @param pairing_id Unguessable identifier of the pairing request to approve.
+     * @param pin The user supplied pin.
+     * @param name The user supplied name.
+     * @return `true` if Moonlight proves the PIN by completing the handshake, `false` otherwise.
+     * @note The handshake wait uses the configured `ping_timeout` and never exceeds the pairing session deadline.
+     * @examples
+     * bool pin_status = gamestream.pin("0123456789abcdef0123456789abcdef", "1234", "laptop");
+     * @examples_end
+     */
+    bool pin(std::string_view pairing_id, std::string pin, std::string name);
+    /**
+     * @brief Remove single client.
+     * @param uuid The UUID of the client to remove.
+     * @examples
+     * nvhttp::unpair_client("4D7BB2DD-5704-A405-B41C-891A022932E1");
+     * @examples_end
+     *
+     * @return True when the client entry was found and removed.
+     */
+    bool unpair_client(std::string_view uuid);
+    /**
+     * @brief Enable or disable a client.
+     * @param uuid The UUID of the client.
+     * @param enabled Whether the client should be enabled.
+     * @return true if the client was found and updated.
+     */
+    bool set_client_enabled(std::string_view uuid, bool enabled);
+    /**
+     * @brief Get cert by UUID.
+     *
+     * @param uuid Client UUID being looked up or removed.
+     * @return PEM certificate for the paired client, or an empty string when unknown.
+     */
+    std::string get_cert_by_uuid(std::string_view uuid);
+    /**
+     * @brief Get all paired clients.
+     * @return The list of all paired clients.
+     * @examples
+     * nlohmann::json clients = gamestream.get_all_clients();
+     * @examples_end
+     */
+    nlohmann::json get_all_clients();
+    /**
+     * @brief Remove all paired clients.
+     * @examples
+     * gamestream.erase_all_clients();
+     * @examples_end
+     */
+    void erase_all_clients();
 #ifdef SUNSHINE_TESTS
-  /**
-   * @brief Test-only accessors for paired-client authorization state.
-   */
-  namespace test_support {
     /**
      * @brief Dispatch a plain-HTTP pairing request through the production handler.
      *
      * @param response HTTP response object to populate.
      * @param request HTTP request data from the test client.
      */
-    void pair_http(
+    void test_pair_http(
       std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTP>::Response> response,
       std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTP>::Request> request
     );
@@ -381,7 +403,7 @@ namespace nvhttp {
     /**
      * @brief Clear in-memory paired-client records without changing persisted state.
      */
-    void reset_client_state();
+    void test_reset_client_state();
 
     /**
      * @brief Add a paired-client record for authorization tests.
@@ -391,7 +413,7 @@ namespace nvhttp {
      * @param enabled Whether the client may connect.
      * @return Persistent UUID for the added client, or an empty string when invalid.
      */
-    std::string add_client(const std::string &name, std::string cert, bool enabled);
+    std::string test_add_client(const std::string &name, std::string cert, bool enabled);
 
     /**
      * @brief Duplicate a paired-client record to simulate legacy conflicting state.
@@ -399,7 +421,7 @@ namespace nvhttp {
      * @param uuid Persistent UUID of the record to duplicate.
      * @return `true` when the source record was found and duplicated.
      */
-    bool duplicate_client(std::string_view uuid);
+    bool test_duplicate_client(std::string_view uuid);
 
     /**
      * @brief Run the production certificate authorization checks against PEM input.
@@ -407,7 +429,7 @@ namespace nvhttp {
      * @param cert PEM-encoded certificate presented by a client.
      * @return `true` when the exact certificate belongs to one enabled paired client.
      */
-    bool authorize_client_certificate(std::string_view cert);
+    bool test_authorize_client_certificate(std::string_view cert);
 
     /**
      * @brief Complete and remove a pairing session without running the protocol phases.
@@ -416,12 +438,16 @@ namespace nvhttp {
      * @param success Pairing result delivered to the waiting PIN submitter.
      * @return `true` when the session was found and completed.
      */
-    bool complete_pairing(std::string_view pairing_id, bool success);
+    bool test_complete_pairing(std::string_view pairing_id, bool success);
 
     /**
      * @brief Reload paired-client authorization state from the configured state file.
      */
-    void reload_client_state();
-  }  // namespace test_support
+    void test_reload_client_state();
 #endif
+
+  private:
+    struct impl_t;  ///< Private authorization and pairing state with its associated locks.
+    std::unique_ptr<impl_t> impl;  ///< State and handlers owned by this service instance.
+  };
 }  // namespace nvhttp

@@ -106,11 +106,12 @@ namespace audio {
   /**
    * @brief Capture, encode, and publish audio packets for a stream.
    *
-   * @param mail Mailbox used to publish encoded audio packets.
+   * @param host_mail Host mailbox used to publish encoded audio packets.
+   * @param mail Session mailbox used for capture shutdown.
    * @param config Audio capture and encoder settings.
    * @param channel_data Platform-specific capture channel pointer.
    */
-  void capture(safe::mail_t mail, config_t config, void *channel_data);
+  void capture(safe::mail_t host_mail, safe::mail_t mail, config_t config, void *channel_data);
 
   /**
    * @brief Get the reference to the audio context.

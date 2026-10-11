@@ -8,6 +8,7 @@
  */
 
 // test includes
+#include "../server_test_context.h"
 #include "../tests_common.h"
 
 // standard includes
@@ -99,6 +100,8 @@ X4wnh1bwdiidqpcgyuKossLOPxbS786WmsesaAWPnpoY6M8aija+ALwNNuWWmyMg
  */
 class ConfigHttpTest: public BaseTest {  // NOSONAR(cpp:S3656): protected members are intentional for test fixture subclassing
 protected:
+  test_utils::server_context_t context;  ///< Services owned by this HTTPS fixture.
+  std::unique_ptr<confighttp::service_t> web;  ///< Handlers bound to the fixture services.
   std::unique_ptr<SimpleWeb::Server<SimpleWeb::HTTPS>> server;
   std::unique_ptr<SimpleWeb::Client<SimpleWeb::HTTPS>> client;
   std::jthread server_thread;
@@ -117,8 +120,14 @@ protected:
 
   void SetUp() override {
     BaseTest::SetUp();
-    nvhttp::expire_pair_sessions(std::chrono::steady_clock::time_point::max());
-    confighttp::set_virtual_input_license_status_provider_for_testing([]() {
+    web = std::make_unique<confighttp::service_t>(context.gamestream, context.http_state, context.processes, context.displays, context.inputs, context.rtsp, context.infrastructure.lifetime(), context.host_mail);
+    const auto handler = [this](auto method) {
+      return [this, method](const auto &response, const auto &request) {
+        (web.get()->*method)(response, request);
+      };
+    };
+    context.gamestream.expire_pair_sessions(std::chrono::steady_clock::time_point::max());
+    web->set_virtual_input_license_status_provider_for_testing([this]() {
       lvh::LicenseStatus license;
       license.service_available = true;
       license.state = lvh::LicenseState::licensed;
@@ -153,7 +162,7 @@ protected:
     // Create test web directory in temp
     test_web_dir = std::filesystem::temp_directory_path() / "sunshine_test_confighttp";  // NOSONAR(cpp:S5443): safe for tests
     std::filesystem::create_directories(test_web_dir / "web");
-    confighttp::set_portal_token_path_provider_for_testing([this]() {
+    web->set_portal_token_path_provider_for_testing([this]() {
       return test_web_dir / "portal_token";
     });
 
@@ -186,12 +195,12 @@ protected:
     server->config.timeout_content = 300;
 
     // Add a route to test authentication directly
-    server->resource["^/auth-test$"]["GET"] = [](
+    server->resource["^/auth-test$"]["GET"] = [this](
                                                 const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                 const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                               ) {
       // Call the actual confighttp::authenticate function
-      const bool authenticated = confighttp::authenticate(response, request);
+      const bool authenticated = web->authenticate(response, request);
 
       if (authenticated) {
         SimpleWeb::CaseInsensitiveMultimap headers;
@@ -202,7 +211,7 @@ protected:
     };
 
     // Add a route to test send_unauthorized
-    server->resource["^/unauthorized-test$"]["GET"] = [](
+    server->resource["^/unauthorized-test$"]["GET"] = [this](
                                                         const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                         const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                       ) {
@@ -211,7 +220,7 @@ protected:
     };
 
     // Add a route to test not_found
-    server->resource["^/notfound-test$"]["GET"] = [](
+    server->resource["^/notfound-test$"]["GET"] = [this](
                                                     const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                     const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                   ) {
@@ -220,7 +229,7 @@ protected:
     };
 
     // Add a route to test bad_request
-    server->resource["^/badrequest-test$"]["GET"] = [](
+    server->resource["^/badrequest-test$"]["GET"] = [this](
                                                       const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                       const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                     ) {
@@ -229,7 +238,7 @@ protected:
     };
 
     // Add a route to test send_response with JSON
-    server->resource["^/json-test$"]["GET"] = [](
+    server->resource["^/json-test$"]["GET"] = [this](
                                                 const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                 [[maybe_unused]] const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                               ) {
@@ -242,7 +251,7 @@ protected:
     };
 
     // Add a route to test send_redirect
-    server->resource["^/redirect-test$"]["GET"] = [](
+    server->resource["^/redirect-test$"]["GET"] = [this](
                                                     const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                     const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                   ) {
@@ -251,7 +260,7 @@ protected:
     };
 
     // Add a route to test check_content_type
-    server->resource["^/content-type-test$"]["POST"] = [](
+    server->resource["^/content-type-test$"]["POST"] = [this](
                                                          const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                          const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                        ) {
@@ -265,22 +274,22 @@ protected:
     };
 
     // Add a route to test CSRF token generation
-    server->resource["^/csrf-token-test$"]["GET"] = [](
+    server->resource["^/csrf-token-test$"]["GET"] = [this](
                                                       const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                       const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                     ) {
       // Call the actual confighttp::getCSRFToken function
-      confighttp::getCSRFToken(response, request);
+      web->getCSRFToken(response, request);
     };
 
     // Add a route to test CSRF validation (successful)
-    server->resource["^/csrf-validate-test$"]["POST"] = [](
+    server->resource["^/csrf-validate-test$"]["POST"] = [this](
                                                           const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                           const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                         ) {
       // Validate CSRF token
-      std::string client_id = confighttp::get_client_id(request);
-      if (confighttp::validate_csrf_token(response, request, client_id)) {
+      std::string client_id = web->get_client_id(request);
+      if (web->validate_csrf_token(response, request, client_id)) {
         SimpleWeb::CaseInsensitiveMultimap headers;
         headers.emplace("Content-Type", "text/plain");
         response->write("csrf-valid", headers);
@@ -289,68 +298,68 @@ protected:
     };
 
     // Add a route to test getPage (requires auth)
-    server->resource["^/page-test$"]["GET"] = [](
+    server->resource["^/page-test$"]["GET"] = [this](
                                                 const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                 const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                               ) {
       // Call the actual confighttp::getPage function
       // Note: This reads the SPA index from WEB_DIR, so the fixture creates it in SetUp().
-      confighttp::getPage(response, request, true, false);
+      web->getPage(response, request, true, false);
     };
 
     // Add a route to test getPage without auth requirement
-    server->resource["^/page-noauth-test$"]["GET"] = [](
+    server->resource["^/page-noauth-test$"]["GET"] = [this](
                                                        const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                        const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                      ) {
-      confighttp::getPage(response, request, false, false);
+      web->getPage(response, request, false, false);
     };
 
     // Add a route to test getPage with redirect_if_username
-    server->resource["^/page-redirect-test$"]["GET"] = [](
+    server->resource["^/page-redirect-test$"]["GET"] = [this](
                                                          const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                          const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                        ) {
-      confighttp::getPage(response, request, false, true);
+      web->getPage(response, request, false, true);
     };
 
     // Add a route to test getLocale
-    server->resource["^/locale-test$"]["GET"] = [](
+    server->resource["^/locale-test$"]["GET"] = [this](
                                                   const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                   const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                 ) {
       // Call the actual confighttp::getLocale function
-      confighttp::getLocale(response, request);
+      web->getLocale(response, request);
     };
 
     // Add a route to test browseDirectory
-    server->resource["^/browse-test$"]["GET"] = [](
+    server->resource["^/browse-test$"]["GET"] = [this](
                                                   const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                   const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                 ) {
-      confighttp::browseDirectory(response, request);
+      web->browseDirectory(response, request);
     };
 
-    server->resource["^/virtual-input-status-test$"]["GET"] = confighttp::getVirtualInputStatus;
-    server->resource["^/virtual-input-license-test$"]["GET"] = confighttp::getVirtualInputLicense;
-    server->resource["^/virtual-input-license-test$"]["POST"] = confighttp::updateVirtualInputLicense;
-    server->resource["^/permissions-test$"]["GET"] = confighttp::make_permissions_handler([this]() {
+    server->resource["^/virtual-input-status-test$"]["GET"] = handler(&confighttp::service_t::getVirtualInputStatus);
+    server->resource["^/virtual-input-license-test$"]["GET"] = handler(&confighttp::service_t::getVirtualInputLicense);
+    server->resource["^/virtual-input-license-test$"]["POST"] = handler(&confighttp::service_t::updateVirtualInputLicense);
+    server->resource["^/permissions-test$"]["GET"] = web->make_permissions_handler([this]() {
       ++permission_queries;
       return std::vector<platf::permission_status_t> {
         {"screen_recording", "denied", true, true},
         {"notifications", "granted", false, true},
       };
     });
-    server->resource["^/permissions-empty-test$"]["GET"] = confighttp::make_permissions_handler([]() {
+    server->resource["^/permissions-empty-test$"]["GET"] = web->make_permissions_handler([this]() {
       return std::vector<platf::permission_status_t> {};
     });
-    server->resource["^/permissions-native-test$"]["GET"] = confighttp::getPermissions;
-    server->resource["^/permissions-test$"]["POST"] = confighttp::requestPermission;
-    server->resource["^/pairing-test$"]["DELETE"] = confighttp::cancelPairing;
-    server->resource["^/pairing-test$"]["GET"] = confighttp::getPendingPairings;
-    server->resource["^/pairing-test$"]["POST"] = confighttp::savePin;
-    server->resource["^/portal-token-reset-test$"]["POST"] = confighttp::resetPortalToken;
-    server->default_resource["GET"] = confighttp::getFallbackPage;
+    server->resource["^/permissions-native-test$"]["GET"] = handler(&confighttp::service_t::getPermissions);
+    server->resource["^/permissions-test$"]["POST"] = handler(&confighttp::service_t::requestPermission);
+    server->resource["^/pairing-test$"]["DELETE"] = handler(&confighttp::service_t::cancelPairing);
+    server->resource["^/pairing-test$"]["GET"] = handler(&confighttp::service_t::getPendingPairings);
+    server->resource["^/pairing-test$"]["POST"] = handler(&confighttp::service_t::savePin);
+    server->resource["^/portal-token-reset-test$"]["POST"] = handler(&confighttp::service_t::resetPortalToken);
+    server->default_resource["GET"] = handler(&confighttp::service_t::getFallbackPage);
 
     // Start server
     server_thread = std::jthread([this]() {
@@ -383,15 +392,15 @@ protected:
     if (server_thread.joinable()) {
       server_thread.join();
     }
-    confighttp::reset_virtual_input_license_status_provider_for_testing();
-    confighttp::reset_portal_token_path_provider_for_testing();
+    web->reset_virtual_input_license_status_provider_for_testing();
+    web->reset_portal_token_path_provider_for_testing();
 
     config::sunshine.username = saved_username;
     config::sunshine.password = saved_password;
     config::sunshine.salt = saved_salt;
     config::sunshine.locale = saved_locale;
     config::sunshine.csrf_allowed_origins = saved_csrf_allowed_origins;
-    nvhttp::expire_pair_sessions(std::chrono::steady_clock::time_point::max());
+    context.gamestream.expire_pair_sessions(std::chrono::steady_clock::time_point::max());
 
     // Clean up test HTML file from WEB_DIR
     if (std::filesystem::exists(web_dir_test_file)) {
@@ -413,7 +422,7 @@ protected:
    *
    * @return Unguessable approval identifier assigned to the request.
    */
-  static std::string insert_pending_pairing() {
+  std::string insert_pending_pairing() {
     nvhttp::pair_session_t session;
     session.client.uniqueID = "rest-api-client";
     session.async_insert_pin.salt = "ff5dc6eda99339a8a0793e216c4257c4";
@@ -421,7 +430,7 @@ protected:
     session.async_insert_pin.address = "192.0.2.30";
 
     std::string pairing_id;
-    EXPECT_EQ(nvhttp::insert_pair_session(std::move(session), pairing_id), nvhttp::pair_session_insert_e::ADDED);
+    EXPECT_EQ(context.gamestream.insert_pair_session(std::move(session), pairing_id), nvhttp::pair_session_insert_e::ADDED);
     return pairing_id;
   }
 
@@ -621,7 +630,7 @@ TEST_F(ConfigHttpTest, PairingMutationsRejectCrossOriginRestRequestsWithoutCsrfT
   );
   EXPECT_EQ(delete_response->status_code, "400 Bad Request");
   EXPECT_TRUE(delete_response->content.string().contains("Missing CSRF token"));
-  EXPECT_EQ(nvhttp::get_pending_pairings().size(), 1);
+  EXPECT_EQ(context.gamestream.get_pending_pairings().size(), 1);
 }
 
 TEST_F(ConfigHttpTest, PairingRestApiListsAuthenticatedPendingRequests) {
@@ -656,7 +665,7 @@ TEST_F(ConfigHttpTest, PairingRestApiRejectsMalformedFieldsWithoutConsumingReque
     EXPECT_EQ(response->status_code, "400 Bad Request");
   }
 
-  const auto pending = nvhttp::get_pending_pairings();
+  const auto pending = context.gamestream.get_pending_pairings();
   ASSERT_EQ(pending.size(), 1);
   EXPECT_EQ(pending.front().id, pairing_id);
 }
@@ -675,7 +684,7 @@ TEST_F(ConfigHttpTest, PairingRestApiCancelsOnlyExplicitRequest) {
   );
   ASSERT_EQ(response->status_code, "200 OK");
   EXPECT_TRUE(nlohmann::json::parse(response->content.string()).at("status").get<bool>());
-  EXPECT_TRUE(nvhttp::get_pending_pairings().empty());
+  EXPECT_TRUE(context.gamestream.get_pending_pairings().empty());
 }
 
 TEST_F(ConfigHttpTest, PairingRestApiReportsIncompleteHandshakeAsFailure) {
@@ -697,7 +706,7 @@ TEST_F(ConfigHttpTest, PairingRestApiReportsIncompleteHandshakeAsFailure) {
   );
   ASSERT_EQ(response->status_code, "200 OK");
   EXPECT_FALSE(nlohmann::json::parse(response->content.string()).at("status").get<bool>());
-  EXPECT_TRUE(nvhttp::get_pending_pairings().empty());
+  EXPECT_TRUE(context.gamestream.get_pending_pairings().empty());
 }
 
 TEST_F(ConfigHttpTest, PortalTokenResetHandlesSavedTokenForCurrentPlatform) {
@@ -756,7 +765,7 @@ TEST_F(ConfigHttpTest, PortalTokenResetUsesSessionResolverAndPreservesOtherDeskt
   const auto other_token = test_web_dir / "portal_token.gnome";
   std::ofstream(active_token) << "kde-token";
   std::ofstream(other_token) << "gnome-token";
-  confighttp::set_portal_token_path_provider_for_testing([this]() {
+  web->set_portal_token_path_provider_for_testing([this]() {
     return portal::get_saved_token_path_for_testing(test_web_dir, "KDE");
   });
 
@@ -779,7 +788,7 @@ TEST_F(ConfigHttpTest, PortalTokenResetRemovesMigratedLegacyToken) {
   const auto legacy_token = test_web_dir / "portal_token";
   const auto active_token = test_web_dir / "portal_token.kde";
   std::ofstream(legacy_token) << "legacy-token";
-  confighttp::set_portal_token_path_provider_for_testing([this]() {
+  web->set_portal_token_path_provider_for_testing([this]() {
     return portal::get_saved_token_path_for_testing(test_web_dir, "KDE");
   });
 
@@ -797,7 +806,7 @@ TEST_F(ConfigHttpTest, PortalTokenResetRemovesMigratedLegacyToken) {
 }
 #endif
 
-// Test: confighttp::authenticate() rejects requests without auth header
+// Test: web->authenticate() rejects requests without auth header
 TEST_F(ConfigHttpTest, AuthenticateRejectsNoAuth) {
   const auto response = client->request("GET", "/auth-test");
   ASSERT_EQ(response->status_code, "401 Unauthorized");
@@ -807,7 +816,7 @@ TEST_F(ConfigHttpTest, AuthenticateRejectsNoAuth) {
   ASSERT_NE(www_auth, response->header.end());
 }
 
-// Test: confighttp::authenticate() accepts valid credentials
+// Test: web->authenticate() accepts valid credentials
 TEST_F(ConfigHttpTest, AuthenticateAcceptsValidCredentials) {
   SimpleWeb::CaseInsensitiveMultimap headers;
   headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
@@ -819,7 +828,7 @@ TEST_F(ConfigHttpTest, AuthenticateAcceptsValidCredentials) {
   ASSERT_EQ(body, "authenticated");
 }
 
-// Test: confighttp::authenticate() rejects invalid password
+// Test: web->authenticate() rejects invalid password
 TEST_F(ConfigHttpTest, AuthenticateRejectsInvalidPassword) {
   SimpleWeb::CaseInsensitiveMultimap headers;
   headers.emplace("Authorization", create_auth_header("testuser", "wrongpass"));
@@ -828,7 +837,7 @@ TEST_F(ConfigHttpTest, AuthenticateRejectsInvalidPassword) {
   ASSERT_EQ(response->status_code, "401 Unauthorized");
 }
 
-// Test: confighttp::authenticate() is case-insensitive for username
+// Test: web->authenticate() is case-insensitive for username
 TEST_F(ConfigHttpTest, AuthenticateCaseInsensitiveUsername) {
   SimpleWeb::CaseInsensitiveMultimap headers;
   headers.emplace("Authorization", create_auth_header("TESTUSER", "testpass"));
@@ -1063,7 +1072,7 @@ TEST_F(ConfigHttpTest, CSRFSameOriginExemptionWithReferer) {
   ASSERT_EQ(body, "csrf-valid");
 }
 
-// Test: confighttp::getPage() serves HTML with authentication
+// Test: web->getPage() serves HTML with authentication
 TEST_F(ConfigHttpTest, GetPageWithAuth) {
   SimpleWeb::CaseInsensitiveMultimap headers;
   headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
@@ -1087,7 +1096,7 @@ TEST_F(ConfigHttpTest, GetPageWithAuth) {
   ASSERT_TRUE(body.find("</html>") != std::string::npos);
 }
 
-// Test: confighttp::getPage() works without authentication when require_auth=false
+// Test: web->getPage() works without authentication when require_auth=false
 TEST_F(ConfigHttpTest, GetPageWithoutAuthRequired) {
   const auto response = client->request("GET", "/page-noauth-test");
   ASSERT_EQ(response->status_code, "200 OK");
@@ -1097,7 +1106,7 @@ TEST_F(ConfigHttpTest, GetPageWithoutAuthRequired) {
   ASSERT_TRUE(body.find("Test Page Content") != std::string::npos);
 }
 
-// Test: confighttp::getPage() redirects when redirect_if_username=true and username is set
+// Test: web->getPage() redirects when redirect_if_username=true and username is set
 TEST_F(ConfigHttpTest, GetPageRedirectsWhenUsernameSet) {
   // Username is set in SetUp(), so redirect_if_username should trigger redirect
   const auto response = client->request("GET", "/page-redirect-test");
@@ -1109,7 +1118,7 @@ TEST_F(ConfigHttpTest, GetPageRedirectsWhenUsernameSet) {
   ASSERT_EQ(location->second, "/");
 }
 
-// Test: confighttp::getPage() doesn't redirect when username is empty
+// Test: web->getPage() doesn't redirect when username is empty
 TEST_F(ConfigHttpTest, GetPageNoRedirectWhenUsernameEmpty) {
   // Temporarily clear username
   const std::string saved = config::sunshine.username;
@@ -1142,7 +1151,7 @@ TEST_F(ConfigHttpTest, ServerResourcePrefixesDoNotFallBackToSpaEntry) {
   }
 }
 
-// Test: confighttp::getLocale() returns locale JSON
+// Test: web->getLocale() returns locale JSON
 TEST_F(ConfigHttpTest, GetLocaleReturnsJson) {
   const auto response = client->request("GET", "/locale-test");
   ASSERT_EQ(response->status_code, "200 OK");

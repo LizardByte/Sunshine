@@ -46,21 +46,18 @@ namespace http {
    */
   bool user_creds_exist(const std::string &file);
 
-  std::string unique_id;  ///< Unique ID.
-  net::net_e origin_web_ui_allowed;  ///< Origin web ui allowed.
-
   /**
    * @brief Load persisted HTTP credentials and initialize shared request state.
    */
-  int init() {
+  int state_t::initialize() {
     bool clean_slate = config::sunshine.flags[config::flag::FRESH_STATE];
-    origin_web_ui_allowed = net::from_enum_string(config::nvhttp.origin_web_ui_allowed);
+    allowed_origin = net::from_enum_string(config::nvhttp.origin_web_ui_allowed);
 
     if (clean_slate) {
-      unique_id = uuid_util::uuid_t::generate().string();
+      host_unique_id = uuid_util::uuid_t::generate().string();
       auto dir = std::filesystem::temp_directory_path() / "Sunshine"sv;
-      config::nvhttp.cert = (dir / ("cert-"s + unique_id)).string();
-      config::nvhttp.pkey = (dir / ("pkey-"s + unique_id)).string();
+      config::nvhttp.cert = (dir / ("cert-"s + host_unique_id)).string();
+      config::nvhttp.pkey = (dir / ("pkey-"s + host_unique_id)).string();
     }
 
     if ((!fs::exists(config::nvhttp.pkey) || !fs::exists(config::nvhttp.cert)) && create_creds(config::nvhttp.pkey, config::nvhttp.cert)) {
@@ -72,6 +69,18 @@ namespace http {
       return -1;
     }
     return 0;
+  }
+
+  const std::string &state_t::unique_id() const {
+    return host_unique_id;
+  }
+
+  void state_t::set_unique_id(std::string value) {
+    host_unique_id = std::move(value);
+  }
+
+  net::net_e state_t::origin_web_ui_allowed() const {
+    return allowed_origin;
   }
 
   /**

@@ -45,23 +45,42 @@ namespace proc {
   using namespace std::literals;
   namespace pt = boost::property_tree;
 
-  proc_t proc;  ///< Global process registry used to track and terminate child processes.
+  proc_t::proc_t(proc_t &&other):
+      _app_id {std::exchange(other._app_id, 0)},
+      inputs {std::exchange(other.inputs, nullptr)},
+      displays {std::exchange(other.displays, nullptr)},
+      last_apps_file_update {std::move(other.last_apps_file_update)},
+      _env {std::move(other._env)},
+      _apps {std::move(other._apps)},
+      _app {std::move(other._app)},
+      _app_launch_time {other._app_launch_time},
+      placebo {std::exchange(other.placebo, false)},
+      _process {std::move(other._process)},
+      _process_group {std::move(other._process_group)},
+      _pipe {std::move(other._pipe)},
+      _app_prep_it {std::exchange(other._app_prep_it, {})},
+      _app_prep_begin {std::exchange(other._app_prep_begin, {})} {
+  }
 
-  /**
-   * @brief RAII helper that runs shutdown cleanup when destroyed.
-   */
-  class deinit_t: public platf::deinit_t {
-  public:
-    /**
-     * @brief Destroy the process subsystem deinitializer.
-     */
-    ~deinit_t() {
-      proc.terminate();
+  proc_t &proc_t::operator=(proc_t &&other) {
+    if (this != &other) {
+      terminate();
+      _app_id = std::exchange(other._app_id, 0);
+      inputs = std::exchange(other.inputs, nullptr);
+      displays = std::exchange(other.displays, nullptr);
+      last_apps_file_update = std::move(other.last_apps_file_update);
+      _env = std::move(other._env);
+      _apps = std::move(other._apps);
+      _app = std::move(other._app);
+      _app_launch_time = other._app_launch_time;
+      placebo = std::exchange(other.placebo, false);
+      _process = std::move(other._process);
+      _process_group = std::move(other._process_group);
+      _pipe = std::move(other._pipe);
+      _app_prep_it = std::exchange(other._app_prep_it, {});
+      _app_prep_begin = std::exchange(other._app_prep_begin, {});
     }
-  };
-
-  std::unique_ptr<platf::deinit_t> init() {
-    return std::make_unique<deinit_t>();
+    return *this;
   }
 
   void terminate_process_group(boost::process::v1::child &proc, boost::process::v1::group &group, std::chrono::seconds exit_timeout) {
@@ -341,7 +360,9 @@ namespace proc {
   }
 
   void proc_t::terminate() {
-    input::terminate_gamepads();
+    if (inputs) {
+      inputs->terminate_gamepads();
+    }
     std::error_code ec;
     placebo = false;
     terminate_process_group(_process, _process_group, _app.exit_timeout);
@@ -380,12 +401,14 @@ namespace proc {
 
     // Only show the Stopped notification if we actually have an app to stop
     // Since terminate() is always run when a new app has started
-    if (proc::proc.get_last_run_app_name().length() > 0 && has_run) {
+    if (get_last_run_app_name().length() > 0 && has_run) {
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
-      system_tray::update_tray_stopped(proc::proc.get_last_run_app_name());
+      system_tray::update_tray_stopped(get_last_run_app_name());
 #endif
 
-      display_device::revert_configuration();
+      if (displays) {
+        displays->revert_configuration();
+      }
     }
 
     _app_id = -1;
@@ -431,12 +454,9 @@ namespace proc {
   }
 
   proc_t::~proc_t() {
-    // It's not safe to call terminate() here because our proc_t is a static variable
-    // that may be destroyed after the Boost loggers have been destroyed. Instead,
-    // we return a deinit_t to main() to handle termination when we're exiting.
-    // Once we reach this point here, termination must have already happened.
-    assert(!placebo);
-    assert(!_process.running());
+    if (_app_id > 0 || placebo || _process.valid()) {
+      terminate();
+    }
   }
 
   /**
@@ -847,9 +867,7 @@ namespace proc {
    * are updated — active process state (_app_id, _process, _process_group, etc.) is preserved
    * so that the in-flight streaming session can still be terminated properly.
    */
-  void refresh(const std::string &file_name) {
-    static std::optional<std::filesystem::file_time_type> last_apps_file_update;  ///< Timestamp of the last successful apps.json parse, or nullopt if never parsed.
-
+  void proc_t::refresh(const std::string &file_name) {
     std::error_code ec;
     auto current_time = std::filesystem::last_write_time(file_name, ec);
 
@@ -861,7 +879,7 @@ namespace proc {
     auto proc_opt = proc::parse(file_name);
 
     if (proc_opt) {
-      proc.update_apps_and_env(std::move(*proc_opt));
+      update_apps_and_env(std::move(*proc_opt));
       last_apps_file_update = current_time;
     }
   }

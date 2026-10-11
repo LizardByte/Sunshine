@@ -18,6 +18,7 @@
 
 // local includes
 #include "config.h"
+#include "display_device.h"
 #include "platform/common.h"
 #include "rtsp.h"
 #include "src/boost_process_compat.h"
@@ -28,6 +29,10 @@
  * @brief Macro for DEFAULT APP IMAGE PATH.
  */
 #define DEFAULT_APP_IMAGE_PATH SUNSHINE_ASSETS_DIR "/box.png"
+
+namespace input {
+  class service_t;
+}
 
 namespace proc {
   /**
@@ -86,7 +91,45 @@ namespace proc {
    */
   class proc_t {
   public:
-    KITTY_DEFAULT_CONSTR_MOVE_THROW(proc_t)
+    /**
+     * @brief Construct an inactive process owner without platform dependencies.
+     */
+    proc_t() = default;
+    /**
+     * @brief Transfer process ownership and leave the source inactive.
+     * @param other Process owner to adopt.
+     */
+    proc_t(proc_t &&other);
+    /**
+     * @brief Terminate current processes before adopting another owner's state.
+     * @param other Process owner to adopt.
+     * @return This process owner.
+     */
+    proc_t &operator=(proc_t &&other);
+
+    /**
+     * @brief Construct a process owner with display restoration for completed applications.
+     * @param displays Display manager that outlives this process owner.
+     */
+    explicit proc_t(display_device::manager_t &displays):
+        displays {&displays} {
+    }
+
+    /**
+     * @brief Construct a process owner with input and display cleanup dependencies.
+     * @param displays Display manager that outlives this owner.
+     * @param inputs Host input service that outlives this owner.
+     */
+    proc_t(display_device::manager_t &displays, input::service_t &inputs):
+        inputs {&inputs},
+        displays {&displays} {
+    }
+
+    /**
+     * @brief Reload changed application configuration while preserving active process state.
+     * @param file_name Application configuration file.
+     */
+    void refresh(const std::string &file_name);
 
     /**
      * @brief Construct a process manager.
@@ -117,6 +160,9 @@ namespace proc {
      */
     int running();
 
+    /**
+     * @brief Terminate active processes owned by this manager.
+     */
     ~proc_t();
 
     /**
@@ -170,11 +216,14 @@ namespace proc {
 #endif
 
   private:
-    int _app_id;
+    int _app_id {};  ///< Active application identifier, or zero before the first launch.
+    input::service_t *inputs {};  ///< Optional host input cleanup dependency.
+    display_device::manager_t *displays {};  ///< Optional display restoration dependency.
+    std::optional<std::filesystem::file_time_type> last_apps_file_update;  ///< Last successfully parsed file timestamp.
 
     boost::process::v1::environment _env;
     std::vector<ctx_t> _apps;
-    ctx_t _app;
+    ctx_t _app {};  ///< Launch configuration owned by the current application.
     std::chrono::steady_clock::time_point _app_launch_time;
 
     // If no command associated with _app_id, yet it's still running
@@ -215,24 +264,12 @@ namespace proc {
    */
   std::string validate_app_image_path(std::string app_image_path);
   /**
-   * @brief Refresh cached platform state from the operating system.
-   *
-   * @param file_name File name.
-   */
-  void refresh(const std::string &file_name);
-  /**
    * @brief Parse serialized text into the corresponding runtime representation.
    *
    * @param file_name File name.
    * @return Parsed value or parse status.
    */
   std::optional<proc::proc_t> parse(const std::string &file_name);
-
-  /**
-   * @brief Initialize proc functions
-   * @return Unique pointer to `deinit_t` to manage cleanup
-   */
-  std::unique_ptr<platf::deinit_t> init();
 
   /**
    * @brief Terminates all child processes in a process group.
@@ -242,5 +279,4 @@ namespace proc {
    */
   void terminate_process_group(boost::process::v1::child &proc, boost::process::v1::group &group, std::chrono::seconds exit_timeout);
 
-  extern proc_t proc;
 }  // namespace proc

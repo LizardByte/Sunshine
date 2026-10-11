@@ -472,6 +472,19 @@ namespace rtsp_stream {
    */
   class rtsp_server_t {
   public:
+    stream::service_t &streams;  ///< Session allocation owner.
+    video::service_t &videos;  ///< Encoder capability owner.
+
+    /**
+     * @brief Bind the host services used by RTSP handlers.
+     * @param streams Stream allocation owner.
+     * @param videos Encoder capability owner.
+     */
+    rtsp_server_t(stream::service_t &streams, video::service_t &videos):
+        streams {streams},
+        videos {videos} {
+    }
+
     ~rtsp_server_t() {
       clear();
     }
@@ -740,37 +753,70 @@ namespace rtsp_stream {
     std::shared_ptr<socket_t> next_socket;
   };
 
-  rtsp_server_t server {};  ///< Singleton RTSP server used by GameStream launch sessions.
+  /**
+   * @brief RTSP listener state together with its host cleanup dependencies.
+   */
+  struct service_t::impl_t {
+    rtsp_server_t server;  ///< Listener retaining the stream and encoder owners.
+    input::service_t &inputs;  ///< Host input cleanup owner.
+    safe::mail_t host_mail;  ///< Application shutdown mailbox.
+
+    /**
+     * @brief Bind services before listener callbacks can run.
+     * @param streams Session allocation owner.
+     * @param inputs Host input cleanup owner.
+     * @param videos Encoder capability owner.
+     * @param host_mail Application shutdown mailbox.
+     */
+    impl_t(stream::service_t &streams, input::service_t &inputs, video::service_t &videos, safe::mail_t host_mail):
+        server {streams, videos},
+        inputs {inputs},
+        host_mail {std::move(host_mail)} {
+    }
+  };
+
+  service_t::service_t(stream::service_t &streams, input::service_t &inputs, video::service_t &videos, safe::mail_t host_mail):
+      impl {std::make_shared<impl_t>(streams, inputs, videos, std::move(host_mail))} {
+  }
+
+  service_t::~service_t() {
+    impl->server.clear();
+  }
 
   /**
    * @brief Queue a launch session until the RTSP client connects.
    */
-  void launch_session_raise(std::shared_ptr<launch_session_t> launch_session) {
-    server.session_raise(std::move(launch_session));
+  void service_t::launch_session_raise(std::shared_ptr<launch_session_t> launch_session) {
+    launch_session->on_stream_connected = [owner = std::weak_ptr<impl_t> {impl}, id = launch_session->id]() {
+      if (const auto locked = owner.lock()) {
+        locked->server.session_clear(id);
+      }
+    };
+    impl->server.session_raise(std::move(launch_session));
   }
 
-  void launch_session_clear(uint32_t launch_session_id) {
-    server.session_clear(launch_session_id);
+  void service_t::launch_session_clear(uint32_t launch_session_id) {
+    impl->server.session_clear(launch_session_id);
   }
 
-  int session_count() {
+  int service_t::session_count() {
     // Ensure session_count is up-to-date
-    server.clear(false);
+    impl->server.clear(false);
 
-    return server.session_count();
+    return impl->server.session_count();
   }
 
-  void terminate_sessions() {
-    server.clear(true);
-    input::terminate_gamepads();
+  void service_t::terminate_sessions() {
+    impl->server.clear(true);
+    impl->inputs.terminate_gamepads();
   }
 
   /**
    * @brief Terminate active sessions associated with a client certificate.
    */
-  void terminate_sessions_by_cert(std::string_view cert) {
-    server.clear_by_cert(cert);
-    input::terminate_gamepads(cert);
+  void service_t::terminate_sessions_by_cert(std::string_view cert) {
+    impl->server.clear_by_cert(cert);
+    impl->inputs.terminate_gamepads(cert);
   }
 
   /**
@@ -917,6 +963,7 @@ namespace rtsp_stream {
    * @param req RTSP request message.
    */
   void cmd_describe(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+    const auto capabilities = server->videos.capabilities();
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified
@@ -951,15 +998,15 @@ namespace rtsp_stream {
     ss << "a=x-ss-general.encryptionSupported:" << encryption_flags_supported << std::endl;
     ss << "a=x-ss-general.encryptionRequested:" << encryption_flags_requested << std::endl;
 
-    if (video::last_encoder_probe_supported_ref_frames_invalidation) {
+    if (capabilities.ref_frames_invalidation) {
       ss << "a=x-nv-video[0].refPicInvalidation:1"sv << std::endl;
     }
 
-    if (video::active_hevc_mode != 1) {
+    if (capabilities.active_hevc_mode != 1) {
       ss << "sprop-parameter-sets=AAAAAU"sv << std::endl;
     }
 
-    if (video::active_av1_mode != 1) {
+    if (capabilities.active_av1_mode != 1) {
       ss << "a=rtpmap:98 AV1/90000"sv << std::endl;
     }
 
@@ -1075,6 +1122,7 @@ namespace rtsp_stream {
    * @param req Parsed RTSP request being handled.
    */
   void cmd_announce(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+    const auto capabilities = server->videos.capabilities();
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified
@@ -1279,14 +1327,14 @@ namespace rtsp_stream {
       config.monitor.bitrate = (int) configuredBitrateKbps;
     }
 
-    if (config.monitor.videoFormat == 1 && video::active_hevc_mode == 1) {
+    if (config.monitor.videoFormat == 1 && capabilities.active_hevc_mode == 1) {
       BOOST_LOG(warning) << "HEVC is disabled, yet the client requested HEVC"sv;
 
       respond(sock, session, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
       return;
     }
 
-    if (config.monitor.videoFormat == 2 && video::active_av1_mode == 1) {
+    if (config.monitor.videoFormat == 2 && capabilities.active_av1_mode == 1) {
       BOOST_LOG(warning) << "AV1 is disabled, yet the client requested AV1"sv;
 
       respond(sock, session, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
@@ -1302,7 +1350,7 @@ namespace rtsp_stream {
       return;
     }
 
-    auto stream_session = stream::session::alloc(config, session);
+    auto stream_session = server->streams.alloc(config, session);
     server->insert(stream_session);
 
     if (stream::session::start(*stream_session, sock.remote_endpoint().address().to_string())) {
@@ -1336,9 +1384,11 @@ namespace rtsp_stream {
     respond(sock, session, &option, 200, "OK", req->sequenceNumber, {});
   }
 
-  void start() {
+  void service_t::start() {
+    auto &server = impl->server;
+    const auto host_mail = impl->host_mail;
     platf::set_thread_name("rtsp");
-    auto shutdown_event = mail::man->event<bool>(mail::shutdown);
+    auto shutdown_event = host_mail->event<bool>(mail::shutdown);
 
     server.map("OPTIONS"sv, &cmd_option);
     server.map("DESCRIBE"sv, &cmd_describe);
@@ -1354,9 +1404,9 @@ namespace rtsp_stream {
       return;
     }
 
-    std::jthread rtsp_thread {[&shutdown_event] {
+    std::jthread rtsp_thread {[&shutdown_event, &server, host_mail] {
       platf::set_thread_name("rtsp::handler");
-      auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
+      auto broadcast_shutdown_event = host_mail->event<bool>(mail::broadcast_shutdown);
 
       while (!shutdown_event->peek()) {
         server.iterate();

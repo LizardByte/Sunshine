@@ -4,6 +4,7 @@
  */
 
 // test includes
+#include "../server_test_context.h"
 #include "../tests_common.h"
 
 // standard includes
@@ -94,7 +95,7 @@ X4wnh1bwdiidqpcgyuKossLOPxbS786WmsesaAWPnpoY6M8aija+ALwNNuWWmyMg
 9SVDV76xJzM36Uq7Kg3QJYTlY04WmPIdJHkCtXWf9g==
 -----END CERTIFICATE-----)";
 
-struct PairingTest: BaseTest, testing::WithParamInterface<std::tuple<pairing_input, pairing_output>> {
+struct PairingTest: BaseTest, test_utils::server_context_t, testing::WithParamInterface<std::tuple<pairing_input, pairing_output>> {
   /**
    * @brief Isolate pairing authorization state and suppress persistence for the test.
    */
@@ -102,14 +103,14 @@ struct PairingTest: BaseTest, testing::WithParamInterface<std::tuple<pairing_inp
     BaseTest::SetUp();
     original_fresh_state = config::sunshine.flags[config::flag::FRESH_STATE];
     config::sunshine.flags[config::flag::FRESH_STATE] = true;
-    nvhttp::test_support::reset_client_state();
+    gamestream.test_reset_client_state();
   }
 
   /**
    * @brief Restore the caller's fresh-state configuration after the pairing test.
    */
   void TearDown() override {
-    nvhttp::test_support::reset_client_state();
+    gamestream.test_reset_client_state();
     config::sunshine.flags[config::flag::FRESH_STATE] = original_fresh_state;
     BaseTest::TearDown();
   }
@@ -123,24 +124,24 @@ TEST_P(PairingTest, Run) {
 
   boost::property_tree::ptree tree;
 
-  setup(PRIVATE_KEY, PUBLIC_CERT);
+  gamestream.setup(PRIVATE_KEY, PUBLIC_CERT);
 
   // phase 1
-  getservercert(*input.session, tree, input.pin);
+  gamestream.getservercert(*input.session, tree, input.pin);
   ASSERT_EQ(tree.get<int>("root.paired") == 1, expected.phase_1_success);
   if (!expected.phase_1_success) {
     return;
   }
 
   // phase 2
-  clientchallenge(*input.session, tree, input.client_challenge);
+  gamestream.clientchallenge(*input.session, tree, input.client_challenge);
   ASSERT_EQ(tree.get<int>("root.paired") == 1, expected.phase_2_success);
   if (!expected.phase_2_success) {
     return;
   }
 
   // phase 3
-  serverchallengeresp(*input.session, tree, input.server_challenge_resp);
+  gamestream.serverchallengeresp(*input.session, tree, input.server_challenge_resp);
   ASSERT_EQ(tree.get<int>("root.paired") == 1, expected.phase_3_success);
   if (!expected.phase_3_success) {
     return;
@@ -149,13 +150,13 @@ TEST_P(PairingTest, Run) {
 
   // phase 4
   auto input_client_cert = input.session->client.cert;  // Will be moved
-  clientpairingsecret(*input.session, tree, input.client_pairing_secret);
+  gamestream.clientpairingsecret(*input.session, tree, input.client_pairing_secret);
   ASSERT_EQ(tree.get<int>("root.paired") == 1, expected.phase_4_success);
   ASSERT_TRUE(input.session->completion->result.has_value());
   EXPECT_EQ(*input.session->completion->result, expected.phase_4_success);
 
   if (expected.phase_4_success) {
-    ASSERT_TRUE(nvhttp::test_support::authorize_client_certificate(input_client_cert));
+    ASSERT_TRUE(gamestream.test_authorize_client_certificate(input_client_cert));
   }
 }
 
@@ -271,28 +272,30 @@ INSTANTIATE_TEST_SUITE_P(
 );
 
 TEST(PairingTest, OutOfOrderCalls) {
+  test_utils::server_context_t context;
+  auto &gamestream = context.gamestream;
   boost::property_tree::ptree tree;
 
-  setup(PRIVATE_KEY, PUBLIC_CERT);
+  gamestream.setup(PRIVATE_KEY, PUBLIC_CERT);
 
   pair_session_t sess {};
 
-  clientchallenge(sess, tree, "test");
+  gamestream.clientchallenge(sess, tree, "test");
   ASSERT_FALSE(tree.get<int>("root.paired") == 1);
 
-  serverchallengeresp(sess, tree, "test");
+  gamestream.serverchallengeresp(sess, tree, "test");
   ASSERT_FALSE(tree.get<int>("root.paired") == 1);
 
-  clientpairingsecret(sess, tree, "test");
+  gamestream.clientpairingsecret(sess, tree, "test");
   ASSERT_FALSE(tree.get<int>("root.paired") == 1);
 
   // This should work, it's the first time we call it
   sess.async_insert_pin.salt = "ff5dc6eda99339a8a0793e216c4257c4";
-  getservercert(sess, tree, "test");
+  gamestream.getservercert(sess, tree, "test");
   ASSERT_TRUE(tree.get<int>("root.paired") == 1);
 
   // Calling it again should fail
-  getservercert(sess, tree, "test");
+  gamestream.getservercert(sess, tree, "test");
   ASSERT_FALSE(tree.get<int>("root.paired") == 1);
 }
 
@@ -393,30 +396,30 @@ namespace {
   }
 
   /**
-   * @brief Fixture that isolates tests using global pending-pairing storage.
+   * @brief Fixture that owns its pending-pairing storage.
    */
-  class PairingSessionRegistryTest: public BaseTest {
+  class PairingSessionRegistryTest: public BaseTest, public test_utils::server_context_t {
   protected:
     void SetUp() override {
-      expire_pair_sessions(std::chrono::steady_clock::time_point::max());
+      gamestream.expire_pair_sessions(std::chrono::steady_clock::time_point::max());
     }
 
     void TearDown() override {
-      expire_pair_sessions(std::chrono::steady_clock::time_point::max());
+      gamestream.expire_pair_sessions(std::chrono::steady_clock::time_point::max());
     }
   };
 
   /**
    * @brief Exercise the production pairing dispatcher through a local HTTP server.
    */
-  class PairingHttpHandlerTest: public BaseTest {
+  class PairingHttpHandlerTest: public BaseTest, public test_utils::server_context_t {
   protected:
     /**
      * @brief Start an isolated plain-HTTP pairing endpoint.
      */
     void SetUp() override {
       BaseTest::SetUp();
-      expire_pair_sessions(std::chrono::steady_clock::time_point::max());
+      gamestream.expire_pair_sessions(std::chrono::steady_clock::time_point::max());
       original_pin_stdin_ = config::sunshine.flags[config::flag::PIN_STDIN];
       original_ping_timeout_ = config::stream.ping_timeout;
       config::sunshine.flags[config::flag::PIN_STDIN] = false;
@@ -426,7 +429,9 @@ namespace {
       server_->config.reuse_address = true;
       server_->config.timeout_request = 5;
       server_->config.timeout_content = 5;
-      server_->resource["^/pair$"]["GET"] = nvhttp::test_support::pair_http;
+      server_->resource["^/pair$"]["GET"] = [this](auto response, auto request) {
+        gamestream.test_pair_http(std::move(response), std::move(request));
+      };
       server_thread_ = std::jthread([this]() {
         server_->start([this](const unsigned short assigned_port) {
           port_ = assigned_port;
@@ -446,7 +451,7 @@ namespace {
      * @brief Stop the endpoint and restore pairing configuration.
      */
     void TearDown() override {
-      expire_pair_sessions(std::chrono::steady_clock::time_point::max());
+      gamestream.expire_pair_sessions(std::chrono::steady_clock::time_point::max());
       if (server_) {
         server_->stop();
       }
@@ -491,9 +496,9 @@ namespace {
      *
      * @return The operator-facing pairing identifier, or an empty string on timeout.
      */
-    static std::string wait_for_pending_pairing() {
+    std::string wait_for_pending_pairing() {
       for (int attempt = 0; attempt < 100; ++attempt) {
-        if (const auto pending = get_pending_pairings(); !pending.empty()) {
+        if (const auto pending = gamestream.get_pending_pairings(); !pending.empty()) {
           return pending.front().id;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds {10});
@@ -517,7 +522,7 @@ TEST_F(PairingHttpHandlerTest, ImmediateRequestsReturnExpectedStatus) {
   EXPECT_NE(request("/pair?uniqueid=missing"sv).find("Invalid uniqueid"), std::string::npos);
 
   std::string pairing_id;
-  ASSERT_EQ(insert_pair_session(pending_session("out-of-order", "Client", "192.0.2.10"), pairing_id), pair_session_insert_e::ADDED);
+  ASSERT_EQ(gamestream.insert_pair_session(pending_session("out-of-order", "Client", "192.0.2.10"), pairing_id), pair_session_insert_e::ADDED);
   EXPECT_NE(request("/pair?uniqueid=out-of-order&clientchallenge=00"sv).find("Out of order"), std::string::npos);
 }
 
@@ -530,7 +535,7 @@ TEST_F(PairingHttpHandlerTest, WebApprovalRequestRemainsPendingUntilCancelled) {
 
   const auto pairing_id = wait_for_pending_pairing();
   ASSERT_FALSE(pairing_id.empty());
-  EXPECT_TRUE(cancel_pairing(pairing_id));
+  EXPECT_TRUE(gamestream.cancel_pairing(pairing_id));
   EXPECT_NE(response.get().find("cancelled by operator"), std::string::npos);
 }
 
@@ -546,14 +551,14 @@ TEST_F(PairingHttpHandlerTest, PinReturnsCompletedHandshakeResult) {
     const auto pairing_id = wait_for_pending_pairing();
     ASSERT_FALSE(pairing_id.empty());
     config::stream.ping_timeout = std::chrono::seconds {2};
-    std::packaged_task<bool()> pin_task {[&pairing_id]() {
-      return pin(pairing_id, "5338", "Test client");
+    std::packaged_task<bool()> pin_task {[this, &pairing_id]() {
+      return gamestream.pin(pairing_id, "5338", "Test client");
     }};
     auto pin_result = pin_task.get_future();
     std::jthread pin_thread {std::move(pin_task)};
 
     EXPECT_NE(client_response.get().find("status_code=\"200\""), std::string::npos);
-    EXPECT_TRUE(nvhttp::test_support::complete_pairing(pairing_id, expected_result));
+    EXPECT_TRUE(gamestream.test_complete_pairing(pairing_id, expected_result));
     EXPECT_EQ(pin_result.get(), expected_result);
   }
 }
@@ -568,20 +573,20 @@ TEST_F(PairingHttpHandlerTest, PinReturnsFalseWhenClientDoesNotCompleteHandshake
   const auto pairing_id = wait_for_pending_pairing();
   ASSERT_FALSE(pairing_id.empty());
   config::stream.ping_timeout = std::chrono::milliseconds {50};
-  EXPECT_FALSE(pin(pairing_id, "0000", "Test client"));
+  EXPECT_FALSE(gamestream.pin(pairing_id, "0000", "Test client"));
   EXPECT_NE(client_response.get().find("status_code=\"200\""), std::string::npos);
-  EXPECT_TRUE(get_pending_pairings().empty());
+  EXPECT_TRUE(gamestream.get_pending_pairings().empty());
 }
 
 TEST_F(PairingHttpHandlerTest, DuplicateAndCapacityErrorsReturnImmediately) {
   std::string pairing_id;
-  ASSERT_EQ(insert_pair_session(pending_session("duplicate", "Original", "192.0.2.10"), pairing_id), pair_session_insert_e::ADDED);
+  ASSERT_EQ(gamestream.insert_pair_session(pending_session("duplicate", "Original", "192.0.2.10"), pairing_id), pair_session_insert_e::ADDED);
   EXPECT_NE(request(server_certificate_target("duplicate")).find("status_code=\"409\""), std::string::npos);
 
-  expire_pair_sessions(std::chrono::steady_clock::time_point::max());
+  gamestream.expire_pair_sessions(std::chrono::steady_clock::time_point::max());
   for (std::size_t index = 0; index < MAX_PENDING_PAIRING_SESSIONS; ++index) {
     ASSERT_EQ(
-      insert_pair_session(pending_session(std::format("full-{}", index), "Client", "192.0.2.10"), pairing_id),
+      gamestream.insert_pair_session(pending_session(std::format("full-{}", index), "Client", "192.0.2.10"), pairing_id),
       pair_session_insert_e::ADDED
     );
   }
@@ -589,7 +594,7 @@ TEST_F(PairingHttpHandlerTest, DuplicateAndCapacityErrorsReturnImmediately) {
 }
 
 TEST_F(PairingHttpHandlerTest, ConsolePinCompletesOrRejectsTheCertificatePhase) {
-  setup(PRIVATE_KEY, PUBLIC_CERT);
+  gamestream.setup(PRIVATE_KEY, PUBLIC_CERT);
   config::sunshine.flags[config::flag::PIN_STDIN] = true;
 
   std::istringstream input {"5338\n0000\n"};
@@ -609,7 +614,7 @@ TEST_F(PairingHttpHandlerTest, ConsolePinReportsSessionExpiration) {
   std::jthread request_thread {std::move(request_task)};
 
   ASSERT_FALSE(wait_for_pending_pairing().empty());
-  expire_pair_sessions(std::chrono::steady_clock::time_point::max());
+  gamestream.expire_pair_sessions(std::chrono::steady_clock::time_point::max());
   input.release();
   EXPECT_NE(response.get().find("status_code=\"408\""), std::string::npos);
 }
@@ -617,22 +622,22 @@ TEST_F(PairingHttpHandlerTest, ConsolePinReportsSessionExpiration) {
 TEST_F(PairingSessionRegistryTest, PinApprovalTargetsExplicitPairingId) {
   std::string legitimate_pairing_id;
   ASSERT_EQ(
-    insert_pair_session(pending_session("legitimate", "Living Room", "192.0.2.10"), legitimate_pairing_id),
+    gamestream.insert_pair_session(pending_session("legitimate", "Living Room", "192.0.2.10"), legitimate_pairing_id),
     pair_session_insert_e::ADDED
   );
 
   std::string attacker_pairing_id;
   ASSERT_EQ(
-    insert_pair_session(pending_session("attacker", "Living Room", "192.0.2.20"), attacker_pairing_id),
+    gamestream.insert_pair_session(pending_session("attacker", "Living Room", "192.0.2.20"), attacker_pairing_id),
     pair_session_insert_e::ADDED
   );
   ASSERT_NE(legitimate_pairing_id, attacker_pairing_id);
 
-  // Unit-test sessions have no parked HTTP response, so pin() returns false after
+  // Unit-test sessions have no parked HTTP response, so gamestream.pin() returns false after
   // consuming the explicitly selected session. The competing request must remain untouched.
-  EXPECT_FALSE(pin(legitimate_pairing_id, "1234", "Approved client"));
+  EXPECT_FALSE(gamestream.pin(legitimate_pairing_id, "1234", "Approved client"));
 
-  const auto pending = get_pending_pairings();
+  const auto pending = gamestream.get_pending_pairings();
   ASSERT_EQ(pending.size(), 1);
   EXPECT_EQ(pending.front().id, attacker_pairing_id);
   EXPECT_EQ(pending.front().address, "192.0.2.20");
@@ -641,17 +646,17 @@ TEST_F(PairingSessionRegistryTest, PinApprovalTargetsExplicitPairingId) {
 TEST_F(PairingSessionRegistryTest, InvalidApprovalCannotConsumePendingSession) {
   std::string pairing_id;
   ASSERT_EQ(
-    insert_pair_session(pending_session("legitimate", "Laptop", "192.0.2.10"), pairing_id),
+    gamestream.insert_pair_session(pending_session("legitimate", "Laptop", "192.0.2.10"), pairing_id),
     pair_session_insert_e::ADDED
   );
 
-  EXPECT_FALSE(pin("unknown-approval", "1234", "Laptop"));
-  EXPECT_FALSE(pin(pairing_id, "123", "Laptop"));
-  EXPECT_FALSE(pin(pairing_id, "12a4", "Laptop"));
-  EXPECT_FALSE(pin(pairing_id, "1234", ""));
-  EXPECT_FALSE(pin(pairing_id, "1234", std::string(MAX_PAIRING_CLIENT_NAME_SIZE + 1, 'a')));
+  EXPECT_FALSE(gamestream.pin("unknown-approval", "1234", "Laptop"));
+  EXPECT_FALSE(gamestream.pin(pairing_id, "123", "Laptop"));
+  EXPECT_FALSE(gamestream.pin(pairing_id, "12a4", "Laptop"));
+  EXPECT_FALSE(gamestream.pin(pairing_id, "1234", ""));
+  EXPECT_FALSE(gamestream.pin(pairing_id, "1234", std::string(MAX_PAIRING_CLIENT_NAME_SIZE + 1, 'a')));
 
-  const auto pending = get_pending_pairings();
+  const auto pending = gamestream.get_pending_pairings();
   ASSERT_EQ(pending.size(), 1);
   EXPECT_EQ(pending.front().id, pairing_id);
 }
@@ -676,18 +681,18 @@ TEST_F(PairingSessionRegistryTest, RestApiPairingFieldsAreValidatedServerSide) {
 TEST_F(PairingSessionRegistryTest, DuplicateUniqueIdIsRejectedWithoutReplacingOriginal) {
   std::string original_pairing_id;
   ASSERT_EQ(
-    insert_pair_session(pending_session("duplicate", "Original", "192.0.2.10"), original_pairing_id),
+    gamestream.insert_pair_session(pending_session("duplicate", "Original", "192.0.2.10"), original_pairing_id),
     pair_session_insert_e::ADDED
   );
 
   std::string rejected_pairing_id;
   EXPECT_EQ(
-    insert_pair_session(pending_session("duplicate", "Replacement", "192.0.2.20"), rejected_pairing_id),
+    gamestream.insert_pair_session(pending_session("duplicate", "Replacement", "192.0.2.20"), rejected_pairing_id),
     pair_session_insert_e::ALREADY_EXISTS
   );
   EXPECT_TRUE(rejected_pairing_id.empty());
 
-  const auto pending = get_pending_pairings();
+  const auto pending = gamestream.get_pending_pairings();
   ASSERT_EQ(pending.size(), 1);
   EXPECT_EQ(pending.front().id, original_pairing_id);
   EXPECT_EQ(pending.front().name, "Original");
@@ -697,7 +702,7 @@ TEST_F(PairingSessionRegistryTest, PendingSessionStorageIsBounded) {
   for (std::size_t index = 0; index < MAX_PENDING_PAIRING_SESSIONS; ++index) {
     std::string pairing_id;
     ASSERT_EQ(
-      insert_pair_session(pending_session(std::format("client-{}", index), "Client", "192.0.2.10"), pairing_id),
+      gamestream.insert_pair_session(pending_session(std::format("client-{}", index), "Client", "192.0.2.10"), pairing_id),
       pair_session_insert_e::ADDED
     );
     EXPECT_FALSE(pairing_id.empty());
@@ -705,30 +710,30 @@ TEST_F(PairingSessionRegistryTest, PendingSessionStorageIsBounded) {
 
   std::string overflow_pairing_id;
   EXPECT_EQ(
-    insert_pair_session(pending_session("overflow", "Overflow", "192.0.2.20"), overflow_pairing_id),
+    gamestream.insert_pair_session(pending_session("overflow", "Overflow", "192.0.2.20"), overflow_pairing_id),
     pair_session_insert_e::FULL
   );
-  EXPECT_EQ(get_pending_pairings().size(), MAX_PENDING_PAIRING_SESSIONS);
+  EXPECT_EQ(gamestream.get_pending_pairings().size(), MAX_PENDING_PAIRING_SESSIONS);
 }
 
 TEST_F(PairingSessionRegistryTest, ExpiredApprovalCannotConsumeLaterSession) {
   const auto expiration_check = std::chrono::steady_clock::now() + PAIRING_SESSION_TIMEOUT + std::chrono::seconds {1};
   std::string expired_pairing_id;
   ASSERT_EQ(
-    insert_pair_session(pending_session("expired", "Old client", "192.0.2.10"), expired_pairing_id),
+    gamestream.insert_pair_session(pending_session("expired", "Old client", "192.0.2.10"), expired_pairing_id),
     pair_session_insert_e::ADDED
   );
-  expire_pair_sessions(expiration_check);
-  EXPECT_TRUE(get_pending_pairings().empty());
+  gamestream.expire_pair_sessions(expiration_check);
+  EXPECT_TRUE(gamestream.get_pending_pairings().empty());
 
   std::string current_pairing_id;
   ASSERT_EQ(
-    insert_pair_session(pending_session("current", "Current client", "192.0.2.20"), current_pairing_id),
+    gamestream.insert_pair_session(pending_session("current", "Current client", "192.0.2.20"), current_pairing_id),
     pair_session_insert_e::ADDED
   );
-  EXPECT_FALSE(pin(expired_pairing_id, "1234", "Old client"));
+  EXPECT_FALSE(gamestream.pin(expired_pairing_id, "1234", "Old client"));
 
-  const auto pending = get_pending_pairings();
+  const auto pending = gamestream.get_pending_pairings();
   ASSERT_EQ(pending.size(), 1);
   EXPECT_EQ(pending.front().id, current_pairing_id);
 }
@@ -736,19 +741,19 @@ TEST_F(PairingSessionRegistryTest, ExpiredApprovalCannotConsumeLaterSession) {
 TEST_F(PairingSessionRegistryTest, CancellationRemovesOnlySelectedPendingSession) {
   std::string first_pairing_id;
   ASSERT_EQ(
-    insert_pair_session(pending_session("first", "First", "192.0.2.10"), first_pairing_id),
+    gamestream.insert_pair_session(pending_session("first", "First", "192.0.2.10"), first_pairing_id),
     pair_session_insert_e::ADDED
   );
   std::string second_pairing_id;
   ASSERT_EQ(
-    insert_pair_session(pending_session("second", "Second", "192.0.2.20"), second_pairing_id),
+    gamestream.insert_pair_session(pending_session("second", "Second", "192.0.2.20"), second_pairing_id),
     pair_session_insert_e::ADDED
   );
 
-  EXPECT_TRUE(cancel_pairing(first_pairing_id));
-  EXPECT_FALSE(cancel_pairing(first_pairing_id));
+  EXPECT_TRUE(gamestream.cancel_pairing(first_pairing_id));
+  EXPECT_FALSE(gamestream.cancel_pairing(first_pairing_id));
 
-  const auto pending = get_pending_pairings();
+  const auto pending = gamestream.get_pending_pairings();
   ASSERT_EQ(pending.size(), 1);
   EXPECT_EQ(pending.front().id, second_pairing_id);
 }
@@ -758,10 +763,10 @@ TEST_F(PairingSessionRegistryTest, RemoveSessionErasesItsUniqueId) {
   pair_session_t session_key;
   session_key.client.uniqueID = session.client.uniqueID;
   std::string pairing_id;
-  ASSERT_EQ(insert_pair_session(std::move(session), pairing_id), pair_session_insert_e::ADDED);
+  ASSERT_EQ(gamestream.insert_pair_session(std::move(session), pairing_id), pair_session_insert_e::ADDED);
 
-  remove_session(session_key);
-  EXPECT_TRUE(get_pending_pairings().empty());
+  gamestream.remove_session(session_key);
+  EXPECT_TRUE(gamestream.get_pending_pairings().empty());
 }
 
 TEST_F(PairingSessionRegistryTest, ConcurrentInsertionAndCancellationLeaveConsistentState) {
@@ -771,9 +776,9 @@ TEST_F(PairingSessionRegistryTest, ConcurrentInsertionAndCancellationLeaveConsis
   workers.reserve(session_count);
 
   for (std::size_t index = 0; index < session_count; ++index) {
-    workers.emplace_back([index, &successful_cancellations]() {
+    workers.emplace_back([this, index, &successful_cancellations]() {
       std::string pairing_id;
-      if (insert_pair_session(pending_session(std::format("concurrent-{}", index), "Client", "192.0.2.10"), pairing_id) == pair_session_insert_e::ADDED && cancel_pairing(pairing_id)) {
+      if (gamestream.insert_pair_session(pending_session(std::format("concurrent-{}", index), "Client", "192.0.2.10"), pairing_id) == pair_session_insert_e::ADDED && gamestream.cancel_pairing(pairing_id)) {
         ++successful_cancellations;
       }
     });
@@ -781,5 +786,39 @@ TEST_F(PairingSessionRegistryTest, ConcurrentInsertionAndCancellationLeaveConsis
   workers.clear();
 
   EXPECT_EQ(successful_cancellations, session_count);
-  EXPECT_TRUE(get_pending_pairings().empty());
+  EXPECT_TRUE(gamestream.get_pending_pairings().empty());
+}
+
+/**
+ * @brief Pairing storage and host identity are independent across server owners.
+ */
+TEST(PairingOwnerTest, IndependentOwnersDoNotSharePendingRequestsOrIdentity) {
+  test_utils::server_context_t first;
+  test_utils::server_context_t second;
+  first.http_state.set_unique_id("first host");
+  second.http_state.set_unique_id("second host");
+  std::string pairing_id;
+  ASSERT_EQ(first.gamestream.insert_pair_session(pending_session("client", "Client", "192.0.2.10"), pairing_id), pair_session_insert_e::ADDED);
+  EXPECT_TRUE(second.gamestream.get_pending_pairings().empty());
+  EXPECT_FALSE(second.gamestream.cancel_pairing(pairing_id));
+  EXPECT_EQ(first.gamestream.get_pending_pairings().size(), 1u);
+  EXPECT_EQ(first.http_state.unique_id(), "first host");
+  EXPECT_EQ(second.http_state.unique_id(), "second host");
+}
+
+/**
+ * @brief Destroying a pairing owner completes retained waiters with failure.
+ */
+TEST(PairingOwnerTest, DestructionCompletesPendingWaiter) {
+  const auto completion = std::make_shared<pairing_completion_t>();
+  {
+    test_utils::server_context_t context;
+    auto session = pending_session("client", "Client", "192.0.2.10");
+    session.completion = completion;
+    std::string pairing_id;
+    ASSERT_EQ(context.gamestream.insert_pair_session(std::move(session), pairing_id), pair_session_insert_e::ADDED);
+    EXPECT_FALSE(completion->result.has_value());
+  }
+  ASSERT_TRUE(completion->result.has_value());
+  EXPECT_FALSE(*completion->result);
 }
