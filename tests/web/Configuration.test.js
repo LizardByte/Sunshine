@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 
 import DisplayDeviceOptions from '../../src_assets/common/assets/web/configs/tabs/audiovideo/DisplayDeviceOptions.vue'
+import Advanced from '../../src_assets/common/assets/web/configs/tabs/Advanced.vue'
 import General from '../../src_assets/common/assets/web/configs/tabs/General.vue'
 import Inputs from '../../src_assets/common/assets/web/configs/tabs/Inputs.vue'
 import Network from '../../src_assets/common/assets/web/configs/tabs/Network.vue'
@@ -112,6 +113,34 @@ describe('network configuration', () => {
     expect(tableText).toContain('47989')
     expect(tableText).toContain('48010')
     expect(tableText).not.toContain('NaN')
+  })
+})
+
+describe('FEC configuration', () => {
+  it.each([0, 1, 20, 99, 100])('accepts %i percent and updates the configuration', async percentage => {
+    const config = { fec_percentage: 20 }
+    const wrapper = mount(Advanced, {
+      props: { platform: 'macos', config },
+      global: globalOptions,
+    })
+    const input = wrapper.get('#fec_percentage')
+
+    await input.setValue(String(percentage))
+
+    expect(input.element.checkValidity()).toBe(true)
+    expect(config.fec_percentage).toBe(percentage)
+  })
+
+  it.each([-1, 101, 255, 0.5])('marks %s percent as invalid', async percentage => {
+    const wrapper = mount(Advanced, {
+      props: { platform: 'macos', config: { fec_percentage: 20 } },
+      global: globalOptions,
+    })
+    const input = wrapper.get('#fec_percentage')
+
+    await input.setValue(String(percentage))
+
+    expect(input.element.checkValidity()).toBe(false)
   })
 })
 
