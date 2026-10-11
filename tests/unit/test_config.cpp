@@ -1,6 +1,6 @@
 /**
  * @file tests/unit/test_config.cpp
- * @brief Tests for Sunshine configuration parsing and persistence helpers.
+ * @brief Tests for Sunshine configuration parsing, range validation, and persistence helpers.
  */
 
 // test includes
@@ -9,6 +9,7 @@
 // standard includes
 #include <array>
 #include <filesystem>
+#include <format>
 #include <string>
 #include <utility>
 
@@ -188,7 +189,7 @@ TEST_F(ConfigPersistenceTest, ParsesFecPercentagesAndRejectsOutOfRangeValues) {
   };
   for (const auto &[setting, expected] : cases) {
     config::stream.fec_percentage = 20;
-    config::apply_config_for_test("fec_percentage = " + std::to_string(setting) + "\n");
+    config::apply_config_for_test(std::format("fec_percentage = {}\n", setting));
     EXPECT_EQ(config::stream.fec_percentage, expected) << setting;
   }
 }
