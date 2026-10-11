@@ -8,6 +8,7 @@
 #include <chrono>
 #include <fcntl.h>
 #include <filesystem>
+#include <memory>
 #include <thread>
 #include <unistd.h>
 #include <vector>
@@ -36,8 +37,6 @@ enum class window_system_e {
   X11,  ///< X11
   WAYLAND,  ///< Wayland
 };
-
-extern window_system_e window_system;  ///< Window system.
 
 namespace dyn {
   /**
@@ -89,8 +88,6 @@ namespace portal {
    */
   bool is_portal_service_reachable();
 
-  inline std::jthread xdg_worker;  ///< XDG worker thread to negotiate restore token.
-  inline std::once_flag xdg_worker_flag;  ///< Flag to ensure xdg_worker spawns only once.
 }  // namespace portal
 #endif
 
@@ -150,6 +147,15 @@ namespace platf {
 
 #if defined(__linux__) && defined(SUNSHINE_BUILD_DRM)
   namespace kms {
+    /**
+     * @brief Runtime-owned KMS discovery cache, snapshotted by capture resources.
+     */
+    struct capture_state_t;
+    /**
+     * @brief Create an empty KMS discovery owner.
+     * @return Independent discovery state.
+     */
+    std::shared_ptr<capture_state_t> make_capture_state();
     /**
      * @brief Force-construct the DRM privileged worker thread while the calling
      *        thread still holds CAP_SYS_ADMIN in CAP_PERMITTED.

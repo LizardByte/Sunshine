@@ -162,8 +162,6 @@ namespace input {
     return std::clamp(from_netfloat(f), min, max);
   }
 
-  static task_pool_util::TaskPool::task_id_t key_press_repeat_id {};
-
   /**
    * @brief Press state retained so releases and repeats use the key's original identity.
    */
@@ -172,54 +170,128 @@ namespace input {
     bool extended = false;  ///< Whether its press identified an extended key.
   };
 
-  static std::unordered_map<key_press_id_t, key_press_state_t> key_press {};
-  static std::array<std::uint8_t, 5> mouse_press {};
+  /**
+   * @brief Hash string-like session identifiers without allocating temporary strings.
+   */
+  struct transparent_string_hash_t {
+    using is_transparent = void;  ///< Enable heterogeneous unordered-map lookup.
 
-  static platf::input_t platf_input;
+    /**
+     * @brief Hash a string view.
+     *
+     * @param value Session identifier to hash.
+     * @return Hash value for the supplied identifier.
+     */
+    std::size_t operator()(const std::string_view value) const noexcept {
+      return std::hash<std::string_view> {}(value);
+    }
+  };
+
+  using retained_input_map_t = std::unordered_map<
+    std::string,
+    std::shared_ptr<input_t>,
+    transparent_string_hash_t,
+    std::equal_to<>>;  ///< Retained inputs keyed by paired-client identity.
+
+  /**
+   * @brief Synchronized storage for retained input sessions.
+   */
+  struct retained_input_state_t {
+    std::mutex mutex;  ///< Synchronizes retained session access across transport threads.
+    retained_input_map_t inputs;  ///< Paused input sessions keyed by paired-client identity.
+  };
+
+  /**
+   * @brief Host input resources and shared state owned by one input service.
+   */
+  struct service_t::impl_t: std::enable_shared_from_this<service_t::impl_t> {
+    /**
+     * @brief Bind the host dependencies without opening platform devices.
+     * @param scheduler Scheduler serializing host input work.
+     * @param mail Host mailbox carrying display selection.
+     * @param cursor Host cursor visibility preference.
+     */
+    impl_t(thread_pool_util::ThreadPool &scheduler, safe::mail_t mail, bool &cursor):
+        scheduler {scheduler},
+        mail {std::move(mail)},
+        cursor {cursor} {
+    }
+
+    thread_pool_util::ThreadPool &scheduler;  ///< Host input task scheduler.
+    safe::mail_t mail;  ///< Host communication mailbox.
+    bool &cursor;  ///< Host cursor visibility preference.
+    std::atomic_bool stopping {false};  ///< Prevents new delayed work during service destruction.
+    task_pool_util::TaskPool::task_id_t key_press_repeat_id {};  ///< Scheduled keyboard repeat.
+    std::unordered_map<key_press_id_t, key_press_state_t> key_press;  ///< Host pressed-key state.
+    std::array<std::uint8_t, 5> mouse_press {};  ///< Host mouse-button state.
+    platf::input_t platf_input;  ///< Platform input backend.
+    std::bitset<platf::MAX_GAMEPADS> gamepadMask {};  ///< Host gamepad allocation bitmap.
+    retained_input_state_t retained;  ///< Sessions retained across paused transport connections.
+#ifdef SUNSHINE_TESTS
+    std::function<void(const testing::keyboard_event_t &)> test_keyboard_sink;  ///< Keyboard recorder.
+    std::function<void(std::uint32_t)> test_packet_hook;  ///< Packet-dispatch recorder.
+    std::function<void(std::shared_ptr<input_t>)> test_task_sink;  ///< Task scheduling recorder.
+#endif
+  };
+
+#ifdef SUNSHINE_TESTS
+  /**
+   * @brief Access service-owned dependencies from the test adapters.
+   */
+  struct service_access_t {
+    /**
+     * @brief Obtain a test fixture's host input state.
+     * @param service Fixture-owned input service.
+     * @return Service implementation used by the adapters.
+     */
+    static service_t::impl_t &state(service_t &service) {
+      return *service.impl_;
+    }
+  };
+#endif
 #ifdef SUNSHINE_TESTS
   /**
    * @brief Recorder that unit tests install in place of the platform keyboard.
    *
    * @return Mutable reference to the recorder, empty when no test installed one.
+   * @param host Host input or video service and its capture dependencies.
    */
-  std::function<void(const testing::keyboard_event_t &)> &keyboard_sink() {
-    static std::function<void(const testing::keyboard_event_t &)> sink;
-    return sink;
+  std::function<void(const testing::keyboard_event_t &)> &keyboard_sink(service_t::impl_t &host) {
+    return host.test_keyboard_sink;
   }
 
   /**
    * @brief Return the optional callback for observing queued packet dispatch in tests.
    *
    * @return Mutable test callback.
+   * @param host Host input or video service and its capture dependencies.
    */
-  std::function<void(std::uint32_t)> &input_packet_hook() {
-    static std::function<void(std::uint32_t)> hook;
-    return hook;
+  std::function<void(std::uint32_t)> &input_packet_hook(service_t::impl_t &host) {
+    return host.test_packet_hook;
   }
 
   /**
    * @brief Return the optional callback for observing input task scheduling in tests.
    *
    * @return Mutable test callback.
+   * @param host Host input or video service and its capture dependencies.
    */
-  std::function<void(std::shared_ptr<input_t>)> &input_task_sink() {
-    static std::function<void(std::shared_ptr<input_t>)> sink;
-    return sink;
+  std::function<void(std::shared_ptr<input_t>)> &input_task_sink(service_t::impl_t &host) {
+    return host.test_task_sink;
   }
 #endif
-  static std::bitset<platf::MAX_GAMEPADS> gamepadMask {};
 
   /**
    * @brief Release all platform resources associated with a virtual gamepad.
    *
-   * @param platf_input Platf input.
+   * @param host Host input owner.
    * @param id Identifier for the controller, session, display, or resource.
    */
-  void free_gamepad(platf::input_t &platf_input, int id) {
-    platf::gamepad_update(platf_input, id, platf::gamepad_state_t {});
-    platf::free_gamepad(platf_input, id);
+  void free_gamepad(service_t::impl_t &host, int id) {
+    platf::gamepad_update(host.platf_input, id, platf::gamepad_state_t {});
+    platf::free_gamepad(host.platf_input, id);
 
-    free_id(gamepadMask, id);
+    free_id(host.gamepadMask, id);
   }
 
   /**
@@ -234,16 +306,22 @@ namespace input {
     }
 
     ~gamepad_t() {
+      if (!owner) {
+        return;
+      }
+      auto &host = *owner;
       if (id >= 0) {
-        if (task_pool.running()) {
-          task_pool.push([id = this->id]() {
-            ::input::free_gamepad(platf_input, id);
+        if (host.scheduler.running()) {
+          host.scheduler.push([id = this->id, owner = owner]() {
+            ::input::free_gamepad(*owner, id);
           });
         } else {
-          ::input::free_gamepad(platf_input, id);
+          ::input::free_gamepad(host, id);
         }
       }
     }
+
+    std::shared_ptr<service_t::impl_t> owner;  ///< Host input service owning this controller slot.
 
     platf::gamepad_state_t gamepad_state;  ///< Gamepad state.
 
@@ -296,21 +374,31 @@ namespace input {
      *
      * @param touch_port_event Event carrying the active touch port.
      * @param feedback_queue Queue used for controller feedback.
+     * @param owner Host input or video service and its capture dependencies.
      */
     input_t(
+      std::shared_ptr<service_t::impl_t> owner,
       safe::mail_raw_t::event_t<input::touch_port_t> touch_port_event,
       platf::feedback_queue_t feedback_queue
     ):
+        owner {std::move(owner)},
+        host {*this->owner},
         shortcutFlags {},
         gamepads(MAX_GAMEPADS),
-        client_context {platf::allocate_client_input_context(platf_input)},
+        client_context {platf::allocate_client_input_context(host.platf_input)},
         touch_port_event {std::move(touch_port_event)},
         feedback_queue {std::move(feedback_queue)},
         mouse_left_button_timeout {},
         touch_port {{0, 0, 0, 0, 0, 0}, 0, 0, 0.0f, 0.0f, 1.0f, 1.0f, 0, 0},
         accumulated_vscroll_delta {},
         accumulated_hscroll_delta {} {
+      for (auto &gamepad : gamepads) {
+        gamepad.owner = this->owner;
+      }
     }
+
+    std::shared_ptr<service_t::impl_t> owner;  ///< Keeps host resources alive for the retained session.
+    service_t::impl_t &host;  ///< Host service shared by retained client input sessions.
 
     // Keep track of alt+ctrl+shift key combo
     int shortcutFlags;  ///< Shortcut flags.
@@ -338,56 +426,16 @@ namespace input {
   };
 
   /**
-   * @brief Hash string-like session identifiers without allocating temporary strings.
-   */
-  struct transparent_string_hash_t {
-    using is_transparent = void;  ///< Enable heterogeneous unordered-map lookup.
-
-    /**
-     * @brief Hash a string view.
-     *
-     * @param value Session identifier to hash.
-     * @return Hash value for the supplied identifier.
-     */
-    std::size_t operator()(const std::string_view value) const noexcept {
-      return std::hash<std::string_view> {}(value);
-    }
-  };
-
-  using retained_input_map_t = std::unordered_map<
-    std::string,
-    std::shared_ptr<input_t>,
-    transparent_string_hash_t,
-    std::equal_to<>>;  ///< Retained inputs keyed by paired-client identity.
-
-  /**
-   * @brief Synchronized storage for retained input sessions.
-   */
-  struct retained_input_state_t {
-    std::mutex mutex;  ///< Synchronizes retained session access across transport threads.
-    retained_input_map_t inputs;  ///< Paused input sessions keyed by paired-client identity.
-  };
-
-  /**
-   * @brief Access process-wide retained input session storage.
-   *
-   * @return Mutable retained input session state.
-   */
-  retained_input_state_t &retained_input_state() {
-    static retained_input_state_t state;
-    return state;
-  }
-
-  /**
    * @brief Execute lifecycle work on the input task thread when it is running.
    *
    * @tparam Function Callable type.
    * @param function Lifecycle operation to execute.
+   * @param host Host input or video service and its capture dependencies.
    */
   template<typename Function>
-  void dispatch_input_task(Function &&function) {
-    if (task_pool.running()) {
-      task_pool.push(std::forward<Function>(function));
+  void dispatch_input_task(service_t::impl_t &host, Function &&function) {
+    if (host.scheduler.running()) {
+      host.scheduler.push(std::forward<Function>(function));
     } else {
       std::forward<Function>(function)();
     }
@@ -399,13 +447,14 @@ namespace input {
    * @param input Retained input session whose gamepads should be destroyed.
    */
   void destroy_gamepads(const std::shared_ptr<input_t> &input) {
+    auto &host = input->host;
     for (auto &gamepad : input->gamepads) {
       if (gamepad.back_timeout_id) {
-        task_pool.cancel(gamepad.back_timeout_id);
+        host.scheduler.cancel(gamepad.back_timeout_id);
         gamepad.back_timeout_id = nullptr;
       }
       if (gamepad.id >= 0) {
-        ::input::free_gamepad(platf_input, gamepad.id);
+        ::input::free_gamepad(host, gamepad.id);
         gamepad.id = -1;
       }
       gamepad.gamepad_state = {};
@@ -432,6 +481,7 @@ namespace input {
    * @param mail Mailbox for the resumed stream connection.
    */
   void rebind_input(const std::shared_ptr<input_t> &input, const safe::mail_t &mail) {
+    auto &host = input->host;
     input->touch_port_event = mail->event<input::touch_port_t>(mail::touch_port);
     input->feedback_queue = mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback);
 
@@ -441,8 +491,8 @@ namespace input {
         continue;
       }
 
-      if (platf::rebind_gamepad(platf_input, {gamepad.id, static_cast<std::uint8_t>(client_index)}, input->feedback_queue) != 0) {
-        free_id(gamepadMask, gamepad.id);
+      if (platf::rebind_gamepad(host.platf_input, {gamepad.id, static_cast<std::uint8_t>(client_index)}, input->feedback_queue) != 0) {
+        free_id(host.gamepadMask, gamepad.id);
         gamepad.id = -1;
       }
     }
@@ -452,21 +502,22 @@ namespace input {
    * @brief Apply shortcut based on VKEY
    * @param keyCode The VKEY code
    * @return 0 if no shortcut applied, > 0 if shortcut applied.
+   * @param host Host input or video service and its capture dependencies.
    */
-  inline int apply_shortcut(short keyCode) {
+  inline int apply_shortcut(service_t::impl_t &host, short keyCode) {
     constexpr auto VK_F1 = 0x70;
     constexpr auto VK_F13 = 0x7C;
 
     BOOST_LOG(debug) << "Apply Shortcut: 0x"sv << util::hex((std::uint8_t) keyCode).to_string_view();
 
     if (keyCode >= VK_F1 && keyCode <= VK_F13) {
-      mail::man->event<int>(mail::switch_display)->raise(keyCode - VK_F1);
+      host.mail->event<int>(mail::switch_display)->raise(keyCode - VK_F1);
       return 1;
     }
 
     switch (keyCode) {
       case 0x4E /* VKEY_N */:
-        display_cursor = !display_cursor;
+        host.cursor = !host.cursor;
         return 1;
     }
 
@@ -776,6 +827,7 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void passthrough(std::shared_ptr<input_t> &input, PNV_REL_MOUSE_MOVE_PACKET packet) {
+    auto &host = input->host;
     if (!config::input.mouse) {
       return;
     }
@@ -784,13 +836,13 @@ namespace input {
     refresh_touch_port(input);
     if (input->touch_port) {
       platf::move_mouse(
-        platf_input,
+        host.platf_input,
         platform_touch_port(input->touch_port),
         util::endian::big(packet->deltaX),
         util::endian::big(packet->deltaY)
       );
     } else {
-      platf::move_mouse(platf_input, util::endian::big(packet->deltaX), util::endian::big(packet->deltaY));
+      platf::move_mouse(host.platf_input, util::endian::big(packet->deltaX), util::endian::big(packet->deltaY));
     }
   }
 
@@ -886,6 +938,7 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET packet) {
+    auto &host = input->host;
     if (!config::input.mouse) {
       return;
     }
@@ -915,7 +968,7 @@ namespace input {
 
     auto &touch_port = input->touch_port;
 
-    platf::abs_mouse(platf_input, platform_touch_port(touch_port), tpcoords->first, tpcoords->second);
+    platf::abs_mouse(host.platf_input, platform_touch_port(touch_port), tpcoords->first, tpcoords->second);
   }
 
   /**
@@ -925,19 +978,20 @@ namespace input {
    * @param packet The mouse button packet.
    */
   void passthrough(std::shared_ptr<input_t> &input, PNV_MOUSE_BUTTON_PACKET packet) {
+    auto &host = input->host;
     if (!config::input.mouse) {
       return;
     }
 
     auto release = util::endian::little(packet->header.magic) == MOUSE_BUTTON_UP_EVENT_MAGIC_GEN5;
     auto button = util::endian::big(packet->button);
-    if (button > 0 && button < mouse_press.size()) {
-      if (mouse_press[button] != release) {
+    if (button > 0 && button < host.mouse_press.size()) {
+      if (host.mouse_press[button] != release) {
         // button state is already what we want
         return;
       }
 
-      mouse_press[button] = !release;
+      host.mouse_press[button] = !release;
     }
     /**
      * When Moonlight sends mouse input through absolute coordinates,
@@ -954,19 +1008,19 @@ namespace input {
      * when the last mouse coordinates were absolute
      */
     if (button == BUTTON_LEFT && release && !input->mouse_left_button_timeout) {
-      auto f = [=]() {
-        auto left_released = mouse_press[BUTTON_LEFT];
+      auto f = [=, &host]() {
+        auto left_released = host.mouse_press[BUTTON_LEFT];
         if (left_released) {
           // Already released left button
           return;
         }
-        platf::button_mouse(platf_input, BUTTON_LEFT, release);
+        platf::button_mouse(host.platf_input, BUTTON_LEFT, release);
 
-        mouse_press[BUTTON_LEFT] = false;
+        host.mouse_press[BUTTON_LEFT] = false;
         input->mouse_left_button_timeout = nullptr;
       };
 
-      input->mouse_left_button_timeout = task_pool.pushDelayed(std::move(f), 10ms).task_id;
+      input->mouse_left_button_timeout = host.scheduler.pushDelayed(std::move(f), 10ms).task_id;
 
       return;
     }
@@ -974,15 +1028,15 @@ namespace input {
       button == BUTTON_RIGHT && !release &&
       input->mouse_left_button_timeout > DISABLE_LEFT_BUTTON_DELAY
     ) {
-      platf::button_mouse(platf_input, BUTTON_RIGHT, false);
-      platf::button_mouse(platf_input, BUTTON_RIGHT, true);
+      platf::button_mouse(host.platf_input, BUTTON_RIGHT, false);
+      platf::button_mouse(host.platf_input, BUTTON_RIGHT, true);
 
-      mouse_press[BUTTON_RIGHT] = false;
+      host.mouse_press[BUTTON_RIGHT] = false;
 
       return;
     }
 
-    platf::button_mouse(platf_input, button, release);
+    platf::button_mouse(host.platf_input, button, release);
   }
 
   /**
@@ -1123,15 +1177,16 @@ namespace input {
    * @param release Whether the key event is a release.
    * @param flags Bit flags that modify the requested operation.
    * @param extended Whether the client identified an extended key.
+   * @param host Host input or video service and its capture dependencies.
    */
-  void emit_keyboard_update(uint16_t key_code, bool release, uint8_t flags, bool extended = false) {
+  void emit_keyboard_update(service_t::impl_t &host, uint16_t key_code, bool release, uint8_t flags, bool extended = false) {
 #ifdef SUNSHINE_TESTS
-    if (keyboard_sink()) {
-      keyboard_sink()(testing::keyboard_event_t {key_code, release, flags, extended});
+    if (keyboard_sink(host)) {
+      keyboard_sink(host)(testing::keyboard_event_t {key_code, release, flags, extended});
       return;
     }
 #endif
-    platf::keyboard_update(platf_input, key_code, release, flags, extended);
+    platf::keyboard_update(host.platf_input, key_code, release, flags, extended);
   }
 
   /**
@@ -1142,33 +1197,34 @@ namespace input {
    * @param flags Bit flags that modify the requested operation.
    * @param synthetic_modifiers Synthetic modifiers.
    * @param extended Whether the client identified an extended key.
+   * @param host Host input or video service and its capture dependencies.
    */
-  void send_key_and_modifiers(uint16_t key_code, bool release, uint8_t flags, uint8_t synthetic_modifiers, bool extended) {
+  void send_key_and_modifiers(service_t::impl_t &host, uint16_t key_code, bool release, uint8_t flags, uint8_t synthetic_modifiers, bool extended) {
     if (!release) {
       // Press any synthetic modifiers required for this key
       if (synthetic_modifiers & MODIFIER_SHIFT) {
-        emit_keyboard_update(VKEY_SHIFT, false, flags);
+        emit_keyboard_update(host, VKEY_SHIFT, false, flags);
       }
       if (synthetic_modifiers & MODIFIER_CTRL) {
-        emit_keyboard_update(VKEY_CONTROL, false, flags);
+        emit_keyboard_update(host, VKEY_CONTROL, false, flags);
       }
       if (synthetic_modifiers & MODIFIER_ALT) {
-        emit_keyboard_update(VKEY_MENU, false, flags);
+        emit_keyboard_update(host, VKEY_MENU, false, flags);
       }
     }
 
-    emit_keyboard_update(map_keycode(key_code), release, flags, extended);
+    emit_keyboard_update(host, map_keycode(key_code), release, flags, extended);
 
     if (!release) {
       // Raise any synthetic modifier keys we pressed
       if (synthetic_modifiers & MODIFIER_SHIFT) {
-        emit_keyboard_update(VKEY_SHIFT, true, flags);
+        emit_keyboard_update(host, VKEY_SHIFT, true, flags);
       }
       if (synthetic_modifiers & MODIFIER_CTRL) {
-        emit_keyboard_update(VKEY_CONTROL, true, flags);
+        emit_keyboard_update(host, VKEY_CONTROL, true, flags);
       }
       if (synthetic_modifiers & MODIFIER_ALT) {
-        emit_keyboard_update(VKEY_MENU, true, flags);
+        emit_keyboard_update(host, VKEY_MENU, true, flags);
       }
     }
   }
@@ -1179,18 +1235,23 @@ namespace input {
    * @param key_code Moonlight keyboard packet key code.
    * @param flags Bit flags that modify the requested operation.
    * @param synthetic_modifiers Synthetic modifiers.
+   * @param owner Host input or video service and its capture dependencies.
    */
-  void repeat_key(uint16_t key_code, uint8_t flags, uint8_t synthetic_modifiers) {
+  void repeat_key(std::shared_ptr<service_t::impl_t> owner, uint16_t key_code, uint8_t flags, uint8_t synthetic_modifiers) {
+    auto &host = *owner;
+    if (host.stopping.load()) {
+      return;
+    }
     // If key no longer pressed, stop repeating
-    const auto state = key_press[make_kpid(key_code, flags)];
+    const auto state = host.key_press[make_kpid(key_code, flags)];
     if (!state.pressed) {
-      key_press_repeat_id = nullptr;
+      host.key_press_repeat_id = nullptr;
       return;
     }
 
-    send_key_and_modifiers(key_code, false, flags, synthetic_modifiers, state.extended);
+    send_key_and_modifiers(host, key_code, false, flags, synthetic_modifiers, state.extended);
 
-    key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_period, key_code, flags, synthetic_modifiers).task_id;
+    host.key_press_repeat_id = host.scheduler.pushDelayed(repeat_key, config::input.key_repeat_period, std::move(owner), key_code, flags, synthetic_modifiers).task_id;
   }
 
   /**
@@ -1200,6 +1261,7 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
+    auto &host = input->host;
     if (!config::input.keyboard) {
       return;
     }
@@ -1230,23 +1292,23 @@ namespace input {
       }
     }
 
-    auto &state = key_press[make_kpid(keyCode, packet->flags)];
+    auto &state = host.key_press[make_kpid(keyCode, packet->flags)];
     if (!state.pressed) {
       if (!release) {
         // A new key has been pressed down, we need to check for key combo's
         // If a key-combo has been pressed down, don't pass it through
-        if (input->shortcutFlags == input_t::SHORTCUT && apply_shortcut(keyCode) > 0) {
+        if (input->shortcutFlags == input_t::SHORTCUT && apply_shortcut(host, keyCode) > 0) {
           return;
         }
 
         state.extended = (modifiers & MODIFIER_EXTENDED) != 0;
 
-        if (key_press_repeat_id) {
-          task_pool.cancel(key_press_repeat_id);
+        if (host.key_press_repeat_id) {
+          host.scheduler.cancel(host.key_press_repeat_id);
         }
 
         if (config::input.key_repeat_delay.count() > 0) {
-          key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_delay, keyCode, packet->flags, synthetic_modifiers).task_id;
+          host.key_press_repeat_id = host.scheduler.pushDelayed(repeat_key, config::input.key_repeat_delay, input->owner, keyCode, packet->flags, synthetic_modifiers).task_id;
         }
       } else {
         // Already released
@@ -1259,7 +1321,7 @@ namespace input {
 
     state.pressed = !release;
 
-    send_key_and_modifiers(keyCode, release, packet->flags, synthetic_modifiers, state.extended);
+    send_key_and_modifiers(host, keyCode, release, packet->flags, synthetic_modifiers, state.extended);
 
     // Track the modifier state the client is holding, not the remapped host key.
     // This is compared against packet->modifiers above, which is client-side, so a
@@ -1273,18 +1335,19 @@ namespace input {
    * @param packet The scroll packet.
    */
   void passthrough(std::shared_ptr<input_t> &input, PNV_SCROLL_PACKET packet) {
+    auto &host = input->host;
     if (!config::input.mouse) {
       return;
     }
 
     if (config::input.high_resolution_scrolling) {
-      platf::scroll(platf_input, util::endian::big(packet->scrollAmt1));
+      platf::scroll(host.platf_input, util::endian::big(packet->scrollAmt1));
     } else {
       input->accumulated_vscroll_delta += util::endian::big(packet->scrollAmt1);
       auto full_ticks = input->accumulated_vscroll_delta / WHEEL_DELTA;
       if (full_ticks) {
         // Send any full ticks that have accumulated and store the rest
-        platf::scroll(platf_input, full_ticks * WHEEL_DELTA);
+        platf::scroll(host.platf_input, full_ticks * WHEEL_DELTA);
         input->accumulated_vscroll_delta -= full_ticks * WHEEL_DELTA;
       }
     }
@@ -1296,18 +1359,19 @@ namespace input {
    * @param packet The scroll packet.
    */
   void passthrough(std::shared_ptr<input_t> &input, PSS_HSCROLL_PACKET packet) {
+    auto &host = input->host;
     if (!config::input.mouse) {
       return;
     }
 
     if (config::input.high_resolution_scrolling) {
-      platf::hscroll(platf_input, util::endian::big(packet->scrollAmount));
+      platf::hscroll(host.platf_input, util::endian::big(packet->scrollAmount));
     } else {
       input->accumulated_hscroll_delta += util::endian::big(packet->scrollAmount);
       auto full_ticks = input->accumulated_hscroll_delta / WHEEL_DELTA;
       if (full_ticks) {
         // Send any full ticks that have accumulated and store the rest
-        platf::hscroll(platf_input, full_ticks * WHEEL_DELTA);
+        platf::hscroll(host.platf_input, full_ticks * WHEEL_DELTA);
         input->accumulated_hscroll_delta -= full_ticks * WHEEL_DELTA;
       }
     }
@@ -1317,14 +1381,15 @@ namespace input {
    * @brief Forward a client input packet directly to the platform backend.
    *
    * @param packet Protocol packet being processed.
+   * @param host Host input or video service and its capture dependencies.
    */
-  void passthrough(const NV_UNICODE_PACKET *packet) {
+  void passthrough(service_t::impl_t &host, const NV_UNICODE_PACKET *packet) {
     if (!config::input.keyboard) {
       return;
     }
 
     int size = util::endian::big(packet->header.size) - sizeof(packet->header.magic);
-    platf::unicode(platf_input, packet->text, size);
+    platf::unicode(host.platf_input, packet->text, size);
   }
 
   /**
@@ -1336,6 +1401,7 @@ namespace input {
    * @return Assigned global gamepad slot, or -1 when allocation fails.
    */
   int alloc_gamepad(std::shared_ptr<input_t> &input, int client_index, const platf::gamepad_arrival_t &arrival) {
+    auto &host = input->host;
     if (client_index < 0 || client_index >= input->gamepads.size()) {
       BOOST_LOG(warning) << "ControllerNumber out of range ["sv << client_index << ']';
       return -1;
@@ -1347,13 +1413,13 @@ namespace input {
       return gamepad.id;
     }
 
-    const auto id = alloc_id(gamepadMask);
+    const auto id = alloc_id(host.gamepadMask);
     if (id < 0) {
       return -1;
     }
 
-    if (platf::alloc_gamepad(platf_input, {id, static_cast<std::uint8_t>(client_index)}, arrival, input->feedback_queue)) {
-      free_id(gamepadMask, id);
+    if (platf::alloc_gamepad(host.platf_input, {id, static_cast<std::uint8_t>(client_index)}, arrival, input->feedback_queue)) {
+      free_id(host.gamepadMask, id);
       return -1;
     }
 
@@ -1517,6 +1583,7 @@ namespace input {
    * @param packet The controller touch packet.
    */
   void passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_TOUCH_PACKET packet) {
+    auto &host = input->host;
     if (!config::input.controller || config::input.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
       return;
     }
@@ -1541,7 +1608,7 @@ namespace input {
       from_clamped_netfloat(packet->pressure, 0.0f, 1.0f),
     };
 
-    platf::gamepad_touch(platf_input, touch);
+    platf::gamepad_touch(host.platf_input, touch);
   }
 
   /**
@@ -1550,6 +1617,7 @@ namespace input {
    * @param packet The controller motion packet.
    */
   void passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_MOTION_PACKET packet) {
+    auto &host = input->host;
     if (!config::input.controller || config::input.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
       return;
     }
@@ -1573,7 +1641,7 @@ namespace input {
       from_netfloat(packet->z),
     };
 
-    platf::gamepad_motion(platf_input, motion);
+    platf::gamepad_motion(host.platf_input, motion);
   }
 
   /**
@@ -1582,6 +1650,7 @@ namespace input {
    * @param packet The controller battery packet.
    */
   void passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_BATTERY_PACKET packet) {
+    auto &host = input->host;
     if (!config::input.controller || config::input.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
       return;
     }
@@ -1603,7 +1672,7 @@ namespace input {
       packet->batteryPercentage
     };
 
-    platf::gamepad_battery(platf_input, battery);
+    platf::gamepad_battery(host.platf_input, battery);
   }
 
   /**
@@ -1613,6 +1682,7 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET packet) {
+    auto &host = input->host;
     if (!config::input.controller || config::input.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
       return;
     }
@@ -1633,7 +1703,7 @@ namespace input {
       }
     } else if (!(packet->activeGamepadMask & (1 << packet->controllerNumber)) && gamepad.id >= 0) {
       // If this is the final event for a gamepad being removed, free the gamepad and return.
-      ::input::free_gamepad(platf_input, gamepad.id);
+      ::input::free_gamepad(host, gamepad.id);
       gamepad.id = -1;
       return;
     }
@@ -1683,7 +1753,7 @@ namespace input {
       if (platf::BACK & bf_new) {
         // Don't emulate home button if timeout < 0
         if (config::input.back_button_timeout >= 0ms) {
-          auto f = [input, controller = packet->controllerNumber]() {
+          auto f = [input, controller = packet->controllerNumber, &host]() {
             auto &gamepad = input->gamepads[controller];
 
             auto &state = gamepad.gamepad_state;
@@ -1691,31 +1761,31 @@ namespace input {
             // Force the back button up
             gamepad.back_button_state = button_state_e::UP;
             state.buttonFlags &= ~platf::BACK;
-            platf::gamepad_update(platf_input, gamepad.id, state);
+            platf::gamepad_update(host.platf_input, gamepad.id, state);
 
             // Press Home button
             state.buttonFlags |= platf::HOME;
-            platf::gamepad_update(platf_input, gamepad.id, state);
+            platf::gamepad_update(host.platf_input, gamepad.id, state);
 
             // Sleep for a short time to allow the input to be detected
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
             // Release Home button
             state.buttonFlags &= ~platf::HOME;
-            platf::gamepad_update(platf_input, gamepad.id, state);
+            platf::gamepad_update(host.platf_input, gamepad.id, state);
 
             gamepad.back_timeout_id = nullptr;
           };
 
-          gamepad.back_timeout_id = task_pool.pushDelayed(std::move(f), config::input.back_button_timeout).task_id;
+          gamepad.back_timeout_id = host.scheduler.pushDelayed(std::move(f), config::input.back_button_timeout).task_id;
         }
       } else if (gamepad.back_timeout_id) {
-        task_pool.cancel(gamepad.back_timeout_id);
+        host.scheduler.cancel(gamepad.back_timeout_id);
         gamepad.back_timeout_id = nullptr;
       }
     }
 
-    platf::gamepad_update(platf_input, gamepad.id, gamepad_state);
+    platf::gamepad_update(host.platf_input, gamepad.id, gamepad_state);
 
     gamepad.gamepad_state = gamepad_state;
   }
@@ -2094,13 +2164,14 @@ namespace input {
    * @param input Retained stream input state.
    */
   void schedule_input_packet_task(const std::shared_ptr<input_t> &input) {
+    auto &host = input->host;
 #ifdef SUNSHINE_TESTS
-    if (const auto &sink = input_task_sink(); sink) {
+    if (const auto &sink = input_task_sink(host); sink) {
       sink(input);
       return;
     }
 #endif
-    task_pool.push(passthrough_queued_messages, input);
+    host.scheduler.push(passthrough_queued_messages, input);
   }
 
   /**
@@ -2110,6 +2181,7 @@ namespace input {
    * @return True if a packet was processed, or false when the stream queue is empty.
    */
   bool passthrough_next_message(std::shared_ptr<input_t> &input) {
+    auto &host = input->host;
     // 'entry' backs the 'payload' pointer, so they must remain in scope together
     std::vector<uint8_t> entry;
     PNV_INPUT_HEADER payload;
@@ -2155,7 +2227,7 @@ namespace input {
     input::print((void *) payload);
 
 #ifdef SUNSHINE_TESTS
-    if (const auto &hook = input_packet_hook(); hook) {
+    if (const auto &hook = input_packet_hook(host); hook) {
       hook(util::endian::little(payload->magic));
     }
 #endif
@@ -2183,7 +2255,7 @@ namespace input {
         passthrough(input, (PNV_KEYBOARD_PACKET) payload);
         break;
       case UTF8_TEXT_EVENT_MAGIC:
-        passthrough(static_cast<const NV_UNICODE_PACKET *>(static_cast<const void *>(payload)));
+        passthrough(host, static_cast<const NV_UNICODE_PACKET *>(static_cast<const void *>(payload)));
         break;
       case MULTI_CONTROLLER_MAGIC_GEN5:
         passthrough(input, (PNV_MULTI_CONTROLLER_PACKET) payload);
@@ -2270,26 +2342,28 @@ namespace input {
 
   /**
    * @brief Release every pressed mouse button tracked by Sunshine.
+   * @param host Host input or video service and its capture dependencies.
    */
-  void reset_mouse_buttons() {
-    for (int button = 0; button < mouse_press.size(); ++button) {
-      if (mouse_press[button]) {
-        platf::button_mouse(platf_input, button, true);
-        mouse_press[button] = false;
+  void reset_mouse_buttons(service_t::impl_t &host) {
+    for (int button = 0; button < host.mouse_press.size(); ++button) {
+      if (host.mouse_press[button]) {
+        platf::button_mouse(host.platf_input, button, true);
+        host.mouse_press[button] = false;
       }
     }
   }
 
   /**
    * @brief Release every pressed keyboard key tracked by Sunshine.
+   * @param host Host input or video service and its capture dependencies.
    */
-  void reset_keyboard_keys() {
-    for (auto &[key, state] : key_press) {
+  void reset_keyboard_keys(service_t::impl_t &host) {
+    for (auto &[key, state] : host.key_press) {
       if (state.pressed) {
-        // key_press is keyed on the client's unmapped virtual-key code, but the press was
+        // host.key_press is keyed on the client's unmapped virtual-key code, but the press was
         // emitted through map_keycode(). Release the host key that actually went down,
         // otherwise a remapped modifier stays latched after the client disconnects.
-        emit_keyboard_update(map_keycode(vk_from_kpid(key) & 0x00FF), true, flags_from_kpid(key), state.extended);
+        emit_keyboard_update(host, map_keycode(vk_from_kpid(key) & 0x00FF), true, flags_from_kpid(key), state.extended);
         state.pressed = false;
       }
     }
@@ -2301,16 +2375,17 @@ namespace input {
    * @param input Retained stream input state to neutralize.
    */
   void reset_gamepads(const std::shared_ptr<input_t> &input) {
+    auto &host = input->host;
     for (int client_index = 0; client_index < input->gamepads.size(); ++client_index) {
       auto &gamepad = input->gamepads[client_index];
       if (gamepad.back_timeout_id) {
-        task_pool.cancel(gamepad.back_timeout_id);
+        host.scheduler.cancel(gamepad.back_timeout_id);
         gamepad.back_timeout_id = nullptr;
       }
       if (gamepad.id >= 0) {
-        platf::gamepad_update(platf_input, gamepad.id, {});
+        platf::gamepad_update(host.platf_input, gamepad.id, {});
         platf::gamepad_touch(
-          platf_input,
+          host.platf_input,
           {{gamepad.id, static_cast<std::uint8_t>(client_index)}, LI_TOUCH_EVENT_CANCEL_ALL, 0, 0.0F, 0.0F, 0.0F}
         );
       }
@@ -2325,8 +2400,9 @@ namespace input {
    * @param input Retained stream input state to reset.
    */
   void reset_input_state(const std::shared_ptr<input_t> &input) {
-    reset_mouse_buttons();
-    reset_keyboard_keys();
+    auto &host = input->host;
+    reset_mouse_buttons(host);
+    reset_keyboard_keys(host);
     reset_gamepads(input);
   }
 
@@ -2334,32 +2410,35 @@ namespace input {
    * @brief Reset the object to its initial empty state.
    */
   void reset(std::shared_ptr<input_t> &input) {
-    task_pool.cancel(key_press_repeat_id);
-    task_pool.cancel(input->mouse_left_button_timeout);
+    auto &host = input->host;
+    host.scheduler.cancel(host.key_press_repeat_id);
+    host.scheduler.cancel(input->mouse_left_button_timeout);
 
-    // Ensure input is synchronous, by using the task_pool
-    task_pool.push(reset_input_state, input);
+    // Ensure input is synchronous, by using the host.scheduler
+    host.scheduler.push(reset_input_state, input);
   }
 
-  void terminate_gamepads() {
+  void service_t::terminate_gamepads() {
+    auto &host = *impl_;
     retained_input_map_t inputs;
     {
-      auto &state = retained_input_state();
+      auto &state = host.retained;
       std::lock_guard lock {state.mutex};
       state.inputs.swap(inputs);
     }
 
     if (!inputs.empty()) {
-      dispatch_input_task([inputs = std::move(inputs)]() {
+      dispatch_input_task(host, [inputs = std::move(inputs), &host]() {
         destroy_gamepads(inputs);
       });
     }
   }
 
-  void terminate_gamepads(const std::string_view session_id) {
+  void service_t::terminate_gamepads(const std::string_view session_id) {
+    auto &host = *impl_;
     std::shared_ptr<input_t> input;
     {
-      auto &state = retained_input_state();
+      auto &state = host.retained;
       std::lock_guard lock {state.mutex};
       const auto iter = state.inputs.find(session_id);
       if (iter == state.inputs.end()) {
@@ -2370,58 +2449,65 @@ namespace input {
       state.inputs.erase(iter);
     }
 
-    dispatch_input_task([input = std::move(input)]() {
+    dispatch_input_task(host, [input = std::move(input), &host]() {
       destroy_gamepads(input);
     });
   }
 
-  /**
-   * @brief RAII helper that runs shutdown cleanup when destroyed.
-   */
-  class deinit_t: public platf::deinit_t {
-  public:
-    /**
-     * @brief Destroy the input subsystem deinitializer.
-     */
-    ~deinit_t() override {
+  service_t::service_t(thread_pool_util::ThreadPool &scheduler, safe::mail_t mail, bool &cursor):
+      impl_ {std::make_shared<impl_t>(scheduler, std::move(mail), cursor)} {
+  }
+
+  service_t::~service_t() {
+    auto &host = *impl_;
+    host.stopping.store(true);
+    auto cleanup = [owner = impl_]() {
+      auto &host = *owner;
       retained_input_map_t inputs;
       {
-        auto &state = retained_input_state();
-        std::lock_guard lock {state.mutex};
-        state.inputs.swap(inputs);
+        std::lock_guard lock {host.retained.mutex};
+        host.retained.inputs.swap(inputs);
       }
+      for (const auto &[id, input] : inputs) {
+        host.scheduler.cancel(input->mouse_left_button_timeout);
+      }
+      host.scheduler.cancel(host.key_press_repeat_id);
       destroy_gamepads(inputs);
-      platf_input.reset();
+      host.platf_input.reset();
+    };
+    if (host.scheduler.running()) {
+      host.scheduler.push(std::move(cleanup)).get();
+    } else {
+      cleanup();
     }
-  };
+  }
 
-  /**
-   * @brief Initialize the platform input backend.
-   */
-  [[nodiscard]] std::unique_ptr<platf::deinit_t> init() {
-    platf_input = platf::input();
-
-    return std::make_unique<deinit_t>();
+  bool service_t::initialize() {
+    impl_->platf_input = platf::input(impl_->scheduler);
+    return static_cast<bool>(impl_->platf_input);
   }
 
   /**
    * @brief Probe connected gamepads and update input capability state.
    */
-  bool probe_gamepads() {
-    const auto &gamepads = platf::supported_gamepads(std::addressof(platf_input));
+  bool service_t::probe_gamepads() {
+    auto &host = *impl_;
+    const auto &gamepads = platf::supported_gamepads(std::addressof(host.platf_input));
     return std::ranges::none_of(gamepads, [](const auto &gamepad) {
       return gamepad.is_enabled && gamepad.name != "auto";
     });
   }
 
-  void refresh_virtual_input() {
-    dispatch_input_task([]() {
-      if (platf_input) {
-        task_pool.cancel(key_press_repeat_id);
-        key_press_repeat_id = nullptr;
-        reset_mouse_buttons();
-        reset_keyboard_keys();
-        auto &context = platf::virtualhid::get_input_context(platf_input);
+  void service_t::refresh_virtual_input() {
+    auto &host = *impl_;
+    dispatch_input_task(host, [owner = impl_]() {
+      auto &host = *owner;
+      if (host.platf_input) {
+        host.scheduler.cancel(host.key_press_repeat_id);
+        host.key_press_repeat_id = nullptr;
+        reset_mouse_buttons(host);
+        reset_keyboard_keys(host);
+        auto &context = platf::virtualhid::get_input_context(host.platf_input);
         context.refresh_keyboard();
         context.refresh_mouse();
       }
@@ -2431,11 +2517,12 @@ namespace input {
   /**
    * @brief Allocate and initialize platform input state for a stream.
    */
-  std::shared_ptr<input_t> alloc(safe::mail_t mail, std::string session_id) {
+  std::shared_ptr<input_t> service_t::alloc(safe::mail_t mail, std::string session_id) {
+    auto &host = *impl_;
     std::shared_ptr<input_t> input;
     bool resumed = false;
     {
-      auto &state = retained_input_state();
+      auto &state = host.retained;
       std::lock_guard lock {state.mutex};
       const auto iter = state.inputs.find(session_id);
       if (iter != state.inputs.end()) {
@@ -2443,6 +2530,7 @@ namespace input {
         resumed = true;
       } else {
         input = std::make_shared<input_t>(
+          impl_,
           mail->event<input::touch_port_t>(mail::touch_port),
           mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback)
         );
@@ -2451,27 +2539,30 @@ namespace input {
     }
 
     if (resumed) {
-      dispatch_input_task([input, mail = std::move(mail)]() {
+      dispatch_input_task(host, [input, mail = std::move(mail), &host]() {
         rebind_input(input, mail);
       });
     }
 
     // Workaround to ensure new frames will be captured when a client connects
-    task_pool.pushDelayed([]() {
-      platf::move_mouse(platf_input, 1, 1);
-      platf::move_mouse(platf_input, -1, -1);
+    host.scheduler.pushDelayed([owner = impl_]() {
+      if (!owner->stopping.load()) {
+        platf::move_mouse(owner->platf_input, 1, 1);
+        platf::move_mouse(owner->platf_input, -1, -1);
+      }
     },
-                          100ms);
+                               100ms);
 
     return input;
   }
 
 #ifdef SUNSHINE_TESTS
   namespace testing {
-    void set_platform_input(platf::input_t input) {
-      terminate_gamepads();
-      platf_input = std::move(input);
-      gamepadMask.reset();
+    void set_platform_input(service_t &service, platf::input_t input) {
+      auto &host = service_access_t::state(service);
+      service.terminate_gamepads();
+      host.platf_input = std::move(input);
+      host.gamepadMask.reset();
     }
 
     int alloc_gamepad(std::shared_ptr<input_t> &input, std::uint8_t client_index, const platf::gamepad_arrival_t &metadata) {
@@ -2485,20 +2576,23 @@ namespace input {
       return input->gamepads[client_index].id;
     }
 
-    void set_input_packet_hook(std::function<void(std::uint32_t)> hook) {
-      input_packet_hook() = std::move(hook);
+    void set_input_packet_hook(service_t &service, std::function<void(std::uint32_t)> hook) {
+      auto &host = service_access_t::state(service);
+      input_packet_hook(host) = std::move(hook);
     }
 
-    void set_input_task_sink(std::function<void(std::shared_ptr<input_t>)> sink) {
-      input_task_sink() = std::move(sink);
+    void set_input_task_sink(service_t &service, std::function<void(std::shared_ptr<input_t>)> sink) {
+      auto &host = service_access_t::state(service);
+      input_task_sink(host) = std::move(sink);
     }
 
     void process_queued_messages(std::shared_ptr<input_t> input) {
       ::input::passthrough_queued_messages(std::move(input));
     }
 
-    void set_keyboard_sink(std::function<void(const keyboard_event_t &)> sink) {
-      keyboard_sink() = std::move(sink);
+    void set_keyboard_sink(service_t &service, std::function<void(const keyboard_event_t &)> sink) {
+      auto &host = service_access_t::state(service);
+      keyboard_sink(host) = std::move(sink);
     }
 
     void send_keyboard_packet(std::shared_ptr<input_t> &input, std::uint16_t key_code, std::uint8_t modifiers, std::uint8_t flags, bool release) {
@@ -2525,14 +2619,16 @@ namespace input {
       ::input::passthrough(input, &packet);
     }
 
-    void reset_keyboard_state() {
-      task_pool.cancel(key_press_repeat_id);
-      key_press_repeat_id = nullptr;
-      key_press.clear();
+    void reset_keyboard_state(service_t &service) {
+      auto &host = service_access_t::state(service);
+      host.scheduler.cancel(host.key_press_repeat_id);
+      host.key_press_repeat_id = nullptr;
+      host.key_press.clear();
     }
 
-    void release_held_keys() {
-      reset_keyboard_keys();
+    void release_held_keys(service_t &service) {
+      auto &host = service_access_t::state(service);
+      reset_keyboard_keys(host);
     }
 
     bool is_valid_input_packet(std::span<const std::uint8_t> packet) {

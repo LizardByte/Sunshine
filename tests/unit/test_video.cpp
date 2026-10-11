@@ -22,6 +22,7 @@ extern "C" {
 
 // local includes
 #include <src/config.h>
+#include <src/display_device.h>
 #include <src/video.h>
 
 using namespace std::literals;
@@ -67,11 +68,54 @@ TEST(VideoFormatMappingTest, MapsSupportedPixelFormatsAndRejectsUnsupportedOnes)
   }
 }
 
-struct EncoderTest: PlatformTestSuite, testing::WithParamInterface<video::encoder_t *> {
+TEST(VideoServiceOwnershipTest, SnapshotChangesDoNotMutateServiceStateAndUnprobedCaptureStopsItsSession) {
+  runtime::infrastructure_t infrastructure;
+  display_device::manager_t displays;
+  platf::runtime_t platform {
+    infrastructure.mailbox(),
+    infrastructure.scheduler(),
+    infrastructure.lifetime(),
+    displays
+#ifdef _WIN32
+    ,
+    infrastructure.preferences()
+#endif
+  };
+  video::service_t first {infrastructure.mailbox(), infrastructure.cursor(), displays, platform};
+  video::service_t second {std::make_shared<safe::mail_raw_t>(), infrastructure.cursor(), displays, platform};
+  auto snapshot = first.capabilities();
+  snapshot.active_hevc_mode = 5;
+  snapshot.yuv444.fill(true);
+  EXPECT_EQ(first.capabilities().active_hevc_mode, 0);
+  EXPECT_EQ(second.capabilities().active_hevc_mode, 0);
+  EXPECT_FALSE(first.capabilities().yuv444[0]);
+
+  auto session_mail = std::make_shared<safe::mail_raw_t>();
+  auto shutdown = session_mail->event<bool>(mail::shutdown);
+  first.capture(session_mail, {}, nullptr);
+  EXPECT_TRUE(shutdown->peek());
+}
+
+TEST(VideoEncoderOwnershipTest, DescriptorCopiesKeepProbeCapabilitiesIndependent) {
+  auto first = video::software;
+  auto second = video::software;
+  first.h264[video::encoder_t::PASSED] = true;
+  first.hevc[video::encoder_t::DYNAMIC_RANGE] = true;
+  EXPECT_FALSE(second.h264[video::encoder_t::PASSED]);
+  EXPECT_FALSE(second.hevc[video::encoder_t::DYNAMIC_RANGE]);
+  EXPECT_FALSE(video::software.h264[video::encoder_t::PASSED]);
+  EXPECT_EQ(first.platform_formats, second.platform_formats);
+}
+
+struct EncoderTest: PlatformTestSuite, testing::WithParamInterface<const video::encoder_t *> {
+  runtime::infrastructure_t infrastructure_;  ///< Infrastructure owned by this encoder fixture.
+  display_device::manager_t displays_;  ///< Display configuration owner for encoder validation.
+  video::service_t videos_ {infrastructure_.mailbox(), infrastructure_.cursor(), displays_, platform()};  ///< Fixture-owned video service.
+
   void SetUp() override {
     BaseTest::SetUp();
-    auto &encoder = *GetParam();
-    if (!video::validate_encoder(encoder, false)) {
+    auto encoder = *GetParam();
+    if (!videos_.validate_encoder(encoder, false)) {
       // Encoder failed validation,
       // if it's software - fail, otherwise skip
       if (encoder.name == "software") {

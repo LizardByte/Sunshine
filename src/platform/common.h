@@ -41,6 +41,22 @@ struct AVHWFramesContext;
 struct AVCodecContext;
 struct AVDictionary;
 
+namespace thread_pool_util {
+  class ThreadPool;
+}
+
+namespace lifetime {
+  class controller_t;
+}
+
+namespace display_device {
+  class manager_t;
+}
+
+namespace nvprefs {
+  class nvprefs_interface;
+}
+
 #ifdef _WIN32
 // Forward declarations of boost classes to avoid having to include boost headers
 // here, which results in issues with Windows.h and WinSock2.h include order.
@@ -986,7 +1002,7 @@ namespace platf {
   void streaming_will_start();
   void streaming_will_stop();
 
-  void restart();
+  void restart(lifetime::controller_t &lifetime);
 
   /**
    * @brief Platform buffer pointer and size for batched socket sends.
@@ -1111,6 +1127,97 @@ namespace platf {
   std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging);
 
   /**
+   * @brief Own platform resources for one application lifetime.
+   */
+  class runtime_t {
+  public:
+    /**
+     * @brief Bind the application services used by platform resources.
+     * @param mail Application mailbox.
+     * @param scheduler Scheduler for deferred native input and capture work.
+     * @param lifetime Application exit and restart controller.
+     * @param displays Display configuration manager.
+     * @param preferences NVIDIA preference manager on Windows.
+     */
+    runtime_t(safe::mail_t mail, thread_pool_util::ThreadPool &scheduler, lifetime::controller_t &lifetime, display_device::manager_t &displays
+#ifdef _WIN32
+              ,
+              nvprefs::nvprefs_interface &preferences
+#endif
+    );
+    /**
+     * @brief Release platform resources after their consumers stop.
+     */
+    ~runtime_t();
+    /**
+     * @brief Platform owners cannot be copied.
+     */
+    runtime_t(const runtime_t &) = delete;
+    /**
+     * @brief Platform owners cannot be assigned.
+     */
+    runtime_t &operator=(const runtime_t &) = delete;
+    /**
+     * @brief Initialize native capture and application resources.
+     * @return Whether initialization succeeded.
+     */
+    bool initialize();
+    /**
+     * @brief Enumerate names accepted by the selected capture backend.
+     * @param type Requested memory type.
+     * @return Display names.
+     */
+    std::vector<std::string> display_names(mem_type_e type);
+    /**
+     * @brief Create a capture resource.
+     * @param type Requested memory type.
+     * @param name Display name.
+     * @param config Capture configuration.
+     * @return Capture resource, or nullptr.
+     */
+    std::shared_ptr<display_t> display(mem_type_e type, const std::string &name, const video::config_t &config);
+    /**
+     * @brief Check whether a GPU change requires another encoder probe.
+     * @return Whether to repeat probing.
+     */
+    bool needs_encoder_reenumeration();
+    /**
+     * @brief Set codec requirements for subsequently created capture resources.
+     * @param hevc_mode Active HEVC mode.
+     */
+    void set_capture_requirements(int hevc_mode);
+    /**
+     * @brief Apply native settings when streaming begins.
+     */
+    void streaming_will_start();
+    /**
+     * @brief Restore native settings when streaming ends.
+     */
+    void streaming_will_stop();
+    /**
+     * @brief Enable native mouse support when required by the current devices.
+     */
+    void enable_mouse_keys();
+    /**
+     * @brief Create scoped socket priority settings.
+     * @param socket Native socket.
+     * @param address Destination address.
+     * @param port Destination port.
+     * @param type Traffic class.
+     * @param dscp_tagging Enable DSCP tagging.
+     * @return Settings lifetime owner.
+     */
+    std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e type, bool dscp_tagging);
+
+  private:
+    /**
+     * @brief Native implementation retained by dependent resources.
+     */
+    struct impl_t;
+    std::shared_ptr<impl_t> impl;
+  };
+
+  /**
    * @brief Open a url in the default web browser.
    * @param url The url to open.
    */
@@ -1135,7 +1242,7 @@ namespace platf {
    *
    * @return Platform-specific input backend for the active stream.
    */
-  input_t input();
+  input_t input(thread_pool_util::ThreadPool &scheduler);
   /**
    * @brief Get the current mouse position for platform input tests.
    *

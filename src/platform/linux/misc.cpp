@@ -103,8 +103,6 @@ using namespace std::literals;
 namespace fs = std::filesystem;
 namespace bp = boost::process::v1;
 
-window_system_e window_system;  ///< Window system.
-
 namespace dyn {
   /**
    * @brief Return the native handle owned by the wrapper.
@@ -610,7 +608,7 @@ namespace platf {
   /**
    * @brief Request a Sunshine process restart on exit.
    */
-  void restart_on_exit() {
+  void restart_on_exit(char **argv) {
     std::array<char, PATH_MAX> executable;
     ssize_t len = readlink("/proc/self/exe", executable.data(), executable.size() - 1);
     if (len == -1) {
@@ -626,7 +624,7 @@ namespace platf {
     }
 
     // Re-exec ourselves with the same arguments
-    if (execv(executable.data(), lifetime::get_argv()) < 0) {
+    if (execv(executable.data(), argv) < 0) {
       BOOST_LOG(fatal) << "execv() failed: "sv << errno;
       return;
     }
@@ -635,10 +633,12 @@ namespace platf {
   /**
    * @brief Restart the Sunshine process through the platform launcher.
    */
-  void restart() {
+  void restart(lifetime::controller_t &lifetime) {
     // Gracefully clean up and restart ourselves instead of exiting
-    atexit(restart_on_exit);
-    lifetime::exit_sunshine(0, true);
+    lifetime.restart_on_exit([argv = lifetime.get_argv()]() {
+      restart_on_exit(argv);
+    });
+    lifetime.exit_sunshine(0, true);
   }
 
   bool request_process_group_exit(std::uintptr_t native_handle) {
@@ -1013,10 +1013,113 @@ namespace platf {
     return true;
   }
 
+  namespace source {
+    /**
+     * @brief Enumerates supported source options.
+     */
+    enum source_e : std::size_t {
+#ifdef SUNSHINE_BUILD_CUDA
+      NVFBC,  ///< NvFBC
+#endif
+#ifdef SUNSHINE_BUILD_WAYLAND
+      WAYLAND,  ///< Wayland
+#endif
+#ifdef SUNSHINE_BUILD_DRM
+      KMS,  ///< KMS
+#endif
+#ifdef SUNSHINE_BUILD_X11
+      X11,  ///< X11
+#endif
+#ifdef SUNSHINE_BUILD_KWIN
+      KWIN,  ///< KWin ScreenCast
+#endif
+#ifdef SUNSHINE_BUILD_PORTAL
+      PORTAL,  ///< XDG PORTAL
+#endif
+      MAX_FLAGS  ///< The maximum number of flags
+    };
+  }  // namespace source
+
+  /**
+   * @brief Own capture discovery and deferred portal work for one host.
+   */
+  struct runtime_t::impl_t {
+    /**
+     * @brief Bind narrow host dependencies.
+     * @param mail Host mailbox.
+     * @param scheduler Host scheduler.
+     * @param lifetime Exit controller.
+     */
+    impl_t(safe::mail_t mail, thread_pool_util::ThreadPool &scheduler, lifetime::controller_t &lifetime):
+        mail(std::move(mail)),
+        scheduler(scheduler),
+        lifetime(lifetime) {}
+
+    safe::mail_t mail;  ///< Host mailbox retained by portal response loops.
+    thread_pool_util::ThreadPool &scheduler;  ///< Scheduler outliving all captures.
+    lifetime::controller_t &lifetime;  ///< Host restart controller.
+    window_system_e window_system {window_system_e::NONE};  ///< Detected desktop protocol.
+    std::bitset<source::MAX_FLAGS> sources;  ///< Capture backend selection.
+    std::shared_ptr<std::atomic<int>> qos_ref_count {std::make_shared<std::atomic<int>>(0)};  ///< Active socket-priority scopes.
+    std::string last_render_device;  ///< Last successfully probed GPU render node.
+    int hevc_mode {};  ///< Codec requirements for newly created captures.
+    bool initialized {};  ///< Whether platform initialization succeeded.
+#ifdef SUNSHINE_BUILD_DRM
+    std::shared_ptr<kms::capture_state_t> kms_state {kms::make_capture_state()};  ///< KMS discovery cache.
+    bool verify_kms();
+#endif
+#ifdef SUNSHINE_BUILD_WAYLAND
+    bool verify_wl();
+#endif
+#ifdef SUNSHINE_BUILD_X11
+    bool verify_x11();
+#endif
+#ifdef SUNSHINE_BUILD_PORTAL
+    std::jthread xdg_worker;  ///< Portal token negotiation worker.
+    std::once_flag xdg_worker_flag;  ///< One negotiation attempt per host.
+    bool verify_portal();
+#endif
+    /**
+     * @brief Stop response loops before joining portal negotiation.
+     */
+    ~impl_t() {
+#ifdef SUNSHINE_BUILD_PORTAL
+      if (xdg_worker.joinable()) {
+        mail->event<bool>(mail::shutdown)->raise(true);
+        xdg_worker.join();
+      }
+#endif
+    }
+
+    /**
+     * @brief Discover the available capture backends.
+     * @return Whether capture initialization succeeded.
+     */
+    bool initialize();
+    /**
+     * @brief Enumerate the selected capture backend.
+     * @param type Memory type.
+     * @return Display names.
+     */
+    std::vector<std::string> display_names(mem_type_e type);
+    /**
+     * @brief Create a selected capture backend.
+     * @param type Memory type.
+     * @param name Display selector.
+     * @param config Capture options.
+     * @return Capture resource.
+     */
+    std::shared_ptr<display_t> display(mem_type_e type, const std::string &name, const video::config_t &config);
+    /**
+     * @brief Detect render-node changes.
+     * @return Whether to repeat encoder probing.
+     */
+    bool needs_encoder_reenumeration();
+  };
+
   // We can't track QoS state separately for each destination on this OS,
   // so we keep a ref count to only disable QoS options when all clients
   // are disconnected.
-  static std::atomic<int> qos_ref_count = 0;
 
   /**
    * @brief Linux QoS state used to tune socket priority while streaming.
@@ -1029,14 +1132,15 @@ namespace platf {
      * @param sockfd Native socket descriptor whose options are updated.
      * @param options Request options or socket options to apply.
      */
-    qos_t(int sockfd, std::vector<std::tuple<int, int, int>> options):
+    qos_t(std::shared_ptr<std::atomic<int>> count, int sockfd, std::vector<std::tuple<int, int, int>> options):
+        qos_ref_count(std::move(count)),
         sockfd(sockfd),
         options(options) {
-      qos_ref_count++;
+      (*qos_ref_count)++;
     }
 
     virtual ~qos_t() {
-      if (--qos_ref_count == 0) {
+      if (--(*qos_ref_count) == 0) {
         for (const auto &tuple : options) {
           auto reset_val = std::get<2>(tuple);
           if (setsockopt(sockfd, std::get<0>(tuple), std::get<1>(tuple), &reset_val, sizeof(reset_val)) < 0) {
@@ -1047,6 +1151,7 @@ namespace platf {
     }
 
   private:
+    std::shared_ptr<std::atomic<int>> qos_ref_count;  ///< Retained priority scope count.
     int sockfd;
     std::vector<std::tuple<int, int, int>> options;
   };
@@ -1054,7 +1159,7 @@ namespace platf {
   /**
    * @brief Enables QoS on the given socket for traffic to the specified destination.
    */
-  std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
+  std::unique_ptr<deinit_t> runtime_t::enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
     int sockfd = (int) native_socket;
     std::vector<std::tuple<int, int, int>> reset_options;
 
@@ -1119,7 +1224,7 @@ namespace platf {
     }
 #endif
 
-    return std::make_unique<qos_t>(sockfd, reset_options);
+    return std::make_unique<qos_t>(impl->qos_ref_count, sockfd, reset_options);
   }
 
   std::string get_host_name() {
@@ -1130,35 +1235,6 @@ namespace platf {
       return "Sunshine"s;
     }
   }
-
-  namespace source {
-    /**
-     * @brief Enumerates supported source options.
-     */
-    enum source_e : std::size_t {
-#ifdef SUNSHINE_BUILD_CUDA
-      NVFBC,  ///< NvFBC
-#endif
-#ifdef SUNSHINE_BUILD_WAYLAND
-      WAYLAND,  ///< Wayland
-#endif
-#ifdef SUNSHINE_BUILD_DRM
-      KMS,  ///< KMS
-#endif
-#ifdef SUNSHINE_BUILD_X11
-      X11,  ///< X11
-#endif
-#ifdef SUNSHINE_BUILD_KWIN
-      KWIN,  ///< KWin ScreenCast
-#endif
-#ifdef SUNSHINE_BUILD_PORTAL
-      PORTAL,  ///< XDG PORTAL
-#endif
-      MAX_FLAGS  ///< The maximum number of flags
-    };
-  }  // namespace source
-
-  static std::bitset<source::MAX_FLAGS> sources;
 
 #ifdef SUNSHINE_BUILD_CUDA
   std::vector<std::string> nvfbc_display_names();
@@ -1191,32 +1267,32 @@ namespace platf {
    *
    * @return True when the active window system is Wayland and at least one output is discoverable.
    */
-  bool verify_wl() {
+  bool runtime_t::impl_t::verify_wl() {
     return window_system == window_system_e::WAYLAND && !wl_display_names().empty();
   }
 #endif
 
 #ifdef SUNSHINE_BUILD_DRM
-  std::vector<std::string> kms_display_names(mem_type_e hwdevice_type);
-  std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
+  std::vector<std::string> kms_display_names(mem_type_e hwdevice_type, kms::capture_state_t &state, window_system_e window_system);
+  std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config, const kms::capture_state_t &state, window_system_e window_system, int hevc_mode);
 
-  bool verify_kms() {
-    return !kms_display_names(mem_type_e::unknown).empty();
+  bool runtime_t::impl_t::verify_kms() {
+    return !kms_display_names(mem_type_e::unknown, *kms_state, window_system).empty();
   }
 #endif
 
 #ifdef SUNSHINE_BUILD_X11
   std::vector<std::string> x11_display_names();
-  std::shared_ptr<display_t> x11_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
+  std::shared_ptr<display_t> x11_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config, thread_pool_util::ThreadPool &scheduler);
 
-  bool verify_x11() {
+  bool runtime_t::impl_t::verify_x11() {
     return window_system == window_system_e::X11 && !x11_display_names().empty();
   }
 #endif
 
 #ifdef SUNSHINE_BUILD_PORTAL
-  std::vector<std::string> portal_display_names(bool allow_start_timeout);
-  std::shared_ptr<display_t> portal_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
+  std::vector<std::string> portal_display_names(bool allow_start_timeout, safe::mail_t mail);
+  std::shared_ptr<display_t> portal_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config, safe::mail_t mail);
 
   /**
    * @brief Enumerates possible Portal probe responses.
@@ -1233,7 +1309,7 @@ namespace platf {
    *
    * @return Can return no_token, unreachable, stale_token or available for processing via verify_portal().
    */
-  portal_probe_e probe_portal() {
+  portal_probe_e probe_portal(safe::mail_t mail) {
     using enum portal_probe_e;
 
     if (!portal::is_portal_service_reachable()) {
@@ -1242,7 +1318,7 @@ namespace platf {
     if (!portal::has_saved_token()) {
       return no_token;
     }
-    return portal_display_names(true).empty() ? stale_token : available;
+    return portal_display_names(true, mail).empty() ? stale_token : available;
   }
 
   /**
@@ -1252,10 +1328,10 @@ namespace platf {
    *
    * @return True if Portal is available.
    */
-  bool verify_portal() {
+  bool runtime_t::impl_t::verify_portal() {
     using enum portal_probe_e;
 
-    auto result = probe_portal();
+    auto result = probe_portal(mail);
     switch (result) {
       case available:
         return true;
@@ -1265,17 +1341,17 @@ namespace platf {
       case stale_token:
         BOOST_LOG(warning) << "[portalgrab] Saved portal token did not produce a session; discarding and restarting."sv;
         portal::clear_saved_token();
-        platf::restart();
+        platf::restart(lifetime);
         return false;
       case no_token:
         BOOST_LOG(fatal) << "Portal capture is awaiting user permission. "sv
                          << "The current session will attempt to use a fallback capture method."sv;
-        std::call_once(portal::xdg_worker_flag, []() {
-          portal::xdg_worker = std::jthread([]() {
+        std::call_once(xdg_worker_flag, [this]() {
+          xdg_worker = std::jthread([this]() {
             try {
               platf::set_thread_name("xdg_worker");
-              if (!portal_display_names(false).empty()) {
-                platf::restart();
+              if (!portal_display_names(false, mail).empty()) {
+                platf::restart(lifetime);
               } else {
                 BOOST_LOG(error) << "[portalgrab] Portal session token was not negotiated."sv;
               }
@@ -1305,7 +1381,7 @@ namespace platf {
   /**
    * @brief List display names accepted by the selected capture backend.
    */
-  std::vector<std::string> display_names(mem_type_e hwdevice_type) {
+  std::vector<std::string> runtime_t::impl_t::display_names(mem_type_e hwdevice_type) {
 #ifdef SUNSHINE_BUILD_CUDA
     // display using NvFBC only supports mem_type_e::cuda
     if (sources[source::NVFBC] && hwdevice_type == mem_type_e::cuda) {
@@ -1319,7 +1395,7 @@ namespace platf {
 #endif
 #ifdef SUNSHINE_BUILD_DRM
     if (sources[source::KMS]) {
-      return kms_display_names(hwdevice_type);
+      return kms_display_names(hwdevice_type, *kms_state, window_system);
     }
 #endif
 #ifdef SUNSHINE_BUILD_X11
@@ -1329,7 +1405,7 @@ namespace platf {
 #endif
 #ifdef SUNSHINE_BUILD_PORTAL
     if (sources[source::PORTAL]) {
-      return portal_display_names(true);
+      return portal_display_names(true, mail);
     }
 #endif
 #ifdef SUNSHINE_BUILD_KWIN
@@ -1345,11 +1421,10 @@ namespace platf {
    *
    * @return Always `true` because Linux GPU changes are not tracked by this backend.
    */
-  bool needs_encoder_reenumeration() {
+  bool runtime_t::impl_t::needs_encoder_reenumeration() {
     // Only re-probe if the GPU render device changed (hotplug, driver reload).
     // Full re-probing on every reconnect leaks ~20 MB due to FFmpeg CBS
     // allocations during HEVC/AV1 codec validation.
-    static std::string last_render_device;
     auto current = platf::resolve_render_device();
     if (current == last_render_device) {
       return false;
@@ -1358,14 +1433,14 @@ namespace platf {
     return true;
   }
 
-  std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
+  std::shared_ptr<display_t> runtime_t::impl_t::display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     // Please ensure that KMS followed by CUDA remains at the top so that we can
     // drop DRM worker privileges once neither backend requires it.
 
 #ifdef SUNSHINE_BUILD_DRM
     if (sources[source::KMS]) {
       BOOST_LOG(info) << "Screencasting with KMS"sv;
-      return kms_display(hwdevice_type, display_name, config);
+      return kms_display(hwdevice_type, display_name, config, *kms_state, window_system, hevc_mode);
     }
 #endif
 
@@ -1390,13 +1465,13 @@ namespace platf {
 #ifdef SUNSHINE_BUILD_X11
     if (sources[source::X11]) {
       BOOST_LOG(info) << "Screencasting with X11"sv;
-      return x11_display(hwdevice_type, display_name, config);
+      return x11_display(hwdevice_type, display_name, config, scheduler);
     }
 #endif
 #ifdef SUNSHINE_BUILD_PORTAL
     if (sources[source::PORTAL]) {
       BOOST_LOG(info) << "Screencasting with XDG portal"sv;
-      return portal_display(hwdevice_type, display_name, config);
+      return portal_display(hwdevice_type, display_name, config, mail);
     }
 #endif
 #ifdef SUNSHINE_BUILD_KWIN
@@ -1412,7 +1487,11 @@ namespace platf {
   /**
    * @brief Initialize the Linux high-precision timer file descriptor.
    */
-  std::unique_ptr<deinit_t> init() {
+  bool runtime_t::impl_t::initialize() {
+    if (initialized) {
+      return true;
+    }
+    sources.reset();
     // enable low latency mode for AMD
     // https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/30039
     lizardbyte::common::set_env("AMD_DEBUG", "lowlatencyenc");
@@ -1496,37 +1575,16 @@ namespace platf {
 
     if (sources.none()) {
       BOOST_LOG(error) << "Unable to initialize capture method"sv;
-      return nullptr;
+      return false;
     }
 
     if (!gladLoaderLoadEGL(NULL)) {
       BOOST_LOG(error) << "Failed to load EGL library symbols"sv;
-      return nullptr;
+      return false;
     }
 
-#ifdef SUNSHINE_BUILD_PORTAL
-    class deinit_t: public platf::deinit_t {
-    public:
-      /**
-       * @brief Handle xdg_worker thread cleanup in destructor.
-       */
-      ~deinit_t() override {
-        try {
-          if (portal::xdg_worker.joinable()) {
-            // Make sure the worker's response loop sees shutdown before we block on join().
-            if (mail::man) {
-              mail::man->event<bool>(mail::shutdown)->raise(true);
-            }
-            portal::xdg_worker.join();
-          }
-        } catch (const std::exception &err) {
-          BOOST_LOG(error) << "[portalgrab] Exception while joining xdg_worker: "sv << err.what();
-        }
-      }
-    };
-#endif
-
-    return std::make_unique<deinit_t>();
+    initialized = true;
+    return true;
   }
 
   /**
@@ -1674,4 +1732,37 @@ namespace platf {
     }
 #endif
   }
+}  // namespace platf
+
+namespace platf {
+  runtime_t::runtime_t(safe::mail_t mail, thread_pool_util::ThreadPool &scheduler, lifetime::controller_t &lifetime, display_device::manager_t &):
+      impl(std::make_shared<impl_t>(std::move(mail), scheduler, lifetime)) {}
+
+  runtime_t::~runtime_t() = default;
+
+  bool runtime_t::initialize() {
+    return impl->initialize();
+  }
+
+  std::vector<std::string> runtime_t::display_names(mem_type_e type) {
+    return impl->display_names(type);
+  }
+
+  std::shared_ptr<display_t> runtime_t::display(mem_type_e type, const std::string &name, const video::config_t &config) {
+    return impl->display(type, name, config);
+  }
+
+  bool runtime_t::needs_encoder_reenumeration() {
+    return impl->needs_encoder_reenumeration();
+  }
+
+  void runtime_t::set_capture_requirements(int mode) {
+    impl->hevc_mode = mode;
+  }
+
+  void runtime_t::streaming_will_start() {}
+
+  void runtime_t::streaming_will_stop() {}
+
+  void runtime_t::enable_mouse_keys() {}
 }  // namespace platf

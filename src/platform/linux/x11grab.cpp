@@ -24,13 +24,15 @@
 #include "graphics.h"
 #include "misc.h"
 #include "src/config.h"
-#include "src/globals.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
-#include "src/task_pool.h"
+#include "src/scheduler.h"
+#include "src/thread_pool.h"
 #include "src/video.h"
 #include "vaapi.h"
 #include "x11grab.h"
+
+#include <lizardbyte/common/env.h>
 
 using namespace std::literals;
 
@@ -683,6 +685,7 @@ namespace platf {
    */
   struct shm_attr_t: public x11_attr_t {
     const std::shared_ptr<const xcb::shm_api_t> shm_api;  ///< API retained until SHM resources are released.
+    thread_pool_util::ThreadPool &scheduler;  ///< Host scheduler retained for delayed refresh.
     x11::xdisplay_t shm_xdisplay;  ///< X11 display held separately to prevent races with x11_attr_t::xdisplay.
     xcb_connect_t xcb;  ///< XCB connection used by the shared-memory capture path.
     xcb_screen_t *display;  ///< XCB screen containing the captured root window.
@@ -700,7 +703,7 @@ namespace platf {
     void delayed_refresh() {
       refresh();
 
-      refresh_task_id = task_pool.pushDelayed(&shm_attr_t::delayed_refresh, 2s, this).task_id;
+      refresh_task_id = scheduler.pushDelayed(&shm_attr_t::delayed_refresh, 2s, this).task_id;
     }
 
     /**
@@ -709,15 +712,16 @@ namespace platf {
      * @param mem_type Requested memory path for the capture backend.
      * @param shm_api Validated API retained for the lifetime of shared-memory capture.
      */
-    shm_attr_t(mem_type_e mem_type, std::shared_ptr<const xcb::shm_api_t> shm_api):
+    shm_attr_t(mem_type_e mem_type, std::shared_ptr<const xcb::shm_api_t> shm_api, thread_pool_util::ThreadPool &scheduler):
+        scheduler(scheduler),
         x11_attr_t(mem_type),
         shm_api {std::move(shm_api)},
         shm_xdisplay {x11::OpenDisplay(nullptr)} {
-      refresh_task_id = task_pool.pushDelayed(&shm_attr_t::delayed_refresh, 2s, this).task_id;
+      refresh_task_id = scheduler.pushDelayed(&shm_attr_t::delayed_refresh, 2s, this).task_id;
     }
 
     ~shm_attr_t() override {
-      while (!task_pool.cancel(refresh_task_id));
+      while (!scheduler.cancel(refresh_task_id));
     }
 
     capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
@@ -883,7 +887,7 @@ namespace platf {
    * @param config Configuration values to apply.
    * @return X11 display backend, or nullptr when initialization fails.
    */
-  std::shared_ptr<display_t> x11_display(platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
+  std::shared_ptr<display_t> x11_display(platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config, thread_pool_util::ThreadPool &scheduler) {
     if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda) {
       BOOST_LOG(error) << "Could not initialize x11 display with the given hw device type"sv;
       return nullptr;
@@ -897,7 +901,7 @@ namespace platf {
     }
 
     // Attempt to use shared memory X11 to avoid copying the frame
-    auto shm_disp = std::make_shared<shm_attr_t>(hwdevice_type, std::move(shm_api));
+    auto shm_disp = std::make_shared<shm_attr_t>(hwdevice_type, std::move(shm_api), scheduler);
 
     auto status = shm_disp->init(display_name, config);
     if (status > 0) {
@@ -983,9 +987,10 @@ namespace platf {
    */
   int load_x11() {
     // This will be called once only
-    static int x11_status =
-      window_system == window_system_e::NONE ||
-      x11::init() || x11::rr::init() || x11::fix::init();
+    static const int x11_status = []() {
+      std::string display;
+      return !lizardbyte::common::get_env("DISPLAY", display) || x11::init() || x11::rr::init() || x11::fix::init();
+    }();
 
     return x11_status;
   }

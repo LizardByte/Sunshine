@@ -106,6 +106,8 @@ namespace {
    */
   class VirtualHidDeviceTest: public ::testing::Test {
   protected:
+    runtime::infrastructure_t infrastructure_;  ///< Host resources owned by this input fixture.
+
     /**
      * @brief Preserve input configuration and create fake virtual devices.
      */
@@ -115,7 +117,7 @@ namespace {
       client_ = std::make_unique<platf::virtualhid::client_context_t>(*context_);
       const auto *test_info = ::testing::UnitTest::GetInstance()->current_test_info();
       const std::string queue_name = std::string {"virtualhid-input-test-"} + test_info->test_suite_name() + '-' + test_info->name();
-      feedback_queue_ = mail::man->queue<platf::gamepad_feedback_msg_t>(queue_name);
+      feedback_queue_ = infrastructure_.mailbox()->queue<platf::gamepad_feedback_msg_t>(queue_name);
 
       ASSERT_NE(context_->runtime, nullptr);
       ASSERT_NE(context_->keyboard, nullptr);
@@ -297,7 +299,7 @@ TEST_F(VirtualHidDeviceTest, ReportsStaticAndRuntimeGamepadChoices) {
 #if defined(_WIN32) || defined(__APPLE__)
 TEST_F(VirtualHidDeviceTest, NoneSelectionHidesAvailableGamepads) {
   config::input.gamepad_driver = config::GAMEPAD_DRIVER_NONE;
-  auto platform_input = platf::input();
+  auto platform_input = platf::input(infrastructure_.scheduler());
   ASSERT_TRUE(platform_input);
 
   EXPECT_TRUE(platf::supported_gamepads(std::addressof(platform_input)).empty());
@@ -310,7 +312,7 @@ TEST_F(VirtualHidDeviceTest, BrokerCreatesAndUpdatesEveryGamepadProfileWhenLicen
   }
 
   config::input.gamepad_driver = config::GAMEPAD_DRIVER_VIRTUALHID;
-  auto platform_input = platf::input();
+  auto platform_input = platf::input(infrastructure_.scheduler());
   ASSERT_TRUE(platform_input);
   const auto &context = platf::virtualhid::get_input_context(platform_input);
   if (!context.runtime || !context.runtime->capabilities().supports_gamepad) {
@@ -560,7 +562,7 @@ TEST_F(VirtualHidDeviceTest, RoutesAndDeduplicatesGamepadFeedback) {
   EXPECT_EQ(feedback->data.adaptive_triggers.left, output.left_trigger_effect);
   EXPECT_EQ(feedback->data.adaptive_triggers.right, output.right_trigger_effect);
 
-  auto resumed_feedback = mail::man->queue<platf::gamepad_feedback_msg_t>("virtualhid-input-test-resumed-feedback");
+  auto resumed_feedback = infrastructure_.mailbox()->queue<platf::gamepad_feedback_msg_t>("virtualhid-input-test-resumed-feedback");
   ASSERT_EQ(platf::virtualhid::rebind_gamepad(*context(), {0, 7}, resumed_feedback), 0);
   output.kind = lvh::GamepadOutputKind::rumble;
   output.low_frequency_rumble = 100;
@@ -1032,7 +1034,7 @@ TEST_F(VirtualHidDeviceTest, TranslatesPenButtonsToolsAndTransitions) {
 }
 
 TEST_F(VirtualHidDeviceTest, PlatformWrappersForwardToVirtualHidContext) {
-  auto platform_input = platf::input();
+  auto platform_input = platf::input(infrastructure_.scheduler());
   ASSERT_TRUE(platform_input);
   auto &platform_context = platf::virtualhid::get_input_context(platform_input);
   platform_context = platf::virtualhid::input_context_t {lvh::BackendKind::fake};

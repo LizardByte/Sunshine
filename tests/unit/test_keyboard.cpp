@@ -319,6 +319,9 @@ namespace {
    */
   class KeyboardPassthroughTest: public ::testing::Test {
   protected:
+    runtime::infrastructure_t infrastructure_;  ///< Infrastructure owned by this keyboard fixture.
+    input::service_t inputs_ {infrastructure_.scheduler(), infrastructure_.mailbox(), infrastructure_.cursor()};  ///< Fixture-owned host input service.
+
     /**
      * @brief Install a fake platform backend, a keyboard recorder, and a stream.
      */
@@ -330,21 +333,21 @@ namespace {
       // Keep every emission on the calling thread so the recorded order is deterministic.
       config::input.key_repeat_delay = 0ms;
 
-      auto platform_input = platf::input();
+      auto platform_input = platf::input(infrastructure_.scheduler());
       ASSERT_TRUE(platform_input);
       auto &context = platf::virtualhid::get_input_context(platform_input);
       context = platf::virtualhid::input_context_t {lvh::BackendKind::fake};
       context_ = &context;
       ASSERT_NE(context_->keyboard, nullptr);
-      input::testing::set_platform_input(std::move(platform_input));
-      input::testing::reset_keyboard_state();
+      input::testing::set_platform_input(inputs_, std::move(platform_input));
+      input::testing::reset_keyboard_state(inputs_);
 
-      input::testing::set_keyboard_sink([this](const input::testing::keyboard_event_t &event) {
+      input::testing::set_keyboard_sink(inputs_, [this](const input::testing::keyboard_event_t &event) {
         events_.push_back(event);
       });
 
       static int session = 0;
-      stream_ = input::alloc(std::make_shared<safe::mail_raw_t>(), std::format("keyboard-test-{}", ++session));
+      stream_ = inputs_.alloc(std::make_shared<safe::mail_raw_t>(), std::format("keyboard-test-{}", ++session));
       ASSERT_NE(stream_, nullptr);
     }
 
@@ -352,11 +355,11 @@ namespace {
      * @brief Stop recording, drop tracked key state, and restore configuration.
      */
     void TearDown() override {
-      input::testing::set_keyboard_sink({});
-      input::testing::reset_keyboard_state();
+      input::testing::set_keyboard_sink(inputs_, {});
+      input::testing::reset_keyboard_state(inputs_);
       stream_.reset();
       context_ = nullptr;
-      input::testing::set_platform_input({});
+      input::testing::set_platform_input(inputs_, {});
       config::input = std::move(original_input_);
     }
 
@@ -474,7 +477,7 @@ TEST_F(KeyboardPassthroughTest, PreservesExtendedEnterOnReleaseAndDisconnect) {
 
   press(VKEY_RETURN, MODIFIER_EXTENDED);
   taken_events();
-  input::testing::release_held_keys();
+  input::testing::release_held_keys(inputs_);
   events = taken_events();
   ASSERT_EQ(events.size(), 1U);
   EXPECT_TRUE(events[0].extended);
@@ -866,7 +869,7 @@ TEST_F(KeyboardPassthroughTest, DeliversKeysThroughTheVirtualKeyboard) {
   // Drop the recorder so the events travel the real path into libvirtualhid's fake backend.
   // This keeps the recorder honest: if platf::keyboard_update stopped being reached, every
   // other test here would still pass.
-  input::testing::set_keyboard_sink({});
+  input::testing::set_keyboard_sink(inputs_, {});
 
   auto &keyboard = fake_keyboard();
   const auto submitted = keyboard.submit_count();
@@ -909,7 +912,7 @@ TEST_F(KeyboardPassthroughTest, ReleasesHeldKeysAsThemselvesWithoutKeybindings) 
   press(VKEY_A, MODIFIER_ALT);
   EXPECT_EQ(taken(), (std::vector<std::string> {pressed(VKEY_LMENU), pressed(VKEY_A)}));
 
-  input::testing::release_held_keys();
+  input::testing::release_held_keys(inputs_);
 
   // key_press is an unordered_map, so the release order is unspecified.
   auto released_keys = taken();
@@ -926,7 +929,7 @@ TEST_F(KeyboardPassthroughTest, ReleasesTheRemappedHostKeyWhenTheClientDisconnec
   press(VKEY_LMENU, MODIFIER_ALT);
   EXPECT_EQ(taken(), (std::vector<std::string> {pressed(VKEY_LWIN)}));
 
-  input::testing::release_held_keys();
+  input::testing::release_held_keys(inputs_);
 
   // key_press is keyed on the unmapped 0xA4, so releasing that would leave the host holding
   // the remapped key down forever.
@@ -941,7 +944,7 @@ TEST_F(KeyboardPassthroughTest, ReleasesTheRemappedRightAltForKeyRightaltToKeyWi
   press(VKEY_RMENU, MODIFIER_ALT);
   EXPECT_EQ(taken(), (std::vector<std::string> {pressed(VKEY_LWIN)}));
 
-  input::testing::release_held_keys();
+  input::testing::release_held_keys(inputs_);
 
   EXPECT_EQ(taken(), (std::vector<std::string> {released(VKEY_LWIN)}));
 }

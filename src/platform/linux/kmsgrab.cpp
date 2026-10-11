@@ -22,6 +22,7 @@
 #include <xf86drmMode.h>
 
 // local includes
+#include "capture_geometry.h"
 #include "cuda.h"
 #include "graphics.h"
 #include "kms_plane.h"
@@ -343,12 +344,6 @@ namespace platf {
      */
     using conn_type_count_t = std::map<std::uint32_t, std::uint32_t>;
 
-    static int env_width;
-    static int env_height;
-
-    static int env_logical_width;
-    static int env_logical_height;
-
     /**
      * @brief Convert a DRM plane type value to a diagnostic string.
      *
@@ -410,7 +405,20 @@ namespace platf {
       std::map<std::uint32_t, monitor_t> crtc_to_monitor;  ///< Crtc to monitor.
     };
 
-    static std::vector<card_descriptor_t> card_descriptors;
+    /**
+     * @brief Discovery metadata owned by one platform runtime.
+     */
+    struct capture_state_t {
+      int env_width {};  ///< Physical desktop width.
+      int env_height {};  ///< Physical desktop height.
+      int env_logical_width {};  ///< Logical desktop width.
+      int env_logical_height {};  ///< Logical desktop height.
+      std::vector<card_descriptor_t> card_descriptors;  ///< Discovered card metadata.
+    };
+
+    std::shared_ptr<capture_state_t> make_capture_state() {
+      return std::make_shared<capture_state_t>();
+    }
 
     static std::uint32_t from_view(const std::string_view &string) {
 #ifndef DOXYGEN
@@ -697,7 +705,7 @@ namespace platf {
        * @param path Filesystem path for the DRM device or resource.
        * @return 0 on success; nonzero or negative platform status on failure.
        */
-      int init(const char *path) {
+      int init(const char *path, window_system_e window_system) {
         fd.el = platf::kms::privileged_drm_worker::open_drm_card_fd_privileged(path);
         if (fd.el < 0) {
           return -1;
@@ -1114,13 +1122,13 @@ namespace platf {
      * @param display_name Name of the display to determine monitor index for (or monitor index string value)
      * @return monitor's display index
      */
-    static int64_t map_display_name_to_monitor_index(const std::string_view &display_name) {
+    static int64_t map_display_name_to_monitor_index(const std::string_view &display_name, const capture_state_t &state) {
       // Handle (legacy) monitor index strings by converting them to integer
       if (display_name.empty() || std::ranges::all_of(display_name, ::isdigit)) {
         return util::from_view(display_name);
       }
       // display_name is a connector name (not empty and containing non-digits)
-      for (auto &card_descriptor : kms::card_descriptors) {
+      for (auto &card_descriptor : state.card_descriptors) {
         for (const auto &monitor_descriptor : card_descriptor.crtc_to_monitor | std::views::values) {
           if (display_name == std::format("{}-{}", drmModeGetConnectorTypeName(monitor_descriptor.type), monitor_descriptor.index)) {
             BOOST_LOG(info) << "Mapped '"sv << display_name << "' to kmsgrab monitor index " << monitor_descriptor.monitor_index;
@@ -1142,9 +1150,12 @@ namespace platf {
        *
        * @param mem_type Mem type.
        */
-      display_t(mem_type_e mem_type):
+      display_t(mem_type_e mem_type, const capture_state_t &state, window_system_e window_system, int hevc_mode):
           platf::display_t(),
-          mem_type {mem_type} {
+          mem_type {mem_type},
+          state(state),
+          window_system(window_system),
+          hevc_mode(hevc_mode) {
       }
 
       /**
@@ -1154,10 +1165,14 @@ namespace platf {
        * @param config Configuration values to apply.
        * @return 0 on success; nonzero or negative platform status on failure.
        */
+      capture_state_t state;  ///< Immutable discovery snapshot for this capture resource.
+      window_system_e window_system;  ///< Session type when this resource was created.
+      int hevc_mode;  ///< Codec validation requirement for this resource.
+
       int init(const std::string &display_name, const ::video::config_t &config) {
         delay = ::video::capture_frame_interval(config);
 
-        int monitor_index = map_display_name_to_monitor_index(display_name);
+        int monitor_index = map_display_name_to_monitor_index(display_name, state);
         int monitor = 0;
 
         fs::path card_dir {"/dev/dri"sv};
@@ -1170,7 +1185,7 @@ namespace platf {
           }
 
           kms::card_t card;
-          if (card.init(entry.path().c_str())) {
+          if (card.init(entry.path().c_str(), window_system)) {
             continue;
           }
 
@@ -1239,11 +1254,11 @@ namespace platf {
             BOOST_LOG(info) << "Found monitor for DRM screencasting"sv;
 
             // We need to find the correct /dev/dri/card{nr} to correlate the crtc_id with the monitor descriptor
-            auto pos = std::find_if(std::begin(card_descriptors), std::end(card_descriptors), [&](card_descriptor_t &cd) {
+            auto pos = std::find_if(std::begin(state.card_descriptors), std::end(state.card_descriptors), [&](card_descriptor_t &cd) {
               return cd.path == filestring;
             });
 
-            if (pos == std::end(card_descriptors)) {
+            if (pos == std::end(state.card_descriptors)) {
               // This code path shouldn't happen, but it's there just in case.
               // card_descriptors is part of the guesswork after all.
               BOOST_LOG(error) << "Couldn't find ["sv << entry.path() << "]: This shouldn't have happened :/"sv;
@@ -1259,11 +1274,11 @@ namespace platf {
             img_offset_x = crtc->x;
             img_offset_y = crtc->y;
 
-            this->env_width = ::platf::kms::env_width;
-            this->env_height = ::platf::kms::env_height;
+            this->env_width = state.env_width;
+            this->env_height = state.env_height;
 
-            this->env_logical_width = ::platf::kms::env_logical_width;
-            this->env_logical_height = ::platf::kms::env_logical_height;
+            this->env_logical_width = state.env_logical_width;
+            this->env_logical_height = state.env_logical_height;
 
             auto monitor = pos->crtc_to_monitor.find(plane->crtc_id);
             if (monitor != std::end(pos->crtc_to_monitor)) {
@@ -1754,8 +1769,8 @@ namespace platf {
        *
        * @param mem_type Mem type.
        */
-      display_ram_t(mem_type_e mem_type):
-          display_t(mem_type) {
+      display_ram_t(mem_type_e mem_type, const capture_state_t &state, window_system_e window_system, int hevc_mode):
+          display_t(mem_type, state, window_system, hevc_mode) {
       }
 
       /**
@@ -1999,8 +2014,8 @@ namespace platf {
        *
        * @param mem_type Mem type.
        */
-      display_vram_t(mem_type_e mem_type):
-          display_t(mem_type) {
+      display_vram_t(mem_type_e mem_type, const capture_state_t &state, window_system_e window_system, int hevc_mode):
+          display_t(mem_type, state, window_system, hevc_mode) {
       }
 
       /**
@@ -2160,7 +2175,7 @@ namespace platf {
         }
 
 #ifdef SUNSHINE_BUILD_VAAPI
-        if (mem_type == mem_type_e::vaapi && !va::validate(card.render_fd.el)) {
+        if (mem_type == mem_type_e::vaapi && !va::validate(card.render_fd.el, hevc_mode)) {
           BOOST_LOG(warning) << "Monitor "sv << display_name << " doesn't support hardware encoding. Reverting back to GPU -> RAM -> GPU"sv;
           return -1;
         }
@@ -2189,9 +2204,9 @@ namespace platf {
    * @param config Configuration values to apply.
    * @return KMS display backend, or nullptr when initialization fails.
    */
-  std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
+  std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config, const kms::capture_state_t &state, window_system_e window_system, int hevc_mode) {
     if (hwdevice_type == mem_type_e::vaapi || hwdevice_type == mem_type_e::cuda || hwdevice_type == mem_type_e::vulkan) {
-      auto disp = std::make_shared<kms::display_vram_t>(hwdevice_type);
+      auto disp = std::make_shared<kms::display_vram_t>(hwdevice_type, state, window_system, hevc_mode);
 
       if (!disp->init(display_name, config)) {
         return disp;
@@ -2200,7 +2215,7 @@ namespace platf {
       // In the case of failure, attempt the old method for VAAPI
     }
 
-    auto disp = std::make_shared<kms::display_ram_t>(hwdevice_type);
+    auto disp = std::make_shared<kms::display_ram_t>(hwdevice_type, state, window_system, hevc_mode);
 
     if (disp->init(display_name, config)) {
       return nullptr;
@@ -2282,7 +2297,7 @@ namespace platf {
    * @param hwdevice_type Hardware device type requested for capture or encode.
    * @return KMS display names, or an empty list when KMS capture is unavailable.
    */
-  std::vector<std::string> kms_display_names(mem_type_e hwdevice_type) {
+  std::vector<std::string> kms_display_names(mem_type_e hwdevice_type, kms::capture_state_t &state, window_system_e window_system) {
     int count = 0;
 
     if (!fs::exists("/dev/dri")) {
@@ -2310,7 +2325,7 @@ namespace platf {
       }
 
       kms::card_t card;
-      if (card.init(entry.path().c_str())) {
+      if (card.init(entry.path().c_str(), window_system)) {
         continue;
       }
 
@@ -2379,8 +2394,8 @@ namespace platf {
           it->second.monitor_index = count;
         }
 
-        kms::env_width = std::max(kms::env_width, (int) (crtc->x + crtc->width));
-        kms::env_height = std::max(kms::env_height, (int) (crtc->y + crtc->height));
+        state.env_width = std::max(state.env_width, (int) (crtc->x + crtc->width));
+        state.env_height = std::max(state.env_height, (int) (crtc->y + crtc->height));
 
         kms::print(plane.get(), fb.get(), crtc.get());
         display_names.emplace_back(std::format("{}-{}", drmModeGetConnectorTypeName(it->second.type), it->second.index));
@@ -2397,30 +2412,26 @@ namespace platf {
       correlate_to_wayland(cds);
     }
 
-    // Deduce the full virtual desktop size
-    kms::env_width = 0;
-    kms::env_height = 0;
-
-    kms::env_logical_width = 0;
-    kms::env_logical_height = 0;
-
+    // Deduce desktop extents from this discovery snapshot.
+    capture_geometry_t desktop;
     for (auto &card_descriptor : cds) {
       for (auto &[_, monitor_descriptor] : card_descriptor.crtc_to_monitor) {
         BOOST_LOG(debug) << "Monitor description"sv;
         BOOST_LOG(debug) << "Resolution: "sv << monitor_descriptor.viewport.width << 'x' << monitor_descriptor.viewport.height;
         BOOST_LOG(debug) << "Offset: "sv << monitor_descriptor.viewport.offset_x << 'x' << monitor_descriptor.viewport.offset_y;
 
-        kms::env_width = std::max(kms::env_width, (int) (monitor_descriptor.viewport.offset_x + monitor_descriptor.viewport.width));
-        kms::env_height = std::max(kms::env_height, (int) (monitor_descriptor.viewport.offset_y + monitor_descriptor.viewport.height));
-
-        kms::env_logical_height = std::max(kms::env_logical_height, (int) (monitor_descriptor.viewport.offset_y + monitor_descriptor.viewport.logical_height));
-        kms::env_logical_width = std::max(kms::env_logical_width, (int) (monitor_descriptor.viewport.offset_x + monitor_descriptor.viewport.logical_width));
+        desktop.include(monitor_descriptor.viewport);
       }
     }
 
-    BOOST_LOG(debug) << "Desktop resolution: "sv << kms::env_width << 'x' << kms::env_height;
+    state.env_width = desktop.width;
+    state.env_height = desktop.height;
+    state.env_logical_width = desktop.logical_width;
+    state.env_logical_height = desktop.logical_height;
 
-    kms::card_descriptors = std::move(cds);
+    BOOST_LOG(debug) << "Desktop resolution: "sv << state.env_width << 'x' << state.env_height;
+
+    state.card_descriptors = std::move(cds);
 
     BOOST_LOG(debug) << "Final KMS display_names return list: " << (display_names | std::views::join_with(' ') | std::ranges::to<std::string>());
     return display_names;

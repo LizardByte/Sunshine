@@ -55,7 +55,8 @@ namespace va {
    * @brief Validate that the configured VAAPI device can be used.
    *
    * @param fd Native file descriptor to wrap or inspect.
+   * @param hevc_mode Required HEVC capability; automatic mode permits H.264-only devices.
    * @return True when the VAAPI device is usable for capture or encode.
    */
-  bool validate(int fd);
+  bool validate(int fd, int hevc_mode);
 }  // namespace va

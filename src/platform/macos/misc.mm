@@ -551,7 +551,7 @@ namespace platf {
    * This keeps the shell tracking the original PID as its foreground job,
    * preserving Ctrl+C and terminal log output.
    */
-  void restart_on_exit() {
+  void restart_on_exit(char **argv) {
     char executable[2048];
     uint32_t size = sizeof(executable);
     if (_NSGetExecutablePath(executable, &size) < 0) {
@@ -581,7 +581,7 @@ namespace platf {
       setpgid(0, 0);
 
       // Replace this child with the new Sunshine instance
-      execv(executable, lifetime::get_argv());
+      execv(executable, argv);
 
       // If execv fails, exit the child immediately without running atexit handlers
       _exit(1);
@@ -609,10 +609,12 @@ namespace platf {
     _exit(WIFEXITED(status) ? WEXITSTATUS(status) : 1);
   }
 
-  void restart() {
+  void restart(lifetime::controller_t &lifetime) {
     // Gracefully clean up and restart ourselves instead of exiting
-    atexit(restart_on_exit);
-    lifetime::exit_sunshine(0, true);
+    lifetime.restart_on_exit([argv = lifetime.get_argv()]() {
+      restart_on_exit(argv);
+    });
+    lifetime.exit_sunshine(0, true);
   }
 
   bool request_process_group_exit(std::uintptr_t native_handle) {
@@ -942,3 +944,65 @@ namespace dyn {
     return err;
   }
 }  // namespace dyn
+
+namespace platf {
+  /**
+   * @brief Own the macOS platform initialization and explicit display manager.
+   */
+  struct runtime_t::impl_t {
+    display_device::manager_t &displays;  ///< Display manager for discovery.
+    std::unique_ptr<deinit_t> initialization;  ///< Native initialization lifetime.
+
+    /**
+     * @brief Bind display discovery.
+     * @param displays Display manager.
+     */
+    explicit impl_t(display_device::manager_t &displays):
+        displays(displays) {}
+  };
+
+  std::shared_ptr<display_t> mac_display(mem_type_e type, const std::string &name, const video::config_t &config, display_device::manager_t &displays);
+  std::vector<std::string> mac_display_names(mem_type_e type, display_device::manager_t &displays);
+
+  runtime_t::runtime_t(safe::mail_t, thread_pool_util::ThreadPool &, lifetime::controller_t &, display_device::manager_t &displays):
+      impl(std::make_shared<impl_t>(displays)) {}
+
+  runtime_t::~runtime_t() = default;
+
+  bool runtime_t::initialize() {
+    if (!impl->initialization) {
+      impl->initialization = platf::init();
+    }
+    return static_cast<bool>(impl->initialization);
+  }
+
+  std::vector<std::string> runtime_t::display_names(mem_type_e type) {
+    return mac_display_names(type, impl->displays);
+  }
+
+  std::shared_ptr<display_t> runtime_t::display(mem_type_e type, const std::string &name, const video::config_t &config) {
+    return mac_display(type, name, config, impl->displays);
+  }
+
+  bool runtime_t::needs_encoder_reenumeration() {
+    return platf::needs_encoder_reenumeration();
+  }
+
+  void runtime_t::set_capture_requirements(int) {}
+
+  void runtime_t::streaming_will_start() {
+    platf::streaming_will_start();
+  }
+
+  void runtime_t::streaming_will_stop() {
+    platf::streaming_will_stop();
+  }
+
+  void runtime_t::enable_mouse_keys() {
+    platf::enable_mouse_keys();
+  }
+
+  std::unique_ptr<deinit_t> runtime_t::enable_socket_qos(uintptr_t socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e type, bool dscp_tagging) {
+    return platf::enable_socket_qos(socket, address, port, type, dscp_tagging);
+  }
+}  // namespace platf

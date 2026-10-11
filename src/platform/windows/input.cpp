@@ -29,10 +29,10 @@
 // local includes
 #include "misc.h"
 #include "src/config.h"
-#include "src/globals.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/platform/virtualhid_input.h"
+#include "src/thread_pool.h"
 
 namespace platf {
   using namespace std::literals;
@@ -248,6 +248,15 @@ namespace platf {
   class vigem_t {
   public:
     /**
+     * @brief Bind deferred gamepad work to the application scheduler.
+     * @param scheduler Application scheduler.
+     */
+    explicit vigem_t(thread_pool_util::ThreadPool &scheduler):
+        scheduler(scheduler) {}
+
+    thread_pool_util::ThreadPool &scheduler;  ///< Scheduler that outlives this input context.
+
+    /**
      * @brief Connect to ViGEm and prepare virtual gamepad slots.
      *
      * @return 0 on success; nonzero or negative platform status on failure.
@@ -377,7 +386,7 @@ namespace platf {
       auto &gamepad = gamepads[nr];
 
       if (gamepad.repeat_task) {
-        task_pool.cancel(gamepad.repeat_task);
+        scheduler.cancel(gamepad.repeat_task);
         gamepad.repeat_task = nullptr;
       }
 
@@ -495,7 +504,7 @@ namespace platf {
       << "largeMotor: "sv << (int) largeMotor << std::endl
       << "smallMotor: "sv << (int) smallMotor;
 
-    task_pool.push(&vigem_t::rumble, (vigem_t *) userdata, target, largeMotor, smallMotor);
+    static_cast<vigem_t *>(userdata)->scheduler.push(&vigem_t::rumble, (vigem_t *) userdata, target, largeMotor, smallMotor);
   }
 
   void CALLBACK ds4_notify(
@@ -513,14 +522,22 @@ namespace platf {
       << util::hex(led_color.Green).to_string_view() << ' '
       << util::hex(led_color.Blue).to_string_view() << std::endl;
 
-    task_pool.push(&vigem_t::rumble, (vigem_t *) userdata, target, largeMotor, smallMotor);
-    task_pool.push(&vigem_t::set_rgb_led, (vigem_t *) userdata, target, led_color.Red, led_color.Green, led_color.Blue);
+    static_cast<vigem_t *>(userdata)->scheduler.push(&vigem_t::rumble, (vigem_t *) userdata, target, largeMotor, smallMotor);
+    static_cast<vigem_t *>(userdata)->scheduler.push(&vigem_t::set_rgb_led, (vigem_t *) userdata, target, led_color.Red, led_color.Green, led_color.Blue);
   }
 
   /**
    * @brief Global virtual input device handles shared by clients.
    */
   struct input_raw_t {
+    /**
+     * @brief Bind input fallback resources to their scheduler.
+     * @param scheduler Application scheduler.
+     */
+    explicit input_raw_t(thread_pool_util::ThreadPool &scheduler):
+        scheduler(scheduler) {}
+
+    thread_pool_util::ThreadPool &scheduler;  ///< Application scheduler.
     virtualhid::input_context_t virtualhid;  ///< libvirtualhid input context.
     std::unique_ptr<vigem_t> vigem;  ///< ViGEm fallback context.
   };
@@ -559,8 +576,8 @@ namespace platf {
     };
   }
 
-  input_t input() {
-    input_t result {new input_raw_t {}};
+  input_t input(thread_pool_util::ThreadPool &scheduler) {
+    input_t result {new input_raw_t {scheduler}};
 
     if (auto &raw = *result; config::input.controller && !should_use_virtualhid_gamepads(raw) && virtualhid::should_try_vigembus_fallback(config::input.gamepad, false, config::input.gamepad_driver)) {
       if (config::input.gamepad_driver == config::GAMEPAD_DRIVER_VIGEMBUS) {
@@ -568,7 +585,7 @@ namespace platf {
       } else if (raw.virtualhid.runtime && raw.virtualhid.runtime->capabilities().supports_gamepad) {
         BOOST_LOG(info) << "Virtual HID Driver license is not valid; using the ViGEmBus gamepad fallback"sv;
       }
-      auto vigem = std::make_unique<vigem_t>();
+      auto vigem = std::make_unique<vigem_t>(scheduler);
       if (!vigem->init()) {
         raw.vigem = std::move(vigem);
       }
@@ -588,7 +605,7 @@ namespace platf {
       return true;
     }
 
-    auto vigem = std::make_unique<vigem_t>();
+    auto vigem = std::make_unique<vigem_t>(raw->scheduler);
     if (vigem->init()) {
       return false;
     }
@@ -976,7 +993,7 @@ namespace platf {
 
     // Cancel any pending updates. We will requeue one here when we're finished.
     if (gamepad.repeat_task) {
-      task_pool.cancel(gamepad.repeat_task);
+      vigem->scheduler.cancel(gamepad.repeat_task);
       gamepad.repeat_task = nullptr;
     }
 
@@ -996,7 +1013,7 @@ namespace platf {
 
       // Repeat at least every 100ms to keep the 16-bit timestamp field from overflowing
       gamepad.last_report_ts = now;
-      gamepad.repeat_task = task_pool.pushDelayed(ds4_update_ts_and_send, 100ms, vigem, nr).task_id;
+      gamepad.repeat_task = vigem->scheduler.pushDelayed(ds4_update_ts_and_send, 100ms, vigem, nr).task_id;
     }
   }
 

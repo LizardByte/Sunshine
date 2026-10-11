@@ -1125,7 +1125,8 @@ namespace platf {
 
   }  // namespace
 
-  input_t input() {
+  input_t input(thread_pool_util::ThreadPool &scheduler) {
+    (void) scheduler;
     return {new input_raw_t {}};
   }
 

@@ -17,8 +17,73 @@
 #include "platform/common.h"
 #include "thread_safe.h"
 
+namespace thread_pool_util {
+  class ThreadPool;
+}
+
 namespace input {
   struct input_t;
+
+  /**
+   * @brief Owns host input state shared by all clients of one application.
+   */
+  class service_t {
+  public:
+    struct impl_t;  ///< Private implementation retained by client input sessions.
+
+    /**
+     * @brief Bind the host scheduler, mailbox, and cursor preference.
+     * @param scheduler Scheduler serializing input work.
+     * @param mail Host mailbox carrying display selection.
+     * @param cursor Host cursor visibility preference.
+     */
+    service_t(thread_pool_util::ThreadPool &scheduler, safe::mail_t mail, bool &cursor);
+    service_t(const service_t &) = delete;
+    service_t &operator=(const service_t &) = delete;
+    /**
+     * @brief Release retained virtual devices and the platform input backend.
+     */
+    ~service_t();
+
+    /**
+     * @brief Initialize the platform input backend at the application startup stage.
+     * @return Whether a platform input context was created.
+     */
+    bool initialize();
+
+    /**
+     * @brief Destroy all retained virtual gamepad sessions.
+     */
+    void terminate_gamepads();
+    /**
+     * @brief Destroy the retained virtual gamepads for one paired client.
+     * @param session_id Stable paired-client identity.
+     */
+    void terminate_gamepads(std::string_view session_id);
+
+    /**
+     * @brief Check whether any configured gamepad backend is available.
+     * @return True when no enabled backend was found.
+     */
+    bool probe_gamepads();
+
+    /**
+     * @brief Serialize keyboard and mouse backend refresh with streamed input.
+     */
+    void refresh_virtual_input();
+
+    /**
+     * @brief Allocate or resume input state for a paired client.
+     * @param mail Mailbox for the active transport session.
+     * @param session_id Stable paired-client identity.
+     * @return Retained client input state bound to the transport mailbox.
+     */
+    std::shared_ptr<input_t> alloc(safe::mail_t mail, std::string session_id);
+
+  private:
+    friend struct service_access_t;
+    std::shared_ptr<impl_t> impl_;  ///< Host input state retained by queued tasks and client sessions.
+  };
 
   /**
    * @brief Write a debug log representation of the input packet.
@@ -34,55 +99,9 @@ namespace input {
   void reset(std::shared_ptr<input_t> &input);
 
   /**
-   * @brief Destroy every retained virtual gamepad session.
-   *
-   * Retained gamepads survive a paused transport connection so they can be reused on resume. Call this when the
-   * streamed application or all streaming sessions are explicitly terminated.
-   */
-  void terminate_gamepads();
-
-  /**
-   * @brief Destroy virtual gamepads retained for one paired client.
-   *
-   * @param session_id Stable paired-client identity used by alloc().
-   */
-  void terminate_gamepads(std::string_view session_id);
-
-  /**
    * @brief Queue a raw input message for platform passthrough.
    */
   void passthrough(std::shared_ptr<input_t> &input, std::vector<std::uint8_t> &&input_data);
-
-  /**
-   * @brief Initialize global input resources and platform backends.
-   *
-   * @return Cleanup handle for initialized input resources, or null if none are required.
-   */
-  [[nodiscard]] std::unique_ptr<platf::deinit_t> init();
-
-  /**
-   * @brief Probe whether the platform can create virtual gamepads.
-   *
-   * @return True when at least one configured gamepad backend is available.
-   */
-  bool probe_gamepads();
-
-  /**
-   * @brief Recreate shared libvirtualhid keyboard and mouse devices after a license-state change.
-   *
-   * The work is serialized with streamed input so both backends can switch
-   * safely between the Windows HID and SendInput paths.
-   */
-  void refresh_virtual_input();
-
-  /**
-   * @brief Allocate and initialize platform input state for a stream.
-   *
-   * @param mail Mailbox used to exchange messages with worker threads.
-   * @param session_id Stable paired-client identity shared by launch and resume connections.
-   * @return Shared input state bound to the stream mailbox.
-   */
-  std::shared_ptr<input_t> alloc(safe::mail_t mail, std::string session_id);
 
 #ifdef SUNSHINE_TESTS
   namespace testing {
@@ -90,8 +109,9 @@ namespace input {
      * @brief Replace the global platform input backend for a unit test.
      *
      * @param input Test-owned platform input backend.
+     * @param service Fixture-owned host input service.
      */
-    void set_platform_input(platf::input_t input);
+    void set_platform_input(service_t &service, platf::input_t input);
 
     /**
      * @brief Allocate a gamepad directly in retained input state for a unit test.
@@ -115,15 +135,17 @@ namespace input {
     /**
      * @brief Install a callback called just before dispatching a queued input packet in a test.
      * @param hook Callback receiving the packet magic, or empty to remove it.
+     * @param service Fixture-owned host input service.
      */
-    void set_input_packet_hook(std::function<void(std::uint32_t)> hook);
+    void set_input_packet_hook(service_t &service, std::function<void(std::uint32_t)> hook);
 
     /**
      * @brief Redirect input task scheduling to a test callback.
      *
      * @param sink Callback receiving the stream whose packet task was queued, or empty to restore the worker pool.
+     * @param service Fixture-owned host input service.
      */
-    void set_input_task_sink(std::function<void(std::shared_ptr<input_t>)> sink);
+    void set_input_task_sink(service_t &service, std::function<void(std::shared_ptr<input_t>)> sink);
 
     /**
      * @brief Process queued input packets on the calling thread in a test.
@@ -151,7 +173,7 @@ namespace input {
      * @param sink Recorder invoked in place of platf::keyboard_update, or empty to restore
      *             delivery to the platform backend.
      */
-    void set_keyboard_sink(std::function<void(const keyboard_event_t &)> sink);
+    void set_keyboard_sink(service_t &service, std::function<void(const keyboard_event_t &)> sink);
 
     /**
      * @brief Process one client keyboard packet on the calling thread.
@@ -176,12 +198,12 @@ namespace input {
     /**
      * @brief Forget every key Sunshine tracks as pressed and cancel any pending key repeat.
      */
-    void reset_keyboard_state();
+    void reset_keyboard_state(service_t &service);
 
     /**
      * @brief Release every key Sunshine tracks as pressed, as a disconnect does.
      */
-    void release_held_keys();
+    void release_held_keys(service_t &service);
 
     /**
      * @brief Validate raw protocol input bytes for a unit test.

@@ -664,7 +664,7 @@ namespace va {
   } AVVAAPIDeviceContext;
 
   static void __log(void *level, const char *msg) {
-    BOOST_LOG(*(boost::log::sources::severity_logger<int> *) level) << msg;
+    BOOST_LOG(*(logging::logger_t::logger_type *) level) << msg;
   }
 
   static void vaapi_hwdevice_ctx_free(AVHWDeviceContext *ctx) {
@@ -699,8 +699,8 @@ namespace va {
 
     va->va_display = display.get();
 
-    vaSetErrorCallback(display.get(), __log, &error);
-    vaSetErrorCallback(display.get(), __log, &info);
+    vaSetErrorCallback(display.get(), __log, &error.get());
+    vaSetErrorCallback(display.get(), __log, &info.get());
 
     int major;
     int minor;
@@ -757,7 +757,7 @@ namespace va {
   /**
    * @brief Validate that the configured VAAPI device can be used.
    */
-  bool validate(int fd) {
+  bool validate(int fd, int hevc_mode) {
     va::display_t display {vaGetDisplayDRM(fd)};
     if (!display) {
       std::array<char, 1024> string;
@@ -782,11 +782,11 @@ namespace va {
       return false;
     }
 
-    if (video::active_hevc_mode > 1 && !query(display.get(), VAProfileHEVCMain)) {
+    if (hevc_mode > 1 && !query(display.get(), VAProfileHEVCMain)) {
       return false;
     }
 
-    if (video::active_hevc_mode > 2 && !query(display.get(), VAProfileHEVCMain10)) {
+    if (hevc_mode > 2 && !query(display.get(), VAProfileHEVCMain10)) {
       return false;
     }
 

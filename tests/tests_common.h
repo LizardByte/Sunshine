@@ -21,6 +21,7 @@
 #include <lizardbyte/common/testing.h>
 
 // local includes
+#include <src/display_device.h>
 #include <src/globals.h>
 #include <src/logging.h>
 #include <src/platform/common.h>
@@ -154,20 +155,46 @@ namespace test_utils {
   #define IS_FREEBSD false
 #endif
 
+/**
+ * @brief Own initialized platform resources for one test suite.
+ */
 struct PlatformTestSuite: BaseTest {
+  /**
+   * @brief Initialize the suite's independent native runtime.
+   */
   static void SetUpTestSuite() {
-    ASSERT_FALSE(platf_deinit);
-    BOOST_LOG(tests) << "Setting up platform test suite";
-    platf_deinit = platf::init();
-    ASSERT_TRUE(platf_deinit);
+    ASSERT_FALSE(platform_);
+    infrastructure_ = std::make_unique<runtime::infrastructure_t>();
+    displays_ = std::make_unique<display_device::manager_t>();
+    platform_ = std::make_unique<platf::runtime_t>(infrastructure_->mailbox(), infrastructure_->scheduler(), infrastructure_->lifetime(), *displays_
+#ifdef _WIN32
+                                                   ,
+                                                   infrastructure_->preferences()
+#endif
+    );
+    ASSERT_TRUE(platform_->initialize());
   }
 
+  /**
+   * @brief Release capture resources before their dependencies.
+   */
   static void TearDownTestSuite() {
-    ASSERT_TRUE(platf_deinit);
-    platf_deinit = {};
-    BOOST_LOG(tests) << "Tore down platform test suite";
+    platform_.reset();
+    displays_.reset();
+    infrastructure_.reset();
+  }
+
+protected:
+  /**
+   * @brief Access the initialized platform runtime.
+   * @return Suite platform owner.
+   */
+  static platf::runtime_t &platform() {
+    return *platform_;
   }
 
 private:
-  inline static std::unique_ptr<platf::deinit_t> platf_deinit;
+  inline static std::unique_ptr<runtime::infrastructure_t> infrastructure_;  ///< Suite scheduler and mailbox.
+  inline static std::unique_ptr<display_device::manager_t> displays_;  ///< Suite display manager.
+  inline static std::unique_ptr<platf::runtime_t> platform_;  ///< Suite platform resources.
 };

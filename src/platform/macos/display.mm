@@ -240,7 +240,7 @@ namespace platf {
     }
   };
 
-  std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
+  std::shared_ptr<display_t> mac_display(platf::mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config, display_device::manager_t &displays) {
     if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::videotoolbox) {
       BOOST_LOG(error) << "Could not initialize display with the given hw device type."sv;
       return nullptr;
@@ -273,7 +273,7 @@ namespace platf {
 
     // Print all displays available with their names and ids
     BOOST_LOG(debug) << "Detecting displays"sv;
-    for (const auto &device : display_device::enumerate_devices()) {
+    for (const auto &device : displays.enumerate_devices()) {
       if (device.m_display_name.empty()) {
         continue;
       }
@@ -321,13 +321,13 @@ namespace platf {
     return display;
   }
 
-  std::vector<std::string> display_names(mem_type_e hwdevice_type) {
+  std::vector<std::string> mac_display_names(mem_type_e hwdevice_type, display_device::manager_t &displays) {
     std::vector<std::string> display_names;
     if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::videotoolbox) {
       return display_names;
     }
 
-    const auto devices {display_device::enumerate_devices()};
+    const auto devices {displays.enumerate_devices()};
     display_names.reserve(devices.size());
     for (const auto &device : devices) {
       if (!device.m_display_name.empty()) {

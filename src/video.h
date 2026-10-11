@@ -4,6 +4,14 @@
  */
 #pragma once
 
+namespace display_device {
+  class manager_t;
+}
+
+namespace platf {
+  class runtime_t;
+}
+
 // standard includes
 #include <chrono>
 #include <string_view>
@@ -354,7 +362,7 @@ namespace video {
       }
     };
 
-    const std::unique_ptr<const encoder_platform_formats_t> platform_formats;  ///< Platform-specific memory and pixel formats accepted by the encoder.
+    const std::shared_ptr<const encoder_platform_formats_t> platform_formats;  ///< Shared immutable platform memory and pixel formats accepted by the encoder.
 
     /**
      * @brief Codec capabilities for AV1, HEVC, or H.264.
@@ -452,24 +460,24 @@ namespace video {
   };
 
   // encoders
-  extern encoder_t software;
+  extern const encoder_t software;
 
 #if !defined(__APPLE__)
-  extern encoder_t nvenc;  // available for windows and linux
+  extern const encoder_t nvenc;  // available for windows and linux
 #endif
 
 #ifdef _WIN32
-  extern encoder_t amdvce;
-  extern encoder_t quicksync;
-  extern encoder_t mediafoundation;
+  extern const encoder_t amdvce;
+  extern const encoder_t quicksync;
+  extern const encoder_t mediafoundation;
 #endif
 
 #if defined(__linux__) || defined(linux) || defined(__linux) || defined(__FreeBSD__)
-  extern encoder_t vaapi;
+  extern const encoder_t vaapi;
 #endif
 
 #ifdef __APPLE__
-  extern encoder_t videotoolbox;
+  extern const encoder_t videotoolbox;
 #endif
 
   /**
@@ -678,10 +686,68 @@ namespace video {
    */
   using hdr_info_t = std::unique_ptr<hdr_info_raw_t>;
 
-  extern int active_hevc_mode;
-  extern int active_av1_mode;
-  extern bool last_encoder_probe_supported_ref_frames_invalidation;
-  extern std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec;  // 0 - H.264, 1 - HEVC, 2 - AV1
+  /**
+   * @brief Coherent result of one encoder capability probe.
+   */
+  struct capabilities_t {
+    int active_hevc_mode = 0;  ///< Selected HEVC operating mode.
+    int active_av1_mode = 0;  ///< Selected AV1 operating mode.
+    bool ref_frames_invalidation = false;  ///< Reference-frame invalidation support.
+    std::array<bool, 3> yuv444 {};  ///< H.264, HEVC, and AV1 YUV444 support.
+  };
+
+  /**
+   * @brief Owns encoder selection, capability probes, and shared capture coordinators.
+   */
+  class service_t {
+  public:
+    struct impl_t;  ///< Private capture and encoder state.
+
+    /**
+     * @brief Bind host capture dependencies without probing hardware.
+     * @param mail Host packet and display-switch mailbox.
+     * @param cursor Host cursor visibility preference.
+     * @param displays Display configuration manager.
+     */
+    service_t(safe::mail_t mail, bool &cursor, display_device::manager_t &displays, platf::runtime_t &platform);
+    service_t(const service_t &) = delete;
+    service_t &operator=(const service_t &) = delete;
+    /**
+     * @brief Join capture workers before their host dependencies are released.
+     */
+    ~service_t();
+
+    /**
+     * @brief Read the latest complete encoder capability snapshot.
+     * @return Capabilities published by the latest probe.
+     */
+    capabilities_t capabilities() const;
+
+    /**
+     * @brief Probe encoders when no client is actively streaming.
+     * @return Zero when a usable encoder is selected, nonzero otherwise.
+     */
+    int probe_encoders();
+
+    /**
+     * @brief Validate one encoder using this service's configured capture requirements.
+     * @param encoder Encoder to probe and update.
+     * @param expect_failure Whether an unavailable encoder is expected.
+     * @return Whether the encoder can produce the requested formats.
+     */
+    bool validate_encoder(encoder_t &encoder, bool expect_failure);
+
+    /**
+     * @brief Capture and encode video for a transport session.
+     * @param mail Transport session mailbox.
+     * @param config Negotiated stream configuration.
+     * @param channel_data Packet channel metadata.
+     */
+    void capture(safe::mail_t mail, config_t config, void *channel_data);
+
+  private:
+    std::unique_ptr<impl_t> impl_;  ///< Encoder state and capture worker ownership.
+  };
 
   /**
    * @brief Resolve a client-requested dynamic range against probed encoder capabilities.
@@ -691,39 +757,6 @@ namespace video {
    * @return Effective stream configuration, downgraded to SDR when HDR is unsupported.
    */
   config_t resolve_dynamic_range(const encoder_t &encoder, config_t config);
-
-  /**
-   * @brief Capture and encode video for a streaming session.
-   *
-   * @param mail Session mail bus.
-   * @param config Client-requested video configuration, normalized before capture begins.
-   * @param channel_data Opaque channel data passed to packets.
-   */
-  void capture(
-    safe::mail_t mail,
-    config_t config,
-    void *channel_data
-  );
-
-  /**
-   * @brief Validate encoder before it is used.
-   *
-   * @param encoder Encoder configuration or encoder instance.
-   * @param expect_failure Expect failure.
-   * @return True when encoder validation matches `expect_failure`.
-   */
-  bool validate_encoder(encoder_t &encoder, bool expect_failure);
-
-  /**
-   * @brief Probe encoders and select the preferred encoder.
-   * This is called once at startup and each time a stream is launched to
-   * ensure the best encoder is selected. Encoder availability can change
-   * at runtime due to all sorts of things from driver updates to eGPUs.
-   *
-   * @warning This is only safe to call when there is no client actively streaming.
-   * @return 0 when a usable encoder is selected; nonzero when probing fails.
-   */
-  int probe_encoders();
 
   // Several NTSC standard refresh rates are hardcoded here, because their
   // true rate requires a denominator of 1001. ffmpeg's av_d2q() would assume it could

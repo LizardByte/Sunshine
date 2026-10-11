@@ -300,6 +300,14 @@ namespace portal {
    */
   class dbus_t {
   public:
+    /**
+     * @brief Retain the host shutdown mailbox.
+     * @param mail Host mailbox.
+     */
+    explicit dbus_t(safe::mail_t mail):
+        mail(std::move(mail)) {}
+
+    safe::mail_t mail;  ///< Shutdown mailbox for response loops.
     guint dbus_timeout = 10;  ///< Timeout in seconds for DBus calls.
 
     dbus_t &operator=(dbus_t &&) = delete;  // Do not allow to copying
@@ -944,7 +952,7 @@ namespace portal {
      * @param timeout_seconds Timeout in seconds before quitting loop.
      * @return Variant containing the requested data.
      */
-    static GVariant *dbus_response_wait(dbus_response_t *response, guint timeout_seconds = 0) {
+    GVariant *dbus_response_wait(dbus_response_t *response, guint timeout_seconds = 0) {
       GSource *timeout_source = nullptr;
 
       if (timeout_seconds > 0) {
@@ -962,7 +970,7 @@ namespace portal {
       }
 
       constexpr guint shutdown_poll_interval_ms = 1000;
-      auto shutdown_event = mail::man ? mail::man->event<bool>(mail::shutdown) : nullptr;
+      auto shutdown_event = mail ? mail->event<bool>(mail::shutdown) : nullptr;
       loop_context_t ctx {response->loop, shutdown_event};
 
       GSource *shutdown_source = g_timeout_source_new(shutdown_poll_interval_ms);
@@ -1002,6 +1010,13 @@ namespace portal {
    */
   class portal_t: public pipewire::pipewire_display_t {
   public:
+    /**
+     * @brief Bind portal response loops to their host.
+     * @param mail Host mailbox.
+     */
+    explicit portal_t(safe::mail_t mail):
+        dbus(std::move(mail)) {}
+
     int configure_stream(const std::string &display_name, int &out_pipewire_fd, uint32_t &out_pipewire_node, uint64_t &out_pipewire_object_serial [[maybe_unused]]) override {
       // Connect DBus portal session
       if (dbus.init() < 0) {
@@ -1094,14 +1109,14 @@ namespace platf {
    * @param config Configuration values to apply.
    * @return Display backend backed by xdg-desktop-portal and PipeWire, or nullptr.
    */
-  std::shared_ptr<display_t> portal_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
+  std::shared_ptr<display_t> portal_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config, safe::mail_t mail) {
     using enum platf::mem_type_e;
     if (!pipewire::pipewire_display_t::init_pipewire_and_check_hwdevice_type(hwdevice_type)) {
       BOOST_LOG(error) << "[portalgrab] Could not initialize pipewire-based display with the given hw device type."sv;
       return nullptr;
     }
 
-    auto portal = std::make_shared<portal::portal_t>();
+    auto portal = std::make_shared<portal::portal_t>(std::move(mail));
     if (portal->init(hwdevice_type, display_name, config)) {
       return nullptr;
     }
@@ -1115,9 +1130,9 @@ namespace platf {
    * @param allow_start_timeout True if "Start" DBus call is allowed to time out.
    * @return Portal display names, or an empty list when portal discovery fails.
    */
-  std::vector<std::string> portal_display_names(bool allow_start_timeout) {
+  std::vector<std::string> portal_display_names(bool allow_start_timeout, safe::mail_t mail) {
     std::vector<std::string> display_names;
-    auto dbus = std::make_shared<portal::dbus_t>();
+    auto dbus = std::make_shared<portal::dbus_t>(std::move(mail));
 
     if (dbus->init() < 0) {
       BOOST_LOG(warning) << "[portalgrab] Failed to connect to dbus. Cannot enumerate displays, returning empty list.";
