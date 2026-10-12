@@ -8,6 +8,7 @@
 
 #ifdef _WIN32
   // standard includes
+  #include <bit>
   #include <cstddef>
   #include <type_traits>
 
@@ -45,6 +46,8 @@ TEST(D3dkmtAbiTests, AdapterRequestsMatchKernelLayouts) {
 
 /**
  * @brief WDDM 2.7 capability fields map to their documented kernel flag bits.
+ *
+ * Inspect the object representation without reading an inactive union member.
  */
 TEST(D3dkmtAbiTests, WddmCapabilitiesUseKernelBitPositions) {
   using capabilities = platf::dxgi::display_base_t::D3DKMT_WDDM_2_7_CAPS;
@@ -54,19 +57,19 @@ TEST(D3dkmtAbiTests, WddmCapabilitiesUseKernelBitPositions) {
 
   capabilities caps {};
   caps.HwSchSupported = 1;
-  EXPECT_EQ(caps.Value, 0x01U);
+  EXPECT_EQ(std::bit_cast<UINT>(caps), 0x01U);
 
-  caps.Value = 0;
+  caps = {};
   caps.HwSchEnabled = 1;
-  EXPECT_EQ(caps.Value, 0x02U);
+  EXPECT_EQ(std::bit_cast<UINT>(caps), 0x02U);
 
-  caps.Value = 0;
+  caps = {};
   caps.HwSchEnabledByDefault = 1;
-  EXPECT_EQ(caps.Value, 0x04U);
+  EXPECT_EQ(std::bit_cast<UINT>(caps), 0x04U);
 
-  caps.Value = 0;
+  caps = {};
   caps.IndependentVidPnVSyncControl = 1;
-  EXPECT_EQ(caps.Value, 0x08U);
+  EXPECT_EQ(std::bit_cast<UINT>(caps), 0x08U);
 }
 
 /**
