@@ -1,6 +1,7 @@
 /**
  * @file src/config.cpp
  * @brief Definitions for the configuration of Sunshine.
+ * @note AMD, QSV, software AV1 and display preparation conversions are hidden as complete macro blocks from documentation preprocessing.
  */
 // standard includes
 #include <algorithm>
@@ -270,11 +271,11 @@ namespace config {
   #define _CONVERT_(x) \
     if (quality_type == #x##sv) \
     return (int) T::x
-#endif
       _CONVERT_(balanced);
       _CONVERT_(quality);
       _CONVERT_(speed);
-#undef _CONVERT_
+  #undef _CONVERT_
+#endif
       return original;
     }
 
@@ -291,12 +292,12 @@ namespace config {
   #define _CONVERT_(x) \
     if (rc == #x##sv) \
     return (int) T::x
-#endif
       _CONVERT_(cbr);
       _CONVERT_(cqp);
       _CONVERT_(vbr_latency);
       _CONVERT_(vbr_peak);
-#undef _CONVERT_
+  #undef _CONVERT_
+#endif
       return original;
     }
 
@@ -313,13 +314,13 @@ namespace config {
   #define _CONVERT_(x) \
     if (usage == #x##sv) \
     return (int) T::x
-#endif
       _CONVERT_(lowlatency);
       _CONVERT_(lowlatency_high_quality);
       _CONVERT_(transcoding);
       _CONVERT_(ultralowlatency);
       _CONVERT_(webcam);
-#undef _CONVERT_
+  #undef _CONVERT_
+#endif
       return original;
     }
 
@@ -378,7 +379,6 @@ namespace config {
   #define _CONVERT_(x) \
     if (preset == #x##sv) \
     return x
-#endif
       _CONVERT_(veryslow);
       _CONVERT_(slower);
       _CONVERT_(slow);
@@ -386,7 +386,8 @@ namespace config {
       _CONVERT_(fast);
       _CONVERT_(faster);
       _CONVERT_(veryfast);
-#undef _CONVERT_
+  #undef _CONVERT_
+#endif
       return std::nullopt;
     }
 
@@ -581,7 +582,6 @@ namespace config {
   #define _CONVERT_(x, y) \
     if (preset == #x##sv) \
     return y
-#endif
       _CONVERT_(veryslow, 1);
       _CONVERT_(slower, 2);
       _CONVERT_(slow, 4);
@@ -591,7 +591,8 @@ namespace config {
       _CONVERT_(veryfast, 10);
       _CONVERT_(superfast, 11);
       _CONVERT_(ultrafast, 12);
-#undef _CONVERT_
+  #undef _CONVERT_
+#endif
       return 11;  // Default to superfast
     }
   }  // namespace sw
@@ -608,13 +609,13 @@ namespace config {
   #define _CONVERT_(x) \
     if (value == #x##sv) \
     return video_t::dd_t::config_option_e::x
-#endif
       _CONVERT_(disabled);
       _CONVERT_(verify_only);
       _CONVERT_(ensure_active);
       _CONVERT_(ensure_primary);
       _CONVERT_(ensure_only_display);
-#undef _CONVERT_
+  #undef _CONVERT_
+#endif
       return video_t::dd_t::config_option_e::disabled;  // Default to this if value is invalid
     }
 
@@ -630,12 +631,12 @@ namespace config {
     if (value == #str##sv) \
     return video_t::dd_t::resolution_option_e::val
   #define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
-#endif
       _CONVERT_(disabled);
       _CONVERT_2_ARG_(auto, automatic);
       _CONVERT_(manual);
-#undef _CONVERT_
-#undef _CONVERT_2_ARG_
+  #undef _CONVERT_
+  #undef _CONVERT_2_ARG_
+#endif
       return video_t::dd_t::resolution_option_e::disabled;  // Default to this if value is invalid
     }
 
@@ -651,12 +652,12 @@ namespace config {
     if (value == #str##sv) \
     return video_t::dd_t::refresh_rate_option_e::val
   #define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
-#endif
       _CONVERT_(disabled);
       _CONVERT_2_ARG_(auto, automatic);
       _CONVERT_(manual);
-#undef _CONVERT_
-#undef _CONVERT_2_ARG_
+  #undef _CONVERT_
+  #undef _CONVERT_2_ARG_
+#endif
       return video_t::dd_t::refresh_rate_option_e::disabled;  // Default to this if value is invalid
     }
 
@@ -672,11 +673,11 @@ namespace config {
     if (value == #str##sv) \
     return video_t::dd_t::hdr_option_e::val
   #define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
-#endif
       _CONVERT_(disabled);
       _CONVERT_2_ARG_(auto, automatic);
-#undef _CONVERT_
-#undef _CONVERT_2_ARG_
+  #undef _CONVERT_
+  #undef _CONVERT_2_ARG_
+#endif
       return video_t::dd_t::hdr_option_e::disabled;  // Default to this if value is invalid
     }
 
