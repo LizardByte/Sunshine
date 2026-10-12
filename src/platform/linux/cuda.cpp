@@ -1,6 +1,7 @@
 /**
  * @file src/platform/linux/cuda.cpp
  * @brief Definitions for CUDA encoding.
+ * @note Unsupported capture statuses retain their integer enum values in diagnostics.
  */
 // standard includes
 #include <array>
@@ -8,6 +9,7 @@
 #include <fcntl.h>
 #include <filesystem>
 #include <thread>
+#include <utility>
 
 // lib includes
 #include <ffnvcodec/dynlink_loader.h>
@@ -1026,7 +1028,7 @@ namespace cuda {
               }
               break;
             default:
-              logging::error("Unrecognized capture status [{}]", (int) status);
+              logging::error("Unrecognized capture status [{}]", std::to_underlying(status));
               return status;
           }
         }

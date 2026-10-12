@@ -1,6 +1,7 @@
 /**
  * @file src/platform/linux/misc.cpp
  * @brief Miscellaneous definitions for Linux.
+ * @note Unsupported traffic types retain their integer enum values in diagnostics.
  */
 
 // Required for in6_pktinfo with glibc headers
@@ -21,6 +22,7 @@
 #include <iostream>
 #include <sstream>
 #include <system_error>
+#include <utility>
 
 // platform includes
 #include <arpa/inet.h>
@@ -1247,7 +1249,7 @@ namespace platf {
           dscp = 48;
           break;
         default:
-          logging::error("Unknown traffic type: {}", (int) data_type);
+          logging::error("Unknown traffic type: {}", std::to_underlying(data_type));
           break;
       }
 

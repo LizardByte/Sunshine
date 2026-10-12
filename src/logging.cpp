@@ -1,6 +1,7 @@
 /**
  * @file src/logging.cpp
  * @brief Definitions for logging related functions.
+ * @note Logging outputs receive the severity enum's underlying integer value.
  */
 // standard includes
 #include <array>
@@ -10,6 +11,7 @@
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 // lib includes
@@ -189,13 +191,13 @@ namespace logging {
 
   bool is_enabled(level_e level) {
     static_cast<void>(level_name(level));
-    return static_cast<bool>(log_source::get().open_record(bl::keywords::severity = static_cast<int>(level)));
+    return static_cast<bool>(log_source::get().open_record(bl::keywords::severity = std::to_underlying(level)));
   }
 
   void detail::write(level_e level, const writer_t &writer) {
     static_cast<void>(level_name(level));
     auto &source = log_source::get();
-    auto record = source.open_record(bl::keywords::severity = static_cast<int>(level));
+    auto record = source.open_record(bl::keywords::severity = std::to_underlying(level));
     if (!record) {
       return;
     }

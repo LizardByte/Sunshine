@@ -2,6 +2,7 @@
  * @file src/platform/linux/kmsgrab.cpp
  * @brief Definitions for KMS screen capture.
  * @note POSIX diagnostics preserve the native errno before logging and format owned error messages.
+ * @note Unsupported capture statuses retain their integer enum values in diagnostics.
  */
 // standard includes
 #include <array>
@@ -15,6 +16,7 @@
 #include <system_error>
 #include <thread>
 #include <unistd.h>
+#include <utility>
 
 // platform includes
 #include <drm_fourcc.h>
@@ -1876,7 +1878,7 @@ namespace platf {
               }
               break;
             default:
-              logging::error("Unrecognized capture status [{}]", (int) status);
+              logging::error("Unrecognized capture status [{}]", std::to_underlying(status));
               return status;
           }
         }
@@ -2148,7 +2150,7 @@ namespace platf {
               }
               break;
             default:
-              logging::error("Unrecognized capture status [{}]", (int) status);
+              logging::error("Unrecognized capture status [{}]", std::to_underlying(status));
               return status;
           }
         }

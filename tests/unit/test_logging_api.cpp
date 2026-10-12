@@ -528,7 +528,7 @@ TEST(LoggingApiTest, SynchronousAndAsynchronousSinksReceiveIdenticalMetadata) {
  */
 TEST(LoggingApiTest, SinkMinimumSeverityOnlyFiltersThatSink) {
   auto sink = std::make_shared<recording_sink_t>();
-  auto owner = logging::add_sink(sink, static_cast<int>(logging::level_e::warning), false);
+  auto owner = logging::add_sink(sink, std::to_underlying(logging::level_e::warning), false);
 
   logging::verbose("filtered verbose");
   logging::info("filtered info");

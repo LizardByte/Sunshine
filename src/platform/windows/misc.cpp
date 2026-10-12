@@ -11,6 +11,7 @@
 #include <iterator>
 #include <set>
 #include <sstream>
+#include <utility>
 #include <vector>
 
 // lib includes
@@ -1165,6 +1166,7 @@ namespace platf {
 
   /**
    * @brief Set the calling thread's Windows scheduling priority.
+   * @details Unknown priorities are reported using their underlying numeric value.
    */
   void adjust_thread_priority(thread_priority_e priority) {
     int win32_priority;
@@ -1184,7 +1186,7 @@ namespace platf {
         win32_priority = THREAD_PRIORITY_HIGHEST;
         break;
       default:
-        logging::error("Unknown thread priority: {}", (int) priority);
+        logging::error("Unknown thread priority: {}", std::to_underlying(priority));
         return;
     }
 
@@ -1660,6 +1662,7 @@ namespace platf {
 
   /**
    * @brief Enables QoS on the given socket for traffic to the specified destination.
+   * @details Unknown traffic classes are reported using their underlying numeric value.
    */
   std::unique_ptr<deinit_t> runtime_t::enable_socket_qos(uintptr_t native_socket, const boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
     SOCKADDR_IN saddr_v4;
@@ -1731,7 +1734,7 @@ namespace platf {
         traffic_type = QOSTrafficTypeAudioVideo;
         break;
       default:
-        logging::error("Unknown traffic type: {}", (int) data_type);
+        logging::error("Unknown traffic type: {}", std::to_underlying(data_type));
         return nullptr;
     }
 

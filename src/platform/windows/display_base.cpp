@@ -6,6 +6,7 @@
 #include <array>
 #include <cmath>
 #include <thread>
+#include <utility>
 
 // platform includes
 #include <initguid.h>
@@ -213,6 +214,13 @@ namespace platf::dxgi {
     release_frame();
   }
 
+  /**
+   * @brief Capture frames and report unknown capture states using their underlying numeric value.
+   * @param push_captured_image_cb Consumer of captured frames and their change state.
+   * @param pull_free_image_cb Provider of reusable image storage.
+   * @param cursor Whether the cursor should be included in the capture.
+   * @return Capture completion or failure status.
+   */
   capture_e display_base_t::capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) {
     auto adjust_client_frame_rate = [&]() -> DXGI_RATIONAL {
       // Use exactly the requested rate if the client sent an X100 value
@@ -345,7 +353,7 @@ namespace platf::dxgi {
           }
           break;
         default:
-          logging::error("Unrecognized capture status [{}]", (int) status);
+          logging::error("Unrecognized capture status [{}]", std::to_underlying(status));
           return status;
       }
 

@@ -1,11 +1,13 @@
 /**
  * @file src/platform/linux/x11grab.cpp
  * @brief Definitions for x11 capture.
+ * @note Unsupported capture statuses retain their integer enum values in diagnostics.
  */
 // standard includes
 #include <fstream>
 #include <ranges>
 #include <thread>
+#include <utility>
 
 // plaform includes
 #include <sys/ipc.h>
@@ -581,7 +583,7 @@ namespace platf {
             }
             break;
           default:
-            logging::error("Unrecognized capture status [{}]", (int) status);
+            logging::error("Unrecognized capture status [{}]", std::to_underlying(status));
             return status;
         }
       }
@@ -753,7 +755,7 @@ namespace platf {
             }
             break;
           default:
-            logging::error("Unrecognized capture status [{}]", (int) status);
+            logging::error("Unrecognized capture status [{}]", std::to_underlying(status));
             return status;
         }
       }
