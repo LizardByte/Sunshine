@@ -274,7 +274,7 @@ namespace va {
     /**
      * @brief Determines the matching VA profile for the codec configuration.
      * @param codec_context Read-only FFmpeg codec context.
-     * @return The matching VA profile or `VAProfileNone` on failure.
+     * @return The matching VA profile, or `VAProfileNone` with an error for unmapped codecs, HEVC/AV1 profiles or HEVC range-extension depths.
      */
     VAProfile get_va_profile(const AVCodecContext *codec_context) {
       if (codec_context->codec_id == AV_CODEC_ID_H264) {
@@ -288,12 +288,16 @@ namespace va {
                 return VAProfileHEVCMain444_10;
               case 8:
                 return VAProfileHEVCMain444;
+              default:
+                break;
             }
             break;
           case AV_PROFILE_HEVC_MAIN_10:
             return VAProfileHEVCMain10;
           case AV_PROFILE_HEVC_MAIN:
             return VAProfileHEVCMain;
+          default:
+            break;
         }
       } else if (codec_context->codec_id == AV_CODEC_ID_AV1) {
         switch (codec_context->profile) {
@@ -301,6 +305,8 @@ namespace va {
             return VAProfileAV1Profile1;
           case AV_PROFILE_AV1_MAIN:
             return VAProfileAV1Profile0;
+          default:
+            break;
         }
       }
 

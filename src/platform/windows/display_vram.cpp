@@ -244,6 +244,7 @@ namespace platf::dxgi {
    *
    * @param img_data Raw pointer-shape bytes returned by DXGI.
    * @param shape_info DXGI metadata describing the pointer shape.
+   * @note Two monochrome mask bits produce only color types 0 through 3; the default is transparent.
    * @return Constructed cursor xor image object.
    */
   util::buffer_t<std::uint8_t> make_cursor_xor_image(const util::buffer_t<std::uint8_t> &img_data, DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info) {
@@ -294,13 +295,14 @@ namespace platf::dxgi {
       for (auto c = 7; c >= 0 && ((std::uint8_t *) pixel_data) != std::end(cursor_img); --c) {
         auto bit = 1 << c;
         switch (auto color_type = ((*and_mask & bit) ? 1 : 0) + ((*xor_mask & bit) ? 2 : 0); color_type) {
+          case 3:  // Inverse of screen
+            *pixel_data = inverted;
+            break;
           case 0:  // Opaque black (handled by alpha-blending)
           case 2:  // Opaque white (handled by alpha-blending)
           case 1:  // Color of screen (transparent)
+          default:
             *pixel_data = transparent;
-            break;
-          case 3:  // Inverse of screen
-            *pixel_data = inverted;
             break;
         }
 
@@ -318,6 +320,7 @@ namespace platf::dxgi {
    *
    * @param img_data Raw pointer-shape bytes returned by DXGI.
    * @param shape_info DXGI metadata describing the pointer shape.
+   * @note Two monochrome mask bits produce only color types 0 through 3; the default is transparent.
    * @return Constructed cursor alpha image object.
    */
   util::buffer_t<std::uint8_t> make_cursor_alpha_image(const util::buffer_t<std::uint8_t> &img_data, DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info) {
@@ -378,6 +381,7 @@ namespace platf::dxgi {
             break;
           case 3:  // Inverse of screen (handled by XOR blending)
           case 1:  // Color of screen (transparent)
+          default:
             *pixel_data = transparent;
             break;
         }

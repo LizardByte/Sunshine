@@ -29,10 +29,38 @@ extern "C" {
 #include "src/config.h"
 #include "src/file_handler.h"
 #include "src/input.h"
+#include "src/logging.h"
 #include "src/platform/virtualhid_input.h"
 #include "src/utility.h"
 
 namespace {
+  /**
+   * @brief Count packet diagnostics without including logs from background threads.
+   */
+  class packet_log_sink_t final: public logging::sink_t {
+  public:
+    /**
+     * @brief Count a synchronous record emitted on the test's calling thread.
+     */
+    void consume(const logging::message_t &) override {
+      if (std::this_thread::get_id() == calling_thread_) {
+        ++record_count_;
+      }
+    }
+
+    /**
+     * @brief Read the number of diagnostics emitted on the test's calling thread.
+     * @return Number of records observed through the synchronous sink.
+     */
+    std::size_t record_count() const {
+      return record_count_;
+    }
+
+  private:
+    const std::thread::id calling_thread_ {std::this_thread::get_id()};  ///< Calling thread whose diagnostics are observed.
+    std::size_t record_count_ {};  ///< Number of synchronous diagnostics observed.
+  };
+
   /**
    * @brief Protocol metadata for a fixed-size input packet.
    */
@@ -199,6 +227,27 @@ namespace {
     lvh::Runtime *runtime_ = nullptr;  ///< Fake runtime installed in the global input backend.
   };
 }  // namespace
+
+/**
+ * @brief Unknown input types emit no diagnostic while recognized packets still log.
+ */
+TEST(InputPacketPrintTest, UnknownMagicIsASilentNoOp) {
+  auto sink = std::make_shared<packet_log_sink_t>();
+  auto owner = logging::add_sink(sink, 0, false);
+  NV_REL_MOUSE_MOVE_PACKET recognized {};
+  recognized.header.magic = util::endian::little<std::uint32_t>(MOUSE_MOVE_REL_MAGIC_GEN5);
+  input::print(static_cast<void *>(&recognized));
+  ASSERT_EQ(sink->record_count(), 1U);
+
+  for (const auto magic : {0U, 0x12345678U, 0xFFFFFFFFU}) {
+    NV_INPUT_HEADER unknown {
+      util::endian::big<std::uint32_t>(sizeof(unknown.magic)),
+      util::endian::little(magic),
+    };
+    input::print(static_cast<void *>(&unknown));
+    EXPECT_EQ(sink->record_count(), 1U) << magic;
+  }
+}
 
 TEST(InputPacketValidationTest, RejectsEveryBufferShorterThanTheHeader) {
   for (std::size_t actual_size = 0; actual_size < sizeof(NV_INPUT_HEADER); ++actual_size) {

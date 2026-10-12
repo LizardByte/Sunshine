@@ -14,7 +14,7 @@ namespace video::detail {
    * @brief Describe an unsupported explicitly requested codec feature.
    * @param codec Probed codec capabilities.
    * @param mode Requested mode; zero selects automatic detection and one disables the codec.
-   * @return Missing feature description, empty for basic codec support, or nullopt when satisfied.
+   * @return Missing feature description, empty for basic codec support, or nullopt when satisfied or the mode has no explicit feature requirement.
    */
   inline std::optional<std::string_view> unsupported_codec_requirement(const encoder_t::codec_t &codec, int mode) {
     switch (mode) {
@@ -37,6 +37,8 @@ namespace video::detail {
         if (!codec[encoder_t::PASSED]) {
           return "";
         }
+        break;
+      default:
         break;
     }
     return std::nullopt;

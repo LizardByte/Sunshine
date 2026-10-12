@@ -6,9 +6,12 @@
 #include "../tests_common.h"
 
 // standard includes
+#include <array>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <thread>
+#include <utility>
 
 // lib imports
 #include <boost/process/v1.hpp>
@@ -32,6 +35,71 @@ TEST(ProcessTest, PrepareCommand) {
   EXPECT_EQ(proc::prepare_command("flatpak-spawn --host steam"), "flatpak-spawn --host steam");
   EXPECT_EQ(proc::prepare_command(""), "");
 #endif
+}
+
+/**
+ * @brief Supported channel counts set launch audio layouts independently of metadata bits.
+ */
+TEST(ProcessTest, SupportedAudioChannelsSetSessionEnvironment) {
+  constexpr std::array cases {
+    std::pair {2, "2.0"},
+    std::pair {6, "5.1"},
+    std::pair {8, "7.1"},
+  };
+  for (const auto &[channels, layout] : cases) {
+    for (const auto metadata : {0, 0x5A0000}) {
+      config::settings_t settings;
+      boost::process::v1::environment env;
+      env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "inherited";
+      proc::ctx_t app {};
+      app.name = "Desktop";
+      app.id = "42";
+      std::vector<proc::ctx_t> apps {std::move(app)};
+      proc::proc_t process {settings, std::move(env), std::move(apps)};
+      auto launch_session = std::make_shared<rtsp_stream::launch_session_t>();
+      launch_session->surround_info = metadata | channels;
+      launch_session->surround_params = "test-layout";
+
+      ASSERT_EQ(process.execute(42, launch_session), 0);
+      const auto &active_env = process.get_env();
+      ASSERT_EQ(active_env.count("SUNSHINE_CLIENT_AUDIO_CONFIGURATION"), 1U);
+      EXPECT_EQ(active_env.at("SUNSHINE_CLIENT_AUDIO_CONFIGURATION").to_string(), layout) << channels;
+      EXPECT_EQ(active_env.at("SUNSHINE_CLIENT_AUDIO_SURROUND_PARAMS").to_string(), "test-layout");
+    }
+  }
+}
+
+/**
+ * @brief Unknown channel counts neither create nor overwrite launch audio configuration.
+ */
+TEST(ProcessTest, UnknownAudioChannelsPreserveSessionEnvironment) {
+  for (const bool inherited : {false, true}) {
+    for (const auto channels : {0, 1, 3, 5, 7, 9, 65535}) {
+      config::settings_t settings;
+      boost::process::v1::environment env;
+      if (inherited) {
+        env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "inherited";
+      }
+      proc::ctx_t app {};
+      app.name = "Desktop";
+      app.id = "42";
+      std::vector<proc::ctx_t> apps {std::move(app)};
+      proc::proc_t process {settings, std::move(env), std::move(apps)};
+      auto launch_session = std::make_shared<rtsp_stream::launch_session_t>();
+      launch_session->surround_info = 0x5A0000 | channels;
+      launch_session->surround_params = "test-layout";
+
+      ASSERT_EQ(process.execute(42, launch_session), 0);
+      const auto &active_env = process.get_env();
+      if (inherited) {
+        ASSERT_EQ(active_env.count("SUNSHINE_CLIENT_AUDIO_CONFIGURATION"), 1U);
+        EXPECT_EQ(active_env.at("SUNSHINE_CLIENT_AUDIO_CONFIGURATION").to_string(), "inherited") << channels;
+      } else {
+        EXPECT_EQ(active_env.count("SUNSHINE_CLIENT_AUDIO_CONFIGURATION"), 0U) << channels;
+      }
+      EXPECT_EQ(active_env.at("SUNSHINE_CLIENT_AUDIO_SURROUND_PARAMS").to_string(), "test-layout");
+    }
+  }
 }
 
 class ProcessPNGTest: public BaseTest {  // NOSONAR(cpp:S3656): protected members are intentional for test fixture subclassing

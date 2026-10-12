@@ -193,6 +193,7 @@ namespace proc {
   /**
    * @brief Execute the selected application and its configured preparation commands.
    * @note Detached command definitions are observed without rewriting the configured strings.
+   * @note Unrecognized channel counts leave any existing audio configuration environment entry unchanged.
    */
   int proc_t::execute(int app_id, std::shared_ptr<rtsp_stream::launch_session_t> launch_session) {
     // Ensure starting from a clean slate
@@ -232,6 +233,8 @@ namespace proc {
         break;
       case 8:
         _env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "7.1";
+        break;
+      default:
         break;
     }
     _env["SUNSHINE_CLIENT_AUDIO_SURROUND_PARAMS"] = launch_session->surround_params;

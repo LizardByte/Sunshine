@@ -103,9 +103,9 @@ namespace input {
   /**
    * @brief Write a debug log representation of the input packet.
    *
-   * @param input Raw input packet to format for logging.
+   * @param payload Raw input packet to format for logging.
    */
-  void print(void *input);
+  void print(void *payload);
   /**
    * @brief Reset stream input state after a client disconnect or shutdown.
    *

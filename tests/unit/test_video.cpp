@@ -30,7 +30,9 @@ extern "C" {
 
 using namespace std::literals;
 
-/** @brief Codec policy truth table distinguishes selection requirements from encoder-preferred fallback. */
+/**
+ * @brief Codec policy truth table preserves selection requirements, fallback and unknown-mode boundaries.
+ */
 TEST(VideoProbePolicyTest, PreservesCodecConstraintsAndAutomaticAdvertisement) {
   const std::array<std::array<bool, 4>, 8> requirements {{
     {false, false, false, false},
@@ -54,6 +56,9 @@ TEST(VideoProbePolicyTest, PreservesCodecConstraintsAndAutomaticAdvertisement) {
     for (int mode = 2; mode <= 5; ++mode) {
       EXPECT_EQ(video::detail::codec_meets_requirements(codec, mode), requirements[bits][mode - 2]) << bits << ':' << mode;
       EXPECT_EQ(video::detail::advertised_codec_mode(codec, mode), mode);
+    }
+    for (int mode : {std::numeric_limits<int>::min(), -1, 0, 1, 6, std::numeric_limits<int>::max()}) {
+      EXPECT_FALSE(video::detail::unsupported_codec_requirement(codec, mode)) << bits << ':' << mode;
     }
   }
   video::encoder_t::codec_t codec;

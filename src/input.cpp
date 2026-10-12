@@ -754,6 +754,7 @@ namespace input {
 
   /**
    * @brief Write a debug log representation of the input packet.
+   * @note Unrecognized packet types are silently ignored.
    */
   void print(void *payload) {
     auto header = (PNV_INPUT_HEADER) payload;
@@ -802,6 +803,8 @@ namespace input {
         break;
       case SS_CONTROLLER_BATTERY_MAGIC:
         print((PSS_CONTROLLER_BATTERY_PACKET) payload);
+        break;
+      default:
         break;
     }
   }
