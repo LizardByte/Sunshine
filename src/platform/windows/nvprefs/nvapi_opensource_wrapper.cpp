@@ -23,7 +23,7 @@ namespace nvprefs {
                 }};
       },
       [](HMODULE module, const char *name) {
-        return adapt_query(reinterpret_cast<native_query_t>(GetProcAddress(module, name)));
+        return adapt_query(GetProcAddress(module, name));
       },
     };
     return load(loader);
@@ -54,12 +54,15 @@ namespace nvprefs {
     return std::make_shared<const api_t>(std::move(library), std::move(interfaces));
   }
 
-  api_t::query_t api_t::adapt_query(native_query_t query) {
-    if (!query) {
+  api_t::query_t api_t::adapt_query(FARPROC address) {
+    // NVAPI's native void pointer carries a flat Windows function address, not an object.
+    static_assert(sizeof(native_query_t) == sizeof(FARPROC));
+    static_assert(sizeof(FARPROC) == sizeof(void *));
+    if (!address) {
       return {};
     }
-    return [query](NvU32 id) {
-      return reinterpret_cast<FARPROC>(query(id));
+    return [query = std::bit_cast<native_query_t>(address)](NvU32 id) {
+      return std::bit_cast<FARPROC>(query(id));
     };
   }
 }  // namespace nvprefs

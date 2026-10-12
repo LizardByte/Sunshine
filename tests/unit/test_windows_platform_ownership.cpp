@@ -4,21 +4,107 @@
  */
 #include "../tests_common.h"
 #ifdef _WIN32
+  #include <bit>
+  #include <cstddef>
+  #include <cstdlib>
   #include <src/platform/windows/streaming_api.h>
+  #include <src/utility.h>
   #include <tools/service_state.h>
 
 namespace {
-  /**
-   * @brief Allocation identity for an injected library with an observable unload operation.
-   */
-  struct fake_library_t {};
-
   /**
    * @brief Fake QWAVE client with an observable cleanup operation.
    */
   struct fake_qos_t {
     std::function<void()> close;  ///< Test cleanup observer.
+    SOCKET socket {};  ///< Socket registered by the restored add export.
+    ADDRESS_FAMILY family {};  ///< Destination family passed to the add export.
+    QOS_TRAFFIC_TYPE traffic {};  ///< Traffic policy passed to the add export.
+    DWORD flags {};  ///< Flow flags passed to the add export.
+    QOS_FLOWID flow {};  ///< Flow identity returned by the add export.
+    bool removed {};  ///< Whether the restored remove export received that flow.
   };
+
+  /**
+   * @brief Fake WLAN client recording calls through the restored table.
+   */
+  struct fake_wlan_t {
+    unsigned int enumerations {};  ///< Number of interface enumerations.
+    GUID interface_guid {};  ///< Interface selected by the set export.
+    WLAN_INTF_OPCODE opcode {};  ///< Option selected by the set export.
+    BOOL enabled {};  ///< Boolean option value passed to the set export.
+  };
+
+  /**
+   * @brief Open a fake WLAN client with the requested API version.
+   * @param version Requested version.
+   * @param negotiated Negotiated version output.
+   * @param handle Allocated client output.
+   * @return Success.
+   */
+  extern "C" DWORD WINAPI open_wlan(DWORD version, PVOID, PDWORD negotiated, PHANDLE handle) {
+    *negotiated = version;
+    *handle = new fake_wlan_t {};
+    return ERROR_SUCCESS;
+  }
+
+  /**
+   * @brief Close a fake WLAN client.
+   * @param handle Client allocated by open_wlan.
+   * @return Success.
+   */
+  extern "C" DWORD WINAPI close_wlan(HANDLE handle, PVOID) {
+    delete static_cast<fake_wlan_t *>(handle);
+    return ERROR_SUCCESS;
+  }
+
+  /**
+   * @brief Release a native-layout fake discovery result.
+   * @param memory Result allocated by enumerate_wlan.
+   */
+  extern "C" VOID WINAPI free_wlan(PVOID memory) {
+    std::free(memory);
+  }
+
+  /**
+   * @brief Enumerate one fake interface through the SDK callback signature.
+   * @details The SDK list has a variable-length tail, so allocation includes one full interface entry.
+   * @param handle Fake client recording the call.
+   * @param interfaces Newly allocated discovery result.
+   * @return Success, or an out-of-memory error when native-layout storage cannot be allocated.
+   */
+  extern "C" DWORD WINAPI enumerate_wlan(HANDLE handle, PVOID, PWLAN_INTERFACE_INFO_LIST *interfaces) {
+    ++static_cast<fake_wlan_t *>(handle)->enumerations;
+    constexpr auto storage_size = offsetof(WLAN_INTERFACE_INFO_LIST, InterfaceInfo) + sizeof(WLAN_INTERFACE_INFO);
+    auto result = static_cast<PWLAN_INTERFACE_INFO_LIST>(std::calloc(1, storage_size));
+    *interfaces = result;
+    if (!result) {
+      return ERROR_NOT_ENOUGH_MEMORY;
+    }
+    result->dwNumberOfItems = 1;
+    result->InterfaceInfo[0].InterfaceGuid.Data1 = 17;
+    return ERROR_SUCCESS;
+  }
+
+  /**
+   * @brief Record a boolean interface option through the SDK callback signature.
+   * @param handle Fake client recording the call.
+   * @param guid Selected interface.
+   * @param opcode Selected option.
+   * @param size Option payload length.
+   * @param data Boolean option payload.
+   * @return Success for a boolean payload, otherwise an invalid-parameter error.
+   */
+  extern "C" DWORD WINAPI set_wlan(HANDLE handle, const GUID *guid, WLAN_INTF_OPCODE opcode, DWORD size, const PVOID data, PVOID) {
+    if (size != sizeof(BOOL)) {
+      return ERROR_INVALID_PARAMETER;
+    }
+    auto client = static_cast<fake_wlan_t *>(handle);
+    client->interface_guid = *guid;
+    client->opcode = opcode;
+    client->enabled = *static_cast<const BOOL *>(data);
+    return ERROR_SUCCESS;
+  }
 
   /**
    * @brief Create an isolated fake client.
@@ -55,23 +141,73 @@ namespace {
   }
 
   /**
-   * @brief Stand-in export used only for immutable table validation.
+   * @brief Add a fake QWAVE flow through the SDK callback signature.
+   * @param handle Fake client recording the call.
+   * @param socket Socket assigned to the flow.
+   * @param address Destination address.
+   * @param traffic Traffic policy.
+   * @param flags Flow flags.
+   * @param flow Assigned flow identity.
+   * @return Success.
    */
-  void WINAPI unused_export() {}
+  BOOL WINAPI add_qos(HANDLE handle, SOCKET socket, PSOCKADDR address, QOS_TRAFFIC_TYPE traffic, DWORD flags, PQOS_FLOWID flow) {
+    auto client = static_cast<fake_qos_t *>(handle);
+    client->socket = socket;
+    client->family = address->sa_family;
+    client->traffic = traffic;
+    client->flags = flags;
+    client->flow = *flow = 19;
+    return TRUE;
+  }
+
+  /**
+   * @brief Remove the fake QWAVE flow using its exact socket and identity.
+   * @param handle Fake client recording the call.
+   * @param socket Socket assigned to the flow.
+   * @param flow Previously assigned flow identity.
+   * @param flags Removal flags.
+   * @return Success when the registered flow is matched.
+   */
+  BOOL WINAPI remove_qos(HANDLE handle, SOCKET socket, QOS_FLOWID flow, DWORD flags) {
+    auto client = static_cast<fake_qos_t *>(handle);
+    client->removed = client->socket == socket && client->flow == flow && flags == 0;
+    return client->removed;
+  }
 
   /**
    * @brief Resolve complete test exports.
    * @param name Export name.
-   * @return Function address.
+   * @return ABI-erased address of an exact SDK-signature fake, or nullptr for an unknown export.
    */
   FARPROC complete_export(const char *name) {
     if (std::string_view(name) == "QOSCreateHandle") {
-      return reinterpret_cast<FARPROC>(&create_qos);
+      return std::bit_cast<FARPROC>(&create_qos);
     }
     if (std::string_view(name) == "QOSCloseHandle") {
-      return reinterpret_cast<FARPROC>(&close_qos);
+      return std::bit_cast<FARPROC>(&close_qos);
     }
-    return reinterpret_cast<FARPROC>(&unused_export);
+    if (std::string_view(name) == "QOSAddSocketToFlow") {
+      return std::bit_cast<FARPROC>(&add_qos);
+    }
+    if (std::string_view(name) == "QOSRemoveSocketFromFlow") {
+      return std::bit_cast<FARPROC>(&remove_qos);
+    }
+    if (std::string_view(name) == "WlanOpenHandle") {
+      return std::bit_cast<FARPROC>(&open_wlan);
+    }
+    if (std::string_view(name) == "WlanCloseHandle") {
+      return std::bit_cast<FARPROC>(&close_wlan);
+    }
+    if (std::string_view(name) == "WlanFreeMemory") {
+      return std::bit_cast<FARPROC>(&free_wlan);
+    }
+    if (std::string_view(name) == "WlanEnumInterfaces") {
+      return std::bit_cast<FARPROC>(&enumerate_wlan);
+    }
+    if (std::string_view(name) == "WlanSetInterface") {
+      return std::bit_cast<FARPROC>(&set_wlan);
+    }
+    return nullptr;
   }
 
   /**
@@ -87,11 +223,10 @@ namespace {
                                     }) {
     return {
       [unload](const char *) {
-        auto library = std::shared_ptr<fake_library_t>(new fake_library_t {}, [unload](fake_library_t *library) {
-          delete library;
-          unload();
-        });
-        return platf::networking_loader_t::library_t {library, reinterpret_cast<HMODULE>(library.get())};
+        return platf::networking_loader_t::library_t {new std::remove_pointer_t<HMODULE> {}, [unload](HMODULE library) {
+                                                        delete library;
+                                                        unload();
+                                                      }};
       },
       std::move(resolve),
     };
@@ -109,7 +244,7 @@ TEST(WindowsNetworkingOwnerTest, SystemLoaderResolvesExportsFromItsOwnedModule) 
   EXPECT_EQ(native_loader.resolve(library.get(), "SunshineMissingNetworkingExport"), nullptr);
   const auto address = native_loader.resolve(library.get(), "GetCurrentProcessId");
   ASSERT_NE(address, nullptr);
-  const auto get_process_id = reinterpret_cast<decltype(GetCurrentProcessId) *>(address);
+  const auto get_process_id = std::bit_cast<decltype(GetCurrentProcessId) *>(address);
   EXPECT_EQ(get_process_id(), GetCurrentProcessId());
 }
 
@@ -158,6 +293,76 @@ TEST(WindowsNetworkingOwnerTest, CompleteWlanTableRetainsLibraryUntilLastResourc
   EXPECT_EQ(unloaded, 1);
 }
 
+/**
+ * @brief All restored WLAN exports accept and deliver their exact SDK arguments.
+ */
+TEST(WindowsNetworkingOwnerTest, RestoredWlanExportsAreCallableWithSdkSignatures) {
+  auto api = platf::wlan_api_t::load(loader());
+  ASSERT_TRUE(api);
+  EXPECT_EQ(api->open, &open_wlan);
+  EXPECT_EQ(api->close, &close_wlan);
+  EXPECT_EQ(api->free_memory, &free_wlan);
+  EXPECT_EQ(api->enumerate, &enumerate_wlan);
+  EXPECT_EQ(api->set, &set_wlan);
+
+  DWORD negotiated {};
+  HANDLE handle {};
+  ASSERT_EQ(api->open(2, nullptr, &negotiated, &handle), ERROR_SUCCESS);
+  ASSERT_NE(handle, nullptr);
+  auto close = util::fail_guard([&api, handle] {
+    EXPECT_EQ(api->close(handle, nullptr), ERROR_SUCCESS);
+  });
+  EXPECT_EQ(negotiated, 2);
+
+  PWLAN_INTERFACE_INFO_LIST interfaces {};
+  ASSERT_EQ(api->enumerate(handle, nullptr, &interfaces), ERROR_SUCCESS);
+  ASSERT_NE(interfaces, nullptr);
+  auto free = util::fail_guard([&api, interfaces] {
+    api->free_memory(interfaces);
+  });
+  EXPECT_EQ(interfaces->dwNumberOfItems, 1);
+  EXPECT_EQ(interfaces->dwIndex, 0);
+  EXPECT_EQ(interfaces->InterfaceInfo[0].strInterfaceDescription[WLAN_MAX_NAME_LENGTH - 1], L'\0');
+  EXPECT_EQ(static_cast<fake_wlan_t *>(handle)->enumerations, 1);
+
+  BOOL enabled = TRUE;
+  const auto &guid = interfaces->InterfaceInfo[0].InterfaceGuid;
+  EXPECT_EQ(api->set(handle, &guid, wlan_intf_opcode_media_streaming_mode, sizeof(enabled), &enabled, nullptr), ERROR_SUCCESS);
+  const auto client = static_cast<fake_wlan_t *>(handle);
+  EXPECT_EQ(client->interface_guid.Data1, 17);
+  EXPECT_EQ(client->opcode, wlan_intf_opcode_media_streaming_mode);
+  EXPECT_EQ(client->enabled, TRUE);
+  EXPECT_EQ(api->set(handle, &guid, wlan_intf_opcode_media_streaming_mode, 0, &enabled, nullptr), ERROR_INVALID_PARAMETER);
+  EXPECT_EQ(complete_export("UnknownExport"), nullptr);
+}
+
+/**
+ * @brief Restored QWAVE add and remove exports preserve socket, policy and flow identity.
+ */
+TEST(WindowsNetworkingOwnerTest, RestoredQwaveExportsAreCallableWithSdkSignatures) {
+  auto api = platf::qwave_api_t::load(loader());
+  ASSERT_TRUE(api);
+  EXPECT_EQ(api->create, &create_qos);
+  EXPECT_EQ(api->close, &close_qos);
+  EXPECT_EQ(api->add, &add_qos);
+  EXPECT_EQ(api->remove, &remove_qos);
+  SOCKADDR address {};
+  address.sa_family = AF_INET;
+  QOS_FLOWID flow {};
+  const SOCKET socket = 37;
+  ASSERT_TRUE(api->add(api->handle, socket, &address, QOSTrafficTypeAudioVideo, QOS_NON_ADAPTIVE_FLOW, &flow));
+  const auto client = static_cast<fake_qos_t *>(api->handle);
+  EXPECT_EQ(client->socket, socket);
+  EXPECT_EQ(client->family, AF_INET);
+  EXPECT_EQ(client->traffic, QOSTrafficTypeAudioVideo);
+  EXPECT_EQ(client->flags, QOS_NON_ADAPTIVE_FLOW);
+  EXPECT_EQ(flow, 19);
+  EXPECT_FALSE(api->remove(api->handle, socket, flow + 1, 0));
+  EXPECT_FALSE(client->removed);
+  EXPECT_TRUE(api->remove(api->handle, socket, flow, 0));
+  EXPECT_TRUE(client->removed);
+}
+
 TEST(WindowsNetworkingOwnerTest, EveryMissingQwaveExportDiscardsLibraryAndCanRetry) {
   for (const char *missing : {"QOSCreateHandle", "QOSCloseHandle", "QOSAddSocketToFlow", "QOSRemoveSocketFromFlow"}) {
     int unloaded = 0;
@@ -176,7 +381,7 @@ TEST(WindowsNetworkingOwnerTest, EveryMissingQwaveExportDiscardsLibraryAndCanRet
 TEST(WindowsNetworkingOwnerTest, FailedClientCreationReleasesLibraryWithoutClosingClient) {
   int unloaded = 0;
   auto rejected = loader([](HMODULE, const char *name) {
-    return std::string_view(name) == "QOSCreateHandle" ? reinterpret_cast<FARPROC>(&reject_qos) : complete_export(name);
+    return std::string_view(name) == "QOSCreateHandle" ? std::bit_cast<FARPROC>(&reject_qos) : complete_export(name);
   },
                          [&unloaded]() {
                            ++unloaded;
@@ -207,14 +412,16 @@ TEST(WindowsNetworkingOwnerTest, LastFlowClosesClientBeforeLibraryUnload) {
 
 TEST(WindowsServiceOwnerTest, StopReportsDeadlineBeforeSignalingOnlyItsOwner) {
   std::vector<std::string> events;
+  int stop_identity {};
+  const auto stop_handle = static_cast<HANDLE>(&stop_identity);
   SERVICE_STATUS snapshot {};
   service::state_t first {{[&snapshot, &events](SERVICE_STATUS_HANDLE, const SERVICE_STATUS *state) {
                              snapshot = *state;
                              events.emplace_back("status");
                              return TRUE;
                            },
-                           [&events](HANDLE handle) {
-                             EXPECT_EQ(handle, reinterpret_cast<HANDLE>(1));
+                           [&events, stop_handle](HANDLE handle) {
+                             EXPECT_EQ(handle, stop_handle);
                              events.emplace_back("stop");
                              return TRUE;
                            },
@@ -222,7 +429,7 @@ TEST(WindowsServiceOwnerTest, StopReportsDeadlineBeforeSignalingOnlyItsOwner) {
                              events.emplace_back("close");
                              return TRUE;
                            }}};
-  first.stop_event = reinterpret_cast<HANDLE>(1);
+  first.stop_event = stop_handle;
   EXPECT_EQ(first.control(SERVICE_CONTROL_STOP, 0), NO_ERROR);
   EXPECT_EQ(snapshot.dwCurrentState, SERVICE_STOP_PENDING);
   EXPECT_EQ(snapshot.dwControlsAccepted, 0);
@@ -232,18 +439,20 @@ TEST(WindowsServiceOwnerTest, StopReportsDeadlineBeforeSignalingOnlyItsOwner) {
 
 TEST(WindowsServiceOwnerTest, SessionControlsSignalOnlyConsoleConnectAndUnsupportedControlFails) {
   int signals = 0;
+  int session_change_identity {};
+  const auto session_change_handle = static_cast<HANDLE>(&session_change_identity);
   service::state_t state {{[](SERVICE_STATUS_HANDLE, LPSERVICE_STATUS) {
                              return TRUE;
                            },
-                           [&signals](HANDLE handle) {
-                             EXPECT_EQ(handle, reinterpret_cast<HANDLE>(2));
+                           [&signals, session_change_handle](HANDLE handle) {
+                             EXPECT_EQ(handle, session_change_handle);
                              ++signals;
                              return TRUE;
                            },
                            [](HANDLE) {
                              return TRUE;
                            }}};
-  state.session_change_event = reinterpret_cast<HANDLE>(2);
+  state.session_change_event = session_change_handle;
   EXPECT_EQ(state.control(SERVICE_CONTROL_INTERROGATE, 0), NO_ERROR);
   EXPECT_EQ(state.control(SERVICE_CONTROL_SESSIONCHANGE, WTS_CONSOLE_DISCONNECT), NO_ERROR);
   EXPECT_EQ(signals, 0);
@@ -254,6 +463,10 @@ TEST(WindowsServiceOwnerTest, SessionControlsSignalOnlyConsoleConnectAndUnsuppor
 
 TEST(WindowsServiceOwnerTest, PartialStartupAndRepeatedInstancesReleaseOnlyOwnedEvents) {
   std::vector<HANDLE> closed;
+  int partial_stop_identity {}, full_stop_identity {}, full_session_change_identity {};
+  const auto partial_stop_handle = static_cast<HANDLE>(&partial_stop_identity);
+  const auto full_stop_handle = static_cast<HANDLE>(&full_stop_identity);
+  const auto full_session_change_handle = static_cast<HANDLE>(&full_session_change_identity);
   auto operations = service::operations_t {[](SERVICE_STATUS_HANDLE, LPSERVICE_STATUS) {
                                              return TRUE;
                                            },
@@ -272,15 +485,15 @@ TEST(WindowsServiceOwnerTest, PartialStartupAndRepeatedInstancesReleaseOnlyOwned
   EXPECT_TRUE(closed.empty());
   {
     service::state_t partial {operations};
-    partial.stop_event = reinterpret_cast<HANDLE>(1);
+    partial.stop_event = partial_stop_handle;
   }
-  EXPECT_EQ(closed, (std::vector<HANDLE> {reinterpret_cast<HANDLE>(1)}));
+  EXPECT_EQ(closed, (std::vector<HANDLE> {partial_stop_handle}));
   {
     service::state_t full {operations};
-    full.stop_event = reinterpret_cast<HANDLE>(3);
-    full.session_change_event = reinterpret_cast<HANDLE>(4);
+    full.stop_event = full_stop_handle;
+    full.session_change_event = full_session_change_handle;
     full.report(SERVICE_STOPPED, 0, ERROR_ACCESS_DENIED);
   }
-  EXPECT_EQ(closed, (std::vector<HANDLE> {reinterpret_cast<HANDLE>(1), reinterpret_cast<HANDLE>(4), reinterpret_cast<HANDLE>(3)}));
+  EXPECT_EQ(closed, (std::vector<HANDLE> {partial_stop_handle, full_session_change_handle, full_stop_handle}));
 }
 #endif

@@ -15,9 +15,9 @@
 
 namespace {
   /**
-   * @brief Injected driver library identity whose marker verifies resolver arguments.
+   * @brief SDK module-handle object whose derived marker verifies injected resolver arguments.
    */
-  struct fake_library_t {
+  struct fake_library_t: std::remove_pointer_t<HMODULE> {
     NvU32 marker;  ///< Driver identity observed by the test resolver.
   };
 
@@ -29,11 +29,11 @@ namespace {
    * @return Shared module handle retaining the typed fake allocation.
    */
   nvprefs::api_t::library_t fake_library(NvU32 marker, std::function<void()> unload) {
-    auto allocation = std::shared_ptr<fake_library_t>(new fake_library_t {marker}, [unload](fake_library_t *library) {
+    auto allocation = std::shared_ptr<fake_library_t>(new fake_library_t {{}, marker}, [unload](fake_library_t *library) {
       delete library;
       unload();
     });
-    return {allocation, reinterpret_cast<HMODULE>(allocation.get())};
+    return {allocation, allocation.get()};
   }
 
   /**
@@ -65,7 +65,7 @@ namespace {
    * @return Driver interface address for ID 17, or nullptr for an unsupported interface.
    */
   extern "C" void *__cdecl native_query_interface(NvU32 id) {
-    return id == 17u ? reinterpret_cast<void *>(&fake_interface) : nullptr;
+    return id == 17u ? std::bit_cast<void *>(&fake_interface) : nullptr;
   }
 }  // namespace
 
@@ -80,13 +80,15 @@ TEST(NvapiApiTest, NativeQueryAdapterRejectsMissingExport) {
  * @brief The native resolver adapter preserves unsupported results and callable interface addresses.
  */
 TEST(NvapiApiTest, NativeQueryAdapterPreservesResolverAbiAndFunctionAddresses) {
-  const auto query = nvprefs::api_t::adapt_query(native_query_interface);
+  const auto query = nvprefs::api_t::adapt_query(std::bit_cast<FARPROC>(&native_query_interface));
   ASSERT_TRUE(query);
   EXPECT_EQ(query(18u), nullptr);
   const auto address = query(17u);
   ASSERT_NE(address, nullptr);
+  EXPECT_EQ(address, std::bit_cast<FARPROC>(&fake_interface));
   NvU32 output = 0;
-  const auto resolved_interface = reinterpret_cast<decltype(fake_interface) *>(address);
+  const auto resolved_interface = std::bit_cast<decltype(fake_interface) *>(address);
+  EXPECT_EQ(resolved_interface, &fake_interface);
   EXPECT_EQ(resolved_interface(41u, &output), NVAPI_INVALID_ARGUMENT);
   EXPECT_EQ(output, 42u);
 }
@@ -107,7 +109,7 @@ TEST(NvapiApiTest, MissingAndNullInterfacesReportNotSupported) {
 }
 
 TEST(NvapiApiTest, LooksUpNamesByValueAndForwardsArguments) {
-  const nvprefs::api_t api {{}, {{"fake_interface", reinterpret_cast<FARPROC>(&fake_interface)}}};
+  const nvprefs::api_t api {{}, {{"fake_interface", std::bit_cast<FARPROC>(&fake_interface)}}};
   const std::string separately_allocated_name {"fake_interface"};
   NvU32 output = 0;
   EXPECT_EQ(api.call_interface<decltype(fake_interface)>(separately_allocated_name, 41u, &output), NVAPI_INVALID_ARGUMENT);
@@ -119,7 +121,7 @@ TEST(NvapiApiTest, RetainsTheLibraryUntilItsLastApiOwnerIsReleased) {
   auto library = fake_library(1, [&unloaded]() {
     unloaded = true;
   });
-  auto api = std::make_shared<const nvprefs::api_t>(library, nvprefs::api_t::interfaces_t {{"fake", reinterpret_cast<FARPROC>(&fake_interface)}});
+  auto api = std::make_shared<const nvprefs::api_t>(library, nvprefs::api_t::interfaces_t {{"fake", std::bit_cast<FARPROC>(&fake_interface)}});
   library.reset();
   EXPECT_FALSE(unloaded);
   NvU32 output = 0;
@@ -153,7 +155,7 @@ TEST(NvapiApiTest, MissingResolverReleasesTheLibrary) {
       });
     },
     [](HMODULE module, const char *name) -> nvprefs::api_t::query_t {
-      EXPECT_EQ(reinterpret_cast<fake_library_t *>(module)->marker, 7u);
+      EXPECT_EQ(static_cast<fake_library_t *>(module)->marker, 7u);
       EXPECT_STREQ(name, "nvapi_QueryInterface");
       return {};
     },
@@ -182,7 +184,7 @@ TEST(NvapiApiTest, FailedLoadingCanBeRetriedWithoutPublishingPartialState) {
       });
     },
     [](HMODULE module, const char *name) {
-      EXPECT_EQ(reinterpret_cast<fake_library_t *>(module)->marker, 11u);
+      EXPECT_EQ(static_cast<fake_library_t *>(module)->marker, 11u);
       EXPECT_STREQ(name, "nvapi_QueryInterface");
       return nvprefs::api_t::query_t {unsupported_query_interface};
     },

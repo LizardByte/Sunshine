@@ -40,7 +40,7 @@ namespace dyn {
    * @return Shared library owner, or nullptr when none of the names can be loaded.
    */
   inline std::shared_ptr<library_handle_t> open(const std::vector<const char *> &names) {
-    auto library = reinterpret_cast<library_handle_t *>(handle(names));
+    auto library = static_cast<library_handle_t *>(handle(names));
     if (!library) {
       return {};
     }

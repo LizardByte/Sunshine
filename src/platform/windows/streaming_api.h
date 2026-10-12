@@ -9,6 +9,7 @@
 #include <qos2.h>
 #include <wlanapi.h>
 // clang-format on
+#include <bit>
 #include <functional>
 #include <memory>
 #include <type_traits>
@@ -60,6 +61,7 @@ namespace platf {
 
     /**
      * @brief Load a complete WLAN table.
+     * @note Windows AMD64 and ARM64 represent these SDK function pointers as export addresses. The bit copies preserve that ABI; they do not provide a portable function-pointer conversion.
      * @param loader Library operations.
      * @return Validated API, or nullptr.
      */
@@ -69,11 +71,11 @@ namespace platf {
       if (!api->library) {
         return {};
       }
-      api->open = reinterpret_cast<decltype(open)>(loader.resolve(api->library.get(), "WlanOpenHandle"));
-      api->close = reinterpret_cast<decltype(close)>(loader.resolve(api->library.get(), "WlanCloseHandle"));
-      api->free_memory = reinterpret_cast<decltype(free_memory)>(loader.resolve(api->library.get(), "WlanFreeMemory"));
-      api->enumerate = reinterpret_cast<decltype(enumerate)>(loader.resolve(api->library.get(), "WlanEnumInterfaces"));
-      api->set = reinterpret_cast<decltype(set)>(loader.resolve(api->library.get(), "WlanSetInterface"));
+      api->open = std::bit_cast<decltype(open)>(loader.resolve(api->library.get(), "WlanOpenHandle"));
+      api->close = std::bit_cast<decltype(close)>(loader.resolve(api->library.get(), "WlanCloseHandle"));
+      api->free_memory = std::bit_cast<decltype(free_memory)>(loader.resolve(api->library.get(), "WlanFreeMemory"));
+      api->enumerate = std::bit_cast<decltype(enumerate)>(loader.resolve(api->library.get(), "WlanEnumInterfaces"));
+      api->set = std::bit_cast<decltype(set)>(loader.resolve(api->library.get(), "WlanSetInterface"));
       if (!api->open || !api->close || !api->free_memory || !api->enumerate || !api->set) {
         return {};
       }
@@ -115,6 +117,7 @@ namespace platf {
 
     /**
      * @brief Load QWAVE and create a scoped client.
+     * @note Windows AMD64 and ARM64 represent these SDK function pointers as export addresses. The bit copies preserve that ABI; they do not provide a portable function-pointer conversion.
      * @param loader Library operations.
      * @return Complete owner, or nullptr.
      */
@@ -124,10 +127,10 @@ namespace platf {
       if (!api->library) {
         return {};
       }
-      api->create = reinterpret_cast<decltype(create)>(loader.resolve(api->library.get(), "QOSCreateHandle"));
-      api->close = reinterpret_cast<decltype(close)>(loader.resolve(api->library.get(), "QOSCloseHandle"));
-      api->add = reinterpret_cast<decltype(add)>(loader.resolve(api->library.get(), "QOSAddSocketToFlow"));
-      api->remove = reinterpret_cast<decltype(remove)>(loader.resolve(api->library.get(), "QOSRemoveSocketFromFlow"));
+      api->create = std::bit_cast<decltype(create)>(loader.resolve(api->library.get(), "QOSCreateHandle"));
+      api->close = std::bit_cast<decltype(close)>(loader.resolve(api->library.get(), "QOSCloseHandle"));
+      api->add = std::bit_cast<decltype(add)>(loader.resolve(api->library.get(), "QOSAddSocketToFlow"));
+      api->remove = std::bit_cast<decltype(remove)>(loader.resolve(api->library.get(), "QOSRemoveSocketFromFlow"));
       if (!api->create || !api->close || !api->add || !api->remove) {
         return {};
       }

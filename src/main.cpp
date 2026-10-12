@@ -49,6 +49,9 @@
 #include "system_tray.h"
 #include "upnp.h"
 #include "video.h"
+#ifdef _WIN32
+  #include "platform/windows/session_monitor.h"
+#endif
 
 using namespace std::literals;
 
@@ -75,41 +78,6 @@ const std::map<std::string_view, std::function<int(const config::settings_t &set
 };
 
 #ifdef _WIN32
-/**
- * @brief Handle Windows session-change messages for the monitor window.
- *
- * @param hwnd Window handle receiving the Windows control event.
- * @param uMsg U msg.
- * @param wParam W param.
- * @param lParam L param.
- * @return Process or platform callback exit code.
- */
-LRESULT CALLBACK SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-  if (uMsg == WM_NCCREATE) {
-    const auto create = reinterpret_cast<const CREATESTRUCTA *>(lParam);
-    SetWindowLongPtrA(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(create->lpCreateParams));
-  }
-  switch (uMsg) {
-    case WM_CLOSE:
-      DestroyWindow(hwnd);
-      return 0;
-    case WM_DESTROY:
-      PostQuitMessage(0);
-      return 0;
-    case WM_ENDSESSION:
-      {
-        // Terminate ourselves with a blocking exit call
-        std::cout << "Received WM_ENDSESSION"sv << std::endl;
-        if (const auto controller = reinterpret_cast<lifetime::controller_t *>(GetWindowLongPtrA(hwnd, GWLP_USERDATA))) {
-          controller->exit_sunshine(0, true);
-        }
-        return 0;
-      }
-    default:
-      return DefWindowProc(hwnd, uMsg, wParam, lParam);
-  }
-}
-
 /**
  * @brief Handle Windows console control events for shutdown.
  *
@@ -384,7 +352,7 @@ int main(int argc, char *argv[]) {
 
     WNDCLASSA wnd_class {};
     wnd_class.lpszClassName = "SunshineSessionMonitorClass";
-    wnd_class.lpfnWndProc = SessionMonitorWindowProc;
+    wnd_class.lpfnWndProc = platf::session_monitor_window_proc;
     if (!RegisterClassA(&wnd_class)) {
       session_monitor_hwnd_promise.set_value(nullptr);
       logging::error("Failed to register session monitor window class\n");

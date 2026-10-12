@@ -5,6 +5,7 @@
 #pragma once
 
 // standard includes
+#include <bit>
 #include <functional>
 #include <map>
 #include <memory>
@@ -89,17 +90,19 @@ namespace nvprefs {
     static std::shared_ptr<const api_t> load(const loader_t &loader);
 
     /**
-     * @brief Convert native resolver results after invoking the driver's exact ABI.
+     * @brief Bind a Windows export to the native resolver ABI and typed query results.
      *
      * The returned callable borrows the export; retain its module while calling it.
      *
-     * @param query Native NVAPI resolver export, or nullptr when unavailable.
+     * @param address Resolver address returned by GetProcAddress, or nullptr when unavailable.
      * @return Typed interface-query callable, or an empty callable for a null export.
      */
-    static query_t adapt_query(native_query_t query);
+    static query_t adapt_query(FARPROC address);
 
     /**
      * @brief Invoke a resolved interface without modifying the immutable table.
+     * @details Windows represents these NVAPI exports as flat code addresses. Copying the
+     *          address representation preserves the native function type and calling convention.
      *
      * @tparam Func NVAPI function type whose arguments are forwarded.
      * @tparam Args Forwarded argument types.
@@ -113,7 +116,9 @@ namespace nvprefs {
       if (found == interfaces.end() || !found->second) {
         return interfaces.empty() ? NVAPI_API_NOT_INITIALIZED : NVAPI_NOT_SUPPORTED;
       }
-      return reinterpret_cast<Func *>(found->second)(args...);
+      static_assert(std::is_function_v<Func>);
+      static_assert(sizeof(Func *) == sizeof(FARPROC));
+      return std::bit_cast<Func *>(found->second)(args...);
     }
 
   private:
