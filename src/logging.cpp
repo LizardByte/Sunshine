@@ -192,7 +192,7 @@ namespace logging {
     return static_cast<bool>(log_source::get().open_record(bl::keywords::severity = static_cast<int>(level)));
   }
 
-  void detail::write(level_e level, const void *context, writer_t writer) {
+  void detail::write(level_e level, const writer_t &writer) {
     static_cast<void>(level_name(level));
     auto &source = log_source::get();
     auto record = source.open_record(bl::keywords::severity = static_cast<int>(level));
@@ -200,7 +200,7 @@ namespace logging {
       return;
     }
     std::ostringstream message;
-    writer(context, message);
+    writer.write(message);
     bl::record_ostream output {record};
     output << message.view();
     output.flush();

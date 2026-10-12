@@ -17,6 +17,35 @@
 
 namespace {
   /**
+   * @brief Fake library state retained by an opaque loader handle.
+   */
+  struct fake_library_t {
+    int marker;  ///< Value observed by the injected resolver.
+    std::function<void()> on_unload;  ///< Observer invoked when the last library owner is released.
+
+    /**
+     * @brief Notify the test when the final library handle is released.
+     */
+    ~fake_library_t() {
+      if (on_unload) {
+        on_unload();
+      }
+    }
+  };
+
+  /**
+   * @brief Create an opaque library handle retaining an injected implementation.
+   *
+   * @param marker Value exposed to injected resolvers.
+   * @param on_unload Observer invoked when the last handle is released.
+   * @return Shared opaque handle owning the fake library state.
+   */
+  std::shared_ptr<dyn::library_handle_t> make_fake_library(int marker, std::function<void()> on_unload = {}) {
+    auto owner = std::make_shared<fake_library_t>(marker, std::move(on_unload));
+    return {owner, reinterpret_cast<dyn::library_handle_t *>(owner.get())};
+  }
+
+  /**
    * @brief Fake device with an instance-specific cleanup observer.
    */
   struct fake_gbm_device_t {
@@ -59,7 +88,7 @@ namespace {
    * @param symbols Destinations for the two required functions.
    * @return Success after both destinations have been populated.
    */
-  int resolve_fake_gbm([[maybe_unused]] void *library, const dyn::symbols_t &symbols) {
+  int resolve_fake_gbm([[maybe_unused]] dyn::library_handle_t *library, const dyn::symbols_t &symbols) {
     for (const auto &[destination, name] : symbols) {
       if (std::string_view(name) == "gbm_device_destroy") {
         *destination = reinterpret_cast<dyn::apiproc>(&destroy_fake_device);
@@ -138,6 +167,39 @@ namespace {
   class NvfbcIncompleteApiTest: public ::testing::TestWithParam<PNVFBCCREATEINSTANCE> {};
 }  // namespace
 
+/**
+ * @brief A failed library lookup leaves later candidate fallback available.
+ */
+TEST(LinuxLibraryTest, MissingLibraryCanBeRetriedWithCandidateFallback) {
+  const auto loader = dyn::system_loader();
+  EXPECT_FALSE(loader.open({"libsunshine-loader-test-does-not-exist.so"}));
+  EXPECT_TRUE(loader.open({"libsunshine-loader-test-does-not-exist.so", "libc.so.6", "libc.so"}));
+}
+
+/**
+ * @brief Resolved symbols stay usable while a shared library owner remains alive.
+ */
+TEST(LinuxLibraryTest, SystemSymbolsRemainUsableThroughSharedHandleOwnership) {
+  const auto loader = dyn::system_loader();
+  auto library = loader.open({"libc.so.6", "libc.so"});
+  ASSERT_TRUE(library);
+  auto retained_library = library;
+  const std::weak_ptr<dyn::library_handle_t> weak_library = library;
+  library.reset();
+  EXPECT_FALSE(weak_library.expired());
+
+  pid_t (*process_id)() {};
+  dyn::apiproc missing_symbol {};
+  EXPECT_EQ(loader.resolve(retained_library.get(), {{reinterpret_cast<dyn::apiproc *>(&process_id), "getpid"}}), 0);
+  ASSERT_NE(process_id, nullptr);
+  EXPECT_EQ(process_id(), getpid());
+  EXPECT_EQ(loader.resolve(retained_library.get(), {{&missing_symbol, "sunshine_loader_test_nonexistent_symbol"}}), -1);
+  EXPECT_EQ(missing_symbol, nullptr);
+
+  retained_library.reset();
+  EXPECT_TRUE(weak_library.expired());
+}
+
 TEST(GbmApiTest, EmptyApiDoesNotAllocateADevice) {
   EXPECT_FALSE(gbm::make_device({}, 7));
 }
@@ -145,10 +207,9 @@ TEST(GbmApiTest, EmptyApiDoesNotAllocateADevice) {
 TEST(GbmApiTest, DeviceRetainsItsApiAndDestroysBeforeUnloading) {
   bool destroyed = false;
   bool unloaded = false;
-  auto library = std::shared_ptr<void>(new int(1), [&](void *value) {
+  auto library = make_fake_library(1, [&]() {
     EXPECT_TRUE(destroyed);
     unloaded = true;
-    delete static_cast<int *>(value);
   });
   auto api = std::make_shared<const gbm::api_t>(library, &destroy_fake_device, &create_fake_device);
   auto device = gbm::make_device(api, 42);
@@ -177,19 +238,18 @@ TEST(GbmApiTest, LibraryFailureCanBeRetriedAndPartialSymbolsAreDiscarded) {
   int unloads = 0;
   int resolutions = 0;
   const dyn::loader_t loader {
-    [&](const std::vector<const char *> &names) -> std::shared_ptr<void> {
+    [&](const std::vector<const char *> &names) -> std::shared_ptr<dyn::library_handle_t> {
       EXPECT_STREQ(names[0], "libgbm.so.1");
       EXPECT_STREQ(names[1], "libgbm.so");
       if (++attempts == 1) {
         return {};
       }
-      return {new int(7), [&](void *value) {
-                ++unloads;
-                delete static_cast<int *>(value);
-              }};
+      return make_fake_library(7, [&]() {
+        ++unloads;
+      });
     },
-    [&](void *library, const dyn::symbols_t &symbols) {
-      EXPECT_EQ(*static_cast<int *>(library), 7);
+    [&](dyn::library_handle_t *library, const dyn::symbols_t &symbols) {
+      EXPECT_EQ(reinterpret_cast<const fake_library_t *>(library)->marker, 7);
       if (++resolutions == 1) {
         *std::get<0>(symbols.front()) = reinterpret_cast<dyn::apiproc>(&destroy_fake_device);
         return -1;
@@ -213,9 +273,9 @@ TEST(GbmApiTest, RejectsIncompleteTablesEvenWhenResolverReportsSuccess) {
   for (const std::string_view missing_name : {"gbm_device_destroy", "gbm_create_device"}) {
     const dyn::loader_t loader {
       [](const std::vector<const char *> &) {
-        return std::make_shared<int>(1);
+        return make_fake_library(1);
       },
-      [&](void *library, const dyn::symbols_t &symbols) {
+      [&](dyn::library_handle_t *library, const dyn::symbols_t &symbols) {
         resolve_fake_gbm(library, symbols);
         for (const auto &[destination, name] : symbols) {
           if (missing_name == name) {
@@ -232,9 +292,9 @@ TEST(GbmApiTest, RejectsIncompleteTablesEvenWhenResolverReportsSuccess) {
 TEST(NvfbcApiTest, RejectsAnUnresolvedEntryPointEvenWhenResolverReportsSuccess) {
   const dyn::loader_t loader {
     [](const std::vector<const char *> &) {
-      return std::make_shared<int>(1);
+      return make_fake_library(1);
     },
-    [](void *, const dyn::symbols_t &) {
+    [](dyn::library_handle_t *, const dyn::symbols_t &) {
       return 0;
     },
   };
@@ -246,18 +306,17 @@ TEST(NvfbcApiTest, LibraryAndSymbolFailuresCanBeRetried) {
   int resolutions = 0;
   int unloads = 0;
   const dyn::loader_t loader {
-    [&](const std::vector<const char *> &names) -> std::shared_ptr<void> {
+    [&](const std::vector<const char *> &names) -> std::shared_ptr<dyn::library_handle_t> {
       EXPECT_STREQ(names[0], "libnvidia-fbc.so.1");
       EXPECT_STREQ(names[1], "libnvidia-fbc.so");
       if (++attempts == 1) {
         return {};
       }
-      return {new int(1), [&](void *value) {
-                ++unloads;
-                delete static_cast<int *>(value);
-              }};
+      return make_fake_library(1, [&]() {
+        ++unloads;
+      });
     },
-    [&](void *, const dyn::symbols_t &symbols) {
+    [&](dyn::library_handle_t *, const dyn::symbols_t &symbols) {
       if (++resolutions == 1) {
         return -1;
       }
@@ -282,12 +341,11 @@ TEST(NvfbcApiTest, ApiCreationFailureReleasesTheLibrary) {
   bool unloaded = false;
   const dyn::loader_t loader {
     [&](const std::vector<const char *> &) {
-      return std::shared_ptr<void>(new int(1), [&](void *value) {
+      return make_fake_library(1, [&]() {
         unloaded = true;
-        delete static_cast<int *>(value);
       });
     },
-    [](void *, const dyn::symbols_t &symbols) {
+    [](dyn::library_handle_t *, const dyn::symbols_t &symbols) {
       *std::get<0>(symbols.front()) = reinterpret_cast<dyn::apiproc>(&fake_create_instance<-1, NVFBC_ERR_API_VERSION>);
       return 0;
     },
@@ -300,12 +358,11 @@ TEST_P(NvfbcIncompleteApiTest, MissingRequiredFunctionReleasesTheLibrary) {
   bool unloaded = false;
   const dyn::loader_t loader {
     [&](const std::vector<const char *> &) {
-      return std::shared_ptr<void>(new int(1), [&](void *value) {
+      return make_fake_library(1, [&]() {
         unloaded = true;
-        delete static_cast<int *>(value);
       });
     },
-    [&](void *, const dyn::symbols_t &symbols) {
+    [&](dyn::library_handle_t *, const dyn::symbols_t &symbols) {
       *std::get<0>(symbols.front()) = reinterpret_cast<dyn::apiproc>(GetParam());
       return 0;
     },

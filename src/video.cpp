@@ -641,7 +641,7 @@ namespace video {
 
     config_t config;  ///< Stream or encoder configuration captured for the worker.
     int frame_nr;  ///< Next capture-frame number assigned to encoded packets.
-    void *channel_data;  ///< Platform-specific channel data forwarded to packet senders.
+    stream::session_t *channel_data;  ///< Borrowed transport session forwarded to packet senders; it must outlive the context and queued packets.
   };
 
   /**
@@ -1909,11 +1909,11 @@ namespace video {
    * @param frame_nr Monotonic frame index assigned by the video pipeline.
    * @param session Active FFmpeg encoder session.
    * @param packets Shared handle to the output queue that receives encoded packets.
-   * @param channel_data Platform or protocol state attached to each packet.
+   * @param channel_data Borrowed transport session that must outlive consumption of the queued packets; null for encoder probes.
    * @param frame_timestamp Capture timestamp associated with the encoded frame.
    * @return 0 when packets are queued; nonzero when encoding or packetization fails.
    */
-  int encode_avcodec(int64_t frame_nr, avcodec_encode_session_t &session, const safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
+  int encode_avcodec(int64_t frame_nr, avcodec_encode_session_t &session, const safe::mail_raw_t::queue_t<packet_t> &packets, stream::session_t *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
     auto &frame = session.device->frame;
     frame->pts = frame_nr;
 
@@ -1995,11 +1995,11 @@ namespace video {
    * @param frame_nr Monotonic frame index assigned by the video pipeline.
    * @param session Active NVENC encoder session.
    * @param packets Shared handle to the output queue that receives the encoded packet.
-   * @param channel_data Platform or protocol state attached to the packet.
+   * @param channel_data Borrowed transport session that must outlive consumption of the queued packet; null for encoder probes.
    * @param frame_timestamp Capture timestamp associated with the encoded frame.
    * @return 0 when packets are queued; nonzero when NVENC encoding fails.
    */
-  int encode_nvenc(int64_t frame_nr, nvenc_encode_session_t &session, const safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
+  int encode_nvenc(int64_t frame_nr, nvenc_encode_session_t &session, const safe::mail_raw_t::queue_t<packet_t> &packets, stream::session_t *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
     auto encoded_frame = session.encode_frame(frame_nr);
     if (encoded_frame.data.empty()) {
       logging::error("NvENC returned empty packet");
@@ -2025,11 +2025,11 @@ namespace video {
    * @param frame_nr Frame nr.
    * @param session Active streaming or pairing session for the request.
    * @param packets Shared handle to the queue that receives encoded packets.
-   * @param channel_data Channel data.
+   * @param channel_data Borrowed transport session that must outlive consumption of the queued packets; null for encoder probes.
    * @param frame_timestamp Frame timestamp.
    * @return 0 when the frame is encoded and queued; nonzero on encoder failure.
    */
-  int encode(int64_t frame_nr, encode_session_t &session, const safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
+  int encode(int64_t frame_nr, encode_session_t &session, const safe::mail_raw_t::queue_t<packet_t> &packets, stream::session_t *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
     if (auto avcodec_session = dynamic_cast<avcodec_encode_session_t *>(&session)) {
       return encode_avcodec(frame_nr, *avcodec_session, packets, channel_data, frame_timestamp);
     } else if (auto nvenc_session = dynamic_cast<nvenc_encode_session_t *>(&session)) {
@@ -2494,7 +2494,7 @@ namespace video {
    * @param encode_device Platform encode device.
    * @param reinit_event Signal raised while the encoder/display is reinitializing.
    * @param encoder Selected encoder.
-   * @param channel_data Opaque channel data passed to packets.
+   * @param channel_data Borrowed transport session that must outlive this loop and consumption of its queued packets.
    * @param host Host input or video service and its capture dependencies.
    */
   void encode_run(service_t::impl_t &host,
@@ -2506,7 +2506,7 @@ namespace video {
                   std::unique_ptr<platf::encode_device_t> encode_device,
                   safe::signal_t &reinit_event,
                   const encoder_t &encoder,
-                  void *channel_data) {
+                  stream::session_t *channel_data) {
     auto session = make_encode_session(host.settings, disp.get(), encoder, config, disp->width, disp->height, std::move(encode_device));
     if (!session) {
       return;
@@ -2965,10 +2965,10 @@ namespace video {
    *
    * @param mail Session mail bus.
    * @param config Video configuration.
-   * @param channel_data Opaque channel data passed to packets.
+   * @param channel_data Borrowed transport session that must outlive capture and consumption of its queued packets.
    * @param host Host input or video service and its capture dependencies.
    */
-  void capture_async(service_t::impl_t &host, safe::mail_t mail, config_t &config, void *channel_data) {
+  void capture_async(service_t::impl_t &host, safe::mail_t mail, config_t &config, stream::session_t *channel_data) {
     auto shutdown_event = mail->event<bool>(mail::shutdown);
 
     auto images = std::make_shared<img_event_t::element_type>();
@@ -3043,10 +3043,10 @@ namespace video {
    *
    * @param mail Session mail bus.
    * @param config Client-requested video configuration, normalized before capture begins.
-   * @param channel_data Opaque channel data passed to packets.
+   * @param channel_data Borrowed transport session that must outlive capture and consumption of its queued packets.
    * @param host Host input or video service and its capture dependencies.
    */
-  void capture(service_t::impl_t &host, safe::mail_t mail, config_t config, void *channel_data) {
+  void capture(service_t::impl_t &host, safe::mail_t mail, config_t config, stream::session_t *channel_data) {
     config = resolve_dynamic_range(*host.chosen_encoder, config);
 
     auto idr_events = mail->event<bool>(mail::idr);
@@ -3876,7 +3876,7 @@ namespace video {
     return ::video::validate_encoder(*impl_, encoder, expect_failure);
   }
 
-  void service_t::capture(safe::mail_t mail, config_t config, void *channel_data) {
+  void service_t::capture(safe::mail_t mail, config_t config, stream::session_t *channel_data) {
     if (!impl_->chosen_encoder) {
       mail->event<bool>(mail::shutdown)->raise(true);
       return;

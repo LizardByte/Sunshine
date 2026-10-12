@@ -12,6 +12,10 @@
 #include <array>
 #include <bitset>
 
+namespace stream {
+  struct session_t;
+}
+
 namespace audio {
   /**
    * @brief Supported Opus channel layouts advertised to Moonlight clients.
@@ -96,9 +100,9 @@ namespace audio {
    */
   using buffer_t = util::buffer_t<std::uint8_t>;
   /**
-   * @brief Encoded audio packet paired with platform channel metadata.
+   * @brief Encoded audio packet paired with a borrowed transport session that must outlive packet consumption.
    */
-  using packet_t = std::pair<void *, buffer_t>;
+  using packet_t = std::pair<stream::session_t *, buffer_t>;
   /**
    * @brief Shared reference retaining one audio owner and its lazy context.
    */
@@ -130,9 +134,9 @@ namespace audio {
      * @brief Capture and publish audio for one transport session.
      * @param mail Session shutdown mailbox.
      * @param config Negotiated audio layout and encoding settings.
-     * @param channel_data Session pointer carried by encoded packets.
+     * @param channel_data Borrowed transport session that must outlive capture and consumption of its queued packets.
      */
-    void capture(safe::mail_t mail, config_t config, void *channel_data);
+    void capture(safe::mail_t mail, config_t config, stream::session_t *channel_data);
     /**
      * @brief Retain the shared audio control and original sink until it can be restored.
      * @return Retained context; its control is null when backend initialization failed.

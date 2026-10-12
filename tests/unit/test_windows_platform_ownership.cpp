@@ -9,6 +9,11 @@
 
 namespace {
   /**
+   * @brief Allocation identity for an injected library with an observable unload operation.
+   */
+  struct fake_library_t {};
+
+  /**
    * @brief Fake QWAVE client with an observable cleanup operation.
    */
   struct fake_qos_t {
@@ -60,14 +65,14 @@ namespace {
    * @param name Export name.
    * @return Function address.
    */
-  void *complete_export(const char *name) {
+  FARPROC complete_export(const char *name) {
     if (std::string_view(name) == "QOSCreateHandle") {
-      return reinterpret_cast<void *>(&create_qos);
+      return reinterpret_cast<FARPROC>(&create_qos);
     }
     if (std::string_view(name) == "QOSCloseHandle") {
-      return reinterpret_cast<void *>(&close_qos);
+      return reinterpret_cast<FARPROC>(&close_qos);
     }
-    return reinterpret_cast<void *>(&unused_export);
+    return reinterpret_cast<FARPROC>(&unused_export);
   }
 
   /**
@@ -76,29 +81,45 @@ namespace {
    * @param unload Unload observer.
    * @return Test loader.
    */
-  platf::networking_loader_t loader(std::function<void *(void *, const char *)> resolve = [](void *, const char *name) {
+  platf::networking_loader_t loader(std::function<FARPROC(HMODULE, const char *)> resolve = [](HMODULE, const char *name) {
     return complete_export(name);
   },
                                     std::function<void()> unload = []() {
                                     }) {
     return {
       [unload](const char *) {
-        return std::shared_ptr<void>(new int {}, [unload](void *library) {
-          delete static_cast<int *>(library);
+        auto library = std::shared_ptr<fake_library_t>(new fake_library_t {}, [unload](fake_library_t *library) {
+          delete library;
           unload();
         });
+        return platf::networking_loader_t::library_t {library, reinterpret_cast<HMODULE>(library.get())};
       },
       std::move(resolve),
     };
   }
 }  // namespace
 
+/**
+ * @brief The native loader reports missing libraries and exports and resolves a callable system export.
+ */
+TEST(WindowsNetworkingOwnerTest, SystemLoaderResolvesExportsFromItsOwnedModule) {
+  const auto native_loader = platf::system_networking_loader();
+  EXPECT_FALSE(native_loader.open("sunshine_missing_networking_api.dll"));
+  const auto library = native_loader.open("kernel32.dll");
+  ASSERT_TRUE(library);
+  EXPECT_EQ(native_loader.resolve(library.get(), "SunshineMissingNetworkingExport"), nullptr);
+  const auto address = native_loader.resolve(library.get(), "GetCurrentProcessId");
+  ASSERT_NE(address, nullptr);
+  const auto get_process_id = reinterpret_cast<decltype(GetCurrentProcessId) *>(address);
+  EXPECT_EQ(get_process_id(), GetCurrentProcessId());
+}
+
 TEST(WindowsNetworkingOwnerTest, MissingLibrariesSkipSymbolLookup) {
   int resolutions = 0;
   platf::networking_loader_t missing {[](const char *) {
-                                        return std::shared_ptr<void> {};
+                                        return platf::networking_loader_t::library_t {};
                                       },
-                                      [&resolutions](void *, const char *) -> void * {
+                                      [&resolutions](HMODULE, const char *) -> FARPROC {
                                         ++resolutions;
                                         return nullptr;
                                       }};
@@ -110,7 +131,7 @@ TEST(WindowsNetworkingOwnerTest, MissingLibrariesSkipSymbolLookup) {
 TEST(WindowsNetworkingOwnerTest, EveryMissingWlanExportDiscardsLibraryAndCanRetry) {
   for (const char *missing : {"WlanOpenHandle", "WlanCloseHandle", "WlanFreeMemory", "WlanEnumInterfaces", "WlanSetInterface"}) {
     int unloaded = 0;
-    auto partial = loader([missing](void *, const char *name) {
+    auto partial = loader([missing](HMODULE, const char *name) {
       return std::string_view(name) == missing ? nullptr : complete_export(name);
     },
                           [&unloaded]() {
@@ -124,7 +145,7 @@ TEST(WindowsNetworkingOwnerTest, EveryMissingWlanExportDiscardsLibraryAndCanRetr
 
 TEST(WindowsNetworkingOwnerTest, CompleteWlanTableRetainsLibraryUntilLastResource) {
   int unloaded = 0;
-  auto api = platf::wlan_api_t::load(loader([](void *, const char *name) {
+  auto api = platf::wlan_api_t::load(loader([](HMODULE, const char *name) {
     return complete_export(name);
   },
                                             [&unloaded]() {
@@ -141,7 +162,7 @@ TEST(WindowsNetworkingOwnerTest, CompleteWlanTableRetainsLibraryUntilLastResourc
 TEST(WindowsNetworkingOwnerTest, EveryMissingQwaveExportDiscardsLibraryAndCanRetry) {
   for (const char *missing : {"QOSCreateHandle", "QOSCloseHandle", "QOSAddSocketToFlow", "QOSRemoveSocketFromFlow"}) {
     int unloaded = 0;
-    auto partial = loader([missing](void *, const char *name) {
+    auto partial = loader([missing](HMODULE, const char *name) {
       return std::string_view(name) == missing ? nullptr : complete_export(name);
     },
                           [&unloaded]() {
@@ -155,8 +176,8 @@ TEST(WindowsNetworkingOwnerTest, EveryMissingQwaveExportDiscardsLibraryAndCanRet
 
 TEST(WindowsNetworkingOwnerTest, FailedClientCreationReleasesLibraryWithoutClosingClient) {
   int unloaded = 0;
-  auto rejected = loader([](void *, const char *name) {
-    return std::string_view(name) == "QOSCreateHandle" ? reinterpret_cast<void *>(&reject_qos) : complete_export(name);
+  auto rejected = loader([](HMODULE, const char *name) {
+    return std::string_view(name) == "QOSCreateHandle" ? reinterpret_cast<FARPROC>(&reject_qos) : complete_export(name);
   },
                          [&unloaded]() {
                            ++unloaded;
@@ -168,7 +189,7 @@ TEST(WindowsNetworkingOwnerTest, FailedClientCreationReleasesLibraryWithoutClosi
 
 TEST(WindowsNetworkingOwnerTest, LastFlowClosesClientBeforeLibraryUnload) {
   std::vector<std::string> events;
-  auto api = platf::qwave_api_t::load(loader([](void *, const char *name) {
+  auto api = platf::qwave_api_t::load(loader([](HMODULE, const char *name) {
     return complete_export(name);
   },
                                              [&events]() {

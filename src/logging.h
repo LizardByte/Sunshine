@@ -88,21 +88,66 @@ namespace logging {
 
   namespace detail {
     /**
-     * @brief Type-erased, synchronous message writer.
+     * @brief Borrowed message writer invoked synchronously by the logging backend.
      */
-    using writer_t = void (*)(const void *, std::ostream &);
+    class writer_t {
+    public:
+      /**
+       * @brief Write an accepted message into its destination stream.
+       * @param output Stream receiving the message text.
+       */
+      virtual void write(std::ostream &output) const = 0;
+
+    protected:
+      /**
+       * @brief Construct the interface portion of a concrete borrowed writer.
+       */
+      writer_t() = default;
+      /**
+       * @brief Destroy the interface without taking ownership of its builder.
+       */
+      ~writer_t() = default;
+    };
+
+    /**
+     * @brief Adapt a typed builder without copying it or allocating storage.
+     * @tparam Builder Callable object that writes a message to a stream.
+     */
+    template<typename Builder>
+    class builder_writer_t final: public writer_t {
+    public:
+      /**
+       * @brief Borrow a builder for the duration of one synchronous log call.
+       * @param builder Callable object retained by the caller until logging returns.
+       */
+      explicit builder_writer_t(const Builder &builder):
+          builder_ {builder} {
+      }
+
+      /**
+       * @brief Invoke the borrowed builder for an accepted message.
+       * @param output Stream receiving the message text.
+       */
+      void write(std::ostream &output) const override {
+        builder_(output);
+      }
+
+    private:
+      const Builder &builder_;  ///< Builder borrowed only during the synchronous log call.
+    };
 
     /**
      * @brief Open a record and run its writer only when an output accepts it.
      * @param level Message severity.
-     * @param context Writer object borrowed for the duration of the call.
-     * @param writer Function that writes the message.
+     * @param writer Typed writer borrowed for the duration of the call.
      */
-    void write(level_e level, const void *context, writer_t writer);
+    void write(level_e level, const writer_t &writer);
   }  // namespace detail
 
   /**
    * @brief Log a message without evaluating its builder when the severity is disabled.
+   *
+   * Adapting the borrowed builder requires no copy or heap allocation.
    * @tparam Builder A callable object accepting a standard output stream.
    * @param level Message severity.
    * @param builder Message builder invoked synchronously at most once.
@@ -111,9 +156,8 @@ namespace logging {
   template<typename Builder>
     requires std::is_object_v<Builder> && std::invocable<const Builder &, std::ostream &>
   void log(level_e level, const Builder &builder) {
-    detail::write(level, &builder, [](const void *context, std::ostream &output) {
-      (*static_cast<const Builder *>(context))(output);
-    });
+    const detail::builder_writer_t<Builder> writer {builder};
+    detail::write(level, writer);
   }
 
   /**

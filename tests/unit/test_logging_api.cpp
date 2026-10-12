@@ -411,6 +411,36 @@ TEST(LoggingApiTest, LazyBuilderPreservesManipulatorsBoostFormatAndCustomValues)
 }
 
 /**
+ * @brief Borrowed writers accept move-only builders and keep temporary captures alive during logging.
+ */
+TEST(LoggingApiTest, BorrowedWriterSupportsMoveOnlyBuilders) {
+  auto sink = std::make_shared<recording_sink_t>();
+  auto owner = logging::add_sink(sink, 0, false);
+  int calls = 0;
+  const auto builder = [text = std::make_unique<std::string>("borrowed builder"), &calls](std::ostream &out) {
+    ++calls;
+    out << *text;
+  };
+
+  {
+    logging::testing::scoped_disable_t disabled;
+    logging::info(builder);
+    EXPECT_EQ(calls, 0);
+  }
+  logging::info(builder);
+  logging::info([text = std::make_unique<std::string>("temporary builder"), &calls](std::ostream &out) {
+    ++calls;
+    out << *text;
+  });
+
+  EXPECT_EQ(calls, 2);
+  const auto messages = sink->snapshot();
+  ASSERT_EQ(messages.size(), 2U);
+  EXPECT_EQ(messages[0].message.text, "borrowed builder");
+  EXPECT_EQ(messages[1].message.text, "temporary builder");
+}
+
+/**
  * @brief Standard format arguments retain width, numeric, and user-defined formatting.
  */
 TEST(LoggingApiTest, StandardFormatOverloadUsesTypedFormatting) {

@@ -12,6 +12,10 @@ namespace platf {
   class runtime_t;
 }
 
+namespace stream {
+  struct session_t;
+}
+
 // standard includes
 #include <chrono>
 #include <string_view>
@@ -577,7 +581,7 @@ namespace video {
     };
 
     std::vector<replace_t> *replacements = nullptr;  ///< Optional encoded-byte substitutions applied before packetization.
-    void *channel_data = nullptr;  ///< Platform or protocol state carried with this packet.
+    stream::session_t *channel_data = nullptr;  ///< Borrowed transport session that must outlive packet consumption; null for encoder probes.
     bool after_ref_frame_invalidation = false;  ///< Whether the frame follows reference-frame invalidation.
     std::optional<std::chrono::steady_clock::time_point> frame_timestamp;  ///< Capture timestamp associated with the frame.
   };
@@ -784,9 +788,9 @@ namespace video {
      * @brief Capture and encode video for a transport session.
      * @param mail Transport session mailbox.
      * @param config Negotiated stream configuration.
-     * @param channel_data Packet channel metadata.
+     * @param channel_data Borrowed transport session that must outlive capture and consumption of its queued packets.
      */
-    void capture(safe::mail_t mail, config_t config, void *channel_data);
+    void capture(safe::mail_t mail, config_t config, stream::session_t *channel_data);
 
   private:
     std::unique_ptr<impl_t> impl_;  ///< Encoder state and capture worker ownership.

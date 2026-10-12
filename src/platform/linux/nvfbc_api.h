@@ -68,12 +68,12 @@ namespace cuda::nvfbc {
      * @param library Library implementing the table.
      * @param functions Functions returned by NvFBCCreateInstance.
      */
-    api_t(std::shared_ptr<void> library, const NVFBC_API_FUNCTION_LIST &functions):
+    api_t(std::shared_ptr<dyn::library_handle_t> library, const NVFBC_API_FUNCTION_LIST &functions):
         functions {functions},
         library {std::move(library)} {
     }
 
-    const std::shared_ptr<void> library;  ///< Keep the API loaded until all sessions are destroyed.
+    const std::shared_ptr<dyn::library_handle_t> library;  ///< Keep the API loaded until all sessions are destroyed.
   };
 
 }  // namespace cuda::nvfbc

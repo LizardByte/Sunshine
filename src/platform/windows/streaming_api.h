@@ -11,14 +11,19 @@
 // clang-format on
 #include <functional>
 #include <memory>
+#include <type_traits>
 
 namespace platf {
   /**
    * @brief Injectable loader for optional Windows networking libraries.
    */
   struct networking_loader_t {
-    std::function<std::shared_ptr<void>(const char *)> open;  ///< Own a loaded library.
-    std::function<void *(void *, const char *)> resolve;  ///< Resolve an exported function.
+    /**
+     * @brief Shared ownership of the actual Windows module handle type.
+     */
+    using library_t = std::shared_ptr<std::remove_pointer_t<HMODULE>>;
+    std::function<library_t(const char *)> open;  ///< Own a loaded library.
+    std::function<FARPROC(HMODULE, const char *)> resolve;  ///< Resolve an exported function.
   };
 
   /**
@@ -27,17 +32,17 @@ namespace platf {
    */
   inline networking_loader_t system_networking_loader() {
     return {
-      [](const char *name) -> std::shared_ptr<void> {
+      [](const char *name) -> networking_loader_t::library_t {
         auto library = LoadLibraryExA(name, nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
         if (!library) {
           return {};
         }
-        return {library, [](void *library) {
-                  FreeLibrary(static_cast<HMODULE>(library));
+        return {library, [](HMODULE library) {
+                  FreeLibrary(library);
                 }};
       },
-      [](void *library, const char *name) {
-        return reinterpret_cast<void *>(GetProcAddress(static_cast<HMODULE>(library), name));
+      [](HMODULE library, const char *name) {
+        return GetProcAddress(library, name);
       },
     };
   }
@@ -46,7 +51,7 @@ namespace platf {
    * @brief Immutable WLAN exports retaining their library.
    */
   struct wlan_api_t {
-    std::shared_ptr<void> library;  ///< Loaded WLAN library.
+    networking_loader_t::library_t library;  ///< Loaded WLAN library.
     decltype(WlanOpenHandle) *open {};  ///< Open a WLAN client.
     decltype(WlanCloseHandle) *close {};  ///< Close a WLAN client.
     decltype(WlanFreeMemory) *free_memory {};  ///< Free discovery results.
@@ -92,7 +97,7 @@ namespace platf {
      * @brief Native client owners cannot be assigned.
      */
     qwave_api_t &operator=(const qwave_api_t &) = delete;
-    std::shared_ptr<void> library;  ///< Loaded QWAVE library.
+    networking_loader_t::library_t library;  ///< Loaded QWAVE library.
     HANDLE handle {};  ///< QWAVE client handle.
     decltype(QOSCreateHandle) *create {};  ///< Create a client handle.
     decltype(QOSCloseHandle) *close {};  ///< Release a client handle.

@@ -20,6 +20,24 @@ using namespace std::literals;
 
 namespace platf::publish {
   /**
+   * @brief Dispatch an Avahi entry-group event through its native C callback boundary.
+   *
+   * @param group Group emitting the event.
+   * @param state Current entry-group state.
+   * @param userdata Publisher registered with Avahi.
+   */
+  extern "C" void sunshine_avahi_entry_group_callback(avahi::EntryGroup *group, avahi::EntryGroupState state, void *userdata);
+
+  /**
+   * @brief Dispatch an Avahi client event through its native C callback boundary.
+   *
+   * @param client Client emitting the event.
+   * @param state Current client state.
+   * @param userdata Publisher registered with Avahi.
+   */
+  extern "C" void sunshine_avahi_client_callback(avahi::Client *client, avahi::ClientState state, void *userdata);
+
+  /**
    * @brief Release an Avahi allocation while retaining its loaded library.
    * @tparam T Type of Avahi allocation.
    * @tparam Free Function-pointer member used to release the allocation.
@@ -87,7 +105,7 @@ namespace platf::publish {
       }
       int avahi_error {};
       // The callback can run synchronously, before client_new returns.
-      client.reset(api->client_new(api->simple_poll_get(poll.get()), avahi::ClientFlags(0), client_callback, this, &avahi_error));
+      client.reset(api->client_new(api->simple_poll_get(poll.get()), avahi::ClientFlags(0), sunshine_avahi_client_callback, this, &avahi_error));
       if (!client) {
         logging::error("Failed to create client: {}", api->strerror(avahi_error));
         return false;
@@ -102,25 +120,8 @@ namespace platf::publish {
     }
 
   private:
-    /**
-     * @brief Dispatch an entry-group event to its publisher.
-     * @param group Group emitting the event.
-     * @param state Current entry-group state.
-     * @param userdata Publisher registered with Avahi.
-     */
-    static void entry_group_callback(avahi::EntryGroup *group, avahi::EntryGroupState state, void *userdata) {
-      static_cast<deinit_t *>(userdata)->on_entry_group(group, state);
-    }
-
-    /**
-     * @brief Dispatch a client event to its publisher.
-     * @param client Client emitting the event.
-     * @param state Current client state.
-     * @param userdata Publisher registered with Avahi.
-     */
-    static void client_callback(avahi::Client *client, avahi::ClientState state, void *userdata) {
-      static_cast<deinit_t *>(userdata)->on_client(client, state);
-    }
+    friend void sunshine_avahi_entry_group_callback(avahi::EntryGroup *group, avahi::EntryGroupState state, void *userdata);  ///< Native callback bridge allowed to dispatch an entry-group event.
+    friend void sunshine_avahi_client_callback(avahi::Client *client, avahi::ClientState state, void *userdata);  ///< Native callback bridge allowed to dispatch a client event.
 
     /**
      * @brief Replace a colliding service name or stop publication when allocation fails.
@@ -178,7 +179,7 @@ namespace platf::publish {
       });
 
       if (!group) {
-        if (!(group = api->entry_group_new(c, entry_group_callback, this))) {
+        if (!(group = api->entry_group_new(c, sunshine_avahi_entry_group_callback, this))) {
           logging::error("api->entry_group_new() failed: {}", api->strerror(api->client_errno(c)));
           return;
         }
@@ -268,6 +269,14 @@ namespace platf::publish {
     avahi::EntryGroup *group {};  ///< Group owned by the client.
     std::jthread poll_thread;  ///< Thread stopped before destroying callback context.
   };
+
+  extern "C" void sunshine_avahi_entry_group_callback(avahi::EntryGroup *group, avahi::EntryGroupState state, void *userdata) {
+    static_cast<deinit_t *>(userdata)->on_entry_group(group, state);
+  }
+
+  extern "C" void sunshine_avahi_client_callback(avahi::Client *client, avahi::ClientState state, void *userdata) {
+    static_cast<deinit_t *>(userdata)->on_client(client, state);
+  }
 
   std::unique_ptr<::platf::deinit_t> start(std::shared_ptr<const avahi::api_t> api, std::string instance_name, std::uint16_t port) {
     if (!api) {

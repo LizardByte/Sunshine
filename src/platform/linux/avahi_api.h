@@ -349,8 +349,8 @@ namespace avahi {
      */
     api_t() = default;
 
-    std::shared_ptr<void> common_library;  ///< Keep common functions alive until clients are destroyed.
-    std::shared_ptr<void> client_library;  ///< Keep client functions alive for all publisher resources.
+    std::shared_ptr<dyn::library_handle_t> common_library;  ///< Keep common functions alive until clients are destroyed.
+    std::shared_ptr<dyn::library_handle_t> client_library;  ///< Keep client functions alive for all publisher resources.
   };
 
 }  // namespace avahi

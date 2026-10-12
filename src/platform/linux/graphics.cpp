@@ -303,7 +303,7 @@ namespace gl {
 }  // namespace gl
 
 namespace gbm {
-  api_t::api_t(std::shared_ptr<void> library, device_destroy_fn destroy, create_device_fn create):
+  api_t::api_t(std::shared_ptr<dyn::library_handle_t> library, device_destroy_fn destroy, create_device_fn create):
       library {std::move(library)},
       device_destroy {destroy},
       create_device {create} {

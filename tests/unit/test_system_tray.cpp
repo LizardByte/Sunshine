@@ -307,11 +307,14 @@ protected:
   }
 };
 
+/**
+ * @brief Menu callbacks retain the typed application binding only while its owner lives.
+ */
 TEST_F(SystemTrayTest, BindsMenuCallbacksAndClearsDependenciesOnDestruction) {
   lifetime::controller_t lifetime;
   display_device::manager_t displays;
   const auto &tray_data = system_tray::tray_data_for_testing();
-  const auto verify_context = [&tray_data](void *expected) {
+  const auto verify_context = [&tray_data](const system_tray::application_binding_t *expected) {
     for (auto item = tray_data.menu; item->text; ++item) {
       EXPECT_EQ(item->context, expected);
       if (item->submenu) {

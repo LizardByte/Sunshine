@@ -1656,7 +1656,7 @@ namespace stream {
 
       frame_network_latency_logger.first_point_now();
 
-      auto session = (session_t *) packet->channel_data;
+      auto session = packet->channel_data;
       auto lowseq = session->video.lowseq;
 
       std::string_view payload {(char *) packet->data(), packet->data_size()};
@@ -1986,7 +1986,7 @@ namespace stream {
       }
 
       TUPLE_2D_REF(channel_data, packet_data, *packet);
-      auto session = (session_t *) channel_data;
+      auto session = channel_data;
 
       auto sequenceNumber = session->audio.sequenceNumber;
       auto timestamp = session->audio.timestamp;

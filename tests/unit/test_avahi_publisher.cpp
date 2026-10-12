@@ -360,10 +360,10 @@ namespace {
       {"avahi_simple_poll_free", reinterpret_cast<dyn::apiproc>(&free_poll)},
     };
     return avahi::api_t::load({
-      [fixture](const auto &) -> std::shared_ptr<void> {
-        return fixture;
+      [fixture](const auto &) -> std::shared_ptr<dyn::library_handle_t> {
+        return {fixture, reinterpret_cast<dyn::library_handle_t *>(fixture.get())};
       },
-      [functions](void *, const dyn::symbols_t &symbols) {
+      [functions](dyn::library_handle_t *, const dyn::symbols_t &symbols) {
         for (const auto &[destination, name] : symbols) {
           *destination = functions.at(name);
         }

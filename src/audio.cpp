@@ -157,9 +157,9 @@ namespace audio {
    * @param host_mail Host mailbox receiving encoded audio packets.
    * @param samples Queue of captured PCM sample buffers to encode.
    * @param config Audio stream settings negotiated with the client.
-   * @param channel_data Platform-specific audio capture context passed to packet metadata.
+   * @param channel_data Borrowed transport session that must outlive encoding and consumption of its queued packets.
    */
-  void encodeThread(safe::mail_t host_mail, sample_queue_t samples, config_t config, void *channel_data) {
+  void encodeThread(safe::mail_t host_mail, sample_queue_t samples, config_t config, stream::session_t *channel_data) {
     auto packets = host_mail->queue<packet_t>(mail::audio_packets);
     auto stream = stream_configs[map_stream(config.channels, config.flags[config_t::HIGH_QUALITY])];
     if (config.flags[config_t::CUSTOM_SURROUND_PARAMS]) {
@@ -205,9 +205,12 @@ namespace audio {
   }
 
   /**
-   * @brief Run the capture loop for this backend.
+   * @brief Capture and publish audio until the session shuts down, joining its encoder before returning.
+   * @param mail Session shutdown mailbox.
+   * @param config Negotiated audio layout and encoding settings.
+   * @param channel_data Borrowed transport session that must outlive capture and consumption of its queued packets.
    */
-  void service_t::capture(safe::mail_t mail, config_t config, void *channel_data) {
+  void service_t::capture(safe::mail_t mail, config_t config, stream::session_t *channel_data) {
     const auto host_mail = impl->host_mail;
     const auto &settings = impl->settings;
     auto shutdown_event = mail->event<bool>(mail::shutdown);

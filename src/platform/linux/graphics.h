@@ -376,7 +376,7 @@ namespace gbm {
      * @param destroy Function used to release devices.
      * @param create Function used to allocate devices.
      */
-    api_t(std::shared_ptr<void> library, device_destroy_fn destroy, create_device_fn create);
+    api_t(std::shared_ptr<dyn::library_handle_t> library, device_destroy_fn destroy, create_device_fn create);
 
     /**
      * @brief Load all required GBM functions for a capture or encoding owner.
@@ -393,7 +393,7 @@ namespace gbm {
      */
     static std::shared_ptr<const api_t> load(const dyn::loader_t &loader);
 
-    const std::shared_ptr<void> library;  ///< Keep functions valid until all devices have been released.
+    const std::shared_ptr<dyn::library_handle_t> library;  ///< Keep functions valid until all devices have been released.
     const device_destroy_fn device_destroy;  ///< Release a device created by this API.
     const create_device_fn create_device;  ///< Create a device from an open DRM file descriptor.
   };

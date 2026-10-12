@@ -13,17 +13,17 @@
 namespace nvprefs {
   std::shared_ptr<const api_t> api_t::load() {
     const loader_t loader {
-      [](const char *name) -> std::shared_ptr<void> {
+      [](const char *name) -> library_t {
         auto module = LoadLibraryEx(name, nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
         if (!module) {
           return {};
         }
-        return {module, [](void *value) {
-                  FreeLibrary(static_cast<HMODULE>(value));
+        return {module, [](HMODULE value) {
+                  FreeLibrary(value);
                 }};
       },
-      [](void *module, const char *name) {
-        return reinterpret_cast<void *>(GetProcAddress(static_cast<HMODULE>(module), name));
+      [](HMODULE module, const char *name) {
+        return adapt_query(reinterpret_cast<native_query_t>(GetProcAddress(module, name)));
       },
     };
     return load(loader);
@@ -42,8 +42,7 @@ namespace nvprefs {
       return {};
     }
 
-    using query_interface_fn = void *(__cdecl *) (NvU32);
-    auto query_interface = reinterpret_cast<query_interface_fn>(loader.symbol(library.get(), "nvapi_QueryInterface"));
+    auto query_interface = loader.query(library.get(), "nvapi_QueryInterface");
     if (!query_interface) {
       return {};
     }
@@ -53,5 +52,14 @@ namespace nvprefs {
       interfaces.emplace(item.func, query_interface(item.id));
     }
     return std::make_shared<const api_t>(std::move(library), std::move(interfaces));
+  }
+
+  api_t::query_t api_t::adapt_query(native_query_t query) {
+    if (!query) {
+      return {};
+    }
+    return [query](NvU32 id) {
+      return reinterpret_cast<FARPROC>(query(id));
+    };
   }
 }  // namespace nvprefs

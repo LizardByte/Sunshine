@@ -217,7 +217,7 @@ namespace platf {
         return api;
       }
 
-      std::shared_ptr<void> library;  ///< Keep the extension descriptor and functions loaded.
+      std::shared_ptr<dyn::library_handle_t> library;  ///< Keep the extension descriptor and functions loaded.
       xcb_extension_t *shm_id {};  ///< Extension descriptor whose cache is managed by XCB.
       decltype(&xcb_shm_get_image_reply) shm_get_image_reply {};  ///< Read a shared-memory image reply.
       decltype(&xcb_shm_get_image_unchecked) shm_get_image_unchecked {};  ///< Request an image through SHM.

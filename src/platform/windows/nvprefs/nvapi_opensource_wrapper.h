@@ -10,6 +10,10 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <type_traits>
+
+// platform includes
+#include <Windows.h>
 
 // nvapi headers
 // clang-format off
@@ -31,17 +35,32 @@ namespace nvprefs {
   class api_t {
   public:
     /**
+     * @brief Shared ownership of the actual Windows module handle type.
+     */
+    using library_t = std::shared_ptr<std::remove_pointer_t<HMODULE>>;
+
+    /**
+     * @brief Typed query that returns an NVAPI function address for an interface ID.
+     */
+    using query_t = std::function<FARPROC(NvU32)>;
+
+    /**
+     * @brief Native NVAPI resolver ABI used only when calling the driver export.
+     */
+    using native_query_t = void *(__cdecl *) (NvU32);
+
+    /**
      * @brief Library loading operations that can be supplied by a fake driver in tests.
      */
     struct loader_t {
-      std::function<std::shared_ptr<void>(const char *)> open;  ///< Load a library with its owning deleter.
-      std::function<void *(void *, const char *)> symbol;  ///< Resolve the interface-query entry point.
+      std::function<library_t(const char *)> open;  ///< Load a native module with its owning deleter.
+      std::function<query_t(HMODULE, const char *)> query;  ///< Resolve and adapt the interface-query entry point.
     };
 
     /**
      * @brief Function table keyed by interface names with string-value comparison.
      */
-    using interfaces_t = std::map<std::string, void *, std::less<>>;
+    using interfaces_t = std::map<std::string, FARPROC, std::less<>>;
 
     /**
      * @brief Construct an immutable table for a library or injected driver implementation.
@@ -49,7 +68,7 @@ namespace nvprefs {
      * @param library Owner that keeps resolved interface pointers alive.
      * @param interfaces Resolved functions, including null entries for unsupported interfaces.
      */
-    api_t(std::shared_ptr<void> library, interfaces_t interfaces):
+    api_t(library_t library, interfaces_t interfaces):
         library {std::move(library)},
         interfaces {std::move(interfaces)} {
     }
@@ -70,6 +89,16 @@ namespace nvprefs {
     static std::shared_ptr<const api_t> load(const loader_t &loader);
 
     /**
+     * @brief Convert native resolver results after invoking the driver's exact ABI.
+     *
+     * The returned callable borrows the export; retain its module while calling it.
+     *
+     * @param query Native NVAPI resolver export, or nullptr when unavailable.
+     * @return Typed interface-query callable, or an empty callable for a null export.
+     */
+    static query_t adapt_query(native_query_t query);
+
+    /**
      * @brief Invoke a resolved interface without modifying the immutable table.
      *
      * @tparam Func NVAPI function type whose arguments are forwarded.
@@ -88,7 +117,7 @@ namespace nvprefs {
     }
 
   private:
-    const std::shared_ptr<void> library;  ///< Keep the driver loaded while sessions use its interfaces.
+    const library_t library;  ///< Keep the driver module loaded while sessions use its interfaces.
     const interfaces_t interfaces;  ///< Immutable function table resolved at initialization.
   };
 }  // namespace nvprefs
