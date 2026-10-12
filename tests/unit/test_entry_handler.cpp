@@ -7,6 +7,9 @@
 #include "../tests_common.h"
 #include "../tests_log_checker.h"
 
+// standard includes
+#include <string_view>
+
 // local includes
 #include <src/entry_handler.h>
 
@@ -15,6 +18,23 @@
  */
 class LaunchUiUrlTest: public BaseTest {
 protected:
+  /**
+   * @brief Select the address used to construct Web UI URLs.
+   * @param address Hostname or numeric bind address, empty for localhost.
+   */
+  void set_bind_address(std::string_view address) {
+    configuration.edit_startup().sunshine.bind_address = address;
+  }
+
+  /**
+   * @brief Borrow the settings passed to the URL constructor.
+   * @return Read-only settings retained by this fixture.
+   */
+  const config::settings_t &url_settings() const {
+    return configuration.values();
+  }
+
+private:
   config::store_t configuration;  ///< Configuration isolated to this fixture.
 };
 
@@ -22,28 +42,28 @@ protected:
  * @brief Test that Web UI URLs use localhost when no bind address is configured.
  */
 TEST_F(LaunchUiUrlTest, UsesLocalhostWithoutBindAddress) {
-  configuration.edit_startup().sunshine.bind_address = "";
+  set_bind_address("");
 
-  EXPECT_EQ(get_launch_ui_url(configuration.values()), "https://localhost:47990");
-  EXPECT_EQ(get_launch_ui_url(configuration.values(), "/pin"), "https://localhost:47990/pin");
+  EXPECT_EQ(get_launch_ui_url(url_settings()), "https://localhost:47990");
+  EXPECT_EQ(get_launch_ui_url(url_settings(), "/pin"), "https://localhost:47990/pin");
 }
 
 /**
  * @brief Test that Web UI URLs use the configured IPv4 bind address.
  */
 TEST_F(LaunchUiUrlTest, UsesConfiguredIPv4Address) {
-  configuration.edit_startup().sunshine.bind_address = "198.51.100.56";
+  set_bind_address("198.51.100.56");
 
-  EXPECT_EQ(get_launch_ui_url(configuration.values()), "https://198.51.100.56:47990");
+  EXPECT_EQ(get_launch_ui_url(url_settings()), "https://198.51.100.56:47990");
 }
 
 /**
  * @brief Test that Web UI URLs enclose configured IPv6 bind addresses in brackets.
  */
 TEST_F(LaunchUiUrlTest, EscapesConfiguredIPv6Address) {
-  configuration.edit_startup().sunshine.bind_address = "2001:db8::1";
+  set_bind_address("2001:db8::1");
 
-  EXPECT_EQ(get_launch_ui_url(configuration.values(), "/config"), "https://[2001:db8::1]:47990/config");
+  EXPECT_EQ(get_launch_ui_url(url_settings(), "/config"), "https://[2001:db8::1]:47990/config");
 }
 
 TEST(EntryHandlerTests, LogPublisherDataTest) {

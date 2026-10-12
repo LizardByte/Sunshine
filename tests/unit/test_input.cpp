@@ -98,10 +98,6 @@ namespace {
    */
   class InputGamepadSessionTest: public ::testing::Test {
   protected:
-    config::store_t config_;  ///< Configuration owned by this fixture.
-    runtime::infrastructure_t infrastructure_;  ///< Infrastructure owned by this input fixture.
-    input::service_t inputs_ {config_.values(), infrastructure_.scheduler(), infrastructure_.mailbox(), infrastructure_.cursor()};  ///< Fixture-owned host input service.
-
     /**
      * @brief Preserve configuration and install observable fake devices.
      */
@@ -150,7 +146,55 @@ namespace {
       return *context_;
     }
 
+    /**
+     * @brief Access configuration for input dispatch and persisted backend preferences.
+     *
+     * @return Fixture-owned configuration store.
+     */
+    config::store_t &configuration() {
+      return config_;
+    }
+
+    /**
+     * @brief Access the host input service exercised by the current test.
+     *
+     * @return Fixture-owned host input service.
+     */
+    input::service_t &inputs() {
+      return inputs_;
+    }
+
+    /**
+     * @brief Access the scheduler for serialization and worker lifecycle assertions.
+     *
+     * @return Fixture-owned scheduler.
+     */
+    thread_pool_util::ThreadPool &scheduler() {
+      return infrastructure_.scheduler();
+    }
+
+    /**
+     * @brief Retain the host mailbox when constructing another input service.
+     *
+     * @return Fixture-owned host mailbox handle.
+     */
+    safe::mail_t mailbox() const {
+      return infrastructure_.mailbox();
+    }
+
+    /**
+     * @brief Access the cursor state shared with another input service.
+     *
+     * @return Fixture-owned cursor state.
+     */
+    bool &cursor() {
+      return infrastructure_.cursor();
+    }
+
   private:
+    config::store_t config_;  ///< Configuration owned by this fixture.
+    runtime::infrastructure_t infrastructure_;  ///< Infrastructure owned by this input fixture.
+    input::service_t inputs_ {config_.values(), infrastructure_.scheduler(), infrastructure_.mailbox(), infrastructure_.cursor()};  ///< Fixture-owned host input service.
     platf::virtualhid::input_context_t *context_ = nullptr;  ///< Fake input context installed in the global backend.
     lvh::Runtime *runtime_ = nullptr;  ///< Fake runtime installed in the global input backend.
   };
@@ -249,11 +293,11 @@ TEST(InputPacketValidationTest, PreservesUnknownPacketHandlingWithinDeclaredBoun
 }
 
 TEST_F(InputGamepadSessionTest, RejectsMalformedBatchablePacketsAtQueueIngress) {
-  ASSERT_FALSE(infrastructure_.scheduler().running());
+  ASSERT_FALSE(scheduler().running());
   const std::shared_ptr<input::input_t> empty_input;
   EXPECT_EQ(input::testing::queued_input_packet_count(empty_input), 0);
 
-  auto stream_input = inputs_.alloc(std::make_shared<safe::mail_raw_t>(), "packet-validation-client");
+  auto stream_input = inputs().alloc(std::make_shared<safe::mail_raw_t>(), "packet-validation-client");
   ASSERT_NE(stream_input, nullptr);
 
   auto short_header = make_input_packet(SS_PEN_MAGIC, sizeof(std::uint32_t), sizeof(NV_INPUT_HEADER) - 1);
@@ -292,13 +336,13 @@ TEST_F(InputGamepadSessionTest, RejectsMalformedBatchablePacketsAtQueueIngress) 
 }
 
 TEST_F(InputGamepadSessionTest, SerializesArrivalAndStatePacketsForOneController) {
-  ASSERT_FALSE(infrastructure_.scheduler().running());
-  config_.edit_startup().input.gamepad = "auto";
+  ASSERT_FALSE(scheduler().running());
+  configuration().edit_startup().input.gamepad = "auto";
 
-  auto stream_input = inputs_.alloc(std::make_shared<safe::mail_raw_t>(), "simultaneous-controller-packets");
+  auto stream_input = inputs().alloc(std::make_shared<safe::mail_raw_t>(), "simultaneous-controller-packets");
   ASSERT_NE(stream_input, nullptr);
   std::vector<std::shared_ptr<input::input_t>> scheduled;
-  input::testing::set_input_task_sink(inputs_, [&](std::shared_ptr<input::input_t> input) {
+  input::testing::set_input_task_sink(inputs(), [&](std::shared_ptr<input::input_t> input) {
     scheduled.push_back(std::move(input));
   });
 
@@ -323,7 +367,7 @@ TEST_F(InputGamepadSessionTest, SerializesArrivalAndStatePacketsForOneController
   std::promise<void> arrival_started;
   std::promise<void> release_arrival;
   const auto release_signal = release_arrival.get_future().share();
-  input::testing::set_input_packet_hook(inputs_, [&](std::uint32_t magic) {
+  input::testing::set_input_packet_hook(inputs(), [&](std::uint32_t magic) {
     if (magic == SS_CONTROLLER_ARRIVAL_MAGIC) {
       arrival_started.set_value();
       release_signal.wait();
@@ -344,7 +388,7 @@ TEST_F(InputGamepadSessionTest, SerializesArrivalAndStatePacketsForOneController
   EXPECT_EQ(scheduled.size(), 1);
   EXPECT_EQ(input::testing::queued_input_packet_count(stream_input), 1);
 
-  auto other_input = inputs_.alloc(std::make_shared<safe::mail_raw_t>(), "independent-input-stream");
+  auto other_input = inputs().alloc(std::make_shared<safe::mail_raw_t>(), "independent-input-stream");
   if (!other_input) {
     release_arrival.set_value();
     worker.join();
@@ -358,7 +402,7 @@ TEST_F(InputGamepadSessionTest, SerializesArrivalAndStatePacketsForOneController
   const auto active_before_gamepad = runtime().active_device_count();
   release_arrival.set_value();
   worker.join();
-  input::testing::set_input_packet_hook(inputs_, {});
+  input::testing::set_input_packet_hook(inputs(), {});
   input::testing::process_queued_messages(other_input);
 
   EXPECT_EQ(input::testing::queued_input_packet_count(stream_input), 0);
@@ -373,12 +417,12 @@ TEST_F(InputGamepadSessionTest, SerializesArrivalAndStatePacketsForOneController
 }
 
 TEST_F(InputGamepadSessionTest, YieldsAfterBoundedPacketBatch) {
-  ASSERT_FALSE(infrastructure_.scheduler().running());
-  auto stream_input = inputs_.alloc(std::make_shared<safe::mail_raw_t>(), "bounded-input-batch");
+  ASSERT_FALSE(scheduler().running());
+  auto stream_input = inputs().alloc(std::make_shared<safe::mail_raw_t>(), "bounded-input-batch");
   ASSERT_NE(stream_input, nullptr);
 
   std::vector<std::shared_ptr<input::input_t>> scheduled;
-  input::testing::set_input_task_sink(inputs_, [&](std::shared_ptr<input::input_t> input) {
+  input::testing::set_input_task_sink(inputs(), [&](std::shared_ptr<input::input_t> input) {
     scheduled.push_back(std::move(input));
   });
 
@@ -398,84 +442,84 @@ TEST_F(InputGamepadSessionTest, YieldsAfterBoundedPacketBatch) {
 }
 
 TEST_F(InputGamepadSessionTest, BatchesContinuousPacketsWithoutCrossingStateChanges) {
-  ASSERT_FALSE(infrastructure_.scheduler().running());
-  config_.edit_startup().input.mouse = false;
-  config_.edit_startup().input.controller = false;
-  config_.edit_startup().input.native_pen_touch = false;
-  input::testing::set_input_task_sink(inputs_, [](std::shared_ptr<input::input_t>) {
+  ASSERT_FALSE(scheduler().running());
+  configuration().edit_startup().input.mouse = false;
+  configuration().edit_startup().input.controller = false;
+  configuration().edit_startup().input.native_pen_touch = false;
+  input::testing::set_input_task_sink(inputs(), [](std::shared_ptr<input::input_t>) {
   });
 
   NV_MULTI_CONTROLLER_PACKET controller {};
-  expect_packet_dispatches(inputs_, controller, controller, MULTI_CONTROLLER_MAGIC_GEN5, 1);
+  expect_packet_dispatches(inputs(), controller, controller, MULTI_CONTROLLER_MAGIC_GEN5, 1);
   auto changed_controller = controller;
   changed_controller.controllerNumber = 1;
-  expect_packet_dispatches(inputs_, controller, changed_controller, MULTI_CONTROLLER_MAGIC_GEN5, 2);
+  expect_packet_dispatches(inputs(), controller, changed_controller, MULTI_CONTROLLER_MAGIC_GEN5, 2);
   changed_controller = controller;
   changed_controller.activeGamepadMask = 1;
-  expect_packet_dispatches(inputs_, controller, changed_controller, MULTI_CONTROLLER_MAGIC_GEN5, 3);
+  expect_packet_dispatches(inputs(), controller, changed_controller, MULTI_CONTROLLER_MAGIC_GEN5, 3);
   changed_controller = controller;
   changed_controller.buttonFlags = 1;
-  expect_packet_dispatches(inputs_, controller, changed_controller, MULTI_CONTROLLER_MAGIC_GEN5, 3);
+  expect_packet_dispatches(inputs(), controller, changed_controller, MULTI_CONTROLLER_MAGIC_GEN5, 3);
   changed_controller = controller;
   changed_controller.buttonFlags2 = 1;
-  expect_packet_dispatches(inputs_, controller, changed_controller, MULTI_CONTROLLER_MAGIC_GEN5, 3);
+  expect_packet_dispatches(inputs(), controller, changed_controller, MULTI_CONTROLLER_MAGIC_GEN5, 3);
 
   SS_TOUCH_PACKET touch {};
   touch.eventType = LI_TOUCH_EVENT_MOVE;
-  expect_packet_dispatches(inputs_, touch, touch, SS_TOUCH_MAGIC, 1);
+  expect_packet_dispatches(inputs(), touch, touch, SS_TOUCH_MAGIC, 1);
   auto changed_touch = touch;
   changed_touch.pointerId = 1;
-  expect_packet_dispatches(inputs_, touch, changed_touch, SS_TOUCH_MAGIC, 2);
+  expect_packet_dispatches(inputs(), touch, changed_touch, SS_TOUCH_MAGIC, 2);
   changed_touch = touch;
   changed_touch.eventType = LI_TOUCH_EVENT_DOWN;
-  expect_packet_dispatches(inputs_, touch, changed_touch, SS_TOUCH_MAGIC, 3);
+  expect_packet_dispatches(inputs(), touch, changed_touch, SS_TOUCH_MAGIC, 3);
   changed_touch.eventType = LI_TOUCH_EVENT_HOVER;
-  expect_packet_dispatches(inputs_, touch, changed_touch, SS_TOUCH_MAGIC, 3);
+  expect_packet_dispatches(inputs(), touch, changed_touch, SS_TOUCH_MAGIC, 3);
 
   SS_PEN_PACKET pen {};
   pen.eventType = LI_TOUCH_EVENT_MOVE;
-  expect_packet_dispatches(inputs_, pen, pen, SS_PEN_MAGIC, 1);
+  expect_packet_dispatches(inputs(), pen, pen, SS_PEN_MAGIC, 1);
   auto changed_pen = pen;
   changed_pen.eventType = LI_TOUCH_EVENT_DOWN;
-  expect_packet_dispatches(inputs_, pen, changed_pen, SS_PEN_MAGIC, 3);
+  expect_packet_dispatches(inputs(), pen, changed_pen, SS_PEN_MAGIC, 3);
   changed_pen.eventType = LI_TOUCH_EVENT_HOVER;
-  expect_packet_dispatches(inputs_, pen, changed_pen, SS_PEN_MAGIC, 3);
+  expect_packet_dispatches(inputs(), pen, changed_pen, SS_PEN_MAGIC, 3);
   changed_pen = pen;
   changed_pen.penButtons = 1;
-  expect_packet_dispatches(inputs_, pen, changed_pen, SS_PEN_MAGIC, 3);
+  expect_packet_dispatches(inputs(), pen, changed_pen, SS_PEN_MAGIC, 3);
   changed_pen = pen;
   changed_pen.toolType = 1;
-  expect_packet_dispatches(inputs_, pen, changed_pen, SS_PEN_MAGIC, 3);
+  expect_packet_dispatches(inputs(), pen, changed_pen, SS_PEN_MAGIC, 3);
 
   SS_CONTROLLER_TOUCH_PACKET controller_touch {};
   controller_touch.eventType = LI_TOUCH_EVENT_MOVE;
-  expect_packet_dispatches(inputs_, controller_touch, controller_touch, SS_CONTROLLER_TOUCH_MAGIC, 1);
+  expect_packet_dispatches(inputs(), controller_touch, controller_touch, SS_CONTROLLER_TOUCH_MAGIC, 1);
   auto changed_controller_touch = controller_touch;
   changed_controller_touch.controllerNumber = 1;
-  expect_packet_dispatches(inputs_, controller_touch, changed_controller_touch, SS_CONTROLLER_TOUCH_MAGIC, 2);
+  expect_packet_dispatches(inputs(), controller_touch, changed_controller_touch, SS_CONTROLLER_TOUCH_MAGIC, 2);
   changed_controller_touch = controller_touch;
   changed_controller_touch.pointerId = 1;
-  expect_packet_dispatches(inputs_, controller_touch, changed_controller_touch, SS_CONTROLLER_TOUCH_MAGIC, 2);
+  expect_packet_dispatches(inputs(), controller_touch, changed_controller_touch, SS_CONTROLLER_TOUCH_MAGIC, 2);
   changed_controller_touch = controller_touch;
   changed_controller_touch.eventType = LI_TOUCH_EVENT_DOWN;
-  expect_packet_dispatches(inputs_, controller_touch, changed_controller_touch, SS_CONTROLLER_TOUCH_MAGIC, 3);
+  expect_packet_dispatches(inputs(), controller_touch, changed_controller_touch, SS_CONTROLLER_TOUCH_MAGIC, 3);
   changed_controller_touch.eventType = LI_TOUCH_EVENT_HOVER;
-  expect_packet_dispatches(inputs_, controller_touch, changed_controller_touch, SS_CONTROLLER_TOUCH_MAGIC, 3);
+  expect_packet_dispatches(inputs(), controller_touch, changed_controller_touch, SS_CONTROLLER_TOUCH_MAGIC, 3);
 
   SS_CONTROLLER_MOTION_PACKET motion {};
-  expect_packet_dispatches(inputs_, motion, motion, SS_CONTROLLER_MOTION_MAGIC, 1);
+  expect_packet_dispatches(inputs(), motion, motion, SS_CONTROLLER_MOTION_MAGIC, 1);
   auto changed_motion = motion;
   changed_motion.controllerNumber = 1;
-  expect_packet_dispatches(inputs_, motion, changed_motion, SS_CONTROLLER_MOTION_MAGIC, 2);
+  expect_packet_dispatches(inputs(), motion, changed_motion, SS_CONTROLLER_MOTION_MAGIC, 2);
   changed_motion = motion;
   changed_motion.motionType = 1;
-  expect_packet_dispatches(inputs_, motion, changed_motion, SS_CONTROLLER_MOTION_MAGIC, 2);
+  expect_packet_dispatches(inputs(), motion, changed_motion, SS_CONTROLLER_MOTION_MAGIC, 2);
 }
 
 TEST_F(InputGamepadSessionTest, ReusesGamepadsAcrossPauseAndDestroysThemOnTermination) {
   const std::string session_id = "paired-client-certificate";
   auto first_mail = std::make_shared<safe::mail_raw_t>();
-  auto first = inputs_.alloc(first_mail, session_id);
+  auto first = inputs().alloc(first_mail, session_id);
   ASSERT_NE(first, nullptr);
   const auto active_devices_before_gamepad = runtime().active_device_count();
 
@@ -490,17 +534,17 @@ TEST_F(InputGamepadSessionTest, ReusesGamepadsAcrossPauseAndDestroysThemOnTermin
   EXPECT_EQ(runtime().active_device_count(), active_devices_before_gamepad + 1);
 
   auto resumed_mail = std::make_shared<safe::mail_raw_t>();
-  auto resumed = inputs_.alloc(resumed_mail, session_id);
+  auto resumed = inputs().alloc(resumed_mail, session_id);
   ASSERT_NE(resumed, nullptr);
   EXPECT_EQ(paused.lock(), resumed);
   EXPECT_EQ(input::testing::gamepad_id(resumed, 0), original_id);
   EXPECT_EQ(runtime().active_device_count(), active_devices_before_gamepad + 1);
 
-  inputs_.terminate_gamepads(session_id);
+  inputs().terminate_gamepads(session_id);
   EXPECT_EQ(input::testing::gamepad_id(resumed, 0), -1);
   EXPECT_EQ(runtime().active_device_count(), active_devices_before_gamepad);
 
-  auto replacement = inputs_.alloc(std::make_shared<safe::mail_raw_t>(), session_id);
+  auto replacement = inputs().alloc(std::make_shared<safe::mail_raw_t>(), session_id);
   EXPECT_NE(replacement, resumed);
 }
 
@@ -511,7 +555,7 @@ TEST_F(InputGamepadSessionTest, RefreshesSharedVirtualInputAfterLicenseStateChan
   const auto original_mouse_id = context().mouse->device_id();
   const auto active_devices = runtime().active_device_count();
 
-  inputs_.refresh_virtual_input();
+  inputs().refresh_virtual_input();
 
   ASSERT_NE(context().keyboard, nullptr);
   ASSERT_NE(context().mouse, nullptr);
@@ -522,21 +566,21 @@ TEST_F(InputGamepadSessionTest, RefreshesSharedVirtualInputAfterLicenseStateChan
 
 TEST_F(InputGamepadSessionTest, IndependentHostServicesDoNotShareRetainedSessionsOrGamepadSlots) {
   runtime::infrastructure_t other_infrastructure;
-  input::service_t other_inputs {config_.values(), other_infrastructure.scheduler(), other_infrastructure.mailbox(), other_infrastructure.cursor()};
-  auto other_platform = platf::input(config_.values(), other_infrastructure.scheduler());
+  input::service_t other_inputs {configuration().values(), other_infrastructure.scheduler(), other_infrastructure.mailbox(), other_infrastructure.cursor()};
+  auto other_platform = platf::input(configuration().values(), other_infrastructure.scheduler());
   ASSERT_TRUE(other_platform);
   auto &other_context = platf::virtualhid::get_input_context(other_platform);
-  other_context = platf::virtualhid::input_context_t {config_.values(), lvh::BackendKind::fake};
+  other_context = platf::virtualhid::input_context_t {configuration().values(), lvh::BackendKind::fake};
   input::testing::set_platform_input(other_inputs, std::move(other_platform));
 
-  auto first = inputs_.alloc(std::make_shared<safe::mail_raw_t>(), "same-client");
+  auto first = inputs().alloc(std::make_shared<safe::mail_raw_t>(), "same-client");
   auto second = other_inputs.alloc(std::make_shared<safe::mail_raw_t>(), "same-client");
   ASSERT_NE(first, second);
   const platf::gamepad_arrival_t metadata {LI_CTYPE_XBOX, 0, 0};
   EXPECT_EQ(input::testing::alloc_gamepad(first, 0, metadata), 0);
   EXPECT_EQ(input::testing::alloc_gamepad(second, 0, metadata), 0);
 
-  inputs_.terminate_gamepads("same-client");
+  inputs().terminate_gamepads("same-client");
   EXPECT_EQ(input::testing::gamepad_id(first, 0), -1);
   EXPECT_EQ(input::testing::gamepad_id(second, 0), 0);
   EXPECT_EQ(other_inputs.alloc(std::make_shared<safe::mail_raw_t>(), "same-client"), second);
@@ -544,7 +588,7 @@ TEST_F(InputGamepadSessionTest, IndependentHostServicesDoNotShareRetainedSession
 
 TEST_F(InputGamepadSessionTest, RetargetsRelativeMouseFromLatestStreamGeometry) {
   auto session_mail = std::make_shared<safe::mail_raw_t>();
-  auto stream_input = inputs_.alloc(session_mail, "relative-mouse-client");
+  auto stream_input = inputs().alloc(session_mail, "relative-mouse-client");
   ASSERT_NE(stream_input, nullptr);
 
   input::touch_port_t left_viewport {
@@ -599,36 +643,36 @@ TEST_F(InputGamepadSessionTest, LicensedBackendChoiceIsSerializedWithoutChanging
   const auto remove_file = util::fail_guard([&path]() {
     std::filesystem::remove(path);
   });
-  config_.edit_startup().sunshine.config_file = path.string();
-  infrastructure_.scheduler().start(1);
+  configuration().edit_startup().sunshine.config_file = path.string();
+  scheduler().start(1);
   const auto stop_worker = util::fail_guard([this]() {
-    infrastructure_.scheduler().stop();
-    infrastructure_.scheduler().join();
+    scheduler().stop();
+    scheduler().join();
   });
 
-  EXPECT_FALSE(inputs_.select_all_gamepad_drivers_if_licensed(config_, false));
-  EXPECT_TRUE(inputs_.select_all_gamepad_drivers_if_licensed(config_, true));
-  EXPECT_EQ(inputs_.configuration_snapshot().gamepad_driver, config::GAMEPAD_DRIVER_ALL);
+  EXPECT_FALSE(inputs().select_all_gamepad_drivers_if_licensed(configuration(), false));
+  EXPECT_TRUE(inputs().select_all_gamepad_drivers_if_licensed(configuration(), true));
+  EXPECT_EQ(inputs().configuration_snapshot().gamepad_driver, config::GAMEPAD_DRIVER_ALL);
   EXPECT_EQ(context().gamepad_driver, config::GAMEPAD_DRIVER_ALL);
-  EXPECT_TRUE(config_.values().input.gamepad_driver.empty());
+  EXPECT_TRUE(configuration().values().input.gamepad_driver.empty());
   EXPECT_EQ(file_handler::read_file(path.string().c_str()), "gamepad_driver = all\n");
-  EXPECT_FALSE(inputs_.select_all_gamepad_drivers_if_licensed(config_, true));
-  auto snapshot = inputs_.configuration_snapshot();
+  EXPECT_FALSE(inputs().select_all_gamepad_drivers_if_licensed(configuration(), true));
+  auto snapshot = inputs().configuration_snapshot();
   snapshot.gamepad_driver = config::GAMEPAD_DRIVER_NONE;
-  EXPECT_EQ(inputs_.configuration_snapshot().gamepad_driver, config::GAMEPAD_DRIVER_ALL);
+  EXPECT_EQ(inputs().configuration_snapshot().gamepad_driver, config::GAMEPAD_DRIVER_ALL);
 }
 
 /**
  * @brief An uninitialized backend reports no concrete gamepad choices before and after worker startup.
  */
 TEST_F(InputGamepadSessionTest, UninitializedGamepadProbeWorksBeforeAndAfterSchedulerStarts) {
-  input::service_t inactive {config_.values(), infrastructure_.scheduler(), infrastructure_.mailbox(), infrastructure_.cursor()};
+  input::service_t inactive {configuration().values(), scheduler(), mailbox(), cursor()};
   EXPECT_TRUE(inactive.probe_gamepads());
 
-  infrastructure_.scheduler().start(1);
+  scheduler().start(1);
   const auto stop_worker = util::fail_guard([this]() {
-    infrastructure_.scheduler().stop();
-    infrastructure_.scheduler().join();
+    scheduler().stop();
+    scheduler().join();
   });
   EXPECT_TRUE(inactive.probe_gamepads());
 }
@@ -638,15 +682,15 @@ TEST_F(InputGamepadSessionTest, LicensedBackendChoiceHonorsSavedPreferencesAndPe
   const auto remove_file = util::fail_guard([&path]() {
     std::filesystem::remove(path);
   });
-  config_.edit_startup().sunshine.config_file = path.string();
+  configuration().edit_startup().sunshine.config_file = path.string();
   ASSERT_EQ(file_handler::write_file(path.string().c_str(), "gamepad_driver = vigembus\n"), 0);
-  EXPECT_FALSE(inputs_.select_all_gamepad_drivers_if_licensed(config_, true));
-  EXPECT_TRUE(inputs_.configuration_snapshot().gamepad_driver.empty());
+  EXPECT_FALSE(inputs().select_all_gamepad_drivers_if_licensed(configuration(), true));
+  EXPECT_TRUE(inputs().configuration_snapshot().gamepad_driver.empty());
   EXPECT_EQ(file_handler::read_file(path.string().c_str()), "gamepad_driver = vigembus\n");
 
-  config_.edit_startup().sunshine.config_file.clear();
-  EXPECT_FALSE(inputs_.select_all_gamepad_drivers_if_licensed(config_, true));
-  EXPECT_TRUE(inputs_.configuration_snapshot().gamepad_driver.empty());
+  configuration().edit_startup().sunshine.config_file.clear();
+  EXPECT_FALSE(inputs().select_all_gamepad_drivers_if_licensed(configuration(), true));
+  EXPECT_TRUE(inputs().configuration_snapshot().gamepad_driver.empty());
 }
 
 TEST_F(InputGamepadSessionTest, LicensedBackendChoiceCanPrecedePlatformInitialization) {
@@ -655,18 +699,18 @@ TEST_F(InputGamepadSessionTest, LicensedBackendChoiceCanPrecedePlatformInitializ
   const auto remove_file = util::fail_guard([&path]() {
     std::filesystem::remove(path);
   });
-  config_.edit_startup().sunshine.config_file = path.string();
-  input::service_t inactive {config_.values(), infrastructure_.scheduler(), infrastructure_.mailbox(), infrastructure_.cursor()};
+  configuration().edit_startup().sunshine.config_file = path.string();
+  input::service_t inactive {configuration().values(), scheduler(), mailbox(), cursor()};
 
-  EXPECT_TRUE(inactive.select_all_gamepad_drivers_if_licensed(config_, true));
+  EXPECT_TRUE(inactive.select_all_gamepad_drivers_if_licensed(configuration(), true));
   EXPECT_EQ(inactive.configuration_snapshot().gamepad_driver, config::GAMEPAD_DRIVER_ALL);
-  EXPECT_TRUE(inputs_.configuration_snapshot().gamepad_driver.empty());
+  EXPECT_TRUE(inputs().configuration_snapshot().gamepad_driver.empty());
 }
 
 TEST_F(InputGamepadSessionTest, ExplicitStartupBackendChoiceRemainsSelectedAfterLicensing) {
   config::store_t explicit_config;
   explicit_config.edit_startup().input.gamepad_driver = config::GAMEPAD_DRIVER_NONE;
-  input::service_t explicit_inputs {explicit_config.values(), infrastructure_.scheduler(), infrastructure_.mailbox(), infrastructure_.cursor()};
+  input::service_t explicit_inputs {explicit_config.values(), scheduler(), mailbox(), cursor()};
 
   EXPECT_FALSE(explicit_inputs.select_all_gamepad_drivers_if_licensed(explicit_config, true));
   EXPECT_EQ(explicit_inputs.configuration_snapshot().gamepad_driver, config::GAMEPAD_DRIVER_NONE);

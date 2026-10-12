@@ -331,6 +331,9 @@ TEST(WindowsAudioTest, DefaultDeviceIsUsedWhenNoSinkWasRequested) {
  */
 class ExternalAudioTest: public testing::Test {
 protected:
+  /**
+   * @brief Initialize capture-only configuration and reset native factory counters.
+   */
   void SetUp() override {
     settings.audio.external_audio = true;
     settings.audio.sink = "configured-id";
@@ -388,39 +391,61 @@ protected:
     return S_OK;
   }
 
-  config::settings_t settings;  ///< Configuration owned by each Windows audio fixture.
+  /**
+   * @brief Read the audio configuration supplied to native controller helpers.
+   * @return Configuration owned by this fixture.
+   */
+  const config::settings_t &audio_settings() const {
+    return settings;
+  }
+
+  /**
+   * @brief Use internal audio management for a disabled capture-only-mode scenario.
+   */
+  void disable_external_audio() {
+    settings.audio.external_audio = false;
+  }
+
+  /**
+   * @brief Remove the explicit capture sink for a missing-configuration scenario.
+   */
+  void clear_configured_sink() {
+    settings.audio.sink.clear();
+  }
 
 private:
+  config::settings_t settings;  ///< Configuration owned by each Windows audio fixture.
+
   inline static int policy_requests = 0;  ///< Requests for the unavailable policy interface.
   inline static int enumerator_requests = 0;  ///< Requests for endpoint enumeration.
   inline static HRESULT enumerator_status = S_OK;  ///< Simulated enumeration initialization result.
 };
 
 TEST_F(ExternalAudioTest, InitializesWithoutPolicyInterface) {
-  EXPECT_EQ(platf::audio::tests::initialize_audio_control(settings, &create_capture_interface), 0);
+  EXPECT_EQ(platf::audio::tests::initialize_audio_control(audio_settings(), &create_capture_interface), 0);
   EXPECT_EQ(policy_request_count(), 0);
   EXPECT_EQ(enumerator_request_count(), 1);
 }
 
 TEST_F(ExternalAudioTest, InitializationRequiresEndpointEnumerator) {
   fail_enumerator_initialization();
-  EXPECT_NE(platf::audio::tests::initialize_audio_control(settings, &create_capture_interface), 0);
+  EXPECT_NE(platf::audio::tests::initialize_audio_control(audio_settings(), &create_capture_interface), 0);
   EXPECT_EQ(policy_request_count(), 0);
   EXPECT_EQ(enumerator_request_count(), 1);
 }
 
 TEST_F(ExternalAudioTest, DisabledModeStillRequiresPolicyInterface) {
-  settings.audio.external_audio = false;
-  EXPECT_NE(platf::audio::tests::initialize_audio_control(settings, &create_capture_interface), 0);
+  disable_external_audio();
+  EXPECT_NE(platf::audio::tests::initialize_audio_control(audio_settings(), &create_capture_interface), 0);
   EXPECT_EQ(policy_request_count(), 1);
   EXPECT_EQ(enumerator_request_count(), 0);
 }
 
 TEST_F(ExternalAudioTest, RequiresExplicitSink) {
-  settings.audio.sink.clear();
-  EXPECT_EXIT(std::_Exit(platf::audio::tests::configured_sink_info(settings) ? 1 : 0), testing::ExitedWithCode(0), "");
+  clear_configured_sink();
+  EXPECT_EXIT(std::_Exit(platf::audio::tests::configured_sink_info(audio_settings()) ? 1 : 0), testing::ExitedWithCode(0), "");
   fake_device_enumerator_t enumerator {L"endpoint-id"};
-  EXPECT_FALSE(platf::audio::tests::microphone_available(settings, {}, {}, &enumerator));
+  EXPECT_FALSE(platf::audio::tests::microphone_available(audio_settings(), {}, {}, &enumerator));
   EXPECT_EQ(enumerator.get_default_device_calls, 0);
   EXPECT_EQ(enumerator.get_device_calls, 0);
 }
@@ -428,7 +453,7 @@ TEST_F(ExternalAudioTest, RequiresExplicitSink) {
 TEST_F(ExternalAudioTest, SkipsDefaultAndVirtualDeviceDiscovery) {
   EXPECT_EXIT(
     {
-      const auto sinks = platf::audio::tests::configured_sink_info(settings);
+      const auto sinks = platf::audio::tests::configured_sink_info(audio_settings());
       std::_Exit(sinks && sinks->host == "configured-id" && !sinks->null ? 0 : 1);
     },
     testing::ExitedWithCode(0),
@@ -437,40 +462,40 @@ TEST_F(ExternalAudioTest, SkipsDefaultAndVirtualDeviceDiscovery) {
 }
 
 TEST_F(ExternalAudioTest, SinkChangesDoNotAccessPolicyOrFormatInterfaces) {
-  EXPECT_EXIT(std::_Exit(platf::audio::tests::set_external_sink(settings, "virtual-Stereoendpoint-id")), testing::ExitedWithCode(0), "");
-  EXPECT_EXIT(std::_Exit(platf::audio::tests::set_external_sink(settings, "other-endpoint")), testing::ExitedWithCode(0), "");
+  EXPECT_EXIT(std::_Exit(platf::audio::tests::set_external_sink(audio_settings(), "virtual-Stereoendpoint-id")), testing::ExitedWithCode(0), "");
+  EXPECT_EXIT(std::_Exit(platf::audio::tests::set_external_sink(audio_settings(), "other-endpoint")), testing::ExitedWithCode(0), "");
 }
 
 TEST_F(ExternalAudioTest, ConfiguredSinkWinsOverAssignedSink) {
   fake_device_enumerator_t enumerator {L"configured-id"};
-  EXPECT_FALSE(platf::audio::tests::microphone_available(settings, "virtual-Stereoother-id", "configured-id", &enumerator));
+  EXPECT_FALSE(platf::audio::tests::microphone_available(audio_settings(), "virtual-Stereoother-id", "configured-id", &enumerator));
   EXPECT_EQ(enumerator.last_requested_id, L"configured-id");
   EXPECT_EQ(enumerator.get_default_device_calls, 0);
 }
 
 TEST_F(ExternalAudioTest, MissingSinkDoesNotFallBackToDefault) {
   fake_device_enumerator_t enumerator {L"endpoint-id"};
-  EXPECT_FALSE(platf::audio::tests::microphone_available(settings, {}, "missing-id", &enumerator));
+  EXPECT_FALSE(platf::audio::tests::microphone_available(audio_settings(), {}, "missing-id", &enumerator));
   EXPECT_EQ(enumerator.get_default_device_calls, 0);
 }
 
 TEST_F(ExternalAudioTest, DisconnectedSinkDoesNotFallBackToDefault) {
   fake_device_enumerator_t enumerator {L"configured-id"};
   enumerator.device.state = DEVICE_STATE_UNPLUGGED;
-  EXPECT_FALSE(platf::audio::tests::microphone_available(settings, {}, "configured-id", &enumerator));
+  EXPECT_FALSE(platf::audio::tests::microphone_available(audio_settings(), {}, "configured-id", &enumerator));
   EXPECT_EQ(enumerator.get_default_device_calls, 0);
 }
 
 TEST_F(ExternalAudioTest, DisabledModePreservesAssignedSinkPriority) {
-  settings.audio.external_audio = false;
+  disable_external_audio();
   fake_device_enumerator_t enumerator {L"assigned-id"};
-  EXPECT_FALSE(platf::audio::tests::microphone_available(settings, "assigned-id", "configured-id", &enumerator));
+  EXPECT_FALSE(platf::audio::tests::microphone_available(audio_settings(), "assigned-id", "configured-id", &enumerator));
   EXPECT_EQ(enumerator.last_requested_id, L"assigned-id");
   EXPECT_EQ(enumerator.get_default_device_calls, 0);
 }
 
 TEST_F(ExternalAudioTest, DisabledModePreservesDefaultFallback) {
-  settings.audio.external_audio = false;
+  disable_external_audio();
   fake_device_enumerator_t enumerator {L"endpoint-id"};
   EXPECT_TRUE(platf::audio::tests::capture_follows_default_device(&enumerator, nullptr));
   EXPECT_EQ(enumerator.get_default_device_calls, 1);

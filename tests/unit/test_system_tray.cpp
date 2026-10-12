@@ -14,6 +14,7 @@
 #include <format>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <tuple>
 
@@ -253,17 +254,50 @@ namespace {
  */
 class SystemTrayTest: public testing::Test {
 protected:
-  config::store_t configuration;  ///< Startup settings owned by this tray fixture.
+  /**
+   * @brief Borrow startup settings passed to tray policies and callback bindings.
+   * @return Read-only settings owned by this fixture.
+   */
+  const config::settings_t &tray_settings() const {
+    return configuration.values();
+  }
+
+  #if defined(_WIN32) || defined(__APPLE__)
+  /**
+   * @brief Select the gamepad backend used by tray license and driver policies.
+   * @param driver Gamepad driver name to assign.
+   */
+  void select_gamepad_driver(std::string_view driver) {
+    configuration.edit_startup().input.gamepad_driver = driver;
+  }
+
+  /**
+   * @brief Select the empty backend setting used by automatic-selection checks.
+   */
+  void clear_gamepad_driver() {
+    configuration.edit_startup().input.gamepad_driver.clear();
+  }
+  #endif
+
+  #ifdef __APPLE__
+  /**
+   * @brief Configure whether controller-dependent macOS tray policies are active.
+   * @param enabled Whether the fixture enables gamepads.
+   */
+  void set_controller_enabled(bool enabled) {
+    configuration.edit_startup().input.controller = enabled;
+  }
+  #endif
 
   /**
    * @brief Reset any tray state left by an earlier test.
    */
   void SetUp() override {
   #ifdef _WIN32
-    configuration.edit_startup().input.gamepad_driver = config::GAMEPAD_DRIVER_ALL;
+    select_gamepad_driver(config::GAMEPAD_DRIVER_ALL);
   #elif defined(__APPLE__)
-    configuration.edit_startup().input.controller = true;
-    configuration.edit_startup().input.gamepad_driver = config::GAMEPAD_DRIVER_VIRTUALHID;
+    set_controller_enabled(true);
+    select_gamepad_driver(config::GAMEPAD_DRIVER_VIRTUALHID);
   #endif
     EXPECT_EQ(system_tray::end_tray(), 0);
   #ifndef _WIN32
@@ -305,6 +339,9 @@ protected:
   #endif
     return result;
   }
+
+private:
+  config::store_t configuration;  ///< Startup settings owned by this tray fixture.
 };
 
 /**
@@ -327,14 +364,14 @@ TEST_F(SystemTrayTest, BindsMenuCallbacksAndClearsDependenciesOnDestruction) {
     }
   };
   {
-    system_tray::application_binding_t binding {configuration.values(), lifetime, displays};
-    EXPECT_EQ(&binding.settings, &configuration.values());
+    system_tray::application_binding_t binding {tray_settings(), lifetime, displays};
+    EXPECT_EQ(&binding.settings, &tray_settings());
     EXPECT_EQ(&binding.lifetime, &lifetime);
     EXPECT_EQ(&binding.displays, &displays);
     verify_context(&binding);
   #if defined(_WIN32) || defined(__APPLE__)
     lvh::LicenseStatus license;
-    system_tray::update_tray_virtualhid_license(configuration.values(), license, false);
+    system_tray::update_tray_virtualhid_license(tray_settings(), license, false);
     verify_context(&binding);
   #endif
   }
@@ -391,7 +428,7 @@ TEST_F(SystemTrayTest, ResolvesDevelopmentTrayIconsFromExecutableDirectory) {
 }
 
 TEST_F(SystemTrayTest, PreparesVirtualHidMenuFromCurrentLicenseStatus) {
-  system_tray::prepare_tray_virtualhid_license(configuration.values());
+  system_tray::prepare_tray_virtualhid_license(tray_settings());
 
   const auto &tray_data = system_tray::tray_data_for_testing();
   ASSERT_NE(tray_data.menu[2].submenu, nullptr);
@@ -408,7 +445,7 @@ TEST_F(SystemTrayTest, PreparesLicensedVirtualHidMenuBeforeInitialization) {
   license.activation_usage = 1;
   license.activation_limit = 5;
 
-  system_tray::update_tray_virtualhid_license(configuration.values(), license, true);
+  system_tray::update_tray_virtualhid_license(tray_settings(), license, true);
 
   const auto &tray_data = system_tray::tray_data_for_testing();
   const auto *license_menu = tray_data.menu[2].submenu;
@@ -429,7 +466,7 @@ TEST_F(SystemTrayTest, PreparesLicensedVirtualHidMenuBeforeInitialization) {
   license.customer_email.clear();
   license.activation_usage = 0;
   license.activation_limit = 0;
-  system_tray::update_tray_virtualhid_license(configuration.values(), license, false);
+  system_tray::update_tray_virtualhid_license(tray_settings(), license, false);
 
   EXPECT_STREQ(license_menu[1].text, "This machine is activated");
   EXPECT_STREQ(license_menu[2].text, "Customer: Not reported");
@@ -440,9 +477,9 @@ TEST_F(SystemTrayTest, PromptsForUnsetGamepadDriverEvenWhenLicensed) {
   lvh::LicenseStatus license;
   license.service_available = true;
   license.state = lvh::LicenseState::licensed;
-  configuration.edit_startup().input.gamepad_driver.clear();
+  clear_gamepad_driver();
 
-  system_tray::update_tray_virtualhid_license(configuration.values(), license, false);
+  system_tray::update_tray_virtualhid_license(tray_settings(), license, false);
 
   const auto &tray_data = system_tray::tray_data_for_testing();
   EXPECT_STREQ(tray_data.notification_title, "Choose a Gamepad Backend");
@@ -456,7 +493,7 @@ TEST_F(SystemTrayTest, PromptsForUnsetGamepadDriverEvenWhenLicensed) {
 
 TEST_F(SystemTrayTest, NotifiesWhenVirtualHidDriverIsUnsupported) {
   const auto supported_versions = std::format(">= {}", LIBVIRTUALHID_MINIMUM_VERSION);
-  system_tray::update_tray_virtualhid_driver(configuration.values(), true, "2026.829.2338.54", false, supported_versions);  // NOSONAR(cpp:S1313): not an IP address
+  system_tray::update_tray_virtualhid_driver(tray_settings(), true, "2026.829.2338.54", false, supported_versions);  // NOSONAR(cpp:S1313): not an IP address
 
   const auto &tray_data = system_tray::tray_data_for_testing();
   const auto expected_notification = std::format(
@@ -476,7 +513,7 @@ TEST_F(SystemTrayTest, PreservesExistingNotificationWhenVirtualHidDriverIsUsable
   lvh::LicenseStatus license;
   license.service_available = true;
   license.state = lvh::LicenseState::unlicensed;
-  system_tray::update_tray_virtualhid_license(configuration.values(), license, true);
+  system_tray::update_tray_virtualhid_license(tray_settings(), license, true);
 
   const auto &tray_data = system_tray::tray_data_for_testing();
   const auto *notification_title = tray_data.notification_title;
@@ -484,12 +521,12 @@ TEST_F(SystemTrayTest, PreservesExistingNotificationWhenVirtualHidDriverIsUsable
   const auto notification_callback = tray_data.notification_cb;
 
   const auto supported_versions = std::format(">= {}", LIBVIRTUALHID_MINIMUM_VERSION);
-  system_tray::update_tray_virtualhid_driver(configuration.values(), false, "", false, supported_versions);
+  system_tray::update_tray_virtualhid_driver(tray_settings(), false, "", false, supported_versions);
   EXPECT_EQ(tray_data.notification_title, notification_title);
   EXPECT_EQ(tray_data.notification_text, notification_text);
   EXPECT_EQ(tray_data.notification_cb, notification_callback);
 
-  system_tray::update_tray_virtualhid_driver(configuration.values(), true, "0.0.1", true, supported_versions);
+  system_tray::update_tray_virtualhid_driver(tray_settings(), true, "0.0.1", true, supported_versions);
   EXPECT_EQ(tray_data.notification_title, notification_title);
   EXPECT_EQ(tray_data.notification_text, notification_text);
   EXPECT_EQ(tray_data.notification_cb, notification_callback);
@@ -499,9 +536,9 @@ TEST_F(SystemTrayTest, VigembusSelectionSuppressesVirtualHidNotifications) {
   lvh::LicenseStatus license;
   license.service_available = true;
   license.state = lvh::LicenseState::invalid;
-  configuration.edit_startup().input.gamepad_driver = config::GAMEPAD_DRIVER_VIGEMBUS;
+  select_gamepad_driver(config::GAMEPAD_DRIVER_VIGEMBUS);
 
-  system_tray::update_tray_virtualhid_license(configuration.values(), license, true);
+  system_tray::update_tray_virtualhid_license(tray_settings(), license, true);
 
   const auto &tray_data = system_tray::tray_data_for_testing();
   EXPECT_EQ(tray_data.notification_title, nullptr);
@@ -509,7 +546,7 @@ TEST_F(SystemTrayTest, VigembusSelectionSuppressesVirtualHidNotifications) {
   EXPECT_EQ(tray_data.notification_cb, nullptr);
 
   const auto supported_versions = std::format(">= {}", LIBVIRTUALHID_MINIMUM_VERSION);
-  system_tray::update_tray_virtualhid_driver(configuration.values(), true, "2026.829.2338.54", false, supported_versions);  // NOSONAR(cpp:S1313): not IP addresses
+  system_tray::update_tray_virtualhid_driver(tray_settings(), true, "2026.829.2338.54", false, supported_versions);  // NOSONAR(cpp:S1313): not IP addresses
   EXPECT_EQ(tray_data.notification_title, nullptr);
   EXPECT_EQ(tray_data.notification_text, nullptr);
   EXPECT_EQ(tray_data.notification_cb, nullptr);
@@ -519,9 +556,9 @@ TEST_F(SystemTrayTest, NoneSelectionSuppressesWindowsVirtualHidNotifications) {
   lvh::LicenseStatus license;
   license.service_available = false;
   license.state = lvh::LicenseState::unavailable;
-  configuration.edit_startup().input.gamepad_driver = config::GAMEPAD_DRIVER_NONE;
+  select_gamepad_driver(config::GAMEPAD_DRIVER_NONE);
 
-  system_tray::update_tray_virtualhid_license(configuration.values(), license, true);
+  system_tray::update_tray_virtualhid_license(tray_settings(), license, true);
 
   const auto &tray_data = system_tray::tray_data_for_testing();
   EXPECT_EQ(tray_data.notification_title, nullptr);
@@ -530,7 +567,7 @@ TEST_F(SystemTrayTest, NoneSelectionSuppressesWindowsVirtualHidNotifications) {
   EXPECT_STREQ(tray_data.menu[2].submenu[0].text, "Status: Unavailable");
 
   const auto supported_versions = std::format(">= {}", LIBVIRTUALHID_MINIMUM_VERSION);
-  system_tray::update_tray_virtualhid_driver(configuration.values(), true, "2026.829.2338.54", false, supported_versions);  // NOSONAR(cpp:S1313): not IP addresses
+  system_tray::update_tray_virtualhid_driver(tray_settings(), true, "2026.829.2338.54", false, supported_versions);  // NOSONAR(cpp:S1313): not IP addresses
   EXPECT_EQ(tray_data.notification_title, nullptr);
 }
 
@@ -547,7 +584,7 @@ TEST_P(UnlicensedVirtualHidTrayTest, PreparesMenuAndStartupNotification) {
   license.service_available = service_available;
   license.state = state;
 
-  system_tray::update_tray_virtualhid_license(configuration.values(), license, true);
+  system_tray::update_tray_virtualhid_license(tray_settings(), license, true);
 
   const auto &tray_data = system_tray::tray_data_for_testing();
   const auto *license_menu = tray_data.menu[2].submenu;
@@ -568,7 +605,7 @@ TEST_P(UnlicensedVirtualHidTrayTest, PreparesMenuAndStartupNotification) {
   system_tray::resolve_tray_icon_paths_for_testing();
   EXPECT_STREQ(tray_data.notification_icon, tray_data.allIconPaths[4]);
 
-  system_tray::update_tray_virtualhid_license(configuration.values(), license, false);
+  system_tray::update_tray_virtualhid_license(tray_settings(), license, false);
   EXPECT_EQ(tray_data.notification_title, nullptr);
   EXPECT_EQ(tray_data.notification_text, nullptr);
   EXPECT_EQ(tray_data.notification_cb, nullptr);
@@ -590,7 +627,7 @@ INSTANTIATE_TEST_SUITE_P(
   #ifdef __APPLE__
 TEST_F(SystemTrayTest, NotifiesWhenMacBrokerVersionIsUnsupported) {
   const auto supported_versions = std::format(">= {}", LIBVIRTUALHID_MACOS_MINIMUM_VERSION);
-  system_tray::update_tray_virtualhid_driver(configuration.values(), true, "2026.829.2338", false, supported_versions);  // NOSONAR(cpp:S1313): not an IP address
+  system_tray::update_tray_virtualhid_driver(tray_settings(), true, "2026.829.2338", false, supported_versions);  // NOSONAR(cpp:S1313): not an IP address
 
   const auto &tray_data = system_tray::tray_data_for_testing();
   const auto expected_notification = std::format(
@@ -605,15 +642,15 @@ TEST_F(SystemTrayTest, NotifiesWhenMacBrokerVersionIsUnsupported) {
 
 TEST_F(SystemTrayTest, MacBrokerVersionNotificationRespectsDisabledGamepads) {
   const auto supported_versions = std::format(">= {}", LIBVIRTUALHID_MACOS_MINIMUM_VERSION);
-  configuration.edit_startup().input.gamepad_driver = config::GAMEPAD_DRIVER_NONE;
-  system_tray::update_tray_virtualhid_driver(configuration.values(), true, "2026.829.2338", false, supported_versions);  // NOSONAR(cpp:S1313): not an IP address
+  select_gamepad_driver(config::GAMEPAD_DRIVER_NONE);
+  system_tray::update_tray_virtualhid_driver(tray_settings(), true, "2026.829.2338", false, supported_versions);  // NOSONAR(cpp:S1313): not an IP address
 
   const auto &tray_data = system_tray::tray_data_for_testing();
   EXPECT_EQ(tray_data.notification_title, nullptr);
   EXPECT_EQ(tray_data.notification_text, nullptr);
 
-  configuration.edit_startup().input.gamepad_driver.clear();
-  system_tray::update_tray_virtualhid_driver(configuration.values(), true, "2026.829.2338", false, supported_versions);  // NOSONAR(cpp:S1313): not an IP address
+  clear_gamepad_driver();
+  system_tray::update_tray_virtualhid_driver(tray_settings(), true, "2026.829.2338", false, supported_versions);  // NOSONAR(cpp:S1313): not an IP address
   EXPECT_STREQ(tray_data.notification_title, "Update Virtual HID Broker");
 }
 
@@ -626,7 +663,7 @@ TEST_F(SystemTrayTest, ShowsLicensedMacBrokerDetailsBeforeInitialization) {
   license.activation_usage = 1;
   license.activation_limit = 5;
 
-  system_tray::update_tray_virtualhid_license(configuration.values(), license, true);
+  system_tray::update_tray_virtualhid_license(tray_settings(), license, true);
 
   const auto &tray_data = system_tray::tray_data_for_testing();
   ASSERT_EQ(tray_data.iconPathCount, 5);
@@ -650,7 +687,7 @@ TEST_F(SystemTrayTest, ShowsMacBrokerLicenseAndAvailabilityWithOptionalStartupNo
   license.service_available = true;
   license.state = lvh::LicenseState::unlicensed;
 
-  system_tray::update_tray_virtualhid_license(configuration.values(), license, true);
+  system_tray::update_tray_virtualhid_license(tray_settings(), license, true);
 
   const auto &tray_data = system_tray::tray_data_for_testing();
   const auto *menu = tray_data.menu[2].submenu;
@@ -666,7 +703,7 @@ TEST_F(SystemTrayTest, ShowsMacBrokerLicenseAndAvailabilityWithOptionalStartupNo
 
   license.service_available = false;
   license.state = lvh::LicenseState::unavailable;
-  system_tray::update_tray_virtualhid_license(configuration.values(), license, true);
+  system_tray::update_tray_virtualhid_license(tray_settings(), license, true);
   EXPECT_STREQ(menu[0].text, "Status: Unavailable");
   EXPECT_STREQ(menu[3].text, "License service: Unavailable");
   EXPECT_STREQ(tray_data.notification_title, "Virtual HID Broker Is Unavailable");
@@ -674,19 +711,19 @@ TEST_F(SystemTrayTest, ShowsMacBrokerLicenseAndAvailabilityWithOptionalStartupNo
   EXPECT_STREQ(tray_data.notification_icon, tray_data.allIconPaths[4]);
   EXPECT_NE(tray_data.notification_cb, nullptr);
 
-  system_tray::update_tray_virtualhid_license(configuration.values(), license, false);
+  system_tray::update_tray_virtualhid_license(tray_settings(), license, false);
   EXPECT_EQ(tray_data.notification_title, nullptr);
   EXPECT_EQ(tray_data.notification_cb, nullptr);
 
-  configuration.edit_startup().input.gamepad_driver = config::GAMEPAD_DRIVER_NONE;
-  system_tray::update_tray_virtualhid_license(configuration.values(), license, true);
+  select_gamepad_driver(config::GAMEPAD_DRIVER_NONE);
+  system_tray::update_tray_virtualhid_license(tray_settings(), license, true);
   EXPECT_EQ(tray_data.notification_title, nullptr);
   EXPECT_EQ(tray_data.notification_cb, nullptr);
   EXPECT_STREQ(menu[0].text, "Status: Unavailable");
 
-  configuration.edit_startup().input.gamepad_driver = config::GAMEPAD_DRIVER_VIRTUALHID;
-  configuration.edit_startup().input.controller = false;
-  system_tray::update_tray_virtualhid_license(configuration.values(), license, true);
+  select_gamepad_driver(config::GAMEPAD_DRIVER_VIRTUALHID);
+  set_controller_enabled(false);
+  system_tray::update_tray_virtualhid_license(tray_settings(), license, true);
   EXPECT_EQ(tray_data.notification_title, nullptr);
 }
   #endif

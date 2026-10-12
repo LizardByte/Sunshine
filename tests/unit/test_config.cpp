@@ -165,9 +165,16 @@ namespace {
       config_.edit_startup().stream.file_apps = apps_file.string();
     }
 
-    config::store_t config_;  ///< Configuration owner isolated to this test.
+    /**
+     * @brief Access the configuration store retained by this persistence fixture.
+     * @return Fixture-owned store whose settings and persistence policy the test exercises.
+     */
+    config::store_t &store() {
+      return config_;
+    }
 
   private:
+    config::store_t config_;  ///< Configuration owner isolated to this test.
     std::filesystem::path config_file_;  ///< Temporary configuration file used by the test.
   };
 
@@ -176,13 +183,13 @@ namespace {
 TEST_F(ConfigPersistenceTest, AppendsMissingOptionWithoutReplacingExistingText) {
   ASSERT_EQ(file_handler::write_file(config_file().string().c_str(), "# retained comment"), 0);
 
-  EXPECT_TRUE(config_.persist_config_option_if_missing("gamepad_driver", "all"));
+  EXPECT_TRUE(store().persist_config_option_if_missing("gamepad_driver", "all"));
   EXPECT_EQ(
     file_handler::read_file(config_file().string().c_str()),
     "# retained comment\ngamepad_driver = all\n"
   );
 
-  EXPECT_FALSE(config_.persist_config_option_if_missing("gamepad_driver", "virtualhid"));
+  EXPECT_FALSE(store().persist_config_option_if_missing("gamepad_driver", "virtualhid"));
   EXPECT_EQ(
     file_handler::read_file(config_file().string().c_str()),
     "# retained comment\ngamepad_driver = all\n"
@@ -192,7 +199,7 @@ TEST_F(ConfigPersistenceTest, AppendsMissingOptionWithoutReplacingExistingText) 
 TEST_F(ConfigPersistenceTest, DoesNotReplaceAnExistingOption) {
   ASSERT_EQ(file_handler::write_file(config_file().string().c_str(), "gamepad_driver = vigembus\n"), 0);
 
-  EXPECT_FALSE(config_.persist_config_option_if_missing("gamepad_driver", "all"));
+  EXPECT_FALSE(store().persist_config_option_if_missing("gamepad_driver", "all"));
   EXPECT_EQ(file_handler::read_file(config_file().string().c_str()), "gamepad_driver = vigembus\n");
 }
 
@@ -202,54 +209,54 @@ TEST_F(ConfigPersistenceTest, DoesNotReplaceAnExistingOption) {
 TEST_F(ConfigPersistenceTest, UsesTheSuppliedKeyViewExtentWhenDetectingExistingOptions) {
   ASSERT_EQ(file_handler::write_file(config_file().string().c_str(), "gamepad_driver = vigembus\n"), 0);
   const std::string_view key {"gamepad_driver_suffix", 14};
-  EXPECT_FALSE(config_.persist_config_option_if_missing(key, "all"));
+  EXPECT_FALSE(store().persist_config_option_if_missing(key, "all"));
   EXPECT_EQ(file_handler::read_file(config_file().string().c_str()), "gamepad_driver = vigembus\n");
-  EXPECT_TRUE(config_.persist_config_option_if_missing("Gamepad_driver"sv, "none"));
+  EXPECT_TRUE(store().persist_config_option_if_missing("Gamepad_driver"sv, "none"));
   EXPECT_EQ(file_handler::read_file(config_file().string().c_str()), "gamepad_driver = vigembus\nGamepad_driver = none\n");
 }
 
 TEST_F(ConfigPersistenceTest, SelectsAllDriversOnlyForLicensedUsersWithoutAPreference) {
-  EXPECT_FALSE(config_.select_all_gamepad_drivers_if_licensed(false));
-  EXPECT_TRUE(config_.edit_startup().input.gamepad_driver.empty());
+  EXPECT_FALSE(store().select_all_gamepad_drivers_if_licensed(false));
+  EXPECT_TRUE(store().edit_startup().input.gamepad_driver.empty());
   EXPECT_TRUE(file_handler::read_file(config_file().string().c_str()).empty());
 
-  EXPECT_TRUE(config_.select_all_gamepad_drivers_if_licensed(true));
-  EXPECT_EQ(config_.edit_startup().input.gamepad_driver, config::GAMEPAD_DRIVER_ALL);
+  EXPECT_TRUE(store().select_all_gamepad_drivers_if_licensed(true));
+  EXPECT_EQ(store().edit_startup().input.gamepad_driver, config::GAMEPAD_DRIVER_ALL);
   EXPECT_EQ(file_handler::read_file(config_file().string().c_str()), "gamepad_driver = all\n");
 
-  EXPECT_FALSE(config_.select_all_gamepad_drivers_if_licensed(true));
+  EXPECT_FALSE(store().select_all_gamepad_drivers_if_licensed(true));
   EXPECT_EQ(file_handler::read_file(config_file().string().c_str()), "gamepad_driver = all\n");
 }
 
 TEST_F(ConfigPersistenceTest, AcceptsAllGamepadProfilesAcrossRepeatedConfigurationChanges) {
   const auto apps_file = config_file().parent_path() / "sunshine_test_config_apps.json";
   ASSERT_EQ(file_handler::write_file(apps_file.string().c_str(), "{}"), 0);
-  config_.edit_startup().stream.file_apps = apps_file.string();
+  store().edit_startup().stream.file_apps = apps_file.string();
 
   constexpr std::array profiles {"generic"sv, "x360"sv, "xone"sv, "xseries"sv, "ds4"sv, "ds5"sv, "switch"sv};
   for (const auto profile : profiles) {
-    config_.edit_startup().input.gamepad = "auto";
-    config_.apply_config_for_test(std::string {"gamepad = "} + std::string {profile} + "\n");
-    EXPECT_EQ(config_.edit_startup().input.gamepad, profile);
+    store().edit_startup().input.gamepad = "auto";
+    store().apply_config_for_test(std::string {"gamepad = "} + std::string {profile} + "\n");
+    EXPECT_EQ(store().edit_startup().input.gamepad, profile);
   }
 }
 
 TEST_F(ConfigPersistenceTest, ParsesFp16SdrGammaEncodedOption) {
   const auto apps_file = config_file().parent_path() / "sunshine_test_config_apps.json";
   ASSERT_EQ(file_handler::write_file(apps_file.string().c_str(), "{}"), 0);
-  config_.edit_startup().stream.file_apps = apps_file.string();
+  store().edit_startup().stream.file_apps = apps_file.string();
 
-  config_.apply_config_for_test("fp16_sdr_gamma_encoded = enabled\n");
-  EXPECT_TRUE(config_.edit_startup().video.fp16_sdr_gamma_encoded);
+  store().apply_config_for_test("fp16_sdr_gamma_encoded = enabled\n");
+  EXPECT_TRUE(store().edit_startup().video.fp16_sdr_gamma_encoded);
 
-  config_.apply_config_for_test("fp16_sdr_gamma_encoded = disabled\n");
-  EXPECT_FALSE(config_.edit_startup().video.fp16_sdr_gamma_encoded);
+  store().apply_config_for_test("fp16_sdr_gamma_encoded = disabled\n");
+  EXPECT_FALSE(store().edit_startup().video.fp16_sdr_gamma_encoded);
 }
 
 TEST_F(ConfigPersistenceTest, ParsesFecPercentagesAndRejectsOutOfRangeValues) {
   const auto apps_file = config_file().parent_path() / "sunshine_test_config_apps.json";
   ASSERT_EQ(file_handler::write_file(apps_file.string().c_str(), "{}"), 0);
-  config_.edit_startup().stream.file_apps = apps_file.string();
+  store().edit_startup().stream.file_apps = apps_file.string();
 
   constexpr std::array cases {
     std::pair {0, 0},
@@ -262,9 +269,9 @@ TEST_F(ConfigPersistenceTest, ParsesFecPercentagesAndRejectsOutOfRangeValues) {
     std::pair {255, 20},
   };
   for (const auto &[setting, expected] : cases) {
-    config_.edit_startup().stream.fec_percentage = 20;
-    config_.apply_config_for_test(std::format("fec_percentage = {}\n", setting));
-    EXPECT_EQ(config_.edit_startup().stream.fec_percentage, expected) << setting;
+    store().edit_startup().stream.fec_percentage = 20;
+    store().apply_config_for_test(std::format("fec_percentage = {}\n", setting));
+    EXPECT_EQ(store().edit_startup().stream.fec_percentage, expected) << setting;
   }
 }
 
@@ -272,7 +279,7 @@ TEST_F(ConfigPersistenceTest, ParsesNvencTwoPassModesAndDefaultsUnknownValues) {
   using enum nvenc::nvenc_two_pass;
   const auto apps_file = config_file().parent_path() / "sunshine_test_config_apps.json";
   ASSERT_EQ(file_handler::write_file(apps_file.string().c_str(), "{}"), 0);
-  config_.edit_startup().stream.file_apps = apps_file.string();
+  store().edit_startup().stream.file_apps = apps_file.string();
 
   constexpr std::array cases {
     std::pair {"disabled"sv, disabled},
@@ -281,9 +288,9 @@ TEST_F(ConfigPersistenceTest, ParsesNvencTwoPassModesAndDefaultsUnknownValues) {
     std::pair {"unknown"sv, quarter_resolution},
   };
   for (const auto &[setting, expected] : cases) {
-    config_.edit_startup().video.nv.two_pass = full_resolution;
-    config_.apply_config_for_test(std::string {"nvenc_twopass = "} + std::string {setting} + "\n");
-    EXPECT_EQ(config_.edit_startup().video.nv.two_pass, expected) << setting;
+    store().edit_startup().video.nv.two_pass = full_resolution;
+    store().apply_config_for_test(std::string {"nvenc_twopass = "} + std::string {setting} + "\n");
+    EXPECT_EQ(store().edit_startup().video.nv.two_pass, expected) << setting;
   }
 }
 
@@ -347,7 +354,7 @@ TEST(ConfigStoreTest, ConcurrentCredentialReadersSeeCompleteUpdates) {
 TEST_F(ConfigPersistenceTest, CommandLineOverridesFileAndLastRepeatedValueWins) {
   const auto apps_file = config_file().parent_path() / "sunshine_test_config_apps.json";
   ASSERT_EQ(file_handler::write_file(apps_file.string().c_str(), "{}"), 0);
-  config_.edit_startup().stream.file_apps = apps_file.string();
+  store().edit_startup().stream.file_apps = apps_file.string();
   ASSERT_EQ(file_handler::write_file(config_file().string().c_str(), "qp = 31\nport = 47990\n"), 0);
   std::array<std::string, 4> arguments {"sunshine", config_file().string(), "qp=37", "qp=39"};
   std::array<char *, 4> argv;
@@ -355,28 +362,28 @@ TEST_F(ConfigPersistenceTest, CommandLineOverridesFileAndLastRepeatedValueWins) 
     return argument.data();
   });
 
-  ASSERT_EQ(config_.parse(argv.size(), argv.data()), 0);
-  EXPECT_EQ(config_.values().video.qp, 39);
-  EXPECT_EQ(config_.values().sunshine.port, 47990);
-  EXPECT_EQ(config_.values().modified_config_settings.at("qp"), "39");
+  ASSERT_EQ(store().parse(argv.size(), argv.data()), 0);
+  EXPECT_EQ(store().values().video.qp, 39);
+  EXPECT_EQ(store().values().sunshine.port, 47990);
+  EXPECT_EQ(store().values().modified_config_settings.at("qp"), "39");
 }
 
 TEST_F(ConfigPersistenceTest, CommandArgumentsAndFlagsStayWithTheirStore) {
   const auto apps_file = config_file().parent_path() / "sunshine_test_config_apps.json";
   ASSERT_EQ(file_handler::write_file(apps_file.string().c_str(), "{}"), 0);
-  config_.edit_startup().stream.file_apps = apps_file.string();
+  store().edit_startup().stream.file_apps = apps_file.string();
   std::array<std::string, 4> arguments {"sunshine", "-01", "--version", "argument"};
   std::array<char *, 4> argv;
   std::ranges::transform(arguments, argv.begin(), [](auto &argument) {
     return argument.data();
   });
 
-  ASSERT_EQ(config_.parse(argv.size(), argv.data()), 0);
-  EXPECT_TRUE(config_.values().sunshine.flags[config::flag::PIN_STDIN]);
-  EXPECT_TRUE(config_.values().sunshine.flags[config::flag::FRESH_STATE]);
-  EXPECT_EQ(config_.values().sunshine.cmd.name, "version");
-  EXPECT_EQ(config_.values().sunshine.cmd.argc, 1);
-  EXPECT_EQ(config_.values().sunshine.cmd.argv[0], arguments.back());
+  ASSERT_EQ(store().parse(argv.size(), argv.data()), 0);
+  EXPECT_TRUE(store().values().sunshine.flags[config::flag::PIN_STDIN]);
+  EXPECT_TRUE(store().values().sunshine.flags[config::flag::FRESH_STATE]);
+  EXPECT_EQ(store().values().sunshine.cmd.name, "version");
+  EXPECT_EQ(store().values().sunshine.cmd.argc, 1);
+  EXPECT_EQ(store().values().sunshine.cmd.argv[0], arguments.back());
   const config::store_t second;
   EXPECT_FALSE(second.values().sunshine.flags.any());
   EXPECT_TRUE(second.values().sunshine.cmd.name.empty());
@@ -396,7 +403,7 @@ TEST_F(ConfigPersistenceTest, AppliesVideoAndInputPoliciesWithoutChangingOtherSt
   using namespace std::chrono_literals;
   ASSERT_NO_FATAL_FAILURE(prepare_apps_file());
   const config::store_t untouched;
-  config_.apply_config_for_test(
+  store().apply_config_for_test(
     "qp = 33\n"
     "sw_preset = fast\n"
     "nvenc_preset = 7\n"
@@ -419,7 +426,7 @@ TEST_F(ConfigPersistenceTest, AppliesVideoAndInputPoliciesWithoutChangingOtherSt
     "gamepad = auto\n"
   );
 
-  const auto &settings = config_.values();
+  const auto &settings = store().values();
   EXPECT_EQ(settings.video.qp, 33);
   EXPECT_EQ(settings.video.sw.sw_preset, "fast");
   EXPECT_EQ(settings.video.sw.svtav1_preset, 7);
@@ -448,14 +455,14 @@ TEST_F(ConfigPersistenceTest, AppliesVideoAndInputPoliciesWithoutChangingOtherSt
 TEST_F(ConfigPersistenceTest, MissingAndRejectedPoliciesRetainExistingValues) {
   using namespace std::chrono_literals;
   ASSERT_NO_FATAL_FAILURE(prepare_apps_file());
-  auto &settings = config_.edit_startup();
+  auto &settings = store().edit_startup();
   settings.video.sw.sw_preset.clear();
   settings.video.sw.svtav1_preset = 9;
   settings.video.dd.config_revert_delay = 37ms;
   settings.input.back_button_timeout = 41ms;
   settings.input.key_repeat_delay = 43ms;
   settings.input.key_repeat_period = std::chrono::duration<double> {0.2};
-  config_.apply_config_for_test("dd_config_revert_delay = -1\nkey_repeat_delay = -1\nkey_repeat_frequency = 0\n");
+  store().apply_config_for_test("dd_config_revert_delay = -1\nkey_repeat_delay = -1\nkey_repeat_frequency = 0\n");
 
   EXPECT_EQ(settings.video.sw.svtav1_preset, 9);
   EXPECT_EQ(settings.video.dd.config_revert_delay, 37ms);
@@ -482,9 +489,9 @@ TEST_F(ConfigPersistenceTest, LoggingThresholdAcceptsNamesAndDigitsAndRetainsUnk
     std::pair {""sv, 2},
   };
   for (const auto &[value, expected] : cases) {
-    config_.edit_startup().sunshine.min_log_level = 2;
-    config_.apply_config_for_test(std::format("min_log_level = {}\n", value));
-    EXPECT_EQ(config_.values().sunshine.min_log_level, expected) << value;
+    store().edit_startup().sunshine.min_log_level = 2;
+    store().apply_config_for_test(std::format("min_log_level = {}\n", value));
+    EXPECT_EQ(store().values().sunshine.min_log_level, expected) << value;
   }
 }
 
@@ -506,13 +513,13 @@ TEST_F(ConfigPersistenceTest, VigEmPolicyKeepsCompatibleProfilesAndResetsUnsuppo
     std::pair {"ds5"sv, "auto"sv},
   };
   for (const auto &[profile, expected] : cases) {
-    config_.apply_config_for_test(std::format("gamepad_driver = vigembus\ngamepad = {}\n", profile));
-    EXPECT_EQ(config_.values().input.gamepad_driver, config::GAMEPAD_DRIVER_VIGEMBUS);
-    EXPECT_EQ(config_.values().input.gamepad, expected);
+    store().apply_config_for_test(std::format("gamepad_driver = vigembus\ngamepad = {}\n", profile));
+    EXPECT_EQ(store().values().input.gamepad_driver, config::GAMEPAD_DRIVER_VIGEMBUS);
+    EXPECT_EQ(store().values().input.gamepad, expected);
   }
-  config_.apply_config_for_test("gamepad_driver = all\ngamepad = ds5\n");
-  EXPECT_EQ(config_.values().input.gamepad_driver, config::GAMEPAD_DRIVER_ALL);
-  EXPECT_EQ(config_.values().input.gamepad, "ds5");
+  store().apply_config_for_test("gamepad_driver = all\ngamepad = ds5\n");
+  EXPECT_EQ(store().values().input.gamepad_driver, config::GAMEPAD_DRIVER_ALL);
+  EXPECT_EQ(store().values().input.gamepad, "ds5");
 }
 
 TEST_F(ConfigPersistenceTest, HelpAfterShortcutModesAvoidsServiceAndConfigurationSideEffects) {
@@ -522,8 +529,8 @@ TEST_F(ConfigPersistenceTest, HelpAfterShortcutModesAvoidsServiceAndConfiguratio
     return argument.data();
   });
 
-  EXPECT_EQ(config_.parse(argv.size(), argv.data()), 1);
+  EXPECT_EQ(store().parse(argv.size(), argv.data()), 1);
   EXPECT_FALSE(std::filesystem::exists(config_file()));
-  EXPECT_TRUE(config_.values().sunshine.cmd.name.empty());
+  EXPECT_TRUE(store().values().sunshine.cmd.name.empty());
 }
 #endif
