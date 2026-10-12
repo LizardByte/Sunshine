@@ -12,6 +12,7 @@
   #include <map>
   #include <mutex>
   #include <string_view>
+  #include <utility>
   #include <vector>
 
   // lib includes
@@ -34,8 +35,8 @@ namespace {
     bool fail_alternative {};  ///< Simulate alternative-name allocation failure.
     int add_collisions {};  ///< Number of local service collisions before success.
     bool group_empty {true};  ///< Whether an existing group requires publication.
-    std::vector<avahi::ClientState> initial_client_states {avahi::CLIENT_S_RUNNING};  ///< States emitted during client construction.
-    avahi::EntryGroupState initial_group_state {avahi::ENTRY_GROUP_REGISTERING};  ///< State emitted during group construction.
+    std::vector<avahi::ClientState> initial_client_states {avahi::ClientState::CLIENT_S_RUNNING};  ///< States emitted during client construction.
+    avahi::EntryGroupState initial_group_state {avahi::EntryGroupState::ENTRY_GROUP_REGISTERING};  ///< State emitted during group construction.
     std::atomic<int> resets {};  ///< Entry-group reset requests.
     int add_result {};  ///< Result of adding the service.
     int commit_result {};  ///< Result of committing the service.
@@ -280,7 +281,7 @@ namespace {
     fixture.port = port;
     if (fixture.add_collisions > 0) {
       --fixture.add_collisions;
-      return avahi::ERR_COLLISION;
+      return std::to_underlying(avahi::err_e::ERR_COLLISION);
     }
     return fixture.add_result;
   }
@@ -456,7 +457,7 @@ TEST(AvahiPublisherTest, LocalCollisionSelectsAlternativeNameAndRetriesRegistrat
 TEST(AvahiPublisherTest, EntryGroupStatesUseOwningPublisher) {
   auto fixture = std::make_shared<fake_avahi_t>();
   const auto api = make_api(fixture);
-  for (const auto state : {avahi::ENTRY_GROUP_ESTABLISHED, avahi::ENTRY_GROUP_UNCOMMITED, avahi::ENTRY_GROUP_COLLISION, avahi::ENTRY_GROUP_FAILURE}) {
+  for (const auto state : {avahi::EntryGroupState::ENTRY_GROUP_ESTABLISHED, avahi::EntryGroupState::ENTRY_GROUP_UNCOMMITED, avahi::EntryGroupState::ENTRY_GROUP_COLLISION, avahi::EntryGroupState::ENTRY_GROUP_FAILURE}) {
     fixture->initial_group_state = state;
     EXPECT_TRUE(platf::publish::start(api, "Original", 47989));
     EXPECT_EQ(fixture->clients, 0);
@@ -466,7 +467,7 @@ TEST(AvahiPublisherTest, EntryGroupStatesUseOwningPublisher) {
 
 TEST(AvahiPublisherTest, ClientRegistrationAndFailuresRetainTheirContext) {
   auto fixture = std::make_shared<fake_avahi_t>();
-  fixture->initial_client_states = {avahi::CLIENT_CONNECTING, avahi::CLIENT_S_COLLISION, avahi::CLIENT_S_REGISTERING, avahi::CLIENT_S_RUNNING, avahi::CLIENT_S_COLLISION, avahi::CLIENT_S_REGISTERING, avahi::CLIENT_FAILURE};
+  fixture->initial_client_states = {avahi::ClientState::CLIENT_CONNECTING, avahi::ClientState::CLIENT_S_COLLISION, avahi::ClientState::CLIENT_S_REGISTERING, avahi::ClientState::CLIENT_S_RUNNING, avahi::ClientState::CLIENT_S_COLLISION, avahi::ClientState::CLIENT_S_REGISTERING, avahi::ClientState::CLIENT_FAILURE};
   auto publisher = platf::publish::start(make_api(fixture), "Original", 47989);
   ASSERT_TRUE(publisher);
   EXPECT_EQ(fixture->resets, 2);
@@ -486,7 +487,7 @@ TEST(AvahiPublisherTest, CollisionNameAllocationFailureStopsPublication) {
   fixture->fail_alternative = true;
   fixture->add_collisions = 1;
   EXPECT_TRUE(platf::publish::start(api, "Original", 47989));
-  fixture->initial_group_state = avahi::ENTRY_GROUP_COLLISION;
+  fixture->initial_group_state = avahi::EntryGroupState::ENTRY_GROUP_COLLISION;
   EXPECT_TRUE(platf::publish::start(api, "Original", 47989));
   EXPECT_EQ(fixture->names, 0);
   EXPECT_GE(fixture->quit_calls, 2);

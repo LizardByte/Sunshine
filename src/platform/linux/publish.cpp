@@ -5,6 +5,7 @@
  */
 // standard includes
 #include <thread>
+#include <utility>
 
 // local includes
 #include "avahi_api.h"
@@ -147,10 +148,10 @@ namespace platf::publish {
       group = g;
 
       switch (state) {
-        case avahi::ENTRY_GROUP_ESTABLISHED:
+        case avahi::EntryGroupState::ENTRY_GROUP_ESTABLISHED:
           logging::info("Avahi service {} successfully established.", name.get());
           break;
-        case avahi::ENTRY_GROUP_COLLISION:
+        case avahi::EntryGroupState::ENTRY_GROUP_COLLISION:
           if (!rename_service()) {
             break;
           }
@@ -159,12 +160,12 @@ namespace platf::publish {
 
           create_services(api->entry_group_get_client(g));
           break;
-        case avahi::ENTRY_GROUP_FAILURE:
+        case avahi::EntryGroupState::ENTRY_GROUP_FAILURE:
           logging::error("Avahi entry group failure: {}", api->strerror(api->client_errno(api->entry_group_get_client(g))));
           api->simple_poll_quit(poll.get());
           break;
-        case avahi::ENTRY_GROUP_UNCOMMITED:
-        case avahi::ENTRY_GROUP_REGISTERING:;
+        case avahi::EntryGroupState::ENTRY_GROUP_UNCOMMITED:
+        case avahi::EntryGroupState::ENTRY_GROUP_REGISTERING:;
       }
     }
 
@@ -195,7 +196,7 @@ namespace platf::publish {
         ret = api->entry_group_add_service(
           group,
           avahi::IF_UNSPEC,
-          avahi::PROTO_UNSPEC,
+          std::to_underlying(avahi::proto::PROTO_UNSPEC),
           avahi::PublishFlags(0),
           name.get(),
           platf::SERVICE_TYPE,
@@ -206,7 +207,7 @@ namespace platf::publish {
         );
 
         if (ret < 0) {
-          if (ret == avahi::ERR_COLLISION) {
+          if (ret == std::to_underlying(avahi::err_e::ERR_COLLISION)) {
             // A service name collision with a local service happened. Let's pick a new name
             if (!rename_service()) {
               return;
@@ -243,20 +244,20 @@ namespace platf::publish {
      */
     void on_client(avahi::Client *c, avahi::ClientState state) {
       switch (state) {
-        case avahi::CLIENT_S_RUNNING:
+        case avahi::ClientState::CLIENT_S_RUNNING:
           create_services(c);
           break;
-        case avahi::CLIENT_FAILURE:
+        case avahi::ClientState::CLIENT_FAILURE:
           logging::error("Client failure: {}", api->strerror(api->client_errno(c)));
           api->simple_poll_quit(poll.get());
           break;
-        case avahi::CLIENT_S_COLLISION:
-        case avahi::CLIENT_S_REGISTERING:
+        case avahi::ClientState::CLIENT_S_COLLISION:
+        case avahi::ClientState::CLIENT_S_REGISTERING:
           if (group) {
             api->entry_group_reset(group);
           }
           break;
-        case avahi::CLIENT_CONNECTING:;
+        case avahi::ClientState::CLIENT_CONNECTING:;
       }
     }
 

@@ -2,11 +2,13 @@
  * @file src/platform/linux/avahi_api.h
  * @brief Avahi protocol types and immutable dynamic-library ownership.
  * @note Adapted from https://www.avahi.org/doxygen/html/client-publish-service_8c-example.html
+ * @note Scoped enum representations match the native Linux Avahi ABI: signed `int` for errors and protocol constants, unsigned `int` for states and flags.
  */
 #pragma once
 
 // standard includes
 #include <cstdint>
+#include <utility>
 
 // local includes
 #include "dynamic_library.h"
@@ -16,7 +18,7 @@ namespace avahi {
   /**
    * @brief Error codes used by avahi.
    */
-  enum err_e {
+  enum class err_e : int {
     OK = 0,  ///< OK
     ERR_FAILURE = -1,  ///< Generic error code
     ERR_BAD_STATE = -2,  ///< Object was in a bad state
@@ -85,7 +87,7 @@ namespace avahi {
   /**
    * @brief Enumerates supported proto options.
    */
-  enum proto {
+  enum class proto : int {
     PROTO_INET = 0,  ///< IPv4
     PROTO_INET6 = 1,  ///< IPv6
     PROTO_UNSPEC = -1  ///< Unspecified/all protocol(s)
@@ -94,7 +96,7 @@ namespace avahi {
   /**
    * @brief Enumerates supported server state options.
    */
-  enum ServerState {
+  enum class ServerState : unsigned int {
     SERVER_INVALID,  ///< Invalid state (initial)
     SERVER_REGISTERING,  ///< Host RRs are being registered
     SERVER_RUNNING,  ///< All host RRs have been established
@@ -105,10 +107,10 @@ namespace avahi {
   /**
    * @brief Enumerates supported client state options.
    */
-  enum ClientState {
-    CLIENT_S_REGISTERING = SERVER_REGISTERING,  ///< Server state: REGISTERING
-    CLIENT_S_RUNNING = SERVER_RUNNING,  ///< Server state: RUNNING
-    CLIENT_S_COLLISION = SERVER_COLLISION,  ///< Server state: COLLISION
+  enum class ClientState : unsigned int {
+    CLIENT_S_REGISTERING = std::to_underlying(ServerState::SERVER_REGISTERING),  ///< Server state: REGISTERING
+    CLIENT_S_RUNNING = std::to_underlying(ServerState::SERVER_RUNNING),  ///< Server state: RUNNING
+    CLIENT_S_COLLISION = std::to_underlying(ServerState::SERVER_COLLISION),  ///< Server state: COLLISION
     CLIENT_FAILURE = 100,  ///< Some kind of error happened on the client side
     CLIENT_CONNECTING = 101  ///< We're still connecting. This state is only entered when AVAHI_CLIENT_NO_FAIL has been passed to avahi_client_new() and the daemon is not yet available.
   };
@@ -116,7 +118,7 @@ namespace avahi {
   /**
    * @brief Enumerates supported entry group state options.
    */
-  enum EntryGroupState {
+  enum class EntryGroupState : unsigned int {
     ENTRY_GROUP_UNCOMMITED,  ///< The group has not yet been committed, the user must still call avahi_entry_group_commit()
     ENTRY_GROUP_REGISTERING,  ///< The entries of the group are currently being registered
     ENTRY_GROUP_ESTABLISHED,  ///< The entries have successfully been established
@@ -127,7 +129,7 @@ namespace avahi {
   /**
    * @brief Enumerates supported client flags options.
    */
-  enum ClientFlags {
+  enum class ClientFlags : unsigned int {
     CLIENT_IGNORE_USER_CONFIG = 1,  ///< Don't read user configuration
     CLIENT_NO_FAIL = 2  ///< Don't fail if the daemon is not available when avahi_client_new() is called, instead enter CLIENT_CONNECTING state and wait for the daemon to appear
   };
@@ -135,7 +137,7 @@ namespace avahi {
   /**
    * @brief Flags for publishing functions.
    */
-  enum PublishFlags {
+  enum class PublishFlags : unsigned int {
     PUBLISH_UNIQUE = 1,  ///< For raw records: The RRset is intended to be unique
     PUBLISH_NO_PROBE = 2,  ///< For raw records: Though the RRset is intended to be unique no probes shall be sent
     PUBLISH_NO_ANNOUNCE = 4,  ///< For raw records: Do not announce this RR to other hosts
