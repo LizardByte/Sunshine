@@ -69,16 +69,16 @@ namespace task_pool_util {
     /**
      * @brief Type-erased task owned by the task pool.
      */
-    typedef std::unique_ptr<_ImplBase> __task;
+    using __task = std::unique_ptr<_ImplBase>;
     /**
      * @brief Stable pointer used to identify a queued task.
      */
-    typedef _ImplBase *task_id_t;
+    using task_id_t = _ImplBase *;
 
     /**
      * @brief Steady-clock timestamp used to schedule delayed tasks.
      */
-    typedef std::chrono::steady_clock::time_point __time_point;
+    using __time_point = std::chrono::steady_clock::time_point;
 
     /**
      * @brief Queued delayed task identifier paired with its future result.

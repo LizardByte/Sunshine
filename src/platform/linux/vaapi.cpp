@@ -628,26 +628,25 @@ namespace va {
   };
 
   /**
-   * This is a private structure of FFmpeg, I need this to manually create
-   * a VAAPI hardware context
+   * @brief FFmpeg-private device data used to create a VA-API hardware context.
    *
-   * xdisplay will not be used internally by FFmpeg
+   * The X11 display pointer is not used internally by FFmpeg.
    */
-  typedef struct VAAPIDevicePriv {
+  struct VAAPIDevicePriv {
     union {
       void *xdisplay;  ///< Native X11 display handle for display-backed contexts.
       int fd;  ///< DRM file descriptor for device-backed contexts.
     } drm;  ///< Native display or DRM fd passed to FFmpeg's VA-API context.
 
     int drm_fd;  ///< DRM fd.
-  } VAAPIDevicePriv;
+  };
 
   /**
-   * VAAPI connection details.
+   * @brief VA-API connection details allocated as AVHWDeviceContext.hwctx.
    *
-   * Allocated as AVHWDeviceContext.hwctx
+   * The layout must match the corresponding FFmpeg hardware context.
    */
-  typedef struct AVVAAPIDeviceContext {
+  struct AVVAAPIDeviceContext {
     /**
      * The VADisplay handle, to be filled by the user.
      */
@@ -660,7 +659,7 @@ namespace va {
      * operations using VAAPI with the same VADisplay.
      */
     unsigned int driver_quirks;
-  } AVVAAPIDeviceContext;
+  };
 
   static void __log(void *level, const char *msg) {
     BOOST_LOG(*(boost::log::sources::severity_logger<int> *) level) << msg;

@@ -51,11 +51,11 @@ namespace round_robin_util {
     /**
      * @brief Concrete iterator type supplied by the CRTP child.
      */
-    typedef T iterator;
+    using iterator = T;
     /**
      * @brief Signed offset type used when moving through the range.
      */
-    typedef std::ptrdiff_t diff_t;
+    using diff_t = std::ptrdiff_t;
 
     /**
      * @brief Advance this iterator by repeatedly wrapping at the end of the range.

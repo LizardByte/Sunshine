@@ -169,43 +169,43 @@ namespace avahi {
   /**
    * @brief Avahi client state-change callback signature.
    */
-  typedef void (*ClientCallback)(Client *, ClientState, void *userdata);
+  using ClientCallback = void (*)(Client *, ClientState, void *userdata);
   /**
    * @brief Avahi entry-group state-change callback signature.
    */
-  typedef void (*EntryGroupCallback)(EntryGroup *g, EntryGroupState state, void *userdata);
+  using EntryGroupCallback = void (*)(EntryGroup *g, EntryGroupState state, void *userdata);
 
   /**
    * @brief Function pointer used to free Avahi-allocated memory.
    */
-  typedef void (*free_fn)(void *);
+  using free_fn = void (*)(void *);
 
   /**
    * @brief Function pointer used to create an Avahi client.
    */
-  typedef Client *(*client_new_fn)(const Poll *poll_api, ClientFlags flags, ClientCallback callback, void *userdata, int *error);
+  using client_new_fn = Client *(*)(const Poll *poll_api, ClientFlags flags, ClientCallback callback, void *userdata, int *error);
   /**
    * @brief Function pointer used to destroy an Avahi client.
    */
-  typedef void (*client_free_fn)(Client *);
+  using client_free_fn = void (*)(Client *);
   /**
    * @brief Function pointer used to request an alternative Avahi service name.
    */
-  typedef char *(*alternative_service_name_fn)(char *);
+  using alternative_service_name_fn = char *(*)(char *);
 
   /**
    * @brief Function pointer used to get an Avahi client from an entry group.
    */
-  typedef Client *(*entry_group_get_client_fn)(EntryGroup *);
+  using entry_group_get_client_fn = Client *(*)(EntryGroup *);
 
   /**
    * @brief Function pointer used to create an Avahi entry group.
    */
-  typedef EntryGroup *(*entry_group_new_fn)(Client *, EntryGroupCallback, void *userdata);
+  using entry_group_new_fn = EntryGroup *(*)(Client *, EntryGroupCallback, void *userdata);
   /**
    * @brief Function pointer used to add a service to an Avahi entry group.
    */
-  typedef int (*entry_group_add_service_fn)(
+  using entry_group_add_service_fn = int (*)(
     EntryGroup *group,
     IfIndex interface,
     Protocol protocol,
@@ -221,49 +221,49 @@ namespace avahi {
   /**
    * @brief Function pointer used to test whether an Avahi entry group is empty.
    */
-  typedef int (*entry_group_is_empty_fn)(EntryGroup *);
+  using entry_group_is_empty_fn = int (*)(EntryGroup *);
   /**
    * @brief Function pointer used to reset an Avahi entry group.
    */
-  typedef int (*entry_group_reset_fn)(EntryGroup *);
+  using entry_group_reset_fn = int (*)(EntryGroup *);
   /**
    * @brief Function pointer used to publish an Avahi entry group.
    */
-  typedef int (*entry_group_commit_fn)(EntryGroup *);
+  using entry_group_commit_fn = int (*)(EntryGroup *);
 
   /**
    * @brief Function pointer used to duplicate Avahi strings.
    */
-  typedef char *(*strdup_fn)(const char *);
+  using strdup_fn = char *(*)(const char *);
   /**
    * @brief Function pointer used to format Avahi error codes.
    */
-  typedef char *(*strerror_fn)(int);
+  using strerror_fn = char *(*)(int);
   /**
    * @brief Function pointer used to read the last Avahi client error.
    */
-  typedef int (*client_errno_fn)(Client *);
+  using client_errno_fn = int (*)(Client *);
 
   /**
    * @brief Function pointer used to get the Avahi simple-poll API.
    */
-  typedef Poll *(*simple_poll_get_fn)(SimplePoll *);
+  using simple_poll_get_fn = Poll *(*)(SimplePoll *);
   /**
    * @brief Function pointer used to run the Avahi simple-poll loop.
    */
-  typedef int (*simple_poll_loop_fn)(SimplePoll *);
+  using simple_poll_loop_fn = int (*)(SimplePoll *);
   /**
    * @brief Function pointer used to stop the Avahi simple-poll loop.
    */
-  typedef void (*simple_poll_quit_fn)(SimplePoll *);
+  using simple_poll_quit_fn = void (*)(SimplePoll *);
   /**
    * @brief Function pointer used to allocate an Avahi simple-poll instance.
    */
-  typedef SimplePoll *(*simple_poll_new_fn)();
+  using simple_poll_new_fn = SimplePoll *(*)();
   /**
    * @brief Function pointer used to free an Avahi simple-poll instance.
    */
-  typedef void (*simple_poll_free_fn)(SimplePoll *);
+  using simple_poll_free_fn = void (*)(SimplePoll *);
 
   free_fn free;  ///< Free.
   client_new_fn client_new;  ///< Client new.

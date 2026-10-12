@@ -3507,7 +3507,7 @@ namespace video {
   /**
    * @brief Callback signature for VA-API AVCodec hardware input initialization.
    */
-  typedef int (*vaapi_init_avcodec_hardware_input_buffer_fn)(platf::avcodec_encode_device_t *encode_device, AVBufferRef **hw_device_buf);
+  using vaapi_init_avcodec_hardware_input_buffer_fn = int (*)(platf::avcodec_encode_device_t *encode_device, AVBufferRef **hw_device_buf);
 
   /**
    * @brief Initialize AVCodec hardware input buffers for VA-API.

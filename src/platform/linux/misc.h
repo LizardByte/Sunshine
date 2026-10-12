@@ -43,7 +43,7 @@ namespace dyn {
   /**
    * @brief Generic GLX procedure pointer returned by the loader.
    */
-  typedef void (*apiproc)(void);
+  using apiproc = void (*)(void);
 
   int load(void *handle, const std::vector<std::tuple<apiproc *, const char *>> &funcs, bool strict = true);
   void *handle(const std::vector<const char *> &libs);

@@ -21,7 +21,7 @@ namespace move_by_copy_util {
     /**
      * @brief Wrapped type moved through copy-shaped APIs.
      */
-    typedef T move_type;
+    using move_type = T;
 
   private:
     move_type _to_move;
