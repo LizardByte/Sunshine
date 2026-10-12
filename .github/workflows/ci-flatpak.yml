@@ -145,11 +145,25 @@ jobs:
             --no-header \
             --output-file glad-requirements.txt
 
+          # Install all exported Python dependencies under /app without modifying the SDK.
+          ignore_installed="$(
+            uv run --locked --no-build --no-sync python - <<'PY'
+          from pathlib import Path
+
+          import requirements
+
+          with Path("glad-requirements.txt").open(encoding="utf-8") as requirements_file:
+              packages = requirements.parse(requirements_file)
+              print(",".join(sorted({package.name.casefold() for package in packages if package.name})))
+          PY
+          )"
+
           uv run --locked --no-build --no-sync python \
             ./packaging/linux/flatpak/deps/flatpak-builder-tools/pip/flatpak-pip-generator.py \
             --runtime="org.kde.Sdk//${KDE_PLATFORM_VERSION}" \
             --output glad-dependencies \
             --build-only \
+            --ignore-installed="${ignore_installed}" \
             --requirements-file=glad-requirements.txt
 
           # Copy generated pip sources into build dir alongside the manifest
