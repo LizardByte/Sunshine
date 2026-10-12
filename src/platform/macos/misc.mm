@@ -1015,7 +1015,7 @@ namespace platf {
     return static_cast<bool>(impl->initialization);
   }
 
-  std::vector<std::string> runtime_t::display_names(mem_type_e type) {
+  std::vector<std::string> runtime_t::display_names(mem_type_e type) const {
     return mac_display_names(type, impl->displays);
   }
 

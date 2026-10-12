@@ -1902,7 +1902,7 @@ namespace platf {
     return static_cast<bool>(impl->initialization);
   }
 
-  std::vector<std::string> runtime_t::display_names(mem_type_e type) {
+  std::vector<std::string> runtime_t::display_names(mem_type_e type) const {
     return platf::display_names(type);
   }
 
@@ -1920,7 +1920,7 @@ namespace platf {
     return dxgi_needs_encoder_reenumeration(impl->enumeration_factory, impl->enumeration_mutex);
   }
 
-  void runtime_t::set_capture_requirements(int) {
+  void runtime_t::set_capture_requirements(int) const {
     // DXGI capture does not use the Linux backend's separate HEVC-mode requirement.
   }
 

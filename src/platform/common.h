@@ -1190,10 +1190,11 @@ namespace platf {
     bool initialize();
     /**
      * @brief Enumerate names accepted by the selected capture backend.
+     * @note Query backend resources without changing the runtime's configuration.
      * @param type Requested memory type.
      * @return Display names.
      */
-    std::vector<std::string> display_names(mem_type_e type);
+    std::vector<std::string> display_names(mem_type_e type) const;
     /**
      * @brief Create a capture resource.
      * @param type Requested memory type.
@@ -1209,21 +1210,41 @@ namespace platf {
     bool needs_encoder_reenumeration();
     /**
      * @brief Set codec requirements for subsequently created capture resources.
+     * @note Windows has no separate requirement state; its no-op hook is const.
      * @param hevc_mode Active HEVC mode.
      */
+#ifdef _WIN32
+    void set_capture_requirements(int hevc_mode) const;
+#else
     void set_capture_requirements(int hevc_mode);
+#endif
     /**
      * @brief Apply native settings when streaming begins.
+     * @note The Linux and FreeBSD no-op implementations do not change runtime state.
      */
+#if defined(_WIN32) || defined(__APPLE__)
     void streaming_will_start();
+#else
+    void streaming_will_start() const;
+#endif
     /**
      * @brief Restore native settings when streaming ends.
+     * @note The Linux and FreeBSD no-op implementations do not change runtime state.
      */
+#if defined(_WIN32) || defined(__APPLE__)
     void streaming_will_stop();
+#else
+    void streaming_will_stop() const;
+#endif
     /**
      * @brief Enable native mouse support when required by the current devices.
+     * @note The Linux and FreeBSD no-op implementations do not change runtime state.
      */
+#if defined(_WIN32) || defined(__APPLE__)
     void enable_mouse_keys();
+#else
+    void enable_mouse_keys() const;
+#endif
     /**
      * @brief Create scoped socket priority settings.
      * @param native_socket Native socket.

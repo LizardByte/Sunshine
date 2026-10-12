@@ -808,10 +808,11 @@ namespace cuda {
 
       /**
        * @brief Read the last error string from the active NvFBC session.
+       * @details Query the retained native session without replacing its handle or loaded API.
        *
        * @return Human-readable NvFBC error string.
        */
-      const char *last_error() {
+      const char *last_error() const {
         return api->functions.nvFBCGetLastErrorStr(handle);
       }
 
