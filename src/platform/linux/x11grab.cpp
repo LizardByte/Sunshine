@@ -296,11 +296,11 @@ namespace platf {
   /**
    * @brief XImage pointer released with `XDestroyImage`.
    */
-  using ximg_t = util::safe_ptr<XImage, freeImage>;
+  using ximg_t = util::safe_ptr<XImage, &freeImage>;
   /**
    * @brief XFixes cursor image pointer released with `XFree`.
    */
-  using xcursor_t = util::safe_ptr<XFixesCursorImage, freeX>;
+  using xcursor_t = util::safe_ptr<XFixesCursorImage, &freeX>;
 
   /**
    * @brief XRandR CRTC info pointer released with `XRRFreeCrtcInfo`.

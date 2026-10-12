@@ -108,7 +108,7 @@ namespace rtsp_stream {
   /**
    * @brief Owning pointer for an RTSP message allocated by moonlight-common-c.
    */
-  using msg_t = util::safe_ptr<RTSP_MESSAGE, free_msg>;
+  using msg_t = util::safe_ptr<RTSP_MESSAGE, &free_msg>;
   /**
    * @brief RTSP command handler signature used by the server dispatch table.
    */

@@ -19,9 +19,9 @@ namespace dxgi {
     dxgi->Release();
   }
 
-  using factory1_t = util::safe_ptr<IDXGIFactory1, Release<IDXGIFactory1>>;
-  using adapter_t = util::safe_ptr<IDXGIAdapter1, Release<IDXGIAdapter1>>;
-  using output_t = util::safe_ptr<IDXGIOutput, Release<IDXGIOutput>>;
+  using factory1_t = util::safe_ptr<IDXGIFactory1, &Release<IDXGIFactory1>>;
+  using adapter_t = util::safe_ptr<IDXGIAdapter1, &Release<IDXGIAdapter1>>;
+  using output_t = util::safe_ptr<IDXGIOutput, &Release<IDXGIOutput>>;
 }  // namespace dxgi
 
 int main(int argc, char *argv[]) {

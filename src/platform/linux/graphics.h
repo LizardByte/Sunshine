@@ -63,7 +63,7 @@ void free_frame(AVFrame *frame);
 /**
  * @brief Owning pointer for an EGL frame object.
  */
-using frame_t = util::safe_ptr<AVFrame, free_frame>;
+using frame_t = util::safe_ptr<AVFrame, &free_frame>;
 
 namespace gl {
   extern GladGLContext ctx;

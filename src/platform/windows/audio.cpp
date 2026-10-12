@@ -246,43 +246,43 @@ namespace platf::audio {
   /**
    * @brief COM device enumerator pointer for WASAPI endpoint discovery.
    */
-  using device_enum_t = util::safe_ptr<IMMDeviceEnumerator, Release<IMMDeviceEnumerator>>;
+  using device_enum_t = util::safe_ptr<IMMDeviceEnumerator, &Release<IMMDeviceEnumerator>>;
   /**
    * @brief COM pointer to a Windows audio endpoint device.
    */
-  using device_t = util::safe_ptr<IMMDevice, Release<IMMDevice>>;
+  using device_t = util::safe_ptr<IMMDevice, &Release<IMMDevice>>;
   /**
    * @brief COM pointer to a collection of Windows audio endpoint devices.
    */
-  using collection_t = util::safe_ptr<IMMDeviceCollection, Release<IMMDeviceCollection>>;
+  using collection_t = util::safe_ptr<IMMDeviceCollection, &Release<IMMDeviceCollection>>;
   /**
    * @brief COM pointer to the WASAPI audio client interface.
    */
-  using audio_client_t = util::safe_ptr<IAudioClient, Release<IAudioClient>>;
+  using audio_client_t = util::safe_ptr<IAudioClient, &Release<IAudioClient>>;
   /**
    * @brief COM pointer to the WASAPI capture client interface.
    */
-  using audio_capture_t = util::safe_ptr<IAudioCaptureClient, Release<IAudioCaptureClient>>;
+  using audio_capture_t = util::safe_ptr<IAudioCaptureClient, &Release<IAudioCaptureClient>>;
   /**
    * @brief CoTaskMem-allocated WAVEFORMATEX pointer.
    */
-  using wave_format_t = util::safe_ptr<WAVEFORMATEX, co_task_free<WAVEFORMATEX>>;
+  using wave_format_t = util::safe_ptr<WAVEFORMATEX, &co_task_free<WAVEFORMATEX>>;
   /**
    * @brief CoTaskMem-allocated wide string pointer.
    */
-  using wstring_t = util::safe_ptr<WCHAR, co_task_free<WCHAR>>;
+  using wstring_t = util::safe_ptr<WCHAR, &co_task_free<WCHAR>>;
   /**
    * @brief Windows HANDLE wrapper closed with `CloseHandle`.
    */
-  using handle_t = util::safe_ptr_v2<void, BOOL, CloseHandle>;
+  using handle_t = util::safe_ptr_v2<void, BOOL, &CloseHandle>;
   /**
    * @brief COM pointer to the Windows policy configuration interface.
    */
-  using policy_t = util::safe_ptr<IPolicyConfig, Release<IPolicyConfig>>;
+  using policy_t = util::safe_ptr<IPolicyConfig, &Release<IPolicyConfig>>;
   /**
    * @brief COM pointer to a Windows property store.
    */
-  using prop_t = util::safe_ptr<IPropertyStore, Release<IPropertyStore>>;
+  using prop_t = util::safe_ptr<IPropertyStore, &Release<IPropertyStore>>;
 
   /**
    * @brief Initializes COM for the current thread and uninitializes it on exit.

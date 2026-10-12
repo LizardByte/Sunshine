@@ -33,7 +33,7 @@ namespace proc {
   /**
    * @brief Boost.Process pipe stream used for child-process I/O.
    */
-  using file_t = util::safe_ptr_v2<FILE, int, fclose>;
+  using file_t = util::safe_ptr_v2<FILE, int, &fclose>;
 
   /**
    * @brief Parsed command arguments used when launching a child process.

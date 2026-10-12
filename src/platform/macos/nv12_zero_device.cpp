@@ -33,7 +33,7 @@ namespace platf {
     CVPixelBufferRelease((CVPixelBufferRef) data);
   }
 
-  util::safe_ptr<AVFrame, free_frame> av_frame;  ///< AV frame.
+  util::safe_ptr<AVFrame, &free_frame> av_frame;  ///< AV frame.
 
   int nv12_zero_device::convert(platf::img_t &img) {
     auto *av_img = (av_img_t *) &img;

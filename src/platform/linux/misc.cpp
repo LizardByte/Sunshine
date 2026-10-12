@@ -200,7 +200,7 @@ namespace platf {
   /**
    * @brief Owning pointer for `getifaddrs` results.
    */
-  using ifaddr_t = util::safe_ptr<ifaddrs, freeifaddrs>;
+  using ifaddr_t = util::safe_ptr<ifaddrs, &freeifaddrs>;
 
   /**
    * @brief Open a DRM card node, dropping implicit DRM master when possible.
