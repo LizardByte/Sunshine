@@ -13,7 +13,7 @@ namespace crypto {
   /**
    * @brief OpenSSL ASN.1 string pointer with automatic release.
    */
-  using asn1_string_t = util::safe_ptr<ASN1_STRING, ASN1_STRING_free>;
+  using asn1_string_t = util::safe_ptr<ASN1_STRING, &ASN1_STRING_free>;
   /**
    * @brief OpenSSL X.509 subject/issuer name pointer with automatic release.
    */

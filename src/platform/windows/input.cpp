@@ -40,11 +40,11 @@ namespace platf {
   /**
    * @brief ViGEm client pointer released with `vigem_free`.
    */
-  using client_t = util::safe_ptr<_VIGEM_CLIENT_T, vigem_free>;
+  using client_t = util::safe_ptr<_VIGEM_CLIENT_T, &vigem_free>;
   /**
    * @brief ViGEm target pointer released with `vigem_target_free`.
    */
-  using target_t = util::safe_ptr<_VIGEM_TARGET_T, vigem_target_free>;
+  using target_t = util::safe_ptr<_VIGEM_TARGET_T, &vigem_target_free>;
 
   /**
    * @brief Handle Xbox 360 virtual gamepad notification events.

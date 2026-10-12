@@ -154,7 +154,7 @@ namespace va {
   /**
    * @brief VA display handle released with `vaTerminate`.
    */
-  using display_t = util::safe_ptr_v2<void, VAStatus, vaTerminate>;
+  using display_t = util::safe_ptr_v2<void, VAStatus, &vaTerminate>;
 
   /**
    * @brief Create an FFmpeg VA-API hardware device context from a Sunshine encode device.

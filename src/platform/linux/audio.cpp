@@ -67,7 +67,7 @@ namespace platf {
    * @brief PulseAudio recording stream and channel metadata.
    */
   struct mic_attr_t: public mic_t {
-    util::safe_ptr<pa_simple, pa_simple_free> mic;  ///< PulseAudio simple recording stream for microphone capture.
+    util::safe_ptr<pa_simple, &pa_simple_free> mic;  ///< PulseAudio simple recording stream for microphone capture.
 
     /**
      * @brief Deliver a captured audio sample to Sunshine's audio pipeline.
@@ -218,19 +218,19 @@ namespace platf {
     /**
      * @brief Owning pointer for a PulseAudio context.
      */
-    using ctx_t = util::safe_ptr<pa_context, pa_context_unref>;
+    using ctx_t = util::safe_ptr<pa_context, &pa_context_unref>;
     /**
      * @brief Owning pointer for a PulseAudio mainloop.
      */
-    using loop_t = util::safe_ptr<pa_mainloop, pa_mainloop_free>;
+    using loop_t = util::safe_ptr<pa_mainloop, &pa_mainloop_free>;
     /**
      * @brief Owning pointer for a PulseAudio asynchronous operation.
      */
-    using op_t = util::safe_ptr<pa_operation, pa_operation_unref>;
+    using op_t = util::safe_ptr<pa_operation, &pa_operation_unref>;
     /**
      * @brief Owning pointer for PulseAudio strings allocated with `pa_xmalloc`.
      */
-    using string_t = util::safe_ptr<char, pa_free<char>>;
+    using string_t = util::safe_ptr<char, &pa_free<char>>;
 
     /**
      * @brief Callback wrapper for PulseAudio introspection results without an end marker.

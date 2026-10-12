@@ -300,19 +300,19 @@ namespace platf {
     /**
      * @brief DRM plane resource list released with `drmModeFreePlaneResources`.
      */
-    using plane_res_t = util::safe_ptr<drmModePlaneRes, drmModeFreePlaneResources>;
+    using plane_res_t = util::safe_ptr<drmModePlaneRes, &drmModeFreePlaneResources>;
     /**
      * @brief DRM encoder pointer released with `drmModeFreeEncoder`.
      */
-    using encoder_t = util::safe_ptr<drmModeEncoder, drmModeFreeEncoder>;
+    using encoder_t = util::safe_ptr<drmModeEncoder, &drmModeFreeEncoder>;
     /**
      * @brief DRM resource list released with `drmModeFreeResources`.
      */
-    using res_t = util::safe_ptr<drmModeRes, drmModeFreeResources>;
+    using res_t = util::safe_ptr<drmModeRes, &drmModeFreeResources>;
     /**
      * @brief DRM plane pointer released with `drmModeFreePlane`.
      */
-    using plane_t = util::safe_ptr<drmModePlane, drmModeFreePlane>;
+    using plane_t = util::safe_ptr<drmModePlane, &drmModeFreePlane>;
     /**
      * @brief DRM framebuffer pointer released with `drmModeFreeFB2`.
      */
@@ -320,23 +320,23 @@ namespace platf {
     /**
      * @brief DRM CRTC pointer released with `drmModeFreeCrtc`.
      */
-    using crtc_t = util::safe_ptr<drmModeCrtc, drmModeFreeCrtc>;
+    using crtc_t = util::safe_ptr<drmModeCrtc, &drmModeFreeCrtc>;
     /**
      * @brief DRM object-property list released with `drmModeFreeObjectProperties`.
      */
-    using obj_prop_t = util::safe_ptr<drmModeObjectProperties, drmModeFreeObjectProperties>;
+    using obj_prop_t = util::safe_ptr<drmModeObjectProperties, &drmModeFreeObjectProperties>;
     /**
      * @brief DRM property pointer released with `drmModeFreeProperty`.
      */
-    using prop_t = util::safe_ptr<drmModePropertyRes, drmModeFreeProperty>;
+    using prop_t = util::safe_ptr<drmModePropertyRes, &drmModeFreeProperty>;
     /**
      * @brief DRM property-blob pointer released with `drmModeFreePropertyBlob`.
      */
-    using prop_blob_t = util::safe_ptr<drmModePropertyBlobRes, drmModeFreePropertyBlob>;
+    using prop_blob_t = util::safe_ptr<drmModePropertyBlobRes, &drmModeFreePropertyBlob>;
     /**
      * @brief DRM version pointer released with `drmFreeVersion`.
      */
-    using version_t = util::safe_ptr<drmVersion, drmFreeVersion>;
+    using version_t = util::safe_ptr<drmVersion, &drmFreeVersion>;
 
     /**
      * @brief Counter map keyed by DRM connector type.
@@ -689,7 +689,7 @@ namespace platf {
       /**
        * @brief Internal connector metadata tuple used while selecting a monitor.
        */
-      using connector_interal_t = util::safe_ptr<drmModeConnector, drmModeFreeConnector>;
+      using connector_interal_t = util::safe_ptr<drmModeConnector, &drmModeFreeConnector>;
 
       /**
        * @brief Open a DRM connector and cache its monitor metadata.

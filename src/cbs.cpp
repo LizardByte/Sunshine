@@ -32,7 +32,7 @@ namespace cbs {
   /**
    * @brief Owning coded bitstream context pointer that calls ff_cbs_close.
    */
-  using ctx_t = util::safe_ptr<CodedBitstreamContext, close>;
+  using ctx_t = util::safe_ptr<CodedBitstreamContext, &close>;
 
   /**
    * @brief Owns an FFmpeg coded bitstream fragment and frees fragment buffers on destruction.

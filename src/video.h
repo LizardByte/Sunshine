@@ -99,21 +99,21 @@ namespace video {
   void free_buffer(AVBufferRef *ref);
 
   /**
-   * @brief Owning pointer for an FFmpeg codec context.
+   * @brief Owning pointer for an FFmpeg codec context released with free_ctx().
    */
-  using avcodec_ctx_t = util::safe_ptr<AVCodecContext, free_ctx>;
+  using avcodec_ctx_t = util::safe_ptr<AVCodecContext, &free_ctx>;
   /**
-   * @brief Owning pointer for an FFmpeg frame.
+   * @brief Owning pointer for an FFmpeg frame released with free_frame().
    */
-  using avcodec_frame_t = util::safe_ptr<AVFrame, free_frame>;
+  using avcodec_frame_t = util::safe_ptr<AVFrame, &free_frame>;
   /**
-   * @brief Owning pointer for an FFmpeg buffer reference.
+   * @brief Owning pointer for an FFmpeg buffer reference released with free_buffer().
    */
-  using avcodec_buffer_t = util::safe_ptr<AVBufferRef, free_buffer>;
+  using avcodec_buffer_t = util::safe_ptr<AVBufferRef, &free_buffer>;
   /**
-   * @brief Owning pointer for an FFmpeg software-scaling context.
+   * @brief Owning pointer for an FFmpeg software-scaling context released with sws_freeContext().
    */
-  using sws_t = util::safe_ptr<SwsContext, sws_freeContext>;
+  using sws_t = util::safe_ptr<SwsContext, &sws_freeContext>;
   /**
    * @brief Shared event that transports captured images between capture and encode threads.
    */

@@ -42,149 +42,149 @@ namespace platf::dxgi {
   /**
    * @brief Owning COM pointer for the DXGI factory used to enumerate adapters.
    */
-  using factory1_t = util::safe_ptr<IDXGIFactory1, Release<IDXGIFactory1>>;
+  using factory1_t = util::safe_ptr<IDXGIFactory1, &Release<IDXGIFactory1>>;
   /**
    * @brief Owning COM pointer for a DXGI device interface.
    */
-  using dxgi_t = util::safe_ptr<IDXGIDevice, Release<IDXGIDevice>>;
+  using dxgi_t = util::safe_ptr<IDXGIDevice, &Release<IDXGIDevice>>;
   /**
    * @brief Owning COM pointer for a DXGI 1.1 device interface.
    */
-  using dxgi1_t = util::safe_ptr<IDXGIDevice1, Release<IDXGIDevice1>>;
+  using dxgi1_t = util::safe_ptr<IDXGIDevice1, &Release<IDXGIDevice1>>;
   /**
    * @brief Owning COM pointer for the D3D11 device used by capture and conversion.
    */
-  using device_t = util::safe_ptr<ID3D11Device, Release<ID3D11Device>>;
+  using device_t = util::safe_ptr<ID3D11Device, &Release<ID3D11Device>>;
   /**
    * @brief Owning COM pointer for the D3D11.1 device interface.
    */
-  using device1_t = util::safe_ptr<ID3D11Device1, Release<ID3D11Device1>>;
+  using device1_t = util::safe_ptr<ID3D11Device1, &Release<ID3D11Device1>>;
   /**
    * @brief Owning COM pointer for the immediate D3D11 device context.
    */
-  using device_ctx_t = util::safe_ptr<ID3D11DeviceContext, Release<ID3D11DeviceContext>>;
+  using device_ctx_t = util::safe_ptr<ID3D11DeviceContext, &Release<ID3D11DeviceContext>>;
   /**
    * @brief Owning COM pointer for a DXGI display adapter.
    */
-  using adapter_t = util::safe_ptr<IDXGIAdapter1, Release<IDXGIAdapter1>>;
+  using adapter_t = util::safe_ptr<IDXGIAdapter1, &Release<IDXGIAdapter1>>;
   /**
    * @brief Owning COM pointer for a DXGI output.
    */
-  using output_t = util::safe_ptr<IDXGIOutput, Release<IDXGIOutput>>;
+  using output_t = util::safe_ptr<IDXGIOutput, &Release<IDXGIOutput>>;
   /**
    * @brief Owning COM pointer for a DXGI output that supports duplication.
    */
-  using output1_t = util::safe_ptr<IDXGIOutput1, Release<IDXGIOutput1>>;
+  using output1_t = util::safe_ptr<IDXGIOutput1, &Release<IDXGIOutput1>>;
   /**
    * @brief Owning COM pointer for a DXGI output with HDR metadata support.
    */
-  using output5_t = util::safe_ptr<IDXGIOutput5, Release<IDXGIOutput5>>;
+  using output5_t = util::safe_ptr<IDXGIOutput5, &Release<IDXGIOutput5>>;
   /**
    * @brief Owning COM pointer for a DXGI output with modern display descriptors.
    */
-  using output6_t = util::safe_ptr<IDXGIOutput6, Release<IDXGIOutput6>>;
+  using output6_t = util::safe_ptr<IDXGIOutput6, &Release<IDXGIOutput6>>;
   /**
    * @brief Owning COM pointer for the DXGI desktop duplication session.
    */
-  using dup_t = util::safe_ptr<IDXGIOutputDuplication, Release<IDXGIOutputDuplication>>;
+  using dup_t = util::safe_ptr<IDXGIOutputDuplication, &Release<IDXGIOutputDuplication>>;
   /**
    * @brief Owning COM pointer for a D3D11 2D texture.
    */
-  using texture2d_t = util::safe_ptr<ID3D11Texture2D, Release<ID3D11Texture2D>>;
+  using texture2d_t = util::safe_ptr<ID3D11Texture2D, &Release<ID3D11Texture2D>>;
   /**
    * @brief Owning COM pointer for a D3D11 1D texture.
    */
-  using texture1d_t = util::safe_ptr<ID3D11Texture1D, Release<ID3D11Texture1D>>;
+  using texture1d_t = util::safe_ptr<ID3D11Texture1D, &Release<ID3D11Texture1D>>;
   /**
    * @brief Owning COM pointer for the DXGI resource view of a shared texture.
    */
-  using resource_t = util::safe_ptr<IDXGIResource, Release<IDXGIResource>>;
+  using resource_t = util::safe_ptr<IDXGIResource, &Release<IDXGIResource>>;
   /**
    * @brief Owning COM pointer for the DXGI 1.1 resource sharing interface.
    */
-  using resource1_t = util::safe_ptr<IDXGIResource1, Release<IDXGIResource1>>;
+  using resource1_t = util::safe_ptr<IDXGIResource1, &Release<IDXGIResource1>>;
   /**
    * @brief Owning COM pointer for the D3D11 multithread-protection interface.
    */
-  using multithread_t = util::safe_ptr<ID3D11Multithread, Release<ID3D11Multithread>>;
+  using multithread_t = util::safe_ptr<ID3D11Multithread, &Release<ID3D11Multithread>>;
   /**
    * @brief Owning COM pointer for a D3D11 vertex shader.
    */
-  using vs_t = util::safe_ptr<ID3D11VertexShader, Release<ID3D11VertexShader>>;
+  using vs_t = util::safe_ptr<ID3D11VertexShader, &Release<ID3D11VertexShader>>;
   /**
    * @brief Owning COM pointer for a D3D11 pixel shader.
    */
-  using ps_t = util::safe_ptr<ID3D11PixelShader, Release<ID3D11PixelShader>>;
+  using ps_t = util::safe_ptr<ID3D11PixelShader, &Release<ID3D11PixelShader>>;
   /**
    * @brief Owning COM pointer for a D3D11 blend state.
    */
-  using blend_t = util::safe_ptr<ID3D11BlendState, Release<ID3D11BlendState>>;
+  using blend_t = util::safe_ptr<ID3D11BlendState, &Release<ID3D11BlendState>>;
   /**
    * @brief Owning COM pointer for a D3D11 input layout.
    */
-  using input_layout_t = util::safe_ptr<ID3D11InputLayout, Release<ID3D11InputLayout>>;
+  using input_layout_t = util::safe_ptr<ID3D11InputLayout, &Release<ID3D11InputLayout>>;
   /**
    * @brief Owning COM pointer for a D3D11 render-target view.
    */
-  using render_target_t = util::safe_ptr<ID3D11RenderTargetView, Release<ID3D11RenderTargetView>>;
+  using render_target_t = util::safe_ptr<ID3D11RenderTargetView, &Release<ID3D11RenderTargetView>>;
   /**
    * @brief Owning COM pointer for a D3D11 shader-resource view.
    */
-  using shader_res_t = util::safe_ptr<ID3D11ShaderResourceView, Release<ID3D11ShaderResourceView>>;
+  using shader_res_t = util::safe_ptr<ID3D11ShaderResourceView, &Release<ID3D11ShaderResourceView>>;
   /**
    * @brief Owning COM pointer for a D3D11 buffer.
    */
-  using buf_t = util::safe_ptr<ID3D11Buffer, Release<ID3D11Buffer>>;
+  using buf_t = util::safe_ptr<ID3D11Buffer, &Release<ID3D11Buffer>>;
   /**
    * @brief D3D rasterizer state handle type.
    */
-  using raster_state_t = util::safe_ptr<ID3D11RasterizerState, Release<ID3D11RasterizerState>>;
+  using raster_state_t = util::safe_ptr<ID3D11RasterizerState, &Release<ID3D11RasterizerState>>;
   /**
    * @brief D3D sampler state handle type.
    */
-  using sampler_state_t = util::safe_ptr<ID3D11SamplerState, Release<ID3D11SamplerState>>;
+  using sampler_state_t = util::safe_ptr<ID3D11SamplerState, &Release<ID3D11SamplerState>>;
   /**
    * @brief Owning COM pointer for a compiled shader bytecode blob.
    */
-  using blob_t = util::safe_ptr<ID3DBlob, Release<ID3DBlob>>;
+  using blob_t = util::safe_ptr<ID3DBlob, &Release<ID3DBlob>>;
   /**
    * @brief D3D depth-stencil state handle type.
    */
-  using depth_stencil_state_t = util::safe_ptr<ID3D11DepthStencilState, Release<ID3D11DepthStencilState>>;
+  using depth_stencil_state_t = util::safe_ptr<ID3D11DepthStencilState, &Release<ID3D11DepthStencilState>>;
   /**
    * @brief Owning COM pointer for a D3D11 depth-stencil view.
    */
-  using depth_stencil_view_t = util::safe_ptr<ID3D11DepthStencilView, Release<ID3D11DepthStencilView>>;
+  using depth_stencil_view_t = util::safe_ptr<ID3D11DepthStencilView, &Release<ID3D11DepthStencilView>>;
   /**
    * @brief Owning COM pointer for a keyed mutex on a shared DXGI resource.
    */
-  using keyed_mutex_t = util::safe_ptr<IDXGIKeyedMutex, Release<IDXGIKeyedMutex>>;
+  using keyed_mutex_t = util::safe_ptr<IDXGIKeyedMutex, &Release<IDXGIKeyedMutex>>;
 
   namespace video {
     /**
      * @brief Owning COM pointer for the D3D11 video device interface.
      */
-    using device_t = util::safe_ptr<ID3D11VideoDevice, Release<ID3D11VideoDevice>>;
+    using device_t = util::safe_ptr<ID3D11VideoDevice, &Release<ID3D11VideoDevice>>;
     /**
      * @brief Owning COM pointer for the D3D11 video context interface.
      */
-    using ctx_t = util::safe_ptr<ID3D11VideoContext, Release<ID3D11VideoContext>>;
+    using ctx_t = util::safe_ptr<ID3D11VideoContext, &Release<ID3D11VideoContext>>;
     /**
      * @brief Owning COM pointer for a D3D11 video processor.
      */
-    using processor_t = util::safe_ptr<ID3D11VideoProcessor, Release<ID3D11VideoProcessor>>;
+    using processor_t = util::safe_ptr<ID3D11VideoProcessor, &Release<ID3D11VideoProcessor>>;
     /**
      * @brief Owning COM pointer for a video processor output view.
      */
-    using processor_out_t = util::safe_ptr<ID3D11VideoProcessorOutputView, Release<ID3D11VideoProcessorOutputView>>;
+    using processor_out_t = util::safe_ptr<ID3D11VideoProcessorOutputView, &Release<ID3D11VideoProcessorOutputView>>;
     /**
      * @brief Owning COM pointer for a video processor input view.
      */
-    using processor_in_t = util::safe_ptr<ID3D11VideoProcessorInputView, Release<ID3D11VideoProcessorInputView>>;
+    using processor_in_t = util::safe_ptr<ID3D11VideoProcessorInputView, &Release<ID3D11VideoProcessorInputView>>;
     /**
      * @brief Owning COM pointer for a video processor capability enumerator.
      */
-    using processor_enum_t = util::safe_ptr<ID3D11VideoProcessorEnumerator, Release<ID3D11VideoProcessorEnumerator>>;
+    using processor_enum_t = util::safe_ptr<ID3D11VideoProcessorEnumerator, &Release<ID3D11VideoProcessorEnumerator>>;
   }  // namespace video
 
   /**

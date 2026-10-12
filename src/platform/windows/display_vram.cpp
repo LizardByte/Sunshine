@@ -47,7 +47,7 @@ static void free_frame(AVFrame *frame) {
 /**
  * @brief FFmpeg hardware frame pointer released with `av_frame_free`.
  */
-using frame_t = util::safe_ptr<AVFrame, free_frame>;
+using frame_t = util::safe_ptr<AVFrame, &free_frame>;
 
 namespace platf::dxgi {
 

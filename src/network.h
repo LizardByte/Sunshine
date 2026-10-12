@@ -37,7 +37,7 @@ namespace net {
   /**
    * @brief Owning ENet host pointer released with `enet_host_destroy`.
    */
-  using host_t = util::safe_ptr<ENetHost, free_host>;
+  using host_t = util::safe_ptr<ENetHost, &free_host>;
   /**
    * @brief Raw ENet peer handle owned by an ENet host.
    */
@@ -45,7 +45,7 @@ namespace net {
   /**
    * @brief Owning ENet packet pointer released with `enet_packet_destroy`.
    */
-  using packet_t = util::safe_ptr<ENetPacket, enet_packet_destroy>;
+  using packet_t = util::safe_ptr<ENetPacket, &enet_packet_destroy>;
 
   /**
    * @brief Enumerates supported net options.
