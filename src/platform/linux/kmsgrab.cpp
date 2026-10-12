@@ -2222,7 +2222,8 @@ namespace platf {
    * @return KMS display backend, or nullptr when initialization fails.
    */
   std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
-    if (hwdevice_type == mem_type_e::vaapi || hwdevice_type == mem_type_e::cuda || hwdevice_type == mem_type_e::vulkan || hwdevice_type == mem_type_e::v4l2) {
+    using enum platf::mem_type_e;
+    if (hwdevice_type == vaapi || hwdevice_type == cuda || hwdevice_type == vulkan || hwdevice_type == v4l2) {
       auto disp = std::make_shared<kms::display_vram_t>(hwdevice_type);
 
       if (!disp->init(display_name, config)) {

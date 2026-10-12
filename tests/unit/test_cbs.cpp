@@ -206,8 +206,8 @@ namespace {
    * @param info Parameterized test information.
    * @return Descriptive gtest parameter name.
    */
-  std::string sps_test_name(const testing::TestParamInfo<SpsTestParam> &info) {
-    const auto &[codec_id, has_vui, split] = info.param;
+  std::string sps_test_name(const testing::TestParamInfo<SpsTestParam> &test_info) {
+    const auto &[codec_id, has_vui, split] = test_info.param;
     return std::string(codec_id == AV_CODEC_ID_H264 ? "H264" : "Hevc") +
            (has_vui ? "WithVui" : "WithoutVui") + (split ? "TwoPackets" : "SinglePacket");
   }
@@ -226,7 +226,7 @@ TEST_P(ValidateSpsTest, DetectsVuiInActiveSps) {
   }
 
   std::vector<AVPacket *> packets;
-  auto free_packets = util::fail_guard([&]() {
+  auto free_packets = util::fail_guard([&packets]() {
     for (auto *packet : packets) {
       av_packet_free(&packet);
     }
@@ -239,7 +239,8 @@ TEST_P(ValidateSpsTest, DetectsVuiInActiveSps) {
     std::copy(payloads[i].begin(), payloads[i].end(), packet->data);
     bool contains_idr = i + 1 == payloads.size();
     packet->flags = contains_idr ? AV_PKT_FLAG_KEY : 0;
-    packet->pts = packet->dts = contains_idr ? 1 : 0;
+    packet->pts = contains_idr ? 1 : 0;
+    packet->dts = packet->pts;
   }
 
   EXPECT_EQ(cbs::validate_sps(packets, codec_id), has_vui);

@@ -20,7 +20,7 @@ namespace {
     if (!packet->av_packet || av_new_packet(packet->av_packet, static_cast<int>(bytes.size()))) {
       return nullptr;
     }
-    std::copy(bytes.begin(), bytes.end(), packet->av_packet->data);
+    std::ranges::copy(bytes, packet->av_packet->data);
     return packet;
   }
 

@@ -64,7 +64,7 @@ extern "C" {
    * @param ctx Initialized wrapper context whose output queue is inspected.
    * @return Zero-based buffer index on success, or -1 when none is available.
    */
-  int v4l2_wrapper_getfree_v4l2buf_idx(struct v4l2_wrapper_context *ctx);
+  int v4l2_wrapper_getfree_v4l2buf_idx(const struct v4l2_wrapper_context *ctx);
 
   /**
    * @brief Select the V4L2 output buffer used for the next submitted frame.
@@ -81,7 +81,7 @@ extern "C" {
    * @param index Zero-based index of the output buffer to check.
    * @return Non-zero if the buffer is available, or zero if it is still in use.
    */
-  int v4l2_wrapper_v4l2buf_available(struct v4l2_wrapper_context *ctx, int index);
+  int v4l2_wrapper_v4l2buf_available(const struct v4l2_wrapper_context *ctx, int index);
 
 #ifdef __cplusplus
 }

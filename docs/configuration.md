@@ -2366,7 +2366,7 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
             @note{Applies to Linux only.}</td>
     </tr>
     <tr>
-        <td>v4l2</td>
+        <td>v4l2m2m</td>
         <td>Use V4L2 encoder.
             @note{Applies to Linux only.}</td>
     </tr>

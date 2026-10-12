@@ -4,6 +4,9 @@
  */
 #pragma once
 
+// standard includes
+#include <span>
+
 // local includes
 #include "utility.h"
 
@@ -59,5 +62,5 @@ namespace cbs {
    * @param codec_id FFmpeg codec identifier; expected to be AV_CODEC_ID_H264 or AV_CODEC_ID_H265.
    * @return `true` when the packet's active SPS advertises VUI parameters.
    */
-  bool validate_sps(const std::vector<AVPacket *> &packets, int codec_id);
+  bool validate_sps(std::span<AVPacket *const> packets, int codec_id);
 }  // namespace cbs

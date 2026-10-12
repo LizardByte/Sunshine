@@ -223,7 +223,7 @@ namespace video {
      * @param avcodec_pix_fmt_yuv444_8bit AVCodec 8-bit YUV444 pixel format.
      * @param avcodec_pix_fmt_yuv444_10bit AVCodec 10-bit YUV444 pixel format.
      * @param init_avcodec_hardware_input_buffer_function Hardware input buffer initialization callback.
-     * @param dev_type Explicit platform memory type, or unknown to derive it from avcodec_base_dev_type.
+     * @param explicit_dev_type Explicit platform memory type, or unknown to derive it from avcodec_base_dev_type.
      */
     encoder_platform_formats_avcodec(
       const AVHWDeviceType &avcodec_base_dev_type,
@@ -236,7 +236,7 @@ namespace video {
       const init_buffer_function_t &init_avcodec_hardware_input_buffer_function,
       // Some encoders like V4L2 manage input buffers themselves and use AV_HWDEVICE_TYPE_NONE to avoid
       // Sunshine's hwdevice/hwframes setup, so allow them to override the default device-type mapping.
-      const platf::mem_type_e &dev_type = platf::mem_type_e::unknown
+      const platf::mem_type_e &explicit_dev_type = platf::mem_type_e::unknown
     ):
         avcodec_base_dev_type {avcodec_base_dev_type},
         avcodec_derived_dev_type {avcodec_derived_dev_type},
@@ -246,7 +246,7 @@ namespace video {
         avcodec_pix_fmt_yuv444_8bit {avcodec_pix_fmt_yuv444_8bit},
         avcodec_pix_fmt_yuv444_10bit {avcodec_pix_fmt_yuv444_10bit},
         init_avcodec_hardware_input_buffer {init_avcodec_hardware_input_buffer_function} {
-      this->dev_type = (dev_type == platf::mem_type_e::unknown ? map_base_dev_type(avcodec_base_dev_type) : dev_type);
+      dev_type = (explicit_dev_type == platf::mem_type_e::unknown ? map_base_dev_type(avcodec_base_dev_type) : explicit_dev_type);
       pix_fmt_8bit = map_pix_fmt(avcodec_pix_fmt_8bit);
       pix_fmt_10bit = map_pix_fmt(avcodec_pix_fmt_10bit);
       pix_fmt_yuv444_8bit = map_pix_fmt(avcodec_pix_fmt_yuv444_8bit);

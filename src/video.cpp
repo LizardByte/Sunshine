@@ -442,9 +442,9 @@ namespace video {
     avcodec_encode_session_t(avcodec_ctx_t &&avcodec_ctx, std::unique_ptr<platf::avcodec_encode_device_t> encode_device, int inject, uint8_t first_idr_packets_cnt):
         avcodec_ctx {std::move(avcodec_ctx)},
         device {std::move(encode_device)},
-        inject {inject} {
-      // If the first packet already contains the IDR frame, then we don't need to reconstruct the packet again.
-      packets_needed_cnt = first_idr_packets_cnt > 1 ? first_idr_packets_cnt : 0;
+        inject {inject},
+        // If the first packet already contains the IDR frame, then we don't need to reconstruct the packet again.
+        packets_needed_cnt {first_idr_packets_cnt > 1 ? first_idr_packets_cnt : uint8_t(0)} {
       packets_needed.reserve(first_idr_packets_cnt);
     }
 
@@ -1983,12 +1983,12 @@ namespace video {
         return ret;
       }
 
-      if (int ret = collect_first_idr_packet(session.packets_needed_cnt, session.packets_needed, packet)) {
-        if (ret < 0) {
-          return -1;
-        } else {
-          continue;
-        }
+      const int collection_status = collect_first_idr_packet(session.packets_needed_cnt, session.packets_needed, packet);
+      if (collection_status < 0) {
+        return -1;
+      }
+      if (collection_status > 0) {
+        continue;
       }
 
       if (av_packet->flags & AV_PKT_FLAG_KEY) {
@@ -3143,9 +3143,9 @@ namespace video {
     };
 
     bool success;  ///< Whether the encoder accepted and successfully encoded the validation frame.
-    uint8_t flags;  ///< Bitwise combination of validate_flag_e capabilities observed during validation.
+    std::byte flags;  ///< Bitwise combination of validate_flag_e capabilities observed during validation.
     uint8_t first_idr_packets_cnt;  ///< Number of packets emitted for the first IDR frame, including separate parameter-set packets.
-
+    
     /**
      * @brief Construct a failed validation result with all capabilities cleared.
      *
@@ -3153,6 +3153,25 @@ namespace video {
      */
     static constexpr validate_result_t error() {
       return validate_result_t {false};
+    }
+
+    /**
+     * @brief Test whether a validation capability was observed.
+     *
+     * @param flag Capability to test.
+     * @return True when the capability is set.
+     */
+    bool has_flag(validate_flag_e flag) const {
+      return (flags & static_cast<std::byte>(flag)) != std::byte {};
+    }
+
+    /**
+     * @brief Set a validation capability.
+     *
+     * @param flag Capability to set.
+     */
+    void set_flag(validate_flag_e flag) {
+      flags |= static_cast<std::byte>(flag);
     }
   };
 
@@ -3195,8 +3214,8 @@ namespace video {
       avcodec_session->device->frame->pts = 1;
       auto ret = avcodec_session->device->send_frame(avcodec_session->avcodec_ctx.get());
       if (ret < 0) {
-        char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
-        BOOST_LOG(error) << "Could not send a frame for encoding: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, ret);
+        std::array<char, AV_ERROR_MAX_STRING_SIZE> err_str {0};
+        BOOST_LOG(error) << "Could not send a frame for encoding: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, ret);
         return validate_result_t::error();
       }
 
@@ -3248,7 +3267,7 @@ namespace video {
     validate_result_t result {true};
 
     if (has_vui_params) {
-      result.flags |= validate_result_t::VUI_PARAMS;
+      result.set_flag(validate_result_t::VUI_PARAMS);
     }
     result.first_idr_packets_cnt = first_idr_packets_cnt;
 
@@ -3305,7 +3324,7 @@ namespace video {
     };
 
     for (auto [validate_flag, encoder_flag] : packet_deficiencies) {
-      encoder.h264[encoder_flag] = (max_ref_frames_h264.flags & validate_flag && autoselect_h264.flags & validate_flag);
+      encoder.h264[encoder_flag] = (max_ref_frames_h264.has_flag(validate_flag) && autoselect_h264.has_flag(validate_flag));
     }
 
     encoder.h264.first_idr_packets_cnt = autoselect_h264.first_idr_packets_cnt;
@@ -3326,7 +3345,7 @@ namespace video {
                                  validate_config(disp, encoder, config_autoselect);
 
         for (auto [validate_flag, encoder_flag] : packet_deficiencies) {
-          encoder.hevc[encoder_flag] = (max_ref_frames_hevc.flags & validate_flag && autoselect_hevc.flags & validate_flag);
+          encoder.hevc[encoder_flag] = (max_ref_frames_hevc.has_flag(validate_flag) && autoselect_hevc.has_flag(validate_flag));
         }
 
         encoder.hevc.first_idr_packets_cnt = autoselect_hevc.first_idr_packets_cnt;
@@ -3355,7 +3374,7 @@ namespace video {
                                 validate_config(disp, encoder, config_autoselect);
 
         for (auto [validate_flag, encoder_flag] : packet_deficiencies) {
-          encoder.av1[encoder_flag] = (max_ref_frames_av1.flags & validate_flag && autoselect_av1.flags & validate_flag);
+          encoder.av1[encoder_flag] = (max_ref_frames_av1.has_flag(validate_flag) && autoselect_av1.has_flag(validate_flag));
         }
 
         encoder.av1.first_idr_packets_cnt = autoselect_av1.first_idr_packets_cnt;
