@@ -146,12 +146,13 @@ class CommandOptionsTest: public BaseTest, public ::testing::WithParamInterface<
 
 /**
  * @brief Borrowed launch inputs supply the child's environment and working directory without being consumed.
+ * @details Use the runner's existing parent directory for the child and create output only through std::tmpfile().
  */
 TEST_P(CommandOptionsTest, LaunchUsesBorrowedInputs) {
   const auto [capture_output, use_group] = GetParam();
   boost::process::v1::environment env = boost::this_process::environment();
   env["SUNSHINE_COMMAND_OPTIONS_MARKER"] = "command-options-value";
-  const auto working_dir = boost::filesystem::canonical(boost::filesystem::temp_directory_path());
+  const auto working_dir = boost::filesystem::canonical(boost::filesystem::current_path().parent_path());
   const std::string command = R"(/bin/sh -c echo${IFS}$SUNSHINE_COMMAND_OPTIONS_MARKER;pwd;echo${IFS}command-options-error>&2)";
 
   const auto close_output = [](FILE *stream) {
@@ -184,7 +185,7 @@ TEST_P(CommandOptionsTest, LaunchUsesBorrowedInputs) {
     auto expected_directory = working_dir;
     expected_directory.make_preferred();
     EXPECT_NE(captured.find("command-options-value"), std::string::npos);
-    EXPECT_NE(captured.find(expected_directory.string()), std::string::npos);
+    EXPECT_NE(captured.find(expected_directory.string() + '\n'), std::string::npos);
     EXPECT_NE(captured.find("command-options-error"), std::string::npos);
   }
 }
