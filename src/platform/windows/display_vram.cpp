@@ -247,7 +247,7 @@ namespace platf::dxgi {
    *
    * @param img_data Raw pointer-shape bytes returned by DXGI.
    * @param shape_info DXGI metadata describing the pointer shape.
-   * @note Borrowed monochrome mask bytes produce only color types 0 through 3; the default is transparent.
+   * @note Borrowed monochrome mask bytes produce only color types 0 through 3; only type 3 is inverted.
    * @return Constructed cursor xor image object.
    */
   util::buffer_t<std::uint8_t> make_cursor_xor_image(const util::buffer_t<std::uint8_t> &img_data, DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info) {
@@ -298,16 +298,12 @@ namespace platf::dxgi {
     for (auto x = 0; x < bytes; ++x) {
       for (auto c = 7; c >= 0 && ((std::uint8_t *) pixel_data) != std::end(cursor_img); --c) {
         auto bit = std::byte {1} << c;
-        switch (auto color_type = ((*and_mask & bit) != std::byte {0} ? 1 : 0) + ((*xor_mask & bit) != std::byte {0} ? 2 : 0); color_type) {
-          case 3:  // Inverse of screen
-            *pixel_data = inverted;
-            break;
-          case 0:  // Opaque black (handled by alpha-blending)
-          case 2:  // Opaque white (handled by alpha-blending)
-          case 1:  // Color of screen (transparent)
-          default:
-            *pixel_data = transparent;
-            break;
+        if (auto color_type = ((*and_mask & bit) != std::byte {0} ? 1 : 0) + ((*xor_mask & bit) != std::byte {0} ? 2 : 0); color_type == 3) {
+          // Inverse of screen
+          *pixel_data = inverted;
+        } else {
+          // Opaque black/white are alpha-blended; the color of the screen is transparent.
+          *pixel_data = transparent;
         }
 
         ++pixel_data;
