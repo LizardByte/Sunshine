@@ -83,30 +83,41 @@ struct EncoderTest: PlatformTestSuite, testing::WithParamInterface<video::encode
   }
 };
 
+namespace {
+  /**
+   * @brief Return the encoders available in this build.
+   *
+   * @return Encoder instances for parameterized validation.
+   */
+  auto encoder_variants() {
+    return std::array {
+#if !defined(__APPLE__)
+      &video::nvenc,
+#endif
+#ifdef _WIN32
+      &video::amdvce,
+      &video::quicksync,
+#endif
+#if defined(__linux__) || defined(__FreeBSD__)
+      &video::vaapi,
+#endif
+#ifdef SUNSHINE_BUILD_V4L2
+      &video::v4l2m2m,
+#endif
+#ifdef __APPLE__
+      &video::videotoolbox,
+#endif
+      &video::software
+    };
+  }
+}  // namespace
+
 INSTANTIATE_TEST_SUITE_P(
   EncoderVariants,
   EncoderTest,
-  testing::Values(
-#if !defined(__APPLE__)
-    &video::nvenc,
-#endif
-#ifdef _WIN32
-    &video::amdvce,
-    &video::quicksync,
-#endif
-#if defined(__linux__) || defined(__FreeBSD__)
-    &video::vaapi,
-#endif
-#ifdef SUNSHINE_BUILD_V4L2
-    &video::v4l2m2m,
-#endif
-#ifdef __APPLE__
-    &video::videotoolbox,
-#endif
-    &video::software
-  ),
-  [](const auto &info) {
-    return std::string(info.param->name);
+  testing::ValuesIn(encoder_variants()),
+  [](const auto &test_info) {
+    return std::string(test_info.param->name);
   }
 );
 

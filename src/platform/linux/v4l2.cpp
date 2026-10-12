@@ -4,6 +4,7 @@
  */
 
 // standard includes
+#include <array>
 #include <drm_fourcc.h>
 #include <linux/videodev2.h>
 #include <sys/ioctl.h>
@@ -43,8 +44,8 @@ namespace v4l2 {
 
       gbm_device.reset(gbm::create_device(render_device_fd.el));
       if (!gbm_device) {
-        char string[1024];
-        BOOST_LOG(error) << "Couldn't create GBM device: ["sv << strerror_r(errno, string, sizeof(string)) << ']';
+        std::array<char, 1024> error_buffer {};
+        BOOST_LOG(error) << "Couldn't create GBM device: ["sv << strerror_r(errno, error_buffer.data(), error_buffer.size()) << ']';
         return -1;
       }
 
@@ -114,77 +115,9 @@ namespace v4l2 {
       }
 
       // Export the V4L2 output buffers
-      v4l2_exportbuffer export_req = {0};
-      export_req.type = encoder_ctx.format.type;
-      export_req.flags = O_CLOEXEC;
       output_frames.reserve(num_buffers);
       for (int i = 0; i < num_buffers; i++) {
-        std::array<file_t, egl::nv12_img_t::num_fds> dmabuf_fds;
-        export_req.index = i;
-        for (int plane = 0; plane < num_planes; plane++) {
-          export_req.plane = plane;
-          if (ioctl(encoder_ctx.fd, VIDIOC_EXPBUF, &export_req) < 0) {
-            char string[1024];
-            BOOST_LOG(error) << "Couldn't export V4L2 buffer "sv << i << ": " << strerror_r(errno, string, sizeof(string));
-            return -1;
-          }
-          dmabuf_fds[plane] = export_req.fd;
-        }
-
-        egl::surface_descriptor_t sds[2] = {};
-        std::fill_n(sds[0].fds, 4, -1);
-        std::fill_n(sds[1].fds, 4, -1);
-        switch (pixel_format) {
-          case V4L2_PIX_FMT_NV12:
-            {
-              auto width = is_mplane ? fmt.pix_mp.width : fmt.pix.width;
-              auto height = is_mplane ? fmt.pix_mp.height : fmt.pix.height;
-              auto bytesperline = is_mplane ? fmt.pix_mp.plane_fmt[0].bytesperline : fmt.pix.bytesperline;
-
-              sds[0].width = width;
-              sds[0].height = height;
-              sds[0].fds[0] = dmabuf_fds[0].el;
-              sds[0].fourcc = DRM_FORMAT_R8;
-              sds[0].modifier = DRM_FORMAT_MOD_LINEAR;
-              sds[0].pitches[0] = bytesperline;
-              sds[0].offsets[0] = 0;
-
-              sds[1].width = width / 2;  // UV plane is subsampled
-              sds[1].height = height / 2;
-              sds[1].fds[0] = dmabuf_fds[0].el;
-              sds[1].fourcc = DRM_FORMAT_GR88;
-              sds[1].modifier = DRM_FORMAT_MOD_LINEAR;
-              sds[1].pitches[0] = bytesperline;
-              sds[1].offsets[0] = bytesperline * height;
-
-              break;
-            }
-          case V4L2_PIX_FMT_NV12M:
-            {
-              sds[0].width = fmt.pix_mp.width;
-              sds[0].height = fmt.pix_mp.height;
-              sds[0].fds[0] = dmabuf_fds[0].el;
-              sds[0].fourcc = DRM_FORMAT_R8;
-              sds[0].modifier = DRM_FORMAT_MOD_LINEAR;
-              sds[0].pitches[0] = fmt.pix_mp.plane_fmt[0].bytesperline;
-              sds[0].offsets[0] = 0;
-
-              sds[1].width = fmt.pix_mp.width / 2;  // UV plane is subsampled
-              sds[1].height = fmt.pix_mp.height / 2;
-              sds[1].fds[0] = dmabuf_fds[1].el;
-              sds[1].fourcc = DRM_FORMAT_GR88;
-              sds[1].modifier = DRM_FORMAT_MOD_LINEAR;
-              sds[1].pitches[0] = fmt.pix_mp.plane_fmt[1].bytesperline;
-              sds[1].offsets[0] = 0;
-
-              break;
-            }
-          default:
-            // Unreachable
-            return -1;
-        }
-
-        auto nv12_opt = egl::import_target(display.get(), std::move(dmabuf_fds), sds[0], sds[1]);
+        auto nv12_opt = export_v4l2_buffer(encoder_ctx.fd, i, encoder_ctx.format, display.get());
         if (!nv12_opt) {
           BOOST_LOG(error) << "Failed to import V4L2 output buffer "sv << i << " into EGL"sv;
           return -1;
@@ -204,20 +137,20 @@ namespace v4l2 {
     /**
      * @brief Attach frame resources used by the next conversion or encode operation.
      *
-     * @param frame Video or graphics frame being processed.
+     * @param input_frame Video or graphics frame being processed.
      * @param hw_frames_ctx Hardware frames context buffer.
      * @return Status from updating frame.
      */
-    int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
+    int set_frame(AVFrame *input_frame, AVBufferRef *hw_frames_ctx) override {
       // Allocate a dummy buffer in case FFmpeg assumes this frame is invalid.
-      frame->buf[0] = av_buffer_alloc(1);
-      if (!frame->buf[0]) {
-        av_frame_free(&frame);
+      input_frame->buf[0] = av_buffer_alloc(1);
+      if (!input_frame->buf[0]) {
+        av_frame_free(&input_frame);
         return -1;
       }
 
-      this->frame_guard.reset(frame);
-      this->frame = frame;
+      this->frame_guard.reset(input_frame);
+      this->frame = input_frame;
 
       return 0;
     }
@@ -255,7 +188,7 @@ namespace v4l2 {
         if (real_output_frame_idx < 0) {
           return AVERROR(EAGAIN);
         }
-        if (!convertor.copy_nv12(output_frames[real_output_frame_idx]->buf, output_frames[current_output_frame_idx]->buf)) {
+        if (convertor.copy_nv12(output_frames[real_output_frame_idx]->buf, output_frames[current_output_frame_idx]->buf)) {
           BOOST_LOG(error) << "Failed to copy converted frame to a new output buffer"sv;
           return AVERROR(EIO);
         }
@@ -291,6 +224,113 @@ namespace v4l2 {
       return frame_idx;
     }
 
+    /**
+     * @brief Load and convert an image into an available output buffer.
+     *
+     * @param load Callable that loads the source using the EGL converter and display.
+     *             Returns 0 on success, or non-zero on failure.
+     * @return 0 on success, or -1 if buffer selection, loading, or conversion fails.
+     */
+    int convert_helper(const std::function<int(egl::sws_t &, egl::display_t &)> &load) {
+      const int frame_idx = get_free_frame();
+      if (frame_idx < 0) {
+        return -1;
+      }
+      if (load(convertor, display) || convertor.convert_nv12(output_frames[frame_idx]->buf)) {
+        return -1;
+      }
+      current_output_frame_idx = frame_idx;
+      return 0;
+    }
+
+  private:
+    /**
+     * @brief Select one available V4L2 output buffer and import it into EGL.
+     *
+     * @param v4l2_fd Opened V4L2 M2M device descriptor.
+     * @param plane_index Zero-based index of the output buffer to export.
+     * @param format Negotiated format of the V4L2 output queue.
+     * @param display EGL display used to create the images.
+     * @return Imported NV12 image, or empty when export or import fails.
+     */
+    static std::optional<egl::nv12_t> export_v4l2_buffer(int v4l2_fd, int plane_index, const v4l2_format &format, egl::display_t::pointer display) {
+      bool is_mplane = V4L2_TYPE_IS_MULTIPLANAR(format.type);
+      auto num_planes = is_mplane ? format.fmt.pix_mp.num_planes : 1;
+      auto pixel_format = is_mplane ? format.fmt.pix_mp.pixelformat : format.fmt.pix.pixelformat;
+
+      v4l2_exportbuffer export_req = {0};
+      export_req.type = format.type;
+      export_req.index = plane_index;
+      export_req.flags = O_CLOEXEC;
+
+      std::array<file_t, egl::nv12_img_t::num_fds> dmabuf_fds;
+      for (int plane = 0; plane < num_planes; plane++) {
+        export_req.plane = plane;
+        if (ioctl(v4l2_fd, VIDIOC_EXPBUF, &export_req) < 0) {
+          std::array<char, 1024> error_buffer {};
+          BOOST_LOG(error) << "Couldn't export V4L2 buffer "sv << plane_index << ": " << strerror_r(errno, error_buffer.data(), error_buffer.size());
+          return std::nullopt;
+        }
+        dmabuf_fds[plane] = export_req.fd;
+      }
+
+      std::array<egl::surface_descriptor_t, 2> sds;
+      for (auto &sd : sds) {
+        std::fill_n(sd.fds.begin(), 4, -1);
+      }
+      switch (pixel_format) {
+        case V4L2_PIX_FMT_NV12:
+          {
+            auto buffer_width = is_mplane ? format.fmt.pix_mp.width : format.fmt.pix.width;
+            auto buffer_height = is_mplane ? format.fmt.pix_mp.height : format.fmt.pix.height;
+            auto bytesperline = is_mplane ? format.fmt.pix_mp.plane_fmt[0].bytesperline : format.fmt.pix.bytesperline;
+
+            sds[0].width = buffer_width;
+            sds[0].height = buffer_height;
+            sds[0].fds[0] = dmabuf_fds[0].el;
+            sds[0].fourcc = DRM_FORMAT_R8;
+            sds[0].modifier = DRM_FORMAT_MOD_LINEAR;
+            sds[0].pitches[0] = bytesperline;
+            sds[0].offsets[0] = 0;
+
+            sds[1].width = buffer_width / 2;  // UV plane is subsampled
+            sds[1].height = buffer_height / 2;
+            sds[1].fds[0] = dmabuf_fds[0].el;
+            sds[1].fourcc = DRM_FORMAT_GR88;
+            sds[1].modifier = DRM_FORMAT_MOD_LINEAR;
+            sds[1].pitches[0] = bytesperline;
+            sds[1].offsets[0] = bytesperline * buffer_height;
+
+            break;
+          }
+        case V4L2_PIX_FMT_NV12M:
+          {
+            sds[0].width = format.fmt.pix_mp.width;
+            sds[0].height = format.fmt.pix_mp.height;
+            sds[0].fds[0] = dmabuf_fds[0].el;
+            sds[0].fourcc = DRM_FORMAT_R8;
+            sds[0].modifier = DRM_FORMAT_MOD_LINEAR;
+            sds[0].pitches[0] = format.fmt.pix_mp.plane_fmt[0].bytesperline;
+            sds[0].offsets[0] = 0;
+
+            sds[1].width = format.fmt.pix_mp.width / 2;  // UV plane is subsampled
+            sds[1].height = format.fmt.pix_mp.height / 2;
+            sds[1].fds[0] = dmabuf_fds[1].el;
+            sds[1].fourcc = DRM_FORMAT_GR88;
+            sds[1].modifier = DRM_FORMAT_MOD_LINEAR;
+            sds[1].pitches[0] = format.fmt.pix_mp.plane_fmt[1].bytesperline;
+            sds[1].offsets[0] = 0;
+
+            break;
+          }
+        default:
+          // Unreachable
+          return std::nullopt;
+      }
+
+      return egl::import_target(display, std::move(dmabuf_fds), sds[0], sds[1]);
+    }
+
     frame_t frame_guard;  ///< Metadata frame owner; pixel buffers are managed by the V4L2 kernel driver.
 
     file_t render_device_fd;  ///< Render-device descriptor used to create the GBM device.
@@ -320,14 +360,10 @@ namespace v4l2 {
      * @return 0 on success, or -1 when no output buffer is available.
      */
     int convert(platf::img_t &img) override {
-      int frame_idx = get_free_frame();
-      if (frame_idx < 0) {
-        return -1;
-      }
-      convertor.load_ram(img);
-      convertor.convert_nv12(output_frames[frame_idx]->buf);
-      current_output_frame_idx = frame_idx;
-      return 0;
+      return convert_helper([&img](egl::sws_t &convertor, egl::display_t &display) {
+        convertor.load_ram(img);
+        return 0;
+      });
     }
   };
 
@@ -343,30 +379,26 @@ namespace v4l2 {
      * @return 0 on success, or -1 when buffer selection or DMA-BUF import fails.
      */
     int convert(platf::img_t &img) override {
-      int frame_idx = get_free_frame();
-      if (frame_idx < 0) {
-        return -1;
-      }
-      auto &descriptor = (egl::img_descriptor_t &) img;
+      return convert_helper([&img, this](egl::sws_t &convertor, egl::display_t &display) {
+        auto &descriptor = (egl::img_descriptor_t &) img;
 
-      if (descriptor.sequence == 0) {
-        // For dummy images, use a blank RGB texture instead of importing a DMA-BUF
-        input_frame = egl::create_blank(img);
-      } else if (descriptor.sequence > sequence) {
-        sequence = descriptor.sequence;
+        if (descriptor.sequence == 0) {
+          // For dummy images, use a blank RGB texture instead of importing a DMA-BUF
+          input_frame = egl::create_blank(img);
+        } else if (descriptor.sequence > sequence) {
+          sequence = descriptor.sequence;
 
-        auto rgb_opt = egl::import_source(display.get(), descriptor.sd);
-        if (!rgb_opt) {
-          return -1;
+          auto rgb_opt = egl::import_source(display.get(), descriptor.sd);
+          if (!rgb_opt) {
+            return -1;
+          }
+
+          input_frame = std::move(*rgb_opt);
         }
 
-        input_frame = std::move(*rgb_opt);
-      }
-
-      convertor.load_vram(descriptor, offset_x, offset_y, (int) input_frame->tex[0], false);
-      convertor.convert_nv12(output_frames[frame_idx]->buf);
-      current_output_frame_idx = frame_idx;
-      return 0;
+        convertor.load_vram(descriptor, offset_x, offset_y, (int) input_frame->tex[0], false);
+        return 0;
+      });
     }
 
     /**
@@ -375,19 +407,19 @@ namespace v4l2 {
      * @param in_width Input image width in pixels.
      * @param in_height Input image height in pixels.
      * @param render_device Open render-device descriptor whose ownership is transferred to this object.
-     * @param offset_x Horizontal offset of the input image within its texture.
-     * @param offset_y Vertical offset of the input image within its texture.
+     * @param capture_offset_x Horizontal offset of the input image within its texture.
+     * @param capture_offset_y Vertical offset of the input image within its texture.
      * @return 0 on success, or -1 when the common V4L2/EGL initialization fails.
      */
-    int init(int in_width, int in_height, file_t &&render_device, int offset_x, int offset_y) {
+    int init(int in_width, int in_height, file_t &&render_device, int capture_offset_x, int capture_offset_y) {
       if (v4l2_t::init(in_width, in_height, std::move(render_device))) {
         return -1;
       }
 
       sequence = 0;
 
-      this->offset_x = offset_x;
-      this->offset_y = offset_y;
+      this->offset_x = capture_offset_x;
+      this->offset_y = capture_offset_y;
 
       return 0;
     }
@@ -424,8 +456,8 @@ namespace v4l2 {
 
     file_t file = ::open(render_device.c_str(), O_RDWR);  // NOSONAR(cpp:S1874): `_sopen_s` not available
     if (file.el < 0) {
-      char string[1024];
-      BOOST_LOG(error) << "Couldn't open "sv << render_device << ": " << strerror_r(errno, string, sizeof(string));
+      std::array<char, 1024> error_buffer {};
+      BOOST_LOG(error) << "Couldn't open "sv << render_device << ": " << strerror_r(errno, error_buffer.data(), error_buffer.size());
 
       return nullptr;
     }

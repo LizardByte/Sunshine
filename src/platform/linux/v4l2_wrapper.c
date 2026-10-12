@@ -41,8 +41,8 @@ void v4l2_wrapper_sync_v4l2buf_status(struct v4l2_wrapper_context *ctx) {
   while (v4l2_dequeue_v4l2buf(output, 0));
 }
 
-int v4l2_wrapper_getfree_v4l2buf_idx(struct v4l2_wrapper_context *ctx) {
-  struct V4L2Context *output = (struct V4L2Context *) ctx->output;
+int v4l2_wrapper_getfree_v4l2buf_idx(const struct v4l2_wrapper_context *ctx) {
+  const struct V4L2Context *output = (const struct V4L2Context *) ctx->output;
 
   for (int i = 0; i < ctx->num_buffers; i++) {
     if (output->buffers[i].status == V4L2BUF_AVAILABLE) {
@@ -59,8 +59,8 @@ void v4l2_wrapper_set_current_buffer_index(struct v4l2_wrapper_context *ctx, int
   output->current_buffer_index = index;
 }
 
-int v4l2_wrapper_v4l2buf_available(struct v4l2_wrapper_context *ctx, int index) {
-  struct V4L2Context *output = (struct V4L2Context *) ctx->output;
+int v4l2_wrapper_v4l2buf_available(const struct v4l2_wrapper_context *ctx, int index) {
+  const struct V4L2Context *output = (const struct V4L2Context *) ctx->output;
 
   if (index < 0 || index >= ctx->num_buffers) {
     return 0;
