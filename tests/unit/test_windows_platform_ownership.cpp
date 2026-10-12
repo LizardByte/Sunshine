@@ -140,83 +140,85 @@ namespace {
       interfaces->InterfaceInfo[0].isState = wlan_interface_state_connected;
     }
   };
+}  // namespace
 
-  /**
-   * @brief Open the stack-owned fake client seeded in the output slot by the test.
-   * @param version Requested WLAN version.
-   * @param reserved SDK reserved argument.
-   * @param negotiated Negotiated WLAN version output.
-   * @param handle Output slot containing the test's injected state.
-   * @return Injected open status without rewriting the output slot.
-   */
-  DWORD WINAPI open_streaming_wlan(DWORD version, PVOID reserved, PDWORD negotiated, PHANDLE handle) {
-    EXPECT_EQ(version, WLAN_API_MAKE_VERSION(2, 0));
-    EXPECT_EQ(reserved, nullptr);
-    auto &state = *static_cast<fake_streaming_wlan_t *>(*handle);
-    state.events.emplace_back("open");
-    *negotiated = version;
-    return state.open_result;
-  }
+/**
+ * @brief Open the stack-owned fake client seeded in the output slot by the test.
+ * @param version Requested WLAN version.
+ * @param reserved SDK reserved argument.
+ * @param negotiated Negotiated WLAN version output.
+ * @param handle Output slot containing the test's injected state.
+ * @return Injected open status without rewriting the output slot.
+ */
+extern "C" DWORD WINAPI open_streaming_wlan(DWORD version, PVOID reserved, PDWORD negotiated, PHANDLE handle) {
+  EXPECT_EQ(version, WLAN_API_MAKE_VERSION(2, 0));
+  EXPECT_EQ(reserved, nullptr);
+  auto &state = *static_cast<fake_streaming_wlan_t *>(*handle);
+  state.events.emplace_back("open");
+  *negotiated = version;
+  return state.open_result;
+}
 
-  /**
-   * @brief Record failed-discovery client cleanup without deleting stack-owned state.
-   * @param handle Injected client state.
-   * @param reserved SDK reserved argument.
-   * @return Success.
-   */
-  DWORD WINAPI close_streaming_wlan(HANDLE handle, PVOID reserved) {
-    EXPECT_EQ(reserved, nullptr);
-    static_cast<fake_streaming_wlan_t *>(handle)->events.emplace_back("close");
-    return ERROR_SUCCESS;
-  }
+/**
+ * @brief Record failed-discovery client cleanup without deleting stack-owned state.
+ * @param handle Injected client state.
+ * @param reserved SDK reserved argument.
+ * @return Success.
+ */
+extern "C" DWORD WINAPI close_streaming_wlan(HANDLE handle, PVOID reserved) {
+  EXPECT_EQ(reserved, nullptr);
+  static_cast<fake_streaming_wlan_t *>(handle)->events.emplace_back("close");
+  return ERROR_SUCCESS;
+}
 
-  /**
-   * @brief Record discovery-result cleanup through the native base subobject.
-   * @param memory Result returned by enumerate_streaming_wlan.
-   */
-  VOID WINAPI free_streaming_wlan(PVOID memory) {
-    fake_streaming_wlan_t *owner;
-    std::memcpy(&owner, static_cast<const std::byte *>(memory) - sizeof(owner), sizeof(owner));
-    owner->events.emplace_back("free");
-    owner->allocation.reset();
-  }
+/**
+ * @brief Record discovery-result cleanup through the native base subobject.
+ * @param memory Result returned by enumerate_streaming_wlan.
+ */
+extern "C" VOID WINAPI free_streaming_wlan(PVOID memory) {
+  fake_streaming_wlan_t *owner;
+  std::memcpy(&owner, static_cast<const std::byte *>(memory) - sizeof(owner), sizeof(owner));
+  owner->events.emplace_back("free");
+  owner->allocation.reset();
+}
 
-  /**
-   * @brief Return injected discovery status and a native single-interface result.
-   * @param handle Injected client state.
-   * @param reserved SDK reserved argument.
-   * @param interfaces Discovery output slot.
-   * @return Injected enumeration result.
-   */
-  DWORD WINAPI enumerate_streaming_wlan(HANDLE handle, PVOID reserved, PWLAN_INTERFACE_INFO_LIST *interfaces) {
-    EXPECT_EQ(reserved, nullptr);
-    auto &state = *static_cast<fake_streaming_wlan_t *>(handle);
-    state.events.emplace_back("enumerate");
-    *interfaces = state.interfaces;
-    return state.enumeration_result;
-  }
+/**
+ * @brief Return injected discovery status and a native single-interface result.
+ * @param handle Injected client state.
+ * @param reserved SDK reserved argument.
+ * @param interfaces Discovery output slot.
+ * @return Injected enumeration result.
+ */
+extern "C" DWORD WINAPI enumerate_streaming_wlan(HANDLE handle, PVOID reserved, PWLAN_INTERFACE_INFO_LIST *interfaces) {
+  EXPECT_EQ(reserved, nullptr);
+  auto &state = *static_cast<fake_streaming_wlan_t *>(handle);
+  state.events.emplace_back("enumerate");
+  *interfaces = state.interfaces;
+  return state.enumeration_result;
+}
 
-  /**
-   * @brief Check the exact media-streaming request and return an injected status.
-   * @param handle Injected client state.
-   * @param guid Discovered interface identity.
-   * @param opcode Native media streaming option.
-   * @param size Boolean payload length.
-   * @param data Requested option value.
-   * @param reserved SDK reserved argument.
-   * @return Injected interface-update result.
-   */
-  DWORD WINAPI set_streaming_wlan(HANDLE handle, const GUID *guid, WLAN_INTF_OPCODE opcode, DWORD size, const PVOID data, PVOID reserved) {
-    auto &state = *static_cast<fake_streaming_wlan_t *>(handle);
-    EXPECT_EQ(guid, &state.interfaces->InterfaceInfo[0].InterfaceGuid);
-    EXPECT_EQ(opcode, wlan_intf_opcode_media_streaming_mode);
-    EXPECT_EQ(size, sizeof(BOOL));
-    EXPECT_EQ(*static_cast<const BOOL *>(data), TRUE);
-    EXPECT_EQ(reserved, nullptr);
-    state.events.emplace_back("set");
-    return state.set_result;
-  }
+/**
+ * @brief Check the exact media-streaming request and return an injected status.
+ * @param handle Injected client state.
+ * @param guid Discovered interface identity.
+ * @param opcode Native media streaming option.
+ * @param size Boolean payload length.
+ * @param data Requested option value.
+ * @param reserved SDK reserved argument.
+ * @return Injected interface-update result.
+ */
+extern "C" DWORD WINAPI set_streaming_wlan(HANDLE handle, const GUID *guid, WLAN_INTF_OPCODE opcode, DWORD size, const PVOID data, PVOID reserved) {
+  auto &state = *static_cast<fake_streaming_wlan_t *>(handle);
+  EXPECT_EQ(guid, &state.interfaces->InterfaceInfo[0].InterfaceGuid);
+  EXPECT_EQ(opcode, wlan_intf_opcode_media_streaming_mode);
+  EXPECT_EQ(size, sizeof(BOOL));
+  EXPECT_EQ(*static_cast<const BOOL *>(data), TRUE);
+  EXPECT_EQ(reserved, nullptr);
+  state.events.emplace_back("set");
+  return state.set_result;
+}
 
+namespace {
   /**
    * @brief Create the exact SDK-signature table for stack-owned streaming tests.
    * @return Injected WLAN table.
