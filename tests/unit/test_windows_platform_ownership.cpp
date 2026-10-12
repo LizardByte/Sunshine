@@ -1,6 +1,7 @@
 /**
  * @file tests/unit/test_windows_platform_ownership.cpp
  * @brief Test optional networking and Windows service ownership without native services.
+ * @note WLAN fakes retain the SDK calling convention with global C linkage.
  */
 #include "../tests_common.h"
 #ifdef _WIN32
@@ -35,78 +36,80 @@ namespace {
     WLAN_INTF_OPCODE opcode {};  ///< Option selected by the set export.
     BOOL enabled {};  ///< Boolean option value passed to the set export.
   };
+}  // namespace
 
-  /**
-   * @brief Open a fake WLAN client with the requested API version.
-   * @param version Requested version.
-   * @param negotiated Negotiated version output.
-   * @param handle Allocated client output.
-   * @return Success.
-   */
-  extern "C" DWORD WINAPI open_wlan(DWORD version, PVOID, PDWORD negotiated, PHANDLE handle) {
-    *negotiated = version;
-    *handle = new fake_wlan_t {};
-    return ERROR_SUCCESS;
+/**
+ * @brief Open a fake WLAN client with the requested API version.
+ * @param version Requested version.
+ * @param negotiated Negotiated version output.
+ * @param handle Allocated client output.
+ * @return Success.
+ */
+extern "C" DWORD WINAPI open_wlan(DWORD version, PVOID, PDWORD negotiated, PHANDLE handle) {
+  *negotiated = version;
+  *handle = new fake_wlan_t {};
+  return ERROR_SUCCESS;
+}
+
+/**
+ * @brief Close a fake WLAN client.
+ * @param handle Client allocated by open_wlan.
+ * @return Success.
+ */
+extern "C" DWORD WINAPI close_wlan(HANDLE handle, PVOID) {
+  delete static_cast<fake_wlan_t *>(handle);
+  return ERROR_SUCCESS;
+}
+
+/**
+ * @brief Release a native-layout fake discovery result.
+ * @param memory Result allocated by enumerate_wlan.
+ */
+extern "C" VOID WINAPI free_wlan(PVOID memory) {
+  std::free(memory);
+}
+
+/**
+ * @brief Enumerate one fake interface through the SDK callback signature.
+ * @details The SDK list has a variable-length tail, so allocation includes one full interface entry.
+ * @param handle Fake client recording the call.
+ * @param interfaces Newly allocated discovery result.
+ * @return Success, or an out-of-memory error when native-layout storage cannot be allocated.
+ */
+extern "C" DWORD WINAPI enumerate_wlan(HANDLE handle, PVOID, PWLAN_INTERFACE_INFO_LIST *interfaces) {
+  ++static_cast<fake_wlan_t *>(handle)->enumerations;
+  constexpr auto storage_size = offsetof(WLAN_INTERFACE_INFO_LIST, InterfaceInfo) + sizeof(WLAN_INTERFACE_INFO);
+  auto result = static_cast<PWLAN_INTERFACE_INFO_LIST>(std::calloc(1, storage_size));
+  *interfaces = result;
+  if (!result) {
+    return ERROR_NOT_ENOUGH_MEMORY;
   }
+  result->dwNumberOfItems = 1;
+  result->InterfaceInfo[0].InterfaceGuid.Data1 = 17;
+  return ERROR_SUCCESS;
+}
 
-  /**
-   * @brief Close a fake WLAN client.
-   * @param handle Client allocated by open_wlan.
-   * @return Success.
-   */
-  extern "C" DWORD WINAPI close_wlan(HANDLE handle, PVOID) {
-    delete static_cast<fake_wlan_t *>(handle);
-    return ERROR_SUCCESS;
+/**
+ * @brief Record a boolean interface option through the SDK callback signature.
+ * @param handle Fake client recording the call.
+ * @param guid Selected interface.
+ * @param opcode Selected option.
+ * @param size Option payload length.
+ * @param data Boolean option payload.
+ * @return Success for a boolean payload, otherwise an invalid-parameter error.
+ */
+extern "C" DWORD WINAPI set_wlan(HANDLE handle, const GUID *guid, WLAN_INTF_OPCODE opcode, DWORD size, const PVOID data, PVOID) {
+  if (size != sizeof(BOOL)) {
+    return ERROR_INVALID_PARAMETER;
   }
+  auto client = static_cast<fake_wlan_t *>(handle);
+  client->interface_guid = *guid;
+  client->opcode = opcode;
+  client->enabled = *static_cast<const BOOL *>(data);
+  return ERROR_SUCCESS;
+}
 
-  /**
-   * @brief Release a native-layout fake discovery result.
-   * @param memory Result allocated by enumerate_wlan.
-   */
-  extern "C" VOID WINAPI free_wlan(PVOID memory) {
-    std::free(memory);
-  }
-
-  /**
-   * @brief Enumerate one fake interface through the SDK callback signature.
-   * @details The SDK list has a variable-length tail, so allocation includes one full interface entry.
-   * @param handle Fake client recording the call.
-   * @param interfaces Newly allocated discovery result.
-   * @return Success, or an out-of-memory error when native-layout storage cannot be allocated.
-   */
-  extern "C" DWORD WINAPI enumerate_wlan(HANDLE handle, PVOID, PWLAN_INTERFACE_INFO_LIST *interfaces) {
-    ++static_cast<fake_wlan_t *>(handle)->enumerations;
-    constexpr auto storage_size = offsetof(WLAN_INTERFACE_INFO_LIST, InterfaceInfo) + sizeof(WLAN_INTERFACE_INFO);
-    auto result = static_cast<PWLAN_INTERFACE_INFO_LIST>(std::calloc(1, storage_size));
-    *interfaces = result;
-    if (!result) {
-      return ERROR_NOT_ENOUGH_MEMORY;
-    }
-    result->dwNumberOfItems = 1;
-    result->InterfaceInfo[0].InterfaceGuid.Data1 = 17;
-    return ERROR_SUCCESS;
-  }
-
-  /**
-   * @brief Record a boolean interface option through the SDK callback signature.
-   * @param handle Fake client recording the call.
-   * @param guid Selected interface.
-   * @param opcode Selected option.
-   * @param size Option payload length.
-   * @param data Boolean option payload.
-   * @return Success for a boolean payload, otherwise an invalid-parameter error.
-   */
-  extern "C" DWORD WINAPI set_wlan(HANDLE handle, const GUID *guid, WLAN_INTF_OPCODE opcode, DWORD size, const PVOID data, PVOID) {
-    if (size != sizeof(BOOL)) {
-      return ERROR_INVALID_PARAMETER;
-    }
-    auto client = static_cast<fake_wlan_t *>(handle);
-    client->interface_guid = *guid;
-    client->opcode = opcode;
-    client->enabled = *static_cast<const BOOL *>(data);
-    return ERROR_SUCCESS;
-  }
-
+namespace {
   /**
    * @brief Injected WLAN results and ordered native call observations.
    */

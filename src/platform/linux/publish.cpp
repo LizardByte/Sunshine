@@ -18,25 +18,25 @@
 
 using namespace std::literals;
 
+/**
+ * @brief Dispatch an Avahi entry-group event through its native C callback boundary.
+ *
+ * @param group Group emitting the event.
+ * @param state Current entry-group state.
+ * @param userdata Publisher registered with Avahi.
+ */
+extern "C" void sunshine_avahi_entry_group_callback(avahi::EntryGroup *group, avahi::EntryGroupState state, void *userdata);
+
+/**
+ * @brief Dispatch an Avahi client event through its native C callback boundary.
+ *
+ * @param client Client emitting the event.
+ * @param state Current client state.
+ * @param userdata Publisher registered with Avahi.
+ */
+extern "C" void sunshine_avahi_client_callback(avahi::Client *client, avahi::ClientState state, void *userdata);
+
 namespace platf::publish {
-  /**
-   * @brief Dispatch an Avahi entry-group event through its native C callback boundary.
-   *
-   * @param group Group emitting the event.
-   * @param state Current entry-group state.
-   * @param userdata Publisher registered with Avahi.
-   */
-  extern "C" void sunshine_avahi_entry_group_callback(avahi::EntryGroup *group, avahi::EntryGroupState state, void *userdata);
-
-  /**
-   * @brief Dispatch an Avahi client event through its native C callback boundary.
-   *
-   * @param client Client emitting the event.
-   * @param state Current client state.
-   * @param userdata Publisher registered with Avahi.
-   */
-  extern "C" void sunshine_avahi_client_callback(avahi::Client *client, avahi::ClientState state, void *userdata);
-
   /**
    * @brief Release an Avahi allocation while retaining its loaded library.
    * @tparam T Type of Avahi allocation.
@@ -120,8 +120,8 @@ namespace platf::publish {
     }
 
   private:
-    friend void sunshine_avahi_entry_group_callback(avahi::EntryGroup *group, avahi::EntryGroupState state, void *userdata);  ///< Native callback bridge allowed to dispatch an entry-group event.
-    friend void sunshine_avahi_client_callback(avahi::Client *client, avahi::ClientState state, void *userdata);  ///< Native callback bridge allowed to dispatch a client event.
+    friend void ::sunshine_avahi_entry_group_callback(avahi::EntryGroup *group, avahi::EntryGroupState state, void *userdata);  ///< Native callback bridge allowed to dispatch an entry-group event.
+    friend void ::sunshine_avahi_client_callback(avahi::Client *client, avahi::ClientState state, void *userdata);  ///< Native callback bridge allowed to dispatch a client event.
 
     /**
      * @brief Replace a colliding service name or stop publication when allocation fails.
@@ -270,14 +270,6 @@ namespace platf::publish {
     std::jthread poll_thread;  ///< Thread stopped before destroying callback context.
   };
 
-  extern "C" void sunshine_avahi_entry_group_callback(avahi::EntryGroup *group, avahi::EntryGroupState state, void *userdata) {
-    static_cast<deinit_t *>(userdata)->on_entry_group(group, state);
-  }
-
-  extern "C" void sunshine_avahi_client_callback(avahi::Client *client, avahi::ClientState state, void *userdata) {
-    static_cast<deinit_t *>(userdata)->on_client(client, state);
-  }
-
   std::unique_ptr<::platf::deinit_t> start(std::shared_ptr<const avahi::api_t> api, std::string instance_name, std::uint16_t port) {
     if (!api) {
       return nullptr;
@@ -294,3 +286,11 @@ namespace platf::publish {
     return start(avahi::api_t::load(), net::mdns_instance_name(platf::get_host_name()), net::map_port(settings, nvhttp::PORT_HTTP));
   }
 }  // namespace platf::publish
+
+extern "C" void sunshine_avahi_entry_group_callback(avahi::EntryGroup *group, avahi::EntryGroupState state, void *userdata) {
+  static_cast<platf::publish::deinit_t *>(userdata)->on_entry_group(group, state);
+}
+
+extern "C" void sunshine_avahi_client_callback(avahi::Client *client, avahi::ClientState state, void *userdata) {
+  static_cast<platf::publish::deinit_t *>(userdata)->on_client(client, state);
+}

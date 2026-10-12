@@ -57,17 +57,17 @@ namespace {
   FARPROC unsupported_query_interface([[maybe_unused]] NvU32 id) {
     return nullptr;
   }
-
-  /**
-   * @brief Exercise the C-linked native resolver ABI before converting its function address.
-   *
-   * @param id Requested interface identifier.
-   * @return Driver interface address for ID 17, or nullptr for an unsupported interface.
-   */
-  extern "C" void *__cdecl native_query_interface(NvU32 id) {
-    return id == 17u ? std::bit_cast<void *>(&fake_interface) : nullptr;
-  }
 }  // namespace
+
+/**
+ * @brief Exercise the global C-linked native resolver ABI before converting its function address.
+ *
+ * @param id Requested interface identifier.
+ * @return Driver interface address for ID 17, or nullptr for an unsupported interface.
+ */
+extern "C" void *__cdecl native_query_interface(NvU32 id) {
+  return id == 17u ? std::bit_cast<void *>(&fake_interface) : nullptr;
+}
 
 /**
  * @brief A missing native resolver produces an empty typed query.
