@@ -126,13 +126,13 @@ namespace stream {
     service_t(const service_t &) = delete;
     service_t &operator=(const service_t &) = delete;
     /**
-     * @brief Allocate and initialize platform input state for a stream.
+     * @brief Allocate stream state through the retained host context without changing the service handle.
      *
-     * @param config Configuration values to apply.
+     * @param config Read-only configuration values copied into the session.
      * @param launch_session Launch session.
      * @return Allocated object or identifier, or an error value on failure.
      */
-    std::shared_ptr<session_t> alloc(config_t &config, rtsp_stream::launch_session_t &launch_session);
+    std::shared_ptr<session_t> alloc(const config_t &config, rtsp_stream::launch_session_t &launch_session) const;
 
   private:
     struct impl_t;  ///< Private broadcast owner and dependencies.

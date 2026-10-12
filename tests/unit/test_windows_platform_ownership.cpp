@@ -188,7 +188,7 @@ TEST(WindowsNetworkingOwnerTest, LastFlowClosesClientBeforeLibraryUnload) {
 TEST(WindowsServiceOwnerTest, StopReportsDeadlineBeforeSignalingOnlyItsOwner) {
   std::vector<std::string> events;
   SERVICE_STATUS snapshot {};
-  service::state_t first {{[&snapshot, &events](SERVICE_STATUS_HANDLE handle, LPSERVICE_STATUS state) {
+  service::state_t first {{[&snapshot, &events](SERVICE_STATUS_HANDLE handle, const SERVICE_STATUS *state) {
                              snapshot = *state;
                              events.emplace_back("status");
                              return TRUE;

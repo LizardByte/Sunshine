@@ -295,7 +295,7 @@ namespace platf {
     /**
      * @brief Translate PulseAudio context state changes into server events.
      *
-     * @param ctx Native context object used by the operation or callback.
+     * @param ctx Native callback context forwarded to the read-only state handler.
      * @param userdata Caller-provided pointer passed through the callback.
      */
     void ctx_state_cb(ctx_t::pointer ctx, void *userdata) {
@@ -349,7 +349,7 @@ namespace platf {
       } index;  ///< PulseAudio module indexes for Sunshine-created null sinks.
 
       std::unique_ptr<safe::event_t<ctx_event_e>> events;  ///< Event queue receiving PulseAudio context state changes.
-      std::unique_ptr<std::function<void(ctx_t::pointer)>> events_cb;  ///< Callback that translates PulseAudio context updates into events.
+      std::unique_ptr<std::function<void(ctx_t::pointer)>> events_cb;  ///< Callback that reads PulseAudio context state and emits events.
 
       std::jthread worker;  ///< Thread running the PulseAudio mainloop.
 
@@ -363,7 +363,7 @@ namespace platf {
         loop.reset(pa_mainloop_new());
         ctx.reset(pa_context_new(pa_mainloop_get_api(loop.get()), "sunshine"));
 
-        events_cb = std::make_unique<std::function<void(ctx_t::pointer)>>([this](ctx_t::pointer ctx) {
+        events_cb = std::make_unique<std::function<void(ctx_t::pointer)>>([this](const pa_context *ctx) {
           switch (pa_context_get_state(ctx)) {
             case PA_CONTEXT_READY:
               events->raise(ready);
@@ -484,7 +484,7 @@ namespace platf {
         // Count of all virtual sinks that are created by us
         int nullcount = 0;
 
-        cb_t<pa_sink_info *> f = [this, &alarm, &nullcount](ctx_t::pointer ctx, const pa_sink_info *sink_info, int eol) {
+        cb_t<pa_sink_info *> f = [this, &alarm, &nullcount](const pa_context *ctx, const pa_sink_info *sink_info, int eol) {
           if (!sink_info) {
             if (!eol) {
               logging::error("Couldn't get pulseaudio sink info: {}", pa_strerror(pa_context_errno(ctx)));
@@ -574,7 +574,7 @@ namespace platf {
         std::string sink_name;
         auto alarm = safe::make_alarm<int>();
 
-        cb_simple_t<pa_server_info *> server_f = [&alarm, &sink_name](ctx_t::pointer ctx, const pa_server_info *server_info) {
+        cb_simple_t<pa_server_info *> server_f = [&alarm, &sink_name](const pa_context *ctx, const pa_server_info *server_info) {
           if (!server_info) {
             logging::error("Couldn't get pulseaudio server info: {}", pa_strerror(pa_context_errno(ctx)));
             alarm->ring(-1);
@@ -606,7 +606,7 @@ namespace platf {
           return monitor_name;
         }
 
-        cb_t<pa_sink_info *> sink_f = [&sink_name, &alarm, &monitor_name](ctx_t::pointer ctx, const pa_sink_info *sink_info, int eol) {
+        cb_t<pa_sink_info *> sink_f = [&sink_name, &alarm, &monitor_name](const pa_context *ctx, const pa_sink_info *sink_info, int eol) {
           if (!sink_info) {
             if (!eol) {
               logging::error("Couldn't get pulseaudio sink info for [{}]: {}", sink_name, pa_strerror(pa_context_errno(ctx)));

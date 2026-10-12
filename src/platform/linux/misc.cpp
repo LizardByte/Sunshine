@@ -487,7 +487,20 @@ namespace platf {
     return "00:00:00:00:00:00"s;
   }
 
-  bp::child run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
+  /**
+   * @brief Launch a child process with the supplied environment and working directory.
+   *
+   * @param elevated Elevated launch request; unused on POSIX.
+   * @param interactive Interactive launch request; unused on POSIX.
+   * @param cmd Command to launch.
+   * @param working_dir Read-only working directory for the child process.
+   * @param env Environment for the child process.
+   * @param file Output stream for stdout and stderr, or nullptr to discard output.
+   * @param ec Receives any process launch error.
+   * @param group Optional process group whose native handle may be initialized during POSIX process launch.
+   * @return The child process object, with launch failures reported through ec.
+   */
+  bp::child run_command(bool elevated, bool interactive, const std::string &cmd, const boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
     // clang-format off
     if (!group) {
       if (!file) {
@@ -972,9 +985,9 @@ namespace platf {
   }
 
   /**
-   * @brief Send the serialized response over the active socket.
+   * @brief Send the serialized response described by read-only socket and payload metadata.
    */
-  bool send(send_info_t &send_info) {
+  bool send(const send_info_t &send_info) {
     auto sockfd = (int) send_info.native_socket;
     struct msghdr msg = {};
 
@@ -1205,9 +1218,9 @@ namespace platf {
   };
 
   /**
-   * @brief Enables QoS on the given socket for traffic to the specified destination.
+   * @brief Enables QoS on the given socket for traffic to the read-only destination address.
    */
-  std::unique_ptr<deinit_t> runtime_t::enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
+  std::unique_ptr<deinit_t> runtime_t::enable_socket_qos(uintptr_t native_socket, const boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
     int sockfd = (int) native_socket;
     std::vector<std::tuple<int, int, int>> reset_options;
 

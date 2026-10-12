@@ -2434,11 +2434,11 @@ namespace stream {
     /**
      * @brief Allocate stopped session state and retain its explicit host dependencies.
      * @param owner Host service state retained until all session resources release.
-     * @param config Negotiated transport and encoder settings.
+     * @param config Read-only negotiated transport and encoder settings copied into the session.
      * @param launch_session Client identity, encryption keys, and connection callback.
      * @return Newly allocated session; workers and platform input start separately.
      */
-    std::shared_ptr<session_t> alloc(std::shared_ptr<runtime_context_t> owner, config_t &config, rtsp_stream::launch_session_t &launch_session) {
+    std::shared_ptr<session_t> alloc(std::shared_ptr<runtime_context_t> owner, const config_t &config, rtsp_stream::launch_session_t &launch_session) {
       auto session = std::make_shared<session_t>();
       session->owner = std::move(owner);
       session->on_stream_connected = launch_session.on_stream_connected;
@@ -2515,7 +2515,7 @@ namespace stream {
     }
   }  // namespace session
 
-  std::shared_ptr<session_t> service_t::alloc(config_t &config, rtsp_stream::launch_session_t &launch_session) {
+  std::shared_ptr<session_t> service_t::alloc(const config_t &config, rtsp_stream::launch_session_t &launch_session) const {
     return session::alloc(impl, config, launch_session);
   }
 }  // namespace stream

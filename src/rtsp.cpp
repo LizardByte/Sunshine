@@ -244,11 +244,11 @@ namespace rtsp_stream {
 
     /**
      * @brief Read and decrypt the encrypted RTSP payload.
-     * @param socket The socket the message was received on.
+     * @param socket Shared handle retaining the mutable socket that received the message.
      * @param ec The error code of the read operation.
      * @param bytes The number of bytes read.
      */
-    static void handle_read_encrypted_message(std::shared_ptr<socket_t> &socket, const boost::system::error_code &ec, std::size_t bytes) {
+    static void handle_read_encrypted_message(const std::shared_ptr<socket_t> &socket, const boost::system::error_code &ec, std::size_t bytes) {
       logging::debug("handle_read_encrypted(): Handle read of size: {} bytes", bytes);
 
       auto sock_close = util::fail_guard([&socket]() {
@@ -492,16 +492,16 @@ namespace rtsp_stream {
   class rtsp_server_t {
   public:
     const config::settings_t &settings;  ///< Startup transport and encryption policy.
-    stream::service_t &streams;  ///< Session allocation owner.
-    video::service_t &videos;  ///< Encoder capability owner.
+    const stream::service_t &streams;  ///< Stable service handle used to allocate mutable session state.
+    const video::service_t &videos;  ///< Read-only encoder capability owner.
 
     /**
      * @brief Bind the host services used by RTSP handlers.
      * @param settings Startup transport and encryption policy.
-     * @param streams Stream allocation owner.
-     * @param videos Encoder capability owner.
+     * @param streams Stable service handle used to allocate mutable session state.
+     * @param videos Read-only encoder capability owner.
      */
-    rtsp_server_t(const config::settings_t &settings, stream::service_t &streams, video::service_t &videos):
+    rtsp_server_t(const config::settings_t &settings, const stream::service_t &streams, const video::service_t &videos):
         settings {settings},
         streams {streams},
         videos {videos} {
@@ -792,19 +792,19 @@ namespace rtsp_stream {
     /**
      * @brief Bind services before listener callbacks can run.
      * @param settings Startup transport and encryption policy.
-     * @param streams Session allocation owner.
+     * @param streams Stable service handle used to allocate mutable session state.
      * @param inputs Host input cleanup owner.
-     * @param videos Encoder capability owner.
+     * @param videos Read-only encoder capability owner.
      * @param host_mail Application shutdown mailbox.
      */
-    impl_t(const config::settings_t &settings, stream::service_t &streams, input::service_t &inputs, video::service_t &videos, safe::mail_t host_mail):
+    impl_t(const config::settings_t &settings, const stream::service_t &streams, input::service_t &inputs, const video::service_t &videos, safe::mail_t host_mail):
         server {settings, streams, videos},
         inputs {inputs},
         host_mail {std::move(host_mail)} {
     }
   };
 
-  service_t::service_t(const config::settings_t &settings, stream::service_t &streams, input::service_t &inputs, video::service_t &videos, safe::mail_t host_mail):
+  service_t::service_t(const config::settings_t &settings, const stream::service_t &streams, input::service_t &inputs, const video::service_t &videos, safe::mail_t host_mail):
       impl {std::make_shared<impl_t>(settings, streams, inputs, videos, std::move(host_mail))} {
   }
 
@@ -987,12 +987,12 @@ namespace rtsp_stream {
   /**
    * @brief Handle RTSP DESCRIBE requests.
    *
-   * @param server RTSP server instance.
+   * @param server Read-only RTSP server dependencies used to advertise capabilities.
    * @param sock Client socket.
    * @param session Launch session.
    * @param req RTSP request message.
    */
-  void cmd_describe(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_describe(const rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     const auto capabilities = server->videos.capabilities();
     OPTION_ITEM option {};
 

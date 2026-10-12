@@ -662,7 +662,7 @@ namespace platf::virtualhid {
   }
 
   std::vector<supported_gamepad_t> supported_gamepads(
-    lvh::Runtime *runtime,
+    const lvh::Runtime *runtime,
     const bool fallback_vigem_available,
     const bool virtualhid_licensed,
     const bool require_license

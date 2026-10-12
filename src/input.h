@@ -115,8 +115,10 @@ namespace input {
 
   /**
    * @brief Queue a raw input message for platform passthrough.
+   * @param input Shared handle retaining the input context while its message is queued.
+   * @param input_data Input message whose storage is transferred to the queue.
    */
-  void passthrough(std::shared_ptr<input_t> &input, std::vector<std::uint8_t> &&input_data);
+  void passthrough(const std::shared_ptr<input_t> &input, std::vector<std::uint8_t> &&input_data);
 
 #ifdef SUNSHINE_TESTS
   namespace testing {

@@ -426,6 +426,25 @@ TEST(LoggingApiTest, StandardFormatOverloadUsesTypedFormatting) {
 }
 
 /**
+ * @brief Formatted text preserves embedded null bytes and empty messages.
+ */
+TEST(LoggingApiTest, StandardFormatOverloadPreservesCompleteText) {
+  using namespace std::string_literals;
+  auto sink = std::make_shared<recording_sink_t>();
+  auto owner = logging::add_sink(sink, 0, false);
+  const auto text = "before\0after"s;
+  const auto expected = "[before\0after]"s;
+
+  logging::info("[{}]", text);
+  logging::info("{}", std::string_view {});
+
+  const auto messages = sink->snapshot();
+  ASSERT_EQ(messages.size(), 2U);
+  EXPECT_EQ(messages[0].message.text, expected);
+  EXPECT_TRUE(messages[1].message.text.empty());
+}
+
+/**
  * @brief A throwing builder discards partial text without disabling subsequent records.
  */
 TEST(LoggingApiTest, BuilderExceptionDoesNotPublishPartialMessage) {

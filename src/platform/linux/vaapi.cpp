@@ -273,10 +273,10 @@ namespace va {
 
     /**
      * @brief Determines the matching VA profile for the codec configuration.
-     * @param ctx The FFmpeg codec context.
+     * @param ctx Read-only FFmpeg codec context.
      * @return The matching VA profile or `VAProfileNone` on failure.
      */
-    VAProfile get_va_profile(AVCodecContext *ctx) {
+    VAProfile get_va_profile(const AVCodecContext *ctx) {
       if (ctx->codec_id == AV_CODEC_ID_H264) {
         // There's no VAAPI profile for H.264 4:4:4
         return VAProfileH264High;

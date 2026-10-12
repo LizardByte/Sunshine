@@ -535,9 +535,9 @@ namespace input {
   /**
    * @brief Write a debug log representation of the input packet.
    *
-   * @param packet Protocol packet being processed.
+   * @param packet Read-only protocol packet being processed.
    */
-  void print(PNV_REL_MOUSE_MOVE_PACKET packet) {
+  void print(const NV_REL_MOUSE_MOVE_PACKET *packet) {
     logging::debug([&packet](std::ostream &out) {
       out << "--begin relative mouse move packet--"sv << std::endl
           << "deltaX ["sv << util::endian::big(packet->deltaX) << ']' << std::endl
@@ -549,9 +549,9 @@ namespace input {
   /**
    * @brief Write a debug log representation of the input packet.
    *
-   * @param packet Protocol packet being processed.
+   * @param packet Read-only protocol packet being processed.
    */
-  void print(PNV_ABS_MOUSE_MOVE_PACKET packet) {
+  void print(const NV_ABS_MOUSE_MOVE_PACKET *packet) {
     logging::debug([&packet](std::ostream &out) {
       out << "--begin absolute mouse move packet--"sv << std::endl
           << "x      ["sv << util::endian::big(packet->x) << ']' << std::endl
@@ -565,9 +565,9 @@ namespace input {
   /**
    * @brief Write a debug log representation of the input packet.
    *
-   * @param packet Protocol packet being processed.
+   * @param packet Read-only protocol packet being processed.
    */
-  void print(PNV_MOUSE_BUTTON_PACKET packet) {
+  void print(const NV_MOUSE_BUTTON_PACKET *packet) {
     logging::debug([&packet](std::ostream &out) {
       out << "--begin mouse button packet--"sv << std::endl
           << "action ["sv << util::hex(packet->header.magic).to_string_view() << ']' << std::endl
@@ -579,9 +579,9 @@ namespace input {
   /**
    * @brief Write a debug log representation of the input packet.
    *
-   * @param packet Protocol packet being processed.
+   * @param packet Read-only protocol packet being processed.
    */
-  void print(PNV_SCROLL_PACKET packet) {
+  void print(const NV_SCROLL_PACKET *packet) {
     logging::debug([&packet](std::ostream &out) {
       out << "--begin mouse scroll packet--"sv << std::endl
           << "scrollAmt1 ["sv << util::endian::big(packet->scrollAmt1) << ']' << std::endl
@@ -592,9 +592,9 @@ namespace input {
   /**
    * @brief Write a debug log representation of the input packet.
    *
-   * @param packet Protocol packet being processed.
+   * @param packet Read-only protocol packet being processed.
    */
-  void print(PSS_HSCROLL_PACKET packet) {
+  void print(const SS_HSCROLL_PACKET *packet) {
     logging::debug([&packet](std::ostream &out) {
       out << "--begin mouse hscroll packet--"sv << std::endl
           << "scrollAmount ["sv << util::endian::big(packet->scrollAmount) << ']' << std::endl
@@ -605,9 +605,9 @@ namespace input {
   /**
    * @brief Write a debug log representation of the input packet.
    *
-   * @param packet Protocol packet being processed.
+   * @param packet Read-only protocol packet being processed.
    */
-  void print(PNV_KEYBOARD_PACKET packet) {
+  void print(const NV_KEYBOARD_PACKET *packet) {
     logging::debug([&packet](std::ostream &out) {
       out << "--begin keyboard packet--"sv << std::endl
           << "keyAction ["sv << util::hex(packet->header.magic).to_string_view() << ']' << std::endl
@@ -621,9 +621,9 @@ namespace input {
   /**
    * @brief Write a debug log representation of the input packet.
    *
-   * @param packet Protocol packet being processed.
+   * @param packet Read-only protocol packet being processed.
    */
-  void print(PNV_UNICODE_PACKET packet) {
+  void print(const NV_UNICODE_PACKET *packet) {
     std::string text(packet->text, util::endian::big(packet->header.size) - sizeof(packet->header.magic));
     logging::debug("--begin unicode packet--\ntext [{}]\n--end unicode packet--", text);
   }
@@ -631,9 +631,9 @@ namespace input {
   /**
    * @brief Write a debug log representation of the input packet.
    *
-   * @param packet Protocol packet being processed.
+   * @param packet Read-only protocol packet being processed.
    */
-  void print(PNV_MULTI_CONTROLLER_PACKET packet) {
+  void print(const NV_MULTI_CONTROLLER_PACKET *packet) {
     // Moonlight spams controller packet even when not necessary
     logging::verbose([&packet](std::ostream &out) {
       out << "--begin controller packet--"sv << std::endl
@@ -692,9 +692,9 @@ namespace input {
 
   /**
    * @brief Prints a controller arrival packet.
-   * @param packet The controller arrival packet.
+   * @param packet Read-only controller arrival packet.
    */
-  void print(PSS_CONTROLLER_ARRIVAL_PACKET packet) {
+  void print(const SS_CONTROLLER_ARRIVAL_PACKET *packet) {
     logging::debug([&packet](std::ostream &out) {
       out << "--begin controller arrival packet--"sv << std::endl
           << "controllerNumber ["sv << (uint32_t) packet->controllerNumber << ']' << std::endl
@@ -740,9 +740,9 @@ namespace input {
 
   /**
    * @brief Prints a controller battery packet.
-   * @param packet The controller battery packet.
+   * @param packet Read-only controller battery packet.
    */
-  void print(PSS_CONTROLLER_BATTERY_PACKET packet) {
+  void print(const SS_CONTROLLER_BATTERY_PACKET *packet) {
     logging::verbose([&packet](std::ostream &out) {
       out << "--begin controller battery packet--"sv << std::endl
           << "controllerNumber ["sv << util::hex(packet->controllerNumber).to_string_view() << ']' << std::endl
@@ -953,9 +953,9 @@ namespace input {
    * @brief Forward a client input packet directly to the platform backend.
    *
    * @param input Platform input backend that receives the event.
-   * @param packet Protocol packet being processed.
+   * @param packet Read-only protocol packet being processed.
    */
-  void passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET packet) {
+  void passthrough(std::shared_ptr<input_t> &input, const NV_ABS_MOUSE_MOVE_PACKET *packet) {
     auto &host = input->host;
     if (!host.settings.input.mouse) {
       return;
@@ -1060,11 +1060,11 @@ namespace input {
   /**
    * @brief Apply configured keybinding remaps to a platform keycode.
    *
-   * @param host Input service providing immutable keybinding settings.
+   * @param host Read-only input service providing immutable keybinding settings.
    * @param keycode Platform keycode being translated or emitted.
    * @return Remapped keycode when configured, otherwise the original keycode.
    */
-  short map_keycode(service_t::impl_t &host, short keycode) {
+  short map_keycode(const service_t::impl_t &host, short keycode) {
     if (auto it = host.settings.input.keybindings.find(keycode); it != std::end(host.settings.input.keybindings)) {
       return it->second;
     }
@@ -1413,12 +1413,12 @@ namespace input {
   /**
    * @brief Allocate a virtual gamepad for a client-relative controller slot.
    *
-   * @param input Stream input state.
+   * @param input Shared handle whose stream input state receives the gamepad allocation.
    * @param client_index Client-relative controller index.
    * @param arrival Client-reported controller metadata.
    * @return Assigned global gamepad slot, or -1 when allocation fails.
    */
-  int alloc_gamepad(std::shared_ptr<input_t> &input, int client_index, const platf::gamepad_arrival_t &arrival) {
+  int alloc_gamepad(const std::shared_ptr<input_t> &input, int client_index, const platf::gamepad_arrival_t &arrival) {
     auto &host = input->host;
     if (client_index < 0 || client_index >= input->gamepads.size()) {
       logging::warning("ControllerNumber out of range [{}]", client_index);
@@ -1447,10 +1447,10 @@ namespace input {
 
   /**
    * @brief Called to pass a controller arrival message to the platform backend.
-   * @param input The input context pointer.
-   * @param packet The controller arrival packet.
+   * @param input Shared handle retaining the mutable client input state.
+   * @param packet Read-only controller arrival packet.
    */
-  void passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_ARRIVAL_PACKET packet) {
+  void passthrough(const std::shared_ptr<input_t> &input, const SS_CONTROLLER_ARRIVAL_PACKET *packet) {
     if (auto &host = input->host; !host.settings.input.controller || host.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
       return;
     }
@@ -1597,10 +1597,10 @@ namespace input {
 
   /**
    * @brief Called to pass a controller touch message to the platform backend.
-   * @param input The input context pointer.
+   * @param input Shared handle retaining the mutable stream input context.
    * @param packet The controller touch packet.
    */
-  void passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_TOUCH_PACKET packet) {
+  void passthrough(const std::shared_ptr<input_t> &input, PSS_CONTROLLER_TOUCH_PACKET packet) {
     auto &host = input->host;
     if (!host.settings.input.controller || host.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
       return;
@@ -1631,10 +1631,10 @@ namespace input {
 
   /**
    * @brief Called to pass a controller motion message to the platform backend.
-   * @param input The input context pointer.
+   * @param input Shared handle retaining the mutable stream input context.
    * @param packet The controller motion packet.
    */
-  void passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_MOTION_PACKET packet) {
+  void passthrough(const std::shared_ptr<input_t> &input, PSS_CONTROLLER_MOTION_PACKET packet) {
     auto &host = input->host;
     if (!host.settings.input.controller || host.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
       return;
@@ -1664,10 +1664,10 @@ namespace input {
 
   /**
    * @brief Called to pass a controller battery message to the platform backend.
-   * @param input The input context pointer.
-   * @param packet The controller battery packet.
+   * @param input Shared handle retaining the mutable stream input context.
+   * @param packet Read-only controller battery packet.
    */
-  void passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_BATTERY_PACKET packet) {
+  void passthrough(const std::shared_ptr<input_t> &input, const SS_CONTROLLER_BATTERY_PACKET *packet) {
     auto &host = input->host;
     if (!host.settings.input.controller || host.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
       return;
@@ -1696,10 +1696,10 @@ namespace input {
   /**
    * @brief Forward a client input packet directly to the platform backend.
    *
-   * @param input Platform input backend that receives the event.
-   * @param packet Protocol packet being processed.
+   * @param input Shared handle retaining the mutable client input state.
+   * @param packet Read-only protocol packet being processed.
    */
-  void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET packet) {
+  void passthrough(const std::shared_ptr<input_t> &input, const NV_MULTI_CONTROLLER_PACKET *packet) {
     auto &host = input->host;
     if (!host.settings.input.controller || host.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
       return;
@@ -2326,10 +2326,10 @@ namespace input {
 
   /**
    * @brief Called on the control stream thread to queue an input message.
-   * @param input The input context pointer.
-   * @param input_data The input message.
+   * @param input Shared handle retaining the input context while its message is queued.
+   * @param input_data Input message whose storage is transferred to the queue.
    */
-  void passthrough(std::shared_ptr<input_t> &input, std::vector<std::uint8_t> &&input_data) {
+  void passthrough(const std::shared_ptr<input_t> &input, std::vector<std::uint8_t> &&input_data) {
     if (NV_INPUT_HEADER header {}; !validate_input_packet(input_data, &header)) {
       if (input_data.size() >= sizeof(header)) {
         logging::warning([&header, &input_data](std::ostream &out) {

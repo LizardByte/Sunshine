@@ -129,6 +129,8 @@ namespace logging {
 
   /**
    * @brief Format and log a message when an output accepts its severity.
+   *
+   * The formatted text is written in full, including any embedded null bytes.
    * @tparam Args Types of the formatting arguments.
    * @param level Message severity.
    * @param format Compile-time checked format string.
@@ -138,7 +140,8 @@ namespace logging {
     requires(sizeof...(Args) > 0)
   void log(level_e level, std::format_string<Args...> format, Args &&...args) {
     log(level, [&format, &args...](std::ostream &output) {
-      output << std::format(format, std::forward<Args>(args)...);
+      const auto message = std::format(format, std::forward<Args>(args)...);
+      output.write(message.data(), static_cast<std::streamsize>(message.size()));
     });
   }
 

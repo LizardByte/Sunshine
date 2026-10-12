@@ -142,7 +142,7 @@ namespace nvhttp {
         context.use_private_key_file(private_key_file, boost::asio::ssl::context::pem);
       }
 
-      std::function<int(SSL *)> verify;  ///< Callback that validates a client's TLS certificate after handshake.
+      std::function<int(const SSL *)> verify;  ///< Callback that reads and validates a client's TLS certificate after handshake.
       std::function<void(std::shared_ptr<Response>, std::shared_ptr<Request>)> on_verify_failed;  ///< Handler used to return the pairing challenge when client verification fails.
 
     protected:
@@ -1695,7 +1695,7 @@ namespace nvhttp {
       http_server_t http_server;
 
       // Verify certificates after establishing connection
-      https_server.verify = [this](SSL *ssl) {
+      https_server.verify = [this](const SSL *ssl) {
         crypto::x509_t x509 {
 #if OPENSSL_VERSION_MAJOR >= 3
           SSL_get1_peer_certificate(ssl)

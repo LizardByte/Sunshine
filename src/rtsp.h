@@ -71,12 +71,12 @@ namespace rtsp_stream {
     /**
      * @brief Bind the session owners without opening the listening socket.
      * @param settings Startup transport and encryption policy.
-     * @param streams Host stream and broadcast owner.
+     * @param streams Stable service handle used to allocate mutable session state.
      * @param inputs Host input owner for client cleanup.
-     * @param videos Encoder capabilities used in RTSP negotiation.
+     * @param videos Read-only encoder capabilities used in RTSP negotiation.
      * @param host_mail Host mailbox for listener shutdown.
      */
-    service_t(const config::settings_t &settings, stream::service_t &streams, input::service_t &inputs, video::service_t &videos, safe::mail_t host_mail);
+    service_t(const config::settings_t &settings, const stream::service_t &streams, input::service_t &inputs, const video::service_t &videos, safe::mail_t host_mail);
     /**
      * @brief Stop and release listener state after the server loop has exited.
      */

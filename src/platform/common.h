@@ -965,14 +965,18 @@ namespace platf {
    * @param elevated Whether the command should run with elevated privileges.
    * @param interactive Whether the command should run in an interactive session.
    * @param cmd Command line to execute or inspect.
-   * @param working_dir Working directory for the child process.
+   * @param working_dir Read-only working directory for the child process.
    * @param env Environment variables for the child process.
    * @param file Optional stdio file handle connected to the child process.
    * @param ec Error code returned by the asynchronous operation.
-   * @param group Process group used when launching the command.
+   * @param group Process group used when launching the command; Windows reads its native handle, while POSIX may initialize the group.
    * @return Child process handle for the launched command.
    */
-  boost::process::v1::child run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const boost::process::v1::environment &env, FILE *file, std::error_code &ec, boost::process::v1::group *group);
+#ifdef _WIN32
+  boost::process::v1::child run_command(bool elevated, bool interactive, const std::string &cmd, const boost::filesystem::path &working_dir, const boost::process::v1::environment &env, FILE *file, std::error_code &ec, const boost::process::v1::group *group);
+#else
+  boost::process::v1::child run_command(bool elevated, bool interactive, const std::string &cmd, const boost::filesystem::path &working_dir, const boost::process::v1::environment &env, FILE *file, std::error_code &ec, boost::process::v1::group *group);
+#endif
 
   /**
    * @brief Enumerates supported thread priority options.
@@ -1103,10 +1107,10 @@ namespace platf {
   /**
    * @brief Send the serialized response over the active socket.
    *
-   * @param send_info Socket addresses, buffers, and sizes for the send operation.
+   * @param send_info Read-only socket addresses, buffers, and sizes for the send operation.
    * @return True when the packet is submitted to the socket.
    */
-  bool send(send_info_t &send_info);
+  bool send(const send_info_t &send_info);
 
   /**
    * @brief Identifies traffic classes used for socket QoS tagging.
@@ -1119,14 +1123,14 @@ namespace platf {
   /**
    * @brief Enable QoS on the given socket for traffic to the specified destination.
    * @param native_socket The native socket handle.
-   * @param address The destination address for traffic sent on this socket.
+   * @param address Read-only destination address for traffic sent on this socket.
    * @param port The destination port for traffic sent on this socket.
    * @param data_type The type of traffic sent on this socket.
    * @param dscp_tagging Specifies whether to enable DSCP tagging on outgoing traffic.
    *
    * @return Cleanup handle that restores or releases QoS state when destroyed.
    */
-  std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging);
+  std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, const boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging);
 
   /**
    * @brief Own platform resources for one application lifetime.
@@ -1212,13 +1216,13 @@ namespace platf {
     /**
      * @brief Create scoped socket priority settings.
      * @param socket Native socket.
-     * @param address Destination address.
+     * @param address Read-only destination address.
      * @param port Destination port.
      * @param type Traffic class.
      * @param dscp_tagging Enable DSCP tagging.
      * @return Settings lifetime owner.
      */
-    std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e type, bool dscp_tagging);
+    std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t socket, const boost::asio::ip::address &address, uint16_t port, qos_data_type_e type, bool dscp_tagging);
 
   private:
     /**

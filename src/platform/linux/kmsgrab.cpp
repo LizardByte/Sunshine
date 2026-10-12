@@ -1274,7 +1274,7 @@ namespace platf {
             logging::info("Found monitor for DRM screencasting"sv);
 
             // We need to find the correct /dev/dri/card{nr} to correlate the crtc_id with the monitor descriptor
-            auto pos = std::find_if(std::begin(state.card_descriptors), std::end(state.card_descriptors), [&](card_descriptor_t &cd) {
+            auto pos = std::find_if(std::begin(state.card_descriptors), std::end(state.card_descriptors), [&](const card_descriptor_t &cd) {
               return cd.path == filestring;
             });
 

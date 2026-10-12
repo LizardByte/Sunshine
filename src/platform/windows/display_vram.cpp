@@ -437,10 +437,10 @@ namespace platf::dxgi {
     /**
      * @brief Convert a captured D3D image into encoder input textures.
      *
-     * @param img_base D3D image supplied by the capture backend.
+     * @param img_base Read-only D3D image supplied by the capture backend.
      * @return Conversion status.
      */
-    int convert(platf::img_t &img_base) {
+    int convert(const platf::img_t &img_base) {
       // Garbage collect mapped capture images whose weak references have expired
       for (auto it = img_ctx_map.begin(); it != img_ctx_map.end();) {
         if (it->second.img_weak.expired()) {
@@ -450,7 +450,7 @@ namespace platf::dxgi {
         }
       }
 
-      if (auto &img = (img_d3d_t &) img_base; !img.blank) {
+      if (const auto &img = static_cast<const img_d3d_t &>(img_base); !img.blank) {
         auto &img_ctx = img_ctx_map[img.id];
 
         // Open the shared capture texture with our ID3D11Device
@@ -1283,10 +1283,10 @@ namespace platf::dxgi {
    * @param device D3D, audio, or platform device used by the operation.
    * @param cursor Cursor image or visibility state to composite.
    * @param cursor_img Cursor img.
-   * @param shape_info Shape info.
+   * @param shape_info Read-only pointer shape dimensions used to create the cursor texture.
    * @return True when the cursor image is uploaded to the D3D texture.
    */
-  bool set_cursor_texture(device_t::pointer device, gpu_cursor_t &cursor, util::buffer_t<std::uint8_t> &&cursor_img, DXGI_OUTDUPL_POINTER_SHAPE_INFO &shape_info) {
+  bool set_cursor_texture(device_t::pointer device, gpu_cursor_t &cursor, util::buffer_t<std::uint8_t> &&cursor_img, const DXGI_OUTDUPL_POINTER_SHAPE_INFO &shape_info) {
     // This cursor image may not be used
     if (cursor_img.size() == 0) {
       cursor.input_res.reset();

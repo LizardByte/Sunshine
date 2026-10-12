@@ -578,10 +578,10 @@ namespace platf {
    * @param process_launched A boolean indicating if the launch was successful.
    * @param cmd The command that was used to launch the process.
    * @param ec A reference to an `std::error_code` object that will store any error that occurred during the launch.
-   * @param process_info A reference to a `PROCESS_INFORMATION` structure that contains information about the new process.
+   * @param process_info Read-only native process details containing the handles and ID of the new process.
    * @return A `bp::child` object representing the new process, or an empty `bp::child` object if the launch failed.
    */
-  bp::child create_boost_child_from_results(bool process_launched, const std::string &cmd, std::error_code &ec, PROCESS_INFORMATION &process_info) {
+  bp::child create_boost_child_from_results(bool process_launched, const std::string &cmd, std::error_code &ec, const PROCESS_INFORMATION &process_info) {
     // Use RAII to ensure the process is closed when we're done with it, even if there was an error.
     auto close_process_handles = util::fail_guard([process_launched, process_info]() {
       if (process_launched) {
@@ -1034,14 +1034,14 @@ namespace platf {
    * @param elevated Specify whether to elevate the process.
    * @param interactive Specify whether this will run in a window or hidden.
    * @param cmd The command to run.
-   * @param working_dir The working directory for the new process.
+   * @param working_dir Read-only working directory for the new process.
    * @param env The environment variables to use for the new process.
    * @param file A file object to redirect the child process's output to (may be `nullptr`).
    * @param ec An error code, set to indicate any errors that occur during the launch process.
-   * @param group A pointer to a `bp::group` object to which the new process should belong (may be `nullptr`).
+   * @param group Read-only process group whose native handle receives the child (may be `nullptr`).
    * @return A `bp::child` object representing the new process, or an empty `bp::child` object if the launch fails.
    */
-  bp::child run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
+  bp::child run_command(bool elevated, bool interactive, const std::string &cmd, const boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, const bp::group *group) {
     std::wstring start_dir = utf_utils::from_utf8(working_dir.string());
     HANDLE job = group ? group->native_handle() : nullptr;
     STARTUPINFOEXW startup_info = create_startup_info(file, job ? &job : nullptr, ec);
@@ -1610,7 +1610,7 @@ namespace platf {
     return WSASendMsg((SOCKET) send_info.native_socket, &msg, 0, &bytes_sent, nullptr, nullptr) != SOCKET_ERROR;
   }
 
-  bool send(send_info_t &send_info) {
+  bool send(const send_info_t &send_info) {
     WSAMSG msg;
 
     // Convert the target address into a SOCKADDR
@@ -1691,7 +1691,7 @@ namespace platf {
   /**
    * @brief Enables QoS on the given socket for traffic to the specified destination.
    */
-  std::unique_ptr<deinit_t> runtime_t::enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
+  std::unique_ptr<deinit_t> runtime_t::enable_socket_qos(uintptr_t native_socket, const boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
     SOCKADDR_IN saddr_v4;
     SOCKADDR_IN6 saddr_v6;
     PSOCKADDR dest_addr;
