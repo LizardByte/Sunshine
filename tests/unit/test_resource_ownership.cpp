@@ -7,6 +7,7 @@
 #include "../tests_common.h"
 
 // standard includes
+#include <bit>
 #include <cerrno>
 #include <cstdio>
 #include <utility>
@@ -15,7 +16,7 @@
 #ifdef _WIN32
   // Winsock must precede Windows.h.
   // clang-format off
-  #include <winsock2.h>
+  #include <WinSock2.h>
   #include <Windows.h>
   // clang-format on
   #include <io.h>
@@ -41,7 +42,7 @@ namespace {
    * @return Owning reference to the tracked buffer.
    */
   video::avcodec_buffer_t tracked_buffer(int &releases, uint8_t &data) {
-    return video::avcodec_buffer_t {av_buffer_create(&data, 1, [](void *opaque, uint8_t *) {
+    return video::avcodec_buffer_t {av_buffer_create(&data, 1, [](auto *opaque, uint8_t *) {
       ++*static_cast<int *>(opaque);
     },
                                                      &releases,
@@ -133,13 +134,19 @@ TEST(ResourceOwnershipTest, PacketResetReleasesReplacedPacket) {
 }
 
 /**
- * @brief Resetting a file owner closes the underlying operating-system resource.
+ * @brief Resetting a file owner closes a securely created temporary file's underlying resource.
  */
 TEST(ResourceOwnershipTest, FileResetClosesUnderlyingDescriptor) {
+#ifdef _WIN32
+  FILE *temporary_file = nullptr;
+  ASSERT_EQ(tmpfile_s(&temporary_file), 0);
+  proc::file_t file {temporary_file};
+#else
   proc::file_t file {std::tmpfile()};
+#endif
   ASSERT_TRUE(file);
 #ifdef _WIN32
-  const auto handle = reinterpret_cast<HANDLE>(_get_osfhandle(_fileno(file.get())));
+  const auto handle = std::bit_cast<HANDLE>(_get_osfhandle(_fileno(file.get())));
   ASSERT_NE(handle, INVALID_HANDLE_VALUE);
   file.reset();
   DWORD flags = 0;
