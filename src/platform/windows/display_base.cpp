@@ -147,8 +147,7 @@ namespace platf::dxgi {
   }
 
   capture_e duplication_t::next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t::pointer *res_p) {
-    auto capture_status = release_frame();
-    if (capture_status != capture_e::ok) {
+    if (auto capture_status = release_frame(); capture_status != capture_e::ok) {
       return capture_status;
     }
 

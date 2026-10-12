@@ -220,8 +220,7 @@ namespace proc {
     _env["SUNSHINE_CLIENT_GCMAP"] = std::to_string(launch_session->gcmap);
     _env["SUNSHINE_CLIENT_HOST_AUDIO"] = launch_session->host_audio ? "true" : "false";
     _env["SUNSHINE_CLIENT_ENABLE_SOPS"] = launch_session->enable_sops ? "true" : "false";
-    int channelCount = launch_session->surround_info & 65535;
-    switch (channelCount) {
+    switch (int channelCount = launch_session->surround_info & 65535; channelCount) {
       case 2:
         _env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "2.0";
         break;
@@ -416,11 +415,9 @@ namespace proc {
 
     _pipe.reset();
 
-    bool has_run = _app_id > 0;
-
     // Only show the Stopped notification if we actually have an app to stop
     // Since terminate() is always run when a new app has started
-    if (get_last_run_app_name().length() > 0 && has_run) {
+    if (bool has_run = _app_id > 0; get_last_run_app_name().length() > 0 && has_run) {
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
       system_tray::update_tray_stopped(get_last_run_app_name());
 #endif

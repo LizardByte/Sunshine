@@ -1719,8 +1719,7 @@ namespace nvhttp {
         });
 
         std::lock_guard lock {client_auth_mutex()};
-        auto err_str = verify_client_certificate(x509.get());
-        if (err_str) {
+        if (auto err_str = verify_client_certificate(x509.get()); err_str) {
           logging::warning("SSL Verification error :: {}", err_str);
 
           return verified;

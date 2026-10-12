@@ -57,8 +57,7 @@ namespace platf {
       return gamepads;
     }
 
-    const auto &driver = virtualhid::get_input_context(*input).gamepad_driver;
-    if (driver == config::GAMEPAD_DRIVER_NONE) {
+    if (const auto &driver = virtualhid::get_input_context(*input).gamepad_driver; driver == config::GAMEPAD_DRIVER_NONE) {
       gamepads.clear();
       return gamepads;
     }

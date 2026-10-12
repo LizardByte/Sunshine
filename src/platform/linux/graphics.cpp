@@ -321,12 +321,11 @@ namespace gbm {
 
     device_destroy_fn destroy {};
     create_device_fn create {};
-    const std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-      {(dyn::apiproc *) &destroy, "gbm_device_destroy"},
-      {(dyn::apiproc *) &create, "gbm_create_device"},
-    };
-
-    if (loader.resolve(library.get(), funcs) || !destroy || !create) {
+    if (const std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+          {(dyn::apiproc *) &destroy, "gbm_device_destroy"},
+          {(dyn::apiproc *) &create, "gbm_create_device"},
+        };
+        loader.resolve(library.get(), funcs) || !destroy || !create) {
       return {};
     }
     return std::make_shared<const api_t>(std::move(library), destroy, create);

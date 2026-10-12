@@ -1065,8 +1065,7 @@ namespace input {
    * @return Remapped keycode when configured, otherwise the original keycode.
    */
   short map_keycode(service_t::impl_t &host, short keycode) {
-    auto it = host.settings.input.keybindings.find(keycode);
-    if (it != std::end(host.settings.input.keybindings)) {
+    if (auto it = host.settings.input.keybindings.find(keycode); it != std::end(host.settings.input.keybindings)) {
       return it->second;
     }
 
@@ -1452,8 +1451,7 @@ namespace input {
    * @param packet The controller arrival packet.
    */
   void passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_ARRIVAL_PACKET packet) {
-    auto &host = input->host;
-    if (!host.settings.input.controller || host.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
+    if (auto &host = input->host; !host.settings.input.controller || host.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
       return;
     }
 
@@ -1512,8 +1510,7 @@ namespace input {
    */
   template<typename Packet>
   std::optional<absolute_pointer_data_t> prepare_absolute_pointer_data(std::shared_ptr<input_t> &input, Packet packet) {
-    auto &host = input->host;
-    if (!host.settings.input.mouse) {
+    if (auto &host = input->host; !host.settings.input.mouse) {
       return std::nullopt;
     }
 
@@ -2333,8 +2330,7 @@ namespace input {
    * @param input_data The input message.
    */
   void passthrough(std::shared_ptr<input_t> &input, std::vector<std::uint8_t> &&input_data) {
-    NV_INPUT_HEADER header {};
-    if (!validate_input_packet(input_data, &header)) {
+    if (NV_INPUT_HEADER header {}; !validate_input_packet(input_data, &header)) {
       if (input_data.size() >= sizeof(header)) {
         logging::warning([&header, &input_data](std::ostream &out) {
           out << "Dropping malformed input packet type ["sv

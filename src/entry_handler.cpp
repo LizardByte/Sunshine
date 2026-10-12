@@ -61,8 +61,7 @@ namespace args {
 
 #ifdef _WIN32
   int restore_nvprefs_undo() {
-    nvprefs::nvprefs_interface preferences;
-    if (preferences.load()) {
+    if (nvprefs::nvprefs_interface preferences; preferences.load()) {
       preferences.restore_from_and_delete_undo_file_if_exists();
       preferences.unload();
     }

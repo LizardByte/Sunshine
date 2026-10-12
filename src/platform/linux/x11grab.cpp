@@ -205,13 +205,13 @@ namespace platf {
           return {};
         }
 
-        const std::vector<std::tuple<dyn::apiproc *, const char *>> symbols {
-          {(dyn::apiproc *) &api->shm_id, "xcb_shm_id"},
-          {(dyn::apiproc *) &api->shm_get_image_reply, "xcb_shm_get_image_reply"},
-          {(dyn::apiproc *) &api->shm_get_image_unchecked, "xcb_shm_get_image_unchecked"},
-          {(dyn::apiproc *) &api->shm_attach, "xcb_shm_attach"},
-        };
-        if (dyn::load(api->library.get(), symbols)) {
+        if (const std::vector<std::tuple<dyn::apiproc *, const char *>> symbols {
+              {(dyn::apiproc *) &api->shm_id, "xcb_shm_id"},
+              {(dyn::apiproc *) &api->shm_get_image_reply, "xcb_shm_get_image_reply"},
+              {(dyn::apiproc *) &api->shm_get_image_unchecked, "xcb_shm_get_image_unchecked"},
+              {(dyn::apiproc *) &api->shm_attach, "xcb_shm_attach"},
+            };
+            dyn::load(api->library.get(), symbols)) {
           return {};
         }
         return api;

@@ -927,8 +927,7 @@ namespace platf {
       }
 
       // Shell command replacements are strictly '%' followed by a single non-'%' character
-      auto next_char = std::tolower(cmd_string.at(match_pos + 1));
-      switch (next_char) {
+      switch (auto next_char = std::tolower(cmd_string.at(match_pos + 1)); next_char) {
         // Escape character
         case L'%':
           match_replacement = L'%';
@@ -1072,10 +1071,10 @@ namespace platf {
     auto sunshine_wenv = boost::this_process::wenvironment();
     std::wstring path_var_name {L"PATH"};
     std::wstring old_path_val;
-    auto itr = std::find_if(sunshine_wenv.cbegin(), sunshine_wenv.cend(), [&](const auto &e) {
-      return boost::iequals(e.get_name(), path_var_name);
-    });
-    if (itr != sunshine_wenv.cend()) {
+    if (auto itr = std::find_if(sunshine_wenv.cbegin(), sunshine_wenv.cend(), [&](const auto &e) {
+          return boost::iequals(e.get_name(), path_var_name);
+        });
+        itr != sunshine_wenv.cend()) {
       // Use the existing variable if it exists, since Boost treats these as case-sensitive.
       path_var_name = itr->get_name();
       old_path_val = sunshine_wenv[path_var_name].to_string();
@@ -1652,8 +1651,7 @@ namespace platf {
 
     msg.Control.len = cmbuflen;
 
-    DWORD bytes_sent;
-    if (WSASendMsg((SOCKET) send_info.native_socket, &msg, 0, &bytes_sent, nullptr, nullptr) == SOCKET_ERROR) {
+    if (DWORD bytes_sent; WSASendMsg((SOCKET) send_info.native_socket, &msg, 0, &bytes_sent, nullptr, nullptr) == SOCKET_ERROR) {
       auto winerr = WSAGetLastError();
       logging::warning("WSASendMsg() failed: {}", winerr);
       return false;

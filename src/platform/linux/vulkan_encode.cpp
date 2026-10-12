@@ -278,10 +278,7 @@ namespace vk {
     }
 
     // Try to validate the requested level
-    auto vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR_fn = (PFN_vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR)
-                                                                        vk_ctx->get_proc_addr(vk_ctx->inst, "vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR");
-
-    if (vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR_fn) {
+    if (auto vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR_fn = (PFN_vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR) vk_ctx->get_proc_addr(vk_ctx->inst, "vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR"); vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR_fn) {
       VkPhysicalDeviceVideoEncodeQualityLevelInfoKHR quality_level_info = {};
       quality_level_info.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_ENCODE_QUALITY_LEVEL_INFO_KHR;
       quality_level_info.pVideoProfile = &profile;
@@ -1223,9 +1220,7 @@ namespace vk {
       submit.signalSemaphoreCount = sem_count;
       submit.pSignalSemaphores = signal_sems.data();
 
-      auto res = vkQueueSubmit(vk_dev.compute_queue, 1, &submit, VK_NULL_HANDLE);
-
-      if (res != VK_SUCCESS) {
+      if (auto res = vkQueueSubmit(vk_dev.compute_queue, 1, &submit, VK_NULL_HANDLE); res != VK_SUCCESS) {
         logging::error("vkQueueSubmit failed: {}", static_cast<int>(res));
         return -1;
       }

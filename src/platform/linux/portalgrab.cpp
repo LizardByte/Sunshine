@@ -154,8 +154,7 @@ namespace portal {
       const std::filesystem::path suffixed_path = directory / ("portal_token." + suffix);
 
       // One-time migration of legacy portal_token.
-      std::error_code ec;
-      if (!std::filesystem::exists(suffixed_path, ec) && !ec) {
+      if (std::error_code ec; !std::filesystem::exists(suffixed_path, ec) && !ec) {
         const bool legacy_exists = std::filesystem::exists(legacy_path, ec);
 
         if (!ec && legacy_exists) {

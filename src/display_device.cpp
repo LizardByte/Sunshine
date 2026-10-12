@@ -843,8 +843,7 @@ namespace display_device {
       using enum SettingsManagerInterface::RevertResult;
       const auto result {settings_iface.revertSettings()};
       // A saved record after success means an unplugged display still has HDR, mode, or primary settings to restore.
-      const bool restores_pending {persistence_watch && persistence_watch->has_pending_restores()};
-      if (result == Ok && !restores_pending) {
+      if (const bool restores_pending {persistence_watch && persistence_watch->has_pending_restores()}; result == Ok && !restores_pending) {
         stop_token.requestStop();
         return;
       }

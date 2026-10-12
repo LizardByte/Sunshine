@@ -922,11 +922,10 @@ namespace confighttp {
 
   void service_t::getFallbackPage(const resp_https_t &response, const req_https_t &request) {
     const std::string_view path = request->path;
-    const auto has_server_prefix = [path](const std::string_view prefix) {
-      return path == prefix || (path.starts_with(prefix) && path.length() > prefix.length() && path[prefix.length()] == '/');
-    };
-
-    if (has_server_prefix("/api") || has_server_prefix("/assets") || has_server_prefix("/images")) {
+    if (const auto has_server_prefix = [path](const std::string_view prefix) {
+          return path == prefix || (path.starts_with(prefix) && path.length() > prefix.length() && path[prefix.length()] == '/');
+        };
+        has_server_prefix("/api") || has_server_prefix("/assets") || has_server_prefix("/images")) {
       not_found(response, request);
       return;
     }
@@ -1148,8 +1147,7 @@ namespace confighttp {
       return;
     }
 
-    std::string client_id = get_client_id(request);
-    if (!validate_csrf_token(response, request, client_id)) {
+    if (std::string client_id = get_client_id(request); !validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -1220,8 +1218,7 @@ namespace confighttp {
       return;
     }
 
-    std::string client_id = get_client_id(request);
-    if (!validate_csrf_token(response, request, client_id)) {
+    if (std::string client_id = get_client_id(request); !validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -1246,8 +1243,7 @@ namespace confighttp {
       return;
     }
 
-    std::string client_id = get_client_id(request);
-    if (!validate_csrf_token(response, request, client_id)) {
+    if (std::string client_id = get_client_id(request); !validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -1328,8 +1324,7 @@ namespace confighttp {
     if (!authenticate(response, request)) {
       return;
     }
-    std::string client_id = get_client_id(request);
-    if (!validate_csrf_token(response, request, client_id)) {
+    if (std::string client_id = get_client_id(request); !validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -1345,8 +1340,7 @@ namespace confighttp {
       output_tree["status"] = gamestream.set_client_enabled(uuid, enabled);
 
       if (!enabled && output_tree["status"]) {
-        auto cert = gamestream.get_cert_by_uuid(uuid);
-        if (!cert.empty()) {
+        if (auto cert = gamestream.get_cert_by_uuid(uuid); !cert.empty()) {
           rtsp.terminate_sessions_by_cert(cert);
         }
 
@@ -1383,8 +1377,7 @@ namespace confighttp {
       return;
     }
 
-    std::string client_id = get_client_id(request);
-    if (!validate_csrf_token(response, request, client_id)) {
+    if (std::string client_id = get_client_id(request); !validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -1424,8 +1417,7 @@ namespace confighttp {
       return;
     }
 
-    std::string client_id = get_client_id(request);
-    if (!validate_csrf_token(response, request, client_id)) {
+    if (std::string client_id = get_client_id(request); !validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -1508,8 +1500,7 @@ namespace confighttp {
       return;
     }
 
-    std::string client_id = get_client_id(request);
-    if (!validate_csrf_token(response, request, client_id)) {
+    if (std::string client_id = get_client_id(request); !validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -1817,8 +1808,7 @@ namespace confighttp {
       return;
     }
 
-    const std::string client_id = get_client_id(request);
-    if (!validate_csrf_token(response, request, client_id)) {
+    if (const std::string client_id = get_client_id(request); !validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -1868,8 +1858,7 @@ namespace confighttp {
       return;
     }
 
-    std::string client_id = get_client_id(request);
-    if (!validate_csrf_token(response, request, client_id)) {
+    if (std::string client_id = get_client_id(request); !validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -1916,8 +1905,7 @@ namespace confighttp {
       return;
     }
 
-    std::string client_id = get_client_id(request);
-    if (!validate_csrf_token(response, request, client_id)) {
+    if (std::string client_id = get_client_id(request); !validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -1942,8 +1930,7 @@ namespace confighttp {
       return;
     }
 
-    std::string client_id = get_client_id(request);
-    if (!validate_csrf_token(response, request, client_id)) {
+    if (std::string client_id = get_client_id(request); !validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -1979,8 +1966,7 @@ namespace confighttp {
       return;
     }
 
-    std::string client_id = get_client_id(request);
-    if (!validate_csrf_token(response, request, client_id)) {
+    if (std::string client_id = get_client_id(request); !validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -2031,8 +2017,7 @@ namespace confighttp {
     if (!authenticate(response, request)) {
       return;
     }
-    const auto client_id = get_client_id(request);
-    if (!validate_csrf_token(response, request, client_id)) {
+    if (const auto client_id = get_client_id(request); !validate_csrf_token(response, request, client_id)) {
       return;
     }
     if (!check_content_type(response, request, "application/json")) {
@@ -2046,8 +2031,7 @@ namespace confighttp {
         return;
       }
 
-      const bool requested = platf::request_permission(input["id"].get<std::string>());
-      if (!requested) {
+      if (const bool requested = platf::request_permission(input["id"].get<std::string>()); !requested) {
         bad_request(response, request, "Unknown or unavailable permission");
         return;
       }

@@ -675,16 +675,14 @@ namespace system_tray {
   #if defined(_WIN32) || defined(__APPLE__)
     // Simple cache ensures our string pointers live forever.
     static std::unordered_map<std::string, std::string, transparent_string_hash_t, std::equal_to<>> g_cache;
-    auto search = g_cache.find(std::string_view {relativePath});
-    if (search != g_cache.end()) {
+    if (auto search = g_cache.find(std::string_view {relativePath}); search != g_cache.end()) {
       return search->second.c_str();
     }
   #endif
 
   #ifdef _WIN32
     std::array<wchar_t, 32768> executable {};
-    const auto executable_length = GetModuleFileNameW(nullptr, executable.data(), executable.size());
-    if (executable_length == 0 || executable_length >= executable.size()) {
+    if (const auto executable_length = GetModuleFileNameW(nullptr, executable.data(), executable.size()); executable_length == 0 || executable_length >= executable.size()) {
       return relativePath;
     }
 

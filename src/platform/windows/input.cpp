@@ -277,8 +277,7 @@ namespace platf {
       // Probe ViGEm during startup to see if we can successfully attach gamepads. This will allow us to
       // immediately display the error message in the web UI even before the user tries to stream.
       client_t client {vigem_alloc()};
-      VIGEM_ERROR status = vigem_connect(client.get());
-      if (!VIGEM_SUCCESS(status)) {
+      if (VIGEM_ERROR status = vigem_connect(client.get()); !VIGEM_SUCCESS(status)) {
         logging::warning("ViGEmBus is not installed or running, so its limited Xbox 360 and DualShock 4 gamepad support is unavailable"sv);
         return -1;
       } else {
@@ -1052,8 +1051,7 @@ namespace platf {
       gamepad.report.ds4.Report.wTimestamp += (uint16_t) (delta_ns.count() / 5333);
 
       // Send the report to the virtual device
-      auto status = vigem_target_ds4_update_ex(vigem->client.get(), gamepad.gp.get(), gamepad.report.ds4);
-      if (!VIGEM_SUCCESS(status)) {
+      if (auto status = vigem_target_ds4_update_ex(vigem->client.get(), gamepad.gp.get(), gamepad.report.ds4); !VIGEM_SUCCESS(status)) {
         logging::warning("Couldn't send gamepad input to ViGEm [{}]", util::hex(status).to_string_view());
         return;
       }

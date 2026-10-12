@@ -73,8 +73,7 @@ namespace platf::dxgi {
     };
 
     buf_t::pointer buf_p;
-    auto status = device->CreateBuffer(&buffer_desc, &init_data, &buf_p);
-    if (status) {
+    if (auto status = device->CreateBuffer(&buffer_desc, &init_data, &buf_p); status) {
       logging::error("Failed to create buffer: [0x{}]", util::hex(status).to_string_view());
       return nullptr;
     }
@@ -115,8 +114,7 @@ namespace platf::dxgi {
     }
 
     blend_t blend;
-    auto status = device->CreateBlendState(&bdesc, &blend);
-    if (status) {
+    if (auto status = device->CreateBlendState(&bdesc, &blend); status) {
       logging::error("Failed to create blend state: [0x{}]", util::hex(status).to_string_view());
       return nullptr;
     }
@@ -232,8 +230,7 @@ namespace platf::dxgi {
       if (_locked) {
         return true;
       }
-      HRESULT status = _mutex->AcquireSync(0, INFINITE);
-      if (status == S_OK) {
+      if (HRESULT status = _mutex->AcquireSync(0, INFINITE); status == S_OK) {
         _locked = true;
       } else {
         logging::error("Failed to acquire texture mutex [0x{}]", util::hex(status).to_string_view());
@@ -296,9 +293,7 @@ namespace platf::dxgi {
     for (auto x = 0; x < bytes; ++x) {
       for (auto c = 7; c >= 0 && ((std::uint8_t *) pixel_data) != std::end(cursor_img); --c) {
         auto bit = 1 << c;
-        auto color_type = ((*and_mask & bit) ? 1 : 0) + ((*xor_mask & bit) ? 2 : 0);
-
-        switch (color_type) {
+        switch (auto color_type = ((*and_mask & bit) ? 1 : 0) + ((*xor_mask & bit) ? 2 : 0); color_type) {
           case 0:  // Opaque black (handled by alpha-blending)
           case 2:  // Opaque white (handled by alpha-blending)
           case 1:  // Color of screen (transparent)
@@ -374,9 +369,7 @@ namespace platf::dxgi {
     for (auto x = 0; x < bytes; ++x) {
       for (auto c = 7; c >= 0 && ((std::uint8_t *) pixel_data) != std::end(cursor_img); --c) {
         auto bit = 1 << c;
-        auto color_type = ((*and_mask & bit) ? 1 : 0) + ((*xor_mask & bit) ? 2 : 0);
-
-        switch (color_type) {
+        switch (auto color_type = ((*and_mask & bit) ? 1 : 0) + ((*xor_mask & bit) ? 2 : 0); color_type) {
           case 0:  // Opaque black
             *pixel_data = black;
             break;
@@ -457,8 +450,7 @@ namespace platf::dxgi {
         }
       }
 
-      auto &img = (img_d3d_t &) img_base;
-      if (!img.blank) {
+      if (auto &img = (img_d3d_t &) img_base; !img.blank) {
         auto &img_ctx = img_ctx_map[img.id];
 
         // Open the shared capture texture with our ID3D11Device
@@ -467,8 +459,7 @@ namespace platf::dxgi {
         }
 
         // Acquire encoder mutex to synchronize with capture code
-        auto status = img_ctx.encoder_mutex->AcquireSync(0, INFINITE);
-        if (status != S_OK) {
+        if (auto status = img_ctx.encoder_mutex->AcquireSync(0, INFINITE); status != S_OK) {
           logging::error("Failed to acquire encoder mutex [0x{}]", util::hex(status).to_string_view());
           return -1;
         }
@@ -498,8 +489,7 @@ namespace platf::dxgi {
 
         // Clear render target view(s) once so that the aspect ratio mismatch "bars" appear black
         if (!rtvs_cleared) {
-          auto black = create_black_texture_for_rtv_clear();
-          if (black) {
+          if (auto black = create_black_texture_for_rtv_clear(); black) {
             draw(black, out_Y_or_YUV_viewports_for_clear, out_UV_viewport_for_clear);
           }
           rtvs_cleared = true;
@@ -1190,8 +1180,7 @@ namespace platf::dxgi {
 
         d3d11_frame->format = AV_PIX_FMT_D3D11;
 
-        auto err = av_hwframe_map(d3d11_frame.get(), frame, AV_HWFRAME_MAP_WRITE | AV_HWFRAME_MAP_OVERWRITE);
-        if (err) {
+        if (auto err = av_hwframe_map(d3d11_frame.get(), frame, AV_HWFRAME_MAP_WRITE | AV_HWFRAME_MAP_OVERWRITE); err) {
           std::array<char, AV_ERROR_MAX_STRING_SIZE> err_str {0};
           logging::error([&err_str, &err](std::ostream &out) {
             out << "Failed to map D3D11 frame: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, err);

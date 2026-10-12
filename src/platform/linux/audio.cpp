@@ -79,8 +79,7 @@ namespace platf {
       auto sample_size = sample_buf.size();
 
       auto buf = sample_buf.data();
-      int status;
-      if (pa_simple_read(mic.get(), buf, sample_size * sizeof(float), &status)) {
+      if (int status; pa_simple_read(mic.get(), buf, sample_size * sizeof(float), &status)) {
         logging::error("pa_simple_read() failed: {}", pa_strerror(status));
 
         return capture_e::error;
@@ -388,8 +387,7 @@ namespace platf {
 
         pa_context_set_state_callback(ctx.get(), ctx_state_cb, events_cb.get());
 
-        auto status = pa_context_connect(ctx.get(), nullptr, PA_CONTEXT_NOFLAGS, nullptr);
-        if (status) {
+        if (auto status = pa_context_connect(ctx.get(), nullptr, PA_CONTEXT_NOFLAGS, nullptr); status) {
           logging::error("Couldn't connect to pulseaudio: {}", pa_strerror(status));
           return -1;
         }
@@ -408,8 +406,7 @@ namespace platf {
           loop.get()
         };
 
-        auto event = events->pop();
-        if (event == failed) {
+        if (auto event = events->pop(); event == failed) {
           return -1;
         }
 
@@ -471,6 +468,8 @@ namespace platf {
       /**
        * @brief Query host and virtual sink names available to Sunshine.
        *
+       * Keep the query operation alive through callback completion and sink updates.
+       *
        * @return Host and virtual sink names when the backend can report them.
        */
       std::optional<sink_t> sink_info() override {
@@ -513,59 +512,57 @@ namespace platf {
           }
         };
 
-        op_t op {pa_context_get_sink_info_list(ctx.get(), cb<pa_sink_info *>, &f)};
-
-        if (!op) {
+        if (op_t op {pa_context_get_sink_info_list(ctx.get(), cb<pa_sink_info *>, &f)}; !op) {
           logging::error("Couldn't create card info operation: {}", pa_strerror(pa_context_errno(ctx.get())));
 
           return std::nullopt;
-        }
+        } else {
+          alarm->wait();
 
-        alarm->wait();
+          if (*alarm->status()) {
+            return std::nullopt;
+          }
 
-        if (*alarm->status()) {
-          return std::nullopt;
-        }
+          auto sink_name = get_default_sink_name();
+          sink.host = sink_name;
 
-        auto sink_name = get_default_sink_name();
-        sink.host = sink_name;
-
-        if (index.stereo == PA_INVALID_INDEX) {
-          index.stereo = load_null(stereo, speaker::map_stereo.data(), static_cast<int>(speaker::map_stereo.size()));
           if (index.stereo == PA_INVALID_INDEX) {
-            logging::warning("Couldn't create virtual sink for stereo: {}", pa_strerror(pa_context_errno(ctx.get())));
-          } else {
-            ++nullcount;
+            index.stereo = load_null(stereo, speaker::map_stereo.data(), static_cast<int>(speaker::map_stereo.size()));
+            if (index.stereo == PA_INVALID_INDEX) {
+              logging::warning("Couldn't create virtual sink for stereo: {}", pa_strerror(pa_context_errno(ctx.get())));
+            } else {
+              ++nullcount;
+            }
           }
-        }
 
-        if (index.surround51 == PA_INVALID_INDEX) {
-          index.surround51 = load_null(surround51, speaker::map_surround51.data(), static_cast<int>(speaker::map_surround51.size()));
           if (index.surround51 == PA_INVALID_INDEX) {
-            logging::warning("Couldn't create virtual sink for surround-51: {}", pa_strerror(pa_context_errno(ctx.get())));
-          } else {
-            ++nullcount;
+            index.surround51 = load_null(surround51, speaker::map_surround51.data(), static_cast<int>(speaker::map_surround51.size()));
+            if (index.surround51 == PA_INVALID_INDEX) {
+              logging::warning("Couldn't create virtual sink for surround-51: {}", pa_strerror(pa_context_errno(ctx.get())));
+            } else {
+              ++nullcount;
+            }
           }
-        }
 
-        if (index.surround71 == PA_INVALID_INDEX) {
-          index.surround71 = load_null(surround71, speaker::map_surround71.data(), static_cast<int>(speaker::map_surround71.size()));
           if (index.surround71 == PA_INVALID_INDEX) {
-            logging::warning("Couldn't create virtual sink for surround-71: {}", pa_strerror(pa_context_errno(ctx.get())));
-          } else {
-            ++nullcount;
+            index.surround71 = load_null(surround71, speaker::map_surround71.data(), static_cast<int>(speaker::map_surround71.size()));
+            if (index.surround71 == PA_INVALID_INDEX) {
+              logging::warning("Couldn't create virtual sink for surround-71: {}", pa_strerror(pa_context_errno(ctx.get())));
+            } else {
+              ++nullcount;
+            }
           }
-        }
 
-        if (sink_name.empty()) {
-          logging::warning("Couldn't find an active default sink. Continuing with virtual audio only."sv);
-        }
+          if (sink_name.empty()) {
+            logging::warning("Couldn't find an active default sink. Continuing with virtual audio only."sv);
+          }
 
-        if (nullcount == 3) {
-          sink.null = std::make_optional(sink_t::null_t {stereo, surround51, surround71});
-        }
+          if (nullcount == 3) {
+            sink.null = std::make_optional(sink_t::null_t {stereo, surround51, surround71});
+          }
 
-        return std::make_optional(std::move(sink));
+          return std::make_optional(std::move(sink));
+        }
       }
 
       /**
@@ -669,6 +666,8 @@ namespace platf {
       /**
        * @brief Update the sink value on the backend.
        *
+       * Keep the native operation alive until its completion callback is consumed.
+       *
        * @param sink Audio sink name to route or capture.
        * @return Status from updating sink.
        */
@@ -676,30 +675,24 @@ namespace platf {
         auto alarm = safe::make_alarm<int>();
 
         logging::info("Setting default sink to: [{}]", sink);
-        op_t op {
-          pa_context_set_default_sink(
-            ctx.get(),
-            sink.c_str(),
-            success_cb,
-            alarm.get()
-          ),
-        };
-
-        if (!op) {
+        if (op_t op {
+              pa_context_set_default_sink(ctx.get(), sink.c_str(), success_cb, alarm.get()),
+            };
+            !op) {
           logging::error("Couldn't create set default-sink operation: {}", pa_strerror(pa_context_errno(ctx.get())));
           return -1;
+        } else {
+          alarm->wait();
+          if (*alarm->status()) {
+            logging::error("Couldn't set default-sink [{}]: {}", sink, pa_strerror(pa_context_errno(ctx.get())));
+
+            return -1;
+          }
+
+          requested_sink = sink;
+
+          return 0;
         }
-
-        alarm->wait();
-        if (*alarm->status()) {
-          logging::error("Couldn't set default-sink [{}]: {}", sink, pa_strerror(pa_context_errno(ctx.get())));
-
-          return -1;
-        }
-
-        requested_sink = sink;
-
-        return 0;
       }
 
       ~server_t() override {

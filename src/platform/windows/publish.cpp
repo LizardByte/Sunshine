@@ -287,9 +287,7 @@ namespace platf::publish {
    * @return Service registration owner, or null when DNS-SD is unavailable.
    */
   std::unique_ptr<::platf::deinit_t> start(const config::settings_t &settings) {
-    HMODULE handle = LoadLibrary("dnsapi.dll");
-
-    if (!handle || load_funcs(handle)) {
+    if (HMODULE handle = LoadLibrary("dnsapi.dll"); !handle || load_funcs(handle)) {
       logging::error("Couldn't load dnsapi.dll, You'll need to add PC manually from Moonlight"sv);
       return nullptr;
     }

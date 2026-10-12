@@ -603,6 +603,9 @@ TEST_F(ProcessRefreshTest, Refresh_PreservesRunningAppDuringReparse) {
   process = std::move(saved);
 }
 
+/**
+ * @brief Diagnose the platform file clock without using its default value as an initialization sentinel.
+ */
 TEST_F(ProcessRefreshTest, FileTimeType_DefaultValueComparison) {
   // This test documents the behavior that triggered the timestamp guard
   // regression. On some toolchains (MSYS2 UCRT64 GCC 16.2), file timestamps
@@ -611,11 +614,10 @@ TEST_F(ProcessRefreshTest, FileTimeType_DefaultValueComparison) {
   // The fix uses std::optional<file_time_type> instead of relying on
   // file_time_type{} as a "never parsed" indicator.
   const auto default_time = std::filesystem::file_time_type {};
-  const auto now_time = std::filesystem::file_time_type::clock::now();
 
   // We cannot assert the comparison direction since it is platform-dependent.
   // Instead, just log and document both cases.
-  if (now_time <= default_time) {
+  if (const auto now_time = std::filesystem::file_time_type::clock::now(); now_time <= default_time) {
     logging::info("file_time_type::clock::now() <= file_time_type{} is TRUE on this platform (this is the UCRT64 case that requires the optional sentinel)");
   } else {
     logging::info("file_time_type::clock::now() > file_time_type{} on this platform (default-init guard would have worked, but optional is still safer)");

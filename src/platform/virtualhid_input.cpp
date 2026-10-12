@@ -1044,8 +1044,7 @@ namespace platf::virtualhid {
       std::pair {lvh::PenButton::tertiary, (pen_buttons & static_cast<std::byte>(LI_PEN_BUTTON_TERTIARY)) != std::byte {}},
     };
     for (const auto &[button, pressed] : button_states) {
-      const auto was_pressed = context.pressed_pen_buttons.contains(button);
-      if (pressed == was_pressed) {
+      if (const auto was_pressed = context.pressed_pen_buttons.contains(button); pressed == was_pressed) {
         continue;
       }
 

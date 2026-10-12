@@ -233,8 +233,7 @@ namespace va {
     VAEntrypoint select_va_entrypoint(VAProfile profile) {
       std::vector<VAEntrypoint> entrypoints(vaMaxNumEntrypoints(va_display));
       int num_eps;
-      auto status = vaQueryConfigEntrypoints(va_display, profile, entrypoints.data(), &num_eps);
-      if (status != VA_STATUS_SUCCESS) {
+      if (auto status = vaQueryConfigEntrypoints(va_display, profile, entrypoints.data(), &num_eps); status != VA_STATUS_SUCCESS) {
         logging::error("Failed to query VA entrypoints: {}", vaErrorStr(status));
         return (VAEntrypoint) 0;
       }
@@ -263,8 +262,7 @@ namespace va {
     bool is_va_profile_supported(VAProfile profile) {
       std::vector<VAProfile> profiles(vaMaxNumProfiles(va_display));
       int num_profs;
-      auto status = vaQueryConfigProfiles(va_display, profiles.data(), &num_profs);
-      if (status != VA_STATUS_SUCCESS) {
+      if (auto status = vaQueryConfigProfiles(va_display, profiles.data(), &num_profs); status != VA_STATUS_SUCCESS) {
         logging::error("Failed to query VA profiles: {}", vaErrorStr(status));
         return false;
       }
@@ -775,8 +773,7 @@ namespace va {
     entrypoints.resize(vaMaxNumEntrypoints(display));
 
     int count;
-    auto status = vaQueryConfigEntrypoints(display, profile, entrypoints.data(), &count);
-    if (status) {
+    if (auto status = vaQueryConfigEntrypoints(display, profile, entrypoints.data(), &count); status) {
       logging::error("Couldn't query entrypoints: {}", vaErrorStr(status));
       return false;
     }
@@ -809,8 +806,7 @@ namespace va {
 
     int major;
     int minor;
-    auto status = vaInitialize(display.get(), &major, &minor);
-    if (status) {
+    if (auto status = vaInitialize(display.get(), &major, &minor); status) {
       logging::error("Couldn't initialize va display: {}", vaErrorStr(status));
       return false;
     }

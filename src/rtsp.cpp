@@ -937,10 +937,8 @@ namespace rtsp_stream {
       // Send the full encrypted message
       send(sock, std::string_view {(char *) message.data(), message.size()});
     } else {
-      std::string_view tmp_resp {raw_resp.get(), (size_t) serialized_len};
-
       // Send the plaintext RTSP message header
-      if (send(sock, tmp_resp)) {
+      if (std::string_view tmp_resp {raw_resp.get(), (size_t) serialized_len}; send(sock, tmp_resp)) {
         return;
       }
 

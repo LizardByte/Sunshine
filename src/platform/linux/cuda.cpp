@@ -795,8 +795,7 @@ namespace cuda {
 
         handle_t handle;
         handle.api = std::move(api);
-        auto status = handle.api->functions.nvFBCCreateHandle(&handle.handle, &params);
-        if (status) {
+        if (auto status = handle.api->functions.nvFBCCreateHandle(&handle.handle, &params); status) {
           logging::error("Failed to create session: {}", handle.last_error());
 
           return std::nullopt;
@@ -824,8 +823,7 @@ namespace cuda {
       std::optional<NVFBC_GET_STATUS_PARAMS> status() {
         NVFBC_GET_STATUS_PARAMS params {.dwVersion = NVFBC_GET_STATUS_PARAMS_VER};
 
-        auto status = api->functions.nvFBCGetStatus(handle, &params);
-        if (status) {
+        if (auto status = api->functions.nvFBCGetStatus(handle, &params); status) {
           logging::error("Failed to get NvFBC status: {}", last_error());
 
           return std::nullopt;
@@ -848,12 +846,11 @@ namespace cuda {
 
         handle_flags[SESSION_CAPTURE] = true;
 
-        NVFBC_TOCUDA_SETUP_PARAMS setup_params {
-          NVFBC_TOCUDA_SETUP_PARAMS_VER,
-          NVFBC_BUFFER_FORMAT_BGRA,
-        };
-
-        if (api->functions.nvFBCToCudaSetUp(handle, &setup_params)) {
+        if (NVFBC_TOCUDA_SETUP_PARAMS setup_params {
+              NVFBC_TOCUDA_SETUP_PARAMS_VER,
+              NVFBC_BUFFER_FORMAT_BGRA,
+            };
+            api->functions.nvFBCToCudaSetUp(handle, &setup_params)) {
           logging::error("Failed to setup cuda interop with nvFBC: {}", last_error());
           return -1;
         }
@@ -870,9 +867,7 @@ namespace cuda {
           return 0;
         }
 
-        NVFBC_DESTROY_CAPTURE_SESSION_PARAMS params {NVFBC_DESTROY_CAPTURE_SESSION_PARAMS_VER};
-
-        if (api->functions.nvFBCDestroyCaptureSession(handle, &params)) {
+        if (NVFBC_DESTROY_CAPTURE_SESSION_PARAMS params {NVFBC_DESTROY_CAPTURE_SESSION_PARAMS_VER}; api->functions.nvFBCDestroyCaptureSession(handle, &params)) {
           logging::error("Couldn't destroy capture session: {}", last_error());
 
           return -1;

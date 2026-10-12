@@ -1265,8 +1265,7 @@ namespace platf {
     // FreeBSD doesn't support SO_PRIORITY, so we skip this
     logging::debug("SO_PRIORITY not supported on this platform, skipping traffic priority setting");
 #else
-    int priority = data_type == qos_data_type_e::audio ? 6 : 5;
-    if (setsockopt(sockfd, SOL_SOCKET, SO_PRIORITY, &priority, sizeof(priority)) == 0) {
+    if (int priority = data_type == qos_data_type_e::audio ? 6 : 5; setsockopt(sockfd, SOL_SOCKET, SO_PRIORITY, &priority, sizeof(priority)) == 0) {
       // Reset SO_PRIORITY to 0 when QoS is disabled
       reset_options.emplace_back(std::make_tuple(SOL_SOCKET, SO_PRIORITY, 0));
     } else {

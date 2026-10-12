@@ -64,12 +64,11 @@ namespace video {
       // Since Windows 11 24H2, it is possible that there will be no active devices present
       // for some reason (probably a bug). Trying to probe encoders in such a state locks/breaks the DXGI
       // and also the display device for Windows. So we must have at least 1 active device.
-      const bool at_least_one_device_is_active = std::any_of(std::begin(devices), std::end(devices), [](const auto &device) {
-        // If device has additional info, it is active.
-        return static_cast<bool>(device.m_info);
-      });
-
-      if (at_least_one_device_is_active) {
+      if (const bool at_least_one_device_is_active = std::any_of(std::begin(devices), std::end(devices), [](const auto &device) {
+            // If device has additional info, it is active.
+            return static_cast<bool>(device.m_info);
+          });
+          at_least_one_device_is_active) {
         return true;
       }
 
@@ -264,8 +263,7 @@ namespace video {
     sws_input_frame->linesize[3] = 0;
 
     // Perform color conversion and scaling to the final size
-    auto status = sws_scale_frame(sws.get(), requires_padding ? sws_output_frame.get() : sw_frame.get(), sws_input_frame.get());
-    if (status < 0) {
+    if (auto status = sws_scale_frame(sws.get(), requires_padding ? sws_output_frame.get() : sw_frame.get(), sws_input_frame.get()); status < 0) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
       logging::error([&string, &status](std::ostream &out) {
         out << "Couldn't scale frame: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
@@ -3627,8 +3625,7 @@ namespace video {
 
     auto render_device = platf::resolve_render_device(settings);
 
-    auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VAAPI, render_device.empty() ? nullptr : render_device.c_str(), nullptr, 0);
-    if (status < 0) {
+    if (auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VAAPI, render_device.empty() ? nullptr : render_device.c_str(), nullptr, 0); status < 0) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
       logging::error([&string, &status](std::ostream &out) {
         out << "Failed to create a VAAPI device: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
@@ -3685,8 +3682,7 @@ namespace video {
   util::Either<avcodec_buffer_t, int> cuda_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device) {
     avcodec_buffer_t hw_device_buf;
 
-    auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_CUDA, nullptr, nullptr, 1 /* AV_CUDA_USE_PRIMARY_CONTEXT */);
-    if (status < 0) {
+    if (auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_CUDA, nullptr, nullptr, 1 /* AV_CUDA_USE_PRIMARY_CONTEXT */); status < 0) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
       logging::error([&string, &status](std::ostream &out) {
         out << "Failed to create a CUDA device: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
@@ -3703,8 +3699,7 @@ namespace video {
   util::Either<avcodec_buffer_t, int> vt_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device) {
     avcodec_buffer_t hw_device_buf;
 
-    auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VIDEOTOOLBOX, nullptr, nullptr, 0);
-    if (status < 0) {
+    if (auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VIDEOTOOLBOX, nullptr, nullptr, 0); status < 0) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
       logging::error([&string, &status](std::ostream &out) {
         out << "Failed to create a VideoToolbox device: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
@@ -3743,8 +3738,7 @@ namespace video {
     ctx->lock = do_nothing;
     ctx->unlock = do_nothing;
 
-    auto err = av_hwdevice_ctx_init(ctx_buf.get());
-    if (err) {
+    if (auto err = av_hwdevice_ctx_init(ctx_buf.get()); err) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> err_str {0};
       logging::error([&err_str, &err](std::ostream &out) {
         out << "Failed to create FFMpeg hardware device context: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, err);

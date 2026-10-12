@@ -39,10 +39,10 @@ namespace cuda::nvfbc {
       }
 
       PNVFBCCREATEINSTANCE create_instance {};
-      const std::vector<std::tuple<dyn::apiproc *, const char *>> symbols {
-        {(dyn::apiproc *) &create_instance, "NvFBCCreateInstance"},
-      };
-      if (loader.resolve(library.get(), symbols) || !create_instance) {
+      if (const std::vector<std::tuple<dyn::apiproc *, const char *>> symbols {
+            {(dyn::apiproc *) &create_instance, "NvFBCCreateInstance"},
+          };
+          loader.resolve(library.get(), symbols) || !create_instance) {
         return {};
       }
 

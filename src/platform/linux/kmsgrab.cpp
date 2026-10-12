@@ -872,8 +872,7 @@ namespace platf {
        */
       std::uint32_t get_panel_orientation(std::uint32_t plane_id) {
         auto props = plane_props(plane_id);
-        auto value = prop_value_by_name(props, "rotation"sv);
-        if (value) {
+        if (auto value = prop_value_by_name(props, "rotation"sv); value) {
           return *value;
         }
 

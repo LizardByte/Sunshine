@@ -126,8 +126,7 @@ namespace platf {
       if (!api->create || !api->close || !api->add || !api->remove) {
         return {};
       }
-      QOS_VERSION version {1, 0};
-      if (!api->create(&version, &api->handle)) {
+      if (QOS_VERSION version {1, 0}; !api->create(&version, &api->handle)) {
         return {};
       }
       return api;

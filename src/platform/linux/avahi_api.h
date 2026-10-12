@@ -287,18 +287,18 @@ namespace avahi {
         return {};
       }
 
-      const std::vector<std::tuple<dyn::apiproc *, const char *>> common_functions {
-        {(dyn::apiproc *) &api->alternative_service_name, "avahi_alternative_service_name"},
-        {(dyn::apiproc *) &api->free, "avahi_free"},
-        {(dyn::apiproc *) &api->strdup, "avahi_strdup"},
-        {(dyn::apiproc *) &api->strerror, "avahi_strerror"},
-        {(dyn::apiproc *) &api->simple_poll_get, "avahi_simple_poll_get"},
-        {(dyn::apiproc *) &api->simple_poll_loop, "avahi_simple_poll_loop"},
-        {(dyn::apiproc *) &api->simple_poll_quit, "avahi_simple_poll_quit"},
-        {(dyn::apiproc *) &api->simple_poll_new, "avahi_simple_poll_new"},
-        {(dyn::apiproc *) &api->simple_poll_free, "avahi_simple_poll_free"},
-      };
-      if (loader.resolve(api->common_library.get(), common_functions)) {
+      if (const std::vector<std::tuple<dyn::apiproc *, const char *>> common_functions {
+            {(dyn::apiproc *) &api->alternative_service_name, "avahi_alternative_service_name"},
+            {(dyn::apiproc *) &api->free, "avahi_free"},
+            {(dyn::apiproc *) &api->strdup, "avahi_strdup"},
+            {(dyn::apiproc *) &api->strerror, "avahi_strerror"},
+            {(dyn::apiproc *) &api->simple_poll_get, "avahi_simple_poll_get"},
+            {(dyn::apiproc *) &api->simple_poll_loop, "avahi_simple_poll_loop"},
+            {(dyn::apiproc *) &api->simple_poll_quit, "avahi_simple_poll_quit"},
+            {(dyn::apiproc *) &api->simple_poll_new, "avahi_simple_poll_new"},
+            {(dyn::apiproc *) &api->simple_poll_free, "avahi_simple_poll_free"},
+          };
+          loader.resolve(api->common_library.get(), common_functions)) {
         return {};
       }
 
@@ -307,18 +307,18 @@ namespace avahi {
         return {};
       }
 
-      const std::vector<std::tuple<dyn::apiproc *, const char *>> client_functions {
-        {(dyn::apiproc *) &api->client_new, "avahi_client_new"},
-        {(dyn::apiproc *) &api->client_free, "avahi_client_free"},
-        {(dyn::apiproc *) &api->entry_group_get_client, "avahi_entry_group_get_client"},
-        {(dyn::apiproc *) &api->entry_group_new, "avahi_entry_group_new"},
-        {(dyn::apiproc *) &api->entry_group_add_service, "avahi_entry_group_add_service"},
-        {(dyn::apiproc *) &api->entry_group_is_empty, "avahi_entry_group_is_empty"},
-        {(dyn::apiproc *) &api->entry_group_reset, "avahi_entry_group_reset"},
-        {(dyn::apiproc *) &api->entry_group_commit, "avahi_entry_group_commit"},
-        {(dyn::apiproc *) &api->client_errno, "avahi_client_errno"},
-      };
-      if (loader.resolve(api->client_library.get(), client_functions)) {
+      if (const std::vector<std::tuple<dyn::apiproc *, const char *>> client_functions {
+            {(dyn::apiproc *) &api->client_new, "avahi_client_new"},
+            {(dyn::apiproc *) &api->client_free, "avahi_client_free"},
+            {(dyn::apiproc *) &api->entry_group_get_client, "avahi_entry_group_get_client"},
+            {(dyn::apiproc *) &api->entry_group_new, "avahi_entry_group_new"},
+            {(dyn::apiproc *) &api->entry_group_add_service, "avahi_entry_group_add_service"},
+            {(dyn::apiproc *) &api->entry_group_is_empty, "avahi_entry_group_is_empty"},
+            {(dyn::apiproc *) &api->entry_group_reset, "avahi_entry_group_reset"},
+            {(dyn::apiproc *) &api->entry_group_commit, "avahi_entry_group_commit"},
+            {(dyn::apiproc *) &api->client_errno, "avahi_client_errno"},
+          };
+          loader.resolve(api->client_library.get(), client_functions)) {
         return {};
       }
       return api;

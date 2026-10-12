@@ -918,8 +918,7 @@ namespace platf::audio {
       }
 
       // Search for the virtual audio sink device currently present in the system.
-      auto matched = find_device_id(match_list);
-      if (matched) {
+      if (auto matched = find_device_id(match_list); matched) {
         // Prepare to fill virtual audio sink names with device_id.
         auto device_id = utf_utils::to_utf8(matched->second);
         // Also prepend format name (basically channel layout at the moment)
@@ -1037,8 +1036,7 @@ namespace platf::audio {
       }
 
       // If this is a virtual sink, set a callback that will change the sink back if it's changed
-      auto virtual_sink_info = extract_virtual_sink_info(assigned_sink);
-      if (virtual_sink_info && !settings.audio.external_audio) {
+      if (auto virtual_sink_info = extract_virtual_sink_info(assigned_sink); virtual_sink_info && !settings.audio.external_audio) {
         mic->default_endpt_changed_cb = [this] {
           logging::info("Resetting sink to [{}] after default changed", assigned_sink);
           set_sink(assigned_sink);
@@ -1082,8 +1080,7 @@ namespace platf::audio {
       // default audio device. Switching from a 16-bit device to a 24-bit one has been known to
       // cause glitches for some users.
       int wanted_bits_per_sample = 32;
-      auto current_default_dev = default_device(device_enum);
-      if (current_default_dev) {
+      if (auto current_default_dev = default_device(device_enum); current_default_dev) {
         audio::prop_t prop;
         prop_var_t current_device_format;
 
@@ -1395,8 +1392,7 @@ namespace platf::audio {
 
         return true;
       } else {
-        auto err = GetLastError();
-        switch (err) {
+        switch (auto err = GetLastError(); err) {
           case ERROR_ACCESS_DENIED:
             logging::warning("Administrator privileges are required to install Steam Streaming Speakers"sv);
             break;
