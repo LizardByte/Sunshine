@@ -270,7 +270,7 @@ namespace proc {
                                               find_working_directory(command) :
                                               boost::filesystem::path(_app.working_dir);
       logging::info("Executing Do Cmd: [{}]", command);
-      auto child = platf::run_command(cmd.elevated, true, command, working_dir, _env, _pipe.get(), ec, nullptr);
+      auto child = platf::run_command(platf::command_options_t {cmd.elevated, true, command, working_dir, _env, _pipe.get()}, ec, nullptr);
 
       if (ec) {
         logging::error([&command, &ec](std::ostream &out) {
@@ -306,7 +306,7 @@ namespace proc {
       logging::info([&command, &working_dir](std::ostream &out) {
         out << "Spawning ["sv << command << "] in ["sv << working_dir << ']';
       });
-      auto child = platf::run_command(_app.elevated, true, command, working_dir, _env, _pipe.get(), ec, nullptr);
+      auto child = platf::run_command(platf::command_options_t {_app.elevated, true, command, working_dir, _env, _pipe.get()}, ec, nullptr);
       if (ec) {
         logging::warning([&command, &ec](std::ostream &out) {
           out << "Couldn't spawn ["sv << command << "]: System: "sv << ec.message();
@@ -327,7 +327,7 @@ namespace proc {
       logging::info([&command, &working_dir](std::ostream &out) {
         out << "Executing: ["sv << command << "] in ["sv << working_dir << ']';
       });
-      _process = platf::run_command(_app.elevated, true, command, working_dir, _env, _pipe.get(), ec, &_process_group);
+      _process = platf::run_command(platf::command_options_t {_app.elevated, true, command, working_dir, _env, _pipe.get()}, ec, &_process_group);
       if (ec) {
         logging::warning([&command, &ec](std::ostream &out) {
           out << "Couldn't run ["sv << command << "]: System: "sv << ec.message();
@@ -400,7 +400,7 @@ namespace proc {
                                               find_working_directory(command) :
                                               boost::filesystem::path(_app.working_dir);
       logging::info("Executing Undo Cmd: [{}]", command);
-      auto child = platf::run_command(cmd.elevated, true, command, working_dir, _env, _pipe.get(), ec, nullptr);
+      auto child = platf::run_command(platf::command_options_t {cmd.elevated, true, command, working_dir, _env, _pipe.get()}, ec, nullptr);
 
       if (ec) {
         logging::warning([&ec](std::ostream &out) {

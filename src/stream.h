@@ -102,6 +102,20 @@ namespace stream {
   }  // namespace session
 
   /**
+   * @brief Borrow application services required by transport sessions.
+   * @details The services remain owned by the application and must outlive retained sessions.
+   */
+  struct host_services_t {
+    thread_pool_util::ThreadPool &scheduler;  ///< Scheduler used for session shutdown deadlines.
+    input::service_t &inputs;  ///< Shared input owner.
+    video::service_t &videos;  ///< Shared video capture owner.
+    proc::proc_t &processes;  ///< Application process owner.
+    display_device::manager_t &displays;  ///< Display configuration and recovery owner.
+    platf::runtime_t &platform;  ///< Native streaming hooks and socket priority owner.
+    audio::service_t &audios;  ///< Shared audio capture owner.
+  };
+
+  /**
    * @brief Own host broadcast resources and the services used by streaming sessions.
    */
   class service_t {
@@ -110,15 +124,9 @@ namespace stream {
      * @brief Bind the host dependencies without opening streaming sockets.
      * @param settings Startup transport and capture configuration.
      * @param host_mail Application packet and shutdown mailbox.
-     * @param scheduler Application task scheduler.
-     * @param inputs Host input owner.
-     * @param videos Host capture and encoder owner.
-     * @param processes Application process owner.
-     * @param displays Display settings and restore owner.
-     * @param platform Native streaming hooks and socket priority owner.
-     * @param audios Shared host audio capture owner.
+     * @param services Borrowed application services whose owners must outlive retained sessions.
      */
-    service_t(const config::settings_t &settings, safe::mail_t host_mail, thread_pool_util::ThreadPool &scheduler, input::service_t &inputs, video::service_t &videos, proc::proc_t &processes, display_device::manager_t &displays, platf::runtime_t &platform, audio::service_t &audios);
+    service_t(const config::settings_t &settings, safe::mail_t host_mail, const host_services_t &services);
     /**
      * @brief Release the broadcast owner after all session references stop.
      */

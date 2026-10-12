@@ -450,10 +450,28 @@ int main(int argc, char *argv[]) {
     return lifetime.exit_code();
   }
 
-  stream::service_t streams {settings, host_mail, task_pool, inputs, videos, processes, displays, platform, audios};
+  const stream::host_services_t stream_services {
+    .scheduler = task_pool,
+    .inputs = inputs,
+    .videos = videos,
+    .processes = processes,
+    .displays = displays,
+    .platform = platform,
+    .audios = audios,
+  };
+  stream::service_t streams {settings, host_mail, stream_services};
   rtsp_stream::service_t rtsp {settings, streams, inputs, videos, host_mail};
   nvhttp::service_t gamestream {settings, http_state, processes, displays, videos, rtsp, host_mail};
-  confighttp::service_t web {configuration, gamestream, http_state, processes, displays, inputs, rtsp, lifetime, host_mail};
+  const confighttp::host_services_t web_services {
+    .gamestream = gamestream,
+    .http_state = http_state,
+    .processes = processes,
+    .displays = displays,
+    .inputs = inputs,
+    .rtsp = rtsp,
+    .lifetime = lifetime,
+  };
+  confighttp::service_t web {configuration, web_services, host_mail};
   system_tray::application_binding_t tray_binding {settings, lifetime, displays};
   std::jthread httpThread {[&gamestream]() {
     gamestream.start();

@@ -2409,16 +2409,16 @@ namespace confighttp {
   /**
    * @brief Start the HTTPS configuration server.
    */
-  service_t::service_t(config::store_t &configuration, nvhttp::service_t &gamestream, http::state_t &http_state, proc::proc_t &processes, display_device::manager_t &displays, input::service_t &inputs, rtsp_stream::service_t &rtsp, lifetime::controller_t &lifetime, safe::mail_t host_mail):
+  service_t::service_t(config::store_t &configuration, const host_services_t &services, safe::mail_t host_mail):
       configuration {configuration},
       settings {configuration.values()},
-      gamestream {gamestream},
-      http_state {http_state},
-      processes {processes},
-      displays {displays},
-      inputs {inputs},
-      rtsp {rtsp},
-      lifetime {lifetime},
+      gamestream {services.gamestream},
+      http_state {services.http_state},
+      processes {services.processes},
+      displays {services.displays},
+      inputs {services.inputs},
+      rtsp {services.rtsp},
+      lifetime {services.lifetime},
       host_mail {std::move(host_mail)} {
 #if defined(linux) || defined(__FreeBSD__) || defined(SUNSHINE_TESTS)
     token_path_provider = []() {

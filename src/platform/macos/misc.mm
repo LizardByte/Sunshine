@@ -444,17 +444,18 @@ namespace platf {
   /**
    * @brief Launch a child process with the supplied environment and working directory.
    *
-   * @param elevated Elevated launch request; unused on POSIX.
-   * @param interactive Interactive launch request; unused on POSIX.
-   * @param cmd Command to launch.
-   * @param working_dir Read-only working directory for the child process.
-   * @param env Environment for the child process.
-   * @param file Output stream for stdout and stderr, or nullptr to discard output.
+   * @details Elevation and interactive launch requests are ignored on POSIX.
+   * @param options Borrowed command, working directory, environment and optional output stream.
    * @param ec Receives any process launch error.
    * @param group Optional process group whose native handle may be initialized during POSIX process launch.
    * @return The child process object, with launch failures reported through ec.
    */
-  bp::child run_command(bool elevated, bool interactive, const std::string &cmd, const boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
+  bp::child run_command(const command_options_t &options, std::error_code &ec, bp::group *group) {
+    const auto &cmd = options.cmd;
+    const auto &working_dir = options.working_dir;
+    const auto &env = options.env;
+    auto *file = options.output;
+
     // clang-format off
     if (!group) {
       if (!file) {
@@ -485,7 +486,7 @@ namespace platf {
 
     boost::process::v1::environment _env = boost::this_process::environment();
     std::error_code ec;
-    auto child = run_command(false, false, cmd, working_dir, _env, nullptr, ec, nullptr);
+    auto child = run_command(command_options_t {false, false, cmd, working_dir, _env, nullptr}, ec, nullptr);
     if (ec) {
       logging::warning([&](std::ostream &out) {
         out << "Couldn't open url ["sv << url << "]: System: "sv << ec.message();

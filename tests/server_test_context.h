@@ -36,7 +36,19 @@ namespace test_utils {
     input::service_t inputs {configuration.values(), infrastructure.scheduler(), host_mail, cursor};  ///< Inactive host input owner.
     proc::proc_t processes {configuration.values(), displays, inputs};  ///< Application process owner.
     video::service_t videos {configuration.values(), host_mail, cursor, displays, platform};  ///< Inactive encoder and capture owner.
-    stream::service_t streams {configuration.values(), host_mail, infrastructure.scheduler(), inputs, videos, processes, displays, platform, audios};  ///< Stream broadcast owner.
+    stream::service_t streams {
+      configuration.values(),
+      host_mail,
+      stream::host_services_t {
+        .scheduler = infrastructure.scheduler(),
+        .inputs = inputs,
+        .videos = videos,
+        .processes = processes,
+        .displays = displays,
+        .platform = platform,
+        .audios = audios,
+      },
+    };  ///< Stream broadcast owner retaining the underlying services after the temporary binding view is destroyed.
     rtsp_stream::service_t rtsp {configuration.values(), streams, inputs, videos, host_mail};  ///< RTSP listener and launch-session owner.
     http::state_t http_state {configuration};  ///< Host HTTP identity and origin policy.
     nvhttp::service_t gamestream {configuration.values(), http_state, processes, displays, videos, rtsp, host_mail};  ///< Pairing and authorization owner.

@@ -1022,21 +1022,21 @@ namespace platf {
   }
 
   /**
-   * @brief Run a command on the users profile.
+   * @brief Launch a child process in the user's profile with borrowed command inputs.
    *
-   * Launches a child process as the user, using the current user's environment and a specific working directory.
-   *
-   * @param elevated Specify whether to elevate the process.
-   * @param interactive Specify whether this will run in a window or hidden.
-   * @param cmd The command to run.
-   * @param working_dir Read-only working directory for the new process.
-   * @param env The environment variables to use for the new process.
-   * @param file A file object to redirect the child process's output to (may be `nullptr`).
-   * @param ec An error code, set to indicate any errors that occur during the launch process.
-   * @param group Read-only process group whose native handle receives the child (may be `nullptr`).
-   * @return A `bp::child` object representing the new process, or an empty `bp::child` object if the launch fails.
+   * @param options Command, environment, working directory, output and Windows launch preferences.
+   * @param ec Error code reporting failures while preparing or launching the process.
+   * @param group Read-only process group whose native handle receives the child, or nullptr.
+   * @return The launched child process, or an empty child when launch fails.
    */
-  bp::child run_command(bool elevated, bool interactive, const std::string &cmd, const boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, const bp::group *group) {
+  bp::child run_command(const command_options_t &options, std::error_code &ec, const bp::group *group) {
+    auto elevated = options.elevated;
+    auto interactive = options.interactive;
+    const auto &cmd = options.cmd;
+    const auto &working_dir = options.working_dir;
+    const auto &env = options.env;
+    auto *file = options.output;
+
     std::wstring start_dir = utf_utils::from_utf8(working_dir.string());
     HANDLE job = group ? group->native_handle() : nullptr;
     STARTUPINFOEXW startup_info = create_startup_info(file, job ? &job : nullptr, ec);
@@ -1153,7 +1153,7 @@ namespace platf {
     auto working_dir = boost::filesystem::path();
     std::error_code ec;
 
-    auto child = run_command(false, false, url, working_dir, _env, nullptr, ec, nullptr);
+    auto child = run_command(command_options_t {false, false, url, working_dir, _env, nullptr}, ec, nullptr);
     if (ec) {
       logging::warning([&url, &ec](std::ostream &out) {
         out << "Couldn't open url ["sv << url << "]: System: "sv << ec.message();

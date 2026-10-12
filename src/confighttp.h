@@ -181,6 +181,20 @@ namespace confighttp {
   nlohmann::json get_windows_drives();
 #endif
   /**
+   * @brief Borrow the application services used by Web UI handlers.
+   * @details Referenced services remain owned by the application and must outlive the Web UI owner.
+   */
+  struct host_services_t {
+    nvhttp::service_t &gamestream;  ///< GameStream pairing and client state.
+    http::state_t &http_state;  ///< Host HTTP identity and origin policy.
+    proc::proc_t &processes;  ///< Application process owner.
+    display_device::manager_t &displays;  ///< Display configuration and recovery owner.
+    input::service_t &inputs;  ///< Shared input owner.
+    rtsp_stream::service_t &rtsp;  ///< Session and launch request owner.
+    lifetime::controller_t &lifetime;  ///< Application termination controller.
+  };
+
+  /**
    * @brief Own Web UI handlers, request state, and their explicit application dependencies.
    */
   class service_t {
@@ -188,16 +202,10 @@ namespace confighttp {
     /**
      * @brief Bind dependencies before registering HTTP callbacks.
      * @param configuration Owned startup settings and synchronized credentials.
-     * @param gamestream GameStream pairing and client state.
-     * @param http_state Host HTTP identity and origin policy.
-     * @param processes Application process owner.
-     * @param displays Display configuration and recovery owner.
-     * @param inputs Shared input owner.
-     * @param rtsp Session and launch request owner.
-     * @param lifetime Application termination controller.
+     * @param services Borrowed application services whose owners must outlive this service.
      * @param host_mail Application shutdown mailbox.
      */
-    service_t(config::store_t &configuration, nvhttp::service_t &gamestream, http::state_t &http_state, proc::proc_t &processes, display_device::manager_t &displays, input::service_t &inputs, rtsp_stream::service_t &rtsp, lifetime::controller_t &lifetime, safe::mail_t host_mail);
+    service_t(config::store_t &configuration, const host_services_t &services, safe::mail_t host_mail);
     service_t(const service_t &) = delete;
     service_t &operator=(const service_t &) = delete;
 

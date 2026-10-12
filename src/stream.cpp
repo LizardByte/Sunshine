@@ -670,24 +670,18 @@ namespace stream {
      * @brief Bind host services and attach them to each lazy broadcast instance.
      * @param settings Startup transport and capture configuration.
      * @param host_mail Host mailbox.
-     * @param scheduler Host scheduler.
-     * @param inputs Host input owner.
-     * @param videos Host video owner.
-     * @param processes Host process owner.
-     * @param displays Host display owner.
-     * @param platform Native streaming resources.
-     * @param audios Shared host audio capture owner.
+     * @param services Borrowed application services retained through their existing references.
      */
-    runtime_context_t(const config::settings_t &settings, safe::mail_t host_mail, thread_pool_util::ThreadPool &scheduler, input::service_t &inputs, video::service_t &videos, proc::proc_t &processes, display_device::manager_t &displays, platf::runtime_t &platform, audio::service_t &audios):
+    runtime_context_t(const config::settings_t &settings, safe::mail_t host_mail, const host_services_t &services):
         settings {settings},
-        audios {audios},
+        audios {services.audios},
         host_mail {std::move(host_mail)},
-        scheduler {scheduler},
-        inputs {inputs},
-        videos {videos},
-        processes {processes},
-        displays {displays},
-        platform {platform},
+        scheduler {services.scheduler},
+        inputs {services.inputs},
+        videos {services.videos},
+        processes {services.processes},
+        displays {services.displays},
+        platform {services.platform},
         broadcast {[this](auto &context) {
                      context.owner = this;
                      context.control_server.owner = this;
@@ -704,8 +698,8 @@ namespace stream {
     using runtime_context_t::runtime_context_t;
   };
 
-  service_t::service_t(const config::settings_t &settings, safe::mail_t host_mail, thread_pool_util::ThreadPool &scheduler, input::service_t &inputs, video::service_t &videos, proc::proc_t &processes, display_device::manager_t &displays, platf::runtime_t &platform, audio::service_t &audios):
-      impl {std::make_shared<impl_t>(settings, std::move(host_mail), scheduler, inputs, videos, processes, displays, platform, audios)} {
+  service_t::service_t(const config::settings_t &settings, safe::mail_t host_mail, const host_services_t &services):
+      impl {std::make_shared<impl_t>(settings, std::move(host_mail), services)} {
   }
 
   service_t::~service_t() = default;

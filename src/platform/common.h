@@ -6,6 +6,7 @@
 
 // standard includes
 #include <bitset>
+#include <cstdio>
 #include <filesystem>
 #include <functional>
 #include <mutex>
@@ -960,22 +961,32 @@ namespace platf {
   bool needs_encoder_reenumeration();
 
   /**
+   * @brief Inputs borrowed for one synchronous preparation or application command launch.
+   *
+   * @details The command, working directory and environment must outlive the call to run_command().
+   * The child process may continue running after these launch inputs are released.
+   */
+  struct command_options_t {
+    bool elevated {};  ///< Whether Windows should request elevated privileges; ignored on POSIX.
+    bool interactive {};  ///< Whether Windows should create an interactive console; ignored on POSIX.
+    const std::string &cmd;  ///< Command line to execute.
+    const boost::filesystem::path &working_dir;  ///< Read-only working directory for the child process.
+    const boost::process::v1::environment &env;  ///< Environment supplied to the child process.
+    FILE *output {};  ///< Optional output stream for stdout and stderr, or nullptr to discard output.
+  };
+
+  /**
    * @brief Launch a configured preparation or application command.
    *
-   * @param elevated Whether the command should run with elevated privileges.
-   * @param interactive Whether the command should run in an interactive session.
-   * @param cmd Command line to execute or inspect.
-   * @param working_dir Read-only working directory for the child process.
-   * @param env Environment variables for the child process.
-   * @param file Optional stdio file handle connected to the child process.
+   * @param options Borrowed command launch inputs.
    * @param ec Error code returned by the asynchronous operation.
    * @param group Process group used when launching the command; Windows reads its native handle, while POSIX may initialize the group.
    * @return Child process handle for the launched command.
    */
 #ifdef _WIN32
-  boost::process::v1::child run_command(bool elevated, bool interactive, const std::string &cmd, const boost::filesystem::path &working_dir, const boost::process::v1::environment &env, FILE *file, std::error_code &ec, const boost::process::v1::group *group);
+  boost::process::v1::child run_command(const command_options_t &options, std::error_code &ec, const boost::process::v1::group *group);
 #else
-  boost::process::v1::child run_command(bool elevated, bool interactive, const std::string &cmd, const boost::filesystem::path &working_dir, const boost::process::v1::environment &env, FILE *file, std::error_code &ec, boost::process::v1::group *group);
+  boost::process::v1::child run_command(const command_options_t &options, std::error_code &ec, boost::process::v1::group *group);
 #endif
 
   /**

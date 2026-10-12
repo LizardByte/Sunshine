@@ -1692,20 +1692,40 @@ namespace video {
   }
 
   /**
+   * @brief Borrow the display names, selected index and switch event for one capture run.
+   */
+  struct capture_display_selection_t {
+    std::vector<std::string> &names;  ///< Display names refreshed during reopening.
+    int &index;  ///< Selected display index updated by pending switch requests.
+    const safe::mail_raw_t::event_t<int> &switches;  ///< Retained switch-event handle borrowed from the capture run.
+  };
+
+  /**
+   * @brief Borrow the resources released and republished during asynchronous display reinitialization.
+   */
+  struct capture_reinitialization_t {
+    std::shared_ptr<platf::display_t> &display;  ///< Active display owner replaced after its old users release it.
+    sync_util::sync_t<std::weak_ptr<platf::display_t>> &display_wp;  ///< Weak display published to encoder threads.
+    detail::capture_image_pool_t &images;  ///< Image pool cleared before waiting for display release.
+    safe::signal_t &reinit;  ///< Signal kept raised until the replacement display is published.
+  };
+
+  /**
    * @brief Refresh display selection and retry opening it while the capture queue is active.
    * @tparam Queue Capture-session queue providing its running state.
    * @param host Host platform and display dependencies.
    * @param display Display released before each reenumeration attempt.
    * @param type Capture memory type required by the encoder.
-   * @param names Display names refreshed on each attempt.
-   * @param index Selected display index updated by pending switch events.
-   * @param switches Display-switch event retained for this capture run.
+   * @param selection Borrowed display selection updated during each reopening attempt.
    * @param config First active session's capture configuration.
    * @param queue Queue controlling retry lifetime.
    * @return Whether a display was opened before the queue stopped.
    */
   template<typename Queue>
-  bool open_capture_display(service_t::impl_t &host, std::shared_ptr<platf::display_t> &display, platf::mem_type_e type, std::vector<std::string> &names, int &index, const safe::mail_raw_t::event_t<int> &switches, const config_t &config, const Queue &queue) {
+  bool open_capture_display(service_t::impl_t &host, std::shared_ptr<platf::display_t> &display, platf::mem_type_e type, const capture_display_selection_t &selection, const config_t &config, const Queue &queue) {
+    auto &names = selection.names;
+    auto &index = selection.index;
+    const auto &switches = selection.switches;
     display.reset();
     while (queue.running()) {
       display.reset();
@@ -1724,26 +1744,25 @@ namespace video {
   /**
    * @brief Release display-bound images and wait for encoders before reopening asynchronous capture.
    * @param host Host platform and display dependencies.
-   * @param display Active display replaced after every old owner has released it.
-   * @param display_wp Shared weak display published to encoder threads.
-   * @param images Capture image pool released before the reference-count wait.
+   * @param capture Borrowed capture resources released and republished in reinitialization order.
    * @param contexts Capture subscribers drained during the wait.
    * @param queue Session queue controlling reopening lifetime.
-   * @param reinit Signal held raised until the replacement display is published.
    * @param encoder Selected encoder's immutable capture formats.
-   * @param names Display names refreshed during reopening.
-   * @param index Display index updated by pending switches.
-   * @param switches Retained display-switch event.
+   * @param selection Borrowed display names, current index and switch event.
    * @return Whether capture can resume with a replacement display.
    */
-  bool reinitialize_capture_display(service_t::impl_t &host, std::shared_ptr<platf::display_t> &display, sync_util::sync_t<std::weak_ptr<platf::display_t>> &display_wp, detail::capture_image_pool_t &images, std::vector<capture_ctx_t> &contexts, const std::shared_ptr<safe::queue_t<capture_ctx_t>> &queue, safe::signal_t &reinit, const encoder_t &encoder, std::vector<std::string> &names, int &index, const safe::mail_raw_t::event_t<int> &switches) {
+  bool reinitialize_capture_display(service_t::impl_t &host, const capture_reinitialization_t &capture, std::vector<capture_ctx_t> &contexts, const std::shared_ptr<safe::queue_t<capture_ctx_t>> &queue, const encoder_t &encoder, const capture_display_selection_t &selection) {
+    auto &display = capture.display;
+    auto &display_wp = capture.display_wp;
+    auto &images = capture.images;
+    auto &reinit = capture.reinit;
     reinit.raise(true);
     images.clear();
     while (display_wp->use_count() != 1) {
       drain_capture_images(contexts);
       std::this_thread::sleep_for(20ms);
     }
-    if (!open_capture_display(host, display, encoder.platform_formats->dev_type, names, index, switches, contexts.front().config, *queue)) {
+    if (!open_capture_display(host, display, encoder.platform_formats->dev_type, selection, contexts.front().config, *queue)) {
       return false;
     }
     display_wp = display;
@@ -1867,7 +1886,7 @@ namespace video {
       switch (status) {
         case platf::capture_e::reinit:
           {
-            if (!reinitialize_capture_display(host, disp, display_wp, images, capture_ctxs, capture_ctx_queue, reinit_event, encoder, display_names, display_p, switch_display_event)) {
+            if (!reinitialize_capture_display(host, {disp, display_wp, images, reinit_event}, capture_ctxs, capture_ctx_queue, encoder, {display_names, display_p, switch_display_event})) {
               return;
             }
             continue;
@@ -2497,29 +2516,31 @@ namespace video {
   }
 
   /**
+   * @brief Borrow one encode stream's frame progress, display lifecycle and transport binding.
+   */
+  struct encode_stream_binding_t {
+    int &frame_nr;  ///< Frame progress retained by the caller across encoder reinitialization.
+    safe::signal_t &reinit_event;  ///< Capture-side request to replace the active display.
+    const encoder_t &encoder;  ///< Selected encoder retained by the host for this stream.
+    stream::session_t *channel_data;  ///< Borrowed transport session that outlives this loop and its queued packets.
+  };
+
+  /**
    * @brief Run one encode loop for a display capture stream.
    *
-   * @param frame_nr Frame counter updated as frames are encoded.
+   * @param binding Borrowed stream progress, display reinitialization signal, encoder and transport session.
    * @param mail Session mail bus.
    * @param images Captured image event source.
    * @param config Video configuration.
    * @param disp Display being encoded.
    * @param encode_device Platform encode device.
-   * @param reinit_event Signal raised while the encoder/display is reinitializing.
-   * @param encoder Selected encoder.
-   * @param channel_data Borrowed transport session that must outlive this loop and consumption of its queued packets.
    * @param host Host input or video service and its capture dependencies.
    */
-  void encode_run(service_t::impl_t &host,
-                  int &frame_nr,  // Store progress of the frame number
-                  safe::mail_t mail,
-                  img_event_t images,
-                  config_t config,
-                  std::shared_ptr<platf::display_t> disp,
-                  std::unique_ptr<platf::encode_device_t> encode_device,
-                  safe::signal_t &reinit_event,
-                  const encoder_t &encoder,
-                  stream::session_t *channel_data) {
+  void encode_run(service_t::impl_t &host, const encode_stream_binding_t &binding, safe::mail_t mail, img_event_t images, config_t config, std::shared_ptr<platf::display_t> disp, std::unique_ptr<platf::encode_device_t> encode_device) {
+    auto &frame_nr = binding.frame_nr;
+    auto &reinit_event = binding.reinit_event;
+    const auto &encoder = binding.encoder;
+    const auto channel_data = binding.channel_data;
     auto session = make_encode_session(host.settings, disp.get(), encoder, config, disp->width, disp->height, std::move(encode_device));
     if (!session) {
       return;
@@ -2824,18 +2845,27 @@ namespace video {
   }
 
   /**
+   * @brief Borrow stable synchronized subscriber contexts and their active encoder sessions.
+   */
+  struct synchronized_subscribers_t {
+    std::vector<std::unique_ptr<sync_session_ctx_t>> &contexts;  ///< Context owners retained until their encoder session is removed.
+    std::vector<sync_session_t> &sessions;  ///< Active encoders referencing the stable owned contexts.
+  };
+
+  /**
    * @brief Add queued synchronized subscribers after retaining their stable context storage.
    * @param settings Host encoder configuration.
    * @param display Display shared by the synchronous capture run.
    * @param encoder Selected encoder.
    * @param image Current image used to initialize each new encoder.
    * @param queue Pending synchronized contexts.
-   * @param contexts Stable context owners retained until session removal.
-   * @param sessions Encoder sessions appended after initialization succeeds.
+   * @param subscribers Borrowed context owners and active encoders appended after initialization succeeds.
    * @param status Error status set only on encoder initialization failure.
    * @return Whether capture can continue after processing pending contexts.
    */
-  bool add_synchronized_sessions(const config::settings_t &settings, platf::display_t &display, const encoder_t &encoder, const std::shared_ptr<platf::img_t> &image, encode_session_ctx_queue_t &queue, std::vector<std::unique_ptr<sync_session_ctx_t>> &contexts, std::vector<sync_session_t> &sessions, platf::capture_e &status) {
+  bool add_synchronized_sessions(const config::settings_t &settings, platf::display_t &display, const encoder_t &encoder, const std::shared_ptr<platf::img_t> &image, encode_session_ctx_queue_t &queue, const synchronized_subscribers_t &subscribers, platf::capture_e &status) {
+    auto &contexts = subscribers.contexts;
+    auto &sessions = subscribers.sessions;
     while (queue.peek()) {
       auto context = queue.pop();
       if (!context) {
@@ -2899,7 +2929,7 @@ namespace video {
       synced_session_ctxs.emplace_back(std::make_unique<sync_session_ctx_t>(std::move(*ctx)));
     }
 
-    if (!open_capture_display(host, disp, encoder.platform_formats->dev_type, display_names, display_p, switch_display_event, synced_session_ctxs.front()->config, encode_session_ctx_queue)) {
+    if (!open_capture_display(host, disp, encoder.platform_formats->dev_type, {display_names, display_p, switch_display_event}, synced_session_ctxs.front()->config, encode_session_ctx_queue)) {
       return encode_e::error;
     }
 
@@ -2916,7 +2946,7 @@ namespace video {
     auto ec = platf::capture_e::ok;
     while (encode_session_ctx_queue.running()) {
       auto push_captured_image_callback = [&](std::shared_ptr<platf::img_t> &&img, bool frame_captured) -> bool {
-        if (!add_synchronized_sessions(host.settings, *disp, encoder, img, encode_session_ctx_queue, synced_session_ctxs, synced_sessions, ec)) {
+        if (!add_synchronized_sessions(host.settings, *disp, encoder, img, encode_session_ctx_queue, {synced_session_ctxs, synced_sessions}, ec)) {
           return false;
         }
         if (!encode_synchronized_sessions(synced_sessions, synced_session_ctxs, img, frame_captured)) {
@@ -3058,7 +3088,7 @@ namespace video {
       }
       hdr_event->raise(std::move(hdr_info));
 
-      encode_run(host, frame_nr, mail, images, config, display, std::move(encode_device), ref->reinit_event, *ref->encoder_p, channel_data);
+      encode_run(host, {frame_nr, ref->reinit_event, *ref->encoder_p, channel_data}, mail, images, config, display, std::move(encode_device));
     }
   }
 
@@ -3203,18 +3233,28 @@ namespace video {
   }
 
   /**
+   * @brief Borrow an optional codec's capabilities together with its format and probing policy.
+   */
+  struct optional_codec_probe_t {
+    encoder_t::codec_t &codec;  ///< Codec capabilities updated or cleared by the probe.
+    int format;  ///< Protocol codec number used by both reference configurations.
+    bool enabled;  ///< Whether configuration requests probing this codec.
+  };
+
+  /**
    * @brief Probe HEVC or AV1 reference configurations with the existing H.264 success constraint.
    * @param host Host validation dependencies.
    * @param display Display retained for reference probes.
    * @param encoder Selected encoder descriptor.
-   * @param codec HEVC or AV1 capabilities being updated.
-   * @param format Protocol codec number.
-   * @param enabled Whether this codec should be probed.
+   * @param probe Borrowed codec capabilities, protocol format and enabled policy.
    * @param h264_maximum H.264 explicit-reference result controlling fallback probing.
    * @param maximum Explicit-reference probe configuration copied for this codec.
    * @param automatic Automatic-reference probe configuration copied for this codec.
    */
-  void probe_secondary_references(service_t::impl_t &host, const std::shared_ptr<platf::display_t> &display, encoder_t &encoder, encoder_t::codec_t &codec, int format, bool enabled, int h264_maximum, config_t maximum, config_t automatic) {
+  void probe_secondary_references(service_t::impl_t &host, const std::shared_ptr<platf::display_t> &display, encoder_t &encoder, const optional_codec_probe_t &probe, int h264_maximum, config_t maximum, config_t automatic) {
+    auto &codec = probe.codec;
+    const auto format = probe.format;
+    const auto enabled = probe.enabled;
     if (!enabled) {
       codec.capabilities.reset();
       return;
@@ -3312,8 +3352,8 @@ namespace video {
     if (!probe_h264_references(host, disp, encoder, config_max_ref_frames, config_autoselect, expect_failure, max_ref_frames_h264)) {
       return false;
     }
-    probe_secondary_references(host, disp, encoder, encoder.hevc, 1, test_hevc, max_ref_frames_h264, config_max_ref_frames, config_autoselect);
-    probe_secondary_references(host, disp, encoder, encoder.av1, 2, test_av1, max_ref_frames_h264, config_max_ref_frames, config_autoselect);
+    probe_secondary_references(host, disp, encoder, {encoder.hevc, 1, test_hevc}, max_ref_frames_h264, config_max_ref_frames, config_autoselect);
+    probe_secondary_references(host, disp, encoder, {encoder.av1, 2, test_av1}, max_ref_frames_h264, config_max_ref_frames, config_autoselect);
     probe_encoder_pixel_modes(host, disp, encoder, output_name);
 
     encoder.h264[encoder_t::VUI_PARAMETERS] = encoder.h264[encoder_t::VUI_PARAMETERS] && !host.settings.sunshine.flags[config::flag::FORCE_VIDEO_HEADER_REPLACE];

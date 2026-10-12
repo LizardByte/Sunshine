@@ -78,12 +78,7 @@ protected:
 
     // Run the command using the existing platf::run_command function
     auto child = platf::run_command(
-      false,  // not elevated
-      false,  // not interactive
-      cmd,
-      effective_working_dir,
-      env,
-      temp_file,
+      platf::command_options_t {false, false, cmd, effective_working_dir, env, temp_file},
       ec,
       nullptr  // no process group
     );
@@ -142,6 +137,70 @@ TEST_P(ExternalCommandTest, RunExternalCommand) {
     HANDLE_XFAIL_ASSERT_NE(exit_code, 0, std::format("Command should have failed but succeeded\nOutput: {}", output));
   }
 }
+
+#ifndef _WIN32
+/**
+ * @brief Verify real POSIX child launches for every output-stream and process-group combination.
+ */
+class CommandOptionsTest: public BaseTest, public ::testing::WithParamInterface<std::pair<bool, bool>> {};
+
+/**
+ * @brief Borrowed launch inputs supply the child's environment and working directory without being consumed.
+ */
+TEST_P(CommandOptionsTest, LaunchUsesBorrowedInputs) {
+  const auto [capture_output, use_group] = GetParam();
+  boost::process::v1::environment env = boost::this_process::environment();
+  env["SUNSHINE_COMMAND_OPTIONS_MARKER"] = "command-options-value";
+  const auto working_dir = boost::filesystem::canonical(boost::filesystem::temp_directory_path());
+  const std::string command = R"(/bin/sh -c echo${IFS}$SUNSHINE_COMMAND_OPTIONS_MARKER;pwd;echo${IFS}command-options-error>&2)";
+
+  const auto close_output = [](FILE *stream) {
+    std::fclose(stream);
+  };
+  std::unique_ptr<FILE, decltype(close_output)> output {capture_output ? std::tmpfile() : nullptr, close_output};
+  if (capture_output) {
+    ASSERT_NE(output, nullptr);
+  }
+  boost::process::v1::group group;
+  const platf::command_options_t options {false, false, command, working_dir, env, output.get()};
+  std::error_code ec;
+  auto child = platf::run_command(options, ec, use_group ? &group : nullptr);
+  ASSERT_FALSE(ec) << ec.message();
+  ASSERT_TRUE(child.valid());
+  child.wait();
+  EXPECT_EQ(child.exit_code(), 0);
+  EXPECT_EQ(env["SUNSHINE_COMMAND_OPTIONS_MARKER"].to_string(), "command-options-value");
+  if (use_group) {
+    EXPECT_TRUE(group.valid());
+  }
+
+  if (capture_output) {
+    std::rewind(output.get());
+    std::string captured;
+    std::array<char, 1024> buffer {};
+    while (std::fgets(buffer.data(), static_cast<int>(buffer.size()), output.get())) {
+      captured += buffer.data();
+    }
+    auto expected_directory = working_dir;
+    expected_directory.make_preferred();
+    EXPECT_NE(captured.find("command-options-value"), std::string::npos);
+    EXPECT_NE(captured.find(expected_directory.string()), std::string::npos);
+    EXPECT_NE(captured.find("command-options-error"), std::string::npos);
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  OutputAndGroup,
+  CommandOptionsTest,
+  ::testing::Values(
+    std::pair {false, false},
+    std::pair {false, true},
+    std::pair {true, false},
+    std::pair {true, true}
+  )
+);
+
+#endif
 
 // Platform-specific command strings
 constexpr auto SIMPLE_COMMAND = IS_WINDOWS ? "where cmd" : "which sh";

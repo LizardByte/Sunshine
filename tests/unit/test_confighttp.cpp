@@ -116,7 +116,19 @@ protected:
 
   void SetUp() override {
     BaseTest::SetUp();
-    web = std::make_unique<confighttp::service_t>(context.configuration, context.gamestream, context.http_state, context.processes, context.displays, context.inputs, context.rtsp, context.infrastructure.lifetime(), context.host_mail);
+    web = std::make_unique<confighttp::service_t>(
+      context.configuration,
+      confighttp::host_services_t {
+        .gamestream = context.gamestream,
+        .http_state = context.http_state,
+        .processes = context.processes,
+        .displays = context.displays,
+        .inputs = context.inputs,
+        .rtsp = context.rtsp,
+        .lifetime = context.infrastructure.lifetime(),
+      },
+      context.host_mail
+    );
     const auto handler = [this](auto method) {
       return [this, method](const auto &response, const auto &request) {
         (web.get()->*method)(response, request);
