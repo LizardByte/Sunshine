@@ -23,6 +23,68 @@
 
 using namespace std::literals;
 
+/**
+ * @brief Equivalent owning strings, sized views and literals select the same configuration entries.
+ */
+TEST(ConfigMapTest, LooksUpOwnedKeysUsingStringsViewsAndLiterals) {
+  const std::string long_key(128, 'x');
+  const std::string embedded_key {"embedded\0key", 12};
+  const config::settings_map_t settings {
+    {"", "empty"},
+    {"qp", "lowercase"},
+    {"QP", "uppercase"},
+    {long_key, "long"},
+    {embedded_key, "embedded"},
+  };
+  for (const auto &key : {std::string {}, std::string {"qp"}, std::string {"QP"}, long_key, embedded_key}) {
+    const auto owning = settings.find(key);
+    ASSERT_NE(owning, settings.end());
+    const std::string_view view {key};
+    EXPECT_EQ(settings.find(view), owning);
+    EXPECT_TRUE(settings.contains(view));
+    EXPECT_EQ(settings.count(view), 1);
+    EXPECT_EQ(settings.equal_range(view).first, owning);
+  }
+  EXPECT_EQ(settings.find("")->second, "empty");
+  EXPECT_EQ(settings.find("qp")->second, "lowercase");
+  EXPECT_EQ(settings.find("QP")->second, "uppercase");
+  const std::string_view non_terminated {"qpTAIL", 2};
+  EXPECT_EQ(settings.find(non_terminated), settings.find("qp"));
+  EXPECT_EQ(settings.find(std::string_view {}), settings.find(""));
+  EXPECT_FALSE(settings.contains("qP"));
+  EXPECT_FALSE(settings.contains("missing"sv));
+  EXPECT_FALSE(settings.contains("embedded\0key"));
+}
+
+/**
+ * @brief Hashing uses the same complete byte sequence for every accepted key representation.
+ */
+TEST(ConfigMapTest, HashesEqualStringsAndSizedViewsConsistently) {
+  const util::transparent_string_hash_t hash;
+  for (const auto &key : {std::string {}, std::string {"qp"}, std::string(128, 'x'), std::string {"embedded\0key", 12}}) {
+    EXPECT_EQ(hash(key), hash(std::string_view {key}));
+    EXPECT_EQ(hash(key), std::hash<std::string> {}(key));
+  }
+  EXPECT_EQ(hash("qp"), hash("qp"sv));
+  EXPECT_EQ(hash(""), hash(std::string_view {}));
+  const config::settings_map_t::key_equal equal;
+  EXPECT_TRUE(equal("qp"sv, std::string {"qp"}));
+  EXPECT_FALSE(equal("qp"sv, std::string {"QP"}));
+  EXPECT_FALSE(equal(std::string {"embedded\0key", 12}, "embedded"sv));
+}
+
+/**
+ * @brief Parsing retains the first duplicate value, exact key case and existing whitespace/list handling.
+ */
+TEST(ConfigMapTest, ParsingPreservesDuplicateCaseAndWhitespaceSemantics) {
+  const auto settings = config::parse_config("# retained parsing behavior\n qp = 29 \nqp = 42\nQP = 31\nlist = [first,\n second]\n");
+  ASSERT_EQ(settings.size(), 3);
+  EXPECT_EQ(settings.find("qp"sv)->second, "29 ");
+  EXPECT_EQ(settings.find("QP")->second, "31");
+  EXPECT_EQ(settings.find("list"sv)->second, "[first,\n second]");
+  EXPECT_FALSE(settings.contains("missing"sv));
+}
+
 TEST(ConfigDefaultsTest, UsesAutomaticGamepadSelection) {
   const config::store_t config;
   EXPECT_EQ(config.values().input.gamepad, "auto");
@@ -132,6 +194,18 @@ TEST_F(ConfigPersistenceTest, DoesNotReplaceAnExistingOption) {
 
   EXPECT_FALSE(config_.persist_config_option_if_missing("gamepad_driver", "all"));
   EXPECT_EQ(file_handler::read_file(config_file().string().c_str()), "gamepad_driver = vigembus\n");
+}
+
+/**
+ * @brief Persistence checks only the supplied key view and keeps case-sensitive configuration behavior.
+ */
+TEST_F(ConfigPersistenceTest, UsesTheSuppliedKeyViewExtentWhenDetectingExistingOptions) {
+  ASSERT_EQ(file_handler::write_file(config_file().string().c_str(), "gamepad_driver = vigembus\n"), 0);
+  const std::string_view key {"gamepad_driver_suffix", 14};
+  EXPECT_FALSE(config_.persist_config_option_if_missing(key, "all"));
+  EXPECT_EQ(file_handler::read_file(config_file().string().c_str()), "gamepad_driver = vigembus\n");
+  EXPECT_TRUE(config_.persist_config_option_if_missing("Gamepad_driver"sv, "none"));
+  EXPECT_EQ(file_handler::read_file(config_file().string().c_str()), "gamepad_driver = vigembus\nGamepad_driver = none\n");
 }
 
 TEST_F(ConfigPersistenceTest, SelectsAllDriversOnlyForLicensedUsersWithoutAPreference) {

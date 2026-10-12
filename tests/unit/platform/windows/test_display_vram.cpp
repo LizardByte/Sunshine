@@ -10,6 +10,7 @@
   // standard includes
   #include <d3dcompiler.h>
   #include <filesystem>
+  #include <functional>
   #include <set>
   #include <tuple>
 
@@ -36,7 +37,7 @@ namespace {
 }  // namespace
 
 TEST(ShaderBundleTest, CompilesCompleteImmutableBundleWithCorrectProfiles) {
-  std::set<std::string> paths;
+  std::set<std::string, std::less<>> paths;
   int vertices = 0;
   int pixels = 0;
   const auto bundle = platf::dxgi::compile_shaders([&paths, &vertices, &pixels](const std::string &path, const char *profile) {

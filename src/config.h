@@ -7,6 +7,7 @@
 // standard includes
 #include <bitset>
 #include <chrono>
+#include <functional>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -16,8 +17,14 @@
 
 // local includes
 #include "nvenc/nvenc_config.h"
+#include "utility.h"
 
 namespace config {
+  /**
+   * @brief Own configuration keys and values while allowing lookup by string views and literals.
+   */
+  using settings_map_t = std::unordered_map<std::string, std::string, util::transparent_string_hash_t, std::equal_to<>>;
+
   namespace nv {
     /**
      * @brief Convert Sunshine's NVENC quality preset number to FFmpeg's stable symbolic name.
@@ -398,7 +405,7 @@ namespace config {
     nvhttp_t nvhttp;  ///< Pairing and GameStream HTTP configuration.
     input_t input;  ///< Input emulation configuration.
     sunshine_t sunshine;  ///< Application, startup, and Web UI configuration.
-    std::unordered_map<std::string, std::string> modified_config_settings;  ///< Values recorded during this store's parse or UI updates.
+    settings_map_t modified_config_settings;  ///< Values recorded during this store's parse or UI updates.
   };
 
   /**
@@ -452,7 +459,7 @@ namespace config {
      * @param vars Parsed entries to log.
      * @param save Whether to record the entries for persistence.
      */
-    void log_config_settings(const std::unordered_map<std::string, std::string> &vars, bool save);
+    void log_config_settings(const settings_map_t &vars, bool save);
 
     /**
      * @brief Append a configuration option when the active file does not define it.
@@ -482,7 +489,7 @@ namespace config {
      * @brief File overrides and launch modes selected by command-line arguments.
      */
     struct command_line_options_t {
-      std::unordered_map<std::string, std::string> variables;  ///< Overrides applied after configuration file values.
+      settings_map_t variables;  ///< Overrides applied after configuration file values.
 #ifdef _WIN32
       bool shortcut_launch = false;  ///< Start the service from the user shortcut.
       bool service_admin_launch = false;  ///< Start the service from an elevated shortcut process.
@@ -502,25 +509,25 @@ namespace config {
      * @brief Consume video, encoder and display preparation settings.
      * @param vars Parsed entries whose known video keys are consumed.
      */
-    void apply_video_config(std::unordered_map<std::string, std::string> &vars);
+    void apply_video_config(settings_map_t &vars);
 
     /**
      * @brief Consume keyboard, mouse and gamepad settings.
      * @param vars Parsed entries whose known input keys are consumed.
      */
-    void apply_input_config(std::unordered_map<std::string, std::string> &vars);
+    void apply_input_config(settings_map_t &vars);
 
     /**
      * @brief Consume the configured logging threshold while retaining unrecognized values.
      * @param vars Parsed entries whose logging threshold key is consumed.
      */
-    void apply_logging_config(std::unordered_map<std::string, std::string> &vars);
+    void apply_logging_config(settings_map_t &vars);
 
     /**
      * @brief Apply validated file and command-line values to this store.
      * @param vars Parsed entries whose known keys are consumed.
      */
-    void apply_config(std::unordered_map<std::string, std::string> &&vars);
+    void apply_config(settings_map_t &&vars);
 
     /**
      * @brief Toggle the command-line flags selected by their character codes.
@@ -540,6 +547,6 @@ namespace config {
    * @param file_content Raw configuration file contents to parse.
    * @return Parsed configuration key-value entries.
    */
-  std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content);
+  settings_map_t parse_config(const std::string_view &file_content);
 
 }  // namespace config

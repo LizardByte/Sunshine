@@ -10,6 +10,7 @@
 #include <bit>
 #include <condition_variable>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -270,6 +271,21 @@ struct argument_type<T(U)> {
   auto &a = std::get<b>(expr)
 
 namespace util {
+  /**
+   * @brief Hash string keys and heterogeneous views using the same case-sensitive byte sequence.
+   */
+  struct transparent_string_hash_t {
+    using is_transparent = void;  ///< Enable heterogeneous lookup in unordered associative containers.
+
+    /**
+     * @brief Hash a string or string-like view without constructing an owning string.
+     * @param value Bytes to hash, including any embedded NUL characters in a sized view.
+     * @return Hash of the complete view.
+     */
+    std::size_t operator()(std::string_view value) const noexcept {
+      return std::hash<std::string_view> {}(value);
+    }
+  };
 
   template<template<typename...> class X, class... Y>
   struct __instantiation_of: public std::false_type {};
