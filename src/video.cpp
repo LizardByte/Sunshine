@@ -3852,7 +3852,7 @@ namespace video {
     return ::video::validate_encoder(*impl_, encoder, expect_failure);
   }
 
-  void service_t::capture(safe::mail_t mail, config_t config, stream::session_t *channel_data) {
+  void service_t::capture(safe::mail_t mail, const config_t &config, stream::session_t *channel_data) {
     if (!impl_->chosen_encoder) {
       mail->event<bool>(mail::shutdown)->raise(true);
       return;

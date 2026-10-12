@@ -787,10 +787,10 @@ namespace video {
     /**
      * @brief Capture and encode video for a transport session.
      * @param mail Transport session mailbox.
-     * @param config Negotiated stream configuration.
+     * @param config Read-only negotiated stream configuration, copied into capture workers before this call returns.
      * @param channel_data Borrowed transport session that must outlive capture and consumption of its queued packets.
      */
-    void capture(safe::mail_t mail, config_t config, stream::session_t *channel_data);
+    void capture(safe::mail_t mail, const config_t &config, stream::session_t *channel_data);
 
   private:
     std::unique_ptr<impl_t> impl_;  ///< Encoder state and capture worker ownership.

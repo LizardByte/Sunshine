@@ -321,7 +321,8 @@ TEST(VideoServiceOwnershipTest, SnapshotChangesDoNotMutateServiceStateAndUnprobe
 
   auto session_mail = std::make_shared<safe::mail_raw_t>();
   auto shutdown = session_mail->event<bool>(mail::shutdown);
-  first.capture(session_mail, {}, nullptr);
+  const video::config_t capture_config {};
+  first.capture(session_mail, capture_config, nullptr);
   EXPECT_TRUE(shutdown->peek());
 }
 

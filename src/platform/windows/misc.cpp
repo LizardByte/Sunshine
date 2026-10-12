@@ -607,10 +607,10 @@ namespace platf {
   /**
    * @brief Impersonate the current user and invoke the callback function.
    * @param user_token A handle to the user's token that was obtained from the shell.
-   * @param callback A function that will be executed while impersonating the user.
+   * @param callback Borrowed function invoked synchronously while impersonating the user; it is not retained.
    * @return Object that will store any error that occurred during the impersonation
    */
-  std::error_code impersonate_current_user(HANDLE user_token, std::function<void()> callback) {
+  std::error_code impersonate_current_user(HANDLE user_token, const std::function<void()> &callback) {
     std::error_code ec;
     // Impersonate the user when launching the process. This will ensure that appropriate access
     // checks are done against the user token, not our SYSTEM token. It will also allow network

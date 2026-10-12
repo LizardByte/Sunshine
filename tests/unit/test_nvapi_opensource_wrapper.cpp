@@ -25,10 +25,10 @@ namespace {
    * @brief Own a fake driver allocation behind a simulated native module handle.
    *
    * @param marker Driver identity used to verify resolver arguments.
-   * @param unload Observer notified when the last library reference is released.
+   * @param unload Observer copied into ownership and notified when the last library reference is released.
    * @return Shared module handle retaining the typed fake allocation.
    */
-  nvprefs::api_t::library_t fake_library(NvU32 marker, std::function<void()> unload) {
+  nvprefs::api_t::library_t fake_library(NvU32 marker, const std::function<void()> &unload) {
     auto allocation = std::shared_ptr<fake_library_t>(new fake_library_t {{}, marker}, [unload](fake_library_t *library) {
       delete library;
       unload();

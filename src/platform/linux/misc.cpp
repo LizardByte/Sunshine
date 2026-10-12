@@ -1196,9 +1196,9 @@ namespace platf {
      *
      * @param count Shared number of active socket-priority scopes for this host.
      * @param sockfd Native socket descriptor whose options are updated.
-     * @param options Request options or socket options to apply.
+     * @param options Socket options copied into this scope for restoration when the last owner exits.
      */
-    qos_t(std::shared_ptr<std::atomic<int>> count, int sockfd, std::vector<std::tuple<int, int, int>> options):
+    qos_t(std::shared_ptr<std::atomic<int>> count, int sockfd, const std::vector<std::tuple<int, int, int>> &options):
         qos_ref_count(std::move(count)),
         sockfd(sockfd),
         options(options) {

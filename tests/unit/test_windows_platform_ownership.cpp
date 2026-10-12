@@ -332,13 +332,13 @@ namespace {
   /**
    * @brief Create an injectable test library.
    * @param resolve Export lookup.
-   * @param unload Unload observer.
+   * @param unload Unload observer copied into the library owner.
    * @return Test loader.
    */
   platf::networking_loader_t loader(std::function<FARPROC(HMODULE, const char *)> resolve = [](HMODULE, const char *name) {
     return complete_export(name);
   },
-                                    std::function<void()> unload = []() {
+                                    const std::function<void()> &unload = []() {
                                       // Tests without unload-count assertions do not need an observer.
                                     }) {
     return {

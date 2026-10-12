@@ -269,7 +269,7 @@ namespace platf::publish {
     std::jthread poll_thread;  ///< Thread stopped before destroying callback context.
   };
 
-  std::unique_ptr<::platf::deinit_t> start(std::shared_ptr<const avahi::api_t> api, std::string instance_name, std::uint16_t port) {
+  std::unique_ptr<::platf::deinit_t> start(std::shared_ptr<const avahi::api_t> api, const std::string &instance_name, std::uint16_t port) {
     if (!api) {
       return nullptr;
     }

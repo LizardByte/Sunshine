@@ -125,10 +125,10 @@ namespace platf {
    * @param channels Number of audio channels in the stream.
    * @param sample_rate Audio sample rate in hertz.
    * @param frame_size Number of samples captured per audio frame.
-   * @param source_name Source name.
+   * @param source_name Source name borrowed for the synchronous PulseAudio initialization call.
    * @return Microphone capture object for the requested audio layout, or nullptr on failure.
    */
-  std::unique_ptr<mic_t> microphone([[maybe_unused]] const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, std::string source_name) {
+  std::unique_ptr<mic_t> microphone([[maybe_unused]] const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, const std::string &source_name) {
     // Capture in the canonical channel layout, not the one described by the Opus mapping.
     //
     // The Opus mapping is applied by the multistream encoder in audio.cpp and is undone by

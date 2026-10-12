@@ -21,9 +21,9 @@ namespace platf::publish {
   /**
    * @brief Start a publisher using an explicitly supplied Avahi API and service identity.
    * @param api Loaded Avahi functions retained for the publisher's lifetime.
-   * @param instance_name Service name already normalized for mDNS publication.
+   * @param instance_name Service name read during initialization and duplicated into Avahi-owned storage before return.
    * @param port HTTP service port to advertise.
    * @return Publisher owner, or nullptr when initialization fails.
    */
-  [[nodiscard]] std::unique_ptr<::platf::deinit_t> start(std::shared_ptr<const avahi::api_t> api, std::string instance_name, std::uint16_t port);
+  [[nodiscard]] std::unique_ptr<::platf::deinit_t> start(std::shared_ptr<const avahi::api_t> api, const std::string &instance_name, std::uint16_t port);
 }  // namespace platf::publish
