@@ -5,7 +5,9 @@
 // standard includes
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <source_location>
+#include <span>
 
 // platform includes
 #include <d3dcompiler.h>
@@ -245,7 +247,7 @@ namespace platf::dxgi {
    *
    * @param img_data Raw pointer-shape bytes returned by DXGI.
    * @param shape_info DXGI metadata describing the pointer shape.
-   * @note Two monochrome mask bits produce only color types 0 through 3; the default is transparent.
+   * @note Borrowed monochrome mask bytes produce only color types 0 through 3; the default is transparent.
    * @return Constructed cursor xor image object.
    */
   util::buffer_t<std::uint8_t> make_cursor_xor_image(const util::buffer_t<std::uint8_t> &img_data, DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info) {
@@ -289,13 +291,14 @@ namespace platf::dxgi {
     auto bytes = shape_info.Pitch * shape_info.Height;
     auto pixel_begin = (std::uint32_t *) std::begin(cursor_img);
     auto pixel_data = pixel_begin;
-    auto and_mask = std::begin(img_data);
-    auto xor_mask = std::begin(img_data) + bytes;
+    const auto mask_bytes = std::as_bytes(std::span {img_data});
+    auto and_mask = std::begin(mask_bytes);
+    auto xor_mask = std::begin(mask_bytes) + bytes;
 
     for (auto x = 0; x < bytes; ++x) {
       for (auto c = 7; c >= 0 && ((std::uint8_t *) pixel_data) != std::end(cursor_img); --c) {
-        auto bit = 1 << c;
-        switch (auto color_type = ((*and_mask & bit) ? 1 : 0) + ((*xor_mask & bit) ? 2 : 0); color_type) {
+        auto bit = std::byte {1} << c;
+        switch (auto color_type = ((*and_mask & bit) != std::byte {0} ? 1 : 0) + ((*xor_mask & bit) != std::byte {0} ? 2 : 0); color_type) {
           case 3:  // Inverse of screen
             *pixel_data = inverted;
             break;
@@ -321,7 +324,7 @@ namespace platf::dxgi {
    *
    * @param img_data Raw pointer-shape bytes returned by DXGI.
    * @param shape_info DXGI metadata describing the pointer shape.
-   * @note Two monochrome mask bits produce only color types 0 through 3; the default is transparent.
+   * @note Borrowed monochrome mask bytes produce only color types 0 through 3; the default is transparent.
    * @return Constructed cursor alpha image object.
    */
   util::buffer_t<std::uint8_t> make_cursor_alpha_image(const util::buffer_t<std::uint8_t> &img_data, DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info) {
@@ -367,13 +370,14 @@ namespace platf::dxgi {
     auto bytes = shape_info.Pitch * shape_info.Height;
     auto pixel_begin = (std::uint32_t *) std::begin(cursor_img);
     auto pixel_data = pixel_begin;
-    auto and_mask = std::begin(img_data);
-    auto xor_mask = std::begin(img_data) + bytes;
+    const auto mask_bytes = std::as_bytes(std::span {img_data});
+    auto and_mask = std::begin(mask_bytes);
+    auto xor_mask = std::begin(mask_bytes) + bytes;
 
     for (auto x = 0; x < bytes; ++x) {
       for (auto c = 7; c >= 0 && ((std::uint8_t *) pixel_data) != std::end(cursor_img); --c) {
-        auto bit = 1 << c;
-        switch (auto color_type = ((*and_mask & bit) ? 1 : 0) + ((*xor_mask & bit) ? 2 : 0); color_type) {
+        auto bit = std::byte {1} << c;
+        switch (auto color_type = ((*and_mask & bit) != std::byte {0} ? 1 : 0) + ((*xor_mask & bit) != std::byte {0} ? 2 : 0); color_type) {
           case 0:  // Opaque black
             *pixel_data = black;
             break;

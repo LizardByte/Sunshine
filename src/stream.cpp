@@ -5,6 +5,7 @@
 
 // standard includes
 #include <array>
+#include <cstddef>
 #include <cstring>
 #include <fstream>
 #include <future>
@@ -1627,6 +1628,7 @@ namespace stream {
 
   /**
    * @brief Stamp the original data packets before generating recovery shards.
+   * @details Build packet flags as bytes before storing their numeric representation in the GameStream wire header.
    *
    * @param payload Writable backing bytes viewed as a single FEC block.
    * @param blocksize Bytes in each complete packet.
@@ -1645,13 +1647,14 @@ namespace stream {
       inspect->packet.multiFecFlags = 0x10;
       inspect->packet.multiFecBlocks = (info.block_index << 4) | ((info.block_count - 1) << 6);
 
-      inspect->packet.flags = FLAG_CONTAINS_PIC_DATA;
+      auto flags = std::byte {FLAG_CONTAINS_PIC_DATA};
       if (x == 0) {
-        inspect->packet.flags |= FLAG_SOF;
+        flags |= std::byte {FLAG_SOF};
       }
       if (x == packets - 1) {
-        inspect->packet.flags |= FLAG_EOF;
+        flags |= std::byte {FLAG_EOF};
       }
+      inspect->packet.flags = std::to_integer<std::uint8_t>(flags);
     }
   }
 
