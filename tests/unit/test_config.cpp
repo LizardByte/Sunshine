@@ -12,8 +12,11 @@
 #include <atomic>
 #include <filesystem>
 #include <format>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
+#include <tuple>
 #include <utility>
 
 // local includes
@@ -291,6 +294,303 @@ TEST_F(ConfigPersistenceTest, ParsesNvencTwoPassModesAndDefaultsUnknownValues) {
     store().edit_startup().video.nv.two_pass = full_resolution;
     store().apply_config_for_test(std::string {"nvenc_twopass = "} + std::string {setting} + "\n");
     EXPECT_EQ(store().edit_startup().video.nv.two_pass, expected) << setting;
+  }
+}
+
+/**
+ * @brief AMD quality names select the codec-specific SDK presets from an unset state.
+ */
+TEST_F(ConfigPersistenceTest, ParsesEveryAmdQualityForEachCodec) {
+  ASSERT_NO_FATAL_FAILURE(prepare_apps_file());
+  constexpr std::array cases {
+    std::tuple {"balanced"sv, 0, 5, 70},
+    std::tuple {"quality"sv, 2, 0, 30},
+    std::tuple {"speed"sv, 1, 10, 100},
+  };
+  for (const auto &[value, h264, hevc, av1] : cases) {
+    auto &amd = store().edit_startup().video.amd;
+    amd.amd_quality_h264.reset();
+    amd.amd_quality_hevc.reset();
+    amd.amd_quality_av1.reset();
+    store().apply_config_for_test(std::format("amd_quality = {}\n", value));
+    EXPECT_EQ(amd.amd_quality_h264, h264) << value;
+    EXPECT_EQ(amd.amd_quality_hevc, hevc) << value;
+    EXPECT_EQ(amd.amd_quality_av1, av1) << value;
+  }
+}
+
+/**
+ * @brief AMD rate-control names retain each codec's distinct CBR and latency mappings.
+ */
+TEST_F(ConfigPersistenceTest, ParsesEveryAmdRateControlForEachCodec) {
+  ASSERT_NO_FATAL_FAILURE(prepare_apps_file());
+  constexpr std::array cases {
+    std::tuple {"cbr"sv, 1, 3, 3},
+    std::tuple {"cqp"sv, 0, 0, 0},
+    std::tuple {"vbr_latency"sv, 3, 1, 1},
+    std::tuple {"vbr_peak"sv, 2, 2, 2},
+  };
+  for (const auto &[value, h264, hevc, av1] : cases) {
+    auto &amd = store().edit_startup().video.amd;
+    amd.amd_rc_h264.reset();
+    amd.amd_rc_hevc.reset();
+    amd.amd_rc_av1.reset();
+    store().apply_config_for_test(std::format("amd_rc = {}\n", value));
+    EXPECT_EQ(amd.amd_rc_h264, h264) << value;
+    EXPECT_EQ(amd.amd_rc_hevc, hevc) << value;
+    EXPECT_EQ(amd.amd_rc_av1, av1) << value;
+  }
+}
+
+/**
+ * @brief AMD usage names select every supported profile for all three codecs.
+ */
+TEST_F(ConfigPersistenceTest, ParsesEveryAmdUsageForEachCodec) {
+  ASSERT_NO_FATAL_FAILURE(prepare_apps_file());
+  constexpr std::array cases {
+    std::tuple {"lowlatency"sv, 2, 2, 1},
+    std::tuple {"lowlatency_high_quality"sv, 5, 5, 5},
+    std::tuple {"transcoding"sv, 0, 0, 0},
+    std::tuple {"ultralowlatency"sv, 1, 1, 2},
+    std::tuple {"webcam"sv, 3, 3, 3},
+  };
+  for (const auto &[value, h264, hevc, av1] : cases) {
+    auto &amd = store().edit_startup().video.amd;
+    amd.amd_usage_h264.reset();
+    amd.amd_usage_hevc.reset();
+    amd.amd_usage_av1.reset();
+    store().apply_config_for_test(std::format("amd_usage = {}\n", value));
+    EXPECT_EQ(amd.amd_usage_h264, h264) << value;
+    EXPECT_EQ(amd.amd_usage_hevc, hevc) << value;
+    EXPECT_EQ(amd.amd_usage_av1, av1) << value;
+  }
+}
+
+/**
+ * @brief Invalid and empty AMD policies preserve each codec's engaged or unset original.
+ */
+TEST_F(ConfigPersistenceTest, RejectedAmdPoliciesRetainEachCodecOptional) {
+  ASSERT_NO_FATAL_FAILURE(prepare_apps_file());
+  const std::array originals {
+    std::array<std::optional<int>, 3> {91, 92, 93},
+    std::array<std::optional<int>, 3> {91, std::nullopt, 93},
+    std::array<std::optional<int>, 3> {std::nullopt, std::nullopt, std::nullopt},
+  };
+  constexpr std::array contents {
+    "amd_quality = unknown\namd_rc = unknown\namd_usage = unknown\n"sv,
+    "amd_quality = BALANCED\namd_rc = CBR\namd_usage = LOWLATENCY\n"sv,
+    "amd_quality = auto\namd_rc = auto\namd_usage = auto\n"sv,
+    "amd_quality =\namd_rc =\namd_usage =\n"sv,
+    ""sv,
+  };
+  for (const auto &original : originals) {
+    for (const auto content : contents) {
+      auto &amd = store().edit_startup().video.amd;
+      amd.amd_quality_h264 = original[0];
+      amd.amd_quality_hevc = original[1];
+      amd.amd_quality_av1 = original[2];
+      amd.amd_rc_h264 = original[0];
+      amd.amd_rc_hevc = original[1];
+      amd.amd_rc_av1 = original[2];
+      amd.amd_usage_h264 = original[0];
+      amd.amd_usage_hevc = original[1];
+      amd.amd_usage_av1 = original[2];
+      store().apply_config_for_test(content);
+      EXPECT_EQ(amd.amd_quality_h264, original[0]) << content;
+      EXPECT_EQ(amd.amd_quality_hevc, original[1]) << content;
+      EXPECT_EQ(amd.amd_quality_av1, original[2]) << content;
+      EXPECT_EQ(amd.amd_rc_h264, original[0]) << content;
+      EXPECT_EQ(amd.amd_rc_hevc, original[1]) << content;
+      EXPECT_EQ(amd.amd_rc_av1, original[2]) << content;
+      EXPECT_EQ(amd.amd_usage_h264, original[0]) << content;
+      EXPECT_EQ(amd.amd_usage_hevc, original[1]) << content;
+      EXPECT_EQ(amd.amd_usage_av1, original[2]) << content;
+    }
+  }
+}
+
+/**
+ * @brief QSV presets use named SDK values, clear invalid selections, and retain missing ones.
+ */
+TEST_F(ConfigPersistenceTest, ParsesQsvPresetNamesAndClearsInvalidSelections) {
+  ASSERT_NO_FATAL_FAILURE(prepare_apps_file());
+  EXPECT_EQ(store().values().video.qsv.qsv_preset, 4);
+  constexpr std::array cases {
+    std::pair {"veryslow"sv, 1},
+    std::pair {"slower"sv, 2},
+    std::pair {"slow"sv, 3},
+    std::pair {"medium"sv, 4},
+    std::pair {"fast"sv, 5},
+    std::pair {"faster"sv, 6},
+    std::pair {"veryfast"sv, 7},
+  };
+  for (const auto &[value, expected] : cases) {
+    store().edit_startup().video.qsv.qsv_preset.reset();
+    store().apply_config_for_test(std::format("qsv_preset = {}\n", value));
+    EXPECT_EQ(store().values().video.qsv.qsv_preset, expected) << value;
+  }
+  for (const auto value : {"unknown"sv, "FAST"sv, "4"sv, "superfast"sv}) {
+    store().edit_startup().video.qsv.qsv_preset = 99;
+    store().apply_config_for_test(std::format("qsv_preset = {}\n", value));
+    EXPECT_FALSE(store().values().video.qsv.qsv_preset.has_value()) << value;
+  }
+  for (const auto original : {std::optional<int> {99}, std::optional<int> {}}) {
+    for (const auto content : {""sv, "qsv_preset =\n"sv}) {
+      store().edit_startup().video.qsv.qsv_preset = original;
+      store().apply_config_for_test(content);
+      EXPECT_EQ(store().values().video.qsv.qsv_preset, original) << content;
+    }
+  }
+}
+
+/**
+ * @brief Software preset names map to SVT speeds and unknown nonempty names use superfast.
+ */
+TEST_F(ConfigPersistenceTest, ParsesAllSoftwarePresetSpeedsAndDefaultsUnknownValues) {
+  ASSERT_NO_FATAL_FAILURE(prepare_apps_file());
+  EXPECT_EQ(store().values().video.sw.sw_preset, "superfast");
+  EXPECT_EQ(store().values().video.sw.svtav1_preset, 11);
+  constexpr std::array cases {
+    std::pair {"veryslow"sv, 1},
+    std::pair {"slower"sv, 2},
+    std::pair {"slow"sv, 4},
+    std::pair {"medium"sv, 5},
+    std::pair {"fast"sv, 7},
+    std::pair {"faster"sv, 9},
+    std::pair {"veryfast"sv, 10},
+    std::pair {"superfast"sv, 11},
+    std::pair {"ultrafast"sv, 12},
+    std::pair {"unknown"sv, 11},
+    std::pair {"FAST"sv, 11},
+    std::pair {"7"sv, 11},
+  };
+  for (const auto &[value, expected] : cases) {
+    store().edit_startup().video.sw.svtav1_preset = 99;
+    store().apply_config_for_test(std::format("sw_preset = {}\n", value));
+    EXPECT_EQ(store().values().video.sw.sw_preset, value);
+    EXPECT_EQ(store().values().video.sw.svtav1_preset, expected) << value;
+  }
+}
+
+/**
+ * @brief An empty software preset retains SVT state while stored nonempty names are reapplied.
+ */
+TEST_F(ConfigPersistenceTest, ReappliesStoredSoftwarePresetsAndRetainsEmptySelections) {
+  ASSERT_NO_FATAL_FAILURE(prepare_apps_file());
+  for (const auto original : {std::optional<int> {99}, std::optional<int> {}}) {
+    store().edit_startup().video.sw.sw_preset.clear();
+    store().edit_startup().video.sw.svtav1_preset = original;
+    store().apply_config_for_test("");
+    EXPECT_TRUE(store().values().video.sw.sw_preset.empty());
+    EXPECT_EQ(store().values().video.sw.svtav1_preset, original);
+
+    store().edit_startup().video.sw.sw_preset.clear();
+    store().edit_startup().video.sw.svtav1_preset = original;
+    store().apply_config_for_test("sw_preset =\n");
+    EXPECT_TRUE(store().values().video.sw.sw_preset.empty());
+    EXPECT_EQ(store().values().video.sw.svtav1_preset, original);
+  }
+  for (const auto &[value, expected] : {std::pair {"fast"sv, 7}, std::pair {"unknown"sv, 11}}) {
+    for (const auto content : {"qp = 33\n"sv, "sw_preset =\n"sv}) {
+      store().edit_startup().video.sw.sw_preset = value;
+      store().edit_startup().video.sw.svtav1_preset = 99;
+      store().apply_config_for_test(content);
+      EXPECT_EQ(store().values().video.sw.sw_preset, value);
+      EXPECT_EQ(store().values().video.sw.svtav1_preset, expected) << value;
+    }
+  }
+}
+
+/**
+ * @brief Display modes recognize exact policy names and auto aliases, disabling invalid values.
+ */
+TEST_F(ConfigPersistenceTest, ParsesDisplayPreparationModesAndDisablesInvalidValues) {
+  ASSERT_NO_FATAL_FAILURE(prepare_apps_file());
+  const auto &dd = store().values().video.dd;
+  {
+    using enum config::video_t::dd_t::config_option_e;
+    constexpr std::array cases {
+      std::pair {"disabled"sv, disabled},
+      std::pair {"verify_only"sv, verify_only},
+      std::pair {"ensure_active"sv, ensure_active},
+      std::pair {"ensure_primary"sv, ensure_primary},
+      std::pair {"ensure_only_display"sv, ensure_only_display},
+      std::pair {"unknown"sv, disabled},
+      std::pair {"ENSURE_ACTIVE"sv, disabled},
+      std::pair {"auto"sv, disabled},
+    };
+    for (const auto &[value, expected] : cases) {
+      store().edit_startup().video.dd.configuration_option = ensure_primary;
+      store().apply_config_for_test(std::format("dd_configuration_option = {}\n", value));
+      EXPECT_EQ(dd.configuration_option, expected) << value;
+    }
+  }
+  {
+    using enum config::video_t::dd_t::resolution_option_e;
+    constexpr std::array cases {
+      std::pair {"disabled"sv, disabled},
+      std::pair {"auto"sv, automatic},
+      std::pair {"manual"sv, manual},
+      std::pair {"unknown"sv, disabled},
+      std::pair {"AUTO"sv, disabled},
+      std::pair {"automatic"sv, disabled},
+    };
+    for (const auto &[value, expected] : cases) {
+      store().edit_startup().video.dd.resolution_option = manual;
+      store().apply_config_for_test(std::format("dd_resolution_option = {}\n", value));
+      EXPECT_EQ(dd.resolution_option, expected) << value;
+    }
+  }
+  {
+    using enum config::video_t::dd_t::refresh_rate_option_e;
+    constexpr std::array cases {
+      std::pair {"disabled"sv, disabled},
+      std::pair {"auto"sv, automatic},
+      std::pair {"manual"sv, manual},
+      std::pair {"unknown"sv, disabled},
+      std::pair {"AUTO"sv, disabled},
+      std::pair {"automatic"sv, disabled},
+    };
+    for (const auto &[value, expected] : cases) {
+      store().edit_startup().video.dd.refresh_rate_option = manual;
+      store().apply_config_for_test(std::format("dd_refresh_rate_option = {}\n", value));
+      EXPECT_EQ(dd.refresh_rate_option, expected) << value;
+    }
+  }
+  {
+    using enum config::video_t::dd_t::hdr_option_e;
+    constexpr std::array cases {
+      std::pair {"disabled"sv, disabled},
+      std::pair {"auto"sv, automatic},
+      std::pair {"unknown"sv, disabled},
+      std::pair {"AUTO"sv, disabled},
+      std::pair {"automatic"sv, disabled},
+      std::pair {"manual"sv, disabled},
+    };
+    for (const auto &[value, expected] : cases) {
+      store().edit_startup().video.dd.hdr_option = automatic;
+      store().apply_config_for_test(std::format("dd_hdr_option = {}\n", value));
+      EXPECT_EQ(dd.hdr_option, expected) << value;
+    }
+  }
+}
+
+/**
+ * @brief Missing or empty display modes retain the owner's configured policies.
+ */
+TEST_F(ConfigPersistenceTest, MissingOrEmptyDisplayModesRetainConfiguredValues) {
+  ASSERT_NO_FATAL_FAILURE(prepare_apps_file());
+  for (const auto content : {""sv, "dd_configuration_option =\ndd_resolution_option =\ndd_refresh_rate_option =\ndd_hdr_option =\n"sv}) {
+    auto &dd = store().edit_startup().video.dd;
+    dd.configuration_option = config::video_t::dd_t::config_option_e::ensure_primary;
+    dd.resolution_option = config::video_t::dd_t::resolution_option_e::manual;
+    dd.refresh_rate_option = config::video_t::dd_t::refresh_rate_option_e::manual;
+    dd.hdr_option = config::video_t::dd_t::hdr_option_e::automatic;
+    store().apply_config_for_test(content);
+    EXPECT_EQ(dd.configuration_option, config::video_t::dd_t::config_option_e::ensure_primary);
+    EXPECT_EQ(dd.resolution_option, config::video_t::dd_t::resolution_option_e::manual);
+    EXPECT_EQ(dd.refresh_rate_option, config::video_t::dd_t::refresh_rate_option_e::manual);
+    EXPECT_EQ(dd.hdr_option, config::video_t::dd_t::hdr_option_e::automatic);
   }
 }
 

@@ -1,7 +1,7 @@
 /**
  * @file src/config.cpp
  * @brief Definitions for the configuration of Sunshine.
- * @note AMD, QSV, software AV1 and display preparation conversions are hidden as complete macro blocks from documentation preprocessing.
+ * @note Encoder and display preparation mappings keep their input comparisons visible during documentation preprocessing.
  */
 // standard includes
 #include <algorithm>
@@ -261,66 +261,75 @@ namespace config {
     /**
      * @brief Parse an AMD quality preset while preserving the current value on invalid input.
      *
+     * @tparam T Codec-specific AMD quality enum with an `int` underlying type.
      * @param quality_type Configuration text naming the AMD quality preset.
-     * @param original Original text value used when reporting a parsing failure.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
+     * @param original Existing optional setting retained for unknown text.
+     * @return Native enum value, or the original setting when the text is unknown.
      */
     template<class T>
     ::std::optional<int> quality_from_view(const ::std::string_view &quality_type, const ::std::optional<int>(&original)) {
-#ifndef DOXYGEN
-  #define _CONVERT_(x) \
-    if (quality_type == #x##sv) \
-    return (int) T::x
-      _CONVERT_(balanced);
-      _CONVERT_(quality);
-      _CONVERT_(speed);
-  #undef _CONVERT_
-#endif
+      if (quality_type == "balanced"sv) {
+        return std::to_underlying(T::balanced);
+      }
+      if (quality_type == "quality"sv) {
+        return std::to_underlying(T::quality);
+      }
+      if (quality_type == "speed"sv) {
+        return std::to_underlying(T::speed);
+      }
       return original;
     }
 
     /**
      * @brief Parse an AMD rate-control mode while preserving the current value on invalid input.
      *
+     * @tparam T Codec-specific AMD rate-control enum with an `int` underlying type.
      * @param rc Rate-control mode selected in the configuration.
-     * @param original Original text value used when reporting a parsing failure.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
+     * @param original Existing optional setting retained for unknown text.
+     * @return Native enum value, or the original setting when the text is unknown.
      */
     template<class T>
     ::std::optional<int> rc_from_view(const ::std::string_view &rc, const ::std::optional<int>(&original)) {
-#ifndef DOXYGEN
-  #define _CONVERT_(x) \
-    if (rc == #x##sv) \
-    return (int) T::x
-      _CONVERT_(cbr);
-      _CONVERT_(cqp);
-      _CONVERT_(vbr_latency);
-      _CONVERT_(vbr_peak);
-  #undef _CONVERT_
-#endif
+      if (rc == "cbr"sv) {
+        return std::to_underlying(T::cbr);
+      }
+      if (rc == "cqp"sv) {
+        return std::to_underlying(T::cqp);
+      }
+      if (rc == "vbr_latency"sv) {
+        return std::to_underlying(T::vbr_latency);
+      }
+      if (rc == "vbr_peak"sv) {
+        return std::to_underlying(T::vbr_peak);
+      }
       return original;
     }
 
     /**
      * @brief Parse an AMD encoder usage mode while preserving the current value on invalid input.
      *
+     * @tparam T Codec-specific AMD usage enum with an `int` underlying type.
      * @param usage Encoder usage mode selected in the configuration.
-     * @param original Original text value used when reporting a parsing failure.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
+     * @param original Existing optional setting retained for unknown text.
+     * @return Native enum value, or the original setting when the text is unknown.
      */
     template<class T>
     ::std::optional<int> usage_from_view(const ::std::string_view &usage, const ::std::optional<int>(&original)) {
-#ifndef DOXYGEN
-  #define _CONVERT_(x) \
-    if (usage == #x##sv) \
-    return (int) T::x
-      _CONVERT_(lowlatency);
-      _CONVERT_(lowlatency_high_quality);
-      _CONVERT_(transcoding);
-      _CONVERT_(ultralowlatency);
-      _CONVERT_(webcam);
-  #undef _CONVERT_
-#endif
+      if (usage == "lowlatency"sv) {
+        return std::to_underlying(T::lowlatency);
+      }
+      if (usage == "lowlatency_high_quality"sv) {
+        return std::to_underlying(T::lowlatency_high_quality);
+      }
+      if (usage == "transcoding"sv) {
+        return std::to_underlying(T::transcoding);
+      }
+      if (usage == "ultralowlatency"sv) {
+        return std::to_underlying(T::ultralowlatency);
+      }
+      if (usage == "webcam"sv) {
+        return std::to_underlying(T::webcam);
+      }
       return original;
     }
 
@@ -372,22 +381,30 @@ namespace config {
      * @brief Parse a QSV encoder preset from configuration text.
      *
      * @param preset Encoder preset value supplied by the configuration.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
+     * @return Native preset value, or `std::nullopt` when the text is unknown.
      */
     std::optional<int> preset_from_view(const std::string_view &preset) {
-#ifndef DOXYGEN
-  #define _CONVERT_(x) \
-    if (preset == #x##sv) \
-    return x
-      _CONVERT_(veryslow);
-      _CONVERT_(slower);
-      _CONVERT_(slow);
-      _CONVERT_(medium);
-      _CONVERT_(fast);
-      _CONVERT_(faster);
-      _CONVERT_(veryfast);
-  #undef _CONVERT_
-#endif
+      if (preset == "veryslow"sv) {
+        return veryslow;
+      }
+      if (preset == "slower"sv) {
+        return slower;
+      }
+      if (preset == "slow"sv) {
+        return slow;
+      }
+      if (preset == "medium"sv) {
+        return medium;
+      }
+      if (preset == "fast"sv) {
+        return fast;
+      }
+      if (preset == "faster"sv) {
+        return faster;
+      }
+      if (preset == "veryfast"sv) {
+        return veryfast;
+      }
       return std::nullopt;
     }
 
@@ -575,24 +592,36 @@ namespace config {
      * @brief Parse an SVT-AV1 speed preset from configuration text.
      *
      * @param preset Encoder preset value supplied by the configuration.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
+     * @return Native speed value, or the superfast value `11` when the text is unknown.
      */
     int svtav1_preset_from_view(const std::string_view &preset) {
-#ifndef DOXYGEN
-  #define _CONVERT_(x, y) \
-    if (preset == #x##sv) \
-    return y
-      _CONVERT_(veryslow, 1);
-      _CONVERT_(slower, 2);
-      _CONVERT_(slow, 4);
-      _CONVERT_(medium, 5);
-      _CONVERT_(fast, 7);
-      _CONVERT_(faster, 9);
-      _CONVERT_(veryfast, 10);
-      _CONVERT_(superfast, 11);
-      _CONVERT_(ultrafast, 12);
-  #undef _CONVERT_
-#endif
+      if (preset == "veryslow"sv) {
+        return 1;
+      }
+      if (preset == "slower"sv) {
+        return 2;
+      }
+      if (preset == "slow"sv) {
+        return 4;
+      }
+      if (preset == "medium"sv) {
+        return 5;
+      }
+      if (preset == "fast"sv) {
+        return 7;
+      }
+      if (preset == "faster"sv) {
+        return 9;
+      }
+      if (preset == "veryfast"sv) {
+        return 10;
+      }
+      if (preset == "superfast"sv) {
+        return 11;
+      }
+      if (preset == "ultrafast"sv) {
+        return 12;
+      }
       return 11;  // Default to superfast
     }
   }  // namespace sw
@@ -605,17 +634,21 @@ namespace config {
      * @return Parsed enum value, or the setting-specific default when the text is unknown.
      */
     video_t::dd_t::config_option_e config_option_from_view(const std::string_view value) {
-#ifndef DOXYGEN
-  #define _CONVERT_(x) \
-    if (value == #x##sv) \
-    return video_t::dd_t::config_option_e::x
-      _CONVERT_(disabled);
-      _CONVERT_(verify_only);
-      _CONVERT_(ensure_active);
-      _CONVERT_(ensure_primary);
-      _CONVERT_(ensure_only_display);
-  #undef _CONVERT_
-#endif
+      if (value == "disabled"sv) {
+        return video_t::dd_t::config_option_e::disabled;
+      }
+      if (value == "verify_only"sv) {
+        return video_t::dd_t::config_option_e::verify_only;
+      }
+      if (value == "ensure_active"sv) {
+        return video_t::dd_t::config_option_e::ensure_active;
+      }
+      if (value == "ensure_primary"sv) {
+        return video_t::dd_t::config_option_e::ensure_primary;
+      }
+      if (value == "ensure_only_display"sv) {
+        return video_t::dd_t::config_option_e::ensure_only_display;
+      }
       return video_t::dd_t::config_option_e::disabled;  // Default to this if value is invalid
     }
 
@@ -626,17 +659,15 @@ namespace config {
      * @return Parsed enum value, or the setting-specific default when the text is unknown.
      */
     video_t::dd_t::resolution_option_e resolution_option_from_view(const std::string_view value) {
-#ifndef DOXYGEN
-  #define _CONVERT_2_ARG_(str, val) \
-    if (value == #str##sv) \
-    return video_t::dd_t::resolution_option_e::val
-  #define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
-      _CONVERT_(disabled);
-      _CONVERT_2_ARG_(auto, automatic);
-      _CONVERT_(manual);
-  #undef _CONVERT_
-  #undef _CONVERT_2_ARG_
-#endif
+      if (value == "disabled"sv) {
+        return video_t::dd_t::resolution_option_e::disabled;
+      }
+      if (value == "auto"sv) {
+        return video_t::dd_t::resolution_option_e::automatic;
+      }
+      if (value == "manual"sv) {
+        return video_t::dd_t::resolution_option_e::manual;
+      }
       return video_t::dd_t::resolution_option_e::disabled;  // Default to this if value is invalid
     }
 
@@ -647,17 +678,15 @@ namespace config {
      * @return Parsed enum value, or the setting-specific default when the text is unknown.
      */
     video_t::dd_t::refresh_rate_option_e refresh_rate_option_from_view(const std::string_view value) {
-#ifndef DOXYGEN
-  #define _CONVERT_2_ARG_(str, val) \
-    if (value == #str##sv) \
-    return video_t::dd_t::refresh_rate_option_e::val
-  #define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
-      _CONVERT_(disabled);
-      _CONVERT_2_ARG_(auto, automatic);
-      _CONVERT_(manual);
-  #undef _CONVERT_
-  #undef _CONVERT_2_ARG_
-#endif
+      if (value == "disabled"sv) {
+        return video_t::dd_t::refresh_rate_option_e::disabled;
+      }
+      if (value == "auto"sv) {
+        return video_t::dd_t::refresh_rate_option_e::automatic;
+      }
+      if (value == "manual"sv) {
+        return video_t::dd_t::refresh_rate_option_e::manual;
+      }
       return video_t::dd_t::refresh_rate_option_e::disabled;  // Default to this if value is invalid
     }
 
@@ -668,16 +697,12 @@ namespace config {
      * @return Parsed enum value, or the setting-specific default when the text is unknown.
      */
     video_t::dd_t::hdr_option_e hdr_option_from_view(const std::string_view value) {
-#ifndef DOXYGEN
-  #define _CONVERT_2_ARG_(str, val) \
-    if (value == #str##sv) \
-    return video_t::dd_t::hdr_option_e::val
-  #define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
-      _CONVERT_(disabled);
-      _CONVERT_2_ARG_(auto, automatic);
-  #undef _CONVERT_
-  #undef _CONVERT_2_ARG_
-#endif
+      if (value == "disabled"sv) {
+        return video_t::dd_t::hdr_option_e::disabled;
+      }
+      if (value == "auto"sv) {
+        return video_t::dd_t::hdr_option_e::automatic;
+      }
       return video_t::dd_t::hdr_option_e::disabled;  // Default to this if value is invalid
     }
 
