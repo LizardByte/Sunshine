@@ -788,9 +788,9 @@ namespace platf::dxgi {
         rtv_desc.Format = rt_format;
         rtv_desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
 
-        auto status = device->CreateRenderTargetView(output_texture.get(), &rtv_desc, &rt);
-        if (FAILED(status)) {
-          BOOST_LOG(error) << "Failed to create render target view: " << util::log_hex(status);
+        auto view_status = device->CreateRenderTargetView(output_texture.get(), &rtv_desc, &rt);
+        if (FAILED(view_status)) {
+          BOOST_LOG(error) << "Failed to create render target view: " << util::log_hex(view_status);
           return false;
         }
 
@@ -827,12 +827,12 @@ namespace platf::dxgi {
     /**
      * @brief Initialize shared D3D conversion resources for the encoder.
      *
-     * @param display Display object or identifier associated with the operation.
+     * @param capture_display Display object or identifier associated with the operation.
      * @param adapter_p Adapter p.
      * @param pix_fmt Sunshine pixel format to convert or allocate for.
      * @return 0 on success; nonzero or negative platform status on failure.
      */
-    int init(std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p, pix_fmt_e pix_fmt) {
+    int init(std::shared_ptr<platf::display_t> capture_display, adapter_t::pointer adapter_p, pix_fmt_e pix_fmt) {
       switch (pix_fmt) {
         using enum pix_fmt_e;
         case nv12:
@@ -914,11 +914,11 @@ namespace platf::dxgi {
       device_ctx->VSSetConstantBuffers(3, 1, &color_matrix);
       device_ctx->PSSetConstantBuffers(0, 1, &color_matrix);
 
-      this->display = std::dynamic_pointer_cast<display_base_t>(display);
+      this->display = std::dynamic_pointer_cast<display_base_t>(capture_display);
       if (!this->display) {
         return -1;
       }
-      display = nullptr;
+      capture_display = nullptr;
 
       blend_disable = make_blend(device.get(), false, false);
       if (!blend_disable) {
@@ -1186,17 +1186,17 @@ namespace platf::dxgi {
     /**
      * @brief Attach frame resources used by the next conversion or encode operation.
      *
-     * @param frame Video or graphics frame being processed.
+     * @param new_frame Video or graphics frame being processed.
      * @param hw_frames_ctx FFmpeg hardware frames context associated with the frame.
      * @return Status from updating frame.
      */
-    int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
-      this->hwframe.reset(frame);
-      this->frame = frame;
+    int set_frame(AVFrame *new_frame, AVBufferRef *hw_frames_ctx) override {
+      this->hwframe.reset(new_frame);
+      this->frame = new_frame;
 
       // Populate this frame with a hardware buffer if one isn't there already
-      if (!frame->buf[0]) {
-        auto err = av_hwframe_get_buffer(hw_frames_ctx, frame, 0);
+      if (!new_frame->buf[0]) {
+        auto err = av_hwframe_get_buffer(hw_frames_ctx, new_frame, 0);
         if (err) {
           std::array<char, AV_ERROR_MAX_STRING_SIZE> err_str {0};
           BOOST_LOG(error) << "Failed to get hwframe buffer: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, err);
@@ -1206,12 +1206,12 @@ namespace platf::dxgi {
 
       // If this is a frame from a derived context, we'll need to map it to D3D11
       ID3D11Texture2D *frame_texture;
-      if (frame->format != AV_PIX_FMT_D3D11) {
+      if (new_frame->format != AV_PIX_FMT_D3D11) {
         frame_t d3d11_frame {av_frame_alloc()};
 
         d3d11_frame->format = AV_PIX_FMT_D3D11;
 
-        auto err = av_hwframe_map(d3d11_frame.get(), frame, AV_HWFRAME_MAP_WRITE | AV_HWFRAME_MAP_OVERWRITE);
+        auto err = av_hwframe_map(d3d11_frame.get(), new_frame, AV_HWFRAME_MAP_WRITE | AV_HWFRAME_MAP_OVERWRITE);
         if (err) {
           std::array<char, AV_ERROR_MAX_STRING_SIZE> err_str {0};
           BOOST_LOG(error) << "Failed to map D3D11 frame: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, err);
@@ -1222,10 +1222,10 @@ namespace platf::dxgi {
         frame_texture = (ID3D11Texture2D *) d3d11_frame->data[0];
       } else {
         // Otherwise, we can just use the texture inside the original frame
-        frame_texture = (ID3D11Texture2D *) frame->data[0];
+        frame_texture = (ID3D11Texture2D *) new_frame->data[0];
       }
 
-      return base.init_output(frame_texture, frame->width, frame->height);
+      return base.init_output(frame_texture, new_frame->width, new_frame->height);
     }
 
   private:
@@ -1275,19 +1275,19 @@ namespace platf::dxgi {
      * @brief Initialize the platform encoder for the client stream configuration.
      *
      * @param client_config Client stream configuration negotiated for this session.
-     * @param colorspace Colorimetry information used for conversion or encoding.
+     * @param encoder_colorspace Colorimetry information used for conversion or encoding.
      * @return True when the NVENC encoder initializes for the client configuration.
      */
-    bool init_encoder(const ::video::config_t &client_config, const ::video::sunshine_colorspace_t &colorspace) override {
+    bool init_encoder(const ::video::config_t &client_config, const ::video::sunshine_colorspace_t &encoder_colorspace) override {
       if (!nvenc_d3d) {
         return false;
       }
 
-      if (!nvenc_d3d->create_encoder(config::video.nv, client_config, colorspace, buffer_format)) {
+      if (!nvenc_d3d->create_encoder(config::video.nv, client_config, encoder_colorspace, buffer_format)) {
         return false;
       }
 
-      base.apply_colorspace(colorspace);
+      base.apply_colorspace(encoder_colorspace);
       return base.init_output(nvenc_d3d->get_input_texture(), client_config.width, client_config.height) == 0;
     }
 
@@ -1396,14 +1396,14 @@ namespace platf::dxgi {
       if (FAILED(status)) {
         BOOST_LOG(error) << "Failed to get new pointer shape [0x"sv << util::hex(status).to_string_view() << ']';
 
-        return capture_e::error;
+        return capture_e::capture_error;
       }
 
       auto alpha_cursor_img = make_cursor_alpha_image(img_data, shape_info);
       auto xor_cursor_img = make_cursor_xor_image(img_data, shape_info);
 
       if (!set_cursor_texture(device.get(), cursor_alpha, std::move(alpha_cursor_img), shape_info) || !set_cursor_texture(device.get(), cursor_xor, std::move(xor_cursor_img), shape_info)) {
-        return capture_e::error;
+        return capture_e::capture_error;
       }
     }
 
@@ -1421,7 +1421,7 @@ namespace platf::dxgi {
       status = res->QueryInterface(IID_ID3D11Texture2D, (void **) &src);
       if (FAILED(status)) {
         BOOST_LOG(error) << "Couldn't query interface [0x"sv << util::hex(status).to_string_view() << ']';
-        return capture_e::error;
+        return capture_e::capture_error;
       }
 
       D3D11_TEXTURE2D_DESC desc;
@@ -1577,7 +1577,7 @@ namespace platf::dxgi {
           auto p_surface = std::get_if<texture2d_t>(&last_frame_variant);
           if (!p_surface) {
             BOOST_LOG(error) << "Logical error at " << __FILE__ << ":" << __LINE__;
-            return capture_e::error;
+            return capture_e::capture_error;
           }
 
           std::shared_ptr<platf::img_t> img;
@@ -1587,7 +1587,7 @@ namespace platf::dxgi {
 
           auto [d3d_img, lock] = get_locked_d3d_img(img);
           if (!d3d_img) {
-            return capture_e::error;
+            return capture_e::capture_error;
           }
 
           device_ctx->CopyResource(d3d_img->capture_texture.get(), p_surface->get());
@@ -1605,18 +1605,18 @@ namespace platf::dxgi {
           auto p_img = std::get_if<std::shared_ptr<platf::img_t>>(&last_frame_variant);
           if (!p_img) {
             BOOST_LOG(error) << "Logical error at " << __FILE__ << ":" << __LINE__;
-            return capture_e::error;
+            return capture_e::capture_error;
           }
           auto [d3d_img, lock] = get_locked_d3d_img(*p_img);
           if (!d3d_img) {
-            return capture_e::error;
+            return capture_e::capture_error;
           }
 
           p_img = nullptr;
           last_frame_variant = texture2d_t {};
           auto &surface = std::get<texture2d_t>(last_frame_variant);
           if (!create_surface(surface)) {
-            return capture_e::error;
+            return capture_e::capture_error;
           }
 
           device_ctx->CopyResource(surface.get(), d3d_img->capture_texture.get());
@@ -1634,7 +1634,7 @@ namespace platf::dxgi {
 
           auto [d3d_img, lock] = get_locked_d3d_img(img);
           if (!d3d_img) {
-            return capture_e::error;
+            return capture_e::capture_error;
           }
 
           device_ctx->CopyResource(d3d_img->capture_texture.get(), src.get());
@@ -1649,7 +1649,7 @@ namespace platf::dxgi {
             last_frame_variant = texture2d_t {};
             p_surface = std::get_if<texture2d_t>(&last_frame_variant);
             if (!create_surface(*p_surface)) {
-              return capture_e::error;
+              return capture_e::capture_error;
             }
           }
           device_ctx->CopyResource(p_surface->get(), src.get());
@@ -1695,7 +1695,7 @@ namespace platf::dxgi {
           auto p_img = std::get_if<std::shared_ptr<platf::img_t>>(&last_frame_variant);
           if (!p_img) {
             BOOST_LOG(error) << "Logical error at " << __FILE__ << ":" << __LINE__;
-            return capture_e::error;
+            return capture_e::capture_error;
           }
           img_out = *p_img;
           break;
@@ -1706,11 +1706,11 @@ namespace platf::dxgi {
           auto p_surface = std::get_if<texture2d_t>(&last_frame_variant);
           if (!p_surface) {
             BOOST_LOG(error) << "Logical error at " << __FILE__ << ":" << __LINE__;
-            return capture_e::error;
+            return capture_e::capture_error;
           }
           if (!blend_mouse_cursor_flag) {
             BOOST_LOG(error) << "Logical error at " << __FILE__ << ":" << __LINE__;
-            return capture_e::error;
+            return capture_e::capture_error;
           }
 
           if (!pull_free_image_cb(img_out)) {
@@ -1719,7 +1719,7 @@ namespace platf::dxgi {
 
           auto [d3d_img, lock] = get_locked_d3d_img(img_out);
           if (!d3d_img) {
-            return capture_e::error;
+            return capture_e::capture_error;
           }
 
           device_ctx->CopyResource(d3d_img->capture_texture.get(), p_surface->get());
@@ -1740,7 +1740,7 @@ namespace platf::dxgi {
 
           auto [d3d_img, lock] = get_locked_d3d_img(img_out, true);
           if (!d3d_img) {
-            return capture_e::error;
+            return capture_e::capture_error;
           }
 
           if (reclear_dummy) {
@@ -1894,10 +1894,10 @@ namespace platf::dxgi {
         device_ctx->CopyResource(d3d_img->capture_texture.get(), src.get());
       } else {
         BOOST_LOG(error) << "Failed to lock capture texture";
-        return capture_e::error;
+        return capture_e::capture_error;
       }
     } else {
-      return capture_e::error;
+      return capture_e::capture_error;
     }
     img_out = img;
     if (img_out) {
@@ -2134,19 +2134,19 @@ namespace platf::dxgi {
   }
 
   std::unique_ptr<avcodec_encode_device_t> display_vram_t::make_avcodec_encode_device(pix_fmt_e pix_fmt) {
-    auto device = std::make_unique<d3d_avcodec_encode_device_t>();
-    if (device->init(shared_from_this(), adapter.get(), pix_fmt) != 0) {
+    auto encode_device = std::make_unique<d3d_avcodec_encode_device_t>();
+    if (encode_device->init(shared_from_this(), adapter.get(), pix_fmt) != 0) {
       return nullptr;
     }
-    return device;
+    return encode_device;
   }
 
   std::unique_ptr<nvenc_encode_device_t> display_vram_t::make_nvenc_encode_device(pix_fmt_e pix_fmt) {
-    auto device = std::make_unique<d3d_nvenc_encode_device_t>();
-    if (!device->init_device(shared_from_this(), adapter.get(), pix_fmt)) {
+    auto encode_device = std::make_unique<d3d_nvenc_encode_device_t>();
+    if (!encode_device->init_device(shared_from_this(), adapter.get(), pix_fmt)) {
       return nullptr;
     }
-    return device;
+    return encode_device;
   }
 
   /**

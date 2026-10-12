@@ -83,7 +83,7 @@ namespace platf {
       if (pa_simple_read(mic.get(), buf, sample_size * sizeof(float), &status)) {
         BOOST_LOG(error) << "pa_simple_read() failed: "sv << pa_strerror(status);
 
-        return capture_e::error;
+        return capture_e::capture_error;
       }
 
       return capture_e::ok;
@@ -355,8 +355,8 @@ namespace platf {
         loop.reset(pa_mainloop_new());
         ctx.reset(pa_context_new(pa_mainloop_get_api(loop.get()), "sunshine"));
 
-        events_cb = std::make_unique<std::function<void(ctx_t::pointer)>>([this](ctx_t::pointer ctx) {
-          switch (pa_context_get_state(ctx)) {
+        events_cb = std::make_unique<std::function<void(ctx_t::pointer)>>([this](ctx_t::pointer callback_ctx) {
+          switch (pa_context_get_state(callback_ctx)) {
             case PA_CONTEXT_READY:
               events->raise(ready);
               break;
@@ -476,10 +476,10 @@ namespace platf {
         // Count of all virtual sinks that are created by us
         int nullcount = 0;
 
-        cb_t<pa_sink_info *> f = [&](ctx_t::pointer ctx, const pa_sink_info *sink_info, int eol) {
+        cb_t<pa_sink_info *> f = [&](ctx_t::pointer callback_ctx, const pa_sink_info *sink_info, int eol) {
           if (!sink_info) {
             if (!eol) {
-              BOOST_LOG(error) << "Couldn't get pulseaudio sink info: "sv << pa_strerror(pa_context_errno(ctx));
+              BOOST_LOG(error) << "Couldn't get pulseaudio sink info: "sv << pa_strerror(pa_context_errno(callback_ctx));
 
               alarm->ring(-1);
             }
@@ -568,9 +568,9 @@ namespace platf {
         std::string sink_name;
         auto alarm = safe::make_alarm<int>();
 
-        cb_simple_t<pa_server_info *> server_f = [&](ctx_t::pointer ctx, const pa_server_info *server_info) {
+        cb_simple_t<pa_server_info *> server_f = [&](ctx_t::pointer callback_ctx, const pa_server_info *server_info) {
           if (!server_info) {
-            BOOST_LOG(error) << "Couldn't get pulseaudio server info: "sv << pa_strerror(pa_context_errno(ctx));
+            BOOST_LOG(error) << "Couldn't get pulseaudio server info: "sv << pa_strerror(pa_context_errno(callback_ctx));
             alarm->ring(-1);
           }
 
@@ -600,11 +600,11 @@ namespace platf {
           return monitor_name;
         }
 
-        cb_t<pa_sink_info *> sink_f = [&](ctx_t::pointer ctx, const pa_sink_info *sink_info, int eol) {
+        cb_t<pa_sink_info *> sink_f = [&](ctx_t::pointer callback_ctx, const pa_sink_info *sink_info, int eol) {
           if (!sink_info) {
             if (!eol) {
               BOOST_LOG(error) << "Couldn't get pulseaudio sink info for ["sv << sink_name
-                               << "]: "sv << pa_strerror(pa_context_errno(ctx));
+                               << "]: "sv << pa_strerror(pa_context_errno(callback_ctx));
               alarm->ring(-1);
             }
 

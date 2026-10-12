@@ -1222,7 +1222,7 @@ namespace pipewire {
 
       if (pipewire.ensure_stream(mem_type, width, height, target_framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia) < 0) {
         BOOST_LOG(error) << "[pipewire] Failed to ensure pipewire stream. capture() failed with error.";
-        return platf::capture_e::error;
+        return platf::capture_e::capture_error;
       }
       sleep_overshoot_logger.reset();
 
@@ -1249,7 +1249,7 @@ namespace pipewire {
         std::shared_ptr<platf::img_t> img_out;
         switch (const auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor)) {
           case platf::capture_e::reinit:
-          case platf::capture_e::error:
+          case platf::capture_e::capture_error:
           case platf::capture_e::interrupted:
             pipewire.frame_cv().notify_all();
             return status;

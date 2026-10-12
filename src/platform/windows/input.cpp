@@ -255,13 +255,13 @@ namespace platf {
     int init() {
       // Probe ViGEm during startup to see if we can successfully attach gamepads. This will allow us to
       // immediately display the error message in the web UI even before the user tries to stream.
-      client_t client {vigem_alloc()};
-      VIGEM_ERROR status = vigem_connect(client.get());
+      client_t probe_client {vigem_alloc()};
+      VIGEM_ERROR status = vigem_connect(probe_client.get());
       if (!VIGEM_SUCCESS(status)) {
         BOOST_LOG(warning) << "ViGEmBus is not installed or running, so its limited Xbox 360 and DualShock 4 gamepad support is unavailable"sv;
         return -1;
       } else {
-        vigem_disconnect(client.get());
+        vigem_disconnect(probe_client.get());
       }
 
       gamepads.resize(MAX_GAMEPADS);
@@ -392,8 +392,8 @@ namespace platf {
 
       // Disconnect from ViGEm if we just removed the last gamepad
       bool disconnect = true;
-      for (auto &gamepad : gamepads) {
-        if (gamepad.gp && vigem_target_is_attached(gamepad.gp.get())) {
+      for (auto &attached_gamepad : gamepads) {
+        if (attached_gamepad.gp && vigem_target_is_attached(attached_gamepad.gp.get())) {
           disconnect = false;
           break;
         }

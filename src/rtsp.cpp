@@ -410,11 +410,11 @@ namespace rtsp_stream {
       if (ec) {
         BOOST_LOG(error) << "RTSP: handle_read_plaintext(): Couldn't read from tcp socket: "sv << ec.message();
 
-        boost::system::error_code ec;
-        socket->sock.close(ec);
+        boost::system::error_code close_error;
+        socket->sock.close(close_error);
 
-        if (ec) {
-          BOOST_LOG(error) << "RTSP: handle_read_plaintext(): Couldn't close tcp socket: "sv << ec.message();
+        if (close_error) {
+          BOOST_LOG(error) << "RTSP: handle_read_plaintext(): Couldn't close tcp socket: "sv << close_error.message();
         }
 
         return;
@@ -566,8 +566,8 @@ namespace rtsp_stream {
         BOOST_LOG(debug) << "No pending session for incoming RTSP connection"sv;
 
         // If there is no session pending, close the connection immediately
-        boost::system::error_code ec;
-        socket->sock.close(ec);
+        boost::system::error_code close_error;
+        socket->sock.close(close_error);
       }
 
       // Queue another asynchronous accept for the next incoming connection
@@ -891,12 +891,12 @@ namespace rtsp_stream {
   /**
    * @brief Handle RTSP OPTIONS requests.
    *
-   * @param server RTSP server instance handling the request.
+   * @param rtsp_server RTSP server instance handling the request.
    * @param sock Socket used to read or write the protocol message.
    * @param session Active streaming or pairing session for the request.
    * @param req Parsed RTSP request being handled.
    */
-  void cmd_option(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_option(rtsp_server_t *rtsp_server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified
@@ -911,12 +911,12 @@ namespace rtsp_stream {
   /**
    * @brief Handle RTSP DESCRIBE requests.
    *
-   * @param server RTSP server instance.
+   * @param rtsp_server RTSP server instance.
    * @param sock Client socket.
    * @param session Launch session.
    * @param req RTSP request message.
    */
-  void cmd_describe(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_describe(rtsp_server_t *rtsp_server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified
@@ -1002,12 +1002,12 @@ namespace rtsp_stream {
   /**
    * @brief Handle RTSP SETUP requests and prepare transport state.
    *
-   * @param server RTSP server instance handling the request.
+   * @param rtsp_server RTSP server instance handling the request.
    * @param sock Socket used to read or write the protocol message.
    * @param session Active streaming or pairing session for the request.
    * @param req Parsed RTSP request being handled.
    */
-  void cmd_setup(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_setup(rtsp_server_t *rtsp_server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     std::array<OPTION_ITEM, 4> options {};
 
     auto &seqn = options[0];
@@ -1069,12 +1069,12 @@ namespace rtsp_stream {
   /**
    * @brief Handle RTSP ANNOUNCE requests from the client.
    *
-   * @param server RTSP server instance handling the request.
+   * @param rtsp_server RTSP server instance handling the request.
    * @param sock Socket used to read or write the protocol message.
    * @param session Active streaming or pairing session for the request.
    * @param req Parsed RTSP request being handled.
    */
-  void cmd_announce(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_announce(rtsp_server_t *rtsp_server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified
@@ -1218,9 +1218,9 @@ namespace rtsp_stream {
     // in the RTSP message matches a local interface's IP address. Fortunately, Moonlight always sends
     // 0.0.0.0 when it wants low quality, so it is easy to check without enumerating interfaces.
     if (config.audio.channels == 2) {
-      for (auto option = req->options; option != nullptr; option = option->next) {
-        if ("Host"sv == option->option) {
-          std::string_view content {option->content};
+      for (auto request_option = req->options; request_option != nullptr; request_option = request_option->next) {
+        if ("Host"sv == request_option->option) {
+          std::string_view content {request_option->content};
           BOOST_LOG(debug) << "Found Host: "sv << content;
           config.audio.flags[audio::config_t::HIGH_QUALITY] = (content.find("0.0.0.0"sv) == std::string::npos);
         }
@@ -1303,12 +1303,12 @@ namespace rtsp_stream {
     }
 
     auto stream_session = stream::session::alloc(config, session);
-    server->insert(stream_session);
+    rtsp_server->insert(stream_session);
 
     if (stream::session::start(*stream_session, sock.remote_endpoint().address().to_string())) {
       BOOST_LOG(error) << "Failed to start a streaming session"sv;
 
-      server->remove(stream_session);
+      rtsp_server->remove(stream_session);
       respond(sock, session, &option, 500, "Internal Server Error", req->sequenceNumber, {});
       return;
     }
@@ -1319,12 +1319,12 @@ namespace rtsp_stream {
   /**
    * @brief Handle RTSP PLAY requests and start streaming.
    *
-   * @param server RTSP server instance handling the request.
+   * @param rtsp_server RTSP server instance handling the request.
    * @param sock Socket used to read or write the protocol message.
    * @param session Active streaming or pairing session for the request.
    * @param req Parsed RTSP request being handled.
    */
-  void cmd_play(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_play(rtsp_server_t *rtsp_server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified

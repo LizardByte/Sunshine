@@ -181,13 +181,13 @@ namespace cuda {
     /**
      * @brief Attach frame resources used by the next conversion or encode operation.
      *
-     * @param frame Video or graphics frame being processed.
+     * @param new_frame Video or graphics frame being processed.
      * @param hw_frames_ctx FFmpeg hardware frames context associated with the frame.
      * @return Status from updating frame.
      */
-    int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
-      this->hwframe.reset(frame);
-      this->frame = frame;
+    int set_frame(AVFrame *new_frame, AVBufferRef *hw_frames_ctx) override {
+      this->hwframe.reset(new_frame);
+      this->frame = new_frame;
 
       auto hwframe_ctx = (AVHWFramesContext *) hw_frames_ctx->data;
 
@@ -196,8 +196,8 @@ namespace cuda {
         return -1;
       }
 
-      if (!frame->buf[0]) {
-        if (av_hwframe_get_buffer(hw_frames_ctx, frame, 0)) {
+      if (!new_frame->buf[0]) {
+        if (av_hwframe_get_buffer(hw_frames_ctx, new_frame, 0)) {
           BOOST_LOG(error) << "Couldn't get hwframe for NVENC"sv;
           return -1;
         }
@@ -214,14 +214,14 @@ namespace cuda {
 
       cuda_ctx->stream = stream.get();
 
-      auto sws_opt = sws_t::make(width, height, frame->width, frame->height, width * 4);
+      auto sws_opt = sws_t::make(width, height, new_frame->width, new_frame->height, width * 4);
       if (!sws_opt) {
         return -1;
       }
 
       sws = std::move(*sws_opt);
 
-      linear_interpolation = width != frame->width || height != frame->height;
+      linear_interpolation = width != new_frame->width || height != new_frame->height;
 
       return 0;
     }
@@ -306,12 +306,12 @@ namespace cuda {
     /**
      * @brief Attach frame resources used by the next conversion or encode operation.
      *
-     * @param frame Video or graphics frame being processed.
+     * @param new_frame Video or graphics frame being processed.
      * @param hw_frames_ctx FFmpeg hardware frames context associated with the frame.
      * @return Status from updating frame.
      */
-    int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
-      if (cuda_t::set_frame(frame, hw_frames_ctx)) {
+    int set_frame(AVFrame *new_frame, AVBufferRef *hw_frames_ctx) override {
+      if (cuda_t::set_frame(new_frame, hw_frames_ctx)) {
         return -1;
       }
 
@@ -412,11 +412,11 @@ namespace cuda {
      * @brief Initialize the GL->CUDA encoding device.
      * @param in_width Width of captured frames.
      * @param in_height Height of captured frames.
-     * @param offset_x Offset of content in captured frame.
-     * @param offset_y Offset of content in captured frame.
+     * @param in_offset_x Offset of content in captured frame.
+     * @param in_offset_y Offset of content in captured frame.
      * @return 0 on success or -1 on failure.
      */
-    int init(int in_width, int in_height, int offset_x, int offset_y) {
+    int init(int in_width, int in_height, int in_offset_x, int in_offset_y) {
       // This must be non-zero to tell the video core that it's a hardware encoding device.
       data = (void *) 0x1;
 
@@ -451,21 +451,21 @@ namespace cuda {
 
       sequence = 0;
 
-      this->offset_x = offset_x;
-      this->offset_y = offset_y;
+      this->offset_x = in_offset_x;
+      this->offset_y = in_offset_y;
 
       return 0;
     }
 
     /**
      * @brief Initialize color conversion into target CUDA frame.
-     * @param frame Destination CUDA frame to write into.
+     * @param new_frame Destination CUDA frame to write into.
      * @param hw_frames_ctx_buf FFmpeg hardware frame context.
      * @return 0 on success or -1 on failure.
      */
-    int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx_buf) override {
-      this->hwframe.reset(frame);
-      this->frame = frame;
+    int set_frame(AVFrame *new_frame, AVBufferRef *hw_frames_ctx_buf) override {
+      this->hwframe.reset(new_frame);
+      this->frame = new_frame;
 
       auto hw_frames_ctx = (AVHWFramesContext *) hw_frames_ctx_buf->data;
 
@@ -474,8 +474,8 @@ namespace cuda {
         return -1;
       }
 
-      if (!frame->buf[0]) {
-        if (av_hwframe_get_buffer(hw_frames_ctx_buf, frame, 0)) {
+      if (!new_frame->buf[0]) {
+        if (av_hwframe_get_buffer(hw_frames_ctx_buf, new_frame, 0)) {
           BOOST_LOG(error) << "Couldn't get hwframe for NVENC_GL"sv;
           return -1;
         }
@@ -484,7 +484,7 @@ namespace cuda {
       sw_format = hw_frames_ctx->sw_format;
       is_yuv444 = (sw_format == AV_PIX_FMT_YUV444P || sw_format == AV_PIX_FMT_YUV444P16LE);
 
-      auto sws_opt = egl::sws_t::make(width, height, frame->width, frame->height, sw_format, is_yuv444);
+      auto sws_opt = egl::sws_t::make(width, height, new_frame->width, new_frame->height, sw_format, is_yuv444);
       if (!sws_opt) {
         return -1;
       }
@@ -492,13 +492,13 @@ namespace cuda {
       this->sws = std::move(*sws_opt);
 
       if (is_yuv444) {
-        auto yuv444_opt = egl::create_yuv444_target(frame->width, frame->height, sw_format);
+        auto yuv444_opt = egl::create_yuv444_target(new_frame->width, new_frame->height, sw_format);
         if (!yuv444_opt) {
           return -1;
         }
         this->yuv444 = std::move(*yuv444_opt);
       } else {
-        auto nv12_opt = egl::create_nv12_target(frame->width, frame->height, sw_format);
+        auto nv12_opt = egl::create_nv12_target(new_frame->width, new_frame->height, sw_format);
         if (!nv12_opt) {
           return -1;
         }
@@ -701,7 +701,7 @@ namespace cuda {
       return b ? NVFBC_TRUE : NVFBC_FALSE;
     }
 
-    static void *handle {nullptr};
+    static void *library_handle {nullptr};  ///< Loaded NvFBC library retained while its function table is in use.
 
     /**
      * @brief Load NvFBC and create the CUDA capture helper.
@@ -715,9 +715,9 @@ namespace cuda {
         return 0;
       }
 
-      if (!handle) {
-        handle = dyn::handle({"libnvidia-fbc.so.1", "libnvidia-fbc.so"});
-        if (!handle) {
+      if (!library_handle) {
+        library_handle = dyn::handle({"libnvidia-fbc.so.1", "libnvidia-fbc.so"});
+        if (!library_handle) {
           return -1;
         }
       }
@@ -726,9 +726,9 @@ namespace cuda {
         {(dyn::apiproc *) &createInstance, "NvFBCCreateInstance"},
       };
 
-      if (dyn::load(handle, funcs)) {
-        dlclose(handle);
-        handle = nullptr;
+      if (dyn::load(library_handle, funcs)) {
+        dlclose(library_handle);
+        library_handle = nullptr;
 
         return -1;
       }
@@ -737,8 +737,8 @@ namespace cuda {
       if (status) {
         BOOST_LOG(error) << "Unable to create NvFBC instance"sv;
 
-        dlclose(handle);
-        handle = nullptr;
+        dlclose(library_handle);
+        library_handle = nullptr;
         return -1;
       }
 
@@ -754,16 +754,16 @@ namespace cuda {
       /**
        * @brief Create an NvFBC session context for a native capture handle.
        *
-       * @param handle Native library or object handle used by the operation.
+       * @param session_handle Native library or object handle used by the operation.
        */
-      ctx_t(NVFBC_SESSION_HANDLE handle) {
+      ctx_t(NVFBC_SESSION_HANDLE session_handle) {
         NVFBC_BIND_CONTEXT_PARAMS params {NVFBC_BIND_CONTEXT_PARAMS_VER};
 
-        if (func.nvFBCBindContext(handle, &params)) {
-          BOOST_LOG(error) << "Couldn't bind NvFBC context to current thread: " << func.nvFBCGetLastErrorStr(handle);
+        if (func.nvFBCBindContext(session_handle, &params)) {
+          BOOST_LOG(error) << "Couldn't bind NvFBC context to current thread: " << func.nvFBCGetLastErrorStr(session_handle);
         }
 
-        this->handle = handle;
+        this->handle = session_handle;
       }
 
       ~ctx_t() {
@@ -1049,7 +1049,7 @@ namespace cuda {
           auto status = snapshot(pull_free_image_cb, img_out, 150ms, *cursor);
           switch (status) {
             case platf::capture_e::reinit:
-            case platf::capture_e::error:
+            case platf::capture_e::capture_error:
             case platf::capture_e::interrupted:
               return status;
             case platf::capture_e::timeout:
@@ -1080,7 +1080,7 @@ namespace cuda {
        */
       platf::capture_e reinit(bool cursor) {
         if (handle.stop()) {
-          return platf::capture_e::error;
+          return platf::capture_e::capture_error;
         }
 
         cursor_visible = cursor;
@@ -1095,19 +1095,19 @@ namespace cuda {
         }
 
         if (handle.capture(capture_params)) {
-          return platf::capture_e::error;
+          return platf::capture_e::capture_error;
         }
 
         // If trying to capture directly, test if it actually does.
         if (capture_params.bAllowDirectCapture) {
           CUdeviceptr device_ptr;
-          NVFBC_FRAME_GRAB_INFO info;
+          NVFBC_FRAME_GRAB_INFO grab_info;
 
           NVFBC_TOCUDA_GRAB_FRAME_PARAMS grab {
             NVFBC_TOCUDA_GRAB_FRAME_PARAMS_VER,
             NVFBC_TOCUDA_GRAB_FLAGS_NOWAIT,
             &device_ptr,
-            &info,
+            &grab_info,
             0,
           };
 
@@ -1120,17 +1120,17 @@ namespace cuda {
 
               BOOST_LOG(error) << "Couldn't capture nvFramebuffer: "sv << handle.last_error();
 
-              return platf::capture_e::error;
+              return platf::capture_e::capture_error;
             }
 
-            if (info.bDirectCapture) {
+            if (grab_info.bDirectCapture) {
               break;
             }
 
             BOOST_LOG(debug) << "Direct capture failed attempt ["sv << x << ']';
           }
 
-          if (!info.bDirectCapture) {
+          if (!grab_info.bDirectCapture) {
             BOOST_LOG(debug) << "Direct capture failed, trying the extra copy method"sv;
             // Direct capture failed
             capture_params.bPushModel = nv_bool(false);
@@ -1138,7 +1138,7 @@ namespace cuda {
             capture_params.bAllowDirectCapture = nv_bool(false);
 
             if (handle.stop() || handle.capture(capture_params)) {
-              return platf::capture_e::error;
+              return platf::capture_e::capture_error;
             }
           }
         }
@@ -1164,13 +1164,13 @@ namespace cuda {
         }
 
         CUdeviceptr device_ptr;
-        NVFBC_FRAME_GRAB_INFO info;
+        NVFBC_FRAME_GRAB_INFO grab_info;
 
         NVFBC_TOCUDA_GRAB_FRAME_PARAMS grab {
           NVFBC_TOCUDA_GRAB_FRAME_PARAMS_VER,
           NVFBC_TOCUDA_GRAB_FLAGS_NOWAIT,
           &device_ptr,
-          &info,
+          &grab_info,
           (std::uint32_t) timeout.count(),
         };
 
@@ -1180,7 +1180,7 @@ namespace cuda {
           }
 
           BOOST_LOG(error) << "Couldn't capture nvFramebuffer: "sv << handle.last_error();
-          return platf::capture_e::error;
+          return platf::capture_e::capture_error;
         }
 
         if (!pull_free_image_cb(img_out)) {
@@ -1189,7 +1189,7 @@ namespace cuda {
         auto img = (img_t *) img_out.get();
 
         if (img->tex.copy((std::uint8_t *) device_ptr, img->height, img->row_pitch)) {
-          return platf::capture_e::error;
+          return platf::capture_e::capture_error;
         }
 
         return platf::capture_e::ok;

@@ -235,34 +235,34 @@ namespace platf::dxgi {
     /**
      * @brief Update the cursor position and display geometry used for rendering.
      *
-     * @param topleft_x Cursor left edge in desktop coordinates.
-     * @param topleft_y Cursor top edge in desktop coordinates.
-     * @param display_width Captured display width in pixels.
-     * @param display_height Captured display height in pixels.
-     * @param display_rotation DXGI rotation applied to the captured display.
-     * @param visible Whether the cursor should be visible in the frame.
+     * @param new_topleft_x Cursor left edge in desktop coordinates.
+     * @param new_topleft_y Cursor top edge in desktop coordinates.
+     * @param new_display_width Captured display width in pixels.
+     * @param new_display_height Captured display height in pixels.
+     * @param new_display_rotation DXGI rotation applied to the captured display.
+     * @param new_visible Whether the cursor should be visible in the frame.
      */
-    void set_pos(LONG topleft_x, LONG topleft_y, LONG display_width, LONG display_height, DXGI_MODE_ROTATION display_rotation, bool visible) {
-      this->topleft_x = topleft_x;
-      this->topleft_y = topleft_y;
-      this->display_width = display_width;
-      this->display_height = display_height;
-      this->display_rotation = display_rotation;
-      this->visible = visible;
+    void set_pos(LONG new_topleft_x, LONG new_topleft_y, LONG new_display_width, LONG new_display_height, DXGI_MODE_ROTATION new_display_rotation, bool new_visible) {
+      this->topleft_x = new_topleft_x;
+      this->topleft_y = new_topleft_y;
+      this->display_width = new_display_width;
+      this->display_height = new_display_height;
+      this->display_rotation = new_display_rotation;
+      this->visible = new_visible;
       update_viewport();
     }
 
     /**
      * @brief Replace the cursor texture and update its render viewport.
      *
-     * @param texture_width Cursor texture width in pixels.
-     * @param texture_height Cursor texture height in pixels.
-     * @param texture D3D11 cursor texture to render.
+     * @param new_texture_width Cursor texture width in pixels.
+     * @param new_texture_height Cursor texture height in pixels.
+     * @param new_texture D3D11 cursor texture to render.
      */
-    void set_texture(LONG texture_width, LONG texture_height, texture2d_t &&texture) {
-      this->texture = std::move(texture);
-      this->texture_width = texture_width;
-      this->texture_height = texture_height;
+    void set_texture(LONG new_texture_width, LONG new_texture_height, texture2d_t &&new_texture) {
+      this->texture = std::move(new_texture);
+      this->texture_width = new_texture_width;
+      this->texture_height = new_texture_height;
       update_viewport();
     }
 

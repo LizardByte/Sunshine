@@ -286,10 +286,10 @@ namespace video {
     // If frame is not a software frame, it means we still need to transfer from main memory
     // to vram memory
     if (frame->hw_frames_ctx) {
-      auto status = av_hwframe_transfer_data(frame, sw_frame.get(), 0);
-      if (status < 0) {
+      auto transfer_status = av_hwframe_transfer_data(frame, sw_frame.get(), 0);
+      if (transfer_status < 0) {
         std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
-        BOOST_LOG(error) << "Failed to transfer image data to hardware frame: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
+        BOOST_LOG(error) << "Failed to transfer image data to hardware frame: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, transfer_status);
         return -1;
       }
     }
@@ -1736,7 +1736,7 @@ namespace video {
 
       auto status = disp->capture(push_captured_image_callback, pull_free_image_callback, &display_cursor);
 
-      if (artificial_reinit && status != platf::capture_e::error) {
+      if (artificial_reinit && status != platf::capture_e::capture_error) {
         status = platf::capture_e::reinit;
 
         artificial_reinit = false;
@@ -1803,7 +1803,7 @@ namespace video {
             reinit_event.reset();
             continue;
           }
-        case platf::capture_e::error:
+        case platf::capture_e::capture_error:
         case platf::capture_e::ok:
         case platf::capture_e::timeout:
         case platf::capture_e::interrupted:
@@ -2718,19 +2718,19 @@ namespace video {
     }
 
     if (!disp) {
-      return encode_e::error;
+      return encode_e::capture_error;
     }
 
     auto img = disp->alloc_img();
     if (!img || disp->dummy_img(img.get())) {
-      return encode_e::error;
+      return encode_e::capture_error;
     }
 
     std::vector<sync_session_t> synced_sessions;
     for (auto &ctx : synced_session_ctxs) {
       auto synced_session = make_synced_session(disp.get(), encoder, *img, *ctx);
       if (!synced_session) {
-        return encode_e::error;
+        return encode_e::capture_error;
       }
 
       synced_sessions.emplace_back(std::move(*synced_session));
@@ -2738,7 +2738,7 @@ namespace video {
 
     auto ec = platf::capture_e::ok;
     while (encode_session_ctx_queue.running()) {
-      auto push_captured_image_callback = [&](std::shared_ptr<platf::img_t> &&img, bool frame_captured) -> bool {
+      auto push_captured_image_callback = [&](std::shared_ptr<platf::img_t> &&captured_image, bool frame_captured) -> bool {
         while (encode_session_ctx_queue.peek()) {
           auto encode_session_ctx = encode_session_ctx_queue.pop();
           if (!encode_session_ctx) {
@@ -2747,9 +2747,9 @@ namespace video {
 
           synced_session_ctxs.emplace_back(std::make_unique<sync_session_ctx_t>(std::move(*encode_session_ctx)));
 
-          auto encode_session = make_synced_session(disp.get(), encoder, *img, *synced_session_ctxs.back());
+          auto encode_session = make_synced_session(disp.get(), encoder, *captured_image, *synced_session_ctxs.back());
           if (!encode_session) {
-            ec = platf::capture_e::error;
+            ec = platf::capture_e::capture_error;
             return false;
           }
 
@@ -2779,7 +2779,7 @@ namespace video {
             ctx->idr_events->pop();
           }
 
-          if (frame_captured && pos->session->convert(*img)) {
+          if (frame_captured && pos->session->convert(*captured_image)) {
             BOOST_LOG(error) << "Could not convert image"sv;
             ctx->shutdown_event->raise(true);
 
@@ -2787,8 +2787,8 @@ namespace video {
           }
 
           std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
-          if (img) {
-            frame_timestamp = img->frame_timestamp;
+          if (captured_image) {
+            frame_timestamp = captured_image->frame_timestamp;
           }
 
           if (encode(ctx->frame_nr++, *pos->session, ctx->packets, ctx->channel_data, frame_timestamp)) {
@@ -2820,7 +2820,7 @@ namespace video {
       auto status = disp->capture(push_captured_image_callback, pull_free_image_callback, &display_cursor);
       switch (status) {
         case platf::capture_e::reinit:
-        case platf::capture_e::error:
+        case platf::capture_e::capture_error:
         case platf::capture_e::ok:
         case platf::capture_e::timeout:
         case platf::capture_e::interrupted:
@@ -2843,14 +2843,14 @@ namespace video {
     auto lg = util::fail_guard([&]() {
       ctx.stop();
 
-      for (auto &ctx : synced_session_ctxs) {
-        ctx->shutdown_event->raise(true);
-        ctx->join_event->raise(true);
+      for (auto &session_ctx : synced_session_ctxs) {
+        session_ctx->shutdown_event->raise(true);
+        session_ctx->join_event->raise(true);
       }
 
-      for (auto &ctx : ctx.unsafe()) {
-        ctx.shutdown_event->raise(true);
-        ctx.join_event->raise(true);
+      for (auto &pending_ctx : ctx.unsafe()) {
+        pending_ctx.shutdown_event->raise(true);
+        pending_ctx.join_event->raise(true);
       }
     });
 
@@ -2911,7 +2911,7 @@ namespace video {
       // Wait for the display to be ready
       std::shared_ptr<platf::display_t> display;
       {
-        auto lg = ref->display_wp.lock();
+        auto display_lock = ref->display_wp.lock();
         if (ref->display_wp->expired()) {
           continue;
         }

@@ -212,12 +212,12 @@ namespace input {
   /**
    * @brief Release all platform resources associated with a virtual gamepad.
    *
-   * @param platf_input Platf input.
+   * @param platform_input Platf input.
    * @param id Identifier for the controller, session, display, or resource.
    */
-  void free_gamepad(platf::input_t &platf_input, int id) {
-    platf::gamepad_update(platf_input, id, platf::gamepad_state_t {});
-    platf::free_gamepad(platf_input, id);
+  void free_gamepad(platf::input_t &platform_input, int id) {
+    platf::gamepad_update(platform_input, id, platf::gamepad_state_t {});
+    platf::free_gamepad(platform_input, id);
 
     free_id(gamepadMask, id);
   }
