@@ -1160,6 +1160,7 @@ TEST_F(VirtualHidDeviceTest, DeferredVigemFeedbackDropsExpiredOwnersAndRunsForRe
     scheduler().join();
   });
   scheduler().push([]() {
+               // Completing this task waits for earlier feedback work on the single worker.
              })
     .get();
   EXPECT_EQ(callbacks, 0);
@@ -1168,6 +1169,7 @@ TEST_F(VirtualHidDeviceTest, DeferredVigemFeedbackDropsExpiredOwnersAndRunsForRe
     ++callbacks;
   });
   scheduler().push([]() {
+               // The barrier needs no action beyond confirming the queued callback has finished.
              })
     .get();
   EXPECT_EQ(callbacks, 1);

@@ -130,6 +130,7 @@ TEST(EntryHandlerTests, RearmsTerminationSignalsBeforeInvokingOwnedCallbacks) {
 TEST(EntryHandlerTests, NativeCallbackBindingIsScopedAndRestoresPreviousHandler) {
   lifetime::controller_t controller;
   const auto expected = +[](int) {
+    // An inert previous handler lets the test verify restoration without signal side effects.
   };
   const auto previous = std::signal(SIGINT, expected);
   ASSERT_NE(previous, SIG_ERR);

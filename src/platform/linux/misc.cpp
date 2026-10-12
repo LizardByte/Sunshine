@@ -1841,9 +1841,15 @@ namespace platf {
     impl->hevc_mode = mode;
   }
 
-  void runtime_t::streaming_will_start() {}
+  void runtime_t::streaming_will_start() {
+    // Linux streaming does not require process-wide native settings to change.
+  }
 
-  void runtime_t::streaming_will_stop() {}
+  void runtime_t::streaming_will_stop() {
+    // The Linux start hook applies no native settings that need restoration.
+  }
 
-  void runtime_t::enable_mouse_keys() {}
+  void runtime_t::enable_mouse_keys() {
+    // Linux does not implement the Windows Mouse Keys cursor workaround.
+  }
 }  // namespace platf

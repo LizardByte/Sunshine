@@ -1920,7 +1920,9 @@ namespace platf {
     return dxgi_needs_encoder_reenumeration(impl->enumeration_factory, impl->enumeration_mutex);
   }
 
-  void runtime_t::set_capture_requirements(int) {}
+  void runtime_t::set_capture_requirements(int) {
+    // DXGI capture does not use the Linux backend's separate HEVC-mode requirement.
+  }
 
   void runtime_t::streaming_will_start() {
     std::lock_guard guard(impl->streaming_mutex);

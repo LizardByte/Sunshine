@@ -339,6 +339,7 @@ namespace {
     return complete_export(name);
   },
                                     std::function<void()> unload = []() {
+                                      // Tests without unload-count assertions do not need an observer.
                                     }) {
     return {
       [unload](const char *) {
