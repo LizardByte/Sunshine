@@ -93,20 +93,23 @@ namespace {
   struct fake_audio_control_t: platf::audio_control_t {
     std::vector<std::string> &restored;  ///< Sink restoration requests observed by the fixture.
     std::optional<platf::sink_t> sinks;  ///< Sink discovery result injected by the fixture.
+    int sink_result {};  ///< Result injected for capture routing changes.
+    int microphone_calls {};  ///< Number of attempted microphone creations.
 
     /** @brief Bind fixture state. @param restored Observed sink changes. @param sinks Sink discovery result. */
     fake_audio_control_t(std::vector<std::string> &restored, std::optional<platf::sink_t> sinks):
         restored {restored},
         sinks {std::move(sinks)} {}
 
-    /** @brief Record a routing request. @param sink Requested endpoint. @return Zero on success. */
+    /** @brief Record a routing request. @param sink Requested endpoint. @return Injected routing result. */
     int set_sink(const std::string &sink) override {
       restored.push_back(sink);
-      return 0;
+      return sink_result;
     }
 
     /** @brief Supply no microphone because these tests exercise routing ownership. @return Null microphone. */
     std::unique_ptr<platf::mic_t> microphone(const std::uint8_t *, int, std::uint32_t, std::uint32_t, bool, bool) override {
+      ++microphone_calls;
       return nullptr;
     }
 
@@ -121,6 +124,44 @@ namespace {
     }
   };
 }  // namespace
+
+/**
+ * @brief Routing is attempted only once for a changed sink, and failure prevents microphone creation.
+ */
+TEST(AudioOwnerTest, CaptureRoutesOnlyTheFirstChangedSinkAndStopsOnFailure) {
+  for (const bool already_started : {false, true}) {
+    for (const bool changed : {false, true}) {
+      for (const int result : {0, 1}) {
+        config::settings_t settings;
+        settings.audio.sink = changed ? "configured" : "original";
+        std::vector<std::string> routed;
+        fake_audio_control_t *control {};
+        audio::service_t owner {settings, std::make_shared<safe::mail_raw_t>(), [&]() {
+                                  auto backend = std::make_unique<fake_audio_control_t>(routed, platf::sink_t {"original", {}});
+                                  backend->sink_result = result;
+                                  control = backend.get();
+                                  return backend;
+                                }};
+        auto context = owner.context();
+        ASSERT_TRUE(context);
+        ASSERT_NE(control, nullptr);
+        context->sink_flag->store(already_started);
+        auto session_mail = std::make_shared<safe::mail_raw_t>();
+        const auto shutdown = session_mail->event<bool>(mail::shutdown);
+        shutdown->raise(true);
+        const audio::config_t config {.packetDuration = 5, .channels = 2, .mask = 0x3, .customStreamParams = {}, .flags = {}};
+
+        owner.capture(session_mail, config, nullptr);
+
+        const bool should_route = !already_started && changed;
+        EXPECT_EQ(routed, should_route ? std::vector<std::string> {"configured"} : std::vector<std::string> {});
+        EXPECT_EQ(control->microphone_calls, should_route && result != 0 ? 0 : 1);
+        EXPECT_EQ(context->restore_sink, should_route);
+        EXPECT_TRUE(context->sink_flag->load());
+      }
+    }
+  }
+}
 
 /** @brief Context references retain shared control after its service is destroyed and restore once. */
 TEST(AudioOwnerTest, RetainedContextSurvivesOwnerAndRestoresOriginalSink) {

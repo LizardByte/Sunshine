@@ -184,6 +184,7 @@ namespace cuda {
 
     /**
      * @brief Attach frame resources used by the next conversion or encode operation.
+     * @details Allocate a hardware buffer only when the frame has no retained buffer.
      *
      * @param frame Video or graphics frame being processed.
      * @param hw_frames_ctx FFmpeg hardware frames context associated with the frame.
@@ -200,11 +201,9 @@ namespace cuda {
         return -1;
       }
 
-      if (!frame->buf[0]) {
-        if (av_hwframe_get_buffer(hw_frames_ctx, frame, 0)) {
-          logging::error("Couldn't get hwframe for NVENC"sv);
-          return -1;
-        }
+      if (!frame->buf[0] && av_hwframe_get_buffer(hw_frames_ctx, frame, 0)) {
+        logging::error("Couldn't get hwframe for NVENC"sv);
+        return -1;
       }
 
       is_yuv444 = (hwframe_ctx->sw_format == AV_PIX_FMT_YUV444P);
@@ -467,6 +466,7 @@ namespace cuda {
 
     /**
      * @brief Initialize color conversion into target CUDA frame.
+     * @details Allocate a hardware buffer only when the frame has no retained buffer.
      * @param frame Destination CUDA frame to write into.
      * @param hw_frames_ctx_buf FFmpeg hardware frame context.
      * @return 0 on success or -1 on failure.
@@ -482,11 +482,9 @@ namespace cuda {
         return -1;
       }
 
-      if (!frame->buf[0]) {
-        if (av_hwframe_get_buffer(hw_frames_ctx_buf, frame, 0)) {
-          logging::error("Couldn't get hwframe for NVENC_GL"sv);
-          return -1;
-        }
+      if (!frame->buf[0] && av_hwframe_get_buffer(hw_frames_ctx_buf, frame, 0)) {
+        logging::error("Couldn't get hwframe for NVENC_GL"sv);
+        return -1;
       }
 
       sw_format = hw_frames_ctx->sw_format;

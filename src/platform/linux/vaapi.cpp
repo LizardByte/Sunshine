@@ -450,6 +450,7 @@ namespace va {
 
     /**
      * @brief Attach frame resources used by the next conversion or encode operation.
+     * @details Allocate a hardware buffer only when the frame has no retained buffer.
      *
      * @param frame Video or graphics frame being processed.
      * @param hw_frames_ctx_buf Hardware frames context buffer.
@@ -459,11 +460,9 @@ namespace va {
       this->hwframe.reset(frame);
       this->frame = frame;
 
-      if (!frame->buf[0]) {
-        if (av_hwframe_get_buffer(hw_frames_ctx_buf, frame, 0)) {
-          logging::error("Couldn't get hwframe for VAAPI"sv);
-          return -1;
-        }
+      if (!frame->buf[0] && av_hwframe_get_buffer(hw_frames_ctx_buf, frame, 0)) {
+        logging::error("Couldn't get hwframe for VAAPI"sv);
+        return -1;
       }
 
       va::DRMPRIMESurfaceDescriptor prime;

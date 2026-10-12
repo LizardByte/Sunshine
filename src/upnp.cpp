@@ -314,6 +314,7 @@ namespace upnp {
 
     /**
      * @brief Maintains UPnP port forwarding rules
+     * @details IPv6 pinholes are refreshed on each dual-stack mapping pass; their success is logged only on the first pass.
      */
     void upnp_thread_proc() {
       platf::set_thread_name("upnp");
@@ -363,11 +364,9 @@ namespace upnp {
         }
 
         // If we are listening on IPv6 and the IGD has an IPv6 firewall enabled, try to create IPv6 firewall pinholes
-        if (address_family == net::af_e::BOTH) {
-          if (create_ipv6_pinholes() && !mapped) {
-            // Only log the first time through
-            logging::info("Successfully opened IPv6 pinholes on the IGD"sv);
-          }
+        if (address_family == net::af_e::BOTH && create_ipv6_pinholes() && !mapped) {
+          // Only log the first time through
+          logging::info("Successfully opened IPv6 pinholes on the IGD"sv);
         }
 
         mapped = true;

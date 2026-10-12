@@ -690,13 +690,11 @@ namespace platf::dxgi {
         if (d3dkmt_set_process_priority) {
           auto priority = D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME;
           bool hags_enabled = check_hags(adapter_desc.AdapterLuid);
-          if (adapter_desc.VendorId == 0x10DE) {
-            // As of 2023.07, NVIDIA driver has unfixed bug(s) where "realtime" can cause unrecoverable encoding freeze or outright driver crash
-            // This issue happens more frequently with HAGS, in DX12 games or when VRAM is filled close to max capacity
-            // Track OBS to see if they find better workaround or NVIDIA fixes it on their end, they seem to be in communication
-            if (hags_enabled && !settings.video.nv_realtime_hags) {
-              priority = D3DKMT_SCHEDULINGPRIORITYCLASS_HIGH;
-            }
+          // As of 2023.07, NVIDIA driver has unfixed bug(s) where "realtime" can cause unrecoverable encoding freeze or outright driver crash
+          // This issue happens more frequently with HAGS, in DX12 games or when VRAM is filled close to max capacity
+          // Track OBS to see if they find better workaround or NVIDIA fixes it on their end, they seem to be in communication
+          if (adapter_desc.VendorId == 0x10DE && hags_enabled && !settings.video.nv_realtime_hags) {
+            priority = D3DKMT_SCHEDULINGPRIORITYCLASS_HIGH;
           }
           logging::info("Active GPU has HAGS {}", (hags_enabled ? "enabled" : "disabled"));
           logging::info("Using {} GPU priority", (priority == D3DKMT_SCHEDULINGPRIORITYCLASS_HIGH ? "high" : "realtime"));

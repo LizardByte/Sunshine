@@ -621,6 +621,7 @@ namespace vk {
 
     /**
      * @brief Convert a captured frame into a Vulkan hardware frame.
+     * @details Allocate a hardware buffer only when the frame has no retained buffer.
      *
      * @param img Captured image whose DMA-BUF and cursor metadata are read without modification.
      * @return Conversion status.
@@ -629,11 +630,9 @@ namespace vk {
       const auto &descriptor = (const egl::img_descriptor_t &) img;
 
       // Get encoder target frame
-      if (!frame->buf[0]) {
-        if (av_hwframe_get_buffer(hw_frames_ctx, frame, 0) < 0) {
-          logging::error("Failed to get Vulkan frame"sv);
-          return -1;
-        }
+      if (!frame->buf[0] && av_hwframe_get_buffer(hw_frames_ctx, frame, 0) < 0) {
+        logging::error("Failed to get Vulkan frame"sv);
+        return -1;
       }
 
       // Import new DMA-BUF as VkImage when capture sequence changes

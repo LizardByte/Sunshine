@@ -170,6 +170,7 @@ namespace platf::publish {
 
     /**
      * @brief Publish Sunshine's mDNS service through Avahi.
+     * @details Reuse the existing entry group and create one only when no group is retained.
      */
     void create_services(avahi::Client *c) {
       int ret;
@@ -178,11 +179,9 @@ namespace platf::publish {
         api->simple_poll_quit(poll.get());
       });
 
-      if (!group) {
-        if (!(group = api->entry_group_new(c, sunshine_avahi_entry_group_callback, this))) {
-          logging::error("api->entry_group_new() failed: {}", api->strerror(api->client_errno(c)));
-          return;
-        }
+      if (!group && !(group = api->entry_group_new(c, sunshine_avahi_entry_group_callback, this))) {
+        logging::error("api->entry_group_new() failed: {}", api->strerror(api->client_errno(c)));
+        return;
       }
 
       // Entry-group construction can synchronously report a collision whose new name cannot be allocated.

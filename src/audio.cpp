@@ -206,9 +206,7 @@ namespace audio {
 
   /**
    * @brief Capture and publish audio until the session shuts down, joining its encoder before returning.
-   * @param mail Session shutdown mailbox.
-   * @param config Negotiated audio layout and encoding settings.
-   * @param channel_data Borrowed transport session that must outlive capture and consumption of its queued packets.
+   * @note Only the first session changes a differing sink, and a failed sink change stops capture before creating a microphone.
    */
   void service_t::capture(safe::mail_t mail, config_t config, stream::session_t *channel_data) {
     const auto host_mail = impl->host_mail;
@@ -247,10 +245,8 @@ namespace audio {
     if (!ref->sink_flag->exchange(true, std::memory_order_acquire)) {
       // If the selected sink is different than the current one, change sinks.
       ref->restore_sink = ref->sink.host != sink;
-      if (ref->restore_sink) {
-        if (control->set_sink(sink)) {
-          return;
-        }
+      if (ref->restore_sink && control->set_sink(sink)) {
+        return;
       }
     }
 
