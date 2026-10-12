@@ -479,6 +479,44 @@ namespace config {
 
   private:
     /**
+     * @brief File overrides and launch modes selected by command-line arguments.
+     */
+    struct command_line_options_t {
+      std::unordered_map<std::string, std::string> variables;  ///< Overrides applied after configuration file values.
+#ifdef _WIN32
+      bool shortcut_launch = false;  ///< Start the service from the user shortcut.
+      bool service_admin_launch = false;  ///< Start the service from an elevated shortcut process.
+#endif
+    };
+
+    /**
+     * @brief Parse command-line options, flags and trailing command arguments.
+     * @param argc Number of command-line arguments.
+     * @param argv Command-line argument vector.
+     * @param options Overrides and launch modes to fill.
+     * @return Zero to continue, one for help, or minus one for invalid arguments.
+     */
+    int parse_arguments(int argc, char *argv[], command_line_options_t &options);
+
+    /**
+     * @brief Consume video, encoder and display preparation settings.
+     * @param vars Parsed entries whose known video keys are consumed.
+     */
+    void apply_video_config(std::unordered_map<std::string, std::string> &vars);
+
+    /**
+     * @brief Consume keyboard, mouse and gamepad settings.
+     * @param vars Parsed entries whose known input keys are consumed.
+     */
+    void apply_input_config(std::unordered_map<std::string, std::string> &vars);
+
+    /**
+     * @brief Consume the configured logging threshold while retaining unrecognized values.
+     * @param vars Parsed entries whose logging threshold key is consumed.
+     */
+    void apply_logging_config(std::unordered_map<std::string, std::string> &vars);
+
+    /**
      * @brief Apply validated file and command-line values to this store.
      * @param vars Parsed entries whose known keys are consumed.
      */

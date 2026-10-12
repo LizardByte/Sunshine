@@ -450,60 +450,62 @@ namespace platf::dxgi {
         }
       }
 
-      if (const auto &img = static_cast<const img_d3d_t &>(img_base); !img.blank) {
-        auto &img_ctx = img_ctx_map[img.id];
-
-        // Open the shared capture texture with our ID3D11Device
-        if (initialize_image_context(img, img_ctx)) {
-          return -1;
-        }
-
-        // Acquire encoder mutex to synchronize with capture code
-        if (auto status = img_ctx.encoder_mutex->AcquireSync(0, INFINITE); status != S_OK) {
-          logging::error("Failed to acquire encoder mutex [0x{}]", util::hex(status).to_string_view());
-          return -1;
-        }
-
-        auto draw = [&](auto &input, auto &y_or_yuv_viewports, auto &uv_viewport) {
-          device_ctx->PSSetShaderResources(0, 1, &input);
-
-          // Draw Y/YUV
-          device_ctx->OMSetRenderTargets(1, &out_Y_or_YUV_rtv, nullptr);
-          device_ctx->VSSetShader(convert_Y_or_YUV_vs.get(), nullptr, 0);
-          device_ctx->PSSetShader(img.format == DXGI_FORMAT_R16G16B16A16_FLOAT ? convert_Y_or_YUV_fp16_ps.get() : convert_Y_or_YUV_ps.get(), nullptr, 0);
-          auto viewport_count = (format == DXGI_FORMAT_R16_UINT) ? 3 : 1;
-          assert(viewport_count <= y_or_yuv_viewports.size());
-          device_ctx->RSSetViewports(viewport_count, y_or_yuv_viewports.data());
-          device_ctx->Draw(3 * viewport_count, 0);  // vertex shader will spread vertices across viewports
-
-          // Draw UV if needed
-          if (out_UV_rtv) {
-            assert(format == DXGI_FORMAT_NV12 || format == DXGI_FORMAT_P010);
-            device_ctx->OMSetRenderTargets(1, &out_UV_rtv, nullptr);
-            device_ctx->VSSetShader(convert_UV_vs.get(), nullptr, 0);
-            device_ctx->PSSetShader(img.format == DXGI_FORMAT_R16G16B16A16_FLOAT ? convert_UV_fp16_ps.get() : convert_UV_ps.get(), nullptr, 0);
-            device_ctx->RSSetViewports(1, &uv_viewport);
-            device_ctx->Draw(3, 0);
-          }
-        };
-
-        // Clear render target view(s) once so that the aspect ratio mismatch "bars" appear black
-        if (!rtvs_cleared) {
-          if (auto black = create_black_texture_for_rtv_clear(); black) {
-            draw(black, out_Y_or_YUV_viewports_for_clear, out_UV_viewport_for_clear);
-          }
-          rtvs_cleared = true;
-        }
-
-        // Draw captured frame
-        draw(img_ctx.encoder_input_res, out_Y_or_YUV_viewports, out_UV_viewport);
-
-        // Release encoder mutex to allow capture code to reuse this image
-        img_ctx.encoder_mutex->ReleaseSync(0);
-
-        ID3D11ShaderResourceView *emptyShaderResourceView = nullptr;
-        device_ctx->PSSetShaderResources(0, 1, &emptyShaderResourceView);
+      const auto &img = static_cast<const img_d3d_t &>(img_base);
+      if (img.blank) {
+        return 0;
       }
+      auto &img_ctx = img_ctx_map[img.id];
+
+      // Open the shared capture texture with our ID3D11Device
+      if (initialize_image_context(img, img_ctx)) {
+        return -1;
+      }
+
+      // Acquire encoder mutex to synchronize with capture code
+      if (auto status = img_ctx.encoder_mutex->AcquireSync(0, INFINITE); status != S_OK) {
+        logging::error("Failed to acquire encoder mutex [0x{}]", util::hex(status).to_string_view());
+        return -1;
+      }
+
+      auto draw = [&](auto &input, auto &y_or_yuv_viewports, auto &uv_viewport) {
+        device_ctx->PSSetShaderResources(0, 1, &input);
+
+        // Draw Y/YUV
+        device_ctx->OMSetRenderTargets(1, &out_Y_or_YUV_rtv, nullptr);
+        device_ctx->VSSetShader(convert_Y_or_YUV_vs.get(), nullptr, 0);
+        device_ctx->PSSetShader(img.format == DXGI_FORMAT_R16G16B16A16_FLOAT ? convert_Y_or_YUV_fp16_ps.get() : convert_Y_or_YUV_ps.get(), nullptr, 0);
+        auto viewport_count = (format == DXGI_FORMAT_R16_UINT) ? 3 : 1;
+        assert(viewport_count <= y_or_yuv_viewports.size());
+        device_ctx->RSSetViewports(viewport_count, y_or_yuv_viewports.data());
+        device_ctx->Draw(3 * viewport_count, 0);  // vertex shader will spread vertices across viewports
+
+        // Draw UV if needed
+        if (out_UV_rtv) {
+          assert(format == DXGI_FORMAT_NV12 || format == DXGI_FORMAT_P010);
+          device_ctx->OMSetRenderTargets(1, &out_UV_rtv, nullptr);
+          device_ctx->VSSetShader(convert_UV_vs.get(), nullptr, 0);
+          device_ctx->PSSetShader(img.format == DXGI_FORMAT_R16G16B16A16_FLOAT ? convert_UV_fp16_ps.get() : convert_UV_ps.get(), nullptr, 0);
+          device_ctx->RSSetViewports(1, &uv_viewport);
+          device_ctx->Draw(3, 0);
+        }
+      };
+
+      // Clear render target view(s) once so that the aspect ratio mismatch "bars" appear black
+      if (!rtvs_cleared) {
+        if (auto black = create_black_texture_for_rtv_clear(); black) {
+          draw(black, out_Y_or_YUV_viewports_for_clear, out_UV_viewport_for_clear);
+        }
+        rtvs_cleared = true;
+      }
+
+      // Draw captured frame
+      draw(img_ctx.encoder_input_res, out_Y_or_YUV_viewports, out_UV_viewport);
+
+      // Release encoder mutex to allow capture code to reuse this image
+      img_ctx.encoder_mutex->ReleaseSync(0);
+
+      ID3D11ShaderResourceView *emptyShaderResourceView = nullptr;
+      device_ctx->PSSetShaderResources(0, 1, &emptyShaderResourceView);
 
       return 0;
     }
@@ -2119,80 +2121,49 @@ namespace platf::dxgi {
     }
     auto shaders = std::make_shared<shader_bundle_t>();
     logging::info("Compiling shaders..."sv);
-    if (!(shaders->convert_yuv420_packed_uv_type0_ps_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv420_packed_uv_type0_ps.hlsl", "ps_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->convert_yuv420_packed_uv_type0_ps_linear_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv420_packed_uv_type0_ps_linear.hlsl", "ps_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv420_packed_uv_type0_ps_perceptual_quantizer.hlsl", "ps_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->convert_yuv420_packed_uv_type0_vs_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv420_packed_uv_type0_vs.hlsl", "vs_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->convert_yuv420_packed_uv_type0s_ps_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv420_packed_uv_type0s_ps.hlsl", "ps_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->convert_yuv420_packed_uv_type0s_ps_linear_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv420_packed_uv_type0s_ps_linear.hlsl", "ps_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->convert_yuv420_packed_uv_type0s_ps_perceptual_quantizer_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv420_packed_uv_type0s_ps_perceptual_quantizer.hlsl", "ps_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->convert_yuv420_packed_uv_type0s_vs_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv420_packed_uv_type0s_vs.hlsl", "vs_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->convert_yuv420_planar_y_ps_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv420_planar_y_ps.hlsl", "ps_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->convert_yuv420_planar_y_ps_linear_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv420_planar_y_ps_linear.hlsl", "ps_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv420_planar_y_ps_perceptual_quantizer.hlsl", "ps_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->convert_yuv420_planar_y_vs_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv420_planar_y_vs.hlsl", "vs_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->convert_yuv444_packed_ayuv_ps_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv444_packed_ayuv_ps.hlsl", "ps_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->convert_yuv444_packed_ayuv_ps_linear_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv444_packed_ayuv_ps_linear.hlsl", "ps_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->convert_yuv444_packed_vs_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv444_packed_vs.hlsl", "vs_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->convert_yuv444_planar_ps_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv444_planar_ps.hlsl", "ps_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->convert_yuv444_planar_ps_linear_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv444_planar_ps_linear.hlsl", "ps_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->convert_yuv444_planar_ps_perceptual_quantizer_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv444_planar_ps_perceptual_quantizer.hlsl", "ps_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->convert_yuv444_packed_y410_ps_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv444_packed_y410_ps.hlsl", "ps_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->convert_yuv444_packed_y410_ps_linear_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv444_packed_y410_ps_linear.hlsl", "ps_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->convert_yuv444_packed_y410_ps_perceptual_quantizer_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv444_packed_y410_ps_perceptual_quantizer.hlsl", "ps_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->convert_yuv444_planar_vs_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/convert_yuv444_planar_vs.hlsl", "vs_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->cursor_ps_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/cursor_ps.hlsl", "ps_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->cursor_ps_normalize_white_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/cursor_ps_normalize_white.hlsl", "ps_5_0").release()})) {
-      return nullptr;
-    }
-    if (!(shaders->cursor_vs_hlsl = shader_bytecode_t {compiler(SUNSHINE_SHADERS_DIR "/cursor_vs.hlsl", "vs_5_0").release()})) {
-      return nullptr;
+
+    /**
+     * @brief Source, target profile, and destination bytecode for one shader compilation.
+     */
+    struct shader_spec_t {
+      const char *path;  ///< HLSL source path.
+      const char *profile;  ///< D3D shader target profile.
+      shader_bytecode_t shader_bundle_t::*member;  ///< Destination in the immutable bundle.
+    };
+
+    constexpr shader_spec_t specifications[] {
+      {SUNSHINE_SHADERS_DIR "/convert_yuv420_packed_uv_type0_ps.hlsl", "ps_5_0", &shader_bundle_t::convert_yuv420_packed_uv_type0_ps_hlsl},
+      {SUNSHINE_SHADERS_DIR "/convert_yuv420_packed_uv_type0_ps_linear.hlsl", "ps_5_0", &shader_bundle_t::convert_yuv420_packed_uv_type0_ps_linear_hlsl},
+      {SUNSHINE_SHADERS_DIR "/convert_yuv420_packed_uv_type0_ps_perceptual_quantizer.hlsl", "ps_5_0", &shader_bundle_t::convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl},
+      {SUNSHINE_SHADERS_DIR "/convert_yuv420_packed_uv_type0_vs.hlsl", "vs_5_0", &shader_bundle_t::convert_yuv420_packed_uv_type0_vs_hlsl},
+      {SUNSHINE_SHADERS_DIR "/convert_yuv420_packed_uv_type0s_ps.hlsl", "ps_5_0", &shader_bundle_t::convert_yuv420_packed_uv_type0s_ps_hlsl},
+      {SUNSHINE_SHADERS_DIR "/convert_yuv420_packed_uv_type0s_ps_linear.hlsl", "ps_5_0", &shader_bundle_t::convert_yuv420_packed_uv_type0s_ps_linear_hlsl},
+      {SUNSHINE_SHADERS_DIR "/convert_yuv420_packed_uv_type0s_ps_perceptual_quantizer.hlsl", "ps_5_0", &shader_bundle_t::convert_yuv420_packed_uv_type0s_ps_perceptual_quantizer_hlsl},
+      {SUNSHINE_SHADERS_DIR "/convert_yuv420_packed_uv_type0s_vs.hlsl", "vs_5_0", &shader_bundle_t::convert_yuv420_packed_uv_type0s_vs_hlsl},
+      {SUNSHINE_SHADERS_DIR "/convert_yuv420_planar_y_ps.hlsl", "ps_5_0", &shader_bundle_t::convert_yuv420_planar_y_ps_hlsl},
+      {SUNSHINE_SHADERS_DIR "/convert_yuv420_planar_y_ps_linear.hlsl", "ps_5_0", &shader_bundle_t::convert_yuv420_planar_y_ps_linear_hlsl},
+      {SUNSHINE_SHADERS_DIR "/convert_yuv420_planar_y_ps_perceptual_quantizer.hlsl", "ps_5_0", &shader_bundle_t::convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl},
+      {SUNSHINE_SHADERS_DIR "/convert_yuv420_planar_y_vs.hlsl", "vs_5_0", &shader_bundle_t::convert_yuv420_planar_y_vs_hlsl},
+      {SUNSHINE_SHADERS_DIR "/convert_yuv444_packed_ayuv_ps.hlsl", "ps_5_0", &shader_bundle_t::convert_yuv444_packed_ayuv_ps_hlsl},
+      {SUNSHINE_SHADERS_DIR "/convert_yuv444_packed_ayuv_ps_linear.hlsl", "ps_5_0", &shader_bundle_t::convert_yuv444_packed_ayuv_ps_linear_hlsl},
+      {SUNSHINE_SHADERS_DIR "/convert_yuv444_packed_vs.hlsl", "vs_5_0", &shader_bundle_t::convert_yuv444_packed_vs_hlsl},
+      {SUNSHINE_SHADERS_DIR "/convert_yuv444_planar_ps.hlsl", "ps_5_0", &shader_bundle_t::convert_yuv444_planar_ps_hlsl},
+      {SUNSHINE_SHADERS_DIR "/convert_yuv444_planar_ps_linear.hlsl", "ps_5_0", &shader_bundle_t::convert_yuv444_planar_ps_linear_hlsl},
+      {SUNSHINE_SHADERS_DIR "/convert_yuv444_planar_ps_perceptual_quantizer.hlsl", "ps_5_0", &shader_bundle_t::convert_yuv444_planar_ps_perceptual_quantizer_hlsl},
+      {SUNSHINE_SHADERS_DIR "/convert_yuv444_packed_y410_ps.hlsl", "ps_5_0", &shader_bundle_t::convert_yuv444_packed_y410_ps_hlsl},
+      {SUNSHINE_SHADERS_DIR "/convert_yuv444_packed_y410_ps_linear.hlsl", "ps_5_0", &shader_bundle_t::convert_yuv444_packed_y410_ps_linear_hlsl},
+      {SUNSHINE_SHADERS_DIR "/convert_yuv444_packed_y410_ps_perceptual_quantizer.hlsl", "ps_5_0", &shader_bundle_t::convert_yuv444_packed_y410_ps_perceptual_quantizer_hlsl},
+      {SUNSHINE_SHADERS_DIR "/convert_yuv444_planar_vs.hlsl", "vs_5_0", &shader_bundle_t::convert_yuv444_planar_vs_hlsl},
+      {SUNSHINE_SHADERS_DIR "/cursor_ps.hlsl", "ps_5_0", &shader_bundle_t::cursor_ps_hlsl},
+      {SUNSHINE_SHADERS_DIR "/cursor_ps_normalize_white.hlsl", "ps_5_0", &shader_bundle_t::cursor_ps_normalize_white_hlsl},
+      {SUNSHINE_SHADERS_DIR "/cursor_vs.hlsl", "vs_5_0", &shader_bundle_t::cursor_vs_hlsl},
+    };
+    for (const auto &specification : specifications) {
+      auto &bytecode = shaders.get()->*(specification.member);
+      bytecode = shader_bytecode_t {compiler(specification.path, specification.profile).release()};
+      if (!bytecode) {
+        return nullptr;
+      }
     }
     logging::info("Compiled shaders"sv);
     return shaders;

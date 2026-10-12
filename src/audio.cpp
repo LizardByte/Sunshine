@@ -241,37 +241,14 @@ namespace audio {
       return;
     }
 
-    // Order of priority:
-    // 1. Virtual sink
-    // 2. Audio sink
-    // 3. Host
-    const std::string *sink = &ref->sink.host;
-    if (!settings.audio.sink.empty()) {
-      sink = &settings.audio.sink;
-    }
-
-    // Prefer the virtual sink if host playback is disabled or there's no other sink
-    if (ref->sink.null && (!config.flags[config_t::HOST_AUDIO] || sink->empty())) {
-      auto &null = *ref->sink.null;
-      switch (stream.channelCount) {
-        case 2:
-          sink = &null.stereo;
-          break;
-        case 6:
-          sink = &null.surround51;
-          break;
-        case 8:
-          sink = &null.surround71;
-          break;
-      }
-    }
+    const auto &sink = select_capture_sink(ref->sink, settings.audio.sink, config.flags[config_t::HOST_AUDIO], stream.channelCount);
 
     // Only the first to start a session may change the default sink
     if (!ref->sink_flag->exchange(true, std::memory_order_acquire)) {
       // If the selected sink is different than the current one, change sinks.
-      ref->restore_sink = ref->sink.host != *sink;
+      ref->restore_sink = ref->sink.host != sink;
       if (ref->restore_sink) {
-        if (control->set_sink(*sink)) {
+        if (control->set_sink(sink)) {
           return;
         }
       }
@@ -358,6 +335,24 @@ namespace audio {
     }
 
     return ctx.control->is_sink_available(sink);
+  }
+
+  const std::string &select_capture_sink(const platf::sink_t &sinks, const std::string &configured_sink, bool host_audio, int channel_count) {
+    const auto &selected = configured_sink.empty() ? sinks.host : configured_sink;
+    if (!sinks.null || (host_audio && !selected.empty())) {
+      return selected;
+    }
+
+    switch (channel_count) {
+      case 2:
+        return sinks.null->stereo;
+      case 6:
+        return sinks.null->surround51;
+      case 8:
+        return sinks.null->surround71;
+      default:
+        return selected;
+    }
   }
 
   /**

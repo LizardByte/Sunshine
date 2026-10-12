@@ -7,6 +7,7 @@
   #include <bit>
   #include <cstddef>
   #include <cstdlib>
+  #include <cstring>
   #include <src/platform/windows/streaming_api.h>
   #include <src/utility.h>
   #include <tools/service_state.h>
@@ -104,6 +105,121 @@ namespace {
     client->opcode = opcode;
     client->enabled = *static_cast<const BOOL *>(data);
     return ERROR_SUCCESS;
+  }
+
+  /**
+   * @brief Injected WLAN results and ordered native call observations.
+   */
+  struct fake_streaming_wlan_t {
+    DWORD open_result {ERROR_SUCCESS};  ///< Result of opening the client.
+    DWORD enumeration_result {ERROR_SUCCESS};  ///< Result of interface discovery.
+    DWORD set_result {ERROR_SUCCESS};  ///< Result of setting media streaming mode.
+    std::unique_ptr<std::byte, decltype(&std::free)> allocation {nullptr, &std::free};  ///< Owned variable-tail SDK list, prefixed with its cleanup observer.
+    PWLAN_INTERFACE_INFO_LIST interfaces {};  ///< Native-layout single-interface discovery result.
+    std::vector<std::string> events;  ///< Call and observer order.
+
+    /**
+     * @brief Allocate a connected interface and prefix its native result with the cleanup observer.
+     * @details The observer pointer is copied as bytes; the trailing SDK result has its required alignment.
+     */
+    fake_streaming_wlan_t() {
+      static_assert(sizeof(this) % alignof(WLAN_INTERFACE_INFO_LIST) == 0);
+      constexpr auto result_size = offsetof(WLAN_INTERFACE_INFO_LIST, InterfaceInfo) + sizeof(WLAN_INTERFACE_INFO);
+      allocation.reset(static_cast<std::byte *>(std::calloc(1, sizeof(this) + result_size)));
+      if (!allocation) {
+        throw std::bad_alloc {};
+      }
+      const auto owner = this;
+      std::memcpy(allocation.get(), &owner, sizeof(owner));
+      interfaces = static_cast<PWLAN_INTERFACE_INFO_LIST>(static_cast<void *>(allocation.get() + sizeof(owner)));
+      interfaces->dwNumberOfItems = 1;
+      interfaces->InterfaceInfo[0].InterfaceGuid.Data1 = 23;
+      interfaces->InterfaceInfo[0].isState = wlan_interface_state_connected;
+    }
+  };
+
+  /**
+   * @brief Open the stack-owned fake client seeded in the output slot by the test.
+   * @param version Requested WLAN version.
+   * @param reserved SDK reserved argument.
+   * @param negotiated Negotiated WLAN version output.
+   * @param handle Output slot containing the test's injected state.
+   * @return Injected open status without rewriting the output slot.
+   */
+  DWORD WINAPI open_streaming_wlan(DWORD version, PVOID reserved, PDWORD negotiated, PHANDLE handle) {
+    EXPECT_EQ(version, WLAN_API_MAKE_VERSION(2, 0));
+    EXPECT_EQ(reserved, nullptr);
+    auto &state = *static_cast<fake_streaming_wlan_t *>(*handle);
+    state.events.emplace_back("open");
+    *negotiated = version;
+    return state.open_result;
+  }
+
+  /**
+   * @brief Record failed-discovery client cleanup without deleting stack-owned state.
+   * @param handle Injected client state.
+   * @param reserved SDK reserved argument.
+   * @return Success.
+   */
+  DWORD WINAPI close_streaming_wlan(HANDLE handle, PVOID reserved) {
+    EXPECT_EQ(reserved, nullptr);
+    static_cast<fake_streaming_wlan_t *>(handle)->events.emplace_back("close");
+    return ERROR_SUCCESS;
+  }
+
+  /**
+   * @brief Record discovery-result cleanup through the native base subobject.
+   * @param memory Result returned by enumerate_streaming_wlan.
+   */
+  VOID WINAPI free_streaming_wlan(PVOID memory) {
+    fake_streaming_wlan_t *owner;
+    std::memcpy(&owner, static_cast<const std::byte *>(memory) - sizeof(owner), sizeof(owner));
+    owner->events.emplace_back("free");
+    owner->allocation.reset();
+  }
+
+  /**
+   * @brief Return injected discovery status and a native single-interface result.
+   * @param handle Injected client state.
+   * @param reserved SDK reserved argument.
+   * @param interfaces Discovery output slot.
+   * @return Injected enumeration result.
+   */
+  DWORD WINAPI enumerate_streaming_wlan(HANDLE handle, PVOID reserved, PWLAN_INTERFACE_INFO_LIST *interfaces) {
+    EXPECT_EQ(reserved, nullptr);
+    auto &state = *static_cast<fake_streaming_wlan_t *>(handle);
+    state.events.emplace_back("enumerate");
+    *interfaces = state.interfaces;
+    return state.enumeration_result;
+  }
+
+  /**
+   * @brief Check the exact media-streaming request and return an injected status.
+   * @param handle Injected client state.
+   * @param guid Discovered interface identity.
+   * @param opcode Native media streaming option.
+   * @param size Boolean payload length.
+   * @param data Requested option value.
+   * @param reserved SDK reserved argument.
+   * @return Injected interface-update result.
+   */
+  DWORD WINAPI set_streaming_wlan(HANDLE handle, const GUID *guid, WLAN_INTF_OPCODE opcode, DWORD size, const PVOID data, PVOID reserved) {
+    auto &state = *static_cast<fake_streaming_wlan_t *>(handle);
+    EXPECT_EQ(guid, &state.interfaces->InterfaceInfo[0].InterfaceGuid);
+    EXPECT_EQ(opcode, wlan_intf_opcode_media_streaming_mode);
+    EXPECT_EQ(size, sizeof(BOOL));
+    EXPECT_EQ(*static_cast<const BOOL *>(data), TRUE);
+    EXPECT_EQ(reserved, nullptr);
+    state.events.emplace_back("set");
+    return state.set_result;
+  }
+
+  /**
+   * @brief Create the exact SDK-signature table for stack-owned streaming tests.
+   * @return Injected WLAN table.
+   */
+  platf::wlan_api_t streaming_wlan_api() {
+    return {{}, &open_streaming_wlan, &close_streaming_wlan, &free_streaming_wlan, &enumerate_streaming_wlan, &set_streaming_wlan};
   }
 
   /**
@@ -246,6 +362,90 @@ TEST(WindowsNetworkingOwnerTest, SystemLoaderResolvesExportsFromItsOwnedModule) 
   ASSERT_NE(address, nullptr);
   const auto get_process_id = std::bit_cast<decltype(GetCurrentProcessId) *>(address);
   EXPECT_EQ(get_process_id(), GetCurrentProcessId());
+}
+
+/**
+ * @brief Opening failure preserves the native output slot and skips later operations.
+ */
+TEST(WindowsWlanStreamingTest, OpenFailureSkipsDiscoveryAndCleanup) {
+  fake_streaming_wlan_t state;
+  state.open_result = ERROR_ACCESS_DENIED;
+  HANDLE client = &state;
+  streaming_wlan_api().enable_low_latency(client, [&state](DWORD) {
+    state.events.emplace_back("enabled");
+  });
+  EXPECT_EQ(client, &state);
+  EXPECT_EQ(state.events, (std::vector<std::string> {"open"}));
+}
+
+/**
+ * @brief Discovery failure closes the client and clears the owner's handle.
+ */
+TEST(WindowsWlanStreamingTest, EnumerationFailureClosesAndClearsClient) {
+  fake_streaming_wlan_t state;
+  state.enumeration_result = ERROR_ACCESS_DENIED;
+  HANDLE client = &state;
+  streaming_wlan_api().enable_low_latency(client, [&state](DWORD) {
+    state.events.emplace_back("enabled");
+  });
+  EXPECT_EQ(client, nullptr);
+  EXPECT_EQ(state.events, (std::vector<std::string> {"open", "enumerate", "close"}));
+}
+
+/**
+ * @brief An empty discovery result is freed while the successful client remains owned.
+ */
+TEST(WindowsWlanStreamingTest, EmptyEnumerationFreesResultsAndRetainsClient) {
+  fake_streaming_wlan_t state;
+  state.interfaces->dwNumberOfItems = 0;
+  HANDLE client = &state;
+  streaming_wlan_api().enable_low_latency(client, [&state](DWORD) {
+    state.events.emplace_back("enabled");
+  });
+  EXPECT_EQ(client, &state);
+  EXPECT_EQ(state.events, (std::vector<std::string> {"open", "enumerate", "free"}));
+}
+
+/**
+ * @brief Disconnected interfaces do not receive a media streaming request.
+ */
+TEST(WindowsWlanStreamingTest, DisconnectedInterfaceIsSkipped) {
+  fake_streaming_wlan_t state;
+  state.interfaces->InterfaceInfo[0].isState = wlan_interface_state_disconnected;
+  HANDLE client = &state;
+  streaming_wlan_api().enable_low_latency(client, [&state](DWORD) {
+    state.events.emplace_back("enabled");
+  });
+  EXPECT_EQ(client, &state);
+  EXPECT_EQ(state.events, (std::vector<std::string> {"open", "enumerate", "free"}));
+}
+
+/**
+ * @brief An unsuccessful interface update frees discovery results without announcing success.
+ */
+TEST(WindowsWlanStreamingTest, InterfaceFailureDoesNotNotifyObserver) {
+  fake_streaming_wlan_t state;
+  state.set_result = ERROR_ACCESS_DENIED;
+  HANDLE client = &state;
+  streaming_wlan_api().enable_low_latency(client, [&state](DWORD) {
+    state.events.emplace_back("enabled");
+  });
+  EXPECT_EQ(client, &state);
+  EXPECT_EQ(state.events, (std::vector<std::string> {"open", "enumerate", "set", "free"}));
+}
+
+/**
+ * @brief A connected interface receives the exact option before notification and discovery cleanup.
+ */
+TEST(WindowsWlanStreamingTest, ConnectedInterfaceIsEnabledBeforeResultsAreFreed) {
+  fake_streaming_wlan_t state;
+  HANDLE client = &state;
+  streaming_wlan_api().enable_low_latency(client, [&state](DWORD index) {
+    EXPECT_EQ(index, 0);
+    state.events.emplace_back("enabled");
+  });
+  EXPECT_EQ(client, &state);
+  EXPECT_EQ(state.events, (std::vector<std::string> {"open", "enumerate", "set", "enabled", "free"}));
 }
 
 TEST(WindowsNetworkingOwnerTest, MissingLibrariesSkipSymbolLookup) {

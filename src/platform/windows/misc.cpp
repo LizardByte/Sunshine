@@ -79,15 +79,6 @@
 #endif
 
 #include <qos2.h>
-
-#ifndef WLAN_API_MAKE_VERSION
-  /**
-   * @def WLAN_API_MAKE_VERSION(_major, _minor)
-   * @brief Macro for WLAN API MAKE VERSION.
-   */
-  #define WLAN_API_MAKE_VERSION(_major, _minor) (((DWORD) (_minor)) << 16 | (_major))
-#endif
-
 #include <winternl.h>
 extern "C" {
   /**
@@ -1247,33 +1238,9 @@ namespace platf {
 
     // Enable low latency mode on all connected WLAN NICs if wlanapi.dll is available
     if (wlan) {
-      DWORD negotiated_version;
-
-      if (wlan->open(WLAN_API_MAKE_VERSION(2, 0), nullptr, &negotiated_version, &wlan_handle) == ERROR_SUCCESS) {
-        PWLAN_INTERFACE_INFO_LIST wlan_interface_list;
-
-        if (wlan->enumerate(wlan_handle, nullptr, &wlan_interface_list) == ERROR_SUCCESS) {
-          for (DWORD i = 0; i < wlan_interface_list->dwNumberOfItems; i++) {
-            if (wlan_interface_list->InterfaceInfo[i].isState == wlan_interface_state_connected) {
-              // Enable media streaming mode for 802.11 wireless interfaces to reduce latency and
-              // unnecessary background scanning operations that cause packet loss and jitter.
-              //
-              // https://docs.microsoft.com/en-us/windows-hardware/drivers/network/oid-wdi-set-connection-quality
-              // https://docs.microsoft.com/en-us/previous-versions/windows/hardware/wireless/native-802-11-media-streaming
-              BOOL value = TRUE;
-              auto error = wlan->set(wlan_handle, &wlan_interface_list->InterfaceInfo[i].InterfaceGuid, wlan_intf_opcode_media_streaming_mode, sizeof(value), &value, nullptr);
-              if (error == ERROR_SUCCESS) {
-                logging::info("WLAN interface {} is now in low latency mode", i);
-              }
-            }
-          }
-
-          wlan->free_memory(wlan_interface_list);
-        } else {
-          wlan->close(wlan_handle, nullptr);
-          wlan_handle = nullptr;
-        }
-      }
+      wlan->enable_low_latency(wlan_handle, [](DWORD i) {
+        logging::info("WLAN interface {} is now in low latency mode", i);
+      });
     }
     enable_mouse_keys();
   }

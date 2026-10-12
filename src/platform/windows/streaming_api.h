@@ -14,6 +14,14 @@
 #include <memory>
 #include <type_traits>
 
+#ifndef WLAN_API_MAKE_VERSION
+  /**
+   * @def WLAN_API_MAKE_VERSION(_major, _minor)
+   * @brief Macro for WLAN API MAKE VERSION.
+   */
+  #define WLAN_API_MAKE_VERSION(_major, _minor) (((DWORD) (_minor)) << 16 | (_major))
+#endif
+
 namespace platf {
   /**
    * @brief Injectable loader for optional Windows networking libraries.
@@ -58,6 +66,40 @@ namespace platf {
     decltype(WlanFreeMemory) *free_memory {};  ///< Free discovery results.
     decltype(WlanEnumInterfaces) *enumerate {};  ///< Enumerate network interfaces.
     decltype(WlanSetInterface) *set {};  ///< Set interface options.
+
+    /**
+     * @brief Enable media streaming mode on connected WLAN interfaces, retaining the client for stream teardown.
+     * @details Enumeration failure closes and clears the client. Successful enumeration frees its results after all interface updates.
+     * @param client Native client output slot retained by the streaming owner.
+     * @param on_enabled Synchronous observer receiving the index of each successfully updated interface.
+     */
+    void enable_low_latency(HANDLE &client, const std::function<void(DWORD)> &on_enabled) const {
+      DWORD negotiated_version;
+      if (open(WLAN_API_MAKE_VERSION(2, 0), nullptr, &negotiated_version, &client) != ERROR_SUCCESS) {
+        return;
+      }
+
+      PWLAN_INTERFACE_INFO_LIST interfaces;
+      if (enumerate(client, nullptr, &interfaces) != ERROR_SUCCESS) {
+        close(client, nullptr);
+        client = nullptr;
+        return;
+      }
+
+      for (DWORD i = 0; i < interfaces->dwNumberOfItems; ++i) {
+        if (interfaces->InterfaceInfo[i].isState != wlan_interface_state_connected) {
+          continue;
+        }
+        // Reduce background scanning, packet loss, and jitter on connected 802.11 interfaces.
+        // https://learn.microsoft.com/en-us/windows-hardware/drivers/network/oid-wdi-set-connection-quality
+        // https://learn.microsoft.com/en-us/previous-versions/windows/hardware/wireless/native-802-11-media-streaming
+        BOOL value = TRUE;
+        if (set(client, &interfaces->InterfaceInfo[i].InterfaceGuid, wlan_intf_opcode_media_streaming_mode, sizeof(value), &value, nullptr) == ERROR_SUCCESS) {
+          on_enabled(i);
+        }
+      }
+      free_memory(interfaces);
+    }
 
     /**
      * @brief Load a complete WLAN table.

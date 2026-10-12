@@ -35,6 +35,8 @@ extern "C" {
 #include "platform/common.h"
 #include "sync.h"
 #include "video.h"
+#include "video_capture_pool.h"
+#include "video_probe.h"
 
 #ifdef _WIN32
 extern "C" {
@@ -215,6 +217,29 @@ namespace video {
    * @return Hardware buffer on success, or an error code on failure.
    */
   util::Either<avcodec_buffer_t, int> vt_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
+
+  /**
+   * @brief Copy scaled pixel planes into an aspect-ratio padded software frame.
+   * @param destination Final frame retaining black padding around the scaled content.
+   * @param source Scaled frame whose plane rows are copied without their trailing stride.
+   * @param offset_x Horizontal content origin in full-resolution pixels.
+   * @param offset_y Vertical content origin in full-resolution pixels.
+   */
+  void copy_scaled_frame(AVFrame &destination, const AVFrame &source, int offset_x, int offset_y) {
+    auto fmt_desc = av_pix_fmt_desc_get(static_cast<AVPixelFormat>(source.format));
+    auto planes = av_pix_fmt_count_planes(static_cast<AVPixelFormat>(source.format));
+    for (int plane = 0; plane < planes; plane++) {
+      auto shift_h = plane == 0 ? 0 : fmt_desc->log2_chroma_h;
+      auto shift_w = plane == 0 ? 0 : fmt_desc->log2_chroma_w;
+      auto offset = ((offset_x >> shift_w) * fmt_desc->comp[plane].step) + (offset_y >> shift_h) * destination.linesize[plane];
+
+      // Copy line-by-line to preserve leading padding for each row
+      for (int line = 0; line < source.height >> shift_h; line++) {
+        memcpy(destination.data[plane] + offset + (line * destination.linesize[plane]), source.data[plane] + (line * source.linesize[plane]), static_cast<std::size_t>(source.width >> shift_w) * fmt_desc->comp[plane].step);
+      }
+    }
+  }
+
   /**
    * @brief Create an FFmpeg hardware device buffer for Vulkan input.
    *
@@ -273,18 +298,7 @@ namespace video {
 
     // If we require aspect ratio padding, copy the output frame into the final padded frame
     if (requires_padding) {
-      auto fmt_desc = av_pix_fmt_desc_get(static_cast<AVPixelFormat>(sws_output_frame->format));
-      auto planes = av_pix_fmt_count_planes(static_cast<AVPixelFormat>(sws_output_frame->format));
-      for (int plane = 0; plane < planes; plane++) {
-        auto shift_h = plane == 0 ? 0 : fmt_desc->log2_chroma_h;
-        auto shift_w = plane == 0 ? 0 : fmt_desc->log2_chroma_w;
-        auto offset = ((offsetW >> shift_w) * fmt_desc->comp[plane].step) + (offsetH >> shift_h) * sw_frame->linesize[plane];
-
-        // Copy line-by-line to preserve leading padding for each row
-        for (int line = 0; line < sws_output_frame->height >> shift_h; line++) {
-          memcpy(sw_frame->data[plane] + offset + (line * sw_frame->linesize[plane]), sws_output_frame->data[plane] + (line * sws_output_frame->linesize[plane]), static_cast<std::size_t>(sws_output_frame->width >> shift_w) * fmt_desc->comp[plane].step);
-        }
-      }
+      copy_scaled_frame(*sw_frame, *sws_output_frame, offsetW, offsetH);
     }
 
     // If frame is not a software frame, it means we still need to transfer from main memory
@@ -1644,6 +1658,140 @@ namespace video {
   }
 
   /**
+   * @brief Remove stopped capture subscribers and deliver a captured frame to the remaining sessions.
+   * @param contexts Active capture subscribers updated in capture-thread order.
+   * @param image Captured image retained by each live subscriber.
+   * @param captured Whether the callback carries a new image.
+   */
+  void distribute_captured_image(std::vector<capture_ctx_t> &contexts, const std::shared_ptr<platf::img_t> &image, bool captured) {
+    for (auto context = contexts.begin(); context != contexts.end();) {
+      if (!context->images->running()) {
+        context = contexts.erase(context);
+        continue;
+      }
+      if (captured) {
+        context->images->raise(image);
+      }
+      ++context;
+    }
+  }
+
+  /**
+   * @brief Drain queued image references before destroying the active display.
+   * @param contexts Subscribers whose unused images may retain the display.
+   */
+  void drain_capture_images(std::vector<capture_ctx_t> &contexts) {
+    for (auto context = contexts.begin(); context != contexts.end();) {
+      if (!context->images->running()) {
+        context = contexts.erase(context);
+        continue;
+      }
+      while (context->images->try_pop()) {}
+      ++context;
+    }
+  }
+
+  /**
+   * @brief Refresh display selection and retry opening it while the capture queue is active.
+   * @tparam Queue Capture-session queue providing its running state.
+   * @param host Host platform and display dependencies.
+   * @param display Display released before each reenumeration attempt.
+   * @param type Capture memory type required by the encoder.
+   * @param names Display names refreshed on each attempt.
+   * @param index Selected display index updated by pending switch events.
+   * @param switches Display-switch event retained for this capture run.
+   * @param config First active session's capture configuration.
+   * @param queue Queue controlling retry lifetime.
+   * @return Whether a display was opened before the queue stopped.
+   */
+  template<typename Queue>
+  bool open_capture_display(service_t::impl_t &host, std::shared_ptr<platf::display_t> &display, platf::mem_type_e type, std::vector<std::string> &names, int &index, const safe::mail_raw_t::event_t<int> &switches, const config_t &config, const Queue &queue) {
+    display.reset();
+    while (queue.running()) {
+      display.reset();
+      refresh_displays(host, type, names, index);
+      if (switches->peek()) {
+        index = std::clamp(*switches->pop(), 0, static_cast<int>(names.size()) - 1);
+      }
+      reset_display(host, display, type, names[index], config);
+      if (display) {
+        break;
+      }
+    }
+    return static_cast<bool>(display);
+  }
+
+  /**
+   * @brief Release display-bound images and wait for encoders before reopening asynchronous capture.
+   * @param host Host platform and display dependencies.
+   * @param display Active display replaced after every old owner has released it.
+   * @param display_wp Shared weak display published to encoder threads.
+   * @param images Capture image pool released before the reference-count wait.
+   * @param contexts Capture subscribers drained during the wait.
+   * @param queue Session queue controlling reopening lifetime.
+   * @param reinit Signal held raised until the replacement display is published.
+   * @param encoder Selected encoder's immutable capture formats.
+   * @param names Display names refreshed during reopening.
+   * @param index Display index updated by pending switches.
+   * @param switches Retained display-switch event.
+   * @return Whether capture can resume with a replacement display.
+   */
+  bool reinitialize_capture_display(service_t::impl_t &host, std::shared_ptr<platf::display_t> &display, sync_util::sync_t<std::weak_ptr<platf::display_t>> &display_wp, detail::capture_image_pool_t &images, std::vector<capture_ctx_t> &contexts, const std::shared_ptr<safe::queue_t<capture_ctx_t>> &queue, safe::signal_t &reinit, const encoder_t &encoder, std::vector<std::string> &names, int &index, const safe::mail_raw_t::event_t<int> &switches) {
+    reinit.raise(true);
+    images.clear();
+    while (display_wp->use_count() != 1) {
+      drain_capture_images(contexts);
+      std::this_thread::sleep_for(20ms);
+    }
+    if (!open_capture_display(host, display, encoder.platform_formats->dev_type, names, index, switches, contexts.front().config, *queue)) {
+      return false;
+    }
+    display_wp = display;
+    reinit.reset();
+    return true;
+  }
+
+  /**
+   * @brief Stop image delivery for active and queued asynchronous capture subscribers.
+   * @param contexts Subscribers already attached to the capture run.
+   * @param queue Pending subscribers stopped before inspecting their retained storage.
+   */
+  void stop_capture_subscribers(std::vector<capture_ctx_t> &contexts, const std::shared_ptr<safe::queue_t<capture_ctx_t>> &queue) {
+    queue->stop();
+    for (auto &context : contexts) {
+      context.images->stop();
+    }
+    for (auto &context : queue->unsafe()) {
+      context.images->stop();
+    }
+  }
+
+  /**
+   * @brief Deliver a capture tick before attaching new subscribers and handling display switches.
+   * @param contexts Active subscribers pruned and notified before new subscribers are attached.
+   * @param queue Pending subscriber queue controlling capture lifetime.
+   * @param image Captured image retained only when a new frame is available.
+   * @param captured Whether this tick carries a new frame.
+   * @param switches Retained display-switch event.
+   * @param artificial_reinit Set when capture should stop for a requested display switch.
+   * @return Whether the native capture loop should continue.
+   */
+  bool deliver_capture_tick(std::vector<capture_ctx_t> &contexts, const std::shared_ptr<safe::queue_t<capture_ctx_t>> &queue, const std::shared_ptr<platf::img_t> &image, bool captured, const safe::mail_raw_t::event_t<int> &switches, bool &artificial_reinit) {
+    distribute_captured_image(contexts, image, captured);
+    if (!queue->running()) {
+      return false;
+    }
+    while (queue->peek()) {
+      contexts.emplace_back(std::move(*queue->pop()));
+    }
+    if (switches->peek()) {
+      artificial_reinit = true;
+      return false;
+    }
+    return true;
+  }
+
+  /**
    * @brief Run the shared display capture thread for asynchronous encoding.
    *
    * @param capture_ctx_queue Capture context queue.
@@ -1656,15 +1804,7 @@ namespace video {
     std::vector<capture_ctx_t> capture_ctxs;
 
     auto fg = util::fail_guard([&]() {
-      capture_ctx_queue->stop();
-
-      // Stop all sessions listening to this thread
-      for (auto &capture_ctx : capture_ctxs) {
-        capture_ctx.images->stop();
-      }
-      for (auto &capture_ctx : capture_ctx_queue->unsafe()) {
-        capture_ctx.images->stop();
-      }
+      stop_capture_subscribers(capture_ctxs, capture_ctx_queue);
     });
 
     auto switch_display_event = host.mail->event<int>(mail::switch_display);
@@ -1687,99 +1827,20 @@ namespace video {
     }
     display_wp = disp;
 
-    constexpr auto capture_buffer_size = 12;
-    std::list<std::shared_ptr<platf::img_t>> imgs(capture_buffer_size);
-
-    std::vector<std::optional<std::chrono::steady_clock::time_point>> imgs_used_timestamps;
-    const std::chrono::seconds trim_timeot = 3s;
-    auto trim_imgs = [&]() {
-      // count allocated and used within current pool
-      size_t allocated_count = 0;
-      size_t used_count = 0;
-      for (const auto &img : imgs) {
-        if (img) {
-          allocated_count += 1;
-          if (img.use_count() > 1) {
-            used_count += 1;
-          }
-        }
-      }
-
-      // remember the timestamp of currently used count
-      const auto now = std::chrono::steady_clock::now();
-      if (imgs_used_timestamps.size() <= used_count) {
-        imgs_used_timestamps.resize(used_count + 1);
-      }
-      imgs_used_timestamps[used_count] = now;
-
-      // decide whether to trim allocated unused above the currently used count
-      // based on last used timestamp and universal timeout
-      size_t trim_target = used_count;
-      for (size_t i = used_count; i < imgs_used_timestamps.size(); i++) {
-        if (imgs_used_timestamps[i] && now - *imgs_used_timestamps[i] < trim_timeot) {
-          trim_target = i;
-        }
-      }
-
-      // trim allocated unused above the newly decided trim target
-      if (allocated_count > trim_target) {
-        size_t to_trim = allocated_count - trim_target;
-        // prioritize trimming least recently used
-        for (auto it = imgs.rbegin(); it != imgs.rend(); it++) {
-          auto &img = *it;
-          if (img && img.use_count() == 1) {
-            img.reset();
-            to_trim -= 1;
-            if (to_trim == 0) {
-              break;
-            }
-          }
-        }
-        // forget timestamps that no longer relevant
-        imgs_used_timestamps.resize(trim_target + 1);
-      }
-    };
-
-    auto pull_free_image_callback = [&](std::shared_ptr<platf::img_t> &img_out) -> bool {
+    detail::capture_image_pool_t images;
+    auto pull_free_image_callback = [&images, &disp, &capture_ctx_queue](std::shared_ptr<platf::img_t> &img_out) -> bool {
       img_out.reset();
       while (capture_ctx_queue->running()) {
-        // pick first allocated but unused
-        for (auto it = imgs.begin(); it != imgs.end(); it++) {
-          if (*it && it->use_count() == 1) {
-            img_out = *it;
-            if (it != imgs.begin()) {
-              // move image to the front of the list to prioritize its reusal
-              imgs.erase(it);
-              imgs.push_front(img_out);
-            }
-            break;
-          }
-        }
-        // otherwise pick first unallocated
-        if (!img_out) {
-          for (auto it = imgs.begin(); it != imgs.end(); it++) {
-            if (!*it) {
-              // allocate image
-              *it = disp->alloc_img();
-              img_out = *it;
-              if (it != imgs.begin()) {
-                // move image to the front of the list to prioritize its reusal
-                imgs.erase(it);
-                imgs.push_front(img_out);
-              }
-              break;
-            }
-          }
-        }
+        img_out = images.acquire([&disp] {
+          return disp->alloc_img();
+        },
+                                 [] {
+                                   return std::chrono::steady_clock::now();
+                                 });
         if (img_out) {
-          // trim allocated but unused portion of the pool based on timeouts
-          trim_imgs();
-          img_out->frame_timestamp.reset();
           return true;
-        } else {
-          // sleep and retry if image pool is full
-          std::this_thread::sleep_for(1ms);
         }
+        std::this_thread::sleep_for(1ms);
       }
       return false;
     };
@@ -1792,34 +1853,7 @@ namespace video {
       bool artificial_reinit = false;
 
       auto push_captured_image_callback = [&](std::shared_ptr<platf::img_t> &&img, bool frame_captured) -> bool {
-        KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
-          if (!capture_ctx->images->running()) {
-            capture_ctx = capture_ctxs.erase(capture_ctx);
-
-            continue;
-          }
-
-          if (frame_captured) {
-            capture_ctx->images->raise(img);
-          }
-
-          ++capture_ctx;
-        })
-
-        if (!capture_ctx_queue->running()) {
-          return false;
-        }
-
-        while (capture_ctx_queue->peek()) {
-          capture_ctxs.emplace_back(std::move(*capture_ctx_queue->pop()));
-        }
-
-        if (switch_display_event->peek()) {
-          artificial_reinit = true;
-          return false;
-        }
-
-        return true;
+        return deliver_capture_tick(capture_ctxs, capture_ctx_queue, img, frame_captured, switch_display_event, artificial_reinit);
       };
 
       auto status = disp->capture(push_captured_image_callback, pull_free_image_callback, &host.cursor);
@@ -1833,62 +1867,9 @@ namespace video {
       switch (status) {
         case platf::capture_e::reinit:
           {
-            reinit_event.raise(true);
-
-            // Some classes of images contain references to the display --> display won't delete unless img is deleted
-            for (auto &img : imgs) {
-              img.reset();
-            }
-
-            // display_wp is modified in this thread only
-            // Wait for the other shared_ptr's of display to be destroyed.
-            // New displays will only be created in this thread.
-            while (display_wp->use_count() != 1) {
-              // Free images that weren't consumed by the encoders. These can reference the display and prevent
-              // the ref count from reaching 1. We do this here rather than on the encoder thread to avoid race
-              // conditions where the encoding loop might free a good frame after reinitializing if we capture
-              // a new frame here before the encoder has finished reinitializing.
-              KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
-                if (!capture_ctx->images->running()) {
-                  capture_ctx = capture_ctxs.erase(capture_ctx);
-                  continue;
-                }
-
-                while (capture_ctx->images->try_pop()) {
-                }
-
-                ++capture_ctx;
-              });
-
-              std::this_thread::sleep_for(20ms);
-            }
-
-            while (capture_ctx_queue->running()) {
-              // Release the display before reenumerating displays, since some capture backends
-              // only support a single display session per device/application.
-              disp.reset();
-
-              // Refresh display names since a display removal might have caused the reinitialization
-              refresh_displays(host, encoder.platform_formats->dev_type, display_names, display_p);
-
-              // Process any pending display switch with the new list of displays
-              if (switch_display_event->peek()) {
-                display_p = std::clamp(*switch_display_event->pop(), 0, static_cast<int>(display_names.size()) - 1);
-              }
-
-              // reset_display() will sleep between retries
-              reset_display(host, disp, encoder.platform_formats->dev_type, display_names[display_p], capture_ctxs.front().config);
-              if (disp) {
-                break;
-              }
-            }
-            if (!disp) {
+            if (!reinitialize_capture_display(host, disp, display_wp, images, capture_ctxs, capture_ctx_queue, reinit_event, encoder, display_names, display_p, switch_display_event)) {
               return;
             }
-
-            display_wp = disp;
-
-            reinit_event.reset();
             continue;
           }
         case platf::capture_e::error:
@@ -2484,6 +2465,38 @@ namespace video {
   }
 
   /**
+   * @brief Apply reference invalidations followed by a pending IDR request in mailbox order.
+   * @param session Active encoder receiving reference and frame-type requests.
+   * @param invalidations Retained invalidation event drained before IDR handling.
+   * @param idr Retained IDR event consumed once per iteration.
+   * @return Whether an IDR frame was requested for this iteration.
+   */
+  bool apply_encoder_requests(encode_session_t &session, const safe::mail_raw_t::event_t<std::pair<int64_t, int64_t>> &invalidations, const safe::mail_raw_t::event_t<bool> &idr) {
+    while (invalidations->peek()) {
+      if (auto frames = invalidations->pop(0ms)) {
+        session.invalidate_ref_frames(frames->first, frames->second);
+      }
+    }
+    const bool requested = idr->peek();
+    if (requested) {
+      idr->pop();
+      session.request_idr_frame();
+    }
+    return requested;
+  }
+
+  /**
+   * @brief Initialize an encoder frame from a short-lived dummy capture image.
+   * @param display Display allocating and filling the temporary image.
+   * @param session Encoder receiving the initialized image.
+   * @return Whether allocation, filling and conversion succeeded.
+   */
+  bool initialize_dummy_frame(platf::display_t &display, encode_session_t &session) {
+    auto image = display.alloc_img();
+    return image && !display.dummy_img(image.get()) && !session.convert(*image);
+  }
+
+  /**
    * @brief Run one encode loop for a display capture stream.
    *
    * @param frame_nr Frame counter updated as frames are encoded.
@@ -2541,34 +2554,12 @@ namespace video {
     auto idr_events = mail->event<bool>(mail::idr);
     auto invalidate_ref_frames_events = mail->event<std::pair<int64_t, int64_t>>(mail::invalidate_ref_frames);
 
-    {
-      // Load a dummy image into the AVFrame to ensure we have something to encode
-      // even if we timeout waiting on the first frame. This is a relatively large
-      // allocation which can be freed immediately after convert(), so we do this
-      // in a separate scope.
-      auto dummy_img = disp->alloc_img();
-      if (!dummy_img || disp->dummy_img(dummy_img.get()) || session->convert(*dummy_img)) {
-        return;
-      }
+    if (!initialize_dummy_frame(*disp, *session)) {
+      return;
     }
 
     while (true) {
-      bool requested_idr_frame = false;
-
-      while (invalidate_ref_frames_events->peek()) {
-        if (auto frames = invalidate_ref_frames_events->pop(0ms)) {
-          session->invalidate_ref_frames(frames->first, frames->second);
-        }
-      }
-
-      if (idr_events->peek()) {
-        requested_idr_frame = true;
-        idr_events->pop();
-      }
-
-      if (requested_idr_frame) {
-        session->request_idr_frame();
-      }
+      const bool requested_idr_frame = apply_encoder_requests(*session, invalidate_ref_frames_events, idr_events);
 
       std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
 
@@ -2772,6 +2763,117 @@ namespace video {
   }
 
   /**
+   * @brief Encode one synchronized session, stopping it on conversion or packetization failure.
+   * @param active Encoder and its retained session context.
+   * @param image Current captured image, possibly absent on a timeout.
+   * @param captured Whether a new image needs conversion.
+   * @return Whether the session encoded a frame and can advance its iterator.
+   */
+  bool encode_synchronized_frame(sync_session_t &active, const std::shared_ptr<platf::img_t> &image, bool captured) {
+    auto &context = *active.ctx;
+    if (context.idr_events->peek()) {
+      active.session->request_idr_frame();
+      context.idr_events->pop();
+    }
+    if (captured && active.session->convert(*image)) {
+      logging::error("Could not convert image"sv);
+      context.shutdown_event->raise(true);
+      return false;
+    }
+    std::optional<std::chrono::steady_clock::time_point> timestamp;
+    if (image) {
+      timestamp = image->frame_timestamp;
+    }
+    if (encode(context.frame_nr++, *active.session, context.packets, context.channel_data, timestamp)) {
+      logging::error("Could not encode video packet"sv);
+      context.shutdown_event->raise(true);
+      return false;
+    }
+    active.session->request_normal_frame();
+    return true;
+  }
+
+  /**
+   * @brief Remove stopping synchronized sessions and encode each remaining subscriber in order.
+   * @param sessions Active encoder sessions.
+   * @param contexts Stable owned contexts referenced by sessions.
+   * @param image Current captured image.
+   * @param captured Whether the image is newly captured.
+   * @return False when removing a session leaves no active subscribers.
+   */
+  bool encode_synchronized_sessions(std::vector<sync_session_t> &sessions, std::vector<std::unique_ptr<sync_session_ctx_t>> &contexts, const std::shared_ptr<platf::img_t> &image, bool captured) {
+    for (auto position = sessions.begin(); position != sessions.end();) {
+      auto context = position->ctx;
+      if (context->shutdown_event->peek()) {
+        context->join_event->raise(true);
+        position = sessions.erase(position);
+        contexts.erase(std::find_if(contexts.begin(), contexts.end(), [context](const auto &candidate) {
+          return candidate.get() == context;
+        }));
+        if (sessions.empty()) {
+          return false;
+        }
+        continue;
+      }
+      if (!encode_synchronized_frame(*position, image, captured)) {
+        continue;
+      }
+      ++position;
+    }
+    return true;
+  }
+
+  /**
+   * @brief Add queued synchronized subscribers after retaining their stable context storage.
+   * @param settings Host encoder configuration.
+   * @param display Display shared by the synchronous capture run.
+   * @param encoder Selected encoder.
+   * @param image Current image used to initialize each new encoder.
+   * @param queue Pending synchronized contexts.
+   * @param contexts Stable context owners retained until session removal.
+   * @param sessions Encoder sessions appended after initialization succeeds.
+   * @param status Error status set only on encoder initialization failure.
+   * @return Whether capture can continue after processing pending contexts.
+   */
+  bool add_synchronized_sessions(const config::settings_t &settings, platf::display_t &display, const encoder_t &encoder, const std::shared_ptr<platf::img_t> &image, encode_session_ctx_queue_t &queue, std::vector<std::unique_ptr<sync_session_ctx_t>> &contexts, std::vector<sync_session_t> &sessions, platf::capture_e &status) {
+    while (queue.peek()) {
+      auto context = queue.pop();
+      if (!context) {
+        return false;
+      }
+      contexts.emplace_back(std::make_unique<sync_session_ctx_t>(std::move(*context)));
+      auto session = make_synced_session(settings, &display, encoder, *image, *contexts.back());
+      if (!session) {
+        status = platf::capture_e::error;
+        return false;
+      }
+      sessions.emplace_back(std::move(*session));
+    }
+    return true;
+  }
+
+  /**
+   * @brief Recreate retained synchronous encoder sessions from the new display's dummy image.
+   * @param settings Host encoder configuration.
+   * @param display Replacement display retained by this capture run.
+   * @param encoder Selected encoder.
+   * @param image Dummy image used to initialize every retained session.
+   * @param contexts Stable context owners retained across display reinitialization.
+   * @param sessions Successfully created encoders appended in subscriber order.
+   * @return Whether every retained subscriber obtained an encoder session.
+   */
+  bool initialize_synchronized_sessions(const config::settings_t &settings, platf::display_t &display, const encoder_t &encoder, platf::img_t &image, const std::vector<std::unique_ptr<sync_session_ctx_t>> &contexts, std::vector<sync_session_t> &sessions) {
+    for (const auto &context : contexts) {
+      auto session = make_synced_session(settings, &display, encoder, image, *context);
+      if (!session) {
+        return false;
+      }
+      sessions.emplace_back(std::move(*session));
+    }
+    return true;
+  }
+
+  /**
    * @brief Run synchronized capture and encoding.
    *
    * @param synced_session_ctxs Active synchronized session contexts.
@@ -2797,23 +2899,7 @@ namespace video {
       synced_session_ctxs.emplace_back(std::make_unique<sync_session_ctx_t>(std::move(*ctx)));
     }
 
-    while (encode_session_ctx_queue.running()) {
-      // Refresh display names since a display removal might have caused the reinitialization
-      refresh_displays(host, encoder.platform_formats->dev_type, display_names, display_p);
-
-      // Process any pending display switch with the new list of displays
-      if (switch_display_event->peek()) {
-        display_p = std::clamp(*switch_display_event->pop(), 0, static_cast<int>(display_names.size()) - 1);
-      }
-
-      // reset_display() will sleep between retries
-      reset_display(host, disp, encoder.platform_formats->dev_type, display_names[display_p], synced_session_ctxs.front()->config);
-      if (disp) {
-        break;
-      }
-    }
-
-    if (!disp) {
+    if (!open_capture_display(host, disp, encoder.platform_formats->dev_type, display_names, display_p, switch_display_event, synced_session_ctxs.front()->config, encode_session_ctx_queue)) {
       return encode_e::error;
     }
 
@@ -2823,81 +2909,19 @@ namespace video {
     }
 
     std::vector<sync_session_t> synced_sessions;
-    for (auto &ctx : synced_session_ctxs) {
-      auto synced_session = make_synced_session(host.settings, disp.get(), encoder, *img, *ctx);
-      if (!synced_session) {
-        return encode_e::error;
-      }
-
-      synced_sessions.emplace_back(std::move(*synced_session));
+    if (!initialize_synchronized_sessions(host.settings, *disp, encoder, *img, synced_session_ctxs, synced_sessions)) {
+      return encode_e::error;
     }
 
     auto ec = platf::capture_e::ok;
     while (encode_session_ctx_queue.running()) {
       auto push_captured_image_callback = [&](std::shared_ptr<platf::img_t> &&img, bool frame_captured) -> bool {
-        while (encode_session_ctx_queue.peek()) {
-          auto encode_session_ctx = encode_session_ctx_queue.pop();
-          if (!encode_session_ctx) {
-            return false;
-          }
-
-          synced_session_ctxs.emplace_back(std::make_unique<sync_session_ctx_t>(std::move(*encode_session_ctx)));
-
-          auto encode_session = make_synced_session(host.settings, disp.get(), encoder, *img, *synced_session_ctxs.back());
-          if (!encode_session) {
-            ec = platf::capture_e::error;
-            return false;
-          }
-
-          synced_sessions.emplace_back(std::move(*encode_session));
+        if (!add_synchronized_sessions(host.settings, *disp, encoder, img, encode_session_ctx_queue, synced_session_ctxs, synced_sessions, ec)) {
+          return false;
         }
-
-        KITTY_WHILE_LOOP(auto pos = std::begin(synced_sessions), pos != std::end(synced_sessions), {
-          auto ctx = pos->ctx;
-          if (ctx->shutdown_event->peek()) {
-            // Let waiting thread know it can delete shutdown_event
-            ctx->join_event->raise(true);
-
-            pos = synced_sessions.erase(pos);
-            synced_session_ctxs.erase(std::find_if(std::begin(synced_session_ctxs), std::end(synced_session_ctxs), [&ctx_p = ctx](auto &ctx) {
-              return ctx.get() == ctx_p;
-            }));
-
-            if (synced_sessions.empty()) {
-              return false;
-            }
-
-            continue;
-          }
-
-          if (ctx->idr_events->peek()) {
-            pos->session->request_idr_frame();
-            ctx->idr_events->pop();
-          }
-
-          if (frame_captured && pos->session->convert(*img)) {
-            logging::error("Could not convert image"sv);
-            ctx->shutdown_event->raise(true);
-
-            continue;
-          }
-
-          std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
-          if (img) {
-            frame_timestamp = img->frame_timestamp;
-          }
-
-          if (encode(ctx->frame_nr++, *pos->session, ctx->packets, ctx->channel_data, frame_timestamp)) {
-            logging::error("Could not encode video packet"sv);
-            ctx->shutdown_event->raise(true);
-
-            continue;
-          }
-
-          pos->session->request_normal_frame();
-
-          ++pos;
-        })
+        if (!encode_synchronized_sessions(synced_sessions, synced_session_ctxs, img, frame_captured)) {
+          return false;
+        }
 
         if (switch_display_event->peek()) {
           ec = platf::capture_e::reinit;
@@ -3143,6 +3167,110 @@ namespace video {
   }
 
   /**
+   * @brief Publish reference-limit and packet-header results without changing validation-result bit semantics.
+   * @param codec Codec capabilities being updated.
+   * @param maximum Result of probing explicitly limited reference frames.
+   * @param automatic Result of probing automatically selected reference frames.
+   */
+  void publish_reference_probe(encoder_t::codec_t &codec, int maximum, int automatic) {
+    codec[encoder_t::VUI_PARAMETERS] = (maximum & VUI_PARAMS) && (automatic & VUI_PARAMS);
+    codec[encoder_t::REF_FRAMES_RESTRICT] = maximum >= 0;
+    codec[encoder_t::PASSED] = maximum >= 0 || automatic >= 0;
+  }
+
+  /**
+   * @brief Probe H.264 reference configurations, prioritizing quick rejection of unexpected encoders.
+   * @param host Host validation dependencies.
+   * @param display Display retained for both probe configurations.
+   * @param encoder Encoder whose H.264 capabilities are updated.
+   * @param maximum Explicit reference-frame probe configuration.
+   * @param automatic Automatic reference-frame probe configuration.
+   * @param expect_failure Whether automatic references should be tried first.
+   * @param maximum_result Explicit-reference result needed by later codec probes.
+   * @return Whether either usable H.264 configuration was found.
+   */
+  bool probe_h264_references(service_t::impl_t &host, const std::shared_ptr<platf::display_t> &display, encoder_t &encoder, const config_t &maximum, const config_t &automatic, bool expect_failure, int &maximum_result) {
+    maximum_result = expect_failure ? -1 : validate_config(host, display, encoder, maximum);
+    const auto automatic_result = maximum_result >= 0 ? maximum_result : validate_config(host, display, encoder, automatic);
+    if (automatic_result < 0) {
+      return false;
+    }
+    if (expect_failure) {
+      maximum_result = validate_config(host, display, encoder, maximum);
+    }
+    publish_reference_probe(encoder.h264, maximum_result, automatic_result);
+    return true;
+  }
+
+  /**
+   * @brief Probe HEVC or AV1 reference configurations with the existing H.264 success constraint.
+   * @param host Host validation dependencies.
+   * @param display Display retained for reference probes.
+   * @param encoder Selected encoder descriptor.
+   * @param codec HEVC or AV1 capabilities being updated.
+   * @param format Protocol codec number.
+   * @param enabled Whether this codec should be probed.
+   * @param h264_maximum H.264 explicit-reference result controlling fallback probing.
+   * @param maximum Explicit-reference probe configuration copied for this codec.
+   * @param automatic Automatic-reference probe configuration copied for this codec.
+   */
+  void probe_secondary_references(service_t::impl_t &host, const std::shared_ptr<platf::display_t> &display, encoder_t &encoder, encoder_t::codec_t &codec, int format, bool enabled, int h264_maximum, config_t maximum, config_t automatic) {
+    if (!enabled) {
+      codec.capabilities.reset();
+      return;
+    }
+    maximum.videoFormat = format;
+    automatic.videoFormat = format;
+    if (!display->is_codec_supported(codec.name, automatic)) {
+      logging::info("Encoder [{}] is not supported on this GPU", codec.name);
+      codec.capabilities.reset();
+      return;
+    }
+    const auto maximum_result = validate_config(host, display, encoder, maximum);
+    const auto automatic_result = (maximum_result >= 0 || h264_maximum >= 0) ? maximum_result : validate_config(host, display, encoder, automatic);
+    publish_reference_probe(codec, maximum_result, automatic_result);
+  }
+
+  /**
+   * @brief Probe a codec pixel mode after reopening the display for that exact configuration.
+   * @param host Host display and validation dependencies.
+   * @param display Display reset before checking the codec's baseline viability.
+   * @param encoder Encoder descriptor supplying chroma support and codec names.
+   * @param output Selected output name.
+   * @param codec Capabilities of the codec being tested.
+   * @param config Exact SDR/HDR and chroma configuration to validate.
+   * @param flag Capability set from this probe's result.
+   */
+  void probe_codec_pixel_mode(service_t::impl_t &host, std::shared_ptr<platf::display_t> &display, encoder_t &encoder, const std::string &output, encoder_t::codec_t &codec, const config_t &config, encoder_t::flag_e flag) {
+    reset_display(host, display, encoder.platform_formats->dev_type, output, config);
+    if (!display || !codec[encoder_t::PASSED]) {
+      return;
+    }
+    const auto name = encoder.codec_from_config(config).name;
+    const bool supports_chroma = config.chromaSamplingType != 1 || (encoder.flags & YUV444_SUPPORT);
+    codec[flag] = supports_chroma && display->is_codec_supported(name, config) && validate_config(host, display, encoder, config) >= 0;
+  }
+
+  /**
+   * @brief Probe SDR 4:4:4 and HDR formats in the established codec/display order.
+   * @param host Host display and validation dependencies.
+   * @param display Display replaced for every pixel-mode probe.
+   * @param encoder Codec capabilities updated by each probe.
+   * @param output Selected output name.
+   */
+  void probe_encoder_pixel_modes(service_t::impl_t &host, std::shared_ptr<platf::display_t> &display, encoder_t &encoder, const std::string &output) {
+    probe_codec_pixel_mode(host, display, encoder, output, encoder.h264, detail::pixel_probe_config(0, false, true), encoder_t::YUV444);
+    encoder.h264[encoder_t::DYNAMIC_RANGE] = false;
+    encoder.h264[encoder_t::DYNAMIC_RANGE_YUV444] = false;
+    probe_codec_pixel_mode(host, display, encoder, output, encoder.hevc, detail::pixel_probe_config(1, false, true), encoder_t::YUV444);
+    probe_codec_pixel_mode(host, display, encoder, output, encoder.hevc, detail::pixel_probe_config(1, true, false), encoder_t::DYNAMIC_RANGE);
+    probe_codec_pixel_mode(host, display, encoder, output, encoder.hevc, detail::pixel_probe_config(1, true, true), encoder_t::DYNAMIC_RANGE_YUV444);
+    probe_codec_pixel_mode(host, display, encoder, output, encoder.av1, detail::pixel_probe_config(2, false, true), encoder_t::YUV444);
+    probe_codec_pixel_mode(host, display, encoder, output, encoder.av1, detail::pixel_probe_config(2, true, false), encoder_t::DYNAMIC_RANGE);
+    probe_codec_pixel_mode(host, display, encoder, output, encoder.av1, detail::pixel_probe_config(2, true, true), encoder_t::DYNAMIC_RANGE_YUV444);
+  }
+
+  /**
    * @brief Validate encoder before it is used.
    * @param host Host input or video service and its capture dependencies.
    * @param encoder Encoder descriptor whose supported formats are probed and updated.
@@ -3158,8 +3286,8 @@ namespace video {
       logging::info("Encoder [{}] failed", encoder.name);
     });
 
-    auto test_hevc = host.probed.active_hevc_mode >= 2 || (host.probed.active_hevc_mode == 0 && !(encoder.flags & H264_ONLY));
-    auto test_av1 = host.probed.active_av1_mode >= 2 || (host.probed.active_av1_mode == 0 && !(encoder.flags & H264_ONLY));
+    const auto test_hevc = detail::should_probe_codec(host.probed.active_hevc_mode, encoder.flags & H264_ONLY);
+    const auto test_av1 = detail::should_probe_codec(host.probed.active_av1_mode, encoder.flags & H264_ONLY);
 
     encoder.h264.capabilities.set();
     encoder.hevc.capabilities.set();
@@ -3180,158 +3308,13 @@ namespace video {
       return false;
     }
 
-    // If we're expecting failure, use the autoselect ref config first since that will always succeed
-    // if the encoder is available.
-    auto max_ref_frames_h264 = expect_failure ? -1 : validate_config(host, disp, encoder, config_max_ref_frames);
-    auto autoselect_h264 = max_ref_frames_h264 >= 0 ? max_ref_frames_h264 : validate_config(host, disp, encoder, config_autoselect);
-    if (autoselect_h264 < 0) {
+    int max_ref_frames_h264;
+    if (!probe_h264_references(host, disp, encoder, config_max_ref_frames, config_autoselect, expect_failure, max_ref_frames_h264)) {
       return false;
-    } else if (expect_failure) {
-      // We expected failure, but actually succeeded. Do the max_ref_frames probe we skipped.
-      max_ref_frames_h264 = validate_config(host, disp, encoder, config_max_ref_frames);
     }
-
-    std::vector<std::pair<validate_flag_e, encoder_t::flag_e>> packet_deficiencies {
-      {VUI_PARAMS, encoder_t::VUI_PARAMETERS},
-    };
-
-    for (auto [validate_flag, encoder_flag] : packet_deficiencies) {
-      encoder.h264[encoder_flag] = (max_ref_frames_h264 & validate_flag && autoselect_h264 & validate_flag);
-    }
-
-    encoder.h264[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_h264 >= 0;
-    encoder.h264[encoder_t::PASSED] = true;
-
-    if (test_hevc) {
-      config_max_ref_frames.videoFormat = 1;
-      config_autoselect.videoFormat = 1;
-
-      if (disp->is_codec_supported(encoder.hevc.name, config_autoselect)) {
-        auto max_ref_frames_hevc = validate_config(host, disp, encoder, config_max_ref_frames);
-
-        // If H.264 succeeded with max ref frames specified, assume that we can count on
-        // HEVC to also succeed with max ref frames specified if HEVC is supported.
-        auto autoselect_hevc = (max_ref_frames_hevc >= 0 || max_ref_frames_h264 >= 0) ?
-                                 max_ref_frames_hevc :
-                                 validate_config(host, disp, encoder, config_autoselect);
-
-        for (auto [validate_flag, encoder_flag] : packet_deficiencies) {
-          encoder.hevc[encoder_flag] = (max_ref_frames_hevc & validate_flag && autoselect_hevc & validate_flag);
-        }
-
-        encoder.hevc[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_hevc >= 0;
-        encoder.hevc[encoder_t::PASSED] = max_ref_frames_hevc >= 0 || autoselect_hevc >= 0;
-      } else {
-        logging::info("Encoder [{}] is not supported on this GPU", encoder.hevc.name);
-        encoder.hevc.capabilities.reset();
-      }
-    } else {
-      // Clear all cap bits for HEVC if we didn't probe it
-      encoder.hevc.capabilities.reset();
-    }
-
-    if (test_av1) {
-      config_max_ref_frames.videoFormat = 2;
-      config_autoselect.videoFormat = 2;
-
-      if (disp->is_codec_supported(encoder.av1.name, config_autoselect)) {
-        auto max_ref_frames_av1 = validate_config(host, disp, encoder, config_max_ref_frames);
-
-        // If H.264 succeeded with max ref frames specified, assume that we can count on
-        // AV1 to also succeed with max ref frames specified if AV1 is supported.
-        auto autoselect_av1 = (max_ref_frames_av1 >= 0 || max_ref_frames_h264 >= 0) ?
-                                max_ref_frames_av1 :
-                                validate_config(host, disp, encoder, config_autoselect);
-
-        for (auto [validate_flag, encoder_flag] : packet_deficiencies) {
-          encoder.av1[encoder_flag] = (max_ref_frames_av1 & validate_flag && autoselect_av1 & validate_flag);
-        }
-
-        encoder.av1[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_av1 >= 0;
-        encoder.av1[encoder_t::PASSED] = max_ref_frames_av1 >= 0 || autoselect_av1 >= 0;
-      } else {
-        logging::info("Encoder [{}] is not supported on this GPU", encoder.av1.name);
-        encoder.av1.capabilities.reset();
-      }
-    } else {
-      // Clear all cap bits for AV1 if we didn't probe it
-      encoder.av1.capabilities.reset();
-    }
-
-    // Test HDR and YUV444 support
-    {
-      auto test_yuv444 = [&](auto &flag_map, auto video_format) {
-        const config_t config = {1920, 1080, 60, 6000, 1000, 1, 0, 1, video_format, 0, 1, 0};
-
-        reset_display(host, disp, encoder.platform_formats->dev_type, output_name, config);
-        if (!disp) {
-          return;
-        }
-        if (!flag_map[encoder_t::PASSED]) {
-          return;
-        }
-
-        auto encoder_codec_name = encoder.codec_from_config(config).name;
-
-        if ((encoder.flags & YUV444_SUPPORT) && disp->is_codec_supported(encoder_codec_name, config) && validate_config(host, disp, encoder, config) >= 0) {
-          flag_map[encoder_t::YUV444] = true;
-        } else {
-          flag_map[encoder_t::YUV444] = false;
-        }
-      };
-
-      auto test_yuv420_hdr = [&](auto &flag_map, auto video_format) {
-        const config_t config = {1920, 1080, 60, 6000, 1000, 1, 0, 3, video_format, 1, 0, 0};
-
-        reset_display(host, disp, encoder.platform_formats->dev_type, output_name, config);
-        if (!disp) {
-          return;
-        }
-        if (!flag_map[encoder_t::PASSED]) {
-          return;
-        }
-
-        auto encoder_codec_name = encoder.codec_from_config(config).name;
-
-        if (disp->is_codec_supported(encoder_codec_name, config) && validate_config(host, disp, encoder, config) >= 0) {
-          flag_map[encoder_t::DYNAMIC_RANGE] = true;
-        } else {
-          flag_map[encoder_t::DYNAMIC_RANGE] = false;
-        }
-      };
-
-      auto test_yuv444_hdr = [&](auto &flag_map, auto video_format) {
-        const config_t config = {1920, 1080, 60, 6000, 1000, 1, 0, 3, video_format, 1, 1, 0};
-
-        reset_display(host, disp, encoder.platform_formats->dev_type, output_name, config);
-        if (!disp) {
-          return;
-        }
-        if (!flag_map[encoder_t::PASSED]) {
-          return;
-        }
-
-        auto encoder_codec_name = encoder.codec_from_config(config).name;
-
-        if ((encoder.flags & YUV444_SUPPORT) && disp->is_codec_supported(encoder_codec_name, config) && validate_config(host, disp, encoder, config) >= 0) {
-          flag_map[encoder_t::DYNAMIC_RANGE_YUV444] = true;
-        } else {
-          flag_map[encoder_t::DYNAMIC_RANGE_YUV444] = false;
-        }
-      };
-
-      test_yuv444(encoder.h264, 0);
-      // HDR is not supported with H.264. Don't bother even trying it.
-      encoder.h264[encoder_t::DYNAMIC_RANGE] = false;
-      encoder.h264[encoder_t::DYNAMIC_RANGE_YUV444] = false;
-
-      test_yuv444(encoder.hevc, 1);
-      test_yuv420_hdr(encoder.hevc, 1);
-      test_yuv444_hdr(encoder.hevc, 1);
-      test_yuv444(encoder.av1, 2);
-      test_yuv420_hdr(encoder.av1, 2);
-      test_yuv444_hdr(encoder.av1, 2);
-    }
+    probe_secondary_references(host, disp, encoder, encoder.hevc, 1, test_hevc, max_ref_frames_h264, config_max_ref_frames, config_autoselect);
+    probe_secondary_references(host, disp, encoder, encoder.av1, 2, test_av1, max_ref_frames_h264, config_max_ref_frames, config_autoselect);
+    probe_encoder_pixel_modes(host, disp, encoder, output_name);
 
     encoder.h264[encoder_t::VUI_PARAMETERS] = encoder.h264[encoder_t::VUI_PARAMETERS] && !host.settings.sunshine.flags[config::flag::FORCE_VIDEO_HEADER_REPLACE];
     encoder.hevc[encoder_t::VUI_PARAMETERS] = encoder.hevc[encoder_t::VUI_PARAMETERS] && !host.settings.sunshine.flags[config::flag::FORCE_VIDEO_HEADER_REPLACE];
@@ -3345,6 +3328,159 @@ namespace video {
 
     fg.disable();
     return true;
+  }
+
+  /**
+   * @brief Relax an unsupported explicit codec constraint when an encoder is preferred.
+   * @param encoder Selected encoder used in diagnostics.
+   * @param codec Probed codec capabilities.
+   * @param name Codec display name used in existing warning messages.
+   * @param mode Active requirement reset to automatic when unsupported.
+   */
+  void relax_codec_requirement(const encoder_t &encoder, const encoder_t::codec_t &codec, std::string_view name, int &mode) {
+    const auto missing = detail::unsupported_codec_requirement(codec, mode);
+    if (!missing) {
+      return;
+    }
+    if (missing->empty()) {
+      logging::warning("Encoder [{}] does not support {} on this system", encoder.name, name);
+    } else {
+      logging::warning("Encoder [{}] does not support {} {} on this system", encoder.name, name, *missing);
+    }
+    mode = 0;
+  }
+
+  /**
+   * @brief Prefer encoder availability over unsupported HEVC and AV1 constraints.
+   * @param host Active codec requirements updated for the selected encoder.
+   * @param encoder Selected encoder's probed capabilities.
+   */
+  void relax_encoder_requirements(service_t::impl_t &host, const encoder_t &encoder) {
+    relax_codec_requirement(encoder, encoder.hevc, "HEVC", host.probed.active_hevc_mode);
+    relax_codec_requirement(encoder, encoder.av1, "AV1", host.probed.active_av1_mode);
+  }
+
+  /**
+   * @brief Validate a manually requested encoder and remove it from fallback candidates if unavailable.
+   * @param host Requested encoder setting and selection result.
+   * @param candidates Ordered encoder candidates, pruned after a failed requested probe.
+   * @param previous Previously selected encoder controlling quick-rejection probing.
+   */
+  void select_requested_encoder(service_t::impl_t &host, std::vector<encoder_t *> &candidates, const encoder_t *previous) {
+    if (host.settings.video.encoder.empty()) {
+      return;
+    }
+    for (auto position = candidates.begin(); position != candidates.end(); ++position) {
+      auto encoder = *position;
+      if (encoder->name != host.settings.video.encoder) {
+        continue;
+      }
+      if (!validate_encoder(host, *encoder, previous && previous != encoder)) {
+        candidates.erase(position);
+        break;
+      }
+      relax_encoder_requirements(host, *encoder);
+      host.chosen_encoder = encoder;
+      break;
+    }
+    if (!host.chosen_encoder) {
+      logging::error("Couldn't find any working encoder matching [{}]", host.settings.video.encoder);
+    }
+  }
+
+  /**
+   * @brief Select the first viable encoder satisfying explicit codec requirements.
+   * @param host Active codec requirements and selection result.
+   * @param candidates Ordered candidates pruned only for failed viability checks.
+   * @param previous Previously selected encoder controlling quick-rejection probing.
+   */
+  void select_codec_required_encoder(service_t::impl_t &host, std::vector<encoder_t *> &candidates, const encoder_t *previous) {
+    if (host.chosen_encoder || (host.probed.active_hevc_mode < 2 && host.probed.active_av1_mode < 2)) {
+      return;
+    }
+    for (auto position = candidates.begin(); position != candidates.end();) {
+      auto encoder = *position;
+      if (!validate_encoder(host, *encoder, previous && previous != encoder)) {
+        position = candidates.erase(position);
+        continue;
+      }
+      if (detail::codec_meets_requirements(encoder->hevc, host.probed.active_hevc_mode) && detail::codec_meets_requirements(encoder->av1, host.probed.active_av1_mode)) {
+        host.chosen_encoder = encoder;
+        break;
+      }
+      ++position;
+    }
+    if (!host.chosen_encoder) {
+      logging::error("Couldn't find any working encoder that meets HEVC/AV1 requirements"sv);
+    }
+  }
+
+  /**
+   * @brief Select the first remaining viable encoder while relaxing unsupported codec constraints.
+   * @param host Selection result and codec requirements.
+   * @param candidates Ordered remaining candidates pruned on failed viability checks.
+   * @param previous Previously selected encoder controlling quick-rejection probing.
+   */
+  void select_fallback_encoder(service_t::impl_t &host, std::vector<encoder_t *> &candidates, const encoder_t *previous) {
+    if (host.chosen_encoder) {
+      return;
+    }
+    for (auto position = candidates.begin(); position != candidates.end();) {
+      auto encoder = *position;
+      if (!validate_encoder(host, *encoder, previous && previous != encoder)) {
+        position = candidates.erase(position);
+        continue;
+      }
+      relax_encoder_requirements(host, *encoder);
+      host.chosen_encoder = encoder;
+      break;
+    }
+  }
+
+  /**
+   * @brief Log one available codec's capability flags and selected encoder name.
+   * @param codec Codec capabilities being reported.
+   * @param encoder Selected encoder name.
+   * @param short_name Lowercase codec label used by debug output.
+   * @param display_name Codec label used by discovery output.
+   */
+  void report_codec_capabilities(const encoder_t::codec_t &codec, std::string_view encoder, std::string_view short_name, std::string_view display_name) {
+    logging::debug("------  {} ------", short_name);
+    for (int index = 0; index < encoder_t::MAX_FLAGS; ++index) {
+      const auto flag = static_cast<encoder_t::flag_e>(index);
+      logging::debug([&codec, flag](std::ostream &out) {
+        out << encoder_t::from_flag(flag) << (codec[flag] ? ": supported"sv : ": unsupported"sv);
+      });
+    }
+    logging::debug("-------------------"sv);
+    logging::info("Found {} encoder: {} [{}]", display_name, codec.name, encoder);
+  }
+
+  /**
+   * @brief Publish selected encoder capabilities and infer automatic codec advertisement modes.
+   * @param host Capability snapshot updated after successful encoder selection.
+   */
+  void publish_encoder_capabilities(service_t::impl_t &host) {
+    const auto &encoder = *host.chosen_encoder;
+    host.probed.ref_frames_invalidation = (encoder.flags & REF_FRAMES_INVALIDATION);
+    host.probed.yuv444[0] = encoder.h264[encoder_t::PASSED] && encoder.h264[encoder_t::YUV444];
+    host.probed.yuv444[1] = encoder.hevc[encoder_t::PASSED] && encoder.hevc[encoder_t::YUV444];
+    host.probed.yuv444[2] = encoder.av1[encoder_t::PASSED] && encoder.av1[encoder_t::YUV444];
+    report_codec_capabilities(encoder.h264, encoder.name, "h264", "H.264");
+    if (encoder.hevc[encoder_t::PASSED]) {
+      report_codec_capabilities(encoder.hevc, encoder.name, "hevc", "HEVC");
+    }
+    if (encoder.av1[encoder_t::PASSED]) {
+      report_codec_capabilities(encoder.av1, encoder.name, "av1", "AV1");
+    }
+    if (host.probed.active_hevc_mode == 0) {
+      host.probed.active_hevc_mode = detail::advertised_codec_mode(encoder.hevc, 0);
+      logging::debug("ENCODER STATUS ACTIVE_HEVC_MODE: {}", host.probed.active_hevc_mode);
+    }
+    if (host.probed.active_av1_mode == 0) {
+      host.probed.active_av1_mode = detail::advertised_codec_mode(encoder.av1, 0);
+      logging::debug("ENCODER STATUS ACTIVE_AV1_MODE: {}", host.probed.active_av1_mode);
+    }
   }
 
   /**
@@ -3377,136 +3513,10 @@ namespace video {
     host.probed.ref_frames_invalidation = false;
     host.platform.set_capture_requirements(host.probed.active_hevc_mode);
 
-    auto adjust_encoder_constraints_hevc = [&](encoder_t *encoder) {
-      // If we can't satisfy both the encoder and codec requirement, prefer the encoder over codec support
-      if (host.probed.active_hevc_mode == 5 && !encoder->hevc[encoder_t::DYNAMIC_RANGE] && !encoder->hevc[encoder_t::DYNAMIC_RANGE_YUV444]) {
-        logging::warning("Encoder [{}] does not support HEVC Main10 Rext10_444 on this system", encoder->name);
-        host.probed.active_hevc_mode = 0;
-      } else if (host.probed.active_hevc_mode == 4 && !encoder->hevc[encoder_t::DYNAMIC_RANGE_YUV444]) {
-        logging::warning("Encoder [{}] does not support HEVC Rext10_444 on this system", encoder->name);
-        host.probed.active_hevc_mode = 0;
-      } else if (host.probed.active_hevc_mode == 3 && !encoder->hevc[encoder_t::DYNAMIC_RANGE]) {
-        logging::warning("Encoder [{}] does not support HEVC Main10 on this system", encoder->name);
-        host.probed.active_hevc_mode = 0;
-      } else if (host.probed.active_hevc_mode == 2 && !encoder->hevc[encoder_t::PASSED]) {
-        logging::warning("Encoder [{}] does not support HEVC on this system", encoder->name);
-        host.probed.active_hevc_mode = 0;
-      }
-    };
-
-    auto adjust_encoder_constraints_av1 = [&](encoder_t *encoder) {
-      // If we can't satisfy both the encoder and codec requirement, prefer the encoder over codec support
-      if (host.probed.active_av1_mode == 5 && !encoder->av1[encoder_t::DYNAMIC_RANGE] && !encoder->av1[encoder_t::DYNAMIC_RANGE_YUV444]) {
-        logging::warning("Encoder [{}] does not support AV1 Main10 Rext10_444 on this system", encoder->name);
-        host.probed.active_av1_mode = 0;
-      } else if (host.probed.active_av1_mode == 4 && !encoder->av1[encoder_t::DYNAMIC_RANGE_YUV444]) {
-        logging::warning("Encoder [{}] does not support AV1 Rext10_444 on this system", encoder->name);
-        host.probed.active_av1_mode = 0;
-      } else if (host.probed.active_av1_mode == 3 && !encoder->av1[encoder_t::DYNAMIC_RANGE]) {
-        logging::warning("Encoder [{}] does not support AV1 Main10 on this system", encoder->name);
-        host.probed.active_av1_mode = 0;
-      } else if (host.probed.active_av1_mode == 2 && !encoder->av1[encoder_t::PASSED]) {
-        logging::warning("Encoder [{}] does not support AV1 on this system", encoder->name);
-        host.probed.active_av1_mode = 0;
-      }
-    };
-
-    if (!host.settings.video.encoder.empty()) {
-      // If there is a specific encoder specified, use it if it passes validation
-      KITTY_WHILE_LOOP(auto pos = std::begin(encoder_list), pos != std::end(encoder_list), {
-        auto encoder = *pos;
-
-        if (encoder->name == host.settings.video.encoder) {
-          // Remove the encoder from the list entirely if it fails validation
-          if (!validate_encoder(host, *encoder, previous_encoder && previous_encoder != encoder)) {
-            pos = encoder_list.erase(pos);
-            break;
-          }
-
-          // We will return an encoder here even if it fails one of the codec requirements specified by the user
-          adjust_encoder_constraints_hevc(encoder);
-          adjust_encoder_constraints_av1(encoder);
-
-          host.chosen_encoder = encoder;
-          break;
-        }
-
-        pos++;
-      });
-
-      if (host.chosen_encoder == nullptr) {
-        logging::error("Couldn't find any working encoder matching [{}]", host.settings.video.encoder);
-      }
-    }
-
+    select_requested_encoder(host, encoder_list, previous_encoder);
     logging::info("// Testing for available encoders, this may generate errors. You can safely ignore those errors. //"sv);
-
-    // If we haven't found an encoder yet, but we want one with specific codec support, search for that now.
-    if (host.chosen_encoder == nullptr && (host.probed.active_hevc_mode >= 2 || host.probed.active_av1_mode >= 2)) {
-      KITTY_WHILE_LOOP(auto pos = std::begin(encoder_list), pos != std::end(encoder_list), {
-        auto encoder = *pos;
-
-        // Remove the encoder from the list entirely if it fails validation
-        if (!validate_encoder(host, *encoder, previous_encoder && previous_encoder != encoder)) {
-          pos = encoder_list.erase(pos);
-          continue;
-        }
-
-        // Skip it if it doesn't support the specified codec at all
-        if ((host.probed.active_hevc_mode >= 2 && !encoder->hevc[encoder_t::PASSED]) || (host.probed.active_av1_mode >= 2 && !encoder->av1[encoder_t::PASSED])) {
-          pos++;
-          continue;
-        }
-
-        // Skip it if it doesn't support HDR on the specified codec
-        if ((host.probed.active_hevc_mode == 5 && !encoder->hevc[encoder_t::DYNAMIC_RANGE] && !encoder->hevc[encoder_t::DYNAMIC_RANGE_YUV444]) || (host.probed.active_av1_mode == 5 && !encoder->av1[encoder_t::DYNAMIC_RANGE] && !encoder->av1[encoder_t::DYNAMIC_RANGE_YUV444])) {
-          pos++;
-          continue;
-        }
-
-        // Skip it if it doesn't support HDR on the specified codec
-        if ((host.probed.active_hevc_mode == 4 && !encoder->hevc[encoder_t::DYNAMIC_RANGE_YUV444]) || (host.probed.active_av1_mode == 4 && !encoder->av1[encoder_t::DYNAMIC_RANGE_YUV444])) {
-          pos++;
-          continue;
-        }
-
-        // Skip it if it doesn't support HDR on the specified codec
-        if ((host.probed.active_hevc_mode == 3 && !encoder->hevc[encoder_t::DYNAMIC_RANGE]) || (host.probed.active_av1_mode == 3 && !encoder->av1[encoder_t::DYNAMIC_RANGE])) {
-          pos++;
-          continue;
-        }
-
-        host.chosen_encoder = encoder;
-        break;
-      });
-
-      if (host.chosen_encoder == nullptr) {
-        logging::error("Couldn't find any working encoder that meets HEVC/AV1 requirements"sv);
-      }
-    }
-
-    // If no encoder was specified or the specified encoder was unusable, keep trying
-    // the remaining encoders until we find one that passes validation.
-    if (host.chosen_encoder == nullptr) {
-      KITTY_WHILE_LOOP(auto pos = std::begin(encoder_list), pos != std::end(encoder_list), {
-        auto encoder = *pos;
-
-        // If we've used a previous encoder and it's not this one, we expect this encoder to
-        // fail to validate. It will use a slightly different order of checks to more quickly
-        // eliminate failing encoders.
-        if (!validate_encoder(host, *encoder, previous_encoder && previous_encoder != encoder)) {
-          pos = encoder_list.erase(pos);
-          continue;
-        }
-
-        // We will return an encoder here even if it fails one of the codec requirements specified by the user
-        adjust_encoder_constraints_hevc(encoder);
-        adjust_encoder_constraints_av1(encoder);
-
-        host.chosen_encoder = encoder;
-        break;
-      });
-    }
+    select_codec_required_encoder(host, encoder_list, previous_encoder);
+    select_fallback_encoder(host, encoder_list, previous_encoder);
 
     if (host.chosen_encoder == nullptr) {
       const auto output_name {host.displays.map_output_name(host.settings.video.output_name)};
@@ -3523,84 +3533,7 @@ namespace video {
     logging::info("// Ignore any errors mentioned above, they are not relevant. //"sv);
     logging::info(""sv);
 
-    auto &encoder = *host.chosen_encoder;
-
-    host.probed.ref_frames_invalidation = (encoder.flags & REF_FRAMES_INVALIDATION);
-    host.probed.yuv444[0] = encoder.h264[encoder_t::PASSED] &&
-                            encoder.h264[encoder_t::YUV444];
-    host.probed.yuv444[1] = encoder.hevc[encoder_t::PASSED] &&
-                            encoder.hevc[encoder_t::YUV444];
-    host.probed.yuv444[2] = encoder.av1[encoder_t::PASSED] &&
-                            encoder.av1[encoder_t::YUV444];
-
-    logging::debug("------  h264 ------"sv);
-    for (int x = 0; x < encoder_t::MAX_FLAGS; ++x) {
-      auto flag = static_cast<encoder_t::flag_e>(x);
-      logging::debug([&](std::ostream &out) {
-        out << encoder_t::from_flag(flag) << (encoder.h264[flag] ? ": supported"sv : ": unsupported"sv);
-      });
-    }
-    logging::debug("-------------------"sv);
-    logging::info("Found H.264 encoder: {} [{}]", encoder.h264.name, encoder.name);
-
-    if (encoder.hevc[encoder_t::PASSED]) {
-      logging::debug("------  hevc ------"sv);
-      for (int x = 0; x < encoder_t::MAX_FLAGS; ++x) {
-        auto flag = static_cast<encoder_t::flag_e>(x);
-        logging::debug([&](std::ostream &out) {
-          out << encoder_t::from_flag(flag) << (encoder.hevc[flag] ? ": supported"sv : ": unsupported"sv);
-        });
-      }
-      logging::debug("-------------------"sv);
-
-      logging::info("Found HEVC encoder: {} [{}]", encoder.hevc.name, encoder.name);
-    }
-
-    if (encoder.av1[encoder_t::PASSED]) {
-      logging::debug("------  av1 ------"sv);
-      for (int x = 0; x < encoder_t::MAX_FLAGS; ++x) {
-        auto flag = static_cast<encoder_t::flag_e>(x);
-        logging::debug([&](std::ostream &out) {
-          out << encoder_t::from_flag(flag) << (encoder.av1[flag] ? ": supported"sv : ": unsupported"sv);
-        });
-      }
-      logging::debug("-------------------"sv);
-
-      logging::info("Found AV1 encoder: {} [{}]", encoder.av1.name, encoder.name);
-    }
-
-    // 2 - passed
-    // 3 - HDR yuv420
-    // 4 - HDR yuv444
-    // 5 - HDR yuv420 & HDR yuv444
-
-    if (host.probed.active_hevc_mode == 0) {
-      host.probed.active_hevc_mode = 1;
-      if (encoder.hevc[encoder_t::PASSED]) {
-        host.probed.active_hevc_mode = 2;
-        if (encoder.hevc[encoder_t::DYNAMIC_RANGE]) {
-          host.probed.active_hevc_mode += 1;
-        }
-        if (encoder.hevc[encoder_t::DYNAMIC_RANGE_YUV444]) {
-          host.probed.active_hevc_mode += 2;
-        }
-      }
-      logging::debug("ENCODER STATUS ACTIVE_HEVC_MODE: {}", host.probed.active_hevc_mode);
-    }
-
-    if (host.probed.active_av1_mode == 0) {
-      host.probed.active_av1_mode = 1;
-      if (encoder.av1[encoder_t::PASSED]) {
-        host.probed.active_av1_mode = 2;
-        if (encoder.av1[encoder_t::DYNAMIC_RANGE]) {
-          host.probed.active_av1_mode += 1;
-        }
-        if (encoder.av1[encoder_t::DYNAMIC_RANGE_YUV444]) {
-          host.probed.active_av1_mode += 2;
-        }
-      }
-      logging::debug("ENCODER STATUS ACTIVE_AV1_MODE: {}", host.probed.active_av1_mode);
-    }
+    publish_encoder_capabilities(host);
 
     return 0;
   }

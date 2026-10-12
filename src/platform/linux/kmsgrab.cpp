@@ -2334,6 +2334,73 @@ namespace platf {
     logging::info("--------- End of KMS monitor list ---------"sv);
   }
 
+  /**
+   * @brief Discover usable display planes for one initialized DRM card.
+   *
+   * @param settings Startup capture policy used for packaged-environment diagnostics.
+   * @param card DRM card whose planes and framebuffers remain alive during discovery.
+   * @param crtc_to_monitor Connector metadata containing each usable plane's CRTC.
+   * @param state Discovery state receiving the current physical desktop bounds.
+   * @param display_names Ordered display names appended for usable planes.
+   * @param count Global display index advanced after each usable plane.
+   */
+  static void collect_card_displays([[maybe_unused]] const config::settings_t &settings, kms::card_t &card, std::map<std::uint32_t, kms::monitor_t> &crtc_to_monitor, kms::capture_state_t &state, std::vector<std::string> &display_names, int &count) {
+    auto end = std::end(card);
+    for (auto plane = std::begin(card); plane != end; ++plane) {
+      // Skip unused planes
+      if (!plane->fb_id) {
+        continue;
+      }
+
+      if (card.is_cursor(plane->plane_id)) {
+        continue;
+      }
+
+      auto fb = card.fb(plane.get());
+      if (!fb) {
+        const auto error = std::error_code(errno, std::generic_category());
+        logging::error("Couldn't get drm fb for plane [{}]: {}", plane->fb_id, error.message());
+        continue;
+      }
+
+      if (!fb->handles[0]) {
+        logging::error("Couldn't get handle for DRM Framebuffer [{}]: Probably not permitted", plane->fb_id);
+#if defined(SUNSHINE_BUILD_FLATPAK) || defined(SUNSHINE_BUILD_APPIMAGE)
+        logging::log((settings.video.capture == "kms") ? logging::level_e::fatal : logging::level_e::error, [&](std::ostream &out) {
+          out << "AppImage and Flatpak do not support KMS capture. Use another capture method."sv;
+        });
+#endif
+        break;
+      }
+
+      // This appears to return the offset of the monitor
+      auto crtc = card.crtc(plane->crtc_id);
+      if (!crtc) {
+        const auto error = std::error_code(errno, std::generic_category());
+        logging::error("Couldn't get CRTC info: {}", error.message());
+        continue;
+      }
+
+      auto it = crtc_to_monitor.find(plane->crtc_id);
+      if (it != std::end(crtc_to_monitor)) {
+        it->second.viewport = platf::touch_port_t {
+          .offset_x = (int) crtc->x,
+          .offset_y = (int) crtc->y,
+          .width = (int) crtc->width,
+          .height = (int) crtc->height,
+        };
+        it->second.monitor_index = count;
+      }
+
+      state.env_width = std::max(state.env_width, (int) (crtc->x + crtc->width));
+      state.env_height = std::max(state.env_height, (int) (crtc->y + crtc->height));
+
+      kms::print(plane.get(), fb.get(), crtc.get());
+      display_names.emplace_back(std::format("{}-{}", drmModeGetConnectorTypeName(it->second.type), it->second.index));
+      count++;
+    }
+  }
+
   // A list of names of displays accepted as display_name
   /**
    * @brief Enumerate display names accepted by the KMS backend.
@@ -2401,60 +2468,7 @@ namespace platf {
 
       auto crtc_to_monitor = kms::map_crtc_to_monitor(card.monitors(conn_type_count));
 
-      auto end = std::end(card);
-      for (auto plane = std::begin(card); plane != end; ++plane) {
-        // Skip unused planes
-        if (!plane->fb_id) {
-          continue;
-        }
-
-        if (card.is_cursor(plane->plane_id)) {
-          continue;
-        }
-
-        auto fb = card.fb(plane.get());
-        if (!fb) {
-          const auto error = std::error_code(errno, std::generic_category());
-          logging::error("Couldn't get drm fb for plane [{}]: {}", plane->fb_id, error.message());
-          continue;
-        }
-
-        if (!fb->handles[0]) {
-          logging::error("Couldn't get handle for DRM Framebuffer [{}]: Probably not permitted", plane->fb_id);
-#if defined(SUNSHINE_BUILD_FLATPAK) || defined(SUNSHINE_BUILD_APPIMAGE)
-          logging::log((settings.video.capture == "kms") ? logging::level_e::fatal : logging::level_e::error, [&](std::ostream &out) {
-            out << "AppImage and Flatpak do not support KMS capture. Use another capture method."sv;
-          });
-#endif
-          break;
-        }
-
-        // This appears to return the offset of the monitor
-        auto crtc = card.crtc(plane->crtc_id);
-        if (!crtc) {
-          const auto error = std::error_code(errno, std::generic_category());
-          logging::error("Couldn't get CRTC info: {}", error.message());
-          continue;
-        }
-
-        auto it = crtc_to_monitor.find(plane->crtc_id);
-        if (it != std::end(crtc_to_monitor)) {
-          it->second.viewport = platf::touch_port_t {
-            .offset_x = (int) crtc->x,
-            .offset_y = (int) crtc->y,
-            .width = (int) crtc->width,
-            .height = (int) crtc->height,
-          };
-          it->second.monitor_index = count;
-        }
-
-        state.env_width = std::max(state.env_width, (int) (crtc->x + crtc->width));
-        state.env_height = std::max(state.env_height, (int) (crtc->y + crtc->height));
-
-        kms::print(plane.get(), fb.get(), crtc.get());
-        display_names.emplace_back(std::format("{}-{}", drmModeGetConnectorTypeName(it->second.type), it->second.index));
-        count++;
-      }
+      collect_card_displays(settings, card, crtc_to_monitor, state, display_names, count);
 
       cds.emplace_back(kms::card_descriptor_t {
         std::move(file),

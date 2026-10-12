@@ -9,6 +9,7 @@
 #ifdef _WIN32
   // standard includes
   #include <d3dcompiler.h>
+  #include <filesystem>
   #include <set>
   #include <tuple>
 
@@ -54,6 +55,52 @@ TEST(ShaderBundleTest, CompilesCompleteImmutableBundleWithCorrectProfiles) {
   EXPECT_EQ(vertices, 6);
   EXPECT_EQ(pixels, 19);
   EXPECT_EQ(bundle->cursor_vs_hlsl->GetBufferSize(), 1);
+}
+
+/**
+ * @brief Every compiled source and profile reaches the intended shader bundle member.
+ */
+TEST(ShaderBundleTest, AssignsEachSourceToItsMatchingBytecodeMember) {
+  std::vector<std::pair<std::string, std::string>> requests;
+  const auto bundle = platf::dxgi::compile_shaders([&requests](const std::string &path, const char *profile) {
+    requests.emplace_back(std::filesystem::path {path}.filename().string(), profile);
+    return shader_blob(static_cast<unsigned char>(requests.size()));
+  });
+  ASSERT_NE(bundle, nullptr);
+  ASSERT_EQ(requests.size(), 25);
+  const auto expect_source = [&requests](const platf::dxgi::shader_bytecode_t &bytecode, const char *source, const char *profile) {
+    ASSERT_TRUE(bytecode);
+    ASSERT_EQ(bytecode->GetBufferSize(), 1);
+    const auto tag = *static_cast<const unsigned char *>(bytecode->GetBufferPointer());
+    ASSERT_GT(tag, 0);
+    ASSERT_LE(tag, requests.size());
+    EXPECT_EQ(requests[tag - 1], (std::pair<std::string, std::string> {source, profile}));
+  };
+  expect_source(bundle->convert_yuv420_packed_uv_type0_ps_hlsl, "convert_yuv420_packed_uv_type0_ps.hlsl", "ps_5_0");
+  expect_source(bundle->convert_yuv420_packed_uv_type0_ps_linear_hlsl, "convert_yuv420_packed_uv_type0_ps_linear.hlsl", "ps_5_0");
+  expect_source(bundle->convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl, "convert_yuv420_packed_uv_type0_ps_perceptual_quantizer.hlsl", "ps_5_0");
+  expect_source(bundle->convert_yuv420_packed_uv_type0_vs_hlsl, "convert_yuv420_packed_uv_type0_vs.hlsl", "vs_5_0");
+  expect_source(bundle->convert_yuv420_packed_uv_type0s_ps_hlsl, "convert_yuv420_packed_uv_type0s_ps.hlsl", "ps_5_0");
+  expect_source(bundle->convert_yuv420_packed_uv_type0s_ps_linear_hlsl, "convert_yuv420_packed_uv_type0s_ps_linear.hlsl", "ps_5_0");
+  expect_source(bundle->convert_yuv420_packed_uv_type0s_ps_perceptual_quantizer_hlsl, "convert_yuv420_packed_uv_type0s_ps_perceptual_quantizer.hlsl", "ps_5_0");
+  expect_source(bundle->convert_yuv420_packed_uv_type0s_vs_hlsl, "convert_yuv420_packed_uv_type0s_vs.hlsl", "vs_5_0");
+  expect_source(bundle->convert_yuv420_planar_y_ps_hlsl, "convert_yuv420_planar_y_ps.hlsl", "ps_5_0");
+  expect_source(bundle->convert_yuv420_planar_y_ps_linear_hlsl, "convert_yuv420_planar_y_ps_linear.hlsl", "ps_5_0");
+  expect_source(bundle->convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl, "convert_yuv420_planar_y_ps_perceptual_quantizer.hlsl", "ps_5_0");
+  expect_source(bundle->convert_yuv420_planar_y_vs_hlsl, "convert_yuv420_planar_y_vs.hlsl", "vs_5_0");
+  expect_source(bundle->convert_yuv444_packed_ayuv_ps_hlsl, "convert_yuv444_packed_ayuv_ps.hlsl", "ps_5_0");
+  expect_source(bundle->convert_yuv444_packed_ayuv_ps_linear_hlsl, "convert_yuv444_packed_ayuv_ps_linear.hlsl", "ps_5_0");
+  expect_source(bundle->convert_yuv444_packed_vs_hlsl, "convert_yuv444_packed_vs.hlsl", "vs_5_0");
+  expect_source(bundle->convert_yuv444_planar_ps_hlsl, "convert_yuv444_planar_ps.hlsl", "ps_5_0");
+  expect_source(bundle->convert_yuv444_planar_ps_linear_hlsl, "convert_yuv444_planar_ps_linear.hlsl", "ps_5_0");
+  expect_source(bundle->convert_yuv444_planar_ps_perceptual_quantizer_hlsl, "convert_yuv444_planar_ps_perceptual_quantizer.hlsl", "ps_5_0");
+  expect_source(bundle->convert_yuv444_packed_y410_ps_hlsl, "convert_yuv444_packed_y410_ps.hlsl", "ps_5_0");
+  expect_source(bundle->convert_yuv444_packed_y410_ps_linear_hlsl, "convert_yuv444_packed_y410_ps_linear.hlsl", "ps_5_0");
+  expect_source(bundle->convert_yuv444_packed_y410_ps_perceptual_quantizer_hlsl, "convert_yuv444_packed_y410_ps_perceptual_quantizer.hlsl", "ps_5_0");
+  expect_source(bundle->convert_yuv444_planar_vs_hlsl, "convert_yuv444_planar_vs.hlsl", "vs_5_0");
+  expect_source(bundle->cursor_ps_hlsl, "cursor_ps.hlsl", "ps_5_0");
+  expect_source(bundle->cursor_ps_normalize_white_hlsl, "cursor_ps_normalize_white.hlsl", "ps_5_0");
+  expect_source(bundle->cursor_vs_hlsl, "cursor_vs.hlsl", "vs_5_0");
 }
 
 /** @brief Compilation failure position in the complete shader set. */

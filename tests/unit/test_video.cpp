@@ -17,6 +17,7 @@
 // ffmpeg includes
 extern "C" {
 #include <libavutil/frame.h>
+#include <libavutil/pixdesc.h>
 #include <libavutil/pixfmt.h>
 }
 
@@ -24,8 +25,229 @@ extern "C" {
 #include <src/config.h>
 #include <src/display_device.h>
 #include <src/video.h>
+#include <src/video_capture_pool.h>
+#include <src/video_probe.h>
 
 using namespace std::literals;
+
+/** @brief Codec policy truth table distinguishes selection requirements from encoder-preferred fallback. */
+TEST(VideoProbePolicyTest, PreservesCodecConstraintsAndAutomaticAdvertisement) {
+  const std::array<std::array<bool, 4>, 8> requirements {{
+    {false, false, false, false},
+    {true, false, false, false},
+    {false, false, false, false},
+    {true, true, false, true},
+    {false, false, false, false},
+    {true, false, true, true},
+    {false, false, false, false},
+    {true, true, true, true},
+  }};
+  const std::array advertised {1, 2, 1, 3, 1, 4, 1, 5};
+  for (unsigned int bits = 0; bits < requirements.size(); ++bits) {
+    video::encoder_t::codec_t codec;
+    codec[video::encoder_t::PASSED] = bits & 1;
+    codec[video::encoder_t::DYNAMIC_RANGE] = bits & 2;
+    codec[video::encoder_t::DYNAMIC_RANGE_YUV444] = bits & 4;
+    EXPECT_EQ(video::detail::advertised_codec_mode(codec, 0), advertised[bits]);
+    EXPECT_TRUE(video::detail::codec_meets_requirements(codec, 0));
+    EXPECT_TRUE(video::detail::codec_meets_requirements(codec, 1));
+    for (int mode = 2; mode <= 5; ++mode) {
+      EXPECT_EQ(video::detail::codec_meets_requirements(codec, mode), requirements[bits][mode - 2]) << bits << ':' << mode;
+      EXPECT_EQ(video::detail::advertised_codec_mode(codec, mode), mode);
+    }
+  }
+  video::encoder_t::codec_t codec;
+  EXPECT_EQ(video::detail::unsupported_codec_requirement(codec, 2), std::optional<std::string_view> {""});
+  EXPECT_EQ(video::detail::unsupported_codec_requirement(codec, 3), std::optional<std::string_view> {"Main10"});
+  EXPECT_EQ(video::detail::unsupported_codec_requirement(codec, 4), std::optional<std::string_view> {"Rext10_444"});
+  EXPECT_EQ(video::detail::unsupported_codec_requirement(codec, 5), std::optional<std::string_view> {"Main10 Rext10_444"});
+  EXPECT_FALSE(video::detail::unsupported_codec_requirement(codec, 0));
+  EXPECT_FALSE(video::detail::unsupported_codec_requirement(codec, 6));
+  codec[video::encoder_t::DYNAMIC_RANGE] = true;
+  EXPECT_FALSE(video::detail::unsupported_codec_requirement(codec, 3));
+  EXPECT_FALSE(video::detail::unsupported_codec_requirement(codec, 5));
+  EXPECT_FALSE(video::detail::codec_meets_requirements(codec, 3));
+}
+
+/** @brief Optional codec probing preserves automatic, disabled and explicitly requested behavior. */
+TEST(VideoProbePolicyTest, ProbesOnlyRequestedOrPermittedAutomaticCodecs) {
+  for (bool h264_only : {false, true}) {
+    EXPECT_FALSE(video::detail::should_probe_codec(-1, h264_only));
+    EXPECT_EQ(video::detail::should_probe_codec(0, h264_only), !h264_only);
+    EXPECT_FALSE(video::detail::should_probe_codec(1, h264_only));
+    EXPECT_TRUE(video::detail::should_probe_codec(2, h264_only));
+    EXPECT_TRUE(video::detail::should_probe_codec(5, h264_only));
+  }
+}
+
+/** @brief Pixel probe configurations preserve all negotiated defaults while varying codec, HDR and chroma. */
+TEST(VideoProbePolicyTest, PixelModeConfigurationsPreserveReferenceAndColorDefaults) {
+  for (int format : {0, 1, 2}) {
+    for (bool hdr : {false, true}) {
+      for (bool yuv444 : {false, true}) {
+        const auto config = video::detail::pixel_probe_config(format, hdr, yuv444);
+        EXPECT_EQ(config.width, 1920);
+        EXPECT_EQ(config.height, 1080);
+        EXPECT_EQ(config.framerate, 60);
+        EXPECT_EQ(config.framerateX100, 6000);
+        EXPECT_EQ(config.bitrate, 1000);
+        EXPECT_EQ(config.slicesPerFrame, 1);
+        EXPECT_EQ(config.numRefFrames, 0);
+        EXPECT_EQ(config.encoderCscMode, hdr ? 3 : 1);
+        EXPECT_EQ(config.videoFormat, format);
+        EXPECT_EQ(config.dynamicRange, hdr ? 1 : 0);
+        EXPECT_EQ(config.chromaSamplingType, yuv444 ? 1 : 0);
+        EXPECT_EQ(config.enableIntraRefresh, 0);
+      }
+    }
+  }
+}
+
+/** @brief A full pool preserves outstanding frames and retries only one failed allocation per acquisition. */
+TEST(VideoCapturePoolTest, PreservesCapacityAndDoesNotReuseExternallyRetainedImages) {
+  video::detail::capture_image_pool_t pool {2};
+  int allocations = 0;
+  int clock_reads = 0;
+  const auto allocate = [&allocations] {
+    ++allocations;
+    auto image = std::make_shared<platf::img_t>();
+    image->frame_timestamp = std::chrono::steady_clock::time_point {};
+    return image;
+  };
+  const auto clock = [&clock_reads] {
+    ++clock_reads;
+    return std::chrono::steady_clock::time_point {};
+  };
+  auto first = pool.acquire(allocate, clock);
+  auto second = pool.acquire(allocate, clock);
+  ASSERT_NE(first, nullptr);
+  ASSERT_NE(second, nullptr);
+  EXPECT_NE(first, second);
+  EXPECT_FALSE(first->frame_timestamp);
+  EXPECT_FALSE(pool.acquire(allocate, clock));
+  EXPECT_EQ(allocations, 2);
+  EXPECT_EQ(clock_reads, 2);
+  const auto *first_pointer = first.get();
+  first.reset();
+  auto reused = pool.acquire(allocate, clock);
+  EXPECT_EQ(reused.get(), first_pointer);
+  EXPECT_EQ(allocations, 2);
+  std::weak_ptr<platf::img_t> retained = second;
+  pool.clear();
+  EXPECT_FALSE(retained.expired());
+  second.reset();
+  EXPECT_TRUE(retained.expired());
+  EXPECT_NE(pool.acquire(allocate, clock), nullptr);
+  EXPECT_EQ(allocations, 3);
+  video::detail::capture_image_pool_t empty {0};
+  EXPECT_FALSE(empty.acquire(allocate, clock));
+  video::detail::capture_image_pool_t failing {2};
+  int failures = 0;
+  const auto fail = [&failures]() -> std::shared_ptr<platf::img_t> {
+    ++failures;
+    return {};
+  };
+  EXPECT_FALSE(failing.acquire(fail, clock));
+  EXPECT_EQ(failures, 1);
+  EXPECT_EQ(clock_reads, 4);
+}
+
+/** @brief Idle trimming retains recent peak demand for three seconds and frees the least recently selected images. */
+TEST(VideoCapturePoolTest, TrimsIdleImagesAtTheDemandTimeoutWithoutReleasingUsedFrames) {
+  video::detail::capture_image_pool_t pool {3};
+  auto now = std::chrono::steady_clock::time_point {};
+  const auto clock = [&now] {
+    return now;
+  };
+  const auto allocate = [] {
+    return std::make_shared<platf::img_t>();
+  };
+  auto first = pool.acquire(allocate, clock);
+  auto second = pool.acquire(allocate, clock);
+  auto third = pool.acquire(allocate, clock);
+  std::weak_ptr<platf::img_t> first_reference = first;
+  std::weak_ptr<platf::img_t> second_reference = second;
+  const auto *third_pointer = third.get();
+  first.reset();
+  second.reset();
+  third.reset();
+  now += 2999ms;
+  auto current = pool.acquire(allocate, clock);
+  ASSERT_EQ(current.get(), third_pointer);
+  EXPECT_FALSE(first_reference.expired());
+  EXPECT_FALSE(second_reference.expired());
+  current.reset();
+  now += 1ms;
+  current = pool.acquire(allocate, clock);
+  EXPECT_EQ(current.get(), third_pointer);
+  EXPECT_TRUE(first_reference.expired());
+  EXPECT_TRUE(second_reference.expired());
+  auto new_image = pool.acquire(allocate, clock);
+  EXPECT_NE(new_image, current);
+  pool.clear();
+  EXPECT_NE(current, nullptr);
+  EXPECT_NE(new_image, nullptr);
+}
+
+/** @brief An older image still retained by an encoder survives trimming ahead of an idle newer allocation. */
+TEST(VideoCapturePoolTest, TrimmingSkipsAnExternallyOwnedLeastRecentImage) {
+  video::detail::capture_image_pool_t pool {3};
+  auto now = std::chrono::steady_clock::time_point {};
+  const auto clock = [&now] {
+    return now;
+  };
+  const auto allocate = [] {
+    return std::make_shared<platf::img_t>();
+  };
+  auto oldest = pool.acquire(allocate, clock);
+  auto middle = pool.acquire(allocate, clock);
+  auto newest = pool.acquire(allocate, clock);
+  std::weak_ptr<platf::img_t> middle_reference = middle;
+  middle.reset();
+  newest.reset();
+  now += 3s;
+  auto current = pool.acquire(allocate, clock);
+  EXPECT_TRUE(middle_reference.expired());
+  EXPECT_NE(current, oldest);
+  EXPECT_NE(oldest, nullptr);
+}
+
+/** @brief Plane copying preserves black aspect padding for planar and interleaved chroma in both orientations. */
+TEST(SoftwareEncoderConversion, PreservesAspectPaddingAcrossSoftwarePixelPlanes) {
+  for (const auto format : {AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV444P, AV_PIX_FMT_NV12}) {
+    for (const auto &[width, height] : {std::pair {16, 8}, std::pair {8, 16}}) {
+      video::avcodec_frame_t frame {av_frame_alloc()};
+      ASSERT_NE(frame, nullptr);
+      frame->width = 16;
+      frame->height = 16;
+      frame->format = format;
+      frame->color_range = AVCOL_RANGE_MPEG;
+      video::avcodec_software_encode_device_t device {2};
+      ASSERT_EQ(device.init(width, height, frame.get(), format, false), 0);
+      const auto *output = frame.get();
+      ASSERT_EQ(device.set_frame(frame.release(), nullptr), 0);
+      std::vector<std::uint8_t> pixels(width * height * 4);
+      for (std::size_t index = 0; index < pixels.size(); index += 4) {
+        pixels[index] = 255;
+      }
+      platf::img_t image;
+      image.data = pixels.data();
+      image.width = width;
+      image.height = height;
+      image.row_pitch = width * 4;
+      image.pixel_pitch = 4;
+      ASSERT_EQ(device.convert(image), 0);
+      EXPECT_EQ(output->data[0][0], 16);
+      EXPECT_GT(output->data[0][8 * output->linesize[0] + 8], 16);
+      const auto description = av_pix_fmt_desc_get(format);
+      for (int plane = 1; plane < av_pix_fmt_count_planes(format); ++plane) {
+        const auto center = (8 >> description->log2_chroma_h) * output->linesize[plane] + (8 >> description->log2_chroma_w) * description->comp[plane].step;
+        EXPECT_EQ(output->data[plane][0], 128);
+        EXPECT_NE(output->data[plane][center], 128);
+      }
+    }
+  }
+}
 
 TEST(VideoFormatMappingTest, MapsSupportedHardwareDevicesAndRejectsUnsupportedOnes) {
   using enum platf::mem_type_e;

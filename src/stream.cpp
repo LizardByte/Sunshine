@@ -33,6 +33,7 @@ extern "C" {
 #include "platform/common.h"
 #include "process.h"
 #include "stream.h"
+#include "stream_pacing.h"
 #include "sync.h"
 #include "system_tray.h"
 #include "thread_safe.h"
@@ -1620,6 +1621,321 @@ namespace stream {
   }
 
   /**
+   * @brief Frame and sequence metadata shared by every shard in one FEC block.
+   */
+  struct video_block_info_t {
+    std::int64_t frame_index;  ///< Encoded frame index carried by every shard.
+    int lowseq;  ///< Starting packet sequence for the block.
+    int block_index;  ///< Position of this FEC block within its frame.
+    std::size_t block_count;  ///< Total FEC blocks belonging to the frame.
+    std::uint32_t timestamp = 0;  ///< RTP timestamp determined after FEC encoding.
+  };
+
+  /**
+   * @brief Stamp the original data packets before generating recovery shards.
+   *
+   * @param payload Writable backing bytes viewed as a single FEC block.
+   * @param blocksize Bytes in each complete packet.
+   * @param info Frame, sequence and block metadata.
+   */
+  void initialize_video_data_packets(std::string_view payload, std::size_t blocksize, const video_block_info_t &info) {
+    auto packets = (payload.size() + (blocksize - 1)) / blocksize;
+
+    for (int x = 0; x < packets; ++x) {
+      auto *inspect = (video_packet_raw_t *) &payload[x * blocksize];
+
+      inspect->packet.frameIndex = (uint32_t) info.frame_index;
+      inspect->packet.streamPacketIndex = ((uint32_t) info.lowseq + x) << 8;
+
+      // Match multiFecFlags with Moonlight
+      inspect->packet.multiFecFlags = 0x10;
+      inspect->packet.multiFecBlocks = (info.block_index << 4) | ((info.block_count - 1) << 6);
+
+      inspect->packet.flags = FLAG_CONTAINS_PIC_DATA;
+      if (x == 0) {
+        inspect->packet.flags |= FLAG_SOF;
+      }
+      if (x == packets - 1) {
+        inspect->packet.flags |= FLAG_EOF;
+      }
+    }
+  }
+
+  /**
+   * @brief Fill RTP/FEC metadata and encrypt one shard when negotiated.
+   *
+   * @param shards Encoded data and recovery shards.
+   * @param x Shard index within this block.
+   * @param session Streaming session that owns the cipher and IV counter.
+   * @param info Frame and RTP metadata for this block.
+   * @param iv Reusable video encryption initialization vector.
+   */
+  void prepare_video_shard(fec::fec_t &shards, int x, session_t &session, const video_block_info_t &info, crypto::aes_t &iv) {
+    auto *inspect = (video_packet_raw_t *) shards.data(x);
+
+    inspect->packet.fecInfo =
+      (uint32_t) (x << 12 |
+                  shards.data_shards << 22 |
+                  shards.percentage << 4);
+
+    inspect->rtp.header = 0x80 | FLAG_EXTENSION;
+    inspect->rtp.sequenceNumber = util::endian::big<uint16_t>(info.lowseq + x);
+    inspect->rtp.timestamp = util::endian::big<uint32_t>(info.timestamp);
+
+    inspect->packet.multiFecBlocks = (info.block_index << 4) | ((info.block_count - 1) << 6);
+    inspect->packet.frameIndex = (uint32_t) info.frame_index;
+
+    // Encrypt this shard if video encryption is enabled
+    if (session.video.cipher) {
+      // We use the deterministic IV construction algorithm specified in NIST SP 800-38D
+      // Section 8.2.1. The sequence number is our "invocation" field and the 'V' in the
+      // high bytes is the "fixed" field. Because each client provides their own unique
+      // key, our values in the fixed field need only uniquely identify each independent
+      // use of the client's key with AES-GCM in our code.
+      //
+      // The IV counter is 64 bits long which allows for 2^64 encrypted video packets
+      // to be sent to each client before the IV repeats.
+      std::copy_n((uint8_t *) &session.video.gcm_iv_counter, sizeof(session.video.gcm_iv_counter), std::begin(iv));
+      iv[11] = 'V';  // Video stream
+      session.video.gcm_iv_counter++;
+
+      // Encrypt the target buffer in place
+      auto *prefix = (video_packet_enc_prefix_t *) shards.prefix(x);
+      prefix->frameNumber = (std::uint32_t) info.frame_index;
+      std::copy(std::begin(iv), std::end(iv), prefix->iv.begin());
+      session.video.cipher->encrypt(std::string_view {(char *) inspect, shards.blocksize}, prefix->tag.data(), (uint8_t *) inspect, &iv);
+    }
+  }
+
+  /**
+   * @brief Send one batch with the existing individual-packet fallback.
+   *
+   * @param shards Encoded shard and prefix storage.
+   * @param batch_info Native destination, source and packet range to transmit.
+   */
+  void send_video_batch(fec::fec_t &shards, platf::batched_send_info_t &batch_info) {
+    // Use a batched send if it's supported on this platform
+    if (!platf::send_batch(batch_info)) {
+      // Batched send is not available, so send each packet individually
+      logging::verbose("Falling back to unbatched send"sv);
+      for (auto y = 0; y < batch_info.block_count; y++) {
+        auto send_info = platf::send_info_t {
+          shards.prefix(batch_info.block_offset + y),
+          shards.prefixsize,
+          shards.data(batch_info.block_offset + y),
+          shards.blocksize,
+          batch_info.native_socket,
+          batch_info.target_address,
+          batch_info.target_port,
+          batch_info.source_address,
+        };
+
+        platf::send(send_info);
+      }
+    }
+  }
+
+  /**
+   * @brief Latency measurements retained across frames by the video broadcaster.
+   */
+  struct video_broadcast_metrics_t {
+    logging::min_max_avg_periodic_logger<double> frame_processing_latency_logger {logging::level_e::debug, "Frame processing latency", "ms"};  ///< Capture-to-packetization frame latency.
+
+    logging::time_delta_periodic_logger frame_send_batch_latency_logger {logging::level_e::debug, "Network: each send_batch() latency"};  ///< Native packet-batch transmission latency.
+    logging::time_delta_periodic_logger frame_fec_latency_logger {logging::level_e::debug, "Network: each FEC block latency"};  ///< Recovery-shard encoding latency.
+    logging::time_delta_periodic_logger frame_network_latency_logger {logging::level_e::debug, "Network: frame's overall network latency"};  ///< Total network transmission latency for a frame.
+  };
+
+  /**
+   * @brief Transmit the FEC blocks of one video frame with shared pacing and metrics.
+   */
+  class video_frame_sender_t {
+  public:
+    /**
+     * @brief Retain the broadcaster resources and begin the frame's packet budget.
+     * @param socket Native video socket.
+     * @param timer Native pacing timer.
+     * @param iv Video encryption IV storage retained across frames.
+     * @param metrics Broadcaster latency measurements.
+     * @param video_epoch Steady-clock origin for RTP timestamps.
+     * @param next_frame_start Earliest start time, updated after each transmitted block.
+     * @param blocksize Bytes per transmitted packet, including protocol headers.
+     */
+    video_frame_sender_t(udp::socket &socket, platf::high_precision_timer &timer, crypto::aes_t &iv, video_broadcast_metrics_t &metrics, std::chrono::steady_clock::time_point video_epoch, std::chrono::steady_clock::time_point &next_frame_start, std::size_t blocksize):
+        socket_ {socket},
+        timer_ {timer},
+        iv_ {iv},
+        metrics_ {metrics},
+        video_epoch_ {video_epoch},
+        next_frame_start_ {next_frame_start},
+        blocksize_ {blocksize},
+        send_batch_size_ {std::min<std::size_t>(64, 64 * 1024 / blocksize)},
+        pacing_ {std::giga::num * 80 / 100 / 1000 / blocksize / 8, std::max(next_frame_start, std::chrono::steady_clock::now())} {}
+
+    /**
+     * @brief Encode, stamp, encrypt and transmit one block before advancing sequence state.
+     * @param packet Encoded frame and its borrowed streaming session.
+     * @param current_payload Borrowed bytes forming this FEC block.
+     * @param block_index Position of the block within the frame.
+     * @param block_count Total blocks forming the frame.
+     * @param fecPercentage Effective recovery-shard percentage for this frame.
+     * @param lowseq Base sequence number, advanced only after the block is sent.
+     */
+    void send_block(video::packet_raw_t &packet, std::string_view current_payload, int block_index, std::size_t block_count, int fecPercentage, int &lowseq) {
+      video_block_info_t block_info {packet.frame_index(), lowseq, block_index, block_count};
+      initialize_video_data_packets(current_payload, blocksize_, block_info);
+
+      metrics_.frame_fec_latency_logger.first_point_now();
+      // If video encryption is enabled, we allocate space for the encryption header before each shard
+      auto shards = fec::encode(current_payload, blocksize_, fecPercentage, packet.channel_data->config.minRequiredFecPackets, packet.channel_data->video.cipher ? sizeof(video_packet_enc_prefix_t) : 0);
+      metrics_.frame_fec_latency_logger.second_point_now_and_log();
+
+      auto peer_address = packet.channel_data->video.peer.address();
+      auto batch_info = platf::batched_send_info_t {
+        shards.headers.begin(),
+        shards.prefixsize,
+        shards.payload_buffers,
+        shards.blocksize,
+        0,
+        0,
+        (uintptr_t) socket_.native_handle(),
+        peer_address,
+        packet.channel_data->video.peer.port(),
+        packet.channel_data->localAddress,
+      };
+
+      size_t next_shard_to_send = 0;
+
+      // RTP video timestamps use a 90 KHz clock and the frame_timestamp from when the frame was captured
+      // When a timestamp isn't available (duplicate frames), the timestamp from rate control is used instead.
+      bool frame_is_dupe = false;
+      if (!packet.frame_timestamp) {
+        packet.frame_timestamp = next_frame_start_;
+        frame_is_dupe = true;
+      }
+      using rtp_tick = std::chrono::duration<uint32_t, std::ratio<1, 90000>>;
+      uint32_t timestamp = std::chrono::round<rtp_tick>(*packet.frame_timestamp - video_epoch_).count();
+
+      block_info.timestamp = timestamp;
+
+      // set FEC info now that we know for sure what our percentage will be for this frame
+      for (auto x = 0; x < shards.size(); ++x) {
+        prepare_video_shard(shards, x, *packet.channel_data, block_info, iv_);
+
+        if (x - next_shard_to_send + 1 >= send_batch_size_ || x + 1 == shards.size()) {
+          pacing_.wait(timer_);
+
+          size_t current_batch_size = x - next_shard_to_send + 1;
+          batch_info.block_offset = next_shard_to_send;
+          batch_info.block_count = current_batch_size;
+
+          metrics_.frame_send_batch_latency_logger.first_point_now();
+          send_video_batch(shards, batch_info);
+          metrics_.frame_send_batch_latency_logger.second_point_now_and_log();
+
+          pacing_.record_batch(current_batch_size);
+          next_shard_to_send = x + 1;
+        }
+      }
+
+      // remember this in case the next frame comes immediately
+      next_frame_start_ = pacing_.next_frame_start();
+
+      metrics_.frame_network_latency_logger.second_point_now_and_log();
+
+      logging::verbose([&packet, timestamp, &shards, frame_is_dupe](std::ostream &out) {
+        out << "Sent Frame seq ["sv << packet.frame_index() << "] pts ["sv << timestamp
+            << "] shards ["sv << shards.size() << "/"sv << shards.percentage << "%]"sv
+            << (frame_is_dupe ? " Dupe" : "")
+            << (packet.is_idr() ? " Key" : "")
+            << (packet.after_ref_frame_invalidation ? " RFI" : "");
+      });
+      lowseq += shards.size();
+    }
+
+  private:
+    udp::socket &socket_;  ///< Broadcaster's UDP socket.
+    platf::high_precision_timer &timer_;  ///< Broadcaster's initialized native timer.
+    crypto::aes_t &iv_;  ///< IV storage used by every encrypted shard.
+    video_broadcast_metrics_t &metrics_;  ///< Latency collectors retained across frames.
+    const std::chrono::steady_clock::time_point video_epoch_;  ///< Origin for the stream's RTP clock.
+    std::chrono::steady_clock::time_point &next_frame_start_;  ///< Next frame deadline updated after each block.
+    const std::size_t blocksize_;  ///< Complete transmitted packet size.
+    const std::size_t send_batch_size_;  ///< Packet count respecting both 64 KiB and 64-packet limits.
+    video_send_pacing_t pacing_;  ///< Shared packet budget for every block of this frame.
+  };
+
+  /**
+   * @brief Borrowed payload slices and effective recovery policy for one video frame.
+   */
+  struct video_fec_plan_t {
+    static constexpr std::size_t max_blocks = 4;  ///< Two-bit protocol limit on FEC blocks.
+    int percentage;  ///< Effective FEC percentage, disabled for oversized frames.
+    std::size_t block_count = 0;  ///< Number of borrowed payload slices used by this frame.
+    std::array<std::string_view, max_blocks> blocks;  ///< Packet-aligned slices borrowing the frame payload owner.
+  };
+
+  /**
+   * @brief Split a frame into aligned FEC blocks while preserving oversized-frame policy.
+   * @param payload Complete payload containing reserved packet headers.
+   * @param blocksize Complete transmitted packet size.
+   * @param fec_percentage Configured recovery-shard percentage.
+   * @return Borrowed block slices and the effective FEC percentage.
+   */
+  video_fec_plan_t plan_video_fec_blocks(std::string_view payload, std::size_t blocksize, int fec_percentage) {
+    video_fec_plan_t plan {fec_percentage};
+    // There are 2 bits for FEC block count for a maximum of 4 FEC blocks
+    constexpr auto MAX_FEC_BLOCKS = video_fec_plan_t::max_blocks;
+
+    // The max number of data shards per block is found by solving this system of equations for D:
+    // D = 255 - P
+    // P = D * F
+    // which results in the solution:
+    // D = 255 / (1 + F)
+    // multiplied by 100 since F is the percentage as an integer:
+    // D = (255 * 100) / (100 + F)
+    auto max_data_shards_per_fec_block = (DATA_SHARDS_MAX * 100) / (100 + plan.percentage);
+
+    // Compute the number of FEC blocks needed for this frame using the block size and max shards
+    auto max_data_per_fec_block = max_data_shards_per_fec_block * blocksize;
+    plan.block_count = (payload.size() + (max_data_per_fec_block - 1)) / max_data_per_fec_block;
+
+    // If the number of FEC blocks needed exceeds the protocol limit, turn off FEC for this frame.
+    // For normal FEC percentages, this should only happen for enormous frames (over 800 packets at 20%).
+    if (plan.block_count > MAX_FEC_BLOCKS) {
+      logging::warning("Skipping FEC for abnormally large encoded frame (needed {} FEC blocks)", plan.block_count);
+      plan.percentage = 0;
+      plan.block_count = MAX_FEC_BLOCKS;
+    }
+
+    logging::verbose("Generating {} FEC blocks", plan.block_count);
+
+    // Align individual FEC blocks to blocksize
+    auto unaligned_size = payload.size() / plan.block_count;
+    auto aligned_size = ((unaligned_size + (blocksize - 1)) / blocksize) * blocksize;
+
+    // If we exceed the 10-bit FEC packet index (which means our frame exceeded 4096 packets),
+    // the frame will be unrecoverable. Log an error for this case.
+    if (aligned_size / blocksize >= 1024) {
+      logging::error([aligned_size, blocksize](std::ostream &out) {
+        out << "Encoder produced a frame too large to send! Is the encoder broken? (needed "sv << (aligned_size / blocksize) << " packets)"sv;
+      });
+    }
+
+    // Split the data into aligned FEC blocks
+    for (int x = 0; x < plan.block_count; ++x) {
+      if (x == plan.block_count - 1) {
+        // The last block must extend to the end of the payload
+        plan.blocks[x] = payload.substr(x * aligned_size);
+      } else {
+        // Earlier blocks just extend to the next block offset
+        plan.blocks[x] = payload.substr(x * aligned_size, aligned_size);
+      }
+    }
+    return plan;
+  }
+
+  /**
    * @brief Run the broadcast video sender thread.
    *
    * @param sock Socket used to read or write the protocol message.
@@ -1635,11 +1951,7 @@ namespace stream {
     platf::set_thread_name("stream::videoBroadcast");
     platf::adjust_thread_priority(platf::thread_priority_e::high);
 
-    logging::min_max_avg_periodic_logger<double> frame_processing_latency_logger(logging::level_e::debug, "Frame processing latency", "ms");
-
-    logging::time_delta_periodic_logger frame_send_batch_latency_logger(logging::level_e::debug, "Network: each send_batch() latency");
-    logging::time_delta_periodic_logger frame_fec_latency_logger(logging::level_e::debug, "Network: each FEC block latency");
-    logging::time_delta_periodic_logger frame_network_latency_logger(logging::level_e::debug, "Network: frame's overall network latency");
+    video_broadcast_metrics_t metrics;
 
     crypto::aes_t iv(12);
 
@@ -1656,7 +1968,7 @@ namespace stream {
         break;
       }
 
-      frame_network_latency_logger.first_point_now();
+      metrics.frame_network_latency_logger.first_point_now();
 
       auto session = packet->channel_data;
       auto lowseq = session->video.lowseq;
@@ -1696,7 +2008,7 @@ namespace stream {
 
         uint16_t latency = duration_to_latency(std::chrono::steady_clock::now() - *packet->frame_timestamp);
         frame_header.frame_processing_latency = latency;
-        frame_processing_latency_logger.collect_and_log(latency / 10.);
+        metrics.frame_processing_latency_logger.collect_and_log(latency / 10.);
       } else {
         frame_header.frame_processing_latency = 0;
       }
@@ -1710,236 +2022,15 @@ namespace stream {
 
       payload = std::string_view {(char *) payload_new.data(), payload_new.size()};
 
-      // There are 2 bits for FEC block count for a maximum of 4 FEC blocks
-      constexpr auto MAX_FEC_BLOCKS = 4;
-
-      // The max number of data shards per block is found by solving this system of equations for D:
-      // D = 255 - P
-      // P = D * F
-      // which results in the solution:
-      // D = 255 / (1 + F)
-      // multiplied by 100 since F is the percentage as an integer:
-      // D = (255 * 100) / (100 + F)
-      auto max_data_shards_per_fec_block = (DATA_SHARDS_MAX * 100) / (100 + fecPercentage);
-
-      // Compute the number of FEC blocks needed for this frame using the block size and max shards
-      auto max_data_per_fec_block = max_data_shards_per_fec_block * blocksize;
-      auto fec_blocks_needed = (payload.size() + (max_data_per_fec_block - 1)) / max_data_per_fec_block;
-
-      // If the number of FEC blocks needed exceeds the protocol limit, turn off FEC for this frame.
-      // For normal FEC percentages, this should only happen for enormous frames (over 800 packets at 20%).
-      if (fec_blocks_needed > MAX_FEC_BLOCKS) {
-        logging::warning("Skipping FEC for abnormally large encoded frame (needed {} FEC blocks)", fec_blocks_needed);
-        fecPercentage = 0;
-        fec_blocks_needed = MAX_FEC_BLOCKS;
-      }
-
-      std::array<std::string_view, MAX_FEC_BLOCKS> fec_blocks;
-      auto fec_blocks_begin = std::begin(fec_blocks);
-      auto fec_blocks_end = std::begin(fec_blocks) + fec_blocks_needed;
-
-      logging::verbose("Generating {} FEC blocks", fec_blocks_needed);
-
-      // Align individual FEC blocks to blocksize
-      auto unaligned_size = payload.size() / fec_blocks_needed;
-      auto aligned_size = ((unaligned_size + (blocksize - 1)) / blocksize) * blocksize;
-
-      // If we exceed the 10-bit FEC packet index (which means our frame exceeded 4096 packets),
-      // the frame will be unrecoverable. Log an error for this case.
-      if (aligned_size / blocksize >= 1024) {
-        logging::error([&](std::ostream &out) {
-          out << "Encoder produced a frame too large to send! Is the encoder broken? (needed "sv << (aligned_size / blocksize) << " packets)"sv;
-        });
-      }
-
-      // Split the data into aligned FEC blocks
-      for (int x = 0; x < fec_blocks_needed; ++x) {
-        if (x == fec_blocks_needed - 1) {
-          // The last block must extend to the end of the payload
-          fec_blocks[x] = payload.substr(x * aligned_size);
-        } else {
-          // Earlier blocks just extend to the next block offset
-          fec_blocks[x] = payload.substr(x * aligned_size, aligned_size);
-        }
-      }
+      const auto fec_plan = plan_video_fec_blocks(payload, blocksize, fecPercentage);
 
       try {
-        // Use around 80% of 1Gbps          1Gbps            percent    ms     packet      byte
-        size_t ratecontrol_packets_in_1ms = std::giga::num * 80 / 100 / 1000 / blocksize / 8;
-
-        // Send less than 64K in a single batch.
-        // On Windows, batches above 64K seem to bypass SO_SNDBUF regardless of its size,
-        // appear in "Other I/O" and begin waiting for interrupts.
-        // This gives inconsistent performance so we'd rather avoid it.
-        size_t send_batch_size = 64 * 1024 / blocksize;
-        // Also don't exceed 64 packets, which can happen when Moonlight requests
-        // unusually small packet size.
-        // Generic Segmentation Offload on Linux can't do more than 64.
-        send_batch_size = std::min<size_t>(64, send_batch_size);
-
-        // Don't ignore the last ratecontrol group of the previous frame
-        auto ratecontrol_frame_start = std::max(ratecontrol_next_frame_start, std::chrono::steady_clock::now());
-
-        size_t ratecontrol_frame_packets_sent = 0;
-        size_t ratecontrol_group_packets_sent = 0;
+        video_frame_sender_t sender {sock, *timer, iv, metrics, video_epoch, ratecontrol_next_frame_start, static_cast<std::size_t>(blocksize)};
 
         auto blockIndex = 0;
-        std::for_each(fec_blocks_begin, fec_blocks_end, [&](std::string_view &current_payload) {
-          auto packets = (current_payload.size() + (blocksize - 1)) / blocksize;
-
-          for (int x = 0; x < packets; ++x) {
-            auto *inspect = (video_packet_raw_t *) &current_payload[x * blocksize];
-
-            inspect->packet.frameIndex = (uint32_t) packet->frame_index();
-            inspect->packet.streamPacketIndex = ((uint32_t) lowseq + x) << 8;
-
-            // Match multiFecFlags with Moonlight
-            inspect->packet.multiFecFlags = 0x10;
-            inspect->packet.multiFecBlocks = (blockIndex << 4) | ((fec_blocks_needed - 1) << 6);
-
-            inspect->packet.flags = FLAG_CONTAINS_PIC_DATA;
-            if (x == 0) {
-              inspect->packet.flags |= FLAG_SOF;
-            }
-            if (x == packets - 1) {
-              inspect->packet.flags |= FLAG_EOF;
-            }
-          }
-
-          frame_fec_latency_logger.first_point_now();
-          // If video encryption is enabled, we allocate space for the encryption header before each shard
-          auto shards = fec::encode(current_payload, blocksize, fecPercentage, session->config.minRequiredFecPackets, session->video.cipher ? sizeof(video_packet_enc_prefix_t) : 0);
-          frame_fec_latency_logger.second_point_now_and_log();
-
-          auto peer_address = session->video.peer.address();
-          auto batch_info = platf::batched_send_info_t {
-            shards.headers.begin(),
-            shards.prefixsize,
-            shards.payload_buffers,
-            shards.blocksize,
-            0,
-            0,
-            (uintptr_t) sock.native_handle(),
-            peer_address,
-            session->video.peer.port(),
-            session->localAddress,
-          };
-
-          size_t next_shard_to_send = 0;
-
-          // RTP video timestamps use a 90 KHz clock and the frame_timestamp from when the frame was captured
-          // When a timestamp isn't available (duplicate frames), the timestamp from rate control is used instead.
-          bool frame_is_dupe = false;
-          if (!packet->frame_timestamp) {
-            packet->frame_timestamp = ratecontrol_next_frame_start;
-            frame_is_dupe = true;
-          }
-          using rtp_tick = std::chrono::duration<uint32_t, std::ratio<1, 90000>>;
-          uint32_t timestamp = std::chrono::round<rtp_tick>(*packet->frame_timestamp - video_epoch).count();
-
-          // set FEC info now that we know for sure what our percentage will be for this frame
-          for (auto x = 0; x < shards.size(); ++x) {
-            auto *inspect = (video_packet_raw_t *) shards.data(x);
-
-            inspect->packet.fecInfo =
-              (uint32_t) (x << 12 |
-                          shards.data_shards << 22 |
-                          shards.percentage << 4);
-
-            inspect->rtp.header = 0x80 | FLAG_EXTENSION;
-            inspect->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + x);
-            inspect->rtp.timestamp = util::endian::big<uint32_t>(timestamp);
-
-            inspect->packet.multiFecBlocks = (blockIndex << 4) | ((fec_blocks_needed - 1) << 6);
-            inspect->packet.frameIndex = (uint32_t) packet->frame_index();
-
-            // Encrypt this shard if video encryption is enabled
-            if (session->video.cipher) {
-              // We use the deterministic IV construction algorithm specified in NIST SP 800-38D
-              // Section 8.2.1. The sequence number is our "invocation" field and the 'V' in the
-              // high bytes is the "fixed" field. Because each client provides their own unique
-              // key, our values in the fixed field need only uniquely identify each independent
-              // use of the client's key with AES-GCM in our code.
-              //
-              // The IV counter is 64 bits long which allows for 2^64 encrypted video packets
-              // to be sent to each client before the IV repeats.
-              std::copy_n((uint8_t *) &session->video.gcm_iv_counter, sizeof(session->video.gcm_iv_counter), std::begin(iv));
-              iv[11] = 'V';  // Video stream
-              session->video.gcm_iv_counter++;
-
-              // Encrypt the target buffer in place
-              auto *prefix = (video_packet_enc_prefix_t *) shards.prefix(x);
-              prefix->frameNumber = (std::uint32_t) packet->frame_index();
-              std::copy(std::begin(iv), std::end(iv), prefix->iv.begin());
-              session->video.cipher->encrypt(std::string_view {(char *) inspect, (size_t) blocksize}, prefix->tag.data(), (uint8_t *) inspect, &iv);
-            }
-
-            if (x - next_shard_to_send + 1 >= send_batch_size || x + 1 == shards.size()) {
-              // Do pacing within the frame.
-              // Also trigger pacing before the first send_batch() of the frame
-              // to account for the last send_batch() of the previous frame.
-              if (ratecontrol_group_packets_sent >= ratecontrol_packets_in_1ms || ratecontrol_frame_packets_sent == 0) {
-                auto due = ratecontrol_frame_start +
-                           std::chrono::duration_cast<std::chrono::nanoseconds>(1ms) *
-                             ratecontrol_frame_packets_sent / ratecontrol_packets_in_1ms;
-
-                auto now = std::chrono::steady_clock::now();
-                if (now < due) {
-                  timer->sleep_for(due - now);
-                }
-
-                ratecontrol_group_packets_sent = 0;
-              }
-
-              size_t current_batch_size = x - next_shard_to_send + 1;
-              batch_info.block_offset = next_shard_to_send;
-              batch_info.block_count = current_batch_size;
-
-              frame_send_batch_latency_logger.first_point_now();
-              // Use a batched send if it's supported on this platform
-              if (!platf::send_batch(batch_info)) {
-                // Batched send is not available, so send each packet individually
-                logging::verbose("Falling back to unbatched send"sv);
-                for (auto y = 0; y < current_batch_size; y++) {
-                  auto send_info = platf::send_info_t {
-                    shards.prefix(next_shard_to_send + y),
-                    shards.prefixsize,
-                    shards.data(next_shard_to_send + y),
-                    shards.blocksize,
-                    (uintptr_t) sock.native_handle(),
-                    peer_address,
-                    session->video.peer.port(),
-                    session->localAddress,
-                  };
-
-                  platf::send(send_info);
-                }
-              }
-              frame_send_batch_latency_logger.second_point_now_and_log();
-
-              ratecontrol_group_packets_sent += current_batch_size;
-              ratecontrol_frame_packets_sent += current_batch_size;
-              next_shard_to_send = x + 1;
-            }
-          }
-
-          // remember this in case the next frame comes immediately
-          ratecontrol_next_frame_start = ratecontrol_frame_start +
-                                         std::chrono::duration_cast<std::chrono::nanoseconds>(1ms) *
-                                           ratecontrol_frame_packets_sent / ratecontrol_packets_in_1ms;
-
-          frame_network_latency_logger.second_point_now_and_log();
-
-          logging::verbose([&](std::ostream &out) {
-            out << "Sent Frame seq ["sv << packet->frame_index() << "] pts ["sv << timestamp
-                << "] shards ["sv << shards.size() << "/"sv << shards.percentage << "%]"sv
-                << (frame_is_dupe ? " Dupe" : "")
-                << (packet->is_idr() ? " Key" : "")
-                << (packet->after_ref_frame_invalidation ? " RFI" : "");
-          });
-
+        std::for_each(fec_plan.blocks.begin(), fec_plan.blocks.begin() + fec_plan.block_count, [&sender, &packet, &blockIndex, &fec_plan, &lowseq](std::string_view current_payload) {
+          sender.send_block(*packet, current_payload, blockIndex, fec_plan.block_count, fec_plan.percentage, lowseq);
           ++blockIndex;
-          lowseq += shards.size();
         });
 
         session->video.lowseq = lowseq;

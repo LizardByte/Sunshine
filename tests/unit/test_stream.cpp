@@ -18,11 +18,82 @@
 
 // local includes
 #include <src/network.h>
+#include <src/stream_pacing.h>
 
 namespace stream {
   std::vector<uint8_t> concat_and_insert(uint64_t insert_size, uint64_t slice_size, const std::string_view &data1, const std::string_view &data2);
   std::optional<std::pair<std::uint16_t, std::string_view>> parse_control_packet(const ENetPacket &packet);
 }  // namespace stream
+
+namespace {
+  /**
+   * @brief Record pacing requests without sleeping or depending on a native timer.
+   */
+  class recording_video_timer_t: public platf::high_precision_timer {
+  public:
+    /**
+     * @brief Record each positive delay requested by the frame pacer.
+     * @param duration Delay the native timer would have applied.
+     */
+    void sleep_for(const std::chrono::nanoseconds &duration) override {
+      delays.push_back(duration);
+    }
+
+    /**
+     * @brief Report that this recording timer is always initialized.
+     * @return True.
+     */
+    operator bool() override {
+      return true;
+    }
+
+    std::vector<std::chrono::nanoseconds> delays;  ///< Delays requested by the frame pacer.
+  };
+}  // namespace
+
+TEST(VideoSendPacingTest, WaitsForFirstBatchAndEveryCompletePacketGroup) {
+  using namespace std::chrono_literals;
+  const auto frame_start = std::chrono::steady_clock::now() + 1h;
+  stream::video_send_pacing_t pacing {10, frame_start};
+  recording_video_timer_t timer;
+  ASSERT_TRUE(static_cast<bool>(timer));
+
+  pacing.wait(timer);
+  ASSERT_EQ(timer.delays.size(), 1);
+  EXPECT_GT(timer.delays.front(), 0ns);
+  EXPECT_LE(timer.delays.front(), 1h);
+  pacing.record_batch(5);
+  pacing.wait(timer);
+  EXPECT_EQ(timer.delays.size(), 1);
+  pacing.record_batch(5);
+  pacing.wait(timer);
+  ASSERT_EQ(timer.delays.size(), 2);
+  EXPECT_GT(timer.delays.back(), 0ns);
+  EXPECT_EQ(pacing.next_frame_start(), frame_start + 1ms);
+  pacing.record_batch(2);
+  pacing.wait(timer);
+  EXPECT_EQ(timer.delays.size(), 2);
+  EXPECT_EQ(pacing.next_frame_start(), frame_start + 1200us);
+}
+
+TEST(VideoSendPacingTest, KeepsPacketBudgetAcrossFecBlocksAndAllowsPastDeadlines) {
+  using namespace std::chrono_literals;
+  const auto frame_start = std::chrono::steady_clock::now() - 1h;
+  stream::video_send_pacing_t pacing {10, frame_start};
+  recording_video_timer_t timer;
+
+  pacing.wait(timer);
+  EXPECT_TRUE(timer.delays.empty());
+  pacing.record_batch(6);
+  pacing.record_batch(9);
+  pacing.wait(timer);
+  EXPECT_TRUE(timer.delays.empty());
+  EXPECT_EQ(pacing.next_frame_start(), frame_start + 1500us);
+  pacing.record_batch(5);
+  pacing.wait(timer);
+  EXPECT_TRUE(timer.delays.empty());
+  EXPECT_EQ(pacing.next_frame_start(), frame_start + 2ms);
+}
 
 TEST(ConcatAndInsertTests, ConcatNoInsertionTest) {
   std::array<char, 2> b1 = {'a', 'b'};

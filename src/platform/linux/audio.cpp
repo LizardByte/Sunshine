@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <bitset>
+#include <span>
 #include <sstream>
 #include <thread>
 
@@ -466,6 +467,28 @@ namespace platf {
       }
 
       /**
+       * @brief Create a virtual sink only when its module was not found during discovery.
+       *
+       * @param module Module index retained by this PulseAudio controller.
+       * @param name Native sink name to create.
+       * @param mapping Speaker mapping for the virtual sink.
+       * @param layout Channel-layout label used when creation fails.
+       * @return True only when a missing virtual sink was successfully created.
+       */
+      bool ensure_virtual_sink(std::uint32_t &module, const char *name, std::span<const std::uint8_t> mapping, const char *layout) {
+        if (module != PA_INVALID_INDEX) {
+          return false;
+        }
+
+        module = load_null(name, mapping.data(), static_cast<int>(mapping.size()));
+        if (module == PA_INVALID_INDEX) {
+          logging::warning("Couldn't create virtual sink for {}: {}", layout, pa_strerror(pa_context_errno(ctx.get())));
+          return false;
+        }
+        return true;
+      }
+
+      /**
        * @brief Query host and virtual sink names available to Sunshine.
        *
        * Keep the query operation alive through callback completion and sink updates.
@@ -526,32 +549,9 @@ namespace platf {
           auto sink_name = get_default_sink_name();
           sink.host = sink_name;
 
-          if (index.stereo == PA_INVALID_INDEX) {
-            index.stereo = load_null(stereo, speaker::map_stereo.data(), static_cast<int>(speaker::map_stereo.size()));
-            if (index.stereo == PA_INVALID_INDEX) {
-              logging::warning("Couldn't create virtual sink for stereo: {}", pa_strerror(pa_context_errno(ctx.get())));
-            } else {
-              ++nullcount;
-            }
-          }
-
-          if (index.surround51 == PA_INVALID_INDEX) {
-            index.surround51 = load_null(surround51, speaker::map_surround51.data(), static_cast<int>(speaker::map_surround51.size()));
-            if (index.surround51 == PA_INVALID_INDEX) {
-              logging::warning("Couldn't create virtual sink for surround-51: {}", pa_strerror(pa_context_errno(ctx.get())));
-            } else {
-              ++nullcount;
-            }
-          }
-
-          if (index.surround71 == PA_INVALID_INDEX) {
-            index.surround71 = load_null(surround71, speaker::map_surround71.data(), static_cast<int>(speaker::map_surround71.size()));
-            if (index.surround71 == PA_INVALID_INDEX) {
-              logging::warning("Couldn't create virtual sink for surround-71: {}", pa_strerror(pa_context_errno(ctx.get())));
-            } else {
-              ++nullcount;
-            }
-          }
+          nullcount += ensure_virtual_sink(index.stereo, stereo, speaker::map_stereo, "stereo");
+          nullcount += ensure_virtual_sink(index.surround51, surround51, speaker::map_surround51, "surround-51");
+          nullcount += ensure_virtual_sink(index.surround71, surround71, speaker::map_surround71, "surround-71");
 
           if (sink_name.empty()) {
             logging::warning("Couldn't find an active default sink. Continuing with virtual audio only."sv);

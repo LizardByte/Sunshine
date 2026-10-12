@@ -164,4 +164,15 @@ namespace audio {
    * @param ctx Native context object used by the operation or callback.
    */
   bool is_audio_ctx_sink_available(const audio_ctx_t &ctx);
+
+  /**
+   * @brief Select the capture sink for the requested channel layout and host playback policy.
+   *
+   * @param sinks Host and virtual sinks discovered by the audio backend.
+   * @param configured_sink Explicit capture sink, or an empty string to use the host sink.
+   * @param host_audio Whether the host should continue playing the captured audio.
+   * @param channel_count Negotiated number of channels used to select a virtual sink.
+   * @return Borrowed sink name whose discovered or configured owner must outlive its use.
+   */
+  const std::string &select_capture_sink(const platf::sink_t &sinks, const std::string &configured_sink, bool host_audio, int channel_count);
 }  // namespace audio

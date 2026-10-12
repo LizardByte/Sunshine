@@ -1598,12 +1598,9 @@ namespace config {
   }
 
   /**
-   * @brief Apply parsed configuration entries to this store's startup configuration.
-   *
+   * @brief Consume video, encoder and display preparation settings.
    */
-  void store_t::apply_config(std::unordered_map<std::string, std::string> &&vars) {
-    log_config_settings(vars, true);
-
+  void store_t::apply_video_config(std::unordered_map<std::string, std::string> &vars) {
     int_f(vars, "qp", settings_.video.qp);
     int_between_f(vars, "hevc_mode", settings_.video.hevc_mode, {0, 3});
     int_between_f(vars, "av1_mode", settings_.video.av1_mode, {0, 3});
@@ -1733,6 +1730,111 @@ namespace config {
 
     int_f(vars, "max_bitrate", settings_.video.max_bitrate);
     double_between_f(vars, "minimum_fps_target", settings_.video.minimum_fps_target, {0.0, 1000.0});
+  }
+
+  /**
+   * @brief Consume keyboard, mouse and gamepad settings.
+   */
+  void store_t::apply_input_config(std::unordered_map<std::string, std::string> &vars) {
+    map_int_int_f(vars, "keybindings"s, settings_.input.keybindings);
+
+    // This config option will only be used by the UI
+    // When editing in the config file itself, use "keybindings"
+    settings_.input.key_rightalt_to_key_win = false;
+    bool_f(vars, "key_rightalt_to_key_win", settings_.input.key_rightalt_to_key_win);
+
+    if (settings_.input.key_rightalt_to_key_win) {
+      settings_.input.keybindings.emplace(0xA5, 0x5B);
+    }
+
+    int to = std::numeric_limits<int>::min();
+    int_f(vars, "back_button_timeout", to);
+
+    if (to > std::numeric_limits<int>::min()) {
+      settings_.input.back_button_timeout = std::chrono::milliseconds {to};
+    }
+
+    double repeat_frequency {0};
+    double_between_f(vars, "key_repeat_frequency", repeat_frequency, {0, std::numeric_limits<double>::max()});
+
+    if (repeat_frequency > 0) {
+      settings_.input.key_repeat_period = std::chrono::duration<double> {1 / repeat_frequency};
+    }
+
+    to = -1;
+    int_f(vars, "key_repeat_delay", to);
+    if (to >= 0) {
+      settings_.input.key_repeat_delay = std::chrono::milliseconds {to};
+    }
+
+    string_restricted_f(vars, "gamepad_driver", settings_.input.gamepad_driver, {
+                                                                                  GAMEPAD_DRIVER_ALL,
+                                                                                  GAMEPAD_DRIVER_VIRTUALHID,
+                                                                                  GAMEPAD_DRIVER_VIGEMBUS,
+                                                                                  GAMEPAD_DRIVER_NONE,
+                                                                                });
+    string_restricted_f(vars, "gamepad"s, settings_.input.gamepad, get_supported_gamepad_options());
+#ifdef _WIN32
+    if (settings_.input.gamepad_driver == GAMEPAD_DRIVER_VIGEMBUS && settings_.input.gamepad != "auto"sv && settings_.input.gamepad != "x360"sv && settings_.input.gamepad != "ds4"sv) {
+      logging::warning("Gamepad type '{}' is not supported by ViGEmBus; using automatic selection", settings_.input.gamepad);
+      settings_.input.gamepad = "auto";
+    }
+#endif
+    bool_f(vars, "ds4_back_as_touchpad_click", settings_.input.ds4_back_as_touchpad_click);
+    bool_f(vars, "motion_as_ds4", settings_.input.motion_as_ds4);
+    bool_f(vars, "touchpad_as_ds4", settings_.input.touchpad_as_ds4);
+    bool_f(vars, "virtualhid_randomize_mac", settings_.input.virtualhid_randomize_mac);
+
+    bool_f(vars, "mouse", settings_.input.mouse);
+    bool_f(vars, "keyboard", settings_.input.keyboard);
+    bool_f(vars, "controller", settings_.input.controller);
+
+    bool_f(vars, "always_send_scancodes", settings_.input.always_send_scancodes);
+
+    bool_f(vars, "high_resolution_scrolling", settings_.input.high_resolution_scrolling);
+    bool_f(vars, "native_pen_touch", settings_.input.native_pen_touch);
+  }
+
+  /**
+   * @brief Consume the configured logging threshold.
+   */
+  void store_t::apply_logging_config(std::unordered_map<std::string, std::string> &vars) {
+    std::string log_level_string;
+    string_f(vars, "min_log_level", log_level_string);
+
+    if (!log_level_string.empty()) {
+      if (log_level_string == "verbose"sv) {
+        settings_.sunshine.min_log_level = 0;
+      } else if (log_level_string == "debug"sv) {
+        settings_.sunshine.min_log_level = 1;
+      } else if (log_level_string == "info"sv) {
+        settings_.sunshine.min_log_level = 2;
+      } else if (log_level_string == "warning"sv) {
+        settings_.sunshine.min_log_level = 3;
+      } else if (log_level_string == "error"sv) {
+        settings_.sunshine.min_log_level = 4;
+      } else if (log_level_string == "fatal"sv) {
+        settings_.sunshine.min_log_level = 5;
+      } else if (log_level_string == "none"sv) {
+        settings_.sunshine.min_log_level = 6;
+      } else {
+        // accept digit directly
+        auto val = log_level_string[0];
+        if (val >= '0' && val < '7') {
+          settings_.sunshine.min_log_level = val - '0';
+        }
+      }
+    }
+  }
+
+  /**
+   * @brief Apply parsed configuration entries to this store's startup configuration.
+   *
+   */
+  void store_t::apply_config(std::unordered_map<std::string, std::string> &&vars) {
+    log_config_settings(vars, true);
+
+    apply_video_config(vars);
 
     path_f(vars, "pkey", settings_.nvhttp.pkey);
     path_f(vars, "cert", settings_.nvhttp.cert);
@@ -1805,63 +1907,7 @@ namespace config {
 
     int_between_f(vars, "fec_percentage", settings_.stream.fec_percentage, {0, 100});
 
-    map_int_int_f(vars, "keybindings"s, settings_.input.keybindings);
-
-    // This config option will only be used by the UI
-    // When editing in the config file itself, use "keybindings"
-    settings_.input.key_rightalt_to_key_win = false;
-    bool_f(vars, "key_rightalt_to_key_win", settings_.input.key_rightalt_to_key_win);
-
-    if (settings_.input.key_rightalt_to_key_win) {
-      settings_.input.keybindings.emplace(0xA5, 0x5B);
-    }
-
-    to = std::numeric_limits<int>::min();
-    int_f(vars, "back_button_timeout", to);
-
-    if (to > std::numeric_limits<int>::min()) {
-      settings_.input.back_button_timeout = std::chrono::milliseconds {to};
-    }
-
-    double repeat_frequency {0};
-    double_between_f(vars, "key_repeat_frequency", repeat_frequency, {0, std::numeric_limits<double>::max()});
-
-    if (repeat_frequency > 0) {
-      settings_.input.key_repeat_period = std::chrono::duration<double> {1 / repeat_frequency};
-    }
-
-    to = -1;
-    int_f(vars, "key_repeat_delay", to);
-    if (to >= 0) {
-      settings_.input.key_repeat_delay = std::chrono::milliseconds {to};
-    }
-
-    string_restricted_f(vars, "gamepad_driver", settings_.input.gamepad_driver, {
-                                                                                  GAMEPAD_DRIVER_ALL,
-                                                                                  GAMEPAD_DRIVER_VIRTUALHID,
-                                                                                  GAMEPAD_DRIVER_VIGEMBUS,
-                                                                                  GAMEPAD_DRIVER_NONE,
-                                                                                });
-    string_restricted_f(vars, "gamepad"s, settings_.input.gamepad, get_supported_gamepad_options());
-#ifdef _WIN32
-    if (settings_.input.gamepad_driver == GAMEPAD_DRIVER_VIGEMBUS && settings_.input.gamepad != "auto"sv && settings_.input.gamepad != "x360"sv && settings_.input.gamepad != "ds4"sv) {
-      logging::warning("Gamepad type '{}' is not supported by ViGEmBus; using automatic selection", settings_.input.gamepad);
-      settings_.input.gamepad = "auto";
-    }
-#endif
-    bool_f(vars, "ds4_back_as_touchpad_click", settings_.input.ds4_back_as_touchpad_click);
-    bool_f(vars, "motion_as_ds4", settings_.input.motion_as_ds4);
-    bool_f(vars, "touchpad_as_ds4", settings_.input.touchpad_as_ds4);
-    bool_f(vars, "virtualhid_randomize_mac", settings_.input.virtualhid_randomize_mac);
-
-    bool_f(vars, "mouse", settings_.input.mouse);
-    bool_f(vars, "keyboard", settings_.input.keyboard);
-    bool_f(vars, "controller", settings_.input.controller);
-
-    bool_f(vars, "always_send_scancodes", settings_.input.always_send_scancodes);
-
-    bool_f(vars, "high_resolution_scrolling", settings_.input.high_resolution_scrolling);
-    bool_f(vars, "native_pen_touch", settings_.input.native_pen_touch);
+    apply_input_config(vars);
 
     bool_f(vars, "notify_pre_releases", settings_.sunshine.notify_pre_releases);
     bool_f(vars, "system_tray", settings_.sunshine.system_tray);
@@ -1912,32 +1958,7 @@ namespace config {
                                                                      "zh_TW"sv,  // Chinese (Traditional)
                                                                    });
 
-    std::string log_level_string;
-    string_f(vars, "min_log_level", log_level_string);
-
-    if (!log_level_string.empty()) {
-      if (log_level_string == "verbose"sv) {
-        settings_.sunshine.min_log_level = 0;
-      } else if (log_level_string == "debug"sv) {
-        settings_.sunshine.min_log_level = 1;
-      } else if (log_level_string == "info"sv) {
-        settings_.sunshine.min_log_level = 2;
-      } else if (log_level_string == "warning"sv) {
-        settings_.sunshine.min_log_level = 3;
-      } else if (log_level_string == "error"sv) {
-        settings_.sunshine.min_log_level = 4;
-      } else if (log_level_string == "fatal"sv) {
-        settings_.sunshine.min_log_level = 5;
-      } else if (log_level_string == "none"sv) {
-        settings_.sunshine.min_log_level = 6;
-      } else {
-        // accept digit directly
-        auto val = log_level_string[0];
-        if (val >= '0' && val < '7') {
-          settings_.sunshine.min_log_level = val - '0';
-        }
-      }
-    }
+    apply_logging_config(vars);
 
     auto it = vars.find("flags"s);
     if (it != std::end(vars)) {
@@ -1965,15 +1986,9 @@ namespace config {
 #endif
 
   /**
-   * @brief Parse serialized text into the corresponding runtime representation.
+   * @brief Parse command-line overrides and retain their original precedence.
    */
-  int store_t::parse(int argc, char *argv[]) {
-    std::unordered_map<std::string, std::string> cmd_vars;
-#ifdef _WIN32
-    bool shortcut_launch = false;
-    bool service_admin_launch = false;
-#endif
-
+  int store_t::parse_arguments(int argc, char *argv[], command_line_options_t &options) {
     for (auto x = 1; x < argc; ++x) {
       auto line = argv[x];
 
@@ -1982,13 +1997,16 @@ namespace config {
         return 1;
       }
 #ifdef _WIN32
-      else if (line == "--shortcut"sv) {
-        shortcut_launch = true;
-      } else if (line == "--shortcut-admin"sv) {
-        service_admin_launch = true;
+      if (line == "--shortcut"sv) {
+        options.shortcut_launch = true;
+        continue;
+      }
+      if (line == "--shortcut-admin"sv) {
+        options.service_admin_launch = true;
+        continue;
       }
 #endif
-      else if (*line == '-') {
+      if (*line == '-') {
         if (*(line + 1) == '-') {
           settings_.sunshine.cmd.name = line + 2;
           settings_.sunshine.cmd.argc = argc - x - 1;
@@ -2000,29 +2018,42 @@ namespace config {
           logging::print_help(*argv);
           return -1;
         }
-      } else {
-        auto line_end = line + strlen(line);
-
-        auto pos = std::find(line, line_end, '=');
-        if (pos == line_end) {
-          settings_.sunshine.config_file = line;
-        } else {
-          TUPLE_EL(var, 1, parse_option(line, line_end));
-          if (!var) {
-            logging::print_help(*argv);
-            return -1;
-          }
-
-          TUPLE_EL_REF(name, 0, *var);
-
-          auto it = cmd_vars.find(name);
-          if (it != std::end(cmd_vars)) {
-            cmd_vars.erase(it);
-          }
-
-          cmd_vars.emplace(std::move(*var));
-        }
+        continue;
       }
+      auto line_end = line + strlen(line);
+
+      auto pos = std::find(line, line_end, '=');
+      if (pos == line_end) {
+        settings_.sunshine.config_file = line;
+        continue;
+      }
+      TUPLE_EL(var, 1, parse_option(line, line_end));
+      if (!var) {
+        logging::print_help(*argv);
+        return -1;
+      }
+
+      TUPLE_EL_REF(name, 0, *var);
+
+      auto it = options.variables.find(name);
+      if (it != std::end(options.variables)) {
+        options.variables.erase(it);
+      }
+
+      options.variables.emplace(std::move(*var));
+    }
+
+    return 0;
+  }
+
+  /**
+   * @brief Parse serialized text into the corresponding runtime representation.
+   */
+  int store_t::parse(int argc, char *argv[]) {
+    command_line_options_t options;
+    const auto argument_status = parse_arguments(argc, argv, options);
+    if (argument_status != 0) {
+      return argument_status;
     }
 
     bool config_loaded = false;
@@ -2038,7 +2069,7 @@ namespace config {
       // Read config file
       auto vars = parse_config(file_handler::read_file(settings_.sunshine.config_file.c_str()));
 
-      for (auto &[name, value] : cmd_vars) {
+      for (auto &[name, value] : options.variables) {
         vars.insert_or_assign(std::move(name), std::move(value));
       }
 
@@ -2058,7 +2089,7 @@ namespace config {
     // as non-admin and the config folder is not yet present; we can defer
     // so that service instance will do the work instead.
 
-    if (!config_loaded && !shortcut_launch) {
+    if (!config_loaded && !options.shortcut_launch) {
       logging::fatal("To relaunch Sunshine successfully, use the shortcut in the Start Menu. Do not run Sunshine.exe manually."sv);
       std::this_thread::sleep_for(10s);
 #else
@@ -2072,14 +2103,14 @@ namespace config {
     // because we need to have the correct base port loaded in our config.
     // Exception: UCRT64 shortcut_launch instances may have no config loaded due to
     // insufficient permissions to create folder; port defaults will be acceptable.
-    if (service_admin_launch) {
+    if (options.service_admin_launch) {
       // This is a relaunch as admin to start the service
       service_ctrl::start_service();
 
       // Always return 1 to ensure Sunshine doesn't start normally
       return 1;
     }
-    if (shortcut_launch) {
+    if (options.shortcut_launch) {
       if (!service_ctrl::is_service_running()) {
         // If the service isn't running, relaunch ourselves as admin to start it
         std::array<WCHAR, MAX_PATH> executable;

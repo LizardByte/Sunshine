@@ -94,6 +94,15 @@ namespace {
       return config_file_;
     }
 
+    /**
+     * @brief Redirect applications configuration to this fixture's existing temporary file.
+     */
+    void prepare_apps_file() {
+      const auto apps_file = config_file().parent_path() / "sunshine_test_config_apps.json";
+      ASSERT_EQ(file_handler::write_file(apps_file.string().c_str(), "{}"), 0);
+      config_.edit_startup().stream.file_apps = apps_file.string();
+    }
+
     config::store_t config_;  ///< Configuration owner isolated to this test.
 
   private:
@@ -308,3 +317,139 @@ TEST(ConfigStoreTest, HelpAndUnknownFlagsRetainTheirReturnCodes) {
   argv[1] = arguments[1].data();
   EXPECT_EQ(config.parse(argv.size(), argv.data()), -1);
 }
+
+TEST_F(ConfigPersistenceTest, AppliesVideoAndInputPoliciesWithoutChangingOtherStores) {
+  using namespace std::chrono_literals;
+  ASSERT_NO_FATAL_FAILURE(prepare_apps_file());
+  const config::store_t untouched;
+  config_.apply_config_for_test(
+    "qp = 33\n"
+    "sw_preset = fast\n"
+    "nvenc_preset = 7\n"
+    "amd_quality = quality\n"
+    "amd_rc = cqp\n"
+    "amd_usage = lowlatency\n"
+    "vaapi_quality = quality\n"
+    "vaapi_rc = cqp\n"
+    "vk_quality = speed\n"
+    "dd_config_revert_delay = 123\n"
+    "max_bitrate = 12345\n"
+    "key_rightalt_to_key_win = enabled\n"
+    "back_button_timeout = 42\n"
+    "key_repeat_frequency = 25\n"
+    "key_repeat_delay = 8\n"
+    "mouse = disabled\n"
+    "keyboard = disabled\n"
+    "controller = disabled\n"
+    "gamepad_driver = none\n"
+    "gamepad = auto\n"
+  );
+
+  const auto &settings = config_.values();
+  EXPECT_EQ(settings.video.qp, 33);
+  EXPECT_EQ(settings.video.sw.sw_preset, "fast");
+  EXPECT_EQ(settings.video.sw.svtav1_preset, 7);
+  EXPECT_EQ(settings.video.nv.quality_preset, 7);
+#if !defined(__ANDROID__) && !defined(__APPLE__)
+  EXPECT_EQ(settings.video.nv_legacy.preset, "p7");
+#endif
+  EXPECT_EQ(settings.video.vaapi.vaapi_quality, 3);
+  EXPECT_EQ(settings.video.vk.quality, 1);
+  EXPECT_EQ(settings.video.dd.config_revert_delay, 123ms);
+  EXPECT_EQ(settings.video.max_bitrate, 12345);
+  EXPECT_EQ(settings.input.keybindings.at(0xA5), 0x5B);
+  EXPECT_EQ(settings.input.back_button_timeout, 42ms);
+  EXPECT_EQ(settings.input.key_repeat_period, std::chrono::duration<double> {0.04});
+  EXPECT_EQ(settings.input.key_repeat_delay, 8ms);
+  EXPECT_FALSE(settings.input.mouse);
+  EXPECT_FALSE(settings.input.keyboard);
+  EXPECT_FALSE(settings.input.controller);
+  EXPECT_EQ(settings.input.gamepad_driver, config::GAMEPAD_DRIVER_NONE);
+  EXPECT_NE(untouched.values().video.qp, settings.video.qp);
+  EXPECT_TRUE(untouched.values().input.mouse);
+  EXPECT_TRUE(untouched.values().input.keyboard);
+  EXPECT_TRUE(untouched.values().input.controller);
+}
+
+TEST_F(ConfigPersistenceTest, MissingAndRejectedPoliciesRetainExistingValues) {
+  using namespace std::chrono_literals;
+  ASSERT_NO_FATAL_FAILURE(prepare_apps_file());
+  auto &settings = config_.edit_startup();
+  settings.video.sw.sw_preset.clear();
+  settings.video.sw.svtav1_preset = 9;
+  settings.video.dd.config_revert_delay = 37ms;
+  settings.input.back_button_timeout = 41ms;
+  settings.input.key_repeat_delay = 43ms;
+  settings.input.key_repeat_period = std::chrono::duration<double> {0.2};
+  config_.apply_config_for_test("dd_config_revert_delay = -1\nkey_repeat_delay = -1\nkey_repeat_frequency = 0\n");
+
+  EXPECT_EQ(settings.video.sw.svtav1_preset, 9);
+  EXPECT_EQ(settings.video.dd.config_revert_delay, 37ms);
+  EXPECT_EQ(settings.input.back_button_timeout, 41ms);
+  EXPECT_EQ(settings.input.key_repeat_delay, 43ms);
+  EXPECT_EQ(settings.input.key_repeat_period, std::chrono::duration<double> {0.2});
+  EXPECT_FALSE(settings.input.key_rightalt_to_key_win);
+}
+
+TEST_F(ConfigPersistenceTest, LoggingThresholdAcceptsNamesAndDigitsAndRetainsUnknownValues) {
+  ASSERT_NO_FATAL_FAILURE(prepare_apps_file());
+  const std::array cases {
+    std::pair {"verbose"sv, 0},
+    std::pair {"debug"sv, 1},
+    std::pair {"info"sv, 2},
+    std::pair {"warning"sv, 3},
+    std::pair {"error"sv, 4},
+    std::pair {"fatal"sv, 5},
+    std::pair {"none"sv, 6},
+    std::pair {"0"sv, 0},
+    std::pair {"6"sv, 6},
+    std::pair {"7"sv, 2},
+    std::pair {"unknown"sv, 2},
+    std::pair {""sv, 2},
+  };
+  for (const auto &[value, expected] : cases) {
+    config_.edit_startup().sunshine.min_log_level = 2;
+    config_.apply_config_for_test(std::format("min_log_level = {}\n", value));
+    EXPECT_EQ(config_.values().sunshine.min_log_level, expected) << value;
+  }
+}
+
+TEST(ConfigStoreTest, RejectsMalformedOverridesBeforeOpeningConfiguration) {
+  config::store_t config;
+  std::array<std::string, 2> arguments {"sunshine", "=value"};
+  std::array<char *, 2> argv {arguments[0].data(), arguments[1].data()};
+
+  EXPECT_EQ(config.parse(argv.size(), argv.data()), -1);
+}
+
+#ifdef _WIN32
+TEST_F(ConfigPersistenceTest, VigEmPolicyKeepsCompatibleProfilesAndResetsUnsupportedOnes) {
+  ASSERT_NO_FATAL_FAILURE(prepare_apps_file());
+  const std::array cases {
+    std::pair {"auto"sv, "auto"sv},
+    std::pair {"x360"sv, "x360"sv},
+    std::pair {"ds4"sv, "ds4"sv},
+    std::pair {"ds5"sv, "auto"sv},
+  };
+  for (const auto &[profile, expected] : cases) {
+    config_.apply_config_for_test(std::format("gamepad_driver = vigembus\ngamepad = {}\n", profile));
+    EXPECT_EQ(config_.values().input.gamepad_driver, config::GAMEPAD_DRIVER_VIGEMBUS);
+    EXPECT_EQ(config_.values().input.gamepad, expected);
+  }
+  config_.apply_config_for_test("gamepad_driver = all\ngamepad = ds5\n");
+  EXPECT_EQ(config_.values().input.gamepad_driver, config::GAMEPAD_DRIVER_ALL);
+  EXPECT_EQ(config_.values().input.gamepad, "ds5");
+}
+
+TEST_F(ConfigPersistenceTest, HelpAfterShortcutModesAvoidsServiceAndConfigurationSideEffects) {
+  std::array<std::string, 4> arguments {"sunshine", "--shortcut", "--shortcut-admin", "--help"};
+  std::array<char *, 4> argv;
+  std::ranges::transform(arguments, argv.begin(), [](auto &argument) {
+    return argument.data();
+  });
+
+  EXPECT_EQ(config_.parse(argv.size(), argv.data()), 1);
+  EXPECT_FALSE(std::filesystem::exists(config_file()));
+  EXPECT_TRUE(config_.values().sunshine.cmd.name.empty());
+}
+#endif
