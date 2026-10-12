@@ -5,6 +5,7 @@
 // standard includes
 #include <array>
 #include <cmath>
+#include <source_location>
 
 // platform includes
 #include <d3dcompiler.h>
@@ -1552,7 +1553,7 @@ namespace platf::dxgi {
         {
           auto p_surface = std::get_if<texture2d_t>(&last_frame_variant);
           if (!p_surface) {
-            logging::error("Logical error at {}:{}", __FILE__, __LINE__);
+            logging::error("Logical error at {}:{}", std::source_location::current().file_name(), std::source_location::current().line());
             return capture_e::error;
           }
 
@@ -1580,7 +1581,7 @@ namespace platf::dxgi {
         {
           auto p_img = std::get_if<std::shared_ptr<platf::img_t>>(&last_frame_variant);
           if (!p_img) {
-            logging::error("Logical error at {}:{}", __FILE__, __LINE__);
+            logging::error("Logical error at {}:{}", std::source_location::current().file_name(), std::source_location::current().line());
             return capture_e::error;
           }
           auto [d3d_img, lock] = get_locked_d3d_img(*p_img);
@@ -1670,7 +1671,7 @@ namespace platf::dxgi {
         {
           auto p_img = std::get_if<std::shared_ptr<platf::img_t>>(&last_frame_variant);
           if (!p_img) {
-            logging::error("Logical error at {}:{}", __FILE__, __LINE__);
+            logging::error("Logical error at {}:{}", std::source_location::current().file_name(), std::source_location::current().line());
             return capture_e::error;
           }
           img_out = *p_img;
@@ -1681,11 +1682,11 @@ namespace platf::dxgi {
         {
           auto p_surface = std::get_if<texture2d_t>(&last_frame_variant);
           if (!p_surface) {
-            logging::error("Logical error at {}:{}", __FILE__, __LINE__);
+            logging::error("Logical error at {}:{}", std::source_location::current().file_name(), std::source_location::current().line());
             return capture_e::error;
           }
           if (!blend_mouse_cursor_flag) {
-            logging::error("Logical error at {}:{}", __FILE__, __LINE__);
+            logging::error("Logical error at {}:{}", std::source_location::current().file_name(), std::source_location::current().line());
             return capture_e::error;
           }
 
