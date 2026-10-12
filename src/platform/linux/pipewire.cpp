@@ -4,6 +4,7 @@
  */
 // standard includes
 #include <fstream>
+#include <system_error>
 
 // lib includes
 #include <gio/gio.h>
@@ -264,6 +265,7 @@ namespace pipewire {
 
     /**
      * @brief Initialize PipeWire core objects and optional stream negotiation.
+     * @details Capture PipeWire failures' errno values before formatting diagnostics.
      *
      * @param stream_fd Stream fd.
      * @param stream_node Stream node.
@@ -290,15 +292,13 @@ namespace pipewire {
         if (core) {
           pw_core_add_listener(core, &core_listener, &core_events, nullptr);
         } else {
-          logging::debug([](std::ostream &out) {
-            out << "[pipewire] Failed to connect to PW core. Error: "sv << errno << "(" << strerror(errno) << ")"sv;
-          });
+          const std::error_code error {errno, std::generic_category()};
+          logging::debug("[pipewire] Failed to connect to PW core. Error: {}({})", error.value(), error.message());
           return -1;
         }
       } else {
-        logging::debug([](std::ostream &out) {
-          out << "[pipewire] Failed to setup PW context. Error: "sv << errno << "(" << strerror(errno) << ")"sv;
-        });
+        const std::error_code error {errno, std::generic_category()};
+        logging::debug("[pipewire] Failed to setup PW context. Error: {}({})", error.value(), error.message());
         return -1;
       }
 

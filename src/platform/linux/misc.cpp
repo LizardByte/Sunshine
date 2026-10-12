@@ -20,6 +20,7 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <system_error>
 
 // platform includes
 #include <arpa/inet.h>
@@ -538,6 +539,7 @@ namespace platf {
 
   /**
    * @brief Apply the requested scheduling priority to the current thread.
+   * @details Preserve failed system calls' errno values before logging diagnostics.
    */
   void adjust_thread_priority(thread_priority_e priority) {
 #if defined(__FreeBSD__)
@@ -597,9 +599,8 @@ namespace platf {
     if (!success) {
       // This will run on FreeBSD OR Linux if RTKit failed/was missing
       if (setpriority(PRIO_PROCESS, 0, linux_nice) == -1) {
-        logging::warning([&linux_nice](std::ostream &out) {
-          out << "setpriority failed for nice "sv << linux_nice << ": "sv << strerror(errno);
-        });
+        const std::error_code error {errno, std::generic_category()};
+        logging::warning("setpriority failed for nice {}: {}", linux_nice, error.message());
       } else {
         logging::debug("setpriority success for nice {}", linux_nice);
       }
@@ -1767,6 +1768,10 @@ namespace platf {
     return false;
   }
 
+  /**
+   * @brief Drop selected effective and permitted capabilities and restore dumpability.
+   * @details Capture each failed system call's errno before formatting its diagnostic.
+   */
   void drop_elevated_privileges(bool all_caps) {
 #if !defined(__FreeBSD__)
     bool failed = false;
@@ -1781,18 +1786,16 @@ namespace platf {
     cap_set_flag(caps, CAP_PERMITTED, caps_to_drop.size(), caps_to_drop.data(), CAP_CLEAR);
 
     if (cap_set_proc(caps) != 0) {
-      logging::error([](std::ostream &out) {
-        out << "[misc] drop_elevated_privileges failed to prune capabilities: "sv << std::strerror(errno);
-      });
+      const std::error_code error {errno, std::generic_category()};
+      logging::error("[misc] drop_elevated_privileges failed to prune capabilities: {}", error.message());
       failed = true;
     }
     cap_free(caps);
 
     // Reset dumpable AFTER the caps have been pruned to ensure /proc/pid/root is accessible.
     if (prctl(PR_SET_DUMPABLE, 1) != 0) {
-      logging::error([](std::ostream &out) {
-        out << "[misc] drop_elevated_privileges failed to set PR_SET_DUMPABLE: "sv << std::strerror(errno);
-      });
+      const std::error_code error {errno, std::generic_category()};
+      logging::error("[misc] drop_elevated_privileges failed to set PR_SET_DUMPABLE: {}", error.message());
       failed = true;
     }
     if (!failed) {

@@ -1,6 +1,7 @@
 /**
  * @file src/platform/linux/kmsgrab.cpp
  * @brief Definitions for KMS screen capture.
+ * @note POSIX diagnostics preserve the native errno before logging and format owned error messages.
  */
 // standard includes
 #include <array>
@@ -11,6 +12,7 @@
 #include <ranges>
 #include <sstream>
 #include <stdexcept>
+#include <system_error>
 #include <thread>
 #include <unistd.h>
 
@@ -525,9 +527,8 @@ namespace platf {
         for (; plane_p != end; ++plane_p) {
           plane_t plane = drmModeGetPlane(fd, *plane_p);
           if (!plane) {
-            logging::error([this](std::ostream &out) {
-              out << "Couldn't get drm plane ["sv << (end - plane_p) << "]: "sv << strerror(errno);
-            });
+            const auto error = std::error_code(errno, std::generic_category());
+            logging::error("Couldn't get drm plane [{}]: {}", (end - plane_p), error.message());
             continue;
           }
 
@@ -709,6 +710,8 @@ namespace platf {
       /**
        * @brief Open a DRM connector and cache its monitor metadata.
        *
+       * Render nodes retain read/write access; a duplicate of the primary node is used if the render node cannot be opened.
+       *
        * @param settings Immutable startup settings for this host.
        * @param path Filesystem path for the DRM device or resource.
        * @param window_system Desktop protocol used to select DRM access behavior.
@@ -728,11 +731,10 @@ namespace platf {
         char *rendernode_path = drmGetRenderDeviceNameFromFd(fd.el);
         if (rendernode_path) {
           logging::debug("Opening render node: {}", rendernode_path);
-          render_fd.el = open(rendernode_path, O_RDWR);
+          render_fd.el = openat(AT_FDCWD, rendernode_path, O_RDWR);
           if (render_fd.el < 0) {
-            logging::warning([&rendernode_path](std::ostream &out) {
-              out << "Couldn't open render node: "sv << rendernode_path << ": "sv << strerror(errno);
-            });
+            const auto error = std::error_code(errno, std::generic_category());
+            logging::warning("Couldn't open render node: {}: {}", rendernode_path, error.message());
             render_fd.el = dup(fd.el);
           }
           free(rendernode_path);
@@ -1238,9 +1240,8 @@ namespace platf {
 
             auto fb = card.fb(plane.get());
             if (!fb) {
-              logging::error([&plane](std::ostream &out) {
-                out << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
-              });
+              const auto error = std::error_code(errno, std::generic_category());
+              logging::error("Couldn't get drm fb for plane [{}]: {}", plane->fb_id, error.message());
               return -1;
             }
 
@@ -1256,18 +1257,16 @@ namespace platf {
 
               auto fb_fd = card.handleFD(fb->handles[i]);
               if (fb_fd.el < 0) {
-                logging::error([&fb](std::ostream &out) {
-                  out << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
-                });
+                const auto error = std::error_code(errno, std::generic_category());
+                logging::error("Couldn't get primary file descriptor for Framebuffer [{}]: {}", fb->fb_id, error.message());
                 continue;
               }
             }
 
             auto crtc = card.crtc(plane->crtc_id);
             if (!crtc) {
-              logging::error([](std::ostream &out) {
-                out << "Couldn't get CRTC info: "sv << strerror(errno);
-              });
+              const auto error = std::error_code(errno, std::generic_category());
+              logging::error("Couldn't get CRTC info: {}", error.message());
               continue;
             }
 
@@ -1411,9 +1410,8 @@ namespace platf {
 
         prop_blob_t hdr_metadata_blob = drmModeGetPropertyBlob(card.fd.el, *hdr_metadata_blob_id);
         if (hdr_metadata_blob == nullptr) {
-          logging::error([](std::ostream &out) {
-            out << "Unable to get HDR metadata blob: "sv << strerror(errno);
-          });
+          const auto error = std::error_code(errno, std::generic_category());
+          logging::error("Unable to get HDR metadata blob: {}", error.message());
           return false;
         }
 
@@ -1472,9 +1470,8 @@ namespace platf {
 
         prop_blob_t hdr_metadata_blob = drmModeGetPropertyBlob(card.fd.el, *hdr_metadata_blob_id);
         if (hdr_metadata_blob == nullptr) {
-          logging::error([](std::ostream &out) {
-            out << "Unable to get HDR metadata blob: "sv << strerror(errno);
-          });
+          const auto error = std::error_code(errno, std::generic_category());
+          logging::error("Unable to get HDR metadata blob: {}", error.message());
           return false;
         }
 
@@ -1626,9 +1623,8 @@ namespace platf {
             drm_mode_map_dumb map = {};
             map.handle = fb->handles[0];
             if (drmIoctl(card.fd.el, DRM_IOCTL_MODE_MAP_DUMB, &map) < 0) {
-              logging::error([](std::ostream &out) {
-                out << "Failed to map cursor FB as dumb buffer: "sv << strerror(errno);
-              });
+              const auto error = std::error_code(errno, std::generic_category());
+              logging::error("Failed to map cursor FB as dumb buffer: {}", error.message());
               captured_cursor.visible = false;
               return;
             }
@@ -1637,9 +1633,8 @@ namespace platf {
           }
 
           if (mapped_data == MAP_FAILED) {
-            logging::error([](std::ostream &out) {
-              out << "Failed to mmap cursor FB: "sv << strerror(errno);
-            });
+            const auto error = std::error_code(errno, std::generic_category());
+            logging::error("Failed to mmap cursor FB: {}", error.message());
             captured_cursor.visible = false;
             return;
           }
@@ -1722,9 +1717,8 @@ namespace platf {
         auto fb = card.fb(plane.get());
         if (!fb) {
           // This can happen if the display is being reconfigured while streaming
-          logging::warning([&plane](std::ostream &out) {
-            out << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
-          });
+          const auto error = std::error_code(errno, std::generic_category());
+          logging::warning("Couldn't get drm fb for plane [{}]: {}", plane->fb_id, error.message());
           return capture_e::timeout;
         }
 
@@ -1746,9 +1740,8 @@ namespace platf {
 
           file[y] = card.handleFD(fb->handles[y]);
           if (file[y].el < 0) {
-            logging::error([&](std::ostream &out) {
-              out << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
-            });
+            const auto error = std::error_code(errno, std::generic_category());
+            logging::error("Couldn't get primary file descriptor for Framebuffer [{}]: {}", fb->fb_id, error.message());
             return capture_e::error;
           }
 
@@ -2421,9 +2414,8 @@ namespace platf {
 
         auto fb = card.fb(plane.get());
         if (!fb) {
-          logging::error([&plane](std::ostream &out) {
-            out << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
-          });
+          const auto error = std::error_code(errno, std::generic_category());
+          logging::error("Couldn't get drm fb for plane [{}]: {}", plane->fb_id, error.message());
           continue;
         }
 
@@ -2440,9 +2432,8 @@ namespace platf {
         // This appears to return the offset of the monitor
         auto crtc = card.crtc(plane->crtc_id);
         if (!crtc) {
-          logging::error([](std::ostream &out) {
-            out << "Couldn't get CRTC info: "sv << strerror(errno);
-          });
+          const auto error = std::error_code(errno, std::generic_category());
+          logging::error("Couldn't get CRTC info: {}", error.message());
           continue;
         }
 

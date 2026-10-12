@@ -3,6 +3,7 @@
  * @brief Miscellaneous definitions for Windows.
  */
 // standard includes
+#include <algorithm>
 #include <array>
 #include <csignal>
 #include <filesystem>
@@ -891,7 +892,9 @@ namespace platf {
       // FIXME: Maybe we can improve this in the future.
       if (res == HRESULT_FROM_WIN32(ERROR_NO_ASSOCIATION)) {
         logging::warning("Using trampoline to handle target: {}", raw_cmd);
-        std::wcscpy(shell_command_string.data(), L"cmd.exe /c start \"\" /wait \"%1\" %*");
+        constexpr WCHAR trampoline[] = L"cmd.exe /c start \"\" /wait \"%1\" %*";  ///< Shell trampoline including its terminating wide NUL.
+        static_assert(std::size(trampoline) <= MAX_PATH);
+        std::copy(std::begin(trampoline), std::end(trampoline), shell_command_string.begin());
         needs_cmd_escaping = true;
 
         // We must suppress the console window that would otherwise appear when starting cmd.exe.
