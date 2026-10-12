@@ -190,6 +190,10 @@ namespace proc {
 #endif
   }
 
+  /**
+   * @brief Execute the selected application and its configured preparation commands.
+   * @note Detached command definitions are observed without rewriting the configured strings.
+   */
   int proc_t::execute(int app_id, std::shared_ptr<rtsp_stream::launch_session_t> launch_session) {
     // Ensure starting from a clean slate
     terminate();
@@ -294,7 +298,7 @@ namespace proc {
       }
     }
 
-    for (auto &cmd : _app.detached) {
+    for (const auto &cmd : _app.detached) {
       const auto command = prepare_command(cmd);
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
                                               find_working_directory(command) :

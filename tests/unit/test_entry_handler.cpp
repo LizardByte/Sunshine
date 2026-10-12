@@ -159,7 +159,7 @@ TEST(EntryHandlerTests, InfrastructureDestructionJoinsWorkBeforeDependencyCleanu
   auto *owner = infrastructure.get();
   const std::weak_ptr<safe::mail_raw_t> mailbox = owner->mailbox();
 #ifdef _WIN32
-  auto *preferences = &owner->preferences();
+  const auto *preferences = &owner->preferences();  ///< Read-only identity checked before the preferences owner is released.
 #endif
   std::promise<void> started;
   std::promise<void> release;

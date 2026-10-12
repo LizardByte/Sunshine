@@ -622,11 +622,11 @@ namespace vk {
     /**
      * @brief Convert a captured frame into a Vulkan hardware frame.
      *
-     * @param img Image or frame object to read from or populate.
+     * @param img Captured image whose DMA-BUF and cursor metadata are read without modification.
      * @return Conversion status.
      */
     int convert(platf::img_t &img) override {
-      auto &descriptor = (egl::img_descriptor_t &) img;
+      const auto &descriptor = (const egl::img_descriptor_t &) img;
 
       // Get encoder target frame
       if (!frame->buf[0]) {
@@ -1050,8 +1050,13 @@ namespace vk {
       }
     }
 
+    /**
+     * @brief Create encoder image views from read-only FFmpeg Vulkan frame metadata.
+     *
+     * @return True when both target plane views were created.
+     */
     bool create_target_views() {
-      auto *vk_frame = (AVVkFrame *) frame->data[0];
+      const auto *vk_frame = (const AVVkFrame *) frame->data[0];
       if (!vk_frame) {
         return false;
       }

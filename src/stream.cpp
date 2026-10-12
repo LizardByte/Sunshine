@@ -1257,7 +1257,8 @@ namespace stream {
 
   /**
    * @brief Run the broadcast control-channel worker thread.
-   * @note Logging-only callbacks retain the dispatcher signature and omit unused argument names.
+   * @note Logging-only callbacks retain the dispatcher signature, omit unused argument names,
+   * and observe packet statistics through a read-only view.
    *
    * @param server RTSP server instance handling the request.
    */
@@ -1276,7 +1277,7 @@ namespace stream {
     });
 
     server->map(packetTypes[IDX_LOSS_STATS], [](session_t *, const std::string_view &payload) {
-      int32_t *stats = (int32_t *) payload.data();
+      const int32_t *stats = (const int32_t *) payload.data();
       auto count = stats[0];
       std::chrono::milliseconds t {stats[1]};
 

@@ -1085,7 +1085,7 @@ namespace platf::audio {
         prop_var_t current_device_format;
 
         if (SUCCEEDED(current_default_dev->OpenPropertyStore(STGM_READ, &prop)) && SUCCEEDED(prop->GetValue(PKEY_AudioEngine_DeviceFormat, &current_device_format.prop))) {
-          auto *format = (WAVEFORMATEXTENSIBLE *) current_device_format.prop.blob.pBlobData;
+          const auto *format = (const WAVEFORMATEXTENSIBLE *) current_device_format.prop.blob.pBlobData;  ///< Read-only endpoint format owned by the property variant.
           wanted_bits_per_sample = format->Samples.wValidBitsPerSample;
           logging::info("Virtual audio device will use {}-bit to match default device", wanted_bits_per_sample);
         }

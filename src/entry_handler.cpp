@@ -310,6 +310,9 @@ namespace service_ctrl {
     return true;
   }
 
+  /**
+   * @brief Observe the TCP table until the configured Web UI port is listening.
+   */
   bool wait_for_ui_ready(const config::settings_t &settings) {
     std::cout << "Waiting for Web UI to be ready...";
 
@@ -339,7 +342,7 @@ namespace service_ctrl {
 
       uint16_t port_nbo = htons(net::map_port(settings, confighttp::PORT_HTTPS));
       for (DWORD i = 0; i < tcp_table->dwNumEntries; i++) {
-        auto &entry = tcp_table->table[i];
+        const auto &entry = tcp_table->table[i];
 
         // Look for our port in the listening state
         if (entry.dwLocalPort == port_nbo && entry.dwState == MIB_TCP_STATE_LISTEN) {

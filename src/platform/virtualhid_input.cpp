@@ -1,6 +1,7 @@
 /**
  * @file src/platform/virtualhid_input.cpp
  * @brief Definitions for libvirtualhid-backed input helpers.
+ * @details Gamepad event handlers keep their shared handles unchanged while updating the referenced context and adapter state.
  */
 
 // standard includes
@@ -818,7 +819,7 @@ namespace platf::virtualhid {
       return;
     }
 
-    auto &gamepad = context.gamepads[nr];
+    const auto &gamepad = context.gamepads[nr];
     auto updated_state = make_gamepad_state(context.settings.get(), state, gamepad->adapter->support());
     const auto &cached_state = gamepad->adapter->state();
     updated_state.acceleration = cached_state.acceleration;
@@ -833,7 +834,7 @@ namespace platf::virtualhid {
       return;
     }
 
-    auto &gamepad = context.gamepads[touch.id.globalIndex];
+    const auto &gamepad = context.gamepads[touch.id.globalIndex];
     if (!gamepad->adapter->support().supports_touchpad) {
       return;
     }
@@ -887,7 +888,7 @@ namespace platf::virtualhid {
       return;
     }
 
-    auto &gamepad = context.gamepads[motion.id.globalIndex];
+    const auto &gamepad = context.gamepads[motion.id.globalIndex];
     switch (motion.motionType) {
       case LI_MOTION_TYPE_ACCEL:
         log_failure("submit libvirtualhid gamepad acceleration"sv, gamepad->adapter->set_acceleration(lvh::Vector3 {motion.x, motion.y, motion.z}));
@@ -905,7 +906,7 @@ namespace platf::virtualhid {
       return;
     }
 
-    auto &gamepad = context.gamepads[battery.id.globalIndex];
+    const auto &gamepad = context.gamepads[battery.id.globalIndex];
     if (battery.state == LI_BATTERY_STATE_UNKNOWN || battery.state == LI_BATTERY_STATE_NOT_PRESENT) {
       log_failure("clear libvirtualhid gamepad battery"sv, gamepad->adapter->clear_battery());
       return;

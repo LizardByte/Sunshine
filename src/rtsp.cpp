@@ -116,7 +116,7 @@ namespace rtsp_stream {
   using cmd_func_t = std::function<void(rtsp_server_t *server, tcp::socket &, launch_session_t &, msg_t &&)>;
 
   /**
-   * @brief Write msg details to the log.
+   * @brief Log request or response fields without modifying the message.
    *
    * @param msg Raw RTSP message buffer being parsed or encrypted.
    */
@@ -1478,7 +1478,7 @@ namespace rtsp_stream {
     logging::debug("payload :: {}", payload);
 
     if (msg->type == TYPE_RESPONSE) {
-      auto &resp = msg->message.response;
+      const auto &resp = msg->message.response;
 
       auto statuscode = resp.statusCode;
       std::string_view status {resp.statusString};
@@ -1486,7 +1486,7 @@ namespace rtsp_stream {
       logging::debug("statuscode :: {}", statuscode);
       logging::debug("status :: {}", status);
     } else {
-      auto &req = msg->message.request;
+      const auto &req = msg->message.request;
 
       std::string_view command {req.command};
       std::string_view target {req.target};

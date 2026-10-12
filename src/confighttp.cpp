@@ -532,14 +532,14 @@ namespace confighttp {
 #endif
 
   /**
-   * @brief Log the request details.
+   * @brief Log request details through read-only header entries.
    * @param request The HTTP request object.
    */
   void print_req(const req_https_t &request) {
     logging::debug("METHOD :: {}", request->method);
     logging::debug("DESTINATION :: {}", request->path);
 
-    for (auto &[name, val] : request->header) {
+    for (const auto &[name, val] : request->header) {
       logging::debug("{} -- {}", name, (name == "Authorization" ? "CREDENTIALS REDACTED" : val));
     }
 

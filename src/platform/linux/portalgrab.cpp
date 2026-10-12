@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
+#include <memory>
 
 // lib includes
 #include <lizardbyte/common/env.h>
@@ -361,13 +362,16 @@ namespace portal {
     /**
      * @brief Open DBus and prepare portal screencast request handling.
      *
+     * The bus address is read through a const view while its GLib allocation is owned until initialization returns.
+     *
      * @return 0 on success; nonzero or negative platform status on failure.
      */
     int init() {
       restore_token_t::load();
 
       g_autoptr(GError) g_error = nullptr;
-      g_autofree gchar *address = g_dbus_address_get_for_bus_sync(G_BUS_TYPE_SESSION, nullptr, &g_error);
+      std::unique_ptr<gchar, decltype(&g_free)> address_owner {g_dbus_address_get_for_bus_sync(G_BUS_TYPE_SESSION, nullptr, &g_error), &g_free};
+      const gchar *address = address_owner.get();
       if (!address) {
         return -1;
       }

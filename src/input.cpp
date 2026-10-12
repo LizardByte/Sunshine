@@ -984,7 +984,7 @@ namespace input {
       return;
     }
 
-    auto &touch_port = input->touch_port;
+    const auto &touch_port = input->touch_port;
 
     platf::abs_mouse(host.platf_input, platform_touch_port(touch_port), tpcoords->first, tpcoords->second);
   }
@@ -1447,11 +1447,12 @@ namespace input {
 
   /**
    * @brief Called to pass a controller arrival message to the platform backend.
+   * @details Read host controller policy before allocating the client's gamepad.
    * @param input Shared handle retaining the mutable client input state.
    * @param packet Read-only controller arrival packet.
    */
   void passthrough(const std::shared_ptr<input_t> &input, const SS_CONTROLLER_ARRIVAL_PACKET *packet) {
-    if (auto &host = input->host; !host.settings.input.controller || host.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
+    if (const auto &host = input->host; !host.settings.input.controller || host.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
       return;
     }
 
@@ -1501,7 +1502,7 @@ namespace input {
   };
 
   /**
-   * @brief Normalize the fields shared by touch and pen packets.
+   * @brief Normalize the fields shared by touch and pen packets after reading host mouse policy.
    *
    * @tparam Packet Pointer type for a Moonlight touch or pen packet.
    * @param input Input context that supplies the current touch-port metadata.
@@ -1510,7 +1511,7 @@ namespace input {
    */
   template<typename Packet>
   std::optional<absolute_pointer_data_t> prepare_absolute_pointer_data(std::shared_ptr<input_t> &input, Packet packet) {
-    if (auto &host = input->host; !host.settings.input.mouse) {
+    if (const auto &host = input->host; !host.settings.input.mouse) {
       return std::nullopt;
     }
 
@@ -1611,7 +1612,7 @@ namespace input {
       return;
     }
 
-    auto &gamepad = input->gamepads[packet->controllerNumber];
+    const auto &gamepad = input->gamepads[packet->controllerNumber];
     if (gamepad.id < 0) {
       logging::warning("ControllerNumber [{}] not allocated", static_cast<char>(packet->controllerNumber));
       return;
@@ -1645,7 +1646,7 @@ namespace input {
       return;
     }
 
-    auto &gamepad = input->gamepads[packet->controllerNumber];
+    const auto &gamepad = input->gamepads[packet->controllerNumber];
     if (gamepad.id < 0) {
       logging::warning("ControllerNumber [{}] not allocated", static_cast<char>(packet->controllerNumber));
       return;
@@ -1678,7 +1679,7 @@ namespace input {
       return;
     }
 
-    auto &gamepad = input->gamepads[packet->controllerNumber];
+    const auto &gamepad = input->gamepads[packet->controllerNumber];
     if (gamepad.id < 0) {
       logging::warning("ControllerNumber [{}] not allocated", static_cast<char>(packet->controllerNumber));
       return;
