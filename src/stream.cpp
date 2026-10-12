@@ -1872,7 +1872,7 @@ namespace stream {
     static constexpr std::size_t max_blocks = 4;  ///< Two-bit protocol limit on FEC blocks.
     int percentage;  ///< Effective FEC percentage, disabled for oversized frames.
     std::size_t block_count = 0;  ///< Number of borrowed payload slices used by this frame.
-    std::array<std::string_view, max_blocks> blocks;  ///< Packet-aligned slices borrowing the frame payload owner.
+    std::array<std::string_view, max_blocks> blocks {};  ///< Packet-aligned payload slices; unused slices are empty.
   };
 
   /**
