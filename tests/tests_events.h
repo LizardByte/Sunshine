@@ -37,10 +37,10 @@ struct SunshineEventListener: BufferedTestEventListener {
 protected:
   /**
    * @brief Emit a test event through the application logging API.
-   * @param message Test event text to buffer.
+   * @param event_text Test event text to buffer.
    */
-  void logTestEvent(const std::string &message) override {
-    logging::tests(message);
+  void logTestEvent(const std::string &event_text) override {
+    logging::tests(event_text);
   }
 
   /**

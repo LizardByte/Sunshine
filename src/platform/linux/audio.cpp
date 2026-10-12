@@ -364,8 +364,8 @@ namespace platf {
         loop.reset(pa_mainloop_new());
         ctx.reset(pa_context_new(pa_mainloop_get_api(loop.get()), "sunshine"));
 
-        events_cb = std::make_unique<std::function<void(ctx_t::pointer)>>([this](const pa_context *ctx) {
-          switch (pa_context_get_state(ctx)) {
+        events_cb = std::make_unique<std::function<void(ctx_t::pointer)>>([this](const pa_context *callback_context) {
+          switch (pa_context_get_state(callback_context)) {
             case PA_CONTEXT_READY:
               events->raise(ready);
               break;
@@ -507,10 +507,10 @@ namespace platf {
         // Count of all virtual sinks that are created by us
         int nullcount = 0;
 
-        cb_t<pa_sink_info *> f = [this, &alarm, &nullcount](const pa_context *ctx, const pa_sink_info *sink_info, int eol) {
+        cb_t<pa_sink_info *> f = [this, &alarm, &nullcount](const pa_context *callback_context, const pa_sink_info *sink_info, int eol) {
           if (!sink_info) {
             if (!eol) {
-              logging::error("Couldn't get pulseaudio sink info: {}", pa_strerror(pa_context_errno(ctx)));
+              logging::error("Couldn't get pulseaudio sink info: {}", pa_strerror(pa_context_errno(callback_context)));
 
               alarm->ring(-1);
             }

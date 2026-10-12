@@ -925,14 +925,14 @@ namespace cuda {
        * @return 0 on success; nonzero or negative platform status on failure.
        */
       int init(const std::string_view &display_name, const ::video::config_t &config) {
-        auto handle = handle_t::make(api_t::load());
-        if (!handle) {
+        auto pending_handle = handle_t::make(api_t::load());
+        if (!pending_handle) {
           return -1;
         }
 
-        ctx_t ctx {handle->api, handle->handle};
+        ctx_t ctx {pending_handle->api, pending_handle->handle};
 
-        auto status_params = handle->status();
+        auto status_params = pending_handle->status();
         if (!status_params) {
           return -1;
         }
@@ -981,7 +981,7 @@ namespace cuda {
         env_width = status_params->screenSize.w;
         env_height = status_params->screenSize.h;
 
-        this->handle = std::move(*handle);
+        this->handle = std::move(*pending_handle);
         return 0;
       }
 

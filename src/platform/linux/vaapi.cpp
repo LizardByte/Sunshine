@@ -273,17 +273,17 @@ namespace va {
 
     /**
      * @brief Determines the matching VA profile for the codec configuration.
-     * @param ctx Read-only FFmpeg codec context.
+     * @param codec_context Read-only FFmpeg codec context.
      * @return The matching VA profile or `VAProfileNone` on failure.
      */
-    VAProfile get_va_profile(const AVCodecContext *ctx) {
-      if (ctx->codec_id == AV_CODEC_ID_H264) {
+    VAProfile get_va_profile(const AVCodecContext *codec_context) {
+      if (codec_context->codec_id == AV_CODEC_ID_H264) {
         // There's no VAAPI profile for H.264 4:4:4
         return VAProfileH264High;
-      } else if (ctx->codec_id == AV_CODEC_ID_HEVC) {
-        switch (ctx->profile) {
+      } else if (codec_context->codec_id == AV_CODEC_ID_HEVC) {
+        switch (codec_context->profile) {
           case AV_PROFILE_HEVC_REXT:
-            switch (av_pix_fmt_desc_get(ctx->sw_pix_fmt)->comp[0].depth) {
+            switch (av_pix_fmt_desc_get(codec_context->sw_pix_fmt)->comp[0].depth) {
               case 10:
                 return VAProfileHEVCMain444_10;
               case 8:
@@ -295,8 +295,8 @@ namespace va {
           case AV_PROFILE_HEVC_MAIN:
             return VAProfileHEVCMain;
         }
-      } else if (ctx->codec_id == AV_CODEC_ID_AV1) {
-        switch (ctx->profile) {
+      } else if (codec_context->codec_id == AV_CODEC_ID_AV1) {
+        switch (codec_context->profile) {
           case AV_PROFILE_AV1_HIGH:
             return VAProfileAV1Profile1;
           case AV_PROFILE_AV1_MAIN:
@@ -304,7 +304,7 @@ namespace va {
         }
       }
 
-      logging::error("Unknown encoder profile: {}", static_cast<int>(ctx->profile));
+      logging::error("Unknown encoder profile: {}", static_cast<int>(codec_context->profile));
       return VAProfileNone;
     }
 

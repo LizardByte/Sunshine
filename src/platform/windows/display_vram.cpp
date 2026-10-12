@@ -511,7 +511,7 @@ namespace platf::dxgi {
     }
 
     /**
-     * @brief Apply the configured colorspace metadata to the active frame.
+     * @brief Apply colorspace metadata and retain the constant buffer bound to the active frame.
      *
      * @param colorspace Colorimetry information used for conversion or encoding.
      */
@@ -527,15 +527,15 @@ namespace platf::dxgi {
         return;
       }
 
-      auto color_matrix = make_buffer(device.get(), *color_vectors);
-      if (!color_matrix) {
+      auto new_color_matrix = make_buffer(device.get(), *color_vectors);  ///< New constant buffer retained after binding to both shader stages.
+      if (!new_color_matrix) {
         logging::warning("Failed to create color matrix"sv);
         return;
       }
 
-      device_ctx->VSSetConstantBuffers(3, 1, &color_matrix);
-      device_ctx->PSSetConstantBuffers(0, 1, &color_matrix);
-      this->color_matrix = std::move(color_matrix);
+      device_ctx->VSSetConstantBuffers(3, 1, &new_color_matrix);
+      device_ctx->PSSetConstantBuffers(0, 1, &new_color_matrix);
+      this->color_matrix = std::move(new_color_matrix);
     }
 
     /**
@@ -1034,7 +1034,7 @@ namespace platf::dxgi {
     ::video::color_t *color_p;  ///< Color p.
 
     buf_t subsample_offset;  ///< Subsample offset.
-    buf_t color_matrix;  ///< Color matrix.
+    buf_t color_matrix;  ///< Retained D3D constant buffer for the active colorspace.
 
     blend_t blend_disable;  ///< Blend disable.
     sampler_state_t sampler_linear;  ///< Sampler linear.
