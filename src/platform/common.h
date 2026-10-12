@@ -63,7 +63,7 @@ namespace boost {
     /**
      * @brief Map of environment variable names to values.
      */
-    typedef basic_environment<char> environment;
+    using environment = basic_environment<char>;
   }  // namespace process::v1
 }  // namespace boost
 #endif
@@ -398,7 +398,7 @@ namespace platf {
     /**
      * @brief Bitset containing platform capability flags.
      */
-    typedef uint32_t caps_t;
+    using caps_t = uint32_t;
 
     /**
      * @brief Capability bit indicating native pen and touch support.
@@ -1223,7 +1223,7 @@ namespace platf {
   /**
    * @brief Per-client input context allocated by a platform backend.
    */
-  typedef deinit_t client_input_t;
+  using client_input_t = deinit_t;
 
   /**
    * @brief Allocate a context to store per-client input data.

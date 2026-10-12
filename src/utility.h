@@ -41,7 +41,7 @@ struct argument_type<T(U)> {
   /**
    * @brief Type extracted from the matched function signature.
    */
-  typedef U type;
+  using type = U;
 };
 
 /**
@@ -413,7 +413,7 @@ namespace util {
     /**
      * @brief Integral type used for one formatted hex element.
      */
-    typedef T elem_type;
+    using elem_type = T;
 
   private:
     const std::array<char, 16> _bits {
@@ -1628,9 +1628,9 @@ namespace util {
   template<class ReturnType, class... Args>
   struct Function {
     /**
-     * @brief Type extracted from the matched function signature.
+     * @brief Pointer type for a function with the specified return and argument types.
      */
-    typedef ReturnType (*type)(Args...);
+    using type = ReturnType (*)(Args...);
   };
 
   /**
@@ -1641,7 +1641,7 @@ namespace util {
     /**
      * @brief Pointer type accepted by this deleter.
      */
-    typedef T pointer;
+    using pointer = T;
 
     /**
      * @brief Invoke the configured destroy function on a pointer.

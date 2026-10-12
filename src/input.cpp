@@ -109,7 +109,7 @@ namespace input {
   /**
    * @brief Packed identifier for a pressed key and its modifier flags.
    */
-  typedef uint32_t key_press_id_t;
+  using key_press_id_t = uint32_t;
 
   /**
    * @brief Create a key-press identifier from the virtual-key code and flags.

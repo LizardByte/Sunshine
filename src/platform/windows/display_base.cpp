@@ -25,20 +25,22 @@
 /**
  * @brief Windows NT status code returned by native APIs.
  */
-typedef long NTSTATUS;
+using NTSTATUS = long;
 
 // Definition from the WDK's d3dkmthk.h
 /**
  * @brief Enumerates supported d3 DKMT GPU PREFERENCE QUERY STATE options.
  */
-typedef enum _D3DKMT_GPU_PREFERENCE_QUERY_STATE : DWORD {
+enum _D3DKMT_GPU_PREFERENCE_QUERY_STATE : DWORD {
   D3DKMT_GPU_PREFERENCE_STATE_UNINITIALIZED,  ///< The GPU preference isn't initialized.
   D3DKMT_GPU_PREFERENCE_STATE_HIGH_PERFORMANCE,  ///< The highest performing GPU is preferred.
   D3DKMT_GPU_PREFERENCE_STATE_MINIMUM_POWER,  ///< The minimum-powered GPU is preferred.
   D3DKMT_GPU_PREFERENCE_STATE_UNSPECIFIED,  ///< A GPU preference isn't specified.
   D3DKMT_GPU_PREFERENCE_STATE_NOT_FOUND,  ///< A GPU preference isn't found.
   D3DKMT_GPU_PREFERENCE_STATE_USER_SPECIFIED_GPU  ///< A specific GPU is preferred.
-} D3DKMT_GPU_PREFERENCE_QUERY_STATE;  ///< Alias for D3 DKMT GPU PREFERENCE QUERY STATE.
+};
+
+using D3DKMT_GPU_PREFERENCE_QUERY_STATE = _D3DKMT_GPU_PREFERENCE_QUERY_STATE;  ///< GPU preference query state reported by D3DKMT.
 
 #include "display.h"
 #include "misc.h"
@@ -456,7 +458,7 @@ namespace platf::dxgi {
     std::call_once(windows_cpp_once_flag, []() {
       DECLARE_HANDLE(DPI_AWARENESS_CONTEXT);
 
-      typedef BOOL (*User32_SetProcessDpiAwarenessContext)(DPI_AWARENESS_CONTEXT value);
+      using User32_SetProcessDpiAwarenessContext = BOOL (*)(DPI_AWARENESS_CONTEXT value);
 
       {
         auto user32 = LoadLibraryA("user32.dll");

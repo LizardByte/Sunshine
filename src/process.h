@@ -38,7 +38,7 @@ namespace proc {
   /**
    * @brief Parsed command arguments used when launching a child process.
    */
-  typedef config::prep_cmd_t cmd_t;
+  using cmd_t = config::prep_cmd_t;
 
   /**
    * pre_cmds -- guaranteed to be executed unless any of the commands fail.

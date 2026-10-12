@@ -289,7 +289,7 @@ namespace stream {
   /**
    * @brief Packed encrypted control-channel envelope.
    */
-  typedef struct control_encrypted_t {
+  struct control_encrypted_t {
     std::uint16_t encryptedHeaderType;  ///< Always LE 0x0001.
     std::uint16_t length;  ///< Size of seq, tag, secondary header, and data.
 
@@ -306,7 +306,12 @@ namespace stream {
     }
 
     // encrypted control_header_v2 and payload data follow
-  } *control_encrypted_p;  ///< Alias for control encrypted p.
+  };
+
+  /**
+   * @brief Pointer to a packed encrypted control-channel envelope.
+   */
+  using control_encrypted_p = control_encrypted_t *;
 
   /**
    * @brief Packed RTP and FEC headers for an audio recovery packet.

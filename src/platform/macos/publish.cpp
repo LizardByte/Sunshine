@@ -20,7 +20,7 @@ namespace platf::publish {
   namespace {
     /** @brief Custom deleter intended to be used for `std::unique_ptr<DNSServiceRef>`. */
     struct ServiceRefDeleter {
-      typedef DNSServiceRef pointer;  ///< Type of object to be deleted.
+      using pointer = DNSServiceRef;  ///< DNS service handle released by the deleter.
 
       void operator()(pointer serviceRef) {
         DNSServiceRefDeallocate(serviceRef);

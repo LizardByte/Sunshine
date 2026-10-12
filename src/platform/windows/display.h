@@ -359,32 +359,36 @@ namespace platf::dxgi {
     /**
      * @brief Enumerates supported d3 DKMT SCHEDULINGPRIORITYCLASS options.
      */
-    typedef enum _D3DKMT_SCHEDULINGPRIORITYCLASS {
+    enum _D3DKMT_SCHEDULINGPRIORITYCLASS {
       D3DKMT_SCHEDULINGPRIORITYCLASS_IDLE,  ///< Idle priority class
       D3DKMT_SCHEDULINGPRIORITYCLASS_BELOW_NORMAL,  ///< Below normal priority class
       D3DKMT_SCHEDULINGPRIORITYCLASS_NORMAL,  ///< Normal priority class
       D3DKMT_SCHEDULINGPRIORITYCLASS_ABOVE_NORMAL,  ///< Above normal priority class
       D3DKMT_SCHEDULINGPRIORITYCLASS_HIGH,  ///< High priority class
       D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME  ///< Realtime priority class
-    } D3DKMT_SCHEDULINGPRIORITYCLASS;  ///< Alias for D3 DKMT SCHEDULINGPRIORITYCLASS.
+    };
+
+    using D3DKMT_SCHEDULINGPRIORITYCLASS = _D3DKMT_SCHEDULINGPRIORITYCLASS;  ///< Process scheduling priority class passed to D3DKMT.
 
     /**
      * @brief Kernel-mode D3DKMT adapter handle.
      */
-    typedef UINT D3DKMT_HANDLE;
+    using D3DKMT_HANDLE = UINT;
 
     /**
      * @brief Win32 D3DKMT adapter-open request structure.
      */
-    typedef struct _D3DKMT_OPENADAPTERFROMLUID {
+    struct _D3DKMT_OPENADAPTERFROMLUID {
       LUID AdapterLuid;  ///< Adapter luid.
       D3DKMT_HANDLE hAdapter;  ///< D3DKMT adapter handle used for low-level display queries.
-    } D3DKMT_OPENADAPTERFROMLUID;  ///< Alias for D3 DKMT OPENADAPTERFROMLUID.
+    };
+
+    using D3DKMT_OPENADAPTERFROMLUID = _D3DKMT_OPENADAPTERFROMLUID;  ///< Adapter-open request passed to D3DKMT.
 
     /**
      * @brief Win32 D3DKMT WDDM 2.7 capability flags.
      */
-    typedef struct _D3DKMT_WDDM_2_7_CAPS {
+    struct _D3DKMT_WDDM_2_7_CAPS {
       union {
         struct
         {
@@ -397,43 +401,49 @@ namespace platf::dxgi {
 
         UINT Value;  ///< Packed representation of the WDDM 2.7 capability flags.
       };
-    } D3DKMT_WDDM_2_7_CAPS;  ///< Alias for D3 DKMT WDDM 2 7 CAPS.
+    };
+
+    using D3DKMT_WDDM_2_7_CAPS = _D3DKMT_WDDM_2_7_CAPS;  ///< WDDM 2.7 capability flags returned by D3DKMT.
 
     /**
      * @brief Win32 D3DKMT adapter information query.
      */
-    typedef struct _D3DKMT_QUERYADAPTERINFO {
+    struct _D3DKMT_QUERYADAPTERINFO {
       D3DKMT_HANDLE hAdapter;  ///< D3DKMT adapter handle used for low-level display queries.
       UINT Type;  ///< Type.
       VOID *pPrivateDriverData;  ///< P private driver data.
       UINT PrivateDriverDataSize;  ///< Private driver data size.
-    } D3DKMT_QUERYADAPTERINFO;  ///< Alias for D3 DKMT QUERYADAPTERINFO.
+    };
+
+    using D3DKMT_QUERYADAPTERINFO = _D3DKMT_QUERYADAPTERINFO;  ///< Adapter-information query passed to D3DKMT.
 
     const UINT KMTQAITYPE_WDDM_2_7_CAPS = 70;  ///< Protocol or platform constant for kmtqaitype wddm 2 7 caps.
 
     /**
      * @brief Win32 D3DKMT adapter-close request structure.
      */
-    typedef struct _D3DKMT_CLOSEADAPTER {
+    struct _D3DKMT_CLOSEADAPTER {
       D3DKMT_HANDLE hAdapter;  ///< D3DKMT adapter handle used for low-level display queries.
-    } D3DKMT_CLOSEADAPTER;  ///< Alias for D3 DKMT CLOSEADAPTER.
+    };
+
+    using D3DKMT_CLOSEADAPTER = _D3DKMT_CLOSEADAPTER;  ///< Adapter-close request passed to D3DKMT.
 
     /**
      * @brief Function pointer for setting D3DKMT process scheduling priority.
      */
-    typedef NTSTATUS(WINAPI *PD3DKMTSetProcessSchedulingPriorityClass)(HANDLE, D3DKMT_SCHEDULINGPRIORITYCLASS);
+    using PD3DKMTSetProcessSchedulingPriorityClass = NTSTATUS(WINAPI *)(HANDLE, D3DKMT_SCHEDULINGPRIORITYCLASS);
     /**
      * @brief Function pointer for opening a D3DKMT adapter by LUID.
      */
-    typedef NTSTATUS(WINAPI *PD3DKMTOpenAdapterFromLuid)(D3DKMT_OPENADAPTERFROMLUID *);
+    using PD3DKMTOpenAdapterFromLuid = NTSTATUS(WINAPI *)(D3DKMT_OPENADAPTERFROMLUID *);
     /**
      * @brief Function pointer for querying D3DKMT adapter information.
      */
-    typedef NTSTATUS(WINAPI *PD3DKMTQueryAdapterInfo)(D3DKMT_QUERYADAPTERINFO *);
+    using PD3DKMTQueryAdapterInfo = NTSTATUS(WINAPI *)(D3DKMT_QUERYADAPTERINFO *);
     /**
      * @brief Function pointer for closing a D3DKMT adapter handle.
      */
-    typedef NTSTATUS(WINAPI *PD3DKMTCloseAdapter)(D3DKMT_CLOSEADAPTER *);
+    using PD3DKMTCloseAdapter = NTSTATUS(WINAPI *)(D3DKMT_CLOSEADAPTER *);
 
     /**
      * @brief Report whether the active display mode is HDR.
