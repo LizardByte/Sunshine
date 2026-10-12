@@ -11,6 +11,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <string_view>
 
 /**
  * @brief Buffer Sunshine logs and test events while the test program runs.
@@ -36,11 +37,11 @@ struct SunshineEventListener: BufferedTestEventListener {
 
 protected:
   /**
-   * @brief Emit a test event through the application logging API.
+   * @brief Borrow a test event's text for synchronous application logging.
    * @param event_text Test event text to buffer.
    */
   void logTestEvent(const std::string &event_text) override {
-    logging::tests(event_text);
+    logging::tests(std::string_view {event_text});
   }
 
   /**
