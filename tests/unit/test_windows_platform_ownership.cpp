@@ -9,6 +9,8 @@
   #include <cstddef>
   #include <cstdlib>
   #include <cstring>
+  #include <functional>
+  #include <memory>
   #include <src/platform/windows/streaming_api.h>
   #include <src/utility.h>
   #include <tools/service_state.h>
@@ -36,6 +38,41 @@ namespace {
     WLAN_INTF_OPCODE opcode {};  ///< Option selected by the set export.
     BOOL enabled {};  ///< Boolean option value passed to the set export.
   };
+
+  /**
+   * @brief Retain a real SDK module-handle object and its copied unload observer.
+   */
+  class fake_networking_library_t {
+  public:
+    /**
+     * @brief Allocate the fake module identity and retain its cleanup observer.
+     * @param observer Observer copied into this owner.
+     */
+    explicit fake_networking_library_t(const std::function<void()> &observer):
+        unload_ {observer},
+        module_ {std::make_unique<std::remove_pointer_t<HMODULE>>()} {
+    }
+
+    /**
+     * @brief Release the module identity before reporting its unload.
+     */
+    ~fake_networking_library_t() {
+      module_.reset();
+      unload_();
+    }
+
+    /**
+     * @brief Borrow the live module identity passed to export resolution.
+     * @return SDK module handle retained by the aliased library owner.
+     */
+    HMODULE handle() const {
+      return module_.get();
+    }
+
+  private:
+    const std::function<void()> unload_;  ///< Observer retained until the module is released.
+    std::unique_ptr<std::remove_pointer_t<HMODULE>> module_;  ///< Owned SDK module-handle object.
+  };
 }  // namespace
 
 /**
@@ -47,7 +84,7 @@ namespace {
  */
 extern "C" DWORD WINAPI open_wlan(DWORD version, PVOID, PDWORD negotiated, PHANDLE handle) {
   *negotiated = version;
-  *handle = new fake_wlan_t {};
+  *handle = std::make_unique<fake_wlan_t>().release();
   return ERROR_SUCCESS;
 }
 
@@ -57,7 +94,7 @@ extern "C" DWORD WINAPI open_wlan(DWORD version, PVOID, PDWORD negotiated, PHAND
  * @return Success.
  */
 extern "C" DWORD WINAPI close_wlan(HANDLE handle, PVOID) {
-  delete static_cast<fake_wlan_t *>(handle);
+  const std::unique_ptr<fake_wlan_t> client {static_cast<fake_wlan_t *>(handle)};
   return ERROR_SUCCESS;
 }
 
@@ -234,7 +271,7 @@ namespace {
    * @return Success.
    */
   BOOL WINAPI create_qos(PQOS_VERSION, PHANDLE handle) {
-    *handle = new fake_qos_t {};
+    *handle = std::make_unique<fake_qos_t>().release();
     return TRUE;
   }
 
@@ -253,11 +290,10 @@ namespace {
    * @return Success.
    */
   BOOL WINAPI close_qos(HANDLE handle) {
-    auto client = static_cast<fake_qos_t *>(handle);
+    const std::unique_ptr<fake_qos_t> client {static_cast<fake_qos_t *>(handle)};
     if (client->close) {
       client->close();
     }
-    delete client;
     return TRUE;
   }
 
@@ -345,10 +381,8 @@ namespace {
                                     }) {
     return {
       [unload](const char *) {
-        return platf::networking_loader_t::library_t {new std::remove_pointer_t<HMODULE> {}, [unload](HMODULE library) {
-                                                        delete library;
-                                                        unload();
-                                                      }};
+        auto library = std::make_shared<fake_networking_library_t>(unload);
+        return platf::networking_loader_t::library_t {library, library->handle()};
       },
       std::move(resolve),
     };
@@ -500,6 +534,34 @@ TEST(WindowsNetworkingOwnerTest, CompleteWlanTableRetainsLibraryUntilLastResourc
 }
 
 /**
+ * @brief An API owner retains its copied unload observer after the source loader is cleared.
+ */
+TEST(WindowsNetworkingOwnerTest, RetainsCopiedUnloadObserverAfterLoaderIsCleared) {
+  int unloads = 0;
+  auto lifetime = std::make_shared<int>(37);
+  const std::weak_ptr<int> retained = lifetime;
+  std::function<void()> observer = [&unloads, lifetime]() {
+    EXPECT_EQ(*lifetime, 37);
+    ++unloads;
+  };
+  auto operations = loader([](HMODULE, const char *name) {
+    return complete_export(name);
+  },
+                           observer);
+  observer = {};
+  lifetime.reset();
+  auto api = platf::wlan_api_t::load(operations);
+  ASSERT_TRUE(api);
+  operations.open = {};
+  operations.resolve = {};
+  EXPECT_FALSE(retained.expired());
+  EXPECT_EQ(unloads, 0);
+  api.reset();
+  EXPECT_TRUE(retained.expired());
+  EXPECT_EQ(unloads, 1);
+}
+
+/**
  * @brief All restored WLAN exports accept and deliver their exact SDK arguments.
  */
 TEST(WindowsNetworkingOwnerTest, RestoredWlanExportsAreCallableWithSdkSignatures) {
@@ -599,20 +661,27 @@ TEST(WindowsNetworkingOwnerTest, FailedClientCreationReleasesLibraryWithoutClosi
 
 TEST(WindowsNetworkingOwnerTest, LastFlowClosesClientBeforeLibraryUnload) {
   std::vector<std::string> events;
+  auto lifetime = std::make_shared<int>(37);
+  const std::weak_ptr<int> retained = lifetime;
   auto api = platf::qwave_api_t::load(loader([](HMODULE, const char *name) {
     return complete_export(name);
   },
-                                             [&events]() {
+                                             [&events, retained]() {
+                                               EXPECT_TRUE(retained.expired());
                                                events.emplace_back("library");
                                              }));
   ASSERT_TRUE(api);
-  static_cast<fake_qos_t *>(api->handle)->close = [&events]() {
+  static_cast<fake_qos_t *>(api->handle)->close = [&events, lifetime]() {
+    EXPECT_EQ(*lifetime, 37);
     events.emplace_back("client");
   };
+  lifetime.reset();
   auto flow = api;
   api.reset();
   EXPECT_TRUE(events.empty());
+  EXPECT_FALSE(retained.expired());
   flow.reset();
+  EXPECT_TRUE(retained.expired());
   EXPECT_EQ(events, (std::vector<std::string> {"client", "library"}));
 }
 

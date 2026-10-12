@@ -5,6 +5,8 @@
 #ifdef _WIN32
 
   // standard includes
+  #include <functional>
+  #include <memory>
   #include <string>
 
   // lib includes
@@ -22,6 +24,43 @@ namespace {
   };
 
   /**
+   * @brief Retain a typed fake driver until its last aliased module handle is released.
+   */
+  class fake_library_owner_t {
+  public:
+    /**
+     * @brief Allocate the fake module and retain its unload observer.
+     * @param marker Driver identity exposed through the SDK handle.
+     * @param observer Observer copied into this owner.
+     */
+    fake_library_owner_t(NvU32 marker, const std::function<void()> &observer):
+        unload_ {observer},
+        library_ {std::make_unique<fake_library_t>()} {
+      library_->marker = marker;
+    }
+
+    /**
+     * @brief Destroy the fake module before reporting its unload.
+     */
+    ~fake_library_owner_t() {
+      library_.reset();
+      unload_();
+    }
+
+    /**
+     * @brief Borrow the live module identity passed to the injected resolver.
+     * @return SDK module handle whose lifetime is retained by the aliased owner.
+     */
+    HMODULE handle() const {
+      return library_.get();
+    }
+
+  private:
+    const std::function<void()> unload_;  ///< Observer retained until the module is released.
+    std::unique_ptr<fake_library_t> library_;  ///< Typed fake driver allocation.
+  };
+
+  /**
    * @brief Own a fake driver allocation behind a simulated native module handle.
    *
    * @param marker Driver identity used to verify resolver arguments.
@@ -29,11 +68,8 @@ namespace {
    * @return Shared module handle retaining the typed fake allocation.
    */
   nvprefs::api_t::library_t fake_library(NvU32 marker, const std::function<void()> &unload) {
-    auto allocation = std::shared_ptr<fake_library_t>(new fake_library_t {{}, marker}, [unload](fake_library_t *library) {
-      delete library;
-      unload();
-    });
-    return {allocation, allocation.get()};
+    auto allocation = std::make_shared<fake_library_owner_t>(marker, unload);
+    return {allocation, allocation->handle()};
   }
 
   /**
@@ -129,6 +165,27 @@ TEST(NvapiApiTest, RetainsTheLibraryUntilItsLastApiOwnerIsReleased) {
   EXPECT_EQ(output, 9u);
   api.reset();
   EXPECT_TRUE(unloaded);
+}
+
+/**
+ * @brief The module owner retains a copied unload observer after its source callable is cleared.
+ */
+TEST(NvapiApiTest, RetainsCopiedUnloadObserverUntilModuleRelease) {
+  int unloads = 0;
+  auto lifetime = std::make_shared<int>(37);
+  const std::weak_ptr<int> retained = lifetime;
+  std::function<void()> observer = [&unloads, lifetime]() {
+    EXPECT_EQ(*lifetime, 37);
+    ++unloads;
+  };
+  auto library = fake_library(37, observer);
+  observer = {};
+  lifetime.reset();
+  EXPECT_FALSE(retained.expired());
+  EXPECT_EQ(unloads, 0);
+  library.reset();
+  EXPECT_TRUE(retained.expired());
+  EXPECT_EQ(unloads, 1);
 }
 
 TEST(NvapiApiTest, MissingLibrarySkipsSymbolLookup) {
