@@ -1257,24 +1257,25 @@ namespace stream {
 
   /**
    * @brief Run the broadcast control-channel worker thread.
+   * @note Logging-only callbacks retain the dispatcher signature and omit unused argument names.
    *
    * @param server RTSP server instance handling the request.
    */
   void controlBroadcastThread(control_server_t *server) {
     const auto &host_mail = server->owner->host_mail;
-    server->map(packetTypes[IDX_PERIODIC_PING], [](session_t *session, const std::string_view &payload) {
+    server->map(packetTypes[IDX_PERIODIC_PING], [](session_t *, const std::string_view &) {
       logging::verbose("type [IDX_PERIODIC_PING]"sv);
     });
 
-    server->map(packetTypes[IDX_START_A], [](session_t *session, const std::string_view &payload) {
+    server->map(packetTypes[IDX_START_A], [](session_t *, const std::string_view &) {
       logging::debug("type [IDX_START_A]"sv);
     });
 
-    server->map(packetTypes[IDX_START_B], [](session_t *session, const std::string_view &payload) {
+    server->map(packetTypes[IDX_START_B], [](session_t *, const std::string_view &) {
       logging::debug("type [IDX_START_B]"sv);
     });
 
-    server->map(packetTypes[IDX_LOSS_STATS], [](session_t *session, const std::string_view &payload) {
+    server->map(packetTypes[IDX_LOSS_STATS], [](session_t *, const std::string_view &payload) {
       int32_t *stats = (int32_t *) payload.data();
       auto count = stats[0];
       std::chrono::milliseconds t {stats[1]};

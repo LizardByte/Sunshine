@@ -89,14 +89,8 @@ namespace http {
 
   /**
    * @brief Save user creds.
-   *
-   * @param file Credentials file path.
-   * @param username Username to save.
-   * @param password Password to save.
-   * @param run_our_mouth Whether to log user-facing status messages.
-   * @return 0 on success, non-zero on failure.
    */
-  int save_user_creds(const std::string &file, const std::string &username, const std::string &password, bool run_our_mouth) {
+  int save_user_creds(const std::string &file, const std::string &username, const std::string &password) {
     pt::ptree outputTree;
 
     if (fs::exists(file)) {

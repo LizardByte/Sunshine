@@ -22,22 +22,21 @@ namespace {
 
   /**
    * @brief Create an isolated fake client.
-   * @param version Requested version.
+   * @details The required native version argument is ignored by this fake.
    * @param handle New client.
    * @return Success.
    */
-  BOOL WINAPI create_qos(PQOS_VERSION version, PHANDLE handle) {
+  BOOL WINAPI create_qos(PQOS_VERSION, PHANDLE handle) {
     *handle = new fake_qos_t {};
     return TRUE;
   }
 
   /**
    * @brief Reject client creation.
-   * @param version Requested version.
-   * @param handle Unmodified client.
+   * @details Native arguments are ignored so the caller's output handle remains unmodified.
    * @return Failure.
    */
-  BOOL WINAPI reject_qos(PQOS_VERSION version, PHANDLE handle) {
+  BOOL WINAPI reject_qos(PQOS_VERSION, PHANDLE) {
     return FALSE;
   }
 
@@ -209,7 +208,7 @@ TEST(WindowsNetworkingOwnerTest, LastFlowClosesClientBeforeLibraryUnload) {
 TEST(WindowsServiceOwnerTest, StopReportsDeadlineBeforeSignalingOnlyItsOwner) {
   std::vector<std::string> events;
   SERVICE_STATUS snapshot {};
-  service::state_t first {{[&snapshot, &events](SERVICE_STATUS_HANDLE handle, const SERVICE_STATUS *state) {
+  service::state_t first {{[&snapshot, &events](SERVICE_STATUS_HANDLE, const SERVICE_STATUS *state) {
                              snapshot = *state;
                              events.emplace_back("status");
                              return TRUE;
@@ -219,7 +218,7 @@ TEST(WindowsServiceOwnerTest, StopReportsDeadlineBeforeSignalingOnlyItsOwner) {
                              events.emplace_back("stop");
                              return TRUE;
                            },
-                           [&events](HANDLE handle) {
+                           [&events](HANDLE) {
                              events.emplace_back("close");
                              return TRUE;
                            }}};

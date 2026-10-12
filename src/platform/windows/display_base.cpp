@@ -58,7 +58,7 @@ namespace platf::dxgi {
   /**
    * DDAPI-specific initialization goes here.
    */
-  int duplication_t::init(display_base_t *display, const ::video::config_t &config) {
+  int duplication_t::init(display_base_t *display) {
     HRESULT status;
 
     // Capture format will be determined from the first call to AcquireNextFrame()

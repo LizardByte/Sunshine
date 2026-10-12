@@ -707,13 +707,12 @@ namespace platf::dxgi {
     std::chrono::steady_clock::time_point last_protected_content_warning_time {};  ///< Last protected content warning time.
 
     /**
-     * @brief Initialize WGC capture for the selected display.
+     * @brief Initialize desktop duplication for the selected display.
      *
      * @param display Display object or identifier associated with the operation.
-     * @param config Configuration values to apply.
      * @return 0 on success; nonzero or negative platform status on failure.
      */
-    int init(display_base_t *display, const ::video::config_t &config);
+    int init(display_base_t *display);
     /**
      * @brief Acquire the next frame from the Windows capture backend.
      *

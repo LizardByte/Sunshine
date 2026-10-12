@@ -204,14 +204,14 @@ namespace video {
   /**
    * @brief Create an FFmpeg hardware device buffer for CUDA input.
    *
-   * @param encode_device Encode device.
+   * @note The uniform backend hook supplies an encode device, which this initializer does not need.
    * @return Hardware buffer on success, or an error code on failure.
    */
   util::Either<avcodec_buffer_t, int> cuda_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
   /**
    * @brief Create an FFmpeg hardware device buffer for VideoToolbox input.
    *
-   * @param encode_device Encode device.
+   * @note The uniform backend hook supplies an encode device, which this initializer does not need.
    * @return Hardware buffer on success, or an error code on failure.
    */
   util::Either<avcodec_buffer_t, int> vt_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
@@ -691,10 +691,10 @@ namespace video {
   /**
    * @brief Start the synchronous multi-client capture thread.
    *
-   * @param ctx Native context object used by the operation or callback.
+   * @param host Host video service retaining the synchronous capture thread.
    * @return 0 when the capture thread is started.
    */
-  int start_capture_sync(service_t::impl_t &host, capture_thread_sync_ctx_t &ctx);
+  int start_capture_sync(service_t::impl_t &host);
   /**
    * @brief Stop capture sync processing.
    *
@@ -751,8 +751,8 @@ namespace video {
           }
         },
         capture_thread_sync {
-          [this](capture_thread_sync_ctx_t &ctx) {
-            return start_capture_sync(*this, ctx);
+          [this](capture_thread_sync_ctx_t &) {
+            return start_capture_sync(*this);
           },
           [](capture_thread_sync_ctx_t &ctx) {
             end_capture_sync(ctx);
@@ -3678,8 +3678,10 @@ namespace video {
 
   /**
    * @brief Initialize AVCodec hardware input buffers for CUDA.
+   * @note The uniform backend hook supplies an encode device, which this initializer does not need.
+   * @return Hardware buffer on success, or an error code on failure.
    */
-  util::Either<avcodec_buffer_t, int> cuda_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device) {
+  util::Either<avcodec_buffer_t, int> cuda_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *) {
     avcodec_buffer_t hw_device_buf;
 
     if (auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_CUDA, nullptr, nullptr, 1 /* AV_CUDA_USE_PRIMARY_CONTEXT */); status < 0) {
@@ -3695,8 +3697,10 @@ namespace video {
 
   /**
    * @brief Initialize AVCodec hardware input buffers for VideoToolbox.
+   * @note The uniform backend hook supplies an encode device, which this initializer does not need.
+   * @return Hardware buffer on success, or an error code on failure.
    */
-  util::Either<avcodec_buffer_t, int> vt_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device) {
+  util::Either<avcodec_buffer_t, int> vt_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *) {
     avcodec_buffer_t hw_device_buf;
 
     if (auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VIDEOTOOLBOX, nullptr, nullptr, 0); status < 0) {
@@ -3780,9 +3784,8 @@ namespace video {
 
   /**
    * @brief Start capture sync.
-   * @param host Host input or video service and its capture dependencies.
    */
-  int start_capture_sync(service_t::impl_t &host, capture_thread_sync_ctx_t &ctx) {
+  int start_capture_sync(service_t::impl_t &host) {
     if (host.sync_thread.joinable()) {
       host.sync_thread.join();
     }

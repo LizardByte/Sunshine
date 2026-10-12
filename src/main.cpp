@@ -54,19 +54,21 @@ using namespace std::literals;
 
 /**
  * @brief Immutable dispatch table for supported command-line subcommands.
+ *
+ * Callbacks share one dispatch signature and leave unused arguments unnamed.
  */
 const std::map<std::string_view, std::function<int(const config::settings_t &settings, const char *name, int argc, char **argv)>> cmd_to_func {
   {"creds"sv, [](const config::settings_t &settings, const char *name, int argc, char **argv) {
      return args::creds(settings, name, argc, argv);
    }},
-  {"help"sv, [](const config::settings_t &settings, const char *name, int argc, char **argv) {
+  {"help"sv, [](const config::settings_t &, const char *name, int, char **) {
      return args::help(name);
    }},
-  {"version"sv, [](const config::settings_t &settings, const char *name, int argc, char **argv) {
+  {"version"sv, [](const config::settings_t &, const char *, int, char **) {
      return args::version();
    }},
 #ifdef _WIN32
-  {"restore-nvprefs-undo"sv, [](const config::settings_t &settings, const char *name, int argc, char **argv) {
+  {"restore-nvprefs-undo"sv, [](const config::settings_t &, const char *, int, char **) {
      return args::restore_nvprefs_undo();
    }},
 #endif

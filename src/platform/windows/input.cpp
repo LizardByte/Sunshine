@@ -48,15 +48,15 @@ namespace platf {
 
   /**
    * @brief Handle Xbox 360 virtual gamepad notification events.
+   * @details The required native client argument is ignored; routing uses the target and owner userdata.
    *
-   * @param client ViGEm client.
    * @param target ViGEm target.
    * @param largeMotor Large motor strength.
    * @param smallMotor Small motor strength.
    * @param userdata User data pointer.
    */
   void CALLBACK x360_notify(
-    client_t::pointer client,
+    client_t::pointer,
     target_t::pointer target,
     std::uint8_t largeMotor,
     std::uint8_t smallMotor,
@@ -66,8 +66,8 @@ namespace platf {
 
   /**
    * @brief Handle DualShock 4 virtual gamepad notification events.
+   * @details The required native client argument is ignored; routing uses the target and owner userdata.
    *
-   * @param client ViGEm client.
    * @param target ViGEm target.
    * @param largeMotor Large motor strength.
    * @param smallMotor Small motor strength.
@@ -75,7 +75,7 @@ namespace platf {
    * @param userdata User data pointer.
    */
   void CALLBACK ds4_notify(
-    client_t::pointer client,
+    client_t::pointer,
     target_t::pointer target,
     std::uint8_t largeMotor,
     std::uint8_t smallMotor,
@@ -510,7 +510,7 @@ namespace platf {
   };
 
   void CALLBACK x360_notify(
-    client_t::pointer client,
+    client_t::pointer,
     target_t::pointer target,
     std::uint8_t largeMotor,
     std::uint8_t smallMotor,
@@ -529,7 +529,7 @@ namespace platf {
   }
 
   void CALLBACK ds4_notify(
-    client_t::pointer client,
+    client_t::pointer,
     target_t::pointer target,
     std::uint8_t largeMotor,
     std::uint8_t smallMotor,

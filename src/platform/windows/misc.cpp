@@ -127,7 +127,7 @@ namespace bp = boost::process::v1;
 using namespace std::literals;
 
 namespace platf {
-  std::vector<permission_status_t> get_permission_statuses(const config::settings_t &settings) {
+  std::vector<permission_status_t> get_permission_statuses(const config::settings_t &) {
     return {{"config_directory", can_access_directory(appdata()) ? "granted" : "denied", true, true}};
   }
 
@@ -1903,7 +1903,7 @@ namespace platf {
     return true;
   }
 
-  std::string resolve_render_device(const config::settings_t &settings) {
+  std::string resolve_render_device(const config::settings_t &) {
     return {};
   }
 }  // namespace platf

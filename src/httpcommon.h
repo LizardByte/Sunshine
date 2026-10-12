@@ -58,11 +58,17 @@ namespace http {
    * @return Created creds object or status.
    */
   int create_creds(const std::string &pkey, const std::string &cert);
+  /**
+   * @brief Save salted Web UI credentials while retaining other credential-file properties.
+   * @param file Credentials file path.
+   * @param username Username to save.
+   * @param password Password to hash and save.
+   * @return Zero on success; nonzero when the credentials file cannot be read or written.
+   */
   int save_user_creds(
     const std::string &file,
     const std::string &username,
-    const std::string &password,
-    bool run_our_mouth = false
+    const std::string &password
   );
 
   /**

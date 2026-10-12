@@ -1215,14 +1215,14 @@ namespace platf {
     void enable_mouse_keys();
     /**
      * @brief Create scoped socket priority settings.
-     * @param socket Native socket.
+     * @param native_socket Native socket.
      * @param address Read-only destination address.
      * @param port Destination port.
-     * @param type Traffic class.
+     * @param data_type Traffic class.
      * @param dscp_tagging Enable DSCP tagging.
      * @return Settings lifetime owner.
      */
-    std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t socket, const boost::asio::ip::address &address, uint16_t port, qos_data_type_e type, bool dscp_tagging);
+    std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, const boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging);
 
   private:
     /**

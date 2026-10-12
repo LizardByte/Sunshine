@@ -128,10 +128,9 @@ namespace proc {
    * @brief Resolve the working directory for a configured command.
    *
    * @param cmd Command line to execute or inspect.
-   * @param env Environment variables for the child process.
    * @return Directory used to launch the command, falling back to PATH lookup when needed.
    */
-  boost::filesystem::path find_working_directory(const std::string &cmd, boost::process::v1::environment &env) {
+  boost::filesystem::path find_working_directory(const std::string &cmd) {
     // Parse the raw command string into parts to get the actual command portion
     std::vector<std::string> parts;
     try {
@@ -264,7 +263,7 @@ namespace proc {
 
       const auto command = prepare_command(cmd.do_cmd);
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(command, _env) :
+                                              find_working_directory(command) :
                                               boost::filesystem::path(_app.working_dir);
       logging::info("Executing Do Cmd: [{}]", command);
       auto child = platf::run_command(cmd.elevated, true, command, working_dir, _env, _pipe.get(), ec, nullptr);
@@ -298,7 +297,7 @@ namespace proc {
     for (auto &cmd : _app.detached) {
       const auto command = prepare_command(cmd);
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(command, _env) :
+                                              find_working_directory(command) :
                                               boost::filesystem::path(_app.working_dir);
       logging::info([&command, &working_dir](std::ostream &out) {
         out << "Spawning ["sv << command << "] in ["sv << working_dir << ']';
@@ -319,7 +318,7 @@ namespace proc {
     } else {
       const auto command = prepare_command(_app.cmd);
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(command, _env) :
+                                              find_working_directory(command) :
                                               boost::filesystem::path(_app.working_dir);
       logging::info([&command, &working_dir](std::ostream &out) {
         out << "Executing: ["sv << command << "] in ["sv << working_dir << ']';
@@ -394,7 +393,7 @@ namespace proc {
 
       const auto command = prepare_command(cmd.undo_cmd);
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(command, _env) :
+                                              find_working_directory(command) :
                                               boost::filesystem::path(_app.working_dir);
       logging::info("Executing Undo Cmd: [{}]", command);
       auto child = platf::run_command(cmd.elevated, true, command, working_dir, _env, _pipe.get(), ec, nullptr);

@@ -490,17 +490,10 @@ namespace platf {
   /**
    * @brief Launch a child process with the supplied environment and working directory.
    *
-   * @param elevated Elevated launch request; unused on POSIX.
-   * @param interactive Interactive launch request; unused on POSIX.
-   * @param cmd Command to launch.
-   * @param working_dir Read-only working directory for the child process.
-   * @param env Environment for the child process.
-   * @param file Output stream for stdout and stderr, or nullptr to discard output.
-   * @param ec Receives any process launch error.
-   * @param group Optional process group whose native handle may be initialized during POSIX process launch.
-   * @return The child process object, with launch failures reported through ec.
+   * Elevation and interactive launch requests are ignored on POSIX.
+   *
    */
-  bp::child run_command(bool elevated, bool interactive, const std::string &cmd, const boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
+  bp::child run_command(bool, bool, const std::string &cmd, const boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
     // clang-format off
     if (!group) {
       if (!file) {
@@ -1156,12 +1149,15 @@ namespace platf {
     bool initialize();
     /**
      * @brief Enumerate the selected capture backend.
-     * @param type Memory type.
+     * @param hwdevice_type Memory type used by enabled CUDA and DRM capture backends.
      * @return Display names.
      */
-    std::vector<std::string> display_names(mem_type_e type);
+    std::vector<std::string> display_names(mem_type_e hwdevice_type);
     /**
      * @brief Create a selected capture backend.
+     *
+     * Capture parameters remain part of the interface even when no capture backend is enabled.
+     *
      * @param type Memory type.
      * @param name Display selector.
      * @param config Capture options.
@@ -1219,8 +1215,9 @@ namespace platf {
 
   /**
    * @brief Enables QoS on the given socket for traffic to the read-only destination address.
+   * @note Linux applies QoS per socket; the destination port does not affect socket options.
    */
-  std::unique_ptr<deinit_t> runtime_t::enable_socket_qos(uintptr_t native_socket, const boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
+  std::unique_ptr<deinit_t> runtime_t::enable_socket_qos(uintptr_t native_socket, const boost::asio::ip::address &address, uint16_t, qos_data_type_e data_type, bool dscp_tagging) {
     int sockfd = (int) native_socket;
     std::vector<std::tuple<int, int, int>> reset_options;
 
@@ -1448,7 +1445,7 @@ namespace platf {
   /**
    * @brief List display names accepted by the selected capture backend.
    */
-  std::vector<std::string> runtime_t::impl_t::display_names(mem_type_e hwdevice_type) {
+  std::vector<std::string> runtime_t::impl_t::display_names([[maybe_unused]] mem_type_e hwdevice_type) {
 #ifdef SUNSHINE_BUILD_CUDA
     // display using NvFBC only supports mem_type_e::cuda
     if (sources[source::NVFBC] && hwdevice_type == mem_type_e::cuda) {
@@ -1500,7 +1497,7 @@ namespace platf {
     return true;
   }
 
-  std::shared_ptr<display_t> runtime_t::impl_t::display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
+  std::shared_ptr<display_t> runtime_t::impl_t::display([[maybe_unused]] mem_type_e hwdevice_type, [[maybe_unused]] const std::string &display_name, [[maybe_unused]] const video::config_t &config) {
     // Please ensure that KMS followed by CUDA remains at the top so that we can
     // drop DRM worker privileges once neither backend requires it.
 
