@@ -39,33 +39,21 @@ namespace upnp {
     std::string description;  ///< Human-readable UPnP lease description advertised to the gateway.
   };
 
-  static std::string_view status_string(int status) {
+  static std::string_view status_string(igd_status_e status) {
+    switch (status) {
+      case igd_status_e::none:
+        return "No IGD device found"sv;
+      case igd_status_e::connected:
+        return "Valid IGD device found"sv;
 #if (MINIUPNPC_API_VERSION >= 18)
-    // MiniUPnPc 2.2.8+ renumbered the UPNP_GetValidIGD() result codes.
-    switch (status) {
-      case UPNP_NO_IGD:
-        return "No IGD device found"sv;
-      case UPNP_CONNECTED_IGD:
-        return "Valid IGD device found"sv;
-      case UPNP_PRIVATEIP_IGD:
+      case igd_status_e::private_ip:
         return "Valid IGD device found, but it has a private IP address"sv;
-      case UPNP_DISCONNECTED_IGD:
-        return "Valid IGD device found, but it isn't connected"sv;
-      case UPNP_UNKNOWN_DEVICE:
-        return "A UPnP device has been found, but it wasn't recognized as an IGD"sv;
-    }
-#else
-    switch (status) {
-      case UPNP_NO_IGD:
-        return "No IGD device found"sv;
-      case UPNP_CONNECTED_IGD:
-        return "Valid IGD device found"sv;
-      case UPNP_DISCONNECTED_IGD:
-        return "Valid IGD device found, but it isn't connected"sv;
-      case UPNP_UNKNOWN_DEVICE:
-        return "A UPnP device has been found, but it wasn't recognized as an IGD"sv;
-    }
 #endif
+      case igd_status_e::disconnected:
+        return "Valid IGD device found, but it isn't connected"sv;
+      case igd_status_e::unknown_device:
+        return "A UPnP device has been found, but it wasn't recognized as an IGD"sv;
+    }
 
     return "Unknown status"sv;
   }
@@ -74,28 +62,26 @@ namespace upnp {
    * This function is a wrapper around UPNP_GetValidIGD() that returns the status code. There is a pre-processor
    * check to determine which version of the function to call based on the version of the MiniUPnPc library.
    */
-  int UPNP_GetValidIGDStatus(device_t &device, urls_t *urls, IGDdatas *data, std::array<char, INET6_ADDRESS_STRLEN> &lan_addr) {
+  igd_status_e UPNP_GetValidIGDStatus(device_t &device, urls_t *urls, IGDdatas *data, std::array<char, INET6_ADDRESS_STRLEN> &lan_addr) {
 #if (MINIUPNPC_API_VERSION >= 18)
-    return UPNP_GetValidIGD(device.get(), &urls->el, data, lan_addr.data(), (int) lan_addr.size(), nullptr, 0);
+    auto status = UPNP_GetValidIGD(device.get(), &urls->el, data, lan_addr.data(), (int) lan_addr.size(), nullptr, 0);
 #else
-    return UPNP_GetValidIGD(device.get(), &urls->el, data, lan_addr.data(), (int) lan_addr.size());
+    auto status = UPNP_GetValidIGD(device.get(), &urls->el, data, lan_addr.data(), (int) lan_addr.size());
 #endif
+    return static_cast<igd_status_e>(status);
   }
 
-  /**
-   * @brief Check whether a UPNP_GetValidIGD() status code identifies a usable IGD.
-   * @param status The status code returned by UPNP_GetValidIGD().
-   * @return `true` if the status identifies a usable IGD, `false` otherwise.
-   */
-  bool is_valid_igd(int status) {
+  bool is_valid_igd(igd_status_e status) {
+    switch (status) {
+      case igd_status_e::connected:
 #if (MINIUPNPC_API_VERSION >= 18)
-    // MiniUPnPc 2.2.8+ numbering: 0 = no IGD, 1 = connected, 2 = private IP, 3 = disconnected, 4 = unknown.
-    // Accept every valid IGD, including disconnected ones.
-    return status == UPNP_CONNECTED_IGD || status == UPNP_PRIVATEIP_IGD || status == UPNP_DISCONNECTED_IGD;
-#else
-    // Pre-2.2.8 numbering: 0 = no IGD, 1 = connected, 2 = disconnected, 3 = unknown.
-    return status == UPNP_CONNECTED_IGD || status == UPNP_DISCONNECTED_IGD;
+      case igd_status_e::private_ip:
 #endif
+      case igd_status_e::disconnected:
+        return true;
+      default:
+        return false;
+    }
   }
 
   /**
