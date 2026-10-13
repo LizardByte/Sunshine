@@ -590,10 +590,16 @@ namespace NVENC_NAMESPACE {
     encoder_params.rfi = true;
 
     NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS session_params = {.version = NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS_VER};
-    session_params.device = device;
+    std::visit([&session_params](auto *native_device) {
+      session_params.device = native_device;
+    },
+               device);
     session_params.deviceType = device_type;
     session_params.apiVersion = NVENCAPI_VERSION;
-    if (nvenc_failed(nvenc->nvEncOpenEncodeSessionEx(&session_params, &encoder))) {
+    void *native_encoder = nullptr;
+    const auto open_status = nvenc->nvEncOpenEncodeSessionEx(&session_params, &native_encoder);
+    encoder = static_cast<encoder_session_t *>(native_encoder);
+    if (nvenc_failed(open_status)) {
       BOOST_LOG(error) << "NvEnc: NvEncOpenEncodeSessionEx() failed: " << last_nvenc_error_string;
       return false;
     }

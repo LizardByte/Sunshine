@@ -139,7 +139,7 @@ namespace platf::publish {
    * @param pInstance Registered DNS-SD service instance returned by Windows.
    * @return Callback has no return value; completion is reported through the alarm.
    */
-  VOID WINAPI register_cb(DWORD status, PVOID pQueryContext, PDNS_SERVICE_INSTANCE pInstance) {
+  VOID WINAPI register_cb(DWORD status, PVOID pQueryContext, PDNS_SERVICE_INSTANCE pInstance) {  // NOSONAR(cpp:S5008): DnsServiceRegister completion callbacks require PVOID user data.
     auto alarm = (safe::alarm_t<PDNS_SERVICE_INSTANCE>::element_type *) pQueryContext;
 
     if (status) {

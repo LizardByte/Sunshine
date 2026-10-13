@@ -92,7 +92,10 @@ namespace NVENC_NAMESPACE {
       }
     }
 
-    return device != nullptr;
+    return std::visit([](auto *native_device) {
+      return native_device != nullptr;
+    },
+                      device);
   }
 
   bool nvenc_d3d11_on_cuda::create_and_register_input_buffer() {

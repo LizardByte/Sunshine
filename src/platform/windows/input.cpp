@@ -489,7 +489,7 @@ namespace platf {
     std::uint8_t largeMotor,
     std::uint8_t smallMotor,
     std::uint8_t /* led_number */,
-    void *userdata
+    void *userdata  // NOSONAR(cpp:S5008): ViGEm notification callbacks require a void pointer for user data.
   ) {
     BOOST_LOG(debug)
       << "largeMotor: "sv << (int) largeMotor << std::endl
@@ -504,7 +504,7 @@ namespace platf {
     std::uint8_t largeMotor,
     std::uint8_t smallMotor,
     DS4_LIGHTBAR_COLOR led_color,
-    void *userdata
+    void *userdata  // NOSONAR(cpp:S5008): ViGEm notification callbacks require a void pointer for user data.
   ) {
     BOOST_LOG(debug)
       << "largeMotor: "sv << (int) largeMotor << std::endl

@@ -81,7 +81,7 @@ namespace platf::publish {
     /** @brief Callback that will be invoked when the mDNS service finishes registering our service.
      *  @param errorCode Describes whether the registration was successful.
      */
-    void registrationCallback(DNSServiceRef /*serviceRef*/, DNSServiceFlags /*flags*/, DNSServiceErrorType errorCode, const char * /*name*/, const char * /*regtype*/, const char * /*domain*/, void * /*context*/) {
+    void registrationCallback(DNSServiceRef /*serviceRef*/, DNSServiceFlags /*flags*/, DNSServiceErrorType errorCode, const char * /*name*/, const char * /*regtype*/, const char * /*domain*/, void * /*context*/) {  // NOSONAR(cpp:S5008): DNSServiceRegister callbacks require a void pointer for user data.
       if (errorCode != kDNSServiceErr_NoError) {
         BOOST_LOG(error) << "Failed to register DNS service: Error "sv << errorCode;
         return;

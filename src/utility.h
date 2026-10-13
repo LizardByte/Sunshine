@@ -900,11 +900,11 @@ namespace util {
     /**
      * @brief Pointer type stored by the unique pointer wrapper.
      */
-    using pointer = element_type *;
+    using pointer = element_type *;  // NOSONAR(cpp:S5008): Native C handle instantiations must retain HANDLE, PSID, EGLDisplay and VADisplay pointer types.
     /**
      * @brief Const pointer type exposed by the unique pointer wrapper.
      */
-    using const_pointer = element_type const *;
+    using const_pointer = element_type const *;  // NOSONAR(cpp:S5008): Native C handle instantiations must retain HANDLE, PSID, EGLDisplay and VADisplay pointer types.
     /**
      * @brief Callable type used to release the managed pointer.
      */
@@ -1641,7 +1641,7 @@ namespace util {
     /**
      * @brief Pointer type accepted by this deleter.
      */
-    using pointer = T;
+    using pointer = T;  // NOSONAR(cpp:S5008): Native C handle instantiations must retain HANDLE, PSID, EGLDisplay and VADisplay pointer types.
 
     /**
      * @brief Invoke the configured destroy function on a pointer.

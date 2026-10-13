@@ -78,17 +78,21 @@ namespace cbs {
   };
 
   /**
-   * @brief Serialize a prepared coded bitstream unit with an existing context.
+   * @brief Serialize a mutable copy of a coded bitstream unit without modifying its source.
    *
    * @param cbs_ctx Coded bitstream context initialized for the codec.
    * @param nal NAL unit type to insert into the fragment.
-   * @param uh Pointer to the FFmpeg raw unit header/content structure.
+   * @tparam Unit Complete codec-specific parameter-set type.
+   * @param unit Parameter set to copy for FFmpeg's mutable writer interface.
    * @param codec_id FFmpeg codec identifier used by the context.
    * @return Serialized NAL unit bytes, or an empty buffer if FFmpeg rejects the fragment.
    */
-  util::buffer_t<std::uint8_t> write(cbs::ctx_t &cbs_ctx, std::uint8_t nal, void *uh, AVCodecID codec_id) {
+  template<class Unit>
+  util::buffer_t<std::uint8_t> write(cbs::ctx_t &cbs_ctx, std::uint8_t nal, const Unit &unit, AVCodecID codec_id) {
+    // Parameter sets can be too large for the stack, and the fragment borrows this mutable copy.
+    auto content = std::make_unique<Unit>(unit);
     cbs::frag_t frag;
-    auto err = ff_cbs_insert_unit_content(&frag, -1, nal, uh, nullptr);
+    auto err = ff_cbs_insert_unit_content(&frag, -1, nal, content.get(), nullptr);
     if (err < 0) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> err_str {0};
       BOOST_LOG(error) << "Could not insert NAL unit SPS: "sv << av_make_error_string(err_str.data(), AV_ERROR_MAX_STRING_SIZE, err);
@@ -115,15 +119,17 @@ namespace cbs {
    * @brief Serialize a prepared coded bitstream unit with a temporary context.
    *
    * @param nal NAL unit type to insert into the fragment.
-   * @param uh Pointer to the FFmpeg raw unit header/content structure.
+   * @tparam Unit Complete codec-specific parameter-set type.
+   * @param unit Parameter set to copy for FFmpeg's mutable writer interface.
    * @param codec_id FFmpeg codec identifier used to initialize the temporary context.
    * @return Serialized NAL unit bytes, or an empty buffer if FFmpeg rejects the fragment.
    */
-  util::buffer_t<std::uint8_t> write(std::uint8_t nal, void *uh, AVCodecID codec_id) {
+  template<class Unit>
+  util::buffer_t<std::uint8_t> write(std::uint8_t nal, const Unit &unit, AVCodecID codec_id) {
     cbs::ctx_t cbs_ctx;
     ff_cbs_init(&cbs_ctx, codec_id, nullptr);
 
-    return write(cbs_ctx, nal, uh, codec_id);
+    return write(cbs_ctx, nal, unit, codec_id);
   }
 
   /**
@@ -180,8 +186,8 @@ namespace cbs {
     ff_cbs_init(&write_ctx, AV_CODEC_ID_H264, nullptr);
 
     return h264_t {
-      write(write_ctx, sps->nal_unit_header.nal_unit_type, (void *) &sps->nal_unit_header, AV_CODEC_ID_H264),
-      write(ctx, sps_p->nal_unit_header.nal_unit_type, (void *) &sps_p->nal_unit_header, AV_CODEC_ID_H264)
+      write(write_ctx, sps->nal_unit_header.nal_unit_type, *sps, AV_CODEC_ID_H264),
+      write(ctx, sps_p->nal_unit_header.nal_unit_type, *sps_p, AV_CODEC_ID_H264)
     };
   }
 
@@ -249,13 +255,13 @@ namespace cbs {
 
     return hevc_t {
       nal_t {
-        write(write_ctx, vps->nal_unit_header.nal_unit_type, (void *) &vps->nal_unit_header, AV_CODEC_ID_H265),
-        write(ctx, vps_p->nal_unit_header.nal_unit_type, (void *) &vps_p->nal_unit_header, AV_CODEC_ID_H265),
+        write(write_ctx, vps->nal_unit_header.nal_unit_type, *vps, AV_CODEC_ID_H265),
+        write(ctx, vps_p->nal_unit_header.nal_unit_type, *vps_p, AV_CODEC_ID_H265),
       },
 
       nal_t {
-        write(write_ctx, sps->nal_unit_header.nal_unit_type, (void *) &sps->nal_unit_header, AV_CODEC_ID_H265),
-        write(ctx, sps_p->nal_unit_header.nal_unit_type, (void *) &sps_p->nal_unit_header, AV_CODEC_ID_H265),
+        write(write_ctx, sps->nal_unit_header.nal_unit_type, *sps, AV_CODEC_ID_H265),
+        write(ctx, sps_p->nal_unit_header.nal_unit_type, *sps_p, AV_CODEC_ID_H265),
       },
     };
   }

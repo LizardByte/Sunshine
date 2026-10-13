@@ -246,7 +246,7 @@ namespace platf {
      * @param userdata Caller-provided pointer passed through the callback.
      */
     template<class T>
-    void cb(ctx_t::pointer ctx, add_const_t<T> i, void *userdata) {
+    void cb(ctx_t::pointer ctx, add_const_t<T> i, void *userdata) {  // NOSONAR(cpp:S5008): PulseAudio introspection callbacks require a void pointer for user data.
       auto &f = *(cb_simple_t<T> *) userdata;
 
       // Cannot similarly filter on eol here. Unless reported otherwise assume
@@ -269,7 +269,7 @@ namespace platf {
      * @param userdata Caller-provided pointer passed through the callback.
      */
     template<class T>
-    void cb(ctx_t::pointer ctx, add_const_t<T> i, int eol, void *userdata) {
+    void cb(ctx_t::pointer ctx, add_const_t<T> i, int eol, void *userdata) {  // NOSONAR(cpp:S5008): PulseAudio introspection callbacks require a void pointer for user data.
       auto &f = *(cb_t<T> *) userdata;
 
       // For some reason, pulseaudio calls this callback after disconnecting

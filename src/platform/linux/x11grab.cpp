@@ -3,9 +3,16 @@
  * @brief Definitions for x11 capture.
  */
 // standard includes
+#include <bit>
+#include <cerrno>
+#include <cstdint>
 #include <fstream>
 #include <ranges>
 #include <thread>
+
+#ifdef SUNSHINE_TESTS
+  #include <gtest/gtest.h>
+#endif
 
 // plaform includes
 #include <sys/ipc.h>
@@ -80,7 +87,7 @@ namespace platf {
       _FN(FreeCrtcInfo, void, (XRRCrtcInfo * crtcInfo));
 
       static int init() {
-        static void *handle {nullptr};
+        static dyn::library_t *handle {nullptr};
         static bool funcs_loaded = false;
 
         if (funcs_loaded) {
@@ -117,7 +124,7 @@ namespace platf {
       _FN(GetCursorImage, XFixesCursorImage *, (Display * dpy));
 
       static int init() {
-        static void *handle {nullptr};
+        static dyn::library_t *handle {nullptr};
         static bool funcs_loaded = false;
 
         if (funcs_loaded) {
@@ -145,7 +152,7 @@ namespace platf {
     }  // namespace fix
 
     static int init() {
-      static void *handle {nullptr};
+      static dyn::library_t *handle {nullptr};
       static bool funcs_loaded = false;
 
       if (funcs_loaded) {
@@ -201,7 +208,7 @@ namespace platf {
      * @return 0 when XCB shared-memory functions are loaded; nonzero otherwise.
      */
     int init_shm() {
-      static void *handle {nullptr};
+      static dyn::library_t *handle {nullptr};
       static bool funcs_loaded = false;
 
       if (funcs_loaded) {
@@ -236,7 +243,7 @@ namespace platf {
      * @return 0 on success; nonzero or negative platform status on failure.
      */
     int init() {
-      static void *handle {nullptr};
+      static dyn::library_t *handle {nullptr};
       static bool funcs_loaded = false;
 
       if (funcs_loaded) {
@@ -354,12 +361,12 @@ namespace platf {
   };
 
   /**
-   * @brief RAII wrapper that detaches mapped SysV shared memory.
+   * @brief RAII wrapper that detaches mapped SysV shared memory, with null representing an empty mapping.
    */
   class shm_data_t {
   public:
     shm_data_t():
-        data {(void *) -1} {
+        data {nullptr} {
     }
 
     /**
@@ -367,7 +374,7 @@ namespace platf {
      *
      * @param data Pointer returned by shmat.
      */
-    shm_data_t(void *data):
+    shm_data_t(std::uint8_t *data):
         data {data} {
     }
 
@@ -378,17 +385,53 @@ namespace platf {
      */
     shm_data_t(shm_data_t &&other) noexcept:
         data(other.data) {
-      other.data = (void *) -1;
+      other.data = nullptr;
     }
 
     ~shm_data_t() {
-      if ((std::uintptr_t) data != -1) {
+      if (data) {
         shmdt(data);
       }
     }
 
-    void *data;  ///< Address returned by shmat for the shared-memory segment.
+    std::uint8_t *data;  ///< Attached shared-memory bytes, or null when this wrapper owns no attachment.
   };
+
+#ifdef SUNSHINE_TESTS
+  TEST(X11SharedMemoryMappingTest, EmptyAndMovedEmptyMappingsDoNotDetachMemory) {
+    errno = 0;
+    {
+      shm_data_t empty;
+      EXPECT_EQ(empty.data, nullptr);
+      shm_data_t moved {std::move(empty)};
+      EXPECT_EQ(empty.data, nullptr);
+      EXPECT_EQ(moved.data, nullptr);
+    }
+    EXPECT_EQ(errno, 0);
+  }
+
+  TEST(X11SharedMemoryMappingTest, MoveTransfersTheOnlyAttachment) {
+    const auto segment = shmget(IPC_PRIVATE, 4096, IPC_CREAT | 0600);
+    ASSERT_NE(segment, -1);
+    auto remove_segment = util::fail_guard([segment] {
+      shmctl(segment, IPC_RMID, nullptr);
+    });
+    auto *mapping = shmat(segment, nullptr, 0);
+    ASSERT_NE(std::bit_cast<std::intptr_t>(mapping), -1);
+    auto *bytes = static_cast<std::uint8_t *>(mapping);
+    {
+      shm_data_t owner {bytes};
+      owner.data[0] = 42;
+      shm_data_t moved {std::move(owner)};
+      EXPECT_EQ(owner.data, nullptr);
+      EXPECT_EQ(moved.data, bytes);
+      EXPECT_EQ(moved.data[0], 42);
+    }
+    errno = 0;
+    EXPECT_EQ(shmdt(mapping), -1);
+    EXPECT_EQ(errno, EINVAL);
+  }
+#endif
 
   /**
    * @brief X11 image wrapper used by the software capture path.
@@ -806,7 +849,7 @@ namespace platf {
           return platf::capture_e::interrupted;
         }
 
-        std::copy_n((std::uint8_t *) data.data, frame_size(), img_out->data);
+        std::copy_n(data.data, frame_size(), img_out->data);
         img_out->frame_timestamp = frame_timestamp;
 
         if (cursor) {
@@ -878,9 +921,10 @@ namespace platf {
       }
 
       xcb::shm_attach(xcb.get(), seg, shm_id.id, false);
-      data.data = shmat(shm_id.id, nullptr, 0);
+      data.data = static_cast<std::uint8_t *>(shmat(shm_id.id, nullptr, 0));
 
       if ((uintptr_t) data.data == -1) {
+        data.data = nullptr;
         BOOST_LOG(error) << "shmat failed"sv;
 
         return -1;

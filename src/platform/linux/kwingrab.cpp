@@ -523,7 +523,7 @@ namespace kwin {
     }
 
     // Registry listener
-    static void on_registry_global(void *data, struct wl_registry *reg, const uint32_t name, const char *interface, const uint32_t version) {
+    static void on_registry_global(void *data, struct wl_registry *reg, const uint32_t name, const char *interface, const uint32_t version) {  // NOSONAR(cpp:S5008): Wayland listener callbacks require a void pointer for user data.
       auto *self = static_cast<screencast_t *>(data);
       if (!std::strcmp(interface, kde_output_order_v1_interface.name)) {
         // Bind version 1
@@ -560,7 +560,7 @@ namespace kwin {
       }
     }
 
-    static void on_registry_global_remove(void *data [[maybe_unused]], struct wl_registry *reg [[maybe_unused]], uint32_t name [[maybe_unused]]) {
+    static void on_registry_global_remove(void *data [[maybe_unused]], struct wl_registry *reg [[maybe_unused]], uint32_t name [[maybe_unused]]) {  // NOSONAR(cpp:S5008): Wayland listener callbacks require a void pointer for user data.
       // We don't handle output hot-unplug during init
     }
 
@@ -570,14 +570,14 @@ namespace kwin {
     };
 
     // wl_output listener (for mode/dimensions/name)
-    static void on_output_geometry(void *data, struct wl_output *output, int32_t x, int32_t y, int32_t pw [[maybe_unused]], int32_t ph [[maybe_unused]], int32_t subpixel [[maybe_unused]], const char *make [[maybe_unused]], const char *model [[maybe_unused]], int32_t transform [[maybe_unused]]) {
+    static void on_output_geometry(void *data, struct wl_output *output, int32_t x, int32_t y, int32_t pw [[maybe_unused]], int32_t ph [[maybe_unused]], int32_t subpixel [[maybe_unused]], const char *make [[maybe_unused]], const char *model [[maybe_unused]], int32_t transform [[maybe_unused]]) {  // NOSONAR(cpp:S5008): Wayland listener callbacks require a void pointer for user data.
       const auto *self = static_cast<screencast_t *>(data);
       const auto output_parameter = self->outputs.at(output);
       output_parameter->pos_x = x;
       output_parameter->pos_y = y;
     }
 
-    static void on_output_mode(void *data, struct wl_output *output, uint32_t flags, int32_t width, int32_t height, int32_t refresh [[maybe_unused]]) {
+    static void on_output_mode(void *data, struct wl_output *output, uint32_t flags, int32_t width, int32_t height, int32_t refresh [[maybe_unused]]) {  // NOSONAR(cpp:S5008): Wayland listener callbacks require a void pointer for user data.
       if (!(flags & WL_OUTPUT_MODE_CURRENT)) {
         return;
       }
@@ -587,20 +587,20 @@ namespace kwin {
       output_parameter->height = height;
     }
 
-    static void on_output_done(void *data [[maybe_unused]], struct wl_output *output [[maybe_unused]]) {
+    static void on_output_done(void *data [[maybe_unused]], struct wl_output *output [[maybe_unused]]) {  // NOSONAR(cpp:S5008): Wayland listener callbacks require a void pointer for user data.
       // Currently unused
     }
 
-    static void on_output_scale(void *data [[maybe_unused]], struct wl_output *output [[maybe_unused]], int32_t factor [[maybe_unused]]) {
+    static void on_output_scale(void *data [[maybe_unused]], struct wl_output *output [[maybe_unused]], int32_t factor [[maybe_unused]]) {  // NOSONAR(cpp:S5008): Wayland listener callbacks require a void pointer for user data.
       // Currently unused
     }
 
-    static void on_output_name(void *data, struct wl_output *output, const char *name) {
+    static void on_output_name(void *data, struct wl_output *output, const char *name) {  // NOSONAR(cpp:S5008): Wayland listener callbacks require a void pointer for user data.
       const auto *self = static_cast<screencast_t *>(data);
       self->outputs.at(output)->name = name;
     }
 
-    static void on_output_description(void *data [[maybe_unused]], struct wl_output *output [[maybe_unused]], const char *description [[maybe_unused]]) {
+    static void on_output_description(void *data [[maybe_unused]], struct wl_output *output [[maybe_unused]], const char *description [[maybe_unused]]) {  // NOSONAR(cpp:S5008): Wayland listener callbacks require a void pointer for user data.
       // Currently unused
     }
 
@@ -614,12 +614,12 @@ namespace kwin {
     };
 
     // Output order listener
-    static void on_output_order_output(void *data, struct kde_output_order_v1 *kde_output_order_v1 [[maybe_unused]], const char *output_name) {
+    static void on_output_order_output(void *data, struct kde_output_order_v1 *kde_output_order_v1 [[maybe_unused]], const char *output_name) {  // NOSONAR(cpp:S5008): Wayland listener callbacks require a void pointer for user data.
       auto *self = static_cast<screencast_t *>(data);
       self->output_order.emplace_back(output_name);
     }
 
-    static void on_output_order_done(void *data [[maybe_unused]], struct kde_output_order_v1 *kde_output_order_v1 [[maybe_unused]]) {
+    static void on_output_order_done(void *data [[maybe_unused]], struct kde_output_order_v1 *kde_output_order_v1 [[maybe_unused]]) {  // NOSONAR(cpp:S5008): Wayland listener callbacks require a void pointer for user data.
       // Currently unused
     }
 
@@ -629,7 +629,7 @@ namespace kwin {
     };
 
     // ScreenCast v1 stream listener
-    static void on_stream_closed(void *data, struct zkde_screencast_stream_unstable_v1 *stream [[maybe_unused]]) {
+    static void on_stream_closed(void *data, struct zkde_screencast_stream_unstable_v1 *stream [[maybe_unused]]) {  // NOSONAR(cpp:S5008): Wayland listener callbacks require a void pointer for user data.
       auto *self = static_cast<screencast_t *>(data);
       BOOST_LOG(warning) << "[kwingrab] stream closed by server"sv;
       self->stream_failed = false;
@@ -637,7 +637,7 @@ namespace kwin {
       self->stream_error_msg = "stream closed by server";
     }
 
-    static void on_stream_created(void *data, struct zkde_screencast_stream_unstable_v1 *stream [[maybe_unused]], const uint32_t node) {
+    static void on_stream_created(void *data, struct zkde_screencast_stream_unstable_v1 *stream [[maybe_unused]], const uint32_t node) {  // NOSONAR(cpp:S5008): Wayland listener callbacks require a void pointer for user data.
       auto *self = static_cast<screencast_t *>(data);
       self->out_node_id = node;
       self->stream_failed = false;
@@ -645,7 +645,7 @@ namespace kwin {
       BOOST_LOG(debug) << "[kwingrab] created event, node_id="sv << node;
     }
 
-    static void on_stream_failed(void *data, struct zkde_screencast_stream_unstable_v1 *stream [[maybe_unused]], const char *err_msg) {
+    static void on_stream_failed(void *data, struct zkde_screencast_stream_unstable_v1 *stream [[maybe_unused]], const char *err_msg) {  // NOSONAR(cpp:S5008): Wayland listener callbacks require a void pointer for user data.
       auto *self = static_cast<screencast_t *>(data);
       self->stream_failed = true;
       self->stream_ready = false;
@@ -653,7 +653,7 @@ namespace kwin {
       BOOST_LOG(error) << "[kwingrab] failed event: "sv << self->stream_error_msg;
     }
 
-    static void on_stream_serial(void *data, struct zkde_screencast_stream_unstable_v1 *stream [[maybe_unused]], uint32_t object_serial_hi, uint32_t object_serial_low) {
+    static void on_stream_serial(void *data, struct zkde_screencast_stream_unstable_v1 *stream [[maybe_unused]], uint32_t object_serial_hi, uint32_t object_serial_low) {  // NOSONAR(cpp:S5008): Wayland listener callbacks require a void pointer for user data.
       auto *self = static_cast<screencast_t *>(data);
       self->out_objectserial = static_cast<uint64_t>(object_serial_hi) << 32 | object_serial_low;
       // serial event always preceded the created event with the node id, so we only set stream_ready in created for v1

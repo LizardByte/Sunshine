@@ -290,7 +290,7 @@ namespace avahi {
    * @return 0 when common Avahi functions are available; nonzero otherwise.
    */
   int init_common() {
-    static void *handle {nullptr};
+    static dyn::library_t *handle {nullptr};
     static bool funcs_loaded = false;
 
     if (funcs_loaded) {
@@ -334,7 +334,7 @@ namespace avahi {
       return -1;
     }
 
-    static void *handle {nullptr};
+    static dyn::library_t *handle {nullptr};
     static bool funcs_loaded = false;
 
     if (funcs_loaded) {
@@ -415,7 +415,7 @@ namespace platf::publish {
    * @param g Entry group that emitted the state change.
    * @param state Avahi entry-group state reported by the callback.
    */
-  void entry_group_callback(avahi::EntryGroup *g, avahi::EntryGroupState state, void *) {
+  void entry_group_callback(avahi::EntryGroup *g, avahi::EntryGroupState state, void *) {  // NOSONAR(cpp:S5008): Avahi callbacks require a void pointer for user data.
     group = g;
 
     switch (state) {
@@ -505,7 +505,7 @@ namespace platf::publish {
    * @param c Avahi client that emitted the state change.
    * @param state Avahi client state reported by the callback.
    */
-  void client_callback(avahi::Client *c, avahi::ClientState state, void *) {
+  void client_callback(avahi::Client *c, avahi::ClientState state, void *) {  // NOSONAR(cpp:S5008): Avahi callbacks require a void pointer for user data.
     switch (state) {
       case avahi::CLIENT_S_RUNNING:
         create_services(c);

@@ -8,6 +8,12 @@
 
 // local includes
 #include <src/audio.h>
+#include <src/rtsp.h>
+#include <src/stream.h>
+
+namespace audio {
+  void encodeThread(std::shared_ptr<safe::queue_t<std::vector<float>>> samples, config_t config, stream::session_t *channel_data);
+}
 
 using namespace audio;
 
@@ -24,6 +30,29 @@ TEST(AudioLayoutTest, CustomMappingRemainsContiguousAndUsesAllEightChannels) {
   EXPECT_EQ(params.mapping[0], 0);
   EXPECT_EQ(stream_configs.size(), MAX_STREAM_CONFIG);
   EXPECT_EQ(stream_configs[HIGH_SURROUND71].channelCount, 8);
+}
+
+TEST(AudioPacketSessionTest, EncoderPreservesTheReceivingSession) {
+  stream::config_t stream_config {};
+  rtsp_stream::launch_session_t launch_session {};
+  launch_session.gcm_key.resize(16);
+  launch_session.iv.resize(16);
+  auto session = stream::session::alloc(stream_config, launch_session);
+  ASSERT_NE(session.get(), nullptr);
+  config_t config {.packetDuration = 5, .channels = 2, .mask = 0x3};
+  auto samples = std::make_shared<safe::queue_t<std::vector<float>>>();
+  auto packets = mail::man->queue<packet_t>(mail::audio_packets);
+  std::jthread worker([&samples, &config, &session] {
+    audio::encodeThread(samples, config, session.get());
+  });
+  auto stop_worker = util::fail_guard([&samples] {
+    samples->stop();
+  });
+  ASSERT_TRUE(samples->raise(std::vector<float>(480, 0.0F)));
+  auto packet = packets->pop(2s);
+  ASSERT_TRUE(packet);
+  EXPECT_EQ(packet->first, session.get());
+  EXPECT_GT(packet->second.size(), 0U);
 }
 
 struct AudioTest: PlatformTestSuite, testing::WithParamInterface<std::tuple<std::basic_string_view<char>, config_t>> {

@@ -470,7 +470,7 @@ namespace platf::audio {
      * @param ppvInterface Output pointer receiving the requested interface.
      * @return S_OK when the interface is supported; E_NOINTERFACE otherwise.
      */
-    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, VOID **ppvInterface) {
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, VOID **ppvInterface) {  // NOSONAR(cpp:S5008): IUnknown::QueryInterface requires a void double pointer in the COM ABI.
       if (IID_IUnknown == riid) {
         AddRef();
         *ppvInterface = (IUnknown *) this;

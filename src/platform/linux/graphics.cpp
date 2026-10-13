@@ -307,7 +307,7 @@ namespace gbm {
    * @brief Load GBM symbols required for EGL device creation.
    */
   int init() {
-    static void *handle {nullptr};
+    static dyn::library_t *handle {nullptr};
     static bool funcs_loaded = false;
 
     if (funcs_loaded) {

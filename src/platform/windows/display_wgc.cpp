@@ -56,7 +56,7 @@ namespace winrt {
      * @param object Output pointer that receives the requested COM interface.
      * @return HRESULT from the WinRT object's interface query.
      */
-    virtual HRESULT __stdcall GetInterface(REFIID id, void **object) = 0;
+    virtual HRESULT __stdcall GetInterface(REFIID id, void **object) = 0;  // NOSONAR(cpp:S5008): IDirect3DDxgiInterfaceAccess::GetInterface requires a void double pointer in the WinRT ABI.
   };
 }  // namespace winrt
 #if !WINRT_IMPL_HAS_DECLSPEC_UUID
