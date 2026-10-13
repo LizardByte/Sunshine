@@ -471,7 +471,11 @@ namespace platf {
     return "00:00:00:00:00:00"s;
   }
 
-  bp::child run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
+  /**
+   * @brief Launch a command using the caller's Linux privileges and session.
+   * @details The common platform signature's elevation and interactivity flags do not apply on Linux.
+   */
+  bp::child run_command(bool, bool, const std::string &cmd, boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
     // clang-format off
     if (!group) {
       if (!file) {

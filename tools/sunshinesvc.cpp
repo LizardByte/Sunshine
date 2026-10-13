@@ -24,7 +24,15 @@ HANDLE session_change_event;
 
 constexpr auto SERVICE_NAME = "SunshineService";
 
-DWORD WINAPI HandlerEx(DWORD dwControl, DWORD dwEventType, LPVOID lpEventData, LPVOID lpContext) {
+/**
+ * @brief Handle service control and console-session events from the Windows service manager.
+ * @details Event data and user context are unused but retained in the native callback signature.
+ *
+ * @param dwControl Service control code.
+ * @param dwEventType Session change event type when handling SERVICE_CONTROL_SESSIONCHANGE.
+ * @return NO_ERROR for handled controls or ERROR_CALL_NOT_IMPLEMENTED otherwise.
+ */
+DWORD WINAPI HandlerEx(DWORD dwControl, DWORD dwEventType, LPVOID, LPVOID) {
   switch (dwControl) {
     case SERVICE_CONTROL_INTERROGATE:
       return NO_ERROR;
@@ -185,7 +193,11 @@ void TerminateSunshine(HANDLE console_token, const PROCESS_INFORMATION &process_
   }
 }
 
-VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
+/**
+ * @brief Run Sunshine in the active console session until the Windows service is stopped.
+ * @details The service manager's argument count and argument vector are unused; the native signature is retained.
+ */
+VOID WINAPI ServiceMain(DWORD, LPTSTR *) {
   service_status_handle = RegisterServiceCtrlHandlerEx(SERVICE_NAME, HandlerEx, nullptr);
   if (service_status_handle == nullptr) {
     // Nothing we can really do here but terminate ourselves

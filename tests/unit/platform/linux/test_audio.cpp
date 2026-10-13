@@ -6,6 +6,7 @@
 #ifdef __linux__
 
   // standard includes
+  #include <chrono>
   #include <vector>
 
   // lib includes
@@ -14,9 +15,26 @@
 
   // local includes
   #include "src/platform/common.h"
+  #include "src/thread_safe.h"
 
 namespace platf {
   bool fill_canonical_channel_map(int channels, pa_channel_map &pa_map);
+
+  namespace pa {
+    /**
+     * @brief Forward a PulseAudio integer result to the caller's alarm.
+     * @param value Result supplied by PulseAudio.
+     * @param userdata Alarm receiving the result.
+     */
+    void cb_i(pa_context *, std::uint32_t value, void *userdata);
+
+    /**
+     * @brief Forward PulseAudio operation completion to the caller's alarm.
+     * @param status Nonzero on success, zero on failure.
+     * @param userdata Alarm receiving the translated result.
+     */
+    void success_cb(pa_context *, int status, void *userdata);
+  }  // namespace pa
 }  // namespace platf
 
 namespace {
@@ -107,6 +125,32 @@ TEST(LinuxAudioChannelMap, RejectsUnsupportedChannelCounts) {
   EXPECT_FALSE(platf::fill_canonical_channel_map(0, pa_map));
   EXPECT_FALSE(platf::fill_canonical_channel_map(-1, pa_map));
   EXPECT_FALSE(platf::fill_canonical_channel_map(platf::speaker::MAX_SPEAKERS + 1, pa_map));
+}
+
+/**
+ * @brief PulseAudio integer callbacks ring the supplied alarm without requiring a context.
+ */
+TEST(LinuxAudioCallbackTest, ForwardsIntegerResultWithoutContext) {
+  safe::alarm_raw_t<int> alarm;
+  platf::pa::cb_i(nullptr, 42, &alarm);
+
+  ASSERT_TRUE(alarm.wait_for(std::chrono::milliseconds {0}));
+  ASSERT_TRUE(alarm.status().has_value());
+  EXPECT_EQ(*alarm.status(), 42);
+}
+
+/**
+ * @brief PulseAudio success callbacks preserve the zero-success and one-failure alarm convention.
+ */
+TEST(LinuxAudioCallbackTest, TranslatesSuccessAndFailureWithoutContext) {
+  for (const int status : {0, 1, -1}) {
+    safe::alarm_raw_t<int> alarm;
+    platf::pa::success_cb(nullptr, status, &alarm);
+
+    ASSERT_TRUE(alarm.wait_for(std::chrono::milliseconds {0}));
+    ASSERT_TRUE(alarm.status().has_value());
+    EXPECT_EQ(*alarm.status(), status == 0 ? 1 : 0);
+  }
 }
 
 #endif  // __linux__

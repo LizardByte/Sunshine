@@ -119,16 +119,15 @@ namespace platf {
 
   /**
    * @brief Create a microphone capture stream for the requested layout.
+   * @details Capture always uses the canonical channel layout; Opus mapping is applied by the encoder.
    *
-   * @param mapping Opus channel mapping table for the requested layout. Ignored: capture always
-   *                uses the canonical layout, as on the WASAPI and macOS backends.
    * @param channels Number of audio channels in the stream.
    * @param sample_rate Audio sample rate in hertz.
    * @param frame_size Number of samples captured per audio frame.
    * @param source_name Source name.
    * @return Microphone capture object for the requested audio layout, or nullptr on failure.
    */
-  std::unique_ptr<mic_t> microphone([[maybe_unused]] const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, std::string source_name) {
+  std::unique_ptr<mic_t> microphone(int channels, std::uint32_t sample_rate, std::uint32_t frame_size, std::string source_name) {
     // Capture in the canonical channel layout, not the one described by the Opus mapping.
     //
     // The Opus mapping is applied by the multistream encoder in audio.cpp and is undone by
@@ -282,12 +281,12 @@ namespace platf {
 
     /**
      * @brief Forward a PulseAudio integer callback value into a Sunshine alarm.
+     * @details The PulseAudio callback signature supplies a context that is not needed to ring the alarm.
      *
-     * @param ctx PulseAudio context that emitted the callback.
      * @param i Integer value returned by the PulseAudio operation.
      * @param userdata Caller-provided pointer passed through the callback.
      */
-    void cb_i(ctx_t::pointer ctx, std::uint32_t i, void *userdata) {
+    void cb_i(ctx_t::pointer, std::uint32_t i, void *userdata) {
       auto alarm = (safe::alarm_raw_t<int> *) userdata;
 
       alarm->ring(i);
@@ -307,12 +306,12 @@ namespace platf {
 
     /**
      * @brief Record completion of a PulseAudio asynchronous operation.
+     * @details The PulseAudio callback signature supplies a context that is not needed to report completion.
      *
-     * @param ctx Native context object used by the operation or callback.
      * @param status Native status code returned by the platform API.
      * @param userdata Caller-provided pointer passed through the callback.
      */
-    void success_cb(ctx_t::pointer ctx, int status, void *userdata) {
+    void success_cb(ctx_t::pointer, int status, void *userdata) {
       assert(userdata != nullptr);
 
       auto alarm = (safe::alarm_raw_t<int> *) userdata;
@@ -625,8 +624,8 @@ namespace platf {
 
       /**
        * @brief Create a microphone capture stream for the requested layout.
+       * @details The common audio interface supplies an Opus mapping that canonical capture does not need.
        *
-       * @param mapping Opus channel mapping table for the requested layout.
        * @param channels Number of audio channels in the stream.
        * @param sample_rate Audio sample rate in hertz.
        * @param frame_size Number of samples captured per audio frame.
@@ -634,7 +633,7 @@ namespace platf {
        * @param host_audio_enabled Whether host playback should remain enabled during capture.
        * @return Microphone capture object for the requested audio layout.
        */
-      std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, bool continuous_audio, [[maybe_unused]] bool host_audio_enabled) override {
+      std::unique_ptr<mic_t> microphone(const std::uint8_t *, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, bool continuous_audio, [[maybe_unused]] bool host_audio_enabled) override {
         // Sink choice priority:
         // 1. Config sink
         // 2. Last sink swapped to (Usually virtual in this case)
@@ -650,7 +649,7 @@ namespace platf {
           sink_name = get_default_sink_name();
         }
 
-        return ::platf::microphone(mapping, channels, sample_rate, frame_size, get_monitor_name(sink_name));
+        return ::platf::microphone(channels, sample_rate, frame_size, get_monitor_name(sink_name));
       }
 
       bool is_sink_available(const std::string &sink) override {

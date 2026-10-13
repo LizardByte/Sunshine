@@ -73,20 +73,20 @@ void on_signal(int sig, FN &&fn) {
 }
 
 /**
- * @brief Cmd to func.
+ * @brief Dispatch commands through a common signature, ignoring arguments each command does not need.
  */
 std::map<std::string_view, std::function<int(const char *name, int argc, char **argv)>> cmd_to_func {
   {"creds"sv, [](const char *name, int argc, char **argv) {
      return args::creds(name, argc, argv);
    }},
-  {"help"sv, [](const char *name, int argc, char **argv) {
+  {"help"sv, [](const char *name, int, char **) {
      return args::help(name);
    }},
-  {"version"sv, [](const char *name, int argc, char **argv) {
+  {"version"sv, [](const char *, int, char **) {
      return args::version();
    }},
 #ifdef _WIN32
-  {"restore-nvprefs-undo"sv, [](const char *name, int argc, char **argv) {
+  {"restore-nvprefs-undo"sv, [](const char *, int, char **) {
      return args::restore_nvprefs_undo();
    }},
 #endif

@@ -681,14 +681,14 @@ namespace video {
   /**
    * @brief Start the synchronous multi-client capture thread.
    *
-   * @param ctx Native context object used by the operation or callback.
+   * @param ctx Unused state required by the shared capture lifetime callback signature.
    * @return 0 when the capture thread is started.
    */
   int start_capture_sync(capture_thread_sync_ctx_t &ctx);
   /**
-   * @brief Stop capture sync processing.
+   * @brief Leave synchronous capture cleanup to the capture thread.
    *
-   * @param ctx Native context object used by the operation or callback.
+   * @param ctx Unused state required by the shared capture lifetime callback signature.
    */
   void end_capture_sync(capture_thread_sync_ctx_t &ctx);
   /**
@@ -3668,16 +3668,18 @@ namespace video {
 
   /**
    * @brief Start capture sync.
+   * @details The shared lifetime callback supplies unused state; the thread accesses the shared capture queue directly.
    */
-  int start_capture_sync(capture_thread_sync_ctx_t &ctx) {
+  int start_capture_sync(capture_thread_sync_ctx_t &) {
     std::jthread {&captureThreadSync}.detach();
     return 0;
   }
 
   /**
-   * @brief Stop capture sync processing.
+   * @brief Leave synchronous capture cleanup to the capture thread.
    */
-  void end_capture_sync(capture_thread_sync_ctx_t &ctx) {
+  void end_capture_sync(capture_thread_sync_ctx_t &) {
+    // The capture thread stops its queue and signals its sessions when it exits.
   }
 
   /**

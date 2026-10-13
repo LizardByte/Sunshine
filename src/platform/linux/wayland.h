@@ -494,19 +494,12 @@ namespace wl {
     void xdg_done(zxdg_output_v1 *) {}
 
     /**
-     * @brief Receive physical wl-output geometry metadata.
-     *
-     * @param wl_output Wayland output.
-     * @param x Horizontal coordinate reported by Wayland.
-     * @param y Vertical coordinate reported by Wayland.
-     * @param physical_width Physical width in millimeters.
-     * @param physical_height Physical height in millimeters.
-     * @param subpixel Wayland subpixel layout enum.
-     * @param make Monitor manufacturer string reported by Wayland.
-     * @param model Monitor model string reported by Wayland.
-     * @param transform Wayland output transform value.
+     * @brief Ignore physical wl-output geometry; monitor placement comes from xdg-output metadata.
+     * @details Retain the wl-output listener signature while ignoring all event arguments.
      */
-    void wl_geometry(wl_output *wl_output, std::int32_t x, std::int32_t y, std::int32_t physical_width, std::int32_t physical_height, std::int32_t subpixel, const char *make, const char *model, std::int32_t transform) {}
+    void wl_geometry(wl_output *, std::int32_t, std::int32_t, std::int32_t, std::int32_t, std::int32_t, const char *, const char *, std::int32_t) {
+      // Logical placement comes from xdg-output, so physical geometry has nothing to update.
+    }
 
     /**
      * @brief Store the active pixel mode reported by wl-output.
@@ -521,18 +514,19 @@ namespace wl {
 
     /**
      * @brief Acknowledge completion of a wl-output metadata update.
-     *
-     * @param wl_output Wayland output.
+     * @details Retain the wl-output listener signature while ignoring the output argument.
      */
-    void wl_done(wl_output *wl_output) {}
+    void wl_done(wl_output *) {
+      // Metadata is stored as each event arrives; completion requires no additional work.
+    }
 
     /**
-     * @brief Receive the wl-output scale factor.
-     *
-     * @param wl_output Wayland output.
-     * @param factor Wayland output scale factor.
+     * @brief Ignore wl-output scale; capture uses the active pixel mode and xdg-output logical size.
+     * @details Retain the wl-output listener signature while ignoring both event arguments.
      */
-    void wl_scale(wl_output *wl_output, std::int32_t factor) {}
+    void wl_scale(wl_output *, std::int32_t) {
+      // Pixel mode and xdg-output logical size already describe the capture and input coordinate spaces.
+    }
 
     wl_output *output;  ///< Wayland output associated with this monitor.
     std::string name;  ///< xdg-output name used for display selection.

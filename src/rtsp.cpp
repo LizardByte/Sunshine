@@ -890,13 +890,13 @@ namespace rtsp_stream {
 
   /**
    * @brief Handle RTSP OPTIONS requests.
+   * @details The common command signature supplies a server pointer that this handler does not need.
    *
-   * @param rtsp_server RTSP server instance handling the request.
    * @param sock Socket used to read or write the protocol message.
    * @param session Active streaming or pairing session for the request.
    * @param req Parsed RTSP request being handled.
    */
-  void cmd_option(rtsp_server_t *rtsp_server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_option(rtsp_server_t *, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified
@@ -910,13 +910,13 @@ namespace rtsp_stream {
 
   /**
    * @brief Handle RTSP DESCRIBE requests.
+   * @details The common command signature supplies a server pointer that this handler does not need.
    *
-   * @param rtsp_server RTSP server instance.
    * @param sock Client socket.
    * @param session Launch session.
    * @param req RTSP request message.
    */
-  void cmd_describe(rtsp_server_t *rtsp_server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_describe(rtsp_server_t *, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified
@@ -1318,13 +1318,13 @@ namespace rtsp_stream {
 
   /**
    * @brief Handle RTSP PLAY requests and start streaming.
+   * @details The common command signature supplies a server pointer that this handler does not need.
    *
-   * @param rtsp_server RTSP server instance handling the request.
    * @param sock Socket used to read or write the protocol message.
    * @param session Active streaming or pairing session for the request.
    * @param req Parsed RTSP request being handled.
    */
-  void cmd_play(rtsp_server_t *rtsp_server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_play(rtsp_server_t *, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified

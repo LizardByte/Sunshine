@@ -215,19 +215,19 @@ protected:
     // Add a route to test not_found
     server->resource["^/notfound-test$"]["GET"] = [](
                                                     const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
-                                                    const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
+                                                    const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &
                                                   ) {
       // Call the actual confighttp::not_found function
-      confighttp::not_found(response, request, "Test not found");
+      confighttp::not_found(response, "Test not found");
     };
 
     // Add a route to test bad_request
     server->resource["^/badrequest-test$"]["GET"] = [](
                                                       const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
-                                                      const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
+                                                      const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &
                                                     ) {
       // Call the actual confighttp::bad_request function
-      confighttp::bad_request(response, request, "Test bad request");
+      confighttp::bad_request(response, "Test bad request");
     };
 
     // Add a route to test send_response with JSON
