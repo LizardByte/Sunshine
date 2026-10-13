@@ -340,35 +340,6 @@ namespace gbm {
 }  // namespace gbm
 
 namespace egl {
-  /**
-   * @brief Owning type-erased EGL attribute array with a type-aware deleter.
-   *
-   * The deleter restores the EGL attribute element type used for allocation.
-   */
-  using egl_attribs_t = std::unique_ptr<void, void (*)(void *)>;
-
-  /**
-   * @brief Function pointer type for constructing attributes for the selected EGL image API.
-   *
-   * @param surface DMA-BUF surface descriptor to translate.
-   * @return Type-erased EGL attribute array terminated by EGL_NONE.
-   */
-  using surface_descriptor_to_egl_attribs_fn = egl_attribs_t (*)(const surface_descriptor_t &surface);
-
-  surface_descriptor_to_egl_attribs_fn surface_descriptor_to_egl_attribs;  ///< Attribute builder selected for the active EGL image API.
-
-  /**
-   * @brief Build EGL DMA-BUF import attributes using a specific EGL attribute type.
-   *
-   * eglCreateImage uses EGLAttrib while eglCreateImageKHR uses EGLint, so the
-   * selected specialization controls both allocation and type-aware deletion.
-   *
-   * @tparam EglType EGLAttrib for the core API or EGLint for the KHR API.
-   * @param surface DMA-BUF surface descriptor to translate.
-   * @return Type-erased EGL attribute array terminated by EGL_NONE.
-   */
-  template<typename EglType>
-  egl_attribs_t surface_descriptor_to_egl_attribs_impl(const surface_descriptor_t &surface);
 
   namespace {  // Keep privileged implementation details anonymous/local to this translation unit
 
@@ -676,11 +647,9 @@ namespace egl {
     if (eglCreateImage != nullptr && eglDestroyImage != nullptr) {
       gl::egl_create_image = (gl::PFNEGLCREATEIMAGEPROC) eglCreateImage;
       gl::egl_destroy_image = (gl::PFNEGLDESTROYIMAGEPROC) eglDestroyImage;
-      egl::surface_descriptor_to_egl_attribs = surface_descriptor_to_egl_attribs_impl<EGLAttrib>;
     } else if (eglCreateImageKHR != nullptr && eglDestroyImageKHR != nullptr) {
       gl::egl_create_image = (gl::PFNEGLCREATEIMAGEPROC) eglCreateImageKHR;
       gl::egl_destroy_image = (gl::PFNEGLDESTROYIMAGEPROC) eglDestroyImageKHR;
-      egl::surface_descriptor_to_egl_attribs = surface_descriptor_to_egl_attribs_impl<EGLint>;
     } else {
       BOOST_LOG(error) << "Neither eglCreateImage/eglDestroyImage nor eglCreateImageKHR/eglDestroyImageKHR are available"sv;
       return std::nullopt;
@@ -765,33 +734,16 @@ namespace egl {
     return {};
   }
 
+  /**
+   * @brief Get EGL attributes for eglCreateImage() to import the provided surface.
+   *
+   * @tparam EglType EGLAttrib for the core API or EGLint for the KHR API.
+   * @param surface The surface descriptor.
+   * @return Vector of EGL attributes.
+   */
   template<typename EglType>
-  egl_attribs_t surface_descriptor_to_egl_attribs_impl(const surface_descriptor_t &surface) {
-    // Use a custom vector to abstract away the underlying element type.
-    struct {
-      static_assert(std::is_trivially_copyable_v<EglType>);
-      static_assert(std::is_trivially_destructible_v<EglType>);
-
-      static void deleter(void *ptr) {
-        delete[] reinterpret_cast<EglType *>(ptr);
-      };
-
-      size_t len = 0;
-      size_t cap = 32;
-      egl_attribs_t buf {new EglType[cap], &deleter};
-
-      void emplace_back(EglType value) {
-        if (len == cap) {
-          size_t new_cap = cap + 32;
-          egl_attribs_t new_buf {new EglType[new_cap], &deleter};
-          memcpy(new_buf.get(), buf.get(), len * sizeof(EglType));
-          buf = std::move(new_buf);
-          cap = new_cap;
-        }
-        reinterpret_cast<EglType *>(buf.get())[len] = value;
-        ++len;
-      }
-    } attribs;
+  std::vector<EglType> surface_descriptor_to_egl_attribs(const surface_descriptor_t &surface) {
+    std::vector<EglType> attribs;
 
     attribs.emplace_back(EGL_WIDTH);
     attribs.emplace_back(surface.width);
@@ -824,23 +776,28 @@ namespace egl {
     }
 
     attribs.emplace_back(EGL_NONE);
-    return std::move(attribs.buf);
+    return std::move(attribs);
   }
 
   /**
-   * @brief Build EGL DMA-BUF import attributes for the core EGL image API.
+   * @brief Import a DMA-BUF image through the available typed EGL API.
    *
-   * @param surface DMA-BUF surface descriptor to translate.
-   * @return Type-erased EGLAttrib array terminated by EGL_NONE.
+   * @param display EGL display that owns the imported image.
+   * @param surface DMA-BUF descriptor used to build attributes.
+   * @return Imported image, or EGL_NO_IMAGE on failure.
    */
-  template egl_attribs_t surface_descriptor_to_egl_attribs_impl<EGLAttrib>(const surface_descriptor_t &surface);
-  /**
-   * @brief Build EGL DMA-BUF import attributes for the KHR EGL image API.
-   *
-   * @param surface DMA-BUF surface descriptor to translate.
-   * @return Type-erased EGLint array terminated by EGL_NONE.
-   */
-  template egl_attribs_t surface_descriptor_to_egl_attribs_impl<EGLint>(const surface_descriptor_t &surface);
+  EGLImage create_dma_buf_image(EGLDisplay display, const surface_descriptor_t &surface) {
+    if (gl::egl_create_image == (gl::PFNEGLCREATEIMAGEPROC) eglCreateImage) {
+      auto attributes = surface_descriptor_to_egl_attribs<EGLAttrib>(surface);
+      return gl::egl_create_image(display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, attributes.data());
+    } else if (gl::egl_create_image == (gl::PFNEGLCREATEIMAGEPROC) eglCreateImageKHR) {
+      auto attributes = surface_descriptor_to_egl_attribs<EGLint>(surface);
+      return gl::egl_create_image(display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, attributes.data());
+    } else {
+      BOOST_LOG(error) << "eglCreateImage and eglCreateImageKHR are both unavailable"sv;
+      return EGL_NO_IMAGE;
+    }
+  }
 
   /**
    * @brief Import the source frame texture for EGL/OpenGL conversion.
@@ -850,11 +807,9 @@ namespace egl {
    * @return Imported RGB image, or empty when import fails.
    */
   std::optional<rgb_t> import_source(display_t::pointer egl_display, const surface_descriptor_t &xrgb) {
-    egl_attribs_t attribs = surface_descriptor_to_egl_attribs(xrgb);
-
     rgb_t rgb {
       egl_display,
-      gl::egl_create_image(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, attribs.get()),
+      create_dma_buf_image(egl_display, xrgb),
       gl::tex_t::make(1)
     };
 
@@ -959,13 +914,10 @@ namespace egl {
    * @return Imported NV12 image, or empty when import fails.
    */
   std::optional<nv12_t> import_target(display_t::pointer egl_display, std::array<file_t, nv12_img_t::num_fds> &&fds, const surface_descriptor_t &y, const surface_descriptor_t &uv) {
-    egl_attribs_t y_attribs = surface_descriptor_to_egl_attribs(y);
-    egl_attribs_t uv_attribs = surface_descriptor_to_egl_attribs(uv);
-
     nv12_t nv12 {
       egl_display,
-      gl::egl_create_image(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, y_attribs.get()),
-      gl::egl_create_image(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, uv_attribs.get()),
+      create_dma_buf_image(egl_display, y),
+      create_dma_buf_image(egl_display, uv),
       gl::tex_t::make(2),
       gl::frame_buf_t::make(2),
       std::move(fds)
@@ -1011,15 +963,11 @@ namespace egl {
     const surface_descriptor_t &u,
     const surface_descriptor_t &v
   ) {
-    auto y_attribs = surface_descriptor_to_egl_attribs(y);
-    auto u_attribs = surface_descriptor_to_egl_attribs(u);
-    auto v_attribs = surface_descriptor_to_egl_attribs(v);
-
     yuv444_t yuv444 {
       egl_display,
-      gl::egl_create_image(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, y_attribs.get()),
-      gl::egl_create_image(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, u_attribs.get()),
-      gl::egl_create_image(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, v_attribs.get()),
+      create_dma_buf_image(egl_display, y),
+      create_dma_buf_image(egl_display, u),
+      create_dma_buf_image(egl_display, v),
       gl::tex_t::make(3),
       gl::frame_buf_t::make(3),
       std::move(fds)
