@@ -9,6 +9,7 @@
 // standard includes
 #include <algorithm>
 #include <memory>
+#include <span>
 #include <vector>
 
 // local includes
@@ -79,6 +80,7 @@ TEST_P(CodedBitstreamTest, RewrittenParameterSetsRetainValidVuiMetadata) {
   ASSERT_EQ(avcodec_receive_packet(context.get(), packet.get()), 0);
   ASSERT_TRUE(cbs::validate_sps(packet.get(), codec_id));
 
+  const std::vector<std::uint8_t> original_packet(packet->data, packet->data + packet->size);
   std::vector<std::uint8_t> rewritten(packet->data, packet->data + packet->size);
   const auto replace_unit = [&rewritten](const cbs::nal_t &unit) {
     const auto original = std::ranges::search(rewritten, unit.old);
@@ -103,6 +105,7 @@ TEST_P(CodedBitstreamTest, RewrittenParameterSetsRetainValidVuiMetadata) {
     ASSERT_TRUE(replace_unit(result.vps));
     ASSERT_TRUE(replace_unit(result.sps));
   }
+  EXPECT_TRUE(std::ranges::equal(original_packet, std::span(packet->data, packet->size)));
   util::safe_ptr<AVPacket, &release_packet> rewritten_packet {av_packet_alloc()};
   ASSERT_NE(rewritten_packet.get(), nullptr);
   ASSERT_EQ(av_new_packet(rewritten_packet.get(), static_cast<int>(rewritten.size())), 0);

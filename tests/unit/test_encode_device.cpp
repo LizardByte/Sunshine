@@ -58,6 +58,16 @@ namespace {
   using initializer_t = util::Either<video::avcodec_buffer_t, int> (*)(platf::avcodec_encode_device_t *);
 
   /**
+   * @brief Hardware initialization entry points available in this build.
+   */
+  constexpr initializer_t hardware_initializers[] = {
+    &video::vaapi_init_avcodec_hardware_input_buffer,
+#ifdef SUNSHINE_BUILD_VULKAN
+    &video::vulkan_init_avcodec_hardware_input_buffer,
+#endif
+  };
+
+  /**
    * @brief Exercise the same typed backend contract for each hardware entry point.
    */
   struct EncodeDeviceInitializationTest: testing::TestWithParam<initializer_t> {};
@@ -97,11 +107,5 @@ TEST_P(EncodeDeviceInitializationTest, PropagatesBackendFailureWithoutUsingFallb
 INSTANTIATE_TEST_SUITE_P(
   HardwareBackends,
   EncodeDeviceInitializationTest,
-  testing::Values(
-    &video::vaapi_init_avcodec_hardware_input_buffer
-#ifdef SUNSHINE_BUILD_VULKAN
-    ,
-    &video::vulkan_init_avcodec_hardware_input_buffer
-#endif
-  )
+  testing::ValuesIn(hardware_initializers)
 );

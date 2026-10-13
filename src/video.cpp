@@ -327,9 +327,9 @@ namespace video {
     av_image_fill_black(active_frame->data, linesize.data(), static_cast<AVPixelFormat>(active_frame->format), active_frame->color_range, active_frame->width, active_frame->height);
   }
 
-  int avcodec_software_encode_device_t::init(int in_width, int in_height, AVFrame *in_frame, AVPixelFormat format, bool hardware) {
+  int avcodec_software_encode_device_t::init(int in_width, int in_height, AVFrame *in_frame, AVPixelFormat format, bool hardware_frame) {
     // If the device used is hardware, yet the image resides on main memory
-    if (hardware) {
+    if (hardware_frame) {
       sw_frame.reset(av_frame_alloc());
 
       sw_frame->width = in_frame->width;
