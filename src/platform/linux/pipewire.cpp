@@ -184,8 +184,8 @@ namespace pipewire {
         pw_context_destroy(context);
         context = nullptr;
       }
-      // Release pipewire file descriptor
-      if (fd >= 0) {
+      // Release pipewire file descriptor, unless the core took it over
+      if (fd >= 0 && !core_owns_fd) {
         BOOST_LOG(debug) << "[pipewire] Close pipewire_fd"sv;
         close(fd);
       }
@@ -283,6 +283,9 @@ namespace pipewire {
         BOOST_LOG(debug) << "[pipewire] Connect PW context to fd"sv;
         if (fd >= 0) {
           core = pw_context_connect_fd(context, fd, nullptr, 0);
+          // A connected core owns the fd: PipeWire closes it on disconnect or after a connection error.
+          // If the connection fails, PipeWire does not close it, so the destructor still does.
+          core_owns_fd = core != nullptr;
         } else {
           core = pw_context_connect(context, nullptr, 0);
         }
@@ -709,6 +712,7 @@ namespace pipewire {
     struct spa_hook core_listener;
     struct stream_data_t stream_data;
     int fd = -1;
+    bool core_owns_fd = false;  ///< Whether pw_context_connect_fd() took over fd, which then must not be closed here.
     uint32_t node;
     uint64_t object_serial;
     bool negotiate_maxframerate_ = true;
