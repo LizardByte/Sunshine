@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('vue-i18n', () => ({
   createI18n: vi.fn(options => options),
@@ -8,6 +8,11 @@ import { createI18n } from 'vue-i18n'
 import createSunshineI18n, { loadLocaleMessages } from '../../src_assets/common/assets/web/locale.js'
 
 describe('locale initialization', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
   beforeEach(() => {
     createI18n.mockClear()
     document.documentElement.removeAttribute('lang')
@@ -57,5 +62,41 @@ describe('locale initialization', () => {
     expect(Object.keys(result.messages)).toEqual(['en'])
     expect(error).toHaveBeenCalledWith('Failed to download translations', expect.any(Error))
     error.mockRestore()
+  })
+
+  it('omits malformed messages while preserving valid translations and interpolation syntax', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const catalog = {
+      broken: 'Loadingchar@@0',
+      nested: {
+        broken: 'Hello {name',
+        greeting: 'Hallo {name}',
+        list: '{0}',
+        literal: "{'@'}",
+        linked: '@:nested.greeting',
+        plural: 'none | one | {count} items',
+        empty: '',
+      },
+    }
+    const original = structuredClone(catalog)
+
+    const result = await loadLocaleMessages('de', async () => catalog)
+
+    expect(result.locale).toBe('de')
+    expect(result.messages.de).toEqual({
+      nested: {
+        greeting: 'Hallo {name}',
+        list: '{0}',
+        literal: "{'@'}",
+        linked: '@:nested.greeting',
+        plural: 'none | one | {count} items',
+        empty: '',
+      },
+    })
+    expect(result.messages.en).toBeDefined()
+    expect(catalog).toEqual(original)
+    expect(error).toHaveBeenCalledTimes(2)
+    expect(error).toHaveBeenCalledWith('Ignoring invalid translation', 'de', 'broken', expect.any(SyntaxError))
+    expect(error).toHaveBeenCalledWith('Ignoring invalid translation', 'de', 'nested.broken', expect.any(SyntaxError))
   })
 })
