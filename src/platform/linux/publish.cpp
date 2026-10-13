@@ -8,6 +8,8 @@
 
 // local includes
 #include "misc.h"
+#include "publish.h"
+#include "src/config.h"
 #include "src/logging.h"
 #include "src/network.h"
 #include "src/nvhttp.h"
@@ -90,15 +92,6 @@ namespace avahi {
   constexpr auto IF_UNSPEC = -1;  ///< Select all network interfaces instead of a specific interface index.
 
   /**
-   * @brief Avahi address-family selectors.
-   */
-  enum proto {
-    PROTO_INET = 0,  ///< IPv4
-    PROTO_INET6 = 1,  ///< IPv6
-    PROTO_UNSPEC = -1  ///< Unspecified/all protocol(s)
-  };
-
-  /**
    * @brief Avahi daemon lifecycle states.
    */
   enum ServerState {
@@ -158,10 +151,6 @@ namespace avahi {
    * @brief Network interface index type used by Avahi.
    */
   using IfIndex = int;
-  /**
-   * @brief Avahi protocol/address-family selector type.
-   */
-  using Protocol = int;
 
   struct EntryGroup;
   struct Poll;
@@ -403,6 +392,24 @@ namespace platf::publish {
   ptr_t<char> name;  ///< Current service name, updated when Avahi reports a collision.
 
   /**
+   * @brief Map the configured address family to the Avahi protocol selector.
+   *
+   * @param af Address family from the configuration.
+   * @return Avahi protocol selector matching the configured family.
+   */
+  avahi::Protocol protocol_for_address_family(net::af_e af) {
+    switch (af) {
+      case net::IPV4:
+        return avahi::PROTO_INET;
+      case net::BOTH:
+        return avahi::PROTO_UNSPEC;
+    }
+
+    // avoid warning
+    return avahi::PROTO_UNSPEC;
+  }
+
+  /**
    * @brief Create or update the Avahi service entry group.
    *
    * @param c Avahi client used to allocate and commit the service entry group.
@@ -458,10 +465,18 @@ namespace platf::publish {
     if (avahi::entry_group_is_empty(group)) {
       BOOST_LOG(info) << "Adding avahi service "sv << name.get();
 
+      // Only advertise addresses for the configured address family: with
+      // PROTO_UNSPEC Avahi would also publish an IPv6 record when Sunshine
+      // only binds IPv4 listeners (see #5860). The effective family accounts
+      // for bind_address, matching the listener setup.
+      const auto protocol = protocol_for_address_family(
+        net::get_effective_address_family(net::af_from_enum_string(config::sunshine.address_family))
+      );
+
       ret = avahi::entry_group_add_service(
         group,
         avahi::IF_UNSPEC,
-        avahi::PROTO_UNSPEC,
+        protocol,
         avahi::PublishFlags(0),
         name.get(),
         platf::SERVICE_TYPE,
