@@ -27,10 +27,46 @@ TEST(WindowsRumbleTest, PreservesTheEstablishedRangeForEveryAmplitude) {
  * @brief Driver-free DualShock 4 touch report and pointer state.
  */
 class WindowsTouchTest: public testing::Test {
-protected:
+private:
   DS4_REPORT_EX report_ {};  ///< Current device report.
   std::map<std::uint32_t, std::uint8_t> pointers_;  ///< Allocated client pointer IDs.
   std::byte available_ {0x3};  ///< Both touch slots start available.
+
+protected:
+  /**
+   * @brief Read the current DualShock 4 touch report.
+   *
+   * @return Const reference to the touch report.
+   */
+  const DS4_TOUCH &report() const {
+    return report_.Report.sCurrentTouch;
+  }
+
+  /**
+   * @brief Read the allocated client pointer IDs.
+   *
+   * @return Const reference to the pointer-to-slot mapping.
+   */
+  const std::map<std::uint32_t, std::uint8_t> &pointers() const {
+    return pointers_;
+  }
+
+  /**
+   * @brief Read the mask of free touch slots.
+   *
+   * @return Byte mask of available slots.
+   */
+  std::byte available() const {
+    return available_;
+  }
+
+  /**
+   * @brief Set report counters before testing their byte wraparound.
+   */
+  void prepare_counter_wraparound() {
+    report_.Report.sCurrentTouch.bPacketCounter = 0xFF;
+    report_.Report.sCurrentTouch.bIsUpTrackingNum1 = 0xFF;
+  }
 
   /**
    * @brief Mark both report slots up before each test.
@@ -56,59 +92,59 @@ protected:
 
 TEST_F(WindowsTouchTest, AllocatesBothSlotsAndPacksCoordinatesInWireOrder) {
   ASSERT_TRUE(touch(LI_TOUCH_EVENT_DOWN, 10, 1.0f, 1.0f));
-  EXPECT_EQ(pointers_.at(10), 0);
-  EXPECT_EQ(available_, std::byte {0x2});
-  EXPECT_EQ(report_.Report.sCurrentTouch.bIsUpTrackingNum1, 1);
+  EXPECT_EQ(pointers().at(10), 0);
+  EXPECT_EQ(available(), std::byte {0x2});
+  EXPECT_EQ(report().bIsUpTrackingNum1, 1);
   const std::array<std::uint8_t, 3> first {0x80, 0xF7, 0x3A};
-  EXPECT_TRUE(std::equal(first.begin(), first.end(), report_.Report.sCurrentTouch.bTouchData1));
+  EXPECT_TRUE(std::equal(first.begin(), first.end(), report().bTouchData1));
 
   ASSERT_TRUE(touch(LI_TOUCH_EVENT_DOWN, 20, 0.5f, 0.5f));
-  EXPECT_EQ(pointers_.at(20), 1);
-  EXPECT_EQ(available_, std::byte {0});
-  EXPECT_EQ(report_.Report.sCurrentTouch.bIsUpTrackingNum2, 1);
+  EXPECT_EQ(pointers().at(20), 1);
+  EXPECT_EQ(available(), std::byte {0});
+  EXPECT_EQ(report().bIsUpTrackingNum2, 1);
   const std::array<std::uint8_t, 3> second {0xC0, 0x73, 0x1D};
-  EXPECT_TRUE(std::equal(second.begin(), second.end(), report_.Report.sCurrentTouch.bTouchData2));
-  EXPECT_EQ(report_.Report.sCurrentTouch.bPacketCounter, 2);
+  EXPECT_TRUE(std::equal(second.begin(), second.end(), report().bTouchData2));
+  EXPECT_EQ(report().bPacketCounter, 2);
 
   EXPECT_FALSE(touch(LI_TOUCH_EVENT_DOWN, 30));
-  EXPECT_EQ(pointers_.size(), 2U);
-  EXPECT_EQ(report_.Report.sCurrentTouch.bPacketCounter, 2);
+  EXPECT_EQ(pointers().size(), 2U);
+  EXPECT_EQ(report().bPacketCounter, 2);
 }
 
 TEST_F(WindowsTouchTest, MovesReleasesCancelsAndReusesTheCorrectSlot) {
   ASSERT_TRUE(touch(LI_TOUCH_EVENT_DOWN, 10));
   ASSERT_TRUE(touch(LI_TOUCH_EVENT_DOWN, 20));
   ASSERT_TRUE(touch(LI_TOUCH_EVENT_MOVE, 20, 1.0f, 1.0f));
-  EXPECT_EQ(report_.Report.sCurrentTouch.bTouchData2[0], 0x80);
-  EXPECT_EQ(report_.Report.sCurrentTouch.bTouchData1[0], 0);
-  EXPECT_EQ(available_, std::byte {0});
+  EXPECT_EQ(report().bTouchData2[0], 0x80);
+  EXPECT_EQ(report().bTouchData1[0], 0);
+  EXPECT_EQ(available(), std::byte {0});
 
   ASSERT_TRUE(touch(LI_TOUCH_EVENT_UP, 10));
-  EXPECT_EQ(report_.Report.sCurrentTouch.bIsUpTrackingNum1, 0x81);
-  EXPECT_EQ(available_, std::byte {0x1});
-  EXPECT_FALSE(pointers_.contains(10));
+  EXPECT_EQ(report().bIsUpTrackingNum1, 0x81);
+  EXPECT_EQ(available(), std::byte {0x1});
+  EXPECT_FALSE(pointers().contains(10));
 
   ASSERT_TRUE(touch(LI_TOUCH_EVENT_CANCEL, 20));
-  EXPECT_EQ(report_.Report.sCurrentTouch.bIsUpTrackingNum2, 0x81);
-  EXPECT_EQ(available_, std::byte {0x3});
-  EXPECT_TRUE(pointers_.empty());
+  EXPECT_EQ(report().bIsUpTrackingNum2, 0x81);
+  EXPECT_EQ(available(), std::byte {0x3});
+  EXPECT_TRUE(pointers().empty());
 
   ASSERT_TRUE(touch(LI_TOUCH_EVENT_DOWN, 30));
-  EXPECT_EQ(pointers_.at(30), 0);
-  EXPECT_EQ(report_.Report.sCurrentTouch.bIsUpTrackingNum1, 2);
+  EXPECT_EQ(pointers().at(30), 0);
+  EXPECT_EQ(report().bIsUpTrackingNum1, 2);
 }
 
 TEST_F(WindowsTouchTest, CancelAllPreservesCoordinatesAndReleasesBothSlots) {
   ASSERT_TRUE(touch(LI_TOUCH_EVENT_DOWN, 10, 1.0f, 1.0f));
   ASSERT_TRUE(touch(LI_TOUCH_EVENT_DOWN, 20, 0.5f, 0.5f));
   ASSERT_TRUE(touch(LI_TOUCH_EVENT_CANCEL_ALL, 0));
-  EXPECT_EQ(report_.Report.sCurrentTouch.bIsUpTrackingNum1, 0x81);
-  EXPECT_EQ(report_.Report.sCurrentTouch.bIsUpTrackingNum2, 0x81);
-  EXPECT_EQ(report_.Report.sCurrentTouch.bTouchData1[0], 0x80);
-  EXPECT_EQ(report_.Report.sCurrentTouch.bTouchData2[0], 0xC0);
-  EXPECT_EQ(report_.Report.sCurrentTouch.bPacketCounter, 3);
-  EXPECT_EQ(available_, std::byte {0x3});
-  EXPECT_TRUE(pointers_.empty());
+  EXPECT_EQ(report().bIsUpTrackingNum1, 0x81);
+  EXPECT_EQ(report().bIsUpTrackingNum2, 0x81);
+  EXPECT_EQ(report().bTouchData1[0], 0x80);
+  EXPECT_EQ(report().bTouchData2[0], 0xC0);
+  EXPECT_EQ(report().bPacketCounter, 3);
+  EXPECT_EQ(available(), std::byte {0x3});
+  EXPECT_TRUE(pointers().empty());
 }
 
 TEST_F(WindowsTouchTest, RejectsUnknownPointersAndUnsupportedEventsWithoutUpdatingTheReport) {
@@ -116,17 +152,16 @@ TEST_F(WindowsTouchTest, RejectsUnknownPointersAndUnsupportedEventsWithoutUpdati
   EXPECT_FALSE(touch(LI_TOUCH_EVENT_UP, 10));
   ASSERT_TRUE(touch(LI_TOUCH_EVENT_DOWN, 10));
   EXPECT_FALSE(touch(0xFF, 10));
-  EXPECT_EQ(report_.Report.sCurrentTouch.bPacketCounter, 1);
-  EXPECT_EQ(report_.Report.sCurrentTouch.bIsUpTrackingNum1, 1);
-  EXPECT_EQ(pointers_.at(10), 0);
+  EXPECT_EQ(report().bPacketCounter, 1);
+  EXPECT_EQ(report().bIsUpTrackingNum1, 1);
+  EXPECT_EQ(pointers().at(10), 0);
 }
 
 TEST_F(WindowsTouchTest, PreservesByteCounterWraparound) {
-  report_.Report.sCurrentTouch.bPacketCounter = 0xFF;
-  report_.Report.sCurrentTouch.bIsUpTrackingNum1 = 0xFF;
+  prepare_counter_wraparound();
   ASSERT_TRUE(touch(LI_TOUCH_EVENT_DOWN, 10));
-  EXPECT_EQ(report_.Report.sCurrentTouch.bPacketCounter, 0);
-  EXPECT_EQ(report_.Report.sCurrentTouch.bIsUpTrackingNum1, 0x80);
+  EXPECT_EQ(report().bPacketCounter, 0);
+  EXPECT_EQ(report().bIsUpTrackingNum1, 0x80);
 }
 
 /**

@@ -624,12 +624,12 @@ TEST_F(KeyboardPassthroughTest, NeverSynthesizesTheMetaModifier) {
 
 TEST_F(KeyboardPassthroughTest, RepeatsByteMaskedModifiersAndStopsAfterStateIsCleared) {
   config::input.key_repeat_period = 1h;
-  constexpr auto modifiers = std::byte {MODIFIER_SHIFT} | std::byte {MODIFIER_CTRL} | std::byte {MODIFIER_ALT};
+  constexpr auto synthetic_modifiers = std::byte {MODIFIER_SHIFT} | std::byte {MODIFIER_CTRL} | std::byte {MODIFIER_ALT};
   constexpr std::uint8_t flags = SS_KBE_FLAG_NON_NORMALIZED;
-  press(VKEY_A, std::to_integer<unsigned>(modifiers) | MODIFIER_EXTENDED, flags);
+  press(VKEY_A, std::to_integer<unsigned>(synthetic_modifiers) | MODIFIER_EXTENDED, flags);
   taken_events();
 
-  input::repeat_key(VKEY_A, flags, modifiers);
+  input::repeat_key(VKEY_A, flags, synthetic_modifiers);
   const auto events = taken_events();
   ASSERT_EQ(events.size(), 7U);
   const std::array<std::uint16_t, 7> expected_keys {VKEY_SHIFT, VKEY_CONTROL, VKEY_MENU, VKEY_A, VKEY_SHIFT, VKEY_CONTROL, VKEY_MENU};
@@ -641,7 +641,7 @@ TEST_F(KeyboardPassthroughTest, RepeatsByteMaskedModifiersAndStopsAfterStateIsCl
   EXPECT_TRUE(events[3].extended);
 
   input::testing::reset_keyboard_state();
-  input::repeat_key(VKEY_A, flags, modifiers);
+  input::repeat_key(VKEY_A, flags, synthetic_modifiers);
   EXPECT_TRUE(taken_events().empty());
 }
 

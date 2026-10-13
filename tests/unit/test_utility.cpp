@@ -365,7 +365,7 @@ TEST(UtilityFromHexTests, DecodesMixedCaseNibblesAndSkipsSeparators) {
 }
 
 TEST(UtilityFromHexVecTests, PreservesBinaryBytesWithMixedCaseAndSeparators) {
-  const std::string expected {"\x00\x80\xFF\xAB\x19", 5};
+  const std::string expected {0, static_cast<char>(0x80), static_cast<char>(0xFF), static_cast<char>(0xAB), 0x19};
   EXPECT_EQ(util::from_hex_vec("00:80-fF aB.19", true), expected);
   EXPECT_EQ(util::from_hex_vec("00:80-fF aB.19"), (std::string {expected.rbegin(), expected.rend()}));
   EXPECT_TRUE(util::from_hex_vec("").empty());
@@ -373,7 +373,7 @@ TEST(UtilityFromHexVecTests, PreservesBinaryBytesWithMixedCaseAndSeparators) {
 
 TEST(UtilityHashTests, MatchesStringViewHashOfAllObjectBytes) {
   const std::array<std::uint8_t, 6> value {0x00, 0x80, 0xFF, 0x12, 0x00, 0xAB};
-  const std::string expected_bytes {"\x00\x80\xFF\x12\x00\xAB", 6};
+  const std::string expected_bytes {0, static_cast<char>(0x80), static_cast<char>(0xFF), 0x12, 0, static_cast<char>(0xAB)};
   EXPECT_EQ(util::hash<decltype(value)> {}(value), std::hash<std::string_view> {}(expected_bytes));
 }
 

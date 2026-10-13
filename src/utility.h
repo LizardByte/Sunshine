@@ -646,7 +646,7 @@ namespace util {
 
     const char *data = hex.data() + hex.size() - 1;
 
-    auto convert = [](char ch) -> std::byte {
+    auto convert = [](char ch) {
       if (ch >= '0' && ch <= '9') {
         return static_cast<std::byte>(ch - '0');
       }
@@ -701,7 +701,7 @@ namespace util {
 
     const char *data = hex.data() + hex.size() - 1;
 
-    auto convert = [](char ch) -> std::byte {
+    auto convert = [](char ch) {
       if (ch >= '0' && ch <= '9') {
         return static_cast<std::byte>(ch - '0');
       }
