@@ -102,6 +102,32 @@ TEST(WaylandMonitorTest, RecordsRefreshOfCurrentMode) {
   EXPECT_EQ(monitor.refresh_mhz, 120000);
 }
 
+/**
+ * @brief Ignored wl-output events must not overwrite xdg-output placement or the active pixel mode.
+ */
+TEST(WaylandMonitorTest, ListenerIgnoresPhysicalGeometryScaleAndDone) {
+  wl::monitor_t monitor {nullptr};
+  monitor.xdg_position(nullptr, 100, 200);
+  monitor.xdg_size(nullptr, 1280, 720);
+  monitor.wl_mode(nullptr, WL_OUTPUT_MODE_CURRENT, 2560, 1440, 120000);
+  monitor.name = "DP-1";
+  monitor.description = "Logical monitor";
+
+  monitor.wl_listener.geometry(&monitor, nullptr, -500, -600, 600, 340, WL_OUTPUT_SUBPIXEL_UNKNOWN, "Other", "Physical monitor", WL_OUTPUT_TRANSFORM_90);
+  monitor.wl_listener.scale(&monitor, nullptr, 3);
+  monitor.wl_listener.done(&monitor, nullptr);
+
+  EXPECT_EQ(monitor.viewport.offset_x, 100);
+  EXPECT_EQ(monitor.viewport.offset_y, 200);
+  EXPECT_EQ(monitor.viewport.logical_width, 1280);
+  EXPECT_EQ(monitor.viewport.logical_height, 720);
+  EXPECT_EQ(monitor.viewport.width, 2560);
+  EXPECT_EQ(monitor.viewport.height, 1440);
+  EXPECT_EQ(monitor.refresh_mhz, 120000);
+  EXPECT_EQ(monitor.name, "DP-1");
+  EXPECT_EQ(monitor.description, "Logical monitor");
+}
+
 TEST(WaylandCaptureTest, UsesDamageCaptureOnlyOnAFasterOutput) {
   // An output at twice the stream's rate, and one just at the threshold.
   EXPECT_TRUE(wl::use_damage_capture(3, 60.0, 120000));

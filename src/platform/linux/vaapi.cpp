@@ -37,11 +37,11 @@ extern "C" {
 #if !VA_CHECK_VERSION(1, 21, 0)
   /**
    * @brief Stub vaMapBuffer2 when building against libva before 2.21.0.
+   * @details The older vaMapBuffer API does not accept the mapping flags supplied by the new ABI.
    *
    * @param dpy VA display.
    * @param buf_id VA buffer ID.
    * @param pbuf Output mapped buffer pointer.
-   * @param flags Mapping flags.
    * @return VA status code.
    */
   VAStatus
@@ -49,7 +49,7 @@ extern "C" {
       VADisplay dpy,
       VABufferID buf_id,
       void **pbuf,
-      uint32_t flags
+      uint32_t
     ) {
     return vaMapBuffer(dpy, buf_id, pbuf);
   }
