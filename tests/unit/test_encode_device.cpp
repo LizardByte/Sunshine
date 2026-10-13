@@ -7,6 +7,7 @@
 #include "../tests_common.h"
 
 // standard includes
+#include <array>
 #include <type_traits>
 
 // local includes
@@ -60,7 +61,7 @@ namespace {
   /**
    * @brief Hardware initialization entry points available in this build.
    */
-  constexpr initializer_t hardware_initializers[] = {
+  constexpr std::array hardware_initializers {
     &video::vaapi_init_avcodec_hardware_input_buffer,
 #ifdef SUNSHINE_BUILD_VULKAN
     &video::vulkan_init_avcodec_hardware_input_buffer,
