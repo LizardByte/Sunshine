@@ -23,6 +23,7 @@
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/video.h"
+#include "v4l2.h"
 #include "vaapi.h"
 #include "vulkan_encode.h"
 #include "wayland.h"
@@ -176,6 +177,12 @@ namespace wl {
       const bool same_gpu = capture_node_is_cuda_device(read_render_pci, read_cuda_pci);
       BOOST_LOG(info) << "[wlgrab] CUDA capture path: "sv << (same_gpu ? "zero-copy VRAM (capture node is the CUDA device)"sv : "GPU -> RAM -> GPU bridge (cross-GPU system)"sv);
       return same_gpu;
+    }
+#endif
+
+#ifdef SUNSHINE_BUILD_V4L2
+    if (hwdevice_type == platf::mem_type_e::v4l2) {
+      return true;
     }
 #endif
 
@@ -624,6 +631,12 @@ namespace wl {
       }
 #endif
 
+#ifdef SUNSHINE_BUILD_V4L2
+      if (mem_type == platf::mem_type_e::v4l2) {
+        return v4l2::make_avcodec_encode_device(width, height, false);
+      }
+#endif
+
       return std::make_unique<platf::avcodec_encode_device_t>();
     }
 
@@ -732,6 +745,12 @@ namespace wl {
         return vk::make_avcodec_encode_device_vram(width, height, 0, 0);
       }
 
+#ifdef SUNSHINE_BUILD_V4L2
+      if (mem_type == platf::mem_type_e::v4l2) {
+        return v4l2::make_avcodec_encode_device(width, height, 0, 0, true);
+      }
+#endif
+
       return std::make_unique<platf::avcodec_encode_device_t>();
     }
 
@@ -775,7 +794,7 @@ namespace platf {
    * @brief Create a Wayland capture backend for the requested memory type.
    */
   std::shared_ptr<display_t> wl_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
-    if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda && hwdevice_type != platf::mem_type_e::vulkan) {
+    if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda && hwdevice_type != platf::mem_type_e::vulkan && hwdevice_type != platf::mem_type_e::v4l2) {
       BOOST_LOG(error) << "[wlgrab] Could not initialize display with the given hw device type."sv;
       return nullptr;
     }
