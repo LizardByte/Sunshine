@@ -1217,12 +1217,22 @@ namespace pipewire {
       return false;  // Return to default stream dead handling.
     }
 
+    /**
+     * @brief Capture PipeWire frames until capture stops or the stream needs reinitialization.
+     *
+     * @param push_captured_image_cb Callback receiving a captured image or a capture timeout.
+     * @param pull_free_image_cb Callback providing an available image buffer.
+     * @param cursor Whether the cursor should be included in the captured image.
+     * @return Final capture status reported to the streaming pipeline.
+     */
     platf::capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
+      using enum platf::capture_e;
+
       auto next_frame = std::chrono::steady_clock::now();
 
       if (pipewire.ensure_stream(mem_type, width, height, target_framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia) < 0) {
         BOOST_LOG(error) << "[pipewire] Failed to ensure pipewire stream. capture() failed with error.";
-        return platf::capture_e::capture_error;
+        return capture_error;
       }
       sleep_overshoot_logger.reset();
 
@@ -1238,7 +1248,7 @@ namespace pipewire {
           }
           // Re-init the capture if the stream is dead for any other reason
           BOOST_LOG(warning) << "[pipewire] PipeWire stream disconnected. Forcing session reset."sv;
-          return platf::capture_e::reinit;
+          return reinit;
         }
 
         // Use unpaced event driven capture when possible
@@ -1248,27 +1258,27 @@ namespace pipewire {
 
         std::shared_ptr<platf::img_t> img_out;
         switch (const auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor)) {
-          case platf::capture_e::reinit:
-          case platf::capture_e::capture_error:
-          case platf::capture_e::interrupted:
+          case reinit:
+          case capture_error:
+          case interrupted:
             pipewire.frame_cv().notify_all();
             return status;
-          case platf::capture_e::timeout:
+          case timeout:
             if (!pull_free_image_cb(img_out)) {
               // Detect if shutdown is pending
               BOOST_LOG(debug) << "[pipewire] PipeWire: timeout -> shutdown pending -> interrupt nudge";
               pipewire.frame_cv().notify_all();
-              return platf::capture_e::interrupted;
+              return interrupted;
             }
             if (!push_captured_image_cb(std::move(img_out), false)) {
               BOOST_LOG(debug) << "[pipewire] PipeWire: timeout -> !push_captured_image_cb -> ok";
-              return platf::capture_e::ok;
+              return ok;
             }
             break;
-          case platf::capture_e::ok:
+          case ok:
             if (!push_captured_image_cb(std::move(img_out), true)) {
               BOOST_LOG(debug) << "[pipewire] PipeWire: ok -> !push_captured_image_cb -> ok";
-              return platf::capture_e::ok;
+              return ok;
             }
             break;
           default:
@@ -1277,7 +1287,7 @@ namespace pipewire {
         }
       }
 
-      return platf::capture_e::ok;
+      return ok;
     }
 
     /**

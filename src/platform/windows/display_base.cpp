@@ -186,27 +186,34 @@ namespace platf::dxgi {
     return capture_status;
   }
 
+  /**
+   * @brief Release the acquired desktop duplication frame and classify the DXGI result.
+   *
+   * @return Success, a required display reinitialization, or a capture error.
+   */
   capture_e duplication_t::release_frame() {
+    using enum platf::capture_e;
+
     if (!has_frame) {
-      return capture_e::ok;
+      return ok;
     }
 
     auto status = dup->ReleaseFrame();
     has_frame = false;
     switch (status) {
       case S_OK:
-        return capture_e::ok;
+        return ok;
 
       case DXGI_ERROR_INVALID_CALL:
         BOOST_LOG(warning) << "Duplication frame already released";
-        return capture_e::ok;
+        return ok;
 
       case DXGI_ERROR_ACCESS_LOST:
-        return capture_e::reinit;
+        return reinit;
 
       default:
         BOOST_LOG(error) << "Error while releasing duplication frame [0x"sv << util::hex(status).to_string_view();
-        return capture_e::capture_error;
+        return capture_error;
     }
   }
 
