@@ -5,6 +5,7 @@
  */
 // standard includes
 #include <thread>
+#include <utility>
 
 // local includes
 #include "misc.h"
@@ -398,15 +399,17 @@ namespace platf::publish {
    * @return Avahi protocol selector matching the configured family.
    */
   avahi::Protocol protocol_for_address_family(net::af_e af) {
+    using enum avahi::proto;
+
     switch (af) {
       case net::IPV4:
-        return static_cast<avahi::Protocol>(avahi::proto::PROTO_INET);
+        return std::to_underlying(PROTO_INET);
       case net::BOTH:
-        return static_cast<avahi::Protocol>(avahi::proto::PROTO_UNSPEC);
+        return std::to_underlying(PROTO_UNSPEC);
     }
 
     // avoid warning
-    return static_cast<avahi::Protocol>(avahi::proto::PROTO_UNSPEC);
+    return std::to_underlying(PROTO_UNSPEC);
   }
 
   /**
