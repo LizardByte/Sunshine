@@ -625,6 +625,18 @@ namespace nvhttp {
     return pair_session_insert_e::ADDED;
   }
 
+  bool evict_abandoned_pair_session(const std::string &unique_id) {
+    std::scoped_lock lock {map_id_sess_mutex()};
+    const auto sess_it = map_id_sess.find(unique_id);
+    if (sess_it == map_id_sess.end() || sess_it->second.last_phase == PAIR_PHASE::NONE) {
+      return false;
+    }
+
+    complete_pairing(sess_it->second, false);
+    map_id_sess.erase(sess_it);
+    return true;
+  }
+
   bool is_valid_pairing_id(const std::string_view pairing_id) {
     return pairing_id.size() == PAIRING_ID_SIZE && std::ranges::all_of(pairing_id, [](const char character) {
              return (character >= '0' && character <= '9') || (character >= 'a' && character <= 'f') || (character >= 'A' && character <= 'F');
@@ -980,21 +992,30 @@ namespace nvhttp {
     pt::ptree &tree,
     const std::string &unique_id
   ) {
-    pair_session_t sess;
-    sess.client.uniqueID = unique_id;
-    sess.client.cert = util::from_hex_vec(get_arg(args, "clientcert"), true);
-    sess.async_insert_pin.salt = get_arg(args, "salt");
-    sess.async_insert_pin.device_name = get_arg(args, "devicename");
-    sess.async_insert_pin.address = net::addr_to_normalized_string(request->remote_endpoint().address());
-
-    BOOST_LOG(debug) << sess.client.cert;
     const bool pin_stdin = config::sunshine.flags[config::flag::PIN_STDIN];
-    if (!pin_stdin) {
-      sess.async_insert_pin.response = response;
-    }
+    auto make_session = [&]() {
+      pair_session_t fresh_sess;
+      fresh_sess.client.uniqueID = unique_id;
+      fresh_sess.client.cert = util::from_hex_vec(get_arg(args, "clientcert"), true);
+      fresh_sess.async_insert_pin.salt = get_arg(args, "salt");
+      fresh_sess.async_insert_pin.device_name = get_arg(args, "devicename");
+      fresh_sess.async_insert_pin.address = net::addr_to_normalized_string(request->remote_endpoint().address());
+      if (!pin_stdin) {
+        fresh_sess.async_insert_pin.response = response;
+      }
+
+      BOOST_LOG(debug) << fresh_sess.client.cert;
+      return fresh_sess;
+    };
 
     std::string pairing_id;
-    switch (insert_pair_session(std::move(sess), pairing_id)) {
+    auto insert_result = insert_pair_session(make_session(), pairing_id);
+    if (insert_result == pair_session_insert_e::ALREADY_EXISTS && evict_abandoned_pair_session(unique_id)) {
+      // The previous handshake was abandoned mid-flight; the old session cannot resume,
+      // so replace it with a fresh one and retry the insert once.
+      insert_result = insert_pair_session(make_session(), pairing_id);
+    }
+    switch (insert_result) {
       using enum pair_session_insert_e;
 
       case ALREADY_EXISTS:
@@ -1009,6 +1030,9 @@ namespace nvhttp {
         return false;
       case ADDED:
         break;
+      default:
+        // All enumerators are handled above; any other value cannot occur.
+        std::unreachable();
     }
 
     if (!pin_stdin) {
