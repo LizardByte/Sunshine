@@ -912,13 +912,13 @@ namespace confighttp {
     std::string file = file_handler::read_file(config::stream.file_apps.c_str());
     nlohmann::json file_tree = nlohmann::json::parse(file);
     if (const auto &apps = file_tree["apps"]; index < 0 || index >= static_cast<int>(apps.size())) {
-      std::string error;
+      std::string error_message;
       if (const int max_index = static_cast<int>(apps.size()) - 1; max_index < 0) {
-        error = "No applications found";
+        error_message = "No applications found";
       } else {
-        error = std::format("'index' {} out of range, max index is {}", index, max_index);
+        error_message = std::format("'index' {} out of range, max index is {}", index, max_index);
       }
-      bad_request(response, request, error);
+      bad_request(response, request, error_message);
       return false;
     }
     return true;
@@ -1783,10 +1783,10 @@ namespace confighttp {
 
       if (!errors.empty()) {
         // join the errors array
-        std::string error = std::accumulate(errors.begin(), errors.end(), std::string(), [](const std::string &a, const std::string &b) {
+        std::string error_message = std::accumulate(errors.begin(), errors.end(), std::string(), [](const std::string &a, const std::string &b) {
           return a.empty() ? b : a + ", " + b;
         });
-        bad_request(response, request, error);
+        bad_request(response, request, error_message);
         return;
       }
 
@@ -2523,10 +2523,10 @@ namespace confighttp {
 
     const auto display_addr = net::get_bind_address_url_host();
 
-    auto accept_and_run = [&](auto *server) {
+    auto accept_and_run = [&](auto *https_server) {
       try {
         platf::set_thread_name("confighttp::tcp");
-        server->start([&display_addr](const unsigned short port) {
+        https_server->start([&display_addr](const unsigned short port) {
           BOOST_LOG(info) << "Configuration UI available at [https://"sv << display_addr << ":" << port << "]";
         });
       } catch (boost::system::system_error &err) {

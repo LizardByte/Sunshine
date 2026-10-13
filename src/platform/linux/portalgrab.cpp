@@ -1063,7 +1063,7 @@ namespace portal {
       if (dbus.is_session_closed()) {
         BOOST_LOG(warning) << "[portalgrab] PipeWire stream stopped by closed portal session."sv;
         pipewire.frame_cv().notify_all();
-        out_status = platf::capture_e::error;
+        out_status = platf::capture_e::capture_error;
         return true;  // Stop capture with error (due to out_status)
       }
       // Disable maxframerate negotiation if the stream died without having ever started (e.g. GNOME mutter does not support it)

@@ -616,11 +616,11 @@ namespace egl {
      * @brief Reset the object to its initial empty state.
      */
     void reset() {
-      for (auto x = 0; x < 4; ++x) {
-        if (sd.fds[x] >= 0) {
-          close(sd.fds[x]);
+      for (auto fd_index = 0; fd_index < 4; ++fd_index) {
+        if (sd.fds[fd_index] >= 0) {
+          close(sd.fds[fd_index]);
 
-          sd.fds[x] = -1;
+          sd.fds[fd_index] = -1;
         }
       }
     }

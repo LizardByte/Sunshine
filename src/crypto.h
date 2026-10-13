@@ -251,10 +251,10 @@ namespace crypto {
       /**
        * @brief Construct an AES-ECB cipher helper with key material.
        *
-       * @param key AES key material used to initialize the cipher.
-       * @param padding Whether the cipher should use block padding.
+       * @param key_material AES key material used to initialize the cipher.
+       * @param use_padding Whether the cipher should use block padding.
        */
-      ecb_t(const aes_t &key, bool padding = true);
+      ecb_t(const aes_t &key_material, bool use_padding = true);
 
       /**
        * @brief Encrypt plaintext into the supplied ciphertext buffer.
@@ -294,10 +294,10 @@ namespace crypto {
       /**
        * @brief Construct an AES-GCM cipher helper with key material and IV state.
        *
-       * @param key AES key material used to initialize the cipher.
-       * @param padding Whether the cipher should use block padding.
+       * @param key_material AES key material used to initialize the cipher.
+       * @param use_padding Whether the cipher should use block padding.
        */
-      gcm_t(const crypto::aes_t &key, bool padding = true);
+      gcm_t(const crypto::aes_t &key_material, bool use_padding = true);
 
       /**
        * @brief Encrypts the plaintext using AES GCM mode.
@@ -350,10 +350,10 @@ namespace crypto {
       /**
        * @brief Construct an AES-CBC cipher helper with key material and IV state.
        *
-       * @param key AES key material used to initialize the cipher.
-       * @param padding Whether the cipher should use block padding.
+       * @param key_material AES key material used to initialize the cipher.
+       * @param use_padding Whether the cipher should use block padding.
        */
-      cbc_t(const crypto::aes_t &key, bool padding = true);
+      cbc_t(const crypto::aes_t &key_material, bool use_padding = true);
 
       /**
        * @brief Encrypts the plaintext using AES CBC mode.

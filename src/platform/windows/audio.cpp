@@ -780,7 +780,7 @@ namespace platf::audio {
           return capture_e::timeout;
         default:
           BOOST_LOG(error) << "Couldn't wait for audio event: [0x"sv << util::hex(status).to_string_view() << ']';
-          return capture_e::error;
+          return capture_e::capture_error;
       }
 
       std::uint32_t packet_size {};
@@ -804,7 +804,7 @@ namespace platf::audio {
             return capture_e::reinit;
           default:
             BOOST_LOG(error) << "Couldn't capture audio [0x"sv << util::hex(status).to_string_view() << ']';
-            return capture_e::error;
+            return capture_e::capture_error;
         }
 
         if (buffer_flags & AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY) {
@@ -834,7 +834,7 @@ namespace platf::audio {
       }
 
       if (FAILED(status)) {
-        return capture_e::error;
+        return capture_e::capture_error;
       }
 
       return capture_e::ok;

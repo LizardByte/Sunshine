@@ -66,9 +66,9 @@ namespace logging {
    */
   void formatter(const boost::log::record_view &view, boost::log::formatting_ostream &os) {
     constexpr const char *message = "Message";
-    constexpr const char *severity = "Severity";
+    constexpr const char *severity_attribute = "Severity";
 
-    auto log_level = view.attribute_values()[severity].extract<int>().get();
+    auto log_level = view.attribute_values()[severity_attribute].extract<int>().get();
 
     std::string_view log_type;
     switch (log_level) {

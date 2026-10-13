@@ -174,7 +174,7 @@ namespace platf::dxgi {
         return capture_e::reinit;
       default:
         BOOST_LOG(error) << "Couldn't acquire next frame [0x"sv << util::hex(status).to_string_view();
-        return capture_e::error;
+        return capture_e::capture_error;
     }
   }
 
@@ -186,27 +186,34 @@ namespace platf::dxgi {
     return capture_status;
   }
 
+  /**
+   * @brief Release the acquired desktop duplication frame and classify the DXGI result.
+   *
+   * @return Success, a required display reinitialization, or a capture error.
+   */
   capture_e duplication_t::release_frame() {
+    using enum platf::capture_e;
+
     if (!has_frame) {
-      return capture_e::ok;
+      return ok;
     }
 
     auto status = dup->ReleaseFrame();
     has_frame = false;
     switch (status) {
       case S_OK:
-        return capture_e::ok;
+        return ok;
 
       case DXGI_ERROR_INVALID_CALL:
         BOOST_LOG(warning) << "Duplication frame already released";
-        return capture_e::ok;
+        return ok;
 
       case DXGI_ERROR_ACCESS_LOST:
-        return capture_e::reinit;
+        return reinit;
 
       default:
         BOOST_LOG(error) << "Error while releasing duplication frame [0x"sv << util::hex(status).to_string_view();
-        return capture_e::error;
+        return capture_error;
     }
   }
 
@@ -332,7 +339,7 @@ namespace platf::dxgi {
 
       switch (status) {
         case platf::capture_e::reinit:
-        case platf::capture_e::error:
+        case platf::capture_e::capture_error:
         case platf::capture_e::interrupted:
           return status;
         case platf::capture_e::timeout:
@@ -639,7 +646,7 @@ namespace platf::dxgi {
 
       HMODULE gdi32 = GetModuleHandleA("GDI32");
       if (gdi32) {
-        auto check_hags = [&](const LUID &adapter) -> bool {
+        auto check_hags = [&](const LUID &adapter_luid) -> bool {
           auto d3dkmt_open_adapter = (PD3DKMTOpenAdapterFromLuid) GetProcAddress(gdi32, "D3DKMTOpenAdapterFromLuid");
           auto d3dkmt_query_adapter_info = (PD3DKMTQueryAdapterInfo) GetProcAddress(gdi32, "D3DKMTQueryAdapterInfo");
           auto d3dkmt_close_adapter = (PD3DKMTCloseAdapter) GetProcAddress(gdi32, "D3DKMTCloseAdapter");
@@ -648,7 +655,7 @@ namespace platf::dxgi {
             return false;
           }
 
-          D3DKMT_OPENADAPTERFROMLUID d3dkmt_adapter = {.AdapterLuid = adapter};
+          D3DKMT_OPENADAPTERFROMLUID d3dkmt_adapter = {.AdapterLuid = adapter_luid};
           if (FAILED(d3dkmt_open_adapter(&d3dkmt_adapter))) {
             BOOST_LOG(error) << "D3DKMTOpenAdapterFromLuid() failed while trying to determine GPU HAGS status";
             return false;

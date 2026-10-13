@@ -41,13 +41,13 @@ namespace platf {
     /**
      * @brief Initialize zero-copy NV12 encoding for an AVFoundation display.
      *
-     * @param display Display object or identifier associated with the operation.
+     * @param capture_display Display object or identifier associated with the operation.
      * @param pix_fmt Sunshine pixel format to convert or allocate for.
-     * @param resolution_fn Callback used to resize the AVFoundation capture output.
+     * @param set_resolution Callback used to resize the AVFoundation capture output.
      * @param pixel_format_fn Pixel format.
      * @return 0 on success; nonzero or negative platform status on failure.
      */
-    int init(void *display, pix_fmt_e pix_fmt, resolution_fn_t resolution_fn, const pixel_format_fn_t &pixel_format_fn);
+    int init(void *capture_display, pix_fmt_e pix_fmt, resolution_fn_t set_resolution, const pixel_format_fn_t &pixel_format_fn);
 
     /**
      * @brief Forward a captured AVFoundation frame to FFmpeg without copying.
@@ -59,11 +59,11 @@ namespace platf {
     /**
      * @brief Attach frame resources used by the next conversion or encode operation.
      *
-     * @param frame Video or graphics frame being processed.
+     * @param new_frame Video or graphics frame being processed.
      * @param hw_frames_ctx FFmpeg hardware frames context associated with the frame.
      * @return Status from updating frame.
      */
-    int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override;
+    int set_frame(AVFrame *new_frame, AVBufferRef *hw_frames_ctx) override;
 
   private:
     util::safe_ptr<AVFrame, &free_frame> av_frame;

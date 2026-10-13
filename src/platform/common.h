@@ -611,13 +611,13 @@ namespace platf {
 
     /**
      * @brief Set the frame to be encoded.
-     * @note Implementations must take ownership of 'frame'.
+     * @note Implementations must take ownership of 'new_frame'.
      *
-     * @param frame Video or graphics frame being processed.
+     * @param new_frame Video or graphics frame being processed.
      * @param hw_frames_ctx FFmpeg hardware frames context associated with the frame.
      * @return Status from updating frame.
      */
-    virtual int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
+    virtual int set_frame(AVFrame *new_frame, AVBufferRef *hw_frames_ctx) {
       BOOST_LOG(error) << "Illegal call to hwdevice_t::set_frame(). Did you forget to override it?";
       return -1;
     };
@@ -675,7 +675,7 @@ namespace platf {
     reinit,  ///< Need to reinitialize
     timeout,  ///< Timeout
     interrupted,  ///< Capture was interrupted
-    error  ///< Error
+    capture_error  ///< Capture failed.
   };
 
   /**
@@ -712,7 +712,7 @@ namespace platf {
      * Calls to this callback and push_captured_image_cb must be synchronized as well.
      * @param cursor A pointer to the flag that indicates whether the cursor should be captured as well.
      * @retval capture_e::ok When stopping
-     * @retval capture_e::error On error
+     * @retval capture_e::capture_error On error
      * @retval capture_e::reinit When need of reinitialization
      */
     virtual capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) = 0;

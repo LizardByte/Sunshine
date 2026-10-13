@@ -223,7 +223,7 @@ namespace wl {
      * @brief Populate a fallback image when real capture data is unavailable.
      *
      * @param img Image or frame object to read from or populate.
-     * @return Capture status reported to the streaming pipeline.
+     * @return Final capture status when callbacks stop capture or the display needs reinitialization.
      */
     int dummy_img(platf::img_t *img) override {
       return 0;
@@ -319,6 +319,8 @@ namespace wl {
      * @return Capture status reported to the streaming pipeline.
      */
     platf::capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
+      using enum platf::capture_e;
+
       auto next_frame = std::chrono::steady_clock::now();
 
       sleep_overshoot_logger.reset();
@@ -329,14 +331,14 @@ namespace wl {
         std::shared_ptr<platf::img_t> img_out;
         auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
         switch (status) {
-          case platf::capture_e::reinit:
-          case platf::capture_e::error:
-          case platf::capture_e::interrupted:
+          case reinit:
+          case capture_error:
+          case interrupted:
             return status;
-          case platf::capture_e::timeout:
-          case platf::capture_e::ok:
-            if (!push_captured_image_cb(std::move(img_out), status == platf::capture_e::ok)) {
-              return platf::capture_e::ok;
+          case timeout:
+          case ok:
+            if (!push_captured_image_cb(std::move(img_out), status == ok)) {
+              return ok;
             }
             break;
           default:
@@ -345,7 +347,7 @@ namespace wl {
         }
       }
 
-      return platf::capture_e::ok;
+      return ok;
     }
 
     /**

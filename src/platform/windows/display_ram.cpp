@@ -241,7 +241,7 @@ namespace platf::dxgi {
       if (FAILED(status)) {
         BOOST_LOG(error) << "Failed to get new pointer shape [0x"sv << util::hex(status).to_string_view() << ']';
 
-        return capture_e::error;
+        return capture_e::capture_error;
       }
     }
 
@@ -258,7 +258,7 @@ namespace platf::dxgi {
 
         if (FAILED(status)) {
           BOOST_LOG(error) << "Couldn't query interface [0x"sv << util::hex(status).to_string_view() << ']';
-          return capture_e::error;
+          return capture_e::capture_error;
         }
 
         D3D11_TEXTURE2D_DESC desc;
@@ -279,11 +279,11 @@ namespace platf::dxgi {
           t.Format = capture_format;
           t.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
 
-          auto status = device->CreateTexture2D(&t, nullptr, &texture);
+          auto texture_status = device->CreateTexture2D(&t, nullptr, &texture);
 
-          if (FAILED(status)) {
-            BOOST_LOG(error) << "Failed to create staging texture [0x"sv << util::hex(status).to_string_view() << ']';
-            return capture_e::error;
+          if (FAILED(texture_status)) {
+            BOOST_LOG(error) << "Failed to create staging texture [0x"sv << util::hex(texture_status).to_string_view() << ']';
+            return capture_e::capture_error;
           }
         }
 
@@ -316,7 +316,7 @@ namespace platf::dxgi {
       BOOST_LOG(debug) << "Capture format is still unknown. Encoding a blank image"sv;
 
       if (dummy_img(img)) {
-        return capture_e::error;
+        return capture_e::capture_error;
       }
     } else {
       // Map the staging texture for CPU access (making it inaccessible for the GPU)
@@ -324,14 +324,14 @@ namespace platf::dxgi {
       if (FAILED(status)) {
         BOOST_LOG(error) << "Failed to map texture [0x"sv << util::hex(status).to_string_view() << ']';
 
-        return capture_e::error;
+        return capture_e::capture_error;
       }
 
       // Now that we know the capture format, we can finish creating the image
       if (complete_img(img, false)) {
         device_ctx->Unmap(texture.get(), 0);
         img_info.pData = nullptr;
-        return capture_e::error;
+        return capture_e::capture_error;
       }
 
       std::copy_n((std::uint8_t *) img_info.pData, height * img_info.RowPitch, (std::uint8_t *) img->data);

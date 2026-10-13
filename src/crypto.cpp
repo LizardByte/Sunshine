@@ -310,16 +310,16 @@ namespace crypto {
       return update_outlen + final_outlen;
     }
 
-    ecb_t::ecb_t(const aes_t &key, bool padding):
-        cipher_t {EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_new(), key, padding} {
+    ecb_t::ecb_t(const aes_t &key_material, bool use_padding):
+        cipher_t {EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_new(), key_material, use_padding} {
     }
 
-    cbc_t::cbc_t(const aes_t &key, bool padding):
-        cipher_t {nullptr, nullptr, key, padding} {
+    cbc_t::cbc_t(const aes_t &key_material, bool use_padding):
+        cipher_t {nullptr, nullptr, key_material, use_padding} {
     }
 
-    gcm_t::gcm_t(const crypto::aes_t &key, bool padding):
-        cipher_t {nullptr, nullptr, key, padding} {
+    gcm_t::gcm_t(const crypto::aes_t &key_material, bool use_padding):
+        cipher_t {nullptr, nullptr, key_material, use_padding} {
     }
 
   }  // namespace cipher

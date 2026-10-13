@@ -271,8 +271,8 @@ namespace service_ctrl {
       }
 
       uint16_t port_nbo = htons(net::map_port(confighttp::PORT_HTTPS));
-      for (DWORD i = 0; i < tcp_table->dwNumEntries; i++) {
-        auto &entry = tcp_table->table[i];
+      for (DWORD entry_index = 0; entry_index < tcp_table->dwNumEntries; entry_index++) {
+        auto &entry = tcp_table->table[entry_index];
 
         // Look for our port in the listening state
         if (entry.dwLocalPort == port_nbo && entry.dwState == MIB_TCP_STATE_LISTEN) {

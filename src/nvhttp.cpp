@@ -122,8 +122,8 @@ namespace nvhttp {
 
         if (!ec) {
           boost::asio::ip::tcp::no_delay option(true);
-          SimpleWeb::error_code ec;
-          session->connection->socket->lowest_layer().set_option(option, ec);
+          SimpleWeb::error_code option_error;
+          session->connection->socket->lowest_layer().set_option(option, option_error);
 
           session->connection->set_timeout(config.timeout_request);
           session->connection->socket->async_handshake(boost::asio::ssl::stream_base::server, [this, session](const SimpleWeb::error_code &ec) {
@@ -1726,11 +1726,11 @@ namespace nvhttp {
     http_server.config.address = net::get_bind_address(address_family);
     http_server.config.port = port_http;
 
-    auto accept_and_run = [&](auto *http_server) {
+    auto accept_and_run = [&](auto *web_server) {
       try {
-        std::string name = "nvhttp::" + std::to_string(http_server->config.port);
+        std::string name = "nvhttp::" + std::to_string(web_server->config.port);
         platf::set_thread_name(name);
-        http_server->start();
+        web_server->start();
       } catch (boost::system::system_error &err) {
         // It's possible the exception gets thrown after calling http_server->stop() from a different thread
         if (shutdown_event->peek()) {

@@ -64,7 +64,7 @@ namespace proc {
     return std::make_unique<deinit_t>();
   }
 
-  void terminate_process_group(boost::process::v1::child &proc, boost::process::v1::group &group, std::chrono::seconds exit_timeout) {
+  void terminate_process_group(boost::process::v1::child &child_process, boost::process::v1::group &group, std::chrono::seconds exit_timeout) {
     if (group.valid() && platf::process_group_running((std::uintptr_t) group.native_handle())) {
       if (exit_timeout.count() > 0) {
         // Request processes in the group to exit gracefully
@@ -96,9 +96,9 @@ namespace proc {
       group.detach();
     }
 
-    if (proc.valid()) {
+    if (child_process.valid()) {
       // avoid zombie process
-      proc.detach();
+      child_process.detach();
     }
   }
 

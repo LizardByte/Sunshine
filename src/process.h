@@ -236,11 +236,11 @@ namespace proc {
 
   /**
    * @brief Terminates all child processes in a process group.
-   * @param proc The child process itself.
+   * @param child_process The child process itself.
    * @param group The group of all children in the process tree.
    * @param exit_timeout The timeout to wait for the process group to gracefully exit.
    */
-  void terminate_process_group(boost::process::v1::child &proc, boost::process::v1::group &group, std::chrono::seconds exit_timeout);
+  void terminate_process_group(boost::process::v1::child &child_process, boost::process::v1::group &group, std::chrono::seconds exit_timeout);
 
   extern proc_t proc;
 }  // namespace proc

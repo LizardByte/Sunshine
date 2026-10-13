@@ -263,17 +263,17 @@ namespace va {
 
     /**
      * @brief Determines the matching VA profile for the codec configuration.
-     * @param ctx The FFmpeg codec context.
+     * @param codec_ctx The FFmpeg codec context.
      * @return The matching VA profile or `VAProfileNone` on failure.
      */
-    VAProfile get_va_profile(AVCodecContext *ctx) {
-      if (ctx->codec_id == AV_CODEC_ID_H264) {
+    VAProfile get_va_profile(AVCodecContext *codec_ctx) {
+      if (codec_ctx->codec_id == AV_CODEC_ID_H264) {
         // There's no VAAPI profile for H.264 4:4:4
         return VAProfileH264High;
-      } else if (ctx->codec_id == AV_CODEC_ID_HEVC) {
-        switch (ctx->profile) {
+      } else if (codec_ctx->codec_id == AV_CODEC_ID_HEVC) {
+        switch (codec_ctx->profile) {
           case AV_PROFILE_HEVC_REXT:
-            switch (av_pix_fmt_desc_get(ctx->sw_pix_fmt)->comp[0].depth) {
+            switch (av_pix_fmt_desc_get(codec_ctx->sw_pix_fmt)->comp[0].depth) {
               case 10:
                 return VAProfileHEVCMain444_10;
               case 8:
@@ -285,8 +285,8 @@ namespace va {
           case AV_PROFILE_HEVC_MAIN:
             return VAProfileHEVCMain;
         }
-      } else if (ctx->codec_id == AV_CODEC_ID_AV1) {
-        switch (ctx->profile) {
+      } else if (codec_ctx->codec_id == AV_CODEC_ID_AV1) {
+        switch (codec_ctx->profile) {
           case AV_PROFILE_AV1_HIGH:
             return VAProfileAV1Profile1;
           case AV_PROFILE_AV1_MAIN:
@@ -294,18 +294,18 @@ namespace va {
         }
       }
 
-      BOOST_LOG(error) << "Unknown encoder profile: "sv << ctx->profile;
+      BOOST_LOG(error) << "Unknown encoder profile: "sv << codec_ctx->profile;
       return VAProfileNone;
     }
 
     /**
      * @brief Initialize codec options.
      *
-     * @param ctx Native context object used by the operation or callback.
+     * @param codec_ctx Native context object used by the operation or callback.
      * @param options Request options or socket options to apply.
      */
-    void init_codec_options(AVCodecContext *ctx, AVDictionary **options) override {
-      auto va_profile = get_va_profile(ctx);
+    void init_codec_options(AVCodecContext *codec_ctx, AVDictionary **options) override {
+      auto va_profile = get_va_profile(codec_ctx);
       if (va_profile == VAProfileNone || !is_va_profile_supported(va_profile)) {
         // Don't bother doing anything if the profile isn't supported
         return;
@@ -351,8 +351,8 @@ namespace va {
           break;
       }
       if (target_quality > 0) {
-        ctx->compression_level = target_quality;
-        BOOST_LOG(info) << "[VAAPI] Quality level set to "sv << ctx->compression_level << " (fastest level: "sv << quality_attr.value << ")"sv;
+        codec_ctx->compression_level = target_quality;
+        BOOST_LOG(info) << "[VAAPI] Quality level set to "sv << codec_ctx->compression_level << " (fastest level: "sv << quality_attr.value << ")"sv;
       }
 
       VAConfigAttrib rc_attr = {.type = VAConfigAttribRateControl};
@@ -368,9 +368,9 @@ namespace va {
         // Assume only a single slice is supported
         slice_attr.value = 1;
       }
-      if (ctx->slices > slice_attr.value) {
+      if (codec_ctx->slices > slice_attr.value) {
         BOOST_LOG(info) << "Limiting slice count to encoder maximum: "sv << slice_attr.value;
-        ctx->slices = slice_attr.value;
+        codec_ctx->slices = slice_attr.value;
       }
 
       // Use VBR with a single frame VBV when the user forces it and for known good cases:
@@ -394,7 +394,7 @@ namespace va {
       auto rc_val = config::video.vaapi.vaapi_rc.value_or(0);
 
       // Detect whitelisted configurations
-      if ((vendor && std::string_view(vendor).contains("Intel") == true) || ctx->codec_id == AV_CODEC_ID_AV1) {
+      if ((vendor && std::string_view(vendor).contains("Intel") == true) || codec_ctx->codec_id == AV_CODEC_ID_AV1) {
         auto_whitelist = true;
         rc_whitelist = " (whitelist override)";
       }
@@ -416,7 +416,7 @@ namespace va {
       }
 
       if (config::video.vaapi.strict_rc_buffer || auto_whitelist) {
-        ctx->rc_buffer_size = ctx->bit_rate * ctx->framerate.den / ctx->framerate.num;
+        codec_ctx->rc_buffer_size = codec_ctx->bit_rate * codec_ctx->framerate.den / codec_ctx->framerate.num;
         rc_vbv = "with single frame VBV size";
       }
 
@@ -435,23 +435,23 @@ namespace va {
     /**
      * @brief Attach frame resources used by the next conversion or encode operation.
      *
-     * @param frame Video or graphics frame being processed.
+     * @param new_frame Video or graphics frame being processed.
      * @param hw_frames_ctx_buf Hardware frames context buffer.
      * @return Status from updating frame.
      */
-    int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx_buf) override {
-      this->hwframe.reset(frame);
-      this->frame = frame;
+    int set_frame(AVFrame *new_frame, AVBufferRef *hw_frames_ctx_buf) override {
+      this->hwframe.reset(new_frame);
+      this->frame = new_frame;
 
-      if (!frame->buf[0]) {
-        if (av_hwframe_get_buffer(hw_frames_ctx_buf, frame, 0)) {
+      if (!new_frame->buf[0]) {
+        if (av_hwframe_get_buffer(hw_frames_ctx_buf, new_frame, 0)) {
           BOOST_LOG(error) << "Couldn't get hwframe for VAAPI"sv;
           return -1;
         }
       }
 
       va::DRMPRIMESurfaceDescriptor prime;
-      va::VASurfaceID surface = (std::uintptr_t) frame->data[3];
+      va::VASurfaceID surface = (std::uintptr_t) new_frame->data[3];
       auto hw_frames_ctx = (AVHWFramesContext *) hw_frames_ctx_buf->data;
 
       auto status = vaExportSurfaceHandle(
@@ -505,7 +505,7 @@ namespace va {
         return -1;
       }
 
-      auto sws_opt = egl::sws_t::make(width, height, frame->width, frame->height, hw_frames_ctx->sw_format, false);
+      auto sws_opt = egl::sws_t::make(width, height, new_frame->width, new_frame->height, hw_frames_ctx->sw_format, false);
       if (!sws_opt) {
         return -1;
       }
@@ -603,19 +603,19 @@ namespace va {
      * @param in_width In width.
      * @param in_height In height.
      * @param render_device Render device.
-     * @param offset_x Offset x.
-     * @param offset_y Offset y.
+     * @param in_offset_x Offset x.
+     * @param in_offset_y Offset y.
      * @return 0 on success; nonzero or negative platform status on failure.
      */
-    int init(int in_width, int in_height, file_t &&render_device, int offset_x, int offset_y) {
+    int init(int in_width, int in_height, file_t &&render_device, int in_offset_x, int in_offset_y) {
       if (va_t::init(in_width, in_height, std::move(render_device))) {
         return -1;
       }
 
       sequence = 0;
 
-      this->offset_x = offset_x;
-      this->offset_y = offset_y;
+      this->offset_x = in_offset_x;
+      this->offset_y = in_offset_y;
 
       return 0;
     }

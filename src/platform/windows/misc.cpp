@@ -206,19 +206,19 @@ namespace platf {
    * @return Adapter-address list populated by GetAdaptersAddresses.
    */
   adapteraddrs_t get_adapteraddrs() {
-    adapteraddrs_t info {nullptr};
+    adapteraddrs_t adapter_addresses {nullptr};
     ULONG size = 0;
 
-    while (GetAdaptersAddresses(AF_UNSPEC, 0, nullptr, info.get(), &size) == ERROR_BUFFER_OVERFLOW) {
-      info.reset((PIP_ADAPTER_ADDRESSES) malloc(size));
+    while (GetAdaptersAddresses(AF_UNSPEC, 0, nullptr, adapter_addresses.get(), &size) == ERROR_BUFFER_OVERFLOW) {
+      adapter_addresses.reset((PIP_ADAPTER_ADDRESSES) malloc(size));
     }
 
-    return info;
+    return adapter_addresses;
   }
 
   std::string get_mac_address(const std::string_view &address) {
-    adapteraddrs_t info = get_adapteraddrs();
-    for (auto adapter_pos = info.get(); adapter_pos != nullptr; adapter_pos = adapter_pos->Next) {
+    adapteraddrs_t adapter_addresses = get_adapteraddrs();
+    for (auto adapter_pos = adapter_addresses.get(); adapter_pos != nullptr; adapter_pos = adapter_pos->Next) {
       for (auto addr_pos = adapter_pos->FirstUnicastAddress; addr_pos != nullptr; addr_pos = addr_pos->Next) {
         if (adapter_pos->PhysicalAddressLength != 0 && address == from_sockaddr(addr_pos->Address.lpSockaddr)) {
           std::stringstream mac_addr;
@@ -1234,8 +1234,8 @@ namespace platf {
               // https://docs.microsoft.com/en-us/windows-hardware/drivers/network/oid-wdi-set-connection-quality
               // https://docs.microsoft.com/en-us/previous-versions/windows/hardware/wireless/native-802-11-media-streaming
               BOOL value = TRUE;
-              auto error = fn_WlanSetInterface(wlan_handle, &wlan_interface_list->InterfaceInfo[i].InterfaceGuid, wlan_intf_opcode_media_streaming_mode, sizeof(value), &value, nullptr);
-              if (error == ERROR_SUCCESS) {
+              auto wlan_status = fn_WlanSetInterface(wlan_handle, &wlan_interface_list->InterfaceInfo[i].InterfaceGuid, wlan_intf_opcode_media_streaming_mode, sizeof(value), &value, nullptr);
+              if (wlan_status == ERROR_SUCCESS) {
                 BOOST_LOG(info) << "WLAN interface "sv << i << " is now in low latency mode"sv;
               }
             }
@@ -1372,8 +1372,8 @@ namespace platf {
         BOOST_LOG(debug) << "Sent WM_CLOSE to PID: "sv << wnd_process_id;
         enum_ctx->requested_exit = true;
       } else {
-        auto error = GetLastError();
-        BOOST_LOG(warning) << "Failed to send WM_CLOSE to PID ["sv << wnd_process_id << "]: " << error;
+        auto close_error = GetLastError();
+        BOOST_LOG(warning) << "Failed to send WM_CLOSE to PID ["sv << wnd_process_id << "]: " << close_error;
       }
     }
 

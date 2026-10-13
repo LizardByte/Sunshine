@@ -559,7 +559,17 @@ namespace platf {
       x11::GetWindowAttributes(xdisplay.get(), xwindow, &xattr);  // Update xattr's
     }
 
+    /**
+     * @brief Capture X11 frames until capture stops or the display needs reinitialization.
+     *
+     * @param push_captured_image_cb Callback receiving a captured image or a capture timeout.
+     * @param pull_free_image_cb Callback providing an available image buffer.
+     * @param cursor Whether the cursor should be included in the captured image.
+     * @return Final capture status reported to the streaming pipeline.
+     */
     capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
+      using enum platf::capture_e;
+
       auto next_frame = std::chrono::steady_clock::now();
 
       sleep_overshoot_logger.reset();
@@ -570,18 +580,18 @@ namespace platf {
         std::shared_ptr<platf::img_t> img_out;
         auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
         switch (status) {
-          case platf::capture_e::reinit:
-          case platf::capture_e::error:
-          case platf::capture_e::interrupted:
+          case reinit:
+          case capture_error:
+          case interrupted:
             return status;
-          case platf::capture_e::timeout:
+          case timeout:
             if (!push_captured_image_cb(std::move(img_out), false)) {
-              return platf::capture_e::ok;
+              return ok;
             }
             break;
-          case platf::capture_e::ok:
+          case ok:
             if (!push_captured_image_cb(std::move(img_out), true)) {
-              return platf::capture_e::ok;
+              return ok;
             }
             break;
           default:
@@ -590,7 +600,7 @@ namespace platf {
         }
       }
 
-      return capture_e::ok;
+      return ok;
     }
 
     /**
@@ -724,7 +734,17 @@ namespace platf {
       while (!task_pool.cancel(refresh_task_id));
     }
 
+    /**
+     * @brief Capture X11 shared-memory frames until capture stops or reinitialization is needed.
+     *
+     * @param push_captured_image_cb Callback receiving a captured image or a capture timeout.
+     * @param pull_free_image_cb Callback providing an available image buffer.
+     * @param cursor Whether the cursor should be included in the captured image.
+     * @return Final capture status reported to the streaming pipeline.
+     */
     capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
+      using enum platf::capture_e;
+
       auto next_frame = std::chrono::steady_clock::now();
 
       sleep_overshoot_logger.reset();
@@ -735,18 +755,18 @@ namespace platf {
         std::shared_ptr<platf::img_t> img_out;
         auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
         switch (status) {
-          case platf::capture_e::reinit:
-          case platf::capture_e::error:
-          case platf::capture_e::interrupted:
+          case reinit:
+          case capture_error:
+          case interrupted:
             return status;
-          case platf::capture_e::timeout:
+          case timeout:
             if (!push_captured_image_cb(std::move(img_out), false)) {
-              return platf::capture_e::ok;
+              return ok;
             }
             break;
-          case platf::capture_e::ok:
+          case ok:
             if (!push_captured_image_cb(std::move(img_out), true)) {
-              return platf::capture_e::ok;
+              return ok;
             }
             break;
           default:
@@ -755,7 +775,7 @@ namespace platf {
         }
       }
 
-      return capture_e::ok;
+      return ok;
     }
 
     /**
