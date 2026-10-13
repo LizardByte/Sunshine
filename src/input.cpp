@@ -1142,19 +1142,19 @@ namespace input {
    * @param key_code Moonlight keyboard packet key code.
    * @param release Whether the key or button event is a release.
    * @param flags Bit flags that modify the requested operation.
-   * @param synthetic_modifiers Synthetic modifiers.
+   * @param synthetic_modifiers Byte mask of modifiers to press around the key event.
    * @param extended Whether the client identified an extended key.
    */
-  void send_key_and_modifiers(uint16_t key_code, bool release, uint8_t flags, uint8_t synthetic_modifiers, bool extended) {
+  void send_key_and_modifiers(uint16_t key_code, bool release, uint8_t flags, std::byte synthetic_modifiers, bool extended) {
     if (!release) {
       // Press any synthetic modifiers required for this key
-      if (synthetic_modifiers & MODIFIER_SHIFT) {
+      if ((synthetic_modifiers & std::byte {MODIFIER_SHIFT}) != std::byte {0}) {
         emit_keyboard_update(VKEY_SHIFT, false, flags);
       }
-      if (synthetic_modifiers & MODIFIER_CTRL) {
+      if ((synthetic_modifiers & std::byte {MODIFIER_CTRL}) != std::byte {0}) {
         emit_keyboard_update(VKEY_CONTROL, false, flags);
       }
-      if (synthetic_modifiers & MODIFIER_ALT) {
+      if ((synthetic_modifiers & std::byte {MODIFIER_ALT}) != std::byte {0}) {
         emit_keyboard_update(VKEY_MENU, false, flags);
       }
     }
@@ -1163,13 +1163,13 @@ namespace input {
 
     if (!release) {
       // Raise any synthetic modifier keys we pressed
-      if (synthetic_modifiers & MODIFIER_SHIFT) {
+      if ((synthetic_modifiers & std::byte {MODIFIER_SHIFT}) != std::byte {0}) {
         emit_keyboard_update(VKEY_SHIFT, true, flags);
       }
-      if (synthetic_modifiers & MODIFIER_CTRL) {
+      if ((synthetic_modifiers & std::byte {MODIFIER_CTRL}) != std::byte {0}) {
         emit_keyboard_update(VKEY_CONTROL, true, flags);
       }
-      if (synthetic_modifiers & MODIFIER_ALT) {
+      if ((synthetic_modifiers & std::byte {MODIFIER_ALT}) != std::byte {0}) {
         emit_keyboard_update(VKEY_MENU, true, flags);
       }
     }
@@ -1180,9 +1180,9 @@ namespace input {
    *
    * @param key_code Moonlight keyboard packet key code.
    * @param flags Bit flags that modify the requested operation.
-   * @param synthetic_modifiers Synthetic modifiers.
+   * @param synthetic_modifiers Byte mask of modifiers to press around the repeated key event.
    */
-  void repeat_key(uint16_t key_code, uint8_t flags, uint8_t synthetic_modifiers) {
+  void repeat_key(uint16_t key_code, uint8_t flags, std::byte synthetic_modifiers) {
     // If key no longer pressed, stop repeating
     const auto state = key_press[make_kpid(key_code, flags)];
     if (!state.pressed) {
@@ -1219,16 +1219,16 @@ namespace input {
 
     // Set synthetic modifier flags if the keyboard packet is requesting modifier
     // keys that are not current pressed.
-    uint8_t synthetic_modifiers = 0;
+    std::byte synthetic_modifiers {0};
     if (!release && !is_modifier(keyCode)) {
       if (!(input->shortcutFlags & input_t::SHIFT) && (modifiers & MODIFIER_SHIFT)) {
-        synthetic_modifiers |= MODIFIER_SHIFT;
+        synthetic_modifiers |= std::byte {MODIFIER_SHIFT};
       }
       if (!(input->shortcutFlags & input_t::CTRL) && (modifiers & MODIFIER_CTRL)) {
-        synthetic_modifiers |= MODIFIER_CTRL;
+        synthetic_modifiers |= std::byte {MODIFIER_CTRL};
       }
       if (!(input->shortcutFlags & input_t::ALT) && (modifiers & MODIFIER_ALT)) {
-        synthetic_modifiers |= MODIFIER_ALT;
+        synthetic_modifiers |= std::byte {MODIFIER_ALT};
       }
     }
 

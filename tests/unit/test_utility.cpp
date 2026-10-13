@@ -7,7 +7,11 @@
 #include "../tests_common.h"
 
 // standard includes
+#include <array>
+#include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -16,6 +20,21 @@
 
 // local includes
 #include <src/utility.h>
+
+/**
+ * @brief Simulate the opposite byte order for a byte-array fixture.
+ */
+template<>
+struct util::endian::endianness<std::array<std::byte, 4>> {
+  static constexpr bool little = !util::endian::endianness<>::little;  ///< Opposite native byte order.
+  static constexpr bool big = !little;  ///< Whether the fixture simulates big endian.
+};
+
+/**
+ * @brief Use the simulated byte order for optional byte-array fixtures.
+ */
+template<>
+struct util::endian::endianness<std::optional<std::array<std::byte, 4>>>: util::endian::endianness<std::array<std::byte, 4>> {};
 
 struct HexConversionTest: testing::TestWithParam<std::tuple<std::uint32_t, bool, std::string>> {};
 
@@ -338,6 +357,26 @@ TEST(UtilityFromHexTests, DecodesIntoAByteArrayWithoutPointerTypePunning) {
   EXPECT_EQ(bytes, (std::array<std::uint8_t, 4> {0x12, 0x34, 0x56, 0x78}));
 }
 
+TEST(UtilityFromHexTests, DecodesMixedCaseNibblesAndSkipsSeparators) {
+  const auto bytes = util::from_hex<std::array<std::byte, 6>>("0a:B1-cD.2e 3F 49", true);
+  const std::array expected {std::byte {0x0A}, std::byte {0xB1}, std::byte {0xCD}, std::byte {0x2E}, std::byte {0x3F}, std::byte {0x49}};
+  EXPECT_EQ(bytes, expected);
+  EXPECT_EQ(util::from_hex<std::uint32_t>(""), 0U);
+}
+
+TEST(UtilityFromHexVecTests, PreservesBinaryBytesWithMixedCaseAndSeparators) {
+  const std::string expected {0, static_cast<char>(0x80), static_cast<char>(0xFF), static_cast<char>(0xAB), 0x19};
+  EXPECT_EQ(util::from_hex_vec("00:80-fF aB.19", true), expected);
+  EXPECT_EQ(util::from_hex_vec("00:80-fF aB.19"), (std::string {expected.rbegin(), expected.rend()}));
+  EXPECT_TRUE(util::from_hex_vec("").empty());
+}
+
+TEST(UtilityHashTests, MatchesStringViewHashOfAllObjectBytes) {
+  const std::array<std::uint8_t, 6> value {0x00, 0x80, 0xFF, 0x12, 0x00, 0xAB};
+  const std::string expected_bytes {0, static_cast<char>(0x80), static_cast<char>(0xFF), 0x12, 0, static_cast<char>(0xAB)};
+  EXPECT_EQ(util::hash<decltype(value)> {}(value), std::hash<std::string_view> {}(expected_bytes));
+}
+
 TEST(UtilityAppendStructTests, AppendsDataCorrectly) {
   struct test_struct_t {
     std::uint8_t a;
@@ -372,6 +411,31 @@ TEST(UtilityEndianTests, LittleEndianConversion) {
     EXPECT_EQ(little_val, val);
   } else {
     EXPECT_EQ(little_val, 0x04030201);
+  }
+}
+
+TEST(UtilityEndianTests, OptionalValuesPreserveEmptyStateAndConvertContainedBytes) {
+  const std::optional<std::uint32_t> value {0x01020304};
+  EXPECT_EQ(util::endian::big(value), std::optional {util::endian::big(*value)});
+  EXPECT_EQ(util::endian::little(value), std::optional {util::endian::little(*value)});
+  EXPECT_FALSE(util::endian::big(std::optional<std::uint32_t> {}));
+  EXPECT_FALSE(util::endian::little(std::optional<std::uint32_t> {}));
+}
+
+TEST(UtilityEndianTests, ConvertsValuesAndOptionalsOnTheOppositeByteOrder) {
+  const std::array value {std::byte {0x12}, std::byte {0x34}, std::byte {0x56}, std::byte {0x78}};
+  const std::array reversed {std::byte {0x78}, std::byte {0x56}, std::byte {0x34}, std::byte {0x12}};
+  const std::optional optional_value {value};
+  if constexpr (util::endian::endianness<>::little) {
+    EXPECT_EQ(util::endian::little(value), reversed);
+    EXPECT_EQ(util::endian::big(value), value);
+    EXPECT_EQ(util::endian::little(optional_value), std::optional {reversed});
+    EXPECT_EQ(util::endian::big(optional_value), optional_value);
+  } else {
+    EXPECT_EQ(util::endian::big(value), reversed);
+    EXPECT_EQ(util::endian::little(value), value);
+    EXPECT_EQ(util::endian::big(optional_value), std::optional {reversed});
+    EXPECT_EQ(util::endian::little(optional_value), optional_value);
   }
 }
 

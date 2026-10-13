@@ -38,6 +38,8 @@ TEST(UuidTest, GenerationPreservesDrawOrderAndMasks) {
 
   const auto uuid = uuid_util::uuid_t::generate(engine);
   EXPECT_EQ(uuid.b8, expected);
+  EXPECT_EQ(std::byte {uuid.b8[7]} & std::byte {0xD0}, std::byte {0});
+  EXPECT_EQ(std::byte {uuid.b8[9]} & std::byte {0x60}, std::byte {0});
   EXPECT_EQ(engine, expected_engine);
   EXPECT_EQ(uuid_util::uuid_t::generate().string().size(), 36U);
 }

@@ -269,7 +269,7 @@ namespace platf::dxgi {
   };
 
   /**
-   * @brief Create cursor xor image.
+   * @brief Convert DXGI cursor mask bytes into pixels for XOR blending.
    *
    * @param img_data Raw pointer-shape bytes returned by DXGI.
    * @param shape_info DXGI metadata describing the pointer shape.
@@ -316,13 +316,13 @@ namespace platf::dxgi {
     auto bytes = shape_info.Pitch * shape_info.Height;
     auto pixel_begin = (std::uint32_t *) std::begin(cursor_img);
     auto pixel_data = pixel_begin;
-    auto and_mask = std::begin(img_data);
-    auto xor_mask = std::begin(img_data) + bytes;
+    const auto *and_mask = reinterpret_cast<const std::byte *>(std::begin(img_data));
+    const auto *xor_mask = and_mask + bytes;
 
     for (auto x = 0; x < bytes; ++x) {
       for (auto c = 7; c >= 0 && ((std::uint8_t *) pixel_data) != std::end(cursor_img); --c) {
-        auto bit = 1 << c;
-        auto color_type = ((*and_mask & bit) ? 1 : 0) + ((*xor_mask & bit) ? 2 : 0);
+        const auto bit = std::byte {1} << c;
+        auto color_type = ((*and_mask & bit) != std::byte {0} ? 1 : 0) + ((*xor_mask & bit) != std::byte {0} ? 2 : 0);
 
         switch (color_type) {
           case 0:  // Opaque black (handled by alpha-blending)
@@ -345,7 +345,7 @@ namespace platf::dxgi {
   }
 
   /**
-   * @brief Create cursor alpha image.
+   * @brief Convert DXGI cursor mask bytes into pixels for alpha blending.
    *
    * @param img_data Raw pointer-shape bytes returned by DXGI.
    * @param shape_info DXGI metadata describing the pointer shape.
@@ -394,13 +394,13 @@ namespace platf::dxgi {
     auto bytes = shape_info.Pitch * shape_info.Height;
     auto pixel_begin = (std::uint32_t *) std::begin(cursor_img);
     auto pixel_data = pixel_begin;
-    auto and_mask = std::begin(img_data);
-    auto xor_mask = std::begin(img_data) + bytes;
+    const auto *and_mask = reinterpret_cast<const std::byte *>(std::begin(img_data));
+    const auto *xor_mask = and_mask + bytes;
 
     for (auto x = 0; x < bytes; ++x) {
       for (auto c = 7; c >= 0 && ((std::uint8_t *) pixel_data) != std::end(cursor_img); --c) {
-        auto bit = 1 << c;
-        auto color_type = ((*and_mask & bit) ? 1 : 0) + ((*xor_mask & bit) ? 2 : 0);
+        const auto bit = std::byte {1} << c;
+        auto color_type = ((*and_mask & bit) != std::byte {0} ? 1 : 0) + ((*xor_mask & bit) != std::byte {0} ? 2 : 0);
 
         switch (color_type) {
           case 0:  // Opaque black

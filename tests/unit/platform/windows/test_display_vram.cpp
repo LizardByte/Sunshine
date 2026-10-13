@@ -1,6 +1,6 @@
 /**
  * @file tests/unit/platform/windows/test_display_vram.cpp
- * @brief Test src/platform/windows/display_vram.cpp FP16 shader transfer selection.
+ * @brief Tests for Windows FP16 shader selection and cursor mask conversion.
  */
 
 // test includes
@@ -8,10 +8,84 @@
 
 #ifdef _WIN32
   // standard includes
+  #include <array>
+  #include <bit>
+  #include <cstdint>
   #include <tuple>
 
   // local includes
   #include <src/platform/windows/display.h>
+
+namespace platf::dxgi {
+  /**
+   * @brief Convert cursor mask bytes to pixels for XOR blending.
+   *
+   * @param img_data Raw DXGI cursor data.
+   * @param shape_info Cursor format and dimensions.
+   * @return Cursor pixels for XOR blending.
+   */
+  util::buffer_t<std::uint8_t> make_cursor_xor_image(const util::buffer_t<std::uint8_t> &img_data, DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info);
+
+  /**
+   * @brief Convert cursor mask bytes to pixels for alpha blending.
+   *
+   * @param img_data Raw DXGI cursor data.
+   * @param shape_info Cursor format and dimensions.
+   * @return Cursor pixels for alpha blending.
+   */
+  util::buffer_t<std::uint8_t> make_cursor_alpha_image(const util::buffer_t<std::uint8_t> &img_data, DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info);
+}  // namespace platf::dxgi
+
+TEST(WindowsCursorTest, DecodesEveryMonochromeMaskCombinationAcrossByteBoundaries) {
+  // Each pair of AND/XOR bits selects black, white, transparent, or inverted.
+  util::buffer_t<std::uint8_t> masks {4};
+  masks[0] = 0x33;
+  masks[1] = 0x33;
+  masks[2] = 0x55;
+  masks[3] = 0x55;
+  const DXGI_OUTDUPL_POINTER_SHAPE_INFO shape {
+    .Type = DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MONOCHROME,
+    .Width = 16,
+    .Height = 2,
+    .Pitch = 2,
+  };
+  const auto alpha = platf::dxgi::make_cursor_alpha_image(masks, shape);
+  const auto xor_image = platf::dxgi::make_cursor_xor_image(masks, shape);
+  ASSERT_EQ(alpha.size(), 16U * sizeof(std::uint32_t));
+  ASSERT_EQ(xor_image.size(), alpha.size());
+  const std::array<std::uint32_t, 4> expected_alpha {0xFF000000, 0xFFFFFFFF, 0, 0};
+  const std::array<std::uint32_t, 4> expected_xor {0, 0, 0, 0xFFFFFFFF};
+  for (std::size_t pixel = 0; pixel < 16; ++pixel) {
+    std::array<std::uint8_t, 4> alpha_bytes;
+    std::array<std::uint8_t, 4> xor_bytes;
+    std::copy_n(alpha.begin() + pixel * 4, 4, alpha_bytes.begin());
+    std::copy_n(xor_image.begin() + pixel * 4, 4, xor_bytes.begin());
+    EXPECT_EQ(std::bit_cast<std::uint32_t>(alpha_bytes), expected_alpha[pixel % 4]);
+    EXPECT_EQ(std::bit_cast<std::uint32_t>(xor_bytes), expected_xor[pixel % 4]);
+  }
+}
+
+TEST(WindowsCursorTest, StopsAtTheLastPixelInAPartialMaskByte) {
+  util::buffer_t<std::uint8_t> masks {2};
+  masks[0] = 0xFF;
+  masks[1] = 0xFF;
+  const DXGI_OUTDUPL_POINTER_SHAPE_INFO shape {
+    .Type = DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MONOCHROME,
+    .Width = 3,
+    .Height = 2,
+    .Pitch = 1,
+  };
+  const auto alpha = platf::dxgi::make_cursor_alpha_image(masks, shape);
+  const auto xor_image = platf::dxgi::make_cursor_xor_image(masks, shape);
+  EXPECT_EQ(alpha.size(), 12U);
+  EXPECT_EQ(xor_image.size(), 12U);
+  EXPECT_TRUE(std::all_of(alpha.begin(), alpha.end(), [](auto byte) {
+    return byte == 0;
+  }));
+  EXPECT_TRUE(std::all_of(xor_image.begin(), xor_image.end(), [](auto byte) {
+    return byte == 0xFF;
+  }));
+}
 
 using platf::dxgi::fp16_transfer_e;
 using platf::dxgi::select_fp16_transfer;
