@@ -61,7 +61,7 @@ set(PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/macos/sck_picker.h"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/sck_video.h"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/sck_video.mm"
-        "${CMAKE_SOURCE_DIR}/src/platform/macos/threading-posix.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/macos/threading-posix.c"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/threading.h"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/videotoolbox.h"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/videotoolbox.mm"
