@@ -77,7 +77,7 @@ namespace va {
   /**
    * @brief Native VA display handle.
    */
-  using VADisplay = void *;
+  using VADisplay = void *;  // NOSONAR(cpp:S5008): The libva ABI defines VADisplay as a void pointer.
   /**
    * @brief Status code returned by VAAPI functions.
    */
@@ -186,7 +186,8 @@ namespace va {
         return -1;
       }
 
-      this->data = (void *) vaapi_init_avcodec_hardware_input_buffer;
+      hardware = true;
+      init_hw_device = &vaapi_init_avcodec_hardware_input_buffer;
 
       gbm.reset(gbm::create_device(file.el));
       if (!gbm) {

@@ -450,7 +450,8 @@ namespace vk {
       height = in_height;
       offset_x = in_offset_x;
       offset_y = in_offset_y;
-      this->data = (void *) &init_hw_device;
+      hardware = true;
+      avcodec_encode_device_t::init_hw_device = &init_hw_device;
       return 0;
     }
 

@@ -80,7 +80,7 @@ namespace platf {
       _FN(FreeCrtcInfo, void, (XRRCrtcInfo * crtcInfo));
 
       static int init() {
-        static void *handle {nullptr};
+        static dyn::library_t *handle {nullptr};
         static bool funcs_loaded = false;
 
         if (funcs_loaded) {
@@ -117,7 +117,7 @@ namespace platf {
       _FN(GetCursorImage, XFixesCursorImage *, (Display * dpy));
 
       static int init() {
-        static void *handle {nullptr};
+        static dyn::library_t *handle {nullptr};
         static bool funcs_loaded = false;
 
         if (funcs_loaded) {
@@ -145,7 +145,7 @@ namespace platf {
     }  // namespace fix
 
     static int init() {
-      static void *handle {nullptr};
+      static dyn::library_t *handle {nullptr};
       static bool funcs_loaded = false;
 
       if (funcs_loaded) {
@@ -201,7 +201,7 @@ namespace platf {
      * @return 0 when XCB shared-memory functions are loaded; nonzero otherwise.
      */
     int init_shm() {
-      static void *handle {nullptr};
+      static dyn::library_t *handle {nullptr};
       static bool funcs_loaded = false;
 
       if (funcs_loaded) {
@@ -236,7 +236,7 @@ namespace platf {
      * @return 0 on success; nonzero or negative platform status on failure.
      */
     int init() {
-      static void *handle {nullptr};
+      static dyn::library_t *handle {nullptr};
       static bool funcs_loaded = false;
 
       if (funcs_loaded) {
@@ -359,7 +359,7 @@ namespace platf {
   class shm_data_t {
   public:
     shm_data_t():
-        data {(void *) -1} {
+        data {reinterpret_cast<std::uint8_t *>(-1)} {
     }
 
     /**
@@ -367,7 +367,7 @@ namespace platf {
      *
      * @param data Pointer returned by shmat.
      */
-    shm_data_t(void *data):
+    shm_data_t(std::uint8_t *data):
         data {data} {
     }
 
@@ -378,7 +378,7 @@ namespace platf {
      */
     shm_data_t(shm_data_t &&other) noexcept:
         data(other.data) {
-      other.data = (void *) -1;
+      other.data = reinterpret_cast<std::uint8_t *>(-1);
     }
 
     ~shm_data_t() {
@@ -387,7 +387,7 @@ namespace platf {
       }
     }
 
-    void *data;  ///< Address returned by shmat for the shared-memory segment.
+    std::uint8_t *data;  ///< Shared-memory bytes returned by shmat, or the minus-one error sentinel.
   };
 
   /**
@@ -806,7 +806,7 @@ namespace platf {
           return platf::capture_e::interrupted;
         }
 
-        std::copy_n((std::uint8_t *) data.data, frame_size(), img_out->data);
+        std::copy_n(data.data, frame_size(), img_out->data);
         img_out->frame_timestamp = frame_timestamp;
 
         if (cursor) {
@@ -878,7 +878,7 @@ namespace platf {
       }
 
       xcb::shm_attach(xcb.get(), seg, shm_id.id, false);
-      data.data = shmat(shm_id.id, nullptr, 0);
+      data.data = static_cast<std::uint8_t *>(shmat(shm_id.id, nullptr, 0));
 
       if ((uintptr_t) data.data == -1) {
         BOOST_LOG(error) << "shmat failed"sv;

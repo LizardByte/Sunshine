@@ -631,7 +631,7 @@ namespace video {
 
     config_t config;  ///< Stream or encoder configuration captured for the worker.
     int frame_nr;  ///< Next capture-frame number assigned to encoded packets.
-    void *channel_data;  ///< Platform-specific channel data forwarded to packet senders.
+    stream::session_t *channel_data;  ///< Stream session forwarded to packet senders.
   };
 
   /**
@@ -1821,11 +1821,11 @@ namespace video {
    * @param frame_nr Monotonic frame index assigned by the video pipeline.
    * @param session Active FFmpeg encoder session.
    * @param packets Output queue that receives encoded packets.
-   * @param channel_data Platform or protocol state attached to each packet.
+   * @param channel_data Stream session that receives each encoded packet.
    * @param frame_timestamp Capture timestamp associated with the encoded frame.
    * @return 0 when packets are queued; nonzero when encoding or packetization fails.
    */
-  int encode_avcodec(int64_t frame_nr, avcodec_encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
+  int encode_avcodec(int64_t frame_nr, avcodec_encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, stream::session_t *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
     auto &frame = session.device->frame;
     frame->pts = frame_nr;
 
@@ -1905,11 +1905,11 @@ namespace video {
    * @param frame_nr Monotonic frame index assigned by the video pipeline.
    * @param session Active NVENC encoder session.
    * @param packets Output queue that receives the encoded packet.
-   * @param channel_data Platform or protocol state attached to the packet.
+   * @param channel_data Stream session that receives the encoded packet.
    * @param frame_timestamp Capture timestamp associated with the encoded frame.
    * @return 0 when packets are queued; nonzero when NVENC encoding fails.
    */
-  int encode_nvenc(int64_t frame_nr, nvenc_encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
+  int encode_nvenc(int64_t frame_nr, nvenc_encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, stream::session_t *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
     auto encoded_frame = session.encode_frame(frame_nr);
     if (encoded_frame.data.empty()) {
       BOOST_LOG(error) << "NvENC returned empty packet";
@@ -1939,7 +1939,7 @@ namespace video {
    * @param frame_timestamp Frame timestamp.
    * @return 0 when the frame is encoded and queued; nonzero on encoder failure.
    */
-  int encode(int64_t frame_nr, encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
+  int encode(int64_t frame_nr, encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, stream::session_t *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
     if (auto avcodec_session = dynamic_cast<avcodec_encode_session_t *>(&session)) {
       return encode_avcodec(frame_nr, *avcodec_session, packets, channel_data, frame_timestamp);
     } else if (auto nvenc_session = dynamic_cast<nvenc_encode_session_t *>(&session)) {
@@ -2318,7 +2318,7 @@ namespace video {
 
     std::unique_ptr<platf::avcodec_encode_device_t> encode_device_final;
 
-    if (!encode_device->data) {
+    if (!encode_device->hardware) {
       auto software_encode_device = std::make_unique<avcodec_software_encode_device_t>();
 
       if (software_encode_device->init(width, height, frame.get(), sw_fmt, hardware)) {
@@ -2397,7 +2397,7 @@ namespace video {
    * @param encode_device Platform encode device.
    * @param reinit_event Signal raised while the encoder/display is reinitializing.
    * @param encoder Selected encoder.
-   * @param channel_data Opaque channel data passed to packets.
+   * @param channel_data Stream session carried with each encoded packet.
    */
   void encode_run(
     int &frame_nr,  // Store progress of the frame number
@@ -2408,7 +2408,7 @@ namespace video {
     std::unique_ptr<platf::encode_device_t> encode_device,
     safe::signal_t &reinit_event,
     const encoder_t &encoder,
-    void *channel_data
+    stream::session_t *channel_data
   ) {
     auto session = make_encode_session(disp.get(), encoder, config, disp->width, disp->height, std::move(encode_device));
     if (!session) {
@@ -2868,12 +2868,12 @@ namespace video {
    *
    * @param mail Session mail bus.
    * @param config Video configuration.
-   * @param channel_data Opaque channel data passed to packets.
+   * @param channel_data Stream session carried with each encoded packet.
    */
   void capture_async(
     safe::mail_t mail,
     config_t &config,
-    void *channel_data
+    stream::session_t *channel_data
   ) {
     auto shutdown_event = mail->event<bool>(mail::shutdown);
 
@@ -2959,12 +2959,12 @@ namespace video {
    *
    * @param mail Session mail bus.
    * @param config Client-requested video configuration, normalized before capture begins.
-   * @param channel_data Opaque channel data passed to packets.
+   * @param channel_data Stream session carried with each encoded packet.
    */
   void capture(
     safe::mail_t mail,
     config_t config,
-    void *channel_data
+    stream::session_t *channel_data
   ) {
     config = resolve_dynamic_range(*chosen_encoder, config);
 
@@ -3503,12 +3503,6 @@ namespace video {
     return 0;
   }
 
-  // Linux only declaration
-  /**
-   * @brief Callback signature for VA-API AVCodec hardware input initialization.
-   */
-  using vaapi_init_avcodec_hardware_input_buffer_fn = int (*)(platf::avcodec_encode_device_t *encode_device, AVBufferRef **hw_device_buf);
-
   /**
    * @brief Initialize AVCodec hardware input buffers for VA-API.
    */
@@ -3516,8 +3510,8 @@ namespace video {
     avcodec_buffer_t hw_device_buf;
 
     // If an egl hwdevice
-    if (encode_device->data) {
-      if (((vaapi_init_avcodec_hardware_input_buffer_fn) encode_device->data)(encode_device, &hw_device_buf)) {
+    if (encode_device->init_hw_device) {
+      if (encode_device->init_hw_device(encode_device, &hw_device_buf)) {
         return -1;
       }
 
@@ -3537,13 +3531,11 @@ namespace video {
   }
 
 #ifdef SUNSHINE_BUILD_VULKAN
-  using vulkan_init_avcodec_hardware_input_buffer_fn = int (*)(platf::avcodec_encode_device_t *encode_device, AVBufferRef **hw_device_buf);
-
   util::Either<avcodec_buffer_t, int> vulkan_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device) {
     avcodec_buffer_t hw_device_buf;
 
-    if (encode_device && encode_device->data) {
-      if (((vulkan_init_avcodec_hardware_input_buffer_fn) encode_device->data)(encode_device, &hw_device_buf)) {
+    if (encode_device && encode_device->init_hw_device) {
+      if (encode_device->init_hw_device(encode_device, &hw_device_buf)) {
         return -1;
       }
       return hw_device_buf;
@@ -3611,7 +3603,7 @@ namespace video {
 /**
  * @brief No-op lock callback used when FFmpeg requires a D3D11VA lock function.
  */
-void do_nothing(void *) {
+void do_nothing(void *) {  // NOSONAR(cpp:S5008): FFmpeg's D3D11VA lock callbacks require a void pointer for user data.
 }
 
 namespace video {
@@ -3624,7 +3616,7 @@ namespace video {
 
     std::fill_n((std::uint8_t *) ctx, sizeof(AVD3D11VADeviceContext), 0);
 
-    auto device = static_cast<ID3D11Device *>(encode_device->data);
+    auto device = encode_device->d3d11_device;
 
     device->AddRef();
     ctx->device = device;

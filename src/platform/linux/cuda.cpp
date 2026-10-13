@@ -170,7 +170,7 @@ namespace cuda {
         return -1;
       }
 
-      data = (void *) 0x1;
+      hardware = true;
 
       width = in_width;
       height = in_height;
@@ -418,7 +418,7 @@ namespace cuda {
      */
     int init(int in_width, int in_height, int in_offset_x, int in_offset_y) {
       // This must be non-zero to tell the video core that it's a hardware encoding device.
-      data = (void *) 0x1;
+      hardware = true;
 
       // TODO: Support more than one CUDA device
       file = std::move(open_drm_fd_for_cuda_device(0));
@@ -701,7 +701,7 @@ namespace cuda {
       return b ? NVFBC_TRUE : NVFBC_FALSE;
     }
 
-    static void *library_handle {nullptr};  ///< Loaded NvFBC library retained while its function table is in use.
+    static dyn::library_t *library_handle {nullptr};  ///< Loaded NvFBC library retained while its function table is in use.
 
     /**
      * @brief Load NvFBC and create the CUDA capture helper.

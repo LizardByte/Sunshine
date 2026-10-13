@@ -105,9 +105,9 @@ namespace audio {
    *
    * @param samples Queue of captured PCM sample buffers to encode.
    * @param config Audio stream settings negotiated with the client.
-   * @param channel_data Platform-specific audio capture context passed to packet metadata.
+   * @param channel_data Stream session carried with each encoded packet.
    */
-  void encodeThread(sample_queue_t samples, config_t config, void *channel_data) {
+  void encodeThread(sample_queue_t samples, config_t config, stream::session_t *channel_data) {
     auto packets = mail::man->queue<packet_t>(mail::audio_packets);
     auto stream = stream_configs[map_stream(config.channels, config.flags[config_t::HIGH_QUALITY])];
     if (config.flags[config_t::CUSTOM_SURROUND_PARAMS]) {
@@ -155,7 +155,7 @@ namespace audio {
   /**
    * @brief Run the capture loop for this backend.
    */
-  void capture(safe::mail_t mail, config_t config, void *channel_data) {
+  void capture(safe::mail_t mail, config_t config, stream::session_t *channel_data) {
     auto shutdown_event = mail->event<bool>(mail::shutdown);
     if (!config::audio.stream) {
       shutdown_event->view();

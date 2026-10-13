@@ -203,7 +203,7 @@ namespace logging {
     } else {
       av_log_set_level(AV_LOG_DEBUG);
     }
-    av_log_set_callback([](void *ptr, int level, const char *fmt, va_list vl) {
+    av_log_set_callback([](void *ptr, int level, const char *fmt, va_list vl) {  // NOSONAR(cpp:S5008): FFmpeg's av_log_set_callback requires a void pointer to its logging context.
       static int print_prefix = 1;
       std::array<char, 1024> buffer;
 

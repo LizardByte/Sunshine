@@ -13,7 +13,7 @@ namespace NVENC_NAMESPACE {
   nvenc_d3d11::nvenc_d3d11(NV_ENC_DEVICE_TYPE device_type, ::nvenc::shared_dll dll):
       nvenc_base(device_type),
       dll(std::move(dll)) {
-    async_event_handle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+    async_event_handle = static_cast<completion_event_t *>(CreateEvent(nullptr, FALSE, FALSE, nullptr));
   }
 
   nvenc_d3d11::~nvenc_d3d11() {

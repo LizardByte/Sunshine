@@ -64,15 +64,13 @@ namespace platf {
     return 0;
   }
 
-  int nv12_zero_device::init(void *capture_display, pix_fmt_e pix_fmt, resolution_fn_t set_resolution, const pixel_format_fn_t &pixel_format_fn) {
+  int nv12_zero_device::init(AVVideo *capture_display, pix_fmt_e pix_fmt, resolution_fn_t set_resolution, const pixel_format_fn_t &pixel_format_fn) {
     pixel_format_fn(capture_display, pix_fmt == pix_fmt_e::nv12 ? kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange : kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange);
 
     this->display = capture_display;
     this->resolution_fn = std::move(set_resolution);
 
-    // we never use this pointer, but its existence is checked/used
-    // by the platform independent code
-    data = this;
+    hardware = true;
 
     return 0;
   }

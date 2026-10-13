@@ -160,7 +160,7 @@ namespace platf {
       } else if (pix_fmt == pix_fmt_e::nv12 || pix_fmt == pix_fmt_e::p010) {
         auto device = std::make_unique<nv12_zero_device>();
 
-        device->init(static_cast<void *>(av_capture), pix_fmt, setResolution, setPixelFormat);
+        device->init(av_capture, pix_fmt, setResolution, setPixelFormat);
 
         return device;
       } else {
@@ -225,8 +225,8 @@ namespace platf {
      * @param width Frame or display width in pixels.
      * @param height Frame or display height in pixels.
      */
-    static void setResolution(void *display, int width, int height) {
-      [static_cast<AVVideo *>(display) setFrameWidth:width frameHeight:height];
+    static void setResolution(AVVideo *display, int width, int height) {
+      [display setFrameWidth:width frameHeight:height];
     }
 
     /**
@@ -235,8 +235,8 @@ namespace platf {
      * @param display Display object or identifier associated with the operation.
      * @param pixelFormat Pixel format.
      */
-    static void setPixelFormat(void *display, OSType pixelFormat) {
-      static_cast<AVVideo *>(display).pixelFormat = pixelFormat;
+    static void setPixelFormat(AVVideo *display, OSType pixelFormat) {
+      display.pixelFormat = pixelFormat;
     }
   };
 

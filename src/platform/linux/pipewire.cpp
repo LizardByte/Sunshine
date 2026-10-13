@@ -762,11 +762,11 @@ namespace pipewire {
       return static_cast<struct spa_pod *>(spa_pod_builder_pop(b, &object_frame));
     }
 
-    static void on_core_info_cb([[maybe_unused]] void *user_data, const struct pw_core_info *pw_info) {
+    static void on_core_info_cb([[maybe_unused]] void *user_data, const struct pw_core_info *pw_info) {  // NOSONAR(cpp:S5008): PipeWire event callbacks require a void pointer for user data.
       BOOST_LOG(info) << "[pipewire] Connected to pipewire version "sv << pw_info->version;
     }
 
-    static void on_core_error_cb([[maybe_unused]] void *user_data, const uint32_t id, const int seq, [[maybe_unused]] int res, const char *message) {
+    static void on_core_error_cb([[maybe_unused]] void *user_data, const uint32_t id, const int seq, [[maybe_unused]] int res, const char *message) {  // NOSONAR(cpp:S5008): PipeWire event callbacks require a void pointer for user data.
       BOOST_LOG(info) << "[pipewire] Pipewire Error, id:"sv << id << " seq:"sv << seq << " message: "sv << message;
     }
 
@@ -776,7 +776,7 @@ namespace pipewire {
       .error = on_core_error_cb,
     };
 
-    static void on_stream_state_changed(void *user_data, enum pw_stream_state old, enum pw_stream_state state, const char *err_msg) {
+    static void on_stream_state_changed(void *user_data, enum pw_stream_state old, enum pw_stream_state state, const char *err_msg) {  // NOSONAR(cpp:S5008): PipeWire event callbacks require a void pointer for user data.
       if (err_msg != nullptr) {
         BOOST_LOG(info) << "[pipewire] PipeWire stream error '" << err_msg << "' on state: " << pw_stream_state_as_string(old)
                         << " -> " << pw_stream_state_as_string(state);
@@ -821,7 +821,7 @@ namespace pipewire {
       }
     }
 
-    static void on_process(void *user_data) {
+    static void on_process(void *user_data) {  // NOSONAR(cpp:S5008): PipeWire event callbacks require a void pointer for user data.
       const auto d = static_cast<struct stream_data_t *>(user_data);
       struct pw_buffer *b = nullptr;
 
@@ -873,7 +873,7 @@ namespace pipewire {
       d->frame_cv.notify_one();
     }
 
-    static void on_param_changed(void *user_data, uint32_t id, const struct spa_pod *param) {
+    static void on_param_changed(void *user_data, uint32_t id, const struct spa_pod *param) {  // NOSONAR(cpp:S5008): PipeWire event callbacks require a void pointer for user data.
       const auto d = static_cast<struct stream_data_t *>(user_data);
 
       d->current_buffer = nullptr;

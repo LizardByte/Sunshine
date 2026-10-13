@@ -41,12 +41,28 @@ extern window_system_e window_system;  ///< Window system.
 
 namespace dyn {
   /**
+   * @brief Opaque shared-library handle returned by the dynamic loader.
+   */
+  struct library_t;
+
+  /**
    * @brief Generic GLX procedure pointer returned by the loader.
    */
   using apiproc = void (*)(void);
 
-  int load(void *handle, const std::vector<std::tuple<apiproc *, const char *>> &funcs, bool strict = true);
-  void *handle(const std::vector<const char *> &libs);
+  /**
+   * @brief Load named functions from an open shared library.
+   * @param handle Library whose symbols are queried.
+   * @param funcs Function pointer destinations and corresponding symbol names.
+   * @param strict Whether missing symbols make the operation fail.
+   * @return Zero on success or minus one when a required symbol is missing.
+   */
+  int load(library_t *handle, const std::vector<std::tuple<apiproc *, const char *>> &funcs, bool strict = true);
+  /**
+   * @brief Open the first available shared library from a nonempty list.
+   * @return Open library handle, or null if none could be loaded.
+   */
+  library_t *handle(const std::vector<const char *> &libs);
 
 }  // namespace dyn
 

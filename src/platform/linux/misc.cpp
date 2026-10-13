@@ -107,15 +107,15 @@ window_system_e window_system;  ///< Window system.
 
 namespace dyn {
   /**
-   * @brief Return the native handle owned by the wrapper.
+   * @brief Open the first available shared library from a nonempty list.
    */
-  void *handle(const std::vector<const char *> &libs) {
+  library_t *handle(const std::vector<const char *> &libs) {
     void *handle;
 
     for (auto lib : libs) {
       handle = dlopen(lib, RTLD_LAZY | RTLD_LOCAL);
       if (handle) {
-        return handle;
+        return static_cast<library_t *>(handle);
       }
     }
 
@@ -133,9 +133,9 @@ namespace dyn {
   }
 
   /**
-   * @brief Load persisted state from its backing store.
+   * @brief Load named functions from an open shared library.
    */
-  int load(void *handle, const std::vector<std::tuple<apiproc *, const char *>> &funcs, bool strict) {
+  int load(library_t *handle, const std::vector<std::tuple<apiproc *, const char *>> &funcs, bool strict) {
     int err = 0;
     for (auto &func : funcs) {
       TUPLE_2D_REF(fn, name, func);

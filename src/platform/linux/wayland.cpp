@@ -93,7 +93,7 @@ namespace wl {
 
   // Helper to call C++ method from wayland C callback
   template<class T, class Method, Method m, class... Params>
-  static auto classCall(void *data, Params... params) -> decltype(((*reinterpret_cast<T *>(data)).*m)(params...)) {
+  static auto classCall(void *data, Params... params) -> decltype(((*reinterpret_cast<T *>(data)).*m)(params...)) {  // NOSONAR(cpp:S5008): Wayland listener callbacks require a void pointer for user data.
     return ((*reinterpret_cast<T *>(data)).*m)(params...);
   }
 

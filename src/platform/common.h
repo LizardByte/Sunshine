@@ -42,6 +42,8 @@ struct AVCodecContext;
 struct AVDictionary;
 
 #ifdef _WIN32
+struct ID3D11Device;
+
 // Forward declarations of boost classes to avoid having to include boost headers
 // here, which results in issues with Windows.h and WinSock2.h include order.
 namespace boost {
@@ -590,7 +592,15 @@ namespace platf {
    * @brief AVCodec-backed encode device and frame state.
    */
   struct avcodec_encode_device_t: encode_device_t {
-    void *data {};  ///< Backend-specific conversion state.
+    bool hardware = false;  ///< Whether this device supplies hardware frames instead of software conversion.
+    /**
+     * @brief Callback signature for backend-specific FFmpeg hardware device initialization.
+     */
+    using init_hw_device_fn_t = int (*)(avcodec_encode_device_t *encode_device, AVBufferRef **hw_device_buf);
+    init_hw_device_fn_t init_hw_device = nullptr;  ///< Optional backend-specific hardware device initializer.
+#ifdef _WIN32
+    ID3D11Device *d3d11_device = nullptr;  ///< Native D3D11 device borrowed while the encode device is alive.
+#endif
     AVFrame *frame {};  ///< FFmpeg frame currently owned by the encode device.
 
     /**

@@ -38,9 +38,11 @@ namespace nvprefs {
     /**
      * @brief Free memory allocated by Windows local-memory APIs.
      *
+     * @tparam T Native allocation type returned by the Windows API.
      * @param p LocalAlloc-compatible pointer to release.
      */
-    void operator()(void *p) {
+    template<class T>
+    void operator()(T *p) {
       LocalFree(p);
     }
   };

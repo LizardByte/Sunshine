@@ -684,10 +684,12 @@ namespace input {
   }
 
   /**
-   * @brief Write a debug log representation of the input packet.
+   * @brief Decode the input header and log the matching packet representation.
+   *
+   * @param payload Header at the start of the input packet.
    */
-  void print(void *payload) {
-    auto header = (PNV_INPUT_HEADER) payload;
+  void print(PNV_INPUT_HEADER payload) {
+    auto header = payload;
 
     switch (util::endian::little(header->magic)) {
       case MOUSE_MOVE_REL_MAGIC_GEN5:
@@ -2152,7 +2154,7 @@ namespace input {
     }
 
     // Print the final input packet
-    input::print((void *) payload);
+    input::print(payload);
 
 #ifdef SUNSHINE_TESTS
     if (const auto &hook = input_packet_hook(); hook) {
