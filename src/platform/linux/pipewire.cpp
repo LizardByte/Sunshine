@@ -708,7 +708,7 @@ namespace pipewire {
     struct pw_core *core;
     struct spa_hook core_listener;
     struct stream_data_t stream_data;
-    int fd;
+    int fd = -1;
     uint32_t node;
     uint64_t object_serial;
     bool negotiate_maxframerate_ = true;
