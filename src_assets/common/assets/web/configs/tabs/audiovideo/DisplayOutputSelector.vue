@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { $tp } from '../../../platform-i18n'
 import PlatformLayout from '../../../PlatformLayout.vue'
+import { apiFetch } from '../../../fetch_utils'
 
 const props = defineProps({
   platform: String,
@@ -16,6 +17,29 @@ if(props.platform === 'windows') {
   _outputNamePlaceholder = 'DP-0';
 }
 const outputNamePlaceholder = _outputNamePlaceholder;  // NOSONAR(javascript:S1481,javascript:S1854): Constant used by vue.js binding for placeholder below
+
+// The ScreenCaptureKit picker opens on the host's own display, so the button is only
+// useful when the Web UI is being viewed on the host itself.
+const isLocalhost = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
+const pickerError = ref(null)
+
+async function launchPicker() {
+  pickerError.value = null
+  try {
+    const response = await apiFetch('./api/sck-picker', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    const result = await response.json()
+    if (!result.status) {
+      pickerError.value = result.error
+    }
+  } catch (e) {
+    pickerError.value = String(e)
+  }
+}
 </script>
 
 <template>
@@ -63,5 +87,12 @@ const outputNamePlaceholder = _outputNamePlaceholder;  // NOSONAR(javascript:S14
         </template>
       </PlatformLayout>
     </div>
+  </div>
+  <div class="mb-3" v-if="platform === 'macos' && isLocalhost">
+    <button type="button" class="btn btn-secondary" @click="launchPicker">
+      {{ $t('config.sck_picker') }}
+    </button>
+    <div class="form-text">{{ $t('config.sck_picker_desc') }}</div>
+    <div class="alert alert-danger mt-2" v-if="pickerError">{{ pickerError }}</div>
   </div>
 </template>

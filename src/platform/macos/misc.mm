@@ -22,6 +22,7 @@
 #include <arpa/inet.h>
 #include <AVFoundation/AVFoundation.h>
 #include <CoreGraphics/CoreGraphics.h>
+#include <CoreVideo/CoreVideo.h>
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <Foundation/Foundation.h>
