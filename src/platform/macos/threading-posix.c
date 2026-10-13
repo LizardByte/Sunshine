@@ -18,8 +18,8 @@
 
 #include "threading.h"
 
-#include <cerrno>
-#include <cstdlib>
+#include <errno.h>
+#include <stdlib.h>
 #include <mach/mach_init.h>
 #include <mach/semaphore.h>
 #include <mach/task.h>
@@ -28,17 +28,17 @@
 int os_event_init(os_event_t **event, enum os_event_type type) {
   int code = 0;
 
-  struct os_event_data *data = static_cast<struct os_event_data *>(calloc(1, sizeof(struct os_event_data)));
+  struct os_event_data *data = (struct os_event_data *)(calloc(1, sizeof(struct os_event_data)));
   if (!data) {
     return -1;
   }
 
-  if ((code = pthread_mutex_init(&data->mutex, NULL)) < 0) {
+  if ((code = pthread_mutex_init(&data->mutex, NULL)) != 0) {
     free(data);
     return code;
   }
 
-  if ((code = pthread_cond_init(&data->cond, NULL)) < 0) {
+  if ((code = pthread_cond_init(&data->cond, NULL)) != 0) {
     pthread_mutex_destroy(&data->mutex);
     free(data);
     return code;
@@ -156,7 +156,7 @@ int os_sem_init(os_sem_t **sem, int value) {
     return -1;
   }
 
-  *sem = static_cast<os_sem_t *>(calloc(1, sizeof(struct os_sem_data)));
+  *sem = (os_sem_t *)(calloc(1, sizeof(struct os_sem_data)));
   if (!*sem) {
     semaphore_destroy(task, new_sem);
     return -2;

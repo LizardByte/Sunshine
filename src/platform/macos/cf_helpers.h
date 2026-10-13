@@ -1,27 +1,27 @@
 #pragma once
 
+#include "src/logging.h"
+
 #include <CoreFoundation/CoreFoundation.h>
 #include <CoreMedia/CoreMedia.h>
+#include <chrono>
+#include <format>
 #include <string>
-
-#include "src/logging.h"
 
 static inline std::string cf_string_to_std_string(CFStringRef str) {
   if (!str) {
     return {};
   }
 
-  CFIndex length = CFStringGetLength(str);
-  CFIndex max_size = CFStringGetMaximumSizeForEncoding(length, kCFStringEncodingUTF8) + 1;
+  const CFIndex length = CFStringGetLength(str);
+  const CFRange range = CFRangeMake(0, length);
 
-  std::string result;
-  result.resize((size_t) max_size);
+  CFIndex used = 0;
+  CFStringGetBytes(str, range, kCFStringEncodingUTF8, 0, false, nullptr, 0, &used);
 
-  if (!CFStringGetCString(str, result.data(), max_size, kCFStringEncodingUTF8)) {
-    return {};
-  }
-
-  result.resize(strlen(result.c_str()));
+  std::string result((size_t) used, '\0');
+  CFStringGetBytes(str, range, kCFStringEncodingUTF8, 0, false, reinterpret_cast<UInt8 *>(result.data()), used, &used);
+  result.resize((size_t) used);
   return result;
 }
 
@@ -93,7 +93,7 @@ static inline std::string chrono_to_std_string(std::chrono::steady_clock::time_p
      << std::setw(2) << h.count() << ':'
      << std::setw(2) << m.count() << ':'
      << std::setw(2) << s.count() << '.'
-     << std::setw(6) << elapsed.count();
+     << std::setw(6) << elapsed.count(); // NOSONAR(cpp:S6495)
 
   return os.str();
 }

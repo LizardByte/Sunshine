@@ -22,15 +22,7 @@ readonly INSTALL_PATH="$INSTALL_DIR/$APP_NAME"
 for arg in "$@"; do
   case "$arg" in
     -h*|--help) exec "$script_dir/macos_build.sh" --help ;;
-  esac
-done
-for arg in "$@"; do
-  case "$arg" in
-    --step=all|--step=dmg) ;;
-    --step=*)
-      echo "Installation requires --step=all or --step=dmg." >&2
-      exit 1
-      ;;
+    *) ;; # macos_build.sh will handle it
   esac
 done
 
