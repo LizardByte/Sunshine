@@ -1030,6 +1030,9 @@ namespace nvhttp {
         return false;
       case ADDED:
         break;
+      default:
+        // All enumerators are handled above; any other value cannot occur.
+        std::unreachable();
     }
 
     if (!pin_stdin) {
