@@ -11,7 +11,7 @@ namespace avahi {
   /**
    * @brief Enumerates supported proto options.
    */
-  enum proto {
+  enum class proto : int {
     PROTO_INET = 0,  ///< IPv4
     PROTO_INET6 = 1,  ///< IPv6
     PROTO_UNSPEC = -1  ///< Unspecified/all protocol(s)
@@ -37,7 +37,7 @@ namespace platf::publish {
    * addresses Sunshine actually serves.
    *
    * @param af Address family from the configuration.
-   * @return `PROTO_INET` for IPv4-only, `PROTO_UNSPEC` for both families.
+   * @return `proto::PROTO_INET` for IPv4-only, `proto::PROTO_UNSPEC` for both families.
    */
   [[nodiscard]] avahi::Protocol protocol_for_address_family(net::af_e af);
 }  // namespace platf::publish

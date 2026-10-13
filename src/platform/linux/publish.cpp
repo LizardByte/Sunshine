@@ -400,13 +400,13 @@ namespace platf::publish {
   avahi::Protocol protocol_for_address_family(net::af_e af) {
     switch (af) {
       case net::IPV4:
-        return avahi::PROTO_INET;
+        return static_cast<avahi::Protocol>(avahi::proto::PROTO_INET);
       case net::BOTH:
-        return avahi::PROTO_UNSPEC;
+        return static_cast<avahi::Protocol>(avahi::proto::PROTO_UNSPEC);
     }
 
     // avoid warning
-    return avahi::PROTO_UNSPEC;
+    return static_cast<avahi::Protocol>(avahi::proto::PROTO_UNSPEC);
   }
 
   /**
