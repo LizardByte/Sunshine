@@ -3679,6 +3679,7 @@ namespace video {
    * @brief Leave synchronous capture cleanup to the capture thread.
    */
   void end_capture_sync(capture_thread_sync_ctx_t &) {
+    // The capture thread stops its queue and signals its sessions when it exits.
   }
 
   /**

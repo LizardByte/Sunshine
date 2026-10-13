@@ -84,9 +84,9 @@ TEST(RtspResponseTest, CommonDispatcherPreservesResponsesWithoutServerContext) {
     server_socket.shutdown(tcp::socket::shutdown_send);
 
     std::string response;
-    boost::system::error_code error;
-    boost::asio::read(client, boost::asio::dynamic_buffer(response), error);
-    ASSERT_EQ(error, boost::asio::error::eof);
+    boost::system::error_code read_error;
+    boost::asio::read(client, boost::asio::dynamic_buffer(response), read_error);
+    ASSERT_EQ(read_error, boost::asio::error::eof);
     EXPECT_TRUE(response.starts_with("RTSP/1.0 200 OK\r\n"));
     EXPECT_NE(response.find("CSeq: 42\r\n"), std::string::npos);
 

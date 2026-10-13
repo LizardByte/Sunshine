@@ -2467,8 +2467,8 @@ namespace confighttp {
       };
     };
 
-    // Default resource handlers
-    const https_handler_t bad_request_handler = [](const resp_https_t &response, const req_https_t &request) {
+    // Unsupported methods use the common HTTP handler signature and do not inspect the request.
+    const https_handler_t bad_request_handler = [](const resp_https_t &response, const req_https_t &) {
       bad_request(response);
     };
     // error by default
