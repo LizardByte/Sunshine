@@ -30,6 +30,17 @@ namespace upnp {
   });  ///< Alias for element type.
 
   /**
+   * @brief Check whether a UPNP_GetValidIGD() status code identifies a usable IGD.
+   * @details MiniUPnPc 2.2.8 (API version 18) renumbered the UPNP_GetValidIGD() result codes and added
+   * UPNP_PRIVATEIP_IGD. This function accepts every status code that identifies a valid IGD
+   * (connected, private-IP, or disconnected) under both the old and new numbering, so callers
+   * don't need to handle the version difference themselves.
+   * @param status The status code returned by UPNP_GetValidIGD().
+   * @return `true` if the status identifies a usable IGD, `false` otherwise.
+   */
+  [[nodiscard]] bool is_valid_igd(int status);
+
+  /**
    * @brief Get the valid IGD status.
    * @param device The device.
    * @param urls The URLs.
@@ -38,8 +49,11 @@ namespace upnp {
    * @return The UPnP Status.
    * @retval 0 No IGD found.
    * @retval 1 A valid connected IGD has been found.
-   * @retval 2 A valid IGD has been found but it reported as not connected.
-   * @retval 3 An UPnP device has been found but was not recognized as an IGD.
+   * @retval 2 A valid IGD has been found but it reported as not connected (MiniUPnPc < 2.2.8), or a valid
+   * connected IGD with a private IP address (MiniUPnPc >= 2.2.8).
+   * @retval 3 An UPnP device has been found but was not recognized as an IGD (MiniUPnPc < 2.2.8), or a
+   * valid IGD has been found but it reported as not connected (MiniUPnPc >= 2.2.8).
+   * @retval 4 An UPnP device has been found but was not recognized as an IGD (MiniUPnPc >= 2.2.8).
    */
   int UPNP_GetValidIGDStatus(device_t &device, urls_t *urls, IGDdatas *data, std::array<char, INET6_ADDRESS_STRLEN> &lan_addr);
 
