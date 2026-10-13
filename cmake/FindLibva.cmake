@@ -10,29 +10,47 @@
 # find_path() and find_library() calls
 # cmake-format: on
 
-find_package(PkgConfig QUIET)
-if(PKG_CONFIG_FOUND)
-    pkg_check_modules(_LIBVA libva)
-    pkg_check_modules(_LIBVA_DRM libva-drm)
+if(EXISTS "${FFMPEG_PREPARED_BINARIES}/lib/libva.a")
+    # The display context ABI is private to libva. Keep its core, DRM backend,
+    # and headers from the same build as FFmpeg instead of mixing system libva.
+    set(LIBVA_INCLUDE_DIR "${FFMPEG_PREPARED_BINARIES}/include")
+    set(LIBVA_LIB "${FFMPEG_PREPARED_BINARIES}/lib/libva.a")
+    set(LIBVA_DRM_LIB "${FFMPEG_PREPARED_BINARIES}/lib/libva-drm.a")
+    foreach(required_file IN ITEMS
+            "${LIBVA_INCLUDE_DIR}/va/va.h"
+            "${LIBVA_INCLUDE_DIR}/va/va_drm.h"
+            "${LIBVA_DRM_LIB}")
+        if(NOT EXISTS "${required_file}")
+            message(FATAL_ERROR "The bundled libva package is incomplete: missing ${required_file}")
+        endif()
+    endforeach()
+    # libva-drm.pc does not declare the libdrm dependency of its static archive.
+    find_package(LIBDRM REQUIRED)
+else()
+    find_package(PkgConfig QUIET)
+    if(PKG_CONFIG_FOUND)
+        pkg_check_modules(_LIBVA libva)
+        pkg_check_modules(_LIBVA_DRM libva-drm)
+    endif()
+
+    find_path(
+            LIBVA_INCLUDE_DIR
+            NAMES va/va.h va/va_drm.h
+            HINTS ${_LIBVA_INCLUDE_DIRS}
+            PATHS /usr/include /usr/local/include /opt/local/include)
+
+    find_library(
+            LIBVA_LIB
+            NAMES ${_LIBVA_LIBRARIES} libva
+            HINTS ${_LIBVA_LIBRARY_DIRS}
+            PATHS /usr/lib /usr/local/lib /opt/local/lib)
+
+    find_library(
+            LIBVA_DRM_LIB
+            NAMES ${_LIBVA_DRM_LIBRARIES} libva-drm
+            HINTS ${_LIBVA_DRM_LIBRARY_DIRS}
+            PATHS /usr/lib /usr/local/lib /opt/local/lib)
 endif()
-
-find_path(
-        LIBVA_INCLUDE_DIR
-        NAMES va/va.h va/va_drm.h
-        HINTS ${_LIBVA_INCLUDE_DIRS}
-        PATHS /usr/include /usr/local/include /opt/local/include)
-
-find_library(
-        LIBVA_LIB
-        NAMES ${_LIBVA_LIBRARIES} libva
-        HINTS ${_LIBVA_LIBRARY_DIRS}
-        PATHS /usr/lib /usr/local/lib /opt/local/lib)
-
-find_library(
-        LIBVA_DRM_LIB
-        NAMES ${_LIBVA_DRM_LIBRARIES} libva-drm
-        HINTS ${_LIBVA_DRM_LIBRARY_DIRS}
-        PATHS /usr/lib /usr/local/lib /opt/local/lib)
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(Libva REQUIRED_VARS LIBVA_INCLUDE_DIR LIBVA_LIB LIBVA_DRM_LIB)
@@ -65,6 +83,13 @@ if(LIBVA_FOUND)
         endif()
 
         set_target_properties(Libva::drm PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${LIBVA_INCLUDE_DIRS}")
+        if(EXISTS "${FFMPEG_PREPARED_BINARIES}/lib/libva.a")
+            set_target_properties(Libva::drm PROPERTIES
+                    INTERFACE_LINK_LIBRARIES "Libva::va;${LIBDRM_LIBRARIES}")
+        endif()
+    endif()
+    if(EXISTS "${FFMPEG_PREPARED_BINARIES}/lib/libva.a")
+        set(LIBVA_DRM_LIBRARIES Libva::drm)
     endif()
 
 endif()

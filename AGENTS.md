@@ -10,7 +10,12 @@ the build directory.
 
 The project uses gtest as a test framework.
 
-Add or update tests for new or modified methods and code. Target 100% coverage on changed code.
+Add or update regression tests for new or modified source-code methods and behavior.
+Target 100% coverage on changed source code.
+
+The regression-test requirement does not apply to build-system files, such as CMake scripts and dependency configuration.
+Validate build-system changes with appropriate configuration, build, and lint checks.
+Do not add dedicated build-system regression-test projects or fixtures for these changes.
 
 ## Python tooling and formatting
 
