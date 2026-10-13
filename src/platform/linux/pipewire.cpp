@@ -293,10 +293,12 @@ namespace pipewire {
           pw_core_add_listener(core, &core_listener, &core_events, nullptr);
         } else {
           BOOST_LOG(debug) << "[pipewire] Failed to connect to PW core. Error: "sv << errno << "(" << strerror(errno) << ")"sv;
+          pw_thread_loop_unlock(loop);
           return -1;
         }
       } else {
         BOOST_LOG(debug) << "[pipewire] Failed to setup PW context. Error: "sv << errno << "(" << strerror(errno) << ")"sv;
+        pw_thread_loop_unlock(loop);
         return -1;
       }
 
