@@ -44,6 +44,7 @@
 #endif
 
 // local includes
+#include "audio.h"
 #include "config.h"
 #include "confighttp.h"
 #include "crypto.h"
@@ -1483,6 +1484,8 @@ namespace confighttp {
     output_tree["status"] = true;
     output_tree["platform"] = SUNSHINE_PLATFORM;
     output_tree["version"] = PROJECT_VERSION;
+    output_tree["ac3_available"] = audio::ac3_available();
+    output_tree["eac3_available"] = audio::eac3_available();
 
     auto vars = config::parse_config(file_handler::read_file(config::sunshine.config_file.c_str()));
 

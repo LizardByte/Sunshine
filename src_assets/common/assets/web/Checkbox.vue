@@ -32,6 +32,10 @@ const props = defineProps({
   default: {
     type: undefined,
     default: null,
+  },
+  disabled: {
+    type: Boolean,
+    default: false,
   }
 });
 
@@ -108,7 +112,7 @@ const defValue = parsedDefaultPropValue ? "_common.enabled_def_cbox" : "_common.
 </script>
 
 <template>
-  <div :class="extendedClassStr">
+  <div :class="[extendedClassStr, { 'opacity-50': props.disabled }]">
     <label :for="props.id" :class="`form-check-label${showDesc ? ' mb-2' : ''}`">
       {{ $t(labelField) }}
       <div class="mt-0 form-text" v-if="showDefValue">
@@ -120,7 +124,8 @@ const defValue = parsedDefaultPropValue ? "_common.enabled_def_cbox" : "_common.
            :id="props.id"
            v-model="model"
            :true-value="checkboxValues.truthy"
-           :false-value="checkboxValues.falsy" />
+           :false-value="checkboxValues.falsy"
+           :disabled="props.disabled" />
     <div class="form-text" v-if="showDesc">
       {{ $t(descField) }}
       <slot></slot>

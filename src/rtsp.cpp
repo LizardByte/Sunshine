@@ -22,6 +22,7 @@ extern "C" {
 #include <boost/bind.hpp>
 
 // local includes
+#include "audio.h"
 #include "config.h"
 #include "globals.h"
 #include "input.h"
@@ -927,6 +928,18 @@ namespace rtsp_stream {
 
     std::stringstream ss;
 
+    // Offer only the configured Dolby codec when its optional FFmpeg encoder is available.
+    // Clients that do not explicitly accept the offer will continue to use Opus.
+    session.audio_codec_offered.clear();
+    if (config::audio.format == "ac3"sv && audio::ac3_available()) {
+      session.audio_codec_offered = "AC3";
+    } else if (config::audio.format == "eac3"sv && audio::eac3_available()) {
+      session.audio_codec_offered = "EAC3";
+    }
+    if (!session.audio_codec_offered.empty()) {
+      ss << "a=x-ss-audio-codec-offer:" << session.audio_codec_offered << std::endl;
+    }
+
     // Tell the client about our supported features
     ss << "a=x-ss-general.featureFlags:" << (uint32_t) platf::get_capabilities() << std::endl;
 
@@ -1214,6 +1227,45 @@ namespace rtsp_stream {
       return;
     }
 
+    // A Dolby codec is selected only when it was offered and the client explicitly accepts
+    // that exact codec. Otherwise, retain Opus and its usual negotiation.
+    const auto audio_accept = args.find("x-ss-audio-codec-accept"sv);
+    const bool client_accepted_audio_codec =
+      !session.audio_codec_offered.empty() &&
+      audio_accept != args.end() &&
+      audio_accept->second == session.audio_codec_offered;
+    const bool ac3_encoder_available = session.audio_codec_offered == "AC3"sv && audio::ac3_available();
+    const bool eac3_encoder_available = session.audio_codec_offered == "EAC3"sv && audio::eac3_available();
+    const bool selected_encoder_available = ac3_encoder_available || eac3_encoder_available;
+    const bool supported_dolby_channel_count = config.audio.channels == 2 || config.audio.channels == 6;
+
+    config.audio.use_ac3 = client_accepted_audio_codec && ac3_encoder_available && supported_dolby_channel_count;
+    config.audio.use_eac3 = client_accepted_audio_codec && eac3_encoder_available && supported_dolby_channel_count;
+
+    if (config::audio.format != "opus"sv && session.audio_codec_offered.empty()) {
+      BOOST_LOG(warning) << "Dolby audio format ["sv << config::audio.format
+                         << "] was selected, but its compatible FFmpeg encoder is unavailable; using Opus"sv;
+    } else if (!session.audio_codec_offered.empty() && !client_accepted_audio_codec) {
+      BOOST_LOG(info) << "Client did not accept "sv << session.audio_codec_offered << "; falling back to Opus"sv;
+    } else if (client_accepted_audio_codec && !selected_encoder_available) {
+      BOOST_LOG(warning) << "The selected Dolby encoder is no longer available; falling back to Opus"sv;
+    } else if (client_accepted_audio_codec && !supported_dolby_channel_count) {
+      BOOST_LOG(info) << "The selected Dolby encoder does not support the requested channel count ["
+                      << config.audio.channels << "]; falling back to Opus"sv;
+    }
+
+    if (config.audio.use_ac3 || config.audio.use_eac3) {
+      const auto codec_name = config.audio.use_eac3 ? "E-AC-3"sv : "AC-3"sv;
+      config.audio.packetDuration = 32;
+      config.audio.flags[audio::config_t::HIGH_QUALITY] = true;
+      config.audio.flags[audio::config_t::CUSTOM_SURROUND_PARAMS] = false;
+      config.audio.high_quality_dolby = config::audio.high_quality_audio;
+      const auto bitrate_kbps = audio::dolby_bitrate_kbps(
+        config.audio.use_eac3, config.audio.high_quality_dolby, config.audio.channels);
+      BOOST_LOG(info) << "Using "sv << codec_name << " audio: "sv << config.audio.channels
+                      << " channels, 48 kHz, "sv << bitrate_kbps << " kbit/s"sv;
+    }
+
     // When using stereo audio, the audio quality is (strangely) indicated by whether the Host field
     // in the RTSP message matches a local interface's IP address. Fortunately, Moonlight always sends
     // 0.0.0.0 when it wants low quality, so it is easy to check without enumerating interfaces.
@@ -1248,6 +1300,10 @@ namespace rtsp_stream {
       }
       config.audio.flags[audio::config_t::CUSTOM_SURROUND_PARAMS] = valid;
     }
+    // AC-3 uses the standard 5.1 speaker order, not an Opus-specific custom mapping.
+    if (config.audio.use_ac3 || config.audio.use_eac3) {
+      config.audio.flags[audio::config_t::CUSTOM_SURROUND_PARAMS] = false;
+    }
     if (session.continuous_audio) {
       BOOST_LOG(info) << "Client requested continuous audio"sv;
       config.audio.flags[audio::config_t::CONTINUOUS_AUDIO] = true;
@@ -1267,8 +1323,10 @@ namespace rtsp_stream {
       }
 
       // Adjust the bitrate to account for audio traffic bandwidth usage (capped at 20% reduction).
-      // The bitrate per channel is 256 Kbps for high quality mode and 96 Kbps for normal quality.
-      auto audioBitrateAdjustment = (config.audio.flags[audio::config_t::HIGH_QUALITY] ? 256 : 96) * config.audio.channels;
+      // Dolby uses its selected channel-aware bitrate; keep the Opus calculation unchanged.
+      auto audioBitrateAdjustment = (config.audio.use_ac3 || config.audio.use_eac3)
+        ? audio::dolby_bitrate_kbps(config.audio.use_eac3, config.audio.high_quality_dolby, config.audio.channels)
+        : (config.audio.flags[audio::config_t::HIGH_QUALITY] ? 256 : 96) * config.audio.channels;
       configuredBitrateKbps -= std::min((std::int64_t) audioBitrateAdjustment, configuredBitrateKbps / 5);
 
       // Reduce it by another 500Kbps to account for A/V packet overhead and control data
@@ -1313,6 +1371,12 @@ namespace rtsp_stream {
       return;
     }
 
+    // Return the selected codec in a response header so the new client can verify
+    // the result without adding a response body that legacy RTSP clients may not expect.
+    OPTION_ITEM audio_codec_option {};
+    audio_codec_option.option = const_cast<char *>("X-SS-Audio-Codec");
+    audio_codec_option.content = const_cast<char *>(config.audio.use_eac3 ? "EAC3" : (config.audio.use_ac3 ? "AC3" : "Opus"));
+    option.next = &audio_codec_option;
     respond(sock, session, &option, 200, "OK", req->sequenceNumber, {});
   }
 

@@ -6,6 +6,7 @@
 
 // standard includes
 #include <atomic>
+#include <string>
 
 // local includes
 #include "crypto.h"
@@ -36,6 +37,7 @@ namespace rtsp_stream {
     int surround_info;  ///< Encoded GameStream surround-sound capability flags.
     std::string surround_params;  ///< Client-provided surround-sound layout parameters.
     bool continuous_audio;  ///< Whether audio packets continue during silence.
+    std::string audio_codec_offered;  ///< Selected Dolby audio codec offered in this launch session's DESCRIBE response.
     bool enable_hdr;  ///< Whether HDR streaming is requested.
     bool enable_sops;  ///< Whether sequence output protection is requested.
     std::string client_name;  ///< Friendly client name from initial pairing.

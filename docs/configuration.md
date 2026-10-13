@@ -913,6 +913,70 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     </tr>
 </table>
 
+### audio_format
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Selects the encoded audio format sent to the client. Opus is the default and remains the fallback when the optional Dolby encoder is unavailable or the client does not accept the selected Dolby codec.
+            <br>
+            <br>
+            AC-3 and E-AC-3 support is available on Windows only, when compatible FFmpeg runtime DLLs containing the selected encoder are present beside `sunshine.exe` or in its `ffmpeg` subdirectory. Sunshine loads these libraries dynamically and does not bundle them. The client must support the selected Dolby passthrough format. Dolby encoding supports stereo and 5.1 channel layouts.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            opus
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Choices</td>
+        <td>opus</td>
+        <td>Use Opus encoding.</td>
+    </tr>
+    <tr>
+        <td></td>
+        <td>ac3</td>
+        <td>Use Dolby Digital AC-3 encoding.</td>
+    </tr>
+    <tr>
+        <td></td>
+        <td>eac3</td>
+        <td>Use Dolby Digital Plus E-AC-3 encoding.</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            audio_format = ac3
+            @endcode</td>
+    </tr>
+</table>
+
+### high_quality_audio
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            When AC-3 or E-AC-3 is negotiated with the client, selects higher Dolby encoding bitrates at the cost of increased network bandwidth. This setting has no effect when Opus is selected.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            high_quality_audio = enabled
+            @endcode</td>
+    </tr>
+</table>
+
 ### install_steam_audio_drivers
 
 <table>
