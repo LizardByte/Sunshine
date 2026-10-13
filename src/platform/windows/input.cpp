@@ -27,6 +27,7 @@
 #include <ViGEm/Client.h>
 
 // local includes
+#include "input.h"
 #include "misc.h"
 #include "src/config.h"
 #include "src/globals.h"
@@ -106,7 +107,7 @@ namespace platf {
 
     // Map from pointer ID to pointer index
     std::map<uint32_t, uint8_t> pointer_id_map;  ///< Pointer ID map.
-    uint8_t available_pointers;  ///< Available pointers.
+    std::byte available_pointers;  ///< Byte mask of available DualShock 4 touch slots.
 
     uint8_t client_relative_index;  ///< Client relative index.
 
@@ -314,7 +315,7 @@ namespace platf {
         feedback_queue->raise(gamepad_feedback_msg_t::make_motion_event_state(gamepad.client_relative_index, LI_MOTION_TYPE_GYRO, 100));
 
         // We support pointer index 0 and 1
-        gamepad.available_pointers = 0x3;
+        gamepad.available_pointers = std::byte {0x3};
       }
 
       auto status = vigem_target_add(client.get(), gamepad.gp.get());
@@ -417,8 +418,8 @@ namespace platf {
 
         if (gamepad.gp.get() == target) {
           // Convert from 8-bit to 16-bit values
-          uint16_t normalizedLargeMotor = largeMotor << 8;
-          uint16_t normalizedSmallMotor = smallMotor << 8;
+          const auto normalizedLargeMotor = vigem::scale_rumble(largeMotor);
+          const auto normalizedSmallMotor = vigem::scale_rumble(smallMotor);
 
           // Don't resend duplicate rumble data
           if (normalizedSmallMotor != gamepad.last_rumble.data.rumble.highfreq || normalizedLargeMotor != gamepad.last_rumble.data.rumble.lowfreq) {
@@ -1039,6 +1040,146 @@ namespace platf {
     }
   }
 
+  std::uint16_t vigem::scale_rumble(std::uint8_t strength) {
+    return strength * 256;
+  }
+
+  bool vigem::update_touch(DS4_REPORT_EX &ds4_report, std::map<std::uint32_t, std::uint8_t> &pointer_id_map, std::byte &available_pointers, const gamepad_touch_t &touch) {
+    auto &report = ds4_report.Report;
+
+    uint8_t pointerIndex {};
+    if (touch.eventType == LI_TOUCH_EVENT_DOWN) {
+      if ((available_pointers & std::byte {0x1}) != std::byte {0}) {
+        // Reserve pointer index 0 for this touch
+        pointer_id_map[touch.pointerId] = pointerIndex = 0;
+        available_pointers &= ~(std::byte {1} << pointerIndex);
+
+        // Set pointer 0 down
+        report.sCurrentTouch.bIsUpTrackingNum1 = std::to_integer<uint8_t>(std::byte {report.sCurrentTouch.bIsUpTrackingNum1} & ~std::byte {0x80});
+        report.sCurrentTouch.bIsUpTrackingNum1++;
+      } else if ((available_pointers & std::byte {0x2}) != std::byte {0}) {
+        // Reserve pointer index 1 for this touch
+        pointer_id_map[touch.pointerId] = pointerIndex = 1;
+        available_pointers &= ~(std::byte {1} << pointerIndex);
+
+        // Set pointer 1 down
+        report.sCurrentTouch.bIsUpTrackingNum2 = std::to_integer<uint8_t>(std::byte {report.sCurrentTouch.bIsUpTrackingNum2} & ~std::byte {0x80});
+        report.sCurrentTouch.bIsUpTrackingNum2++;
+      } else {
+        BOOST_LOG(warning) << "No more free pointer indices! Did the client miss an touch up event?"sv;
+        return false;
+      }
+    } else if (touch.eventType == LI_TOUCH_EVENT_CANCEL_ALL) {
+      // Raise both pointers
+      report.sCurrentTouch.bIsUpTrackingNum1 = std::to_integer<uint8_t>(std::byte {report.sCurrentTouch.bIsUpTrackingNum1} | std::byte {0x80});
+      report.sCurrentTouch.bIsUpTrackingNum2 = std::to_integer<uint8_t>(std::byte {report.sCurrentTouch.bIsUpTrackingNum2} | std::byte {0x80});
+
+      // Remove all pointer index mappings
+      pointer_id_map.clear();
+
+      // All pointers are now available
+      available_pointers = std::byte {0x3};
+    } else {
+      auto i = pointer_id_map.find(touch.pointerId);
+      if (i == pointer_id_map.end()) {
+        BOOST_LOG(warning) << "Pointer ID not found! Did the client miss a touch down event?"sv;
+        return false;
+      }
+
+      pointerIndex = (*i).second;
+
+      if (touch.eventType == LI_TOUCH_EVENT_UP || touch.eventType == LI_TOUCH_EVENT_CANCEL) {
+        // Remove the pointer index mapping
+        pointer_id_map.erase(i);
+
+        // Set pointer up
+        if (pointerIndex == 0) {
+          report.sCurrentTouch.bIsUpTrackingNum1 = std::to_integer<uint8_t>(std::byte {report.sCurrentTouch.bIsUpTrackingNum1} | std::byte {0x80});
+        } else {
+          report.sCurrentTouch.bIsUpTrackingNum2 = std::to_integer<uint8_t>(std::byte {report.sCurrentTouch.bIsUpTrackingNum2} | std::byte {0x80});
+        }
+
+        // Free the pointer index
+        available_pointers |= (std::byte {1} << pointerIndex);
+      } else if (touch.eventType != LI_TOUCH_EVENT_MOVE) {
+        BOOST_LOG(warning) << "Unsupported touch event for gamepad: "sv << (uint32_t) touch.eventType;
+        return false;
+      }
+    }
+
+    // Touchpad is 1920x943 according to ViGEm
+    uint16_t x = touch.x * 1920;
+    uint16_t y = touch.y * 943;
+    std::array<std::byte, 3> touchData = {
+      static_cast<std::byte>(x & 0xFF),  // Low 8 bits of X
+      static_cast<std::byte>((x >> 8 & 0x0F) | (y & 0x0F) << 4),  // High 4 bits of X and low 4 bits of Y
+      static_cast<std::byte>(y >> 4 & 0xFF)  // High 8 bits of Y
+    };
+
+    report.sCurrentTouch.bPacketCounter++;
+    if (touch.eventType != LI_TOUCH_EVENT_CANCEL_ALL) {
+      if (pointerIndex == 0) {
+        memcpy(report.sCurrentTouch.bTouchData1, touchData.data(), touchData.size());
+      } else {
+        memcpy(report.sCurrentTouch.bTouchData2, touchData.data(), touchData.size());
+      }
+    }
+
+    return true;
+  }
+
+  void vigem::update_battery(DS4_REPORT_EX &ds4_report, const gamepad_battery_t &battery) {
+    // For details on the report format of these battery level fields, see:
+    // https://github.com/torvalds/linux/blob/946c6b59c56dc6e7d8364a8959cb36bf6d10bc37/drivers/hid/hid-playstation.c#L2305-L2314
+
+    auto &report = ds4_report.Report;
+    auto battery_status = std::byte {report.bBatteryLvlSpecial};
+
+    // Update the battery state if it is known
+    switch (battery.state) {
+      case LI_BATTERY_STATE_CHARGING:
+      case LI_BATTERY_STATE_DISCHARGING:
+        if (battery.state == LI_BATTERY_STATE_CHARGING) {
+          battery_status |= std::byte {0x10};  // Connected via USB
+        } else {
+          battery_status &= ~std::byte {0x10};  // Not connected via USB
+        }
+
+        // If there was a special battery status set before, clear that and
+        // initialize the battery level to 50%. It will be overwritten below
+        // if the actual percentage is known.
+        if ((battery_status & std::byte {0xF}) > std::byte {0xA}) {
+          battery_status = (battery_status & ~std::byte {0xF}) | std::byte {0x5};
+        }
+        break;
+
+      case LI_BATTERY_STATE_FULL:
+        battery_status = std::byte {0x1B};  // USB + Battery Full
+        report.bBatteryLvl = 0xFF;
+        break;
+
+      case LI_BATTERY_STATE_NOT_PRESENT:
+      case LI_BATTERY_STATE_NOT_CHARGING:
+        battery_status = std::byte {0x1F};  // USB + Charging Error
+        break;
+
+      default:
+        break;
+    }
+
+    // Update the battery level if it is known
+    if (battery.percentage != LI_BATTERY_PERCENTAGE_UNKNOWN) {
+      report.bBatteryLvl = battery.percentage * 255 / 100;
+
+      // Don't overwrite low nibble if there's a special status there (see above)
+      if ((battery_status & std::byte {0x10}) != std::byte {0} && (battery_status & std::byte {0xF}) <= std::byte {0xA}) {
+        battery_status = (battery_status & ~std::byte {0xF}) | static_cast<std::byte>((battery.percentage + 5) / 10);
+      }
+    }
+
+    report.bBatteryLvlSpecial = std::to_integer<uint8_t>(battery_status);
+  }
+
   /**
    * @brief Sends a gamepad touch event to the OS.
    * @param input The global input context.
@@ -1068,87 +1209,9 @@ namespace platf {
       return;
     }
 
-    auto &report = gamepad.report.ds4.Report;
-
-    uint8_t pointerIndex;
-    if (touch.eventType == LI_TOUCH_EVENT_DOWN) {
-      if (gamepad.available_pointers & 0x1) {
-        // Reserve pointer index 0 for this touch
-        gamepad.pointer_id_map[touch.pointerId] = pointerIndex = 0;
-        gamepad.available_pointers &= ~(1 << pointerIndex);
-
-        // Set pointer 0 down
-        report.sCurrentTouch.bIsUpTrackingNum1 &= ~0x80;
-        report.sCurrentTouch.bIsUpTrackingNum1++;
-      } else if (gamepad.available_pointers & 0x2) {
-        // Reserve pointer index 1 for this touch
-        gamepad.pointer_id_map[touch.pointerId] = pointerIndex = 1;
-        gamepad.available_pointers &= ~(1 << pointerIndex);
-
-        // Set pointer 1 down
-        report.sCurrentTouch.bIsUpTrackingNum2 &= ~0x80;
-        report.sCurrentTouch.bIsUpTrackingNum2++;
-      } else {
-        BOOST_LOG(warning) << "No more free pointer indices! Did the client miss an touch up event?"sv;
-        return;
-      }
-    } else if (touch.eventType == LI_TOUCH_EVENT_CANCEL_ALL) {
-      // Raise both pointers
-      report.sCurrentTouch.bIsUpTrackingNum1 |= 0x80;
-      report.sCurrentTouch.bIsUpTrackingNum2 |= 0x80;
-
-      // Remove all pointer index mappings
-      gamepad.pointer_id_map.clear();
-
-      // All pointers are now available
-      gamepad.available_pointers = 0x3;
-    } else {
-      auto i = gamepad.pointer_id_map.find(touch.pointerId);
-      if (i == gamepad.pointer_id_map.end()) {
-        BOOST_LOG(warning) << "Pointer ID not found! Did the client miss a touch down event?"sv;
-        return;
-      }
-
-      pointerIndex = (*i).second;
-
-      if (touch.eventType == LI_TOUCH_EVENT_UP || touch.eventType == LI_TOUCH_EVENT_CANCEL) {
-        // Remove the pointer index mapping
-        gamepad.pointer_id_map.erase(i);
-
-        // Set pointer up
-        if (pointerIndex == 0) {
-          report.sCurrentTouch.bIsUpTrackingNum1 |= 0x80;
-        } else {
-          report.sCurrentTouch.bIsUpTrackingNum2 |= 0x80;
-        }
-
-        // Free the pointer index
-        gamepad.available_pointers |= (1 << pointerIndex);
-      } else if (touch.eventType != LI_TOUCH_EVENT_MOVE) {
-        BOOST_LOG(warning) << "Unsupported touch event for gamepad: "sv << (uint32_t) touch.eventType;
-        return;
-      }
+    if (vigem::update_touch(gamepad.report.ds4, gamepad.pointer_id_map, gamepad.available_pointers, touch)) {
+      ds4_update_ts_and_send(vigem, touch.id.globalIndex);
     }
-
-    // Touchpad is 1920x943 according to ViGEm
-    uint16_t x = touch.x * 1920;
-    uint16_t y = touch.y * 943;
-    std::array<uint8_t, 3> touchData = {
-      (uint8_t) (x & 0xFF),  // Low 8 bits of X
-      (uint8_t) ((x >> 8 & 0x0F) | (y & 0x0F) << 4),  // High 4 bits of X and low 4 bits of Y
-      (uint8_t) (y >> 4 & 0xFF)  // High 8 bits of Y
-    };
-
-    report.sCurrentTouch.bPacketCounter++;
-    if (touch.eventType != LI_TOUCH_EVENT_CANCEL_ALL) {
-      if (pointerIndex == 0) {
-        memcpy(report.sCurrentTouch.bTouchData1, touchData.data(), touchData.size());
-      } else {
-        memcpy(report.sCurrentTouch.bTouchData2, touchData.data(), touchData.size());
-      }
-    }
-
-    ds4_update_ts_and_send(vigem, touch.id.globalIndex);
   }
 
   /**
@@ -1213,53 +1276,7 @@ namespace platf {
       return;
     }
 
-    // For details on the report format of these battery level fields, see:
-    // https://github.com/torvalds/linux/blob/946c6b59c56dc6e7d8364a8959cb36bf6d10bc37/drivers/hid/hid-playstation.c#L2305-L2314
-
-    auto &report = gamepad.report.ds4.Report;
-
-    // Update the battery state if it is known
-    switch (battery.state) {
-      case LI_BATTERY_STATE_CHARGING:
-      case LI_BATTERY_STATE_DISCHARGING:
-        if (battery.state == LI_BATTERY_STATE_CHARGING) {
-          report.bBatteryLvlSpecial |= 0x10;  // Connected via USB
-        } else {
-          report.bBatteryLvlSpecial &= ~0x10;  // Not connected via USB
-        }
-
-        // If there was a special battery status set before, clear that and
-        // initialize the battery level to 50%. It will be overwritten below
-        // if the actual percentage is known.
-        if ((report.bBatteryLvlSpecial & 0xF) > 0xA) {
-          report.bBatteryLvlSpecial = (report.bBatteryLvlSpecial & ~0xF) | 0x5;
-        }
-        break;
-
-      case LI_BATTERY_STATE_FULL:
-        report.bBatteryLvlSpecial = 0x1B;  // USB + Battery Full
-        report.bBatteryLvl = 0xFF;
-        break;
-
-      case LI_BATTERY_STATE_NOT_PRESENT:
-      case LI_BATTERY_STATE_NOT_CHARGING:
-        report.bBatteryLvlSpecial = 0x1F;  // USB + Charging Error
-        break;
-
-      default:
-        break;
-    }
-
-    // Update the battery level if it is known
-    if (battery.percentage != LI_BATTERY_PERCENTAGE_UNKNOWN) {
-      report.bBatteryLvl = battery.percentage * 255 / 100;
-
-      // Don't overwrite low nibble if there's a special status there (see above)
-      if ((report.bBatteryLvlSpecial & 0x10) && (report.bBatteryLvlSpecial & 0xF) <= 0xA) {
-        report.bBatteryLvlSpecial = (report.bBatteryLvlSpecial & ~0xF) | ((battery.percentage + 5) / 10);
-      }
-    }
-
+    vigem::update_battery(gamepad.report.ds4, battery);
     ds4_update_ts_and_send(vigem, battery.id.globalIndex);
   }
 

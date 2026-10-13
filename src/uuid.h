@@ -6,6 +6,7 @@
 
 // standard includes
 #include <array>
+#include <cstddef>
 #include <random>
 
 /**
@@ -22,7 +23,7 @@ namespace uuid_util {
     std::array<std::uint64_t, 2> b64;  ///< UUID viewed as 64-bit words.
 
     /**
-     * @brief Generate a UUID value.
+     * @brief Generate UUID bytes and apply the established version and variant masks.
      *
      * @param engine Random-number engine used to generate UUID bytes.
      * @return Random UUID generated from the supplied engine.
@@ -35,8 +36,8 @@ namespace uuid_util {
         el = dist(engine);
       }
 
-      buf.b8[7] &= (std::uint8_t) 0b00101111;
-      buf.b8[9] &= (std::uint8_t) 0b10011111;
+      buf.b8[7] = std::to_integer<std::uint8_t>(std::byte {buf.b8[7]} & std::byte {0b00101111});
+      buf.b8[9] = std::to_integer<std::uint8_t>(std::byte {buf.b8[9]} & std::byte {0b10011111});
 
       return buf;
     }
