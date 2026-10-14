@@ -8,24 +8,27 @@
 
     <!-- Category Filter -->
     <div class="toolbar mb-4">
-      <fieldset class="btn-group">
+      <fieldset>
         <legend class="visually-hidden">{{ $t('featured.category_filter') }}</legend>
-        <button
-          type="button"
-          class="btn btn-outline-primary"
-          :class="{ active: selectedCategory === null }"
-          @click="selectedCategory = null">
-          {{ $t('_common.all') }}
-        </button>
-        <button
-          v-for="category in categories"
-          :key="category.id"
-          type="button"
-          class="btn btn-outline-primary"
-          :class="{ active: selectedCategory === category.id }"
-          @click="selectedCategory = category.id">
-          {{ $t(`featured.categories.${category.originalId}`) }}
-        </button>
+        <!-- @brief Keep the legend outside Bootstrap's button group to preserve its outer corners. -->
+        <div class="btn-group">
+          <button
+            type="button"
+            class="btn btn-outline-primary"
+            :class="{ active: selectedCategory === null }"
+            @click="selectedCategory = null">
+            {{ $t('_common.all') }}
+          </button>
+          <button
+            v-for="category in categories"
+            :key="category.id"
+            type="button"
+            class="btn btn-outline-primary"
+            :class="{ active: selectedCategory === category.id }"
+            @click="selectedCategory = category.id">
+            {{ $t(`featured.categories.${category.originalId}`) }}
+          </button>
+        </div>
       </fieldset>
     </div>
 
