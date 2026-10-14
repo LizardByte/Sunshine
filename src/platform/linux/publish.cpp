@@ -4,6 +4,11 @@
  * @note Adapted from https://www.avahi.org/doxygen/html/client-publish-service_8c-example.html
  */
 // standard includes
+#include <cstring>
+#include <ifaddrs.h>
+#include <net/if.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 #include <thread>
 #include <utility>
 
@@ -211,6 +216,18 @@ namespace avahi {
   );
 
   /**
+   * @brief Function pointer used to add an address record to an Avahi entry group.
+   */
+  using entry_group_add_address_fn = int (*)(
+    EntryGroup *group,
+    IfIndex interface,
+    Protocol protocol,
+    PublishFlags flags,
+    const char *name,
+    const Address *address
+  );
+
+  /**
    * @brief Function pointer used to test whether an Avahi entry group is empty.
    */
   using entry_group_is_empty_fn = int (*)(EntryGroup *);
@@ -264,6 +281,7 @@ namespace avahi {
   entry_group_get_client_fn entry_group_get_client;  ///< Entry group get client.
   entry_group_new_fn entry_group_new;  ///< Entry group new.
   entry_group_add_service_fn entry_group_add_service;  ///< Entry group add service.
+  entry_group_add_address_fn entry_group_add_address;  ///< Entry group add address.
   entry_group_is_empty_fn entry_group_is_empty;  ///< Entry group is empty.
   entry_group_reset_fn entry_group_reset;  ///< Entry group reset.
   entry_group_commit_fn entry_group_commit;  ///< Entry group commit.
@@ -345,6 +363,7 @@ namespace avahi {
           {(dyn::apiproc *) &entry_group_get_client, "avahi_entry_group_get_client"},
           {(dyn::apiproc *) &entry_group_new, "avahi_entry_group_new"},
           {(dyn::apiproc *) &entry_group_add_service, "avahi_entry_group_add_service"},
+          {(dyn::apiproc *) &entry_group_add_address, "avahi_entry_group_add_address"},
           {(dyn::apiproc *) &entry_group_is_empty, "avahi_entry_group_is_empty"},
           {(dyn::apiproc *) &entry_group_reset, "avahi_entry_group_reset"},
           {(dyn::apiproc *) &entry_group_commit, "avahi_entry_group_commit"},
@@ -392,24 +411,63 @@ namespace platf::publish {
 
   ptr_t<char> name;  ///< Current service name, updated when Avahi reports a collision.
 
-  /**
-   * @brief Map the configured address family to the Avahi protocol selector.
-   *
-   * @param af Address family from the configuration.
-   * @return Avahi protocol selector matching the configured family.
-   */
-  avahi::Protocol protocol_for_address_family(net::af_e af) {
-    using enum avahi::proto;
+  unsigned host_name_collision_count = 0;  ///< Suffix counter for regenerating the service host name after collisions.
 
-    switch (af) {
-      case net::IPV4:
-        return std::to_underlying(PROTO_INET);
-      case net::BOTH:
-        return std::to_underlying(PROTO_UNSPEC);
+  /* Enumerate the local interface addresses available for publication. */
+  std::vector<boost::asio::ip::address> enumerate_interface_addresses() {
+    ifaddrs *interfaces = nullptr;
+    if (getifaddrs(&interfaces) != 0) {
+      BOOST_LOG(error) << "Failed to enumerate network interfaces."sv;
+      return {};
+    }
+    auto cleanup = util::fail_guard([&]() {
+      freeifaddrs(interfaces);
+    });
+
+    std::vector<boost::asio::ip::address> addresses;
+    for (const auto *ifa = interfaces; ifa != nullptr; ifa = ifa->ifa_next) {
+      if (ifa->ifa_addr == nullptr || (ifa->ifa_flags & IFF_UP) == 0) {
+        continue;
+      }
+
+      if (ifa->ifa_addr->sa_family == AF_INET) {
+        const auto *inet_address = reinterpret_cast<const sockaddr_in *>(ifa->ifa_addr);
+        boost::asio::ip::address_v4::bytes_type bytes {};
+        std::memcpy(bytes.data(), &inet_address->sin_addr, bytes.size());
+        addresses.emplace_back(boost::asio::ip::address_v4(bytes));
+      } else if (ifa->ifa_addr->sa_family == AF_INET6) {
+        const auto *inet6_address = reinterpret_cast<const sockaddr_in6 *>(ifa->ifa_addr);
+        boost::asio::ip::address_v6::bytes_type bytes {};
+        std::memcpy(bytes.data(), &inet6_address->sin6_addr, bytes.size());
+        addresses.emplace_back(boost::asio::ip::address_v6(bytes));
+      }
+    }
+    return addresses;
+  }
+
+  /* Determine the addresses published for the service host name. */
+  std::vector<boost::asio::ip::address> served_addresses(net::af_e effective_family) {
+    // An explicit, non-wildcard bind address is, by definition, an address
+    // Sunshine serves: publish exactly it instead of enumerating interfaces.
+    if (!config::sunshine.bind_address.empty()) {
+      boost::system::error_code ec;
+      auto bind_address = boost::asio::ip::make_address(config::sunshine.bind_address, ec);
+      if (ec) {
+        BOOST_LOG(warning) << "Configured bind address is not a valid IP address, falling back to interface enumeration: "sv
+                           << config::sunshine.bind_address;
+      } else {
+        bind_address = net::normalize_address(bind_address);
+        if (!bind_address.is_unspecified()) {
+          if (effective_family == net::IPV4 && !bind_address.is_v4()) {
+            return {};
+          }
+          return {bind_address};
+        }
+      }
     }
 
-    // avoid warning
-    return std::to_underlying(PROTO_UNSPEC);
+    // A wildcard (or unparsable) bind serves every local interface address of the effective family.
+    return select_served_addresses(enumerate_interface_addresses(), effective_family);
   }
 
   /**
@@ -436,6 +494,11 @@ namespace platf::publish {
         name.reset(avahi::alternative_service_name(name.get()));
 
         BOOST_LOG(info) << "Avahi service name collision, renaming service to " << name.get();
+
+        // The collision may have been on the service host name rather than
+        // the service name: regenerate the host name as well so the retry
+        // does not collide on the same host name again.
+        ++host_name_collision_count;
 
         create_services(avahi::entry_group_get_client(g));
         break;
@@ -468,23 +531,54 @@ namespace platf::publish {
     if (avahi::entry_group_is_empty(group)) {
       BOOST_LOG(info) << "Adding avahi service "sv << name.get();
 
-      // Only advertise addresses for the configured address family: with
-      // PROTO_UNSPEC Avahi would also publish an IPv6 record when Sunshine
-      // only binds IPv4 listeners (see #5860). The effective family accounts
-      // for bind_address, matching the listener setup.
-      const auto protocol = protocol_for_address_family(
-        net::get_effective_address_family(net::af_from_enum_string(config::sunshine.address_family))
+      // Discovery transport stays on both protocols: the transport only
+      // decides which multicast groups carry the announcement, it does not
+      // filter the advertised host addresses (see #5860). The filter is the
+      // service-specific SRV target below: the daemon publishes address
+      // records for that host name only from the explicit records added
+      // here, so an IPv4-only configuration advertises no AAAA record even
+      // though the daemon's shared host name still carries both A and AAAA
+      // (publish-aaaa-on-ipv4). The effective family accounts for
+      // bind_address, matching the listener setup.
+      const auto effective_family = net::get_effective_address_family(
+        net::af_from_enum_string(config::sunshine.address_family)
       );
+      const auto service_host = service_host_name(platf::get_host_name(), host_name_collision_count);
+      const auto addresses = served_addresses(effective_family);
+
+      const char *service_target = nullptr;
+      if (addresses.empty()) {
+        BOOST_LOG(warning) << "No served addresses determined for "sv << service_host
+                           << "; falling back to the daemon host name, which may advertise unserved addresses (see #5860).";
+      } else {
+        service_target = service_host.c_str();
+        for (const auto &address : addresses) {
+          const auto avahi_address = to_avahi_address(address);
+          ret = avahi::entry_group_add_address(
+            group,
+            avahi::IF_UNSPEC,
+            std::to_underlying(avahi::proto::PROTO_UNSPEC),
+            avahi::PublishFlags(0),
+            service_host.c_str(),
+            &avahi_address
+          );
+          if (ret < 0) {
+            BOOST_LOG(error) << "Failed to add avahi address for "sv << service_host << ": "sv << avahi::strerror(ret);
+            avahi::entry_group_reset(group);
+            return;
+          }
+        }
+      }
 
       ret = avahi::entry_group_add_service(
         group,
         avahi::IF_UNSPEC,
-        protocol,
+        std::to_underlying(avahi::proto::PROTO_UNSPEC),
         avahi::PublishFlags(0),
         name.get(),
         platf::SERVICE_TYPE,
         nullptr,
-        nullptr,
+        service_target,
         net::map_port(nvhttp::PORT_HTTP),
         nullptr
       );
@@ -495,6 +589,10 @@ namespace platf::publish {
           name.reset(avahi::alternative_service_name(name.get()));
           BOOST_LOG(info) << "Service name collision, renaming service to "sv << name.get();
 
+          // The collision may have been on the service host name instead:
+          // regenerate it as well so the retry does not collide again.
+          ++host_name_collision_count;
+
           avahi::entry_group_reset(group);
 
           create_services(c);
@@ -504,6 +602,7 @@ namespace platf::publish {
         }
 
         BOOST_LOG(error) << "Failed to add "sv << platf::SERVICE_TYPE << " service: "sv << avahi::strerror(ret);
+        avahi::entry_group_reset(group);
         return;
       }
 
