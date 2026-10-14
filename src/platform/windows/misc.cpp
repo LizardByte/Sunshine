@@ -377,6 +377,8 @@ namespace platf {
   /**
    * @brief Merge user environment variables into a Windows environment block.
    *
+   * Existing variable names retain their spelling when matched case-insensitively.
+   *
    * @param env Environment variables for the child process.
    * @param shell_token Shell token.
    * @return True when the user environment block was merged into `env`.
@@ -396,7 +398,7 @@ namespace platf {
       std::string env_val = env_tuple.substr(env_tuple.find('=') + 1);
 
       // Perform a case-insensitive search to see if this variable name already exists
-      if (auto itr = boost::range::find_if(env, [&](const auto &e) {
+      if (auto itr = boost::range::find_if(env, [&env_name](const auto &e) {
             return boost::iequals(e.get_name(), env_name);
           });
           itr != env.end()) {
@@ -1029,7 +1031,7 @@ namespace platf {
     auto sunshine_wenv = boost::this_process::wenvironment();
     std::wstring path_var_name {L"PATH"};
     std::wstring old_path_val;
-    auto itr = boost::range::find_if(std::as_const(sunshine_wenv), [&](const auto &e) {
+    auto itr = boost::range::find_if(std::as_const(sunshine_wenv), [&path_var_name](const auto &e) {
       return boost::iequals(e.get_name(), path_var_name);
     });
     if (itr != sunshine_wenv.cend()) {

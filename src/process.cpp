@@ -498,7 +498,7 @@ namespace proc {
               // Windows treats environment variable names in a case-insensitive manner,
               // so we look for a case-insensitive match here. This is critical for
               // correctly appending to PATH on Windows.
-              auto itr = boost::range::find_if(std::as_const(env), [&](const auto &e) {
+              auto itr = boost::range::find_if(std::as_const(env), [&var_name](const auto &e) {
                 return boost::iequals(e.get_name(), var_name);
               });
               if (itr != env.cend()) {
