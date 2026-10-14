@@ -11,6 +11,7 @@ export default defineConfig({
   test: {
     coverage: {
       provider: 'v8',
+      reportOnFailure: true, ///< Preserve CI coverage artifacts after test failures.
       reporter: ['text', 'json', 'lcov'],
       reportsDirectory: 'coverage',
     },
