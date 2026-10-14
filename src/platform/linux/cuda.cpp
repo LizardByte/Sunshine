@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <filesystem>
 #include <thread>
+#include <utility>
 
 // lib includes
 #include <ffnvcodec/dynlink_loader.h>
@@ -1063,7 +1064,7 @@ namespace cuda {
               }
               break;
             default:
-              BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
+              BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
               return status;
           }
         }

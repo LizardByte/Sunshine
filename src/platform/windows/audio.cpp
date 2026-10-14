@@ -120,7 +120,7 @@ namespace {
         break;
     }
 
-    static_assert((int) sample_format_e::_size == 5, "Unrecognized sample_format_e");
+    static_assert(std::to_underlying(sample_format_e::_size) == 5, "Unrecognized sample_format_e");
 
     waveformat.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
     waveformat.Format.nChannels = channel_count;

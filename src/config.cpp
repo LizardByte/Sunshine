@@ -742,20 +742,20 @@ namespace config {
     },  // qsv
 
     {
-      (int) amd::usage_h264_e::ultralowlatency,  // usage (h264)
-      (int) amd::usage_hevc_e::ultralowlatency,  // usage (hevc)
-      (int) amd::usage_av1_e::ultralowlatency,  // usage (av1)
-      (int) amd::rc_h264_e::vbr_latency,  // rate control (h264)
-      (int) amd::rc_hevc_e::vbr_latency,  // rate control (hevc)
-      (int) amd::rc_av1_e::vbr_latency,  // rate control (av1)
+      std::to_underlying(amd::usage_h264_e::ultralowlatency),  // usage (h264)
+      std::to_underlying(amd::usage_hevc_e::ultralowlatency),  // usage (hevc)
+      std::to_underlying(amd::usage_av1_e::ultralowlatency),  // usage (av1)
+      std::to_underlying(amd::rc_h264_e::vbr_latency),  // rate control (h264)
+      std::to_underlying(amd::rc_hevc_e::vbr_latency),  // rate control (hevc)
+      std::to_underlying(amd::rc_av1_e::vbr_latency),  // rate control (av1)
       0,  // enforce_hrd
-      (int) amd::quality_h264_e::balanced,  // quality (h264)
-      (int) amd::quality_hevc_e::balanced,  // quality (hevc)
-      (int) amd::quality_av1_e::balanced,  // quality (av1)
+      std::to_underlying(amd::quality_h264_e::balanced),  // quality (h264)
+      std::to_underlying(amd::quality_hevc_e::balanced),  // quality (hevc)
+      std::to_underlying(amd::quality_av1_e::balanced),  // quality (av1)
       0,  // preanalysis
       1,  // vbaq
       {},  // max_au_size (disabled by default)
-      (int) amd::coder_e::_auto,  // coder
+      std::to_underlying(amd::coder_e::_auto),  // coder
     },  // amd
 
     {

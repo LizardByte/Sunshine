@@ -10,6 +10,7 @@
 #include <iterator>
 #include <set>
 #include <sstream>
+#include <utility>
 #include <vector>
 
 // lib includes
@@ -1144,7 +1145,7 @@ namespace platf {
         win32_priority = THREAD_PRIORITY_HIGHEST;
         break;
       default:
-        BOOST_LOG(error) << "Unknown thread priority: "sv << (int) priority;
+        BOOST_LOG(error) << "Unknown thread priority: "sv << std::to_underlying(priority);
         return;
     }
 
@@ -1749,7 +1750,7 @@ namespace platf {
         traffic_type = QOSTrafficTypeAudioVideo;
         break;
       default:
-        BOOST_LOG(error) << "Unknown traffic type: "sv << (int) data_type;
+        BOOST_LOG(error) << "Unknown traffic type: "sv << std::to_underlying(data_type);
         return nullptr;
     }
 

@@ -6,6 +6,7 @@
 #include <array>
 #include <cmath>
 #include <thread>
+#include <utility>
 
 // platform includes
 #include <initguid.h>
@@ -353,7 +354,7 @@ namespace platf::dxgi {
           }
           break;
         default:
-          BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
+          BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
           return status;
       }
 

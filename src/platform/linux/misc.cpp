@@ -20,6 +20,7 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <utility>
 
 // platform includes
 #include <arpa/inet.h>
@@ -1086,7 +1087,7 @@ namespace platf {
           dscp = 48;
           break;
         default:
-          BOOST_LOG(error) << "Unknown traffic type: "sv << (int) data_type;
+          BOOST_LOG(error) << "Unknown traffic type: "sv << std::to_underlying(data_type);
           break;
       }
 

@@ -9,6 +9,7 @@
 #include <fstream>
 #include <ranges>
 #include <thread>
+#include <utility>
 
 #ifdef SUNSHINE_TESTS
   #include <gtest/gtest.h>
@@ -630,7 +631,7 @@ namespace platf {
             }
             break;
           default:
-            BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
+            BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
             return status;
         }
       }
@@ -804,7 +805,7 @@ namespace platf {
             }
             break;
           default:
-            BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
+            BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
             return status;
         }
       }

@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include <thread>
 #include <unistd.h>
+#include <utility>
 
 // platform includes
 #include <drm_fourcc.h>
@@ -1831,7 +1832,7 @@ namespace platf {
               }
               break;
             default:
-              BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
+              BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
               return status;
           }
         }
@@ -2107,7 +2108,7 @@ namespace platf {
               }
               break;
             default:
-              BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
+              BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
               return status;
           }
         }

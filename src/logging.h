@@ -123,8 +123,9 @@ namespace logging {
   void setup_av_logging(int min_log_level);
 
   /**
-   * @brief Setup logging for libdisplaydevice.
-   * @param min_log_level The log level.
+   * @brief Set up libdisplaydevice logging, clamping to its supported enum values.
+   *
+   * @param min_log_level Numeric minimum severity, clamped from verbose through fatal.
    */
   void setup_libdisplaydevice_logging(int min_log_level);
 
