@@ -7,6 +7,16 @@
 // standard includes
 #include <cstdint>
 
+#if defined(SUNSHINE_BUILD_CUDA)
+  #include <memory>
+  #include <optional>
+  #include <string>
+  #include <vector>
+
+  // local includes
+  #include "src/video_colorspace.h"
+#endif
+
 namespace cuda::nvfbc {
   /**
    * @brief Decide whether NvFBC should offer the whole virtual desktop as a display.
@@ -26,14 +36,6 @@ namespace cuda::nvfbc {
 }  // namespace cuda::nvfbc
 
 #if defined(SUNSHINE_BUILD_CUDA)
-  #include <memory>
-  #include <optional>
-  #include <string>
-  #include <vector>
-
-  // local includes
-  #include "src/video_colorspace.h"
-
 namespace platf {
   struct avcodec_encode_device_t;
   struct img_t;
