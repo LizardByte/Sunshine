@@ -889,16 +889,7 @@ namespace rtsp_stream {
     respond(sock, session, nullptr, 404, "NOT FOUND", req->sequenceNumber, {});
   }
 
-  /**
-   * @brief Handle RTSP OPTIONS requests.
-   *
-   * @details The common command signature supplies a server pointer that this handler does not need.
-   *
-   * @param sock Socket used to read or write the protocol message.
-   * @param session Active streaming or pairing session for the request.
-   * @param req Parsed RTSP request being handled.
-   */
-  void cmd_option(rtsp_server_t *, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_option_impl(tcp::socket &sock, launch_session_t &session, msg_t req) {
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified
@@ -911,16 +902,7 @@ namespace rtsp_stream {
     respond(sock, session, &option, 200, "OK", req->sequenceNumber, {});
   }
 
-  /**
-   * @brief Handle RTSP DESCRIBE requests.
-   *
-   * @details The common command signature supplies a server pointer that this handler does not need.
-   *
-   * @param sock Client socket.
-   * @param session Launch session.
-   * @param req RTSP request message.
-   */
-  void cmd_describe(rtsp_server_t *, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_describe_impl(tcp::socket &sock, launch_session_t &session, msg_t req) {
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified
@@ -1014,6 +996,32 @@ namespace rtsp_stream {
     }
 
     respond(sock, session, &option, 200, "OK", req->sequenceNumber, ss.str());
+  }
+
+  /**
+   * @brief Handle RTSP OPTIONS requests.
+   *
+   * @details The common command signature supplies a server pointer that this handler does not need.
+   *
+   * @param sock Socket used to read or write the protocol message.
+   * @param session Active streaming or pairing session for the request.
+   * @param req Parsed RTSP request being handled.
+   */
+  void cmd_option(rtsp_server_t *, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+    cmd_option_impl(sock, session, std::move(req));
+  }
+
+  /**
+   * @brief Handle RTSP DESCRIBE requests.
+   *
+   * @details The common command signature supplies a server pointer that this handler does not need.
+   *
+   * @param sock Client socket.
+   * @param session Launch session.
+   * @param req RTSP request message.
+   */
+  void cmd_describe(rtsp_server_t *, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+    cmd_describe_impl(sock, session, std::move(req));
   }
 
   void cmd_setup(rtsp_server_t *rtsp_server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
@@ -1390,16 +1398,7 @@ namespace rtsp_stream {
     respond(sock, session, &option, 200, "OK", req->sequenceNumber, {});
   }
 
-  /**
-   * @brief Handle RTSP PLAY requests and start streaming.
-   *
-   * @details The common command signature supplies a server pointer that this handler does not need.
-   *
-   * @param sock Socket used to read or write the protocol message.
-   * @param session Active streaming or pairing session for the request.
-   * @param req Parsed RTSP request being handled.
-   */
-  void cmd_play(rtsp_server_t *, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_play_impl(tcp::socket &sock, launch_session_t &session, msg_t req) {
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified
@@ -1410,6 +1409,19 @@ namespace rtsp_stream {
     option.content = seqn_str.data();
 
     respond(sock, session, &option, 200, "OK", req->sequenceNumber, {});
+  }
+
+  /**
+   * @brief Handle RTSP PLAY requests and start streaming.
+   *
+   * @details The common command signature supplies a server pointer that this handler does not need.
+   *
+   * @param sock Socket used to read or write the protocol message.
+   * @param session Active streaming or pairing session for the request.
+   * @param req Parsed RTSP request being handled.
+   */
+  void cmd_play(rtsp_server_t *, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+    cmd_play_impl(sock, session, std::move(req));
   }
 
   void start() {
