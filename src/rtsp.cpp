@@ -892,19 +892,21 @@ namespace rtsp_stream {
   /**
    * @brief Handle RTSP OPTIONS requests.
    *
-   * @param rtsp_server RTSP server instance handling the request.
+   * @details The common command signature supplies a server pointer that this handler does not need.
+   *
    * @param sock Socket used to read or write the protocol message.
    * @param session Active streaming or pairing session for the request.
    * @param req Parsed RTSP request being handled.
    */
-  void cmd_option(rtsp_server_t *rtsp_server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_option(rtsp_server_t *, tcp::socket &sock, launch_session_t &session, msg_t req) {
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified
-    option.option = const_cast<char *>("CSeq");
+    std::string cseq_header {"CSeq"};
+    option.option = cseq_header.data();
 
     auto seqn_str = std::to_string(req->sequenceNumber);
-    option.content = const_cast<char *>(seqn_str.c_str());
+    option.content = seqn_str.data();
 
     respond(sock, session, &option, 200, "OK", req->sequenceNumber, {});
   }
@@ -912,32 +914,34 @@ namespace rtsp_stream {
   /**
    * @brief Handle RTSP DESCRIBE requests.
    *
-   * @param rtsp_server RTSP server instance.
+   * @details The common command signature supplies a server pointer that this handler does not need.
+   *
    * @param sock Client socket.
    * @param session Launch session.
    * @param req RTSP request message.
    */
-  void cmd_describe(rtsp_server_t *rtsp_server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_describe(rtsp_server_t *, tcp::socket &sock, launch_session_t &session, msg_t req) {
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified
-    option.option = const_cast<char *>("CSeq");
+    std::string cseq_header {"CSeq"};
+    option.option = cseq_header.data();
 
     auto seqn_str = std::to_string(req->sequenceNumber);
-    option.content = const_cast<char *>(seqn_str.c_str());
+    option.content = seqn_str.data();
 
     std::stringstream ss;
 
     // Offer only the configured Dolby codec when its optional FFmpeg encoder is available.
     // Clients that do not explicitly accept the offer will continue to use Opus.
-    session.audio_codec_offered.clear();
+    session.audio_negotiation.codec_offered.clear();
     if (config::audio.format == "ac3"sv && audio::ac3_available()) {
-      session.audio_codec_offered = "AC3";
+      session.audio_negotiation.codec_offered = "AC3";
     } else if (config::audio.format == "eac3"sv && audio::eac3_available()) {
-      session.audio_codec_offered = "EAC3";
+      session.audio_negotiation.codec_offered = "EAC3";
     }
-    if (!session.audio_codec_offered.empty()) {
-      ss << "a=x-ss-audio-codec-offer:" << session.audio_codec_offered << std::endl;
+    if (!session.audio_negotiation.codec_offered.empty()) {
+      ss << "a=x-ss-audio-codec-offer:" << session.audio_negotiation.codec_offered << std::endl;
     }
 
     // Tell the client about our supported features
@@ -1231,22 +1235,22 @@ namespace rtsp_stream {
     // that exact codec. Otherwise, retain Opus and its usual negotiation.
     const auto audio_accept = args.find("x-ss-audio-codec-accept"sv);
     const bool client_accepted_audio_codec =
-      !session.audio_codec_offered.empty() &&
+      !session.audio_negotiation.codec_offered.empty() &&
       audio_accept != args.end() &&
-      audio_accept->second == session.audio_codec_offered;
-    const bool ac3_encoder_available = session.audio_codec_offered == "AC3"sv && audio::ac3_available();
-    const bool eac3_encoder_available = session.audio_codec_offered == "EAC3"sv && audio::eac3_available();
+      audio_accept->second == session.audio_negotiation.codec_offered;
+    const bool ac3_encoder_available = session.audio_negotiation.codec_offered == "AC3"sv && audio::ac3_available();
+    const bool eac3_encoder_available = session.audio_negotiation.codec_offered == "EAC3"sv && audio::eac3_available();
     const bool selected_encoder_available = ac3_encoder_available || eac3_encoder_available;
     const bool supported_dolby_channel_count = config.audio.channels == 2 || config.audio.channels == 6;
 
     config.audio.use_ac3 = client_accepted_audio_codec && ac3_encoder_available && supported_dolby_channel_count;
     config.audio.use_eac3 = client_accepted_audio_codec && eac3_encoder_available && supported_dolby_channel_count;
 
-    if (config::audio.format != "opus"sv && session.audio_codec_offered.empty()) {
+    if (config::audio.format != "opus"sv && session.audio_negotiation.codec_offered.empty()) {
       BOOST_LOG(warning) << "Dolby audio format ["sv << config::audio.format
                          << "] was selected, but its compatible FFmpeg encoder is unavailable; using Opus"sv;
-    } else if (!session.audio_codec_offered.empty() && !client_accepted_audio_codec) {
-      BOOST_LOG(info) << "Client did not accept "sv << session.audio_codec_offered << "; falling back to Opus"sv;
+    } else if (!session.audio_negotiation.codec_offered.empty() && !client_accepted_audio_codec) {
+      BOOST_LOG(info) << "Client did not accept "sv << session.audio_negotiation.codec_offered << "; falling back to Opus"sv;
     } else if (client_accepted_audio_codec && !selected_encoder_available) {
       BOOST_LOG(warning) << "The selected Dolby encoder is no longer available; falling back to Opus"sv;
     } else if (client_accepted_audio_codec && !supported_dolby_channel_count) {
@@ -1304,7 +1308,7 @@ namespace rtsp_stream {
     if (config.audio.use_ac3 || config.audio.use_eac3) {
       config.audio.flags[audio::config_t::CUSTOM_SURROUND_PARAMS] = false;
     }
-    if (session.continuous_audio) {
+    if (session.audio_negotiation.continuous_audio) {
       BOOST_LOG(info) << "Client requested continuous audio"sv;
       config.audio.flags[audio::config_t::CONTINUOUS_AUDIO] = true;
     }
@@ -1324,9 +1328,16 @@ namespace rtsp_stream {
 
       // Adjust the bitrate to account for audio traffic bandwidth usage (capped at 20% reduction).
       // Dolby uses its selected channel-aware bitrate; keep the Opus calculation unchanged.
-      auto audioBitrateAdjustment = (config.audio.use_ac3 || config.audio.use_eac3)
-        ? audio::dolby_bitrate_kbps(config.audio.use_eac3, config.audio.high_quality_dolby, config.audio.channels)
-        : (config.audio.flags[audio::config_t::HIGH_QUALITY] ? 256 : 96) * config.audio.channels;
+      int audioBitrateAdjustment {};
+      if (config.audio.use_ac3 || config.audio.use_eac3) {
+        audioBitrateAdjustment = audio::dolby_bitrate_kbps(
+          config.audio.use_eac3,
+          config.audio.high_quality_dolby,
+          config.audio.channels
+        );
+      } else {
+        audioBitrateAdjustment = (config.audio.flags[audio::config_t::HIGH_QUALITY] ? 256 : 96) * config.audio.channels;
+      }
       configuredBitrateKbps -= std::min((std::int64_t) audioBitrateAdjustment, configuredBitrateKbps / 5);
 
       // Reduce it by another 500Kbps to account for A/V packet overhead and control data
@@ -1374,8 +1385,15 @@ namespace rtsp_stream {
     // Return the selected codec in a response header so the new client can verify
     // the result without adding a response body that legacy RTSP clients may not expect.
     OPTION_ITEM audio_codec_option {};
-    audio_codec_option.option = const_cast<char *>("X-SS-Audio-Codec");
-    audio_codec_option.content = const_cast<char *>(config.audio.use_eac3 ? "EAC3" : (config.audio.use_ac3 ? "AC3" : "Opus"));
+    std::string audio_codec_header {"X-SS-Audio-Codec"};
+    std::string audio_codec_name {"Opus"};
+    if (config.audio.use_eac3) {
+      audio_codec_name = "EAC3";
+    } else if (config.audio.use_ac3) {
+      audio_codec_name = "AC3";
+    }
+    audio_codec_option.option = audio_codec_header.data();
+    audio_codec_option.content = audio_codec_name.data();
     option.next = &audio_codec_option;
     respond(sock, session, &option, 200, "OK", req->sequenceNumber, {});
   }
@@ -1383,19 +1401,21 @@ namespace rtsp_stream {
   /**
    * @brief Handle RTSP PLAY requests and start streaming.
    *
-   * @param rtsp_server RTSP server instance handling the request.
+   * @details The common command signature supplies a server pointer that this handler does not need.
+   *
    * @param sock Socket used to read or write the protocol message.
    * @param session Active streaming or pairing session for the request.
    * @param req Parsed RTSP request being handled.
    */
-  void cmd_play(rtsp_server_t *rtsp_server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_play(rtsp_server_t *, tcp::socket &sock, launch_session_t &session, msg_t req) {
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified
-    option.option = const_cast<char *>("CSeq");
+    std::string cseq_header {"CSeq"};
+    option.option = cseq_header.data();
 
     auto seqn_str = std::to_string(req->sequenceNumber);
-    option.content = const_cast<char *>(seqn_str.c_str());
+    option.content = seqn_str.data();
 
     respond(sock, session, &option, 200, "OK", req->sequenceNumber, {});
   }

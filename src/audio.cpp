@@ -5,6 +5,7 @@
 // standard includes
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <filesystem>
 #include <format>
 #include <mutex>
@@ -22,7 +23,6 @@
   #include <libavutil/channel_layout.h>
   #include <libavutil/frame.h>
   #include <libavutil/version.h>
-  #define SUNSHINE_HAS_OPTIONAL_FFMPEG_AUDIO 1
 #endif
 
 // lib includes
@@ -119,10 +119,12 @@ namespace audio {
     },
   }};
 
-#ifdef SUNSHINE_HAS_OPTIONAL_FFMPEG_AUDIO
+#if defined(_WIN32) && (defined(_M_X64) || defined(__x86_64__))
   template<typename Function>
-  bool load_ffmpeg_symbol(HMODULE module, Function &function, const char *name) {
-    function = reinterpret_cast<Function>(GetProcAddress(module, name));
+  bool load_ffmpeg_symbol(HMODULE dll_module, Function &function, const char *name) {
+    const auto symbol = GetProcAddress(dll_module, name);
+    static_assert(sizeof(Function) == sizeof(FARPROC));
+    function = std::bit_cast<Function>(symbol);
     return function != nullptr;
   }
 
@@ -227,12 +229,11 @@ namespace audio {
         load_ffmpeg_symbol(avcodec_module, send_frame, "avcodec_send_frame") &&
         load_ffmpeg_symbol(avcodec_module, receive_packet, "avcodec_receive_packet");
 
-      const auto versions_match = symbols_loaded &&
-        (util_version() >> 16) == LIBAVUTIL_VERSION_MAJOR &&
-        (codec_version() >> 16) == LIBAVCODEC_VERSION_MAJOR &&
-        (find_encoder(AV_CODEC_ID_AC3) != nullptr || find_encoder(AV_CODEC_ID_EAC3) != nullptr);
-
-      if (!versions_match) {
+      if (const auto versions_match = symbols_loaded &&
+          (util_version() >> 16) == LIBAVUTIL_VERSION_MAJOR &&
+          (codec_version() >> 16) == LIBAVCODEC_VERSION_MAJOR &&
+          (find_encoder(AV_CODEC_ID_AC3) != nullptr || find_encoder(AV_CODEC_ID_EAC3) != nullptr);
+          !versions_match) {
         FreeLibrary(avcodec_module);
         FreeLibrary(avutil_module);
         clear_symbols();
@@ -358,7 +359,7 @@ namespace audio {
       }
 
       for (int channel = 0; channel < channels_; ++channel) {
-        auto *destination = reinterpret_cast<float *>(frame_->extended_data[channel]);
+        auto *destination = static_cast<float *>(static_cast<void *>(frame_->extended_data[channel]));
         for (int sample = 0; sample < frame_->nb_samples; ++sample) {
           destination[sample] = interleaved[static_cast<std::size_t>(sample * channels_ + channel)];
         }
@@ -412,7 +413,7 @@ namespace audio {
     platf::adjust_thread_priority(platf::thread_priority_e::high);
 
     if (config.use_ac3 || config.use_eac3) {
-#ifdef SUNSHINE_HAS_OPTIONAL_FFMPEG_AUDIO
+#if defined(_WIN32) && (defined(_M_X64) || defined(__x86_64__))
       const auto codec_id = config.use_eac3 ? AV_CODEC_ID_EAC3 : AV_CODEC_ID_AC3;
       const auto codec_name = config.use_eac3 ? "E-AC-3"sv : "AC-3"sv;
       const auto bitrate_kbps = dolby_bitrate_kbps(config.use_eac3, config.high_quality_dolby, config.channels);
@@ -608,7 +609,7 @@ namespace audio {
   }
 
   bool ac3_available() {
-#ifdef SUNSHINE_HAS_OPTIONAL_FFMPEG_AUDIO
+#if defined(_WIN32) && (defined(_M_X64) || defined(__x86_64__))
     return ffmpeg_audio_api().encoder_available(AV_CODEC_ID_AC3);
 #else
     return false;
@@ -616,7 +617,7 @@ namespace audio {
   }
 
   bool eac3_available() {
-#ifdef SUNSHINE_HAS_OPTIONAL_FFMPEG_AUDIO
+#if defined(_WIN32) && (defined(_M_X64) || defined(__x86_64__))
     return ffmpeg_audio_api().encoder_available(AV_CODEC_ID_EAC3);
 #else
     return false;
