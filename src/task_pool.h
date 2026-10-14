@@ -154,7 +154,7 @@ namespace task_pool_util {
 
       auto future = task.get_future();
 
-      std::lock_guard<std::mutex> lg(_task_mutex);
+      std::scoped_lock lg(_task_mutex);
       _tasks.emplace_back(toRunnable(std::move(task)));
 
       return future;
@@ -166,7 +166,7 @@ namespace task_pool_util {
      * @param task Task object to enqueue or execute.
      */
     void pushDelayed(std::pair<__time_point, __task> &&task) {
-      std::lock_guard lg(_task_mutex);
+      std::scoped_lock lg(_task_mutex);
 
       auto it = _timer_tasks.cbegin();
       for (; it < _timer_tasks.cend(); ++it) {
@@ -221,7 +221,7 @@ namespace task_pool_util {
      */
     template<class X, class Y>
     void delay(task_id_t task_id, std::chrono::duration<X, Y> duration) {
-      std::lock_guard<std::mutex> lg(_task_mutex);
+      std::scoped_lock lg(_task_mutex);
 
       auto it = _timer_tasks.begin();
       for (; it < _timer_tasks.cend(); ++it) {
@@ -257,7 +257,7 @@ namespace task_pool_util {
      * @return True when the task was found and cancelled.
      */
     bool cancel(task_id_t task_id) {
-      std::lock_guard lg(_task_mutex);
+      std::scoped_lock lg(_task_mutex);
 
       auto it = _timer_tasks.begin();
       for (; it < _timer_tasks.cend(); ++it) {
@@ -280,9 +280,9 @@ namespace task_pool_util {
      * @return Removed queue item, or empty result when the queue is stopped or empty.
      */
     std::optional<std::pair<__time_point, __task>> pop(task_id_t task_id) {
-      std::lock_guard lg(_task_mutex);
+      std::scoped_lock lg(_task_mutex);
 
-      auto pos = std::find_if(std::begin(_timer_tasks), std::end(_timer_tasks), [&task_id](const auto &t) {
+      auto pos = std::ranges::find_if(_timer_tasks, [&task_id](const auto &t) {
         return t.second.get() == task_id;
       });
 
@@ -299,7 +299,7 @@ namespace task_pool_util {
      * @return Removed queue item, or empty result when the queue is stopped or empty.
      */
     std::optional<__task> pop() {
-      std::lock_guard lg(_task_mutex);
+      std::scoped_lock lg(_task_mutex);
 
       if (!_tasks.empty()) {
         __task task = std::move(_tasks.front());
@@ -322,7 +322,7 @@ namespace task_pool_util {
      * @return True when the task was found and cancelled.
      */
     bool ready() {
-      std::lock_guard<std::mutex> lg(_task_mutex);
+      std::scoped_lock lg(_task_mutex);
 
       return !_tasks.empty() || (!_timer_tasks.empty() && std::get<0>(_timer_tasks.back()) <= std::chrono::steady_clock::now());
     }
@@ -333,7 +333,7 @@ namespace task_pool_util {
      * @return Time point for the next queued timer task, or std::nullopt when none exist.
      */
     std::optional<__time_point> next() {
-      std::lock_guard<std::mutex> lg(_task_mutex);
+      std::scoped_lock lg(_task_mutex);
 
       if (_timer_tasks.empty()) {
         return std::nullopt;

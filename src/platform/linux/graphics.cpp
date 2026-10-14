@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <future>
 #include <stdexcept>
+#include <string_view>
 
 // local includes
 #include "graphics.h"
@@ -557,7 +558,7 @@ namespace egl {
     };
 
     for (auto ext : extensions) {
-      if (!std::strstr(extension_st, ext)) {
+      if (!std::string_view {extension_st}.contains(ext)) {
         BOOST_LOG(error) << "Missing extension: ["sv << ext << ']';
         return nullptr;
       }

@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <filesystem>
 #include <thread>
+#include <utility>
 
 // lib includes
 #include <ffnvcodec/dynlink_loader.h>
@@ -363,7 +364,7 @@ namespace cuda {
     BOOST_LOG(debug) << "Found CUDA device with PCI bus ID: "sv << pci_bus_id.data();
 
     // Linux uses lowercase hexadecimal while CUDA uses uppercase
-    std::transform(pci_bus_id.begin(), pci_bus_id.end(), pci_bus_id.begin(), [](char c) {
+    std::ranges::transform(pci_bus_id, pci_bus_id.begin(), [](char c) {
       return std::tolower(c);
     });
 
@@ -1063,7 +1064,7 @@ namespace cuda {
               }
               break;
             default:
-              BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
+              BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
               return status;
           }
         }

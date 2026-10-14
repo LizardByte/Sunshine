@@ -3,8 +3,10 @@
  * @brief Definitions for handling video ram.
  */
 // standard includes
+#include <algorithm>
 #include <array>
 #include <cmath>
+#include <span>
 
 // platform includes
 #include <d3dcompiler.h>
@@ -286,7 +288,7 @@ namespace platf::dxgi {
       case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR:
         {
           util::buffer_t<std::uint8_t> cursor_img = img_data;
-          std::for_each((std::uint32_t *) std::begin(cursor_img), (std::uint32_t *) std::end(cursor_img), [](auto &pixel) {
+          std::ranges::for_each(std::span {(std::uint32_t *) std::begin(cursor_img), (std::uint32_t *) std::end(cursor_img)}, [](auto &pixel) {
             auto alpha = (std::uint8_t) ((pixel >> 24) & 0xFF);
             if (alpha == 0xFF) {
               // Pixels with 0xFF alpha will be XOR-blended as is.
@@ -360,7 +362,7 @@ namespace platf::dxgi {
       case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR:
         {
           util::buffer_t<std::uint8_t> cursor_img = img_data;
-          std::for_each((std::uint32_t *) std::begin(cursor_img), (std::uint32_t *) std::end(cursor_img), [](auto &pixel) {
+          std::ranges::for_each(std::span {(std::uint32_t *) std::begin(cursor_img), (std::uint32_t *) std::end(cursor_img)}, [](auto &pixel) {
             auto alpha = (std::uint8_t) ((pixel >> 24) & 0xFF);
             if (alpha == 0xFF) {
               // Pixels with 0xFF alpha will be XOR-blended by make_cursor_xor_image().

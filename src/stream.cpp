@@ -367,7 +367,7 @@ namespace stream {
   static inline int encode_audio(bool encrypted, const audio::buffer_t &plaintext, uint8_t *destination, crypto::aes_t &iv, crypto::cipher::cbc_t &cbc) {
     // If encryption isn't enabled
     if (!encrypted) {
-      std::copy(std::begin(plaintext), std::end(plaintext), destination);
+      std::ranges::copy(plaintext, destination);
       return (int) plaintext.size();
     }
 
@@ -1000,7 +1000,7 @@ namespace stream {
 
     std::copy(begin, next, std::back_inserter(replaced));
     if (next != end) {
-      std::copy(std::begin(_new), std::end(_new), std::back_inserter(replaced));
+      std::ranges::copy(_new, std::back_inserter(replaced));
       std::copy(next + old.size(), end, std::back_inserter(replaced));
     }
 
@@ -2116,7 +2116,7 @@ namespace stream {
       }
 
       TUPLE_2D_REF(recv_peer, msg, *msg_opt);
-      if (msg.find(expected_payload) != std::string::npos) {
+      if (msg.contains(expected_payload)) {
         // Match the new PING payload format
         BOOST_LOG(debug) << "Received ping [v2] from "sv << recv_peer.address() << ':' << recv_peer.port() << " ["sv << util::hex_vec(msg) << ']';
       } else if (!(session->config.mlFeatureFlags & ML_FF_SESSION_ID_V1) && msg == "PING"sv) {

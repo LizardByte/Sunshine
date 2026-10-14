@@ -20,12 +20,39 @@
 
 using namespace std::literals;
 
+TEST(ConfigParsingTest, ParsedEntriesOwnKeysAndSupportStringViewLookup) {
+  std::string input = "encoder = software\nencoder = nvenc\n";
+  const auto entries = config::parse_config(input);
+  input.assign(input.size(), 'x');
+
+  const std::string padded = "__encoder__";
+  const auto key = std::string_view {padded}.substr(2, 7);
+  const auto found = entries.find(key);
+  ASSERT_NE(found, entries.end());
+  EXPECT_EQ(found->second, "software");
+  EXPECT_FALSE(entries.contains("missing"sv));
+  EXPECT_EQ(entries.size(), 1);
+}
+
 TEST(ConfigDefaultsTest, UsesAutomaticGamepadSelection) {
   EXPECT_EQ(config::input.gamepad, "auto");
 }
 
 TEST(ConfigDefaultsTest, TreatsFp16SdrCapturesAsLinear) {
   EXPECT_FALSE(config::video.fp16_sdr_gamma_encoded);
+}
+
+TEST(ConfigDefaultsTest, PreservesAmdEncoderNumericDefaults) {
+  EXPECT_EQ(config::video.amd.amd_usage_h264, 1);
+  EXPECT_EQ(config::video.amd.amd_usage_hevc, 1);
+  EXPECT_EQ(config::video.amd.amd_usage_av1, 2);
+  EXPECT_EQ(config::video.amd.amd_rc_h264, 3);
+  EXPECT_EQ(config::video.amd.amd_rc_hevc, 1);
+  EXPECT_EQ(config::video.amd.amd_rc_av1, 1);
+  EXPECT_EQ(config::video.amd.amd_quality_h264, 0);
+  EXPECT_EQ(config::video.amd.amd_quality_hevc, 5);
+  EXPECT_EQ(config::video.amd.amd_quality_av1, 70);
+  EXPECT_EQ(config::video.amd.amd_coder, 0);
 }
 
 using NvencPresetNameParam = std::pair<int, std::string_view>;

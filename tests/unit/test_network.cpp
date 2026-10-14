@@ -9,6 +9,18 @@
 // local includes
 #include <src/network.h>
 
+TEST(NetworkClassificationTest, DeducedNetworkListsPreserveAddressScopes) {
+  EXPECT_EQ(net::from_address("127.0.0.1"), net::PC);
+  EXPECT_EQ(net::from_address("192.168.1.2"), net::LAN);
+  EXPECT_EQ(net::from_address("100.64.0.1"), net::LAN);
+  EXPECT_EQ(net::from_address("169.254.1.2"), net::LAN);
+  EXPECT_EQ(net::from_address("8.8.8.8"), net::WAN);
+  EXPECT_EQ(net::from_address("::1"), net::PC);
+  EXPECT_EQ(net::from_address("fc00::1"), net::LAN);
+  EXPECT_EQ(net::from_address("fe80::1"), net::LAN);
+  EXPECT_EQ(net::from_address("2001:4860:4860::8888"), net::WAN);
+}
+
 struct MdnsInstanceNameTest: BaseTest, testing::WithParamInterface<std::tuple<std::string, std::string>> {};
 
 TEST_P(MdnsInstanceNameTest, Run) {

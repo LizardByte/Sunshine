@@ -375,7 +375,7 @@ namespace rtsp_stream {
           // If content_length > bytes read, then we need to store current data read,
           // to be appended by the next read.
           std::string_view content {option->content};
-          auto begin = std::find_if(std::begin(content), std::end(content), [](auto ch) {
+          auto begin = std::ranges::find_if(content, [](auto ch) {
             return (bool) std::isdigit(ch);
           });
 
@@ -1019,7 +1019,7 @@ namespace rtsp_stream {
     seqn.content = const_cast<char *>(seqn_str.c_str());
 
     std::string_view target {req->message.request.target};
-    auto begin = std::find(std::begin(target), std::end(target), '=') + 1;
+    auto begin = std::ranges::find(target, '=') + 1;
     auto end = std::find(begin, std::end(target), '/');
     std::string_view type {begin, (size_t) std::distance(begin, end)};
 
@@ -1220,7 +1220,7 @@ namespace rtsp_stream {
         if ("Host"sv == request_option->option) {
           std::string_view content {request_option->content};
           BOOST_LOG(debug) << "Found Host: "sv << content;
-          config.audio.flags[audio::config_t::HIGH_QUALITY] = (content.find("0.0.0.0"sv) == std::string::npos);
+          config.audio.flags[audio::config_t::HIGH_QUALITY] = !content.contains("0.0.0.0"sv);
         }
       }
     } else if (session.surround_params.length() > 3) {

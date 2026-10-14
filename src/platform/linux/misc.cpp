@@ -20,6 +20,7 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <utility>
 
 // platform includes
 #include <arpa/inet.h>
@@ -1020,7 +1021,7 @@ namespace platf {
   // We can't track QoS state separately for each destination on this OS,
   // so we keep a ref count to only disable QoS options when all clients
   // are disconnected.
-  static std::atomic<int> qos_ref_count = 0;
+  static std::atomic qos_ref_count = 0;
 
   /**
    * @brief Linux QoS state used to tune socket priority while streaming.
@@ -1086,7 +1087,7 @@ namespace platf {
           dscp = 48;
           break;
         default:
-          BOOST_LOG(error) << "Unknown traffic type: "sv << (int) data_type;
+          BOOST_LOG(error) << "Unknown traffic type: "sv << std::to_underlying(data_type);
           break;
       }
 

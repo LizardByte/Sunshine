@@ -127,6 +127,18 @@ TEST_F(LogRotationTest, ReportsFilesystemErrors) {
   EXPECT_EQ(read_log_file(log_path), "current");
 }
 
+TEST_F(LogRotationTest, FindsSubstringsAtBoundariesAndWithCaseFolding) {
+  write_log_file(log_path, "prefix middle suffix\nMiXeD\n\n");
+  const auto path = log_path.string();
+  EXPECT_TRUE(log_checker::line_contains(path, "prefix"));
+  EXPECT_TRUE(log_checker::line_contains(path, "middle"));
+  EXPECT_TRUE(log_checker::line_contains(path, "suffix"));
+  EXPECT_TRUE(log_checker::line_contains(path, ""));
+  EXPECT_TRUE(log_checker::line_contains(path, "mixed", true));
+  EXPECT_FALSE(log_checker::line_contains(path, "mixed"));
+  EXPECT_FALSE(log_checker::line_contains(path, "absent"));
+}
+
 struct LogLevelsTest: BaseTest, testing::WithParamInterface<decltype(log_levels)::value_type> {};
 
 INSTANTIATE_TEST_SUITE_P(

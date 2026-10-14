@@ -5,10 +5,12 @@
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 // standard includes
+#include <algorithm>
 #include <array>
 #include <filesystem>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 // lib includes
@@ -18,6 +20,7 @@
 #include <boost/program_options/parsers.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
+#include <boost/range/algorithm/find_if.hpp>
 #include <boost/token_functions.hpp>
 #include <openssl/evp.h>
 #include <openssl/sha.h>
@@ -130,7 +133,7 @@ namespace proc {
     BOOST_LOG(debug) << "Parsed target ["sv << parts.at(0) << "] from command ["sv << cmd << ']';
 
     // If the target is a URL, don't parse any further here
-    if (parts.at(0).find("://") != std::string::npos) {
+    if (parts.at(0).contains("://")) {
       return boost::filesystem::path();
     }
 
@@ -495,7 +498,7 @@ namespace proc {
               // Windows treats environment variable names in a case-insensitive manner,
               // so we look for a case-insensitive match here. This is critical for
               // correctly appending to PATH on Windows.
-              auto itr = std::find_if(env.cbegin(), env.cend(), [&](const auto &e) {
+              auto itr = boost::range::find_if(std::as_const(env), [&var_name](const auto &e) {
                 return boost::iequals(e.get_name(), var_name);
               });
               if (itr != env.cend()) {
@@ -715,7 +718,7 @@ namespace proc {
         this_env[name] = parse_env_val(this_env, val.get_value<std::string>());
       }
 
-      std::set<std::string> ids;
+      std::set<std::string, std::less<>> ids;
       std::vector<proc::ctx_t> apps;
       int i = 0;
       for (auto &[_, app_node] : apps_node) {

@@ -2109,7 +2109,7 @@ namespace input {
     // the input to the OS. This avoids potentially lengthy lock contention
     // in the control stream thread while input is being processed by the OS.
     {
-      std::lock_guard<std::mutex> lg(input->input_queue_lock);
+      std::scoped_lock lg(input->input_queue_lock);
 
       // If all entries have already been processed, nothing to do
       if (input->input_queue.empty()) {

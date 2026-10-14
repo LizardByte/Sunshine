@@ -640,7 +640,7 @@ namespace util {
       return ('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z');
     };
 
-    auto buf_size = std::count_if(std::begin(hex), std::end(hex), is_convertable) / 2;
+    auto buf_size = std::ranges::count_if(hex, is_convertable) / 2;
     auto padding = sizeof(T) - buf_size;
 
     const char *data = hex.data() + hex.size() - 1;
@@ -671,7 +671,7 @@ namespace util {
     });
 
     if (rev) {
-      std::reverse(std::begin(buf), std::end(buf));
+      std::ranges::reverse(buf);
     }
 
     return std::bit_cast<T>(buf);
@@ -695,7 +695,7 @@ namespace util {
       return ('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z');
     };
 
-    auto buf_size = std::count_if(std::begin(hex), std::end(hex), is_convertable) / 2;
+    auto buf_size = std::ranges::count_if(hex, is_convertable) / 2;
     buf.resize(buf_size);
 
     const char *data = hex.data() + hex.size() - 1;
@@ -724,7 +724,7 @@ namespace util {
     }
 
     if (rev) {
-      std::reverse(std::begin(buf), std::end(buf));
+      std::ranges::reverse(buf);
     }
 
     return buf;
@@ -1477,14 +1477,14 @@ namespace util {
     }
 
     /**
-     * @brief Construct an owning contiguous buffer.
+     * @brief Copy the source buffer's logical range into an independent allocation.
      *
      * @param o Source object used for comparison or assignment.
      */
     buffer_t(const buffer_t &o):
         _els {o._els},
         _buf(_els) {
-      std::copy(o.begin(), o.end(), begin());
+      std::ranges::copy(o, begin());
     }
 
     /**

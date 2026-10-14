@@ -10,12 +10,14 @@
 #include <iterator>
 #include <set>
 #include <sstream>
+#include <utility>
 #include <vector>
 
 // lib includes
 #include <boost/algorithm/string.hpp>
 #include <boost/asio/ip/address.hpp>
 #include <boost/program_options/parsers.hpp>
+#include <boost/range/algorithm/find_if.hpp>
 
 // local includes required before platform includes
 #include "src/boost_process_compat.h"
@@ -100,7 +102,7 @@ extern "C" {
 
 namespace {
 
-  std::atomic<bool> used_nt_set_timer_resolution = false;
+  std::atomic used_nt_set_timer_resolution = false;
 
   bool nt_set_timer_resolution_max() {
     ULONG maximum;
@@ -375,6 +377,8 @@ namespace platf {
   /**
    * @brief Merge user environment variables into a Windows environment block.
    *
+   * Existing variable names retain their spelling when matched case-insensitively.
+   *
    * @param env Environment variables for the child process.
    * @param shell_token Shell token.
    * @return True when the user environment block was merged into `env`.
@@ -394,7 +398,7 @@ namespace platf {
       std::string env_val = env_tuple.substr(env_tuple.find('=') + 1);
 
       // Perform a case-insensitive search to see if this variable name already exists
-      if (auto itr = std::find_if(env.begin(), env.end(), [&](const auto &e) {
+      if (auto itr = boost::range::find_if(env, [&env_name](const auto &e) {
             return boost::iequals(e.get_name(), env_name);
           });
           itr != env.end()) {
@@ -829,7 +833,7 @@ namespace platf {
       // Overriding these predefined keys affects process-wide state, so serialize all calls
       // to ensure the handle state is consistent while we perform the command query.
       static std::mutex per_user_key_mutex;
-      auto lg = std::lock_guard(per_user_key_mutex);
+      auto lg = std::scoped_lock(per_user_key_mutex);
 
       // Override HKEY_CLASSES_ROOT and HKEY_CURRENT_USER to ensure we query the correct class info
       if (!override_per_user_predefined_keys(token)) {
@@ -1027,7 +1031,7 @@ namespace platf {
     auto sunshine_wenv = boost::this_process::wenvironment();
     std::wstring path_var_name {L"PATH"};
     std::wstring old_path_val;
-    auto itr = std::find_if(sunshine_wenv.cbegin(), sunshine_wenv.cend(), [&](const auto &e) {
+    auto itr = boost::range::find_if(std::as_const(sunshine_wenv), [&path_var_name](const auto &e) {
       return boost::iequals(e.get_name(), path_var_name);
     });
     if (itr != sunshine_wenv.cend()) {
@@ -1144,7 +1148,7 @@ namespace platf {
         win32_priority = THREAD_PRIORITY_HIGHEST;
         break;
       default:
-        BOOST_LOG(error) << "Unknown thread priority: "sv << (int) priority;
+        BOOST_LOG(error) << "Unknown thread priority: "sv << std::to_underlying(priority);
         return;
     }
 
@@ -1749,7 +1753,7 @@ namespace platf {
         traffic_type = QOSTrafficTypeAudioVideo;
         break;
       default:
-        BOOST_LOG(error) << "Unknown traffic type: "sv << (int) data_type;
+        BOOST_LOG(error) << "Unknown traffic type: "sv << std::to_underlying(data_type);
         return nullptr;
     }
 
