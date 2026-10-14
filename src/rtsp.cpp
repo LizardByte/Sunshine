@@ -1220,7 +1220,7 @@ namespace rtsp_stream {
         if ("Host"sv == request_option->option) {
           std::string_view content {request_option->content};
           BOOST_LOG(debug) << "Found Host: "sv << content;
-          config.audio.flags[audio::config_t::HIGH_QUALITY] = (content.find("0.0.0.0"sv) == std::string::npos);
+          config.audio.flags[audio::config_t::HIGH_QUALITY] = !content.contains("0.0.0.0"sv);
         }
       }
     } else if (session.surround_params.length() > 3) {

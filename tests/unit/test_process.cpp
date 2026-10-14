@@ -21,6 +21,15 @@ namespace fs = std::filesystem;
 
 namespace proc {
   /**
+   * @brief Resolve a command's working directory, returning an empty path for URLs.
+   *
+   * @param cmd Command line to inspect.
+   * @param env Environment used for executable lookup.
+   * @return Working directory, or an empty path when the command is a URL.
+   */
+  boost::filesystem::path find_working_directory(const std::string &cmd, boost::process::v1::environment &env);
+
+  /**
    * @brief Expand environment references while preserving Windows variable-name casing.
    *
    * @param env Environment whose variables are expanded.
@@ -49,6 +58,13 @@ TEST(ProcessTest, ExpandsEnvironmentNamesWithoutChangingTheirCase) {
   EXPECT_EQ(proc::parse_env_val(env, "$(SUNSHINE_RANGE_SEARCH_REGRESSION)"), "case-preserved");
 }
 #endif
+
+TEST(ProcessTest, UrlCommandsDoNotResolveAnExecutableWorkingDirectory) {
+  boost::process::v1::environment env;
+  EXPECT_TRUE(proc::find_working_directory("https://example.com", env).empty());
+  EXPECT_TRUE(proc::find_working_directory("steam://run/123", env).empty());
+  EXPECT_TRUE(proc::find_working_directory("custom+scheme://host/path", env).empty());
+}
 
 TEST(ProcessTest, PrepareCommand) {
 #ifdef SUNSHINE_BUILD_FLATPAK

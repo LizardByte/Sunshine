@@ -133,7 +133,7 @@ namespace proc {
     BOOST_LOG(debug) << "Parsed target ["sv << parts.at(0) << "] from command ["sv << cmd << ']';
 
     // If the target is a URL, don't parse any further here
-    if (parts.at(0).find("://") != std::string::npos) {
+    if (parts.at(0).contains("://")) {
       return boost::filesystem::path();
     }
 
