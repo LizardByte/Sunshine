@@ -153,7 +153,7 @@ namespace audio {
     }
 
     bool encoder_available(AVCodecID codec_id) {
-      return libraries_available() && find_encoder(codec_id) != nullptr;
+      return libraries_available() && symbols_.find_encoder(codec_id) != nullptr;
     }
 
     struct api_symbols_t {
