@@ -15,8 +15,14 @@
 
 // local includes
 #include "nvenc/nvenc_config.h"
+#include "string_hash.h"
 
 namespace config {
+  /**
+   * @brief Owning configuration entries supporting lookup by string view or C string.
+   */
+  using config_map_t = std::unordered_map<std::string, std::string, util::transparent_string_hash, std::equal_to<>>;
+
   namespace nv {
     /**
      * @brief Convert Sunshine's NVENC quality preset number to FFmpeg's stable symbolic name.
@@ -39,7 +45,7 @@ namespace config {
   inline constexpr std::string_view GAMEPAD_DRIVER_NONE = "none";  ///< Disable virtual gamepads on Windows and macOS.
 
   // track modified config options
-  inline std::unordered_map<std::string, std::string> modified_config_settings;  ///< Configuration keys changed during the current parse or UI update.
+  inline config_map_t modified_config_settings;  ///< Configuration keys changed during the current parse or UI update.
 
   // sensitive values that should be redacted from logging
   /**
@@ -55,7 +61,7 @@ namespace config {
    * @param vars Parsed configuration entries to log.
    * @param save Whether modified configuration values should be written back to disk.
    */
-  void log_config_settings(const std::unordered_map<std::string, std::string> &vars, bool save);
+  void log_config_settings(const config_map_t &vars, bool save);
 
   /**
    * @brief Video encoder, capture, and color settings loaded from configuration.
@@ -427,7 +433,7 @@ namespace config {
    * @param file_content Raw configuration file contents to parse.
    * @return Parsed configuration key-value entries.
    */
-  std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content);
+  config_map_t parse_config(const std::string_view &file_content);
 
   /**
    * @brief Persist a configuration option when the active file does not already define it.

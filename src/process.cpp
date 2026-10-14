@@ -715,7 +715,7 @@ namespace proc {
         this_env[name] = parse_env_val(this_env, val.get_value<std::string>());
       }
 
-      std::set<std::string> ids;
+      std::set<std::string, std::less<>> ids;
       std::vector<proc::ctx_t> apps;
       int i = 0;
       for (auto &[_, app_node] : apps_node) {

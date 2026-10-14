@@ -20,6 +20,20 @@
 
 using namespace std::literals;
 
+TEST(ConfigParsingTest, ParsedEntriesOwnKeysAndSupportStringViewLookup) {
+  std::string input = "encoder = software\nencoder = nvenc\n";
+  const auto entries = config::parse_config(input);
+  input.assign(input.size(), 'x');
+
+  const std::string padded = "__encoder__";
+  const auto key = std::string_view {padded}.substr(2, 7);
+  const auto found = entries.find(key);
+  ASSERT_NE(found, entries.end());
+  EXPECT_EQ(found->second, "software");
+  EXPECT_FALSE(entries.contains("missing"sv));
+  EXPECT_EQ(entries.size(), 1);
+}
+
 TEST(ConfigDefaultsTest, UsesAutomaticGamepadSelection) {
   EXPECT_EQ(config::input.gamepad, "auto");
 }

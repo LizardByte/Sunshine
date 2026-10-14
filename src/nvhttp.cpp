@@ -35,6 +35,7 @@
 #include "platform/common.h"
 #include "process.h"
 #include "rtsp.h"
+#include "string_hash.h"
 #include "system_tray.h"
 #include "utility.h"
 #include "uuid.h"
@@ -191,7 +192,7 @@ namespace nvhttp {
   };
 
   // uniqueID, session
-  std::unordered_map<std::string, pair_session_t> map_id_sess;  ///< Pairing sessions keyed by temporary unique ID.
+  std::unordered_map<std::string, pair_session_t, util::transparent_string_hash, std::equal_to<>> map_id_sess;  ///< Pairing sessions keyed by temporary unique ID.
 
   /**
    * @brief Get the mutex protecting pairing-session state.
