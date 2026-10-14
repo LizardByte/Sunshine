@@ -195,6 +195,19 @@ TEST_F(ConfigPersistenceTest, ParsesFp16SdrGammaEncodedOption) {
   EXPECT_FALSE(config::video.fp16_sdr_gamma_encoded);
 }
 
+TEST_F(ConfigPersistenceTest, ParsesHexIntegersWiderThanAnInt) {
+  const auto original_video = config::video;
+  const auto restore_video = util::fail_guard([original_video]() {
+    config::video = original_video;
+  });
+  const auto apps_file = config_file().parent_path() / "sunshine_test_config_apps.json";
+  ASSERT_EQ(file_handler::write_file(apps_file.string().c_str(), "{}"), 0);
+  config::stream.file_apps = apps_file.string();
+
+  config::apply_config_for_test("min_threads = 0x1234567890\n");
+  EXPECT_EQ(config::video.min_threads, 0x34567890);
+}
+
 TEST_F(ConfigPersistenceTest, ParsesFecPercentagesAndRejectsOutOfRangeValues) {
   const auto original_stream = config::stream;
   const auto restore_stream = util::fail_guard([original_stream]() {
