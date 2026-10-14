@@ -204,8 +204,10 @@ namespace avahi {
    * @brief Event types for Avahi poll watches.
    * @details Layout-compatible with `AvahiWatchEvent` (see
    * avahi-common/watch.h): the values are the `poll(2)` event flags.
+   * Scoped enum with an explicit `int` underlying type, so the layout
+   * stays identical to the C enum.
    */
-  enum WatchEvent {
+  enum class WatchEvent : int {
     WATCH_IN = POLLIN,  ///< Input event
     WATCH_OUT = POLLOUT,  ///< Output event
     WATCH_ERR = POLLERR,  ///< Error event
@@ -370,12 +372,12 @@ namespace platf::publish {
         const auto *inet_address = reinterpret_cast<const sockaddr_in *>(ifa->ifa_addr);
         boost::asio::ip::address_v4::bytes_type bytes {};
         std::memcpy(bytes.data(), &inet_address->sin_addr, bytes.size());
-        addresses.push_back({interface, boost::asio::ip::address_v4(bytes)});
+        addresses.emplace_back(interface, boost::asio::ip::address_v4(bytes));
       } else if (ifa->ifa_addr->sa_family == AF_INET6) {
         const auto *inet6_address = reinterpret_cast<const sockaddr_in6 *>(ifa->ifa_addr);
         boost::asio::ip::address_v6::bytes_type bytes {};
         std::memcpy(bytes.data(), &inet6_address->sin6_addr, bytes.size());
-        addresses.push_back({interface, boost::asio::ip::address_v6(bytes)});
+        addresses.emplace_back(interface, boost::asio::ip::address_v6(bytes));
       }
     }
     return addresses;
@@ -650,7 +652,7 @@ namespace platf::publish {
       return false;
     }
 
-    auto *watch = poll_api->watch_new(poll_api, fd, avahi::WATCH_IN, address_change_callback, nullptr);
+    auto *watch = poll_api->watch_new(poll_api, fd, avahi::WatchEvent::WATCH_IN, address_change_callback, nullptr);
     if (!watch) {
       BOOST_LOG(warning) << "Failed to install Avahi watch for address-change notifications, mDNS records will not refresh on network changes."sv;
       close(fd);
