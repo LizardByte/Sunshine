@@ -6,8 +6,21 @@ vi.mock('../../src_assets/common/assets/web/Navbar.vue', () => ({
 }))
 
 import Troubleshooting from '../../src_assets/common/assets/web/Troubleshooting.vue'
+import createSunshineI18n from '../../src_assets/common/assets/web/locale.js'
+import pt from '../../src_assets/common/assets/web/public/assets/locale/pt.json'
+import ptBR from '../../src_assets/common/assets/web/public/assets/locale/pt_BR.json'
 
-async function mountTroubleshooting(platform, gamepadDriver, licenseStatus = {}, permissions = []) {
+/**
+ * @brief Mount troubleshooting with mocked API responses and optional real translations.
+ *
+ * @param {string} platform Host platform.
+ * @param {string} gamepadDriver Selected gamepad driver.
+ * @param {object} licenseStatus License status overrides.
+ * @param {Array} permissions Platform permissions.
+ * @param {object|null} i18n Optional Vue I18n plugin.
+ * @return {Promise<object>} Mounted troubleshooting wrapper.
+ */
+async function mountTroubleshooting(platform, gamepadDriver, licenseStatus = {}, permissions = [], i18n = null) {
   vi.stubGlobal('fetch', vi.fn(async (url) => {
     if (url === '/api/config') {
       return { json: async () => ({ platform, gamepad_driver: gamepadDriver }) }
@@ -48,7 +61,8 @@ async function mountTroubleshooting(platform, gamepadDriver, licenseStatus = {},
 
   const wrapper = mount(Troubleshooting, {
     global: {
-      mocks: { $t: key => key },
+      mocks: i18n ? {} : { $t: key => key },
+      plugins: i18n ? [i18n] : [],
       stubs: { Navbar: true, RouterLink: true },
     },
   })
@@ -58,9 +72,40 @@ async function mountTroubleshooting(platform, gamepadDriver, licenseStatus = {},
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 describe('virtual input troubleshooting', () => {
+  it.each([
+    ['pt', pt],
+    ['pt_BR', ptBR],
+  ])('renders Linux permissions and device management with the bundled %s catalog', async (locale, catalog) => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.stubGlobal('fetch', vi.fn(async url => ({
+      json: async () => url === './api/configLocale' ? { locale } : catalog,
+    })))
+    const i18n = await createSunshineI18n()
+    const wrapper = await mountTroubleshooting('linux', 'none', {}, [
+      { id: 'input', status: 'granted', required: true },
+    ], i18n)
+
+    try {
+      expect(i18n.global.t('_common.loading')).toBe('Loading...')
+      expect(i18n.global.t('troubleshooting.driver_release_checking')).toBe('Checking...')
+      expect(i18n.global.t('apps.delete_confirm', { name: 'Moonlight' })).toBe(
+        catalog.apps.delete_confirm.replace('{name}', 'Moonlight')
+      )
+      expect(wrapper.get('h1').text()).toBe(catalog.troubleshooting.troubleshooting)
+      expect(wrapper.get('.permission-table-shell th').text()).toBe('Permission')
+      expect(wrapper.get('#unpair').text()).toBe(catalog.troubleshooting.unpair_title)
+      expect(wrapper.get('#logs').text()).toBe(catalog.troubleshooting.logs)
+      expect(wrapper.find('.permission-table-shell tbody tr').exists()).toBe(true)
+    } finally {
+      wrapper.unmount()
+      i18n.dispose()
+    }
+  })
+
   it('orders permission rows consistently across platforms', async () => {
     const permissions = [
       { id: 'local_network', status: 'on_use', required: true },

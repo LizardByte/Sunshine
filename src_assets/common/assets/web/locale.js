@@ -1,4 +1,5 @@
 import {createI18n} from "vue-i18n";
+import {createParser, defaultOnError} from "@intlify/message-compiler";
 
 // Import only the fallback language files
 import en from './public/assets/locale/en.json'
@@ -42,7 +43,32 @@ function resolveLocale(configuredLocale) {
 }
 
 /**
- * @brief Load messages for a supported locale with an English fallback.
+ * @brief Omit malformed translation messages so Vue I18n can fall back to English.
+ *
+ * @param {object} messages Nested translation messages.
+ * @param {string} locale Locale identifier used in diagnostics.
+ * @param {string} [prefix] Parent message key used in diagnostics.
+ * @return {object} Messages with valid Vue I18n syntax.
+ */
+function filterLocaleMessages(messages, locale, prefix = '') {
+    return Object.fromEntries(Object.entries(messages).flatMap(([key, message]) => {
+        const path = prefix ? `${prefix}.${key}` : key;
+        if (typeof message !== 'string') {
+            return [[key, filterLocaleMessages(message, locale, path)]];
+        }
+
+        try {
+            createParser({ onError: defaultOnError }).parse(message);
+            return [[key, message]];
+        } catch (error) {
+            console.error('Ignoring invalid translation', locale, path, error);
+            return [];
+        }
+    }));
+}
+
+/**
+ * @brief Load valid messages for a supported locale with an English fallback.
  *
  * @param {string} locale Supported locale identifier.
  * @param {Function} loadTranslation Function that loads a translation path.
@@ -59,7 +85,7 @@ export async function loadLocaleMessages(
             const translation = await loadTranslation(localePaths.get(locale));
             messages = Object.fromEntries([
                 ['en', en],
-                [locale, translation],
+                [locale, filterLocaleMessages(translation, locale)],
             ]);
         }
     } catch (e) {
