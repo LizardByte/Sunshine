@@ -101,16 +101,15 @@ namespace platf {
           }
         }
 
-        std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-          {(dyn::apiproc *) &GetScreenResources, "XRRGetScreenResources"},
-          {(dyn::apiproc *) &GetOutputInfo, "XRRGetOutputInfo"},
-          {(dyn::apiproc *) &GetCrtcInfo, "XRRGetCrtcInfo"},
-          {(dyn::apiproc *) &FreeScreenResources, "XRRFreeScreenResources"},
-          {(dyn::apiproc *) &FreeOutputInfo, "XRRFreeOutputInfo"},
-          {(dyn::apiproc *) &FreeCrtcInfo, "XRRFreeCrtcInfo"},
-        };
-
-        if (dyn::load(handle, funcs)) {
+        if (std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+              {(dyn::apiproc *) &GetScreenResources, "XRRGetScreenResources"},
+              {(dyn::apiproc *) &GetOutputInfo, "XRRGetOutputInfo"},
+              {(dyn::apiproc *) &GetCrtcInfo, "XRRGetCrtcInfo"},
+              {(dyn::apiproc *) &FreeScreenResources, "XRRFreeScreenResources"},
+              {(dyn::apiproc *) &FreeOutputInfo, "XRRFreeOutputInfo"},
+              {(dyn::apiproc *) &FreeCrtcInfo, "XRRFreeCrtcInfo"},
+            };
+            dyn::load(handle, funcs)) {
           return -1;
         }
 
@@ -138,11 +137,10 @@ namespace platf {
           }
         }
 
-        std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-          {(dyn::apiproc *) &GetCursorImage, "XFixesGetCursorImage"},
-        };
-
-        if (dyn::load(handle, funcs)) {
+        if (std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+              {(dyn::apiproc *) &GetCursorImage, "XFixesGetCursorImage"},
+            };
+            dyn::load(handle, funcs)) {
           return -1;
         }
 
@@ -166,16 +164,15 @@ namespace platf {
         }
       }
 
-      std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-        {(dyn::apiproc *) &GetImage, "XGetImage"},
-        {(dyn::apiproc *) &OpenDisplay, "XOpenDisplay"},
-        {(dyn::apiproc *) &GetWindowAttributes, "XGetWindowAttributes"},
-        {(dyn::apiproc *) &Free, "XFree"},
-        {(dyn::apiproc *) &CloseDisplay, "XCloseDisplay"},
-        {(dyn::apiproc *) &InitThreads, "XInitThreads"},
-      };
-
-      if (dyn::load(handle, funcs)) {
+      if (std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+            {(dyn::apiproc *) &GetImage, "XGetImage"},
+            {(dyn::apiproc *) &OpenDisplay, "XOpenDisplay"},
+            {(dyn::apiproc *) &GetWindowAttributes, "XGetWindowAttributes"},
+            {(dyn::apiproc *) &Free, "XFree"},
+            {(dyn::apiproc *) &CloseDisplay, "XCloseDisplay"},
+            {(dyn::apiproc *) &InitThreads, "XInitThreads"},
+          };
+          dyn::load(handle, funcs)) {
         return -1;
       }
 
@@ -222,14 +219,13 @@ namespace platf {
         }
       }
 
-      std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-        {(dyn::apiproc *) &shm_id, "xcb_shm_id"},
-        {(dyn::apiproc *) &shm_get_image_reply, "xcb_shm_get_image_reply"},
-        {(dyn::apiproc *) &shm_get_image_unchecked, "xcb_shm_get_image_unchecked"},
-        {(dyn::apiproc *) &shm_attach, "xcb_shm_attach"},
-      };
-
-      if (dyn::load(handle, funcs)) {
+      if (std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+            {(dyn::apiproc *) &shm_id, "xcb_shm_id"},
+            {(dyn::apiproc *) &shm_get_image_reply, "xcb_shm_get_image_reply"},
+            {(dyn::apiproc *) &shm_get_image_unchecked, "xcb_shm_get_image_unchecked"},
+            {(dyn::apiproc *) &shm_attach, "xcb_shm_attach"},
+          };
+          dyn::load(handle, funcs)) {
         return -1;
       }
 
@@ -257,17 +253,16 @@ namespace platf {
         }
       }
 
-      std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-        {(dyn::apiproc *) &get_extension_data, "xcb_get_extension_data"},
-        {(dyn::apiproc *) &get_setup, "xcb_get_setup"},
-        {(dyn::apiproc *) &disconnect, "xcb_disconnect"},
-        {(dyn::apiproc *) &connection_has_error, "xcb_connection_has_error"},
-        {(dyn::apiproc *) &connect, "xcb_connect"},
-        {(dyn::apiproc *) &setup_roots_iterator, "xcb_setup_roots_iterator"},
-        {(dyn::apiproc *) &generate_id, "xcb_generate_id"},
-      };
-
-      if (dyn::load(handle, funcs)) {
+      if (std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+            {(dyn::apiproc *) &get_extension_data, "xcb_get_extension_data"},
+            {(dyn::apiproc *) &get_setup, "xcb_get_setup"},
+            {(dyn::apiproc *) &disconnect, "xcb_disconnect"},
+            {(dyn::apiproc *) &connection_has_error, "xcb_connection_has_error"},
+            {(dyn::apiproc *) &connect, "xcb_connect"},
+            {(dyn::apiproc *) &setup_roots_iterator, "xcb_setup_roots_iterator"},
+            {(dyn::apiproc *) &generate_id, "xcb_generate_id"},
+          };
+          dyn::load(handle, funcs)) {
         return -1;
       }
 

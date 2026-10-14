@@ -109,8 +109,7 @@ namespace nvhttp {
       auto connection = create_connection(*io_service, context);
 
       acceptor->async_accept(connection->socket->lowest_layer(), [this, connection](const SimpleWeb::error_code &ec) {
-        auto lock = connection->handler_runner->continue_lock();
-        if (!lock) {
+        if (auto lock = connection->handler_runner->continue_lock(); !lock) {
           return;
         }
 
@@ -128,8 +127,7 @@ namespace nvhttp {
           session->connection->set_timeout(config.timeout_request);
           session->connection->socket->async_handshake(boost::asio::ssl::stream_base::server, [this, session](const SimpleWeb::error_code &ec) {
             session->connection->cancel_timeout();
-            auto lock = session->connection->handler_runner->continue_lock();
-            if (!lock) {
+            if (auto lock = session->connection->handler_runner->continue_lock(); !lock) {
               return;
             }
             if (!ec) {

@@ -64,9 +64,7 @@ namespace crypto {
       // that OpenSSL doesn't detect as self-signed due to some X509v3 extensions.
       X509_STORE_CTX_set_flags(_cert_ctx.get(), X509_V_FLAG_PARTIAL_CHAIN);
 
-      auto err = X509_verify_cert(_cert_ctx.get());
-
-      if (err == 1) {
+      if (auto err = X509_verify_cert(_cert_ctx.get()); err == 1) {
         if (X509_cmp(trusted_cert.get(), cert) == 0) {
           return nullptr;
         }

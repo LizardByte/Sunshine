@@ -942,8 +942,7 @@ namespace platf::audio {
       // Encoding format:
       // [virtual-(format name)]device_id
       std::string current = sink;
-      auto prefix = "virtual-"sv;
-      if (current.find(prefix) == 0) {
+      if (auto prefix = "virtual-"sv; current.find(prefix) == 0) {
         current = current.substr(prefix.size(), current.size() - prefix.size());
 
         for (const auto &format : formats) {

@@ -323,8 +323,7 @@ VOID WINAPI ServiceMain(DWORD, LPTSTR *) {
           {
             // Sunshine terminated itself.
 
-            DWORD exit_code;
-            if (GetExitCodeProcess(process_info.hProcess, &exit_code) && exit_code == ERROR_SHUTDOWN_IN_PROGRESS) {
+            if (DWORD exit_code; GetExitCodeProcess(process_info.hProcess, &exit_code) && exit_code == ERROR_SHUTDOWN_IN_PROGRESS) {
               // Sunshine is asking for us to shut down, so gracefully stop ourselves.
               SetEvent(stop_event);
             }

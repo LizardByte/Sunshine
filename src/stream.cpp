@@ -449,8 +449,7 @@ namespace stream {
      * @return Network operation status.
      */
     int send(const std::string_view &payload, net::peer_t peer) {
-      auto packet = enet_packet_create(payload.data(), payload.size(), ENET_PACKET_FLAG_RELIABLE);
-      if (enet_peer_send(peer, 0, packet)) {
+      if (auto packet = enet_packet_create(payload.data(), payload.size(), ENET_PACKET_FLAG_RELIABLE); enet_peer_send(peer, 0, packet)) {
         enet_packet_destroy(packet);
 
         return -1;

@@ -57,15 +57,16 @@ NvAPI_Initialize() {
     return NVAPI_OK;
   }
 
+  if (const auto *dll_name = [] {
 #if defined(_M_ARM64) || defined(__aarch64__)
-  auto dll_name = "nvapia64.dll";
+        return "nvapia64.dll";
 #elif defined(_WIN64)
-  auto dll_name = "nvapi64.dll";
+        return "nvapi64.dll";
 #else
-  auto dll_name = "nvapi.dll";
+        return "nvapi.dll";
 #endif
-
-  if ((dll = LoadLibraryEx(dll_name, nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32))) {
+      }();
+      (dll = LoadLibraryEx(dll_name, nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32))) {
     if (auto query_interface = (decltype(nvapi_QueryInterface) *) GetProcAddress(dll, "nvapi_QueryInterface")) {
       for (const auto &item : nvapi_interface_table) {
         interfaces[item.func] = query_interface(item.id);

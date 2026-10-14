@@ -66,9 +66,7 @@ namespace net {
    * @brief Convert a Boost address family to Sunshine network enum value.
    */
   net_e from_address(const std::string_view &view) {
-    auto addr = normalize_address(ip::make_address(view));
-
-    if (addr.is_v6()) {
+    if (auto addr = normalize_address(ip::make_address(view)); addr.is_v6()) {
       for (auto &range : pc_ips_v6) {
         if (range.hosts().find(addr.to_v6()) != range.hosts().end()) {
           return PC;
