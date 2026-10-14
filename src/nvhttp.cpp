@@ -101,6 +101,25 @@ namespace nvhttp {
       }
     }
 
+    /**
+     * @brief Process a completed TLS handshake under the callback's server lifetime guard.
+     *
+     * @param session Session whose TLS handshake has completed.
+     * @param ec Result of the asynchronous handshake.
+     * @pre The caller holds the session's handler scope guard.
+     */
+    void handle_handshake(const std::shared_ptr<Session> &session, const SimpleWeb::error_code &ec) {
+      if (!ec) {
+        if (verify && !verify(session->connection->socket->native_handle())) {
+          this->write(session, on_verify_failed);
+        } else {
+          this->read(session);
+        }
+      } else if (this->on_error) {
+        this->on_error(session->request, ec);
+      }
+    }
+
     // This is Server<HTTPS>::accept() with SSL validation support added
     /**
      * @brief Accept a pending connection and arm the server for the next client.
@@ -126,15 +145,7 @@ namespace nvhttp {
             session->connection->socket->async_handshake(boost::asio::ssl::stream_base::server, [this, session](const SimpleWeb::error_code &ec) {
               session->connection->cancel_timeout();
               if (auto lock = session->connection->handler_runner->continue_lock(); lock) {
-                if (!ec) {
-                  if (verify && !verify(session->connection->socket->native_handle())) {
-                    this->write(session, on_verify_failed);
-                  } else {
-                    this->read(session);
-                  }
-                } else if (this->on_error) {
-                  this->on_error(session->request, ec);
-                }
+                this->handle_handshake(session, ec);
               }
             });
           } else if (this->on_error) {

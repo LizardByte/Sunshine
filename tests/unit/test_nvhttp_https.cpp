@@ -24,8 +24,7 @@ namespace {
   /**
    * @brief Run real HTTPS callbacks against an isolated loopback listener.
    */
-  class HttpsHandlerLifetimeTest: public BaseTest {
-  protected:
+  struct HttpsHandlerLifetimeTest: BaseTest {
     /**
      * @brief Create credentials and start the production HTTPS accept handler.
      */
@@ -61,19 +60,19 @@ namespace {
       if (stop_thread.joinable()) {
         stop_thread.join();
       }
-      std::error_code error;
-      std::filesystem::remove(certificate_file, error);
-      std::filesystem::remove(private_key_file, error);
+      std::error_code cleanup_error;
+      std::filesystem::remove(certificate_file, cleanup_error);
+      std::filesystem::remove(private_key_file, cleanup_error);
       BaseTest::TearDown();
     }
 
     /**
      * @brief Check that stopping the scope runner waits until the error callback exits.
      *
-     * @param error Error delivered by the real accept or TLS handshake operation.
+     * @param callback_error Error delivered by the real accept or TLS handshake operation.
      */
-    void check_handler_guard(const boost::system::error_code &error) {
-      EXPECT_TRUE(error);
+    void check_handler_guard(const boost::system::error_code &callback_error) {
+      EXPECT_TRUE(callback_error);
       ++error_callbacks;
       std::promise<void> stopping;
       auto stopping_future = stopping.get_future();
@@ -102,8 +101,8 @@ namespace {
    * @brief Canceling a pending accept holds the server guard through its error callback.
    */
   TEST_F(HttpsHandlerLifetimeTest, AcceptErrorRetainsGuardUntilCallbackReturns) {
-    server->on_error = [this](auto, const auto &error) {
-      check_handler_guard(error);
+    server->on_error = [this](auto, const auto &callback_error) {
+      check_handler_guard(callback_error);
     };
     server->stop();
     server->io_service->run_for(2s);
@@ -116,8 +115,8 @@ namespace {
    * @brief A failed TLS handshake holds the server guard through its error callback.
    */
   TEST_F(HttpsHandlerLifetimeTest, HandshakeErrorRetainsGuardUntilCallbackReturns) {
-    server->on_error = [this](auto, const auto &error) {
-      check_handler_guard(error);
+    server->on_error = [this](auto, const auto &callback_error) {
+      check_handler_guard(callback_error);
     };
     boost::asio::io_context client_io;
     tcp::socket client {client_io};
