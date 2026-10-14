@@ -40,18 +40,20 @@ namespace upnp {
   };
 
   static std::string_view status_string(igd_status_e status) {
+    using enum igd_status_e;
+
     switch (status) {
-      case igd_status_e::none:
+      case none:
         return "No IGD device found"sv;
-      case igd_status_e::connected:
+      case connected:
         return "Valid IGD device found"sv;
 #if (MINIUPNPC_API_VERSION >= 18)
-      case igd_status_e::private_ip:
+      case private_ip:
         return "Valid IGD device found, but it has a private IP address"sv;
 #endif
-      case igd_status_e::disconnected:
+      case disconnected:
         return "Valid IGD device found, but it isn't connected"sv;
-      case igd_status_e::unknown_device:
+      case unknown_device:
         return "A UPnP device has been found, but it wasn't recognized as an IGD"sv;
     }
 
@@ -72,12 +74,14 @@ namespace upnp {
   }
 
   bool is_valid_igd(igd_status_e status) {
+    using enum igd_status_e;
+
     switch (status) {
-      case igd_status_e::connected:
+      case connected:
 #if (MINIUPNPC_API_VERSION >= 18)
-      case igd_status_e::private_ip:
+      case private_ip:
 #endif
-      case igd_status_e::disconnected:
+      case disconnected:
         return true;
       default:
         return false;
