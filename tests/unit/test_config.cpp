@@ -13,12 +13,6 @@
 #include <string>
 #include <utility>
 
-#ifdef _WIN32
-  // lib includes
-  #include <AMF/components/VideoEncoderAV1.h>
-  #include <AMF/components/VideoEncoderVCE.h>
-#endif
-
 // local includes
 #include <src/config.h>
 #include <src/file_handler.h>
@@ -51,13 +45,8 @@ TEST(ConfigDefaultsTest, TreatsFp16SdrCapturesAsLinear) {
 TEST(ConfigDefaultsTest, PreservesAmdEncoderNumericDefaults) {
   EXPECT_EQ(config::video.amd.amd_usage_h264, 1);
   EXPECT_EQ(config::video.amd.amd_usage_hevc, 1);
-#ifdef _WIN32
-  EXPECT_EQ(config::video.amd.amd_usage_av1, AMF_VIDEO_ENCODER_AV1_USAGE_ULTRA_LOW_LATENCY);
-  EXPECT_EQ(config::video.amd.amd_rc_h264, AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR);
-#else
-  EXPECT_EQ(config::video.amd.amd_usage_av1, 1);
-  EXPECT_EQ(config::video.amd.amd_rc_h264, 1);
-#endif
+  EXPECT_EQ(config::video.amd.amd_usage_av1, 2);
+  EXPECT_EQ(config::video.amd.amd_rc_h264, 3);
   EXPECT_EQ(config::video.amd.amd_rc_hevc, 1);
   EXPECT_EQ(config::video.amd.amd_rc_av1, 1);
   EXPECT_EQ(config::video.amd.amd_quality_h264, 0);
