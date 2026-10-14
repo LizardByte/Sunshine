@@ -89,7 +89,7 @@ TEST(ConstructorContracts, ExplicitRawPointerConstructionTakesOwnership) {
 }
 
 TEST(ConstructorContracts, CompatibleUniquePointerMovesPreserveOwnership) {
-  std::unique_ptr<derived_t, std::default_delete<base_t>> original {new derived_t};
+  std::unique_ptr<derived_t, std::default_delete<base_t>> original {std::make_unique<derived_t>()};
   const auto address = original.get();
   derived_ptr_t derived = std::move(original);
   base_ptr_t base = std::move(derived);
@@ -101,7 +101,7 @@ TEST(ConstructorContracts, CompatibleUniquePointerMovesPreserveOwnership) {
 }
 
 TEST(ConstructorContracts, CompatibleStandardPointerMovesCanTargetBaseOwners) {
-  std::unique_ptr<derived_t, std::default_delete<base_t>> original {new derived_t};
+  std::unique_ptr<derived_t, std::default_delete<base_t>> original {std::make_unique<derived_t>()};
   const auto address = original.get();
   base_ptr_t base = std::move(original);
 
@@ -111,8 +111,8 @@ TEST(ConstructorContracts, CompatibleStandardPointerMovesCanTargetBaseOwners) {
 
 TEST(ConstructorContracts, WrapPointersKeepBorrowedAndOwnedValuesAccessible) {
   int borrowed_value = 7;
-  util::wrap_ptr<int> borrowed {&borrowed_value};
-  util::wrap_ptr<int> owned {std::make_unique<int>(42)};
+  util::wrap_ptr borrowed {&borrowed_value};
+  util::wrap_ptr owned {std::make_unique<int>(42)};
 
   EXPECT_EQ(*borrowed, 7);
   EXPECT_EQ(*owned, 42);
@@ -133,7 +133,7 @@ TEST(ConstructorContracts, MovingDisabledFailGuardsKeepsCleanupDisabled) {
 
 TEST(ConstructorContracts, ExplicitTaskConstructionRunsTheSuppliedCallable) {
   int calls = 0;
-  task_pool_util::_Impl<callback_t> task {callback_t {[&calls]() {
+  task_pool_util::_Impl task {callback_t {[&calls]() {
     ++calls;
   }}};
   task.run();
@@ -143,8 +143,6 @@ TEST(ConstructorContracts, ExplicitTaskConstructionRunsTheSuppliedCallable) {
 
 TEST(ConstructorContracts, ExplicitSynchronizedConstructionKeepsTheInitialValue) {
   sync_util::sync_t<int> value {42};
-  const auto guard = value.lock();
-
   EXPECT_EQ(value.raw, 42);
 }
 
