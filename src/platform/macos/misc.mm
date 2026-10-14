@@ -887,7 +887,12 @@ namespace platf {
       std::this_thread::sleep_for(duration);
     }
 
-    operator bool() override {
+    /**
+     * @brief Explicitly report that the thread-based timer is always available.
+     *
+     * @return True because sleeping needs no additional timer resource.
+     */
+    explicit operator bool() override {
       return true;
     }
   };

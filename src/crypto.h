@@ -174,7 +174,7 @@ namespace crypto {
   std::string rand_alphabet(std::size_t bytes, const std::string_view &alphabet = std::string_view {"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!%&()=-"});
 
   /**
-   * @brief Owns the certificate chain returned by Sunshine's TLS certificate loader.
+   * @brief Owns trusted certificates and a verification context initialized for each chain.
    */
   class cert_chain_t {
   public:
@@ -202,7 +202,7 @@ namespace crypto {
 
   private:
     std::vector<std::pair<x509_t, x509_store_t>> _certs;
-    x509_store_ctx_t _cert_ctx;
+    x509_store_ctx_t _cert_ctx {X509_STORE_CTX_new()};  ///< Verification context created for each certificate chain.
   };
 
   namespace cipher {
@@ -249,12 +249,12 @@ namespace crypto {
       ecb_t &operator=(ecb_t &&) noexcept = default;
 
       /**
-       * @brief Construct an AES-ECB cipher helper with key material.
+       * @brief Explicitly construct an AES-ECB cipher helper with key material.
        *
        * @param key_material AES key material used to initialize the cipher.
        * @param use_padding Whether the cipher should use block padding.
        */
-      ecb_t(const aes_t &key_material, bool use_padding = true);
+      explicit ecb_t(const aes_t &key_material, bool use_padding = true);
 
       /**
        * @brief Encrypt plaintext into the supplied ciphertext buffer.
@@ -292,12 +292,12 @@ namespace crypto {
       gcm_t &operator=(gcm_t &&) noexcept = default;
 
       /**
-       * @brief Construct an AES-GCM cipher helper with key material and IV state.
+       * @brief Explicitly construct an AES-GCM cipher helper with key material and IV state.
        *
        * @param key_material AES key material used to initialize the cipher.
        * @param use_padding Whether the cipher should use block padding.
        */
-      gcm_t(const crypto::aes_t &key_material, bool use_padding = true);
+      explicit gcm_t(const crypto::aes_t &key_material, bool use_padding = true);
 
       /**
        * @brief Encrypts the plaintext using AES GCM mode.
@@ -348,12 +348,12 @@ namespace crypto {
       cbc_t &operator=(cbc_t &&) noexcept = default;
 
       /**
-       * @brief Construct an AES-CBC cipher helper with key material and IV state.
+       * @brief Explicitly construct an AES-CBC cipher helper with key material and IV state.
        *
        * @param key_material AES key material used to initialize the cipher.
        * @param use_padding Whether the cipher should use block padding.
        */
-      cbc_t(const crypto::aes_t &key_material, bool use_padding = true);
+      explicit cbc_t(const crypto::aes_t &key_material, bool use_padding = true);
 
       /**
        * @brief Encrypts the plaintext using AES CBC mode.

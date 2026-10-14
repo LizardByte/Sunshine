@@ -1534,7 +1534,7 @@ namespace platf {
   }
 
   /**
-   * @brief Linux high-precision timer implementation backed by `timerfd`.
+   * @brief Explicitly linux high-precision timer implementation backed by `timerfd`.
    */
   class linux_high_precision_timer: public high_precision_timer {
   public:
@@ -1542,7 +1542,7 @@ namespace platf {
       std::this_thread::sleep_for(duration);
     }
 
-    operator bool() override {
+    explicit operator bool() override {
       return true;
     }
   };

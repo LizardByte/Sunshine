@@ -237,9 +237,9 @@ namespace platf {
           fb {fb},
           fb_id {fb->fb_id},
           width {fb->width},
-          height {fb->height} {
-        pixel_format = DRM_FORMAT_XRGB8888;
-        modifier = DRM_FORMAT_MOD_INVALID;
+          height {fb->height},
+          pixel_format {DRM_FORMAT_XRGB8888},
+          modifier {DRM_FORMAT_MOD_INVALID} {
         handles.fill(0);
         pitches.fill(0);
         offsets.fill(0);
@@ -258,10 +258,9 @@ namespace platf {
           fb2 {fb2},
           fb_id {fb2->fb_id},
           width {fb2->width},
-          height {fb2->height} {
-        pixel_format = fb2->pixel_format;
-        modifier = (fb2->flags & DRM_MODE_FB_MODIFIERS) ? fb2->modifier : DRM_FORMAT_MOD_INVALID;
-
+          height {fb2->height},
+          pixel_format {fb2->pixel_format},
+          modifier {(fb2->flags & DRM_MODE_FB_MODIFIERS) ? fb2->modifier : DRM_FORMAT_MOD_INVALID} {
         std::copy_n(fb2->handles, handles.size(), handles.begin());
         std::copy_n(fb2->pitches, pitches.size(), pitches.begin());
         std::copy_n(fb2->offsets, offsets.size(), offsets.begin());
@@ -510,7 +509,7 @@ namespace platf {
         this->plane.reset();
 
         for (; plane_p != end; ++plane_p) {
-          plane_t next_plane = drmModeGetPlane(fd, *plane_p);
+          plane_t next_plane {drmModeGetPlane(fd, *plane_p)};
           if (!next_plane) {
             BOOST_LOG(error) << "Couldn't get drm plane ["sv << (end - plane_p) << "]: "sv << strerror(errno);
             continue;
@@ -776,7 +775,7 @@ namespace platf {
        * @return Owning pointer to the DRM CRTC object.
        */
       crtc_t crtc(std::uint32_t id) {
-        return drmModeGetCrtc(fd.el, id);
+        return crtc_t {drmModeGetCrtc(fd.el, id)};
       }
 
       /**
@@ -786,7 +785,7 @@ namespace platf {
        * @return Owning pointer to the DRM encoder object.
        */
       encoder_t encoder(std::uint32_t id) {
-        return drmModeGetEncoder(fd.el, id);
+        return encoder_t {drmModeGetEncoder(fd.el, id)};
       }
 
       /**
@@ -795,7 +794,7 @@ namespace platf {
        * @return DRM card resource list.
        */
       res_t res() {
-        return drmModeGetResources(fd.el);
+        return res_t {drmModeGetResources(fd.el)};
       }
 
       /**
@@ -885,7 +884,7 @@ namespace platf {
        * @return Owning pointer to the DRM connector object.
        */
       connector_interal_t connector(std::uint32_t id) {
-        return drmModeGetConnector(fd.el, id);
+        return connector_interal_t {drmModeGetConnector(fd.el, id)};
       }
 
       /**
@@ -953,7 +952,7 @@ namespace platf {
        * @return DRM properties and their current values.
        */
       std::vector<std::pair<prop_t, std::uint64_t>> props(std::uint32_t id, std::uint32_t type) {
-        obj_prop_t obj_prop = drmModeObjectGetProperties(fd.el, id, type);
+        obj_prop_t obj_prop {drmModeObjectGetProperties(fd.el, id, type)};
         if (!obj_prop) {
           return {};
         }
@@ -1005,7 +1004,7 @@ namespace platf {
        * @return Plane metadata for the requested DRM plane.
        */
       plane_t operator[](std::uint32_t index) {
-        return drmModeGetPlane(fd.el, plane_res->planes[index]);
+        return plane_t {drmModeGetPlane(fd.el, plane_res->planes[index])};
       }
 
       /**
@@ -1138,11 +1137,11 @@ namespace platf {
     class display_t: public platf::display_t {
     public:
       /**
-       * @brief Initialize common KMS display state for the requested memory type.
+       * @brief Explicitly initialize common KMS display state for the requested memory type.
        *
        * @param mem_type Mem type.
        */
-      display_t(mem_type_e mem_type):
+      explicit display_t(mem_type_e mem_type):
           platf::display_t(),
           mem_type {mem_type} {
       }
@@ -1372,7 +1371,7 @@ namespace platf {
           return false;
         }
 
-        prop_blob_t hdr_metadata_blob = drmModeGetPropertyBlob(card.fd.el, *hdr_metadata_blob_id);
+        prop_blob_t hdr_metadata_blob {drmModeGetPropertyBlob(card.fd.el, *hdr_metadata_blob_id)};
         if (hdr_metadata_blob == nullptr) {
           BOOST_LOG(error) << "Unable to get HDR metadata blob: "sv << strerror(errno);
           return false;
@@ -1425,7 +1424,7 @@ namespace platf {
           return false;
         }
 
-        prop_blob_t hdr_metadata_blob = drmModeGetPropertyBlob(card.fd.el, *hdr_metadata_blob_id);
+        prop_blob_t hdr_metadata_blob {drmModeGetPropertyBlob(card.fd.el, *hdr_metadata_blob_id)};
         if (hdr_metadata_blob == nullptr) {
           BOOST_LOG(error) << "Unable to get HDR metadata blob: "sv << strerror(errno);
           return false;
@@ -1456,7 +1455,7 @@ namespace platf {
           return;
         }
 
-        plane_t plane = drmModeGetPlane(card.fd.el, cursor_plane_id);
+        plane_t plane {drmModeGetPlane(card.fd.el, cursor_plane_id)};
 
         std::optional<std::int32_t> prop_crtc_x;
         std::optional<std::int32_t> prop_crtc_y;
@@ -1658,7 +1657,7 @@ namespace platf {
           }
         }
 
-        plane_t plane = drmModeGetPlane(card.fd.el, plane_id);
+        plane_t plane {drmModeGetPlane(card.fd.el, plane_id)};
         frame_timestamp = std::chrono::steady_clock::now();
 
         // A plane that stays without a framebuffer will not get the picture back by itself:
@@ -1750,11 +1749,11 @@ namespace platf {
     class display_ram_t: public display_t {
     public:
       /**
-       * @brief Initialize a KMS display backend that copies frames through RAM.
+       * @brief Explicitly initialize a KMS display backend that copies frames through RAM.
        *
        * @param mem_type Mem type.
        */
-      display_ram_t(mem_type_e mem_type):
+      explicit display_ram_t(mem_type_e mem_type):
           display_t(mem_type) {
       }
 
@@ -2004,11 +2003,11 @@ namespace platf {
     class display_vram_t: public display_t {
     public:
       /**
-       * @brief Initialize a KMS display backend that exports frames as GPU resources.
+       * @brief Explicitly initialize a KMS display backend that exports frames as GPU resources.
        *
        * @param mem_type Mem type.
        */
-      display_vram_t(mem_type_e mem_type):
+      explicit display_vram_t(mem_type_e mem_type):
           display_t(mem_type) {
       }
 

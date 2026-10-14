@@ -220,8 +220,10 @@ namespace platf::publish {
    */
   class mdns_registration_t: public ::platf::deinit_t {
   public:
-    mdns_registration_t():
-        existing_instance(nullptr) {
+    /**
+     * @brief Register Sunshine's DNS-SD service with no existing registration.
+     */
+    mdns_registration_t() {
       if (service(true, existing_instance)) {
         BOOST_LOG(error) << "Unable to register Sunshine mDNS service"sv;
         return;
@@ -242,7 +244,7 @@ namespace platf::publish {
     }
 
   private:
-    PDNS_SERVICE_INSTANCE existing_instance;
+    PDNS_SERVICE_INSTANCE existing_instance {nullptr};  ///< DNS-SD registration owned by this publisher.
   };
 
   /**

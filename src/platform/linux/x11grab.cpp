@@ -332,11 +332,11 @@ namespace platf {
     }
 
     /**
-     * @brief Take ownership of a SysV shared-memory segment ID.
+     * @brief Explicitly take ownership of a SysV shared-memory segment ID.
      *
      * @param id SysV shared-memory segment ID.
      */
-    shm_id_t(int id):
+    explicit shm_id_t(int id):
         id {id} {
     }
 
@@ -370,11 +370,11 @@ namespace platf {
     }
 
     /**
-     * @brief Take ownership of an attached shared-memory mapping.
+     * @brief Explicitly take ownership of an attached shared-memory mapping.
      *
      * @param data Pointer returned by shmat.
      */
-    shm_data_t(std::uint8_t *data):
+    explicit shm_data_t(std::uint8_t *data):
         data {data} {
     }
 
@@ -505,9 +505,9 @@ namespace platf {
   struct x11_attr_t: public display_t {
     std::chrono::nanoseconds delay;  ///< Delay before the timer task becomes eligible to run.
 
-    x11::xdisplay_t xdisplay;  ///< X11 display connection used for capture.
-    Window xwindow;  ///< Root window being captured.
-    XWindowAttributes xattr;  ///< Cached X11 window attributes used to detect size changes.
+    x11::xdisplay_t xdisplay {x11::OpenDisplay(nullptr)};  ///< X11 display connection opened for capture.
+    Window xwindow {};  ///< Root window being captured.
+    XWindowAttributes xattr {};  ///< Cached X11 window attributes used to detect size changes.
 
     mem_type_e mem_type;  ///< Mem type.
 
@@ -518,14 +518,11 @@ namespace platf {
     // int env_width, env_height;
 
     /**
-     * @brief Open the X11 display and initialize capture attributes.
+     * @brief Explicitly open the X11 display and initialize capture attributes.
      *
      * @param mem_type Requested memory path for the capture backend.
      */
-    x11_attr_t(mem_type_e mem_type):
-        xdisplay {x11::OpenDisplay(nullptr)},
-        xwindow {},
-        xattr {},
+    explicit x11_attr_t(mem_type_e mem_type):
         mem_type {mem_type} {
       x11::InitThreads();
     }
@@ -742,7 +739,7 @@ namespace platf {
    * @brief X11 shared-memory image dimensions and identifiers.
    */
   struct shm_attr_t: public x11_attr_t {
-    x11::xdisplay_t shm_xdisplay;  ///< X11 display held separately to prevent races with x11_attr_t::xdisplay.
+    x11::xdisplay_t shm_xdisplay {x11::OpenDisplay(nullptr)};  ///< X11 display held separately to prevent races with x11_attr_t::xdisplay.
     xcb_connect_t xcb;  ///< XCB connection used by the shared-memory capture path.
     xcb_screen_t *display;  ///< XCB screen containing the captured root window.
     std::uint32_t seg;  ///< XCB shared-memory segment ID attached to the image.
@@ -763,13 +760,12 @@ namespace platf {
     }
 
     /**
-     * @brief Open an X11 shared-memory capture backend.
+     * @brief Explicitly open an X11 shared-memory capture backend.
      *
      * @param mem_type Requested memory path for the capture backend.
      */
-    shm_attr_t(mem_type_e mem_type):
-        x11_attr_t(mem_type),
-        shm_xdisplay {x11::OpenDisplay(nullptr)} {
+    explicit shm_attr_t(mem_type_e mem_type):
+        x11_attr_t(mem_type) {
       refresh_task_id = task_pool.pushDelayed(&shm_attr_t::delayed_refresh, 2s, this).task_id;
     }
 
@@ -1073,7 +1069,7 @@ namespace platf {
     void cursor_t::capture(egl::cursor_t &img) {
       auto display = (xdisplay_t::pointer) ctx.get();
 
-      xcursor_t xcursor = fix::GetCursorImage(display);
+      xcursor_t xcursor {fix::GetCursorImage(display)};
 
       if (img.serial != xcursor->cursor_serial) {
         auto buf_size = xcursor->width * xcursor->height * sizeof(int);
@@ -1105,7 +1101,7 @@ namespace platf {
      * @brief Open and initialize the display connection used for capture.
      */
     xdisplay_t make_display() {
-      return OpenDisplay(nullptr);
+      return xdisplay_t {OpenDisplay(nullptr)};
     }
 
     /**

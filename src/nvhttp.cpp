@@ -73,8 +73,7 @@ namespace nvhttp {
      * @param private_key_file Path to the matching private key file.
      */
     SunshineHTTPSServer(const std::string &certification_file, const std::string &private_key_file):
-        ServerBase<SunshineHTTPS>::ServerBase(443),
-        context(boost::asio::ssl::context::tls_server) {
+        ServerBase<SunshineHTTPS>::ServerBase(443) {
       // Disabling TLS 1.0 and 1.1 (see RFC 8996)
       context.set_options(boost::asio::ssl::context::no_tlsv1);
       context.set_options(boost::asio::ssl::context::no_tlsv1_1);
@@ -86,7 +85,7 @@ namespace nvhttp {
     std::function<void(std::shared_ptr<Response>, std::shared_ptr<Request>)> on_verify_failed;  ///< Handler used to return the pairing challenge when client verification fails.
 
   protected:
-    boost::asio::ssl::context context;  ///< TLS server context configured with Sunshine's certificate and protocol policy.
+    boost::asio::ssl::context context {boost::asio::ssl::context::tls_server};  ///< TLS server context configured with Sunshine's certificate and protocol policy.
 
     /**
      * @brief Enable client-certificate verification after the listening socket is bound.

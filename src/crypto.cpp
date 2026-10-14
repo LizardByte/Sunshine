@@ -20,10 +20,7 @@ namespace crypto {
   using x509_name_t = util::safe_ptr<X509_NAME, &X509_NAME_free>;
   constexpr char UNPAIRED_CERTIFICATE_ERROR[] = "Client certificate identity is not paired";  ///< Error returned when no exact stored certificate matches.
 
-  cert_chain_t::cert_chain_t():
-      _certs {},
-      _cert_ctx {X509_STORE_CTX_new()} {
-  }
+  cert_chain_t::cert_chain_t() = default;
 
   void cert_chain_t::add(x509_t &&cert) {
     x509_store_t x509_store {X509_STORE_new()};
@@ -311,7 +308,7 @@ namespace crypto {
     }
 
     ecb_t::ecb_t(const aes_t &key_material, bool use_padding):
-        cipher_t {EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_new(), key_material, use_padding} {
+        cipher_t {cipher_ctx_t {EVP_CIPHER_CTX_new()}, cipher_ctx_t {EVP_CIPHER_CTX_new()}, key_material, use_padding} {
     }
 
     cbc_t::cbc_t(const aes_t &key_material, bool use_padding):

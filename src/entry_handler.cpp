@@ -131,11 +131,11 @@ namespace service_ctrl {
   class service_controller {
   public:
     /**
-     * @brief Open the Windows service manager and Sunshine service handle.
+     * @brief Explicitly open the Windows service manager and Sunshine service handle.
      *
      * @param service_desired_access SERVICE_* desired access flags.
      */
-    service_controller(DWORD service_desired_access) {
+    explicit service_controller(DWORD service_desired_access) {
       scm_handle = OpenSCManagerA(nullptr, nullptr, SC_MANAGER_CONNECT);
       if (!scm_handle) {
         auto winerr = GetLastError();
