@@ -532,11 +532,11 @@ namespace platf::publish {
     std::jthread poll_thread;  ///< Poll thread.
 
     /**
-     * @brief Store the Avahi polling thread for shutdown on destruction.
+     * @brief Explicitly store the Avahi polling thread for shutdown on destruction.
      *
      * @param poll_thread Poll thread.
      */
-    deinit_t(std::jthread poll_thread):
+    explicit deinit_t(std::jthread poll_thread):
         poll_thread {std::move(poll_thread)} {
     }
 

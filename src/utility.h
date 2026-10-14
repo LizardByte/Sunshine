@@ -330,11 +330,11 @@ namespace util {
     FailGuard() = delete;
 
     /**
-     * @brief Construct a fail guard that owns the cleanup callback.
+     * @brief Explicitly construct a fail guard that owns the cleanup callback.
      *
      * @param f Callable executed by the helper.
      */
-    FailGuard(T &&f) noexcept:
+    explicit FailGuard(T &&f) noexcept:
         _func {std::forward<T>(f)} {
     }
 
@@ -344,9 +344,8 @@ namespace util {
      * @param other Source object whose state is copied or moved into this object.
      */
     FailGuard(FailGuard &&other) noexcept:
+        failure {other.failure},
         _func {std::move(other._func)} {
-      this->failure = other.failure;
-
       other.failure = false;
     }
 
@@ -896,14 +895,18 @@ namespace util {
      */
     using deleter_type = D;
 
-    constexpr uniq_ptr() noexcept:
-        _p {nullptr} {
-    }
+    /**
+     * @brief Initialize an empty unique ownership wrapper.
+     */
+    constexpr uniq_ptr() noexcept = default;
 
     /**
-     * @brief Construct a unique ownership wrapper.
+     * @brief Construct an empty wrapper implicitly from nullptr, matching std::unique_ptr.
      */
-    constexpr uniq_ptr(std::nullptr_t) noexcept:
+#ifndef DOXYGEN
+    explicit(false)
+#endif
+      constexpr uniq_ptr(std::nullptr_t) noexcept:
         _p {nullptr} {
     }
 
@@ -911,34 +914,40 @@ namespace util {
     uniq_ptr &operator=(const uniq_ptr &other) noexcept = delete;
 
     /**
-     * @brief Construct a unique ownership wrapper.
+     * @brief Explicitly construct a unique ownership wrapper.
      *
      * @param p Pointer passed to the deleter or conversion helper.
      */
     template<class V>
-    uniq_ptr(V *p) noexcept:
+    explicit uniq_ptr(V *p) noexcept:
         _p {p} {
       static_assert(std::is_same_v<element_type, void> || std::is_same_v<element_type, V> || std::is_base_of_v<element_type, V>, "element_type must be base class of V");
     }
 
     /**
-     * @brief Construct a unique ownership wrapper.
+     * @brief Transfer compatible standard unique-pointer ownership implicitly.
      *
      * @param uniq Unique pointer whose owned value is transferred.
      */
     template<class V>
-    uniq_ptr(std::unique_ptr<V, deleter_type> &&uniq) noexcept:
+#ifndef DOXYGEN
+    explicit(false)
+#endif
+      uniq_ptr(std::unique_ptr<V, deleter_type> &&uniq) noexcept:
         _p {uniq.release()} {
       static_assert(std::is_same_v<element_type, void> || std::is_same_v<T, V> || std::is_base_of_v<element_type, V>, "element_type must be base class of V");
     }
 
     /**
-     * @brief Construct a unique ownership wrapper.
+     * @brief Transfer compatible Sunshine unique-pointer ownership implicitly.
      *
      * @param other Source object whose state is copied or moved into this object.
      */
     template<class V>
-    uniq_ptr(uniq_ptr<V, deleter_type> &&other) noexcept:
+#ifndef DOXYGEN
+    explicit(false)
+#endif
+      uniq_ptr(uniq_ptr<V, deleter_type> &&other) noexcept:
         _p {other.release()} {
       static_assert(std::is_same_v<element_type, void> || std::is_same_v<T, V> || std::is_base_of_v<element_type, V>, "element_type must be base class of V");
     }
@@ -1098,7 +1107,7 @@ namespace util {
     }
 
   protected:
-    pointer _p;  ///< Pointer currently owned by the wrapper.
+    pointer _p {nullptr};  ///< Pointer currently owned by the wrapper, initially empty.
     deleter_type _deleter;  ///< Callable used to release `_p`.
   };
 
@@ -1268,21 +1277,21 @@ namespace util {
     }
 
     /**
-     * @brief Construct an owning or non-owning wrapper around a raw pointer.
+     * @brief Explicitly construct an owning or non-owning wrapper around a raw pointer.
      *
      * @param p Pointer passed to the deleter or conversion helper.
      */
-    wrap_ptr(pointer p):
+    explicit wrap_ptr(pointer p):
         _own_ptr {false},
         _p {p} {
     }
 
     /**
-     * @brief Construct an owning or non-owning wrapper around a raw pointer.
+     * @brief Explicitly construct an owning or non-owning wrapper around a raw pointer.
      *
      * @param uniq_p Uniq p.
      */
-    wrap_ptr(std::unique_ptr<element_type> &&uniq_p):
+    explicit wrap_ptr(std::unique_ptr<element_type> &&uniq_p):
         _own_ptr {true},
         _p {uniq_p.release()} {
     }

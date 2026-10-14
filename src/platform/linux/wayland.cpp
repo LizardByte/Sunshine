@@ -359,8 +359,6 @@ namespace wl {
   }
 
   dmabuf_t::dmabuf_t():
-      status {READY},
-      frames {},
       current_frame {&frames[0]},
       listener {
         &CLASS_CALL(dmabuf_t, buffer),

@@ -1361,10 +1361,10 @@ namespace platf {
     virtual void sleep_for(const std::chrono::nanoseconds &duration) = 0;
 
     /**
-     * @brief Check if platform-specific timer backend has been initialized successfully
+     * @brief Explicitly check if platform-specific timer backend has been initialized successfully
      * @return `true` on success, `false` on error
      */
-    virtual operator bool() = 0;
+    virtual explicit operator bool() = 0;
   };
 
   /**

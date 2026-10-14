@@ -401,9 +401,9 @@ namespace wl {
       return current_frame == &frames[0] ? &frames[1] : &frames[0];
     }
 
-    status_e status;  ///< Current state of the active screencopy request.
+    status_e status {READY};  ///< Current state of the active screencopy request, initially ready.
     bool with_damage {false};  ///< Ask the compositor for the next frame that differs, rather than for a frame now.
-    std::array<frame_t, 2> frames;  ///< Double-buffered frame descriptors.
+    std::array<frame_t, 2> frames {};  ///< Double-buffered frame descriptors.
     frame_t *current_frame;  ///< Frame descriptor currently being filled by the compositor.
     zwlr_screencopy_frame_v1_listener listener;  ///< Callback table registered on screencopy frames.
 

@@ -209,9 +209,9 @@ namespace platf::dxgi {
      *
      * @param other Helper whose acquired keyed mutex is transferred.
      */
-    texture_lock_helper(texture_lock_helper &&other) {
+    texture_lock_helper(texture_lock_helper &&other):
+        _locked {other._locked} {
       _mutex.reset(other._mutex.release());
-      _locked = other._locked;
       other._locked = false;
     }
 
@@ -232,11 +232,11 @@ namespace platf::dxgi {
     }
 
     /**
-     * @brief Acquire a D3D keyed mutex for scoped texture access.
+     * @brief Explicitly acquire a D3D keyed mutex for scoped texture access.
      *
      * @param mutex Keyed mutex to acquire for texture access.
      */
-    texture_lock_helper(IDXGIKeyedMutex *mutex):
+    explicit texture_lock_helper(IDXGIKeyedMutex *mutex):
         _mutex(mutex) {
       if (_mutex) {
         _mutex->AddRef();
@@ -1550,7 +1550,7 @@ namespace platf::dxgi {
       // Finish creating the image (if it hasn't happened already),
       // also creates synchronization primitives for shared access from multiple direct3d devices.
       if (complete_img(d3d_img.get(), dummy)) {
-        return {nullptr, nullptr};
+        return {nullptr, texture_lock_helper {nullptr}};
       }
 
       // This image is shared between capture direct3d device and encoders direct3d devices,
@@ -1558,7 +1558,7 @@ namespace platf::dxgi {
       texture_lock_helper lock_helper(d3d_img->capture_mutex.get());
       if (!lock_helper.lock()) {
         BOOST_LOG(error) << "Failed to lock capture texture";
-        return {nullptr, nullptr};
+        return {nullptr, texture_lock_helper {nullptr}};
       }
 
       // Clear the blank flag now that we're ready to capture into the image

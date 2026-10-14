@@ -1633,11 +1633,11 @@ namespace platf {
   class qos_t: public deinit_t {
   public:
     /**
-     * @brief Store a Windows QoS flow ID for cleanup on destruction.
+     * @brief Explicitly store a Windows QoS flow ID for cleanup on destruction.
      *
      * @param flow_id Flow ID.
      */
-    qos_t(QOS_FLOWID flow_id):
+    explicit qos_t(QOS_FLOWID flow_id):
         flow_id(flow_id) {
     }
 
@@ -1843,7 +1843,12 @@ namespace platf {
       WaitForSingleObject(timer, INFINITE);
     }
 
-    operator bool() override {
+    /**
+     * @brief Explicitly check whether the timer backend is initialized.
+     *
+     * @return True when the platform timer is available.
+     */
+    explicit operator bool() override {
       return timer != nullptr;
     }
 

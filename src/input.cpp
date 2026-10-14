@@ -226,12 +226,10 @@ namespace input {
    * @brief Per-client gamepad slot and feedback state.
    */
   struct gamepad_t {
-    gamepad_t():
-        gamepad_state {},
-        back_timeout_id {},
-        id {-1},
-        back_button_state {button_state_e::NONE} {
-    }
+    /**
+     * @brief Initialize an unassigned gamepad slot with no pending button timeout.
+     */
+    gamepad_t() = default;
 
     ~gamepad_t() {
       if (id >= 0) {
@@ -245,18 +243,18 @@ namespace input {
       }
     }
 
-    platf::gamepad_state_t gamepad_state;  ///< Gamepad state.
+    platf::gamepad_state_t gamepad_state {};  ///< Gamepad state.
 
-    thread_pool_util::ThreadPool::task_id_t back_timeout_id;  ///< Back timeout ID.
+    thread_pool_util::ThreadPool::task_id_t back_timeout_id {};  ///< Back timeout ID.
 
-    int id;  ///< Global gamepad slot assigned to this client controller.
+    int id {-1};  ///< Global gamepad slot assigned to this client controller, or -1 when unassigned.
 
     // When emulating the HOME button, we may need to artificially release the back button.
     // Afterwards, the gamepad state on sunshine won't match the state on Moonlight.
     // To prevent Sunshine from sending erroneous input data to the active application,
     // Sunshine forces the button to be in a specific state until the gamepad state matches that of
     // Moonlight once more.
-    button_state_e back_button_state;  ///< Back button state.
+    button_state_e back_button_state {button_state_e::NONE};  ///< Back button state.
   };
 
   /**
@@ -292,7 +290,7 @@ namespace input {
     };
 
     /**
-     * @brief Construct input state from the mailbox and platform backend.
+     * @brief Construct input state with default controller slots and scroll accumulators.
      *
      * @param touch_port_event Event carrying the active touch port.
      * @param feedback_queue Queue used for controller feedback.
@@ -301,26 +299,19 @@ namespace input {
       safe::mail_raw_t::event_t<input::touch_port_t> touch_port_event,
       platf::feedback_queue_t feedback_queue
     ):
-        shortcutFlags {},
-        gamepads(MAX_GAMEPADS),
-        client_context {platf::allocate_client_input_context(platf_input)},
         touch_port_event {std::move(touch_port_event)},
-        feedback_queue {std::move(feedback_queue)},
-        mouse_left_button_timeout {},
-        touch_port {{0, 0, 0, 0, 0, 0}, 0, 0, 0.0f, 0.0f, 1.0f, 1.0f, 0, 0},
-        accumulated_vscroll_delta {},
-        accumulated_hscroll_delta {} {
+        feedback_queue {std::move(feedback_queue)} {
     }
 
     // Keep track of alt+ctrl+shift key combo
-    int shortcutFlags;  ///< Shortcut flags.
+    int shortcutFlags {};  ///< Shortcut flags.
 
     modifier_state_t shift_keys;  ///< Client Shift keys contributing to the aggregate Shift flag.
     modifier_state_t control_keys;  ///< Client Control keys contributing to the aggregate Control flag.
     modifier_state_t alt_keys;  ///< Client Alt keys contributing to the aggregate Alt flag.
 
-    std::vector<gamepad_t> gamepads;  ///< Virtual gamepad slots tracked for the stream.
-    std::unique_ptr<platf::client_input_t> client_context;  ///< Client context.
+    std::vector<gamepad_t> gamepads {MAX_GAMEPADS};  ///< Virtual gamepad slots tracked for the stream.
+    std::unique_ptr<platf::client_input_t> client_context {platf::allocate_client_input_context(platf_input)};  ///< Client context.
 
     safe::mail_raw_t::event_t<input::touch_port_t> touch_port_event;  ///< Touch port event.
     platf::feedback_queue_t feedback_queue;  ///< Queue used to deliver controller feedback to the platform backend.
@@ -329,12 +320,12 @@ namespace input {
     std::mutex input_queue_lock;  ///< Input queue lock.
     bool input_task_scheduled {};  ///< Whether one worker task owns packet dispatch for this stream; guarded by input_queue_lock.
 
-    thread_pool_util::ThreadPool::task_id_t mouse_left_button_timeout;  ///< Mouse left button timeout.
+    thread_pool_util::ThreadPool::task_id_t mouse_left_button_timeout {};  ///< Mouse left button timeout.
 
-    input::touch_port_t touch_port;  ///< Touch coordinate bounds for the current stream.
+    input::touch_port_t touch_port {{0, 0, 0, 0, 0, 0}, 0, 0, 0.0f, 0.0f, 1.0f, 1.0f, 0, 0};  ///< Touch coordinate bounds for the current stream.
 
-    int32_t accumulated_vscroll_delta;  ///< Accumulated vscroll delta.
-    int32_t accumulated_hscroll_delta;  ///< Accumulated hscroll delta.
+    int32_t accumulated_vscroll_delta {};  ///< Accumulated vscroll delta.
+    int32_t accumulated_hscroll_delta {};  ///< Accumulated hscroll delta.
   };
 
   /**

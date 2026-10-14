@@ -36,12 +36,12 @@ namespace sync_util {
     }
 
     /**
-     * @brief Initialize the protected object from forwarded arguments.
+     * @brief Explicitly initialize the protected object from forwarded arguments.
      *
      * @param args Arguments forwarded to the protected object's constructor.
      */
     template<class... Args>
-    sync_t(Args &&...args):
+    explicit sync_t(Args &&...args):
         raw {std::forward<Args>(args)...} {
     }
 

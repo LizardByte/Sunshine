@@ -45,11 +45,11 @@ namespace task_pool_util {
 
   public:
     /**
-     * @brief Store a concrete callable behind the task type-erasure interface.
+     * @brief Explicitly store a concrete callable behind the task type-erasure interface.
      *
      * @param f Callable executed by the helper.
      */
-    _Impl(Function &&f):
+    explicit _Impl(Function &&f):
         _func(std::forward<Function>(f)) {
     }
 

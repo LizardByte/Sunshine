@@ -546,11 +546,11 @@ namespace video {
   class nvenc_encode_session_t: public encode_session_t {
   public:
     /**
-     * @brief Initialize an NVENC encode session and take ownership of its device.
+     * @brief Explicitly initialize an NVENC encode session and take ownership of its device.
      *
      * @param encode_device Encode device.
      */
-    nvenc_encode_session_t(std::unique_ptr<platf::nvenc_encode_device_t> encode_device):
+    explicit nvenc_encode_session_t(std::unique_ptr<platf::nvenc_encode_device_t> encode_device):
         device(std::move(encode_device)) {
     }
 

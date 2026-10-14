@@ -752,11 +752,11 @@ namespace cuda {
     class ctx_t {
     public:
       /**
-       * @brief Create an NvFBC session context for a native capture handle.
+       * @brief Explicitly create an NvFBC session context for a native capture handle.
        *
        * @param session_handle Native library or object handle used by the operation.
        */
-      ctx_t(NVFBC_SESSION_HANDLE session_handle) {
+      explicit ctx_t(NVFBC_SESSION_HANDLE session_handle) {
         NVFBC_BIND_CONTEXT_PARAMS params {NVFBC_BIND_CONTEXT_PARAMS_VER};
 
         if (func.nvFBCBindContext(session_handle, &params)) {

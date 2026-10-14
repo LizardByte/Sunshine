@@ -33,14 +33,15 @@ namespace platf::publish {
      */
     class deinit_t: public ::platf::deinit_t, std::unique_ptr<DNSServiceRef, ServiceRefDeleter> {
     public:
-      /** @brief Construct deinit_t object.
+      /**
+       * @brief Explicitly construct deinit_t object.
        *
        * Create a thread that will use `select(2)` to wait for a response from the mDNS service.
        * The thread will give up if an error is received or if `_stopRequested` becomes true.
        *
        * @param serviceRef An initialized reference to the mDNS service.
        */
-      deinit_t(DNSServiceRef serviceRef):
+      explicit deinit_t(DNSServiceRef serviceRef):
           unique_ptr(serviceRef) {
         _thread = std::jthread {[serviceRef, &_stopRequested = std::as_const(_stopRequested)]() {
           platf::set_thread_name("publish::mdns");
