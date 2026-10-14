@@ -1148,6 +1148,7 @@ body {
    ========================================================================== */
 
 .navbar-sunshine {
+    --bs-navbar-nav-link-padding-x: 1rem;
     background: var(--navbar-bg);
     box-shadow: var(--shadow-md);
     border: none;
@@ -1162,7 +1163,7 @@ body {
     transform: scale(1.05);
 }
 
-.navbar-sunshine .navbar-nav .nav-link {
+.navbar-sunshine .nav-link {
     color: var(--navbar-text-muted);
     font-weight: 500;
     padding: 0.5rem 1rem;

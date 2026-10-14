@@ -77,6 +77,7 @@ const componentCases = [
   ['active breadcrumb', '<ol class="breadcrumb"><li class="breadcrumb-item active">Page</li></ol>', '.breadcrumb-item', { color: 'var(--color-text-muted)' }],
   ['page link', '<ul class="pagination"><li class="page-item"><a class="page-link">1</a></li></ul>', '.page-link', { color: 'var(--color-text-base)' }],
   ['navbar link', '<nav class="navbar navbar-expand-lg navbar-sunshine"><ul class="navbar-nav"><li><a class="nav-link">Page</a></li></ul></nav>', '.nav-link', { color: 'var(--navbar-text-muted)', paddingTop: '8px', paddingRight: '16px', paddingBottom: '8px', paddingLeft: '16px' }],
+  ['simple navbar theme control', '<nav class="navbar navbar-sunshine"><button class="nav-link">Theme</button></nav>', 'button', { color: 'var(--navbar-text-muted)', paddingTop: '8px', paddingRight: '16px', paddingBottom: '8px', paddingLeft: '16px' }],
   ['active navbar link', '<nav class="navbar-sunshine"><ul class="navbar-nav"><li><a class="nav-link active">Page</a></li></ul></nav>', '.nav-link', { color: 'var(--navbar-text)' }],
   ['open navbar dropdown', '<nav class="navbar-sunshine"><ul class="navbar-nav"><li><button class="nav-link dropdown-toggle show">Menu</button></li></ul></nav>', 'button', { color: 'var(--navbar-text)' }],
   ['navbar toggler', '<nav class="navbar-sunshine"><button class="navbar-toggler"></button></nav>', 'button', { color: 'var(--navbar-text)', borderTopColor: 'rgba(255, 255, 255, 0.2)' }],
