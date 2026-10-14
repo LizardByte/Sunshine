@@ -1034,9 +1034,8 @@ namespace video {
         {"enforce_hrd"s, &config::video.amd.amd_enforce_hrd},
         {"max_au_size"s, &config::video.amd.amd_max_au_size},
         {"level"s, [](const config_t &cfg) {
-           auto size = cfg.width * cfg.height;
            // For 4K and below, try to use level 5.1 or 5.2 if possible
-           if (size <= 8912896) {
+           if (auto size = cfg.width * cfg.height; size <= 8912896) {
              if (size * cfg.framerate <= 534773760) {
                return "5.1"s;
              } else if (size * cfg.framerate <= 1069547520) {

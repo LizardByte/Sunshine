@@ -109,8 +109,7 @@ namespace nvprefs {
     }
 
     // Modify and save sunshine.exe application profile settings, if needed
-    bool modified = false;
-    if (!pimpl->driver_settings.check_and_modify_application_profile(modified)) {
+    if (bool modified = false; !pimpl->driver_settings.check_and_modify_application_profile(modified)) {
       error_message("Failed to modify application profile settings");
       return false;
     } else if (modified) {

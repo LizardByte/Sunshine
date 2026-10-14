@@ -1041,9 +1041,8 @@ namespace platf {
 
     virtual ~qos_t() {
       if (--qos_ref_count == 0) {
-        for (const auto &tuple : options) {
-          auto reset_val = std::get<2>(tuple);
-          if (setsockopt(sockfd, std::get<0>(tuple), std::get<1>(tuple), &reset_val, sizeof(reset_val)) < 0) {
+        for (const auto &[level, option, reset_val] : options) {
+          if (setsockopt(sockfd, level, option, &reset_val, sizeof(reset_val)) < 0) {
             BOOST_LOG(warning) << "Failed to reset option: "sv << errno;
           }
         }

@@ -178,8 +178,7 @@ namespace platf {
   std::string from_sockaddr(const sockaddr *const socket_address) {
     std::array<char, INET6_ADDRSTRLEN> data = {};
 
-    auto family = socket_address->sa_family;
-    if (family == AF_INET6) {
+    if (auto family = socket_address->sa_family; family == AF_INET6) {
       inet_ntop(AF_INET6, &((const sockaddr_in6 *) socket_address)->sin6_addr, data.data(), INET6_ADDRSTRLEN);
     } else if (family == AF_INET) {
       inet_ntop(AF_INET, &((const sockaddr_in *) socket_address)->sin_addr, data.data(), INET_ADDRSTRLEN);
@@ -1768,8 +1767,7 @@ namespace platf {
    * @brief Read the current Windows high-resolution performance counter.
    */
   int64_t qpc_counter() {
-    LARGE_INTEGER performance_counter;
-    if (QueryPerformanceCounter(&performance_counter)) {
+    if (LARGE_INTEGER performance_counter; QueryPerformanceCounter(&performance_counter)) {
       return performance_counter.QuadPart;
     }
     return 0;
@@ -1785,8 +1783,7 @@ namespace platf {
       QueryPerformanceFrequency(&frequency);
       return frequency.QuadPart;
     };
-    static const double frequency = get_frequency();
-    if (frequency) {
+    if (static const double frequency = get_frequency(); frequency) {
       return std::chrono::nanoseconds((int64_t) ((performance_counter1 - performance_counter2) * frequency / std::nano::den));
     }
     return {};

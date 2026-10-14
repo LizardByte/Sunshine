@@ -101,49 +101,56 @@ namespace nvhttp {
       }
     }
 
+    /**
+     * @brief Process a completed TLS handshake under the callback's server lifetime guard.
+     *
+     * @param session Session whose TLS handshake has completed.
+     * @param ec Result of the asynchronous handshake.
+     * @pre The caller holds the session's handler scope guard.
+     */
+    void handle_handshake(const std::shared_ptr<Session> &session, const SimpleWeb::error_code &ec) {
+      if (!ec) {
+        if (verify && !verify(session->connection->socket->native_handle())) {
+          this->write(session, on_verify_failed);
+        } else {
+          this->read(session);
+        }
+      } else if (this->on_error) {
+        this->on_error(session->request, ec);
+      }
+    }
+
     // This is Server<HTTPS>::accept() with SSL validation support added
     /**
      * @brief Accept a pending connection and arm the server for the next client.
+     * @details Keep each handler's scope guard alive until all access to the server has finished.
      */
     void accept() override {
       auto connection = create_connection(*io_service, context);
 
       acceptor->async_accept(connection->socket->lowest_layer(), [this, connection](const SimpleWeb::error_code &ec) {
-        auto lock = connection->handler_runner->continue_lock();
-        if (!lock) {
-          return;
-        }
+        if (auto lock = connection->handler_runner->continue_lock(); lock) {
+          if (ec != SimpleWeb::error::operation_aborted) {
+            this->accept();
+          }
 
-        if (ec != SimpleWeb::error::operation_aborted) {
-          this->accept();
-        }
+          auto session = std::make_shared<Session>(config.max_request_streambuf_size, connection);
 
-        auto session = std::make_shared<Session>(config.max_request_streambuf_size, connection);
+          if (!ec) {
+            boost::asio::ip::tcp::no_delay option(true);
+            SimpleWeb::error_code option_error;
+            session->connection->socket->lowest_layer().set_option(option, option_error);
 
-        if (!ec) {
-          boost::asio::ip::tcp::no_delay option(true);
-          SimpleWeb::error_code option_error;
-          session->connection->socket->lowest_layer().set_option(option, option_error);
-
-          session->connection->set_timeout(config.timeout_request);
-          session->connection->socket->async_handshake(boost::asio::ssl::stream_base::server, [this, session](const SimpleWeb::error_code &ec) {
-            session->connection->cancel_timeout();
-            auto lock = session->connection->handler_runner->continue_lock();
-            if (!lock) {
-              return;
-            }
-            if (!ec) {
-              if (verify && !verify(session->connection->socket->native_handle())) {
-                this->write(session, on_verify_failed);
-              } else {
-                this->read(session);
+            session->connection->set_timeout(config.timeout_request);
+            session->connection->socket->async_handshake(boost::asio::ssl::stream_base::server, [this, session](const SimpleWeb::error_code &ec) {
+              session->connection->cancel_timeout();
+              if (auto lock = session->connection->handler_runner->continue_lock(); lock) {
+                this->handle_handshake(session, ec);
               }
-            } else if (this->on_error) {
-              this->on_error(session->request, ec);
-            }
-          });
-        } else if (this->on_error) {
-          this->on_error(session->request, ec);
+            });
+          } else if (this->on_error) {
+            this->on_error(session->request, ec);
+          }
         }
       });
     }
@@ -1844,6 +1851,25 @@ namespace nvhttp {
 
 #ifdef SUNSHINE_TESTS
   namespace test_support {
+    std::unique_ptr<SimpleWeb::ServerBase<SunshineHTTPS>> make_https_server(
+      const std::string &certificate_file,
+      const std::string &private_key_file,
+      std::shared_ptr<SimpleWeb::ScopeRunner> &handler_scope
+    ) {
+      /**
+       * @brief Expose the production HTTPS handler scope to lifetime regression tests.
+       */
+      class test_https_server_t: public SunshineHTTPSServer {
+      public:
+        using SunshineHTTPSServer::handler_runner;
+        using SunshineHTTPSServer::SunshineHTTPSServer;
+      };
+
+      auto server = std::make_unique<test_https_server_t>(certificate_file, private_key_file);
+      handler_scope = server->handler_runner;
+      return server;
+    }
+
     void pair_http(
       std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTP>::Response> response,
       std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTP>::Request> request

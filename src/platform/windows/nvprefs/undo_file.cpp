@@ -19,8 +19,7 @@ namespace {
     }
 
     safe_sid users_sid;
-    SID_IDENTIFIER_AUTHORITY nt_authorithy = SECURITY_NT_AUTHORITY;
-    if (!AllocateAndInitializeSid(&nt_authorithy, 2, SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_USERS, 0, 0, 0, 0, 0, 0, &users_sid)) {
+    if (SID_IDENTIFIER_AUTHORITY nt_authorithy = SECURITY_NT_AUTHORITY; !AllocateAndInitializeSid(&nt_authorithy, 2, SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_USERS, 0, 0, 0, 0, 0, 0, &users_sid)) {
       return GetLastError();
     }
 
@@ -109,8 +108,7 @@ namespace nvprefs {
       return false;
     }
 
-    DWORD bytes_written = 0;
-    if (!WriteFile(file_handle.get(), buffer.data(), buffer.size(), &bytes_written, nullptr) || bytes_written != buffer.size()) {
+    if (DWORD bytes_written = 0; !WriteFile(file_handle.get(), buffer.data(), buffer.size(), &bytes_written, nullptr) || bytes_written != buffer.size()) {
       error_message("Couldn't write undo file");
       return false;
     }
@@ -139,8 +137,7 @@ namespace nvprefs {
     }
 
     std::vector<char> buffer(file_size.QuadPart);
-    DWORD bytes_read = 0;
-    if (!ReadFile(file_handle.get(), buffer.data(), buffer.size(), &bytes_read, nullptr) || bytes_read != buffer.size()) {
+    if (DWORD bytes_read = 0; !ReadFile(file_handle.get(), buffer.data(), buffer.size(), &bytes_read, nullptr) || bytes_read != buffer.size()) {
       error_message("Couldn't read undo file");
       return std::nullopt;
     }

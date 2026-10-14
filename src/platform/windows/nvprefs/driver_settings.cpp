@@ -70,8 +70,7 @@ namespace nvprefs {
       return false;
     }
 
-    NvAPI_Status status = NvAPI_DRS_LoadSettings(session_handle);
-    if (status != NVAPI_OK) {
+    if (NvAPI_Status status = NvAPI_DRS_LoadSettings(session_handle); status != NVAPI_OK) {
       nvapi_error_message(status);
       error_message("NvAPI_DRS_LoadSettings() failed");
       destroy();
@@ -86,8 +85,7 @@ namespace nvprefs {
       return false;
     }
 
-    NvAPI_Status status = NvAPI_DRS_SaveSettings(session_handle);
-    if (status != NVAPI_OK) {
+    if (NvAPI_Status status = NvAPI_DRS_SaveSettings(session_handle); status != NVAPI_OK) {
       nvapi_error_message(status);
       error_message("NvAPI_DRS_SaveSettings() failed");
       return false;
@@ -101,8 +99,7 @@ namespace nvprefs {
       return false;
     }
 
-    const auto &swapchain_data = undo_data.get_opengl_swapchain();
-    if (swapchain_data) {
+    if (const auto &swapchain_data = undo_data.get_opengl_swapchain(); swapchain_data) {
       NvAPI_Status status;
 
       NvDRSProfileHandle profile_handle = nullptr;

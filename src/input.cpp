@@ -948,8 +948,7 @@ namespace input {
      */
     if (button == BUTTON_LEFT && release && !input->mouse_left_button_timeout) {
       auto f = [=]() {
-        auto left_released = mouse_press[BUTTON_LEFT];
-        if (left_released) {
+        if (auto left_released = mouse_press[BUTTON_LEFT]; left_released) {
           // Already released left button
           return;
         }
@@ -985,8 +984,7 @@ namespace input {
    * @return Remapped keycode when configured, otherwise the original keycode.
    */
   short map_keycode(short keycode) {
-    auto it = config::input.keybindings.find(keycode);
-    if (it != std::end(config::input.keybindings)) {
+    if (auto it = config::input.keybindings.find(keycode); it != std::end(config::input.keybindings)) {
       return it->second;
     }
 

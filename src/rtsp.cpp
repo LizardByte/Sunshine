@@ -529,8 +529,7 @@ namespace rtsp_stream {
      * @param req Parsed RTSP request being handled.
      */
     void handle_msg(tcp::socket &sock, launch_session_t &session, msg_t &&req) {
-      auto func = _map_cmd_cb.find(req->message.request.command);
-      if (func != std::end(_map_cmd_cb)) {
+      if (auto func = _map_cmd_cb.find(req->message.request.command); func != std::end(_map_cmd_cb)) {
         func->second(this, sock, session, std::move(req));
       } else {
         cmd_not_found(sock, session, std::move(req));
@@ -804,12 +803,12 @@ namespace rtsp_stream {
    * @param resp RTSP response string to send to the client.
    */
   void respond(tcp::socket &sock, launch_session_t &session, msg_t &resp) {
-    auto payload = std::make_pair(resp->payload, resp->payloadLength);
+    auto [payload, original_payload_length] = std::make_pair(resp->payload, resp->payloadLength);
 
     // Restore response message for proper destruction
     auto lg = util::fail_guard([&]() {
-      resp->payload = payload.first;
-      resp->payloadLength = payload.second;
+      resp->payload = payload;
+      resp->payloadLength = original_payload_length;
     });
 
     resp->payload = nullptr;
@@ -820,7 +819,7 @@ namespace rtsp_stream {
     BOOST_LOG(debug)
       << "---Begin Response---"sv << std::endl
       << std::string_view {raw_resp.get(), (std::size_t) serialized_len} << std::endl
-      << std::string_view {payload.first, (std::size_t) payload.second} << std::endl
+      << std::string_view {payload, (std::size_t) original_payload_length} << std::endl
       << "---End Response---"sv << std::endl;
 
     // Encrypt the RTSP message if encryption is enabled
@@ -840,21 +839,21 @@ namespace rtsp_stream {
       iv[11] = 'R';  // RTSP
 
       // Allocate the message with an empty header and reserved space for the payload
-      auto payload_length = serialized_len + payload.second;
+      auto message_length = serialized_len + original_payload_length;
       std::vector<uint8_t> message(sizeof(encrypted_rtsp_header_t));
-      message.reserve(message.size() + payload_length);
+      message.reserve(message.size() + message_length);
 
       // Copy the complete plaintext into the message
       std::copy_n(raw_resp.get(), serialized_len, std::back_inserter(message));
-      std::copy_n(payload.first, payload.second, std::back_inserter(message));
+      std::copy_n(payload, original_payload_length, std::back_inserter(message));
 
       // Initialize the message header
       auto header = (encrypted_rtsp_header_t *) message.data();
-      header->typeAndLength = util::endian::big<std::uint32_t>(encrypted_rtsp_header_t::ENCRYPTED_MESSAGE_TYPE_BIT + payload_length);
+      header->typeAndLength = util::endian::big<std::uint32_t>(encrypted_rtsp_header_t::ENCRYPTED_MESSAGE_TYPE_BIT + message_length);
       header->sequenceNumber = util::endian::big<std::uint32_t>(session.rtsp_iv_counter);
 
       // Encrypt the RTSP message in place
-      session.rtsp_cipher->encrypt(std::string_view {(const char *) header->payload(), (std::size_t) payload_length}, header->tag.data(), &iv);
+      session.rtsp_cipher->encrypt(std::string_view {(const char *) header->payload(), (std::size_t) message_length}, header->tag.data(), &iv);
 
       // Send the full encrypted message
       send(sock, std::string_view {(char *) message.data(), message.size()});
@@ -867,7 +866,7 @@ namespace rtsp_stream {
       }
 
       // Send the plaintext RTSP message payload (if present)
-      send(sock, std::string_view {payload.first, (std::size_t) payload.second});
+      send(sock, std::string_view {payload, (std::size_t) original_payload_length});
     }
   }
 
@@ -935,8 +934,7 @@ namespace rtsp_stream {
     uint32_t encryption_flags_requested = SS_ENC_CONTROL_V2;
 
     // Determine the encryption desired for this remote endpoint
-    auto encryption_mode = net::encryption_mode_for_address(sock.remote_endpoint().address());
-    if (encryption_mode != config::ENCRYPTION_MODE_NEVER) {
+    if (auto encryption_mode = net::encryption_mode_for_address(sock.remote_endpoint().address()); encryption_mode != config::ENCRYPTION_MODE_NEVER) {
       // Advertise support for video encryption if it's not disabled
       encryption_flags_supported |= SS_ENC_VIDEO;
 

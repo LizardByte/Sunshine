@@ -822,8 +822,7 @@ namespace safe {
     event_t<T> event(const std::string_view &id) {
       std::lock_guard lg {mutex};
 
-      auto it = id_to_post.find(id);
-      if (it != std::end(id_to_post)) {
+      if (auto it = id_to_post.find(id); it != std::end(id_to_post)) {
         return lock<event_t<T>>(it->second);
       }
 
@@ -843,8 +842,7 @@ namespace safe {
     queue_t<T> queue(const std::string_view &id) {
       std::lock_guard lg {mutex};
 
-      auto it = id_to_post.find(id);
-      if (it != std::end(id_to_post)) {
+      if (auto it = id_to_post.find(id); it != std::end(id_to_post)) {
         return lock<queue_t<T>>(it->second);
       }
 

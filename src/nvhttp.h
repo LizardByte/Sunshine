@@ -385,6 +385,20 @@ namespace nvhttp {
    */
   namespace test_support {
     /**
+     * @brief Create the production HTTPS server and expose its callback lifetime guard.
+     *
+     * @param certificate_file Path to the server certificate PEM file.
+     * @param private_key_file Path to the matching private key PEM file.
+     * @param handler_scope Receives the scope runner that prevents destruction during callbacks.
+     * @return HTTPS server ready for test endpoint configuration.
+     */
+    std::unique_ptr<SimpleWeb::ServerBase<SunshineHTTPS>> make_https_server(
+      const std::string &certificate_file,
+      const std::string &private_key_file,
+      std::shared_ptr<SimpleWeb::ScopeRunner> &handler_scope
+    );
+
+    /**
      * @brief Dispatch a plain-HTTP pairing request through the production handler.
      *
      * @param response HTTP response object to populate.
