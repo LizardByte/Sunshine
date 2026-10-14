@@ -1020,7 +1020,7 @@ namespace platf {
   // We can't track QoS state separately for each destination on this OS,
   // so we keep a ref count to only disable QoS options when all clients
   // are disconnected.
-  static std::atomic<int> qos_ref_count = 0;
+  static std::atomic qos_ref_count = 0;
 
   /**
    * @brief Linux QoS state used to tune socket priority while streaming.

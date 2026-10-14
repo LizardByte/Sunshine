@@ -154,7 +154,7 @@ namespace task_pool_util {
 
       auto future = task.get_future();
 
-      std::lock_guard<std::mutex> lg(_task_mutex);
+      std::lock_guard lg(_task_mutex);
       _tasks.emplace_back(toRunnable(std::move(task)));
 
       return future;
@@ -221,7 +221,7 @@ namespace task_pool_util {
      */
     template<class X, class Y>
     void delay(task_id_t task_id, std::chrono::duration<X, Y> duration) {
-      std::lock_guard<std::mutex> lg(_task_mutex);
+      std::lock_guard lg(_task_mutex);
 
       auto it = _timer_tasks.begin();
       for (; it < _timer_tasks.cend(); ++it) {
@@ -322,7 +322,7 @@ namespace task_pool_util {
      * @return True when the task was found and cancelled.
      */
     bool ready() {
-      std::lock_guard<std::mutex> lg(_task_mutex);
+      std::lock_guard lg(_task_mutex);
 
       return !_tasks.empty() || (!_timer_tasks.empty() && std::get<0>(_timer_tasks.back()) <= std::chrono::steady_clock::now());
     }
@@ -333,7 +333,7 @@ namespace task_pool_util {
      * @return Time point for the next queued timer task, or std::nullopt when none exist.
      */
     std::optional<__time_point> next() {
-      std::lock_guard<std::mutex> lg(_task_mutex);
+      std::lock_guard lg(_task_mutex);
 
       if (_timer_tasks.empty()) {
         return std::nullopt;

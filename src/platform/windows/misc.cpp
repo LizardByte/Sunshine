@@ -100,7 +100,7 @@ extern "C" {
 
 namespace {
 
-  std::atomic<bool> used_nt_set_timer_resolution = false;
+  std::atomic used_nt_set_timer_resolution = false;
 
   bool nt_set_timer_resolution_max() {
     ULONG maximum;

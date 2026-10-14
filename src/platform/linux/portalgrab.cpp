@@ -1081,7 +1081,7 @@ namespace portal {
     dbus_t dbus;  ///< DBus connection used for portal screencast requests.
 
     // Class variable to store runtime state of maxFramerate negotiation
-    static inline std::atomic<bool> negotiate_maxframerate {true};  ///< Whether portal negotiation should request the maximum frame rate.
+    static inline std::atomic negotiate_maxframerate {true};  ///< Whether portal negotiation should request the maximum frame rate.
   };
 }  // namespace portal
 
