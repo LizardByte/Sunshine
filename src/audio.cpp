@@ -156,43 +156,47 @@ namespace audio {
       return libraries_available() && find_encoder(codec_id) != nullptr;
     }
 
-    decltype(&avutil_version) util_version {};
-    decltype(&avcodec_version) codec_version {};
-    decltype(&av_channel_layout_from_mask) channel_layout_from_mask {};
-    decltype(&av_channel_layout_copy) channel_layout_copy {};
-    decltype(&avcodec_find_encoder) find_encoder {};
-    decltype(&avcodec_alloc_context3) alloc_context {};
-    decltype(&avcodec_open2) open_encoder {};
-    decltype(&avcodec_free_context) free_context {};
-    decltype(&avcodec_send_frame) send_frame {};
-    decltype(&avcodec_receive_packet) receive_packet {};
-    decltype(&av_frame_alloc) alloc_frame {};
-    decltype(&av_frame_free) free_frame {};
-    decltype(&av_frame_get_buffer) get_frame_buffer {};
-    decltype(&av_frame_make_writable) make_frame_writable {};
-    decltype(&av_packet_alloc) alloc_packet {};
-    decltype(&av_packet_free) free_packet {};
-    decltype(&av_packet_unref) unref_packet {};
+    struct api_symbols_t {
+      decltype(&avutil_version) util_version {};
+      decltype(&avcodec_version) codec_version {};
+      decltype(&av_channel_layout_from_mask) channel_layout_from_mask {};
+      decltype(&av_channel_layout_copy) channel_layout_copy {};
+      decltype(&avcodec_find_encoder) find_encoder {};
+      decltype(&avcodec_alloc_context3) alloc_context {};
+      decltype(&avcodec_open2) open_encoder {};
+      decltype(&avcodec_free_context) free_context {};
+      decltype(&avcodec_send_frame) send_frame {};
+      decltype(&avcodec_receive_packet) receive_packet {};
+      decltype(&av_frame_alloc) alloc_frame {};
+      decltype(&av_frame_free) free_frame {};
+      decltype(&av_frame_get_buffer) get_frame_buffer {};
+      decltype(&av_frame_make_writable) make_frame_writable {};
+      decltype(&av_packet_alloc) alloc_packet {};
+      decltype(&av_packet_free) free_packet {};
+      decltype(&av_packet_unref) unref_packet {};
+    };
+
+    api_symbols_t symbols_ {};
 
   private:
     void clear_symbols() {
-      util_version = nullptr;
-      codec_version = nullptr;
-      channel_layout_from_mask = nullptr;
-      channel_layout_copy = nullptr;
-      find_encoder = nullptr;
-      alloc_context = nullptr;
-      open_encoder = nullptr;
-      free_context = nullptr;
-      send_frame = nullptr;
-      receive_packet = nullptr;
-      alloc_frame = nullptr;
-      free_frame = nullptr;
-      get_frame_buffer = nullptr;
-      make_frame_writable = nullptr;
-      alloc_packet = nullptr;
-      free_packet = nullptr;
-      unref_packet = nullptr;
+      symbols_.util_version = nullptr;
+      symbols_.codec_version = nullptr;
+      symbols_.channel_layout_from_mask = nullptr;
+      symbols_.channel_layout_copy = nullptr;
+      symbols_.find_encoder = nullptr;
+      symbols_.alloc_context = nullptr;
+      symbols_.open_encoder = nullptr;
+      symbols_.free_context = nullptr;
+      symbols_.send_frame = nullptr;
+      symbols_.receive_packet = nullptr;
+      symbols_.alloc_frame = nullptr;
+      symbols_.free_frame = nullptr;
+      symbols_.get_frame_buffer = nullptr;
+      symbols_.make_frame_writable = nullptr;
+      symbols_.alloc_packet = nullptr;
+      symbols_.free_packet = nullptr;
+      symbols_.unref_packet = nullptr;
     }
 
     bool load_directory(const std::filesystem::path &directory) {
@@ -211,28 +215,28 @@ namespace audio {
       }
 
       const auto symbols_loaded =
-        load_ffmpeg_symbol(avutil_module, util_version, "avutil_version") &&
-        load_ffmpeg_symbol(avutil_module, channel_layout_from_mask, "av_channel_layout_from_mask") &&
-        load_ffmpeg_symbol(avutil_module, channel_layout_copy, "av_channel_layout_copy") &&
-        load_ffmpeg_symbol(avutil_module, alloc_frame, "av_frame_alloc") &&
-        load_ffmpeg_symbol(avutil_module, free_frame, "av_frame_free") &&
-        load_ffmpeg_symbol(avutil_module, get_frame_buffer, "av_frame_get_buffer") &&
-        load_ffmpeg_symbol(avutil_module, make_frame_writable, "av_frame_make_writable") &&
-        load_ffmpeg_symbol(avcodec_module, alloc_packet, "av_packet_alloc") &&
-        load_ffmpeg_symbol(avcodec_module, free_packet, "av_packet_free") &&
-        load_ffmpeg_symbol(avcodec_module, unref_packet, "av_packet_unref") &&
-        load_ffmpeg_symbol(avcodec_module, codec_version, "avcodec_version") &&
-        load_ffmpeg_symbol(avcodec_module, find_encoder, "avcodec_find_encoder") &&
-        load_ffmpeg_symbol(avcodec_module, alloc_context, "avcodec_alloc_context3") &&
-        load_ffmpeg_symbol(avcodec_module, open_encoder, "avcodec_open2") &&
-        load_ffmpeg_symbol(avcodec_module, free_context, "avcodec_free_context") &&
-        load_ffmpeg_symbol(avcodec_module, send_frame, "avcodec_send_frame") &&
-        load_ffmpeg_symbol(avcodec_module, receive_packet, "avcodec_receive_packet");
+        load_ffmpeg_symbol(avutil_module, symbols_.util_version, "avutil_version") &&
+        load_ffmpeg_symbol(avutil_module, symbols_.channel_layout_from_mask, "av_channel_layout_from_mask") &&
+        load_ffmpeg_symbol(avutil_module, symbols_.channel_layout_copy, "av_channel_layout_copy") &&
+        load_ffmpeg_symbol(avutil_module, symbols_.alloc_frame, "av_frame_alloc") &&
+        load_ffmpeg_symbol(avutil_module, symbols_.free_frame, "av_frame_free") &&
+        load_ffmpeg_symbol(avutil_module, symbols_.get_frame_buffer, "av_frame_get_buffer") &&
+        load_ffmpeg_symbol(avutil_module, symbols_.make_frame_writable, "av_frame_make_writable") &&
+        load_ffmpeg_symbol(avcodec_module, symbols_.alloc_packet, "av_packet_alloc") &&
+        load_ffmpeg_symbol(avcodec_module, symbols_.free_packet, "av_packet_free") &&
+        load_ffmpeg_symbol(avcodec_module, symbols_.unref_packet, "av_packet_unref") &&
+        load_ffmpeg_symbol(avcodec_module, symbols_.codec_version, "avcodec_version") &&
+        load_ffmpeg_symbol(avcodec_module, symbols_.find_encoder, "avcodec_find_encoder") &&
+        load_ffmpeg_symbol(avcodec_module, symbols_.alloc_context, "avcodec_alloc_context3") &&
+        load_ffmpeg_symbol(avcodec_module, symbols_.open_encoder, "avcodec_open2") &&
+        load_ffmpeg_symbol(avcodec_module, symbols_.free_context, "avcodec_free_context") &&
+        load_ffmpeg_symbol(avcodec_module, symbols_.send_frame, "avcodec_send_frame") &&
+        load_ffmpeg_symbol(avcodec_module, symbols_.receive_packet, "avcodec_receive_packet");
 
       if (const auto versions_match = symbols_loaded &&
-          (util_version() >> 16) == LIBAVUTIL_VERSION_MAJOR &&
-          (codec_version() >> 16) == LIBAVCODEC_VERSION_MAJOR &&
-          (find_encoder(AV_CODEC_ID_AC3) != nullptr || find_encoder(AV_CODEC_ID_EAC3) != nullptr);
+          (symbols_.util_version() >> 16) == LIBAVUTIL_VERSION_MAJOR &&
+          (symbols_.codec_version() >> 16) == LIBAVCODEC_VERSION_MAJOR &&
+          (symbols_.find_encoder(AV_CODEC_ID_AC3) != nullptr || symbols_.find_encoder(AV_CODEC_ID_EAC3) != nullptr);
           !versions_match) {
         FreeLibrary(avcodec_module);
         FreeLibrary(avutil_module);
@@ -289,13 +293,13 @@ namespace audio {
   public:
     ~ffmpeg_audio_encoder_t() {
       if (packet_) {
-        api_.free_packet(&packet_);
+        api_.symbols_.free_packet(&packet_);
       }
       if (frame_) {
-        api_.free_frame(&frame_);
+        api_.symbols_.free_frame(&frame_);
       }
       if (context_) {
-        api_.free_context(&context_);
+        api_.symbols_.free_context(&context_);
       }
     }
 
@@ -304,12 +308,12 @@ namespace audio {
         return false;
       }
 
-      const auto *codec = api_.find_encoder(codec_id);
+      const auto *codec = api_.symbols_.find_encoder(codec_id);
       if (!codec) {
         return false;
       }
 
-      context_ = api_.alloc_context(codec);
+      context_ = api_.symbols_.alloc_context(codec);
       if (!context_) {
         return false;
       }
@@ -322,8 +326,8 @@ namespace audio {
       channels_ = channels;
 
       const auto channel_layout = channels == 2 ? AV_CH_LAYOUT_STEREO : AV_CH_LAYOUT_5POINT1_BACK;
-      if (api_.channel_layout_from_mask(&context_->ch_layout, channel_layout) < 0 ||
-          api_.open_encoder(context_, codec, nullptr) < 0) {
+      if (api_.symbols_.channel_layout_from_mask(&context_->ch_layout, channel_layout) < 0 ||
+          api_.symbols_.open_encoder(context_, codec, nullptr) < 0) {
         return false;
       }
 
@@ -332,7 +336,7 @@ namespace audio {
         return false;
       }
 
-      frame_ = api_.alloc_frame();
+      frame_ = api_.symbols_.alloc_frame();
       if (!frame_) {
         return false;
       }
@@ -340,12 +344,12 @@ namespace audio {
       frame_->format = context_->sample_fmt;
       frame_->sample_rate = context_->sample_rate;
       frame_->nb_samples = context_->frame_size;
-      if (api_.channel_layout_copy(&frame_->ch_layout, &context_->ch_layout) < 0 ||
-          api_.get_frame_buffer(frame_, 0) < 0) {
+      if (api_.symbols_.channel_layout_copy(&frame_->ch_layout, &context_->ch_layout) < 0 ||
+          api_.symbols_.get_frame_buffer(frame_, 0) < 0) {
         return false;
       }
 
-      packet_ = api_.alloc_packet();
+      packet_ = api_.symbols_.alloc_packet();
       return packet_ != nullptr;
     }
 
@@ -354,7 +358,7 @@ namespace audio {
         return -1;
       }
 
-      if (api_.make_frame_writable(frame_) < 0) {
+      if (api_.symbols_.make_frame_writable(frame_) < 0) {
         return -1;
       }
 
@@ -368,19 +372,19 @@ namespace audio {
       frame_->pts = next_pts_;
       next_pts_ += frame_->nb_samples;
 
-      if (api_.send_frame(context_, frame_) < 0 || api_.receive_packet(context_, packet_) < 0) {
-        api_.unref_packet(packet_);
+      if (api_.symbols_.send_frame(context_, frame_) < 0 || api_.symbols_.receive_packet(context_, packet_) < 0) {
+        api_.symbols_.unref_packet(packet_);
         return -1;
       }
 
       const auto packet_size = packet_->size;
       if (packet_size <= 0 || static_cast<std::size_t>(packet_size) > output.size()) {
-        api_.unref_packet(packet_);
+        api_.symbols_.unref_packet(packet_);
         return -1;
       }
 
       std::copy_n(packet_->data, packet_size, std::begin(output));
-      api_.unref_packet(packet_);
+      api_.symbols_.unref_packet(packet_);
       return packet_size;
     }
 
