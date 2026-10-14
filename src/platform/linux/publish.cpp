@@ -478,13 +478,13 @@ namespace platf::publish {
   /**
    * @brief Add address records for the service host name to the entry group.
    *
-   * @param group Entry group the address records are added to.
+   * @param entry_group Entry group the address records are added to.
    * @param service_host Service host name the address records are published for.
    * @param addresses Addresses to publish for the service host name.
    * @return 0 when all address records were added; otherwise the Avahi error code from the failed call.
    */
   int add_service_addresses(
-    avahi::EntryGroup *group,
+    avahi::EntryGroup *entry_group,
     const std::string &service_host,
     const std::vector<boost::asio::ip::address> &addresses
   ) {
@@ -493,7 +493,7 @@ namespace platf::publish {
     for (const auto &address : addresses) {
       const auto avahi_address = to_avahi_address(address);
       const int ret = avahi::entry_group_add_address(
-        group,
+        entry_group,
         avahi::IF_UNSPEC,
         std::to_underlying(PROTO_UNSPEC),
         avahi::PublishFlags(0),
