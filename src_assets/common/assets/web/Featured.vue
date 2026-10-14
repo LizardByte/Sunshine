@@ -67,7 +67,7 @@
                 <h5 class="card-title mb-1">{{ app.name }}</h5>
                 <p class="text-muted small mb-0" v-if="app.tagline">{{ app.tagline }}</p>
               </div>
-              <span v-if="app.official" class="badge bg-primary flex-shrink-0 ms-2">{{ $t('featured.official') }}</span>
+              <span v-if="app.official" class="badge badge-primary flex-shrink-0 ms-2">{{ $t('featured.official') }}</span>
             </div>
 
             <p class="card-text text-muted small mb-3">{{ app.description }}</p>
@@ -117,7 +117,7 @@
 
             <!-- Platform Icons -->
             <div class="mb-3">
-              <span class="badge bg-secondary me-1" v-for="platform in app.platforms" :key="platform">
+              <span class="badge badge-secondary me-1" v-for="platform in app.platforms" :key="platform">
                 <smartphone v-if="platform === 'android'" :size="14" class="icon"></smartphone>
                 <gamepad2 v-else-if="platform === 'console'" :size="14" class="icon"></gamepad2>
                 <gamepad v-else-if="platform === 'handheld'" :size="14" class="icon"></gamepad>
