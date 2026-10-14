@@ -267,11 +267,24 @@ TEST(UtilityBufferTests, MoveConstruction) {
 
 TEST(UtilityBufferTests, CopyConstruction) {
   util::buffer_t buf1(3, 55);
+  buf1[1] = 66;
+  buf1[2] = 77;
   util::buffer_t<int> buf2(buf1);
   EXPECT_EQ(buf2.size(), 3U);
   EXPECT_EQ(buf2[0], 55);
+  EXPECT_EQ(buf2[1], 66);
+  EXPECT_EQ(buf2[2], 77);
   EXPECT_EQ(buf1.size(), 3U);
   EXPECT_EQ(buf1[0], 55);
+}
+
+TEST(UtilityBufferTests, CopiesAnEmptyLogicalRange) {
+  util::buffer_t buf(3, 42);
+  buf.fake_resize(0);
+  const util::buffer_t<int> copy(buf);
+  EXPECT_EQ(copy.size(), 0U);
+  EXPECT_EQ(copy.begin(), copy.end());
+  EXPECT_EQ(buf[0], 42);
 }
 
 TEST(UtilityBufferTests, SizeConstructionValueInitializesEveryElement) {

@@ -8,6 +8,7 @@
 
 #ifdef _WIN32
   // standard includes
+  #include <algorithm>
   #include <array>
   #include <bit>
   #include <cstdint>
@@ -85,6 +86,27 @@ TEST(WindowsCursorTest, StopsAtTheLastPixelInAPartialMaskByte) {
   EXPECT_TRUE(std::all_of(xor_image.begin(), xor_image.end(), [](auto byte) {
     return byte == 0xFF;
   }));
+}
+
+TEST(WindowsCursorTest, ProcessesEveryMaskedColorPixelAndPreservesTheInput) {
+  const std::array<std::uint32_t, 3> pixels {0xFF112233, 0x00123456, 0x7F445566};
+  const auto bytes = std::bit_cast<std::array<std::uint8_t, 12>>(pixels);
+  util::buffer_t<std::uint8_t> input {bytes.size()};
+  std::ranges::copy(bytes, input.begin());
+  const DXGI_OUTDUPL_POINTER_SHAPE_INFO shape {
+    .Type = DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR,
+    .Width = 3,
+    .Height = 1,
+    .Pitch = 12,
+  };
+
+  const auto alpha = platf::dxgi::make_cursor_alpha_image(input, shape);
+  const auto xor_image = platf::dxgi::make_cursor_xor_image(input, shape);
+  const std::array<std::uint32_t, 3> expected_alpha {0, 0xFF123456, 0x7F445566};
+  const std::array<std::uint32_t, 3> expected_xor {0xFF112233, 0, 0x7F445566};
+  EXPECT_TRUE((std::ranges::equal(alpha, std::bit_cast<std::array<std::uint8_t, 12>>(expected_alpha))));
+  EXPECT_TRUE((std::ranges::equal(xor_image, std::bit_cast<std::array<std::uint8_t, 12>>(expected_xor))));
+  EXPECT_TRUE(std::ranges::equal(input, bytes));
 }
 
 using platf::dxgi::fp16_transfer_e;

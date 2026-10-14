@@ -282,7 +282,7 @@ namespace task_pool_util {
     std::optional<std::pair<__time_point, __task>> pop(task_id_t task_id) {
       std::scoped_lock lg(_task_mutex);
 
-      auto pos = std::find_if(std::begin(_timer_tasks), std::end(_timer_tasks), [&task_id](const auto &t) {
+      auto pos = std::ranges::find_if(_timer_tasks, [&task_id](const auto &t) {
         return t.second.get() == task_id;
       });
 

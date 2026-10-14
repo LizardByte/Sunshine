@@ -5,10 +5,12 @@
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 // standard includes
+#include <algorithm>
 #include <array>
 #include <filesystem>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 // lib includes
@@ -18,6 +20,7 @@
 #include <boost/program_options/parsers.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
+#include <boost/range/algorithm/find_if.hpp>
 #include <boost/token_functions.hpp>
 #include <openssl/evp.h>
 #include <openssl/sha.h>
@@ -495,7 +498,7 @@ namespace proc {
               // Windows treats environment variable names in a case-insensitive manner,
               // so we look for a case-insensitive match here. This is critical for
               // correctly appending to PATH on Windows.
-              auto itr = std::find_if(env.cbegin(), env.cend(), [&](const auto &e) {
+              auto itr = boost::range::find_if(std::as_const(env), [&](const auto &e) {
                 return boost::iequals(e.get_name(), var_name);
               });
               if (itr != env.cend()) {
