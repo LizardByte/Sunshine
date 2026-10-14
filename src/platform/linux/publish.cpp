@@ -420,7 +420,7 @@ namespace platf::publish {
       BOOST_LOG(error) << "Failed to enumerate network interfaces."sv;
       return {};
     }
-    auto cleanup = util::fail_guard([&]() {
+    auto cleanup = util::fail_guard([&interfaces]() {
       freeifaddrs(interfaces);
     });
 
@@ -449,25 +449,63 @@ namespace platf::publish {
   std::vector<boost::asio::ip::address> served_addresses(net::af_e effective_family) {
     // An explicit, non-wildcard bind address is, by definition, an address
     // Sunshine serves: publish exactly it instead of enumerating interfaces.
-    if (!config::sunshine.bind_address.empty()) {
-      boost::system::error_code ec;
-      auto bind_address = boost::asio::ip::make_address(config::sunshine.bind_address, ec);
-      if (ec) {
-        BOOST_LOG(warning) << "Configured bind address is not a valid IP address, falling back to interface enumeration: "sv
-                           << config::sunshine.bind_address;
-      } else {
-        bind_address = net::normalize_address(bind_address);
-        if (!bind_address.is_unspecified()) {
-          if (effective_family == net::IPV4 && !bind_address.is_v4()) {
-            return {};
-          }
-          return {bind_address};
-        }
-      }
+    if (config::sunshine.bind_address.empty()) {
+      // A wildcard bind serves every local interface address of the effective family.
+      return select_served_addresses(enumerate_interface_addresses(), effective_family);
     }
 
-    // A wildcard (or unparsable) bind serves every local interface address of the effective family.
-    return select_served_addresses(enumerate_interface_addresses(), effective_family);
+    boost::system::error_code ec;
+    auto bind_address = boost::asio::ip::make_address(config::sunshine.bind_address, ec);
+    if (ec) {
+      BOOST_LOG(warning) << "Configured bind address is not a valid IP address, falling back to interface enumeration: "sv
+                         << config::sunshine.bind_address;
+      // An unparsable bind serves every local interface address of the effective family.
+      return select_served_addresses(enumerate_interface_addresses(), effective_family);
+    }
+
+    bind_address = net::normalize_address(bind_address);
+    if (bind_address.is_unspecified()) {
+      // A wildcard bind serves every local interface address of the effective family.
+      return select_served_addresses(enumerate_interface_addresses(), effective_family);
+    }
+
+    if (effective_family == net::IPV4 && !bind_address.is_v4()) {
+      return {};
+    }
+    return {bind_address};
+  }
+
+  /**
+   * @brief Add address records for the service host name to the entry group.
+   *
+   * @param group Entry group the address records are added to.
+   * @param service_host Service host name the address records are published for.
+   * @param addresses Addresses to publish for the service host name.
+   * @return 0 when all address records were added; otherwise the Avahi error code from the failed call.
+   */
+  int add_service_addresses(
+    avahi::EntryGroup *group,
+    const std::string &service_host,
+    const std::vector<boost::asio::ip::address> &addresses
+  ) {
+    using enum avahi::proto;
+
+    for (const auto &address : addresses) {
+      const auto avahi_address = to_avahi_address(address);
+      const int ret = avahi::entry_group_add_address(
+        group,
+        avahi::IF_UNSPEC,
+        std::to_underlying(PROTO_UNSPEC),
+        avahi::PublishFlags(0),
+        service_host.c_str(),
+        &avahi_address
+      );
+      if (ret < 0) {
+        BOOST_LOG(error) << "Failed to add avahi address for "sv << service_host << ": "sv << avahi::strerror(ret);
+        return ret;
+      }
+    }
+    return 0;
   }
 
   /**
@@ -515,6 +553,8 @@ namespace platf::publish {
    * @brief Publish Sunshine's mDNS service through Avahi.
    */
   void create_services(avahi::Client *c) {
+    using enum avahi::proto;
+
     int ret;
 
     auto fg = util::fail_guard([]() {
@@ -552,28 +592,17 @@ namespace platf::publish {
                            << "; falling back to the daemon host name, which may advertise unserved addresses (see #5860).";
       } else {
         service_target = service_host.c_str();
-        for (const auto &address : addresses) {
-          const auto avahi_address = to_avahi_address(address);
-          ret = avahi::entry_group_add_address(
-            group,
-            avahi::IF_UNSPEC,
-            std::to_underlying(avahi::proto::PROTO_UNSPEC),
-            avahi::PublishFlags(0),
-            service_host.c_str(),
-            &avahi_address
-          );
-          if (ret < 0) {
-            BOOST_LOG(error) << "Failed to add avahi address for "sv << service_host << ": "sv << avahi::strerror(ret);
-            avahi::entry_group_reset(group);
-            return;
-          }
+        ret = add_service_addresses(group, service_host, addresses);
+        if (ret < 0) {
+          avahi::entry_group_reset(group);
+          return;
         }
       }
 
       ret = avahi::entry_group_add_service(
         group,
         avahi::IF_UNSPEC,
-        std::to_underlying(avahi::proto::PROTO_UNSPEC),
+        std::to_underlying(PROTO_UNSPEC),
         avahi::PublishFlags(0),
         name.get(),
         platf::SERVICE_TYPE,

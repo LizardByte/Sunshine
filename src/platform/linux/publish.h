@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <format>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -79,12 +80,11 @@ namespace platf::publish {
 
     std::string suffix = "-sunshine";
     if (collision_suffix > 0) {
-      suffix += "-" + std::to_string(collision_suffix);
+      suffix += std::format("-{}", collision_suffix);
     }
 
     // A DNS label holds at most 63 characters.
-    constexpr std::size_t MAX_LABEL = 63;
-    if (label.size() + suffix.size() > MAX_LABEL) {
+    if (constexpr std::size_t MAX_LABEL = 63; label.size() + suffix.size() > MAX_LABEL) {
       label.resize(MAX_LABEL - suffix.size());
     }
 
@@ -103,7 +103,7 @@ namespace platf::publish {
    * @return Addresses to publish, containing no address outside the effective family.
    */
   [[nodiscard]] inline std::vector<boost::asio::ip::address> select_served_addresses(
-    std::vector<boost::asio::ip::address> candidates,
+    const std::vector<boost::asio::ip::address> &candidates,
     net::af_e effective_family
   ) {
     std::vector<boost::asio::ip::address> selected;
@@ -136,7 +136,7 @@ namespace platf::publish {
     if (address.is_v4()) {
       result.proto = std::to_underlying(avahi::proto::PROTO_INET);
       const auto bytes = address.to_v4().to_bytes();
-      std::copy(bytes.begin(), bytes.end(), result.data.begin());
+      std::ranges::copy(bytes, result.data.begin());
     } else {
       result.proto = std::to_underlying(avahi::proto::PROTO_INET6);
       result.data = address.to_v6().to_bytes();
