@@ -19,9 +19,12 @@ namespace rtsp_stream {
    * @brief RTSP launch session state shared with stream setup.
    */
   struct launch_session_t {
+    /**
+     * @brief Audio-related capabilities and codec choice exchanged during RTSP setup.
+     */
     struct audio_negotiation_t {
-      bool continuous_audio {};
-      std::string codec_offered;
+      bool continuous_audio {};  ///< Whether audio packets continue during silence.
+      std::string codec_offered;  ///< Dolby codec offered to the client, or empty when using Opus.
     };
 
     uint32_t id;  ///< RTSP launch-session identifier assigned before stream startup.

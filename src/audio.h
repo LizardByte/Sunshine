@@ -161,6 +161,13 @@ namespace audio {
    */
   bool eac3_available();
 
-  /** Select channel-aware Dolby bitrate in kbit/s; returns 0 for unsupported layouts. */
+  /**
+   * @brief Select a channel-aware bitrate for Dolby audio encoding.
+   *
+   * @param eac3 True to select E-AC-3; false to select AC-3.
+   * @param high_quality Whether to use the higher Dolby bitrate.
+   * @param channels Number of output audio channels (stereo or 5.1).
+   * @return The selected bitrate in kbit/s, or 0 for unsupported channel layouts.
+   */
   int dolby_bitrate_kbps(bool eac3, bool high_quality, int channels);
 }  // namespace audio
