@@ -252,7 +252,7 @@
     "external_ip": "External IP",
     "external_ip_desc": "If no external IP address is given, Sunshine will automatically detect external IP",
     "fec_percentage": "FEC Percentage",
-    "fec_percentage_desc": "Percentage of error correcting packets per data packet in each video frame. Higher values can correct for more network packet loss, but at the cost of increasing bandwidth usage.",
+    "fec_percentage_desc": "Percentage of error correcting packets per data packet in each video frame. Set to 0 to disable forward error correction. Higher values can correct for more network packet loss, but at the cost of increasing bandwidth usage.",
     "ffmpeg_auto": "auto -- let ffmpeg decide (default)",
     "file_apps": "Apps File",
     "file_apps_desc": "The file where current apps of Sunshine are stored.",
