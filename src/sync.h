@@ -29,10 +29,10 @@ namespace sync_util {
     /**
      * @brief Acquire the underlying lock or keyed mutex.
      *
-     * @return Lock guard owning the synchronized object until destruction.
+     * @return Scoped lock owning the synchronized object until destruction.
      */
-    std::lock_guard<mutex_t> lock() {
-      return std::lock_guard {_lock};
+    std::scoped_lock<mutex_t> lock() {
+      return std::scoped_lock {_lock};
     }
 
     /**

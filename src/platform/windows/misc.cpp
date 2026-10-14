@@ -829,7 +829,7 @@ namespace platf {
       // Overriding these predefined keys affects process-wide state, so serialize all calls
       // to ensure the handle state is consistent while we perform the command query.
       static std::mutex per_user_key_mutex;
-      auto lg = std::lock_guard(per_user_key_mutex);
+      auto lg = std::scoped_lock(per_user_key_mutex);
 
       // Override HKEY_CLASSES_ROOT and HKEY_CURRENT_USER to ensure we query the correct class info
       if (!override_per_user_predefined_keys(token)) {
