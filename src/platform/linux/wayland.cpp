@@ -58,17 +58,17 @@ namespace wl {
     reset();
   }
 
-  bool gbm_device_t::init(const std::string &render_path, const gbm_device_accessors_t &accessors) {
+  bool gbm_device_t::init(const std::string &render_path, const gbm_device_accessors_t &device_accessors) {
     reset();
-    this->accessors = accessors;
+    accessors = device_accessors;
 
-    drm_fd = accessors.open_render_node(render_path.c_str());
+    drm_fd = device_accessors.open_render_node(render_path.c_str());
     if (drm_fd < 0) {
       BOOST_LOG(error) << "[wayland] Failed to open DRM render node: "sv << render_path;
       return false;
     }
 
-    device = accessors.create_device(drm_fd);
+    device = device_accessors.create_device(drm_fd);
     if (!device) {
       BOOST_LOG(error) << "[wayland] Failed to create GBM device"sv;
       reset();
@@ -270,35 +270,35 @@ namespace wl {
   void interface_t::add_interface(
     wl_registry *registry,
     std::uint32_t id,
-    const char *interface,
+    const char *interface_name,
     std::uint32_t version
   ) {
-    BOOST_LOG(debug) << "[wayland] Available interface: "sv << interface << '(' << id << ") version "sv << version;
+    BOOST_LOG(debug) << "[wayland] Available interface: "sv << interface_name << '(' << id << ") version "sv << version;
 
-    if (!std::strcmp(interface, wl_output_interface.name)) {
-      BOOST_LOG(info) << "[wayland] Found interface: "sv << interface << '(' << id << ") version "sv << version;
+    if (!std::strcmp(interface_name, wl_output_interface.name)) {
+      BOOST_LOG(info) << "[wayland] Found interface: "sv << interface_name << '(' << id << ") version "sv << version;
       monitors.emplace_back(
         std::make_unique<monitor_t>(
           (wl_output *) wl_registry_bind(registry, id, &wl_output_interface, 2)
         )
       );
-    } else if (!std::strcmp(interface, zxdg_output_manager_v1_interface.name)) {
-      BOOST_LOG(info) << "[wayland] Found interface: "sv << interface << '(' << id << ") version "sv << version;
+    } else if (!std::strcmp(interface_name, zxdg_output_manager_v1_interface.name)) {
+      BOOST_LOG(info) << "[wayland] Found interface: "sv << interface_name << '(' << id << ") version "sv << version;
       output_manager = (zxdg_output_manager_v1 *) wl_registry_bind(registry, id, &zxdg_output_manager_v1_interface, version);
 
-      this->interface[XDG_OUTPUT] = true;
-    } else if (!std::strcmp(interface, zwlr_screencopy_manager_v1_interface.name)) {
-      BOOST_LOG(info) << "[wayland] Found interface: "sv << interface << '(' << id << ") version "sv << version;
+      interface[XDG_OUTPUT] = true;
+    } else if (!std::strcmp(interface_name, zwlr_screencopy_manager_v1_interface.name)) {
+      BOOST_LOG(info) << "[wayland] Found interface: "sv << interface_name << '(' << id << ") version "sv << version;
       screencopy_manager = (zwlr_screencopy_manager_v1 *) wl_registry_bind(registry, id, &zwlr_screencopy_manager_v1_interface, version);
       screencopy_version = version;
 
-      this->interface[WLR_EXPORT_DMABUF] = true;
-    } else if (!std::strcmp(interface, zwp_linux_dmabuf_v1_interface.name)) {
-      BOOST_LOG(info) << "[wayland] Found interface: "sv << interface << '(' << id << ") version "sv << version;
+      interface[WLR_EXPORT_DMABUF] = true;
+    } else if (!std::strcmp(interface_name, zwp_linux_dmabuf_v1_interface.name)) {
+      BOOST_LOG(info) << "[wayland] Found interface: "sv << interface_name << '(' << id << ") version "sv << version;
       dmabuf_interface = (zwp_linux_dmabuf_v1 *) wl_registry_bind(registry, id, &zwp_linux_dmabuf_v1_interface, std::min(version, 3u));
       zwp_linux_dmabuf_v1_add_listener(dmabuf_interface, &dmabuf_listener, this);
 
-      this->interface[LINUX_DMABUF] = true;
+      interface[LINUX_DMABUF] = true;
     }
   }
 
@@ -376,14 +376,14 @@ namespace wl {
   void dmabuf_t::listen(
     zwlr_screencopy_manager_v1 *screencopy_manager,
     zwp_linux_dmabuf_v1 *dmabuf_interface,
-    const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers,
+    const std::map<std::uint32_t, std::vector<std::uint64_t>> *compositor_formats,
     wl_output *output,
     bool blend_cursor,
-    const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers
+    const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_formats
   ) {
     this->dmabuf_interface = dmabuf_interface;
-    this->supported_modifiers = supported_modifiers;
-    this->encoder_modifiers = encoder_modifiers;
+    supported_modifiers = compositor_formats;
+    encoder_modifiers = encoder_formats;
     // Reset state
     shm_info.supported = false;
     dmabuf_info.supported = false;

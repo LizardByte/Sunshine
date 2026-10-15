@@ -214,10 +214,10 @@ namespace wl {
      * @brief Open the render node and create the GBM device on it.
      *
      * @param render_path Path of the DRM render node.
-     * @param accessors Functions used to open the node and create the device.
+     * @param device_accessors Functions used to open the node and create the device.
      * @return `true` when the device is ready, `false` when nothing is held.
      */
-    bool init(const std::string &render_path, const gbm_device_accessors_t &accessors);
+    bool init(const std::string &render_path, const gbm_device_accessors_t &device_accessors);
 
     /**
      * @brief Destroy the GBM device and close the render-node descriptor.
@@ -303,12 +303,12 @@ namespace wl {
      *
      * @param screencopy_manager Compositor screencopy manager used to request frames.
      * @param dmabuf_interface Compositor DMA-BUF interface used to allocate buffers.
-     * @param supported_modifiers DMA-BUF format modifiers supported by the compositor.
+     * @param compositor_formats DMA-BUF format modifiers supported by the compositor.
      * @param output Wayland output to capture.
      * @param blend_cursor Whether the compositor should include the cursor in the frame.
-     * @param encoder_modifiers Optional modifiers supported by the encoder for format intersection.
+     * @param encoder_formats Optional modifiers supported by the encoder for format intersection.
      */
-    void listen(zwlr_screencopy_manager_v1 *screencopy_manager, zwp_linux_dmabuf_v1 *dmabuf_interface, const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers, wl_output *output, bool blend_cursor = false, const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers = nullptr);
+    void listen(zwlr_screencopy_manager_v1 *screencopy_manager, zwp_linux_dmabuf_v1 *dmabuf_interface, const std::map<std::uint32_t, std::vector<std::uint64_t>> *compositor_formats, wl_output *output, bool blend_cursor = false, const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_formats = nullptr);
     /**
      * @brief Store the Wayland buffer created for a DMA-BUF parameter request.
      *
@@ -609,7 +609,15 @@ namespace wl {
     zxdg_output_manager_v1 *output_manager {nullptr};  ///< xdg-output global used to query monitor names and sizes.
 
   private:
-    void add_interface(wl_registry *registry, std::uint32_t id, const char *interface, std::uint32_t version);
+    /**
+     * @brief Bind supported globals advertised by the Wayland registry.
+     *
+     * @param registry Registry advertising the global.
+     * @param id Numeric name used to bind the global.
+     * @param interface_name Protocol interface name advertised by the compositor.
+     * @param version Protocol version advertised for the global.
+     */
+    void add_interface(wl_registry *registry, std::uint32_t id, const char *interface_name, std::uint32_t version);
     void del_interface(wl_registry *registry, uint32_t id);
 
     std::bitset<MAX_INTERFACES> interface;
