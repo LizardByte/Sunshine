@@ -721,7 +721,7 @@ namespace platf {
       if (!img) {
         return -1;
       };
-      auto pull_dummy_img_callback = [&img](std::shared_ptr<platf::img_t> &img_out) -> bool {
+      auto pull_dummy_img_callback = [&img](std::shared_ptr<platf::img_t> &img_out) {
         img_out = img->shared_from_this();
         return true;
       };

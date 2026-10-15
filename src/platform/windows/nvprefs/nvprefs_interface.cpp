@@ -141,7 +141,7 @@ namespace nvprefs {
       return true;
     }
 
-    auto make_undo_and_commit = [&]() -> bool {
+    auto make_undo_and_commit = [&]() {
       // Create and lock undo file if it hasn't been done yet
       if (!pimpl->undo_file) {
         // Prepare Sunshine folder in ProgramData if it doesn't exist

@@ -1652,7 +1652,7 @@ namespace video {
       }
     };
 
-    auto pull_free_image_callback = [&capture_ctx_queue, &imgs, &disp, &trim_imgs](std::shared_ptr<platf::img_t> &img_out) -> bool {
+    auto pull_free_image_callback = [&capture_ctx_queue, &imgs, &disp, &trim_imgs](std::shared_ptr<platf::img_t> &img_out) {
       img_out.reset();
       while (capture_ctx_queue->running()) {
         // pick first allocated but unused
@@ -1703,7 +1703,7 @@ namespace video {
     while (capture_ctx_queue->running()) {
       bool artificial_reinit = false;
 
-      auto push_captured_image_callback = [&capture_ctxs, &capture_ctx_queue, &switch_display_event, &artificial_reinit](std::shared_ptr<platf::img_t> &&img, bool frame_captured) -> bool {
+      auto push_captured_image_callback = [&capture_ctxs, &capture_ctx_queue, &switch_display_event, &artificial_reinit](std::shared_ptr<platf::img_t> &&img, bool frame_captured) {
         KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
           if (!capture_ctx->images->running()) {
             capture_ctx = capture_ctxs.erase(capture_ctx);
@@ -2738,7 +2738,7 @@ namespace video {
 
     auto ec = platf::capture_e::ok;
     while (encode_session_ctx_queue.running()) {
-      auto push_captured_image_callback = [&](std::shared_ptr<platf::img_t> &&captured_image, bool frame_captured) -> bool {
+      auto push_captured_image_callback = [&](std::shared_ptr<platf::img_t> &&captured_image, bool frame_captured) {
         while (encode_session_ctx_queue.peek()) {
           auto encode_session_ctx = encode_session_ctx_queue.pop();
           if (!encode_session_ctx) {
@@ -2811,7 +2811,7 @@ namespace video {
         return true;
       };
 
-      auto pull_free_image_callback = [&img](std::shared_ptr<platf::img_t> &img_out) -> bool {
+      auto pull_free_image_callback = [&img](std::shared_ptr<platf::img_t> &img_out) {
         img_out = img;
         img_out->frame_timestamp.reset();
         return true;

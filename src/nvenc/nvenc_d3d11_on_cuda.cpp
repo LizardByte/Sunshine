@@ -178,7 +178,7 @@ namespace NVENC_NAMESPACE {
       return false;
     }
 
-    auto unmap = [&]() -> bool {
+    auto unmap = [&]() {
       if (cuda_failed(cuda_functions.cuGraphicsUnmapResources(1, &cuda_d3d_input_texture, 0))) {
         BOOST_LOG(error) << "NvEnc: cuGraphicsUnmapResources() failed: error " << last_cuda_error;
         return false;
