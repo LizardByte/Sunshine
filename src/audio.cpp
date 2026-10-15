@@ -114,6 +114,12 @@ namespace audio {
    */
   class ffmpeg_audio_encoder_t {
   public:
+    ffmpeg_audio_encoder_t() = default;
+    ffmpeg_audio_encoder_t(const ffmpeg_audio_encoder_t &) = delete;
+    ffmpeg_audio_encoder_t &operator=(const ffmpeg_audio_encoder_t &) = delete;
+    ffmpeg_audio_encoder_t(ffmpeg_audio_encoder_t &&) = delete;
+    ffmpeg_audio_encoder_t &operator=(ffmpeg_audio_encoder_t &&) = delete;
+
     ~ffmpeg_audio_encoder_t() {
       if (packet_) {
         av_packet_free(&packet_);
@@ -156,8 +162,8 @@ namespace audio {
       context_->thread_count = 1;
       channels_ = channels;
 
-      const auto channel_layout = channels == 2 ? AV_CH_LAYOUT_STEREO : AV_CH_LAYOUT_5POINT1_BACK;
-      if (av_channel_layout_from_mask(&context_->ch_layout, channel_layout) < 0 ||
+      if (const auto channel_layout = channels == 2 ? AV_CH_LAYOUT_STEREO : AV_CH_LAYOUT_5POINT1_BACK;
+          av_channel_layout_from_mask(&context_->ch_layout, channel_layout) < 0 ||
           avcodec_open2(context_, codec, nullptr) < 0) {
         return false;
       }
@@ -498,19 +504,21 @@ namespace audio {
     config_t &config, std::string_view offered, std::string_view accepted,
     bool ac3_encoder_available, bool eac3_encoder_available, bool high_quality
   ) {
+    using enum audio::dolby_codec_e;
+
     config.use_ac3 = false;
     config.use_eac3 = false;
     config.high_quality_dolby = false;
     const bool supported_channel_count = config.channels == 2 || config.channels == 6;
-    auto selected_codec = dolby_codec_e::opus;
+    auto selected_codec = opus;
     if (supported_channel_count && offered == "AC3" && accepted == offered && ac3_encoder_available) {
-      selected_codec = dolby_codec_e::ac3;
+      selected_codec = ac3;
     } else if (supported_channel_count && offered == "EAC3" && accepted == offered && eac3_encoder_available) {
-      selected_codec = dolby_codec_e::eac3;
+      selected_codec = eac3;
     }
-    if (selected_codec != dolby_codec_e::opus) {
-      config.use_ac3 = selected_codec == dolby_codec_e::ac3;
-      config.use_eac3 = selected_codec == dolby_codec_e::eac3;
+    if (selected_codec != opus) {
+      config.use_ac3 = selected_codec == ac3;
+      config.use_eac3 = selected_codec == eac3;
       config.packetDuration = 32;
       config.flags[config_t::HIGH_QUALITY] = true;
       config.flags[config_t::CUSTOM_SURROUND_PARAMS] = false;
@@ -520,10 +528,12 @@ namespace audio {
   }
 
   std::string_view dolby_codec_name(dolby_codec_e codec) {
+    using enum audio::dolby_codec_e;
+
     switch (codec) {
-      case dolby_codec_e::ac3: return "AC3";
-      case dolby_codec_e::eac3: return "EAC3";
-      case dolby_codec_e::opus:
+      case ac3: return "AC3";
+      case eac3: return "EAC3";
+      case opus:
       default: return "Opus";
     }
   }
