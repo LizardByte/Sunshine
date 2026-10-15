@@ -21,16 +21,17 @@ namespace wl {
   static int env_height;
 
   bool use_vram_capture(platf::mem_type_e hwdevice_type) {
-    if (hwdevice_type == platf::mem_type_e::vaapi) {
+    using enum platf::mem_type_e;
+    if (hwdevice_type == vaapi) {
       return true;
     }
 
-    if (hwdevice_type == platf::mem_type_e::vulkan) {
+    if (hwdevice_type == vulkan) {
       return true;
     }
 
 #ifdef SUNSHINE_BUILD_CUDA
-    if (hwdevice_type == platf::mem_type_e::cuda) {
+    if (hwdevice_type == cuda) {
       return true;
     }
 #endif
@@ -63,8 +64,9 @@ namespace wl {
   }
 
   screencopy_request_e next_screencopy_request(bool pending, bool requested_cursor, bool cursor, bool event_driven, bool have_frame) {
+    using enum screencopy_request_e;
     if (pending) {
-      return requested_cursor == cursor ? screencopy_request_e::keep : screencopy_request_e::copy;
+      return requested_cursor == cursor ? keep : copy;
     }
 
     // The first frame is asked for outright, and so is the first one after
@@ -72,7 +74,7 @@ namespace wl {
     // request for the next change would leave the stream without anything
     // to show, or with the cursor as it was, until something moved.
     const bool up_to_date = have_frame && requested_cursor == cursor;
-    return event_driven && up_to_date ? screencopy_request_e::copy_with_damage : screencopy_request_e::copy;
+    return event_driven && up_to_date ? copy_with_damage : copy;
   }
 
   bool should_wait_for_damage_request(

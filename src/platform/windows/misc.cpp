@@ -2,6 +2,16 @@
  * @file src/platform/windows/misc.cpp
  * @brief Miscellaneous definitions for Windows.
  */
+
+// TODO: Revisit this override when formalizing the Windows 11 minimum API target.
+#ifndef NTDDI_VERSION
+  /**
+   * @def NTDDI_VERSION
+   * @brief Target Windows 10 APIs before Boost or Windows headers select a default.
+   */
+  #define NTDDI_VERSION NTDDI_WIN10
+#endif
+
 // standard includes
 #include <array>
 #include <csignal>
@@ -37,16 +47,8 @@
 #include <WS2tcpip.h>
 #include <WtsApi32.h>
 #include <sddl.h>
-// clang-format on
-
-// Boost overrides NTDDI_VERSION, so we re-override it here
-#undef NTDDI_VERSION
-/**
- * @def NTDDI_VERSION
- * @brief Macro for NTDDI VERSION.
- */
-#define NTDDI_VERSION NTDDI_WIN10
 #include <Shlwapi.h>
+// clang-format on
 
 // local includes
 #include "misc.h"

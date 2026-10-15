@@ -1032,9 +1032,9 @@ namespace platf {
      * @brief Apply Linux socket priority and DSCP QoS settings for scoped cleanup.
      *
      * @param sockfd Native socket descriptor whose options are updated.
-     * @param options Request options or socket options to apply.
+     * @param options Socket options copied into this cleanup object's owned storage.
      */
-    qos_t(int sockfd, std::vector<std::tuple<int, int, int>> options):
+    qos_t(int sockfd, const std::vector<std::tuple<int, int, int>> &options):
         sockfd(sockfd),
         options(options) {
       qos_ref_count++;

@@ -115,7 +115,7 @@ namespace nvprefs {
       status = NvAPI_DRS_GetSetting(session_handle, profile_handle, OGL_CPL_PREFER_DXPRESENT_ID, &setting);
 
       if (status == NVAPI_OK && setting.settingLocation == NVDRS_CURRENT_PROFILE_LOCATION && setting.u32CurrentValue == swapchain_data->our_value) {
-        if (swapchain_data->undo_value) {
+        if (swapchain_data->undo_value.has_value()) {
           setting = {};
           setting.version = NVDRS_SETTING_VER1;
           setting.settingId = OGL_CPL_PREFER_DXPRESENT_ID;

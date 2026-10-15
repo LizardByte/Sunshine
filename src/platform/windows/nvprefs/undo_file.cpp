@@ -48,7 +48,7 @@ namespace {
 
 namespace nvprefs {
 
-  std::optional<undo_file_t> undo_file_t::open_existing_file(std::filesystem::path file_path, bool &access_denied) {
+  std::optional<undo_file_t> undo_file_t::open_existing_file(const std::filesystem::path &file_path, bool &access_denied) {
     undo_file_t file;
     file.file_handle.reset(CreateFileW(file_path.c_str(), GENERIC_READ | DELETE, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
     if (file.file_handle) {
@@ -61,7 +61,7 @@ namespace nvprefs {
     }
   }
 
-  std::optional<undo_file_t> undo_file_t::create_new_file(std::filesystem::path file_path) {
+  std::optional<undo_file_t> undo_file_t::create_new_file(const std::filesystem::path &file_path) {
     undo_file_t file;
     file.file_handle.reset(CreateFileW(file_path.c_str(), GENERIC_WRITE | STANDARD_RIGHTS_ALL, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr));
 

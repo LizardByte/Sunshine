@@ -514,7 +514,7 @@ namespace egl {
         return nullptr;
     }
 
-    // native_display.left() equals native_display.right()
+    // Initialize EGL with the selected platform and its native display handle.
     EGLDisplay raw_display = EGL_NO_DISPLAY;
 
     if (eglGetPlatformDisplayEXT) {

@@ -824,7 +824,7 @@ namespace proc {
       }
 
       return proc::proc_t {
-        std::move(this_env),
+        this_env,
         std::move(apps)
       };
     } catch (std::exception &e) {

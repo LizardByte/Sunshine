@@ -2172,7 +2172,7 @@ namespace video {
               av_dict_set_int(&options, option.name.c_str(), *v, 0);
             },
             [&options, &option](std::optional<int> *v) {
-              if (*v) {
+              if (v->has_value()) {
                 av_dict_set_int(&options, option.name.c_str(), **v, 0);
               }
             },

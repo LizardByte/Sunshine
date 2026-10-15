@@ -375,7 +375,9 @@ namespace platf {
       _CONVERT(y410);
       _CONVERT(unknown);
     }
-#undef _CONVERT
+#ifndef DOXYGEN
+  #undef _CONVERT
+#endif
 
     return "unknown"sv;
   }
@@ -617,6 +619,7 @@ namespace platf {
      * @brief Apply the configured colorspace metadata to the active frame.
      */
     virtual void apply_colorspace() {
+      // Backends without additional colorspace state need no update here.
     }
 
     /**
@@ -638,16 +641,20 @@ namespace platf {
      *
      * @param frames FFmpeg hardware frames context to initialize.
      */
-    virtual void init_hwframes(AVHWFramesContext *frames) {};
+    virtual void init_hwframes(AVHWFramesContext *frames) {
+      // The base implementation leaves FFmpeg's hardware-frame parameters unchanged.
+    };
 
     /**
-     * @brief Provides a hook for allow platform-specific code to adjust codec options.
+     * @brief Allow platform-specific code to adjust codec options.
      * @note Implementations may set or modify codec options prior to codec initialization.
      *
      * @param ctx Native context object used by the operation or callback.
      * @param options Request options or socket options to apply.
      */
-    virtual void init_codec_options(AVCodecContext *ctx, AVDictionary **options) {};
+    virtual void init_codec_options(AVCodecContext *ctx, AVDictionary **options) {
+      // The base implementation requires no platform-specific codec options.
+    };
 
     /**
      * @brief Prepare to derive a context.
