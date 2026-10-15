@@ -2429,11 +2429,11 @@ namespace platf {
         BOOST_LOG(debug) << "Resolution: "sv << monitor_descriptor.viewport.width << 'x' << monitor_descriptor.viewport.height;
         BOOST_LOG(debug) << "Offset: "sv << monitor_descriptor.viewport.offset_x << 'x' << monitor_descriptor.viewport.offset_y;
 
-        kms::env_width = std::max(kms::env_width, (int) (monitor_descriptor.viewport.offset_x + monitor_descriptor.viewport.width));
-        kms::env_height = std::max(kms::env_height, (int) (monitor_descriptor.viewport.offset_y + monitor_descriptor.viewport.height));
+        kms::env_width = std::max(kms::env_width, monitor_descriptor.viewport.offset_x + monitor_descriptor.viewport.width);
+        kms::env_height = std::max(kms::env_height, monitor_descriptor.viewport.offset_y + monitor_descriptor.viewport.height);
 
-        kms::env_logical_height = std::max(kms::env_logical_height, (int) (monitor_descriptor.viewport.offset_y + monitor_descriptor.viewport.logical_height));
-        kms::env_logical_width = std::max(kms::env_logical_width, (int) (monitor_descriptor.viewport.offset_x + monitor_descriptor.viewport.logical_width));
+        kms::env_logical_height = std::max(kms::env_logical_height, monitor_descriptor.viewport.offset_y + monitor_descriptor.viewport.logical_height);
+        kms::env_logical_width = std::max(kms::env_logical_width, monitor_descriptor.viewport.offset_x + monitor_descriptor.viewport.logical_width);
       }
     }
 
