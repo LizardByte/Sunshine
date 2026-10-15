@@ -280,6 +280,11 @@ target_compile_definitions(${PROJECT_NAME} PUBLIC ${SUNSHINE_DEFINITIONS} ${TEST
 target_compile_options(${PROJECT_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)  # cmake-lint: disable=C0301
 target_link_options(${PROJECT_NAME} PRIVATE ${SUNSHINE_LINK_OPTIONS})
 
+# pipewire.cpp is included textually by the KWin and portal backends. Anchor its
+# in-file tests to the standalone compilation so they are registered only once.
+set_source_files_properties("${CMAKE_SOURCE_DIR}/src/platform/linux/pipewire.cpp" PROPERTIES
+        COMPILE_DEFINITIONS "SUNSHINE_PIPEWIRE_TEST_TU")
+
 if (WIN32)
     # Compile the utility test with the SDK 13.1 implementation namespace and headers.
     set_source_files_properties(unit/test_nvenc_utils.cpp PROPERTIES
