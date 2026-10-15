@@ -441,8 +441,7 @@ namespace platf::audio {
    */
   class audio_notification_t: public ::IMMNotificationClient {
   public:
-    audio_notification_t() {
-    }
+    audio_notification_t() = default;
 
     // IUnknown implementation (unused by IMMDeviceEnumerator)
     /**
@@ -1452,8 +1451,7 @@ namespace platf::audio {
     /**
      * @brief Destroy the Windows audio control.
      */
-    ~audio_control_t() override {
-    }
+    ~audio_control_t() override = default;
 
     policy_t policy;  ///< Windows policy configuration interface used to switch default audio devices.
     audio::device_enum_t device_enum;  ///< Device enumerator used to query and watch audio endpoints.
