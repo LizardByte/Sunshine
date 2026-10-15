@@ -3145,7 +3145,7 @@ namespace video {
     bool success;  ///< Whether the encoder accepted and successfully encoded the validation frame.
     std::byte flags;  ///< Bitwise combination of validate_flag_e capabilities observed during validation.
     uint8_t first_idr_packets_cnt;  ///< Number of packets emitted for the first IDR frame, including separate parameter-set packets.
-    
+
     /**
      * @brief Construct a failed validation result with all capabilities cleared.
      *

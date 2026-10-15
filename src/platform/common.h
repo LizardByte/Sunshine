@@ -42,14 +42,14 @@ struct AVCodecContext;
 struct AVDictionary;
 
 extern "C" {
-/**
- * @brief Submit a frame to an opened FFmpeg encoder.
- *
- * @param avctx FFmpeg codec context that receives the frame.
- * @param frame Frame to submit, or nullptr to flush the encoder.
- * @return 0 on success, AVERROR(EAGAIN) when output must be drained, or another negative AVERROR code on failure.
- */
-int avcodec_send_frame(AVCodecContext *avctx, const AVFrame *frame);
+  /**
+   * @brief Submit a frame to an opened FFmpeg encoder.
+   *
+   * @param avctx FFmpeg codec context that receives the frame.
+   * @param frame Frame to submit, or nullptr to flush the encoder.
+   * @return 0 on success, AVERROR(EAGAIN) when output must be drained, or another negative AVERROR code on failure.
+   */
+  int avcodec_send_frame(AVCodecContext *avctx, const AVFrame *frame);
 }
 
 #ifdef _WIN32

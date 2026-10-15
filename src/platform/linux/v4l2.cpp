@@ -411,7 +411,7 @@ namespace v4l2 {
      * @param capture_offset_y Vertical offset of the input image within its texture.
      * @return 0 on success, or -1 when the common V4L2/EGL initialization fails.
      */
-    int init(int in_width, int in_height, file_t &&render_device, int capture_offset_x, int capture_offset_y) {
+    int init_vram(int in_width, int in_height, file_t &&render_device, int capture_offset_x, int capture_offset_y) {
       if (v4l2_t::init(in_width, in_height, std::move(render_device))) {
         return -1;
       }
@@ -434,7 +434,7 @@ namespace v4l2 {
   std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(int width, int height, file_t &&card, int offset_x, int offset_y, bool vram) {
     if (vram) {
       auto egl = std::make_unique<v4l2::v4l2_vram_t>();
-      if (egl->init(width, height, std::move(card), offset_x, offset_y)) {
+      if (egl->init_vram(width, height, std::move(card), offset_x, offset_y)) {
         return nullptr;
       }
 
