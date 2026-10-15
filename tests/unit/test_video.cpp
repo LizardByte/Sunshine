@@ -83,25 +83,30 @@ struct EncoderTest: PlatformTestSuite, testing::WithParamInterface<video::encode
   }
 };
 
+/**
+ * @brief Available encoder backends for this platform.
+ */
+const auto encoder_variants = std::to_array<video::encoder_t *>({
+#if !defined(__APPLE__)
+  &video::nvenc,
+#endif
+#ifdef _WIN32
+  &video::amdvce,
+  &video::quicksync,
+#endif
+#if defined(__linux__) || defined(__FreeBSD__)
+  &video::vaapi,
+#endif
+#ifdef __APPLE__
+  &video::videotoolbox,
+#endif
+  &video::software
+});
+
 INSTANTIATE_TEST_SUITE_P(
   EncoderVariants,
   EncoderTest,
-  testing::Values(
-#if !defined(__APPLE__)
-    &video::nvenc,
-#endif
-#ifdef _WIN32
-    &video::amdvce,
-    &video::quicksync,
-#endif
-#if defined(__linux__) || defined(__FreeBSD__)
-    &video::vaapi,
-#endif
-#ifdef __APPLE__
-    &video::videotoolbox,
-#endif
-    &video::software
-  ),
+  testing::ValuesIn(encoder_variants),
   [](const auto &info) {
     return std::string(info.param->name);
   }
