@@ -751,12 +751,16 @@ namespace platf::audio {
       struct sample_aligned_t {
         std::uint32_t uninitialized;
         float *samples;
-      } sample_aligned;
+      };
+
+      sample_aligned_t sample_aligned;
 
       // number of samples / number of channels
       struct block_aligned_t {
         std::uint32_t audio_sample_size;
-      } block_aligned;
+      };
+
+      block_aligned_t block_aligned;
 
       // Check if the default audio device has changed
       if (endpt_notification.check_default_render_device_changed()) {

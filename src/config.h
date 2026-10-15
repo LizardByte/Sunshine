@@ -224,7 +224,9 @@ namespace config {
       bool config_revert_on_disconnect;  ///< Specify whether to revert display configuration on client disconnect.
       mode_remapping_t mode_remapping;  ///< Display mode remapping rules grouped by automatic selection mode.
       workarounds_t wa;  ///< Display-device compatibility workarounds.
-    } dd;  ///< Display-device integration settings.
+    };
+
+    dd_t dd;  ///< Display-device integration settings.
 
     int max_bitrate;  ///< Maximum bitrate ceiling in kbps for bitrate requested from the client.
     double minimum_fps_target;  ///< Lowest framerate that will be used when streaming. Range 0-1000, 0 = half of client's requested framerate.
@@ -387,7 +389,9 @@ namespace config {
       std::string name;  ///< Executable name from the command line.
       int argc;  ///< Number of command-line arguments.
       char **argv;  ///< Command-line argument vector.
-    } cmd;  ///< Command line used to launch the application.
+    };
+
+    cmd_t cmd;  ///< Command line used to launch the application.
 
     std::uint16_t port;  ///< TCP port used by Sunshine services.
     std::string address_family;  ///< Address family requested for listening sockets.

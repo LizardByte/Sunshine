@@ -90,10 +90,15 @@ namespace cuda {
 
     cudaArray_t array;
 
-    struct texture {
+    /**
+     * @brief CUDA texture objects for point and linear sampling of the same image.
+     */
+    struct texture_t {
       cudaTextureObject_t point;
       cudaTextureObject_t linear;
-    } texture;
+    };
+
+    texture_t texture;  ///< Point and linear sampling textures for the CUDA array.
   };
 
   class sws_t {
