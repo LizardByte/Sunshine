@@ -1426,15 +1426,17 @@ namespace util {
    * @brief Helper specialization for optional values.
    */
   template<class T>
-  struct __false_v<T, std::enable_if_t<instantiation_of_v<std::optional, T>>> {
+    requires instantiation_of_v<std::optional, T>
+  struct __false_v<T> {
     static constexpr std::nullopt_t value = std::nullopt;  ///< Value.
   };
 
   /**
-   * @brief Enables an overload only when the provided type is a pointer.
+   * @brief Select a null sentinel for raw and supported smart pointer types.
    */
   template<class T>
-  struct __false_v<T, std::enable_if_t<is_pointer_v<T>>> {
+    requires is_pointer_v<T>
+  struct __false_v<T> {
     static constexpr std::nullptr_t value = nullptr;  ///< Value.
   };
 
@@ -1442,7 +1444,8 @@ namespace util {
    * @brief Type trait comparing a value with a boolean template argument.
    */
   template<class T>
-  struct __false_v<T, std::enable_if_t<std::is_same_v<T, bool>>> {
+    requires std::is_same_v<T, bool>
+  struct __false_v<T> {
     static constexpr bool value = false;  ///< Trait value for the false specialization.
   };
 
@@ -1773,10 +1776,11 @@ namespace util {
     struct endian_helper {};
 
     /**
-     * @brief Helper specialization for optional values.
+     * @brief Convert non-optional values between native and requested byte order.
      */
     template<class T>
-    struct endian_helper<T, std::enable_if_t<!(instantiation_of_v<std::optional, T>)>> {
+      requires(!instantiation_of_v<std::optional, T>)
+    struct endian_helper<T> {
       /**
        * @brief Convert a value to or from big-endian byte order.
        *
@@ -1814,7 +1818,8 @@ namespace util {
      * @brief Helper specialization for optional values.
      */
     template<class T>
-    struct endian_helper<T, std::enable_if_t<instantiation_of_v<std::optional, T>>> {
+      requires instantiation_of_v<std::optional, T>
+    struct endian_helper<T> {
       /**
        * @brief Convert a value to or from little-endian byte order.
        *
