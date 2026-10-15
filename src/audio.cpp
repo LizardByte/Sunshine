@@ -274,8 +274,8 @@ namespace audio {
       BOOST_LOG(info) << codec_name << " initialized: "sv << config.channels
                       << " channels, 48 kHz, "sv << bitrate_kbps << " kbit/s"sv;
       while (auto sample = samples->pop()) {
-        // High-quality 448 kbit/s frames can exceed the old 1400-byte buffer.
-        buffer_t packet {2048};
+        // A 640 kbit/s AC-3 frame is 2560 bytes at 48 kHz; reserve additional packet capacity.
+        buffer_t packet {4096};
         const auto bytes = encoder.encode(*sample, packet);
         if (bytes < 0) {
           BOOST_LOG(error) << "Couldn't encode "sv << codec_name << " audio frame"sv;

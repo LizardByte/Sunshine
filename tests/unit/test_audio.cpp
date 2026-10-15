@@ -124,7 +124,7 @@ TEST(AudioDolbyEncoderTest, EncodesAllSupportedCodecsLayoutsAndQualityTiersWitho
         SCOPED_TRACE(testing::Message() << "eac3=" << eac3 << ", channels=" << channels
                                         << ", high_quality=" << high_quality);
         const std::vector<float> pcm(1536U * static_cast<std::size_t>(channels), 0.0F);
-        buffer_t output {2048};
+        buffer_t output {4096};
         EXPECT_GT(encode_dolby_frame_for_testing(eac3, high_quality, channels, pcm, output), 0);
       }
     }
@@ -133,7 +133,7 @@ TEST(AudioDolbyEncoderTest, EncodesAllSupportedCodecsLayoutsAndQualityTiersWitho
 TEST(AudioDolbyEncoderTest, RejectsInvalidInputAndUnsupportedChannelCount) {
   ASSERT_TRUE(ac3_available());
   const std::vector<float> invalid_frame(1535U * 2U, 0.0F);
-  buffer_t output {2048};
+  buffer_t output {4096};
   EXPECT_LT(encode_dolby_frame_for_testing(false, false, 2, invalid_frame, output), 0);
   const std::vector<float> unsupported_layout(1536U * 8U, 0.0F);
   EXPECT_LT(encode_dolby_frame_for_testing(false, false, 8, unsupported_layout, output), 0);
