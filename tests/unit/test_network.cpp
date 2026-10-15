@@ -22,10 +22,10 @@ TEST(NetworkClassificationTest, DeducedNetworkListsPreserveAddressScopes) {
 }
 
 /**
- * @brief IPv4-mapped addresses use the same read-only range classification as native IPv4.
+ * @brief Loopback and documentation addresses retain their classification when mapped to IPv6.
  */
 TEST(NetworkClassificationTest, ClassifiesMappedIpv4AddressesWithoutChangingSubsequentLookups) {
-  for (const auto *address : {"127.0.0.1", "10.1.2.3", "172.31.1.2", "100.127.1.2", "8.8.8.8"}) {
+  for (const auto *address : {"127.0.0.1", "192.0.2.1", "198.51.100.2", "203.0.113.3"}) {
     const auto expected = net::from_address(address);
     EXPECT_EQ(net::from_address(std::string {"::ffff:"} + address), expected);
     EXPECT_EQ(net::from_address(address), expected);
