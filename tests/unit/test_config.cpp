@@ -34,6 +34,16 @@ TEST(ConfigParsingTest, ParsedEntriesOwnKeysAndSupportStringViewLookup) {
   EXPECT_EQ(entries.size(), 1);
 }
 
+/**
+ * @brief Duplicate configuration keys retain their first nonempty entry.
+ */
+TEST(ConfigParsingTest, DuplicateKeysPreserveFirstValueAfterIgnoredEmptyEntry) {
+  const auto entries = config::parse_config("encoder = software\nencoder = nvenc\noutput_name =\noutput_name = later\noutput_name = ignored\n");
+  EXPECT_EQ(entries.at("encoder"), "software");
+  EXPECT_EQ(entries.at("output_name"), "later");
+  EXPECT_EQ(entries.size(), 2);
+}
+
 TEST(ConfigDefaultsTest, UsesAutomaticGamepadSelection) {
   EXPECT_EQ(config::input.gamepad, "auto");
 }

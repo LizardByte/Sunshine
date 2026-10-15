@@ -438,7 +438,7 @@ namespace stream {
      * @param cb Callback invoked for each matching message or session.
      */
     void map(uint16_t type, std::function<void(session_t *, const std::string_view &)> cb) {
-      _map_type_cb.emplace(type, std::move(cb));
+      _map_type_cb.try_emplace(type, std::move(cb));
     }
 
     /**
@@ -1460,14 +1460,14 @@ namespace stream {
         switch (socket_type) {
           case socket_e::video:
             if (message_queue) {
-              peer_to_video_session.emplace(session_id, message_queue);
+              peer_to_video_session.try_emplace(session_id, message_queue);
             } else {
               peer_to_video_session.erase(session_id);
             }
             break;
           case socket_e::audio:
             if (message_queue) {
-              peer_to_audio_session.emplace(session_id, message_queue);
+              peer_to_audio_session.try_emplace(session_id, message_queue);
             } else {
               peer_to_audio_session.erase(session_id);
             }

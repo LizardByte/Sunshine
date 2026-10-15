@@ -1050,10 +1050,10 @@ namespace platf {
       std::map<std::uint32_t, monitor_t> result;
 
       for (auto &connector : connectors) {
-        result.emplace(connector.crtc_id, monitor_t {
-                                            .type = connector.type,
-                                            .index = connector.index,
-                                          });
+        result.try_emplace(connector.crtc_id, monitor_t {
+                                                .type = connector.type,
+                                                .index = connector.index,
+                                              });
       }
 
       return result;

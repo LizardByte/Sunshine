@@ -533,7 +533,7 @@ namespace rtsp_stream {
      * @param cb Callback invoked for each matching message or session.
      */
     void map(const std::string_view &type, cmd_func_t cb) {
-      _map_cmd_cb.emplace(type, std::move(cb));
+      _map_cmd_cb.try_emplace(type, std::move(cb));
     }
 
     /**
@@ -1068,7 +1068,7 @@ namespace rtsp_stream {
         if (val[val.size() - 1] == ' ') {
           val = val.substr(0, val.size() - 1);
         }
-        args.emplace(name, val);
+        args.try_emplace(name, val);
       }
     }
 

@@ -1039,7 +1039,7 @@ namespace config {
         continue;
       }
 
-      vars.emplace(std::move(*var));
+      vars.try_emplace(std::move(var->first), std::move(var->second));
     }
 
     return vars;
@@ -2024,7 +2024,7 @@ namespace config {
             cmd_vars.erase(it);
           }
 
-          cmd_vars.emplace(std::move(*var));
+          cmd_vars.try_emplace(std::move(var->first), std::move(var->second));
         }
       }
     }

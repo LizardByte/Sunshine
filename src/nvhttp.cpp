@@ -630,7 +630,7 @@ namespace nvhttp {
 
     sess.async_insert_pin.id = pairing_id;
     sess.async_insert_pin.expires_at = now + PAIRING_SESSION_TIMEOUT;
-    map_id_sess.emplace(sess.client.uniqueID, std::move(sess));
+    map_id_sess.try_emplace(sess.client.uniqueID, std::move(sess));
     return pair_session_insert_e::ADDED;
   }
 
