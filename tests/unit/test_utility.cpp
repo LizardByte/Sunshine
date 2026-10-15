@@ -378,6 +378,11 @@ TEST(UtilityFromHexTests, ShortInputPadsUnusedBytesWithZeros) {
   EXPECT_EQ(util::from_hex<std::uint64_t>("ABCD", true), util::endian::big(std::uint64_t {0xABCD}));
 }
 
+TEST(UtilityFromHexTests, LongInputKeepsTheLowOrderBytes) {
+  EXPECT_EQ(util::from_hex<std::uint32_t>("123456789A"), util::endian::little(std::uint32_t {0x3456789A}));
+  EXPECT_EQ(util::from_hex<std::uint32_t>("123456789A", true), util::endian::big(std::uint32_t {0x3456789A}));
+}
+
 TEST(UtilityFromHexTests, DecodesIntoAByteArrayWithoutPointerTypePunning) {
   const auto bytes = util::from_hex<std::array<std::uint8_t, 4>>("12:34:56:78", true);
   EXPECT_EQ(bytes, (std::array<std::uint8_t, 4> {0x12, 0x34, 0x56, 0x78}));

@@ -624,6 +624,8 @@ namespace util {
   /**
    * @brief Decode hexadecimal text into an object's byte representation.
    *
+   * Digits beyond the size of the object are ignored, keeping the low-order bytes.
+   *
    * @param hex Hexadecimal text to decode.
    * @param rev Whether bytes should be emitted in reverse order.
    * @return Value converted from hex.
@@ -640,7 +642,7 @@ namespace util {
       return ('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z');
     };
 
-    auto buf_size = std::ranges::count_if(hex, is_convertable) / 2;
+    auto buf_size = std::min<std::size_t>(std::ranges::count_if(hex, is_convertable) / 2, sizeof(T));
     auto padding = sizeof(T) - buf_size;
 
     const char *data = hex.data() + hex.size() - 1;
