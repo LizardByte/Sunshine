@@ -28,7 +28,10 @@ namespace task_pool_util {
   public:
     // _unique_base_type _this_ptr;
 
-    inline virtual ~_ImplBase() = default;
+    /**
+     * @brief Destroy a queued callable through its polymorphic base.
+     */
+    virtual ~_ImplBase() = default;
 
     /**
      * @brief Execute the queued task body.
