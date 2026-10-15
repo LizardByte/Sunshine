@@ -1200,11 +1200,6 @@ namespace nvhttp {
     return false;
   }
 
-  /**
-   * @brief Get codec mode flags.
-   *
-   * @return Moonlight codec capability bitmask for the currently probed encoders.
-   */
   uint32_t get_codec_mode_flags() {
     uint32_t codec_mode_flags = SCM_H264;
     if (video::last_encoder_probe_supported_yuv444_for_codec[0]) {

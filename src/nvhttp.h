@@ -9,6 +9,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -378,6 +379,13 @@ namespace nvhttp {
    * @examples_end
    */
   void erase_all_clients();
+
+  /**
+   * @brief Get codec mode flags.
+   *
+   * @return Moonlight codec capability bitmask for the currently probed encoders.
+   */
+  uint32_t get_codec_mode_flags();
 
 #ifdef SUNSHINE_TESTS
   /**
