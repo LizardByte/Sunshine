@@ -1028,7 +1028,6 @@ namespace config {
     auto end = std::end(file_content);
 
     while (pos < end) {
-      // auto newline = std::find_if(pos, end, [](auto ch) { return ch == '\n' || ch == '\r'; });
       TUPLE_2D(endl, var, parse_option(pos, end));
 
       pos = endl;

@@ -536,8 +536,7 @@ namespace stream {
       std::string ping_payload;  ///< Payload expected from audio-channel ping packets.
 
       std::uint16_t sequenceNumber;  ///< Next RTP sequence number for an audio packet.
-      // avRiKeyId == util::endian::big(First (sizeof(avRiKeyId)) bytes of launch_session->iv)
-      std::uint32_t avRiKeyId;  ///< Base audio encryption key identifier derived from the launch-session IV.
+      std::uint32_t avRiKeyId;  ///< Base audio encryption key identifier decoded from the first four IV bytes in big-endian order.
       std::uint32_t timestamp;  ///< RTP timestamp for the next audio packet.
       udp::endpoint peer;  ///< Client UDP endpoint for the audio channel.
 
