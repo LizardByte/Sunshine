@@ -83,6 +83,7 @@ namespace {
      * @brief Install fake driver callbacks for one native device type.
      * @param cuda Whether the test uses a CUDA context instead of a D3D11 device.
      * @param observe_preset Whether the driver should continue through preset selection.
+     * @note Unused session parameter types are inferred from the SDK callback signatures.
      */
     explicit fake_session_encoder_t(bool cuda, bool observe_preset = false):
         nvenc_base(cuda ? NV_ENC_DEVICE_TYPE_CUDA : NV_ENC_DEVICE_TYPE_DIRECTX) {
@@ -91,20 +92,20 @@ namespace {
       nvenc->nvEncGetEncodeGUIDCount = &fail_guid_count;
       nvenc->nvEncDestroyEncoder = &destroy_session;
       if (observe_preset) {
-        nvenc->nvEncGetEncodeGUIDCount = [](void *, std::uint32_t *count) {
+        nvenc->nvEncGetEncodeGUIDCount = [](auto *, std::uint32_t *count) {
           *count = 1;
           return NV_ENC_SUCCESS;
         };
-        nvenc->nvEncGetEncodeGUIDs = [](void *, GUID *guids, std::uint32_t, std::uint32_t *count) {
+        nvenc->nvEncGetEncodeGUIDs = [](auto *, GUID *guids, std::uint32_t, std::uint32_t *count) {
           *guids = NV_ENC_CODEC_H264_GUID;
           *count = 1;
           return NV_ENC_SUCCESS;
         };
-        nvenc->nvEncGetEncodeCaps = [](void *, GUID, NV_ENC_CAPS_PARAM *params, int *value) {
+        nvenc->nvEncGetEncodeCaps = [](auto *, GUID, NV_ENC_CAPS_PARAM *params, int *value) {
           *value = params->capsToQuery == NV_ENC_CAPS_WIDTH_MAX || params->capsToQuery == NV_ENC_CAPS_HEIGHT_MAX ? 4096 : 0;
           return NV_ENC_SUCCESS;
         };
-        nvenc->nvEncGetEncodePresetConfigEx = [](void *, GUID, GUID preset, NV_ENC_TUNING_INFO, NV_ENC_PRESET_CONFIG *) {
+        nvenc->nvEncGetEncodePresetConfigEx = [](auto *, GUID, GUID preset, NV_ENC_TUNING_INFO, NV_ENC_PRESET_CONFIG *) {
           driver.selected_preset = preset;
           ++driver.preset_queries;
           return NV_ENC_ERR_GENERIC;
