@@ -1045,7 +1045,7 @@ namespace platf {
     sunshine_wenv[path_var_name].assign(start_dir + L";" + old_path_val);
 
     // Restore the old PATH value for our process when we're done here
-    auto restore_path = util::fail_guard([&]() {
+    auto restore_path = util::fail_guard([&old_path_val, &sunshine_wenv, &path_var_name]() {
       if (old_path_val.empty()) {
         sunshine_wenv[path_var_name].clear();
       } else {

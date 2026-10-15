@@ -806,7 +806,7 @@ namespace rtsp_stream {
     auto [payload, original_payload_length] = std::make_pair(resp->payload, resp->payloadLength);
 
     // Restore response message for proper destruction
-    auto lg = util::fail_guard([&]() {
+    auto lg = util::fail_guard([&resp, &payload, &original_payload_length]() {
       resp->payload = payload;
       resp->payloadLength = original_payload_length;
     });

@@ -947,7 +947,7 @@ namespace input {
      * when the last mouse coordinates were absolute
      */
     if (button == BUTTON_LEFT && release && !input->mouse_left_button_timeout) {
-      auto f = [=]() {
+      auto f = [input, release]() {
         if (auto left_released = mouse_press[BUTTON_LEFT]; left_released) {
           // Already released left button
           return;
