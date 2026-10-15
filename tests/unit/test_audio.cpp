@@ -114,7 +114,7 @@ TEST(AudioDolbyNegotiationTest, FallsBackToOpusForUnsupportedChannelCounts) {
   EXPECT_EQ(config.packetDuration, 5);
   EXPECT_EQ(dolby_codec_name(dolby_codec_e::opus), "Opus");
 }
-#if defined(SUNSHINE_TESTS) && defined(_WIN32) && (defined(_M_X64) || defined(__x86_64__))
+#ifdef SUNSHINE_TESTS
 TEST(AudioDolbyEncoderTest, EncodesAllSupportedCodecsLayoutsAndQualityTiersWithoutCapture) {
   ASSERT_TRUE(ac3_available());
   ASSERT_TRUE(eac3_available());
