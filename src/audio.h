@@ -194,7 +194,7 @@ namespace audio {
    */
   std::string_view dolby_codec_name(dolby_codec_e codec);
 
-#if defined(SUNSHINE_TESTS) && defined(_WIN32) && (defined(_M_X64) || defined(__x86_64__))
+#ifdef SUNSHINE_TESTS
   /**
    * @brief Encode a Dolby frame directly for unit testing without audio capture.
    * @param eac3 Whether to use E-AC-3 instead of AC-3.
