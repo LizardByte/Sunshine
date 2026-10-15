@@ -463,13 +463,13 @@ namespace platf::audio {
     }
 
     /**
-     * @brief Return the supported COM interface for the notification callback.
+     * @brief Implement IUnknown's interface query for the endpoint notification callback.
      *
      * @param riid COM interface identifier requested by QueryInterface.
      * @param ppvInterface Output pointer receiving the requested interface.
      * @return S_OK when the interface is supported; E_NOINTERFACE otherwise.
      */
-    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, VOID **ppvInterface) {  // NOSONAR(cpp:S5008): IUnknown::QueryInterface requires a void double pointer in the COM ABI.
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, VOID **ppvInterface) override {  // NOSONAR(cpp:S5008): IUnknown::QueryInterface requires a void double pointer in the COM ABI.
       if (IID_IUnknown == riid) {
         AddRef();
         *ppvInterface = (IUnknown *) this;
