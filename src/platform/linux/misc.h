@@ -211,8 +211,6 @@ namespace platf {
           return status;
       }
     }
-
-    return ok;
   }
 
 #if defined(__linux__) && defined(SUNSHINE_BUILD_DRM)

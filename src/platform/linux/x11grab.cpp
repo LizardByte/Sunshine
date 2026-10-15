@@ -7,9 +7,11 @@
 #include <cerrno>
 #include <cstdint>
 #include <fstream>
+#include <memory>
 #include <ranges>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #ifdef SUNSHINE_TESTS
   #include <gtest/gtest.h>
@@ -37,6 +39,7 @@
 #include "src/task_pool.h"
 #include "src/video.h"
 #include "vaapi.h"
+#include "x11_layout.h"
 #include "x11grab.h"
 
 using namespace std::literals;
@@ -506,6 +509,8 @@ namespace platf {
     XWindowAttributes xattr {};  ///< Cached X11 window attributes used to detect size changes.
 
     mem_type_e mem_type;  ///< Mem type.
+    platf::pix_fmt_e capture_pix_fmt {platf::pix_fmt_e::unknown};  ///< Declared pixel format of captured images.
+    int capture_bits_per_pixel {0};  ///< Bits per pixel resolved for the validated visual at init.
 
     /**
      * Last X (NOT the streamed monitor!) size.
@@ -539,7 +544,52 @@ namespace platf {
 
       xwindow = DefaultRootWindow(xdisplay.get());
 
-      refresh();
+      if (!refresh()) {
+        BOOST_LOG(error) << "Could not query the X11 window attributes"sv;
+        return -1;
+      }
+
+      // The pixel size alone does not identify the layout, and the visual depth
+      // does not imply a storage size, so query the server's pixmap format for
+      // this depth and reject visuals whose layout cannot be declared safely
+      // instead of letting a 4-byte buffer be decoded as packed BGR0.
+      int format_count = 0;
+      std::unique_ptr<XPixmapFormatValues, decltype(&XFree)> formats {XListPixmapFormats(xdisplay.get(), &format_count), &XFree};
+      if (!formats) {
+        BOOST_LOG(error) << "Could not query X11 pixmap formats"sv;
+        return -1;
+      }
+
+      std::vector<std::pair<int, int>> format_list;
+      format_list.reserve(format_count);
+      for (int i = 0; i < format_count; ++i) {
+        format_list.emplace_back(formats.get()[i].depth, formats.get()[i].bits_per_pixel);
+      }
+
+      const int bits_per_pixel = x11::pixmap_format_bits_per_pixel(format_list, xattr.depth).value_or(0);
+
+      if (!xattr.visual) {
+        BOOST_LOG(error) << "X11 window has no visual"sv;
+        return -1;
+      }
+
+      const x11::x11_visual_t visual {
+        .depth = xattr.depth,
+        .bits_per_pixel = bits_per_pixel,
+        .little_endian = ImageByteOrder(xdisplay.get()) == LSBFirst,
+        .true_color = xattr.visual->c_class == TrueColor,
+        .red_mask = xattr.visual->red_mask,
+        .green_mask = xattr.visual->green_mask,
+        .blue_mask = xattr.visual->blue_mask,
+      };
+
+      const auto init_pix_fmt = x11::layout_to_pix_fmt(visual);
+      if (!init_pix_fmt) {
+        BOOST_LOG(error) << "Unsupported X11 visual layout (depth "sv << xattr.depth << ", "sv << bits_per_pixel << " bits per pixel), refusing to capture with an ambiguous pixel format"sv;
+        return -1;
+      }
+      capture_pix_fmt = *init_pix_fmt;
+      capture_bits_per_pixel = bits_per_pixel;
 
       int streamedMonitor = -1;
       if (!display_name.empty() && std::ranges::all_of(display_name, ::isdigit)) {
@@ -588,10 +638,12 @@ namespace platf {
     }
 
     /**
-     * Called when the display attributes should change.
+     * @brief Refresh the cached window attributes.
+     *
+     * @return True when the server reported the attributes.
      */
-    void refresh() {
-      x11::GetWindowAttributes(xdisplay.get(), xwindow, &xattr);  // Update xattr's
+    bool refresh() {
+      return x11::GetWindowAttributes(xdisplay.get(), xwindow, &xattr) != 0;
     }
 
     /**
@@ -603,39 +655,9 @@ namespace platf {
      * @return Final capture status reported to the streaming pipeline.
      */
     capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
-      using enum platf::capture_e;
-
-      auto next_frame = std::chrono::steady_clock::now();
-
-      sleep_overshoot_logger.reset();
-
-      while (true) {
-        platf::handle_pacing(next_frame, delay, sleep_overshoot_logger);
-
-        std::shared_ptr<platf::img_t> img_out;
-        auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
-        switch (status) {
-          case reinit:
-          case capture_error:
-          case interrupted:
-            return status;
-          case timeout:
-            if (!push_captured_image_cb(std::move(img_out), false)) {
-              return ok;
-            }
-            break;
-          case ok:
-            if (!push_captured_image_cb(std::move(img_out), true)) {
-              return ok;
-            }
-            break;
-          default:
-            BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
-            return status;
-        }
-      }
-
-      return ok;
+      return platf::capture_loop(sleep_overshoot_logger, delay, push_captured_image_cb, pull_free_image_cb, cursor, [this](const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
+        return snapshot(pull_free_image_cb, img_out, timeout, cursor);
+      });
     }
 
     /**
@@ -647,8 +669,11 @@ namespace platf {
      * @param cursor Cursor image or visibility state to composite.
      * @return Capture status reported to the streaming pipeline.
      */
-    capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
-      refresh();
+    virtual capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
+      if (!refresh()) {
+        BOOST_LOG(warning) << "Could not refresh the X11 window attributes, requesting reinit"sv;
+        return capture_e::reinit;
+      }
 
       // The whole X server changed, so we must reinit everything
       if (xattr.width != env_width || xattr.height != env_height) {
@@ -661,7 +686,17 @@ namespace platf {
       }
       auto img = (x11_img_t *) img_out.get();
 
-      XImage *x_img {x11::GetImage(xdisplay.get(), xwindow, offset_x, offset_y, width, height, AllPlanes, ZPixmap)};
+      // Take ownership of the XImage before validating it, so it is destroyed
+      // on every error path.
+      img->img.reset(x11::GetImage(xdisplay.get(), xwindow, offset_x, offset_y, width, height, AllPlanes, ZPixmap));
+      XImage *x_img {img->img.get()};
+      if (!x_img) {
+        // A failed grab is usually transient (for example a resolution change
+        // racing the capture), so request a reinit like the SHM path does.
+        BOOST_LOG(warning) << "Could not get image, requesting reinit"sv;
+        return capture_e::reinit;
+      }
+
       img->frame_timestamp = std::chrono::steady_clock::now();
 
       img->width = x_img->width;
@@ -669,7 +704,30 @@ namespace platf {
       img->data = (uint8_t *) x_img->data;
       img->row_pitch = x_img->bytes_per_line;
       img->pixel_pitch = x_img->bits_per_pixel / 8;
-      img->img.reset(x_img);
+
+      platf::pix_fmt_e pix_fmt {platf::pix_fmt_e::unknown};
+      // An XImage carries no visual, so the class comes from the refreshed
+      // window attributes. Capture only ever reads the root window, whose
+      // class was already validated at init.
+      const x11::x11_visual_t visual {
+        .depth = x_img->depth,
+        .bits_per_pixel = x_img->bits_per_pixel,
+        .little_endian = x_img->byte_order == LSBFirst,
+        .true_color = xattr.visual && xattr.visual->c_class == TrueColor,
+        .red_mask = x_img->red_mask,
+        .green_mask = x_img->green_mask,
+        .blue_mask = x_img->blue_mask,
+      };
+
+      if (const auto resolved_pix_fmt = x11::layout_to_pix_fmt(visual)) {
+        pix_fmt = *resolved_pix_fmt;
+      } else {
+        // The image no longer matches the visual validated at init, so request
+        // a reinit instead of permanently ending an otherwise healthy stream.
+        BOOST_LOG(warning) << "Unsupported X11 image layout (depth "sv << x_img->depth << "), requesting reinit"sv;
+        return capture_e::reinit;
+      }
+      img->pixel_format = pix_fmt;
 
       if (cursor) {
         blend_cursor(xdisplay.get(), *img, offset_x, offset_y);
@@ -749,7 +807,9 @@ namespace platf {
      * @brief Refresh X11 shared-memory capture after a scheduled delay.
      */
     void delayed_refresh() {
-      refresh();
+      if (!refresh()) {
+        BOOST_LOG(warning) << "Could not refresh the X11 window attributes"sv;
+      }
 
       refresh_task_id = task_pool.pushDelayed(&shm_attr_t::delayed_refresh, 2s, this).task_id;
     }
@@ -769,50 +829,6 @@ namespace platf {
     }
 
     /**
-     * @brief Capture X11 shared-memory frames until capture stops or reinitialization is needed.
-     *
-     * @param push_captured_image_cb Callback receiving a captured image or a capture timeout.
-     * @param pull_free_image_cb Callback providing an available image buffer.
-     * @param cursor Whether the cursor should be included in the captured image.
-     * @return Final capture status reported to the streaming pipeline.
-     */
-    capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
-      using enum platf::capture_e;
-
-      auto next_frame = std::chrono::steady_clock::now();
-
-      sleep_overshoot_logger.reset();
-
-      while (true) {
-        platf::handle_pacing(next_frame, delay, sleep_overshoot_logger);
-
-        std::shared_ptr<platf::img_t> img_out;
-        auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
-        switch (status) {
-          case reinit:
-          case capture_error:
-          case interrupted:
-            return status;
-          case timeout:
-            if (!push_captured_image_cb(std::move(img_out), false)) {
-              return ok;
-            }
-            break;
-          case ok:
-            if (!push_captured_image_cb(std::move(img_out), true)) {
-              return ok;
-            }
-            break;
-          default:
-            BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
-            return status;
-        }
-      }
-
-      return ok;
-    }
-
-    /**
      * @brief Capture a display frame into the provided image object.
      *
      * @param pull_free_image_cb Callback that provides an available image buffer.
@@ -821,12 +837,32 @@ namespace platf {
      * @param cursor Cursor image or visibility state to composite.
      * @return Capture status reported to the streaming pipeline.
      */
-    capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
+    capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) override {
       // The whole X server changed, so we must reinit everything
       if (xattr.width != env_width || xattr.height != env_height) {
         BOOST_LOG(warning) << "X dimensions changed in SHM mode, request reinit"sv;
         return capture_e::reinit;
       } else {
+        // The shared-memory extent follows the visual validated at init, so
+        // revalidate the refreshed attributes instead of capturing a layout
+        // that the declared format no longer describes.
+        const x11::x11_visual_t visual {
+          .depth = xattr.depth,
+          .bits_per_pixel = capture_bits_per_pixel,
+          .little_endian = ImageByteOrder(shm_xdisplay.get()) == LSBFirst,
+          .true_color = xattr.visual && xattr.visual->c_class == TrueColor,
+          .red_mask = xattr.visual ? static_cast<std::uint64_t>(xattr.visual->red_mask) : 0,
+          .green_mask = xattr.visual ? static_cast<std::uint64_t>(xattr.visual->green_mask) : 0,
+          .blue_mask = xattr.visual ? static_cast<std::uint64_t>(xattr.visual->blue_mask) : 0,
+        };
+        const auto resolved_pix_fmt = x11::layout_to_pix_fmt(visual);
+        if (!resolved_pix_fmt || *resolved_pix_fmt != capture_pix_fmt) {
+          // The image no longer matches the visual validated at init, so request
+          // a reinit instead of permanently ending an otherwise healthy stream.
+          BOOST_LOG(warning) << "Unsupported X11 image layout (depth "sv << xattr.depth << "), requesting reinit"sv;
+          return capture_e::reinit;
+        }
+
         auto img_cookie = xcb::shm_get_image_unchecked(xcb.get(), display->root, offset_x, offset_y, width, height, ~0, XCB_IMAGE_FORMAT_Z_PIXMAP, seg, 0);
         auto frame_timestamp = std::chrono::steady_clock::now();
 
@@ -862,6 +898,7 @@ namespace platf {
       img->height = height;
       img->pixel_pitch = 4;
       img->row_pitch = img->pixel_pitch * width;
+      img->pixel_format = capture_pix_fmt;
       img->data = new std::uint8_t[height * img->row_pitch];
 
       return img;
@@ -1085,6 +1122,9 @@ namespace platf {
       img.y = xcursor->y - xcursor->yhot;
       img.pixel_pitch = 4;
       img.row_pitch = img.pixel_pitch * img.width;
+      // XFixes cursor images are ARGB with premultiplied alpha, i.e. BGRA in
+      // memory on little-endian systems.
+      img.pixel_format = platf::pix_fmt_e::bgra;
       img.serial = xcursor->cursor_serial;
     }
 
