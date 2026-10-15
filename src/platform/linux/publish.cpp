@@ -19,7 +19,9 @@ using namespace std::literals;
 namespace avahi {
 
   /**
-   * @brief Error codes used by avahi.
+   * @brief Error codes used by Avahi.
+   * @see https://www.rfc-editor.org/rfc/rfc2136.html#section-2.2
+   * @see https://www.iana.org/assignments/dns-parameters/
    */
   enum err_e {
     OK = 0,  ///< OK
@@ -67,11 +69,11 @@ namespace avahi {
     ERR_DNS_NOTIMP = -39,  ///< DNS Error: Not implemented
 
     ERR_DNS_REFUSED = -40,  ///< DNS Error: Operation refused
-    ERR_DNS_YXDOMAIN = -41,  ///< TODO
-    ERR_DNS_YXRRSET = -42,  ///< TODO
-    ERR_DNS_NXRRSET = -43,  ///< TODO
-    ERR_DNS_NOTAUTH = -44,  ///< DNS Error: Not authorized
-    ERR_DNS_NOTZONE = -45,  ///< TODO
+    ERR_DNS_YXDOMAIN = -41,  ///< DNS Error: A name exists despite a prerequisite requiring its absence
+    ERR_DNS_YXRRSET = -42,  ///< DNS Error: A resource record set exists despite a prerequisite requiring its absence
+    ERR_DNS_NXRRSET = -43,  ///< DNS Error: A required resource record set is missing or has different records
+    ERR_DNS_NOTAUTH = -44,  ///< DNS Error: The server lacks zone authority or TSIG authorization failed
+    ERR_DNS_NOTZONE = -45,  ///< DNS Error: An update or prerequisite name lies outside the target DNS zone
     ERR_INVALID_RDATA = -46,  ///< Invalid RDATA
     ERR_INVALID_DNS_CLASS = -47,  ///< Invalid DNS class
     ERR_INVALID_DNS_TYPE = -48,  ///< Invalid DNS type
@@ -82,13 +84,13 @@ namespace avahi {
     ERR_IS_EMPTY = -52,  ///< Is empty
     ERR_NO_CHANGE = -53,  ///< The requested operation is invalid because it is redundant
 
-    ERR_MAX = -54  ///< TODO
+    ERR_MAX = -54  ///< Sentinel below the valid Avahi error-code range; not an error code
   };
 
-  constexpr auto IF_UNSPEC = -1;  ///< Protocol or platform constant for if unspec.
+  constexpr auto IF_UNSPEC = -1;  ///< Select all network interfaces instead of a specific interface index.
 
   /**
-   * @brief Enumerates supported proto options.
+   * @brief Avahi address-family selectors.
    */
   enum proto {
     PROTO_INET = 0,  ///< IPv4
@@ -97,7 +99,7 @@ namespace avahi {
   };
 
   /**
-   * @brief Enumerates supported server state options.
+   * @brief Avahi daemon lifecycle states.
    */
   enum ServerState {
     SERVER_INVALID,  ///< Invalid state (initial)
@@ -285,7 +287,7 @@ namespace avahi {
   simple_poll_free_fn simple_poll_free;  ///< Simple poll free.
 
   /**
-   * @brief Load common Avahi client and entry-group function pointers.
+   * @brief Load Avahi common-library memory, naming, error, and simple-poll functions.
    *
    * @return 0 when common Avahi functions are available; nonzero otherwise.
    */
@@ -324,7 +326,7 @@ namespace avahi {
   }
 
   /**
-   * @brief Load Avahi threaded-poll and client function pointers.
+   * @brief Load Avahi client and service-publication function pointers.
    *
    * @return 0 when all client functions are available; nonzero otherwise.
    */
