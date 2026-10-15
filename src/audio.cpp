@@ -126,6 +126,14 @@ namespace audio {
       }
     }
 
+    /**
+     * @brief Initialize the selected FFmpeg encoder for stereo or 5.1 PCM.
+     *
+     * @param codec_id FFmpeg codec identifier for AC-3 or E-AC-3.
+     * @param bit_rate Target encoded bitrate in bits per second.
+     * @param channels Number of channels; only 2 and 6 are supported.
+     * @return True if the encoder context and frame buffers initialize successfully.
+     */
     bool initialize(AVCodecID codec_id, std::int64_t bit_rate, int channels) {
       if (channels != 2 && channels != 6) {
         return false;
@@ -176,6 +184,13 @@ namespace audio {
       return packet_ != nullptr;
     }
 
+    /**
+     * @brief Encode an interleaved floating-point PCM frame into a Dolby access unit.
+     *
+     * @param interleaved Interleaved float PCM samples for one complete frame.
+     * @param output Destination buffer for the encoded access unit.
+     * @return Encoded access-unit size in bytes, or -1 if input validation or encoding fails.
+     */
     int encode(const std::vector<float> &interleaved, buffer_t &output) {
       if (!frame_ || interleaved.size() != static_cast<std::size_t>(frame_->nb_samples * channels_)) {
         return -1;
