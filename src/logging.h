@@ -123,8 +123,9 @@ namespace logging {
   void setup_av_logging(int min_log_level);
 
   /**
-   * @brief Setup logging for libdisplaydevice.
-   * @param min_log_level The log level.
+   * @brief Set up libdisplaydevice logging, clamping to its supported enum values.
+   *
+   * @param min_log_level Numeric minimum severity, clamped from verbose through fatal.
    */
   void setup_libdisplaydevice_logging(int min_log_level);
 
@@ -178,13 +179,13 @@ namespace logging {
     }
 
     /**
-     * @brief Collect a metric sample and write it to the periodic log when due.
+     * @brief Collect a metric sample and report it with this logger's configured message and units when due.
      *
      * @param value Numeric sample to include in the next periodic aggregate.
      */
     void collect_and_log(const T &value) {
       if (enabled) {
-        auto print_info = [&](const T &min_value, const T &max_value, double avg_value) {
+        auto print_info = [this](const T &min_value, const T &max_value, double avg_value) {
           auto f = stat_trackers::two_digits_after_decimal();
           if constexpr (std::is_floating_point_v<T>) {
             BOOST_LOG(severity.get()) << message << " (min/max/avg): " << f % min_value << units << "/" << f % max_value << units << "/" << f % avg_value << units;

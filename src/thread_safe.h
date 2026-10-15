@@ -162,11 +162,11 @@ namespace safe {
     }
 
     /**
-     * @brief Inspect the next queued value without popping it.
+     * @brief Inspect whether this event has a value without modifying or consuming it.
      *
      * @return True when a value is available to inspect.
      */
-    bool peek() {
+    bool peek() const {
       return _continue && (bool) _status;
     }
 
@@ -645,9 +645,9 @@ namespace safe {
       }
 
       /**
-       * @brief Check whether this shared pointer wrapper owns a live object.
+       * @brief Explicitly check whether this shared pointer wrapper owns a live object.
        */
-      operator bool() const {
+      explicit operator bool() const {
         return owner != nullptr;
       }
 
@@ -766,13 +766,13 @@ namespace safe {
   class post_t: public T {
   public:
     /**
-     * @brief Construct a message-posting wrapper around an existing type.
+     * @brief Explicitly construct a message-posting wrapper around an existing type.
      *
      * @param mail Mailbox used to exchange messages with worker threads.
      * @param args Arguments forwarded to the wrapped type constructor.
      */
     template<class... Args>
-    post_t(mail_t mail, Args &&...args):
+    explicit post_t(mail_t mail, Args &&...args):
         T(std::forward<Args>(args)...),
         mail {std::move(mail)} {
     }
@@ -813,7 +813,7 @@ namespace safe {
     using queue_t = std::shared_ptr<post_t<queue_t<T>>>;
 
     /**
-     * @brief Create a typed event channel from the raw mailbox.
+     * @brief Create a typed event channel or reuse the live channel with the same identifier.
      *
      * @param id Identifier for the controller, session, display, or resource.
      * @return Typed event channel associated with the supplied identifier.
@@ -822,19 +822,18 @@ namespace safe {
     event_t<T> event(const std::string_view &id) {
       std::lock_guard lg {mutex};
 
-      auto it = id_to_post.find(id);
-      if (it != std::end(id_to_post)) {
+      if (auto it = id_to_post.find(id); it != std::end(id_to_post)) {
         return lock<event_t<T>>(it->second);
       }
 
       auto post = std::make_shared<typename event_t<T>::element_type>(shared_from_this());
-      id_to_post.emplace(std::pair<std::string, std::weak_ptr<void>> {std::string {id}, post});
+      id_to_post.try_emplace(std::string {id}, post);
 
       return post;
     }
 
     /**
-     * @brief Create a typed queue channel from the raw mailbox.
+     * @brief Create a typed queue channel or reuse the live channel with the same identifier.
      *
      * @param id Identifier for the controller, session, display, or resource.
      * @return Typed queue channel associated with the supplied identifier.
@@ -843,13 +842,12 @@ namespace safe {
     queue_t<T> queue(const std::string_view &id) {
       std::lock_guard lg {mutex};
 
-      auto it = id_to_post.find(id);
-      if (it != std::end(id_to_post)) {
+      if (auto it = id_to_post.find(id); it != std::end(id_to_post)) {
         return lock<queue_t<T>>(it->second);
       }
 
       auto post = std::make_shared<typename queue_t<T>::element_type>(shared_from_this(), 32);
-      id_to_post.emplace(std::pair<std::string, std::weak_ptr<void>> {std::string {id}, post});
+      id_to_post.try_emplace(std::string {id}, post);
 
       return post;
     }
@@ -861,7 +859,7 @@ namespace safe {
       std::lock_guard lg {mutex};
 
       for (auto it = std::begin(id_to_post); it != std::end(id_to_post); ++it) {
-        auto &weak = it->second;
+        const auto &weak = it->second;
 
         if (weak.expired()) {
           id_to_post.erase(it);

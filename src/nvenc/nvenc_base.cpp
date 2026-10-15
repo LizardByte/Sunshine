@@ -127,10 +127,6 @@ namespace {
     }
 
     switch (number) {
-      case 1:
-      default:
-        return NV_ENC_PRESET_P1_GUID;
-
       case 2:
         return NV_ENC_PRESET_P2_GUID;
 
@@ -148,6 +144,10 @@ namespace {
 
       case 7:
         return NV_ENC_PRESET_P7_GUID;
+
+      case 1:
+      default:
+        return NV_ENC_PRESET_P1_GUID;
     }
   };
 
@@ -188,9 +188,7 @@ namespace NVENC_NAMESPACE {
       device_type(device_type) {
   }
 
-  nvenc_base::~nvenc_base() {
-    // Use destroy_encoder() instead
-  }
+  nvenc_base::~nvenc_base() = default;
 
   int nvenc_base::get_encoder_cap(const GUID &encode_guid, NV_ENC_CAPS cap) const {
     NV_ENC_CAPS_PARAM param = {.version = NV_ENC_CAPS_PARAM_VER};

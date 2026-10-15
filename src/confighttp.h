@@ -274,7 +274,7 @@ namespace confighttp {
 /**
  * @brief File-extension to MIME-type mapping used when serving the Web UI.
  */
-const std::map<std::string, std::string> mime_types = {
+const std::map<std::string, std::string, std::less<>> mime_types = {
   {"css", "text/css"},
   {"gif", "image/gif"},
   {"htm", "text/html"},

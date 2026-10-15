@@ -2,6 +2,13 @@
    Sunshine UI - Modern Design System
    ========================================================================== */
 
+/**
+ * @brief Theme Bootstrap components through source order and component selectors.
+ *
+ * Load this stylesheet after Bootstrap. Use badge-primary and badge-secondary
+ * for themed badges so Bootstrap background utilities do not override them.
+ */
+
 /* Hide pages while localization is loading */
 [v-cloak] {
     display: none;
@@ -969,8 +976,8 @@ html {
 }
 
 body {
-    background-color: var(--color-bg-base) !important;
-    color: var(--color-text-base) !important;
+    background-color: var(--color-bg-base);
+    color: var(--color-text-base);
     transition: background-color var(--transition-slow), color var(--transition-slow);
     min-height: 100vh;
 }
@@ -993,11 +1000,11 @@ body {
 }
 
 .card {
-    background-color: var(--color-surface) !important;
-    border: 1px solid var(--color-border) !important;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
-    color: var(--color-text-base) !important;
+    color: var(--color-text-base);
     transition: all var(--transition-base);
 }
 
@@ -1006,109 +1013,123 @@ body {
 }
 
 .card-header {
-    background-color: var(--color-bg-subtle) !important;
-    border-color: var(--color-border) !important;
-    color: var(--color-text-base) !important;
+    background-color: var(--color-bg-subtle);
+    border-color: var(--color-border);
+    color: var(--color-text-base);
 }
 
 .card-footer {
-    background-color: var(--color-bg-subtle) !important;
-    border-color: var(--color-border) !important;
+    background-color: var(--color-bg-subtle);
+    border-color: var(--color-border);
 }
 
 .modal-content {
-    background-color: var(--color-surface) !important;
-    border-color: var(--color-border) !important;
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
 }
 
 .modal-header,
 .modal-footer {
-    border-color: var(--color-border) !important;
-    background-color: var(--color-surface-raised) !important;
+    border-color: var(--color-border);
+    background-color: var(--color-surface-raised);
 }
 
 .list-group-item {
-    background-color: var(--color-surface) !important;
-    border-color: var(--color-border) !important;
-    color: var(--color-text-base) !important;
+    --bs-list-group-disabled-bg: var(--color-surface);
+    --bs-list-group-disabled-color: var(--color-text-base);
+    --bs-list-group-action-hover-bg: var(--color-surface);
+    --bs-list-group-action-hover-color: var(--color-text-base);
+    --bs-list-group-action-active-bg: var(--color-surface);
+    --bs-list-group-action-active-color: var(--color-text-base);
+    --bs-list-group-active-bg: var(--color-surface);
+    --bs-list-group-active-border-color: var(--color-border);
+    --bs-list-group-active-color: var(--color-text-base);
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
+    color: var(--color-text-base);
 }
 
-.list-group-item:hover {
-    background-color: var(--color-bg-subtle) !important;
+.list-group-item:hover,
+.list-group-item-action:not(.active):hover {
+    background-color: var(--color-bg-subtle);
 }
 
 .accordion-item {
-    background-color: var(--color-surface) !important;
-    border-color: var(--color-border) !important;
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
 }
 
 .accordion-button {
-    background-color: var(--color-bg-subtle) !important;
-    color: var(--color-text-base) !important;
+    background-color: var(--color-bg-subtle);
+    color: var(--color-text-base);
 }
 
 .accordion-button:not(.collapsed) {
-    background-color: var(--color-bg-muted) !important;
-    color: var(--color-text-base) !important;
+    background-color: var(--color-bg-muted);
+    color: var(--color-text-base);
 }
 
 .offcanvas {
-    background-color: var(--color-surface) !important;
+    background-color: var(--color-surface);
 }
 
 .offcanvas-header,
 .offcanvas-body {
-    color: var(--color-text-base) !important;
+    color: var(--color-text-base);
 }
 
 .toast {
-    background-color: var(--color-surface) !important;
-    border-color: var(--color-border) !important;
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
 }
 
 .toast-header {
-    background-color: var(--color-bg-subtle) !important;
-    border-color: var(--color-border) !important;
-    color: var(--color-text-base) !important;
+    background-color: var(--color-bg-subtle);
+    border-color: var(--color-border);
+    color: var(--color-text-base);
 }
 
 .toast-body {
-    color: var(--color-text-base) !important;
+    color: var(--color-text-base);
 }
 
 .popover {
-    background-color: var(--color-surface) !important;
-    border-color: var(--color-border) !important;
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
 }
 
 .popover-header {
-    background-color: var(--color-bg-subtle) !important;
-    border-color: var(--color-border) !important;
-    color: var(--color-text-base) !important;
+    background-color: var(--color-bg-subtle);
+    border-color: var(--color-border);
+    color: var(--color-text-base);
 }
 
 .popover-body {
-    color: var(--color-text-base) !important;
+    color: var(--color-text-base);
 }
 
 .tooltip-inner {
-    background-color: var(--color-bg-muted) !important;
-    color: var(--color-text-base) !important;
+    background-color: var(--color-bg-muted);
+    color: var(--color-text-base);
 }
 
 .breadcrumb {
-    background-color: var(--color-bg-subtle) !important;
+    background-color: var(--color-bg-subtle);
 }
 
 .breadcrumb-item a {
-    color: var(--color-primary) !important;
+    color: var(--color-primary);
 }
 
 .breadcrumb-item.active {
-    color: var(--color-text-muted) !important;
+    color: var(--color-text-muted);
 }
 
 .pagination {
+    --bs-pagination-hover-color: var(--color-text-base);
+    --bs-pagination-focus-color: var(--color-text-base);
+    --bs-pagination-active-color: var(--color-text-base);
+    --bs-pagination-disabled-color: var(--color-text-base);
     --bs-pagination-bg: var(--color-surface);
     --bs-pagination-border-color: var(--color-border);
     --bs-pagination-hover-bg: var(--color-bg-subtle);
@@ -1119,7 +1140,7 @@ body {
 }
 
 .page-link {
-    color: var(--color-text-base) !important;
+    color: var(--color-text-base);
 }
 
 /* ==========================================================================
@@ -1127,7 +1148,8 @@ body {
    ========================================================================== */
 
 .navbar-sunshine {
-    background: var(--navbar-bg) !important;
+    --bs-navbar-nav-link-padding-x: 1rem;
+    background: var(--navbar-bg);
     box-shadow: var(--shadow-md);
     border: none;
     transition: all var(--transition-base);
@@ -1142,9 +1164,9 @@ body {
 }
 
 .navbar-sunshine .nav-link {
-    color: var(--navbar-text-muted) !important;
+    color: var(--navbar-text-muted);
     font-weight: 500;
-    padding: 0.5rem 1rem !important;
+    padding: 0.5rem 1rem;
     min-height: calc(1.5em + 1rem);
     border-radius: var(--radius-md);
     transition: all var(--transition-fast);
@@ -1154,25 +1176,25 @@ body {
 }
 
 .navbar-sunshine .nav-link:hover {
-    color: var(--navbar-text) !important;
+    color: var(--navbar-text);
     background-color: rgba(255, 255, 255, 0.1);
     transform: translateY(-1px);
 }
 
 .navbar-sunshine .nav-link.active {
-    color: var(--navbar-text) !important;
+    color: var(--navbar-text);
     background-color: rgba(255, 255, 255, 0.15);
     font-weight: 600;
 }
 
 .navbar-sunshine .nav-link.dropdown-toggle.show {
-    color: var(--navbar-text) !important;
+    color: var(--navbar-text);
     background-color: rgba(255, 255, 255, 0.15);
 }
 
 .navbar-sunshine .navbar-toggler {
-    color: var(--navbar-text) !important;
-    border-color: rgba(255, 255, 255, 0.2) !important;
+    color: var(--navbar-text);
+    border-color: rgba(255, 255, 255, 0.2);
 }
 
 .navbar-sunshine .navbar-toggler:focus {
@@ -1321,7 +1343,7 @@ p {
 .btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
-    transform: none !important;
+    transform: none;
 }
 
 .btn-primary {
@@ -1420,14 +1442,14 @@ p {
    Badge Styles
    ========================================================================== */
 
-.badge.bg-primary {
-    background-color: var(--color-primary) !important;
-    color: var(--color-on-primary) !important;
+.badge.badge-primary {
+    background-color: var(--color-primary);
+    color: var(--color-on-primary);
 }
 
-.badge.bg-secondary {
-    background-color: var(--color-bg-muted) !important;
-    color: var(--color-text-base) !important;
+.badge.badge-secondary {
+    background-color: var(--color-bg-muted);
+    color: var(--color-text-base);
 }
 
 /* ==========================================================================
@@ -2242,7 +2264,7 @@ p {
 }
 
 .cover-finder .cover-results.busy * {
-    cursor: wait !important;
+    cursor: wait;
     pointer-events: none;
 }
 
@@ -2313,8 +2335,8 @@ p {
 .markdown-body.release-notes {
     width: 100%;
     max-width: 100%;
-    column-count: 1 !important;
-    display: block !important;
+    column-count: 1;
+    display: block;
 }
 
 .markdown-body h1,
@@ -2432,8 +2454,8 @@ p {
    ========================================================================== */
 
 .dropdown-menu {
-    background-color: var(--color-surface) !important;
-    border: 1px solid var(--color-border) !important;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-lg);
     padding: var(--spacing-sm);
@@ -2446,27 +2468,31 @@ p {
 .dropdown-item {
     padding: var(--spacing-sm) var(--spacing-md);
     border-radius: var(--radius-sm);
-    color: var(--color-text-base) !important;
+    --bs-dropdown-link-hover-color: var(--color-text-base);
+    --bs-dropdown-link-active-color: var(--color-text-base);
+    --bs-dropdown-link-disabled-color: var(--color-text-base);
+    color: var(--color-text-base);
     transition: all var(--transition-fast);
-}
-
-.dropdown-item:hover {
-    background-color: var(--color-bg-muted) !important;
-    color: var(--color-text-base) !important;
 }
 
 .dropdown-item.active {
     background-color: var(--color-primary-light);
-    color: var(--color-primary);
+    color: var(--color-text-base);
 }
 
 [data-bs-theme="dark"] .dropdown-item.active {
     background-color: var(--color-primary);
-    color: white;
+    color: var(--color-text-base);
+}
+
+.dropdown-item:hover,
+.dropdown-menu .dropdown-item:hover {
+    background-color: var(--color-bg-muted);
+    color: var(--color-text-base);
 }
 
 .dropdown-divider {
-    border-color: var(--color-border) !important;
+    border-color: var(--color-border);
 }
 
 /* Add spacing between icons and text in dropdown items */
@@ -2705,8 +2731,8 @@ p {
 }
 
 .featured-app-icon img {
-    max-width: 64px !important;
-    max-height: 64px !important;
+    max-width: 64px;
+    max-height: 64px;
     width: auto;
     height: auto;
     object-fit: contain;
@@ -2791,9 +2817,9 @@ p {
 }
 
 .screenshot-thumbnail {
-    height: 120px !important;
+    height: 120px;
     width: auto;
-    max-width: 200px !important;
+    max-width: 200px;
     min-width: 100px;
     border-radius: var(--radius-sm);
     cursor: pointer;

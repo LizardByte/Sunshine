@@ -408,7 +408,6 @@ namespace egl {
     gl::tex_t tex;  ///< Textures containing the imported Y and UV planes.
     gl::frame_buf_t buf;  ///< OpenGL framebuffer object used for rendering.
 
-    // sizeof(va::DRMPRIMESurfaceDescriptor::objects) / sizeof(va::DRMPRIMESurfaceDescriptor::objects[0]);
     static constexpr std::size_t num_fds = 4;  ///< Maximum number of DMA-BUF plane file descriptors exported by VAAPI.
 
     std::array<file_t, num_fds> fds;  ///< DMA-BUF file descriptors for each exported plane.

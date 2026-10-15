@@ -20,6 +20,7 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <utility>
 
 // platform includes
 #include <arpa/inet.h>
@@ -624,7 +625,7 @@ namespace platf {
     executable[len] = '\0';
 
     // ASIO doesn't use O_CLOEXEC, so we have to close all fds ourselves
-    int openmax = (int) sysconf(_SC_OPEN_MAX);
+    auto openmax = (int) sysconf(_SC_OPEN_MAX);
     for (int fd = STDERR_FILENO + 1; fd < openmax; fd++) {
       close(fd);
     }
@@ -755,7 +756,7 @@ namespace platf {
   /**
    * @brief Send multiple fixed-size UDP payload blocks using the platform backend.
    */
-  bool send_batch(batched_send_info_t &send_info) {
+  bool send_batch(const batched_send_info_t &send_info) {
     auto sockfd = (int) send_info.native_socket;
     struct msghdr msg = {};
 
@@ -1020,7 +1021,7 @@ namespace platf {
   // We can't track QoS state separately for each destination on this OS,
   // so we keep a ref count to only disable QoS options when all clients
   // are disconnected.
-  static std::atomic<int> qos_ref_count = 0;
+  static std::atomic qos_ref_count = 0;
 
   /**
    * @brief Linux QoS state used to tune socket priority while streaming.
@@ -1031,9 +1032,9 @@ namespace platf {
      * @brief Apply Linux socket priority and DSCP QoS settings for scoped cleanup.
      *
      * @param sockfd Native socket descriptor whose options are updated.
-     * @param options Request options or socket options to apply.
+     * @param options Socket options copied into this cleanup object's owned storage.
      */
-    qos_t(int sockfd, std::vector<std::tuple<int, int, int>> options):
+    qos_t(int sockfd, const std::vector<std::tuple<int, int, int>> &options):
         sockfd(sockfd),
         options(options) {
       qos_ref_count++;
@@ -1041,9 +1042,8 @@ namespace platf {
 
     virtual ~qos_t() {
       if (--qos_ref_count == 0) {
-        for (const auto &tuple : options) {
-          auto reset_val = std::get<2>(tuple);
-          if (setsockopt(sockfd, std::get<0>(tuple), std::get<1>(tuple), &reset_val, sizeof(reset_val)) < 0) {
+        for (const auto &[level, option, reset_val] : options) {
+          if (setsockopt(sockfd, level, option, &reset_val, sizeof(reset_val)) < 0) {
             BOOST_LOG(warning) << "Failed to reset option: "sv << errno;
           }
         }
@@ -1059,7 +1059,7 @@ namespace platf {
    * @brief Enables QoS on the given socket for traffic to the specified destination.
    */
   std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
-    int sockfd = (int) native_socket;
+    auto sockfd = (int) native_socket;
     std::vector<std::tuple<int, int, int>> reset_options;
 
     if (dscp_tagging) {
@@ -1087,7 +1087,7 @@ namespace platf {
           dscp = 48;
           break;
         default:
-          BOOST_LOG(error) << "Unknown traffic type: "sv << (int) data_type;
+          BOOST_LOG(error) << "Unknown traffic type: "sv << std::to_underlying(data_type);
           break;
       }
 
@@ -1534,7 +1534,7 @@ namespace platf {
   }
 
   /**
-   * @brief Linux high-precision timer implementation backed by `timerfd`.
+   * @brief Explicitly linux high-precision timer implementation backed by `timerfd`.
    */
   class linux_high_precision_timer: public high_precision_timer {
   public:
@@ -1542,7 +1542,7 @@ namespace platf {
       std::this_thread::sleep_for(duration);
     }
 
-    operator bool() override {
+    explicit operator bool() override {
       return true;
     }
   };

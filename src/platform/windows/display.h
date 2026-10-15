@@ -229,8 +229,10 @@ namespace platf::dxgi {
    */
   class gpu_cursor_t {
   public:
-    gpu_cursor_t():
-        cursor_view {0, 0, 0, 0, 0.0f, 1.0f} {};
+    /**
+     * @brief Initialize a cursor viewport with no area and the full depth range.
+     */
+    gpu_cursor_t() = default;
 
     /**
      * @brief Update the cursor position and display geometry used for rendering.
@@ -315,7 +317,7 @@ namespace platf::dxgi {
 
     shader_res_t input_res;  ///< Input res.
 
-    D3D11_VIEWPORT cursor_view;  ///< Cursor view.
+    D3D11_VIEWPORT cursor_view {0, 0, 0, 0, 0.0f, 1.0f};  ///< Cursor view with the full depth range.
 
     bool visible;  ///< Whether the cursor is visible.
   };
@@ -450,14 +452,14 @@ namespace platf::dxgi {
      *
      * @return True when the active display mode is HDR.
      */
-    virtual bool is_hdr() override;
+    bool is_hdr() override;
     /**
      * @brief Read HDR metadata for the active display mode.
      *
      * @param metadata Output structure populated with HDR metadata.
      * @return True when HDR metadata was written to `metadata`.
      */
-    virtual bool get_hdr_metadata(SS_HDR_METADATA &metadata) override;
+    bool get_hdr_metadata(SS_HDR_METADATA &metadata) override;
 
     /**
      * @brief Convert a DXGI format enum to a diagnostic string.

@@ -5,7 +5,10 @@
 #pragma once
 
 // standard includes
+#include <array>
 #include <atomic>
+#include <cstddef>
+#include <cstdint>
 
 // local includes
 #include "crypto.h"
@@ -13,6 +16,58 @@
 
 namespace rtsp_stream {
   constexpr auto RTSP_SETUP_PORT = 21;  ///< GameStream base-port offset used for the RTSP setup listener.
+
+#pragma pack(push, 1)
+
+  /**
+   * @brief Encrypted RTSP message header used by GameStream.
+   */
+  struct encrypted_rtsp_header_t {
+    // We set the MSB in encrypted RTSP messages to allow format-agnostic
+    // parsing code to be able to tell encrypted from plaintext messages.
+    static constexpr std::uint32_t ENCRYPTED_MESSAGE_TYPE_BIT = 0x80000000;  ///< Protocol or platform constant for encrypted message type bit.
+
+    /**
+     * @brief Return a pointer to the protocol payload following the packet header.
+     *
+     * @return Parsed or serialized payload data.
+     */
+    uint8_t *payload() {
+      return (uint8_t *) (this + 1);
+    }
+
+    /**
+     * @brief Decode the RTSP interleaved-frame payload length.
+     *
+     * @return Payload byte count with the encrypted-message flag masked out.
+     */
+    std::uint32_t payload_length() const {
+      return util::endian::big<std::uint32_t>(typeAndLength) & ~ENCRYPTED_MESSAGE_TYPE_BIT;
+    }
+
+    /**
+     * @brief Inspect the encrypted-message flag without modifying the wire header.
+     *
+     * @return True when the encrypted-message flag is set.
+     */
+    bool is_encrypted() const {
+      return !!(util::endian::big<std::uint32_t>(typeAndLength) & ENCRYPTED_MESSAGE_TYPE_BIT);
+    }
+
+    // This field is the length of the payload + ENCRYPTED_MESSAGE_TYPE_BIT in big-endian
+    std::uint32_t typeAndLength;  ///< Type and length.
+
+    // This field is the number used to initialize the bottom 4 bytes of the AES IV in big-endian
+    std::uint32_t sequenceNumber;  ///< Sequence number.
+
+    // This field is the AES GCM authentication tag
+    std::array<std::uint8_t, 16> tag;  ///< Authentication tag appended to the encrypted payload.
+  };
+
+#pragma pack(pop)
+
+  static_assert(sizeof(encrypted_rtsp_header_t) == 24);
+  static_assert(offsetof(encrypted_rtsp_header_t, tag) == 8);
 
   /**
    * @brief RTSP launch session state shared with stream setup.

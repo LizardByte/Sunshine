@@ -367,7 +367,7 @@ namespace stream {
   static inline int encode_audio(bool encrypted, const audio::buffer_t &plaintext, uint8_t *destination, crypto::aes_t &iv, crypto::cipher::cbc_t &cbc) {
     // If encryption isn't enabled
     if (!encrypted) {
-      std::copy(std::begin(plaintext), std::end(plaintext), destination);
+      std::ranges::copy(plaintext, destination);
       return (int) plaintext.size();
     }
 
@@ -438,7 +438,7 @@ namespace stream {
      * @param cb Callback invoked for each matching message or session.
      */
     void map(uint16_t type, std::function<void(session_t *, const std::string_view &)> cb) {
-      _map_type_cb.emplace(type, std::move(cb));
+      _map_type_cb.try_emplace(type, std::move(cb));
     }
 
     /**
@@ -449,8 +449,7 @@ namespace stream {
      * @return Network operation status.
      */
     int send(const std::string_view &payload, net::peer_t peer) {
-      auto packet = enet_packet_create(payload.data(), payload.size(), ENET_PACKET_FLAG_RELIABLE);
-      if (enet_peer_send(peer, 0, packet)) {
+      if (auto packet = enet_packet_create(payload.data(), payload.size(), ENET_PACKET_FLAG_RELIABLE); enet_peer_send(peer, 0, packet)) {
         enet_packet_destroy(packet);
 
         return -1;
@@ -537,8 +536,7 @@ namespace stream {
       std::string ping_payload;  ///< Payload expected from audio-channel ping packets.
 
       std::uint16_t sequenceNumber;  ///< Next RTP sequence number for an audio packet.
-      // avRiKeyId == util::endian::big(First (sizeof(avRiKeyId)) bytes of launch_session->iv)
-      std::uint32_t avRiKeyId;  ///< Base audio encryption key identifier derived from the launch-session IV.
+      std::uint32_t avRiKeyId;  ///< Base audio encryption key identifier decoded from the first four IV bytes in big-endian order.
       std::uint32_t timestamp;  ///< RTP timestamp for the next audio packet.
       udp::endpoint peer;  ///< Client UDP endpoint for the audio channel.
 
@@ -1001,7 +999,7 @@ namespace stream {
 
     std::copy(begin, next, std::back_inserter(replaced));
     if (next != end) {
-      std::copy(std::begin(_new), std::end(_new), std::back_inserter(replaced));
+      std::ranges::copy(_new, std::back_inserter(replaced));
       std::copy(next + old.size(), end, std::back_inserter(replaced));
     }
 
@@ -1190,7 +1188,7 @@ namespace stream {
     });
 
     server->map(packetTypes[IDX_LOSS_STATS], [&](session_t *session, const std::string_view &payload) {
-      int32_t *stats = (int32_t *) payload.data();
+      auto stats = (int32_t *) payload.data();
       auto count = stats[0];
       std::chrono::milliseconds t {stats[1]};
 
@@ -1462,14 +1460,14 @@ namespace stream {
         switch (socket_type) {
           case socket_e::video:
             if (message_queue) {
-              peer_to_video_session.emplace(session_id, message_queue);
+              peer_to_video_session.try_emplace(session_id, message_queue);
             } else {
               peer_to_video_session.erase(session_id);
             }
             break;
           case socket_e::audio:
             if (message_queue) {
-              peer_to_audio_session.emplace(session_id, message_queue);
+              peer_to_audio_session.try_emplace(session_id, message_queue);
             } else {
               peer_to_audio_session.erase(session_id);
             }
@@ -1480,7 +1478,7 @@ namespace stream {
 
     auto recv_func_init = [&](udp::socket &sock, int buf_elem, std::map<av_session_id_t, message_queue_t> &peer_to_session) {
       recv_func[buf_elem] = [&, buf_elem](const boost::system::error_code &ec, size_t bytes) {
-        auto fg = util::fail_guard([&]() {
+        auto fg = util::fail_guard([&sock, &buf, &peer, &recv_func, &buf_elem]() {
           sock.async_receive_from(asio::buffer(buf[buf_elem]), peer, 0, recv_func[buf_elem]);
         });
 
@@ -2117,7 +2115,7 @@ namespace stream {
       }
 
       TUPLE_2D_REF(recv_peer, msg, *msg_opt);
-      if (msg.find(expected_payload) != std::string::npos) {
+      if (msg.contains(expected_payload)) {
         // Match the new PING payload format
         BOOST_LOG(debug) << "Received ping [v2] from "sv << recv_peer.address() << ':' << recv_peer.port() << " ["sv << util::hex_vec(msg) << ']';
       } else if (!(session->config.mlFeatureFlags & ML_FF_SESSION_ID_V1) && msg == "PING"sv) {

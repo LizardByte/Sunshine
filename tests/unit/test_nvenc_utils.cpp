@@ -8,6 +8,8 @@
   #include <array>
   #include <bit>
   #include <cstdint>
+  #include <cstring>
+  #include <limits>
   #include <tuple>
   #include <utility>
 
@@ -30,6 +32,8 @@ namespace {
     std::uintptr_t opened_device = 0;  ///< Address of the native device forwarded to NVENC.
     int opens = 0;  ///< Session-open calls observed by the driver.
     int destructions = 0;  ///< Session-destroy calls observed by the driver.
+    GUID selected_preset {};  ///< Preset GUID forwarded to the driver.
+    int preset_queries = 0;  ///< Preset configuration calls observed by the driver.
   };
 
   driver_state_t driver;  ///< Fake driver state and opaque session identity.
@@ -78,13 +82,35 @@ namespace {
     /**
      * @brief Install fake driver callbacks for one native device type.
      * @param cuda Whether the test uses a CUDA context instead of a D3D11 device.
+     * @param observe_preset Whether the driver should continue through preset selection.
+     * @note Unused session parameter types are inferred from the SDK callback signatures.
      */
-    explicit fake_session_encoder_t(bool cuda):
+    explicit fake_session_encoder_t(bool cuda, bool observe_preset = false):
         nvenc_base(cuda ? NV_ENC_DEVICE_TYPE_CUDA : NV_ENC_DEVICE_TYPE_DIRECTX) {
       nvenc = std::make_shared<NV_ENCODE_API_FUNCTION_LIST>();
       nvenc->nvEncOpenEncodeSessionEx = &open_session;
       nvenc->nvEncGetEncodeGUIDCount = &fail_guid_count;
       nvenc->nvEncDestroyEncoder = &destroy_session;
+      if (observe_preset) {
+        nvenc->nvEncGetEncodeGUIDCount = [](auto *, std::uint32_t *count) {
+          *count = 1;
+          return NV_ENC_SUCCESS;
+        };
+        nvenc->nvEncGetEncodeGUIDs = [](auto *, GUID *guids, std::uint32_t, std::uint32_t *count) {
+          *guids = NV_ENC_CODEC_H264_GUID;
+          *count = 1;
+          return NV_ENC_SUCCESS;
+        };
+        nvenc->nvEncGetEncodeCaps = [](auto *, GUID, NV_ENC_CAPS_PARAM *params, int *value) {
+          *value = params->capsToQuery == NV_ENC_CAPS_WIDTH_MAX || params->capsToQuery == NV_ENC_CAPS_HEIGHT_MAX ? 4096 : 0;
+          return NV_ENC_SUCCESS;
+        };
+        nvenc->nvEncGetEncodePresetConfigEx = [](auto *, GUID, GUID preset, NV_ENC_TUNING_INFO, NV_ENC_PRESET_CONFIG *) {
+          driver.selected_preset = preset;
+          ++driver.preset_queries;
+          return NV_ENC_ERR_GENERIC;
+        };
+      }
       constexpr std::uintptr_t device_address = 0x1234;
       if (cuda) {
         device = std::bit_cast<CUcontext>(device_address);
@@ -136,6 +162,40 @@ namespace {
     }
   };
 }  // namespace
+
+/**
+ * @brief Preset selection forwards every supported GUID and both boundary fallbacks to the driver.
+ */
+TEST(NvencPresetTest, PreservesGuidMappingsAndBoundaryFallbacks) {
+  using namespace nvenc_1301;
+  const std::array cases {
+    std::pair {0, NV_ENC_PRESET_P1_GUID},
+    std::pair {1, NV_ENC_PRESET_P1_GUID},
+    std::pair {2, NV_ENC_PRESET_P2_GUID},
+    std::pair {3, NV_ENC_PRESET_P3_GUID},
+    std::pair {4, NV_ENC_PRESET_P4_GUID},
+    std::pair {5, NV_ENC_PRESET_P5_GUID},
+    std::pair {6, NV_ENC_PRESET_P6_GUID},
+    std::pair {7, NV_ENC_PRESET_P7_GUID},
+    std::pair {8, NV_ENC_PRESET_P7_GUID},
+    std::pair {-1, NV_ENC_PRESET_P7_GUID},
+    std::pair {std::numeric_limits<int>::max(), NV_ENC_PRESET_P7_GUID},
+  };
+  for (const auto &[number, expected] : cases) {
+    driver = {};
+    fake_session_encoder_t encoder {false, true};
+    nvenc::nvenc_config config {};
+    config.quality_preset = number;
+    video::config_t client_config {};
+    client_config.width = 64;
+    client_config.height = 64;
+    const auto colorspace = video::colorspace_from_client_config(client_config, false);
+    EXPECT_FALSE(encoder.create_encoder(config, client_config, colorspace, platf::pix_fmt_e::nv12));
+    EXPECT_EQ(driver.preset_queries, 1);
+    EXPECT_EQ(std::memcmp(&driver.selected_preset, &expected, sizeof(GUID)), 0) << number;
+    EXPECT_EQ(driver.destructions, 1);
+  }
+}
 
 TEST(NvencCompletionEventTest, TypedEventCanBeSignaledAndIsClosedWithTheEncoder) {
   nvenc_1301::completion_event_t *event = nullptr;

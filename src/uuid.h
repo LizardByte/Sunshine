@@ -77,12 +77,12 @@ namespace uuid_util {
       auto last_slice = hex_view.substr(20, 12);
 
       for (auto &slice : slices) {
-        std::copy(std::begin(slice), std::end(slice), std::back_inserter(result));
+        std::ranges::copy(slice, std::back_inserter(result));
 
         result.push_back('-');
       }
 
-      std::copy(std::begin(last_slice), std::end(last_slice), std::back_inserter(result));
+      std::ranges::copy(last_slice, std::back_inserter(result));
 
       return result;
     }

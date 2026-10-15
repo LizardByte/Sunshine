@@ -334,7 +334,7 @@ namespace nvhttp {
    * bool pin_status = nvhttp::pin("0123456789abcdef0123456789abcdef", "1234", "laptop");
    * @examples_end
    */
-  bool pin(std::string_view pairing_id, std::string pin, std::string name);
+  bool pin(std::string_view pairing_id, const std::string &pin, std::string name);
 
   /**
    * @brief Remove single client.
@@ -384,6 +384,20 @@ namespace nvhttp {
    * @brief Test-only accessors for paired-client authorization state.
    */
   namespace test_support {
+    /**
+     * @brief Create the production HTTPS server and expose its callback lifetime guard.
+     *
+     * @param certificate_file Path to the server certificate PEM file.
+     * @param private_key_file Path to the matching private key PEM file.
+     * @param handler_scope Receives the scope runner that prevents destruction during callbacks.
+     * @return HTTPS server ready for test endpoint configuration.
+     */
+    std::unique_ptr<SimpleWeb::ServerBase<SunshineHTTPS>> make_https_server(
+      const std::string &certificate_file,
+      const std::string &private_key_file,
+      std::shared_ptr<SimpleWeb::ScopeRunner> &handler_scope
+    );
+
     /**
      * @brief Dispatch a plain-HTTP pairing request through the production handler.
      *

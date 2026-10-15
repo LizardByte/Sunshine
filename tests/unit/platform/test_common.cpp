@@ -43,6 +43,34 @@ TEST(SocketAddressTest, UnsupportedAddressFamiliesProduceEmptyAddressesAndZeroPo
   EXPECT_EQ(platf::from_sockaddr_ex(&address), (std::pair<std::uint16_t, std::string> {0, {}}));
 }
 
+/**
+ * @brief Const batch descriptors locate payload boundaries and reject offsets past all buffers.
+ */
+TEST(BatchedSendInfoTest, ConstLookupPreservesBuffersAndFindsEveryBoundary) {
+  const std::string_view first = "abc";
+  const std::string_view second = "defg";
+  std::vector<platf::buffer_descriptor_t> buffers {{nullptr, 0}, {first.data(), first.size()}, {second.data(), second.size()}};
+  auto address = boost::asio::ip::address_v4::loopback();
+  boost::asio::ip::address endpoint = address;
+  const platf::batched_send_info_t batch {nullptr, 0, buffers, 1, 0, 7, 0, endpoint, 0, endpoint};
+
+  EXPECT_EQ(batch.buffer_for_payload_offset(0).buffer, first.data());
+  EXPECT_EQ(batch.buffer_for_payload_offset(0).size, first.size());
+  EXPECT_EQ(batch.buffer_for_payload_offset(2).buffer, first.data() + 2);
+  EXPECT_EQ(batch.buffer_for_payload_offset(2).size, 1);
+  EXPECT_EQ(batch.buffer_for_payload_offset(3).buffer, second.data());
+  EXPECT_EQ(batch.buffer_for_payload_offset(3).size, second.size());
+  EXPECT_EQ(batch.buffer_for_payload_offset(6).buffer, second.data() + 3);
+  EXPECT_EQ(batch.buffer_for_payload_offset(6).size, 1);
+  for (const auto offset : {7, 8}) {
+    EXPECT_EQ(batch.buffer_for_payload_offset(offset).buffer, nullptr);
+    EXPECT_EQ(batch.buffer_for_payload_offset(offset).size, 0);
+  }
+  EXPECT_EQ(buffers.size(), 3);
+  EXPECT_EQ(buffers[1].buffer, first.data());
+  EXPECT_EQ(buffers[1].size, first.size());
+}
+
 #if defined(_WIN32) || defined(__linux__) || defined(__FreeBSD__)
 /**
  * @brief Exercise source-address control messages on bound UDP sockets with optional headers.
@@ -64,7 +92,7 @@ TEST_P(UdpSourceAddressTest, SendsTheExpectedDatagramFromTheRequestedAddress) {
     const std::string_view headers = "headerheader";
     const std::string_view payloads = "payloadpayload";
     std::vector<platf::buffer_descriptor_t> buffers {{payloads.data(), payloads.size()}};
-    platf::batched_send_info_t batch_info {
+    const platf::batched_send_info_t batch_info {
       with_header ? headers.data() : nullptr,
       with_header ? header.size() : 0,
       buffers,

@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <future>
 #include <stdexcept>
+#include <string_view>
 
 // local includes
 #include "graphics.h"
@@ -513,7 +514,7 @@ namespace egl {
         return nullptr;
     }
 
-    // native_display.left() equals native_display.right()
+    // Initialize EGL with the selected platform and its native display handle.
     EGLDisplay raw_display = EGL_NO_DISPLAY;
 
     if (eglGetPlatformDisplayEXT) {
@@ -557,7 +558,7 @@ namespace egl {
     };
 
     for (auto ext : extensions) {
-      if (!std::strstr(extension_st, ext)) {
+      if (!std::string_view {extension_st}.contains(ext)) {
         BOOST_LOG(error) << "Missing extension: ["sv << ext << ']';
         return nullptr;
       }
@@ -1341,7 +1342,7 @@ namespace egl {
   }
 
   int sws_t::blank(gl::frame_buf_t &fb, int offsetX_, int offsetY_, int width, int height, bool is_yuv444) {
-    auto f = [&]() {
+    auto f = [this, &offsetX_, &offsetY_, &width, &height]() {
       std::swap(offsetX_, this->offsetX);
       std::swap(offsetY_, this->offsetY);
       std::swap(width, this->out_width);

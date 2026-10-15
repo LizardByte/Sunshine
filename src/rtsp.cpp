@@ -51,58 +51,6 @@ namespace rtsp_stream {
     delete msg;
   }
 
-#pragma pack(push, 1)
-
-  /**
-   * @brief Encrypted RTSP message header used by GameStream.
-   */
-  struct encrypted_rtsp_header_t {
-    // We set the MSB in encrypted RTSP messages to allow format-agnostic
-    // parsing code to be able to tell encrypted from plaintext messages.
-    static constexpr std::uint32_t ENCRYPTED_MESSAGE_TYPE_BIT = 0x80000000;  ///< Protocol or platform constant for encrypted message type bit.
-
-    /**
-     * @brief Return a pointer to the protocol payload following the packet header.
-     *
-     * @return Parsed or serialized payload data.
-     */
-    uint8_t *payload() {
-      return (uint8_t *) (this + 1);
-    }
-
-    /**
-     * @brief Decode the RTSP interleaved-frame payload length.
-     *
-     * @return Payload byte count with the encrypted-message flag masked out.
-     */
-    std::uint32_t payload_length() {
-      return util::endian::big<std::uint32_t>(typeAndLength) & ~ENCRYPTED_MESSAGE_TYPE_BIT;
-    }
-
-    /**
-     * @brief Check whether encrypted.
-     *
-     * @return True when the RTSP connection is using TLS.
-     */
-    bool is_encrypted() {
-      return !!(util::endian::big<std::uint32_t>(typeAndLength) & ENCRYPTED_MESSAGE_TYPE_BIT);
-    }
-
-    // This field is the length of the payload + ENCRYPTED_MESSAGE_TYPE_BIT in big-endian
-    std::uint32_t typeAndLength;  ///< Type and length.
-
-    // This field is the number used to initialize the bottom 4 bytes of the AES IV in big-endian
-    std::uint32_t sequenceNumber;  ///< Sequence number.
-
-    // This field is the AES GCM authentication tag
-    std::array<std::uint8_t, 16> tag;  ///< Authentication tag appended to the encrypted payload.
-  };
-
-#pragma pack(pop)
-
-  static_assert(sizeof(encrypted_rtsp_header_t) == 24);
-  static_assert(offsetof(encrypted_rtsp_header_t, tag) == 8);
-
   class rtsp_server_t;
 
   /**
@@ -375,7 +323,7 @@ namespace rtsp_stream {
           // If content_length > bytes read, then we need to store current data read,
           // to be appended by the next read.
           std::string_view content {option->content};
-          auto begin = std::find_if(std::begin(content), std::end(content), [](auto ch) {
+          auto begin = std::ranges::find_if(content, [](auto ch) {
             return (bool) std::isdigit(ch);
           });
 
@@ -529,8 +477,7 @@ namespace rtsp_stream {
      * @param req Parsed RTSP request being handled.
      */
     void handle_msg(tcp::socket &sock, launch_session_t &session, msg_t &&req) {
-      auto func = _map_cmd_cb.find(req->message.request.command);
-      if (func != std::end(_map_cmd_cb)) {
+      if (auto func = _map_cmd_cb.find(req->message.request.command); func != std::end(_map_cmd_cb)) {
         func->second(this, sock, session, std::move(req));
       } else {
         cmd_not_found(sock, session, std::move(req));
@@ -586,7 +533,7 @@ namespace rtsp_stream {
      * @param cb Callback invoked for each matching message or session.
      */
     void map(const std::string_view &type, cmd_func_t cb) {
-      _map_cmd_cb.emplace(type, std::move(cb));
+      _map_cmd_cb.try_emplace(type, std::move(cb));
     }
 
     /**
@@ -804,12 +751,12 @@ namespace rtsp_stream {
    * @param resp RTSP response string to send to the client.
    */
   void respond(tcp::socket &sock, launch_session_t &session, msg_t &resp) {
-    auto payload = std::make_pair(resp->payload, resp->payloadLength);
+    auto [payload, original_payload_length] = std::make_pair(resp->payload, resp->payloadLength);
 
     // Restore response message for proper destruction
-    auto lg = util::fail_guard([&]() {
-      resp->payload = payload.first;
-      resp->payloadLength = payload.second;
+    auto lg = util::fail_guard([&resp, &payload, &original_payload_length]() {
+      resp->payload = payload;
+      resp->payloadLength = original_payload_length;
     });
 
     resp->payload = nullptr;
@@ -820,7 +767,7 @@ namespace rtsp_stream {
     BOOST_LOG(debug)
       << "---Begin Response---"sv << std::endl
       << std::string_view {raw_resp.get(), (std::size_t) serialized_len} << std::endl
-      << std::string_view {payload.first, (std::size_t) payload.second} << std::endl
+      << std::string_view {payload, (std::size_t) original_payload_length} << std::endl
       << "---End Response---"sv << std::endl;
 
     // Encrypt the RTSP message if encryption is enabled
@@ -840,21 +787,21 @@ namespace rtsp_stream {
       iv[11] = 'R';  // RTSP
 
       // Allocate the message with an empty header and reserved space for the payload
-      auto payload_length = serialized_len + payload.second;
+      auto message_length = serialized_len + original_payload_length;
       std::vector<uint8_t> message(sizeof(encrypted_rtsp_header_t));
-      message.reserve(message.size() + payload_length);
+      message.reserve(message.size() + message_length);
 
       // Copy the complete plaintext into the message
       std::copy_n(raw_resp.get(), serialized_len, std::back_inserter(message));
-      std::copy_n(payload.first, payload.second, std::back_inserter(message));
+      std::copy_n(payload, original_payload_length, std::back_inserter(message));
 
       // Initialize the message header
       auto header = (encrypted_rtsp_header_t *) message.data();
-      header->typeAndLength = util::endian::big<std::uint32_t>(encrypted_rtsp_header_t::ENCRYPTED_MESSAGE_TYPE_BIT + payload_length);
+      header->typeAndLength = util::endian::big<std::uint32_t>(encrypted_rtsp_header_t::ENCRYPTED_MESSAGE_TYPE_BIT + message_length);
       header->sequenceNumber = util::endian::big<std::uint32_t>(session.rtsp_iv_counter);
 
       // Encrypt the RTSP message in place
-      session.rtsp_cipher->encrypt(std::string_view {(const char *) header->payload(), (std::size_t) payload_length}, header->tag.data(), &iv);
+      session.rtsp_cipher->encrypt(std::string_view {(const char *) header->payload(), (std::size_t) message_length}, header->tag.data(), &iv);
 
       // Send the full encrypted message
       send(sock, std::string_view {(char *) message.data(), message.size()});
@@ -867,7 +814,7 @@ namespace rtsp_stream {
       }
 
       // Send the plaintext RTSP message payload (if present)
-      send(sock, std::string_view {payload.first, (std::size_t) payload.second});
+      send(sock, std::string_view {payload, (std::size_t) original_payload_length});
     }
   }
 
@@ -935,8 +882,7 @@ namespace rtsp_stream {
     uint32_t encryption_flags_requested = SS_ENC_CONTROL_V2;
 
     // Determine the encryption desired for this remote endpoint
-    auto encryption_mode = net::encryption_mode_for_address(sock.remote_endpoint().address());
-    if (encryption_mode != config::ENCRYPTION_MODE_NEVER) {
+    if (auto encryption_mode = net::encryption_mode_for_address(sock.remote_endpoint().address()); encryption_mode != config::ENCRYPTION_MODE_NEVER) {
       // Advertise support for video encryption if it's not disabled
       encryption_flags_supported |= SS_ENC_VIDEO;
 
@@ -1021,7 +967,7 @@ namespace rtsp_stream {
     seqn.content = const_cast<char *>(seqn_str.c_str());
 
     std::string_view target {req->message.request.target};
-    auto begin = std::find(std::begin(target), std::end(target), '=') + 1;
+    auto begin = std::ranges::find(target, '=') + 1;
     auto end = std::find(begin, std::end(target), '/');
     std::string_view type {begin, (size_t) std::distance(begin, end)};
 
@@ -1122,7 +1068,7 @@ namespace rtsp_stream {
         if (val[val.size() - 1] == ' ') {
           val = val.substr(0, val.size() - 1);
         }
-        args.emplace(name, val);
+        args.try_emplace(name, val);
       }
     }
 
@@ -1222,7 +1168,7 @@ namespace rtsp_stream {
         if ("Host"sv == request_option->option) {
           std::string_view content {request_option->content};
           BOOST_LOG(debug) << "Found Host: "sv << content;
-          config.audio.flags[audio::config_t::HIGH_QUALITY] = (content.find("0.0.0.0"sv) == std::string::npos);
+          config.audio.flags[audio::config_t::HIGH_QUALITY] = !content.contains("0.0.0.0"sv);
         }
       }
     } else if (session.surround_params.length() > 3) {

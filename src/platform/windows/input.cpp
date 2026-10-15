@@ -419,10 +419,8 @@ namespace platf {
         if (gamepad.gp.get() == target) {
           // Convert from 8-bit to 16-bit values
           const auto normalizedLargeMotor = vigem::scale_rumble(largeMotor);
-          const auto normalizedSmallMotor = vigem::scale_rumble(smallMotor);
-
           // Don't resend duplicate rumble data
-          if (normalizedSmallMotor != gamepad.last_rumble.data.rumble.highfreq || normalizedLargeMotor != gamepad.last_rumble.data.rumble.lowfreq) {
+          if (const auto normalizedSmallMotor = vigem::scale_rumble(smallMotor); normalizedSmallMotor != gamepad.last_rumble.data.rumble.highfreq || normalizedLargeMotor != gamepad.last_rumble.data.rumble.lowfreq) {
             // We have to use the client-relative index when communicating back to the client
             gamepad_feedback_msg_t msg = gamepad_feedback_msg_t::make_rumble(
               gamepad.client_relative_index,
@@ -833,8 +831,7 @@ namespace platf {
   }
 
   static DS4_DPAD_DIRECTIONS ds4_dpad(const gamepad_state_t &gamepad_state) {
-    auto flags = gamepad_state.buttonFlags;
-    if (flags & DPAD_UP) {
+    if (auto flags = gamepad_state.buttonFlags; flags & DPAD_UP) {
       if (flags & DPAD_RIGHT) {
         return DS4_BUTTON_DPAD_NORTHEAST;
       } else if (flags & DPAD_LEFT) {

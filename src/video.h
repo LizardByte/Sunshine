@@ -328,7 +328,9 @@ namespace video {
         _CONVERT(VUI_PARAMETERS);
         _CONVERT(MAX_FLAGS);
       }
-#undef _CONVERT
+#ifndef DOXYGEN
+  #undef _CONVERT
+#endif
 
       return {"unknown"};
     }
@@ -520,14 +522,14 @@ namespace video {
       KITTY_DEFAULT_CONSTR_MOVE(replace_t)
 
       /**
-       * @brief Store an encoded-byte replacement rule.
+       * @brief Copy the non-owning byte views for an encoded-byte replacement rule.
        *
        * @param old Byte sequence to replace in encoded packets.
        * @param _new Replacement byte sequence inserted into encoded packets.
        */
       replace_t(std::string_view old, std::string_view _new) noexcept:
-          old {std::move(old)},
-          _new {std::move(_new)} {
+          old {old},
+          _new {_new} {
       }
     };
 

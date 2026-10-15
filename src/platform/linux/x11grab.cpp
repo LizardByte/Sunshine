@@ -9,6 +9,7 @@
 #include <fstream>
 #include <ranges>
 #include <thread>
+#include <utility>
 
 #ifdef SUNSHINE_TESTS
   #include <gtest/gtest.h>
@@ -101,16 +102,15 @@ namespace platf {
           }
         }
 
-        std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-          {(dyn::apiproc *) &GetScreenResources, "XRRGetScreenResources"},
-          {(dyn::apiproc *) &GetOutputInfo, "XRRGetOutputInfo"},
-          {(dyn::apiproc *) &GetCrtcInfo, "XRRGetCrtcInfo"},
-          {(dyn::apiproc *) &FreeScreenResources, "XRRFreeScreenResources"},
-          {(dyn::apiproc *) &FreeOutputInfo, "XRRFreeOutputInfo"},
-          {(dyn::apiproc *) &FreeCrtcInfo, "XRRFreeCrtcInfo"},
-        };
-
-        if (dyn::load(handle, funcs)) {
+        if (std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+              {(dyn::apiproc *) &GetScreenResources, "XRRGetScreenResources"},
+              {(dyn::apiproc *) &GetOutputInfo, "XRRGetOutputInfo"},
+              {(dyn::apiproc *) &GetCrtcInfo, "XRRGetCrtcInfo"},
+              {(dyn::apiproc *) &FreeScreenResources, "XRRFreeScreenResources"},
+              {(dyn::apiproc *) &FreeOutputInfo, "XRRFreeOutputInfo"},
+              {(dyn::apiproc *) &FreeCrtcInfo, "XRRFreeCrtcInfo"},
+            };
+            dyn::load(handle, funcs)) {
           return -1;
         }
 
@@ -138,11 +138,10 @@ namespace platf {
           }
         }
 
-        std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-          {(dyn::apiproc *) &GetCursorImage, "XFixesGetCursorImage"},
-        };
-
-        if (dyn::load(handle, funcs)) {
+        if (std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+              {(dyn::apiproc *) &GetCursorImage, "XFixesGetCursorImage"},
+            };
+            dyn::load(handle, funcs)) {
           return -1;
         }
 
@@ -166,16 +165,15 @@ namespace platf {
         }
       }
 
-      std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-        {(dyn::apiproc *) &GetImage, "XGetImage"},
-        {(dyn::apiproc *) &OpenDisplay, "XOpenDisplay"},
-        {(dyn::apiproc *) &GetWindowAttributes, "XGetWindowAttributes"},
-        {(dyn::apiproc *) &Free, "XFree"},
-        {(dyn::apiproc *) &CloseDisplay, "XCloseDisplay"},
-        {(dyn::apiproc *) &InitThreads, "XInitThreads"},
-      };
-
-      if (dyn::load(handle, funcs)) {
+      if (std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+            {(dyn::apiproc *) &GetImage, "XGetImage"},
+            {(dyn::apiproc *) &OpenDisplay, "XOpenDisplay"},
+            {(dyn::apiproc *) &GetWindowAttributes, "XGetWindowAttributes"},
+            {(dyn::apiproc *) &Free, "XFree"},
+            {(dyn::apiproc *) &CloseDisplay, "XCloseDisplay"},
+            {(dyn::apiproc *) &InitThreads, "XInitThreads"},
+          };
+          dyn::load(handle, funcs)) {
         return -1;
       }
 
@@ -222,14 +220,13 @@ namespace platf {
         }
       }
 
-      std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-        {(dyn::apiproc *) &shm_id, "xcb_shm_id"},
-        {(dyn::apiproc *) &shm_get_image_reply, "xcb_shm_get_image_reply"},
-        {(dyn::apiproc *) &shm_get_image_unchecked, "xcb_shm_get_image_unchecked"},
-        {(dyn::apiproc *) &shm_attach, "xcb_shm_attach"},
-      };
-
-      if (dyn::load(handle, funcs)) {
+      if (std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+            {(dyn::apiproc *) &shm_id, "xcb_shm_id"},
+            {(dyn::apiproc *) &shm_get_image_reply, "xcb_shm_get_image_reply"},
+            {(dyn::apiproc *) &shm_get_image_unchecked, "xcb_shm_get_image_unchecked"},
+            {(dyn::apiproc *) &shm_attach, "xcb_shm_attach"},
+          };
+          dyn::load(handle, funcs)) {
         return -1;
       }
 
@@ -257,17 +254,16 @@ namespace platf {
         }
       }
 
-      std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-        {(dyn::apiproc *) &get_extension_data, "xcb_get_extension_data"},
-        {(dyn::apiproc *) &get_setup, "xcb_get_setup"},
-        {(dyn::apiproc *) &disconnect, "xcb_disconnect"},
-        {(dyn::apiproc *) &connection_has_error, "xcb_connection_has_error"},
-        {(dyn::apiproc *) &connect, "xcb_connect"},
-        {(dyn::apiproc *) &setup_roots_iterator, "xcb_setup_roots_iterator"},
-        {(dyn::apiproc *) &generate_id, "xcb_generate_id"},
-      };
-
-      if (dyn::load(handle, funcs)) {
+      if (std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+            {(dyn::apiproc *) &get_extension_data, "xcb_get_extension_data"},
+            {(dyn::apiproc *) &get_setup, "xcb_get_setup"},
+            {(dyn::apiproc *) &disconnect, "xcb_disconnect"},
+            {(dyn::apiproc *) &connection_has_error, "xcb_connection_has_error"},
+            {(dyn::apiproc *) &connect, "xcb_connect"},
+            {(dyn::apiproc *) &setup_roots_iterator, "xcb_setup_roots_iterator"},
+            {(dyn::apiproc *) &generate_id, "xcb_generate_id"},
+          };
+          dyn::load(handle, funcs)) {
         return -1;
       }
 
@@ -332,11 +328,11 @@ namespace platf {
     }
 
     /**
-     * @brief Take ownership of a SysV shared-memory segment ID.
+     * @brief Explicitly take ownership of a SysV shared-memory segment ID.
      *
      * @param id SysV shared-memory segment ID.
      */
-    shm_id_t(int id):
+    explicit shm_id_t(int id):
         id {id} {
     }
 
@@ -370,11 +366,11 @@ namespace platf {
     }
 
     /**
-     * @brief Take ownership of an attached shared-memory mapping.
+     * @brief Explicitly take ownership of an attached shared-memory mapping.
      *
      * @param data Pointer returned by shmat.
      */
-    shm_data_t(std::uint8_t *data):
+    explicit shm_data_t(std::uint8_t *data):
         data {data} {
     }
 
@@ -481,7 +477,7 @@ namespace platf {
       auto pixels_begin = &pixels[(y + overlay->y) * (img.row_pitch / img.pixel_pitch) + overlay->x];
 
       std::for_each(overlay_begin, overlay_end, [&](long pixel) {
-        int *pixel_p = (int *) &pixel;
+        auto pixel_p = (int *) &pixel;
 
         auto colors_in = (uint8_t *) pixels_begin;
 
@@ -505,9 +501,9 @@ namespace platf {
   struct x11_attr_t: public display_t {
     std::chrono::nanoseconds delay;  ///< Delay before the timer task becomes eligible to run.
 
-    x11::xdisplay_t xdisplay;  ///< X11 display connection used for capture.
-    Window xwindow;  ///< Root window being captured.
-    XWindowAttributes xattr;  ///< Cached X11 window attributes used to detect size changes.
+    x11::xdisplay_t xdisplay {x11::OpenDisplay(nullptr)};  ///< X11 display connection opened for capture.
+    Window xwindow {};  ///< Root window being captured.
+    XWindowAttributes xattr {};  ///< Cached X11 window attributes used to detect size changes.
 
     mem_type_e mem_type;  ///< Mem type.
 
@@ -515,17 +511,13 @@ namespace platf {
      * Last X (NOT the streamed monitor!) size.
      * This way we can trigger reinitialization if the dimensions changed while streaming
      */
-    // int env_width, env_height;
 
     /**
-     * @brief Open the X11 display and initialize capture attributes.
+     * @brief Explicitly open the X11 display and initialize capture attributes.
      *
      * @param mem_type Requested memory path for the capture backend.
      */
-    x11_attr_t(mem_type_e mem_type):
-        xdisplay {x11::OpenDisplay(nullptr)},
-        xwindow {},
-        xattr {},
+    explicit x11_attr_t(mem_type_e mem_type):
         mem_type {mem_type} {
       x11::InitThreads();
     }
@@ -638,7 +630,7 @@ namespace platf {
             }
             break;
           default:
-            BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
+            BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
             return status;
         }
       }
@@ -727,8 +719,8 @@ namespace platf {
       // TODO: stop cheating and give black image
       if (!img) {
         return -1;
-      };
-      auto pull_dummy_img_callback = [&img](std::shared_ptr<platf::img_t> &img_out) -> bool {
+      }
+      auto pull_dummy_img_callback = [&img](std::shared_ptr<platf::img_t> &img_out) {
         img_out = img->shared_from_this();
         return true;
       };
@@ -742,7 +734,7 @@ namespace platf {
    * @brief X11 shared-memory image dimensions and identifiers.
    */
   struct shm_attr_t: public x11_attr_t {
-    x11::xdisplay_t shm_xdisplay;  ///< X11 display held separately to prevent races with x11_attr_t::xdisplay.
+    x11::xdisplay_t shm_xdisplay {x11::OpenDisplay(nullptr)};  ///< X11 display held separately to prevent races with x11_attr_t::xdisplay.
     xcb_connect_t xcb;  ///< XCB connection used by the shared-memory capture path.
     xcb_screen_t *display;  ///< XCB screen containing the captured root window.
     std::uint32_t seg;  ///< XCB shared-memory segment ID attached to the image.
@@ -763,13 +755,12 @@ namespace platf {
     }
 
     /**
-     * @brief Open an X11 shared-memory capture backend.
+     * @brief Explicitly open an X11 shared-memory capture backend.
      *
      * @param mem_type Requested memory path for the capture backend.
      */
-    shm_attr_t(mem_type_e mem_type):
-        x11_attr_t(mem_type),
-        shm_xdisplay {x11::OpenDisplay(nullptr)} {
+    explicit shm_attr_t(mem_type_e mem_type):
+        x11_attr_t(mem_type) {
       refresh_task_id = task_pool.pushDelayed(&shm_attr_t::delayed_refresh, 2s, this).task_id;
     }
 
@@ -813,7 +804,7 @@ namespace platf {
             }
             break;
           default:
-            BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
+            BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
             return status;
         }
       }
@@ -1073,7 +1064,7 @@ namespace platf {
     void cursor_t::capture(egl::cursor_t &img) {
       auto display = (xdisplay_t::pointer) ctx.get();
 
-      xcursor_t xcursor = fix::GetCursorImage(display);
+      xcursor_t xcursor {fix::GetCursorImage(display)};
 
       if (img.serial != xcursor->cursor_serial) {
         auto buf_size = xcursor->width * xcursor->height * sizeof(int);
@@ -1105,7 +1096,7 @@ namespace platf {
      * @brief Open and initialize the display connection used for capture.
      */
     xdisplay_t make_display() {
-      return OpenDisplay(nullptr);
+      return xdisplay_t {OpenDisplay(nullptr)};
     }
 
     /**

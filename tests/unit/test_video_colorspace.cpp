@@ -114,3 +114,18 @@ TEST(VideoColorspaceTest, ConvertsBlackWhiteAndPrimaryRedInEveryOutputRange) {
     }
   }
 }
+
+/**
+ * @brief Unknown colorspaces reuse the Rec. 709 matrix for every range and depth.
+ */
+TEST(VideoColorspaceTest, UnknownColorspaceUsesTheRec709Fallback) {
+  for (unsigned bit_depth : {8U, 10U}) {
+    for (bool full_range : {false, true}) {
+      for (bool unorm_output : {false, true}) {
+        const video::sunshine_colorspace_t fallback {video::colorspace_e::rec709, full_range, bit_depth};
+        const video::sunshine_colorspace_t unknown {static_cast<video::colorspace_e>(-1), full_range, bit_depth};
+        EXPECT_EQ(video::color_vectors_from_colorspace(unknown, unorm_output), video::color_vectors_from_colorspace(fallback, unorm_output));
+      }
+    }
+  }
+}

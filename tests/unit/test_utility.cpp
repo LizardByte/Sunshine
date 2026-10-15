@@ -11,15 +11,56 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 // local includes
 #include <src/utility.h>
+
+/**
+ * @brief Whether a type has a supported empty-state sentinel.
+ */
+template<class T>
+concept has_false_value = requires { util::__false_v<T>::value; };
+
+/**
+ * @brief Sentinel constraints select empty states without accepting unrelated values.
+ */
+TEST(UtilityFalseValueTests, SelectsSentinelsForOptionalPointerAndBooleanTypes) {
+  static_assert(std::is_same_v<decltype(util::false_v<std::optional<int>>), const std::nullopt_t>);
+  static_assert(std::is_same_v<decltype(util::false_v<int *>), const std::nullptr_t>);
+  static_assert(std::is_same_v<decltype(util::false_v<std::unique_ptr<int>>), const std::nullptr_t>);
+  static_assert(std::is_same_v<decltype(util::false_v<std::shared_ptr<int>>), const std::nullptr_t>);
+  static_assert(std::is_same_v<decltype(util::false_v<util::uniq_ptr<int>>), const std::nullptr_t>);
+  static_assert(std::is_same_v<decltype(util::false_v<bool>), const bool>);
+  static_assert(!has_false_value<int>);
+
+  EXPECT_FALSE(std::optional<int> {util::false_v<std::optional<int>>});
+  EXPECT_EQ(util::false_v<int *>, nullptr);
+  EXPECT_EQ(util::false_v<std::unique_ptr<int>>, nullptr);
+  EXPECT_EQ(util::false_v<std::shared_ptr<int>>, nullptr);
+  EXPECT_EQ(util::false_v<util::uniq_ptr<int>>, nullptr);
+  EXPECT_FALSE(util::false_v<bool>);
+}
+
+/**
+ * @brief A const resource deleter invokes its release function exactly once per call.
+ */
+TEST(UtilityDestroyTest, ConstDeleterInvokesTheConfiguredReleaseFunction) {
+  const util::Destroy<int *, void, +[](int *value) {
+    ++*value;
+  }>
+    destroy;
+  int releases = 0;
+  destroy(&releases);
+  EXPECT_EQ(releases, 1);
+}
 
 /**
  * @brief Simulate the opposite byte order for a byte-array fixture.
@@ -267,11 +308,24 @@ TEST(UtilityBufferTests, MoveConstruction) {
 
 TEST(UtilityBufferTests, CopyConstruction) {
   util::buffer_t buf1(3, 55);
+  buf1[1] = 66;
+  buf1[2] = 77;
   util::buffer_t<int> buf2(buf1);
   EXPECT_EQ(buf2.size(), 3U);
   EXPECT_EQ(buf2[0], 55);
+  EXPECT_EQ(buf2[1], 66);
+  EXPECT_EQ(buf2[2], 77);
   EXPECT_EQ(buf1.size(), 3U);
   EXPECT_EQ(buf1[0], 55);
+}
+
+TEST(UtilityBufferTests, CopiesAnEmptyLogicalRange) {
+  util::buffer_t buf(3, 42);
+  buf.fake_resize(0);
+  const util::buffer_t<int> copy(buf);
+  EXPECT_EQ(copy.size(), 0U);
+  EXPECT_EQ(copy.begin(), copy.end());
+  EXPECT_EQ(buf[0], 42);
 }
 
 TEST(UtilityBufferTests, SizeConstructionValueInitializesEveryElement) {
@@ -350,6 +404,11 @@ TEST(UtilityHexTests, IteratorsAndViewsExposeExactlyTheFormattedBytes) {
 TEST(UtilityFromHexTests, ShortInputPadsUnusedBytesWithZeros) {
   EXPECT_EQ(util::from_hex<std::uint64_t>("ABCD"), util::endian::little(std::uint64_t {0xABCD}));
   EXPECT_EQ(util::from_hex<std::uint64_t>("ABCD", true), util::endian::big(std::uint64_t {0xABCD}));
+}
+
+TEST(UtilityFromHexTests, LongInputKeepsTheLowOrderBytes) {
+  EXPECT_EQ(util::from_hex<std::uint32_t>("123456789A"), util::endian::little(std::uint32_t {0x3456789A}));
+  EXPECT_EQ(util::from_hex<std::uint32_t>("123456789A", true), util::endian::big(std::uint32_t {0x3456789A}));
 }
 
 TEST(UtilityFromHexTests, DecodesIntoAByteArrayWithoutPointerTypePunning) {
