@@ -12,14 +12,22 @@ const globalOptions = {
     DisplayDeviceOptions: true, DisplayModesSettings: true,
   },
 }
+
 let wrapper
-afterEach(() => { wrapper?.unmount(); wrapper = undefined; vi.unstubAllGlobals() })
-async function mountConfig({ ac3Available, eac3Available, audioFormat }) {
+afterEach(() => {
+  wrapper?.unmount()
+  wrapper = undefined
+  vi.unstubAllGlobals()
+})
+
+async function mountConfig({ platform, audioFormat }) {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
     json: () => Promise.resolve({
-      status: true, platform: 'windows', version: 'test',
-      ac3_available: ac3Available, eac3_available: eac3Available,
-      audio_format: audioFormat, high_quality_audio: false,
+      status: true,
+      platform,
+      version: 'test',
+      audio_format: audioFormat,
+      high_quality_audio: false,
     }),
   }))
   wrapper = mount(Config, { global: globalOptions })
@@ -28,34 +36,38 @@ async function mountConfig({ ac3Available, eac3Available, audioFormat }) {
   await wrapper.vm.$nextTick()
   return wrapper
 }
-describe('Dolby audio configuration capabilities', () => {
-  it('preserves a saved Dolby format when the API reports the encoder available', async () => {
-    const page = await mountConfig({ ac3Available: true, eac3Available: true, audioFormat: 'eac3' })
+
+describe('Dolby audio configuration', () => {
+  it.each(['windows', 'linux', 'macos', 'freebsd'])('offers the Dolby selector on %s', async platform => {
+    const page = await mountConfig({ platform, audioFormat: 'eac3' })
     const format = page.get('#audio_format')
+
     expect(format.element.value).toBe('eac3')
     expect(format.element.disabled).toBe(false)
-    expect(page.get('#audio_format option[value="ac3"]').element.disabled).toBe(false)
-    expect(page.get('#audio_format option[value="eac3"]').element.disabled).toBe(false)
+    expect(format.findAll('option').map(option => option.element.value)).toEqual(['opus', 'ac3', 'eac3'])
+    expect(format.findAll('option').every(option => !option.element.disabled)).toBe(true)
     expect(page.get('#high_quality_audio').element.disabled).toBe(false)
     expect(page.vm.config).not.toHaveProperty('ac3_available')
     expect(page.vm.config).not.toHaveProperty('eac3_available')
   })
-  it('disables only the unavailable codec and safely falls back from it', async () => {
-    const page = await mountConfig({ ac3Available: true, eac3Available: false, audioFormat: 'eac3' })
+
+  it('preserves a saved Dolby selection when capability metadata is absent', async () => {
+    const page = await mountConfig({ platform: 'linux', audioFormat: 'ac3' })
     const format = page.get('#audio_format')
-    expect(format.element.value).toBe('opus')
+
+    expect(format.element.value).toBe('ac3')
     expect(format.element.disabled).toBe(false)
-    expect(page.get('#audio_format option[value="ac3"]').element.disabled).toBe(false)
-    expect(page.get('#audio_format option[value="eac3"]').element.disabled).toBe(true)
-    expect(page.get('#high_quality_audio').element.disabled).toBe(true)
+    expect(format.get('option[value="ac3"]').element.disabled).toBe(false)
+    expect(format.get('option[value="eac3"]').element.disabled).toBe(false)
   })
-  it('disables Dolby selection when neither encoder is available', async () => {
-    const page = await mountConfig({ ac3Available: false, eac3Available: false, audioFormat: 'ac3' })
-    const format = page.get('#audio_format')
-    expect(format.element.value).toBe('opus')
-    expect(format.element.disabled).toBe(true)
-    expect(page.get('#audio_format option[value="ac3"]').element.disabled).toBe(true)
-    expect(page.get('#audio_format option[value="eac3"]').element.disabled).toBe(true)
-    expect(page.find('#high_quality_audio').exists()).toBe(false)
+
+  it('only disables high quality audio while Opus is selected', async () => {
+    const page = await mountConfig({ platform: 'macos', audioFormat: 'opus' })
+    const quality = page.get('#high_quality_audio')
+
+    expect(quality.element.disabled).toBe(true)
+    await page.get('#audio_format').setValue('ac3')
+    await page.vm.$nextTick()
+    expect(quality.element.disabled).toBe(false)
   })
 })
