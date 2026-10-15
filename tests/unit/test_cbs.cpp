@@ -203,7 +203,7 @@ namespace {
 
   /**
    * @brief Name each codec, VUI and packet-layout combination.
-   * @param info Parameterized test information.
+   * @param test_info Parameterized test information.
    * @return Descriptive gtest parameter name.
    */
   std::string sps_test_name(const testing::TestParamInfo<SpsTestParam> &test_info) {
