@@ -504,7 +504,7 @@ namespace wl {
     // Export every memory plane into the surface descriptor
     auto next_frame = get_next_frame();
     const auto plane_count = export_gbm_bo_planes(current_bo, *next_frame, gbm_bo_accessors);
-    if (!plane_count) {
+    if (!plane_count.has_value()) {
       gbm_bo_destroy(current_bo);
       current_bo = nullptr;
       zwlr_screencopy_frame_v1_destroy(frame);
