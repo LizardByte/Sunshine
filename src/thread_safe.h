@@ -162,11 +162,11 @@ namespace safe {
     }
 
     /**
-     * @brief Inspect the next queued value without popping it.
+     * @brief Inspect whether this event has a value without modifying or consuming it.
      *
      * @return True when a value is available to inspect.
      */
-    bool peek() {
+    bool peek() const {
       return _continue && (bool) _status;
     }
 

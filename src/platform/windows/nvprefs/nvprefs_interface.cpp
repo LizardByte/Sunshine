@@ -193,7 +193,7 @@ namespace nvprefs {
     return true;
   }
 
-  bool nvprefs_interface::owning_undo_file() {
+  bool nvprefs_interface::owning_undo_file() const {
     return pimpl->undo_file.has_value();
   }
 

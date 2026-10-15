@@ -1643,7 +1643,7 @@ namespace util {
      *
      * @param p Pointer to release.
      */
-    void operator()(pointer p) {
+    void operator()(pointer p) const {
       function(p);
     }
   };

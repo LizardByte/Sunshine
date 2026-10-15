@@ -31,6 +31,7 @@
 #include <src/video.h>
 #ifdef _WIN32
   #include <src/platform/windows/nvprefs/nvprefs_common.h>
+  #include <src/platform/windows/nvprefs/nvprefs_interface.h>
 #endif
 
 namespace {
@@ -163,6 +164,28 @@ TEST(ResourceOwnershipTest, FileResetClosesUnderlyingDescriptor) {
 }
 
 #ifdef _WIN32
+/**
+ * @brief Const NVIDIA preference inspection does not claim ownership before the interface is loaded.
+ */
+TEST(ResourceOwnershipTest, ConstNvPrefsInterfaceStartsWithoutAnUndoFile) {
+  const nvprefs::nvprefs_interface preferences;
+  EXPECT_FALSE(preferences.owning_undo_file());
+  EXPECT_FALSE(preferences.owning_undo_file());
+}
+
+/**
+ * @brief A const LocalAlloc deleter releases a movable allocation and accepts null pointers.
+ */
+TEST(ResourceOwnershipTest, ConstLocalAllocDeleterReleasesTheAllocation) {
+  const auto allocation = LocalAlloc(LMEM_MOVEABLE, 16);
+  ASSERT_NE(allocation, nullptr);
+  ASSERT_NE(LocalFlags(allocation), LMEM_INVALID_HANDLE);
+  const nvprefs::safe_hlocal_deleter destroy;
+  destroy(allocation);
+  EXPECT_EQ(LocalFlags(allocation), LMEM_INVALID_HANDLE);
+  destroy(static_cast<void *>(nullptr));
+}
+
 /**
  * @brief Moving an NVPrefs handle transfers responsibility for closing it.
  */

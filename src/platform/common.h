@@ -1050,11 +1050,11 @@ namespace platf {
     boost::asio::ip::address &source_address;  ///< Local source IP address for outgoing packets.
 
     /**
-     * @brief Returns a payload buffer descriptor for the given payload offset.
+     * @brief Locate a payload region without changing the batch descriptor or its buffers.
      * @param offset The offset in the total payload data (bytes).
      * @return Buffer descriptor describing the region at the given offset.
      */
-    buffer_descriptor_t buffer_for_payload_offset(ptrdiff_t offset) {
+    buffer_descriptor_t buffer_for_payload_offset(ptrdiff_t offset) const {
       for (const auto &desc : payload_buffers) {
         if (offset < desc.size) {
           return {
