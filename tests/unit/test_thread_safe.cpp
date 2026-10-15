@@ -42,8 +42,8 @@ TEST(ThreadSafeEvent, ConstPeekPreservesPendingValuesAcrossStateChanges) {
 TEST(ThreadSafeMail, CleanupPreservesLivePostsAndRemovesExpiredPosts) {
   safe::mail_raw_t mailbox;
   const auto live = std::make_shared<int>(7);
-  mailbox.id_to_post.emplace("live", live);
-  mailbox.id_to_post.emplace("expired", std::weak_ptr<void> {});
+  mailbox.id_to_post.try_emplace("live", live);
+  mailbox.id_to_post.try_emplace("expired", std::weak_ptr<void> {});
 
   mailbox.cleanup();
 
