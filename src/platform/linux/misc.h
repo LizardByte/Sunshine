@@ -13,6 +13,7 @@
 #include <vector>
 
 // local includes
+#include "src/platform/common.h"
 #include "src/utility.h"
 
 #ifndef DOXYGEN
@@ -162,6 +163,56 @@ namespace platf {
     if (next_frame < now) {  // some major slowdown happened; we couldn't keep up
       next_frame = now + delay;
     }
+  }
+
+  /**
+   * @brief Run the capture loop shared by the Linux display backends.
+   *
+   * @tparam SnapshotFn Callable performing one capture attempt.
+   * @tparam PushCb Callback type receiving captured frames.
+   * @tparam PullCb Callback type providing free image buffers.
+   * @param logger Pacing logger tracking capture sleep overshoot.
+   * @param delay Frame interval used for pacing.
+   * @param push_captured_image_cb Callback receiving captured frames.
+   * @param pull_free_image_cb Callback providing free image buffers.
+   * @param cursor Whether the cursor should be included in the capture.
+   * @param snapshot Callable performing one snapshot.
+   * @return Final capture status.
+   */
+  template<typename SnapshotFn, typename PushCb, typename PullCb>
+  platf::capture_e capture_loop(logging::time_delta_periodic_logger &logger, std::chrono::nanoseconds delay, const PushCb &push_captured_image_cb, const PullCb &pull_free_image_cb, bool *cursor, SnapshotFn snapshot) {
+    using enum platf::capture_e;
+    auto next_frame = std::chrono::steady_clock::now();
+
+    logger.reset();
+
+    while (true) {
+      handle_pacing(next_frame, delay, logger);
+
+      std::shared_ptr<platf::img_t> img_out;
+      auto status = snapshot(pull_free_image_cb, img_out, std::chrono::milliseconds {1000}, *cursor);
+      switch (status) {
+        case reinit:
+        case capture_error:
+        case interrupted:
+          return status;
+        case timeout:
+          if (!push_captured_image_cb(std::move(img_out), false)) {
+            return ok;
+          }
+          break;
+        case ok:
+          if (!push_captured_image_cb(std::move(img_out), true)) {
+            return ok;
+          }
+          break;
+        default:
+          BOOST_LOG(error) << "Unrecognized capture status [" << std::to_underlying(status) << ']';
+          return status;
+      }
+    }
+
+    return ok;
   }
 
 #if defined(__linux__) && defined(SUNSHINE_BUILD_DRM)

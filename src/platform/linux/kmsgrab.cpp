@@ -1742,6 +1742,32 @@ namespace platf {
       cursor_t captured_cursor {};  ///< Captured cursor.
 
       card_t card;  ///< Card.
+
+    protected:
+      /**
+       * @brief Capture KMS frames until capture stops or the display needs reinitialization.
+       *
+       * @param push_captured_image_cb Callback receiving a captured image or a capture timeout.
+       * @param pull_free_image_cb Callback providing an available image buffer.
+       * @param cursor Whether the cursor should be included in the captured image.
+       * @return Final capture status reported to the streaming pipeline.
+       */
+      capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
+        return capture_loop(sleep_overshoot_logger, delay, push_captured_image_cb, pull_free_image_cb, cursor, [this](const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
+          return snapshot(pull_free_image_cb, img_out, timeout, cursor);
+        });
+      }
+
+      /**
+       * @brief Capture one frame from the KMS display.
+       *
+       * @param pull_free_image_cb Callback providing an available image buffer.
+       * @param img_out Captured frame returned to the streaming pipeline.
+       * @param timeout Maximum time to wait for the operation.
+       * @param cursor Whether the cursor should be included in the captured image.
+       * @return Capture status reported to the streaming pipeline.
+       */
+      virtual capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) = 0;
     };
 
     /**
@@ -1794,50 +1820,6 @@ namespace platf {
         ctx = std::move(*ctx_opt);
 
         return 0;
-      }
-
-      /**
-       * @brief Capture KMS frames until capture stops or the display needs reinitialization.
-       *
-       * @param push_captured_image_cb Callback receiving a captured image or a capture timeout.
-       * @param pull_free_image_cb Callback providing an available image buffer.
-       * @param cursor Whether the cursor should be included in the captured image.
-       * @return Final capture status reported to the streaming pipeline.
-       */
-      capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
-        using enum platf::capture_e;
-
-        auto next_frame = std::chrono::steady_clock::now();
-
-        sleep_overshoot_logger.reset();
-
-        while (true) {
-          platf::handle_pacing(next_frame, delay, sleep_overshoot_logger);
-
-          std::shared_ptr<platf::img_t> img_out;
-          auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
-          switch (status) {
-            case reinit:
-            case capture_error:
-            case interrupted:
-              return status;
-            case timeout:
-              if (!push_captured_image_cb(std::move(img_out), false)) {
-                return ok;
-              }
-              break;
-            case ok:
-              if (!push_captured_image_cb(std::move(img_out), true)) {
-                return ok;
-              }
-              break;
-            default:
-              BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
-              return status;
-          }
-        }
-
-        return ok;
       }
 
       /**
@@ -1924,7 +1906,7 @@ namespace platf {
        * @param cursor Cursor image or visibility state to composite.
        * @return Capture status reported to the streaming pipeline.
        */
-      capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
+      capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) override {
         std::array<file_t, 4> fb_fd;
 
         egl::surface_descriptor_t sd;
@@ -1978,6 +1960,9 @@ namespace platf {
         img->height = height;
         img->pixel_pitch = 4;
         img->row_pitch = img->pixel_pitch * width;
+        // The texture download in snapshot() converts every plane layout to
+        // packed 8-bit BGRA, so the RAM buffer is always declared as BGR0.
+        img->pixel_format = platf::pix_fmt_e::bgr0;
         img->data = new std::uint8_t[height * img->row_pitch];
 
         return img;
@@ -2054,6 +2039,7 @@ namespace platf {
         img->serial = std::numeric_limits<decltype(img->serial)>::max();
         img->data = nullptr;
         img->pixel_pitch = 4;
+        img->pixel_format = platf::pix_fmt_e::bgr0;
 
         img->sequence = 0;
         img->sd.fds.fill(-1);
@@ -2073,50 +2059,6 @@ namespace platf {
       }
 
       /**
-       * @brief Capture KMS frames until capture stops or the display needs reinitialization.
-       *
-       * @param push_captured_image_cb Callback receiving a captured image or a capture timeout.
-       * @param pull_free_image_cb Callback providing an available image buffer.
-       * @param cursor Whether the cursor should be included in the captured image.
-       * @return Final capture status reported to the streaming pipeline.
-       */
-      capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
-        using enum platf::capture_e;
-
-        auto next_frame = std::chrono::steady_clock::now();
-
-        sleep_overshoot_logger.reset();
-
-        while (true) {
-          platf::handle_pacing(next_frame, delay, sleep_overshoot_logger);
-
-          std::shared_ptr<platf::img_t> img_out;
-          auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
-          switch (status) {
-            case reinit:
-            case capture_error:
-            case interrupted:
-              return status;
-            case timeout:
-              if (!push_captured_image_cb(std::move(img_out), false)) {
-                return ok;
-              }
-              break;
-            case ok:
-              if (!push_captured_image_cb(std::move(img_out), true)) {
-                return ok;
-              }
-              break;
-            default:
-              BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
-              return status;
-          }
-        }
-
-        return ok;
-      }
-
-      /**
        * @brief Capture a display frame into the provided image object.
        *
        * @param pull_free_image_cb Pull free image cb.
@@ -2124,7 +2066,7 @@ namespace platf {
        * @param cursor Cursor image or visibility state to composite.
        * @return Capture status reported to the streaming pipeline.
        */
-      capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds /* timeout */, bool cursor) {
+      capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds /* timeout */, bool cursor) override {
         std::array<file_t, 4> fb_fd;
 
         if (!pull_free_image_cb(img_out)) {
@@ -2136,6 +2078,24 @@ namespace platf {
         auto status = refresh(fb_fd.data(), &img->sd, img->frame_timestamp);
         if (status != capture_e::ok) {
           return status;
+        }
+
+        // Declare the format from the actual plane fourcc instead of assuming
+        // packed 8-bit BGR. Only the packed 8-bit layouts have a Sunshine
+        // equivalent; any other plane stays undeclared, and the DMA-BUF
+        // consumers keep importing the plane through its fourcc rather than
+        // through the declaration.
+        using enum platf::pix_fmt_e;
+        switch (img->sd.fourcc) {
+          case DRM_FORMAT_XRGB8888:
+            img->pixel_format = bgr0;
+            break;
+          case DRM_FORMAT_ARGB8888:
+            img->pixel_format = bgra;
+            break;
+          default:
+            img->pixel_format = unknown;
+            break;
         }
 
         img->sequence = ++sequence;
@@ -2155,6 +2115,7 @@ namespace platf {
           img->height = captured_cursor.dst_h;
           img->pixel_pitch = 4;
           img->row_pitch = img->pixel_pitch * img->width;
+          img->pixel_format = platf::pix_fmt_e::bgra;
           img->data = img->buffer.data();
         } else {
           img->data = nullptr;
