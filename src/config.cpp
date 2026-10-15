@@ -647,8 +647,6 @@ namespace config {
       _CONVERT_(manual);
 #ifndef DOXYGEN
   #undef _CONVERT_
-#endif
-#ifndef DOXYGEN
   #undef _CONVERT_2_ARG_
 #endif
       return video_t::dd_t::resolution_option_e::disabled;  // Default to this if value is invalid
@@ -672,8 +670,6 @@ namespace config {
       _CONVERT_(manual);
 #ifndef DOXYGEN
   #undef _CONVERT_
-#endif
-#ifndef DOXYGEN
   #undef _CONVERT_2_ARG_
 #endif
       return video_t::dd_t::refresh_rate_option_e::disabled;  // Default to this if value is invalid
@@ -696,8 +692,6 @@ namespace config {
       _CONVERT_2_ARG_(auto, automatic);
 #ifndef DOXYGEN
   #undef _CONVERT_
-#endif
-#ifndef DOXYGEN
   #undef _CONVERT_2_ARG_
 #endif
       return video_t::dd_t::hdr_option_e::disabled;  // Default to this if value is invalid
