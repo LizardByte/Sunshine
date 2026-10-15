@@ -20,6 +20,21 @@
 
 using namespace std::literals;
 
+/**
+ * @brief Preparation commands own their command strings and copy privilege settings.
+ */
+TEST(ConfigPrepCommandTest, PreservesCommandsAndElevationWithBothConstructors) {
+  const config::prep_cmd_t paired {"launch"s, "undo"s, true};
+  EXPECT_EQ(paired.do_cmd, "launch");
+  EXPECT_EQ(paired.undo_cmd, "undo");
+  EXPECT_TRUE(paired.elevated);
+
+  const config::prep_cmd_t single {"launch-only"s, false};
+  EXPECT_EQ(single.do_cmd, "launch-only");
+  EXPECT_TRUE(single.undo_cmd.empty());
+  EXPECT_FALSE(single.elevated);
+}
+
 TEST(ConfigParsingTest, ParsedEntriesOwnKeysAndSupportStringViewLookup) {
   std::string input = "encoder = software\nencoder = nvenc\n";
   const auto entries = config::parse_config(input);

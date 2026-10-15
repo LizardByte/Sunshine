@@ -10,6 +10,7 @@
 #include <array>
 #include <limits>
 #include <optional>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -25,6 +26,23 @@ extern "C" {
 #include <src/video.h>
 
 using namespace std::literals;
+
+/**
+ * @brief Packet replacement rules retain the original non-owning byte views.
+ */
+TEST(VideoPacketReplacementTest, CopiesViewsWithoutCopyingTheirBackingBytes) {
+  std::string original = "__old__";
+  std::string replacement = "__new__";
+  const video::packet_raw_t::replace_t rule {std::string_view(original).substr(2, 3), std::string_view(replacement).substr(2, 3)};
+  EXPECT_EQ(rule.old, "old");
+  EXPECT_EQ(rule._new, "new");
+  EXPECT_EQ(rule.old.data(), original.data() + 2);
+  EXPECT_EQ(rule._new.data(), replacement.data() + 2);
+  original[2] = 'O';
+  replacement[2] = 'N';
+  EXPECT_EQ(rule.old, "Old");
+  EXPECT_EQ(rule._new, "New");
+}
 
 TEST(VideoFormatMappingTest, MapsSupportedHardwareDevicesAndRejectsUnsupportedOnes) {
   using enum platf::mem_type_e;

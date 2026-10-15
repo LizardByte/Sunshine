@@ -2067,7 +2067,7 @@ namespace config {
       auto vars = parse_config(file_handler::read_file(sunshine.config_file.c_str()));
 
       for (auto &[name, value] : cmd_vars) {
-        vars.insert_or_assign(std::move(name), std::move(value));
+        vars.insert_or_assign(name, std::move(value));
       }
 
       // Apply the config. Note: This will try to create any paths

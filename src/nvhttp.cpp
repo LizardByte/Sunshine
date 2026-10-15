@@ -1360,7 +1360,7 @@ namespace nvhttp {
       app.put("AppTitle"s, proc.name);
       app.put("ID", proc.id);
 
-      apps.push_back(std::make_pair("App", std::move(app)));
+      apps.push_back(std::make_pair("App", app));
     }
   }
 
