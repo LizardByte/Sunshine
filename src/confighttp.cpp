@@ -1491,8 +1491,6 @@ namespace confighttp {
       output_tree[name] = std::move(value);
     }
 
-    output_tree["ac3_available"] = audio::ac3_available();
-    output_tree["eac3_available"] = audio::eac3_available();
     send_response(response, output_tree);
   }
 
