@@ -1342,7 +1342,7 @@ namespace egl {
   }
 
   int sws_t::blank(gl::frame_buf_t &fb, int offsetX_, int offsetY_, int width, int height, bool is_yuv444) {
-    auto f = [&]() {
+    auto f = [this, &offsetX_, &offsetY_, &width, &height]() {
       std::swap(offsetX_, this->offsetX);
       std::swap(offsetY_, this->offsetY);
       std::swap(width, this->out_width);
