@@ -699,6 +699,19 @@ namespace video {
   config_t resolve_dynamic_range(const encoder_t &encoder, config_t config);
 
   /**
+   * @brief Clear all published encoder probe results.
+   */
+  void reset_encoder_probe_results();
+
+  /**
+   * @brief Publish the capabilities of a probed encoder for client advertisement.
+   * @details A codec that did not pass its probe publishes no capabilities.
+   *
+   * @param encoder Encoder whose probed codec capabilities should be published.
+   */
+  void record_encoder_probe_results(const encoder_t &encoder);
+
+  /**
    * @brief Capture and encode video for a streaming session.
    *
    * @param mail Session mail bus.

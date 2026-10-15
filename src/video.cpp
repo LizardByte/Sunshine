@@ -3261,6 +3261,21 @@ namespace video {
     return true;
   }
 
+  void reset_encoder_probe_results() {
+    last_encoder_probe_supported_ref_frames_invalidation = false;
+    last_encoder_probe_supported_yuv444_for_codec = {};
+  }
+
+  void record_encoder_probe_results(const encoder_t &encoder) {
+    last_encoder_probe_supported_ref_frames_invalidation = (encoder.flags & REF_FRAMES_INVALIDATION);
+    last_encoder_probe_supported_yuv444_for_codec[0] = encoder.h264[encoder_t::PASSED] &&
+                                                       encoder.h264[encoder_t::YUV444];
+    last_encoder_probe_supported_yuv444_for_codec[1] = encoder.hevc[encoder_t::PASSED] &&
+                                                       encoder.hevc[encoder_t::YUV444];
+    last_encoder_probe_supported_yuv444_for_codec[2] = encoder.av1[encoder_t::PASSED] &&
+                                                       encoder.av1[encoder_t::YUV444];
+  }
+
   int probe_encoders() {
     if (!allow_encoder_probing()) {
       // Error already logged
@@ -3279,7 +3294,7 @@ namespace video {
     chosen_encoder = nullptr;
     active_hevc_mode = config::video.hevc_mode;
     active_av1_mode = config::video.av1_mode;
-    last_encoder_probe_supported_ref_frames_invalidation = false;
+    reset_encoder_probe_results();
 
     auto adjust_encoder_constraints_hevc = [&](encoder_t *encoder) {
       // If we can't satisfy both the encoder and codec requirement, prefer the encoder over codec support
@@ -3429,13 +3444,7 @@ namespace video {
 
     auto &encoder = *chosen_encoder;
 
-    last_encoder_probe_supported_ref_frames_invalidation = (encoder.flags & REF_FRAMES_INVALIDATION);
-    last_encoder_probe_supported_yuv444_for_codec[0] = encoder.h264[encoder_t::PASSED] &&
-                                                       encoder.h264[encoder_t::YUV444];
-    last_encoder_probe_supported_yuv444_for_codec[1] = encoder.hevc[encoder_t::PASSED] &&
-                                                       encoder.hevc[encoder_t::YUV444];
-    last_encoder_probe_supported_yuv444_for_codec[2] = encoder.av1[encoder_t::PASSED] &&
-                                                       encoder.av1[encoder_t::YUV444];
+    record_encoder_probe_results(encoder);
 
     BOOST_LOG(debug) << "------  h264 ------"sv;
     for (int x = 0; x < encoder_t::MAX_FLAGS; ++x) {
