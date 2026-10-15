@@ -92,7 +92,7 @@ TEST_P(UdpSourceAddressTest, SendsTheExpectedDatagramFromTheRequestedAddress) {
     const std::string_view headers = "headerheader";
     const std::string_view payloads = "payloadpayload";
     std::vector<platf::buffer_descriptor_t> buffers {{payloads.data(), payloads.size()}};
-    platf::batched_send_info_t batch_info {
+    const platf::batched_send_info_t batch_info {
       with_header ? headers.data() : nullptr,
       with_header ? header.size() : 0,
       buffers,

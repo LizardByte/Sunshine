@@ -1505,7 +1505,7 @@ namespace platf {
 
   // Use UDP segmentation offload if it is supported by the OS. If the NIC is capable, this will use
   // hardware acceleration to reduce CPU usage. Support for USO was introduced in Windows 10 20H1.
-  bool send_batch(batched_send_info_t &send_info) {
+  bool send_batch(const batched_send_info_t &send_info) {
     WSAMSG msg;
 
     // Convert the target address into a SOCKADDR

@@ -756,7 +756,7 @@ namespace platf {
   /**
    * @brief Send multiple fixed-size UDP payload blocks using the platform backend.
    */
-  bool send_batch(batched_send_info_t &send_info) {
+  bool send_batch(const batched_send_info_t &send_info) {
     auto sockfd = (int) send_info.native_socket;
     struct msghdr msg = {};
 

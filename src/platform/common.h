@@ -1070,12 +1070,12 @@ namespace platf {
   };
 
   /**
-   * @brief Send multiple fixed-size UDP payload blocks using the platform backend.
+   * @brief Send fixed-size UDP payload blocks without modifying the batch descriptor.
    *
    * @param send_info Socket addresses, buffers, and sizes for the send operation.
    * @return True when all requested packet blocks are submitted to the socket.
    */
-  bool send_batch(batched_send_info_t &send_info);
+  bool send_batch(const batched_send_info_t &send_info);
 
   /**
    * @brief Destination address and payload data for one UDP send.
