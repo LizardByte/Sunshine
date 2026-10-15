@@ -127,10 +127,6 @@ namespace {
     }
 
     switch (number) {
-      case 1:
-      default:
-        return NV_ENC_PRESET_P1_GUID;
-
       case 2:
         return NV_ENC_PRESET_P2_GUID;
 
@@ -148,6 +144,10 @@ namespace {
 
       case 7:
         return NV_ENC_PRESET_P7_GUID;
+
+      case 1:
+      default:
+        return NV_ENC_PRESET_P1_GUID;
     }
   };
 
