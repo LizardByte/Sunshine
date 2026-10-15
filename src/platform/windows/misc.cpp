@@ -2,6 +2,16 @@
  * @file src/platform/windows/misc.cpp
  * @brief Miscellaneous definitions for Windows.
  */
+
+// TODO: Revisit this override when formalizing the Windows 11 minimum API target.
+#ifndef NTDDI_VERSION
+  /**
+   * @def NTDDI_VERSION
+   * @brief Target Windows 10 APIs before Boost or Windows headers select a default.
+   */
+  #define NTDDI_VERSION 0x0A000000
+#endif
+
 // standard includes
 #include <array>
 #include <csignal>
