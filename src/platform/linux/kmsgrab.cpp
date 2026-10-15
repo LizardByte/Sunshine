@@ -854,7 +854,7 @@ namespace platf {
       std::uint32_t get_panel_orientation(std::uint32_t plane_id) {
         auto props = plane_props(plane_id);
         auto value = prop_value_by_name(props, "rotation"sv);
-        if (value) {
+        if (value.has_value()) {
           return *value;
         }
 
@@ -1368,7 +1368,7 @@ namespace platf {
        * @return True when the active display mode is HDR.
        */
       bool is_hdr() override {
-        if (!hdr_metadata_blob_id || *hdr_metadata_blob_id == 0) {
+        if (!hdr_metadata_blob_id.has_value() || *hdr_metadata_blob_id == 0) {
           return false;
         }
 
@@ -1489,14 +1489,14 @@ namespace platf {
           }
         }
 
-        if (!prop_crtc_w || !prop_crtc_h || !prop_crtc_x || !prop_crtc_y) {
+        if (!prop_crtc_w.has_value() || !prop_crtc_h.has_value() || !prop_crtc_x.has_value() || !prop_crtc_y.has_value()) {
           BOOST_LOG(error) << "Cursor plane is missing required plane CRTC properties!"sv;
           BOOST_LOG(error) << "Atomic mode-setting must be enabled to capture the cursor!"sv;
           cursor_plane_id = -1;
           captured_cursor.visible = false;
           return;
         }
-        if (!prop_src_x || !prop_src_y || !prop_src_w || !prop_src_h) {
+        if (!prop_src_x.has_value() || !prop_src_y.has_value() || !prop_src_w.has_value() || !prop_src_h.has_value()) {
           BOOST_LOG(error) << "Cursor plane is missing required plane SRC properties!"sv;
           BOOST_LOG(error) << "Atomic mode-setting must be enabled to capture the cursor!"sv;
           cursor_plane_id = -1;
@@ -1650,7 +1650,7 @@ namespace platf {
        */
       inline capture_e refresh(file_t *file, egl::surface_descriptor_t *sd, std::optional<std::chrono::steady_clock::time_point> &frame_timestamp) {
         // Check for a change in HDR metadata
-        if (connector_id) {
+        if (connector_id.has_value()) {
           auto connector_props = card.connector_props(*connector_id);
           if (hdr_metadata_blob_id != card.prop_value_by_name(connector_props, "HDR_OUTPUT_METADATA"sv)) {
             BOOST_LOG(info) << "Reinitializing capture after HDR metadata change"sv;
