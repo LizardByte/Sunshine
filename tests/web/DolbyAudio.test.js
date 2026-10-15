@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import Config from '../../src_assets/common/assets/web/Config.vue'
 
 const globalOptions = {
-  mocks: { $t: key => key },
+  mocks: { $t: key => key, $tp: key => key },
   stubs: {
     Navbar: true, General: true, Inputs: true, Network: true, Files: true,
     Advanced: true, ContainerEncoders: true,
