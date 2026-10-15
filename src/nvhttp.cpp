@@ -734,7 +734,7 @@ namespace nvhttp {
    * @param tree XML property tree used for the response body.
    * @param status_msg Status msg.
    */
-  void fail_pair(pair_session_t &sess, pt::ptree &tree, const std::string status_msg) {
+  void fail_pair(pair_session_t &sess, pt::ptree &tree, const std::string &status_msg) {
     tree.put("root.paired", 0);
     tree.put("root.<xmlattr>.status_code", 400);
     tree.put("root.<xmlattr>.status_message", status_msg);
@@ -1146,7 +1146,7 @@ namespace nvhttp {
     }
   }
 
-  bool pin(const std::string_view pairing_id, std::string pin, std::string name) {
+  bool pin(const std::string_view pairing_id, const std::string &pin, std::string name) {
     if (!is_valid_pairing_id(pairing_id) || !is_valid_pairing_pin(pin) || !is_valid_pairing_name(name)) {
       return false;
     }

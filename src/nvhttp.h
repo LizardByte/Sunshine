@@ -334,7 +334,7 @@ namespace nvhttp {
    * bool pin_status = nvhttp::pin("0123456789abcdef0123456789abcdef", "1234", "laptop");
    * @examples_end
    */
-  bool pin(std::string_view pairing_id, std::string pin, std::string name);
+  bool pin(std::string_view pairing_id, const std::string &pin, std::string name);
 
   /**
    * @brief Remove single client.

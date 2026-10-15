@@ -10,6 +10,7 @@
 #include <atomic>
 #include <filesystem>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 // local includes
@@ -17,6 +18,8 @@
 #include <src/nvhttp.h>
 
 namespace fs = std::filesystem;
+
+static_assert(std::is_same_v<decltype(&nvhttp::pin), bool (*)(std::string_view, const std::string &, std::string)>);
 
 /**
  * @brief Isolate paired-client authorization tests from the user's Sunshine state.
