@@ -12,6 +12,10 @@
   #include <array>
   #include <cstdlib>
   #include <cstring>
+  #include <ifaddrs.h>
+  #include <net/if.h>
+  #include <netinet/in.h>
+  #include <string>
   #include <utility>
   #include <vector>
 
@@ -134,6 +138,55 @@ TEST(ServedAddressesTest, ExplicitBindWithoutOwnerFallsBackToUnspec) {
   ASSERT_EQ(served[0].address, boost::asio::ip::make_address("192.0.2.10"));
 }
 
+TEST(ServedAddressesTest, ExplicitBindScopedLinkLocalResolvesOwningInterface) {
+  // A scoped link-local bind must resolve to the interface that owns it:
+  // getifaddrs() reports the zone (sin6_scope_id), and the enumeration must
+  // preserve it, or the scoped bind never equals its enumerated owner and
+  // the address falls back to IF_UNSPEC, advertising the link-local
+  // endpoint on interfaces where Sunshine does not serve it.
+  ifaddrs *interfaces = nullptr;
+  if (getifaddrs(&interfaces) != 0) {
+    GTEST_SKIP() << "getifaddrs() failed; cannot find a scoped IPv6 address.";
+  }
+
+  std::string scoped_bind;
+  avahi::IfIndex expected_interface = avahi::IF_UNSPEC;
+  for (const auto *ifa = interfaces; ifa != nullptr; ifa = ifa->ifa_next) {
+    if (ifa->ifa_addr == nullptr || ifa->ifa_addr->sa_family != AF_INET6) {
+      continue;
+    }
+    const auto *inet6_address = reinterpret_cast<const sockaddr_in6 *>(ifa->ifa_addr);
+    if (inet6_address->sin6_scope_id == 0) {
+      continue;
+    }
+    boost::asio::ip::address_v6::bytes_type bytes {};
+    std::memcpy(bytes.data(), &inet6_address->sin6_addr, bytes.size());
+    const auto address = boost::asio::ip::address_v6(bytes, inet6_address->sin6_scope_id);
+    const auto index = if_nametoindex(ifa->ifa_name);
+    if (index == 0) {
+      continue;
+    }
+    scoped_bind = address.to_string();
+    expected_interface = static_cast<avahi::IfIndex>(index);
+    break;
+  }
+  freeifaddrs(interfaces);
+  if (scoped_bind.empty()) {
+    GTEST_SKIP() << "No scoped IPv6 interface address to resolve a bind address against.";
+  }
+
+  const auto saved_bind = config::sunshine.bind_address;
+  config::sunshine.bind_address = scoped_bind;
+
+  const auto served = platf::publish::served_addresses(net::BOTH);
+
+  config::sunshine.bind_address = saved_bind;
+
+  ASSERT_EQ(served.size(), 1U);
+  ASSERT_EQ(served[0].interface, expected_interface);
+  ASSERT_EQ(served[0].address, boost::asio::ip::make_address(scoped_bind));
+}
+
 TEST(ToAvahiAddressTest, Ipv4EncodesNetworkOrderBytes) {
   const auto address = platf::publish::to_avahi_address(boost::asio::ip::make_address("192.168.1.10"));
   ASSERT_EQ(address.proto, std::to_underlying(avahi::proto::PROTO_INET));
@@ -164,7 +217,9 @@ namespace {
   int g_reset_count = 0;  ///< Entry-group resets captured by the stub.
   int g_commit_count = 0;  ///< Entry-group commits captured by the stub.
   int g_quit_count = 0;  ///< Poll-loop quits captured by the stub.
+  bool g_group_empty = true;  ///< Entry-group emptiness modeled by the stub: reset empties, commit fills.
   bool g_add_service_collide_once = false;  ///< Next add-service call reports a collision.
+  bool g_add_address_fail_once = false;  ///< Next add-address call reports a failure.
 
   /**
    * @brief Avahi error code for a name collision (see `avahi::err_e`).
@@ -196,16 +251,18 @@ namespace {
   }
 
   int FakeEntryGroupIsEmpty(avahi::EntryGroup * /*group*/) {
-    return 1;
+    return g_group_empty ? 1 : 0;
   }
 
   int FakeEntryGroupReset(avahi::EntryGroup * /*group*/) {
     ++g_reset_count;
+    g_group_empty = true;
     return 0;
   }
 
   int FakeEntryGroupCommit(avahi::EntryGroup * /*group*/) {
     ++g_commit_count;
+    g_group_empty = false;
     return 0;
   }
 
@@ -265,6 +322,10 @@ namespace {
     const char * /*name*/,
     const avahi::Address *address
   ) {
+    if (g_add_address_fail_once) {
+      g_add_address_fail_once = false;
+      return -1;
+    }
     g_address_calls.push_back({interface, flags, *address});
     return 0;
   }
@@ -295,13 +356,15 @@ namespace {
       g_reset_count = 0;
       g_commit_count = 0;
       g_quit_count = 0;
+      g_group_empty = true;
       g_add_service_collide_once = false;
+      g_add_address_fail_once = false;
 
       platf::publish::group = reinterpret_cast<avahi::EntryGroup *>(0x1000);
       platf::publish::client.reset(reinterpret_cast<avahi::Client *>(0x2000));
       platf::publish::name.reset(::strdup("test-host"));
       platf::publish::host_name_collision_count = 0;
-      platf::publish::published_addresses.clear();
+      platf::publish::published_addresses.reset();
     }
 
     void TearDown() override {
@@ -311,7 +374,7 @@ namespace {
       platf::publish::name.reset();
       platf::publish::group = nullptr;
       platf::publish::host_name_collision_count = 0;
-      platf::publish::published_addresses.clear();
+      platf::publish::published_addresses.reset();
 
       avahi::free = nullptr;
       avahi::client_free = nullptr;
@@ -433,6 +496,102 @@ TEST_F(PublishRegistrationTest, RefreshCollisionRetryDoesNotQuitPollLoop) {
   ASSERT_EQ(g_service_hosts[1], g_service_hosts[0]);
   ASSERT_NE(g_service_hosts[2], g_service_hosts[0]);
   ASSERT_EQ(platf::publish::host_name_collision_count, 1U);
+}
+
+TEST_F(PublishRegistrationTest, RefreshFailureThenRestoreRepublishes) {
+  // A -> failed B -> A: the failed refresh withdraws the group and must
+  // invalidate the snapshot, so restoring A republishes instead of
+  // early-returning on a stale snapshot while the group sits empty.
+  avahi::entry_group_add_address = FakeEntryGroupAddAddressLenient;
+
+  config::sunshine.bind_address = "192.168.1.10";
+  config::sunshine.address_family = "both";
+
+  platf::publish::create_services(reinterpret_cast<avahi::Client *>(0x2000));
+  ASSERT_EQ(g_commit_count, 1);
+  ASSERT_EQ(g_quit_count, 0);
+  ASSERT_TRUE(platf::publish::published_addresses.has_value());
+  ASSERT_EQ(avahi::entry_group_is_empty(platf::publish::group), 0);
+
+  config::sunshine.bind_address = "192.168.1.20";
+  g_add_address_fail_once = true;
+  platf::publish::refresh_service_addresses();
+
+  // The refresh reset the group and the registration failed: the group is
+  // empty and no snapshot is committed.
+  ASSERT_EQ(g_commit_count, 1);
+  ASSERT_EQ(g_quit_count, 0);
+  ASSERT_FALSE(platf::publish::published_addresses.has_value());
+  ASSERT_NE(avahi::entry_group_is_empty(platf::publish::group), 0);
+
+  config::sunshine.bind_address = "192.168.1.10";
+  platf::publish::refresh_service_addresses();
+
+  // Restoring A must commit a second time, with a live group and the
+  // poll loop still running.
+  ASSERT_EQ(g_commit_count, 2);
+  ASSERT_EQ(g_quit_count, 0);
+  ASSERT_TRUE(platf::publish::published_addresses.has_value());
+  ASSERT_EQ(avahi::entry_group_is_empty(platf::publish::group), 0);
+  ASSERT_EQ(g_address_calls.size(), 2U);
+  ASSERT_EQ(g_address_calls[1].address, platf::publish::to_avahi_address(boost::asio::ip::make_address("192.168.1.10")));
+
+  // A further refresh with an unchanged snapshot is a no-op: no churn.
+  platf::publish::refresh_service_addresses();
+  ASSERT_EQ(g_commit_count, 2);
+}
+
+TEST_F(PublishRegistrationTest, RefreshFailureThenRestoreEmptySnapshotRepublishes) {
+  // Empty-A variant: a successfully published empty snapshot (the
+  // daemon-hostname fallback) is a valid committed snapshot, not a
+  // withdrawn group, so the failed-B invalidation must still let the
+  // restored empty snapshot republish.
+  avahi::entry_group_add_address = FakeEntryGroupAddAddressLenient;
+
+  // An IPv6 bind under an IPv4-only configuration serves no addresses:
+  // the service falls back to the daemon host name with no address records.
+  config::sunshine.bind_address = "2001:db8::1";
+  config::sunshine.address_family = "ipv4";
+
+  platf::publish::create_services(reinterpret_cast<avahi::Client *>(0x2000));
+  ASSERT_EQ(g_commit_count, 1);
+  ASSERT_EQ(g_quit_count, 0);
+  ASSERT_TRUE(platf::publish::published_addresses.has_value());
+  ASSERT_TRUE(platf::publish::published_addresses->empty());
+  ASSERT_EQ(avahi::entry_group_is_empty(platf::publish::group), 0);
+  ASSERT_EQ(g_address_calls.size(), 0U);
+  ASSERT_EQ(g_service_hosts.size(), 1U);
+
+  config::sunshine.bind_address = "192.168.1.20";
+  config::sunshine.address_family = "both";
+  g_add_address_fail_once = true;
+  platf::publish::refresh_service_addresses();
+
+  // The refresh reset the group and the registration failed: the group is
+  // empty and no snapshot is committed, even though the last good snapshot
+  // was itself empty.
+  ASSERT_EQ(g_commit_count, 1);
+  ASSERT_EQ(g_quit_count, 0);
+  ASSERT_FALSE(platf::publish::published_addresses.has_value());
+  ASSERT_NE(avahi::entry_group_is_empty(platf::publish::group), 0);
+
+  config::sunshine.bind_address = "2001:db8::1";
+  config::sunshine.address_family = "ipv4";
+  platf::publish::refresh_service_addresses();
+
+  // Restoring the empty snapshot must commit a second time, with a live
+  // group and the poll loop still running.
+  ASSERT_EQ(g_commit_count, 2);
+  ASSERT_EQ(g_quit_count, 0);
+  ASSERT_TRUE(platf::publish::published_addresses.has_value());
+  ASSERT_TRUE(platf::publish::published_addresses->empty());
+  ASSERT_EQ(avahi::entry_group_is_empty(platf::publish::group), 0);
+  ASSERT_EQ(g_address_calls.size(), 0U);
+  ASSERT_EQ(g_service_hosts.size(), 2U);
+
+  // A further refresh with an unchanged snapshot is a no-op: no churn.
+  platf::publish::refresh_service_addresses();
+  ASSERT_EQ(g_commit_count, 2);
 }
 
 #endif  // defined(__linux__)

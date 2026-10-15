@@ -338,7 +338,7 @@ namespace platf::publish {
 
   unsigned host_name_collision_count = 0;  ///< Suffix counter for regenerating the service host name after collisions.
 
-  std::vector<ServedAddress> published_addresses;  ///< Last served-address snapshot successfully published.
+  std::optional<std::vector<ServedAddress>> published_addresses;  ///< Committed snapshot; nullopt while withdrawn.
 
   int netlink_fd = -1;  ///< Netlink socket watched for interface/address changes, -1 when not installed.
   avahi::Watch *netlink_watch = nullptr;  ///< Avahi poll watch for the netlink socket, nullptr when not installed.
@@ -377,7 +377,7 @@ namespace platf::publish {
         const auto *inet6_address = reinterpret_cast<const sockaddr_in6 *>(ifa->ifa_addr);
         boost::asio::ip::address_v6::bytes_type bytes {};
         std::memcpy(bytes.data(), &inet6_address->sin6_addr, bytes.size());
-        addresses.emplace_back(interface, boost::asio::ip::address_v6(bytes));
+        addresses.emplace_back(interface, boost::asio::ip::address_v6(bytes, inet6_address->sin6_scope_id));
       }
     }
     return addresses;
@@ -504,6 +504,9 @@ namespace platf::publish {
     }
 
     if (avahi::entry_group_is_empty(group)) {
+      // A fresh registration attempt starts from a withdrawn snapshot: the
+      // group is empty, so no previously committed snapshot is still live.
+      published_addresses.reset();
       BOOST_LOG(info) << "Adding avahi service "sv << name.get();
 
       // Discovery transport stays on both protocols: the transport only
@@ -529,6 +532,7 @@ namespace platf::publish {
         service_target = service_host.c_str();
         ret = add_service_addresses(group, service_host, addresses);
         if (ret < 0) {
+          published_addresses.reset();
           avahi::entry_group_reset(group);
           return;
         }
@@ -557,6 +561,7 @@ namespace platf::publish {
           // regenerate it as well so the retry does not collide again.
           ++host_name_collision_count;
 
+          published_addresses.reset();
           avahi::entry_group_reset(group);
 
           create_services(c, quit_on_failure);
@@ -566,6 +571,7 @@ namespace platf::publish {
         }
 
         BOOST_LOG(error) << "Failed to add "sv << platf::SERVICE_TYPE << " service: "sv << avahi::strerror(ret);
+        published_addresses.reset();
         avahi::entry_group_reset(group);
         return;
       }
@@ -592,11 +598,12 @@ namespace platf::publish {
       net::af_from_enum_string(config::sunshine.address_family)
     );
     const auto current = served_addresses(effective_family);
-    if (current == published_addresses) {
+    if (published_addresses && current == *published_addresses) {
       return;
     }
 
     BOOST_LOG(info) << "Local interface addresses changed, republishing Avahi service."sv;
+    published_addresses.reset();
     avahi::entry_group_reset(group);
     // A refresh failure must not kill discovery: the group is already reset
     // (records withdrawn), and the next change notification retries, while
@@ -605,7 +612,11 @@ namespace platf::publish {
     create_services(client.get(), false);
   }
 
-  /* React to an interface/address change reported on the Avahi poll thread. */
+  /**
+   * @brief Refresh service publication after an interface/address change.
+   *
+   * @param fd Netlink route socket to drain before refreshing the addresses.
+   */
   void address_change_callback(avahi::Watch * /*watch*/, int fd, avahi::WatchEvent /*event*/, void * /*userdata*/) {
     // Drain the netlink socket: a burst of address/link messages must not
     // leave the fd readable, or the poll loop would spin on it.
@@ -682,6 +693,9 @@ namespace platf::publish {
       case avahi::CLIENT_S_COLLISION:
       case avahi::CLIENT_S_REGISTERING:
         if (group) {
+          // The daemon withdraws the entries on collision/re-registration,
+          // so the committed snapshot is no longer live.
+          published_addresses.reset();
           avahi::entry_group_reset(group);
         }
         break;

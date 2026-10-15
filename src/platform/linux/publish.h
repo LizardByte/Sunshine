@@ -9,6 +9,7 @@
 #include <array>
 #include <cstdint>
 #include <format>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -392,6 +393,6 @@ namespace platf::publish {
   extern client_t client;  ///< Avahi client used to register the Sunshine service.
   extern ptr_t<char> name;  ///< Current service name, updated when Avahi reports a collision.
   extern unsigned host_name_collision_count;  ///< Suffix counter for regenerating the service host name after collisions.
-  extern std::vector<ServedAddress> published_addresses;  ///< Last snapshot successfully published.
+  extern std::optional<std::vector<ServedAddress>> published_addresses;  ///< Committed snapshot; nullopt while withdrawn.
 #endif
 }  // namespace platf::publish
