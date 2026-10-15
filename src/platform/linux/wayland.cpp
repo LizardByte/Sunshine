@@ -363,6 +363,15 @@ namespace wl {
     return prefer_linear_copy && std::find(modifiers.begin(), modifiers.end(), DRM_FORMAT_MOD_LINEAR) != modifiers.end();
   }
 
+  const std::vector<std::uint64_t> *find_advertised_modifiers(const std::map<std::uint32_t, std::vector<std::uint64_t>> *modifiers, std::uint32_t format) {
+    if (modifiers) {
+      if (const auto it = modifiers->find(format); it != modifiers->end() && !it->second.empty()) {
+        return &it->second;
+      }
+    }
+    return nullptr;
+  }
+
   dmabuf_t::dmabuf_t():
       current_frame {&frames[0]},
       listener {
@@ -379,17 +388,17 @@ namespace wl {
   // Start capture
   void dmabuf_t::listen(
     zwlr_screencopy_manager_v1 *screencopy_manager,
-    zwp_linux_dmabuf_v1 *dmabuf_interface,
-    const std::map<std::uint32_t, std::vector<std::uint64_t>> *compositor_formats,
+    zwp_linux_dmabuf_v1 *dmabuf_interface_in,
+    const std::map<std::uint32_t, std::vector<std::uint64_t>> *compositor_formats_in,
     wl_output *output,
     bool blend_cursor,
-    const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_formats,
-    bool prefer_linear_copy
+    const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_formats_in,
+    bool prefer_linear_copy_in
   ) {
-    this->dmabuf_interface = dmabuf_interface;
-    supported_modifiers = compositor_formats;
-    encoder_modifiers = encoder_formats;
-    this->prefer_linear_copy = prefer_linear_copy;
+    dmabuf_interface = dmabuf_interface_in;
+    supported_modifiers = compositor_formats_in;
+    encoder_modifiers = encoder_formats_in;
+    prefer_linear_copy = prefer_linear_copy_in;
     // Reset state
     shm_info.supported = false;
     dmabuf_info.supported = false;
@@ -490,23 +499,20 @@ namespace wl {
 
     // Create GBM buffer - prefer encoder-intersected modifiers when available
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *modifiers_to_use = encoder_modifiers ? encoder_modifiers : supported_modifiers;
-    if (modifiers_to_use) {
-      auto it = modifiers_to_use->find(dmabuf_info.format);
-      if (it != modifiers_to_use->end() && !it->second.empty()) {
-        if (should_attempt_linear_copy(prefer_linear_copy, it->second)) {
-          // Cross-GPU encode (e.g. NVENC on a headless NVIDIA GPU while the compositor
-          // renders on AMD/Intel) cannot import vendor-tiled modifiers, so request a
-          // linear buffer the encoder is guaranteed to import instead. Note: no
-          // GBM_BO_USE_LINEAR here, Mesa rejects that flag with modifiers2.
-          constexpr std::uint64_t linear_modifier = DRM_FORMAT_MOD_LINEAR;
-          current_bo = gbm_bo_create_with_modifiers2(gbm.get(), dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, &linear_modifier, 1, GBM_BO_USE_RENDERING);
-          if (!current_bo) {
-            BOOST_LOG(debug) << "Linear screencopy buffer unavailable, falling back to compositor modifiers"sv;
-          }
-        }
+    if (const auto *advertised = find_advertised_modifiers(modifiers_to_use, dmabuf_info.format); advertised) {
+      if (should_attempt_linear_copy(prefer_linear_copy, *advertised)) {
+        // Cross-GPU encode (e.g. NVENC on a headless NVIDIA GPU while the compositor
+        // renders on AMD/Intel) cannot import vendor-tiled modifiers, so request a
+        // linear buffer the encoder is guaranteed to import instead. Note: no
+        // GBM_BO_USE_LINEAR here, Mesa rejects that flag with modifiers2.
+        constexpr std::uint64_t linear_modifier = DRM_FORMAT_MOD_LINEAR;
+        current_bo = gbm_bo_create_with_modifiers2(gbm.get(), dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, &linear_modifier, 1, GBM_BO_USE_RENDERING);
         if (!current_bo) {
-          current_bo = gbm_bo_create_with_modifiers2(gbm.get(), dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, it->second.data(), it->second.size(), GBM_BO_USE_RENDERING);
+          BOOST_LOG(debug) << "Linear screencopy buffer unavailable, falling back to compositor modifiers"sv;
         }
+      }
+      if (!current_bo) {
+        current_bo = gbm_bo_create_with_modifiers2(gbm.get(), dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, advertised->data(), advertised->size(), GBM_BO_USE_RENDERING);
       }
     }
 

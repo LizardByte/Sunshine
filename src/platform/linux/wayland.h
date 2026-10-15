@@ -154,6 +154,15 @@ namespace wl {
   bool should_attempt_linear_copy(bool prefer_linear_copy, const std::vector<std::uint64_t> &modifiers);
 
   /**
+   * @brief Look up the advertised modifier list for a DMA-BUF format.
+   *
+   * @param modifiers Modifier map to search, or nullptr when no list is available.
+   * @param format DMA-BUF format to look up.
+   * @return Pointer to the advertised list, or nullptr when the map is missing, the format is absent, or the list is empty.
+   */
+  const std::vector<std::uint64_t> *find_advertised_modifiers(const std::map<std::uint32_t, std::vector<std::uint64_t>> *modifiers, std::uint32_t format);
+
+  /**
    * @brief Determine whether wlroots capture should keep frames in VRAM for the requested memory type.
    *
    * @param hwdevice_type Hardware device type requested for capture or encode.
@@ -424,14 +433,14 @@ namespace wl {
      * @brief Start a screencopy request and attach the DMA-BUF listener callbacks.
      *
      * @param screencopy_manager Compositor screencopy manager used to request frames.
-     * @param dmabuf_interface Compositor DMA-BUF interface used to allocate buffers.
-     * @param compositor_formats DMA-BUF format modifiers supported by the compositor.
+     * @param dmabuf_interface_in Compositor DMA-BUF interface used to allocate buffers.
+     * @param compositor_formats_in DMA-BUF format modifiers supported by the compositor.
      * @param output Wayland output to capture.
      * @param blend_cursor Whether the compositor should include the cursor in the frame.
-     * @param encoder_formats Optional modifiers supported by the encoder for format intersection.
-     * @param prefer_linear_copy Allocate linear copy buffers for cross-GPU encode import.
+     * @param encoder_formats_in Optional modifiers supported by the encoder for format intersection.
+     * @param prefer_linear_copy_in Allocate linear copy buffers for cross-GPU encode import.
      */
-    void listen(zwlr_screencopy_manager_v1 *screencopy_manager, zwp_linux_dmabuf_v1 *dmabuf_interface, const std::map<std::uint32_t, std::vector<std::uint64_t>> *compositor_formats, wl_output *output, bool blend_cursor = false, const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_formats = nullptr, bool prefer_linear_copy = false);
+    void listen(zwlr_screencopy_manager_v1 *screencopy_manager, zwp_linux_dmabuf_v1 *dmabuf_interface_in, const std::map<std::uint32_t, std::vector<std::uint64_t>> *compositor_formats_in, wl_output *output, bool blend_cursor = false, const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_formats_in = nullptr, bool prefer_linear_copy_in = false);
     /**
      * @brief Store the Wayland buffer created for a DMA-BUF parameter request.
      *

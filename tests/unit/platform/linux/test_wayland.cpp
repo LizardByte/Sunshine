@@ -12,6 +12,7 @@
   #include <filesystem>
   #include <format>
   #include <fstream>
+  #include <map>
   #include <optional>
   #include <string>
   #include <string_view>
@@ -434,6 +435,23 @@ TEST(WaylandLinearCopyTest, SkipsLinearAttemptUnlessAdvertised) {
   EXPECT_FALSE(wl::should_attempt_linear_copy(true, without_linear));
   EXPECT_FALSE(wl::should_attempt_linear_copy(true, {}));
   EXPECT_TRUE(wl::should_attempt_linear_copy(true, with_linear));
+}
+
+TEST(WaylandAdvertisedModifiersTest, ReturnsNullWhenUnavailable) {
+  const std::map<std::uint32_t, std::vector<std::uint64_t>> empty_map {};
+  const std::map<std::uint32_t, std::vector<std::uint64_t>> map_with_empty_list {{0x34325258, {}}};
+  EXPECT_EQ(wl::find_advertised_modifiers(nullptr, 0x34325258), nullptr);
+  EXPECT_EQ(wl::find_advertised_modifiers(&empty_map, 0x34325258), nullptr);
+  EXPECT_EQ(wl::find_advertised_modifiers(&map_with_empty_list, 0x34325258), nullptr);
+  EXPECT_EQ(wl::find_advertised_modifiers(&map_with_empty_list, 0xdeadbeef), nullptr);
+}
+
+TEST(WaylandAdvertisedModifiersTest, ReturnsAdvertisedListWhenPresent) {
+  const std::vector<std::uint64_t> expected {0x100000000000004, DRM_FORMAT_MOD_LINEAR};
+  const std::map<std::uint32_t, std::vector<std::uint64_t>> modifiers {{0x34325258, expected}};
+  const auto *actual = wl::find_advertised_modifiers(&modifiers, 0x34325258);
+  ASSERT_NE(actual, nullptr);
+  EXPECT_EQ(*actual, expected);
 }
 
 /**
