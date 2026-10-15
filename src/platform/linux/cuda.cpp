@@ -299,6 +299,17 @@ namespace cuda {
      * @return Conversion status.
      */
     int convert(platf::img_t &img) override {
+      // This copy path only understands packed 8-bit BGR captures. Fail loudly
+      // for declared formats it cannot represent (e.g. NV12 or 10-bit formats),
+      // and for undeclared formats that are not 4 bytes per pixel, instead of
+      // silently copying them as 8-bit RGBA. cuda::sws_t::load_ram() copies
+      // `width * pixel_pitch` bytes per row with `row_pitch` as the source
+      // pitch, so both must describe a complete packed row.
+      if (!platf::is_bgr_capture_image(img) || img.pixel_pitch != 4 || !platf::packed_4byte_row_layout_valid(img)) {
+        BOOST_LOG(error) << "RAM capture conversion does not support capture image "sv << platf::describe_capture_image(img);
+        return -1;
+      }
+
       if (is_yuv444) {
         return sws.load_ram(img, tex.array) || sws.convert_yuv444(frame->data[0], frame->data[1], frame->data[2], frame->linesize[0], tex_obj(tex), stream.get());
       }
@@ -1292,6 +1303,7 @@ namespace cuda {
         img->height = height;
         img->pixel_pitch = 4;
         img->row_pitch = img->width * img->pixel_pitch;
+        img->pixel_format = platf::pix_fmt_e::bgr0;
 
         auto tex_opt = tex_t::make(height, width * img->pixel_pitch);
         if (!tex_opt) {
