@@ -1189,7 +1189,7 @@ namespace stream {
     });
 
     server->map(packetTypes[IDX_LOSS_STATS], [&](session_t *session, const std::string_view &payload) {
-      int32_t *stats = (int32_t *) payload.data();
+      auto stats = (int32_t *) payload.data();
       auto count = stats[0];
       std::chrono::milliseconds t {stats[1]};
 

@@ -2645,7 +2645,7 @@ namespace video {
     ctx.touch_port_events->raise(make_port(disp, ctx.config));
 
     // Update client with our current HDR display state
-    hdr_info_t hdr_info = std::make_unique<hdr_info_raw_t>(false);
+    auto hdr_info = std::make_unique<hdr_info_raw_t>(false);
     if (colorspace_is_hdr(encode_device->colorspace)) {
       if (disp->get_hdr_metadata(hdr_info->metadata)) {
         hdr_info->enabled = true;
@@ -2930,7 +2930,7 @@ namespace video {
       touch_port_event->raise(make_port(display.get(), config));
 
       // Update client with our current HDR display state
-      hdr_info_t hdr_info = std::make_unique<hdr_info_raw_t>(false);
+      auto hdr_info = std::make_unique<hdr_info_raw_t>(false);
       if (colorspace_is_hdr(encode_device->colorspace)) {
         if (display->get_hdr_metadata(hdr_info->metadata)) {
           hdr_info->enabled = true;

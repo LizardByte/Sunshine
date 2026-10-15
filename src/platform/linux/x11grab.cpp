@@ -477,7 +477,7 @@ namespace platf {
       auto pixels_begin = &pixels[(y + overlay->y) * (img.row_pitch / img.pixel_pitch) + overlay->x];
 
       std::for_each(overlay_begin, overlay_end, [&](long pixel) {
-        int *pixel_p = (int *) &pixel;
+        auto pixel_p = (int *) &pixel;
 
         auto colors_in = (uint8_t *) pixels_begin;
 

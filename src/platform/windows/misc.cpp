@@ -632,7 +632,7 @@ namespace platf {
 
     if (file) {
       // If a file was provided, get its handle and use it as the standard output and error for the new process
-      HANDLE log_file_handle = (HANDLE) _get_osfhandle(_fileno(file));
+      auto log_file_handle = (HANDLE) _get_osfhandle(_fileno(file));
 
       // Populate std handles if the caller gave us a log file to use
       startup_info.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;

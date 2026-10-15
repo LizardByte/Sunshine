@@ -603,7 +603,7 @@ namespace platf::dxgi {
       frame_texture->AddRef();
       output_texture.reset(frame_texture);
 
-      HRESULT status = S_OK;
+      auto status = S_OK;
 
 #ifndef DOXYGEN
   #define create_vertex_shader_helper(x, y) \
