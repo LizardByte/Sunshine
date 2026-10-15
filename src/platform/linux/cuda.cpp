@@ -5,6 +5,7 @@
 // standard includes
 #include <array>
 #include <bitset>
+#include <cctype>
 #include <fcntl.h>
 #include <filesystem>
 #include <thread>
@@ -347,6 +348,73 @@ namespace cuda {
       return sws.convert_nv12(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex_obj(((img_t *) &img)->tex), stream.get());
     }
   };
+
+  namespace {
+    bool cuda_is_initialized() {
+      return static_cast<bool>(cdf);
+    }
+
+    CUresult cuda_get_device(CUdevice *device, int index) {
+      return cdf->cuDeviceGet(device, index);
+    }
+
+    CUresult cuda_get_pci_bus_id(char *pci_bus_id, int len, CUdevice device) {
+      return cdf->cuDeviceGetPCIBusId(pci_bus_id, len, device);
+    }
+
+    const cuda_pci_accessors_t cuda_pci_accessors {
+      .is_initialized = cuda_is_initialized,
+      .initialize = init,
+      .get_device = cuda_get_device,
+      .get_pci_bus_id = cuda_get_pci_bus_id,
+    };
+  }  // namespace
+
+  /**
+   * @brief Query the PCI bus id of a CUDA device.
+   * @param index CUDA device index to query.
+   * @return Lowercase PCI bus id (e.g. "00000000:0f:00.0"), or no value when
+   *         CUDA is unavailable or the query fails.
+   */
+  std::optional<std::string> device_pci_bus_id(int index) {
+    return device_pci_bus_id(index, cuda_pci_accessors);
+  }
+
+  /**
+   * @brief Query the PCI bus id of a CUDA device with injected driver operations.
+   * @param index CUDA device index to query.
+   * @param accessors Driver operations used to initialize CUDA and query the device.
+   * @return Lowercase PCI bus id (e.g. "00000000:0f:00.0"), or no value when
+   *         CUDA is unavailable or the query fails.
+   */
+  std::optional<std::string> device_pci_bus_id(int index, const cuda_pci_accessors_t &accessors) {
+    if (!accessors.is_initialized() && accessors.initialize() != 0) {
+      return std::nullopt;
+    }
+
+    CUdevice device;
+    const auto device_status = accessors.get_device(&device, index);
+    if (device_status != CUDA_SUCCESS) {
+      BOOST_LOG(error) << "Couldn't get CUDA device: "sv << device_status;
+      return std::nullopt;
+    }
+
+    // Room for both the legacy "DDDDDDDD:BB:DD.F" rendering and the short
+    // "DDDD:BB:DD.F" form current drivers return, plus NUL.
+    std::array<char, 32> pci_bus_id {};
+    const auto bus_id_status = accessors.get_pci_bus_id(pci_bus_id.data(), pci_bus_id.size(), device);
+    if (bus_id_status != CUDA_SUCCESS) {
+      BOOST_LOG(error) << "Couldn't get CUDA device PCI bus ID: "sv << bus_id_status;
+      return std::nullopt;
+    }
+
+    // Linux renders PCI addresses lowercase while CUDA uses uppercase.
+    std::string bus_id {pci_bus_id.data()};
+    std::transform(bus_id.begin(), bus_id.end(), bus_id.begin(), [](char c) {
+      return static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    });
+    return bus_id;
+  }
 
   /**
    * @brief Opens the DRM device associated with the CUDA device index.

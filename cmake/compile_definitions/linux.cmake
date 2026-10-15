@@ -80,8 +80,10 @@ if(CUDA_FOUND)
     add_compile_definitions(SUNSHINE_BUILD_CUDA)
 endif()
 
-# libdrm is required for DRM (KMS). Only the headers are required for Wayland,
-# Vulkan, and PipeWire (KWin, Portal).
+# libdrm headers are required for DRM (KMS), Wayland, Vulkan, and PipeWire
+# (KWin, Portal). The library itself is linked for DRM (KMS) and for Wayland,
+# where capture queries the render node's PCI identity to choose between
+# zero-copy VRAM and the RAM bridge.
 if(${SUNSHINE_ENABLE_DRM} OR ${SUNSHINE_ENABLE_WAYLAND} OR ${SUNSHINE_ENABLE_VULKAN}
    OR ${SUNSHINE_ENABLE_KWIN} OR ${SUNSHINE_ENABLE_PORTAL})
     find_package(LIBDRM REQUIRED)
@@ -90,8 +92,10 @@ else()
 endif()
 if(LIBDRM_FOUND)
     include_directories(SYSTEM ${LIBDRM_INCLUDE_DIRS})
-    if(${SUNSHINE_ENABLE_DRM})
+    if(${SUNSHINE_ENABLE_DRM} OR ${SUNSHINE_ENABLE_WAYLAND})
         list(APPEND PLATFORM_LIBRARIES ${LIBDRM_LIBRARIES})
+    endif()
+    if(${SUNSHINE_ENABLE_DRM})
         add_compile_definitions(SUNSHINE_BUILD_DRM)
         list(APPEND PLATFORM_TARGET_FILES
                 "${CMAKE_SOURCE_DIR}/src/platform/linux/kmsgrab.cpp")
