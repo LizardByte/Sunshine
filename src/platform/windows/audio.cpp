@@ -450,7 +450,7 @@ namespace platf::audio {
      *
      * @return Static reference count because the callback lifetime is externally owned.
      */
-    ULONG STDMETHODCALLTYPE AddRef() {
+    ULONG STDMETHODCALLTYPE AddRef() override {
       return 1;
     }
 
@@ -459,7 +459,7 @@ namespace platf::audio {
      *
      * @return Reference count or status returned after releasing the object.
      */
-    ULONG STDMETHODCALLTYPE Release() {
+    ULONG STDMETHODCALLTYPE Release() override {
       return 1;
     }
 
@@ -494,7 +494,7 @@ namespace platf::audio {
      * @param pwstrDeviceId Windows endpoint ID for the new default device.
      * @return S_OK after recording the render-device change notification.
      */
-    HRESULT STDMETHODCALLTYPE OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR pwstrDeviceId) {
+    HRESULT STDMETHODCALLTYPE OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR pwstrDeviceId) override {
       if (flow == eRender) {
         default_render_device_changed_flag.store(true);
       }
@@ -507,7 +507,7 @@ namespace platf::audio {
      * @param pwstrDeviceId Windows endpoint ID for the added device.
      * @return S_OK because Sunshine does not act on this notification.
      */
-    HRESULT STDMETHODCALLTYPE OnDeviceAdded(LPCWSTR pwstrDeviceId) {
+    HRESULT STDMETHODCALLTYPE OnDeviceAdded(LPCWSTR pwstrDeviceId) override {
       return S_OK;
     }
 
@@ -517,7 +517,7 @@ namespace platf::audio {
      * @param pwstrDeviceId Windows endpoint ID for the removed device.
      * @return S_OK because Sunshine does not act on this notification.
      */
-    HRESULT STDMETHODCALLTYPE OnDeviceRemoved(LPCWSTR pwstrDeviceId) {
+    HRESULT STDMETHODCALLTYPE OnDeviceRemoved(LPCWSTR pwstrDeviceId) override {
       return S_OK;
     }
 
@@ -531,7 +531,7 @@ namespace platf::audio {
     HRESULT STDMETHODCALLTYPE OnDeviceStateChanged(
       LPCWSTR pwstrDeviceId,
       DWORD dwNewState
-    ) {
+    ) override {
       return S_OK;
     }
 
@@ -545,7 +545,7 @@ namespace platf::audio {
     HRESULT STDMETHODCALLTYPE OnPropertyValueChanged(
       LPCWSTR pwstrDeviceId,
       const PROPERTYKEY key
-    ) {
+    ) override {
       return S_OK;
     }
 
