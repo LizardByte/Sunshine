@@ -9,7 +9,7 @@
    * @def NTDDI_VERSION
    * @brief Target Windows 10 APIs before Boost or Windows headers select a default.
    */
-  #define NTDDI_VERSION 0x0A000000
+  #define NTDDI_VERSION NTDDI_WIN10
 #endif
 
 // standard includes
