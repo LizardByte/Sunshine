@@ -960,7 +960,7 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     <tr>
         <td>Description</td>
         <td colspan="2">
-            When AC-3 or E-AC-3 is negotiated with the client, selects higher Dolby encoding bitrates at the cost of increased network bandwidth. This setting has no effect when Opus is selected.
+            When AC-3 or E-AC-3 is negotiated with the client, selects the higher Dolby bitrate at the cost of increased network bandwidth. Target bitrates are: stereo for either codec, 128 kbit/s by default and 192 kbit/s with high quality; AC-3 5.1, 384 and 640 kbit/s; E-AC-3 5.1, 192 and 384 kbit/s. This setting has no effect when Opus is selected.
         </td>
     </tr>
     <tr>

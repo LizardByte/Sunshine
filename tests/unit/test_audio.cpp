@@ -39,13 +39,13 @@ TEST(AudioLayoutTest, CustomMappingRemainsContiguousAndUsesAllEightChannels) {
 }
 
 TEST(AudioDolbyBitrateTest, SelectsChannelAwareBitrates) {
-  EXPECT_EQ(dolby_bitrate_kbps(false, false, 2), 96);
+  EXPECT_EQ(dolby_bitrate_kbps(false, false, 2), 128);
   EXPECT_EQ(dolby_bitrate_kbps(false, true, 2), 192);
-  EXPECT_EQ(dolby_bitrate_kbps(true, false, 2), 96);
+  EXPECT_EQ(dolby_bitrate_kbps(true, false, 2), 128);
   EXPECT_EQ(dolby_bitrate_kbps(true, true, 2), 192);
-  EXPECT_EQ(dolby_bitrate_kbps(false, false, 6), 256);
-  EXPECT_EQ(dolby_bitrate_kbps(false, true, 6), 448);
-  EXPECT_EQ(dolby_bitrate_kbps(true, false, 6), 256);
+  EXPECT_EQ(dolby_bitrate_kbps(false, false, 6), 384);
+  EXPECT_EQ(dolby_bitrate_kbps(false, true, 6), 640);
+  EXPECT_EQ(dolby_bitrate_kbps(true, false, 6), 192);
   EXPECT_EQ(dolby_bitrate_kbps(true, true, 6), 384);
   for (const bool eac3 : {false, true}) {
     for (const bool high_quality : {false, true}) {
@@ -64,7 +64,7 @@ TEST(AudioDolbyNegotiationTest, ConfiguresExactlyAcceptedAc3AndResponseLabel) {
   EXPECT_TRUE(config.flags[config_t::HIGH_QUALITY]);
   EXPECT_FALSE(config.flags[config_t::CUSTOM_SURROUND_PARAMS]);
   EXPECT_TRUE(config.high_quality_dolby);
-  EXPECT_EQ(dolby_bitrate_kbps(config.use_eac3, config.high_quality_dolby, config.channels), 448);
+  EXPECT_EQ(dolby_bitrate_kbps(config.use_eac3, config.high_quality_dolby, config.channels), 640);
   EXPECT_EQ(dolby_codec_name(codec), "AC3");
 }
 TEST(AudioDolbyNegotiationTest, ConfiguresExactlyAcceptedEac3AndResponseLabel) {
@@ -77,7 +77,7 @@ TEST(AudioDolbyNegotiationTest, ConfiguresExactlyAcceptedEac3AndResponseLabel) {
   EXPECT_TRUE(config.flags[config_t::HIGH_QUALITY]);
   EXPECT_FALSE(config.flags[config_t::CUSTOM_SURROUND_PARAMS]);
   EXPECT_FALSE(config.high_quality_dolby);
-  EXPECT_EQ(dolby_bitrate_kbps(config.use_eac3, config.high_quality_dolby, config.channels), 96);
+  EXPECT_EQ(dolby_bitrate_kbps(config.use_eac3, config.high_quality_dolby, config.channels), 128);
   EXPECT_EQ(dolby_codec_name(codec), "EAC3");
 }
 TEST(AudioDolbyNegotiationTest, FallsBackToOpusForMissingOrMismatchedAcceptance) {

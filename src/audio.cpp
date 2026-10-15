@@ -468,13 +468,13 @@ namespace audio {
 
   int dolby_bitrate_kbps(bool eac3, bool high_quality, int channels) {
     if (channels == 2) {
-      return high_quality ? 192 : 96;
+      return high_quality ? 192 : 128;
     }
     if (channels == 6) {
-      if (!high_quality) {
-        return 256;
+      if (eac3) {
+        return high_quality ? 384 : 192;
       }
-      return eac3 ? 384 : 448;
+      return high_quality ? 640 : 384;
     }
     return 0;
   }
