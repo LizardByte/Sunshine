@@ -11,6 +11,8 @@
 
 #include <array>
 #include <bitset>
+#include <string_view>
+#include <vector>
 
 namespace stream {
   struct session_t;
@@ -160,6 +162,53 @@ namespace audio {
    * @return True when the required FFmpeg DLLs and E-AC-3 encoder are available.
    */
   bool eac3_available();
+
+  /**
+   * @brief Audio codec selected by RTSP Dolby offer/accept negotiation.
+   */
+  enum class dolby_codec_e {
+    opus,  ///< Existing Opus audio path.
+    ac3,  ///< Dolby Digital AC-3 bitstream.
+    eac3  ///< Dolby Digital Plus E-AC-3 bitstream.
+  };
+
+  /**
+   * @brief Configure a Dolby stream only for an exact, supported client acceptance.
+   * @param config Audio configuration to update for the negotiated stream.
+   * @param offered Codec offered by Sunshine, or empty when using Opus.
+   * @param accepted Codec explicitly accepted by the client.
+   * @param ac3_encoder_available Whether the AC-3 encoder is available.
+   * @param eac3_encoder_available Whether the E-AC-3 encoder is available.
+   * @param high_quality Whether the higher Dolby bitrate was requested.
+   * @return Selected codec, falling back to Opus when negotiation is unsupported.
+   */
+  dolby_codec_e configure_dolby_audio(
+    config_t &config, std::string_view offered, std::string_view accepted,
+    bool ac3_encoder_available, bool eac3_encoder_available, bool high_quality
+  );
+
+  /**
+   * @brief Return the codec label for the RTSP audio-codec response header.
+   * @param codec Selected audio codec.
+   * @return RTSP codec label.
+   */
+  std::string_view dolby_codec_name(dolby_codec_e codec);
+
+#if defined(SUNSHINE_TESTS) && defined(_WIN32) && (defined(_M_X64) || defined(__x86_64__))
+  /**
+   * @brief Encode a Dolby frame directly for unit testing without audio capture.
+   * @param eac3 Whether to use E-AC-3 instead of AC-3.
+   * @param high_quality Whether to use the higher bitrate.
+   * @param channels Number of channels to encode.
+   * @param interleaved Interleaved float PCM samples.
+   * @param output Caller-provided output packet buffer.
+   * @return Encoded packet size, or -1 when initialization or encoding fails.
+   */
+  int encode_dolby_frame_for_testing(
+    bool eac3, bool high_quality, int channels,
+    const std::vector<float> &interleaved, buffer_t &output
+  );
+#endif
 
   /**
    * @brief Select a channel-aware bitrate for Dolby audio encoding.

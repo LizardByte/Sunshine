@@ -485,7 +485,7 @@
     "wan_encryption_mode_desc": "This determines when encryption will be used when streaming over the Internet. Encryption can reduce streaming performance, particularly on less powerful hosts and clients.",
     "audio_format": "Audio stream format",
     "audio_format_fallback_desc": "If the client does not accept the selected Dolby audio format, Sunshine will automatically fall back to Opus.",
-    "audio_format_unavailable_desc": "AC-3 and E-AC-3 are unavailable because compatible FFmpeg DLLs were not found. Copy the required DLLs into the `ffmpeg` subfolder in Sunshine's installation directory, then restart the Sunshine service. Opus will remain active.",
+    "audio_format_unavailable_desc": "AC-3 and E-AC-3 are unavailable in this Sunshine build. Opus will remain active.",
     "high_quality_audio": "High quality audio",
     "high_quality_audio_desc": "Use a higher bitrate for AC-3 or E-AC-3 at the cost of increased network bandwidth. This setting has no effect when Opus is selected."
   },

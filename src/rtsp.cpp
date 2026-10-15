@@ -1253,9 +1253,12 @@ namespace rtsp_stream {
       return;
     }
 
-    // A Dolby codec is selected only when it was offered and the client explicitly accepts
-    // that exact codec. Otherwise, retain Opus and its usual negotiation.
+    // A Dolby codec is selected only when the client explicitly accepts the exact offer.
+    // All other cases keep the existing Opus behavior.
     const auto audio_accept = args.find("x-ss-audio-codec-accept"sv);
+    const std::string_view accepted_audio_codec = audio_accept == args.end()
+      ? std::string_view {}
+      : std::string_view {audio_accept->second};
     const bool client_accepted_audio_codec =
       !session.audio_negotiation.codec_offered.empty() &&
       audio_accept != args.end() &&
@@ -1264,9 +1267,10 @@ namespace rtsp_stream {
     const bool eac3_encoder_available = session.audio_negotiation.codec_offered == "EAC3"sv && audio::eac3_available();
     const bool selected_encoder_available = ac3_encoder_available || eac3_encoder_available;
     const bool supported_dolby_channel_count = config.audio.channels == 2 || config.audio.channels == 6;
-
-    config.audio.use_ac3 = client_accepted_audio_codec && ac3_encoder_available && supported_dolby_channel_count;
-    config.audio.use_eac3 = client_accepted_audio_codec && eac3_encoder_available && supported_dolby_channel_count;
+    const auto selected_audio_codec = audio::configure_dolby_audio(
+      config.audio, session.audio_negotiation.codec_offered, accepted_audio_codec,
+      ac3_encoder_available, eac3_encoder_available, config::audio.high_quality_audio
+    );
 
     if (config::audio.format != "opus"sv && session.audio_negotiation.codec_offered.empty()) {
       BOOST_LOG(warning) << "Dolby audio format ["sv << config::audio.format
@@ -1280,12 +1284,8 @@ namespace rtsp_stream {
                       << config.audio.channels << "]; falling back to Opus"sv;
     }
 
-    if (config.audio.use_ac3 || config.audio.use_eac3) {
-      const auto codec_name = config.audio.use_eac3 ? "E-AC-3"sv : "AC-3"sv;
-      config.audio.packetDuration = 32;
-      config.audio.flags[audio::config_t::HIGH_QUALITY] = true;
-      config.audio.flags[audio::config_t::CUSTOM_SURROUND_PARAMS] = false;
-      config.audio.high_quality_dolby = config::audio.high_quality_audio;
+    if (selected_audio_codec != audio::dolby_codec_e::opus) {
+      const auto codec_name = selected_audio_codec == audio::dolby_codec_e::eac3 ? "E-AC-3"sv : "AC-3"sv;
       const auto bitrate_kbps = audio::dolby_bitrate_kbps(
         config.audio.use_eac3, config.audio.high_quality_dolby, config.audio.channels);
       BOOST_LOG(info) << "Using "sv << codec_name << " audio: "sv << config.audio.channels
@@ -1408,12 +1408,7 @@ namespace rtsp_stream {
     // the result without adding a response body that legacy RTSP clients may not expect.
     OPTION_ITEM audio_codec_option {};
     std::string audio_codec_header {"X-SS-Audio-Codec"};
-    std::string audio_codec_name {"Opus"};
-    if (config.audio.use_eac3) {
-      audio_codec_name = "EAC3";
-    } else if (config.audio.use_ac3) {
-      audio_codec_name = "AC3";
-    }
+    std::string audio_codec_name {audio::dolby_codec_name(selected_audio_codec)};
     audio_codec_option.option = audio_codec_header.data();
     audio_codec_option.content = audio_codec_name.data();
     option.next = &audio_codec_option;

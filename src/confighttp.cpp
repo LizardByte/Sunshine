@@ -316,8 +316,6 @@ namespace confighttp {
     nlohmann::json output_tree;
     output_tree["installed"] = installed;
     output_tree["version"] = version;
-    output_tree["ac3_available"] = audio::ac3_available();
-    output_tree["eac3_available"] = audio::eac3_available();
     output_tree["minimum_version"] = minimum_version_text;
     output_tree["supported_versions"] = minimum_version.empty() ? "Any" : std::format(">= {}", minimum_version_text);
     output_tree["development_version"] = installed && is_driver_version_development(version);
@@ -1493,6 +1491,8 @@ namespace confighttp {
       output_tree[name] = std::move(value);
     }
 
+    output_tree["ac3_available"] = audio::ac3_available();
+    output_tree["eac3_available"] = audio::eac3_available();
     send_response(response, output_tree);
   }
 

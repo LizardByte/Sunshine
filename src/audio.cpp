@@ -5,24 +5,14 @@
 // standard includes
 #include <algorithm>
 #include <array>
-#include <bit>
-#include <filesystem>
-#include <format>
-#include <mutex>
 #include <thread>
 
-// Optional runtime-loaded FFmpeg Dolby audio backend. Headers are a build-time dependency only;
-// no FFmpeg import library is linked and no FFmpeg DLL is bundled with Sunshine.
+// Use Sunshine's existing FFmpeg linkage for the Windows x64 Dolby audio encoder.
 #if defined(_WIN32) && (defined(_M_X64) || defined(__x86_64__))
-  #ifndef NOMINMAX
-    #define NOMINMAX
-  #endif
-  #include <Windows.h>
   #include <libavcodec/avcodec.h>
   #include <libavutil/avutil.h>
   #include <libavutil/channel_layout.h>
   #include <libavutil/frame.h>
-  #include <libavutil/version.h>
 #endif
 
 // lib includes
@@ -120,172 +110,6 @@ namespace audio {
   }};
 
 #if defined(_WIN32) && (defined(_M_X64) || defined(__x86_64__))
-  template<typename Function>
-  bool load_ffmpeg_symbol(HMODULE dll_module, Function &function, const char *name) {
-    const auto symbol = GetProcAddress(dll_module, name);
-    static_assert(sizeof(Function) == sizeof(FARPROC));
-    function = std::bit_cast<Function>(symbol);
-    return function != nullptr;
-  }
-
-  /**
-   * @brief Runtime-loaded FFmpeg API used by the optional AC-3 and E-AC-3 encoders.
-   *
-   * The runtime DLL major versions must match the headers used for this build. Keeping all
-   * calls behind function pointers means Sunshine still starts normally when the DLLs are absent.
-   */
-  class ffmpeg_audio_api_t {
-  public:
-    ~ffmpeg_audio_api_t() {
-      if (avcodec_module_) {
-        FreeLibrary(avcodec_module_);
-      }
-      if (avutil_module_) {
-        FreeLibrary(avutil_module_);
-      }
-    }
-
-    bool libraries_available() {
-      std::call_once(load_once_, [this]() {
-        load();
-      });
-      return ready_;
-    }
-
-    bool encoder_available(AVCodecID codec_id) {
-      return libraries_available() && symbols_.find_encoder(codec_id) != nullptr;
-    }
-
-    struct api_symbols_t {
-      decltype(&avutil_version) util_version {};
-      decltype(&avcodec_version) codec_version {};
-      decltype(&av_channel_layout_from_mask) channel_layout_from_mask {};
-      decltype(&av_channel_layout_copy) channel_layout_copy {};
-      decltype(&avcodec_find_encoder) find_encoder {};
-      decltype(&avcodec_alloc_context3) alloc_context {};
-      decltype(&avcodec_open2) open_encoder {};
-      decltype(&avcodec_free_context) free_context {};
-      decltype(&avcodec_send_frame) send_frame {};
-      decltype(&avcodec_receive_packet) receive_packet {};
-      decltype(&av_frame_alloc) alloc_frame {};
-      decltype(&av_frame_free) free_frame {};
-      decltype(&av_frame_get_buffer) get_frame_buffer {};
-      decltype(&av_frame_make_writable) make_frame_writable {};
-      decltype(&av_packet_alloc) alloc_packet {};
-      decltype(&av_packet_free) free_packet {};
-      decltype(&av_packet_unref) unref_packet {};
-    };
-
-    api_symbols_t symbols_ {};
-
-  private:
-    void clear_symbols() {
-      symbols_.util_version = nullptr;
-      symbols_.codec_version = nullptr;
-      symbols_.channel_layout_from_mask = nullptr;
-      symbols_.channel_layout_copy = nullptr;
-      symbols_.find_encoder = nullptr;
-      symbols_.alloc_context = nullptr;
-      symbols_.open_encoder = nullptr;
-      symbols_.free_context = nullptr;
-      symbols_.send_frame = nullptr;
-      symbols_.receive_packet = nullptr;
-      symbols_.alloc_frame = nullptr;
-      symbols_.free_frame = nullptr;
-      symbols_.get_frame_buffer = nullptr;
-      symbols_.make_frame_writable = nullptr;
-      symbols_.alloc_packet = nullptr;
-      symbols_.free_packet = nullptr;
-      symbols_.unref_packet = nullptr;
-    }
-
-    bool load_directory(const std::filesystem::path &directory) {
-      const auto avutil_path = directory / std::format(L"avutil-{}.dll", LIBAVUTIL_VERSION_MAJOR);
-      const auto avcodec_path = directory / std::format(L"avcodec-{}.dll", LIBAVCODEC_VERSION_MAJOR);
-
-      auto avutil_module = LoadLibraryExW(avutil_path.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
-      if (!avutil_module) {
-        return false;
-      }
-
-      auto avcodec_module = LoadLibraryExW(avcodec_path.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
-      if (!avcodec_module) {
-        FreeLibrary(avutil_module);
-        return false;
-      }
-
-      const auto symbols_loaded =
-        load_ffmpeg_symbol(avutil_module, symbols_.util_version, "avutil_version") &&
-        load_ffmpeg_symbol(avutil_module, symbols_.channel_layout_from_mask, "av_channel_layout_from_mask") &&
-        load_ffmpeg_symbol(avutil_module, symbols_.channel_layout_copy, "av_channel_layout_copy") &&
-        load_ffmpeg_symbol(avutil_module, symbols_.alloc_frame, "av_frame_alloc") &&
-        load_ffmpeg_symbol(avutil_module, symbols_.free_frame, "av_frame_free") &&
-        load_ffmpeg_symbol(avutil_module, symbols_.get_frame_buffer, "av_frame_get_buffer") &&
-        load_ffmpeg_symbol(avutil_module, symbols_.make_frame_writable, "av_frame_make_writable") &&
-        load_ffmpeg_symbol(avcodec_module, symbols_.alloc_packet, "av_packet_alloc") &&
-        load_ffmpeg_symbol(avcodec_module, symbols_.free_packet, "av_packet_free") &&
-        load_ffmpeg_symbol(avcodec_module, symbols_.unref_packet, "av_packet_unref") &&
-        load_ffmpeg_symbol(avcodec_module, symbols_.codec_version, "avcodec_version") &&
-        load_ffmpeg_symbol(avcodec_module, symbols_.find_encoder, "avcodec_find_encoder") &&
-        load_ffmpeg_symbol(avcodec_module, symbols_.alloc_context, "avcodec_alloc_context3") &&
-        load_ffmpeg_symbol(avcodec_module, symbols_.open_encoder, "avcodec_open2") &&
-        load_ffmpeg_symbol(avcodec_module, symbols_.free_context, "avcodec_free_context") &&
-        load_ffmpeg_symbol(avcodec_module, symbols_.send_frame, "avcodec_send_frame") &&
-        load_ffmpeg_symbol(avcodec_module, symbols_.receive_packet, "avcodec_receive_packet");
-
-      if (const auto versions_match = symbols_loaded &&
-          (symbols_.util_version() >> 16) == LIBAVUTIL_VERSION_MAJOR &&
-          (symbols_.codec_version() >> 16) == LIBAVCODEC_VERSION_MAJOR &&
-          (symbols_.find_encoder(AV_CODEC_ID_AC3) != nullptr || symbols_.find_encoder(AV_CODEC_ID_EAC3) != nullptr);
-          !versions_match) {
-        FreeLibrary(avcodec_module);
-        FreeLibrary(avutil_module);
-        clear_symbols();
-        return false;
-      }
-
-      avutil_module_ = avutil_module;
-      avcodec_module_ = avcodec_module;
-      return true;
-    }
-
-    void load() {
-      std::wstring executable_path(32768, L'\0');
-      const auto length = GetModuleFileNameW(nullptr, executable_path.data(), static_cast<DWORD>(executable_path.size()));
-      if (length == 0 || length >= executable_path.size()) {
-        return;
-      }
-      executable_path.resize(length);
-
-      const auto executable_directory = std::filesystem::path(executable_path).parent_path();
-      const std::array directories {
-        executable_directory,
-        executable_directory / L"ffmpeg",
-      };
-
-      for (const auto &directory : directories) {
-        if (load_directory(directory)) {
-          ready_ = true;
-          BOOST_LOG(info) << "Optional FFmpeg Dolby audio encoder API is available"sv;
-          return;
-        }
-      }
-
-      clear_symbols();
-      BOOST_LOG(debug) << "Compatible FFmpeg Dolby audio encoders not found; continuing with Opus"sv;
-    }
-
-    std::once_flag load_once_;
-    HMODULE avutil_module_ {nullptr};
-    HMODULE avcodec_module_ {nullptr};
-    bool ready_ {false};
-  };
-
-  ffmpeg_audio_api_t &ffmpeg_audio_api() {
-    static ffmpeg_audio_api_t api;
-    return api;
-  }
-
   /**
    * @brief Encode one interleaved stereo or 5.1 float PCM frame as an AC-3-family access unit.
    */
@@ -293,27 +117,27 @@ namespace audio {
   public:
     ~ffmpeg_audio_encoder_t() {
       if (packet_) {
-        api_.symbols_.free_packet(&packet_);
+        av_packet_free(&packet_);
       }
       if (frame_) {
-        api_.symbols_.free_frame(&frame_);
+        av_frame_free(&frame_);
       }
       if (context_) {
-        api_.symbols_.free_context(&context_);
+        avcodec_free_context(&context_);
       }
     }
 
     bool initialize(AVCodecID codec_id, std::int64_t bit_rate, int channels) {
-      if (!api_.libraries_available() || (channels != 2 && channels != 6)) {
+      if (channels != 2 && channels != 6) {
         return false;
       }
 
-      const auto *codec = api_.symbols_.find_encoder(codec_id);
+      const auto *codec = avcodec_find_encoder(codec_id);
       if (!codec) {
         return false;
       }
 
-      context_ = api_.symbols_.alloc_context(codec);
+      context_ = avcodec_alloc_context3(codec);
       if (!context_) {
         return false;
       }
@@ -326,8 +150,8 @@ namespace audio {
       channels_ = channels;
 
       const auto channel_layout = channels == 2 ? AV_CH_LAYOUT_STEREO : AV_CH_LAYOUT_5POINT1_BACK;
-      if (api_.symbols_.channel_layout_from_mask(&context_->ch_layout, channel_layout) < 0 ||
-          api_.symbols_.open_encoder(context_, codec, nullptr) < 0) {
+      if (av_channel_layout_from_mask(&context_->ch_layout, channel_layout) < 0 ||
+          avcodec_open2(context_, codec, nullptr) < 0) {
         return false;
       }
 
@@ -336,7 +160,7 @@ namespace audio {
         return false;
       }
 
-      frame_ = api_.symbols_.alloc_frame();
+      frame_ = av_frame_alloc();
       if (!frame_) {
         return false;
       }
@@ -344,12 +168,12 @@ namespace audio {
       frame_->format = context_->sample_fmt;
       frame_->sample_rate = context_->sample_rate;
       frame_->nb_samples = context_->frame_size;
-      if (api_.symbols_.channel_layout_copy(&frame_->ch_layout, &context_->ch_layout) < 0 ||
-          api_.symbols_.get_frame_buffer(frame_, 0) < 0) {
+      if (av_channel_layout_copy(&frame_->ch_layout, &context_->ch_layout) < 0 ||
+          av_frame_get_buffer(frame_, 0) < 0) {
         return false;
       }
 
-      packet_ = api_.symbols_.alloc_packet();
+      packet_ = av_packet_alloc();
       return packet_ != nullptr;
     }
 
@@ -358,7 +182,7 @@ namespace audio {
         return -1;
       }
 
-      if (api_.symbols_.make_frame_writable(frame_) < 0) {
+      if (av_frame_make_writable(frame_) < 0) {
         return -1;
       }
 
@@ -372,30 +196,52 @@ namespace audio {
       frame_->pts = next_pts_;
       next_pts_ += frame_->nb_samples;
 
-      if (api_.symbols_.send_frame(context_, frame_) < 0 || api_.symbols_.receive_packet(context_, packet_) < 0) {
-        api_.symbols_.unref_packet(packet_);
+      if (avcodec_send_frame(context_, frame_) < 0 || avcodec_receive_packet(context_, packet_) < 0) {
+        av_packet_unref(packet_);
         return -1;
       }
 
       const auto packet_size = packet_->size;
       if (packet_size <= 0 || static_cast<std::size_t>(packet_size) > output.size()) {
-        api_.symbols_.unref_packet(packet_);
+        av_packet_unref(packet_);
         return -1;
       }
 
       std::copy_n(packet_->data, packet_size, std::begin(output));
-      api_.symbols_.unref_packet(packet_);
+      av_packet_unref(packet_);
       return packet_size;
     }
 
   private:
-    ffmpeg_audio_api_t &api_ {ffmpeg_audio_api()};
     AVCodecContext *context_ {nullptr};
     AVFrame *frame_ {nullptr};
     AVPacket *packet_ {nullptr};
     std::int64_t next_pts_ {0};
     int channels_ {0};
   };
+
+#ifdef SUNSHINE_TESTS
+  /**
+   * @brief Encode one Dolby frame without starting the audio capture loop.
+   * @param eac3 Whether to use E-AC-3 instead of AC-3.
+   * @param high_quality Whether to use the higher bitrate.
+   * @param channels Number of channels to encode.
+   * @param interleaved Interleaved float PCM samples.
+   * @param output Caller-provided output packet buffer.
+   * @return Encoded packet size, or -1 when initialization or encoding fails.
+   */
+  int encode_dolby_frame_for_testing(
+    bool eac3, bool high_quality, int channels,
+    const std::vector<float> &interleaved, buffer_t &output
+  ) {
+    const auto bitrate_kbps = dolby_bitrate_kbps(eac3, high_quality, channels);
+    if (bitrate_kbps <= 0) return -1;
+    ffmpeg_audio_encoder_t encoder;
+    const auto codec_id = eac3 ? AV_CODEC_ID_EAC3 : AV_CODEC_ID_AC3;
+    if (!encoder.initialize(codec_id, static_cast<std::int64_t>(bitrate_kbps) * 1000, channels)) return -1;
+    return encoder.encode(interleaved, output);
+  }
+#endif
 #endif
 
   /**
@@ -423,7 +269,7 @@ namespace audio {
       const auto bitrate_kbps = dolby_bitrate_kbps(config.use_eac3, config.high_quality_dolby, config.channels);
       ffmpeg_audio_encoder_t encoder;
       if (bitrate_kbps <= 0 || !encoder.initialize(codec_id, static_cast<std::int64_t>(bitrate_kbps) * 1000, config.channels)) {
-        BOOST_LOG(error) << "Couldn't initialize the optional FFmpeg "sv << codec_name << " encoder"sv;
+        BOOST_LOG(error) << "Couldn't initialize the linked FFmpeg "sv << codec_name << " encoder"sv;
         packets->stop();
         return;
       }
@@ -612,17 +458,25 @@ namespace audio {
     return control_shared.ref();
   }
 
+  /**
+   * @brief Check whether the linked FFmpeg build provides the AC-3 encoder.
+   * @return True when the AC-3 encoder is available in this build.
+   */
   bool ac3_available() {
 #if defined(_WIN32) && (defined(_M_X64) || defined(__x86_64__))
-    return ffmpeg_audio_api().encoder_available(AV_CODEC_ID_AC3);
+    return avcodec_find_encoder(AV_CODEC_ID_AC3) != nullptr;
 #else
     return false;
 #endif
   }
 
+  /**
+   * @brief Check whether the linked FFmpeg build provides the E-AC-3 encoder.
+   * @return True when the E-AC-3 encoder is available in this build.
+   */
   bool eac3_available() {
 #if defined(_WIN32) && (defined(_M_X64) || defined(__x86_64__))
-    return ffmpeg_audio_api().encoder_available(AV_CODEC_ID_EAC3);
+    return avcodec_find_encoder(AV_CODEC_ID_EAC3) != nullptr;
 #else
     return false;
 #endif
@@ -639,6 +493,55 @@ namespace audio {
       return eac3 ? 384 : 448;
     }
     return 0;
+  }
+
+  /**
+   * @brief Configure Dolby encoding only when the exact advertised codec is accepted.
+   * @param config Audio configuration to update.
+   * @param offered Codec offered by Sunshine, or empty when using Opus.
+   * @param accepted Codec explicitly accepted by the client.
+   * @param ac3_encoder_available Whether the linked AC-3 encoder is available.
+   * @param eac3_encoder_available Whether the linked E-AC-3 encoder is available.
+   * @param high_quality Whether the higher Dolby bitrate was requested.
+   * @return Selected audio codec, falling back to Opus for unsupported negotiations.
+   */
+  dolby_codec_e configure_dolby_audio(
+    config_t &config, std::string_view offered, std::string_view accepted,
+    bool ac3_encoder_available, bool eac3_encoder_available, bool high_quality
+  ) {
+    config.use_ac3 = false;
+    config.use_eac3 = false;
+    config.high_quality_dolby = false;
+    const bool supported_channel_count = config.channels == 2 || config.channels == 6;
+    auto selected_codec = dolby_codec_e::opus;
+    if (supported_channel_count && offered == "AC3" && accepted == offered && ac3_encoder_available) {
+      selected_codec = dolby_codec_e::ac3;
+    } else if (supported_channel_count && offered == "EAC3" && accepted == offered && eac3_encoder_available) {
+      selected_codec = dolby_codec_e::eac3;
+    }
+    if (selected_codec != dolby_codec_e::opus) {
+      config.use_ac3 = selected_codec == dolby_codec_e::ac3;
+      config.use_eac3 = selected_codec == dolby_codec_e::eac3;
+      config.packetDuration = 32;
+      config.flags[config_t::HIGH_QUALITY] = true;
+      config.flags[config_t::CUSTOM_SURROUND_PARAMS] = false;
+      config.high_quality_dolby = high_quality;
+    }
+    return selected_codec;
+  }
+
+  /**
+   * @brief Return the RTSP codec label for an audio codec selection.
+   * @param codec Selected audio codec.
+   * @return Codec label advertised in the RTSP response header.
+   */
+  std::string_view dolby_codec_name(dolby_codec_e codec) {
+    switch (codec) {
+      case dolby_codec_e::ac3: return "AC3";
+      case dolby_codec_e::eac3: return "EAC3";
+      case dolby_codec_e::opus:
+      default: return "Opus";
+    }
   }
 
   bool is_audio_ctx_sink_available(const audio_ctx_t &ctx) {
