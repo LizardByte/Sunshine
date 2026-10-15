@@ -15,6 +15,23 @@
 
 static_assert(!std::is_convertible_v<std::uint32_t, safe::queue_t<int>>);
 
+/**
+ * @brief Mail cleanup removes an expired post while preserving an active post's owner.
+ */
+TEST(ThreadSafeMail, CleanupPreservesLivePostsAndRemovesExpiredPosts) {
+  safe::mail_raw_t mailbox;
+  const auto live = std::make_shared<int>(7);
+  mailbox.id_to_post.emplace("live", live);
+  mailbox.id_to_post.emplace("expired", std::weak_ptr<void> {});
+
+  mailbox.cleanup();
+
+  EXPECT_EQ(mailbox.id_to_post.size(), 1);
+  EXPECT_EQ(mailbox.id_to_post.at("live").lock(), live);
+  mailbox.cleanup();
+  EXPECT_EQ(mailbox.id_to_post.size(), 1);
+}
+
 TEST(ThreadSafeQueue, RejectsNewestItemAtCapacity) {
   safe::queue_t<int> queue {1, safe::queue_t<int>::overflow_policy_e::reject};
 

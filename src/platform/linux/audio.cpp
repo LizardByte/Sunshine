@@ -299,7 +299,7 @@ namespace platf {
      * @param userdata Caller-provided pointer passed through the callback.
      */
     void ctx_state_cb(ctx_t::pointer ctx, void *userdata) {
-      auto &f = *(std::function<void(ctx_t::pointer)> *) userdata;
+      const auto &f = *(std::function<void(ctx_t::pointer)> *) userdata;
 
       f(ctx);
     }

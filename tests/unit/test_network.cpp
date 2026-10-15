@@ -21,6 +21,17 @@ TEST(NetworkClassificationTest, DeducedNetworkListsPreserveAddressScopes) {
   EXPECT_EQ(net::from_address("2001:4860:4860::8888"), net::WAN);
 }
 
+/**
+ * @brief IPv4-mapped addresses use the same read-only range classification as native IPv4.
+ */
+TEST(NetworkClassificationTest, ClassifiesMappedIpv4AddressesWithoutChangingSubsequentLookups) {
+  for (const auto *address : {"127.0.0.1", "10.1.2.3", "172.31.1.2", "100.127.1.2", "8.8.8.8"}) {
+    const auto expected = net::from_address(address);
+    EXPECT_EQ(net::from_address(std::string {"::ffff:"} + address), expected);
+    EXPECT_EQ(net::from_address(address), expected);
+  }
+}
+
 struct MdnsInstanceNameTest: BaseTest, testing::WithParamInterface<std::tuple<std::string, std::string>> {};
 
 TEST_P(MdnsInstanceNameTest, Run) {

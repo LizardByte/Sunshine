@@ -63,29 +63,29 @@ namespace net {
   }
 
   /**
-   * @brief Convert a Boost address family to Sunshine network enum value.
+   * @brief Classify an address using the configured loopback and LAN ranges without modifying them.
    */
   net_e from_address(const std::string_view &view) {
     if (auto addr = normalize_address(ip::make_address(view)); addr.is_v6()) {
-      for (auto &range : pc_ips_v6) {
+      for (const auto &range : pc_ips_v6) {
         if (range.hosts().find(addr.to_v6()) != range.hosts().end()) {
           return PC;
         }
       }
 
-      for (auto &range : lan_ips_v6) {
+      for (const auto &range : lan_ips_v6) {
         if (range.hosts().find(addr.to_v6()) != range.hosts().end()) {
           return LAN;
         }
       }
     } else {
-      for (auto &range : pc_ips_v4) {
+      for (const auto &range : pc_ips_v4) {
         if (range.hosts().find(addr.to_v4()) != range.hosts().end()) {
           return PC;
         }
       }
 
-      for (auto &range : lan_ips_v4) {
+      for (const auto &range : lan_ips_v4) {
         if (range.hosts().find(addr.to_v4()) != range.hosts().end()) {
           return LAN;
         }

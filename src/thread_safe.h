@@ -859,7 +859,7 @@ namespace safe {
       std::lock_guard lg {mutex};
 
       for (auto it = std::begin(id_to_post); it != std::end(id_to_post); ++it) {
-        auto &weak = it->second;
+        const auto &weak = it->second;
 
         if (weak.expired()) {
           id_to_post.erase(it);

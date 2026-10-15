@@ -2843,7 +2843,7 @@ namespace video {
     auto lg = util::fail_guard([&ctx, &synced_session_ctxs]() {
       ctx.stop();
 
-      for (auto &session_ctx : synced_session_ctxs) {
+      for (const auto &session_ctx : synced_session_ctxs) {
         session_ctx->shutdown_event->raise(true);
         session_ctx->join_event->raise(true);
       }
