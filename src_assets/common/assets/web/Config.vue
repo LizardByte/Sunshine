@@ -102,8 +102,6 @@
         v-if="currentTab === 'av'"
         :config="config"
         :platform="platform"
-        :ac3-available="ac3Available"
-        :eac3-available="eac3Available"
       >
       </audio-video>
 
@@ -220,8 +218,6 @@
     data() {
       return {
         platform: "",
-        ac3Available: false,
-        eac3Available: false,
         saved: false,
         restarted: false,
         config: null,
@@ -274,18 +270,6 @@
         .then((r) => {
           this.config = r;
           this.platform = this.config.platform;
-          this.ac3Available = r.ac3_available === true;
-          this.eac3Available = r.eac3_available === true;
-          delete this.config.ac3_available;
-          delete this.config.eac3_available;
-
-          // Keep the effective setting on Opus if the configured Dolby encoder is unavailable.
-          if (this.platform === "windows" &&
-              ((this.config.audio_format === "ac3" && !this.ac3Available) ||
-               (this.config.audio_format === "eac3" && !this.eac3Available))) {
-            this.config.audio_format = "opus";
-          }
-
           if (this.platform === "windows") {
             this.tabs = this.tabs.filter((el) => {
               return el.id !== "vt" && el.id !== "vaapi" && el.id !== "vulkan";
