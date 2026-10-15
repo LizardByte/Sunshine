@@ -3,8 +3,10 @@
  * @brief Definitions for handling video ram.
  */
 // standard includes
+#include <algorithm>
 #include <array>
 #include <cmath>
+#include <span>
 
 // platform includes
 #include <d3dcompiler.h>
@@ -209,9 +211,9 @@ namespace platf::dxgi {
      *
      * @param other Helper whose acquired keyed mutex is transferred.
      */
-    texture_lock_helper(texture_lock_helper &&other) {
+    texture_lock_helper(texture_lock_helper &&other):
+        _locked {other._locked} {
       _mutex.reset(other._mutex.release());
-      _locked = other._locked;
       other._locked = false;
     }
 
@@ -232,11 +234,11 @@ namespace platf::dxgi {
     }
 
     /**
-     * @brief Acquire a D3D keyed mutex for scoped texture access.
+     * @brief Explicitly acquire a D3D keyed mutex for scoped texture access.
      *
      * @param mutex Keyed mutex to acquire for texture access.
      */
-    texture_lock_helper(IDXGIKeyedMutex *mutex):
+    explicit texture_lock_helper(IDXGIKeyedMutex *mutex):
         _mutex(mutex) {
       if (_mutex) {
         _mutex->AddRef();
@@ -286,7 +288,7 @@ namespace platf::dxgi {
       case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR:
         {
           util::buffer_t<std::uint8_t> cursor_img = img_data;
-          std::for_each((std::uint32_t *) std::begin(cursor_img), (std::uint32_t *) std::end(cursor_img), [](auto &pixel) {
+          std::ranges::for_each(std::span {(std::uint32_t *) std::begin(cursor_img), (std::uint32_t *) std::end(cursor_img)}, [](auto &pixel) {
             auto alpha = (std::uint8_t) ((pixel >> 24) & 0xFF);
             if (alpha == 0xFF) {
               // Pixels with 0xFF alpha will be XOR-blended as is.
@@ -360,7 +362,7 @@ namespace platf::dxgi {
       case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR:
         {
           util::buffer_t<std::uint8_t> cursor_img = img_data;
-          std::for_each((std::uint32_t *) std::begin(cursor_img), (std::uint32_t *) std::end(cursor_img), [](auto &pixel) {
+          std::ranges::for_each(std::span {(std::uint32_t *) std::begin(cursor_img), (std::uint32_t *) std::end(cursor_img)}, [](auto &pixel) {
             auto alpha = (std::uint8_t) ((pixel >> 24) & 0xFF);
             if (alpha == 0xFF) {
               // Pixels with 0xFF alpha will be XOR-blended by make_cursor_xor_image().
@@ -601,7 +603,7 @@ namespace platf::dxgi {
       frame_texture->AddRef();
       output_texture.reset(frame_texture);
 
-      HRESULT status = S_OK;
+      auto status = S_OK;
 
 #ifndef DOXYGEN
   #define create_vertex_shader_helper(x, y) \
@@ -783,7 +785,7 @@ namespace platf::dxgi {
           return -1;
       }
 
-      auto create_rtv = [&](auto &rt, DXGI_FORMAT rt_format) -> bool {
+      auto create_rtv = [&](auto &rt, DXGI_FORMAT rt_format) {
         D3D11_RENDER_TARGET_VIEW_DESC rtv_desc = {};
         rtv_desc.Format = rt_format;
         rtv_desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
@@ -1518,7 +1520,7 @@ namespace platf::dxgi {
       }
     }
 
-    auto create_surface = [&](texture2d_t &surface) -> bool {
+    auto create_surface = [&](texture2d_t &surface) {
       // Try to reuse the old surface if it hasn't been destroyed yet.
       if (old_surface_delayed_destruction) {
         surface.reset(old_surface_delayed_destruction.release());
@@ -1550,7 +1552,7 @@ namespace platf::dxgi {
       // Finish creating the image (if it hasn't happened already),
       // also creates synchronization primitives for shared access from multiple direct3d devices.
       if (complete_img(d3d_img.get(), dummy)) {
-        return {nullptr, nullptr};
+        return {nullptr, texture_lock_helper {nullptr}};
       }
 
       // This image is shared between capture direct3d device and encoders direct3d devices,
@@ -1558,7 +1560,7 @@ namespace platf::dxgi {
       texture_lock_helper lock_helper(d3d_img->capture_mutex.get());
       if (!lock_helper.lock()) {
         BOOST_LOG(error) << "Failed to lock capture texture";
-        return {nullptr, nullptr};
+        return {nullptr, texture_lock_helper {nullptr}};
       }
 
       // Clear the blank flag now that we're ready to capture into the image

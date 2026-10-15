@@ -10,12 +10,14 @@
 #include <iterator>
 #include <set>
 #include <sstream>
+#include <utility>
 #include <vector>
 
 // lib includes
 #include <boost/algorithm/string.hpp>
 #include <boost/asio/ip/address.hpp>
 #include <boost/program_options/parsers.hpp>
+#include <boost/range/algorithm/find_if.hpp>
 
 // local includes required before platform includes
 #include "src/boost_process_compat.h"
@@ -100,7 +102,7 @@ extern "C" {
 
 namespace {
 
-  std::atomic<bool> used_nt_set_timer_resolution = false;
+  std::atomic used_nt_set_timer_resolution = false;
 
   bool nt_set_timer_resolution_max() {
     ULONG maximum;
@@ -178,8 +180,7 @@ namespace platf {
   std::string from_sockaddr(const sockaddr *const socket_address) {
     std::array<char, INET6_ADDRSTRLEN> data = {};
 
-    auto family = socket_address->sa_family;
-    if (family == AF_INET6) {
+    if (auto family = socket_address->sa_family; family == AF_INET6) {
       inet_ntop(AF_INET6, &((const sockaddr_in6 *) socket_address)->sin6_addr, data.data(), INET6_ADDRSTRLEN);
     } else if (family == AF_INET) {
       inet_ntop(AF_INET, &((const sockaddr_in *) socket_address)->sin_addr, data.data(), INET_ADDRSTRLEN);
@@ -376,6 +377,8 @@ namespace platf {
   /**
    * @brief Merge user environment variables into a Windows environment block.
    *
+   * Existing variable names retain their spelling when matched case-insensitively.
+   *
    * @param env Environment variables for the child process.
    * @param shell_token Shell token.
    * @return True when the user environment block was merged into `env`.
@@ -395,7 +398,7 @@ namespace platf {
       std::string env_val = env_tuple.substr(env_tuple.find('=') + 1);
 
       // Perform a case-insensitive search to see if this variable name already exists
-      if (auto itr = std::find_if(env.begin(), env.end(), [&](const auto &e) {
+      if (auto itr = boost::range::find_if(env, [&env_name](const auto &e) {
             return boost::iequals(e.get_name(), env_name);
           });
           itr != env.end()) {
@@ -629,7 +632,7 @@ namespace platf {
 
     if (file) {
       // If a file was provided, get its handle and use it as the standard output and error for the new process
-      HANDLE log_file_handle = (HANDLE) _get_osfhandle(_fileno(file));
+      auto log_file_handle = (HANDLE) _get_osfhandle(_fileno(file));
 
       // Populate std handles if the caller gave us a log file to use
       startup_info.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
@@ -830,7 +833,7 @@ namespace platf {
       // Overriding these predefined keys affects process-wide state, so serialize all calls
       // to ensure the handle state is consistent while we perform the command query.
       static std::mutex per_user_key_mutex;
-      auto lg = std::lock_guard(per_user_key_mutex);
+      auto lg = std::scoped_lock(per_user_key_mutex);
 
       // Override HKEY_CLASSES_ROOT and HKEY_CURRENT_USER to ensure we query the correct class info
       if (!override_per_user_predefined_keys(token)) {
@@ -1028,7 +1031,7 @@ namespace platf {
     auto sunshine_wenv = boost::this_process::wenvironment();
     std::wstring path_var_name {L"PATH"};
     std::wstring old_path_val;
-    auto itr = std::find_if(sunshine_wenv.cbegin(), sunshine_wenv.cend(), [&](const auto &e) {
+    auto itr = boost::range::find_if(std::as_const(sunshine_wenv), [&path_var_name](const auto &e) {
       return boost::iequals(e.get_name(), path_var_name);
     });
     if (itr != sunshine_wenv.cend()) {
@@ -1042,7 +1045,7 @@ namespace platf {
     sunshine_wenv[path_var_name].assign(start_dir + L";" + old_path_val);
 
     // Restore the old PATH value for our process when we're done here
-    auto restore_path = util::fail_guard([&]() {
+    auto restore_path = util::fail_guard([&old_path_val, &sunshine_wenv, &path_var_name]() {
       if (old_path_val.empty()) {
         sunshine_wenv[path_var_name].clear();
       } else {
@@ -1145,7 +1148,7 @@ namespace platf {
         win32_priority = THREAD_PRIORITY_HIGHEST;
         break;
       default:
-        BOOST_LOG(error) << "Unknown thread priority: "sv << (int) priority;
+        BOOST_LOG(error) << "Unknown thread priority: "sv << std::to_underlying(priority);
         return;
     }
 
@@ -1502,7 +1505,7 @@ namespace platf {
 
   // Use UDP segmentation offload if it is supported by the OS. If the NIC is capable, this will use
   // hardware acceleration to reduce CPU usage. Support for USO was introduced in Windows 10 20H1.
-  bool send_batch(batched_send_info_t &send_info) {
+  bool send_batch(const batched_send_info_t &send_info) {
     WSAMSG msg;
 
     // Convert the target address into a SOCKADDR
@@ -1633,11 +1636,11 @@ namespace platf {
   class qos_t: public deinit_t {
   public:
     /**
-     * @brief Store a Windows QoS flow ID for cleanup on destruction.
+     * @brief Explicitly store a Windows QoS flow ID for cleanup on destruction.
      *
      * @param flow_id Flow ID.
      */
-    qos_t(QOS_FLOWID flow_id):
+    explicit qos_t(QOS_FLOWID flow_id):
         flow_id(flow_id) {
     }
 
@@ -1750,7 +1753,7 @@ namespace platf {
         traffic_type = QOSTrafficTypeAudioVideo;
         break;
       default:
-        BOOST_LOG(error) << "Unknown traffic type: "sv << (int) data_type;
+        BOOST_LOG(error) << "Unknown traffic type: "sv << std::to_underlying(data_type);
         return nullptr;
     }
 
@@ -1768,8 +1771,7 @@ namespace platf {
    * @brief Read the current Windows high-resolution performance counter.
    */
   int64_t qpc_counter() {
-    LARGE_INTEGER performance_counter;
-    if (QueryPerformanceCounter(&performance_counter)) {
+    if (LARGE_INTEGER performance_counter; QueryPerformanceCounter(&performance_counter)) {
       return performance_counter.QuadPart;
     }
     return 0;
@@ -1785,8 +1787,7 @@ namespace platf {
       QueryPerformanceFrequency(&frequency);
       return frequency.QuadPart;
     };
-    static const double frequency = get_frequency();
-    if (frequency) {
+    if (static const double frequency = get_frequency(); frequency) {
       return std::chrono::nanoseconds((int64_t) ((performance_counter1 - performance_counter2) * frequency / std::nano::den));
     }
     return {};
@@ -1843,7 +1844,12 @@ namespace platf {
       WaitForSingleObject(timer, INFINITE);
     }
 
-    operator bool() override {
+    /**
+     * @brief Explicitly check whether the timer backend is initialized.
+     *
+     * @return True when the platform timer is available.
+     */
+    explicit operator bool() override {
       return timer != nullptr;
     }
 

@@ -423,7 +423,7 @@ namespace audio {
     auto samples = std::make_shared<sample_queue_t::element_type>(30);
     std::jthread thread {encodeThread, samples, config, channel_data};
 
-    auto fg = util::fail_guard([&]() {
+    auto fg = util::fail_guard([&samples, &thread, &shutdown_event]() {
       samples->stop();
       thread.join();
 

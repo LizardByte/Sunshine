@@ -29,19 +29,19 @@ namespace sync_util {
     /**
      * @brief Acquire the underlying lock or keyed mutex.
      *
-     * @return Lock guard owning the synchronized object until destruction.
+     * @return Scoped lock owning the synchronized object until destruction.
      */
-    std::lock_guard<mutex_t> lock() {
-      return std::lock_guard {_lock};
+    std::scoped_lock<mutex_t> lock() {
+      return std::scoped_lock {_lock};
     }
 
     /**
-     * @brief Initialize the protected object from forwarded arguments.
+     * @brief Explicitly initialize the protected object from forwarded arguments.
      *
      * @param args Arguments forwarded to the protected object's constructor.
      */
     template<class... Args>
-    sync_t(Args &&...args):
+    explicit sync_t(Args &&...args):
         raw {std::forward<Args>(args)...} {
     }
 

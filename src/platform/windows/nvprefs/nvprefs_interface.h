@@ -53,9 +53,9 @@ namespace nvprefs {
     /**
      * @brief Check whether this interface owns the active undo file.
      *
-     * @return True when the NVIDIA preferences operation succeeds.
+     * @return True when this interface owns the undo file; querying does not load NVIDIA APIs.
      */
-    bool owning_undo_file();
+    bool owning_undo_file() const;
 
     /**
      * @brief Restore NVIDIA global profile settings from saved undo data.

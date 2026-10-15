@@ -6,6 +6,7 @@
 #include <array>
 #include <cmath>
 #include <thread>
+#include <utility>
 
 // platform includes
 #include <initguid.h>
@@ -353,7 +354,7 @@ namespace platf::dxgi {
           }
           break;
         default:
-          BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
+          BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
           return status;
       }
 
@@ -646,7 +647,7 @@ namespace platf::dxgi {
 
       HMODULE gdi32 = GetModuleHandleA("GDI32");
       if (gdi32) {
-        auto check_hags = [&](const LUID &adapter_luid) -> bool {
+        auto check_hags = [&](const LUID &adapter_luid) {
           auto d3dkmt_open_adapter = (PD3DKMTOpenAdapterFromLuid) GetProcAddress(gdi32, "D3DKMTOpenAdapterFromLuid");
           auto d3dkmt_query_adapter_info = (PD3DKMTQueryAdapterInfo) GetProcAddress(gdi32, "D3DKMTQueryAdapterInfo");
           auto d3dkmt_close_adapter = (PD3DKMTCloseAdapter) GetProcAddress(gdi32, "D3DKMTCloseAdapter");
@@ -1137,7 +1138,7 @@ namespace platf {
   bool needs_encoder_reenumeration() {
     // Serialize access to the static DXGI factory
     static std::mutex reenumeration_state_lock;
-    auto lg = std::lock_guard(reenumeration_state_lock);
+    auto lg = std::scoped_lock(reenumeration_state_lock);
 
     // Keep a reference to the DXGI factory, which will keep track of changes internally.
     static dxgi::factory1_t factory;

@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <utility>
 
 // lib includes
 #include <boost/core/null_deleter.hpp>
@@ -95,7 +96,7 @@ namespace logging {
         log_type = "Tests: "sv;
         break;
 #endif
-    };
+    }
 
     auto now = std::chrono::system_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -226,8 +227,8 @@ namespace logging {
   }
 
   void setup_libdisplaydevice_logging(int min_log_level) {
-    constexpr int min_level {static_cast<int>(display_device::Logger::LogLevel::verbose)};
-    constexpr int max_level {static_cast<int>(display_device::Logger::LogLevel::fatal)};
+    constexpr int min_level {std::to_underlying(display_device::Logger::LogLevel::verbose)};
+    constexpr int max_level {std::to_underlying(display_device::Logger::LogLevel::fatal)};
     const auto log_level {static_cast<display_device::Logger::LogLevel>(std::min(std::max(min_level, min_log_level), max_level))};
 
     display_device::Logger::get().setLogLevel(log_level);

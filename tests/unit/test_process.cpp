@@ -15,8 +15,56 @@
 
 // local includes
 #include <src/process.h>
+#include <src/utility.h>
 
 namespace fs = std::filesystem;
+
+namespace proc {
+  /**
+   * @brief Resolve a command's working directory, returning an empty path for URLs.
+   *
+   * @param cmd Command line to inspect.
+   * @param env Environment used for executable lookup.
+   * @return Working directory, or an empty path when the command is a URL.
+   */
+  boost::filesystem::path find_working_directory(const std::string &cmd, boost::process::v1::environment &env);
+
+  /**
+   * @brief Expand environment references while preserving Windows variable-name casing.
+   *
+   * @param env Environment whose variables are expanded.
+   * @param val_raw Text containing variable references.
+   * @return Text with environment references expanded.
+   */
+  std::string parse_env_val(boost::process::v1::native_environment &env, const std::string_view &val_raw);
+}  // namespace proc
+
+#ifdef _WIN32
+TEST(ProcessTest, ExpandsEnvironmentNamesWithoutChangingTheirCase) {
+  auto env = boost::this_process::environment();
+  const std::string key = "SUNSHINE_RANGE_SEARCH_REGRESSION";
+  const auto original = env.find(key);
+  const std::optional<std::string> saved = original == env.end() ? std::nullopt : std::optional {original->to_string()};
+  const auto restore = util::fail_guard([&env, &key, &saved]() {
+    if (saved.has_value()) {
+      env[key] = *saved;
+    } else {
+      env[key].clear();
+    }
+  });
+  env[key] = "case-preserved";
+
+  EXPECT_EQ(proc::parse_env_val(env, "before-$(sunshine_range_search_regression)-after"), "before-case-preserved-after");
+  EXPECT_EQ(proc::parse_env_val(env, "$(SUNSHINE_RANGE_SEARCH_REGRESSION)"), "case-preserved");
+}
+#endif
+
+TEST(ProcessTest, UrlCommandsDoNotResolveAnExecutableWorkingDirectory) {
+  boost::process::v1::environment env;
+  EXPECT_TRUE(proc::find_working_directory("https://example.com", env).empty());
+  EXPECT_TRUE(proc::find_working_directory("steam://run/123", env).empty());
+  EXPECT_TRUE(proc::find_working_directory("custom+scheme://host/path", env).empty());
+}
 
 TEST(ProcessTest, PrepareCommand) {
 #ifdef SUNSHINE_BUILD_FLATPAK

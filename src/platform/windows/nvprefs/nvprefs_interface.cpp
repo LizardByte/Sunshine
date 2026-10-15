@@ -109,8 +109,7 @@ namespace nvprefs {
     }
 
     // Modify and save sunshine.exe application profile settings, if needed
-    bool modified = false;
-    if (!pimpl->driver_settings.check_and_modify_application_profile(modified)) {
+    if (bool modified = false; !pimpl->driver_settings.check_and_modify_application_profile(modified)) {
       error_message("Failed to modify application profile settings");
       return false;
     } else if (modified) {
@@ -142,7 +141,7 @@ namespace nvprefs {
       return true;
     }
 
-    auto make_undo_and_commit = [&]() -> bool {
+    auto make_undo_and_commit = [&]() {
       // Create and lock undo file if it hasn't been done yet
       if (!pimpl->undo_file) {
         // Prepare Sunshine folder in ProgramData if it doesn't exist
@@ -194,7 +193,7 @@ namespace nvprefs {
     return true;
   }
 
-  bool nvprefs_interface::owning_undo_file() {
+  bool nvprefs_interface::owning_undo_file() const {
     return pimpl->undo_file.has_value();
   }
 

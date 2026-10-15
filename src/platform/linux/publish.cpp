@@ -304,19 +304,18 @@ namespace avahi {
       }
     }
 
-    std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-      {(dyn::apiproc *) &alternative_service_name, "avahi_alternative_service_name"},
-      {(dyn::apiproc *) &free, "avahi_free"},
-      {(dyn::apiproc *) &strdup, "avahi_strdup"},
-      {(dyn::apiproc *) &strerror, "avahi_strerror"},
-      {(dyn::apiproc *) &simple_poll_get, "avahi_simple_poll_get"},
-      {(dyn::apiproc *) &simple_poll_loop, "avahi_simple_poll_loop"},
-      {(dyn::apiproc *) &simple_poll_quit, "avahi_simple_poll_quit"},
-      {(dyn::apiproc *) &simple_poll_new, "avahi_simple_poll_new"},
-      {(dyn::apiproc *) &simple_poll_free, "avahi_simple_poll_free"},
-    };
-
-    if (dyn::load(handle, funcs)) {
+    if (std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+          {(dyn::apiproc *) &alternative_service_name, "avahi_alternative_service_name"},
+          {(dyn::apiproc *) &free, "avahi_free"},
+          {(dyn::apiproc *) &strdup, "avahi_strdup"},
+          {(dyn::apiproc *) &strerror, "avahi_strerror"},
+          {(dyn::apiproc *) &simple_poll_get, "avahi_simple_poll_get"},
+          {(dyn::apiproc *) &simple_poll_loop, "avahi_simple_poll_loop"},
+          {(dyn::apiproc *) &simple_poll_quit, "avahi_simple_poll_quit"},
+          {(dyn::apiproc *) &simple_poll_new, "avahi_simple_poll_new"},
+          {(dyn::apiproc *) &simple_poll_free, "avahi_simple_poll_free"},
+        };
+        dyn::load(handle, funcs)) {
       return -1;
     }
 
@@ -348,19 +347,18 @@ namespace avahi {
       }
     }
 
-    std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-      {(dyn::apiproc *) &client_new, "avahi_client_new"},
-      {(dyn::apiproc *) &client_free, "avahi_client_free"},
-      {(dyn::apiproc *) &entry_group_get_client, "avahi_entry_group_get_client"},
-      {(dyn::apiproc *) &entry_group_new, "avahi_entry_group_new"},
-      {(dyn::apiproc *) &entry_group_add_service, "avahi_entry_group_add_service"},
-      {(dyn::apiproc *) &entry_group_is_empty, "avahi_entry_group_is_empty"},
-      {(dyn::apiproc *) &entry_group_reset, "avahi_entry_group_reset"},
-      {(dyn::apiproc *) &entry_group_commit, "avahi_entry_group_commit"},
-      {(dyn::apiproc *) &client_errno, "avahi_client_errno"},
-    };
-
-    if (dyn::load(handle, funcs)) {
+    if (std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+          {(dyn::apiproc *) &client_new, "avahi_client_new"},
+          {(dyn::apiproc *) &client_free, "avahi_client_free"},
+          {(dyn::apiproc *) &entry_group_get_client, "avahi_entry_group_get_client"},
+          {(dyn::apiproc *) &entry_group_new, "avahi_entry_group_new"},
+          {(dyn::apiproc *) &entry_group_add_service, "avahi_entry_group_add_service"},
+          {(dyn::apiproc *) &entry_group_is_empty, "avahi_entry_group_is_empty"},
+          {(dyn::apiproc *) &entry_group_reset, "avahi_entry_group_reset"},
+          {(dyn::apiproc *) &entry_group_commit, "avahi_entry_group_commit"},
+          {(dyn::apiproc *) &client_errno, "avahi_client_errno"},
+        };
+        dyn::load(handle, funcs)) {
       return -1;
     }
 
@@ -532,11 +530,11 @@ namespace platf::publish {
     std::jthread poll_thread;  ///< Poll thread.
 
     /**
-     * @brief Store the Avahi polling thread for shutdown on destruction.
+     * @brief Explicitly store the Avahi polling thread for shutdown on destruction.
      *
      * @param poll_thread Poll thread.
      */
-    deinit_t(std::jthread poll_thread):
+    explicit deinit_t(std::jthread poll_thread):
         poll_thread {std::move(poll_thread)} {
     }
 

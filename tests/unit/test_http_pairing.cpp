@@ -588,6 +588,47 @@ TEST_F(PairingHttpHandlerTest, DuplicateAndCapacityErrorsReturnImmediately) {
   EXPECT_NE(request(server_certificate_target("overflow")).find("status_code=\"503\""), std::string::npos);
 }
 
+TEST_F(PairingHttpHandlerTest, RetriedGetservercertReplacesAbandonedHandshake) {
+  // First attempt: start pairing and approve the PIN, leaving the session mid-handshake.
+  std::packaged_task<std::string()> first_request_task {[this]() {
+    return request(server_certificate_target("retry"));
+  }};
+  auto first_response = first_request_task.get_future();
+  std::jthread first_request_thread {std::move(first_request_task)};
+
+  const auto first_pairing_id = wait_for_pending_pairing();
+  ASSERT_FALSE(first_pairing_id.empty());
+  config::stream.ping_timeout = std::chrono::seconds {10};
+  std::packaged_task<bool()> pin_task {[&first_pairing_id]() {
+    return pin(first_pairing_id, "5338", "Test client");
+  }};
+  auto pin_result = pin_task.get_future();
+  std::jthread pin_thread {std::move(pin_task)};
+
+  // PIN approval answers the held request and advances the session past the certificate
+  // phase, so it no longer appears in the pending list.
+  EXPECT_NE(first_response.get().find("status_code=\"200\""), std::string::npos);
+  for (int attempt = 0; attempt < 100 && !get_pending_pairings().empty(); ++attempt) {
+    std::this_thread::sleep_for(std::chrono::milliseconds {10});
+  }
+  EXPECT_TRUE(get_pending_pairings().empty());
+
+  // A fresh getservercert for the same client replaces the abandoned handshake instead
+  // of failing with 409 until the session expires.
+  std::packaged_task<std::string()> retry_request_task {[this]() {
+    return request(server_certificate_target("retry"));
+  }};
+  auto retry_response = retry_request_task.get_future();
+  std::jthread retry_request_thread {std::move(retry_request_task)};
+
+  const auto second_pairing_id = wait_for_pending_pairing();
+  ASSERT_FALSE(second_pairing_id.empty());
+  EXPECT_NE(second_pairing_id, first_pairing_id);
+  EXPECT_FALSE(pin_result.get());  // The evicted handshake's waiter is woken with failure.
+  EXPECT_TRUE(cancel_pairing(second_pairing_id));
+  EXPECT_NE(retry_response.get().find("cancelled by operator"), std::string::npos);
+}
+
 TEST_F(PairingHttpHandlerTest, ConsolePinCompletesOrRejectsTheCertificatePhase) {
   setup(PRIVATE_KEY, PUBLIC_CERT);
   config::sunshine.flags[config::flag::PIN_STDIN] = true;

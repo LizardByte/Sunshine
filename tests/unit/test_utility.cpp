@@ -22,6 +22,19 @@
 #include <src/utility.h>
 
 /**
+ * @brief A const resource deleter invokes its release function exactly once per call.
+ */
+TEST(UtilityDestroyTest, ConstDeleterInvokesTheConfiguredReleaseFunction) {
+  const util::Destroy<int *, void, +[](int *value) {
+    ++*value;
+  }>
+    destroy;
+  int releases = 0;
+  destroy(&releases);
+  EXPECT_EQ(releases, 1);
+}
+
+/**
  * @brief Simulate the opposite byte order for a byte-array fixture.
  */
 template<>
@@ -267,11 +280,24 @@ TEST(UtilityBufferTests, MoveConstruction) {
 
 TEST(UtilityBufferTests, CopyConstruction) {
   util::buffer_t buf1(3, 55);
+  buf1[1] = 66;
+  buf1[2] = 77;
   util::buffer_t<int> buf2(buf1);
   EXPECT_EQ(buf2.size(), 3U);
   EXPECT_EQ(buf2[0], 55);
+  EXPECT_EQ(buf2[1], 66);
+  EXPECT_EQ(buf2[2], 77);
   EXPECT_EQ(buf1.size(), 3U);
   EXPECT_EQ(buf1[0], 55);
+}
+
+TEST(UtilityBufferTests, CopiesAnEmptyLogicalRange) {
+  util::buffer_t buf(3, 42);
+  buf.fake_resize(0);
+  const util::buffer_t<int> copy(buf);
+  EXPECT_EQ(copy.size(), 0U);
+  EXPECT_EQ(copy.begin(), copy.end());
+  EXPECT_EQ(buf[0], 42);
 }
 
 TEST(UtilityBufferTests, SizeConstructionValueInitializesEveryElement) {
@@ -350,6 +376,11 @@ TEST(UtilityHexTests, IteratorsAndViewsExposeExactlyTheFormattedBytes) {
 TEST(UtilityFromHexTests, ShortInputPadsUnusedBytesWithZeros) {
   EXPECT_EQ(util::from_hex<std::uint64_t>("ABCD"), util::endian::little(std::uint64_t {0xABCD}));
   EXPECT_EQ(util::from_hex<std::uint64_t>("ABCD", true), util::endian::big(std::uint64_t {0xABCD}));
+}
+
+TEST(UtilityFromHexTests, LongInputKeepsTheLowOrderBytes) {
+  EXPECT_EQ(util::from_hex<std::uint32_t>("123456789A"), util::endian::little(std::uint32_t {0x3456789A}));
+  EXPECT_EQ(util::from_hex<std::uint32_t>("123456789A", true), util::endian::big(std::uint32_t {0x3456789A}));
 }
 
 TEST(UtilityFromHexTests, DecodesIntoAByteArrayWithoutPointerTypePunning) {

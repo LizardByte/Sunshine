@@ -266,7 +266,7 @@
     "gamepad_driver": "Windows Gamepad ドライバ",
     "gamepad_driver_all": "利用可能なすべてのドライバ",
     "gamepad_driver_desc": "Sunshineが使用できる仮想ゲームパッドドライバを選択します。ライセンスされた場合は、すべての利用可能なドライバがVirtual HIDドライバを好み、ViGEmBusに戻ります。 Virtual HIDドライバはオプションの有料アップグレードです。ViGEmBusはXbox 360とDualShock4のみをサポートし、限られた機能を備えており、人生の終わりに達しています。",
-    "gamepad_driver_macos_desc": "macOSで仮想ゲームパッドのバーチャルHIDブローカーを選択するか、ゲームパッドとブローカーの通知を無効にするにはformat@@0を選択します。キーボードとマウスの入力は影響を受けません。",
+    "gamepad_driver_macos_desc": "macOSで仮想ゲームパッドのバーチャルHIDブローカーを選択するか、ゲームパッドとブローカーの通知を無効にするには「なし」を選択します。キーボードとマウスの入力は影響を受けません。",
     "gamepad_driver_none": "なし (ゲームパッドを無効にする)",
     "gamepad_driver_select": "ドライバを選択してください...",
     "gamepad_driver_vigembus": "ViGEmBus",

@@ -127,7 +127,35 @@ TEST_F(LogRotationTest, ReportsFilesystemErrors) {
   EXPECT_EQ(read_log_file(log_path), "current");
 }
 
+TEST_F(LogRotationTest, FindsSubstringsAtBoundariesAndWithCaseFolding) {
+  write_log_file(log_path, "prefix middle suffix\nMiXeD\n\n");
+  const auto path = log_path.string();
+  EXPECT_TRUE(log_checker::line_contains(path, "prefix"));
+  EXPECT_TRUE(log_checker::line_contains(path, "middle"));
+  EXPECT_TRUE(log_checker::line_contains(path, "suffix"));
+  EXPECT_TRUE(log_checker::line_contains(path, ""));
+  EXPECT_TRUE(log_checker::line_contains(path, "mixed", true));
+  EXPECT_FALSE(log_checker::line_contains(path, "mixed"));
+  EXPECT_FALSE(log_checker::line_contains(path, "absent"));
+}
+
 struct LogLevelsTest: BaseTest, testing::WithParamInterface<decltype(log_levels)::value_type> {};
+
+/**
+ * @brief Periodic logger callbacks preserve their owner's message and numeric formatting.
+ */
+TEST(PeriodicLoggerTest, ReportsIntegralAndFloatingSamplesWithConfiguredUnits) {
+  logging::min_max_avg_periodic_logger<int> integral {info, "Integral capture", "ms", std::chrono::seconds {-1}};
+  logging::min_max_avg_periodic_logger<double> floating {info, "Floating capture", "s", std::chrono::seconds {-1}};
+
+  integral.collect_and_log(3);
+  floating.collect_and_log(1.25);
+  integral.collect_and_log(7);
+  floating.collect_and_log(2.5);
+
+  EXPECT_TRUE(log_checker::line_contains(log_file, "Integral capture (min/max/avg): 3ms/3ms/3.00ms"));
+  EXPECT_TRUE(log_checker::line_contains(log_file, "Floating capture (min/max/avg): 1.25s/1.25s/1.25s"));
+}
 
 INSTANTIATE_TEST_SUITE_P(
   Logging,

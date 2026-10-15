@@ -20,12 +20,39 @@
 
 using namespace std::literals;
 
+TEST(ConfigParsingTest, ParsedEntriesOwnKeysAndSupportStringViewLookup) {
+  std::string input = "encoder = software\nencoder = nvenc\n";
+  const auto entries = config::parse_config(input);
+  input.assign(input.size(), 'x');
+
+  const std::string padded = "__encoder__";
+  const auto key = std::string_view {padded}.substr(2, 7);
+  const auto found = entries.find(key);
+  ASSERT_NE(found, entries.end());
+  EXPECT_EQ(found->second, "software");
+  EXPECT_FALSE(entries.contains("missing"sv));
+  EXPECT_EQ(entries.size(), 1);
+}
+
 TEST(ConfigDefaultsTest, UsesAutomaticGamepadSelection) {
   EXPECT_EQ(config::input.gamepad, "auto");
 }
 
 TEST(ConfigDefaultsTest, TreatsFp16SdrCapturesAsLinear) {
   EXPECT_FALSE(config::video.fp16_sdr_gamma_encoded);
+}
+
+TEST(ConfigDefaultsTest, PreservesAmdEncoderNumericDefaults) {
+  EXPECT_EQ(config::video.amd.amd_usage_h264, 1);
+  EXPECT_EQ(config::video.amd.amd_usage_hevc, 1);
+  EXPECT_EQ(config::video.amd.amd_usage_av1, 2);
+  EXPECT_EQ(config::video.amd.amd_rc_h264, 3);
+  EXPECT_EQ(config::video.amd.amd_rc_hevc, 1);
+  EXPECT_EQ(config::video.amd.amd_rc_av1, 1);
+  EXPECT_EQ(config::video.amd.amd_quality_h264, 0);
+  EXPECT_EQ(config::video.amd.amd_quality_hevc, 5);
+  EXPECT_EQ(config::video.amd.amd_quality_av1, 70);
+  EXPECT_EQ(config::video.amd.amd_coder, 0);
 }
 
 using NvencPresetNameParam = std::pair<int, std::string_view>;
@@ -166,6 +193,19 @@ TEST_F(ConfigPersistenceTest, ParsesFp16SdrGammaEncodedOption) {
 
   config::apply_config_for_test("fp16_sdr_gamma_encoded = disabled\n");
   EXPECT_FALSE(config::video.fp16_sdr_gamma_encoded);
+}
+
+TEST_F(ConfigPersistenceTest, ParsesHexIntegersWiderThanAnInt) {
+  const auto original_video = config::video;
+  const auto restore_video = util::fail_guard([original_video]() {
+    config::video = original_video;
+  });
+  const auto apps_file = config_file().parent_path() / "sunshine_test_config_apps.json";
+  ASSERT_EQ(file_handler::write_file(apps_file.string().c_str(), "{}"), 0);
+  config::stream.file_apps = apps_file.string();
+
+  config::apply_config_for_test("min_threads = 0x1234567890\n");
+  EXPECT_EQ(config::video.min_threads, 0x34567890);
 }
 
 TEST_F(ConfigPersistenceTest, ParsesFecPercentagesAndRejectsOutOfRangeValues) {

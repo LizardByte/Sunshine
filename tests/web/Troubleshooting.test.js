@@ -6,8 +6,20 @@ vi.mock('../../src_assets/common/assets/web/Navbar.vue', () => ({
 }))
 
 import Troubleshooting from '../../src_assets/common/assets/web/Troubleshooting.vue'
+import createSunshineI18n from '../../src_assets/common/assets/web/locale.js'
+import en from '../../src_assets/common/assets/web/public/assets/locale/en.json'
 
-async function mountTroubleshooting(platform, gamepadDriver, licenseStatus = {}, permissions = []) {
+/**
+ * @brief Mount troubleshooting with mocked API responses and an optional Vue I18n instance.
+ *
+ * @param {string} platform Host platform.
+ * @param {string} gamepadDriver Selected gamepad driver.
+ * @param {object} licenseStatus License status overrides.
+ * @param {Array} permissions Platform permissions.
+ * @param {object|null} i18n Optional Vue I18n plugin.
+ * @return {Promise<object>} Mounted troubleshooting wrapper.
+ */
+async function mountTroubleshooting(platform, gamepadDriver, licenseStatus = {}, permissions = [], i18n = null) {
   vi.stubGlobal('fetch', vi.fn(async (url) => {
     if (url === '/api/config') {
       return { json: async () => ({ platform, gamepad_driver: gamepadDriver }) }
@@ -48,7 +60,8 @@ async function mountTroubleshooting(platform, gamepadDriver, licenseStatus = {},
 
   const wrapper = mount(Troubleshooting, {
     global: {
-      mocks: { $t: key => key },
+      mocks: i18n ? {} : { $t: key => key },
+      plugins: i18n ? [i18n] : [],
       stubs: { Navbar: true, RouterLink: true },
     },
   })
@@ -58,9 +71,53 @@ async function mountTroubleshooting(platform, gamepadDriver, licenseStatus = {},
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 describe('virtual input troubleshooting', () => {
+  it.each([
+    ['valid', false],
+    ['malformed', true],
+  ])('renders Linux permissions and device management with %s translation messages', async (_description, malformed) => {
+    const catalog = structuredClone(en)
+    catalog._common.loading = malformed ? 'Loadingchar@@0' : 'Translated loading'
+    catalog.troubleshooting.driver_release_checking = malformed ? 'Checkingchar@@0' : 'Translated checking'
+    catalog.troubleshooting.permissions_name = malformed ? 'Permissionchar@@0' : 'Translated permission'
+    catalog.apps.delete_confirm = 'Delete translated {name}?'
+    catalog.troubleshooting.troubleshooting = 'Translated troubleshooting'
+    catalog.troubleshooting.unpair_title = 'Translated unpair'
+    catalog.troubleshooting.logs = 'Translated logs'
+
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.stubGlobal('fetch', vi.fn(async url => ({
+      json: async () => url === './api/configLocale' ? { locale: 'de' } : catalog,
+    })))
+    const i18n = await createSunshineI18n()
+    const wrapper = await mountTroubleshooting('linux', 'none', {}, [
+      { id: 'input', status: 'granted', required: true },
+    ], i18n)
+
+    try {
+      expect(i18n.global.t('_common.loading')).toBe(malformed ? en._common.loading : catalog._common.loading)
+      expect(i18n.global.t('troubleshooting.driver_release_checking')).toBe(
+        malformed ? en.troubleshooting.driver_release_checking : catalog.troubleshooting.driver_release_checking
+      )
+      expect(i18n.global.t('apps.delete_confirm', { name: 'Moonlight' })).toBe(
+        catalog.apps.delete_confirm.replace('{name}', 'Moonlight')
+      )
+      expect(wrapper.get('h1').text()).toBe(catalog.troubleshooting.troubleshooting)
+      expect(wrapper.get('.permission-table-shell th').text()).toBe(
+        malformed ? en.troubleshooting.permissions_name : catalog.troubleshooting.permissions_name
+      )
+      expect(wrapper.get('#unpair').text()).toBe(catalog.troubleshooting.unpair_title)
+      expect(wrapper.get('#logs').text()).toBe(catalog.troubleshooting.logs)
+      expect(wrapper.find('.permission-table-shell tbody tr').exists()).toBe(true)
+    } finally {
+      wrapper.unmount()
+      i18n.dispose()
+    }
+  })
+
   it('orders permission rows consistently across platforms', async () => {
     const permissions = [
       { id: 'local_network', status: 'on_use', required: true },

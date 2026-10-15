@@ -1125,8 +1125,13 @@ namespace platf {
 
   }  // namespace
 
+  /**
+   * @brief Create the libvirtualhid backend with explicit input-handle ownership.
+   *
+   * @return Owning handle for the global virtual input backend.
+   */
   input_t input() {
-    return {new input_raw_t {}};
+    return input_t {new input_raw_t {}};
   }
 
   std::unique_ptr<client_input_t> allocate_client_input_context(input_t &input) {

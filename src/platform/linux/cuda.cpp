@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <filesystem>
 #include <thread>
+#include <utility>
 
 // lib includes
 #include <ffnvcodec/dynlink_loader.h>
@@ -363,7 +364,7 @@ namespace cuda {
     BOOST_LOG(debug) << "Found CUDA device with PCI bus ID: "sv << pci_bus_id.data();
 
     // Linux uses lowercase hexadecimal while CUDA uses uppercase
-    std::transform(pci_bus_id.begin(), pci_bus_id.end(), pci_bus_id.begin(), [](char c) {
+    std::ranges::transform(pci_bus_id, pci_bus_id.begin(), [](char c) {
       return std::tolower(c);
     });
 
@@ -697,7 +698,12 @@ namespace cuda {
     static PNVFBCCREATEINSTANCE createInstance {};
     static NVFBC_API_FUNCTION_LIST func {.dwVersion = NVFBC_VERSION};
 
-    static constexpr inline NVFBC_BOOL nv_bool(bool b) {
+    /**
+     * @brief Convert a C++ boolean to the corresponding NvFBC flag.
+     * @param b Boolean state to convert.
+     * @return NVFBC_TRUE when b is true, otherwise NVFBC_FALSE.
+     */
+    static constexpr NVFBC_BOOL nv_bool(bool b) {
       return b ? NVFBC_TRUE : NVFBC_FALSE;
     }
 
@@ -752,11 +758,11 @@ namespace cuda {
     class ctx_t {
     public:
       /**
-       * @brief Create an NvFBC session context for a native capture handle.
+       * @brief Explicitly create an NvFBC session context for a native capture handle.
        *
        * @param session_handle Native library or object handle used by the operation.
        */
-      ctx_t(NVFBC_SESSION_HANDLE session_handle) {
+      explicit ctx_t(NVFBC_SESSION_HANDLE session_handle) {
         NVFBC_BIND_CONTEXT_PARAMS params {NVFBC_BIND_CONTEXT_PARAMS_VER};
 
         if (func.nvFBCBindContext(session_handle, &params)) {
@@ -1063,7 +1069,7 @@ namespace cuda {
               }
               break;
             default:
-              BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
+              BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
               return status;
           }
         }

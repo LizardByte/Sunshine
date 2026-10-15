@@ -157,7 +157,7 @@ namespace video {
    */
   const color_t *color_vectors_from_colorspace(const sunshine_colorspace_t &colorspace, bool unorm_output) {
     using enum colorspace_e;
-    constexpr auto generate_color_vectors = [](const sunshine_colorspace_t &colorspace, bool unorm_output) -> color_t {
+    constexpr auto generate_color_vectors = [](const sunshine_colorspace_t &colorspace, bool unorm_output) {
       // "Table 4 – Interpretation of matrix coefficients (MatrixCoefficients) value" section of ITU-T H.273
       double Kr;
       double Kb;

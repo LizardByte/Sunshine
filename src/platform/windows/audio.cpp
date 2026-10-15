@@ -120,7 +120,7 @@ namespace {
         break;
     }
 
-    static_assert((int) sample_format_e::_size == 5, "Unrecognized sample_format_e");
+    static_assert(std::to_underlying(sample_format_e::_size) == 5, "Unrecognized sample_format_e");
 
     waveformat.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
     waveformat.Format.nChannels = channel_count;
@@ -441,8 +441,7 @@ namespace platf::audio {
    */
   class audio_notification_t: public ::IMMNotificationClient {
   public:
-    audio_notification_t() {
-    }
+    audio_notification_t() = default;
 
     // IUnknown implementation (unused by IMMDeviceEnumerator)
     /**
@@ -450,7 +449,7 @@ namespace platf::audio {
      *
      * @return Static reference count because the callback lifetime is externally owned.
      */
-    ULONG STDMETHODCALLTYPE AddRef() {
+    ULONG STDMETHODCALLTYPE AddRef() override {
       return 1;
     }
 
@@ -459,18 +458,18 @@ namespace platf::audio {
      *
      * @return Reference count or status returned after releasing the object.
      */
-    ULONG STDMETHODCALLTYPE Release() {
+    ULONG STDMETHODCALLTYPE Release() override {
       return 1;
     }
 
     /**
-     * @brief Return the supported COM interface for the notification callback.
+     * @brief Implement IUnknown's interface query for the endpoint notification callback.
      *
      * @param riid COM interface identifier requested by QueryInterface.
      * @param ppvInterface Output pointer receiving the requested interface.
      * @return S_OK when the interface is supported; E_NOINTERFACE otherwise.
      */
-    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, VOID **ppvInterface) {  // NOSONAR(cpp:S5008): IUnknown::QueryInterface requires a void double pointer in the COM ABI.
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, VOID **ppvInterface) override {  // NOSONAR(cpp:S5008): IUnknown::QueryInterface requires a void double pointer in the COM ABI.
       if (IID_IUnknown == riid) {
         AddRef();
         *ppvInterface = (IUnknown *) this;
@@ -494,7 +493,7 @@ namespace platf::audio {
      * @param pwstrDeviceId Windows endpoint ID for the new default device.
      * @return S_OK after recording the render-device change notification.
      */
-    HRESULT STDMETHODCALLTYPE OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR pwstrDeviceId) {
+    HRESULT STDMETHODCALLTYPE OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR pwstrDeviceId) override {
       if (flow == eRender) {
         default_render_device_changed_flag.store(true);
       }
@@ -507,7 +506,7 @@ namespace platf::audio {
      * @param pwstrDeviceId Windows endpoint ID for the added device.
      * @return S_OK because Sunshine does not act on this notification.
      */
-    HRESULT STDMETHODCALLTYPE OnDeviceAdded(LPCWSTR pwstrDeviceId) {
+    HRESULT STDMETHODCALLTYPE OnDeviceAdded(LPCWSTR pwstrDeviceId) override {
       return S_OK;
     }
 
@@ -517,7 +516,7 @@ namespace platf::audio {
      * @param pwstrDeviceId Windows endpoint ID for the removed device.
      * @return S_OK because Sunshine does not act on this notification.
      */
-    HRESULT STDMETHODCALLTYPE OnDeviceRemoved(LPCWSTR pwstrDeviceId) {
+    HRESULT STDMETHODCALLTYPE OnDeviceRemoved(LPCWSTR pwstrDeviceId) override {
       return S_OK;
     }
 
@@ -531,7 +530,7 @@ namespace platf::audio {
     HRESULT STDMETHODCALLTYPE OnDeviceStateChanged(
       LPCWSTR pwstrDeviceId,
       DWORD dwNewState
-    ) {
+    ) override {
       return S_OK;
     }
 
@@ -545,7 +544,7 @@ namespace platf::audio {
     HRESULT STDMETHODCALLTYPE OnPropertyValueChanged(
       LPCWSTR pwstrDeviceId,
       const PROPERTYKEY key
-    ) {
+    ) override {
       return S_OK;
     }
 
@@ -751,12 +750,16 @@ namespace platf::audio {
       struct sample_aligned_t {
         std::uint32_t uninitialized;
         float *samples;
-      } sample_aligned;
+      };
+
+      sample_aligned_t sample_aligned;
 
       // number of samples / number of channels
       struct block_aligned_t {
         std::uint32_t audio_sample_size;
-      } block_aligned;
+      };
+
+      block_aligned_t block_aligned;
 
       // Check if the default audio device has changed
       if (endpt_notification.check_default_render_device_changed()) {
@@ -942,8 +945,7 @@ namespace platf::audio {
       // Encoding format:
       // [virtual-(format name)]device_id
       std::string current = sink;
-      auto prefix = "virtual-"sv;
-      if (current.find(prefix) == 0) {
+      if (auto prefix = "virtual-"sv; current.find(prefix) == 0) {
         current = current.substr(prefix.size(), current.size() - prefix.size());
 
         for (const auto &format : formats) {
@@ -1449,8 +1451,7 @@ namespace platf::audio {
     /**
      * @brief Destroy the Windows audio control.
      */
-    ~audio_control_t() override {
-    }
+    ~audio_control_t() override = default;
 
     policy_t policy;  ///< Windows policy configuration interface used to switch default audio devices.
     audio::device_enum_t device_enum;  ///< Device enumerator used to query and watch audio endpoints.

@@ -1050,11 +1050,11 @@ namespace platf {
     boost::asio::ip::address &source_address;  ///< Local source IP address for outgoing packets.
 
     /**
-     * @brief Returns a payload buffer descriptor for the given payload offset.
+     * @brief Locate a payload region without changing the batch descriptor or its buffers.
      * @param offset The offset in the total payload data (bytes).
      * @return Buffer descriptor describing the region at the given offset.
      */
-    buffer_descriptor_t buffer_for_payload_offset(ptrdiff_t offset) {
+    buffer_descriptor_t buffer_for_payload_offset(ptrdiff_t offset) const {
       for (const auto &desc : payload_buffers) {
         if (offset < desc.size) {
           return {
@@ -1070,12 +1070,12 @@ namespace platf {
   };
 
   /**
-   * @brief Send multiple fixed-size UDP payload blocks using the platform backend.
+   * @brief Send fixed-size UDP payload blocks without modifying the batch descriptor.
    *
    * @param send_info Socket addresses, buffers, and sizes for the send operation.
    * @return True when all requested packet blocks are submitted to the socket.
    */
-  bool send_batch(batched_send_info_t &send_info);
+  bool send_batch(const batched_send_info_t &send_info);
 
   /**
    * @brief Destination address and payload data for one UDP send.
@@ -1361,10 +1361,10 @@ namespace platf {
     virtual void sleep_for(const std::chrono::nanoseconds &duration) = 0;
 
     /**
-     * @brief Check if platform-specific timer backend has been initialized successfully
+     * @brief Explicitly check if platform-specific timer backend has been initialized successfully
      * @return `true` on success, `false` on error
      */
-    virtual operator bool() = 0;
+    virtual explicit operator bool() = 0;
   };
 
   /**

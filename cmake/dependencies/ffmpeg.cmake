@@ -176,6 +176,15 @@ else()
     list(APPEND FFMPEG_LIBRARIES ${FFMPEG_PLATFORM_LIBRARIES})
 endif()
 
+# Legacy library lists can also refer to libva backends by name. Resolve those
+# names to the matching archives whenever the FFmpeg package supplies libva.
+if(EXISTS "${FFMPEG_PREPARED_BINARIES}/lib/libva.a")
+    foreach(library IN ITEMS va va-drm va-x11)
+        list(TRANSFORM FFMPEG_LIBRARIES REPLACE
+                "^${library}$" "${FFMPEG_PREPARED_BINARIES}/lib/lib${library}.a")
+    endforeach()
+endif()
+
 # Shared packages supply the full static dependency list, including decoders.
 # Older packages retain the library list above.
 set(_sunshine_ffmpeg_pc "${FFMPEG_PREPARED_BINARIES}/lib/pkgconfig/libavcodec.pc")

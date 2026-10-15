@@ -77,6 +77,7 @@
   #include "platform/common.h"
   #include "process.h"
   #include "src/entry_handler.h"
+  #include "string_hash.h"
   #include "system_tray.h"
   #include "thread_safe.h"
   #ifdef _WIN32
@@ -117,23 +118,6 @@ namespace system_tray {
       static std::jthread worker;
       return worker;
     }
-
-    /**
-     * @brief Hash string-like resource paths without allocating temporary strings.
-     */
-    struct transparent_string_hash_t {
-      using is_transparent = void;  ///< Enable heterogeneous unordered-map lookup.
-
-      /**
-       * @brief Hash a string view.
-       *
-       * @param value String view to hash.
-       * @return Hash value for the supplied text.
-       */
-      std::size_t operator()(const std::string_view value) const noexcept {
-        return std::hash<std::string_view> {}(value);
-      }
-    };
 
   #if defined(_WIN32) || defined(__APPLE__)
     /**
@@ -629,7 +613,7 @@ namespace system_tray {
 
   #if defined(_WIN32) || defined(__APPLE__)
     // Simple cache ensures our string pointers live forever.
-    static std::unordered_map<std::string, std::string, transparent_string_hash_t, std::equal_to<>> g_cache;
+    static std::unordered_map<std::string, std::string, util::transparent_string_hash, std::equal_to<>> g_cache;
     auto search = g_cache.find(std::string_view {relativePath});
     if (search != g_cache.end()) {
       return search->second.c_str();

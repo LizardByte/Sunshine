@@ -546,11 +546,11 @@ namespace video {
   class nvenc_encode_session_t: public encode_session_t {
   public:
     /**
-     * @brief Initialize an NVENC encode session and take ownership of its device.
+     * @brief Explicitly initialize an NVENC encode session and take ownership of its device.
      *
      * @param encode_device Encode device.
      */
-    nvenc_encode_session_t(std::unique_ptr<platf::nvenc_encode_device_t> encode_device):
+    explicit nvenc_encode_session_t(std::unique_ptr<platf::nvenc_encode_device_t> encode_device):
         device(std::move(encode_device)) {
     }
 
@@ -1034,9 +1034,8 @@ namespace video {
         {"enforce_hrd"s, &config::video.amd.amd_enforce_hrd},
         {"max_au_size"s, &config::video.amd.amd_max_au_size},
         {"level"s, [](const config_t &cfg) {
-           auto size = cfg.width * cfg.height;
            // For 4K and below, try to use level 5.1 or 5.2 if possible
-           if (size <= 8912896) {
+           if (auto size = cfg.width * cfg.height; size <= 8912896) {
              if (size * cfg.framerate <= 534773760) {
                return "5.1"s;
              } else if (size * cfg.framerate <= 1069547520) {
@@ -1553,6 +1552,7 @@ namespace video {
 
   /**
    * @brief Run the shared display capture thread for asynchronous encoding.
+   * @details Capture callbacks share this thread's session queues and reusable image pool.
    *
    * @param capture_ctx_queue Capture context queue.
    * @param display_wp Weak pointer holder for the active display.
@@ -1567,7 +1567,7 @@ namespace video {
   ) {
     std::vector<capture_ctx_t> capture_ctxs;
 
-    auto fg = util::fail_guard([&]() {
+    auto fg = util::fail_guard([&capture_ctx_queue, &capture_ctxs]() {
       capture_ctx_queue->stop();
 
       // Stop all sessions listening to this thread
@@ -1604,7 +1604,7 @@ namespace video {
 
     std::vector<std::optional<std::chrono::steady_clock::time_point>> imgs_used_timestamps;
     const std::chrono::seconds trim_timeot = 3s;
-    auto trim_imgs = [&]() {
+    auto trim_imgs = [&imgs, &imgs_used_timestamps, &trim_timeot]() {
       // count allocated and used within current pool
       size_t allocated_count = 0;
       size_t used_count = 0;
@@ -1652,7 +1652,7 @@ namespace video {
       }
     };
 
-    auto pull_free_image_callback = [&](std::shared_ptr<platf::img_t> &img_out) -> bool {
+    auto pull_free_image_callback = [&capture_ctx_queue, &imgs, &disp, &trim_imgs](std::shared_ptr<platf::img_t> &img_out) {
       img_out.reset();
       while (capture_ctx_queue->running()) {
         // pick first allocated but unused
@@ -1703,7 +1703,7 @@ namespace video {
     while (capture_ctx_queue->running()) {
       bool artificial_reinit = false;
 
-      auto push_captured_image_callback = [&](std::shared_ptr<platf::img_t> &&img, bool frame_captured) -> bool {
+      auto push_captured_image_callback = [&capture_ctxs, &capture_ctx_queue, &switch_display_event, &artificial_reinit](std::shared_ptr<platf::img_t> &&img, bool frame_captured) {
         KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
           if (!capture_ctx->images->running()) {
             capture_ctx = capture_ctxs.erase(capture_ctx);
@@ -2165,29 +2165,29 @@ namespace video {
       auto handle_option = [&options, &config](const encoder_t::option_t &option) {
         std::visit(
           util::overloaded {
-            [&](int v) {
+            [&options, &option](int v) {
               av_dict_set_int(&options, option.name.c_str(), v, 0);
             },
-            [&](int *v) {
+            [&options, &option](int *v) {
               av_dict_set_int(&options, option.name.c_str(), *v, 0);
             },
-            [&](std::optional<int> *v) {
+            [&options, &option](std::optional<int> *v) {
               if (*v) {
                 av_dict_set_int(&options, option.name.c_str(), **v, 0);
               }
             },
-            [&](const std::function<int()> &v) {
+            [&options, &option](const std::function<int()> &v) {
               av_dict_set_int(&options, option.name.c_str(), v(), 0);
             },
-            [&](const std::string &v) {
+            [&options, &option](const std::string &v) {
               av_dict_set(&options, option.name.c_str(), v.c_str(), 0);
             },
-            [&](std::string *v) {
+            [&options, &option](std::string *v) {
               if (!v->empty()) {
                 av_dict_set(&options, option.name.c_str(), v->c_str(), 0);
               }
             },
-            [&](const std::function<const std::string(const config_t &cfg)> &v) {
+            [&options, &option, &config](const std::function<const std::string(const config_t &cfg)> &v) {
               av_dict_set(&options, option.name.c_str(), v(config).c_str(), 0);
             }
           },
@@ -2645,7 +2645,7 @@ namespace video {
     ctx.touch_port_events->raise(make_port(disp, ctx.config));
 
     // Update client with our current HDR display state
-    hdr_info_t hdr_info = std::make_unique<hdr_info_raw_t>(false);
+    auto hdr_info = std::make_unique<hdr_info_raw_t>(false);
     if (colorspace_is_hdr(encode_device->colorspace)) {
       if (disp->get_hdr_metadata(hdr_info->metadata)) {
         hdr_info->enabled = true;
@@ -2738,7 +2738,7 @@ namespace video {
 
     auto ec = platf::capture_e::ok;
     while (encode_session_ctx_queue.running()) {
-      auto push_captured_image_callback = [&](std::shared_ptr<platf::img_t> &&captured_image, bool frame_captured) -> bool {
+      auto push_captured_image_callback = [&](std::shared_ptr<platf::img_t> &&captured_image, bool frame_captured) {
         while (encode_session_ctx_queue.peek()) {
           auto encode_session_ctx = encode_session_ctx_queue.pop();
           if (!encode_session_ctx) {
@@ -2811,7 +2811,7 @@ namespace video {
         return true;
       };
 
-      auto pull_free_image_callback = [&img](std::shared_ptr<platf::img_t> &img_out) -> bool {
+      auto pull_free_image_callback = [&img](std::shared_ptr<platf::img_t> &img_out) {
         img_out = img;
         img_out->frame_timestamp.reset();
         return true;
@@ -2840,10 +2840,10 @@ namespace video {
     std::vector<std::unique_ptr<sync_session_ctx_t>> synced_session_ctxs;
 
     auto &ctx = ref->encode_session_ctx_queue;
-    auto lg = util::fail_guard([&]() {
+    auto lg = util::fail_guard([&ctx, &synced_session_ctxs]() {
       ctx.stop();
 
-      for (auto &session_ctx : synced_session_ctxs) {
+      for (const auto &session_ctx : synced_session_ctxs) {
         session_ctx->shutdown_event->raise(true);
         session_ctx->join_event->raise(true);
       }
@@ -2878,7 +2878,7 @@ namespace video {
     auto shutdown_event = mail->event<bool>(mail::shutdown);
 
     auto images = std::make_shared<img_event_t::element_type>();
-    auto lg = util::fail_guard([&]() {
+    auto lg = util::fail_guard([&images, &shutdown_event]() {
       images->stop();
       shutdown_event->raise(true);
     });
@@ -2930,7 +2930,7 @@ namespace video {
       touch_port_event->raise(make_port(display.get(), config));
 
       // Update client with our current HDR display state
-      hdr_info_t hdr_info = std::make_unique<hdr_info_raw_t>(false);
+      auto hdr_info = std::make_unique<hdr_info_raw_t>(false);
       if (colorspace_is_hdr(encode_device->colorspace)) {
         if (display->get_hdr_metadata(hdr_info->metadata)) {
           hdr_info->enabled = true;

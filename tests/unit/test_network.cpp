@@ -9,6 +9,29 @@
 // local includes
 #include <src/network.h>
 
+TEST(NetworkClassificationTest, DeducedNetworkListsPreserveAddressScopes) {
+  EXPECT_EQ(net::from_address("127.0.0.1"), net::PC);
+  EXPECT_EQ(net::from_address("192.168.1.2"), net::LAN);
+  EXPECT_EQ(net::from_address("100.64.0.1"), net::LAN);
+  EXPECT_EQ(net::from_address("169.254.1.2"), net::LAN);
+  EXPECT_EQ(net::from_address("8.8.8.8"), net::WAN);
+  EXPECT_EQ(net::from_address("::1"), net::PC);
+  EXPECT_EQ(net::from_address("fc00::1"), net::LAN);
+  EXPECT_EQ(net::from_address("fe80::1"), net::LAN);
+  EXPECT_EQ(net::from_address("2001:4860:4860::8888"), net::WAN);
+}
+
+/**
+ * @brief Loopback and documentation addresses retain their classification when mapped to IPv6.
+ */
+TEST(NetworkClassificationTest, ClassifiesMappedIpv4AddressesWithoutChangingSubsequentLookups) {
+  for (const auto *address : {"127.0.0.1", "192.0.2.1", "198.51.100.2", "203.0.113.3"}) {
+    const auto expected = net::from_address(address);
+    EXPECT_EQ(net::from_address(std::string {"::ffff:"} + address), expected);
+    EXPECT_EQ(net::from_address(address), expected);
+  }
+}
+
 struct MdnsInstanceNameTest: BaseTest, testing::WithParamInterface<std::tuple<std::string, std::string>> {};
 
 TEST_P(MdnsInstanceNameTest, Run) {
