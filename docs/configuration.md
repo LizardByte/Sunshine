@@ -922,7 +922,7 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
             Selects the encoded audio format sent to the client. Opus is the default and remains the fallback when the optional Dolby encoder is unavailable or the client does not accept the selected Dolby codec.
             <br>
             <br>
-            AC-3 and E-AC-3 support is available on Windows x64 builds when the linked FFmpeg build includes the selected encoder. Sunshine detects encoder availability at runtime; no additional FFmpeg DLLs are required. The client must support the selected Dolby passthrough format. Dolby encoding supports stereo and 5.1 channel layouts.
+            AC-3 and E-AC-3 are available on platforms where Sunshine's linked FFmpeg build includes the selected encoder. Sunshine uses those existing libraries, detects encoder availability at runtime, and requires no separate FFmpeg DLLs. The client must support the selected Dolby passthrough format. Dolby encoding supports stereo and 5.1 channel layouts.
         </td>
     </tr>
     <tr>
