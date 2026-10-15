@@ -753,4 +753,15 @@ namespace platf {
     }
     return true;
   }
+
+  /**
+   * @brief Probe KWin ScreenCast support without requiring an existing output or starting a stream.
+   * @return True when a Wayland connection can bind the ScreenCast protocol.
+   */
+  bool kwin_capture_available() {
+    // Output-based verify_kwin() has already performed permission setup. This
+    // second, short-lived connection must not create permission files or streams.
+    const auto screencast = std::make_unique<kwin::screencast_t>();
+    return screencast->init(false) == 0;
+  }
 }  // namespace platf

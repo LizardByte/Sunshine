@@ -56,6 +56,7 @@
 #endif
 
 // local includes
+#include "capture_fallback.h"
 #include "graphics.h"
 #include "misc.h"
 #include "src/boost_process_compat.h"
@@ -1250,12 +1251,17 @@ namespace platf {
    *        If negotiation is requested, either queue a TaskPool task if no restore token is detected,
    *        or if a stale token is detected, delete it and restart Sunshine.
    *
+   * @param allow_repair Allow permission negotiation, token deletion and restart when unavailable.
    * @return True if Portal is available.
    */
-  bool verify_portal() {
+  bool verify_portal(bool allow_repair = true) {
     using enum portal_probe_e;
 
     auto result = probe_portal();
+    if (!allow_repair && result != available) {
+      BOOST_LOG(debug) << "[portalgrab] Keeping KWin capture available; skipping Portal permission repair and restart."sv;
+      return false;
+    }
     switch (result) {
       case available:
         return true;
@@ -1287,6 +1293,12 @@ namespace platf {
 #ifdef SUNSHINE_BUILD_KWIN
   std::vector<std::string> kwin_display_names();
   std::shared_ptr<display_t> kwin_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
+
+  /**
+   * @brief Probe KWin ScreenCast independently of outputs.
+   * @return True if the protocol can be bound.
+   */
+  bool kwin_capture_available();
 
   bool verify_kwin() {
     return !kwin_display_names().empty();
@@ -1437,10 +1449,9 @@ namespace platf {
 
     // When Portal is explicitly selected, probe it first so other capture methods can be considered for fallback capture.
 #ifdef SUNSHINE_BUILD_PORTAL
-    bool portal_available = false;
     if (selected_capture == "portal") {
-      portal_available = verify_portal();
-      if (!portal_available) {
+      sources[source::PORTAL] = verify_portal();
+      if (!sources[source::PORTAL]) {
         // Continue probing for fallback capture methods.
         selected_capture.clear();
       }
@@ -1473,8 +1484,35 @@ namespace platf {
       sources[source::KWIN] = true;
     }
 #endif
+    // A source can be usable before it has any outputs. Keep existing successful
+    // selections, including Portal, but do not leave a Portal repair worker that
+    // could restart Sunshine after selecting headless KWin.
+    [[maybe_unused]] const auto fallback = capture::probe_fallback(
+      config::video.capture,
+      sources.any(),
+      []() {
+#ifdef SUNSHINE_BUILD_KWIN
+        return kwin_capture_available();
+#else
+        return false;
+#endif
+      },
+      []([[maybe_unused]] bool allow_repair) {
 #ifdef SUNSHINE_BUILD_PORTAL
-    if (portal_available || (config::video.capture.empty() && sources.none() && verify_portal())) {
+        return verify_portal(allow_repair);
+#else
+        return false;
+#endif
+      }
+    );
+#ifdef SUNSHINE_BUILD_KWIN
+    if (fallback == capture::fallback_e::kwin) {
+      sources[source::KWIN] = true;
+      BOOST_LOG(info) << "KWin ScreenCast is available; capture outputs will be enumerated when needed."sv;
+    }
+#endif
+#ifdef SUNSHINE_BUILD_PORTAL
+    if (fallback == capture::fallback_e::portal) {
       sources[source::PORTAL] = true;
     }
 #endif

@@ -2254,6 +2254,8 @@ supported on the current platform.
     <tr>
         <td>kwin</td>
         <td>Capture with KDE/KWin Wayland compositor via KDE screencasting.
+            KWin must already be running and expose its ScreenCast protocol when Sunshine starts.
+            Outputs may be created later by <code>pre_display_prep_cmd</code>, before streaming begins.
             @note{Applies to Linux only.}</td>
     </tr>
     <tr>
