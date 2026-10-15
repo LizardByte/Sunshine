@@ -42,7 +42,7 @@ namespace nvprefs {
      * @param p LocalAlloc-compatible pointer to release.
      */
     template<class T>
-    void operator()(T *p) {
+    void operator()(T *p) const {
       LocalFree(p);
     }
   };

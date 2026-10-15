@@ -698,7 +698,12 @@ namespace cuda {
     static PNVFBCCREATEINSTANCE createInstance {};
     static NVFBC_API_FUNCTION_LIST func {.dwVersion = NVFBC_VERSION};
 
-    static constexpr inline NVFBC_BOOL nv_bool(bool b) {
+    /**
+     * @brief Convert a C++ boolean to the corresponding NvFBC flag.
+     * @param b Boolean state to convert.
+     * @return NVFBC_TRUE when b is true, otherwise NVFBC_FALSE.
+     */
+    static constexpr NVFBC_BOOL nv_bool(bool b) {
       return b ? NVFBC_TRUE : NVFBC_FALSE;
     }
 

@@ -230,7 +230,7 @@ namespace proc {
 
     std::error_code ec;
     // Executed when returning from function
-    auto fg = util::fail_guard([&]() {
+    auto fg = util::fail_guard([this]() {
       terminate();
     });
 

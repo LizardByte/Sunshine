@@ -44,6 +44,9 @@ namespace NVENC_NAMESPACE {
      * @param device_type Underlying device type used by derived class.
      */
     explicit nvenc_base(NV_ENC_DEVICE_TYPE device_type);
+    /**
+     * @brief Destroy the encoder wrapper; callers release the encoder session with destroy_encoder().
+     */
     ~nvenc_base() override;
 
     nvenc_base(const nvenc_base &) = delete;

@@ -632,7 +632,7 @@ namespace platf {
 
     if (file) {
       // If a file was provided, get its handle and use it as the standard output and error for the new process
-      HANDLE log_file_handle = (HANDLE) _get_osfhandle(_fileno(file));
+      auto log_file_handle = (HANDLE) _get_osfhandle(_fileno(file));
 
       // Populate std handles if the caller gave us a log file to use
       startup_info.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
@@ -1045,7 +1045,7 @@ namespace platf {
     sunshine_wenv[path_var_name].assign(start_dir + L";" + old_path_val);
 
     // Restore the old PATH value for our process when we're done here
-    auto restore_path = util::fail_guard([&]() {
+    auto restore_path = util::fail_guard([&old_path_val, &sunshine_wenv, &path_var_name]() {
       if (old_path_val.empty()) {
         sunshine_wenv[path_var_name].clear();
       } else {
@@ -1505,7 +1505,7 @@ namespace platf {
 
   // Use UDP segmentation offload if it is supported by the OS. If the NIC is capable, this will use
   // hardware acceleration to reduce CPU usage. Support for USO was introduced in Windows 10 20H1.
-  bool send_batch(batched_send_info_t &send_info) {
+  bool send_batch(const batched_send_info_t &send_info) {
     WSAMSG msg;
 
     // Convert the target address into a SOCKADDR

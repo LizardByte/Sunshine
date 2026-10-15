@@ -654,7 +654,7 @@ namespace platf {
     return saddr_v6;
   }
 
-  bool send_batch(batched_send_info_t &send_info) {
+  bool send_batch(const batched_send_info_t &send_info) {
     // Fall back to unbatched send calls
     return false;
   }

@@ -452,14 +452,14 @@ namespace platf::dxgi {
      *
      * @return True when the active display mode is HDR.
      */
-    virtual bool is_hdr() override;
+    bool is_hdr() override;
     /**
      * @brief Read HDR metadata for the active display mode.
      *
      * @param metadata Output structure populated with HDR metadata.
      * @return True when HDR metadata was written to `metadata`.
      */
-    virtual bool get_hdr_metadata(SS_HDR_METADATA &metadata) override;
+    bool get_hdr_metadata(SS_HDR_METADATA &metadata) override;
 
     /**
      * @brief Convert a DXGI format enum to a diagnostic string.

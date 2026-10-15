@@ -625,7 +625,7 @@ namespace platf {
     executable[len] = '\0';
 
     // ASIO doesn't use O_CLOEXEC, so we have to close all fds ourselves
-    int openmax = (int) sysconf(_SC_OPEN_MAX);
+    auto openmax = (int) sysconf(_SC_OPEN_MAX);
     for (int fd = STDERR_FILENO + 1; fd < openmax; fd++) {
       close(fd);
     }
@@ -756,7 +756,7 @@ namespace platf {
   /**
    * @brief Send multiple fixed-size UDP payload blocks using the platform backend.
    */
-  bool send_batch(batched_send_info_t &send_info) {
+  bool send_batch(const batched_send_info_t &send_info) {
     auto sockfd = (int) send_info.native_socket;
     struct msghdr msg = {};
 
@@ -1059,7 +1059,7 @@ namespace platf {
    * @brief Enables QoS on the given socket for traffic to the specified destination.
    */
   std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
-    int sockfd = (int) native_socket;
+    auto sockfd = (int) native_socket;
     std::vector<std::tuple<int, int, int>> reset_options;
 
     if (dscp_tagging) {

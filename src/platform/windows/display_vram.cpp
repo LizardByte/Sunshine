@@ -603,7 +603,7 @@ namespace platf::dxgi {
       frame_texture->AddRef();
       output_texture.reset(frame_texture);
 
-      HRESULT status = S_OK;
+      auto status = S_OK;
 
 #ifndef DOXYGEN
   #define create_vertex_shader_helper(x, y) \
@@ -785,7 +785,7 @@ namespace platf::dxgi {
           return -1;
       }
 
-      auto create_rtv = [&](auto &rt, DXGI_FORMAT rt_format) -> bool {
+      auto create_rtv = [&](auto &rt, DXGI_FORMAT rt_format) {
         D3D11_RENDER_TARGET_VIEW_DESC rtv_desc = {};
         rtv_desc.Format = rt_format;
         rtv_desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
@@ -1520,7 +1520,7 @@ namespace platf::dxgi {
       }
     }
 
-    auto create_surface = [&](texture2d_t &surface) -> bool {
+    auto create_surface = [&](texture2d_t &surface) {
       // Try to reuse the old surface if it hasn't been destroyed yet.
       if (old_surface_delayed_destruction) {
         surface.reset(old_surface_delayed_destruction.release());

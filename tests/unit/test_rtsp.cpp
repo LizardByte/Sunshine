@@ -20,6 +20,22 @@ extern "C" {
 // local includes
 #include <src/rtsp.h>
 
+/**
+ * @brief Const RTSP wire headers decode network-order lengths independently of encryption flags.
+ */
+TEST(RtspHeaderTest, ConstAccessorsPreserveTheSerializedHeader) {
+  using rtsp_stream::encrypted_rtsp_header_t;
+  for (const auto length : {0U, 1U, 0x7fffffffU}) {
+    for (const bool encrypted : {false, true}) {
+      const auto flags = encrypted ? encrypted_rtsp_header_t::ENCRYPTED_MESSAGE_TYPE_BIT : 0U;
+      const encrypted_rtsp_header_t header {util::endian::big(length | flags), 0, {}};
+      EXPECT_EQ(header.payload_length(), length);
+      EXPECT_EQ(header.is_encrypted(), encrypted);
+      EXPECT_EQ(header.typeAndLength, util::endian::big(length | flags));
+    }
+  }
+}
+
 namespace rtsp_stream {
   class rtsp_server_t;
 

@@ -632,7 +632,7 @@ namespace util {
   T from_hex(const std::string_view &hex, bool rev = false) {
     std::array<std::byte, sizeof(T)> buf;
 
-    auto is_convertable = [](char ch) -> bool {
+    auto is_convertable = [](char ch) {
       if (isdigit(ch)) {
         return true;
       }
@@ -687,7 +687,7 @@ namespace util {
   inline std::string from_hex_vec(const std::string &hex, bool rev = false) {
     std::string buf;
 
-    auto is_convertable = [](char ch) -> bool {
+    auto is_convertable = [](char ch) {
       if (isdigit(ch)) {
         return true;
       }
@@ -1643,7 +1643,7 @@ namespace util {
      *
      * @param p Pointer to release.
      */
-    void operator()(pointer p) {
+    void operator()(pointer p) const {
       function(p);
     }
   };

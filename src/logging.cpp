@@ -96,7 +96,7 @@ namespace logging {
         log_type = "Tests: "sv;
         break;
 #endif
-    };
+    }
 
     auto now = std::chrono::system_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(

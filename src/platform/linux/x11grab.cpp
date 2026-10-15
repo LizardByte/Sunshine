@@ -477,7 +477,7 @@ namespace platf {
       auto pixels_begin = &pixels[(y + overlay->y) * (img.row_pitch / img.pixel_pitch) + overlay->x];
 
       std::for_each(overlay_begin, overlay_end, [&](long pixel) {
-        int *pixel_p = (int *) &pixel;
+        auto pixel_p = (int *) &pixel;
 
         auto colors_in = (uint8_t *) pixels_begin;
 
@@ -720,8 +720,8 @@ namespace platf {
       // TODO: stop cheating and give black image
       if (!img) {
         return -1;
-      };
-      auto pull_dummy_img_callback = [&img](std::shared_ptr<platf::img_t> &img_out) -> bool {
+      }
+      auto pull_dummy_img_callback = [&img](std::shared_ptr<platf::img_t> &img_out) {
         img_out = img->shared_from_this();
         return true;
       };

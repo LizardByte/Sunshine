@@ -22,6 +22,19 @@
 #include <src/utility.h>
 
 /**
+ * @brief A const resource deleter invokes its release function exactly once per call.
+ */
+TEST(UtilityDestroyTest, ConstDeleterInvokesTheConfiguredReleaseFunction) {
+  const util::Destroy<int *, void, +[](int *value) {
+    ++*value;
+  }>
+    destroy;
+  int releases = 0;
+  destroy(&releases);
+  EXPECT_EQ(releases, 1);
+}
+
+/**
  * @brief Simulate the opposite byte order for a byte-array fixture.
  */
 template<>

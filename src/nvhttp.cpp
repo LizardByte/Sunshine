@@ -172,7 +172,9 @@ namespace nvhttp {
   struct conf_intern_t {
     std::string servercert;  ///< Server certificate PEM string.
     std::string pkey;  ///< Private key PEM string or path.
-  } conf_intern;  ///< TLS credential paths loaded from Sunshine's runtime configuration.
+  };
+
+  conf_intern_t conf_intern;  ///< TLS credential paths loaded from Sunshine's runtime configuration.
 
   /**
    * @brief Certificate entry associated with a client name and UUID.
@@ -491,7 +493,7 @@ namespace nvhttp {
     std::copy(rikey.cbegin(), rikey.cend(), std::back_inserter(launch_session->gcm_key));
 
     launch_session->host_audio = host_audio;
-    std::stringstream mode = std::stringstream(get_arg(args, "mode", "0x0x0"));
+    auto mode = std::stringstream(get_arg(args, "mode", "0x0x0"));
     // Split mode by the char "x", to populate width/height/fps
     int x = 0;
     std::string segment;
@@ -1082,7 +1084,7 @@ namespace nvhttp {
 
     pt::ptree tree;
 
-    auto fg = util::fail_guard([&]() {
+    auto fg = util::fail_guard([&tree, &response]() {
       std::ostringstream data;
 
       pt::write_xml(data, tree);
@@ -1339,7 +1341,7 @@ namespace nvhttp {
 
     pt::ptree tree;
 
-    auto g = util::fail_guard([&]() {
+    auto g = util::fail_guard([&tree, &response]() {
       std::ostringstream data;
 
       pt::write_xml(data, tree);
@@ -1588,7 +1590,7 @@ namespace nvhttp {
     print_req<SunshineHTTPS>(request);
 
     pt::ptree tree;
-    auto g = util::fail_guard([&]() {
+    auto g = util::fail_guard([&tree, &response]() {
       std::ostringstream data;
 
       pt::write_xml(data, tree);
@@ -1716,7 +1718,7 @@ namespace nvhttp {
 
     https_server.on_verify_failed = [](resp_https_t resp, req_https_t req) {
       pt::ptree tree;
-      auto g = util::fail_guard([&]() {
+      auto g = util::fail_guard([&tree, &resp]() {
         std::ostringstream data;
 
         pt::write_xml(data, tree);

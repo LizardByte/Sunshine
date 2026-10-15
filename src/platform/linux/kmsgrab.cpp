@@ -1367,7 +1367,7 @@ namespace platf {
        *
        * @return True when the active display mode is HDR.
        */
-      bool is_hdr() {
+      bool is_hdr() override {
         if (!hdr_metadata_blob_id || *hdr_metadata_blob_id == 0) {
           return false;
         }
@@ -1419,7 +1419,7 @@ namespace platf {
        * @param metadata Output structure populated with HDR metadata.
        * @return True when HDR metadata was written to the output structure.
        */
-      bool get_hdr_metadata(SS_HDR_METADATA &metadata) {
+      bool get_hdr_metadata(SS_HDR_METADATA &metadata) override {
         // This performs all the metadata validation
         if (!is_hdr()) {
           return false;
@@ -2080,7 +2080,7 @@ namespace platf {
        * @param cursor Whether the cursor should be included in the captured image.
        * @return Final capture status reported to the streaming pipeline.
        */
-      capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) {
+      capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
         using enum platf::capture_e;
 
         auto next_frame = std::chrono::steady_clock::now();
@@ -2429,11 +2429,11 @@ namespace platf {
         BOOST_LOG(debug) << "Resolution: "sv << monitor_descriptor.viewport.width << 'x' << monitor_descriptor.viewport.height;
         BOOST_LOG(debug) << "Offset: "sv << monitor_descriptor.viewport.offset_x << 'x' << monitor_descriptor.viewport.offset_y;
 
-        kms::env_width = std::max(kms::env_width, (int) (monitor_descriptor.viewport.offset_x + monitor_descriptor.viewport.width));
-        kms::env_height = std::max(kms::env_height, (int) (monitor_descriptor.viewport.offset_y + monitor_descriptor.viewport.height));
+        kms::env_width = std::max(kms::env_width, monitor_descriptor.viewport.offset_x + monitor_descriptor.viewport.width);
+        kms::env_height = std::max(kms::env_height, monitor_descriptor.viewport.offset_y + monitor_descriptor.viewport.height);
 
-        kms::env_logical_height = std::max(kms::env_logical_height, (int) (monitor_descriptor.viewport.offset_y + monitor_descriptor.viewport.logical_height));
-        kms::env_logical_width = std::max(kms::env_logical_width, (int) (monitor_descriptor.viewport.offset_x + monitor_descriptor.viewport.logical_width));
+        kms::env_logical_height = std::max(kms::env_logical_height, monitor_descriptor.viewport.offset_y + monitor_descriptor.viewport.logical_height);
+        kms::env_logical_width = std::max(kms::env_logical_width, monitor_descriptor.viewport.offset_x + monitor_descriptor.viewport.logical_width);
       }
     }
 
