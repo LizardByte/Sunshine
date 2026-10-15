@@ -489,9 +489,11 @@ namespace wl {
     void xdg_size(zxdg_output_v1 *, std::int32_t width, std::int32_t height);
 
     /**
-     * @brief Acknowledge completion of an xdg-output metadata update.
+     * @brief Receive completion of an xdg-output metadata update.
      */
-    void xdg_done(zxdg_output_v1 *) {}
+    void xdg_done(zxdg_output_v1 *) {
+      // Size and position callbacks already store the metadata; completion needs no action.
+    }
 
     /**
      * @brief Ignore physical wl-output geometry; monitor placement comes from xdg-output metadata.

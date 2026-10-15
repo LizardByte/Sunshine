@@ -257,6 +257,7 @@ namespace wl {
   }
 
   void interface_t::dmabuf_format(zwp_linux_dmabuf_v1 *zwp_linux_dmabuf, uint32_t format) {
+    // Modifier events supply the explicit format/modifier pairs used for allocation.
   }
 
   void interface_t::dmabuf_modifier(zwp_linux_dmabuf_v1 *zwp_linux_dmabuf, uint32_t format, uint32_t modifier_hi, uint32_t modifier_lo) {
@@ -664,7 +665,9 @@ namespace wl {
     std::uint32_t y,
     std::uint32_t width,
     std::uint32_t height
-  ) {};
+  ) {
+    // Capture and encoding consume the whole buffer, so no damage rectangles are tracked.
+  };
 
   void frame_t::destroy() {
     for (auto x = 0; x < 4; ++x) {
