@@ -521,6 +521,21 @@ TEST_F(PairingHttpHandlerTest, ImmediateRequestsReturnExpectedStatus) {
   EXPECT_NE(request("/pair?uniqueid=out-of-order&clientchallenge=00"sv).find("Out of order"), std::string::npos);
 }
 
+/**
+ * @brief HTTP dispatch reaches every pairing phase and rejects an unknown phase.
+ */
+TEST_F(PairingHttpHandlerTest, DispatchesEachPhaseAndRejectsUnknownRequests) {
+  for (const auto phase : {"clientchallenge", "serverchallengeresp", "clientpairingsecret", "unknown"}) {
+    std::string pairing_id;
+    ASSERT_EQ(insert_pair_session(pending_session(phase, "Client", "192.0.2.10"), pairing_id), pair_session_insert_e::ADDED);
+    const auto response = request(std::format("/pair?uniqueid={}&{}=00", phase, phase));
+    EXPECT_NE(response.find("status_code=\"400\""), std::string::npos);
+    const auto expected = std::string_view {phase} == "unknown" ? "Invalid pairing request" : "Out of order";
+    EXPECT_NE(response.find(expected), std::string::npos) << phase;
+    EXPECT_TRUE(get_pending_pairings().empty());
+  }
+}
+
 TEST_F(PairingHttpHandlerTest, WebApprovalRequestRemainsPendingUntilCancelled) {
   std::packaged_task<std::string()> request_task {[this]() {
     return request(server_certificate_target("pending"));

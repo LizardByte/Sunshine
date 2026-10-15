@@ -1126,15 +1126,14 @@ namespace nvhttp {
     }
 
     bool pairing_complete = false;
-    args_t::const_iterator it;
-    if (it = args.find("clientchallenge"); it != std::end(args)) {
-      auto challenge = util::from_hex_vec(it->second, true);
+    if (const auto challenge_it = args.find("clientchallenge"); challenge_it != std::end(args)) {
+      auto challenge = util::from_hex_vec(challenge_it->second, true);
       clientchallenge(sess_it->second, tree, challenge);
-    } else if (it = args.find("serverchallengeresp"); it != std::end(args)) {
-      auto encrypted_response = util::from_hex_vec(it->second, true);
+    } else if (const auto response_it = args.find("serverchallengeresp"); response_it != std::end(args)) {
+      auto encrypted_response = util::from_hex_vec(response_it->second, true);
       serverchallengeresp(sess_it->second, tree, encrypted_response);
-    } else if (it = args.find("clientpairingsecret"); it != std::end(args)) {
-      auto pairingsecret = util::from_hex_vec(it->second, true);
+    } else if (const auto secret_it = args.find("clientpairingsecret"); secret_it != std::end(args)) {
+      auto pairingsecret = util::from_hex_vec(secret_it->second, true);
       clientpairingsecret(sess_it->second, tree, pairingsecret);
       pairing_complete = true;
     } else {
