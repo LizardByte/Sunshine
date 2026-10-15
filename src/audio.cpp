@@ -7,13 +7,11 @@
 #include <array>
 #include <thread>
 
-// Use Sunshine's existing FFmpeg linkage for the Windows x64 Dolby audio encoder.
-#if defined(_WIN32) && (defined(_M_X64) || defined(__x86_64__))
-  #include <libavcodec/avcodec.h>
-  #include <libavutil/avutil.h>
-  #include <libavutil/channel_layout.h>
-  #include <libavutil/frame.h>
-#endif
+// Use Sunshine's existing FFmpeg linkage for Dolby audio encoding.
+#include <libavcodec/avcodec.h>
+#include <libavutil/avutil.h>
+#include <libavutil/channel_layout.h>
+#include <libavutil/frame.h>
 
 // lib includes
 #include <opus/opus_multistream.h>
@@ -109,7 +107,6 @@ namespace audio {
     },
   }};
 
-#if defined(_WIN32) && (defined(_M_X64) || defined(__x86_64__))
   /**
    * @brief Encode one interleaved stereo or 5.1 float PCM frame as an AC-3-family access unit.
    */
@@ -242,7 +239,6 @@ namespace audio {
     return encoder.encode(interleaved, output);
   }
 #endif
-#endif
 
   /**
    * @brief Encode captured PCM samples into Opus packets on the audio worker thread.
@@ -263,7 +259,6 @@ namespace audio {
     platf::adjust_thread_priority(platf::thread_priority_e::high);
 
     if (config.use_ac3 || config.use_eac3) {
-#if defined(_WIN32) && (defined(_M_X64) || defined(__x86_64__))
       const auto codec_id = config.use_eac3 ? AV_CODEC_ID_EAC3 : AV_CODEC_ID_AC3;
       const auto codec_name = config.use_eac3 ? "E-AC-3"sv : "AC-3"sv;
       const auto bitrate_kbps = dolby_bitrate_kbps(config.use_eac3, config.high_quality_dolby, config.channels);
@@ -290,11 +285,6 @@ namespace audio {
         packets->raise(channel_data, std::move(packet));
       }
       return;
-#else
-      BOOST_LOG(error) << "Dolby audio was requested, but this build does not support its optional FFmpeg backend"sv;
-      packets->stop();
-      return;
-#endif
     }
 
     opus_t opus {opus_multistream_encoder_create(
@@ -463,11 +453,7 @@ namespace audio {
    * @return True when the AC-3 encoder is available in this build.
    */
   bool ac3_available() {
-#if defined(_WIN32) && (defined(_M_X64) || defined(__x86_64__))
     return avcodec_find_encoder(AV_CODEC_ID_AC3) != nullptr;
-#else
-    return false;
-#endif
   }
 
   /**
@@ -475,11 +461,7 @@ namespace audio {
    * @return True when the E-AC-3 encoder is available in this build.
    */
   bool eac3_available() {
-#if defined(_WIN32) && (defined(_M_X64) || defined(__x86_64__))
     return avcodec_find_encoder(AV_CODEC_ID_EAC3) != nullptr;
-#else
-    return false;
-#endif
   }
 
   int dolby_bitrate_kbps(bool eac3, bool high_quality, int channels) {
