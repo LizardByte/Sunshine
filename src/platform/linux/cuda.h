@@ -41,11 +41,20 @@ namespace cuda {
   int init();
 }  // namespace cuda
 
-typedef struct cudaArray *cudaArray_t;
+/**
+ * @brief Opaque CUDA array handle shared by host and CUDA compiler declarations.
+ */
+using cudaArray_t = struct cudaArray *;
 
   #if !defined(__CUDACC__)
-typedef struct CUstream_st *cudaStream_t;
-typedef unsigned long long cudaTextureObject_t;
+/**
+ * @brief Opaque CUDA stream handle for host compilation.
+ */
+using cudaStream_t = struct CUstream_st *;
+/**
+ * @brief CUDA texture object identifier for host compilation.
+ */
+using cudaTextureObject_t = unsigned long long;
   #else /* defined(__CUDACC__) */
 typedef __location__(device_builtin) struct CUstream_st *cudaStream_t;
 typedef __location__(device_builtin) unsigned long long cudaTextureObject_t;
