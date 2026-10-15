@@ -348,7 +348,7 @@ namespace config {
     prep_cmd_t(std::string &&do_cmd, std::string &&undo_cmd, bool &&elevated):
         do_cmd(std::move(do_cmd)),
         undo_cmd(std::move(undo_cmd)),
-        elevated(std::move(elevated)) {
+        elevated(elevated) {
     }
 
     /**
@@ -359,7 +359,7 @@ namespace config {
      */
     explicit prep_cmd_t(std::string &&do_cmd, bool &&elevated):
         do_cmd(std::move(do_cmd)),
-        elevated(std::move(elevated)) {
+        elevated(elevated) {
     }
 
     std::string do_cmd;  ///< Command to run before the application starts.

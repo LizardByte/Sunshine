@@ -511,7 +511,6 @@ namespace platf {
      * Last X (NOT the streamed monitor!) size.
      * This way we can trigger reinitialization if the dimensions changed while streaming
      */
-    // int env_width, env_height;
 
     /**
      * @brief Explicitly open the X11 display and initialize capture attributes.

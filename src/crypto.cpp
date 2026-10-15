@@ -402,8 +402,6 @@ namespace crypto {
    * @brief Return the certificate signature bytes.
    */
   std::string_view signature(const x509_t &x) {
-    // X509_ALGOR *_ = nullptr;
-
     const ASN1_BIT_STRING *asn1 = nullptr;
     X509_get0_signature(&asn1, nullptr, x.get());
 
