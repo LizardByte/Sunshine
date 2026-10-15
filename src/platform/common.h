@@ -375,7 +375,9 @@ namespace platf {
       _CONVERT(y410);
       _CONVERT(unknown);
     }
-#undef _CONVERT
+#ifndef DOXYGEN
+  #undef _CONVERT
+#endif
 
     return "unknown"sv;
   }

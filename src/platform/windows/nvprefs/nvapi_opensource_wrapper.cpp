@@ -30,13 +30,6 @@ namespace {
 
 }  // namespace
 
-#undef NVAPI_INTERFACE
-/**
- * @def NVAPI_INTERFACE
- * @brief Macro for NVAPI INTERFACE.
- */
-#define NVAPI_INTERFACE NvAPI_Status __cdecl
-
 /**
  * @brief NVAPI export used to resolve function pointers by interface ID.
  *
@@ -45,14 +38,14 @@ namespace {
  */
 extern void *__cdecl nvapi_QueryInterface(NvU32 id);
 
-NVAPI_INTERFACE
+NvAPI_Status __cdecl
 
-/**
- * @brief Load NVAPI and resolve the subset of interfaces used by Sunshine.
- *
- * @return NVAPI_OK on success, or NVAPI_LIBRARY_NOT_FOUND when the DLL cannot be loaded.
- */
-NvAPI_Initialize() {
+  /**
+   * @brief Load NVAPI and resolve the subset of interfaces used by Sunshine.
+   *
+   * @return NVAPI_OK on success, or NVAPI_LIBRARY_NOT_FOUND when the DLL cannot be loaded.
+   */
+  NvAPI_Initialize() {
   if (dll) {
     return NVAPI_OK;
   }
@@ -84,7 +77,7 @@ NvAPI_Initialize() {
  *
  * @return NVAPI_OK after cleanup.
  */
-NVAPI_INTERFACE NvAPI_Unload() {
+NvAPI_Status __cdecl NvAPI_Unload() {
   if (dll) {
     interfaces.clear();
     FreeLibrary(dll);
@@ -100,7 +93,7 @@ NVAPI_INTERFACE NvAPI_Unload() {
  * @param szDesc Output buffer receiving the human-readable error string.
  * @return NVAPI status returned by the loaded function.
  */
-NVAPI_INTERFACE NvAPI_GetErrorMessage(NvAPI_Status nr, NvAPI_ShortString szDesc) {
+NvAPI_Status __cdecl NvAPI_GetErrorMessage(NvAPI_Status nr, NvAPI_ShortString szDesc) {
   return call_interface<decltype(NvAPI_GetErrorMessage)>("NvAPI_GetErrorMessage", nr, szDesc);
 }
 
@@ -112,7 +105,7 @@ NVAPI_INTERFACE NvAPI_GetErrorMessage(NvAPI_Status nr, NvAPI_ShortString szDesc)
  * @param phSession Output handle for the created DRS session.
  * @return NVAPI status returned by the loaded function.
  */
-NVAPI_INTERFACE NvAPI_DRS_CreateSession(NvDRSSessionHandle *phSession) {
+NvAPI_Status __cdecl NvAPI_DRS_CreateSession(NvDRSSessionHandle *phSession) {
   return call_interface<decltype(NvAPI_DRS_CreateSession)>("NvAPI_DRS_CreateSession", phSession);
 }
 
@@ -122,7 +115,7 @@ NVAPI_INTERFACE NvAPI_DRS_CreateSession(NvDRSSessionHandle *phSession) {
  * @param hSession DRS session handle to destroy.
  * @return NVAPI status returned by the loaded function.
  */
-NVAPI_INTERFACE NvAPI_DRS_DestroySession(NvDRSSessionHandle hSession) {
+NvAPI_Status __cdecl NvAPI_DRS_DestroySession(NvDRSSessionHandle hSession) {
   return call_interface<decltype(NvAPI_DRS_DestroySession)>("NvAPI_DRS_DestroySession", hSession);
 }
 
@@ -132,7 +125,7 @@ NVAPI_INTERFACE NvAPI_DRS_DestroySession(NvDRSSessionHandle hSession) {
  * @param hSession DRS session whose settings are loaded.
  * @return NVAPI status returned by the loaded function.
  */
-NVAPI_INTERFACE NvAPI_DRS_LoadSettings(NvDRSSessionHandle hSession) {
+NvAPI_Status __cdecl NvAPI_DRS_LoadSettings(NvDRSSessionHandle hSession) {
   return call_interface<decltype(NvAPI_DRS_LoadSettings)>("NvAPI_DRS_LoadSettings", hSession);
 }
 
@@ -142,7 +135,7 @@ NVAPI_INTERFACE NvAPI_DRS_LoadSettings(NvDRSSessionHandle hSession) {
  * @param hSession DRS session whose settings are saved.
  * @return NVAPI status returned by the loaded function.
  */
-NVAPI_INTERFACE NvAPI_DRS_SaveSettings(NvDRSSessionHandle hSession) {
+NvAPI_Status __cdecl NvAPI_DRS_SaveSettings(NvDRSSessionHandle hSession) {
   return call_interface<decltype(NvAPI_DRS_SaveSettings)>("NvAPI_DRS_SaveSettings", hSession);
 }
 
@@ -154,7 +147,7 @@ NVAPI_INTERFACE NvAPI_DRS_SaveSettings(NvDRSSessionHandle hSession) {
  * @param phProfile Output handle for the created profile.
  * @return NVAPI status returned by the loaded function.
  */
-NVAPI_INTERFACE NvAPI_DRS_CreateProfile(NvDRSSessionHandle hSession, NVDRS_PROFILE *pProfileInfo, NvDRSProfileHandle *phProfile) {
+NvAPI_Status __cdecl NvAPI_DRS_CreateProfile(NvDRSSessionHandle hSession, NVDRS_PROFILE *pProfileInfo, NvDRSProfileHandle *phProfile) {
   return call_interface<decltype(NvAPI_DRS_CreateProfile)>("NvAPI_DRS_CreateProfile", hSession, pProfileInfo, phProfile);
 }
 
@@ -166,7 +159,7 @@ NVAPI_INTERFACE NvAPI_DRS_CreateProfile(NvDRSSessionHandle hSession, NVDRS_PROFI
  * @param phProfile Output handle for the matched profile.
  * @return NVAPI status returned by the loaded function.
  */
-NVAPI_INTERFACE NvAPI_DRS_FindProfileByName(NvDRSSessionHandle hSession, NvAPI_UnicodeString profileName, NvDRSProfileHandle *phProfile) {
+NvAPI_Status __cdecl NvAPI_DRS_FindProfileByName(NvDRSSessionHandle hSession, NvAPI_UnicodeString profileName, NvDRSProfileHandle *phProfile) {
   return call_interface<decltype(NvAPI_DRS_FindProfileByName)>("NvAPI_DRS_FindProfileByName", hSession, profileName, phProfile);
 }
 
@@ -178,7 +171,7 @@ NVAPI_INTERFACE NvAPI_DRS_FindProfileByName(NvDRSSessionHandle hSession, NvAPI_U
  * @param pApplication Application entry to create.
  * @return NVAPI status returned by the loaded function.
  */
-NVAPI_INTERFACE NvAPI_DRS_CreateApplication(NvDRSSessionHandle hSession, NvDRSProfileHandle hProfile, NVDRS_APPLICATION *pApplication) {
+NvAPI_Status __cdecl NvAPI_DRS_CreateApplication(NvDRSSessionHandle hSession, NvDRSProfileHandle hProfile, NVDRS_APPLICATION *pApplication) {
   return call_interface<decltype(NvAPI_DRS_CreateApplication)>("NvAPI_DRS_CreateApplication", hSession, hProfile, pApplication);
 }
 
@@ -191,7 +184,7 @@ NVAPI_INTERFACE NvAPI_DRS_CreateApplication(NvDRSSessionHandle hSession, NvDRSPr
  * @param pApplication Output application information.
  * @return NVAPI status returned by the loaded function.
  */
-NVAPI_INTERFACE NvAPI_DRS_GetApplicationInfo(NvDRSSessionHandle hSession, NvDRSProfileHandle hProfile, NvAPI_UnicodeString appName, NVDRS_APPLICATION *pApplication) {
+NvAPI_Status __cdecl NvAPI_DRS_GetApplicationInfo(NvDRSSessionHandle hSession, NvDRSProfileHandle hProfile, NvAPI_UnicodeString appName, NVDRS_APPLICATION *pApplication) {
   return call_interface<decltype(NvAPI_DRS_GetApplicationInfo)>("NvAPI_DRS_GetApplicationInfo", hSession, hProfile, appName, pApplication);
 }
 
@@ -203,7 +196,7 @@ NVAPI_INTERFACE NvAPI_DRS_GetApplicationInfo(NvDRSSessionHandle hSession, NvDRSP
  * @param pSetting Setting value to apply.
  * @return NVAPI status returned by the loaded function.
  */
-NVAPI_INTERFACE NvAPI_DRS_SetSetting(NvDRSSessionHandle hSession, NvDRSProfileHandle hProfile, NVDRS_SETTING *pSetting) {
+NvAPI_Status __cdecl NvAPI_DRS_SetSetting(NvDRSSessionHandle hSession, NvDRSProfileHandle hProfile, NVDRS_SETTING *pSetting) {
   return call_interface<decltype(NvAPI_DRS_SetSetting)>("NvAPI_DRS_SetSetting", hSession, hProfile, pSetting);
 }
 
@@ -216,7 +209,7 @@ NVAPI_INTERFACE NvAPI_DRS_SetSetting(NvDRSSessionHandle hSession, NvDRSProfileHa
  * @param pSetting Output setting value.
  * @return NVAPI status returned by the loaded function.
  */
-NVAPI_INTERFACE NvAPI_DRS_GetSetting(NvDRSSessionHandle hSession, NvDRSProfileHandle hProfile, NvU32 settingId, NVDRS_SETTING *pSetting) {
+NvAPI_Status __cdecl NvAPI_DRS_GetSetting(NvDRSSessionHandle hSession, NvDRSProfileHandle hProfile, NvU32 settingId, NVDRS_SETTING *pSetting) {
   return call_interface<decltype(NvAPI_DRS_GetSetting)>("NvAPI_DRS_GetSetting", hSession, hProfile, settingId, pSetting);
 }
 
@@ -228,7 +221,7 @@ NVAPI_INTERFACE NvAPI_DRS_GetSetting(NvDRSSessionHandle hSession, NvDRSProfileHa
  * @param settingId Setting ID.
  * @return NVAPI status returned by the loaded function.
  */
-NVAPI_INTERFACE NvAPI_DRS_DeleteProfileSetting(NvDRSSessionHandle hSession, NvDRSProfileHandle hProfile, NvU32 settingId) {
+NvAPI_Status __cdecl NvAPI_DRS_DeleteProfileSetting(NvDRSSessionHandle hSession, NvDRSProfileHandle hProfile, NvU32 settingId) {
   return call_interface<decltype(NvAPI_DRS_DeleteProfileSetting)>("NvAPI_DRS_DeleteProfileSetting", hSession, hProfile, settingId);
 }
 
@@ -239,6 +232,6 @@ NVAPI_INTERFACE NvAPI_DRS_DeleteProfileSetting(NvDRSSessionHandle hSession, NvDR
  * @param phProfile Output handle for the base profile.
  * @return NVAPI status returned by the loaded function.
  */
-NVAPI_INTERFACE NvAPI_DRS_GetBaseProfile(NvDRSSessionHandle hSession, NvDRSProfileHandle *phProfile) {
+NvAPI_Status __cdecl NvAPI_DRS_GetBaseProfile(NvDRSSessionHandle hSession, NvDRSProfileHandle *phProfile) {
   return call_interface<decltype(NvAPI_DRS_GetBaseProfile)>("NvAPI_DRS_GetBaseProfile", hSession, phProfile);
 }

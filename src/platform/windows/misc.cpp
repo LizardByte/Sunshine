@@ -37,16 +37,8 @@
 #include <WS2tcpip.h>
 #include <WtsApi32.h>
 #include <sddl.h>
-// clang-format on
-
-// Boost overrides NTDDI_VERSION, so we re-override it here
-#undef NTDDI_VERSION
-/**
- * @def NTDDI_VERSION
- * @brief Macro for NTDDI VERSION.
- */
-#define NTDDI_VERSION NTDDI_WIN10
 #include <Shlwapi.h>
+// clang-format on
 
 // local includes
 #include "misc.h"

@@ -273,7 +273,9 @@ namespace config {
       _CONVERT_(balanced);
       _CONVERT_(quality);
       _CONVERT_(speed);
-#undef _CONVERT_
+#ifndef DOXYGEN
+  #undef _CONVERT_
+#endif
       return original;
     }
 
@@ -295,7 +297,9 @@ namespace config {
       _CONVERT_(cqp);
       _CONVERT_(vbr_latency);
       _CONVERT_(vbr_peak);
-#undef _CONVERT_
+#ifndef DOXYGEN
+  #undef _CONVERT_
+#endif
       return original;
     }
 
@@ -318,7 +322,9 @@ namespace config {
       _CONVERT_(transcoding);
       _CONVERT_(ultralowlatency);
       _CONVERT_(webcam);
-#undef _CONVERT_
+#ifndef DOXYGEN
+  #undef _CONVERT_
+#endif
       return original;
     }
 
@@ -385,7 +391,9 @@ namespace config {
       _CONVERT_(fast);
       _CONVERT_(faster);
       _CONVERT_(veryfast);
-#undef _CONVERT_
+#ifndef DOXYGEN
+  #undef _CONVERT_
+#endif
       return std::nullopt;
     }
 
@@ -590,7 +598,9 @@ namespace config {
       _CONVERT_(veryfast, 10);
       _CONVERT_(superfast, 11);
       _CONVERT_(ultrafast, 12);
-#undef _CONVERT_
+#ifndef DOXYGEN
+  #undef _CONVERT_
+#endif
       return 11;  // Default to superfast
     }
   }  // namespace sw
@@ -613,7 +623,9 @@ namespace config {
       _CONVERT_(ensure_active);
       _CONVERT_(ensure_primary);
       _CONVERT_(ensure_only_display);
-#undef _CONVERT_
+#ifndef DOXYGEN
+  #undef _CONVERT_
+#endif
       return video_t::dd_t::config_option_e::disabled;  // Default to this if value is invalid
     }
 
@@ -633,8 +645,12 @@ namespace config {
       _CONVERT_(disabled);
       _CONVERT_2_ARG_(auto, automatic);
       _CONVERT_(manual);
-#undef _CONVERT_
-#undef _CONVERT_2_ARG_
+#ifndef DOXYGEN
+  #undef _CONVERT_
+#endif
+#ifndef DOXYGEN
+  #undef _CONVERT_2_ARG_
+#endif
       return video_t::dd_t::resolution_option_e::disabled;  // Default to this if value is invalid
     }
 
@@ -654,8 +670,12 @@ namespace config {
       _CONVERT_(disabled);
       _CONVERT_2_ARG_(auto, automatic);
       _CONVERT_(manual);
-#undef _CONVERT_
-#undef _CONVERT_2_ARG_
+#ifndef DOXYGEN
+  #undef _CONVERT_
+#endif
+#ifndef DOXYGEN
+  #undef _CONVERT_2_ARG_
+#endif
       return video_t::dd_t::refresh_rate_option_e::disabled;  // Default to this if value is invalid
     }
 
@@ -674,8 +694,12 @@ namespace config {
 #endif
       _CONVERT_(disabled);
       _CONVERT_2_ARG_(auto, automatic);
-#undef _CONVERT_
-#undef _CONVERT_2_ARG_
+#ifndef DOXYGEN
+  #undef _CONVERT_
+#endif
+#ifndef DOXYGEN
+  #undef _CONVERT_2_ARG_
+#endif
       return video_t::dd_t::hdr_option_e::disabled;  // Default to this if value is invalid
     }
 

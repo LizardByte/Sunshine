@@ -328,7 +328,9 @@ namespace video {
         _CONVERT(VUI_PARAMETERS);
         _CONVERT(MAX_FLAGS);
       }
-#undef _CONVERT
+#ifndef DOXYGEN
+  #undef _CONVERT
+#endif
 
       return {"unknown"};
     }
