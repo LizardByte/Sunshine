@@ -514,6 +514,7 @@ TEST_F(InputGamepadSessionTest, ReplaysMotionAndRumbleAfterResumedControllerArri
   const auto device_count = runtime().active_device_count();
   auto old_queue = first_mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback);
   while (old_queue->pop(std::chrono::milliseconds {0})) {
+    // Discard initial motion requests before simulating a reconnect.
   }
 
   for (int reconnect = 0; reconnect < 3; ++reconnect) {
