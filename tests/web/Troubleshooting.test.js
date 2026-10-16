@@ -17,9 +17,10 @@ import en from '../../src_assets/common/assets/web/public/assets/locale/en.json'
  * @param {object} licenseStatus License status overrides.
  * @param {Array} permissions Platform permissions.
  * @param {object|null} i18n Optional Vue I18n plugin.
+ * @param {Array} clients Paired clients returned by the client list.
  * @return {Promise<object>} Mounted troubleshooting wrapper.
  */
-async function mountTroubleshooting(platform, gamepadDriver, licenseStatus = {}, permissions = [], i18n = null) {
+async function mountTroubleshooting(platform, gamepadDriver, licenseStatus = {}, permissions = [], i18n = null, clients = []) {
   vi.stubGlobal('fetch', vi.fn(async (url) => {
     if (url === '/api/config') {
       return { json: async () => ({ platform, gamepad_driver: gamepadDriver }) }
@@ -50,7 +51,7 @@ async function mountTroubleshooting(platform, gamepadDriver, licenseStatus = {},
       return { text: async () => '' }
     }
     if (url === './api/clients/list') {
-      return { json: async () => ({ status: true, named_certs: [] }) }
+      return { json: async () => ({ status: true, named_certs: structuredClone(clients) }) }
     }
     return {
       ok: true,
@@ -292,6 +293,51 @@ describe('virtual input troubleshooting', () => {
       'troubleshooting.permissions_status_not_determined',
     ])
     expect(wrapper.findAll('.permission-table-shell tbody button')).toHaveLength(2)
+    wrapper.unmount()
+  })
+})
+
+describe('paired client management', () => {
+  const friend = {
+    name: 'Friend',
+    uuid: 'friend-uuid',
+    enabled: true,
+    active: true,
+    allow_mouse: true,
+    allow_keyboard: true,
+    allow_controller: false,
+  }
+
+  it('shows connection state and permissions, and sends permission and kick requests', async () => {
+    const wrapper = await mountTroubleshooting('linux', 'none', {}, [], null, [friend, { ...friend, name: 'Laptop', uuid: 'laptop-uuid', active: false }])
+    const rows = wrapper.findAll('.list-group-item').filter(row => row.text().includes('troubleshooting.client_kick'))
+    expect(rows).toHaveLength(2)
+    const [friendRow, laptopRow] = rows
+
+    expect(friendRow.text()).toContain('troubleshooting.client_active')
+    expect(laptopRow.text()).not.toContain('troubleshooting.client_active')
+    expect(friendRow.get('#allow_mouse-friend-uuid').element.checked).toBe(true)
+    expect(friendRow.get('#allow_controller-friend-uuid').element.checked).toBe(false)
+    expect(laptopRow.get('button.btn-warning').attributes('disabled')).toBeDefined()
+
+    await friendRow.get('#allow_mouse-friend-uuid').trigger('change')
+    await flushPromises()
+    expect(fetch).toHaveBeenCalledWith('./api/clients/permissions', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({
+        uuid: 'friend-uuid',
+        allow_mouse: false,
+        allow_keyboard: true,
+        allow_controller: false,
+      }),
+    }))
+
+    await friendRow.get('button.btn-warning').trigger('click')
+    await flushPromises()
+    expect(fetch).toHaveBeenCalledWith('./api/clients/kick', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ uuid: 'friend-uuid' }),
+    }))
     wrapper.unmount()
   })
 })

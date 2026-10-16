@@ -501,6 +501,53 @@ TEST_F(InputGamepadSessionTest, ReusesGamepadsAcrossPauseAndDestroysThemOnTermin
   EXPECT_NE(replacement, resumed);
 }
 
+TEST_F(InputGamepadSessionTest, ClientPermissionsGateMouseInputAndUpdateLive) {
+  const std::string session_id = "mouse-permission-client";
+  auto stream_input = input::alloc(std::make_shared<safe::mail_raw_t>(), session_id, {.mouse = false});
+  ASSERT_NE(stream_input, nullptr);
+
+  input::testing::send_relative_mouse_packet(stream_input, 12, -7);
+  EXPECT_NE(context().mouse->last_submitted_event().x, 12);
+
+  input::set_permissions(session_id, {});
+  input::testing::send_relative_mouse_packet(stream_input, 12, -7);
+  EXPECT_EQ(context().mouse->last_submitted_event().x, 12);
+
+  input::set_permissions(session_id, {.mouse = false});
+  input::testing::send_relative_mouse_packet(stream_input, -5, 9);
+  EXPECT_EQ(context().mouse->last_submitted_event().x, 12);
+
+  input::set_permissions("unknown-client", {.mouse = false});
+  input::terminate_gamepads(session_id);
+}
+
+TEST_F(InputGamepadSessionTest, ClientPermissionsGateControllerArrival) {
+  const std::string session_id = "controller-permission-client";
+  auto stream_input = input::alloc(std::make_shared<safe::mail_raw_t>(), session_id, {.controller = false});
+  ASSERT_NE(stream_input, nullptr);
+  input::testing::set_input_task_sink([](std::shared_ptr<input::input_t>) {
+  });
+
+  SS_CONTROLLER_ARRIVAL_PACKET arrival {};
+  arrival.header.size = util::endian::big<std::uint32_t>(sizeof(arrival) - sizeof(arrival.header.size));
+  arrival.header.magic = util::endian::little(SS_CONTROLLER_ARRIVAL_MAGIC);
+  arrival.controllerNumber = 0;
+  arrival.type = LI_CTYPE_XBOX;
+  const auto send_arrival = [&]() {
+    std::vector<std::uint8_t> bytes(sizeof(arrival));
+    std::memcpy(bytes.data(), &arrival, sizeof(arrival));
+    input::passthrough(stream_input, std::move(bytes));
+    input::testing::process_queued_messages(stream_input);
+  };
+
+  send_arrival();
+  EXPECT_EQ(input::testing::gamepad_id(stream_input, 0), -1);
+
+  input::set_permissions(session_id, {});
+  send_arrival();
+  EXPECT_GE(input::testing::gamepad_id(stream_input, 0), 0);
+}
+
 TEST_F(InputGamepadSessionTest, RefreshesSharedVirtualInputAfterLicenseStateChanges) {
   ASSERT_NE(context().keyboard, nullptr);
   ASSERT_NE(context().mouse, nullptr);

@@ -23,6 +23,7 @@
 
 // local includes
 #include "crypto.h"
+#include "input.h"
 
 /**
  * @brief Contains all the functions and variables related to the nvhttp (GameStream) server.
@@ -354,6 +355,21 @@ namespace nvhttp {
    * @return true if the client was found and updated.
    */
   bool set_client_enabled(std::string_view uuid, bool enabled);
+
+  /**
+   * @brief Store the input permissions of a paired client.
+   * @param uuid The UUID of the client.
+   * @param permissions Input categories the client may send while streaming.
+   * @return true if the client was found and updated.
+   */
+  bool set_client_permissions(std::string_view uuid, const input::permissions_t &permissions);
+
+  /**
+   * @brief Get the stored input permissions of a paired client.
+   * @param cert_pem PEM certificate of the paired client.
+   * @return Stored permissions, or all permissions allowed when the certificate is unknown.
+   */
+  input::permissions_t get_client_permissions(std::string_view cert_pem);
   /**
    * @brief Get cert by UUID.
    *

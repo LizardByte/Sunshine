@@ -10,6 +10,7 @@ extern "C" {
 }
 
 // standard includes
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <format>
@@ -635,6 +636,19 @@ namespace rtsp_stream {
     }
 
     /**
+     * @brief Check whether a running session belongs to a client certificate.
+     *
+     * @param cert Certificate data or object used by the operation.
+     * @return `true` when at least one running session uses the certificate.
+     */
+    bool has_running_session(std::string_view cert) {
+      auto lg = _session_slots.lock();
+      return std::any_of(_session_slots->begin(), _session_slots->end(), [cert](const auto &slot) {
+        return stream::session::client_cert(*slot) == cert && stream::session::state(*slot) == stream::session::state_e::RUNNING;
+      });
+    }
+
+    /**
      * @brief Removes the provided session from the set of sessions.
      * @param session The session to remove.
      */
@@ -718,6 +732,10 @@ namespace rtsp_stream {
   void terminate_sessions_by_cert(std::string_view cert) {
     server.clear_by_cert(cert);
     input::terminate_gamepads(cert);
+  }
+
+  bool is_client_active(std::string_view cert) {
+    return !cert.empty() && server.has_running_session(cert);
   }
 
   /**

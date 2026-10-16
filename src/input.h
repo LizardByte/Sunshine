@@ -21,6 +21,15 @@ namespace input {
   struct input_t;
 
   /**
+   * @brief Input categories a paired client may send to the host.
+   */
+  struct permissions_t {
+    bool mouse = true;  ///< Allow mouse, touch, and pen input.
+    bool keyboard = true;  ///< Allow keyboard and text input.
+    bool controller = true;  ///< Allow controller input.
+  };
+
+  /**
    * @brief Write a debug log representation of the input packet.
    *
    * @param input Raw input packet to format for logging.
@@ -47,6 +56,17 @@ namespace input {
    * @param session_id Stable paired-client identity used by alloc().
    */
   void terminate_gamepads(std::string_view session_id);
+
+  /**
+   * @brief Update the input permissions of a connected or paused paired client.
+   *
+   * Revoking any permission releases held keys, mouse buttons, and the client's gamepad state.
+   * Clients without retained input are unaffected; they receive their permissions from alloc().
+   *
+   * @param session_id Stable paired-client identity used by alloc().
+   * @param permissions Permissions to apply.
+   */
+  void set_permissions(std::string_view session_id, const permissions_t &permissions);
 
   /**
    * @brief Queue a raw input message for platform passthrough.
@@ -80,9 +100,10 @@ namespace input {
    *
    * @param mail Mailbox used to exchange messages with worker threads.
    * @param session_id Stable paired-client identity shared by launch and resume connections.
+   * @param permissions Input categories this client may send.
    * @return Shared input state bound to the stream mailbox.
    */
-  std::shared_ptr<input_t> alloc(safe::mail_t mail, std::string session_id);
+  std::shared_ptr<input_t> alloc(safe::mail_t mail, std::string session_id, const permissions_t &permissions = {});
 
 #ifdef SUNSHINE_TESTS
   namespace testing {

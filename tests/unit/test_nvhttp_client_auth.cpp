@@ -176,6 +176,38 @@ TEST_F(ClientAuthorizationTest, RePairingReplacesDuplicateCertificateIdentity) {
   EXPECT_TRUE(nvhttp::test_support::authorize_client_certificate(other_credentials.x509));
 }
 
+TEST_F(ClientAuthorizationTest, InputPermissionsDefaultToAllowedAndPersistIndependently) {
+  const auto credentials = test_utils::certificates::generate_ca_credentials();
+  const auto uuid = nvhttp::test_support::add_client("friend", credentials.x509, true);
+  ASSERT_FALSE(uuid.empty());
+
+  const auto defaults = nvhttp::get_client_permissions(credentials.x509);
+  EXPECT_TRUE(defaults.mouse);
+  EXPECT_TRUE(defaults.keyboard);
+  EXPECT_TRUE(defaults.controller);
+  const auto listed = nvhttp::get_all_clients().at(0);
+  EXPECT_TRUE(listed.at("allow_mouse").get<bool>());
+  EXPECT_TRUE(listed.at("allow_keyboard").get<bool>());
+  EXPECT_TRUE(listed.at("allow_controller").get<bool>());
+
+  EXPECT_FALSE(nvhttp::set_client_permissions("missing", {}));
+  ASSERT_TRUE(nvhttp::set_client_permissions(uuid, {.mouse = false, .keyboard = true, .controller = false}));
+  ASSERT_TRUE(nvhttp::set_client_enabled(uuid, false));
+
+  nvhttp::test_support::reset_client_state();
+  nvhttp::test_support::reload_client_state();
+  const auto reloaded = nvhttp::get_client_permissions(credentials.x509);
+  EXPECT_FALSE(reloaded.mouse);
+  EXPECT_TRUE(reloaded.keyboard);
+  EXPECT_FALSE(reloaded.controller);
+  EXPECT_FALSE(nvhttp::get_all_clients().at(0).at("enabled").get<bool>());
+
+  const auto unknown = nvhttp::get_client_permissions("not a paired certificate");
+  EXPECT_TRUE(unknown.mouse);
+  EXPECT_TRUE(unknown.keyboard);
+  EXPECT_TRUE(unknown.controller);
+}
+
 TEST_F(ClientAuthorizationTest, ConcurrentStateChangesRemainConsistent) {
   const auto credentials = test_utils::certificates::generate_ca_credentials();
   const auto uuid = nvhttp::test_support::add_client("concurrent", credentials.x509, true);

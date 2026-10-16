@@ -10,6 +10,7 @@ extern "C" {
 
 // standard includes
 #include <algorithm>
+#include <atomic>
 #include <bitset>
 #include <chrono>
 #include <cmath>
@@ -326,7 +327,55 @@ namespace input {
 
     int32_t accumulated_vscroll_delta {};  ///< Accumulated vscroll delta.
     int32_t accumulated_hscroll_delta {};  ///< Accumulated hscroll delta.
+
+    std::atomic_bool allow_mouse {true};  ///< Whether this paired client may send mouse, touch, and pen input.
+    std::atomic_bool allow_keyboard {true};  ///< Whether this paired client may send keyboard and text input.
+    std::atomic_bool allow_controller {true};  ///< Whether this paired client may send controller input.
   };
+
+  /**
+   * @brief Check whether mouse, touch, and pen input is allowed for a stream.
+   *
+   * @param input Stream input state.
+   * @return `true` when both the host configuration and the client permission allow it.
+   */
+  bool mouse_allowed(const input_t &input) {
+    return config::input.mouse && input.allow_mouse;
+  }
+
+  /**
+   * @brief Check whether keyboard and text input is allowed for a stream.
+   *
+   * @param input Stream input state.
+   * @return `true` when both the host configuration and the client permission allow it.
+   */
+  bool keyboard_allowed(const input_t &input) {
+    return config::input.keyboard && input.allow_keyboard;
+  }
+
+  /**
+   * @brief Check whether controller input is allowed for a stream.
+   *
+   * @param input Stream input state.
+   * @return `true` when the host configuration, gamepad driver, and client permission allow it.
+   */
+  bool controller_allowed(const input_t &input) {
+    return config::input.controller && config::input.gamepad_driver != config::GAMEPAD_DRIVER_NONE && input.allow_controller;
+  }
+
+  /**
+   * @brief Store new client permissions on stream input state.
+   *
+   * @param input Stream input state.
+   * @param permissions Permissions to apply.
+   * @return `true` when any previously allowed input category is now denied.
+   */
+  bool apply_permissions(input_t &input, const permissions_t &permissions) {
+    const bool mouse_revoked = input.allow_mouse.exchange(permissions.mouse) && !permissions.mouse;
+    const bool keyboard_revoked = input.allow_keyboard.exchange(permissions.keyboard) && !permissions.keyboard;
+    const bool controller_revoked = input.allow_controller.exchange(permissions.controller) && !permissions.controller;
+    return mouse_revoked || keyboard_revoked || controller_revoked;
+  }
 
   /**
    * @brief Hash string-like session identifiers without allocating temporary strings.
@@ -769,7 +818,7 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void passthrough(std::shared_ptr<input_t> &input, PNV_REL_MOUSE_MOVE_PACKET packet) {
-    if (!config::input.mouse) {
+    if (!mouse_allowed(*input)) {
       return;
     }
 
@@ -879,7 +928,7 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET packet) {
-    if (!config::input.mouse) {
+    if (!mouse_allowed(*input)) {
       return;
     }
 
@@ -918,7 +967,7 @@ namespace input {
    * @param packet The mouse button packet.
    */
   void passthrough(std::shared_ptr<input_t> &input, PNV_MOUSE_BUTTON_PACKET packet) {
-    if (!config::input.mouse) {
+    if (!mouse_allowed(*input)) {
       return;
     }
 
@@ -1191,7 +1240,7 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
-    if (!config::input.keyboard) {
+    if (!keyboard_allowed(*input)) {
       return;
     }
 
@@ -1264,7 +1313,7 @@ namespace input {
    * @param packet The scroll packet.
    */
   void passthrough(std::shared_ptr<input_t> &input, PNV_SCROLL_PACKET packet) {
-    if (!config::input.mouse) {
+    if (!mouse_allowed(*input)) {
       return;
     }
 
@@ -1287,7 +1336,7 @@ namespace input {
    * @param packet The scroll packet.
    */
   void passthrough(std::shared_ptr<input_t> &input, PSS_HSCROLL_PACKET packet) {
-    if (!config::input.mouse) {
+    if (!mouse_allowed(*input)) {
       return;
     }
 
@@ -1307,10 +1356,11 @@ namespace input {
   /**
    * @brief Forward a client input packet directly to the platform backend.
    *
+   * @param input Stream input state.
    * @param packet Protocol packet being processed.
    */
-  void passthrough(const NV_UNICODE_PACKET *packet) {
-    if (!config::input.keyboard) {
+  void passthrough(const std::shared_ptr<input_t> &input, const NV_UNICODE_PACKET *packet) {
+    if (!keyboard_allowed(*input)) {
       return;
     }
 
@@ -1358,7 +1408,7 @@ namespace input {
    * @param packet The controller arrival packet.
    */
   void passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_ARRIVAL_PACKET packet) {
-    if (!config::input.controller || config::input.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
+    if (!controller_allowed(*input)) {
       return;
     }
 
@@ -1417,7 +1467,7 @@ namespace input {
    */
   template<typename Packet>
   std::optional<absolute_pointer_data_t> prepare_absolute_pointer_data(std::shared_ptr<input_t> &input, Packet packet) {
-    if (!config::input.mouse) {
+    if (!mouse_allowed(*input)) {
       return std::nullopt;
     }
 
@@ -1508,7 +1558,7 @@ namespace input {
    * @param packet The controller touch packet.
    */
   void passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_TOUCH_PACKET packet) {
-    if (!config::input.controller || config::input.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
+    if (!controller_allowed(*input)) {
       return;
     }
 
@@ -1541,7 +1591,7 @@ namespace input {
    * @param packet The controller motion packet.
    */
   void passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_MOTION_PACKET packet) {
-    if (!config::input.controller || config::input.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
+    if (!controller_allowed(*input)) {
       return;
     }
 
@@ -1573,7 +1623,7 @@ namespace input {
    * @param packet The controller battery packet.
    */
   void passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_BATTERY_PACKET packet) {
-    if (!config::input.controller || config::input.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
+    if (!controller_allowed(*input)) {
       return;
     }
 
@@ -1604,7 +1654,7 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET packet) {
-    if (!config::input.controller || config::input.gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
+    if (!controller_allowed(*input)) {
       return;
     }
 
@@ -2174,7 +2224,7 @@ namespace input {
         passthrough(input, (PNV_KEYBOARD_PACKET) payload);
         break;
       case UTF8_TEXT_EVENT_MAGIC:
-        passthrough(static_cast<const NV_UNICODE_PACKET *>(static_cast<const void *>(payload)));
+        passthrough(input, static_cast<const NV_UNICODE_PACKET *>(static_cast<const void *>(payload)));
         break;
       case MULTI_CONTROLLER_MAGIC_GEN5:
         passthrough(input, (PNV_MULTI_CONTROLLER_PACKET) payload);
@@ -2366,6 +2416,23 @@ namespace input {
     });
   }
 
+  void set_permissions(const std::string_view session_id, const permissions_t &permissions) {
+    std::shared_ptr<input_t> input;
+    {
+      auto &state = retained_input_state();
+      std::lock_guard lock {state.mutex};
+      const auto iter = state.inputs.find(session_id);
+      if (iter == state.inputs.end()) {
+        return;
+      }
+      input = iter->second;
+    }
+
+    if (apply_permissions(*input, permissions)) {
+      reset(input);
+    }
+  }
+
   /**
    * @brief RAII helper that runs shutdown cleanup when destroyed.
    */
@@ -2422,7 +2489,7 @@ namespace input {
   /**
    * @brief Allocate and initialize platform input state for a stream.
    */
-  std::shared_ptr<input_t> alloc(safe::mail_t mail, std::string session_id) {
+  std::shared_ptr<input_t> alloc(safe::mail_t mail, std::string session_id, const permissions_t &permissions) {
     std::shared_ptr<input_t> input;
     bool resumed = false;
     {
@@ -2440,6 +2507,7 @@ namespace input {
         state.inputs.try_emplace(std::move(session_id), input);
       }
     }
+    apply_permissions(*input, permissions);
 
     if (resumed) {
       dispatch_input_task([input, mail = std::move(mail)]() {

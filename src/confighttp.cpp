@@ -1325,7 +1325,10 @@ namespace confighttp {
 
     print_req(request);
 
-    const nlohmann::json named_certs = nvhttp::get_all_clients();
+    nlohmann::json named_certs = nvhttp::get_all_clients();
+    for (auto &named_cert : named_certs) {
+      named_cert["active"] = rtsp_stream::is_client_active(nvhttp::get_cert_by_uuid(named_cert["uuid"].get<std::string>()));
+    }
 
     nlohmann::json output_tree;
     output_tree["named_certs"] = named_certs;
@@ -1384,6 +1387,105 @@ namespace confighttp {
       send_response(response, output_tree);
     } catch (nlohmann::json::exception &e) {
       BOOST_LOG(warning) << "Update Client: "sv << e.what();
+      bad_request(response, e.what());
+    }
+  }
+
+  /**
+   * @brief Set which input a client may send, applying it immediately to any running stream.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * The body for the POST request should be JSON serialized in the following format:
+   * @code{.json}
+   * {
+   *   "uuid": "<uuid>",
+   *   "allow_mouse": true,
+   *   "allow_keyboard": true,
+   *   "allow_controller": false
+   * }
+   * @endcode
+   *
+   * @api_examples{/api/clients/permissions|:| POST|:| {"uuid":"<uuid>","allow_mouse":true,"allow_keyboard":true,"allow_controller":false}}
+   */
+  void updateClientPermissions(const resp_https_t &response, const req_https_t &request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
+    if (!authenticate(response, request)) {
+      return;
+    }
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
+      return;
+    }
+
+    print_req(request);
+
+    std::stringstream ss;
+    ss << request->content.rdbuf();
+    try {
+      const nlohmann::json input_tree = nlohmann::json::parse(ss.str());
+      const auto uuid = input_tree.at("uuid").get<std::string>();
+      const input::permissions_t permissions {
+        input_tree.at("allow_mouse").get<bool>(),
+        input_tree.at("allow_keyboard").get<bool>(),
+        input_tree.at("allow_controller").get<bool>(),
+      };
+
+      nlohmann::json output_tree;
+      output_tree["status"] = nvhttp::set_client_permissions(uuid, permissions);
+      if (output_tree["status"]) {
+        input::set_permissions(nvhttp::get_cert_by_uuid(uuid), permissions);
+      }
+      send_response(response, output_tree);
+    } catch (nlohmann::json::exception &e) {
+      BOOST_LOG(warning) << "Update Client Permissions: "sv << e.what();
+      bad_request(response, e.what());
+    }
+  }
+
+  /**
+   * @brief Disconnect a client's running streams without unpairing or disabling it.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * The client may reconnect afterwards. Disable the client to also block reconnection.
+   * The body for the POST request should be JSON serialized in the following format:
+   * @code{.json}
+   * {
+   *   "uuid": "<uuid>"
+   * }
+   * @endcode
+   *
+   * @api_examples{/api/clients/kick|:| POST|:| {"uuid":"<uuid>"}}
+   */
+  void kickClient(const resp_https_t &response, const req_https_t &request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
+    if (!authenticate(response, request)) {
+      return;
+    }
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
+      return;
+    }
+
+    print_req(request);
+
+    std::stringstream ss;
+    ss << request->content.rdbuf();
+    try {
+      const nlohmann::json input_tree = nlohmann::json::parse(ss.str());
+      const auto cert = nvhttp::get_cert_by_uuid(input_tree.at("uuid").get<std::string>());
+
+      nlohmann::json output_tree;
+      output_tree["status"] = !cert.empty();
+      if (!cert.empty()) {
+        rtsp_stream::terminate_sessions_by_cert(cert);
+      }
+      send_response(response, output_tree);
+    } catch (nlohmann::json::exception &e) {
+      BOOST_LOG(warning) << "Kick Client: "sv << e.what();
       bad_request(response, e.what());
     }
   }
@@ -2488,7 +2590,9 @@ namespace confighttp {
     server.resource["^/api/apps$"]["POST"] = saveApp;
     server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = deleteApp;
     server.resource["^/api/apps/close$"]["POST"] = closeApp;
+    server.resource["^/api/clients/kick$"]["POST"] = kickClient;
     server.resource["^/api/clients/list$"]["GET"] = getClients;
+    server.resource["^/api/clients/permissions$"]["POST"] = updateClientPermissions;
     server.resource["^/api/clients/unpair$"]["POST"] = unpair;
     server.resource["^/api/clients/unpair-all$"]["POST"] = unpairAll;
     server.resource["^/api/clients/update$"]["POST"] = updateClient;
