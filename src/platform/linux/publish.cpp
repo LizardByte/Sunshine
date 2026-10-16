@@ -522,14 +522,21 @@ namespace platf::publish {
       // here, so an IPv4-only configuration advertises no AAAA record even
       // though the daemon's shared host name still carries both A and AAAA
       // (publish-aaaa-on-ipv4). The effective family accounts for
-      // bind_address, matching the listener setup.
+      // bind_address, matching the listener setup. On non-Linux platforms
+      // there is no address-change watch, so the service instead uses the
+      // daemon-managed host name (a null SRV target) and the daemon
+      // maintains the address records.
       const auto effective_family = net::get_effective_address_family(
         net::af_from_enum_string(config::sunshine.address_family)
       );
-      const auto service_host = service_host_name(platf::get_host_name(), host_name_collision_count);
       const auto addresses = served_addresses(effective_family);
 
+      // The service-specific host name and its fixed address records are
+      // Linux-only: only Linux installs the address-change watch that
+      // refreshes them (see install_address_change_watch()).
       const char *service_target = nullptr;
+#ifdef __linux__
+      const auto service_host = service_host_name(platf::get_host_name(), host_name_collision_count);
       if (addresses.empty()) {
         BOOST_LOG(warning) << "No served addresses determined for "sv << service_host
                            << "; falling back to the daemon host name, which may advertise unserved addresses (see #5860).";
@@ -542,6 +549,8 @@ namespace platf::publish {
           return;
         }
       }
+
+#endif
 
       ret = avahi::entry_group_add_service(
         group,
@@ -683,8 +692,11 @@ namespace platf::publish {
     return true;
 #else
     // Netlink is a Linux-kernel API, so no address-change watch exists on
-    // other platforms. Discovery still works; records just don't
-    // auto-refresh on network changes (the pre-watch behavior).
+    // other platforms. That is safe because create_services() publishes
+    // the service with a null SRV target there, selecting the Avahi
+    // daemon-managed host name: the daemon owns the interface address
+    // records and updates and withdraws them when addresses change, so
+    // discovery stays correct without a refresh.
     return false;
 #endif
   }
@@ -791,8 +803,10 @@ namespace platf::publish {
       return nullptr;
     }
 
-    // Best-effort: without the watch, discovery still works exactly as
-    // before, except records go stale after a network change.
+    // Best-effort: without the watch, discovery still works. On Linux the
+    // records go stale after a network change (the pre-watch behavior);
+    // on other platforms the daemon-managed host name delegates address
+    // maintenance to the Avahi daemon, so no refresh is needed.
     install_address_change_watch();
 
     return std::make_unique<deinit_t>(std::jthread {[]() {

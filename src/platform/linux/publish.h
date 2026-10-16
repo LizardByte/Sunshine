@@ -381,7 +381,9 @@ namespace platf::publish {
    * poll thread. Best-effort: returns false when the watch cannot be
    * installed, and discovery continues without refresh. Linux-only:
    * netlink is a Linux-kernel API, so on other platforms this always
-   * returns false and no watch is installed.
+   * returns false and no watch is installed; the service there uses the
+   * daemon-managed host name (a null SRV target), so the Avahi daemon
+   * maintains the address records and no watch is needed.
    * @return True when the watch is installed (or was already installed).
    */
   bool install_address_change_watch();

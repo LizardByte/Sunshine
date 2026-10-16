@@ -3,7 +3,12 @@
  * @brief Tests for Linux mDNS (Avahi) service publication.
  */
 
-#if defined(__linux__)
+// The publisher (src/platform/linux/publish.cpp) is built on every
+// non-Apple Unix platform (see cmake/compile_definitions/linux.cmake),
+// so the stubbed-registration tests below compile wherever it is built.
+// The plain unit tests stay Linux-gated; only the fallback regression
+// runs on non-Linux, where the address-change watch is unsupported.
+#if !defined(_WIN32) && !defined(__APPLE__)
 
   // test includes
   #include "../tests_common.h"
@@ -12,9 +17,6 @@
   #include <array>
   #include <cstdlib>
   #include <cstring>
-  #include <ifaddrs.h>
-  #include <net/if.h>
-  #include <netinet/in.h>
   #include <string>
   #include <utility>
   #include <vector>
@@ -22,6 +24,14 @@
   // local includes
   #include <src/platform/linux/publish.h>
 
+  #if defined(__linux__)
+    // Linux-only includes for the interface-enumeration tests.
+    #include <ifaddrs.h>
+    #include <net/if.h>
+    #include <netinet/in.h>
+  #endif
+
+  #if defined(__linux__)
 TEST(ServiceHostNameTest, IsDistinctFromDaemonHostName) {
   // The SRV target must not be the daemon's shared host name: the daemon
   // publishes both A and AAAA records for its own host name, so pointing the
@@ -202,6 +212,8 @@ TEST(ToAvahiAddressTest, Ipv6EncodesAllSixteenBytes) {
   );
 }
 
+  #endif  // defined(__linux__)
+
 namespace {
   /**
    * @brief Captured Avahi entry-group calls for registration tests.
@@ -312,8 +324,10 @@ namespace {
    * @brief Stub address publication without the reverse-PTR conflict check.
    * @details The F2/F3 tests install this stub so their fail-before
    * evidence isolates their own finding: with the strict stub, the missing
-   * `PUBLISH_NO_REVERSE` flag (F1) would fail those tests first.
+   * `PUBLISH_NO_REVERSE` flag (F1) would fail those tests first. Linux-only:
+   * only the Linux-gated registration tests install it.
    */
+#if defined(__linux__)
   int FakeEntryGroupAddAddressLenient(
     avahi::EntryGroup * /*group*/,
     avahi::IfIndex interface,
@@ -329,6 +343,7 @@ namespace {
     g_address_calls.push_back({interface, flags, *address});
     return 0;
   }
+#endif
 
   /**
    * @brief Fixture driving the publisher with stubbed Avahi calls.
@@ -397,6 +412,7 @@ namespace {
   };
 }  // namespace
 
+  #if defined(__linux__)
 TEST_F(PublishRegistrationTest, AddressPublicationSkipsReversePtr) {
   // The service-host alias must publish forward records only: with flags 0
   // the daemon rejects the competing reverse PTR with ERR_COLLISION, the
@@ -594,4 +610,31 @@ TEST_F(PublishRegistrationTest, RefreshFailureThenRestoreEmptySnapshotRepublishe
   ASSERT_EQ(g_commit_count, 2);
 }
 
-#endif  // defined(__linux__)
+  #else
+TEST_F(PublishRegistrationTest, NonLinuxFallbackUsesDaemonHostName) {
+  // On platforms without the netlink address-change watch (e.g. FreeBSD),
+  // the service must not publish fixed address records for a
+  // service-specific host name: with no refresh, a DHCP change would
+  // leave clients with the stale snapshot. Instead the service uses the
+  // daemon-managed host name (a null SRV target), and the Avahi daemon
+  // maintains the interface address records.
+  ASSERT_FALSE(platf::publish::install_address_change_watch());
+
+  // An explicit bind with a populated snapshot is the regression case:
+  // the pre-fix code published the custom host plus its fixed addresses.
+  config::sunshine.bind_address = "192.168.1.10";
+  config::sunshine.address_family = "both";
+
+  platf::publish::create_services(reinterpret_cast<avahi::Client *>(0x2000));
+
+  ASSERT_EQ(g_commit_count, 1);
+  ASSERT_EQ(g_quit_count, 0);
+  // No fixed alias address records were published ...
+  ASSERT_TRUE(g_address_calls.empty());
+  // ... and the service points at the daemon-managed host name.
+  ASSERT_EQ(g_service_hosts.size(), 1U);
+  ASSERT_TRUE(g_service_hosts[0].empty());
+}
+  #endif  // defined(__linux__)
+
+#endif  // !defined(_WIN32) && !defined(__APPLE__)
