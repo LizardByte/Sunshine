@@ -114,6 +114,10 @@ endif()
 include(dependencies/libevdev_Sunshine)
 
 # vaapi
+# FFmpeg's static archives need these compatibility symbols even when Sunshine's
+# VA-API encoder is disabled. The host's core and DRM libraries are always linked.
+include_directories(SYSTEM ${LIBVA_INCLUDE_DIR})
+list(APPEND PLATFORM_TARGET_FILES "${CMAKE_SOURCE_DIR}/src/platform/linux/vaapi_compat.cpp")
 if(${SUNSHINE_ENABLE_VAAPI})
     find_package(Libva REQUIRED)
 else()

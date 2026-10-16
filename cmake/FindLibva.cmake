@@ -10,47 +10,48 @@
 # find_path() and find_library() calls
 # cmake-format: on
 
-if(EXISTS "${FFMPEG_PREPARED_BINARIES}/lib/libva.a")
-    # The display context ABI is private to libva. Keep its core, DRM backend,
-    # and headers from the same build as FFmpeg instead of mixing system libva.
-    set(LIBVA_INCLUDE_DIR "${FFMPEG_PREPARED_BINARIES}/include")
-    set(LIBVA_LIB "${FFMPEG_PREPARED_BINARIES}/lib/libva.a")
-    set(LIBVA_DRM_LIB "${FFMPEG_PREPARED_BINARIES}/lib/libva-drm.a")
-    foreach(required_file IN ITEMS
-            "${LIBVA_INCLUDE_DIR}/va/va.h"
-            "${LIBVA_INCLUDE_DIR}/va/va_drm.h"
-            "${LIBVA_DRM_LIB}")
-        if(NOT EXISTS "${required_file}")
-            message(FATAL_ERROR "The bundled libva package is incomplete: missing ${required_file}")
+# The core and DRM backend share a private ABI. Use the host's matched libraries
+# and headers so libva also retains the host's driver discovery configuration.
+set(_libva_saved_ignore_prefix_path "${CMAKE_IGNORE_PREFIX_PATH}")
+set(_libva_saved_library_suffixes "${CMAKE_FIND_LIBRARY_SUFFIXES}")
+if(FFMPEG_PREPARED_BINARIES)
+    list(APPEND CMAKE_IGNORE_PREFIX_PATH "${FFMPEG_PREPARED_BINARIES}")
+    # Discard paths cached by builds that selected the bundled libva.
+    foreach(variable LIBVA_INCLUDE_DIR LIBVA_LIB LIBVA_DRM_LIB)
+        cmake_path(IS_PREFIX FFMPEG_PREPARED_BINARIES "${${variable}}" NORMALIZE _libva_bundled)
+        if(_libva_bundled)
+            unset(${variable} CACHE)
+            unset(${variable})
         endif()
     endforeach()
-    # libva-drm.pc does not declare the libdrm dependency of its static archive.
-    find_package(LIBDRM REQUIRED)
-else()
-    find_package(PkgConfig QUIET)
-    if(PKG_CONFIG_FOUND)
-        pkg_check_modules(_LIBVA libva)
-        pkg_check_modules(_LIBVA_DRM libva-drm)
-    endif()
-
-    find_path(
-            LIBVA_INCLUDE_DIR
-            NAMES va/va.h va/va_drm.h
-            HINTS ${_LIBVA_INCLUDE_DIRS}
-            PATHS /usr/include /usr/local/include /opt/local/include)
-
-    find_library(
-            LIBVA_LIB
-            NAMES ${_LIBVA_LIBRARIES} libva
-            HINTS ${_LIBVA_LIBRARY_DIRS}
-            PATHS /usr/lib /usr/local/lib /opt/local/lib)
-
-    find_library(
-            LIBVA_DRM_LIB
-            NAMES ${_LIBVA_DRM_LIBRARIES} libva-drm
-            HINTS ${_LIBVA_DRM_LIBRARY_DIRS}
-            PATHS /usr/lib /usr/local/lib /opt/local/lib)
 endif()
+set(CMAKE_FIND_LIBRARY_SUFFIXES "${CMAKE_SHARED_LIBRARY_SUFFIX}")
+find_package(PkgConfig QUIET)
+if(PKG_CONFIG_FOUND)
+    pkg_check_modules(_LIBVA libva)
+    pkg_check_modules(_LIBVA_DRM libva-drm)
+endif()
+
+find_path(
+        LIBVA_INCLUDE_DIR
+        NAMES va/va.h va/va_drm.h
+        HINTS ${_LIBVA_INCLUDE_DIRS}
+        PATHS /usr/include /usr/local/include /opt/local/include)
+
+find_library(
+        LIBVA_LIB
+        NAMES va
+        HINTS ${_LIBVA_LIBRARY_DIRS}
+        PATHS /usr/lib /usr/local/lib /opt/local/lib)
+
+get_filename_component(_libva_library_dir "${LIBVA_LIB}" DIRECTORY)
+find_library(
+        LIBVA_DRM_LIB
+        NAMES va-drm
+        PATHS "${_libva_library_dir}"
+        NO_DEFAULT_PATH)
+set(CMAKE_IGNORE_PREFIX_PATH "${_libva_saved_ignore_prefix_path}")
+set(CMAKE_FIND_LIBRARY_SUFFIXES "${_libva_saved_library_suffixes}")
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(Libva REQUIRED_VARS LIBVA_INCLUDE_DIR LIBVA_LIB LIBVA_DRM_LIB)
@@ -83,13 +84,7 @@ if(LIBVA_FOUND)
         endif()
 
         set_target_properties(Libva::drm PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${LIBVA_INCLUDE_DIRS}")
-        if(EXISTS "${FFMPEG_PREPARED_BINARIES}/lib/libva.a")
-            set_target_properties(Libva::drm PROPERTIES
-                    INTERFACE_LINK_LIBRARIES "Libva::va;${LIBDRM_LIBRARIES}")
-        endif()
-    endif()
-    if(EXISTS "${FFMPEG_PREPARED_BINARIES}/lib/libva.a")
-        set(LIBVA_DRM_LIBRARIES Libva::drm)
+        set_target_properties(Libva::drm PROPERTIES INTERFACE_LINK_LIBRARIES Libva::va)
     endif()
 
 endif()

@@ -176,15 +176,6 @@ else()
     list(APPEND FFMPEG_LIBRARIES ${FFMPEG_PLATFORM_LIBRARIES})
 endif()
 
-# Legacy library lists can also refer to libva backends by name. Resolve those
-# names to the matching archives whenever the FFmpeg package supplies libva.
-if(EXISTS "${FFMPEG_PREPARED_BINARIES}/lib/libva.a")
-    foreach(library IN ITEMS va va-drm va-x11)
-        list(TRANSFORM FFMPEG_LIBRARIES REPLACE
-                "^${library}$" "${FFMPEG_PREPARED_BINARIES}/lib/lib${library}.a")
-    endforeach()
-endif()
-
 # Shared packages supply the full static dependency list, including decoders.
 # Older packages retain the library list above.
 set(_sunshine_ffmpeg_pc "${FFMPEG_PREPARED_BINARIES}/lib/pkgconfig/libavcodec.pc")
@@ -248,3 +239,79 @@ if(_sunshine_ffmpeg_relocatable GREATER_EQUAL 0)
 endif()
 
 set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREPARED_BINARIES}/include")
+
+if(UNIX AND NOT APPLE)
+    find_package(Libva REQUIRED)
+
+    # Static FFmpeg metadata can pull bundled libva archives back into the link.
+    # Resolve every VA backend to the host, including legacy library-name lists.
+    set(_sunshine_saved_ignore_prefix_path "${CMAKE_IGNORE_PREFIX_PATH}")
+    set(_sunshine_saved_library_suffixes "${CMAKE_FIND_LIBRARY_SUFFIXES}")
+    list(APPEND CMAKE_IGNORE_PREFIX_PATH "${FFMPEG_PREPARED_BINARIES}")
+    set(CMAKE_FIND_LIBRARY_SUFFIXES "${CMAKE_SHARED_LIBRARY_SUFFIX}")
+    set(_sunshine_ffmpeg_library_lists FFMPEG_LIBRARIES)
+    if(TARGET PkgConfig::SUNSHINE_BUNDLED_FFMPEG)
+        get_target_property(_sunshine_ffmpeg_link_libraries
+                PkgConfig::SUNSHINE_BUNDLED_FFMPEG INTERFACE_LINK_LIBRARIES)
+        list(APPEND _sunshine_ffmpeg_library_lists _sunshine_ffmpeg_link_libraries)
+    endif()
+    foreach(library_list IN LISTS _sunshine_ffmpeg_library_lists)
+        set(_sunshine_system_libraries)
+        foreach(library IN LISTS ${library_list})
+            get_filename_component(_sunshine_library_name "${library}" NAME)
+            if(_sunshine_library_name MATCHES "^(-l|lib)?(va(-[a-z0-9]+)?)(\\.(a|so)(\\.[0-9]+)*)?$")
+                set(_sunshine_va_name "${CMAKE_MATCH_2}")
+                string(MAKE_C_IDENTIFIER "${_sunshine_va_name}" _sunshine_va_id)
+                if(_sunshine_va_name STREQUAL "va")
+                    list(APPEND _sunshine_system_libraries "${LIBVA_LIB}")
+                elseif(_sunshine_va_name STREQUAL "va-drm")
+                    list(APPEND _sunshine_system_libraries "${LIBVA_DRM_LIB}")
+                else()
+                    # Backends must come from the same installation as the core.
+                    unset(_sunshine_system_${_sunshine_va_id} CACHE)
+                    find_library(_sunshine_system_${_sunshine_va_id} NAMES "${_sunshine_va_name}"
+                            PATHS "${_libva_library_dir}" NO_DEFAULT_PATH REQUIRED)
+                    list(APPEND _sunshine_system_libraries "${_sunshine_system_${_sunshine_va_id}}")
+                endif()
+            else()
+                list(APPEND _sunshine_system_libraries "${library}")
+            endif()
+        endforeach()
+        set(${library_list} "${_sunshine_system_libraries}")
+    endforeach()
+    if(TARGET PkgConfig::SUNSHINE_BUNDLED_FFMPEG)
+        set_property(TARGET PkgConfig::SUNSHINE_BUNDLED_FFMPEG PROPERTY
+                INTERFACE_LINK_LIBRARIES "${_sunshine_ffmpeg_link_libraries}")
+    endif()
+    set(CMAKE_IGNORE_PREFIX_PATH "${_sunshine_saved_ignore_prefix_path}")
+    set(CMAKE_FIND_LIBRARY_SUFFIXES "${_sunshine_saved_library_suffixes}")
+
+    # /usr/include is a compiler default: putting it before the bundled include
+    # directory cannot override bundled VA headers. Expose a header tree without
+    # va/ so Sunshine's compatibility shims follow the host libva version.
+    set(FFMPEG_INCLUDE_DIRS "${CMAKE_BINARY_DIR}/_deps/ffmpeg-system-includes")
+    file(COPY "${FFMPEG_PREPARED_BINARIES}/include/" DESTINATION "${FFMPEG_INCLUDE_DIRS}" PATTERN "va" EXCLUDE)
+    set(_sunshine_bundled_include "${FFMPEG_PREPARED_BINARIES}/include")
+    if(NV_CODEC_HEADERS_13_1_INCLUDE_DIR STREQUAL _sunshine_bundled_include)
+        set(NV_CODEC_HEADERS_13_1_INCLUDE_DIR "${FFMPEG_INCLUDE_DIRS}")
+    endif()
+    foreach(dependency FFMPEG OPUS)
+        if(TARGET PkgConfig::SUNSHINE_BUNDLED_${dependency})
+            get_target_property(_sunshine_include_dirs
+                    PkgConfig::SUNSHINE_BUNDLED_${dependency} INTERFACE_INCLUDE_DIRECTORIES)
+            set(_sunshine_system_include_dirs)
+            foreach(_sunshine_include_dir IN LISTS _sunshine_include_dirs)  # cmake-lint: disable=C0103
+                cmake_path(NORMAL_PATH _sunshine_include_dir)
+                cmake_path(IS_PREFIX _sunshine_bundled_include "${_sunshine_include_dir}" NORMALIZE _sunshine_bundled)
+                if(_sunshine_bundled)
+                    cmake_path(RELATIVE_PATH _sunshine_include_dir BASE_DIRECTORY "${_sunshine_bundled_include}"
+                            OUTPUT_VARIABLE _sunshine_include_suffix)
+                    set(_sunshine_include_dir "${FFMPEG_INCLUDE_DIRS}/${_sunshine_include_suffix}")
+                endif()
+                list(APPEND _sunshine_system_include_dirs "${_sunshine_include_dir}")
+            endforeach()
+            set_property(TARGET PkgConfig::SUNSHINE_BUNDLED_${dependency} PROPERTY
+                    INTERFACE_INCLUDE_DIRECTORIES "${_sunshine_system_include_dirs}")
+        endif()
+    endforeach()
+endif()
