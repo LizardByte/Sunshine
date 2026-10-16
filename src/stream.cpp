@@ -17,7 +17,7 @@
 #include <rs.h>
 
 // Keep this separate so clang-format preserves the include order.
-#include "moonlight_common.h"
+#include "compat/moonlight.h"
 
 // local includes
 #include "config.h"

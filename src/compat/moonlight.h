@@ -1,5 +1,5 @@
 /**
- * @file src/moonlight_common.h
+ * @file src/compat/moonlight.h
  * @brief Import Moonlight's C declarations without changing C++ errno definitions.
  */
 #pragma once

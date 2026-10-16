@@ -2,12 +2,12 @@
  * @file tests/unit/moonlight_common_first_include.cpp
  * @brief Capture errno when the Moonlight wrapper is the first include in its translation unit.
  */
-#include <src/moonlight_common.h>
+#include <src/compat/moonlight.h>
 
 namespace {
   // Capture before any other include. Missing macros use zero only to keep a
   // broken wrapper testable at runtime; the separate completeness flag must pass.
-  constexpr int errno_after_first_include[7] {
+  constexpr int errno_after_first_include[7] /* NOSONAR(cpp:S5945): No extra headers before the errno snapshot. */ {
 #ifdef EAGAIN
     EAGAIN,
 #else

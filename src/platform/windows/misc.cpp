@@ -17,7 +17,7 @@
 #include <boost/program_options/parsers.hpp>
 
 // local includes required before platform includes
-#include "src/boost_process_compat.h"
+#include "src/compat/boost_process.h"
 
 // prevent clang format from "optimizing" the header include order
 // clang-format off

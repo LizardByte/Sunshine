@@ -20,7 +20,7 @@
 
 // local includes
 #ifndef _WIN32
-  #include "src/boost_process_compat.h"
+  #include "src/compat/boost_process.h"
 #endif
 #include "src/config.h"
 #include "src/logging.h"

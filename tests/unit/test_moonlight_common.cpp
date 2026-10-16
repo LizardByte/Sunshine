@@ -18,7 +18,7 @@ namespace {
 }
 
 // Capture errno immediately after including Moonlight.
-#include <src/moonlight_common.h>
+#include <src/compat/moonlight.h>  // NOSONAR(cpp:S954): The baseline must precede this include.
 
 namespace {
   constexpr std::array<int, 7> errno_after_moonlight {
