@@ -24,7 +24,7 @@
 3. **Expose active state and kick through the RTSP owner**
    - In [`src/rtsp.h`](src/rtsp.h) and [`src/rtsp.cpp`](src/rtsp.cpp), add:
      - a read-only `is_client_active(cert)` query over the existing synchronized `_session_slots`.
-   - Live permission changes go through `input::set_permissions(cert, ...)`. It uses the retained-input map, which is already keyed by certificate, so RTSP needs no propagation helper.
+   - Live permission changes go through `input::set_permission(cert, ...)`. It uses the retained-input map, which is already keyed by certificate, so RTSP needs no propagation helper.
    - Reuse `terminate_sessions_by_cert()` for kick. Do not stop the app while another client remains connected, do not disable the certificate, and do not unpair it.
 
 4. **Keep the HTTP surface small**

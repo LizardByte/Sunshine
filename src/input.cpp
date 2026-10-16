@@ -364,20 +364,6 @@ namespace input {
   }
 
   /**
-   * @brief Store new client permissions on stream input state.
-   *
-   * @param input Stream input state.
-   * @param permissions Permissions to apply.
-   * @return `true` when any previously allowed input category is now denied.
-   */
-  bool apply_permissions(input_t &input, const permissions_t &permissions) {
-    const bool mouse_revoked = input.allow_mouse.exchange(permissions.mouse) && !permissions.mouse;
-    const bool keyboard_revoked = input.allow_keyboard.exchange(permissions.keyboard) && !permissions.keyboard;
-    const bool controller_revoked = input.allow_controller.exchange(permissions.controller) && !permissions.controller;
-    return mouse_revoked || keyboard_revoked || controller_revoked;
-  }
-
-  /**
    * @brief Update one client permission.
    *
    * @param input Stream input state.
@@ -395,6 +381,20 @@ namespace input {
         return input.allow_controller.exchange(allowed) && !allowed;
     }
     return false;
+  }
+
+  /**
+   * @brief Store a complete permission set by updating each category.
+   *
+   * @param input Stream input state.
+   * @param permissions Permissions to apply.
+   * @return `true` when any previously allowed input category is now denied.
+   */
+  bool apply_permissions(input_t &input, const permissions_t &permissions) {
+    const bool mouse_revoked = apply_permission(input, permission_e::mouse, permissions.mouse);
+    const bool keyboard_revoked = apply_permission(input, permission_e::keyboard, permissions.keyboard);
+    const bool controller_revoked = apply_permission(input, permission_e::controller, permissions.controller);
+    return mouse_revoked || keyboard_revoked || controller_revoked;
   }
 
   /**
@@ -2434,23 +2434,6 @@ namespace input {
     dispatch_input_task([input = std::move(input)]() {
       destroy_gamepads(input);
     });
-  }
-
-  void set_permissions(const std::string_view session_id, const permissions_t &permissions) {
-    std::shared_ptr<input_t> input;
-    {
-      auto &state = retained_input_state();
-      std::lock_guard lock {state.mutex};
-      const auto iter = state.inputs.find(session_id);
-      if (iter == state.inputs.end()) {
-        return;
-      }
-      input = iter->second;
-    }
-
-    if (apply_permissions(*input, permissions)) {
-      reset(input);
-    }
   }
 
   void set_permission(const std::string_view session_id, const permission_e permission, const bool allowed) {

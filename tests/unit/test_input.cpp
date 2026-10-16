@@ -509,15 +509,15 @@ TEST_F(InputGamepadSessionTest, ClientPermissionsGateMouseInputAndUpdateLive) {
   input::testing::send_relative_mouse_packet(stream_input, 12, -7);
   EXPECT_NE(context().mouse->last_submitted_event().x, 12);
 
-  input::set_permissions(session_id, {});
+  input::set_permission(session_id, input::permission_e::mouse, true);
   input::testing::send_relative_mouse_packet(stream_input, 12, -7);
   EXPECT_EQ(context().mouse->last_submitted_event().x, 12);
 
-  input::set_permissions(session_id, {.mouse = false});
+  input::set_permission(session_id, input::permission_e::mouse, false);
   input::testing::send_relative_mouse_packet(stream_input, -5, 9);
   EXPECT_EQ(context().mouse->last_submitted_event().x, 12);
 
-  input::set_permissions("unknown-client", {.mouse = false});
+  input::set_permission("unknown-client", input::permission_e::mouse, false);
   input::terminate_gamepads(session_id);
 }
 
@@ -543,7 +543,7 @@ TEST_F(InputGamepadSessionTest, ClientPermissionsGateControllerArrival) {
   send_arrival();
   EXPECT_EQ(input::testing::gamepad_id(stream_input, 0), -1);
 
-  input::set_permissions(session_id, {});
+  input::set_permission(session_id, input::permission_e::controller, true);
   send_arrival();
   EXPECT_GE(input::testing::gamepad_id(stream_input, 0), 0);
 }

@@ -316,11 +316,11 @@ describe('paired client management', () => {
 
     expect(friendRow.text()).toContain('troubleshooting.client_active')
     expect(laptopRow.text()).not.toContain('troubleshooting.client_active')
-    expect(friendRow.get('#allow_mouse-friend-uuid').element.checked).toBe(true)
-    expect(friendRow.get('#allow_controller-friend-uuid').element.checked).toBe(false)
+    expect(friendRow.get('#mouse-friend-uuid').element.checked).toBe(true)
+    expect(friendRow.get('#controller-friend-uuid').element.checked).toBe(false)
     expect(laptopRow.get('button.btn-warning').attributes('disabled')).toBeDefined()
 
-    await friendRow.get('#allow_mouse-friend-uuid').trigger('change')
+    await friendRow.get('#mouse-friend-uuid').trigger('change')
     await flushPromises()
     expect(fetch).toHaveBeenCalledWith('./api/clients/permissions', expect.objectContaining({
       method: 'POST',

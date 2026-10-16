@@ -67,17 +67,6 @@ namespace input {
   void terminate_gamepads(std::string_view session_id);
 
   /**
-   * @brief Update the input permissions of a connected or paused paired client.
-   *
-   * Revoking any permission releases held keys, mouse buttons, and the client's gamepad state.
-   * Clients without retained input are unaffected; they receive their permissions from alloc().
-   *
-   * @param session_id Stable paired-client identity used by alloc().
-   * @param permissions Permissions to apply.
-   */
-  void set_permissions(std::string_view session_id, const permissions_t &permissions);
-
-  /**
    * @brief Update one input permission of a connected or paused paired client.
    *
    * Revoking the permission releases held keys, mouse buttons, and the client's gamepad state.

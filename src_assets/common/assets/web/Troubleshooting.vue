@@ -459,10 +459,10 @@
           <div v-for="permission in clientPermissions" :key="permission" class="form-check form-check-inline ms-2 mb-0">
             <input class="form-check-input" type="checkbox"
                    :id="permission + '-' + client.uuid"
-                   :checked="client[permission]"
-                   @change="setClientPermission(client, permission, !client[permission])">
+                   :checked="client['allow_' + permission]"
+                   @change="setClientPermission(client, permission, !client['allow_' + permission])">
             <label class="form-check-label" :for="permission + '-' + client.uuid">
-              {{ $t('troubleshooting.client_' + permission) }}
+              {{ $t('troubleshooting.client_allow_' + permission) }}
             </label>
           </div>
           <button class="btn btn-warning btn-sm ms-2" :disabled="!client.active" @click="kickClient(client.uuid)">
@@ -590,7 +590,7 @@
       data() {
         return {
           clients: [],
-          clientPermissions: ['allow_mouse', 'allow_keyboard', 'allow_controller'],
+          clientPermissions: ['mouse', 'keyboard', 'controller'],
           closeAppPressed: false,
           closeAppStatus: null,
           ddResetPressed: false,
@@ -950,7 +950,7 @@
             },
             body: JSON.stringify({
               uuid: client.uuid,
-              permission: permission.replace('allow_', ''),
+              permission,
               allowed,
             })
           }).finally(() => {
