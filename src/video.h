@@ -8,6 +8,12 @@
 #include <chrono>
 #include <string_view>
 
+// lib includes
+#include <vulkan/vulkan_core.h>
+
+// PyroWave requires Vulkan declarations before its C API header.
+#include <pyrowave.h>
+
 // local includes
 #include "input.h"
 #include "platform/common.h"
@@ -39,7 +45,7 @@ namespace video {
     int slicesPerFrame;  ///< Number of slices per frame.
     int numRefFrames;  ///< Maximum number of reference frames.
     int encoderCscMode;  ///< Requested color range and SDR colorspace; HDR always uses BT.2020 and ST2084.
-    int videoFormat;  ///< Video codec format: 0 = H.264, 1 = HEVC, 2 = AV1.
+    int videoFormat;  ///< Video codec format: 0 = H.264, 1 = HEVC, 2 = AV1, 3 = PyroWave.
     int dynamicRange;  ///< Encoding color depth: 0 = 8-bit, 1 = 10-bit.
     int chromaSamplingType;  ///< Chroma sampling type: 0 = 4:2:0, 1 = 4:4:4.
     int enableIntraRefresh;  ///< Intra refresh setting: 0 = disabled, 1 = enabled.
@@ -653,6 +659,88 @@ namespace video {
    */
   using packet_t = std::unique_ptr<packet_raw_t>;
 
+  namespace pyrowave {
+    inline constexpr int video_format = 3;  ///< Experimental GameStream bitStreamFormat value.
+    inline constexpr uint32_t scm_sdr = 0x00800000;  ///< ServerCodecModeSupport bit for 8-bit 4:2:0.
+    inline constexpr uint32_t scm_hdr = 0x02000000;  ///< ServerCodecModeSupport bit for 10-bit 4:2:0.
+    inline constexpr size_t packet_boundary = 1400;  ///< Maximum native codec packet length inside a frame.
+    inline constexpr size_t max_frame_size = 16 * 1024 * 1024;  ///< Bound on codec output allocation.
+
+    /**
+     * @brief Validate dimensions, color format, framerate, and bitrate for PyroWave.
+     *
+     * @param config Negotiated stream configuration.
+     * @return True for supported 8-bit or 10-bit 4:2:0 configurations.
+     */
+    bool valid_config(const config_t &config);
+
+    /**
+     * @brief Calculate the codec byte budget, including fractional refresh rates.
+     *
+     * @param config Validated stream configuration.
+     * @return Maximum encoded coefficient bytes per frame, or zero for invalid input.
+     */
+    size_t frame_budget(const config_t &config);
+
+    /**
+     * @brief Check a requested profile against the last successful encoder probe.
+     *
+     * @param config Negotiated stream configuration.
+     * @param mode Probed mode: 0 unavailable, 2 SDR, 3 SDR and 10-bit HDR.
+     * @return Whether the requested profile may be accepted.
+     */
+    bool supported(const config_t &config, int mode);
+
+    /**
+     * @brief PyroWave session interface used by the common capture pipeline.
+     */
+    class session_t: public encode_session_t {
+    public:
+      /**
+       * @brief Encode the converted frame as an independent PYRW container.
+       *
+       * @param frame_index Monotonic GameStream frame index.
+       * @return Encoded frame, or null on failure.
+       */
+      virtual packet_t encode(int64_t frame_index) = 0;
+    };
+
+    /**
+     * @brief Create a session with the bundled PyroWave C API and an initialized frame conversion device.
+     *
+     * @param config Negotiated stream configuration.
+     * @param device Converter owning its input frame and hardware context, if any.
+     * @param frames Hardware frame pool retained for converters that borrow its reference.
+     * @return Session, or null when the configuration is invalid or initialization fails.
+     */
+    std::unique_ptr<session_t> make_session(const config_t &config, std::unique_ptr<platf::avcodec_encode_device_t> device, avcodec_buffer_t frames = {});
+
+    /**
+     * @brief C API entry points, injectable for deterministic encoder failure tests.
+     */
+    struct api_t {
+      decltype(&pyrowave_get_api_version) get_api_version = pyrowave_get_api_version;  ///< Query the runtime ABI.
+      decltype(&pyrowave_create_default_device) create_device = pyrowave_create_default_device;  ///< Create the Vulkan device.
+      decltype(&pyrowave_device_destroy) destroy_device = pyrowave_device_destroy;  ///< Destroy the Vulkan device.
+      decltype(&pyrowave_encoder_create) create_encoder = pyrowave_encoder_create;  ///< Create an encoder.
+      decltype(&pyrowave_encoder_destroy) destroy_encoder = pyrowave_encoder_destroy;  ///< Destroy an encoder before its device.
+      decltype(&pyrowave_encoder_encode_cpu) encode_cpu = pyrowave_encoder_encode_cpu;  ///< Upload and encode planar YUV.
+      decltype(&pyrowave_encoder_compute_num_packets) num_packets = pyrowave_encoder_compute_num_packets;  ///< Query the packet allocation.
+      decltype(&pyrowave_encoder_packetize) packetize = pyrowave_encoder_packetize;  ///< Read encoded packets.
+    };
+
+    /**
+     * @brief Create a session with explicitly supplied PyroWave entry points.
+     *
+     * @param config Negotiated stream configuration.
+     * @param device Initialized frame conversion device.
+     * @param api C API implementation, copied into the session.
+     * @param frames Hardware frame pool retained for the converter's lifetime.
+     * @return Initialized session, or null on failure.
+     */
+    std::unique_ptr<session_t> make_session(const config_t &config, std::unique_ptr<platf::avcodec_encode_device_t> device, const api_t &api, avcodec_buffer_t frames = {});
+  }  // namespace pyrowave
+
   /**
    * @brief Raw HDR metadata fields parsed from the display backend.
    */
@@ -686,6 +774,7 @@ namespace video {
 
   extern int active_hevc_mode;
   extern int active_av1_mode;
+  extern int active_pyrowave_mode;  ///< Probed PyroWave profiles: 0 unavailable, 2 SDR, 3 SDR and HDR.
   extern bool last_encoder_probe_supported_ref_frames_invalidation;
   extern std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec;  // 0 - H.264, 1 - HEVC, 2 - AV1
 

@@ -7,6 +7,7 @@
 #include <array>
 #include <atomic>
 #include <bitset>
+#include <limits>
 #include <list>
 #include <thread>
 #include <utility>
@@ -15,6 +16,7 @@
 #include <boost/pointer_cast.hpp>
 
 extern "C" {
+#include <libavutil/hwcontext.h>
 #include <libavutil/imgutils.h>
 #include <libavutil/mastering_display_metadata.h>
 #include <libavutil/opt.h>
@@ -39,6 +41,12 @@ extern "C" {
 #ifdef _WIN32
 extern "C" {
   #include <libavutil/hwcontext_d3d11va.h>
+}
+#endif
+
+#ifdef SUNSHINE_BUILD_VULKAN
+extern "C" {
+  #include <libavutil/hwcontext_vulkan.h>
 }
 #endif
 
@@ -168,6 +176,10 @@ namespace video {
    * @return Effective stream configuration, downgraded to SDR when HDR is unsupported.
    */
   config_t resolve_dynamic_range(const encoder_t &encoder, config_t config) {
+    // PyroWave profiles are independently probed and validated during ANNOUNCE.
+    if (config.videoFormat == pyrowave::video_format) {
+      return config;
+    }
     if (!config.dynamicRange) {
       return config;
     }
@@ -617,6 +629,230 @@ namespace video {
     std::unique_ptr<platf::nvenc_encode_device_t> device;
     bool force_idr = false;
   };
+
+  namespace pyrowave {
+    size_t frame_budget(const config_t &config) {
+      if (config.bitrate <= 0 || config.framerate <= 0 || config.framerateX100 < 0) {
+        return 0;
+      }
+      const auto rate = config.framerateX100 ? uint64_t(config.framerateX100) : uint64_t(config.framerate) * 100;
+      const auto budget = uint64_t(config.bitrate) * 1000 * 100 / (8 * rate);
+      return budget > 0 && budget <= max_frame_size ? size_t(budget) : 0;
+    }
+
+    bool valid_config(const config_t &config) {
+      return config.videoFormat == video_format &&
+             config.width > 0 && config.width <= 16384 && config.width % 2 == 0 &&
+             config.height > 0 && config.height <= 16384 && config.height % 2 == 0 &&
+             (config.dynamicRange == 0 || config.dynamicRange == 1) &&
+             config.chromaSamplingType == 0 && frame_budget(config) != 0;
+    }
+
+    bool supported(const config_t &config, int mode) {
+      return valid_config(config) && (mode == 3 || (mode == 2 && config.dynamicRange == 0));
+    }
+
+    static_assert(PYROWAVE_API_VERSION_MAJOR == 1, "Sunshine requires PyroWave C API 1.x");
+
+    /**
+     * @brief Own conversion, GPU codec state, and reusable host transfer buffers.
+     */
+    class session_impl_t final: public session_t {
+    public:
+      /**
+       * @brief Store the converter and byte budget before initializing the codec.
+       *
+       * @param device Initialized frame conversion device.
+       * @param budget Maximum encoded coefficient bytes per frame.
+       * @param api C API implementation to call.
+       * @param frames Hardware frame pool retained until after converter destruction.
+       */
+      session_impl_t(std::unique_ptr<platf::avcodec_encode_device_t> device, size_t budget, const api_t &api, avcodec_buffer_t frames):
+          frames {std::move(frames)},
+          converter {std::move(device)},
+          api {api},
+          rate_control {budget} {
+      }
+
+      /**
+       * @brief Destroy codec objects in dependency order, including partial initialization.
+       */
+      ~session_impl_t() override {
+        if (encoder) {
+          api.destroy_encoder(encoder);
+        }
+        if (device) {
+          api.destroy_device(device);
+        }
+      }
+
+      /**
+       * @brief Initialize the codec and planar frame for the negotiated color depth.
+       *
+       * @param config Negotiated stream configuration.
+       * @return True when the Vulkan device and encoder are usable.
+       */
+      bool init(const config_t &config) {
+        uint32_t major, minor, patch;
+        api.get_api_version(&major, &minor, &patch);
+        if (major != PYROWAVE_API_VERSION_MAJOR || std::pair {major, minor} < std::pair {uint32_t(PYROWAVE_API_VERSION_MAJOR), uint32_t(PYROWAVE_API_VERSION_MINOR)}) {
+          BOOST_LOG(error) << "Incompatible PyroWave C API: " << major << '.' << minor << '.' << patch;
+          return false;
+        }
+        if (api.create_device(&device) != PYROWAVE_SUCCESS) {
+          BOOST_LOG(error) << "Could not create a PyroWave Vulkan device";
+          return false;
+        }
+        const pyrowave_encoder_create_info info {device, config.width, config.height, PYROWAVE_CHROMA_SUBSAMPLING_420};
+        if (api.create_encoder(&info, &encoder) != PYROWAVE_SUCCESS) {
+          BOOST_LOG(error) << "Could not create a PyroWave encoder";
+          return false;
+        }
+
+        planar.reset(av_frame_alloc());
+        readback.reset(av_frame_alloc());
+        if (!planar || !readback) {
+          return false;
+        }
+        planar->format = config.dynamicRange ? AV_PIX_FMT_YUV420P10 : AV_PIX_FMT_YUV420P;
+        planar->width = config.width;
+        planar->height = config.height;
+        return av_frame_copy_props(planar.get(), converter->frame) >= 0 && av_frame_get_buffer(planar.get(), 0) >= 0;
+      }
+
+      /**
+       * @brief Convert captured pixels, retaining the platform's HDR color conversion.
+       *
+       * @param img Captured image.
+       * @return Zero on success, or a negative conversion/transfer error.
+       */
+      int convert(platf::img_t &img) override {
+        ready = false;
+        if (converter->convert(img)) {
+          return -1;
+        }
+        auto source = converter->frame;
+        if (source->hw_frames_ctx) {
+          av_frame_unref(readback.get());
+          if (av_hwframe_transfer_data(readback.get(), source, 0) < 0) {
+            BOOST_LOG(error) << "Could not download the PyroWave input frame";
+            return -1;
+          }
+          source = readback.get();
+        }
+
+        // Only change plane layout/bit storage here. The capture converter has
+        // already applied the negotiated matrix, range, and HDR transfer function.
+        if (source->format != AV_PIX_FMT_NV12 && source->format != AV_PIX_FMT_P010 && source->format != AV_PIX_FMT_YUV420P && source->format != AV_PIX_FMT_YUV420P10) {
+          BOOST_LOG(error) << "Unsupported PyroWave input pixel format: " << source->format;
+          return -1;
+        }
+        const bool input_10bit = source->format == AV_PIX_FMT_P010 || source->format == AV_PIX_FMT_YUV420P10;
+        if (input_10bit != (planar->format == AV_PIX_FMT_YUV420P10)) {
+          BOOST_LOG(error) << "PyroWave input color depth does not match the negotiated profile";
+          return -1;
+        }
+        auto context = sws_getCachedContext(scaler.release(), source->width, source->height, AVPixelFormat(source->format), planar->width, planar->height, AVPixelFormat(planar->format), SWS_POINT, nullptr, nullptr, nullptr);
+        scaler.reset(context);
+        if (!scaler || av_frame_make_writable(planar.get()) < 0 || sws_scale(scaler.get(), source->data, source->linesize, 0, source->height, planar->data, planar->linesize) != planar->height) {
+          return -1;
+        }
+        ready = true;
+        return 0;
+      }
+
+      /**
+       * @brief Every PyroWave frame is independently decodable.
+       */
+      void request_idr_frame() override {}
+
+      /**
+       * @brief Continue producing independently decodable frames.
+       */
+      void request_normal_frame() override {}
+
+      /**
+       * @brief Ignore reference invalidation because the codec has no inter-frame references.
+       *
+       * @param first_frame First lost frame, unused.
+       * @param last_frame Last lost frame, unused.
+       */
+      void invalidate_ref_frames(int64_t first_frame, int64_t last_frame) override {}
+
+      /**
+       * @brief Encode the latest converted pixels and preserve native packet boundaries.
+       *
+       * @param frame_index GameStream frame sequence number.
+       * @return Independent frame container, or null on codec failure.
+       */
+      packet_t encode(int64_t frame_index) override {
+        if (!ready) {
+          return nullptr;
+        }
+        pyrowave_cpu_buffer input {};
+        input.width = planar->width;
+        input.height = planar->height;
+        input.format = planar->format == AV_PIX_FMT_YUV420P10 ? PYROWAVE_CPU_BUFFER_FORMAT_YUV420P10 : PYROWAVE_CPU_BUFFER_FORMAT_YUV420P;
+        for (int plane = 0; plane < 3; ++plane) {
+          input.data[plane] = planar->data[plane];
+          input.row_stride_in_bytes[plane] = planar->linesize[plane];
+          input.plane_size_in_bytes[plane] = input.row_stride_in_bytes[plane] * (plane ? input.height / 2 : input.height);
+        }
+        size_t count = 0;
+        if (api.encode_cpu(encoder, &input, &rate_control) != PYROWAVE_SUCCESS || api.num_packets(encoder, packet_boundary, &count) != PYROWAVE_SUCCESS || count == 0 || count > std::numeric_limits<uint16_t>::max() || count > max_frame_size / packet_boundary) {
+          BOOST_LOG(error) << "PyroWave encoding failed";
+          return nullptr;
+        }
+
+        packets.resize(count);
+        bitstream.resize(count * packet_boundary);
+        if (api.packetize(encoder, packets.data(), packet_boundary, &count, bitstream.data(), bitstream.size()) != PYROWAVE_SUCCESS || count == 0 || count > packets.size()) {
+          BOOST_LOG(error) << "PyroWave packetization failed";
+          return nullptr;
+        }
+
+        std::vector<uint8_t> output {'P', 'Y', 'R', 'W', 1, uint8_t(count >> 8), uint8_t(count), 0};
+        output.reserve(8 + count * (4 + packet_boundary));
+        for (size_t i = 0; i < count; ++i) {
+          const auto &packet = packets[i];
+          if (!packet.size || packet.size > packet_boundary || packet.offset > bitstream.size() || packet.size > bitstream.size() - packet.offset) {
+            BOOST_LOG(error) << "PyroWave returned an invalid packet range";
+            return nullptr;
+          }
+          auto size = uint32_t(packet.size);
+          output.insert(output.end(), {uint8_t(size >> 24), uint8_t(size >> 16), uint8_t(size >> 8), uint8_t(size)});
+          output.insert(output.end(), bitstream.begin() + packet.offset, bitstream.begin() + packet.offset + packet.size);
+        }
+        return std::make_unique<packet_raw_generic>(std::move(output), frame_index, true);
+      }
+
+    private:
+      avcodec_buffer_t frames;  ///< Hardware pool borrowed by the converter; destroyed last.
+      std::unique_ptr<platf::avcodec_encode_device_t> converter;  ///< Platform color conversion and source frame owner.
+      api_t api;  ///< Runtime C API implementation.
+      pyrowave_device device {};  ///< Vulkan device owned by PyroWave.
+      pyrowave_encoder encoder {};  ///< Codec instance owned by this session.
+      pyrowave_rate_control rate_control;  ///< Per-frame coefficient byte budget.
+      avcodec_frame_t readback;  ///< Downloaded hardware frame, when needed.
+      avcodec_frame_t planar;  ///< Planar 8-bit or 10-bit YCbCr input.
+      sws_t scaler;  ///< Lossless plane-layout conversion for NV12/P010 inputs.
+      std::vector<pyrowave_packet> packets;  ///< Packet offsets returned by the C API.
+      std::vector<uint8_t> bitstream;  ///< Reusable encoded coefficient storage.
+      bool ready = false;  ///< Whether conversion has produced a usable frame.
+    };
+
+    std::unique_ptr<session_t> make_session(const config_t &config, std::unique_ptr<platf::avcodec_encode_device_t> device, const api_t &api, avcodec_buffer_t frames) {
+      if (!valid_config(config) || !device || !device->frame || device->frame->width != config.width || device->frame->height != config.height) {
+        return nullptr;
+      }
+      auto session = std::make_unique<session_impl_t>(std::move(device), frame_budget(config), api, std::move(frames));
+      return session->init(config) ? std::move(session) : nullptr;
+    }
+
+    std::unique_ptr<session_t> make_session(const config_t &config, std::unique_ptr<platf::avcodec_encode_device_t> device, avcodec_buffer_t frames) {
+      return make_session(config, std::move(device), api_t {}, std::move(frames));
+    }
+  }  // namespace pyrowave
 
   /**
    * @brief Context object used while synchronizing encode sessions.
@@ -1471,6 +1707,7 @@ namespace video {
   static encoder_t *chosen_encoder;
   int active_hevc_mode;  ///< HEVC mode selected by the most recent encoder probe.
   int active_av1_mode;  ///< AV1 mode selected by the most recent encoder probe.
+  int active_pyrowave_mode;  ///< PyroWave profiles validated on the selected capture backend.
   bool last_encoder_probe_supported_ref_frames_invalidation = false;  ///< Whether the last probe found reference-frame invalidation support.
   std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec = {};  ///< YUV444 support discovered for each probed codec.
 
@@ -1944,6 +2181,15 @@ namespace video {
       return encode_avcodec(frame_nr, *avcodec_session, packets, channel_data, frame_timestamp);
     } else if (auto nvenc_session = dynamic_cast<nvenc_encode_session_t *>(&session)) {
       return encode_nvenc(frame_nr, *nvenc_session, packets, channel_data, frame_timestamp);
+    } else if (auto pyrowave_session = dynamic_cast<pyrowave::session_t *>(&session)) {
+      auto packet = pyrowave_session->encode(frame_nr);
+      if (!packet) {
+        return -1;
+      }
+      packet->channel_data = channel_data;
+      packet->frame_timestamp = frame_timestamp;
+      packets->raise(std::move(packet));
+      return 0;
     }
 
     return -1;
@@ -2364,6 +2610,104 @@ namespace video {
   }
 
   /**
+   * @brief Prepare the existing capture converter for PyroWave without opening an FFmpeg encoder.
+   * @param encoder Encoder descriptor selecting the capture memory type.
+   * @param config Negotiated PyroWave configuration.
+   * @param width Captured image width.
+   * @param height Captured image height.
+   * @param device Platform color-conversion device.
+   * @return PyroWave session, or null if conversion or encoding is unavailable.
+   */
+  std::unique_ptr<encode_session_t> make_pyrowave_encode_session(const encoder_t &encoder, const config_t &config, int width, int height, std::unique_ptr<platf::avcodec_encode_device_t> device) {
+    if (!pyrowave::valid_config(config) || !device || !encoder.platform_formats || width <= 0 || height <= 0) {
+      return nullptr;
+    }
+    const auto colorspace = device->colorspace;
+    // The software converter accepts 8-bit capture pixels and cannot preserve HDR.
+    if (config.dynamicRange && !device->hardware) {
+      return nullptr;
+    }
+
+    auto formats = dynamic_cast<const encoder_platform_formats_avcodec *>(encoder.platform_formats.get());
+#ifdef _WIN32
+    // Native NVENC, QSV, and AMF all use the same D3D11 capture converter.
+    // PyroWave needs the base D3D11 frame, without a derived QSV context.
+    static const encoder_platform_formats_avcodec d3d_formats {
+      AV_HWDEVICE_TYPE_D3D11VA,
+      AV_HWDEVICE_TYPE_NONE,
+      AV_PIX_FMT_D3D11,
+      AV_PIX_FMT_NV12,
+      AV_PIX_FMT_P010,
+      AV_PIX_FMT_NONE,
+      AV_PIX_FMT_NONE,
+      dxgi_init_avcodec_hardware_input_buffer
+    };
+    if (encoder.platform_formats->dev_type == platf::mem_type_e::dxgi) {
+      formats = &d3d_formats;
+    }
+#endif
+    if (!formats) {
+      return nullptr;
+    }
+    const auto sw_format = config.dynamicRange ? formats->avcodec_pix_fmt_10bit : formats->avcodec_pix_fmt_8bit;
+    avcodec_frame_t frame {av_frame_alloc()};
+    if (!frame) {
+      return nullptr;
+    }
+    frame->width = config.width;
+    frame->height = config.height;
+    const auto metadata = avcodec_colorspace_from_sunshine_colorspace(colorspace);
+    frame->color_range = metadata.range;
+    frame->color_primaries = metadata.primaries;
+    frame->color_trc = metadata.transfer_function;
+    frame->colorspace = metadata.matrix;
+
+    avcodec_buffer_t frames;
+    if (device->hardware) {
+      if (!formats->init_avcodec_hardware_input_buffer) {
+        return nullptr;
+      }
+      auto context = formats->init_avcodec_hardware_input_buffer(device.get());
+      if (context.has_right()) {
+        return nullptr;
+      }
+      frames.reset(av_hwframe_ctx_alloc(context.left().get()));
+      if (!frames) {
+        return nullptr;
+      }
+      auto hw_frames = reinterpret_cast<AVHWFramesContext *>(frames->data);
+      hw_frames->format = formats->avcodec_dev_pix_fmt;
+      hw_frames->sw_format = sw_format;
+      hw_frames->width = config.width;
+      hw_frames->height = config.height;
+      device->init_hwframes(hw_frames);
+#ifdef SUNSHINE_BUILD_VULKAN
+      if (hw_frames->format == AV_PIX_FMT_VULKAN) {
+        auto vk_frames = static_cast<AVVulkanFramesContext *>(hw_frames->hwctx);
+        vk_frames->usage = static_cast<VkImageUsageFlagBits>((vk_frames->usage & ~VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR) | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+      }
+#endif
+      if (av_hwframe_ctx_init(frames.get()) < 0) {
+        return nullptr;
+      }
+      frame->format = hw_frames->format;
+    } else {
+      frame->format = sw_format;
+      auto converter = std::make_unique<avcodec_software_encode_device_t>();
+      if (converter->init(width, height, frame.get(), sw_format, false)) {
+        return nullptr;
+      }
+      converter->colorspace = colorspace;
+      device = std::move(converter);
+    }
+    if (device->set_frame(frame.release(), frames.get())) {
+      return nullptr;
+    }
+    device->apply_colorspace();
+    return pyrowave::make_session(config, std::move(device), std::move(frames));
+  }
+
+  /**
    * @brief Create encode session.
    *
    * @param disp Display connection or display handle.
@@ -2375,6 +2719,9 @@ namespace video {
    * @return Constructed encode session object.
    */
   std::unique_ptr<encode_session_t> make_encode_session(platf::display_t *disp, const encoder_t &encoder, const config_t &config, int width, int height, std::unique_ptr<platf::encode_device_t> encode_device) {
+    if (config.videoFormat == pyrowave::video_format) {
+      return make_pyrowave_encode_session(encoder, config, width, height, boost::dynamic_pointer_cast<platf::avcodec_encode_device_t>(std::move(encode_device)));
+    }
     if (dynamic_cast<platf::avcodec_encode_device_t *>(encode_device.get())) {
       auto avcodec_encode_device = boost::dynamic_pointer_cast<platf::avcodec_encode_device_t>(std::move(encode_device));
       return make_avcodec_encode_session(disp, encoder, config, width, height, std::move(avcodec_encode_device));
@@ -2600,7 +2947,7 @@ namespace video {
     }
 
     {
-      auto encoder_name = encoder.codec_from_config(config).name;
+      auto encoder_name = config.videoFormat == pyrowave::video_format ? "pyrowave"s : encoder.codec_from_config(config).name;
 
       BOOST_LOG(info) << "Creating encoder " << logging::bracket(encoder_name);
 
@@ -2609,7 +2956,7 @@ namespace video {
       BOOST_LOG(info) << "Color range: " << (colorspace.full_range ? "JPEG" : "MPEG");
     }
 
-    if (dynamic_cast<const encoder_platform_formats_avcodec *>(encoder.platform_formats.get())) {
+    if (config.videoFormat == pyrowave::video_format || dynamic_cast<const encoder_platform_formats_avcodec *>(encoder.platform_formats.get())) {
       result = disp.make_avcodec_encode_device(pix_fmt);
     } else if (dynamic_cast<const encoder_platform_formats_nvenc *>(encoder.platform_formats.get())) {
       result = disp.make_nvenc_encode_device(pix_fmt);
@@ -3261,6 +3608,32 @@ namespace video {
     return true;
   }
 
+  /**
+   * @brief Probe PyroWave SDR and HDR using the selected capture and color-conversion backend.
+   * @param encoder Encoder descriptor selecting the capture backend.
+   */
+  void probe_pyrowave(const encoder_t &encoder) {
+    active_pyrowave_mode = 0;
+    if (!config::video.pyrowave) {
+      return;
+    }
+    config_t probe {1920, 1080, 60, 6000, 200000, 1, 0, 3, pyrowave::video_format, 0, 0, 0};
+    const auto output_name = display_device::map_output_name(config::video.output_name);
+    std::shared_ptr<platf::display_t> display;
+    reset_display(display, encoder.platform_formats->dev_type, output_name, probe);
+    if (!display || validate_config(display, encoder, probe) < 0) {
+      BOOST_LOG(warning) << "PyroWave is unavailable on the selected capture backend";
+      return;
+    }
+    active_pyrowave_mode = 2;
+    probe.dynamicRange = 1;
+    reset_display(display, encoder.platform_formats->dev_type, output_name, probe);
+    if (display && validate_config(display, encoder, probe) >= 0) {
+      active_pyrowave_mode = 3;
+    }
+    BOOST_LOG(info) << "Found PyroWave encoder (" << (active_pyrowave_mode == 3 ? "SDR and HDR" : "SDR") << ')';
+  }
+
   int probe_encoders() {
     if (!allow_encoder_probing()) {
       // Error already logged
@@ -3271,6 +3644,7 @@ namespace video {
 
     // If we already have a good encoder, check to see if another probe is required
     if (chosen_encoder && !(chosen_encoder->flags & ALWAYS_REPROBE) && !platf::needs_encoder_reenumeration()) {
+      probe_pyrowave(*chosen_encoder);
       return 0;
     }
 
@@ -3279,6 +3653,7 @@ namespace video {
     chosen_encoder = nullptr;
     active_hevc_mode = config::video.hevc_mode;
     active_av1_mode = config::video.av1_mode;
+    active_pyrowave_mode = 0;
     last_encoder_probe_supported_ref_frames_invalidation = false;
 
     auto adjust_encoder_constraints_hevc = [&](encoder_t *encoder) {
@@ -3428,6 +3803,8 @@ namespace video {
     BOOST_LOG(info);
 
     auto &encoder = *chosen_encoder;
+
+    probe_pyrowave(encoder);
 
     last_encoder_probe_supported_ref_frames_invalidation = (encoder.flags & REF_FRAMES_INVALIDATION);
     last_encoder_probe_supported_yuv444_for_codec[0] = encoder.h264[encoder_t::PASSED] &&

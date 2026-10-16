@@ -909,6 +909,11 @@ namespace rtsp_stream {
       ss << "a=rtpmap:98 AV1/90000"sv << std::endl;
     }
 
+    if (video::active_pyrowave_mode >= 2) {
+      ss << "a=rtpmap:99 PYROWAVE/90000"sv << std::endl;
+      ss << "a=x-ss-video[0].pyrowaveFrameFormat:PYRW/1"sv << std::endl;
+    }
+
     if (!session.surround_params.empty()) {
       // If we have our own surround parameters, advertise them twice first
       ss << "a=fmtp:97 surround-params="sv << session.surround_params << std::endl;
@@ -1223,6 +1228,12 @@ namespace rtsp_stream {
 
       BOOST_LOG(debug) << "Final adjusted video encoding bitrate is "sv << configuredBitrateKbps << " Kbps"sv;
       config.monitor.bitrate = (int) configuredBitrateKbps;
+    }
+
+    if (config.monitor.videoFormat < 0 || config.monitor.videoFormat > video::pyrowave::video_format || (config.monitor.videoFormat == video::pyrowave::video_format && !video::pyrowave::supported(config.monitor, video::active_pyrowave_mode))) {
+      BOOST_LOG(warning) << "Client requested an unavailable video format or PyroWave profile";
+      respond(sock, session, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
+      return;
     }
 
     if (config.monitor.videoFormat == 1 && video::active_hevc_mode == 1) {

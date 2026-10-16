@@ -1235,6 +1235,12 @@ namespace nvhttp {
     if ((video::active_av1_mode == 4 || video::active_av1_mode == 5) && video::last_encoder_probe_supported_yuv444_for_codec[2]) {
       codec_mode_flags |= SCM_AV1_HIGH10_444;
     }
+    if (video::active_pyrowave_mode >= 2) {
+      codec_mode_flags |= video::pyrowave::scm_sdr;
+    }
+    if (video::active_pyrowave_mode == 3) {
+      codec_mode_flags |= video::pyrowave::scm_hdr;
+    }
     return codec_mode_flags;
   }
 
