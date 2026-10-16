@@ -2,10 +2,14 @@
  * @file tests/unit/test_vaapi_compat.cpp
  * @brief Verify the system libva compatibility functions used by prebuilt FFmpeg.
  */
+
+// test includes
+#include "../tests_common.h"
+
 #if defined(__linux__) || defined(__FreeBSD__)
 
+  // standard includes
   #include <cstdint>
-  #include <gtest/gtest.h>
 
 extern "C" {
   #include <va/va.h>
