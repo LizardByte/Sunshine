@@ -8,8 +8,11 @@
 #include <cstddef>
 #include <cstring>
 #include <ifaddrs.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
+#ifdef __linux__
+  // Netlink is a Linux-kernel API: these headers exist only on Linux.
+  #include <linux/netlink.h>
+  #include <linux/rtnetlink.h>
+#endif
 #include <net/if.h>
 #include <netinet/in.h>
 #include <poll.h>
@@ -340,8 +343,10 @@ namespace platf::publish {
 
   std::optional<std::vector<ServedAddress>> published_addresses;  ///< Committed snapshot; nullopt while withdrawn.
 
+#ifdef __linux__
   int netlink_fd = -1;  ///< Netlink socket watched for interface/address changes, -1 when not installed.
   avahi::Watch *netlink_watch = nullptr;  ///< Avahi poll watch for the netlink socket, nullptr when not installed.
+#endif
 
   /* Enumerate the local interface addresses available for publication. */
   std::vector<ServedAddress> enumerate_interface_addresses() {
@@ -612,6 +617,7 @@ namespace platf::publish {
     create_services(client.get(), false);
   }
 
+#ifdef __linux__
   /**
    * @brief Refresh service publication after an interface/address change.
    *
@@ -627,9 +633,11 @@ namespace platf::publish {
 
     refresh_service_addresses();
   }
+#endif
 
   /* Subscribe to interface/address changes on the Avahi poll thread. */
   bool install_address_change_watch() {
+#ifdef __linux__
     if (netlink_watch) {
       return true;
     }
@@ -673,6 +681,12 @@ namespace platf::publish {
     netlink_fd = fd;
     netlink_watch = watch;
     return true;
+#else
+    // Netlink is a Linux-kernel API, so no address-change watch exists on
+    // other platforms. Discovery still works; records just don't
+    // auto-refresh on network changes (the pre-watch behavior).
+    return false;
+#endif
   }
 
   /**
@@ -733,6 +747,7 @@ namespace platf::publish {
 
       // The poll thread has exited, so no watch callback can be in flight:
       // release the address-change watch and its socket now.
+#ifdef __linux__
       if (netlink_watch) {
         if (const auto *poll_api = avahi::simple_poll_get(poll.get()); poll_api) {
           poll_api->watch_free(netlink_watch);
@@ -743,6 +758,7 @@ namespace platf::publish {
         close(netlink_fd);
         netlink_fd = -1;
       }
+#endif
 
       poll.reset();
     }

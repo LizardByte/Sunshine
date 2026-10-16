@@ -379,7 +379,9 @@ namespace platf::publish {
    * @details Opens a netlink route socket and registers it as an Avahi poll
    * watch, so address/link changes dispatch the refresh on the existing
    * poll thread. Best-effort: returns false when the watch cannot be
-   * installed, and discovery continues without refresh.
+   * installed, and discovery continues without refresh. Linux-only:
+   * netlink is a Linux-kernel API, so on other platforms this always
+   * returns false and no watch is installed.
    * @return True when the watch is installed (or was already installed).
    */
   bool install_address_change_watch();
