@@ -13,6 +13,9 @@
   #include <string>
   #include <vector>
 
+  // lib includes
+  #include <ffnvcodec/dynlink_cuda.h>
+
   // local includes
   #include "src/video_colorspace.h"
 #endif
@@ -58,6 +61,33 @@ namespace cuda {
    * @return FFmpeg encoding device context.
    */
   std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_gl_encode_device(int width, int height, int offset_x, int offset_y);
+
+  /**
+   * @brief Functions used to query the PCI bus id of a CUDA device.
+   */
+  struct cuda_pci_accessors_t {
+    bool (*is_initialized)();  ///< Report whether the CUDA function table is loaded.
+    int (*initialize)();  ///< Load the CUDA function table, returning 0 on success.
+    tcuDeviceGet *get_device;  ///< Resolve a CUDA device index, returning CUDA_SUCCESS on success.
+    tcuDeviceGetPCIBusId *get_pci_bus_id;  ///< Write the device bus id, returning CUDA_SUCCESS on success.
+  };
+
+  /**
+   * @brief Query the PCI bus id of a CUDA device.
+   * @param index CUDA device index to query.
+   * @return Lowercase PCI bus id (e.g. "00000000:0f:00.0"), or no value when
+   *         CUDA is unavailable or the query fails.
+   */
+  std::optional<std::string> device_pci_bus_id(int index);
+
+  /**
+   * @brief Query the PCI bus id of a CUDA device with injected driver operations.
+   * @param index CUDA device index to query.
+   * @param accessors Driver operations used to initialize CUDA and query the device.
+   * @return Lowercase PCI bus id (e.g. "00000000:0f:00.0"), or no value when
+   *         CUDA is unavailable or the query fails.
+   */
+  std::optional<std::string> device_pci_bus_id(int index, const cuda_pci_accessors_t &accessors);
 
   int init();
 }  // namespace cuda
@@ -110,9 +140,9 @@ namespace cuda {
     static std::optional<tex_t> make(int height, int pitch);
 
     tex_t();
-    tex_t(tex_t &&);
+    tex_t(tex_t &&) noexcept;
 
-    tex_t &operator=(tex_t &&other);
+    tex_t &operator=(tex_t &&other) noexcept;
 
     ~tex_t();
 
