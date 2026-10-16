@@ -6,9 +6,23 @@
 
 #include "src/platform/common.h"
 
+#include <cstdint>
+#include <map>
+#include <vector>
+
 extern "C" struct AVBufferRef;
 
 namespace vk {
+
+  /**
+   * @brief Query DRM format modifiers supported by the Vulkan driver for common capture formats.
+   *
+   * This queries the Vulkan driver for modifiers it can import via VK_EXT_image_drm_format_modifier.
+   * The returned map is keyed by DRM fourcc format code (e.g. DRM_FORMAT_ARGB8888).
+   *
+   * @return Map of DRM format to supported modifiers, or empty map if query fails.
+   */
+  std::map<std::uint32_t, std::vector<std::uint64_t>> get_supported_capture_modifiers();
 
   /**
    * @brief Initialize Vulkan hardware device for FFmpeg encoding.

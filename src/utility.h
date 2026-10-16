@@ -6,6 +6,8 @@
 
 // standard includes
 #include <algorithm>
+#include <array>
+#include <bit>
 #include <condition_variable>
 #include <cstddef>
 #include <memory>
@@ -39,7 +41,7 @@ struct argument_type<T(U)> {
   /**
    * @brief Type extracted from the matched function signature.
    */
-  typedef U type;
+  using type = U;
 };
 
 /**
@@ -328,11 +330,11 @@ namespace util {
     FailGuard() = delete;
 
     /**
-     * @brief Construct a fail guard that owns the cleanup callback.
+     * @brief Explicitly construct a fail guard that owns the cleanup callback.
      *
      * @param f Callable executed by the helper.
      */
-    FailGuard(T &&f) noexcept:
+    explicit FailGuard(T &&f) noexcept:
         _func {std::forward<T>(f)} {
     }
 
@@ -342,9 +344,8 @@ namespace util {
      * @param other Source object whose state is copied or moved into this object.
      */
     FailGuard(FailGuard &&other) noexcept:
+        failure {other.failure},
         _func {std::move(other._func)} {
-      this->failure = other.failure;
-
       other.failure = false;
     }
 
@@ -411,10 +412,10 @@ namespace util {
     /**
      * @brief Integral type used for one formatted hex element.
      */
-    typedef T elem_type;
+    using elem_type = T;
 
   private:
-    const char _bits[16] {
+    const std::array<char, 16> _bits {
       '0',
       '1',
       '2',
@@ -433,27 +434,27 @@ namespace util {
       'F'
     };
 
-    char _hex[sizeof(elem_type) * 2];
+    std::array<char, sizeof(elem_type) * 2> _hex;  ///< Formatted hexadecimal characters.
 
   public:
     /**
-     * @brief Construct a hexadecimal byte view for the supplied value.
+     * @brief Format the supplied object's byte representation as hexadecimal text.
      *
      * @param elem Element value being serialized as bytes.
      * @param rev Whether bytes should be emitted in reverse order.
      */
     Hex(const elem_type &elem, bool rev) {
       if (!rev) {
-        const uint8_t *data = reinterpret_cast<const uint8_t *>(&elem) + sizeof(elem_type) - 1;
+        const auto *data = reinterpret_cast<const std::byte *>(&elem) + sizeof(elem_type) - 1;
         for (auto it = begin(); it < cend();) {
-          *it++ = _bits[*data / 16];
-          *it++ = _bits[*data-- % 16];
+          *it++ = _bits[std::to_integer<unsigned>(*data) / 16];
+          *it++ = _bits[std::to_integer<unsigned>(*data--) % 16];
         }
       } else {
-        const uint8_t *data = reinterpret_cast<const uint8_t *>(&elem);
+        const auto *data = reinterpret_cast<const std::byte *>(&elem);
         for (auto it = begin(); it < cend();) {
-          *it++ = _bits[*data / 16];
-          *it++ = _bits[*data++ % 16];
+          *it++ = _bits[std::to_integer<unsigned>(*data) / 16];
+          *it++ = _bits[std::to_integer<unsigned>(*data++) % 16];
         }
       }
     }
@@ -464,7 +465,7 @@ namespace util {
      * @return Iterator to the first element.
      */
     char *begin() {
-      return _hex;
+      return _hex.data();
     }
 
     /**
@@ -473,7 +474,7 @@ namespace util {
      * @return Iterator one past the last element.
      */
     char *end() {
-      return _hex + sizeof(elem_type) * 2;
+      return _hex.data() + _hex.size();
     }
 
     /**
@@ -482,7 +483,7 @@ namespace util {
      * @return Iterator to the first element.
      */
     const char *begin() const {
-      return _hex;
+      return _hex.data();
     }
 
     /**
@@ -491,7 +492,7 @@ namespace util {
      * @return Iterator one past the last element.
      */
     const char *end() const {
-      return _hex + sizeof(elem_type) * 2;
+      return _hex.data() + _hex.size();
     }
 
     /**
@@ -500,7 +501,7 @@ namespace util {
      * @return Pointer to the first formatted hexadecimal character.
      */
     const char *cbegin() const {
-      return _hex;
+      return _hex.data();
     }
 
     /**
@@ -509,7 +510,7 @@ namespace util {
      * @return Pointer one past the last formatted hexadecimal character.
      */
     const char *cend() const {
-      return _hex + sizeof(elem_type) * 2;
+      return _hex.data() + _hex.size();
     }
 
     /**
@@ -573,7 +574,7 @@ namespace util {
       return hex;
     }
 
-    const char _bits[16] {
+    const std::array<char, 16> _bits {
       '0',
       '1',
       '2',
@@ -621,7 +622,9 @@ namespace util {
   }
 
   /**
-   * @brief Convert from hex.
+   * @brief Decode hexadecimal text into an object's byte representation.
+   *
+   * Digits beyond the size of the object are ignored, keeping the low-order bytes.
    *
    * @param hex Hexadecimal text to decode.
    * @param rev Whether bytes should be emitted in reverse order.
@@ -629,62 +632,55 @@ namespace util {
    */
   template<class T>
   T from_hex(const std::string_view &hex, bool rev = false) {
-    std::uint8_t buf[sizeof(T)];
+    std::array<std::byte, sizeof(T)> buf;
 
-    static char constexpr shift_bit = 'a' - 'A';
-
-    auto is_convertable = [](char ch) -> bool {
+    auto is_convertable = [](char ch) {
       if (isdigit(ch)) {
         return true;
       }
 
-      ch |= shift_bit;
-
-      if ('a' > ch || ch > 'z') {
-        return false;
-      }
-
-      return true;
+      return ('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z');
     };
 
-    auto buf_size = std::count_if(std::begin(hex), std::end(hex), is_convertable) / 2;
+    auto buf_size = std::min<std::size_t>(std::ranges::count_if(hex, is_convertable) / 2, sizeof(T));
     auto padding = sizeof(T) - buf_size;
 
     const char *data = hex.data() + hex.size() - 1;
 
-    auto convert = [](char ch) -> std::uint8_t {
+    auto convert = [](char ch) {
       if (ch >= '0' && ch <= '9') {
-        return (std::uint8_t) ch - '0';
+        return static_cast<std::byte>(ch - '0');
       }
 
-      return (std::uint8_t) (ch | (char) 32) - 'a' + (char) 10;
+      const auto lowercase = std::byte {static_cast<unsigned char>(ch)} | std::byte {'a' - 'A'};
+      return static_cast<std::byte>(std::to_integer<unsigned>(lowercase) - 'a' + 10);
     };
 
-    std::fill_n(buf + buf_size, padding, 0);
+    std::fill_n(buf.begin() + buf_size, padding, std::byte {0});
 
-    std::for_each_n(buf, buf_size, [&](auto &el) {
+    std::for_each_n(buf.begin(), buf_size, [&](auto &el) {
       while (!is_convertable(*data)) {
         --data;
       }
-      std::uint8_t ch_r = convert(*data--);
+      const auto ch_r = convert(*data--);
 
       while (!is_convertable(*data)) {
         --data;
       }
-      std::uint8_t ch_l = convert(*data--);
+      const auto ch_l = convert(*data--);
 
       el = (ch_l << 4) | ch_r;
     });
 
     if (rev) {
-      std::reverse(std::begin(buf), std::end(buf));
+      std::ranges::reverse(buf);
     }
 
-    return *reinterpret_cast<T *>(buf);
+    return std::bit_cast<T>(buf);
   }
 
   /**
-   * @brief Convert from hex vec.
+   * @brief Decode hexadecimal text into a string containing the decoded bytes.
    *
    * @param hex Hexadecimal text to decode.
    * @param rev Whether bytes should be emitted in reverse order.
@@ -693,50 +689,44 @@ namespace util {
   inline std::string from_hex_vec(const std::string &hex, bool rev = false) {
     std::string buf;
 
-    static char constexpr shift_bit = 'a' - 'A';
-    auto is_convertable = [](char ch) -> bool {
+    auto is_convertable = [](char ch) {
       if (isdigit(ch)) {
         return true;
       }
 
-      ch |= shift_bit;
-
-      if ('a' > ch || ch > 'z') {
-        return false;
-      }
-
-      return true;
+      return ('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z');
     };
 
-    auto buf_size = std::count_if(std::begin(hex), std::end(hex), is_convertable) / 2;
+    auto buf_size = std::ranges::count_if(hex, is_convertable) / 2;
     buf.resize(buf_size);
 
     const char *data = hex.data() + hex.size() - 1;
 
-    auto convert = [](char ch) -> std::uint8_t {
+    auto convert = [](char ch) {
       if (ch >= '0' && ch <= '9') {
-        return (std::uint8_t) ch - '0';
+        return static_cast<std::byte>(ch - '0');
       }
 
-      return (std::uint8_t) (ch | (char) 32) - 'a' + (char) 10;
+      const auto lowercase = std::byte {static_cast<unsigned char>(ch)} | std::byte {'a' - 'A'};
+      return static_cast<std::byte>(std::to_integer<unsigned>(lowercase) - 'a' + 10);
     };
 
     for (auto &el : buf) {
       while (!is_convertable(*data)) {
         --data;
       }
-      std::uint8_t ch_r = convert(*data--);
+      const auto ch_r = convert(*data--);
 
       while (!is_convertable(*data)) {
         --data;
       }
-      std::uint8_t ch_l = convert(*data--);
+      const auto ch_l = convert(*data--);
 
-      el = (ch_l << 4) | ch_r;
+      el = std::to_integer<char>((ch_l << 4) | ch_r);
     }
 
     if (rev) {
-      std::reverse(std::begin(buf), std::end(buf));
+      std::ranges::reverse(buf);
     }
 
     return buf;
@@ -754,15 +744,14 @@ namespace util {
     using value_type = T;
 
     /**
-     * @brief Hash a value by viewing its object representation as bytes.
+     * @brief Hash a copy of the object's representation using the standard string-view hash.
      *
      * @param value Value whose raw bytes are hashed.
      * @return Hash value for the byte representation.
      */
     std::size_t operator()(const value_type &value) const {
-      const auto *p = reinterpret_cast<const char *>(&value);
-
-      return std::hash<std::string_view> {}(std::string_view {p, sizeof(value_type)});
+      const auto bytes = std::bit_cast<std::array<char, sizeof(value_type)>>(value);
+      return std::hash<std::string_view> {}(std::string_view {bytes.data(), bytes.size()});
     }
   };
 
@@ -898,24 +887,28 @@ namespace util {
     /**
      * @brief Pointer type stored by the unique pointer wrapper.
      */
-    using pointer = element_type *;
+    using pointer = element_type *;  // NOSONAR(cpp:S5008): Native C handle instantiations must retain HANDLE, PSID, EGLDisplay and VADisplay pointer types.
     /**
      * @brief Const pointer type exposed by the unique pointer wrapper.
      */
-    using const_pointer = element_type const *;
+    using const_pointer = element_type const *;  // NOSONAR(cpp:S5008): Native C handle instantiations must retain HANDLE, PSID, EGLDisplay and VADisplay pointer types.
     /**
      * @brief Callable type used to release the managed pointer.
      */
     using deleter_type = D;
 
-    constexpr uniq_ptr() noexcept:
-        _p {nullptr} {
-    }
+    /**
+     * @brief Initialize an empty unique ownership wrapper.
+     */
+    constexpr uniq_ptr() noexcept = default;
 
     /**
-     * @brief Construct a unique ownership wrapper.
+     * @brief Construct an empty wrapper implicitly from nullptr, matching std::unique_ptr.
      */
-    constexpr uniq_ptr(std::nullptr_t) noexcept:
+#ifndef DOXYGEN
+    explicit(false)
+#endif
+      constexpr uniq_ptr(std::nullptr_t) noexcept:
         _p {nullptr} {
     }
 
@@ -923,34 +916,40 @@ namespace util {
     uniq_ptr &operator=(const uniq_ptr &other) noexcept = delete;
 
     /**
-     * @brief Construct a unique ownership wrapper.
+     * @brief Explicitly construct a unique ownership wrapper.
      *
      * @param p Pointer passed to the deleter or conversion helper.
      */
     template<class V>
-    uniq_ptr(V *p) noexcept:
+    explicit uniq_ptr(V *p) noexcept:
         _p {p} {
       static_assert(std::is_same_v<element_type, void> || std::is_same_v<element_type, V> || std::is_base_of_v<element_type, V>, "element_type must be base class of V");
     }
 
     /**
-     * @brief Construct a unique ownership wrapper.
+     * @brief Transfer compatible standard unique-pointer ownership implicitly.
      *
      * @param uniq Unique pointer whose owned value is transferred.
      */
     template<class V>
-    uniq_ptr(std::unique_ptr<V, deleter_type> &&uniq) noexcept:
+#ifndef DOXYGEN
+    explicit(false)
+#endif
+      uniq_ptr(std::unique_ptr<V, deleter_type> &&uniq) noexcept:
         _p {uniq.release()} {
       static_assert(std::is_same_v<element_type, void> || std::is_same_v<T, V> || std::is_base_of_v<element_type, V>, "element_type must be base class of V");
     }
 
     /**
-     * @brief Construct a unique ownership wrapper.
+     * @brief Transfer compatible Sunshine unique-pointer ownership implicitly.
      *
      * @param other Source object whose state is copied or moved into this object.
      */
     template<class V>
-    uniq_ptr(uniq_ptr<V, deleter_type> &&other) noexcept:
+#ifndef DOXYGEN
+    explicit(false)
+#endif
+      uniq_ptr(uniq_ptr<V, deleter_type> &&other) noexcept:
         _p {other.release()} {
       static_assert(std::is_same_v<element_type, void> || std::is_same_v<T, V> || std::is_base_of_v<element_type, V>, "element_type must be base class of V");
     }
@@ -1110,7 +1109,7 @@ namespace util {
     }
 
   protected:
-    pointer _p;  ///< Pointer currently owned by the wrapper.
+    pointer _p {nullptr};  ///< Pointer currently owned by the wrapper, initially empty.
     deleter_type _deleter;  ///< Callable used to release `_p`.
   };
 
@@ -1280,21 +1279,21 @@ namespace util {
     }
 
     /**
-     * @brief Construct an owning or non-owning wrapper around a raw pointer.
+     * @brief Explicitly construct an owning or non-owning wrapper around a raw pointer.
      *
      * @param p Pointer passed to the deleter or conversion helper.
      */
-    wrap_ptr(pointer p):
+    explicit wrap_ptr(pointer p):
         _own_ptr {false},
         _p {p} {
     }
 
     /**
-     * @brief Construct an owning or non-owning wrapper around a raw pointer.
+     * @brief Explicitly construct an owning or non-owning wrapper around a raw pointer.
      *
      * @param uniq_p Uniq p.
      */
-    wrap_ptr(std::unique_ptr<element_type> &&uniq_p):
+    explicit wrap_ptr(std::unique_ptr<element_type> &&uniq_p):
         _own_ptr {true},
         _p {uniq_p.release()} {
     }
@@ -1427,15 +1426,17 @@ namespace util {
    * @brief Helper specialization for optional values.
    */
   template<class T>
-  struct __false_v<T, std::enable_if_t<instantiation_of_v<std::optional, T>>> {
+    requires instantiation_of_v<std::optional, T>
+  struct __false_v<T> {
     static constexpr std::nullopt_t value = std::nullopt;  ///< Value.
   };
 
   /**
-   * @brief Enables an overload only when the provided type is a pointer.
+   * @brief Select a null sentinel for raw and supported smart pointer types.
    */
   template<class T>
-  struct __false_v<T, std::enable_if_t<is_pointer_v<T>>> {
+    requires is_pointer_v<T>
+  struct __false_v<T> {
     static constexpr std::nullptr_t value = nullptr;  ///< Value.
   };
 
@@ -1443,7 +1444,8 @@ namespace util {
    * @brief Type trait comparing a value with a boolean template argument.
    */
   template<class T>
-  struct __false_v<T, std::enable_if_t<std::is_same_v<T, bool>>> {
+    requires std::is_same_v<T, bool>
+  struct __false_v<T> {
     static constexpr bool value = false;  ///< Trait value for the false specialization.
   };
 
@@ -1469,7 +1471,7 @@ namespace util {
         _els {0} {};
 
     /**
-     * @brief Construct an owning contiguous buffer.
+     * @brief Move an owning contiguous buffer and leave the source logically empty.
      *
      * @param o Source object used for comparison or assignment.
      */
@@ -1480,18 +1482,18 @@ namespace util {
     }
 
     /**
-     * @brief Construct an owning contiguous buffer.
+     * @brief Copy the source buffer's logical range into an independent allocation.
      *
      * @param o Source object used for comparison or assignment.
      */
     buffer_t(const buffer_t &o):
         _els {o._els},
-        _buf {std::make_unique<T[]>(_els)} {
-      std::copy(o.begin(), o.end(), begin());
+        _buf(_els) {
+      std::ranges::copy(o, begin());
     }
 
     /**
-     * @brief Assign state from another instance while preserving ownership semantics.
+     * @brief Exchange allocations and logical counts with the source buffer.
      *
      * @param o Source object used for comparison or assignment.
      * @return Reference returned by the operator overload.
@@ -1510,7 +1512,7 @@ namespace util {
      */
     explicit buffer_t(size_t elements):
         _els {elements},
-        _buf {std::make_unique<T[]>(elements)} {
+        _buf(elements) {
     }
 
     /**
@@ -1521,8 +1523,8 @@ namespace util {
      */
     explicit buffer_t(size_t elements, const T &t):
         _els {elements},
-        _buf {std::make_unique<T[]>(elements)} {
-      std::fill_n(_buf.get(), elements, t);
+        _buf(elements) {
+      std::fill_n(_buf.data(), elements, t);
     }
 
     /**
@@ -1569,7 +1571,7 @@ namespace util {
      * @return Iterator to the first element.
      */
     T *begin() {
-      return _buf.get();
+      return _buf.data();
     }
 
     /**
@@ -1578,7 +1580,7 @@ namespace util {
      * @return Iterator to the first element.
      */
     const T *begin() const {
-      return _buf.get();
+      return _buf.data();
     }
 
     /**
@@ -1587,7 +1589,7 @@ namespace util {
      * @return Iterator one past the last element.
      */
     T *end() {
-      return _buf.get() + _els;
+      return _buf.data() + _els;
     }
 
     /**
@@ -1596,12 +1598,12 @@ namespace util {
      * @return Iterator one past the last element.
      */
     const T *end() const {
-      return _buf.get() + _els;
+      return _buf.data() + _els;
     }
 
   private:
-    size_t _els;
-    std::unique_ptr<T[]> _buf;
+    size_t _els;  ///< Logical element count, which may be smaller than the allocation.
+    std::vector<T> _buf;  ///< Owned allocation retained when the logical count changes.
   };
 
   /**
@@ -1626,9 +1628,9 @@ namespace util {
   template<class ReturnType, class... Args>
   struct Function {
     /**
-     * @brief Type extracted from the matched function signature.
+     * @brief Pointer type for a function with the specified return and argument types.
      */
-    typedef ReturnType (*type)(Args...);
+    using type = ReturnType (*)(Args...);
   };
 
   /**
@@ -1639,14 +1641,14 @@ namespace util {
     /**
      * @brief Pointer type accepted by this deleter.
      */
-    typedef T pointer;
+    using pointer = T;  // NOSONAR(cpp:S5008): Native C handle instantiations must retain HANDLE, PSID, EGLDisplay and VADisplay pointer types.
 
     /**
      * @brief Invoke the configured destroy function on a pointer.
      *
      * @param p Pointer to release.
      */
-    void operator()(pointer p) {
+    void operator()(pointer p) const {
       function(p);
     }
   };
@@ -1774,10 +1776,11 @@ namespace util {
     struct endian_helper {};
 
     /**
-     * @brief Helper specialization for optional values.
+     * @brief Convert non-optional values between native and requested byte order.
      */
     template<class T>
-    struct endian_helper<T, std::enable_if_t<!(instantiation_of_v<std::optional, T>)>> {
+      requires(!instantiation_of_v<std::optional, T>)
+    struct endian_helper<T> {
       /**
        * @brief Convert a value to or from big-endian byte order.
        *
@@ -1786,7 +1789,7 @@ namespace util {
        */
       static inline T big(T x) {
         if constexpr (endianness<T>::little) {
-          uint8_t *data = reinterpret_cast<uint8_t *>(&x);
+          auto *data = reinterpret_cast<std::byte *>(&x);
 
           std::reverse(data, data + sizeof(x));
         }
@@ -1802,7 +1805,7 @@ namespace util {
        */
       static inline T little(T x) {
         if constexpr (endianness<T>::big) {
-          uint8_t *data = reinterpret_cast<uint8_t *>(&x);
+          auto *data = reinterpret_cast<std::byte *>(&x);
 
           std::reverse(data, data + sizeof(x));
         }
@@ -1815,7 +1818,8 @@ namespace util {
      * @brief Helper specialization for optional values.
      */
     template<class T>
-    struct endian_helper<T, std::enable_if_t<instantiation_of_v<std::optional, T>>> {
+      requires instantiation_of_v<std::optional, T>
+    struct endian_helper<T> {
       /**
        * @brief Convert a value to or from little-endian byte order.
        *
@@ -1828,7 +1832,7 @@ namespace util {
         }
 
         if constexpr (endianness<T>::big) {
-          auto *data = reinterpret_cast<uint8_t *>(&*x);
+          auto *data = reinterpret_cast<std::byte *>(&*x);
 
           std::reverse(data, data + sizeof(*x));
         }
@@ -1848,7 +1852,7 @@ namespace util {
         }
 
         if constexpr (endianness<T>::little) {
-          auto *data = reinterpret_cast<uint8_t *>(&*x);
+          auto *data = reinterpret_cast<std::byte *>(&*x);
 
           std::reverse(data, data + sizeof(*x));
         }

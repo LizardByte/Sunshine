@@ -9,9 +9,18 @@ project(Sunshine VERSION 0.0.0
         DESCRIPTION "Self-hosted game stream host for Moonlight"
         HOMEPAGE_URL "https://app.lizardbyte.dev/Sunshine")
 
-# Minimum separately installed Virtual HID Driver version supported by this build.
+# Minimum separately installed Virtual HID Broker version supported by this build.
 set(LIBVIRTUALHID_MINIMUM_VERSION "2026.914.1218.10")
 list(APPEND SUNSHINE_DEFINITIONS LIBVIRTUALHID_MINIMUM_VERSION="${LIBVIRTUALHID_MINIMUM_VERSION}")
+if(APPLE)
+    # macOS bundle versions have three components; the Windows driver uses four.
+    if(LIBVIRTUALHID_MINIMUM_VERSION MATCHES "^([0-9]+\\.[0-9]+\\.[0-9]+)\\.[0-9]+$")
+        set(LIBVIRTUALHID_MACOS_MINIMUM_VERSION "${CMAKE_MATCH_1}")
+    else()
+        set(LIBVIRTUALHID_MACOS_MINIMUM_VERSION "${LIBVIRTUALHID_MINIMUM_VERSION}")
+    endif()
+    list(APPEND SUNSHINE_DEFINITIONS LIBVIRTUALHID_MACOS_MINIMUM_VERSION="${LIBVIRTUALHID_MACOS_MINIMUM_VERSION}")
+endif()
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

@@ -19,8 +19,7 @@ namespace {
     }
 
     safe_sid users_sid;
-    SID_IDENTIFIER_AUTHORITY nt_authorithy = SECURITY_NT_AUTHORITY;
-    if (!AllocateAndInitializeSid(&nt_authorithy, 2, SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_USERS, 0, 0, 0, 0, 0, 0, &users_sid)) {
+    if (SID_IDENTIFIER_AUTHORITY nt_authorithy = SECURITY_NT_AUTHORITY; !AllocateAndInitializeSid(&nt_authorithy, 2, SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_USERS, 0, 0, 0, 0, 0, 0, &users_sid)) {
       return GetLastError();
     }
 
@@ -49,7 +48,7 @@ namespace {
 
 namespace nvprefs {
 
-  std::optional<undo_file_t> undo_file_t::open_existing_file(std::filesystem::path file_path, bool &access_denied) {
+  std::optional<undo_file_t> undo_file_t::open_existing_file(const std::filesystem::path &file_path, bool &access_denied) {
     undo_file_t file;
     file.file_handle.reset(CreateFileW(file_path.c_str(), GENERIC_READ | DELETE, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
     if (file.file_handle) {
@@ -62,7 +61,7 @@ namespace nvprefs {
     }
   }
 
-  std::optional<undo_file_t> undo_file_t::create_new_file(std::filesystem::path file_path) {
+  std::optional<undo_file_t> undo_file_t::create_new_file(const std::filesystem::path &file_path) {
     undo_file_t file;
     file.file_handle.reset(CreateFileW(file_path.c_str(), GENERIC_WRITE | STANDARD_RIGHTS_ALL, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr));
 
@@ -109,8 +108,7 @@ namespace nvprefs {
       return false;
     }
 
-    DWORD bytes_written = 0;
-    if (!WriteFile(file_handle.get(), buffer.data(), buffer.size(), &bytes_written, nullptr) || bytes_written != buffer.size()) {
+    if (DWORD bytes_written = 0; !WriteFile(file_handle.get(), buffer.data(), buffer.size(), &bytes_written, nullptr) || bytes_written != buffer.size()) {
       error_message("Couldn't write undo file");
       return false;
     }
@@ -139,8 +137,7 @@ namespace nvprefs {
     }
 
     std::vector<char> buffer(file_size.QuadPart);
-    DWORD bytes_read = 0;
-    if (!ReadFile(file_handle.get(), buffer.data(), buffer.size(), &bytes_read, nullptr) || bytes_read != buffer.size()) {
+    if (DWORD bytes_read = 0; !ReadFile(file_handle.get(), buffer.data(), buffer.size(), &bytes_read, nullptr) || bytes_read != buffer.size()) {
       error_message("Couldn't read undo file");
       return std::nullopt;
     }

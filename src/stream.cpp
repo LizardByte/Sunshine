@@ -4,6 +4,7 @@
  */
 
 // standard includes
+#include <array>
 #include <cstring>
 #include <fstream>
 #include <future>
@@ -51,7 +52,7 @@ constexpr int IDX_SET_RGB_LED = 14;  ///< Control-stream message index for set r
 constexpr int IDX_SET_ADAPTIVE_TRIGGERS = 15;  ///< Control-stream message index for set adaptive triggers.
 constexpr int IDX_SET_PLAYER_LEDS = 16;  ///< Control-stream message index for set player indicator LEDs.
 
-static const short packetTypes[] = {
+static const std::array<short, 17> packetTypes = {
   0x0305,  // Start A
   0x0307,  // Start B
   0x0301,  // Invalidate reference frames
@@ -122,7 +123,7 @@ namespace stream {
     // zero padding, such as AV1 (Sunshine extension).
     boost::endian::little_uint16_at lastPayloadLen;  ///< Last payload len.
 
-    std::uint8_t unknown[2];  ///< Reserved bytes with no known client-visible meaning.
+    std::array<std::uint8_t, 2> unknown;  ///< Reserved bytes with no known client-visible meaning.
   };
 
   static_assert(
@@ -144,7 +145,7 @@ namespace stream {
     }
 
     RTP_PACKET rtp;  ///< RTP header that prefixes this payload.
-    char reserved[4];  ///< Reserved protocol padding bytes.
+    std::array<char, 4> reserved;  ///< Reserved protocol padding bytes.
 
     NV_VIDEO_PACKET packet;  ///< GameStream video packet header.
   };
@@ -156,9 +157,9 @@ namespace stream {
     /**
      * @brief IV.
      */
-    std::uint8_t iv[12];  // 12-byte IV is ideal for AES-GCM
+    std::array<std::uint8_t, 12> iv;  // 12-byte IV is ideal for AES-GCM
     std::uint32_t frameNumber;  ///< Frame number.
-    std::uint8_t tag[16];  ///< Authentication tag appended to the encrypted payload.
+    std::array<std::uint8_t, 16> tag;  ///< Authentication tag appended to the encrypted payload.
   };
 
   /**
@@ -266,8 +267,8 @@ namespace stream {
     std::uint8_t event_flags;
     std::uint8_t type_left;  ///< Adaptive-trigger mode for the left trigger.
     std::uint8_t type_right;  ///< Adaptive-trigger mode for the right trigger.
-    std::uint8_t left[DS_EFFECT_PAYLOAD_SIZE];  ///< Left adaptive-trigger effect payload.
-    std::uint8_t right[DS_EFFECT_PAYLOAD_SIZE];  ///< Right adaptive-trigger effect payload.
+    std::array<std::uint8_t, DS_EFFECT_PAYLOAD_SIZE> left;  ///< Left adaptive-trigger effect payload.
+    std::array<std::uint8_t, DS_EFFECT_PAYLOAD_SIZE> right;  ///< Right adaptive-trigger effect payload.
   };
 
   /**
@@ -285,7 +286,7 @@ namespace stream {
   /**
    * @brief Packed encrypted control-channel envelope.
    */
-  typedef struct control_encrypted_t {
+  struct control_encrypted_t {
     std::uint16_t encryptedHeaderType;  ///< Always LE 0x0001.
     std::uint16_t length;  ///< Size of seq, tag, secondary header, and data.
 
@@ -302,7 +303,12 @@ namespace stream {
     }
 
     // encrypted control_header_v2 and payload data follow
-  } *control_encrypted_p;  ///< Alias for control encrypted p.
+  };
+
+  /**
+   * @brief Pointer to a packed encrypted control-channel envelope.
+   */
+  using control_encrypted_p = control_encrypted_t *;
 
   /**
    * @brief Packed RTP and FEC headers for an audio recovery packet.
@@ -313,6 +319,15 @@ namespace stream {
   };
 
 #pragma pack(pop)
+
+  static_assert(sizeof(video_packet_raw_t) == sizeof(RTP_PACKET) + 4 + sizeof(NV_VIDEO_PACKET));
+  static_assert(offsetof(video_packet_raw_t, packet) == sizeof(RTP_PACKET) + 4);
+  static_assert(sizeof(video_packet_enc_prefix_t) == 32);
+  static_assert(offsetof(video_packet_enc_prefix_t, frameNumber) == 12);
+  static_assert(offsetof(video_packet_enc_prefix_t, tag) == 16);
+  static_assert(sizeof(control_adaptive_triggers_t) == 9 + 2 * DS_EFFECT_PAYLOAD_SIZE);
+  static_assert(offsetof(control_adaptive_triggers_t, left) == 9);
+  static_assert(offsetof(control_adaptive_triggers_t, right) == 9 + DS_EFFECT_PAYLOAD_SIZE);
 
   /**
    * @brief Round a byte count up to the next PKCS#7 padding boundary.
@@ -349,7 +364,7 @@ namespace stream {
   static inline int encode_audio(bool encrypted, const audio::buffer_t &plaintext, uint8_t *destination, crypto::aes_t &iv, crypto::cipher::cbc_t &cbc) {
     // If encryption isn't enabled
     if (!encrypted) {
-      std::copy(std::begin(plaintext), std::end(plaintext), destination);
+      std::ranges::copy(plaintext, destination);
       return (int) plaintext.size();
     }
 
@@ -420,7 +435,7 @@ namespace stream {
      * @param cb Callback invoked for each matching message or session.
      */
     void map(uint16_t type, std::function<void(session_t *, const std::string_view &)> cb) {
-      _map_type_cb.emplace(type, std::move(cb));
+      _map_type_cb.try_emplace(type, std::move(cb));
     }
 
     /**
@@ -431,8 +446,7 @@ namespace stream {
      * @return Network operation status.
      */
     int send(const std::string_view &payload, net::peer_t peer) {
-      auto packet = enet_packet_create(payload.data(), payload.size(), ENET_PACKET_FLAG_RELIABLE);
-      if (enet_peer_send(peer, 0, packet)) {
+      if (auto packet = enet_packet_create(payload.data(), payload.size(), ENET_PACKET_FLAG_RELIABLE); enet_peer_send(peer, 0, packet)) {
         enet_packet_destroy(packet);
 
         return -1;
@@ -519,8 +533,7 @@ namespace stream {
       std::string ping_payload;  ///< Payload expected from audio-channel ping packets.
 
       std::uint16_t sequenceNumber;  ///< Next RTP sequence number for an audio packet.
-      // avRiKeyId == util::endian::big(First (sizeof(avRiKeyId)) bytes of launch_session->iv)
-      std::uint32_t avRiKeyId;  ///< Base audio encryption key identifier derived from the launch-session IV.
+      std::uint32_t avRiKeyId;  ///< Base audio encryption key identifier decoded from the first four IV bytes in big-endian order.
       std::uint32_t timestamp;  ///< RTP timestamp for the next audio packet.
       udp::endpoint peer;  ///< Client UDP endpoint for the audio channel.
 
@@ -983,7 +996,7 @@ namespace stream {
 
     std::copy(begin, next, std::back_inserter(replaced));
     if (next != end) {
-      std::copy(std::begin(_new), std::end(_new), std::back_inserter(replaced));
+      std::ranges::copy(_new, std::back_inserter(replaced));
       std::copy(next + old.size(), end, std::back_inserter(replaced));
     }
 
@@ -1094,9 +1107,9 @@ namespace stream {
       plaintext.id = util::endian::little(msg.id);
       plaintext.event_flags = msg.data.adaptive_triggers.event_flags;
       plaintext.type_left = msg.data.adaptive_triggers.type_left;
-      std::ranges::copy(msg.data.adaptive_triggers.left, plaintext.left);
+      std::ranges::copy(msg.data.adaptive_triggers.left, plaintext.left.begin());
       plaintext.type_right = msg.data.adaptive_triggers.type_right;
-      std::ranges::copy(msg.data.adaptive_triggers.right, plaintext.right);
+      std::ranges::copy(msg.data.adaptive_triggers.right, plaintext.right.begin());
 
       std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
         encrypted_payload;
@@ -1172,7 +1185,7 @@ namespace stream {
     });
 
     server->map(packetTypes[IDX_LOSS_STATS], [&](session_t *session, const std::string_view &payload) {
-      int32_t *stats = (int32_t *) payload.data();
+      auto stats = (int32_t *) payload.data();
       auto count = stats[0];
       std::chrono::milliseconds t {stats[1]};
 
@@ -1431,8 +1444,8 @@ namespace stream {
 
     udp::endpoint peer;
 
-    std::array<char, 2048> buf[2];
-    std::function<void(const boost::system::error_code, size_t)> recv_func[2];
+    std::array<std::array<char, 2048>, 2> buf;
+    std::array<std::function<void(const boost::system::error_code, size_t)>, 2> recv_func;
 
     platf::set_thread_name("stream::recv");
 
@@ -1444,14 +1457,14 @@ namespace stream {
         switch (socket_type) {
           case socket_e::video:
             if (message_queue) {
-              peer_to_video_session.emplace(session_id, message_queue);
+              peer_to_video_session.try_emplace(session_id, message_queue);
             } else {
               peer_to_video_session.erase(session_id);
             }
             break;
           case socket_e::audio:
             if (message_queue) {
-              peer_to_audio_session.emplace(session_id, message_queue);
+              peer_to_audio_session.try_emplace(session_id, message_queue);
             } else {
               peer_to_audio_session.erase(session_id);
             }
@@ -1462,7 +1475,7 @@ namespace stream {
 
     auto recv_func_init = [&](udp::socket &sock, int buf_elem, std::map<av_session_id_t, message_queue_t> &peer_to_session) {
       recv_func[buf_elem] = [&, buf_elem](const boost::system::error_code &ec, size_t bytes) {
-        auto fg = util::fail_guard([&]() {
+        auto fg = util::fail_guard([&sock, &buf, &peer, &recv_func, &buf_elem]() {
           sock.async_receive_from(asio::buffer(buf[buf_elem]), peer, 0, recv_func[buf_elem]);
         });
 
@@ -1549,7 +1562,7 @@ namespace stream {
 
       frame_network_latency_logger.first_point_now();
 
-      auto session = (session_t *) packet->channel_data;
+      auto *session = packet->channel_data;
       auto lowseq = session->video.lowseq;
 
       std::string_view payload {(char *) packet->data(), packet->data_size()};
@@ -1674,9 +1687,9 @@ namespace stream {
 
         auto blockIndex = 0;
         std::for_each(fec_blocks_begin, fec_blocks_end, [&](std::string_view &current_payload) {
-          auto packets = (current_payload.size() + (blocksize - 1)) / blocksize;
+          auto payload_packets = (current_payload.size() + (blocksize - 1)) / blocksize;
 
-          for (int x = 0; x < packets; ++x) {
+          for (int x = 0; x < payload_packets; ++x) {
             auto *inspect = (video_packet_raw_t *) &current_payload[x * blocksize];
 
             inspect->packet.frameIndex = (uint32_t) packet->frame_index();
@@ -1690,7 +1703,7 @@ namespace stream {
             if (x == 0) {
               inspect->packet.flags |= FLAG_SOF;
             }
-            if (x == packets - 1) {
+            if (x == payload_packets - 1) {
               inspect->packet.flags |= FLAG_EOF;
             }
           }
@@ -1759,8 +1772,8 @@ namespace stream {
               // Encrypt the target buffer in place
               auto *prefix = (video_packet_enc_prefix_t *) shards.prefix(x);
               prefix->frameNumber = (std::uint32_t) packet->frame_index();
-              std::copy(std::begin(iv), std::end(iv), prefix->iv);
-              session->video.cipher->encrypt(std::string_view {(char *) inspect, (size_t) blocksize}, prefix->tag, (uint8_t *) inspect, &iv);
+              std::copy(std::begin(iv), std::end(iv), prefix->iv.begin());
+              session->video.cipher->encrypt(std::string_view {(char *) inspect, (size_t) blocksize}, prefix->tag.data(), (uint8_t *) inspect, &iv);
             }
 
             if (x - next_shard_to_send + 1 >= send_batch_size || x + 1 == shards.size()) {
@@ -1874,7 +1887,7 @@ namespace stream {
       }
 
       TUPLE_2D_REF(channel_data, packet_data, *packet);
-      auto session = (session_t *) channel_data;
+      auto *session = channel_data;
 
       auto sequenceNumber = session->audio.sequenceNumber;
       auto timestamp = session->audio.timestamp;
@@ -1926,7 +1939,7 @@ namespace stream {
             fec_packet.rtp.sequenceNumber = util::endian::big<std::uint16_t>(sequenceNumber + x + 1);
             fec_packet.fecHeader.fecShardIndex = x;
 
-            auto send_info = platf::send_info_t {
+            auto fec_send_info = platf::send_info_t {
               (const char *) &fec_packet,
               sizeof(fec_packet),
               (const char *) shards_p[RTPA_DATA_SHARDS + x],
@@ -1936,7 +1949,7 @@ namespace stream {
               session->audio.peer.port(),
               session->localAddress,
             };
-            platf::send(send_info);
+            platf::send(fec_send_info);
             BOOST_LOG(verbose) << "Audio FEC ["sv << (sequenceNumber & ~(RTPA_DATA_SHARDS - 1)) << ' ' << x << "] ::  send..."sv;
           }
         }
@@ -2099,7 +2112,7 @@ namespace stream {
       }
 
       TUPLE_2D_REF(recv_peer, msg, *msg_opt);
-      if (msg.find(expected_payload) != std::string::npos) {
+      if (msg.contains(expected_payload)) {
         // Match the new PING payload format
         BOOST_LOG(debug) << "Received ping [v2] from "sv << recv_peer.address() << ':' << recv_peer.port() << " ["sv << util::hex_vec(msg) << ']';
       } else if (!(session->config.mlFeatureFlags & ML_FF_SESSION_ID_V1) && msg == "PING"sv) {

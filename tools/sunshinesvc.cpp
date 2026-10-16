@@ -3,6 +3,7 @@
  * @brief Handles launching Sunshine.exe into user sessions as SYSTEM
  */
 #define WIN32_LEAN_AND_MEAN
+#include <array>
 #include <format>
 #include <string>
 #include <Windows.h>
@@ -23,7 +24,15 @@ HANDLE session_change_event;
 
 constexpr auto SERVICE_NAME = "SunshineService";
 
-DWORD WINAPI HandlerEx(DWORD dwControl, DWORD dwEventType, LPVOID lpEventData, LPVOID lpContext) {
+/**
+ * @brief Handle service control and console-session events from the Windows service manager.
+ * @details Event data and user context are unused but retained in the native callback signature.
+ *
+ * @param dwControl Service control code.
+ * @param dwEventType Session change event type when handling SERVICE_CONTROL_SESSIONCHANGE.
+ * @return NO_ERROR for handled controls or ERROR_CALL_NOT_IMPLEMENTED otherwise.
+ */
+DWORD WINAPI HandlerEx(DWORD dwControl, DWORD dwEventType, LPVOID, LPVOID) {
   switch (dwControl) {
     case SERVICE_CONTROL_INTERROGATE:
       return NO_ERROR;
@@ -120,29 +129,29 @@ HANDLE DuplicateTokenForSession(DWORD console_session_id) {
 }
 
 HANDLE OpenLogFileHandle() {
-  WCHAR log_file_name[MAX_PATH];
+  std::array<WCHAR, MAX_PATH> log_file_name;
 
   // Create sunshine.log in the Temp folder (usually %SYSTEMROOT%\Temp)
-  GetTempPathW(_countof(log_file_name), log_file_name);
-  wcscat_s(log_file_name, L"sunshine.log");
+  GetTempPathW(log_file_name.size(), log_file_name.data());
+  wcscat_s(log_file_name.data(), log_file_name.size(), L"sunshine.log");
 
   // Preserve previous service output before opening the current log.
-  logging::rotate_log_file(log_file_name);
+  logging::rotate_log_file(log_file_name.data());
 
   // The file handle must be inheritable for our child process to use it
   SECURITY_ATTRIBUTES security_attributes = {sizeof(security_attributes), nullptr, TRUE};
 
   // Create the current sunshine.log
-  return CreateFileW(log_file_name, GENERIC_WRITE, FILE_SHARE_READ, &security_attributes, CREATE_ALWAYS, 0, nullptr);
+  return CreateFileW(log_file_name.data(), GENERIC_WRITE, FILE_SHARE_READ, &security_attributes, CREATE_ALWAYS, 0, nullptr);
 }
 
 bool RunTerminationHelper(HANDLE console_token, DWORD pid) {
-  WCHAR module_path[MAX_PATH];
-  GetModuleFileNameW(nullptr, module_path, _countof(module_path));
+  std::array<WCHAR, MAX_PATH> module_path;
+  GetModuleFileNameW(nullptr, module_path.data(), module_path.size());
   std::wstring command;
 
   command += L'"';
-  command += module_path;
+  command += module_path.data();
   command += L'"';
   command += std::format(L" --terminate {}", pid);
 
@@ -153,7 +162,7 @@ bool RunTerminationHelper(HANDLE console_token, DWORD pid) {
   // Execute ourselves as a detached process in the user session with the --terminate argument.
   // This will allow us to attach to Sunshine's console and send it a Ctrl-C event.
   PROCESS_INFORMATION process_info;
-  if (!CreateProcessAsUserW(console_token, module_path, (LPWSTR) command.c_str(), nullptr, nullptr, FALSE, CREATE_UNICODE_ENVIRONMENT | DETACHED_PROCESS, nullptr, nullptr, &startup_info, &process_info)) {
+  if (!CreateProcessAsUserW(console_token, module_path.data(), command.data(), nullptr, nullptr, FALSE, CREATE_UNICODE_ENVIRONMENT | DETACHED_PROCESS, nullptr, nullptr, &startup_info, &process_info)) {
     return false;
   }
 
@@ -172,7 +181,23 @@ bool RunTerminationHelper(HANDLE console_token, DWORD pid) {
   return exit_code == 0;
 }
 
-VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
+/**
+ * @brief Terminate Sunshine gracefully, forcing termination if it does not exit within 20 seconds.
+ *
+ * @param console_token Token for the console session running Sunshine.
+ * @param process_info Handles and identifier of the running Sunshine process.
+ */
+void TerminateSunshine(HANDLE console_token, const PROCESS_INFORMATION &process_info) {
+  if (!RunTerminationHelper(console_token, process_info.dwProcessId) || WaitForSingleObject(process_info.hProcess, 20000) != WAIT_OBJECT_0) {
+    TerminateProcess(process_info.hProcess, ERROR_PROCESS_ABORTED);
+  }
+}
+
+/**
+ * @brief Run Sunshine in the active console session until the Windows service is stopped.
+ * @details The service manager's argument count and argument vector are unused; the native signature is retained.
+ */
+VOID WINAPI ServiceMain(DWORD, LPTSTR *) {
   service_status_handle = RegisterServiceCtrlHandlerEx(SERVICE_NAME, HandlerEx, nullptr);
   if (service_status_handle == nullptr) {
     // Nothing we can really do here but terminate ourselves
@@ -279,8 +304,8 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
     bool still_running;
     do {
       // Wait for the stop event to be set, Sunshine.exe to terminate, or the console session to change
-      const HANDLE wait_objects[] = {stop_event, process_info.hProcess, session_change_event};
-      switch (WaitForMultipleObjects(_countof(wait_objects), wait_objects, FALSE, INFINITE)) {
+      const std::array<HANDLE, 3> wait_objects = {stop_event, process_info.hProcess, session_change_event};
+      switch (WaitForMultipleObjects(wait_objects.size(), wait_objects.data(), FALSE, INFINITE)) {
         case WAIT_OBJECT_0 + 2:
           if (WTSGetActiveConsoleSessionId() == console_session_id) {
             // The active console session didn't actually change. Let Sunshine keep running.
@@ -290,11 +315,7 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
           // Fall-through to terminate Sunshine.exe and start it again.
         case WAIT_OBJECT_0:
           // The service is shutting down, so try to gracefully terminate Sunshine.exe.
-          // If it doesn't terminate in 20 seconds, we will forcefully terminate it.
-          if (!RunTerminationHelper(console_token, process_info.dwProcessId) || WaitForSingleObject(process_info.hProcess, 20000) != WAIT_OBJECT_0) {
-            // If it won't terminate gracefully, kill it now
-            TerminateProcess(process_info.hProcess, ERROR_PROCESS_ABORTED);
-          }
+          TerminateSunshine(console_token, process_info);
           still_running = false;
           break;
 
@@ -302,14 +323,19 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
           {
             // Sunshine terminated itself.
 
-            DWORD exit_code;
-            if (GetExitCodeProcess(process_info.hProcess, &exit_code) && exit_code == ERROR_SHUTDOWN_IN_PROGRESS) {
+            if (DWORD exit_code; GetExitCodeProcess(process_info.hProcess, &exit_code) && exit_code == ERROR_SHUTDOWN_IN_PROGRESS) {
               // Sunshine is asking for us to shut down, so gracefully stop ourselves.
               SetEvent(stop_event);
             }
             still_running = false;
             break;
           }
+        default:
+          // Stop the service rather than orphaning Sunshine after an unexpected wait failure.
+          SetEvent(stop_event);
+          TerminateSunshine(console_token, process_info);
+          still_running = false;
+          break;
       }
     } while (still_running);
 
@@ -343,11 +369,6 @@ int DoGracefulTermination(DWORD pid) {
 }
 
 int main(int argc, char *argv[]) {
-  static const SERVICE_TABLE_ENTRY service_table[] = {
-    {(LPSTR) SERVICE_NAME, ServiceMain},
-    {nullptr, nullptr}
-  };
-
   // Check if this is a reinvocation of ourselves to send Ctrl-C to Sunshine.exe
   if (argc == 3 && strcmp(argv[1], "--terminate") == 0) {
     return DoGracefulTermination(atol(argv[2]));
@@ -356,16 +377,20 @@ int main(int argc, char *argv[]) {
   // By default, services have their current directory set to %SYSTEMROOT%\System32.
   // We want to use the directory where Sunshine.exe is located instead of system32.
   // This requires stripping off 2 path components: the file name and the last folder
-  WCHAR module_path[MAX_PATH];
-  GetModuleFileNameW(nullptr, module_path, _countof(module_path));
+  std::array<WCHAR, MAX_PATH> module_path;
+  GetModuleFileNameW(nullptr, module_path.data(), module_path.size());
   for (auto i = 0; i < 2; i++) {
-    auto last_sep = wcsrchr(module_path, '\\');
+    auto last_sep = wcsrchr(module_path.data(), '\\');
     if (last_sep) {
       *last_sep = 0;
     }
   }
-  SetCurrentDirectoryW(module_path);
+  if (!SetCurrentDirectoryW(module_path.data())) {
+    return GetLastError();
+  }
 
   // Trigger our ServiceMain()
-  return StartServiceCtrlDispatcher(service_table);
+  std::string service_name {SERVICE_NAME};
+  const std::array<SERVICE_TABLE_ENTRY, 2> service_table = {{{service_name.data(), ServiceMain}, {nullptr, nullptr}}};
+  return StartServiceCtrlDispatcher(service_table.data());
 }

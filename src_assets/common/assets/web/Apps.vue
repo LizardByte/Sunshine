@@ -118,6 +118,8 @@
               :aria-label="$t('_common.close')"></button>
           </div>
           <div class="modal-body">
+            <!-- Error -->
+            <div v-if="editFormError" class="alert alert-danger py-2 small">{{ editFormError }}</div>
             <!-- Application Name -->
             <div class="mb-3">
               <label for="appName" class="form-label">{{ $t('apps.app_name') }}</label>
@@ -306,7 +308,7 @@
                 <input type="text" class="form-control monospace" id="appImagePath" aria-describedby="appImagePathHelp"
                   v-model="editForm['image-path']" />
                 <button class="btn btn-secondary" type="button"
-                  @click="browseFor('file', 'file_browser.select_file', editForm['image-path'], v => editForm['image-path'] = v)">
+                  @click="browseFor('file', 'file_browser.select_file', editForm['image-path'], v => editForm['image-path'] = v, ['.png'])">
                   <folder-open :size="18" class="icon"></folder-open>
                 </button>
                 <button class="btn btn-secondary" type="button" @click="showCoverFinder">
@@ -682,6 +684,7 @@
       return {
         apps: [],
         editForm: null,
+        editFormError: "",
         detachedCmd: "",
         coverSearching: false,
         coverFinderBusy: false,
@@ -691,6 +694,7 @@
         fileBrowserType: "any",
         fileBrowserTitle: "",
         fileBrowserCallback: null,
+        fileBrowserAcceptedExtensions: null,
         fileBrowserCurrentPath: "",
         fileBrowserParentPath: "",
         fileBrowserEntries: [],
@@ -802,6 +806,7 @@
           detached: [],
           "image-path": ""
         };
+        this.editFormError = "";
         this.openEditModal();
       },
       editApp(id) {
@@ -825,6 +830,7 @@
         if (this.editForm["exit-timeout"] === undefined) {
           this.editForm["exit-timeout"] = 5;
         }
+        this.editFormError = "";
         this.openEditModal();
       },
       showDeleteModal(id) {
@@ -920,10 +926,11 @@
         })
           .finally(() => this.coverFinderBusy = false);
       },
-      browseFor(type, titleKey, startPath, callback) {
+      browseFor(type, titleKey, startPath, callback, acceptedExtensions = null) {
         this.fileBrowserType = type;
         this.fileBrowserTitle = this.$t(titleKey);
         this.fileBrowserCallback = callback;
+        this.fileBrowserAcceptedExtensions = acceptedExtensions;
         this.fileBrowserSelectedPath = startPath || '';
         this.fileBrowserTypedPath = startPath || '';
         this.fileBrowserError = '';
@@ -937,6 +944,14 @@
       fileBrowserConfirm() {
         const path = this.fileBrowserSelectedPath || this.fileBrowserTypedPath;
         if (path) {
+          if (this.fileBrowserAcceptedExtensions && this.fileBrowserType !== 'directory') {
+            const lowerPath = path.toLowerCase();
+            const isValid = this.fileBrowserAcceptedExtensions.some(ext => lowerPath.endsWith(ext.toLowerCase()));
+            if (!isValid) {
+              this.fileBrowserError = this.$t('file_browser.error_invalid_extension', { extensions: this.fileBrowserAcceptedExtensions.join(', ') });
+              return;
+            }
+          }
           if (this.fileBrowserCallback) {
             this.fileBrowserCallback(path);
             this.fileBrowserCallback = null;
@@ -944,22 +959,33 @@
           this.fileBrowserClose();
         }
       },
-      fileBrowserNavigate(path) {
+      /**
+       * @brief Load a directory listing and display any browsing failure.
+       *
+       * @param {string} path Directory path, or an empty string for the default location.
+       * @return {Promise<void>} Completion of the directory request and loading-state update.
+       */
+      async fileBrowserNavigate(path) {
         this.fileBrowserLoading = true;
         this.fileBrowserError = '';
         const params = new URLSearchParams({ type: this.fileBrowserType });
         if (path) params.set('path', path);
-        fetch(`./api/browse?${params.toString()}`)
-          .then(r => r.ok ? r.json() : r.json().then(e => { throw new Error(e.error || 'Browse failed'); }))
-          .then(data => {
-            this.fileBrowserCurrentPath = data.path ?? '';
-            this.fileBrowserParentPath = data.parent ?? '';
-            this.fileBrowserEntries = data.entries ?? [];
-            this.fileBrowserTypedPath = data.path ?? '';
-            this.fileBrowserSelectedPath = this.fileBrowserType === 'directory' ? (data.path ?? '') : '';
-          })
-          .catch(err => { this.fileBrowserError = err.message; })
-          .finally(() => { this.fileBrowserLoading = false; });
+        try {
+          const response = await fetch(`./api/browse?${params.toString()}`);
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || 'Browse failed');
+          }
+          this.fileBrowserCurrentPath = data.path ?? '';
+          this.fileBrowserParentPath = data.parent ?? '';
+          this.fileBrowserEntries = data.entries ?? [];
+          this.fileBrowserTypedPath = data.path ?? '';
+          this.fileBrowserSelectedPath = this.fileBrowserType === 'directory' ? (data.path ?? '') : '';
+        } catch (err) {
+          this.fileBrowserError = err.message;
+        } finally {
+          this.fileBrowserLoading = false;
+        }
       },
       fileBrowserNavigateUp() {
         this.fileBrowserNavigate(this.fileBrowserParentPath);
@@ -997,7 +1023,17 @@
         });
       },
       save() {
+        this.editFormError = "";
         this.editForm["image-path"] = this.editForm["image-path"].toString().replaceAll('"', '');
+
+        const imagePath = this.editForm["image-path"];
+        if (imagePath && !imagePath.toLowerCase().endsWith('.png')) {
+          this.editFormError = this.$t('file_browser.error_invalid_extension', { extensions: '.png' });
+          const modalBody = this.$refs.editModal.querySelector('.modal-body');
+          if (modalBody) modalBody.scrollTop = 0;
+          return;
+        }
+
         apiFetch("./api/apps", {
           method: "POST",
           headers: {

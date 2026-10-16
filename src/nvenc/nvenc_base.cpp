@@ -127,10 +127,6 @@ namespace {
     }
 
     switch (number) {
-      case 1:
-      default:
-        return NV_ENC_PRESET_P1_GUID;
-
       case 2:
         return NV_ENC_PRESET_P2_GUID;
 
@@ -148,6 +144,10 @@ namespace {
 
       case 7:
         return NV_ENC_PRESET_P7_GUID;
+
+      case 1:
+      default:
+        return NV_ENC_PRESET_P1_GUID;
     }
   };
 
@@ -188,9 +188,7 @@ namespace NVENC_NAMESPACE {
       device_type(device_type) {
   }
 
-  nvenc_base::~nvenc_base() {
-    // Use destroy_encoder() instead
-  }
+  nvenc_base::~nvenc_base() = default;
 
   int nvenc_base::get_encoder_cap(const GUID &encode_guid, NV_ENC_CAPS cap) const {
     NV_ENC_CAPS_PARAM param = {.version = NV_ENC_CAPS_PARAM_VER};
@@ -590,10 +588,16 @@ namespace NVENC_NAMESPACE {
     encoder_params.rfi = true;
 
     NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS session_params = {.version = NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS_VER};
-    session_params.device = device;
+    std::visit([&session_params](auto *native_device) {
+      session_params.device = native_device;
+    },
+               device);
     session_params.deviceType = device_type;
     session_params.apiVersion = NVENCAPI_VERSION;
-    if (nvenc_failed(nvenc->nvEncOpenEncodeSessionEx(&session_params, &encoder))) {
+    void *native_encoder = nullptr;
+    const auto open_status = nvenc->nvEncOpenEncodeSessionEx(&session_params, &native_encoder);
+    encoder = static_cast<encoder_session_t *>(native_encoder);
+    if (nvenc_failed(open_status)) {
       BOOST_LOG(error) << "NvEnc: NvEncOpenEncodeSessionEx() failed: " << last_nvenc_error_string;
       return false;
     }

@@ -5,9 +5,12 @@
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 // standard includes
+#include <algorithm>
+#include <array>
 #include <filesystem>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 // lib includes
@@ -17,6 +20,7 @@
 #include <boost/program_options/parsers.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
+#include <boost/range/algorithm/find_if.hpp>
 #include <boost/token_functions.hpp>
 #include <openssl/evp.h>
 #include <openssl/sha.h>
@@ -63,7 +67,7 @@ namespace proc {
     return std::make_unique<deinit_t>();
   }
 
-  void terminate_process_group(boost::process::v1::child &proc, boost::process::v1::group &group, std::chrono::seconds exit_timeout) {
+  void terminate_process_group(boost::process::v1::child &child_process, boost::process::v1::group &group, std::chrono::seconds exit_timeout) {
     if (group.valid() && platf::process_group_running((std::uintptr_t) group.native_handle())) {
       if (exit_timeout.count() > 0) {
         // Request processes in the group to exit gracefully
@@ -95,9 +99,9 @@ namespace proc {
       group.detach();
     }
 
-    if (proc.valid()) {
+    if (child_process.valid()) {
       // avoid zombie process
-      proc.detach();
+      child_process.detach();
     }
   }
 
@@ -129,7 +133,7 @@ namespace proc {
     BOOST_LOG(debug) << "Parsed target ["sv << parts.at(0) << "] from command ["sv << cmd << ']';
 
     // If the target is a URL, don't parse any further here
-    if (parts.at(0).find("://") != std::string::npos) {
+    if (parts.at(0).contains("://")) {
       return boost::filesystem::path();
     }
 
@@ -226,7 +230,7 @@ namespace proc {
 
     std::error_code ec;
     // Executed when returning from function
-    auto fg = util::fail_guard([&]() {
+    auto fg = util::fail_guard([this]() {
       terminate();
     });
 
@@ -415,6 +419,20 @@ namespace proc {
     return _app.name;
   }
 
+  void proc_t::update_apps_and_env(proc_t &&other) {
+    if (_app_id > 0 || placebo) {
+      // Preserve session-specific environment variables for the running app
+      for (const auto &var : _env) {
+        std::string name = var.get_name();
+        if (name.find("SUNSHINE_APP_") == 0 || name.find("SUNSHINE_CLIENT_") == 0) {
+          other._env[name] = var.to_string();
+        }
+      }
+    }
+    _env = std::move(other._env);
+    _apps = std::move(other._apps);
+  }
+
   proc_t::~proc_t() {
     // It's not safe to call terminate() here because our proc_t is a static variable
     // that may be destroyed after the Boost loggers have been destroyed. Instead,
@@ -480,7 +498,7 @@ namespace proc {
               // Windows treats environment variable names in a case-insensitive manner,
               // so we look for a case-insensitive match here. This is critical for
               // correctly appending to PATH on Windows.
-              auto itr = std::find_if(env.cbegin(), env.cend(), [&](const auto &e) {
+              auto itr = boost::range::find_if(std::as_const(env), [&var_name](const auto &e) {
                 return boost::iequals(e.get_name(), var_name);
               });
               if (itr != env.cend()) {
@@ -615,18 +633,18 @@ namespace proc {
     }
 
     // Read file and update calculated SHA
-    char buf[1024 * 16];
+    std::array<char, 1024 * 16> buf;
     std::ifstream file(filename, std::ifstream::binary);
     while (file.good()) {
-      file.read(buf, sizeof(buf));
-      if (!EVP_DigestUpdate(ctx.get(), buf, file.gcount())) {
+      file.read(buf.data(), buf.size());
+      if (!EVP_DigestUpdate(ctx.get(), buf.data(), file.gcount())) {
         return std::nullopt;
       }
     }
     file.close();
 
-    unsigned char result[SHA256_DIGEST_LENGTH];
-    if (!EVP_DigestFinal_ex(ctx.get(), result, nullptr)) {
+    std::array<unsigned char, SHA256_DIGEST_LENGTH> result;
+    if (!EVP_DigestFinal_ex(ctx.get(), result.data(), nullptr)) {
       return std::nullopt;
     }
 
@@ -700,7 +718,7 @@ namespace proc {
         this_env[name] = parse_env_val(this_env, val.get_value<std::string>());
       }
 
-      std::set<std::string> ids;
+      std::set<std::string, std::less<>> ids;
       std::vector<proc::ctx_t> apps;
       int i = 0;
       for (auto &[_, app_node] : apps_node) {
@@ -806,7 +824,7 @@ namespace proc {
       }
 
       return proc::proc_t {
-        std::move(this_env),
+        this_env,
         std::move(apps)
       };
     } catch (std::exception &e) {
@@ -818,12 +836,36 @@ namespace proc {
 
   /**
    * @brief Refresh cached platform state from the operating system.
+   *
+   * This function compares the current last modified time of the file to the time it was last parsed.
+   * If the file has been modified since it was last parsed (or if it has never been parsed),
+   * it will be re-parsed to update the app list.
+   *
+   * An optional is used rather than a bare file_time_type because value-initialized
+   * file_time_type{} is not a reliable "never parsed" sentinel. On some toolchains
+   * (e.g. MSYS2 UCRT64 GCC 16.2), file_time_type::clock::now() compares
+   * less-or-equal to file_time_type{}, which would cause the initial parse to be skipped.
+   *
+   * When an app is currently running, only the cached app configuration list and environment
+   * are updated — active process state (_app_id, _process, _process_group, etc.) is preserved
+   * so that the in-flight streaming session can still be terminated properly.
    */
   void refresh(const std::string &file_name) {
+    static std::optional<std::filesystem::file_time_type> last_apps_file_update;  ///< Timestamp of the last successful apps.json parse, or nullopt if never parsed.
+
+    std::error_code ec;
+    auto current_time = std::filesystem::last_write_time(file_name, ec);
+
+    // Only skip parsing when we have a known-good timestamp and the file hasn't changed
+    if (last_apps_file_update && !ec && current_time == *last_apps_file_update) {
+      return;
+    }
+
     auto proc_opt = proc::parse(file_name);
 
     if (proc_opt) {
-      proc = std::move(*proc_opt);
+      proc.update_apps_and_env(std::move(*proc_opt));
+      last_apps_file_update = current_time;
     }
   }
 }  // namespace proc

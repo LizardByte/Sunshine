@@ -6,13 +6,42 @@
 // Only compile these tests on macOS
 #ifdef __APPLE__
 
+  // test includes
   #include "../../../tests_common.h"
 
+  // platform includes
   #import <AVFoundation/AVFoundation.h>
   #import <CoreAudio/CATapDescription.h>
   #import <CoreAudio/CoreAudio.h>
   #import <Foundation/Foundation.h>
+  #import <objc/runtime.h>
+
+  // local includes
   #import <src/platform/macos/av_audio.h>
+  #include <src/platform/macos/misc.h>
+
+namespace {
+  bool permission_probe_unmuted = false;  ///< Whether the test tap leaves host audio audible.
+  int permission_probe_result = 0;  ///< Simulated Core Audio tap setup result.
+
+  /**
+   * @brief Replace native tap setup while testing the startup permission probe.
+   *
+   * @param audio Temporary capture object created by the permission request.
+   * @param selector Objective-C selector for the intercepted setup call.
+   * @param sample_rate Requested capture sample rate.
+   * @param frame_size Requested audio frame size.
+   * @param channels Requested channel count.
+   * @return Simulated tap setup result.
+   */
+  int test_permission_tap_setup(AVAudio *audio, [[maybe_unused]] SEL selector, UInt32 sample_rate, UInt32 frame_size, UInt8 channels) {
+    permission_probe_unmuted = audio.hostAudioEnabled == YES;
+    EXPECT_EQ(sample_rate, 48000U);
+    EXPECT_EQ(frame_size, 512U);
+    EXPECT_EQ(channels, 2U);
+    return permission_probe_result;
+  }
+}  // namespace
 
 /**
  * @brief Test parameters for processSystemAudioIOProc tests.
@@ -110,6 +139,27 @@ TEST_F(AVAudioTest, UndeterminedMicrophonePermissionRequestsAccess) {
     callback(false);
   }));
   EXPECT_TRUE(request_called);
+}
+
+/**
+ * @brief Verify the startup probe never mutes host audio and reports tap failure.
+ */
+TEST(MacosAudioPermissionTest, SystemAudioPermissionProbeUsesUnmutedTemporaryTap) {
+  Method method = class_getInstanceMethod([AVAudio class], @selector(setupSystemTap:frameSize:channels:));
+  ASSERT_NE(method, nullptr);
+  IMP original = method_setImplementation(method, reinterpret_cast<IMP>(test_permission_tap_setup));
+
+  permission_probe_result = 0;
+  permission_probe_unmuted = false;
+  EXPECT_TRUE(platf::request_system_audio_permission());
+  EXPECT_TRUE(permission_probe_unmuted);
+
+  permission_probe_result = -1;
+  permission_probe_unmuted = false;
+  EXPECT_FALSE(platf::request_system_audio_permission());
+  EXPECT_TRUE(permission_probe_unmuted);
+
+  method_setImplementation(method, original);
 }
 
 /**
@@ -246,7 +296,7 @@ TEST_F(AVAudioTest, AudioConverterComplexInputProc) {
       }
     }
 
-    AudioConverterInputData inputInfo = {0};
+    AudioConverterInputData inputInfo = {};
     inputInfo.inputData = testData;
     inputInfo.inputFrames = frameCount;
     inputInfo.framesProvided = 0;
@@ -255,7 +305,7 @@ TEST_F(AVAudioTest, AudioConverterComplexInputProc) {
 
     // Test the method
     UInt32 requestedPackets = 128;
-    AudioBufferList bufferList = {0};
+    AudioBufferList bufferList = {};
     // Use a dummy AudioConverterRef (can be null for our test since our implementation doesn't use it)
     AudioConverterRef dummyConverter = nullptr;
     OSStatus result = platf::audioConverterComplexInputProc(dummyConverter, &requestedPackets, &bufferList, nullptr, &inputInfo);
@@ -284,7 +334,7 @@ TEST_F(AVAudioTest, AudioConverterInputProcNoMoreData) {
     UInt32 channels = 2;
     float *testData = (float *) calloc(frameCount * channels, sizeof(float));
 
-    AudioConverterInputData inputInfo = {0};
+    AudioConverterInputData inputInfo = {};
     inputInfo.inputData = testData;
     inputInfo.inputFrames = frameCount;
     inputInfo.framesProvided = frameCount;  // Already provided all frames
@@ -292,7 +342,7 @@ TEST_F(AVAudioTest, AudioConverterInputProcNoMoreData) {
     inputInfo.avAudio = avAudio;
 
     UInt32 requestedPackets = 128;
-    AudioBufferList bufferList = {0};
+    AudioBufferList bufferList = {};
     // Use a dummy AudioConverterRef (can be null for our test since our implementation doesn't use it)
     AudioConverterRef dummyConverter = nullptr;
     OSStatus result = platf::audioConverterComplexInputProc(dummyConverter, &requestedPackets, &bufferList, nullptr, &inputInfo);
@@ -404,7 +454,7 @@ TEST_P(ProcessSystemAudioIOProcTest, ProcessAudioInput) {
     [avAudio initializeAudioBuffer:params.channels];
 
     // Create timestamps
-    AudioTimeStamp timeStamp = {0};
+    AudioTimeStamp timeStamp = {};
     timeStamp.mFlags = kAudioTimeStampSampleTimeValid;
     timeStamp.mSampleTime = 0;
 
@@ -438,7 +488,7 @@ TEST_P(ProcessSystemAudioIOProcTest, ProcessAudioInput) {
     TPCircularBufferTail(&avAudio->audioSampleBuffer, &initialAvailableBytes);
 
     // Create IOProc data structure for the C++ function
-    AVAudioIOProcData procData = {0};
+    AVAudioIOProcData procData = {};
     procData.avAudio = avAudio;
     procData.clientRequestedChannels = params.channels;
     procData.clientRequestedFrameSize = params.frameCount;
@@ -448,7 +498,7 @@ TEST_P(ProcessSystemAudioIOProcTest, ProcessAudioInput) {
     procData.audioConverter = nullptr;  // No conversion needed for most tests
 
     // Create a dummy output buffer (not used in our implementation but required by signature)
-    AudioBufferList dummyOutputBufferList = {0};
+    AudioBufferList dummyOutputBufferList = {};
 
     // Test the systemAudioIOProcWrapper function
     OSStatus result = platf::systemAudioIOProc(0,  // device ID (not used in our logic)

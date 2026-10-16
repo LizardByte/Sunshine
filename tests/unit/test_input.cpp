@@ -1,6 +1,6 @@
 /**
  * @file tests/unit/test_input.cpp
- * @brief Tests for retained stream input and virtual gamepad lifecycle behavior.
+ * @brief Tests for input packet batching, retained stream input, and virtual gamepad lifecycle behavior.
  */
 
 // test includes
@@ -9,11 +9,14 @@
 // standard includes
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
+#include <future>
 #include <limits>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 // moonlight-common-c includes
@@ -57,6 +60,38 @@ namespace {
   }
 
   /**
+   * @brief Verify batching a repeated packet around a potentially different packet.
+   *
+   * @tparam Packet Fixed-size protocol packet type.
+   * @param original Packet repeated before and after the different packet.
+   * @param different Packet that may introduce a batching boundary.
+   * @param magic Protocol identifier shared by the packets.
+   * @param expected Expected number of dispatched packets.
+   */
+  template<class Packet>
+  void expect_packet_dispatches(Packet original, Packet different, std::uint32_t magic, std::size_t expected) {
+    SCOPED_TRACE(magic);
+    auto stream_input = input::alloc(std::make_shared<safe::mail_raw_t>(), "packet-batching");
+    ASSERT_NE(stream_input, nullptr);
+    std::size_t dispatch_count = 0;
+    input::testing::set_input_packet_hook([magic, &dispatch_count](std::uint32_t dispatched_magic) {
+      EXPECT_EQ(dispatched_magic, magic);
+      ++dispatch_count;
+    });
+    for (auto packet : {original, different, original}) {
+      packet.header.size = util::endian::big<std::uint32_t>(sizeof(packet) - sizeof(packet.header.size));
+      packet.header.magic = util::endian::little(magic);
+      std::vector<std::uint8_t> bytes(sizeof(packet));
+      std::memcpy(bytes.data(), &packet, sizeof(packet));
+      input::passthrough(stream_input, std::move(bytes));
+    }
+    input::testing::process_queued_messages(stream_input);
+    input::testing::set_input_packet_hook({});
+    EXPECT_EQ(dispatch_count, expected);
+    EXPECT_EQ(input::testing::queued_input_packet_count(stream_input), 0);
+  }
+
+  /**
    * @brief Fixture that installs a fake global virtual input backend.
    */
   class InputGamepadSessionTest: public ::testing::Test {
@@ -67,6 +102,7 @@ namespace {
     void SetUp() override {
       original_input_ = config::input;
       config::input.controller = true;
+      config::input.mouse = true;
       config::input.gamepad = "xseries";
 
       auto platform_input = platf::input();
@@ -83,6 +119,8 @@ namespace {
      * @brief Destroy retained test sessions and restore configuration.
      */
     void TearDown() override {
+      input::testing::set_input_packet_hook({});
+      input::testing::set_input_task_sink({});
       input::terminate_gamepads();
       input::testing::set_platform_input({});
       context_ = nullptr;
@@ -250,6 +288,187 @@ TEST_F(InputGamepadSessionTest, RejectsMalformedBatchablePacketsAtQueueIngress) 
   }
 }
 
+TEST_F(InputGamepadSessionTest, SerializesArrivalAndStatePacketsForOneController) {
+  ASSERT_FALSE(task_pool.running());
+  config::input.gamepad = "auto";
+
+  auto stream_input = input::alloc(std::make_shared<safe::mail_raw_t>(), "simultaneous-controller-packets");
+  ASSERT_NE(stream_input, nullptr);
+  std::vector<std::shared_ptr<input::input_t>> scheduled;
+  input::testing::set_input_task_sink([&](std::shared_ptr<input::input_t> input) {
+    scheduled.push_back(std::move(input));
+  });
+
+  SS_CONTROLLER_ARRIVAL_PACKET arrival {};
+  arrival.header.size = util::endian::big<std::uint32_t>(sizeof(arrival) - sizeof(arrival.header.size));
+  arrival.header.magic = util::endian::little(SS_CONTROLLER_ARRIVAL_MAGIC);
+  arrival.controllerNumber = 0;
+  arrival.type = LI_CTYPE_NINTENDO;
+
+  NV_MULTI_CONTROLLER_PACKET state {};
+  state.header.size = util::endian::big<std::uint32_t>(sizeof(state) - sizeof(state.header.size));
+  state.header.magic = util::endian::little(MULTI_CONTROLLER_MAGIC_GEN5);
+  state.controllerNumber = 0;
+  state.activeGamepadMask = 1;
+
+  std::vector<std::uint8_t> arrival_bytes(sizeof(arrival));
+  std::memcpy(arrival_bytes.data(), &arrival, sizeof(arrival));
+  input::passthrough(stream_input, std::move(arrival_bytes));
+  ASSERT_EQ(scheduled.size(), 1);
+  EXPECT_EQ(scheduled.front(), stream_input);
+
+  std::promise<void> arrival_started;
+  std::promise<void> release_arrival;
+  const auto release_signal = release_arrival.get_future().share();
+  input::testing::set_input_packet_hook([&](std::uint32_t magic) {
+    if (magic == SS_CONTROLLER_ARRIVAL_MAGIC) {
+      arrival_started.set_value();
+      release_signal.wait();
+    }
+  });
+
+  std::jthread worker {input::testing::process_queued_messages, stream_input};
+  const auto arrival_status = arrival_started.get_future().wait_for(std::chrono::seconds {5});
+  if (arrival_status != std::future_status::ready) {
+    release_arrival.set_value();
+    worker.join();
+    FAIL() << "Controller arrival packet did not reach the dispatch hook";
+  }
+
+  std::vector<std::uint8_t> state_bytes(sizeof(state));
+  std::memcpy(state_bytes.data(), &state, sizeof(state));
+  input::passthrough(stream_input, std::move(state_bytes));
+  EXPECT_EQ(scheduled.size(), 1);
+  EXPECT_EQ(input::testing::queued_input_packet_count(stream_input), 1);
+
+  auto other_input = input::alloc(std::make_shared<safe::mail_raw_t>(), "independent-input-stream");
+  if (!other_input) {
+    release_arrival.set_value();
+    worker.join();
+    FAIL() << "Could not create independent input stream";
+  }
+  input::passthrough(other_input, make_input_packet(0x12345678, sizeof(std::uint32_t), sizeof(NV_INPUT_HEADER)));
+  EXPECT_EQ(scheduled.size(), 2);
+  if (scheduled.size() == 2) {
+    EXPECT_EQ(scheduled.back(), other_input);
+  }
+  const auto active_before_gamepad = runtime().active_device_count();
+  release_arrival.set_value();
+  worker.join();
+  input::testing::set_input_packet_hook({});
+  input::testing::process_queued_messages(other_input);
+
+  EXPECT_EQ(input::testing::queued_input_packet_count(stream_input), 0);
+  EXPECT_EQ(input::testing::queued_input_packet_count(other_input), 0);
+  EXPECT_EQ(runtime().active_device_count(), active_before_gamepad + 1);
+  const auto gamepad_id = input::testing::gamepad_id(stream_input, 0);
+  ASSERT_GE(gamepad_id, 0);
+  const auto *adapter = platf::virtualhid::gamepad_adapter_for_testing(context(), gamepad_id);
+  ASSERT_NE(adapter, nullptr);
+  ASSERT_NE(adapter->gamepad(), nullptr);
+  EXPECT_EQ(adapter->gamepad()->profile().gamepad_kind, lvh::GamepadProfileKind::switch_pro);
+}
+
+TEST_F(InputGamepadSessionTest, YieldsAfterBoundedPacketBatch) {
+  ASSERT_FALSE(task_pool.running());
+  auto stream_input = input::alloc(std::make_shared<safe::mail_raw_t>(), "bounded-input-batch");
+  ASSERT_NE(stream_input, nullptr);
+
+  std::vector<std::shared_ptr<input::input_t>> scheduled;
+  input::testing::set_input_task_sink([&](std::shared_ptr<input::input_t> input) {
+    scheduled.push_back(std::move(input));
+  });
+
+  constexpr std::uint32_t unknown_magic = 0x12345678;
+  constexpr std::size_t packet_count = 33;
+  for (std::size_t n = 0; n < packet_count; ++n) {
+    input::passthrough(stream_input, make_input_packet(unknown_magic, sizeof(std::uint32_t), sizeof(NV_INPUT_HEADER)));
+  }
+  ASSERT_EQ(scheduled.size(), 1);
+
+  input::testing::process_queued_messages(scheduled.front());
+  EXPECT_EQ(input::testing::queued_input_packet_count(stream_input), 1);
+  ASSERT_EQ(scheduled.size(), 2);
+  input::testing::process_queued_messages(scheduled.back());
+  EXPECT_EQ(input::testing::queued_input_packet_count(stream_input), 0);
+  EXPECT_EQ(scheduled.size(), 2);
+}
+
+TEST_F(InputGamepadSessionTest, BatchesContinuousPacketsWithoutCrossingStateChanges) {
+  ASSERT_FALSE(task_pool.running());
+  config::input.mouse = false;
+  config::input.controller = false;
+  config::input.native_pen_touch = false;
+  input::testing::set_input_task_sink([](std::shared_ptr<input::input_t>) {
+  });
+
+  NV_MULTI_CONTROLLER_PACKET controller {};
+  expect_packet_dispatches(controller, controller, MULTI_CONTROLLER_MAGIC_GEN5, 1);
+  auto changed_controller = controller;
+  changed_controller.controllerNumber = 1;
+  expect_packet_dispatches(controller, changed_controller, MULTI_CONTROLLER_MAGIC_GEN5, 2);
+  changed_controller = controller;
+  changed_controller.activeGamepadMask = 1;
+  expect_packet_dispatches(controller, changed_controller, MULTI_CONTROLLER_MAGIC_GEN5, 3);
+  changed_controller = controller;
+  changed_controller.buttonFlags = 1;
+  expect_packet_dispatches(controller, changed_controller, MULTI_CONTROLLER_MAGIC_GEN5, 3);
+  changed_controller = controller;
+  changed_controller.buttonFlags2 = 1;
+  expect_packet_dispatches(controller, changed_controller, MULTI_CONTROLLER_MAGIC_GEN5, 3);
+
+  SS_TOUCH_PACKET touch {};
+  touch.eventType = LI_TOUCH_EVENT_MOVE;
+  expect_packet_dispatches(touch, touch, SS_TOUCH_MAGIC, 1);
+  auto changed_touch = touch;
+  changed_touch.pointerId = 1;
+  expect_packet_dispatches(touch, changed_touch, SS_TOUCH_MAGIC, 2);
+  changed_touch = touch;
+  changed_touch.eventType = LI_TOUCH_EVENT_DOWN;
+  expect_packet_dispatches(touch, changed_touch, SS_TOUCH_MAGIC, 3);
+  changed_touch.eventType = LI_TOUCH_EVENT_HOVER;
+  expect_packet_dispatches(touch, changed_touch, SS_TOUCH_MAGIC, 3);
+
+  SS_PEN_PACKET pen {};
+  pen.eventType = LI_TOUCH_EVENT_MOVE;
+  expect_packet_dispatches(pen, pen, SS_PEN_MAGIC, 1);
+  auto changed_pen = pen;
+  changed_pen.eventType = LI_TOUCH_EVENT_DOWN;
+  expect_packet_dispatches(pen, changed_pen, SS_PEN_MAGIC, 3);
+  changed_pen.eventType = LI_TOUCH_EVENT_HOVER;
+  expect_packet_dispatches(pen, changed_pen, SS_PEN_MAGIC, 3);
+  changed_pen = pen;
+  changed_pen.penButtons = 1;
+  expect_packet_dispatches(pen, changed_pen, SS_PEN_MAGIC, 3);
+  changed_pen = pen;
+  changed_pen.toolType = 1;
+  expect_packet_dispatches(pen, changed_pen, SS_PEN_MAGIC, 3);
+
+  SS_CONTROLLER_TOUCH_PACKET controller_touch {};
+  controller_touch.eventType = LI_TOUCH_EVENT_MOVE;
+  expect_packet_dispatches(controller_touch, controller_touch, SS_CONTROLLER_TOUCH_MAGIC, 1);
+  auto changed_controller_touch = controller_touch;
+  changed_controller_touch.controllerNumber = 1;
+  expect_packet_dispatches(controller_touch, changed_controller_touch, SS_CONTROLLER_TOUCH_MAGIC, 2);
+  changed_controller_touch = controller_touch;
+  changed_controller_touch.pointerId = 1;
+  expect_packet_dispatches(controller_touch, changed_controller_touch, SS_CONTROLLER_TOUCH_MAGIC, 2);
+  changed_controller_touch = controller_touch;
+  changed_controller_touch.eventType = LI_TOUCH_EVENT_DOWN;
+  expect_packet_dispatches(controller_touch, changed_controller_touch, SS_CONTROLLER_TOUCH_MAGIC, 3);
+  changed_controller_touch.eventType = LI_TOUCH_EVENT_HOVER;
+  expect_packet_dispatches(controller_touch, changed_controller_touch, SS_CONTROLLER_TOUCH_MAGIC, 3);
+
+  SS_CONTROLLER_MOTION_PACKET motion {};
+  expect_packet_dispatches(motion, motion, SS_CONTROLLER_MOTION_MAGIC, 1);
+  auto changed_motion = motion;
+  changed_motion.controllerNumber = 1;
+  expect_packet_dispatches(motion, changed_motion, SS_CONTROLLER_MOTION_MAGIC, 2);
+  changed_motion = motion;
+  changed_motion.motionType = 1;
+  expect_packet_dispatches(motion, changed_motion, SS_CONTROLLER_MOTION_MAGIC, 2);
+}
+
 TEST_F(InputGamepadSessionTest, ReusesGamepadsAcrossPauseAndDestroysThemOnTermination) {
   const std::string session_id = "paired-client-certificate";
   auto first_mail = std::make_shared<safe::mail_raw_t>();
@@ -296,4 +515,55 @@ TEST_F(InputGamepadSessionTest, RefreshesSharedVirtualInputAfterLicenseStateChan
   EXPECT_NE(context().keyboard->device_id(), original_keyboard_id);
   EXPECT_NE(context().mouse->device_id(), original_mouse_id);
   EXPECT_EQ(runtime().active_device_count(), active_devices);
+}
+
+TEST_F(InputGamepadSessionTest, RetargetsRelativeMouseFromLatestStreamGeometry) {
+  auto session_mail = std::make_shared<safe::mail_raw_t>();
+  auto stream_input = input::alloc(session_mail, "relative-mouse-client");
+  ASSERT_NE(stream_input, nullptr);
+
+  input::touch_port_t left_viewport {
+    {
+      .offset_x = -1920,
+      .offset_y = 0,
+      .width = 1920,
+      .height = 1080,
+      .logical_width = 1920,
+      .logical_height = 1080,
+      .env_offset_x = -1920,
+      .env_offset_y = 0,
+    },
+    3840,
+    1080,
+    0.0F,
+    0.0F,
+    1.0F,
+    1.0F,
+    3840,
+    1080,
+  };
+
+  const auto initial_mouse_id = context().mouse->device_id();
+  session_mail->event<input::touch_port_t>(mail::touch_port)->raise(left_viewport);
+  input::testing::send_relative_mouse_packet(stream_input, 12, -7);
+  const auto left_mouse_id = context().mouse->device_id();
+  EXPECT_NE(left_mouse_id, initial_mouse_id);
+  auto mouse_event = context().mouse->last_submitted_event();
+  EXPECT_EQ(mouse_event.kind, lvh::MouseEventKind::relative_motion);
+  EXPECT_EQ(mouse_event.x, 12);
+  EXPECT_EQ(mouse_event.y, -7);
+  EXPECT_EQ(context().mouse_desktop.offset_x, -1920);
+  EXPECT_EQ(context().mouse_desktop.width, 3840);
+  EXPECT_EQ(context().mouse_viewport.offset_x, -1920);
+  EXPECT_EQ(context().mouse_viewport.width, 1920);
+
+  left_viewport.offset_x = 0;
+  session_mail->event<input::touch_port_t>(mail::touch_port)->raise(left_viewport);
+  input::testing::send_relative_mouse_packet(stream_input, -5, 9);
+  EXPECT_NE(context().mouse->device_id(), left_mouse_id);
+  mouse_event = context().mouse->last_submitted_event();
+  EXPECT_EQ(mouse_event.kind, lvh::MouseEventKind::relative_motion);
+  EXPECT_EQ(mouse_event.x, -5);
+  EXPECT_EQ(mouse_event.y, 9);
+  EXPECT_EQ(context().mouse_viewport.offset_x, 0);
 }

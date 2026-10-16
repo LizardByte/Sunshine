@@ -36,11 +36,11 @@ namespace platf::x11 {
   /**
    * @brief XFixes cursor image pointer released with `XFree`.
    */
-  using cursor_ctx_t = util::safe_ptr<cursor_ctx_raw_t, freeCursorCtx>;
+  using cursor_ctx_t = util::safe_ptr<cursor_ctx_raw_t, &freeCursorCtx>;
   /**
    * @brief X11 display pointer released with `XCloseDisplay`.
    */
-  using xdisplay_t = util::safe_ptr<_XDisplay, freeDisplay>;
+  using xdisplay_t = util::safe_ptr<_XDisplay, &freeDisplay>;
 
   /**
    * @brief X11 cursor image and positioning state used during capture.

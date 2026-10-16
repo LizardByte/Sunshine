@@ -9,6 +9,7 @@
  * The implementation handles format conversion, real-time audio processing, and provides
  * a unified interface for both capture methods through a shared circular buffer.
  */
+// header include
 #import "av_audio.h"
 
 // standard includes
@@ -19,6 +20,7 @@
 #include "src/logging.h"
 #include "src/utility.h"
 
+// platform includes
 #import <AudioToolbox/AudioConverter.h>
 #import <CoreAudio/CATapDescription.h>
 
@@ -60,6 +62,14 @@ namespace platf {
                                  callback(granted == YES);
                                }];
     });
+  }
+
+  bool request_system_audio_permission() {
+    AVAudio *probe = [[AVAudio alloc] init];
+    probe.hostAudioEnabled = YES;
+    const bool started = [probe setupSystemTap:48000 frameSize:512 channels:2] == 0;
+    [probe release];
+    return started;
   }
 
   /**

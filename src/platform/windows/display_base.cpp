@@ -3,8 +3,10 @@
  * @brief Definitions for the Windows display base code.
  */
 // standard includes
+#include <array>
 #include <cmath>
 #include <thread>
+#include <utility>
 
 // platform includes
 #include <initguid.h>
@@ -24,20 +26,22 @@
 /**
  * @brief Windows NT status code returned by native APIs.
  */
-typedef long NTSTATUS;
+using NTSTATUS = long;
 
 // Definition from the WDK's d3dkmthk.h
 /**
  * @brief Enumerates supported d3 DKMT GPU PREFERENCE QUERY STATE options.
  */
-typedef enum _D3DKMT_GPU_PREFERENCE_QUERY_STATE : DWORD {
+enum _D3DKMT_GPU_PREFERENCE_QUERY_STATE : DWORD {
   D3DKMT_GPU_PREFERENCE_STATE_UNINITIALIZED,  ///< The GPU preference isn't initialized.
   D3DKMT_GPU_PREFERENCE_STATE_HIGH_PERFORMANCE,  ///< The highest performing GPU is preferred.
   D3DKMT_GPU_PREFERENCE_STATE_MINIMUM_POWER,  ///< The minimum-powered GPU is preferred.
   D3DKMT_GPU_PREFERENCE_STATE_UNSPECIFIED,  ///< A GPU preference isn't specified.
   D3DKMT_GPU_PREFERENCE_STATE_NOT_FOUND,  ///< A GPU preference isn't found.
   D3DKMT_GPU_PREFERENCE_STATE_USER_SPECIFIED_GPU  ///< A specific GPU is preferred.
-} D3DKMT_GPU_PREFERENCE_QUERY_STATE;  ///< Alias for D3 DKMT GPU PREFERENCE QUERY STATE.
+};
+
+using D3DKMT_GPU_PREFERENCE_QUERY_STATE = _D3DKMT_GPU_PREFERENCE_QUERY_STATE;  ///< GPU preference query state reported by D3DKMT.
 
 #include "display.h"
 #include "misc.h"
@@ -171,7 +175,7 @@ namespace platf::dxgi {
         return capture_e::reinit;
       default:
         BOOST_LOG(error) << "Couldn't acquire next frame [0x"sv << util::hex(status).to_string_view();
-        return capture_e::error;
+        return capture_e::capture_error;
     }
   }
 
@@ -183,27 +187,34 @@ namespace platf::dxgi {
     return capture_status;
   }
 
+  /**
+   * @brief Release the acquired desktop duplication frame and classify the DXGI result.
+   *
+   * @return Success, a required display reinitialization, or a capture error.
+   */
   capture_e duplication_t::release_frame() {
+    using enum platf::capture_e;
+
     if (!has_frame) {
-      return capture_e::ok;
+      return ok;
     }
 
     auto status = dup->ReleaseFrame();
     has_frame = false;
     switch (status) {
       case S_OK:
-        return capture_e::ok;
+        return ok;
 
       case DXGI_ERROR_INVALID_CALL:
         BOOST_LOG(warning) << "Duplication frame already released";
-        return capture_e::ok;
+        return ok;
 
       case DXGI_ERROR_ACCESS_LOST:
-        return capture_e::reinit;
+        return reinit;
 
       default:
         BOOST_LOG(error) << "Error while releasing duplication frame [0x"sv << util::hex(status).to_string_view();
-        return capture_e::error;
+        return capture_error;
     }
   }
 
@@ -329,7 +340,7 @@ namespace platf::dxgi {
 
       switch (status) {
         case platf::capture_e::reinit:
-        case platf::capture_e::error:
+        case platf::capture_e::capture_error:
         case platf::capture_e::interrupted:
           return status;
         case platf::capture_e::timeout:
@@ -343,7 +354,7 @@ namespace platf::dxgi {
           }
           break;
         default:
-          BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
+          BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
           return status;
       }
 
@@ -366,7 +377,7 @@ namespace platf::dxgi {
    * @return True when Desktop Duplication can capture the requested output.
    */
   bool test_dxgi_duplication(adapter_t &adapter, output_t &output, bool enumeration_only) {
-    D3D_FEATURE_LEVEL featureLevels[] {
+    std::array<D3D_FEATURE_LEVEL, 7> featureLevels {
       D3D_FEATURE_LEVEL_11_1,
       D3D_FEATURE_LEVEL_11_0,
       D3D_FEATURE_LEVEL_10_1,
@@ -382,8 +393,8 @@ namespace platf::dxgi {
       D3D_DRIVER_TYPE_UNKNOWN,
       nullptr,
       D3D11_CREATE_DEVICE_FLAGS,
-      featureLevels,
-      sizeof(featureLevels) / sizeof(D3D_FEATURE_LEVEL),
+      featureLevels.data(),
+      featureLevels.size(),
       D3D11_SDK_VERSION,
       &device,
       nullptr,
@@ -455,7 +466,7 @@ namespace platf::dxgi {
     std::call_once(windows_cpp_once_flag, []() {
       DECLARE_HANDLE(DPI_AWARENESS_CONTEXT);
 
-      typedef BOOL (*User32_SetProcessDpiAwarenessContext)(DPI_AWARENESS_CONTEXT value);
+      using User32_SetProcessDpiAwarenessContext = BOOL (*)(DPI_AWARENESS_CONTEXT value);
 
       {
         auto user32 = LoadLibraryA("user32.dll");
@@ -561,7 +572,7 @@ namespace platf::dxgi {
       return -1;
     }
 
-    D3D_FEATURE_LEVEL featureLevels[] {
+    std::array<D3D_FEATURE_LEVEL, 7> featureLevels {
       D3D_FEATURE_LEVEL_11_1,
       D3D_FEATURE_LEVEL_11_0,
       D3D_FEATURE_LEVEL_10_1,
@@ -582,8 +593,8 @@ namespace platf::dxgi {
       D3D_DRIVER_TYPE_UNKNOWN,
       nullptr,
       D3D11_CREATE_DEVICE_FLAGS,
-      featureLevels,
-      sizeof(featureLevels) / sizeof(D3D_FEATURE_LEVEL),
+      featureLevels.data(),
+      featureLevels.size(),
       D3D11_SDK_VERSION,
       &device,
       &feature_level,
@@ -636,7 +647,7 @@ namespace platf::dxgi {
 
       HMODULE gdi32 = GetModuleHandleA("GDI32");
       if (gdi32) {
-        auto check_hags = [&](const LUID &adapter) -> bool {
+        auto check_hags = [&](const LUID &adapter_luid) {
           auto d3dkmt_open_adapter = (PD3DKMTOpenAdapterFromLuid) GetProcAddress(gdi32, "D3DKMTOpenAdapterFromLuid");
           auto d3dkmt_query_adapter_info = (PD3DKMTQueryAdapterInfo) GetProcAddress(gdi32, "D3DKMTQueryAdapterInfo");
           auto d3dkmt_close_adapter = (PD3DKMTCloseAdapter) GetProcAddress(gdi32, "D3DKMTCloseAdapter");
@@ -645,7 +656,7 @@ namespace platf::dxgi {
             return false;
           }
 
-          D3DKMT_OPENADAPTERFROMLUID d3dkmt_adapter = {.AdapterLuid = adapter};
+          D3DKMT_OPENADAPTERFROMLUID d3dkmt_adapter = {.AdapterLuid = adapter_luid};
           if (FAILED(d3dkmt_open_adapter(&d3dkmt_adapter))) {
             BOOST_LOG(error) << "D3DKMTOpenAdapterFromLuid() failed while trying to determine GPU HAGS status";
             return false;
@@ -830,7 +841,7 @@ namespace platf::dxgi {
   /**
    * @brief Names for DXGI_FORMAT values used in diagnostic logging.
    */
-  const char *format_str[] = {
+  const std::array<const char *, 133> format_str = {
     "DXGI_FORMAT_UNKNOWN",
     "DXGI_FORMAT_R32G32B32A32_TYPELESS",
     "DXGI_FORMAT_R32G32B32A32_FLOAT",
@@ -973,7 +984,7 @@ namespace platf::dxgi {
   }
 
   const char *display_base_t::colorspace_to_string(DXGI_COLOR_SPACE_TYPE type) {
-    const char *type_str[] = {
+    std::array<const char *, 25> type_str = {
       "DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709",
       "DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709",
       "DXGI_COLOR_SPACE_RGB_STUDIO_G22_NONE_P709",
@@ -1001,7 +1012,7 @@ namespace platf::dxgi {
       "DXGI_COLOR_SPACE_YCBCR_STUDIO_G24_TOPLEFT_P2020",
     };
 
-    if (type < ARRAYSIZE(type_str)) {
+    if (type < type_str.size()) {
       return type_str[type];
     } else {
       return "UNKNOWN";
@@ -1127,7 +1138,7 @@ namespace platf {
   bool needs_encoder_reenumeration() {
     // Serialize access to the static DXGI factory
     static std::mutex reenumeration_state_lock;
-    auto lg = std::lock_guard(reenumeration_state_lock);
+    auto lg = std::scoped_lock(reenumeration_state_lock);
 
     // Keep a reference to the DXGI factory, which will keep track of changes internally.
     static dxgi::factory1_t factory;

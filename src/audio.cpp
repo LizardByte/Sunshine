@@ -3,6 +3,7 @@
  * @brief Definitions for audio capture and encoding.
  */
 // standard includes
+#include <array>
 #include <thread>
 
 // lib includes
@@ -48,7 +49,7 @@ namespace audio {
   /**
    * @brief Opus stream layouts and bitrates advertised to clients.
    */
-  opus_stream_config_t stream_configs[MAX_STREAM_CONFIG] {
+  const std::array<opus_stream_config_t, MAX_STREAM_CONFIG> stream_configs {{
     {
       SAMPLE_RATE,
       2,
@@ -97,16 +98,16 @@ namespace audio {
       platf::speaker::map_surround71.data(),
       2048000,
     },
-  };
+  }};
 
   /**
    * @brief Encode captured PCM samples into Opus packets on the audio worker thread.
    *
    * @param samples Queue of captured PCM sample buffers to encode.
    * @param config Audio stream settings negotiated with the client.
-   * @param channel_data Platform-specific audio capture context passed to packet metadata.
+   * @param channel_data Stream session carried with each encoded packet.
    */
-  void encodeThread(sample_queue_t samples, config_t config, void *channel_data) {
+  void encodeThread(sample_queue_t samples, config_t config, stream::session_t *channel_data) {
     auto packets = mail::man->queue<packet_t>(mail::audio_packets);
     auto stream = stream_configs[map_stream(config.channels, config.flags[config_t::HIGH_QUALITY])];
     if (config.flags[config_t::CUSTOM_SURROUND_PARAMS]) {
@@ -154,7 +155,7 @@ namespace audio {
   /**
    * @brief Run the capture loop for this backend.
    */
-  void capture(safe::mail_t mail, config_t config, void *channel_data) {
+  void capture(safe::mail_t mail, config_t config, stream::session_t *channel_data) {
     auto shutdown_event = mail->event<bool>(mail::shutdown);
     if (!config::audio.stream) {
       shutdown_event->view();
@@ -236,7 +237,7 @@ namespace audio {
     auto samples = std::make_shared<sample_queue_t::element_type>(30);
     std::jthread thread {encodeThread, samples, config, channel_data};
 
-    auto fg = util::fail_guard([&]() {
+    auto fg = util::fail_guard([&samples, &thread, &shutdown_event]() {
       samples->stop();
       thread.join();
 
@@ -352,6 +353,6 @@ namespace audio {
     stream.channelCount = params.channelCount;
     stream.streams = params.streams;
     stream.coupledStreams = params.coupledStreams;
-    stream.mapping = params.mapping;
+    stream.mapping = params.mapping.data();
   }
 }  // namespace audio

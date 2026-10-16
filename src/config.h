@@ -15,8 +15,14 @@
 
 // local includes
 #include "nvenc/nvenc_config.h"
+#include "string_hash.h"
 
 namespace config {
+  /**
+   * @brief Owning configuration entries supporting lookup by string view or C string.
+   */
+  using config_map_t = std::unordered_map<std::string, std::string, util::transparent_string_hash, std::equal_to<>>;
+
   namespace nv {
     /**
      * @brief Convert Sunshine's NVENC quality preset number to FFmpeg's stable symbolic name.
@@ -34,11 +40,12 @@ namespace config {
   constexpr int PACKETSIZE_LARGE = 1456;  ///< Default large packet size that avoids common MTU fragmentation.
 
   inline constexpr std::string_view GAMEPAD_DRIVER_ALL = "all";  ///< Allow every available Windows virtual gamepad driver.
-  inline constexpr std::string_view GAMEPAD_DRIVER_VIRTUALHID = "virtualhid";  ///< Allow only Virtual HID Driver for Windows gamepads.
+  inline constexpr std::string_view GAMEPAD_DRIVER_VIRTUALHID = "virtualhid";  ///< Use Virtual HID Broker for gamepads on Windows or macOS.
   inline constexpr std::string_view GAMEPAD_DRIVER_VIGEMBUS = "vigembus";  ///< Allow only ViGEmBus for Windows gamepads.
+  inline constexpr std::string_view GAMEPAD_DRIVER_NONE = "none";  ///< Disable virtual gamepads on Windows and macOS.
 
   // track modified config options
-  inline std::unordered_map<std::string, std::string> modified_config_settings;  ///< Configuration keys changed during the current parse or UI update.
+  inline config_map_t modified_config_settings;  ///< Configuration keys changed during the current parse or UI update.
 
   // sensitive values that should be redacted from logging
   /**
@@ -54,7 +61,7 @@ namespace config {
    * @param vars Parsed configuration entries to log.
    * @param save Whether modified configuration values should be written back to disk.
    */
-  void log_config_settings(const std::unordered_map<std::string, std::string> &vars, bool save);
+  void log_config_settings(const config_map_t &vars, bool save);
 
   /**
    * @brief Video encoder, capture, and color settings loaded from configuration.
@@ -131,9 +138,11 @@ namespace config {
     struct {
       int tune;  ///< Vulkan encoder tuning mode: default, HQ, LL, ULL, or lossless.
       int rc_mode;  ///< Vulkan encoder rate-control mode: driver, CQP, CBR, or VBR.
+      int quality;  ///< Vulkan encoder quality preset: 1 = speed, 2 = balanced (default), 3 = quality.
     } vk;  ///< Vulkan encoder options.
 
     std::string capture;  ///< Capture backend name selected by configuration.
+    bool fp16_sdr_gamma_encoded;  ///< Treat FP16 captures of SDR displays as already sRGB gamma-encoded (Windows).
     std::string encoder;  ///< Encoder backend name selected by configuration.
     std::string adapter_name;  ///< Display adapter name selected in configuration.
     std::string output_name;  ///< Display output name selected in configuration.
@@ -215,7 +224,9 @@ namespace config {
       bool config_revert_on_disconnect;  ///< Specify whether to revert display configuration on client disconnect.
       mode_remapping_t mode_remapping;  ///< Display mode remapping rules grouped by automatic selection mode.
       workarounds_t wa;  ///< Display-device compatibility workarounds.
-    } dd;  ///< Display-device integration settings.
+    };
+
+    dd_t dd;  ///< Display-device integration settings.
 
     int max_bitrate;  ///< Maximum bitrate ceiling in kbps for bitrate requested from the client.
     double minimum_fps_target;  ///< Lowest framerate that will be used when streaming. Range 0-1000, 0 = half of client's requested framerate.
@@ -229,6 +240,7 @@ namespace config {
     std::string virtual_sink;  ///< Virtual audio sink for audio routing
     bool stream;  ///< Enable audio streaming to clients
     bool install_steam_drivers;  ///< Install Steam audio drivers for enhanced compatibility
+    bool external_audio;  ///< Windows capture-only mode; an external router owns endpoint defaults and formats.
   };
 
   /**
@@ -252,7 +264,7 @@ namespace config {
 
     std::string file_apps;  ///< Path to the configured applications file.
 
-    int fec_percentage;  ///< Percentage of forward-error-correction packets to add to the stream.
+    int fec_percentage;  ///< Percentage of forward-error-correction packets to add to the stream (0-100); 0 disables FEC.
 
     // Video encryption settings for LAN and WAN streams
     int lan_encryption_mode;  ///< Video encryption policy for LAN clients.
@@ -291,7 +303,7 @@ namespace config {
     std::chrono::duration<double> key_repeat_period;  ///< Interval between repeated keyboard key events.
 
     std::string gamepad;  ///< Virtual controller profile selected by configuration.
-    std::string gamepad_driver;  ///< Windows virtual gamepad driver policy, or empty until the user chooses one.
+    std::string gamepad_driver;  ///< Virtual gamepad backend policy on Windows and macOS.
     bool ds4_back_as_touchpad_click;  ///< Map Back/Select to touchpad click for PlayStation-style gamepads.
     bool motion_as_ds4;  ///< Prefer PlayStation-style emulation for client gamepads with motion controls.
     bool touchpad_as_ds4;  ///< Prefer PlayStation-style emulation for client gamepads with touchpad input.
@@ -336,7 +348,7 @@ namespace config {
     prep_cmd_t(std::string &&do_cmd, std::string &&undo_cmd, bool &&elevated):
         do_cmd(std::move(do_cmd)),
         undo_cmd(std::move(undo_cmd)),
-        elevated(std::move(elevated)) {
+        elevated(elevated) {
     }
 
     /**
@@ -347,7 +359,7 @@ namespace config {
      */
     explicit prep_cmd_t(std::string &&do_cmd, bool &&elevated):
         do_cmd(std::move(do_cmd)),
-        elevated(std::move(elevated)) {
+        elevated(elevated) {
     }
 
     std::string do_cmd;  ///< Command to run before the application starts.
@@ -377,7 +389,9 @@ namespace config {
       std::string name;  ///< Executable name from the command line.
       int argc;  ///< Number of command-line arguments.
       char **argv;  ///< Command-line argument vector.
-    } cmd;  ///< Command line used to launch the application.
+    };
+
+    cmd_t cmd;  ///< Command line used to launch the application.
 
     std::uint16_t port;  ///< TCP port used by Sunshine services.
     std::string address_family;  ///< Address family requested for listening sockets.
@@ -423,7 +437,7 @@ namespace config {
    * @param file_content Raw configuration file contents to parse.
    * @return Parsed configuration key-value entries.
    */
-  std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content);
+  config_map_t parse_config(const std::string_view &file_content);
 
   /**
    * @brief Persist a configuration option when the active file does not already define it.

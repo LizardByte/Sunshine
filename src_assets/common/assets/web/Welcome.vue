@@ -71,32 +71,36 @@
       };
     },
     methods: {
-      save() {
+      /**
+       * @brief Create credentials and reload after a successful response.
+       *
+       * @return {Promise<void>} Completion of the credential request and response processing.
+       */
+      async save() {
         this.error = null;
         this.loading = true;
-        apiFetch("./api/password", {
+        const response = await apiFetch("./api/password", {
           method: "POST",
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(this.passwordData),
-        }).then((r) => {
-          this.loading = false;
-          if (r.status === 200) {
-            r.json().then((rj) => {
-              this.success = rj.status;
-              if (this.success === true) {
-                setTimeout(() => {
-                  document.location.reload();
-                }, 5000);
-              } else {
-                this.error = rj.error;
-              }
-            });
-          } else {
-            this.error = "Internal Server Error";
-          }
         });
+        this.loading = false;
+        if (response.status !== 200) {
+          this.error = "Internal Server Error";
+          return;
+        }
+
+        const result = await response.json();
+        this.success = result.status;
+        if (this.success === true) {
+          setTimeout(() => {
+            document.location.reload();
+          }, 5000);
+        } else {
+          this.error = result.error;
+        }
       },
     },
   }

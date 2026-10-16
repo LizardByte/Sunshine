@@ -41,8 +41,8 @@ namespace confighttp {
   void send_unauthorized(const resp_https_t &response, const req_https_t &request);
   void send_redirect(const resp_https_t &response, const req_https_t &request, const char *path);
   bool authenticate(const resp_https_t &response, const req_https_t &request);
-  void not_found(const resp_https_t &response, const req_https_t &request, const std::string &error_message = "Not Found");
-  void bad_request(const resp_https_t &response, const req_https_t &request, const std::string &error_message = "Bad Request");
+  void not_found(const resp_https_t &response, const std::string &error_message = "Not Found");
+  void bad_request(const resp_https_t &response, const std::string &error_message = "Bad Request");
   /**
    * @brief Check content type.
    *
@@ -64,14 +64,13 @@ namespace confighttp {
   bool validate_csrf_token(const resp_https_t &response, const req_https_t &request, const std::string &client_id);
   std::string get_client_id(const req_https_t &request);
   /**
-   * @brief Check app index.
+   * @brief Validate an application index and report an invalid index through the response.
    *
    * @param response HTTP response object to populate.
-   * @param request HTTP request data from the client.
    * @param index Zero-based index of the item being addressed.
-   * @return True when the request passes validation and processing may continue.
+   * @return True when the index identifies an existing application.
    */
-  bool check_app_index(const resp_https_t &response, const req_https_t &request, int index);
+  bool check_app_index(const resp_https_t &response, int index);
   /**
    * @brief Serve the Web UI single-page application entry document.
    *
@@ -160,9 +159,9 @@ namespace confighttp {
   nlohmann::json build_virtualhid_license_status(const lvh::LicenseResult &result);
 
   /**
-   * @brief Build libvirtualhid driver version and installation status.
+   * @brief Build Virtual HID Broker version and installation status.
    *
-   * @return libvirtualhid driver status JSON.
+   * @return Virtual HID Broker status JSON.
    */
   nlohmann::json get_virtualhid_driver_status();
 
@@ -175,6 +174,22 @@ namespace confighttp {
 
   void getVirtualInputStatus(const resp_https_t &response, const req_https_t &request);
 
+  /**
+   * @brief Return the host's permission statuses to the Web UI.
+   *
+   * @param response HTTPS response receiving the status JSON.
+   * @param request Authenticated HTTPS request.
+   */
+  void getPermissions(const resp_https_t &response, const req_https_t &request);
+
+  /**
+   * @brief Initiate a native permission request from the Web UI.
+   *
+   * @param response HTTPS response receiving the request result.
+   * @param request Authenticated, CSRF protected request.
+   */
+  void requestPermission(const resp_https_t &response, const req_https_t &request);
+
   void getVirtualInputLicense(const resp_https_t &response, const req_https_t &request);
 
   void updateVirtualInputLicense(const resp_https_t &response, const req_https_t &request);
@@ -182,6 +197,18 @@ namespace confighttp {
   void resetPortalToken(const resp_https_t &response, const req_https_t &request);
 
 #ifdef SUNSHINE_TESTS
+  /**
+   * @brief Replace native permission statuses for deterministic HTTP tests.
+   *
+   * @param permissions JSON array returned by the status endpoint.
+   */
+  void set_permission_statuses_for_testing(nlohmann::json permissions);
+
+  /**
+   * @brief Restore native permission status queries after HTTP tests.
+   */
+  void reset_permission_statuses_for_testing();
+
   using virtual_input_license_status_provider_t = std::function<lvh::LicenseResult()>;  ///< Test provider for current libvirtualhid license status.
   using portal_token_path_provider_t = std::function<std::filesystem::path()>;  ///< Test provider for the XDG Portal token path.
 
@@ -247,7 +274,7 @@ namespace confighttp {
 /**
  * @brief File-extension to MIME-type mapping used when serving the Web UI.
  */
-const std::map<std::string, std::string> mime_types = {
+const std::map<std::string, std::string, std::less<>> mime_types = {
   {"css", "text/css"},
   {"gif", "image/gif"},
   {"htm", "text/html"},

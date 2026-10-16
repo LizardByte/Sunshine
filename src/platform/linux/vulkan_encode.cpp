@@ -7,6 +7,7 @@
 #include <array>
 #include <cstdint>
 #include <drm_fourcc.h>
+#include <map>
 #include <sys/stat.h>
 #if defined(__FreeBSD__)
   #include <sys/types.h>
@@ -39,9 +40,277 @@ using namespace std::literals;
 
 namespace vk {
 
+  /**
+   * @brief Find Vulkan physical device matching a render node path.
+   *
+   * @param devs List of Vulkan physical devices.
+   * @param render_path Path to render node (e.g. /dev/dri/renderD128).
+   * @return Matching device, or devs[0] if no match found.
+   */
+  static VkPhysicalDevice find_device_by_render_node(const std::vector<VkPhysicalDevice> &devs, const std::string &render_path) {
+    if (render_path.empty() || render_path[0] != '/') {
+      return devs[0];
+    }
+
+    struct stat node_stat;
+    if (stat(render_path.c_str(), &node_stat) != 0) {
+      return devs[0];
+    }
+
+    auto target_major = major(node_stat.st_rdev);
+    auto target_minor = minor(node_stat.st_rdev);
+
+    for (const auto &dev : devs) {
+      VkPhysicalDeviceDrmPropertiesEXT drm = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRM_PROPERTIES_EXT};
+      VkPhysicalDeviceProperties2 props2 = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+      props2.pNext = &drm;
+      vkGetPhysicalDeviceProperties2(dev, &props2);
+
+      if (drm.hasRender && drm.renderMajor == (int64_t) target_major && drm.renderMinor == (int64_t) target_minor) {
+        return dev;
+      }
+    }
+
+    return devs[0];
+  }
+
+  /**
+   * @brief Query supported modifiers for a single format.
+   *
+   * @param phys_dev Vulkan physical device.
+   * @param vk_fmt Vulkan format to query.
+   * @return Vector of supported modifiers, or empty if none.
+   */
+  static std::vector<std::uint64_t> query_format_modifiers(VkPhysicalDevice phys_dev, VkFormat vk_fmt) {
+    VkDrmFormatModifierPropertiesListEXT mod_list = {.sType = VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT};
+    VkFormatProperties2 fmt_props2 = {.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2};
+    fmt_props2.pNext = &mod_list;
+
+    vkGetPhysicalDeviceFormatProperties2(phys_dev, vk_fmt, &fmt_props2);
+
+    if (mod_list.drmFormatModifierCount == 0) {
+      return {};
+    }
+
+    std::vector<VkDrmFormatModifierPropertiesEXT> mod_props(mod_list.drmFormatModifierCount);
+    mod_list.pDrmFormatModifierProperties = mod_props.data();
+    vkGetPhysicalDeviceFormatProperties2(phys_dev, vk_fmt, &fmt_props2);
+
+    std::vector<std::uint64_t> modifiers;
+    modifiers.reserve(mod_props.size());
+    for (const auto &mp : mod_props) {
+      // Only include modifiers that support sampled images (needed for compute shader input)
+      if (mp.drmFormatModifierTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) {
+        modifiers.push_back(mp.drmFormatModifier);
+      }
+    }
+
+    return modifiers;
+  }
+
+  /**
+   * @brief Query DRM format modifiers supported by the Vulkan driver for common capture formats.
+   *
+   * Creates a temporary Vulkan instance and physical device to query modifier support
+   * via VK_EXT_image_drm_format_modifier extension.
+   *
+   * @return Map of DRM format to supported modifiers, or empty map if query fails.
+   */
+  std::map<std::uint32_t, std::vector<std::uint64_t>> get_supported_capture_modifiers() {
+    std::map<std::uint32_t, std::vector<std::uint64_t>> result;
+
+    // Create temporary Vulkan instance
+    VkApplicationInfo app = {.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO};
+    app.apiVersion = VK_API_VERSION_1_1;
+
+    VkInstanceCreateInfo ci = {.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
+    ci.pApplicationInfo = &app;
+    VkInstance inst = VK_NULL_HANDLE;
+    if (vkCreateInstance(&ci, nullptr, &inst) != VK_SUCCESS) {
+      BOOST_LOG(warning) << "[vulkan] Failed to create instance for modifier query"sv;
+      return result;
+    }
+
+    // Get physical devices
+    uint32_t count = 0;
+    vkEnumeratePhysicalDevices(inst, &count, nullptr);
+    if (count == 0) {
+      vkDestroyInstance(inst, nullptr);
+      return result;
+    }
+
+    std::vector<VkPhysicalDevice> devs(count);
+    vkEnumeratePhysicalDevices(inst, &count, devs.data());
+
+    // Find the device matching the render node that will be used for encoding
+    VkPhysicalDevice phys_dev = find_device_by_render_node(devs, platf::resolve_render_device());
+
+    // Common capture formats (ARGB/XRGB variants)
+    static const std::array<std::pair<uint32_t, VkFormat>, 4> formats_to_query = {{
+      {DRM_FORMAT_ARGB8888, VK_FORMAT_B8G8R8A8_UNORM},
+      {DRM_FORMAT_XRGB8888, VK_FORMAT_B8G8R8A8_UNORM},
+      {DRM_FORMAT_ABGR8888, VK_FORMAT_R8G8B8A8_UNORM},
+      {DRM_FORMAT_XBGR8888, VK_FORMAT_R8G8B8A8_UNORM},
+    }};
+
+    for (const auto &[drm_fmt, vk_fmt] : formats_to_query) {
+      auto modifiers = query_format_modifiers(phys_dev, vk_fmt);
+      if (!modifiers.empty()) {
+        BOOST_LOG(debug) << "[vulkan] Format 0x"sv << std::hex << drm_fmt << std::dec
+                         << " has "sv << modifiers.size() << " supported modifiers"sv;
+        result[drm_fmt] = std::move(modifiers);
+      }
+    }
+
+    vkDestroyInstance(inst, nullptr);
+    return result;
+  }
+
+  /**
+   * @brief Query and validate encoder quality level for a given codec.
+   *
+   * This uses FFmpeg's Vulkan context to query maxQualityLevels and validate
+   * the requested level using vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR.
+   * If the requested level is invalid, returns 0 to indicate failure.
+   *
+   * @param codec_id FFmpeg codec ID (AV_CODEC_ID_H264, AV_CODEC_ID_HEVC, AV_CODEC_ID_AV1).
+   * @param vk_ctx FFmpeg's AVVulkanDeviceContext with initialized Vulkan handles.
+   * @param requested_level Requested quality level to validate (0 = speed, max = quality).
+   * @param[out] max_level Maximum quality level supported by the driver.
+   * @return Validated quality level (requested_level if valid, 0 if invalid).
+   */
+  static uint32_t query_and_validate_quality_level(AVCodecID codec_id, AVVulkanDeviceContext *vk_ctx, uint32_t requested_level, uint32_t *max_level) {
+    *max_level = 0;
+
+    if (!vk_ctx || !vk_ctx->inst || !vk_ctx->phys_dev || !vk_ctx->get_proc_addr) {
+      return 0;
+    }
+
+    auto vkGetPhysicalDeviceVideoCapabilitiesKHR_fn = (PFN_vkGetPhysicalDeviceVideoCapabilitiesKHR)
+                                                        vk_ctx->get_proc_addr(vk_ctx->inst, "vkGetPhysicalDeviceVideoCapabilitiesKHR");
+
+    if (!vkGetPhysicalDeviceVideoCapabilitiesKHR_fn) {
+      return 0;
+    }
+
+    // Codec-specific profile extensions (zero-initialized)
+    VkVideoEncodeH264ProfileInfoKHR h264_profile = {};
+    h264_profile.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_H264_PROFILE_INFO_KHR;
+    h264_profile.stdProfileIdc = STD_VIDEO_H264_PROFILE_IDC_HIGH;
+
+    VkVideoEncodeH265ProfileInfoKHR h265_profile = {};
+    h265_profile.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_H265_PROFILE_INFO_KHR;
+    h265_profile.stdProfileIdc = STD_VIDEO_H265_PROFILE_IDC_MAIN;
+
+    VkVideoEncodeAV1ProfileInfoKHR av1_profile = {};
+    av1_profile.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_AV1_PROFILE_INFO_KHR;
+    av1_profile.stdProfile = STD_VIDEO_AV1_PROFILE_MAIN;
+
+    // Codec-specific capabilities extensions (zero-initialized)
+    VkVideoEncodeH264CapabilitiesKHR h264_caps = {};
+    h264_caps.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_H264_CAPABILITIES_KHR;
+
+    VkVideoEncodeH265CapabilitiesKHR h265_caps = {};
+    h265_caps.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_H265_CAPABILITIES_KHR;
+
+    VkVideoEncodeAV1CapabilitiesKHR av1_caps = {};
+    av1_caps.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_AV1_CAPABILITIES_KHR;
+
+    // Usage info chain (follows FFmpeg's pattern)
+    VkVideoEncodeUsageInfoKHR usage_info = {};
+    usage_info.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_USAGE_INFO_KHR;
+    usage_info.videoUsageHints = VK_VIDEO_ENCODE_USAGE_STREAMING_BIT_KHR;
+    usage_info.videoContentHints = VK_VIDEO_ENCODE_CONTENT_DEFAULT_KHR;
+    usage_info.tuningMode = VK_VIDEO_ENCODE_TUNING_MODE_LOW_LATENCY_KHR;
+
+    // Profile info
+    VkVideoProfileInfoKHR profile = {};
+    profile.sType = VK_STRUCTURE_TYPE_VIDEO_PROFILE_INFO_KHR;
+    profile.pNext = &usage_info;
+    profile.chromaSubsampling = VK_VIDEO_CHROMA_SUBSAMPLING_420_BIT_KHR;
+    profile.lumaBitDepth = VK_VIDEO_COMPONENT_BIT_DEPTH_8_BIT_KHR;
+    profile.chromaBitDepth = VK_VIDEO_COMPONENT_BIT_DEPTH_8_BIT_KHR;
+
+    // Encode capabilities output
+    VkVideoEncodeCapabilitiesKHR enc_caps = {};
+    enc_caps.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_CAPABILITIES_KHR;
+
+    // Set codec operation and chain codec-specific extensions (profile and caps)
+    switch (codec_id) {
+      case AV_CODEC_ID_H264:
+        profile.videoCodecOperation = VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR;
+        usage_info.pNext = &h264_profile;
+        enc_caps.pNext = &h264_caps;
+        break;
+      case AV_CODEC_ID_HEVC:
+        profile.videoCodecOperation = VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR;
+        usage_info.pNext = &h265_profile;
+        enc_caps.pNext = &h265_caps;
+        break;
+      case AV_CODEC_ID_AV1:
+        profile.videoCodecOperation = VK_VIDEO_CODEC_OPERATION_ENCODE_AV1_BIT_KHR;
+        usage_info.pNext = &av1_profile;
+        enc_caps.pNext = &av1_caps;
+        break;
+      default:
+        return 0;
+    }
+
+    // Main capabilities output
+    VkVideoCapabilitiesKHR caps = {};
+    caps.sType = VK_STRUCTURE_TYPE_VIDEO_CAPABILITIES_KHR;
+    caps.pNext = &enc_caps;
+
+    VkResult result = vkGetPhysicalDeviceVideoCapabilitiesKHR_fn(vk_ctx->phys_dev, &profile, &caps);
+    if (result != VK_SUCCESS) {
+      return 0;
+    }
+
+    *max_level = enc_caps.maxQualityLevels;
+    BOOST_LOG(debug) << "[vulkan] Driver max quality level: "sv << *max_level;
+
+    // If requested level is 0 or within range, try to validate it
+    if (requested_level > *max_level) {
+      BOOST_LOG(warning) << "[vulkan] Requested quality level "sv << requested_level
+                         << " exceeds max "sv << *max_level << ", using max"sv;
+      requested_level = *max_level;
+    }
+
+    // Try to validate the requested level
+    auto vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR_fn = (PFN_vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR)
+                                                                        vk_ctx->get_proc_addr(vk_ctx->inst, "vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR");
+
+    if (vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR_fn) {
+      VkPhysicalDeviceVideoEncodeQualityLevelInfoKHR quality_level_info = {};
+      quality_level_info.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_ENCODE_QUALITY_LEVEL_INFO_KHR;
+      quality_level_info.pVideoProfile = &profile;
+      quality_level_info.qualityLevel = requested_level;
+
+      VkVideoEncodeQualityLevelPropertiesKHR quality_props = {};
+      quality_props.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_QUALITY_LEVEL_PROPERTIES_KHR;
+
+      result = vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR_fn(vk_ctx->phys_dev, &quality_level_info, &quality_props);
+      if (result != VK_SUCCESS) {
+        return 0;
+      }
+    }
+
+    return requested_level;
+  }
+
   // Match a DRI render node path to a Vulkan device index via VK_EXT_physical_device_drm.
   // Returns the index as a string (e.g. "1"), or empty string if no match.
+  // Result is cached since render device doesn't change during runtime.
   static std::string find_vulkan_index_for_render_node(const char *render_path) {
+    // Cache result to avoid repeated Vulkan instance creation (~10-20ms overhead)
+    static std::string cached_result;
+    static std::string cached_path;
+    static bool cached = false;
+
+    if (cached && cached_path == render_path) {
+      return cached_result;
+    }
+
     struct stat node_stat;
     if (stat(render_path, &node_stat) < 0) {
       return {};
@@ -85,6 +354,12 @@ namespace vk {
       }
     }
     vkDestroyInstance(inst, nullptr);
+
+    // Cache the result
+    cached_path = render_path;
+    cached_result = result;
+    cached = true;
+
     return result;
   }
 
@@ -175,7 +450,8 @@ namespace vk {
       height = in_height;
       offset_x = in_offset_x;
       offset_y = in_offset_y;
-      this->data = (void *) &init_hw_device;
+      hardware = true;
+      avcodec_encode_device_t::init_hw_device = &init_hw_device;
       return 0;
     }
 
@@ -192,6 +468,55 @@ namespace vk {
       // on complex frames.
       if (config::video.vk.rc_mode == 4) {
         ctx->rc_min_rate = 0;
+      }
+
+      // Map quality preset to driver's quality range (same abstraction as VAAPI)
+      // 1 = speed, 2 = balanced (default), 3 = quality
+      // Note: Vulkan quality is 0 = fastest, higher = slower/better quality
+      int quality_preset = config::video.vk.quality;
+      if (quality_preset > 0 && ctx->hw_frames_ctx) {
+        // Reuse FFmpeg's Vulkan instance and device instead of creating new ones
+        auto *frames_ctx = (AVHWFramesContext *) ctx->hw_frames_ctx->data;
+        auto *dev_ctx = (AVHWDeviceContext *) frames_ctx->device_ref->data;
+        auto *vk_ctx = (AVVulkanDeviceContext *) dev_ctx->hwctx;
+
+        // Calculate target quality based on preset
+        uint32_t max_quality = 0;
+        uint32_t target_quality = 0;
+        const char *preset_name = "speed";
+
+        // First pass: get max quality to calculate target
+        query_and_validate_quality_level(ctx->codec_id, vk_ctx, 0, &max_quality);
+
+        if (max_quality > 0) {
+          switch (quality_preset) {
+            default:
+            case 1:  // speed (level 0 = fastest)
+              target_quality = 0;
+              preset_name = "speed";
+              break;
+            case 2:  // balanced (middle level)
+              target_quality = max_quality / 2;
+              preset_name = "balanced";
+              break;
+            case 3:  // quality (max level = best quality)
+              target_quality = max_quality;
+              preset_name = "quality";
+              break;
+          }
+
+          // Validate the calculated target quality level
+          uint32_t validated_quality = query_and_validate_quality_level(ctx->codec_id, vk_ctx, target_quality, &max_quality);
+
+          if (validated_quality == target_quality) {
+            av_dict_set_int(options, "quality", validated_quality, 0);
+            BOOST_LOG(info) << "[vulkan] Encoder quality set to "sv << validated_quality
+                            << " ("sv << preset_name << "), driver range: 0-"sv << max_quality;
+          } else {
+            BOOST_LOG(warning) << "[vulkan] Quality level "sv << target_quality
+                               << " is not supported by the driver; using default"sv;
+          }
+        }
       }
     }
 
@@ -267,11 +592,11 @@ namespace vk {
     void apply_colorspace() override {
       auto *colors = video::color_vectors_from_colorspace(colorspace, true);
       if (colors) {
-        memcpy(push.color_vec_y.data(), colors->color_vec_y, sizeof(push.color_vec_y));
-        memcpy(push.color_vec_u.data(), colors->color_vec_u, sizeof(push.color_vec_u));
-        memcpy(push.color_vec_v.data(), colors->color_vec_v, sizeof(push.color_vec_v));
-        memcpy(push.range_y.data(), colors->range_y, sizeof(push.range_y));
-        memcpy(push.range_uv.data(), colors->range_uv, sizeof(push.range_uv));
+        push.color_vec_y = colors->color_vec_y;
+        push.color_vec_u = colors->color_vec_u;
+        push.color_vec_v = colors->color_vec_v;
+        push.range_y = colors->range_y;
+        push.range_uv = colors->range_uv;
       }
     }
 

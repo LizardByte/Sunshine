@@ -21,7 +21,7 @@ namespace move_by_copy_util {
     /**
      * @brief Wrapped type moved through copy-shaped APIs.
      */
-    typedef T move_type;
+    using move_type = T;
 
   private:
     move_type _to_move;
@@ -73,9 +73,11 @@ namespace move_by_copy_util {
     }
 
     /**
-     * @brief Move the wrapped object out of this helper.
+     * @brief Explicitly move the wrapped object out of this helper.
+     *
+     * @return Wrapped value whose ownership is transferred to the caller.
      */
-    operator move_type() {
+    explicit operator move_type() {
       return std::move(_to_move);
     }
   };

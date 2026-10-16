@@ -43,7 +43,7 @@ const emitTrayIconsPlugin = {
         });
 
         const virtualHidIcon = resolve(projectRoot, 'third-party/libvirtualhid/libvirtualhid.svg');
-        if (process.platform === 'win32' && fs.existsSync(virtualHidIcon)) {
+        if ((process.platform === 'win32' || process.platform === 'darwin') && fs.existsSync(virtualHidIcon)) {
             this.emitFile({
                 type: 'asset',
                 fileName: 'images/logo-libvirtualhid.svg',

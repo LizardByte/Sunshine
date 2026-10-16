@@ -7,15 +7,75 @@
 #include "../tests_common.h"
 
 // standard includes
+#include <array>
+#include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 // local includes
 #include <src/utility.h>
+
+/**
+ * @brief Whether a type has a supported empty-state sentinel.
+ */
+template<class T>
+concept has_false_value = requires { util::__false_v<T>::value; };
+
+/**
+ * @brief Sentinel constraints select empty states without accepting unrelated values.
+ */
+TEST(UtilityFalseValueTests, SelectsSentinelsForOptionalPointerAndBooleanTypes) {
+  static_assert(std::is_same_v<decltype(util::false_v<std::optional<int>>), const std::nullopt_t>);
+  static_assert(std::is_same_v<decltype(util::false_v<int *>), const std::nullptr_t>);
+  static_assert(std::is_same_v<decltype(util::false_v<std::unique_ptr<int>>), const std::nullptr_t>);
+  static_assert(std::is_same_v<decltype(util::false_v<std::shared_ptr<int>>), const std::nullptr_t>);
+  static_assert(std::is_same_v<decltype(util::false_v<util::uniq_ptr<int>>), const std::nullptr_t>);
+  static_assert(std::is_same_v<decltype(util::false_v<bool>), const bool>);
+  static_assert(!has_false_value<int>);
+
+  EXPECT_FALSE(std::optional<int> {util::false_v<std::optional<int>>});
+  EXPECT_EQ(util::false_v<int *>, nullptr);
+  EXPECT_EQ(util::false_v<std::unique_ptr<int>>, nullptr);
+  EXPECT_EQ(util::false_v<std::shared_ptr<int>>, nullptr);
+  EXPECT_EQ(util::false_v<util::uniq_ptr<int>>, nullptr);
+  EXPECT_FALSE(util::false_v<bool>);
+}
+
+/**
+ * @brief A const resource deleter invokes its release function exactly once per call.
+ */
+TEST(UtilityDestroyTest, ConstDeleterInvokesTheConfiguredReleaseFunction) {
+  const util::Destroy<int *, void, +[](int *value) {
+    ++*value;
+  }>
+    destroy;
+  int releases = 0;
+  destroy(&releases);
+  EXPECT_EQ(releases, 1);
+}
+
+/**
+ * @brief Simulate the opposite byte order for a byte-array fixture.
+ */
+template<>
+struct util::endian::endianness<std::array<std::byte, 4>> {
+  static constexpr bool little = !util::endian::endianness<>::little;  ///< Opposite native byte order.
+  static constexpr bool big = !little;  ///< Whether the fixture simulates big endian.
+};
+
+/**
+ * @brief Use the simulated byte order for optional byte-array fixtures.
+ */
+template<>
+struct util::endian::endianness<std::optional<std::array<std::byte, 4>>>: util::endian::endianness<std::array<std::byte, 4>> {};
 
 struct HexConversionTest: testing::TestWithParam<std::tuple<std::uint32_t, bool, std::string>> {};
 
@@ -248,11 +308,132 @@ TEST(UtilityBufferTests, MoveConstruction) {
 
 TEST(UtilityBufferTests, CopyConstruction) {
   util::buffer_t buf1(3, 55);
+  buf1[1] = 66;
+  buf1[2] = 77;
   util::buffer_t<int> buf2(buf1);
   EXPECT_EQ(buf2.size(), 3U);
   EXPECT_EQ(buf2[0], 55);
+  EXPECT_EQ(buf2[1], 66);
+  EXPECT_EQ(buf2[2], 77);
   EXPECT_EQ(buf1.size(), 3U);
   EXPECT_EQ(buf1[0], 55);
+}
+
+TEST(UtilityBufferTests, CopiesAnEmptyLogicalRange) {
+  util::buffer_t buf(3, 42);
+  buf.fake_resize(0);
+  const util::buffer_t<int> copy(buf);
+  EXPECT_EQ(copy.size(), 0U);
+  EXPECT_EQ(copy.begin(), copy.end());
+  EXPECT_EQ(buf[0], 42);
+}
+
+TEST(UtilityBufferTests, SizeConstructionValueInitializesEveryElement) {
+  const util::buffer_t<int> buf(4);
+  EXPECT_EQ(buf.end() - buf.begin(), 4);
+  EXPECT_TRUE(std::ranges::all_of(buf, [](int value) {
+    return value == 0;
+  }));
+}
+
+TEST(UtilityBufferTests, LogicalResizeRetainsAllocationAndHiddenElements) {
+  util::buffer_t buf(4, 7);
+  auto *allocation = buf.begin();
+  buf[3] = 99;
+  buf.fake_resize(2);
+  EXPECT_EQ(buf.size(), 2U);
+  EXPECT_EQ(buf.begin(), allocation);
+  EXPECT_EQ(buf.end(), allocation + 2);
+
+  const util::buffer_t<int> copy(buf);
+  EXPECT_EQ(copy.size(), 2U);
+  EXPECT_NE(copy.begin(), allocation);
+  EXPECT_EQ(copy[0], 7);
+  EXPECT_EQ(copy[1], 7);
+  buf[0] = 10;
+  EXPECT_EQ(copy[0], 7);
+
+  buf.fake_resize(0);
+  EXPECT_EQ(buf.begin(), buf.end());
+  buf.fake_resize(4);
+  EXPECT_EQ(buf.begin(), allocation);
+  EXPECT_EQ(buf[3], 99);
+}
+
+TEST(UtilityBufferTests, MoveConstructionTransfersAllocationAndEmptiesSource) {
+  util::buffer_t source(4, 9);
+  source.fake_resize(2);
+  auto *allocation = source.begin();
+  const util::buffer_t<int> destination(std::move(source));
+  EXPECT_EQ(destination.size(), 2U);
+  EXPECT_EQ(destination.begin(), allocation);
+  EXPECT_EQ(destination[1], 9);
+  EXPECT_EQ(source.size(), 0U);  // NOSONAR(cpp:S5272): buffer_t specifies a zero logical count after move construction.
+  EXPECT_EQ(source.begin(), source.end());
+}
+
+TEST(UtilityBufferTests, MoveAssignmentExchangesBothAllocationsAndLogicalSizes) {
+  util::buffer_t source(4, 9);
+  source.fake_resize(2);
+  util::buffer_t destination(3, 7);
+  auto *source_allocation = source.begin();
+  auto *destination_allocation = destination.begin();
+
+  EXPECT_EQ(&(destination = std::move(source)), &destination);
+  EXPECT_EQ(destination.size(), 2U);
+  EXPECT_EQ(destination.begin(), source_allocation);
+  EXPECT_EQ(destination[1], 9);
+  EXPECT_EQ(source.size(), 3U);  // NOSONAR(cpp:S5272): buffer_t move assignment exchanges both allocations and logical counts.
+  EXPECT_EQ(source.begin(), destination_allocation);
+  EXPECT_EQ(source[2], 7);
+}
+
+TEST(UtilityHexTests, IteratorsAndViewsExposeExactlyTheFormattedBytes) {
+  auto hex = util::hex(std::uint16_t {0xABCD});
+  EXPECT_EQ(hex.end() - hex.begin(), 4);
+  EXPECT_EQ(std::string(hex.begin(), hex.end()), "ABCD");
+  *hex.begin() = '0';
+  const auto &constant_hex = hex;
+  EXPECT_EQ(constant_hex.end() - constant_hex.begin(), 4);
+  EXPECT_EQ(constant_hex.cbegin(), constant_hex.begin());
+  EXPECT_EQ(constant_hex.cend(), constant_hex.end());
+  EXPECT_EQ(constant_hex.to_string_view(), "0BCD");
+  EXPECT_EQ(constant_hex.to_string(), "0BCD");
+}
+
+TEST(UtilityFromHexTests, ShortInputPadsUnusedBytesWithZeros) {
+  EXPECT_EQ(util::from_hex<std::uint64_t>("ABCD"), util::endian::little(std::uint64_t {0xABCD}));
+  EXPECT_EQ(util::from_hex<std::uint64_t>("ABCD", true), util::endian::big(std::uint64_t {0xABCD}));
+}
+
+TEST(UtilityFromHexTests, LongInputKeepsTheLowOrderBytes) {
+  EXPECT_EQ(util::from_hex<std::uint32_t>("123456789A"), util::endian::little(std::uint32_t {0x3456789A}));
+  EXPECT_EQ(util::from_hex<std::uint32_t>("123456789A", true), util::endian::big(std::uint32_t {0x3456789A}));
+}
+
+TEST(UtilityFromHexTests, DecodesIntoAByteArrayWithoutPointerTypePunning) {
+  const auto bytes = util::from_hex<std::array<std::uint8_t, 4>>("12:34:56:78", true);
+  EXPECT_EQ(bytes, (std::array<std::uint8_t, 4> {0x12, 0x34, 0x56, 0x78}));
+}
+
+TEST(UtilityFromHexTests, DecodesMixedCaseNibblesAndSkipsSeparators) {
+  const auto bytes = util::from_hex<std::array<std::byte, 6>>("0a:B1-cD.2e 3F 49", true);
+  const std::array expected {std::byte {0x0A}, std::byte {0xB1}, std::byte {0xCD}, std::byte {0x2E}, std::byte {0x3F}, std::byte {0x49}};
+  EXPECT_EQ(bytes, expected);
+  EXPECT_EQ(util::from_hex<std::uint32_t>(""), 0U);
+}
+
+TEST(UtilityFromHexVecTests, PreservesBinaryBytesWithMixedCaseAndSeparators) {
+  const std::string expected {0, static_cast<char>(0x80), static_cast<char>(0xFF), static_cast<char>(0xAB), 0x19};
+  EXPECT_EQ(util::from_hex_vec("00:80-fF aB.19", true), expected);
+  EXPECT_EQ(util::from_hex_vec("00:80-fF aB.19"), (std::string {expected.rbegin(), expected.rend()}));
+  EXPECT_TRUE(util::from_hex_vec("").empty());
+}
+
+TEST(UtilityHashTests, MatchesStringViewHashOfAllObjectBytes) {
+  const std::array<std::uint8_t, 6> value {0x00, 0x80, 0xFF, 0x12, 0x00, 0xAB};
+  const std::string expected_bytes {0, static_cast<char>(0x80), static_cast<char>(0xFF), 0x12, 0, static_cast<char>(0xAB)};
+  EXPECT_EQ(util::hash<decltype(value)> {}(value), std::hash<std::string_view> {}(expected_bytes));
 }
 
 TEST(UtilityAppendStructTests, AppendsDataCorrectly) {
@@ -289,6 +470,31 @@ TEST(UtilityEndianTests, LittleEndianConversion) {
     EXPECT_EQ(little_val, val);
   } else {
     EXPECT_EQ(little_val, 0x04030201);
+  }
+}
+
+TEST(UtilityEndianTests, OptionalValuesPreserveEmptyStateAndConvertContainedBytes) {
+  const std::optional<std::uint32_t> value {0x01020304};
+  EXPECT_EQ(util::endian::big(value), std::optional {util::endian::big(*value)});
+  EXPECT_EQ(util::endian::little(value), std::optional {util::endian::little(*value)});
+  EXPECT_FALSE(util::endian::big(std::optional<std::uint32_t> {}));
+  EXPECT_FALSE(util::endian::little(std::optional<std::uint32_t> {}));
+}
+
+TEST(UtilityEndianTests, ConvertsValuesAndOptionalsOnTheOppositeByteOrder) {
+  const std::array value {std::byte {0x12}, std::byte {0x34}, std::byte {0x56}, std::byte {0x78}};
+  const std::array reversed {std::byte {0x78}, std::byte {0x56}, std::byte {0x34}, std::byte {0x12}};
+  const std::optional optional_value {value};
+  if constexpr (util::endian::endianness<>::little) {
+    EXPECT_EQ(util::endian::little(value), reversed);
+    EXPECT_EQ(util::endian::big(value), value);
+    EXPECT_EQ(util::endian::little(optional_value), std::optional {reversed});
+    EXPECT_EQ(util::endian::big(optional_value), optional_value);
+  } else {
+    EXPECT_EQ(util::endian::big(value), reversed);
+    EXPECT_EQ(util::endian::little(value), value);
+    EXPECT_EQ(util::endian::big(optional_value), std::optional {reversed});
+    EXPECT_EQ(util::endian::little(optional_value), optional_value);
   }
 }
 

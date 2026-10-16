@@ -3,6 +3,7 @@
  * @brief Definitions for nvidia preferences interface.
  */
 // standard includes
+#include <array>
 #include <cassert>
 
 // local includes
@@ -45,15 +46,14 @@ namespace nvprefs {
   bool nvprefs_interface::load() {
     if (!pimpl->loaded) {
       // Check %ProgramData% variable, need it for storing undo file
-      wchar_t program_data_env[MAX_PATH];
-      auto get_env_result = GetEnvironmentVariableW(L"ProgramData", program_data_env, MAX_PATH);
-      if (get_env_result == 0 || get_env_result >= MAX_PATH || !std::filesystem::is_directory(program_data_env)) {
+      std::array<wchar_t, MAX_PATH> program_data_env;
+      if (auto get_env_result = GetEnvironmentVariableW(L"ProgramData", program_data_env.data(), program_data_env.size()); get_env_result == 0 || get_env_result >= MAX_PATH || !std::filesystem::is_directory(program_data_env.data())) {
         error_message("Missing or malformed %ProgramData% environment variable");
         return false;
       }
 
       // Prepare undo file path variables
-      pimpl->undo_folder_path = std::filesystem::path(program_data_env) / sunshine_program_data_folder;
+      pimpl->undo_folder_path = std::filesystem::path(program_data_env.data()) / sunshine_program_data_folder;
       pimpl->undo_file_path = pimpl->undo_folder_path / nvprefs_undo_file_name;
 
       // Dynamically load nvapi library and load driver settings
@@ -109,8 +109,7 @@ namespace nvprefs {
     }
 
     // Modify and save sunshine.exe application profile settings, if needed
-    bool modified = false;
-    if (!pimpl->driver_settings.check_and_modify_application_profile(modified)) {
+    if (bool modified = false; !pimpl->driver_settings.check_and_modify_application_profile(modified)) {
       error_message("Failed to modify application profile settings");
       return false;
     } else if (modified) {
@@ -142,7 +141,7 @@ namespace nvprefs {
       return true;
     }
 
-    auto make_undo_and_commit = [&]() -> bool {
+    auto make_undo_and_commit = [&]() {
       // Create and lock undo file if it hasn't been done yet
       if (!pimpl->undo_file) {
         // Prepare Sunshine folder in ProgramData if it doesn't exist
@@ -194,7 +193,7 @@ namespace nvprefs {
     return true;
   }
 
-  bool nvprefs_interface::owning_undo_file() {
+  bool nvprefs_interface::owning_undo_file() const {
     return pimpl->undo_file.has_value();
   }
 

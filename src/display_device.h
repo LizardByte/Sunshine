@@ -109,6 +109,8 @@ namespace display_device {
    *
    * In case the state could not be restored, by default it will be retried again in 5 seconds
    * (repeating indefinitely until success or until persistence is reset).
+   * A recovery that still has settings saved for an unavailable display also keeps retrying
+   * until that display returns and those settings are restored.
    *
    * @examples
    * revert_configuration();
@@ -177,4 +179,39 @@ namespace display_device {
    * @examples_end
    */
   [[nodiscard]] std::variant<failed_to_parse_tag_t, configuration_disabled_tag_t, SingleDisplayConfiguration> parse_configuration(const config::video_t &video_config, const rtsp_stream::launch_session_t &session);
+
+#ifdef SUNSHINE_TESTS
+  class SettingsManagerInterface;
+  class SettingsPersistenceInterface;
+
+  /**
+   * @brief Create in-memory persistence that records whether settings are still stored.
+   * @return Persistence object observed by the revert retry loop.
+   */
+  [[nodiscard]] std::shared_ptr<SettingsPersistenceInterface> test_make_watched_persistence();
+
+  /**
+   * @brief Install a settings manager and the persistence object the revert loop watches.
+   * @param manager Settings manager used by later revert calls.
+   * @param persistence Persistence object returned by `test_make_watched_persistence()`.
+   */
+  void test_install_settings_manager(std::unique_ptr<SettingsManagerInterface> manager, const std::shared_ptr<SettingsPersistenceInterface> &persistence);
+
+  /**
+   * @brief Override how long the revert loop waits between device checks.
+   * @param interval Delay between attempts. Must be greater than zero.
+   */
+  void test_set_retry_interval(std::chrono::milliseconds interval);
+
+  /**
+   * @brief Report whether another revert attempt is still scheduled.
+   * @return True when the revert scheduler will run again.
+   */
+  [[nodiscard]] bool test_revert_retry_is_scheduled();
+
+  /**
+   * @brief Stop the revert scheduler and drop the test settings manager.
+   */
+  void test_reset_display_device();
+#endif
 }  // namespace display_device

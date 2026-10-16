@@ -4,6 +4,9 @@
  */
 #pragma once
 
+// standard includes
+#include <variant>
+
 // local includes
 #include "nvenc_colorspace.h"
 #include "nvenc_config.h"
@@ -14,10 +17,21 @@
 #include "src/video.h"
 #include "src/video_colorspace.h"
 
+struct ID3D11Device;
+
 /**
  * @brief Standalone NVENC encoder
  */
 namespace NVENC_NAMESPACE {
+
+  /**
+   * @brief Opaque encoder session created and destroyed by the NVENC driver.
+   */
+  struct encoder_session_t;
+  /**
+   * @brief Opaque native event registered for asynchronous NVENC completion.
+   */
+  struct completion_event_t;
 
   /**
    * @brief Abstract platform-agnostic base of standalone NVENC encoder.
@@ -30,6 +44,9 @@ namespace NVENC_NAMESPACE {
      * @param device_type Underlying device type used by derived class.
      */
     explicit nvenc_base(NV_ENC_DEVICE_TYPE device_type);
+    /**
+     * @brief Destroy the encoder wrapper; callers release the encoder session with destroy_encoder().
+     */
     ~nvenc_base() override;
 
     nvenc_base(const nvenc_base &) = delete;
@@ -120,7 +137,7 @@ namespace NVENC_NAMESPACE {
 
     const NV_ENC_DEVICE_TYPE device_type;  ///< NVENC device backend used by this encoder instance.
 
-    void *encoder = nullptr;  ///< Opaque NVENC encoder session handle returned by the driver.
+    encoder_session_t *encoder = nullptr;  ///< Opaque NVENC encoder session handle returned by the driver.
 
     struct {
       uint32_t width = 0;
@@ -133,14 +150,13 @@ namespace NVENC_NAMESPACE {
     std::string last_nvenc_error_string;  ///< Last NVENC error string.
 
     // Derived classes set these variables
-    void *device = nullptr;  ///< Platform-specific handle of encoding device.
-                             ///< Should be set in constructor or `init_library()`.
+    std::variant<ID3D11Device *, CUctx_st *> device {static_cast<ID3D11Device *>(nullptr)};  ///< Native D3D11 device or CUDA context, set by the derived backend.
     std::shared_ptr<NV_ENCODE_API_FUNCTION_LIST> nvenc;  ///< Function pointers list produced by `NvEncodeAPICreateInstance()`.
                                                          ///< Should be set in `init_library()`.
     NV_ENC_REGISTERED_PTR registered_input_buffer = nullptr;  ///< Platform-specific input surface registered with `NvEncRegisterResource()`.
                                                               ///< Should be set in `create_and_register_input_buffer()`.
-    void *async_event_handle = nullptr;  ///< (optional) Platform-specific handle of event object event.
-                                         ///< Can be set in constructor or `init_library()`, must override `wait_for_async_event()`.
+    completion_event_t *async_event_handle = nullptr;  ///< (optional) Native event registered for encode completion.
+                                                       ///< Can be set in constructor or `init_library()`, must override `wait_for_async_event()`.
 
   private:
     /**
