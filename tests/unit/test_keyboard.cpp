@@ -477,6 +477,11 @@ TEST_F(KeyboardPassthroughTest, ClientPermissionGatesKeyboardInputAndUpdatesLive
   input::testing::send_keyboard_packet(stream_input, VKEY_A, 0, 0, true);
   EXPECT_EQ(taken(), (std::vector<std::string> {pressed(VKEY_A), released(VKEY_A)}));
 
+  input::set_permission(session_id, input::permission_e::keyboard, false);
+  input::testing::send_keyboard_packet(stream_input, VKEY_B, 0, 0, false);
+  input::testing::send_keyboard_packet(stream_input, VKEY_B, 0, 0, true);
+  EXPECT_TRUE(taken().empty());
+
   input::terminate_gamepads(session_id);
 }
 

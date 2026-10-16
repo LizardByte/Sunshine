@@ -521,6 +521,20 @@ TEST_F(InputGamepadSessionTest, ClientPermissionsGateMouseInputAndUpdateLive) {
   input::terminate_gamepads(session_id);
 }
 
+TEST_F(InputGamepadSessionTest, ReconnectAppliesSavedInputDenial) {
+  const std::string session_id = "reconnect-permission-client";
+  auto stream_input = input::alloc(std::make_shared<safe::mail_raw_t>(), session_id);
+  ASSERT_NE(stream_input, nullptr);
+  input::testing::send_relative_mouse_packet(stream_input, 4, 0);
+  EXPECT_EQ(context().mouse->last_submitted_event().x, 4);
+
+  auto resumed = input::alloc(std::make_shared<safe::mail_raw_t>(), session_id, {.mouse = false});
+  EXPECT_EQ(resumed, stream_input);
+  input::testing::send_relative_mouse_packet(stream_input, 9, 0);
+  EXPECT_EQ(context().mouse->last_submitted_event().x, 4);
+  input::terminate_gamepads(session_id);
+}
+
 TEST_F(InputGamepadSessionTest, ClientPermissionsGateControllerArrival) {
   const std::string session_id = "controller-permission-client";
   auto stream_input = input::alloc(std::make_shared<safe::mail_raw_t>(), session_id, {.controller = false});
@@ -545,6 +559,12 @@ TEST_F(InputGamepadSessionTest, ClientPermissionsGateControllerArrival) {
 
   input::set_permission(session_id, input::permission_e::controller, true);
   send_arrival();
+  EXPECT_GE(input::testing::gamepad_id(stream_input, 0), 0);
+
+  input::set_permission(session_id, input::permission_e::controller, false);
+  arrival.controllerNumber = 1;
+  send_arrival();
+  EXPECT_EQ(input::testing::gamepad_id(stream_input, 1), -1);
   EXPECT_GE(input::testing::gamepad_id(stream_input, 0), 0);
 }
 
