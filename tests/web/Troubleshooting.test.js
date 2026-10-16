@@ -303,9 +303,7 @@ describe('paired client management', () => {
     uuid: 'friend-uuid',
     enabled: true,
     active: true,
-    allow_mouse: true,
-    allow_keyboard: true,
-    allow_controller: false,
+    permissions: { mouse: true, keyboard: true, controller: false },
   }
 
   it('shows connection state and permissions, and sends permission and kick requests', async () => {

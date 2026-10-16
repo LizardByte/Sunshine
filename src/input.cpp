@@ -384,20 +384,6 @@ namespace input {
   }
 
   /**
-   * @brief Store a complete permission set by updating each category.
-   *
-   * @param input Stream input state.
-   * @param permissions Permissions to apply.
-   * @return `true` when any previously allowed input category is now denied.
-   */
-  bool apply_permissions(input_t &input, const permissions_t &permissions) {
-    const bool mouse_revoked = apply_permission(input, permission_e::mouse, permissions.mouse);
-    const bool keyboard_revoked = apply_permission(input, permission_e::keyboard, permissions.keyboard);
-    const bool controller_revoked = apply_permission(input, permission_e::controller, permissions.controller);
-    return mouse_revoked || keyboard_revoked || controller_revoked;
-  }
-
-  /**
    * @brief Hash string-like session identifiers without allocating temporary strings.
    */
   struct transparent_string_hash_t {
@@ -2527,7 +2513,9 @@ namespace input {
         state.inputs.try_emplace(std::move(session_id), input);
       }
     }
-    apply_permissions(*input, permissions);
+    input->allow_mouse = permissions.mouse;
+    input->allow_keyboard = permissions.keyboard;
+    input->allow_controller = permissions.controller;
 
     if (resumed) {
       dispatch_input_task([input, mail = std::move(mail)]() {

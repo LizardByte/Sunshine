@@ -185,10 +185,10 @@ TEST_F(ClientAuthorizationTest, InputPermissionsDefaultToAllowedAndPersistIndepe
   EXPECT_TRUE(defaults.mouse);
   EXPECT_TRUE(defaults.keyboard);
   EXPECT_TRUE(defaults.controller);
-  const auto listed = nvhttp::get_all_clients().at(0);
-  EXPECT_TRUE(listed.at("allow_mouse").get<bool>());
-  EXPECT_TRUE(listed.at("allow_keyboard").get<bool>());
-  EXPECT_TRUE(listed.at("allow_controller").get<bool>());
+  const auto listed = nvhttp::get_all_clients().at(0).at("permissions");
+  EXPECT_TRUE(listed.at("mouse").get<bool>());
+  EXPECT_TRUE(listed.at("keyboard").get<bool>());
+  EXPECT_TRUE(listed.at("controller").get<bool>());
 
   EXPECT_FALSE(nvhttp::set_client_permission("missing", input::permission_e::mouse, false));
   ASSERT_TRUE(nvhttp::set_client_permission(uuid, input::permission_e::mouse, false));

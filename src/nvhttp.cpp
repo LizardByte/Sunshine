@@ -1340,9 +1340,11 @@ namespace nvhttp {
       named_cert_node["name"] = named_cert.name;
       named_cert_node["uuid"] = named_cert.uuid;
       named_cert_node["enabled"] = named_cert.enabled;
-      named_cert_node["allow_mouse"] = named_cert.permissions.mouse;
-      named_cert_node["allow_keyboard"] = named_cert.permissions.keyboard;
-      named_cert_node["allow_controller"] = named_cert.permissions.controller;
+      named_cert_node["permissions"] = {
+        {"mouse", named_cert.permissions.mouse},
+        {"keyboard", named_cert.permissions.keyboard},
+        {"controller", named_cert.permissions.controller},
+      };
       named_cert_nodes.push_back(named_cert_node);
     }
 

@@ -1782,9 +1782,9 @@ TEST_F(ConfigHttpTest, ClientManagementListsUpdatesAndKicksPairedClients) {
   auto listed = list_client();
   EXPECT_EQ(listed.at("uuid"), uuid);
   EXPECT_FALSE(listed.at("active").get<bool>());
-  EXPECT_TRUE(listed.at("allow_mouse").get<bool>());
-  EXPECT_TRUE(listed.at("allow_keyboard").get<bool>());
-  EXPECT_TRUE(listed.at("allow_controller").get<bool>());
+  EXPECT_TRUE(listed.at("permissions").at("mouse").get<bool>());
+  EXPECT_TRUE(listed.at("permissions").at("keyboard").get<bool>());
+  EXPECT_TRUE(listed.at("permissions").at("controller").get<bool>());
 
   const auto update_mouse = client->request(
     "POST",
@@ -1802,9 +1802,9 @@ TEST_F(ConfigHttpTest, ClientManagementListsUpdatesAndKicksPairedClients) {
   );
   ASSERT_EQ(update_controller->status_code, "200 OK");
   listed = list_client();
-  EXPECT_FALSE(listed.at("allow_mouse").get<bool>());
-  EXPECT_TRUE(listed.at("allow_keyboard").get<bool>());
-  EXPECT_FALSE(listed.at("allow_controller").get<bool>());
+  EXPECT_FALSE(listed.at("permissions").at("mouse").get<bool>());
+  EXPECT_TRUE(listed.at("permissions").at("keyboard").get<bool>());
+  EXPECT_FALSE(listed.at("permissions").at("controller").get<bool>());
 
   const auto unknown_update = client->request(
     "POST",
