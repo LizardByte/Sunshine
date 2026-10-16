@@ -30,7 +30,7 @@
 4. **Keep the HTTP surface small**
    - In [`src/confighttp.cpp`](src/confighttp.cpp):
      - enrich `/api/clients/list` with `active` and the three persisted allowances;
-     - add authenticated, CSRF-protected `POST /api/clients/permissions` requiring `uuid` and all three booleans, then apply them to live input;
+     - add authenticated, CSRF-protected `POST /api/clients/permissions` requiring `uuid`, one permission name, and `allowed`, then apply that single permission to live input;
      - add authenticated, CSRF-protected `POST /api/clients/kick` accepting a paired-client UUID and resolving it through `get_cert_by_uuid()`.
    - Return a clear failure for missing/unknown UUIDs and malformed/non-boolean fields. Preserve existing disable behavior separately from kick.
    - Add the kick endpoint to [`docs/api.md`](docs/api.md) and update the handlers' required Doxygen/API examples.

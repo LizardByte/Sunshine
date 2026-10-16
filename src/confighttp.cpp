@@ -1399,13 +1399,13 @@ namespace confighttp {
    * @code{.json}
    * {
    *   "uuid": "<uuid>",
-   *   "allow_mouse": true,
-   *   "allow_keyboard": true,
-   *   "allow_controller": false
+   *   "permission": "controller",
+   *   "allowed": false
    * }
    * @endcode
+   * `permission` is `mouse`, `keyboard`, or `controller`. Only that permission should be updated.
    *
-   * @api_examples{/api/clients/permissions|:| POST|:| {"uuid":"<uuid>","allow_mouse":true,"allow_keyboard":true,"allow_controller":false}}
+   * @api_examples{/api/clients/permissions|:| POST|:| {"uuid":"<uuid>","permission":"controller","allowed":false}}
    */
   void updateClientPermissions(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
@@ -1426,16 +1426,24 @@ namespace confighttp {
     try {
       const nlohmann::json input_tree = nlohmann::json::parse(ss.str());
       const auto uuid = input_tree.at("uuid").get<std::string>();
-      const input::permissions_t permissions {
-        input_tree.at("allow_mouse").get<bool>(),
-        input_tree.at("allow_keyboard").get<bool>(),
-        input_tree.at("allow_controller").get<bool>(),
-      };
+      const auto permission_name = input_tree.at("permission").get<std::string>();
+      const auto allowed = input_tree.at("allowed").get<bool>();
+      std::optional<input::permission_e> permission;
+      if (permission_name == "mouse") {
+        permission = input::permission_e::mouse;
+      } else if (permission_name == "keyboard") {
+        permission = input::permission_e::keyboard;
+      } else if (permission_name == "controller") {
+        permission = input::permission_e::controller;
+      } else {
+        bad_request(response, "permission must be mouse, keyboard, or controller");
+        return;
+      }
 
       nlohmann::json output_tree;
-      output_tree["status"] = nvhttp::set_client_permissions(uuid, permissions);
+      output_tree["status"] = nvhttp::set_client_permission(uuid, *permission, allowed);
       if (output_tree["status"]) {
-        input::set_permissions(nvhttp::get_cert_by_uuid(uuid), permissions);
+        input::set_permission(nvhttp::get_cert_by_uuid(uuid), *permission, allowed);
       }
       send_response(response, output_tree);
     } catch (nlohmann::json::exception &e) {

@@ -1846,14 +1846,26 @@ namespace nvhttp {
     return false;
   }
 
-  bool set_client_permissions(const std::string_view uuid, const input::permissions_t &permissions) {
+  bool set_client_permission(const std::string_view uuid, const input::permission_e permission, const bool allowed) {
     std::lock_guard lock {client_auth_mutex()};
     for (auto &named_cert : client_root.named_devices) {
-      if (named_cert.uuid == uuid) {
-        named_cert.permissions = permissions;
-        save_state();
-        return true;
+      if (named_cert.uuid != uuid) {
+        continue;
       }
+
+      switch (permission) {
+        case input::permission_e::mouse:
+          named_cert.permissions.mouse = allowed;
+          break;
+        case input::permission_e::keyboard:
+          named_cert.permissions.keyboard = allowed;
+          break;
+        case input::permission_e::controller:
+          named_cert.permissions.controller = allowed;
+          break;
+      }
+      save_state();
+      return true;
     }
     return false;
   }

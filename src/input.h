@@ -21,6 +21,15 @@ namespace input {
   struct input_t;
 
   /**
+   * @brief One input category that can be allowed or denied for a paired client.
+   */
+  enum class permission_e {
+    mouse,  ///< Mouse, touch, and pen input.
+    keyboard,  ///< Keyboard and text input.
+    controller,  ///< Controller input.
+  };
+
+  /**
    * @brief Input categories a paired client may send to the host.
    */
   struct permissions_t {
@@ -67,6 +76,18 @@ namespace input {
    * @param permissions Permissions to apply.
    */
   void set_permissions(std::string_view session_id, const permissions_t &permissions);
+
+  /**
+   * @brief Update one input permission of a connected or paused paired client.
+   *
+   * Revoking the permission releases held keys, mouse buttons, and the client's gamepad state.
+   * Clients without retained input are unaffected; they receive their permissions from alloc().
+   *
+   * @param session_id Stable paired-client identity used by alloc().
+   * @param permission Input category to change.
+   * @param allowed Whether the client may send that category.
+   */
+  void set_permission(std::string_view session_id, permission_e permission, bool allowed);
 
   /**
    * @brief Queue a raw input message for platform passthrough.

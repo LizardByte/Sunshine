@@ -190,8 +190,9 @@ TEST_F(ClientAuthorizationTest, InputPermissionsDefaultToAllowedAndPersistIndepe
   EXPECT_TRUE(listed.at("allow_keyboard").get<bool>());
   EXPECT_TRUE(listed.at("allow_controller").get<bool>());
 
-  EXPECT_FALSE(nvhttp::set_client_permissions("missing", {}));
-  ASSERT_TRUE(nvhttp::set_client_permissions(uuid, {.mouse = false, .keyboard = true, .controller = false}));
+  EXPECT_FALSE(nvhttp::set_client_permission("missing", input::permission_e::mouse, false));
+  ASSERT_TRUE(nvhttp::set_client_permission(uuid, input::permission_e::mouse, false));
+  ASSERT_TRUE(nvhttp::set_client_permission(uuid, input::permission_e::controller, false));
   ASSERT_TRUE(nvhttp::set_client_enabled(uuid, false));
 
   nvhttp::test_support::reset_client_state();

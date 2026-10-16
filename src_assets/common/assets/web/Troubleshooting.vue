@@ -837,6 +837,7 @@
         this.logInterval = setInterval(() => {
           this.refreshLogs();
           if (this.platform) this.refreshPermissions();
+          this.refreshClients();
         }, 5000);
         this.refreshLogs();
         this.refreshClients();
@@ -949,10 +950,8 @@
             },
             body: JSON.stringify({
               uuid: client.uuid,
-              allow_mouse: client.allow_mouse,
-              allow_keyboard: client.allow_keyboard,
-              allow_controller: client.allow_controller,
-              [permission]: allowed,
+              permission: permission.replace('allow_', ''),
+              allowed,
             })
           }).finally(() => {
             this.refreshClients();

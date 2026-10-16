@@ -1739,7 +1739,7 @@ TEST_F(ConfigHttpTest, VirtualInputStatusReturnsBothBackends) {
 TEST_F(ConfigHttpTest, ClientManagementMutationsRequireAuthenticationAndCsrf) {
   SimpleWeb::CaseInsensitiveMultimap headers;
   headers.emplace("Content-Type", "application/json");
-  const auto permissions_body = R"({"uuid":"missing","allow_mouse":true,"allow_keyboard":true,"allow_controller":true})"s;
+  const auto permissions_body = R"({"uuid":"missing","permission":"mouse","allowed":false})"s;
   const auto kick_body = R"({"uuid":"missing"})"s;
   EXPECT_EQ(client->request("POST", "/clients-permissions-test", permissions_body, headers)->status_code, "401 Unauthorized");
   EXPECT_EQ(client->request("POST", "/clients-kick-test", kick_body, headers)->status_code, "401 Unauthorized");
@@ -1786,14 +1786,21 @@ TEST_F(ConfigHttpTest, ClientManagementListsUpdatesAndKicksPairedClients) {
   EXPECT_TRUE(listed.at("allow_keyboard").get<bool>());
   EXPECT_TRUE(listed.at("allow_controller").get<bool>());
 
-  const auto update = client->request(
+  const auto update_mouse = client->request(
     "POST",
     "/clients-permissions-test",
-    nlohmann::json {{"uuid", uuid}, {"allow_mouse", false}, {"allow_keyboard", true}, {"allow_controller", false}}.dump(),
+    nlohmann::json {{"uuid", uuid}, {"permission", "mouse"}, {"allowed", false}}.dump(),
     headers
   );
-  ASSERT_EQ(update->status_code, "200 OK");
-  EXPECT_TRUE(nlohmann::json::parse(update->content.string()).at("status").get<bool>());
+  ASSERT_EQ(update_mouse->status_code, "200 OK");
+  EXPECT_TRUE(nlohmann::json::parse(update_mouse->content.string()).at("status").get<bool>());
+  const auto update_controller = client->request(
+    "POST",
+    "/clients-permissions-test",
+    nlohmann::json {{"uuid", uuid}, {"permission", "controller"}, {"allowed", false}}.dump(),
+    headers
+  );
+  ASSERT_EQ(update_controller->status_code, "200 OK");
   listed = list_client();
   EXPECT_FALSE(listed.at("allow_mouse").get<bool>());
   EXPECT_TRUE(listed.at("allow_keyboard").get<bool>());
@@ -1802,13 +1809,14 @@ TEST_F(ConfigHttpTest, ClientManagementListsUpdatesAndKicksPairedClients) {
   const auto unknown_update = client->request(
     "POST",
     "/clients-permissions-test",
-    R"({"uuid":"missing","allow_mouse":true,"allow_keyboard":true,"allow_controller":true})",
+    R"({"uuid":"missing","permission":"mouse","allowed":true})",
     headers
   );
   ASSERT_EQ(unknown_update->status_code, "200 OK");
   EXPECT_FALSE(nlohmann::json::parse(unknown_update->content.string()).at("status").get<bool>());
-  EXPECT_EQ(client->request("POST", "/clients-permissions-test", nlohmann::json {{"uuid", uuid}, {"allow_mouse", false}}.dump(), headers)->status_code, "400 Bad Request");
-  EXPECT_EQ(client->request("POST", "/clients-permissions-test", nlohmann::json {{"uuid", uuid}, {"allow_mouse", "no"}, {"allow_keyboard", true}, {"allow_controller", true}}.dump(), headers)->status_code, "400 Bad Request");
+  EXPECT_EQ(client->request("POST", "/clients-permissions-test", nlohmann::json {{"uuid", uuid}, {"allowed", false}}.dump(), headers)->status_code, "400 Bad Request");
+  EXPECT_EQ(client->request("POST", "/clients-permissions-test", nlohmann::json {{"uuid", uuid}, {"permission", "mouse"}, {"allowed", "no"}}.dump(), headers)->status_code, "400 Bad Request");
+  EXPECT_EQ(client->request("POST", "/clients-permissions-test", nlohmann::json {{"uuid", uuid}, {"permission", "pen"}, {"allowed", false}}.dump(), headers)->status_code, "400 Bad Request");
 
   const auto kick = client->request("POST", "/clients-kick-test", nlohmann::json {{"uuid", uuid}}.dump(), headers);
   ASSERT_EQ(kick->status_code, "200 OK");

@@ -378,6 +378,26 @@ namespace input {
   }
 
   /**
+   * @brief Update one client permission.
+   *
+   * @param input Stream input state.
+   * @param permission Input category to change.
+   * @param allowed Whether the client may send that category.
+   * @return `true` when that category was allowed and is now denied.
+   */
+  bool apply_permission(input_t &input, permission_e permission, bool allowed) {
+    switch (permission) {
+      case permission_e::mouse:
+        return input.allow_mouse.exchange(allowed) && !allowed;
+      case permission_e::keyboard:
+        return input.allow_keyboard.exchange(allowed) && !allowed;
+      case permission_e::controller:
+        return input.allow_controller.exchange(allowed) && !allowed;
+    }
+    return false;
+  }
+
+  /**
    * @brief Hash string-like session identifiers without allocating temporary strings.
    */
   struct transparent_string_hash_t {
@@ -2429,6 +2449,23 @@ namespace input {
     }
 
     if (apply_permissions(*input, permissions)) {
+      reset(input);
+    }
+  }
+
+  void set_permission(const std::string_view session_id, const permission_e permission, const bool allowed) {
+    std::shared_ptr<input_t> input;
+    {
+      auto &state = retained_input_state();
+      std::lock_guard lock {state.mutex};
+      const auto iter = state.inputs.find(session_id);
+      if (iter == state.inputs.end()) {
+        return;
+      }
+      input = iter->second;
+    }
+
+    if (apply_permission(*input, permission, allowed)) {
       reset(input);
     }
   }

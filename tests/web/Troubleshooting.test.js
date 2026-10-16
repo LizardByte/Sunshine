@@ -326,9 +326,8 @@ describe('paired client management', () => {
       method: 'POST',
       body: JSON.stringify({
         uuid: 'friend-uuid',
-        allow_mouse: false,
-        allow_keyboard: true,
-        allow_controller: false,
+        permission: 'mouse',
+        allowed: false,
       }),
     }))
 

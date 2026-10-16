@@ -357,12 +357,13 @@ namespace nvhttp {
   bool set_client_enabled(std::string_view uuid, bool enabled);
 
   /**
-   * @brief Store the input permissions of a paired client.
+   * @brief Store one input permission for a paired client.
    * @param uuid The UUID of the client.
-   * @param permissions Input categories the client may send while streaming.
+   * @param permission Input category to update.
+   * @param allowed Whether the client may send that category.
    * @return true if the client was found and updated.
    */
-  bool set_client_permissions(std::string_view uuid, const input::permissions_t &permissions);
+  bool set_client_permission(std::string_view uuid, input::permission_e permission, bool allowed);
 
   /**
    * @brief Get the stored input permissions of a paired client.
