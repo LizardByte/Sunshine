@@ -327,7 +327,7 @@ namespace {
    * `PUBLISH_NO_REVERSE` flag (F1) would fail those tests first. Linux-only:
    * only the Linux-gated registration tests install it.
    */
-#if defined(__linux__)
+  #if defined(__linux__)
   int FakeEntryGroupAddAddressLenient(
     avahi::EntryGroup * /*group*/,
     avahi::IfIndex interface,
@@ -343,7 +343,7 @@ namespace {
     g_address_calls.push_back({interface, flags, *address});
     return 0;
   }
-#endif
+  #endif
 
   /**
    * @brief Fixture driving the publisher with stubbed Avahi calls.
