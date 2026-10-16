@@ -3,6 +3,9 @@
  * @brief Test the teardown of the shared PipeWire capture display.
  */
 #if defined(SUNSHINE_BUILD_KWIN) || defined(SUNSHINE_BUILD_PORTAL)
+  // test includes
+  #include "../../../tests_common.h"
+
   // standard includes
   #include <array>
   #include <cerrno>
@@ -21,9 +24,6 @@
   #include <sys/socket.h>
   #include <sys/stat.h>
   #include <unistd.h>
-
-  // test includes
-  #include "../../../tests_common.h"
 
   // local includes
   #include "src/logging.h"
@@ -93,6 +93,12 @@ namespace {
    */
   class scoped_env_t {
   public:
+    /**
+     * @brief Save the previous environment value and install a temporary replacement.
+     *
+     * @param name Environment variable to override.
+     * @param value Temporary value used while this guard exists.
+     */
     scoped_env_t(const char *name, const std::string &value):
         name_ {name} {
       logging::log_flush();
@@ -102,6 +108,9 @@ namespace {
       setenv(name, value.c_str(), 1);
     }
 
+    /**
+     * @brief Restore the saved value or remove a variable that was originally absent.
+     */
     ~scoped_env_t() {
       logging::log_flush();
       if (previous_) {
@@ -111,12 +120,19 @@ namespace {
       }
     }
 
+    /**
+     * @brief Disable copying of an active environment override.
+     */
     scoped_env_t(const scoped_env_t &) = delete;
+
+    /**
+     * @brief Disable assignment of an active environment override.
+     */
     scoped_env_t &operator=(const scoped_env_t &) = delete;
 
   private:
-    const char *name_;
-    std::optional<std::string> previous_;
+    const char *name_;  ///< Environment variable restored when the guard is destroyed.
+    std::optional<std::string> previous_;  ///< Previous value, or no value when the variable was absent.
   };
 
   /**
