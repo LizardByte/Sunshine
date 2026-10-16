@@ -2226,6 +2226,31 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     </tr>
 </table>
 
+### pyrowave
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Allows compatible clients to request PyroWave 8-bit or 10-bit 4:2:0 video streams.
+            Support is advertised based on encoder capabilities. HDR requires a supported capture backend
+            and HDR enabled on the host display and client.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            enabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            pyrowave = disabled
+            @endcode</td>
+    </tr>
+</table>
+
 ### capture
 
 <table>

@@ -19,6 +19,7 @@ extern "C" {
 
 // local includes
 #include <src/rtsp.h>
+#include <src/video.h>
 
 /**
  * @brief Const RTSP wire headers decode network-order lengths independently of encryption flags.
@@ -73,7 +74,95 @@ namespace rtsp_stream {
    * @param req Request to handle.
    */
   void cmd_play(rtsp_server_t *, boost::asio::ip::tcp::socket &sock, launch_session_t &session, msg_t &&req);
+
+  /**
+   * @brief Validate ANNOUNCE before starting a stream.
+   * @param sock Connected client socket.
+   * @param session Launch session.
+   * @param req Request to handle.
+   */
+  void cmd_announce(rtsp_server_t *, boost::asio::ip::tcp::socket &sock, launch_session_t &session, msg_t &&req);
 }  // namespace rtsp_stream
+
+namespace {
+  /**
+   * @brief Exercise codec negotiation on a local RTSP connection without starting a stream.
+   * @param describe Whether to request DESCRIBE instead of an invalid ANNOUNCE.
+   * @param payload SDP body for ANNOUNCE.
+   * @return Complete RTSP response.
+   */
+  std::string pyrowave_rtsp_response(bool describe, std::string payload = {}) {
+    using boost::asio::ip::tcp;
+    boost::asio::io_context io;
+    tcp::acceptor acceptor {io, {boost::asio::ip::address_v4::loopback(), 0}};
+    tcp::socket client {io};
+    client.connect(acceptor.local_endpoint());
+    auto server_socket = acceptor.accept();
+    rtsp_stream::launch_session_t session {};
+    rtsp_stream::msg_t request {new RTSP_MESSAGE {}};
+    request->sequenceNumber = 17;
+    request->payload = payload.data();
+    request->payloadLength = int(payload.size());
+    if (describe) {
+      rtsp_stream::cmd_describe(nullptr, server_socket, session, std::move(request));
+    } else {
+      rtsp_stream::cmd_announce(nullptr, server_socket, session, std::move(request));
+    }
+    server_socket.shutdown(tcp::socket::shutdown_send);
+    std::string response;
+    boost::system::error_code error;
+    boost::asio::read(client, boost::asio::dynamic_buffer(response), error);
+    EXPECT_EQ(error, boost::asio::error::eof);
+    return response;
+  }
+}  // namespace
+
+TEST(RtspPyrowaveTest, AdvertisesOnlyProbedProfiles) {
+  const auto previous = video::active_pyrowave_mode;
+  const auto restore = util::fail_guard([previous]() {
+    video::active_pyrowave_mode = previous;
+  });
+  for (int mode : {0, 2, 3}) {
+    video::active_pyrowave_mode = mode;
+    auto response = pyrowave_rtsp_response(true);
+    EXPECT_EQ(response.find("a=rtpmap:99 PYROWAVE/90000") != std::string::npos, mode >= 2);
+    EXPECT_EQ(response.find("a=x-ss-video[0].pyrowaveFrameFormat:PYRW/1") != std::string::npos, mode >= 2);
+    EXPECT_NE(response.find("CSeq: 17"), std::string::npos);
+  }
+}
+
+TEST(RtspPyrowaveTest, RejectsUnavailableHdrAndUnknownFormatsBeforeStartingCapture) {
+  const auto previous = video::active_pyrowave_mode;
+  const auto restore = util::fail_guard([previous]() {
+    video::active_pyrowave_mode = previous;
+  });
+  const std::string base =
+    "s=Moonlight\r\n"
+    "a=x-nv-audio.surround.numChannels:2\r\n"
+    "a=x-nv-audio.surround.channelMask:3\r\n"
+    "a=x-nv-audio.surround.AudioQuality:1\r\n"
+    "a=x-nv-video[0].packetSize:1392\r\n"
+    "a=x-nv-video[0].clientViewportHt:1080\r\n"
+    "a=x-nv-video[0].clientViewportWd:1920\r\n"
+    "a=x-nv-video[0].maxFPS:60\r\n"
+    "a=x-nv-vqos[0].bw.maximumBitrateKbps:200000\r\n"
+    "a=x-nv-video[0].videoEncoderSlicesPerFrame:1\r\n"
+    "a=x-nv-video[0].maxNumReferenceFrames:0\r\n";
+  for (const auto &[mode, format, hdr, chroma] : std::array {
+         std::array {0, 3, 0, 0},
+         std::array {2, 3, 1, 0},
+         std::array {3, 3, 2, 0},
+         std::array {3, 3, 0, 1},
+         std::array {3, -1, 0, 0},
+         std::array {3, 4, 0, 0}
+       }) {
+    video::active_pyrowave_mode = mode;
+    auto payload = base + "a=x-nv-vqos[0].bitStreamFormat:" + std::to_string(format) + "\r\n" +
+                   "a=x-nv-video[0].dynamicRangeMode:" + std::to_string(hdr) + "\r\n" +
+                   "a=x-ss-video[0].chromaSamplingType:" + std::to_string(chroma) + "\r\n";
+    EXPECT_TRUE(pyrowave_rtsp_response(false, payload).starts_with("RTSP/1.0 400 BAD REQUEST\r\n"));
+  }
+}
 
 /**
  * @brief All three handlers respond with the request's sequence even without a server instance.
