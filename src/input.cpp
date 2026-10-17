@@ -1319,7 +1319,7 @@ namespace input {
   }
 
   /**
-   * @brief Allocate a virtual gamepad for a client-relative controller slot.
+   * @brief Allocate a virtual gamepad or refresh feedback after a retained controller arrives.
    *
    * @param input Stream input state.
    * @param client_index Client-relative controller index.
@@ -1334,7 +1334,14 @@ namespace input {
 
     auto &gamepad = input->gamepads[client_index];
     if (gamepad.id >= 0) {
-      BOOST_LOG(warning) << "ControllerNumber already allocated ["sv << client_index << ']';
+      // Resume-time motion requests can arrive before the client assigns this
+      // controller slot. Replay them after its arrival, without recreating the
+      // virtual device, and clear feedback deduplication for the ready client.
+      if (platf::rebind_gamepad(platf_input, {gamepad.id, static_cast<std::uint8_t>(client_index)}, input->feedback_queue) != 0) {
+        BOOST_LOG(warning) << "Failed to rebind retained controller ["sv << client_index << ']';
+        return -1;
+      }
+      BOOST_LOG(info) << "Rebound retained controller feedback after arrival ["sv << client_index << ']';
       return gamepad.id;
     }
 
