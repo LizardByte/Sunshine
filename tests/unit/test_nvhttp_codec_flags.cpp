@@ -3,6 +3,7 @@
  * @brief Test the codec capability bitmask advertised to clients.
  */
 
+// test includes
 #include "../tests_common.h"
 
 // standard includes
