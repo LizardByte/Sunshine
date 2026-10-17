@@ -4,6 +4,7 @@
  */
 #pragma once
 
+// standard includes
 // Load the CRT definitions before saving them, even when this is the first include.
 #include <cerrno>
 
@@ -19,6 +20,7 @@
   #pragma push_macro("EMSGSIZE")
 #endif
 
+// lib includes
 extern "C" {
 #include <moonlight-common-c/src/Limelight-internal.h>
 }

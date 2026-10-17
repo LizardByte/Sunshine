@@ -2,6 +2,11 @@
  * @file tests/unit/test_moonlight_common.cpp
  * @brief Verify that importing Moonlight does not change C++ errno constants.
  */
+
+// The shared test header includes Boost. Keep it after the errno snapshots and
+// the explicit Boost include so it cannot mask this regression.
+
+// standard includes
 #include <array>
 #include <cerrno>
 
@@ -17,6 +22,7 @@ namespace {
   };  ///< CRT errno values before including Moonlight.
 }
 
+// local includes
 // Capture errno immediately after including Moonlight.
 #include <src/compat/moonlight.h>  // NOSONAR(cpp:S954): The baseline must precede this include.
 
@@ -32,9 +38,12 @@ namespace {
   };  ///< Errno values immediately after including Moonlight.
 }
 
+// lib includes
 // Boost must be parsed after the wrapper for this regression test.
 #include <boost/system/error_code.hpp>
-#include <gtest/gtest.h>
+
+// test includes
+#include "../tests_common.h"
 
 namespace moonlight_common_tests {
   /**
