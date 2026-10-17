@@ -846,6 +846,16 @@ namespace video {
       if (!valid_config(config) || !device || !device->frame || device->frame->width != config.width || device->frame->height != config.height) {
         return nullptr;
       }
+      // Associate borrowed VideoToolbox buffers with their pool for readback.
+      if (device->frame->format == AV_PIX_FMT_VIDEOTOOLBOX && !device->frame->hw_frames_ctx) {
+        if (!frames) {
+          return nullptr;
+        }
+        device->frame->hw_frames_ctx = av_buffer_ref(frames.get());
+        if (!device->frame->hw_frames_ctx) {
+          return nullptr;
+        }
+      }
       auto session = std::make_unique<session_impl_t>(std::move(device), frame_budget(config), api, std::move(frames));
       return session->init(config) ? std::move(session) : nullptr;
     }

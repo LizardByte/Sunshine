@@ -710,7 +710,7 @@ namespace video {
      *
      * @param config Negotiated stream configuration.
      * @param device Converter owning its input frame and hardware context, if any.
-     * @param frames Hardware frame pool retained for converters that borrow its reference.
+     * @param frames Hardware pool retained for the converter and attached to borrowed VideoToolbox frames.
      * @return Session, or null when the configuration is invalid or initialization fails.
      */
     std::unique_ptr<session_t> make_session(const config_t &config, std::unique_ptr<platf::avcodec_encode_device_t> device, avcodec_buffer_t frames = {});
@@ -735,7 +735,7 @@ namespace video {
      * @param config Negotiated stream configuration.
      * @param device Initialized frame conversion device.
      * @param api C API implementation, copied into the session.
-     * @param frames Hardware frame pool retained for the converter's lifetime.
+     * @param frames Hardware pool retained for the converter and attached to borrowed VideoToolbox frames.
      * @return Initialized session, or null on failure.
      */
     std::unique_ptr<session_t> make_session(const config_t &config, std::unique_ptr<platf::avcodec_encode_device_t> device, const api_t &api, avcodec_buffer_t frames = {});

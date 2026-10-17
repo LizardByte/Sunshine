@@ -10,9 +10,15 @@
 #include <cstring>
 #include <limits>
 
+// platform includes
+#ifdef __APPLE__
+  #include <CoreVideo/CoreVideo.h>
+#endif
+
 // lib includes
 extern "C" {
 #include <libavutil/hwcontext.h>
+#include <libavutil/mem.h>
 #ifdef SUNSHINE_BUILD_VULKAN
   #include <libavutil/hwcontext_vulkan.h>
 #endif
@@ -402,26 +408,54 @@ TEST_F(PyrowaveSessionTest, PreservesFrameTimingAndStreamOwnershipInThePacketQue
   EXPECT_EQ(packet->channel_data, nullptr);
 }
 
+/**
+ * @brief Attach missing VideoToolbox pool references while preserving existing references and lifetimes.
+ */
 TEST_F(PyrowaveSessionTest, RetainsTheBorrowedHardwarePoolUntilAfterConverterDestruction) {
-  bool released = false;
-  video::avcodec_buffer_t frames {av_buffer_create(nullptr, 0, [](void *opaque, uint8_t *) {
-    *static_cast<bool *>(opaque) = true;
-  },
-                                                   &released,
-                                                   0)};
-  ASSERT_NE(frames, nullptr);
-  auto converter = std::make_unique<pyrowave_test_converter_t>(AV_PIX_FMT_NV12);
-  converter->on_destroy = [&]() {
-    EXPECT_FALSE(released);
+  const std::pair<AVPixelFormat, bool> cases[] {
+    {AV_PIX_FMT_NV12, false},
+    {AV_PIX_FMT_VIDEOTOOLBOX, false},
+    {AV_PIX_FMT_VIDEOTOOLBOX, true},
   };
-  auto session = video::pyrowave::make_session(pyrowave_config(), std::move(converter), fake_pyrowave_api(), std::move(frames));
-  ASSERT_NE(session, nullptr);
-  EXPECT_FALSE(released);
-  platf::img_t image {};
-  EXPECT_EQ(session->convert(image), 0);
-  EXPECT_FALSE(released);
-  session.reset();
-  EXPECT_TRUE(released);
+  for (const auto &[format, has_pool] : cases) {
+    bool released = false;
+    video::avcodec_buffer_t frames {av_buffer_create(nullptr, 0, [](void *opaque, uint8_t *) {
+      *static_cast<bool *>(opaque) = true;
+    },
+                                                     &released,
+                                                     0)};
+    ASSERT_NE(frames, nullptr);
+    auto converter = std::make_unique<pyrowave_test_converter_t>(AV_PIX_FMT_NV12);
+    const auto frame = converter->frame;
+    frame->format = format;
+    if (has_pool) {
+      frame->hw_frames_ctx = av_buffer_ref(frames.get());
+      ASSERT_NE(frame->hw_frames_ctx, nullptr);
+    }
+    const auto original_pool = frame->hw_frames_ctx;
+    const auto pool_buffer = frames->buffer;
+    converter->on_destroy = [&]() {
+      EXPECT_FALSE(released);
+    };
+    auto session = video::pyrowave::make_session(pyrowave_config(), std::move(converter), fake_pyrowave_api(), std::move(frames));
+    ASSERT_NE(session, nullptr);
+    EXPECT_FALSE(released);
+    if (format == AV_PIX_FMT_VIDEOTOOLBOX) {
+      ASSERT_NE(frame->hw_frames_ctx, nullptr);
+      EXPECT_EQ(frame->hw_frames_ctx->buffer, pool_buffer);
+      EXPECT_EQ(av_buffer_get_ref_count(frame->hw_frames_ctx), 2);
+      if (has_pool) {
+        EXPECT_EQ(frame->hw_frames_ctx, original_pool);
+      }
+    } else {
+      EXPECT_EQ(frame->hw_frames_ctx, nullptr);
+      platf::img_t image {};
+      EXPECT_EQ(session->convert(image), 0);
+    }
+    EXPECT_FALSE(released);
+    session.reset();
+    EXPECT_TRUE(released);
+  }
 }
 
 TEST_F(PyrowaveSessionTest, EncodesSdrAndHdrWithExactPlaneValuesAndFraming) {
@@ -454,10 +488,20 @@ TEST_F(PyrowaveSessionTest, EncodesSdrAndHdrWithExactPlaneValuesAndFraming) {
   EXPECT_EQ(state.destroyed, (std::vector<std::string> {"encoder", "device", "encoder", "device", "encoder", "device", "encoder", "device"}));
 }
 
+/**
+ * @brief Preserve SDR/HDR samples when reading Vulkan frames or borrowed macOS capture buffers.
+ */
 TEST_F(PyrowaveSessionTest, DownloadsHardwareFramesWithoutLosingTenBitPrecision) {
+#ifdef __APPLE__
+  constexpr auto device_type = AV_HWDEVICE_TYPE_VIDEOTOOLBOX;
+  constexpr auto hardware_format = AV_PIX_FMT_VIDEOTOOLBOX;
+#else
+  constexpr auto device_type = AV_HWDEVICE_TYPE_VULKAN;
+  constexpr auto hardware_format = AV_PIX_FMT_VULKAN;
+#endif
   AVBufferRef *raw_device = nullptr;
-  if (av_hwdevice_ctx_create(&raw_device, AV_HWDEVICE_TYPE_VULKAN, nullptr, nullptr, 0) < 0) {
-    GTEST_SKIP() << "An FFmpeg-compatible Vulkan device is unavailable";
+  if (av_hwdevice_ctx_create(&raw_device, device_type, nullptr, nullptr, 0) < 0) {
+    GTEST_SKIP() << "An FFmpeg-compatible " << av_hwdevice_get_type_name(device_type) << " device is unavailable";
   }
   video::avcodec_buffer_t device {raw_device};
   for (bool hdr : {false, true}) {
@@ -472,14 +516,39 @@ TEST_F(PyrowaveSessionTest, DownloadsHardwareFramesWithoutLosingTenBitPrecision)
     video::avcodec_buffer_t frames {av_hwframe_ctx_alloc(device.get())};
     ASSERT_NE(frames, nullptr);
     auto pool = reinterpret_cast<AVHWFramesContext *>(frames->data);
-    pool->format = AV_PIX_FMT_VULKAN;
+    pool->format = hardware_format;
     pool->sw_format = format;
     pool->width = 64;
     pool->height = 48;
     ASSERT_EQ(av_hwframe_ctx_init(frames.get()), 0);
+#ifdef __APPLE__
+    CVPixelBufferRef pixel_buffer = nullptr;
+    ASSERT_EQ(CVPixelBufferCreate(kCFAllocatorDefault, 64, 48, hdr ? kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange : kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange, nullptr, &pixel_buffer), kCVReturnSuccess);
+    auto release_buffer = util::fail_guard([&]() {
+      CVPixelBufferRelease(pixel_buffer);
+    });
+    converter->frame->buf[0] = av_buffer_create(reinterpret_cast<uint8_t *>(pixel_buffer), 0, [](void *, uint8_t *data) {
+      CVPixelBufferRelease(reinterpret_cast<CVPixelBufferRef>(data));
+    },
+                                                nullptr,
+                                                0);
+    ASSERT_NE(converter->frame->buf[0], nullptr);
+    release_buffer.disable();
+    converter->frame->data[3] = reinterpret_cast<uint8_t *>(pixel_buffer);
+    converter->frame->format = hardware_format;
+    converter->frame->width = 64;
+    converter->frame->height = 48;
+    converter->frame->hw_frames_ctx = av_buffer_ref(frames.get());
+    ASSERT_NE(converter->frame->hw_frames_ctx, nullptr);
+#else
     ASSERT_EQ(av_hwframe_get_buffer(frames.get(), converter->frame, 0), 0);
+#endif
     ASSERT_EQ(av_hwframe_transfer_data(converter->frame, host.get(), 0), 0);
     ASSERT_EQ(av_frame_copy_props(converter->frame, host.get()), 0);
+#ifdef __APPLE__
+    // Captured CVPixelBuffers arrive without an FFmpeg frame-pool reference.
+    av_buffer_unref(&converter->frame->hw_frames_ctx);
+#endif
     auto session = video::pyrowave::make_session(config, std::move(converter), fake_pyrowave_api(), std::move(frames));
     ASSERT_NE(session, nullptr);
     platf::img_t image {};
@@ -517,6 +586,9 @@ TEST_F(PyrowaveSessionTest, ClearsReadinessAfterConversionFailureAndRejectsWrong
   EXPECT_EQ(state.encoded, 0);
 }
 
+/**
+ * @brief Reject invalid frames and missing or unretainable VideoToolbox pools before creating a codec.
+ */
 TEST_F(PyrowaveSessionTest, RejectsInvalidInputsBeforeCallingTheCodec) {
   EXPECT_EQ(video::pyrowave::make_session(pyrowave_config(), nullptr, fake_pyrowave_api()), nullptr);
   EXPECT_EQ(video::pyrowave::make_session(pyrowave_config(), std::make_unique<platf::avcodec_encode_device_t>(), fake_pyrowave_api()), nullptr);
@@ -528,6 +600,20 @@ TEST_F(PyrowaveSessionTest, RejectsInvalidInputsBeforeCallingTheCodec) {
   auto config = pyrowave_config();
   config.chromaSamplingType = 1;
   EXPECT_EQ(video::pyrowave::make_session(config, std::make_unique<pyrowave_test_converter_t>(AV_PIX_FMT_NV12), fake_pyrowave_api()), nullptr);
+
+  auto converter = std::make_unique<pyrowave_test_converter_t>(AV_PIX_FMT_NV12);
+  converter->frame->format = AV_PIX_FMT_VIDEOTOOLBOX;
+  EXPECT_EQ(video::pyrowave::make_session(pyrowave_config(), std::move(converter), fake_pyrowave_api()), nullptr);
+
+  converter = std::make_unique<pyrowave_test_converter_t>(AV_PIX_FMT_NV12);
+  converter->frame->format = AV_PIX_FMT_VIDEOTOOLBOX;
+  video::avcodec_buffer_t frames {av_buffer_alloc(1)};
+  ASSERT_NE(frames, nullptr);
+  const auto restore_allocations = util::fail_guard([]() {
+    av_max_alloc(std::numeric_limits<int>::max());
+  });
+  av_max_alloc(0);
+  EXPECT_EQ(video::pyrowave::make_session(pyrowave_config(), std::move(converter), fake_pyrowave_api(), std::move(frames)), nullptr);
   EXPECT_TRUE(state.destroyed.empty());
 }
 
