@@ -4,9 +4,10 @@
  */
 #pragma once
 
+// standard includes
+#include <cstdint>
+
 #if defined(SUNSHINE_BUILD_CUDA)
-  // standard includes
-  #include <cstdint>
   #include <memory>
   #include <optional>
   #include <string>
@@ -17,7 +18,27 @@
 
   // local includes
   #include "src/video_colorspace.h"
+#endif
 
+namespace cuda::nvfbc {
+  /**
+   * @brief Decide whether NvFBC should offer the whole virtual desktop as a display.
+   *
+   * NvFBC enumerates zero outputs when the X screen drives no display head.
+   * Capture can still use `NVFBC_TRACKING_SCREEN` for the virtual desktop.
+   *
+   * @param output_count Number of outputs NvFBC enumerated.
+   * @param capture_possible Whether NvFBC reported that capture is possible.
+   * @param screen_width Virtual desktop width reported by NvFBC.
+   * @param screen_height Virtual desktop height reported by NvFBC.
+   * @return `true` when the virtual desktop should be offered as a display.
+   */
+  constexpr bool should_offer_virtual_desktop(std::uint32_t output_count, bool capture_possible, std::uint32_t screen_width, std::uint32_t screen_height) {
+    return output_count == 0 && capture_possible && screen_width > 0 && screen_height > 0;
+  }
+}  // namespace cuda::nvfbc
+
+#if defined(SUNSHINE_BUILD_CUDA)
 namespace platf {
   struct avcodec_encode_device_t;
   struct img_t;
