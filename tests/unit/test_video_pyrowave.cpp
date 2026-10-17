@@ -128,7 +128,15 @@ TEST(PyrowaveConfigTest, RejectsMalformedOrUnsupportedRequests) {
   }
 }
 
-TEST(PyrowaveConfigTest, BudgetsFractionalRatesWithoutIntegerOverflow) {
+/**
+ * @brief Respect host bitrate limits and fractional rates without integer overflow.
+ */
+TEST(PyrowaveConfigTest, BudgetsCappedAndFractionalRatesWithoutIntegerOverflow) {
+  const auto previous = config::video.max_bitrate;
+  const auto restore = util::fail_guard([previous]() {
+    config::video.max_bitrate = previous;
+  });
+  config::video.max_bitrate = 0;
   auto config = pyrowave_config();
   EXPECT_EQ(video::pyrowave::frame_budget(config), 416666);
   config.framerateX100 = 5994;
@@ -141,6 +149,21 @@ TEST(PyrowaveConfigTest, BudgetsFractionalRatesWithoutIntegerOverflow) {
   config.bitrate = std::numeric_limits<int>::max();
   config.framerate = std::numeric_limits<int>::max();
   EXPECT_EQ(video::pyrowave::frame_budget(config), 125);
+
+  config = pyrowave_config();
+  config::video.max_bitrate = 5000;
+  EXPECT_EQ(video::pyrowave::frame_budget(config), 10416);
+  config.framerateX100 = 5994;
+  EXPECT_EQ(video::pyrowave::frame_budget(config), 10427);
+  config.framerateX100 = 0;
+  EXPECT_EQ(video::pyrowave::frame_budget(config), 10416);
+  config.bitrate = 2000;
+  EXPECT_EQ(video::pyrowave::frame_budget(config), 4166);
+  config.bitrate = 5000;
+  EXPECT_EQ(video::pyrowave::frame_budget(config), 10416);
+  config = pyrowave_config();
+  config::video.max_bitrate = -1;
+  EXPECT_EQ(video::pyrowave::frame_budget(config), 416666);
 }
 
 TEST(PyrowaveConfigTest, PreservesHdrWithoutConsultingUnrelatedCodecCapabilities) {
