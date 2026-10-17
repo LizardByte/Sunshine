@@ -373,11 +373,12 @@ namespace input {
    */
   bool apply_permission(input_t &input, permission_e permission, bool allowed) {
     switch (permission) {
-      case permission_e::mouse:
+      using enum permission_e;
+      case mouse:
         return input.allow_mouse.exchange(allowed) && !allowed;
-      case permission_e::keyboard:
+      case keyboard:
         return input.allow_keyboard.exchange(allowed) && !allowed;
-      case permission_e::controller:
+      case controller:
         return input.allow_controller.exchange(allowed) && !allowed;
     }
     return false;

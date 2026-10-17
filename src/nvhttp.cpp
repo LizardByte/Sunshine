@@ -1856,13 +1856,14 @@ namespace nvhttp {
       }
 
       switch (permission) {
-        case input::permission_e::mouse:
+        using enum input::permission_e;
+        case mouse:
           named_cert.permissions.mouse = allowed;
           break;
-        case input::permission_e::keyboard:
+        case keyboard:
           named_cert.permissions.keyboard = allowed;
           break;
-        case input::permission_e::controller:
+        case controller:
           named_cert.permissions.controller = allowed;
           break;
       }
