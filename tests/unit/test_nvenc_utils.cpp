@@ -4,6 +4,9 @@
  */
 
 #ifdef _WIN32
+  // test includes
+  #include "../tests_common.h"
+
   // standard includes
   #include <array>
   #include <bit>
@@ -12,9 +15,6 @@
   #include <limits>
   #include <tuple>
   #include <utility>
-
-  // lib includes
-  #include <gtest/gtest.h>
 
   // local includes
   #include "src/nvenc/nvenc_base.h"

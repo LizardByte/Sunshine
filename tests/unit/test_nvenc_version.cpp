@@ -3,12 +3,12 @@
  * @brief Tests for runtime NVENC SDK version selection.
  */
 
+// test includes
+#include "../tests_common.h"
+
 // standard includes
 #include <array>
 #include <cstdint>
-
-// lib includes
-#include <gtest/gtest.h>
 
 // local includes
 #include "src/nvenc/nvenc_version.h"

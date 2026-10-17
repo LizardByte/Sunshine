@@ -3,6 +3,9 @@
  * @brief Test Wayland output mode selection.
  */
 #ifdef SUNSHINE_BUILD_WAYLAND
+  // test includes
+  #include "../../../tests_common.h"
+
   // standard includes
   #include <array>
   #include <cerrno>
@@ -24,9 +27,6 @@
   #include <fcntl.h>
   #include <unistd.h>
   #include <xf86drm.h>
-
-  // test includes
-  #include "../../../tests_common.h"
 
   // local includes
   #include <src/platform/linux/wayland.h>

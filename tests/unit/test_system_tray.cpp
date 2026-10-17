@@ -5,6 +5,12 @@
 
 // test includes
 #include "../tests_common.h"
+#if defined(SUNSHINE_TRAY) && SUNSHINE_TRAY >= 1
+  #if defined(__linux__) || defined(__APPLE__) || defined(_WIN32)
+    #include "third-party/tray/tests/notification_utils.h"
+    #include "third-party/tray/tests/screenshot_utils.h"
+  #endif
+#endif
 
 // standard includes
 #include <atomic>
@@ -25,20 +31,14 @@
   #if defined(_WIN32) || defined(__APPLE__)
     #include <libvirtualhid/license.hpp>
   #endif
+  #if defined(__linux__) || defined(__APPLE__) || defined(_WIN32)
+    #include <lizardbyte/common/env.h>
+  #endif
 
   // local includes
   #include <src/config.h>
   #include <src/system_tray.h>
   #include <src/thread_safe.h>
-
-  #if defined(__linux__) || defined(__APPLE__) || defined(_WIN32)
-    // lib includes
-    #include <lizardbyte/common/env.h>
-
-    // test includes
-    #include "third-party/tray/tests/notification_utils.h"
-    #include "third-party/tray/tests/screenshot_utils.h"
-  #endif
 
 namespace {
   using namespace std::chrono_literals;
