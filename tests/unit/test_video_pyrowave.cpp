@@ -3,23 +3,24 @@
  * @brief Regression coverage for PyroWave profiles, HDR precision, framing, and failures.
  */
 
+// test includes
+#include "../tests_common.h"
+
 // standard includes
 #include <cstring>
 #include <limits>
 
-// test includes
-#include "../tests_common.h"
-
-// local includes
-#include <src/config.h>
-#include <src/video.h>
-
+// lib includes
 extern "C" {
 #include <libavutil/hwcontext.h>
 #ifdef SUNSHINE_BUILD_VULKAN
   #include <libavutil/hwcontext_vulkan.h>
 #endif
 }
+
+// local includes
+#include <src/config.h>
+#include <src/video.h>
 
 namespace video {
   /**
