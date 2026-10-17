@@ -509,7 +509,7 @@ namespace system_tray {
       tray.notification_cb = []() {
         launch_ui("/config#gamepad_driver");
       };
-    } else if (config::input.controller && config::input.gamepad_driver != config::GAMEPAD_DRIVER_NONE && config::input.gamepad_driver != config::GAMEPAD_DRIVER_VIGEMBUS && notify_if_unlicensed && !license.licensed()) {
+    } else if (config::input.controller && config::input.gamepad_driver != config::GAMEPAD_DRIVER_NONE && config::input.gamepad_driver != config::GAMEPAD_DRIVER_VIGEMBUS && config::input.gamepad_driver != config::GAMEPAD_DRIVER_ESP32_BRIDGE && notify_if_unlicensed && !license.licensed()) {
       tray.notification_title = "Virtual HID Broker License";
       tray.notification_text =
         "Get or manage a license, or use the limited, end-of-life ViGEmBus driver.";
@@ -557,7 +557,7 @@ namespace system_tray {
       return;
     }
     #ifdef _WIN32
-    if (config::input.gamepad_driver.empty() || config::input.gamepad_driver == config::GAMEPAD_DRIVER_VIGEMBUS) {
+    if (config::input.gamepad_driver.empty() || config::input.gamepad_driver == config::GAMEPAD_DRIVER_VIGEMBUS || config::input.gamepad_driver == config::GAMEPAD_DRIVER_ESP32_BRIDGE) {
       return;
     }
     #endif

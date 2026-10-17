@@ -131,6 +131,50 @@
           </article>
         </div>
 
+        <section class="virtual-gamepad-section" v-if="platform === 'windows' && gamepadDriver === 'esp32_bridge'">
+          <div class="virtual-gamepad-section-heading">
+            <div>
+              <h3 class="h4 mb-1">{{ $t('troubleshooting.esp32_bridge_status') }}</h3>
+              <p class="mb-0">{{ $t('troubleshooting.esp32_bridge_manage') }}
+                <a href="https://cheetahdotcat.github.io/esp32s3-hid-bridge/#configure" target="_blank" rel="noopener noreferrer">cheetahdotcat.github.io/esp32s3-hid-bridge</a>
+              </p>
+            </div>
+          </div>
+          <div class="table-responsive driver-table-shell">
+            <table class="table align-middle mb-0">
+              <tbody>
+                <tr>
+                  <th scope="row">{{ $t('troubleshooting.esp32_bridge_state') }}</th>
+                  <td>
+                    <span class="status-icon driver-status-icon" :class="esp32BridgeStateClass">
+                      <check-circle v-if="esp32Bridge.connected" :size="20" aria-hidden="true"></check-circle>
+                      <alert-triangle v-else-if="esp32Bridge.awaiting_pairing" :size="20" aria-hidden="true"></alert-triangle>
+                      <alert-circle v-else :size="20" aria-hidden="true"></alert-circle>
+                    </span>
+                    {{ $t(esp32BridgeStateKey) }}
+                  </td>
+                </tr>
+                <tr v-if="esp32Bridge.port">
+                  <th scope="row">{{ $t('troubleshooting.esp32_bridge_port') }}</th>
+                  <td>{{ esp32Bridge.port }}</td>
+                </tr>
+                <tr v-if="esp32Bridge.device_id">
+                  <th scope="row">{{ $t('troubleshooting.esp32_bridge_device_id') }}</th>
+                  <td><code>{{ esp32Bridge.device_id }}</code></td>
+                </tr>
+                <tr v-if="esp32Bridge.firmware_version">
+                  <th scope="row">{{ $t('troubleshooting.esp32_bridge_firmware') }}</th>
+                  <td>{{ esp32Bridge.firmware_version }}</td>
+                </tr>
+                <tr v-if="esp32Bridge.device_id">
+                  <th scope="row">{{ $t('troubleshooting.esp32_bridge_pairing') }}</th>
+                  <td>{{ $t(esp32Bridge.pairing_required ? 'troubleshooting.esp32_bridge_pairing_required' : 'troubleshooting.esp32_bridge_pairing_off') }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
         <section class="virtual-gamepad-section" v-if="platform === 'windows' || platform === 'macos'">
           <div class="virtual-gamepad-section-heading">
             <div>
@@ -600,6 +644,15 @@
           gamepadDriver: '',
           unpairAllPressed: false,
           unpairAllStatus: null,
+          esp32Bridge: {
+            active: false,
+            connected: false,
+            awaiting_pairing: false,
+            pairing_required: false,
+            port: '',
+            device_id: '',
+            firmware_version: '',
+          },
           virtualhid: {
             installed: false,
             version: '',
@@ -650,15 +703,15 @@
         },
 
         showVirtualhid() {
-          return this.gamepadDriver !== 'none' && (this.platform === 'macos' || this.gamepadDriver !== 'vigembus');
+          return this.gamepadDriver !== 'none' && (this.platform === 'macos' || (this.gamepadDriver !== 'vigembus' && this.gamepadDriver !== 'esp32_bridge'));
         },
 
         showVigembus() {
-          return this.platform === 'windows' && this.gamepadDriver !== 'none' && this.gamepadDriver !== 'virtualhid';
+          return this.platform === 'windows' && this.gamepadDriver !== 'none' && this.gamepadDriver !== 'virtualhid' && this.gamepadDriver !== 'esp32_bridge';
         },
 
         showVirtualhidBenefits() {
-          return this.platform === 'windows' && this.gamepadDriver !== 'none' && !(this.virtualhid.installed && this.virtualhidLicense.licensed);
+          return this.platform === 'windows' && this.gamepadDriver !== 'none' && this.gamepadDriver !== 'esp32_bridge' && !(this.virtualhid.installed && this.virtualhidLicense.licensed);
         },
 
         virtualInputDescriptionKey() {
@@ -673,6 +726,9 @@
           }
           if (this.gamepadDriver === 'vigembus') {
             return 'troubleshooting.virtual_gamepad_vigembus_desc';
+          }
+          if (this.gamepadDriver === 'esp32_bridge') {
+            return 'troubleshooting.virtual_gamepad_esp32_bridge_desc';
           }
           if (this.virtualhid.installed && this.virtualhidLicense.licensed) {
             return this.gamepadDriver === 'all' ?
@@ -801,6 +857,16 @@
 
         driverReleaseLoading() {
           return this.showVirtualhid && this.virtualhidRelease.loading;
+        },
+        esp32BridgeStateKey() {
+          if (this.esp32Bridge.connected) return 'troubleshooting.esp32_bridge_state_connected';
+          if (this.esp32Bridge.awaiting_pairing) return 'troubleshooting.esp32_bridge_state_pairing';
+          if (this.esp32Bridge.active) return 'troubleshooting.esp32_bridge_state_disconnected';
+          return 'troubleshooting.esp32_bridge_state_inactive';
+        },
+        esp32BridgeStateClass() {
+          if (this.esp32Bridge.connected) return 'text-success';
+          return this.esp32Bridge.awaiting_pairing ? 'text-warning' : 'text-danger';
         }
       },
       created() {
@@ -818,11 +884,13 @@
             if ((this.platform === 'windows' || this.platform === 'macos') && this.showVirtualhid) {
               this.refreshLicenseStatus();
             }
+            this.refreshEsp32Bridge();
           });
 
         this.logInterval = setInterval(() => {
           this.refreshLogs();
           if (this.platform) this.refreshPermissions();
+          this.refreshEsp32Bridge();
         }, 5000);
         this.refreshLogs();
         this.refreshClients();
@@ -1081,6 +1149,19 @@
                 url: fallbackUrl,
                 error: true,
               };
+            });
+        },
+        refreshEsp32Bridge() {
+          if (this.platform !== 'windows' || this.gamepadDriver !== 'esp32_bridge') {
+            return;
+          }
+          fetch("/api/esp32-bridge/status")
+            .then((r) => r.json())
+            .then((r) => {
+              this.esp32Bridge = { ...this.esp32Bridge, ...r };
+            })
+            .catch((err) => {
+              console.error("Failed to fetch ESP32-S3 bridge status:", err);
             });
         },
         refreshVirtualInputStatus() {

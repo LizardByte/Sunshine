@@ -334,6 +334,7 @@ protected:
     };
 
     server->resource["^/virtual-input-status-test$"]["GET"] = confighttp::getVirtualInputStatus;
+    server->resource["^/esp32-bridge-status-test$"]["GET"] = confighttp::getEsp32BridgeStatus;
     server->resource["^/virtual-input-license-test$"]["GET"] = confighttp::getVirtualInputLicense;
     server->resource["^/virtual-input-license-test$"]["POST"] = confighttp::updateVirtualInputLicense;
     server->resource["^/permissions-test$"]["GET"] = confighttp::getPermissions;
@@ -514,6 +515,7 @@ INSTANTIATE_TEST_SUITE_P(
     endpoint_request_t {"PairingList", "GET", "/pairing-test", ""},
     endpoint_request_t {"PortalTokenReset", "POST", "/portal-token-reset-test", ""},
     endpoint_request_t {"VirtualInputStatus", "GET", "/virtual-input-status-test", ""},
+    endpoint_request_t {"Esp32BridgeStatus", "GET", "/esp32-bridge-status-test", ""},
     endpoint_request_t {"VirtualInputLicense", "GET", "/virtual-input-license-test", ""},
     endpoint_request_t {"VirtualInputLicenseUpdate", "POST", "/virtual-input-license-test", R"({"action":"validate"})"}
   ),
@@ -1686,6 +1688,18 @@ TEST(ConfigHttpDriverStatusTest, BuildDriverStatus_DevelopmentVersionIsCompatibl
   ASSERT_TRUE(status["version_compatible"].get<bool>());
 }
 
+#if defined(_WIN32) || defined(__APPLE__)
+TEST(ConfigHttpDriverStatusTest, ReportsTheBridgeWithoutOpeningAnotherRuntime) {
+  const auto original_driver = config::input.gamepad_driver;
+  config::input.gamepad_driver = std::string {config::GAMEPAD_DRIVER_ESP32_BRIDGE};
+  const auto status = confighttp::get_virtualhid_driver_status();
+  config::input.gamepad_driver = original_driver;
+
+  EXPECT_EQ(status.at("backend_name").get<std::string>(), "esp32_bridge");
+  EXPECT_FALSE(status.at("requires_installed_driver").get<bool>());
+}
+#endif
+
 TEST(ConfigHttpDriverStatusTest, BuildsLiveVirtualInputDriverStatus) {
   const auto virtualhid = confighttp::get_virtualhid_driver_status();
   EXPECT_TRUE(virtualhid.contains("installed"));
@@ -1730,6 +1744,27 @@ TEST_F(ConfigHttpTest, VirtualInputStatusReturnsBothBackends) {
   ASSERT_TRUE(body.contains("vigembus"));
   EXPECT_TRUE(body.at("virtualhid").contains("installed"));
   EXPECT_TRUE(body.at("vigembus").contains("installed"));
+}
+
+TEST_F(ConfigHttpTest, Esp32BridgeStatusReportsNoActiveBridgeWithoutABridgeRuntime) {
+  const auto original_driver = config::input.gamepad_driver;
+  config::input.gamepad_driver = std::string {config::GAMEPAD_DRIVER_ESP32_BRIDGE};
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", "/esp32-bridge-status-test", "", headers);
+  config::input.gamepad_driver = original_driver;
+  ASSERT_EQ(response->status_code, "200 OK");
+  const auto body = nlohmann::json::parse(response->content.string());
+  EXPECT_TRUE(body.at("selected").get<bool>());
+  EXPECT_FALSE(body.at("active").get<bool>());
+  EXPECT_FALSE(body.at("connected").get<bool>());
+  EXPECT_FALSE(body.at("awaiting_pairing").get<bool>());
+  EXPECT_TRUE(body.at("port").get<std::string>().empty());
+  EXPECT_TRUE(body.contains("detected"));
+  EXPECT_TRUE(body.contains("device_id"));
+  EXPECT_TRUE(body.contains("firmware_version"));
+  EXPECT_TRUE(body.contains("pairing_required"));
 }
 
 TEST_F(ConfigHttpTest, PermissionsEndpointRequiresAuthenticationAndCsrf) {

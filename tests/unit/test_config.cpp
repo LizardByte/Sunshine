@@ -195,6 +195,25 @@ TEST_F(ConfigPersistenceTest, SelectsAllDriversOnlyForLicensedUsersWithoutAPrefe
   EXPECT_EQ(file_handler::read_file(config_file().string().c_str()), "gamepad_driver = all\n");
 }
 
+TEST_F(ConfigPersistenceTest, SelectsEsp32BridgeOnlyWhenDetectedWithoutAPreference) {
+  EXPECT_FALSE(config::select_esp32_bridge_if_detected(false));
+  EXPECT_TRUE(config::input.gamepad_driver.empty());
+  EXPECT_TRUE(file_handler::read_file(config_file().string().c_str()).empty());
+
+  EXPECT_TRUE(config::select_esp32_bridge_if_detected(true));
+  EXPECT_EQ(config::input.gamepad_driver, config::GAMEPAD_DRIVER_ESP32_BRIDGE);
+  EXPECT_EQ(file_handler::read_file(config_file().string().c_str()), "gamepad_driver = esp32_bridge\n");
+
+  EXPECT_FALSE(config::select_esp32_bridge_if_detected(true));
+  EXPECT_EQ(file_handler::read_file(config_file().string().c_str()), "gamepad_driver = esp32_bridge\n");
+}
+
+TEST_F(ConfigPersistenceTest, KeepsAnExplicitDriverWhenABridgeIsDetected) {
+  config::input.gamepad_driver = std::string {config::GAMEPAD_DRIVER_VIGEMBUS};
+  EXPECT_FALSE(config::select_esp32_bridge_if_detected(true));
+  EXPECT_EQ(config::input.gamepad_driver, config::GAMEPAD_DRIVER_VIGEMBUS);
+}
+
 TEST_F(ConfigPersistenceTest, AcceptsAllGamepadProfilesAcrossRepeatedConfigurationChanges) {
   const auto apps_file = config_file().parent_path() / "sunshine_test_config_apps.json";
   ASSERT_EQ(file_handler::write_file(apps_file.string().c_str(), "{}"), 0);

@@ -352,7 +352,7 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
             @endcode</td>
     </tr>
     <tr>
-        <td rowspan="4">Choices</td>
+        <td rowspan="5">Choices</td>
         <td>all</td>
         <td>Windows only: prefer Virtual HID Broker when it is available and licensed, with ViGEmBus as a limited fallback.</td>
     </tr>
@@ -365,8 +365,41 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
         <td>Windows only: use ViGEmBus for gamepads and hide Virtual HID Broker status and licensing details.</td>
     </tr>
     <tr>
+        <td>esp32_bridge</td>
+        <td>Windows only: publish gamepads, keyboard, and mouse through an ESP32-S3 USB bridge plugged into this PC.
+            The bridge enumerates as USB devices, and Virtual HID Broker notices are not shown. It holds two devices: keyboard and mouse share one, which leaves
+            one gamepad, and only one Xbox controller fits. Sunshine selects this automatically on first start when
+            a bridge is attached and no backend has been chosen. The bridge only accepts input from paired hosts:
+            the first time Sunshine connects, press the BOOT button on the bridge to pair it. The pairing secret is
+            stored in `%ProgramData%\libvirtualhid\esp32-bridge`.</td>
+    </tr>
+    <tr>
         <td>none</td>
         <td>Disable virtual gamepads on Windows and macOS without changing keyboard or mouse input. Suppress broker and driver choice notices.</td>
+    </tr>
+</table>
+
+### esp32_bridge_port
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Serial port of the ESP32-S3 USB bridge when `gamepad_driver` is `esp32_bridge`. Leave empty to find the
+            bridge automatically by its `LVHB-` USB serial number. Plug the bridge in before starting Sunshine.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            empty (auto-detect)
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            esp32_bridge_port = COM5
+            @endcode</td>
     </tr>
 </table>
 

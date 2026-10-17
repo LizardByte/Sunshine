@@ -183,6 +183,7 @@
         virtualhid: null,
         virtualhidLicense: null,
         vigembus: null,
+        esp32Bridge: null,
         permissions: [],
       }
     },
@@ -206,6 +207,11 @@
         this.preReleaseVersion = new SunshineVersion((await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases").then((r) => r.json())).find(release => release.prerelease), null);
         console.log("Pre-Release Version: ", this.preReleaseVersion.version)
 
+        if (this.platform === 'windows' && this.gamepadDriver === 'esp32_bridge') {
+          this.refreshEsp32Bridge();
+          // Poll so the pairing notice clears once BOOT is pressed.
+          this.esp32BridgeInterval = setInterval(() => this.refreshEsp32Bridge(), 3000);
+        }
         // Read the broker version on both platforms to identify development builds.
         if (this.platform === 'windows' || this.platform === 'macos') {
           try {
@@ -235,6 +241,9 @@
       }
       this.loading = false;
     },
+    beforeUnmount() {
+      clearInterval(this.esp32BridgeInterval);
+    },
     computed: {
       /** Return required permissions that the current platform can check and has not granted. */
       missingPermissions() {
@@ -251,6 +260,10 @@
 
         if (this.platform === 'macos') {
           return this.buildMacosVirtualInputNotice();
+        }
+
+        if (this.platform === 'windows' && this.gamepadDriver === 'esp32_bridge') {
+          return this.buildEsp32BridgeNotice();
         }
 
         if (this.platform !== 'windows' || !this.virtualhid || !this.vigembus) {
@@ -271,6 +284,11 @@
 
         if (this.gamepadDriver === 'vigembus') {
           return this.buildVigembusNotice(vigembusUsable);
+        }
+
+        if (this.gamepadDriver === 'esp32_bridge') {
+          // Virtual HID Broker notices do not apply to the bridge.
+          return null;
         }
 
         if (this.virtualhid.installed) {
@@ -350,6 +368,30 @@
        * @param {object} options Optional action and destination overrides.
        * @returns {object} Notice data consumed by the template.
        */
+      /**
+       * Build the notice for the ESP32-S3 bridge: pairing pending or not connected.
+       *
+       * @returns {object|null} Warning data, or no notice while the bridge is connected.
+       */
+      buildEsp32BridgeNotice() {
+        const bridge = this.esp32Bridge;
+        if (!bridge || bridge.connected) {
+          return null;
+        }
+        if (bridge.awaiting_pairing) {
+          return this.buildVirtualInputNotice(true, 'index.esp32_bridge_pairing_title', [{ key: 'index.esp32_bridge_pairing_desc' }]);
+        }
+        return this.buildVirtualInputNotice(true, 'index.esp32_bridge_disconnected_title', [{
+          key: bridge.active ? 'index.esp32_bridge_disconnected_desc' : 'index.esp32_bridge_missing_desc',
+        }]);
+      },
+      async refreshEsp32Bridge() {
+        try {
+          this.esp32Bridge = await fetch("./api/esp32-bridge/status").then((r) => r.json());
+        } catch (e) {
+          console.error("Failed to fetch ESP32-S3 bridge status:", e);
+        }
+      },
       buildVirtualInputNotice(warning, title, messages, options = {}) {
         return {
           action: options.action || 'index.review_virtual_input',

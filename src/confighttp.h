@@ -175,6 +175,14 @@ namespace confighttp {
   void getVirtualInputStatus(const resp_https_t &response, const req_https_t &request);
 
   /**
+   * @brief Get the connection and pairing state of the ESP32-S3 USB bridge.
+   *
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   */
+  void getEsp32BridgeStatus(const resp_https_t &response, const req_https_t &request);
+
+  /**
    * @brief Return the host's permission statuses to the Web UI.
    *
    * @param response HTTPS response receiving the status JSON.

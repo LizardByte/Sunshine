@@ -42,6 +42,7 @@ namespace config {
   inline constexpr std::string_view GAMEPAD_DRIVER_ALL = "all";  ///< Allow every available Windows virtual gamepad driver.
   inline constexpr std::string_view GAMEPAD_DRIVER_VIRTUALHID = "virtualhid";  ///< Use Virtual HID Broker for gamepads on Windows or macOS.
   inline constexpr std::string_view GAMEPAD_DRIVER_VIGEMBUS = "vigembus";  ///< Allow only ViGEmBus for Windows gamepads.
+  inline constexpr std::string_view GAMEPAD_DRIVER_ESP32_BRIDGE = "esp32_bridge";  ///< Publish gamepads, keyboard, and mouse through an ESP32-S3 USB bridge.
   inline constexpr std::string_view GAMEPAD_DRIVER_NONE = "none";  ///< Disable virtual gamepads on Windows and macOS.
 
   // track modified config options
@@ -308,6 +309,7 @@ namespace config {
     bool motion_as_ds4;  ///< Prefer PlayStation-style emulation for client gamepads with motion controls.
     bool touchpad_as_ds4;  ///< Prefer PlayStation-style emulation for client gamepads with touchpad input.
     bool virtualhid_randomize_mac;  ///< Randomize the libvirtualhid virtual controller MAC address.
+    std::string esp32_bridge_port;  ///< ESP32-S3 bridge serial port such as `COM5`; empty auto-detects.
 
     bool keyboard;  ///< Enable keyboard input from clients.
     bool key_rightalt_to_key_win;  ///< Map the client Right Alt key to the Windows key.
@@ -458,4 +460,12 @@ namespace config {
    * @return True when the `all` preference was persisted and applied; otherwise, false.
    */
   bool select_all_gamepad_drivers_if_licensed(bool virtualhid_licensed);
+
+  /**
+   * @brief Select the ESP32-S3 USB bridge when one is attached and the user has not made a choice.
+   *
+   * @param bridge_detected Whether an ESP32-S3 bridge is attached.
+   * @return True when the `esp32_bridge` preference was persisted and applied; otherwise, false.
+   */
+  bool select_esp32_bridge_if_detected(bool bridge_detected);
 }  // namespace config

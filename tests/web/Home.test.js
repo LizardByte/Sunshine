@@ -10,7 +10,7 @@ vi.mock('../../src_assets/common/assets/web/ResourceCard.vue', () => ({
 
 import Home from '../../src_assets/common/assets/web/Home.vue'
 
-async function mountHome(platform, { developmentVersion = true, licensed = true, serviceAvailable = true, gamepadDriver = 'virtualhid', permissions = [] } = {}) {
+async function mountHome(platform, { developmentVersion = true, licensed = true, serviceAvailable = true, gamepadDriver = 'virtualhid', permissions = [], esp32Bridge = {} } = {}) {
   vi.stubGlobal('fetch', vi.fn(async url => {
     if (url === './api/config') {
       return { json: async () => ({ platform, controller: 'enabled', gamepad_driver: gamepadDriver, version: '2026.927.1200' }) }
@@ -22,6 +22,9 @@ async function mountHome(platform, { developmentVersion = true, licensed = true,
           vigembus: { installed: false, version_compatible: false },
         }),
       }
+    }
+    if (url === './api/esp32-bridge/status') {
+      return { json: async () => ({ selected: true, active: true, connected: false, awaiting_pairing: false, ...esp32Bridge }) }
     }
     if (url === './api/permissions') {
       return { json: async () => ({ permissions }) }
@@ -112,5 +115,54 @@ describe('development broker home notice', () => {
 
     expect(wrapper.find('.alert.my-4').exists()).toBe(false)
     wrapper.unmount()
+  })
+})
+
+describe('ESP32-S3 bridge home notice', () => {
+  it('asks to press BOOT while the bridge waits for pairing', async () => {
+    const wrapper = await mountHome('windows', { gamepadDriver: 'esp32_bridge', esp32Bridge: { awaiting_pairing: true } })
+
+    expect(wrapper.get('.alert.my-4').text()).toContain('index.esp32_bridge_pairing_title')
+    expect(wrapper.get('.alert.my-4').text()).toContain('index.esp32_bridge_pairing_desc')
+    wrapper.unmount()
+  })
+
+  it('reports a disconnected bridge that Sunshine is still using', async () => {
+    const wrapper = await mountHome('windows', { gamepadDriver: 'esp32_bridge' })
+
+    expect(wrapper.get('.alert.my-4').text()).toContain('index.esp32_bridge_disconnected_title')
+    expect(wrapper.get('.alert.my-4').text()).toContain('index.esp32_bridge_disconnected_desc')
+    wrapper.unmount()
+  })
+
+  it('asks to restart Sunshine when no bridge runtime is active', async () => {
+    const wrapper = await mountHome('windows', { gamepadDriver: 'esp32_bridge', esp32Bridge: { active: false } })
+
+    expect(wrapper.get('.alert.my-4').text()).toContain('index.esp32_bridge_missing_desc')
+    wrapper.unmount()
+  })
+
+  it('shows no bridge notice once the bridge is connected', async () => {
+    const wrapper = await mountHome('windows', { gamepadDriver: 'esp32_bridge', esp32Bridge: { connected: true } })
+
+    expect(wrapper.text()).not.toContain('index.esp32_bridge_')
+    wrapper.unmount()
+  })
+
+  it('polls the bridge status until the page unmounts', async () => {
+    vi.useFakeTimers()
+    try {
+      const wrapper = await mountHome('windows', { gamepadDriver: 'esp32_bridge', esp32Bridge: { connected: true } })
+      const calls = () => fetch.mock.calls.filter(([url]) => url === './api/esp32-bridge/status').length
+      const before = calls()
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(calls()).toBe(before + 1)
+
+      wrapper.unmount()
+      await vi.advanceTimersByTimeAsync(6000)
+      expect(calls()).toBe(before + 1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

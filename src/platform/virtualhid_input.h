@@ -104,6 +104,23 @@ namespace platf::virtualhid {
   client_context_t &get_client_context(client_input_t *input);
 
   /**
+   * @brief Check whether `gamepad_driver = esp32_bridge` is selected.
+   *
+   * The bridge serial port can only be opened once, so in this mode the shared
+   * input context owns the only runtime and capability probes must not create another.
+   *
+   * @return True when the ESP32-S3 bridge carries all virtual input.
+   */
+  bool esp32_bridge_selected();
+
+  /**
+   * @brief Return the backend for the configured gamepad driver.
+   *
+   * @return `esp32_bridge` when the bridge is selected, otherwise `platform_default`.
+   */
+  lvh::BackendKind configured_backend();
+
+  /**
    * @brief Create a platform-default libvirtualhid runtime.
    *
    * @param backend Backend used to create the runtime.
