@@ -4,23 +4,7 @@ include_guard(GLOBAL)
 # Build the codec and C API without exposing upstream options to Sunshine.
 function(sunshine_add_pyrowave)
     set(pyrowave_source_dir "${CMAKE_SOURCE_DIR}/third-party/pyrowave")
-    if(NOT EXISTS "${pyrowave_source_dir}/checkout_granite.sh")
-        message(FATAL_ERROR "PyroWave submodule is missing. Run git submodule update --init --recursive.")
-    endif()
-
-    # Use the Granite revision selected by the pinned PyroWave source.
-    file(STRINGS "${pyrowave_source_dir}/checkout_granite.sh" granite_revision
-            REGEX "^GRANITE_COMMIT=[0-9a-f]+$")
-    if(NOT granite_revision MATCHES "^GRANITE_COMMIT=([0-9a-f]+)$")
-        message(FATAL_ERROR "Could not read PyroWave's pinned Granite revision.")
-    endif()
-    CPMAddPackage(
-            NAME pyrowave_granite
-            GITHUB_REPOSITORY Themaister/Granite
-            GIT_TAG "${CMAKE_MATCH_1}"
-            GIT_SUBMODULES third_party/volk third_party/khronos/vulkan-headers
-            GIT_SUBMODULES_RECURSE OFF
-            DOWNLOAD_ONLY YES)
+    CPMGetPackage(pyrowave_granite)
 
     # Scope upstream options to the dependency build and use its precompiled shaders.
     # cmake-lint: disable=C0103
