@@ -139,7 +139,7 @@ describe('network configuration', () => {
 
 describe('FEC configuration', () => {
   it.each([0, 1, 20, 99, 100])('accepts %i percent and updates the configuration', async percentage => {
-    const config = { fec_percentage: 20, pyrowave: 'disabled' }
+    const config = { ...configTabs.find(tab => tab.id === 'advanced').options, fec_percentage: 20 }
     const wrapper = mount(Advanced, {
       props: { platform: 'macos', config },
       global: globalOptions,
@@ -153,8 +153,9 @@ describe('FEC configuration', () => {
   })
 
   it.each([-1, 101, 255, 0.5])('marks %s percent as invalid', async percentage => {
+    const config = { ...configTabs.find(tab => tab.id === 'advanced').options, fec_percentage: 20 }
     const wrapper = mount(Advanced, {
-      props: { platform: 'macos', config: { fec_percentage: 20, pyrowave: 'disabled' } },
+      props: { platform: 'macos', config },
       global: globalOptions,
     })
     const input = wrapper.get('#fec_percentage')
