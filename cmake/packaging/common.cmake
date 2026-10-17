@@ -42,10 +42,6 @@ install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/assets/web"
         DESTINATION "${SUNSHINE_ASSETS_DIR}"
         ${_sunshine_common_asset_component})
 
-install(DIRECTORY "${CMAKE_BINARY_DIR}/pyrowave-licenses/"
-        DESTINATION "${SUNSHINE_ASSETS_DIR}/licenses"
-        ${_sunshine_common_asset_component})
-
 # platform specific packaging
 if(WIN32)
     include(${CMAKE_MODULE_PATH}/packaging/windows.cmake)

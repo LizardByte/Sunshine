@@ -48,18 +48,6 @@ function(sunshine_add_pyrowave)
             "${pyrowave_source_dir}"
             "${pyrowave_granite_SOURCE_DIR}/third_party/khronos/vulkan-headers/include")
     target_link_libraries(sunshine_pyrowave PRIVATE pyrowave granite-vulkan granite-math Threads::Threads)
-    configure_file("${pyrowave_source_dir}/LICENSE"
-            "${CMAKE_BINARY_DIR}/pyrowave-licenses/PyroWave.txt" COPYONLY)
-    configure_file("${pyrowave_granite_SOURCE_DIR}/LICENSE"
-            "${CMAKE_BINARY_DIR}/pyrowave-licenses/Granite.txt" COPYONLY)
-    configure_file("${pyrowave_granite_SOURCE_DIR}/third_party/volk/LICENSE.md"
-            "${CMAKE_BINARY_DIR}/pyrowave-licenses/Volk.txt" COPYONLY)
-    configure_file("${pyrowave_granite_SOURCE_DIR}/third_party/khronos/vulkan-headers/LICENSE.md"
-            "${CMAKE_BINARY_DIR}/pyrowave-licenses/Vulkan-Headers/LICENSE.md" COPYONLY)
-    foreach(license Apache-2.0 MIT)
-        configure_file("${pyrowave_granite_SOURCE_DIR}/third_party/khronos/vulkan-headers/LICENSES/${license}.txt"
-                "${CMAKE_BINARY_DIR}/pyrowave-licenses/Vulkan-Headers/LICENSES/${license}.txt" COPYONLY)
-    endforeach()
 endfunction()
 
 sunshine_add_pyrowave()
