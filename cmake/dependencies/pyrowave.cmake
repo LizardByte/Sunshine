@@ -4,7 +4,8 @@ include_guard(GLOBAL)
 # Build the codec and C API without exposing upstream options to Sunshine.
 function(sunshine_add_pyrowave)
     set(pyrowave_source_dir "${CMAKE_SOURCE_DIR}/third-party/pyrowave")
-    CPMGetPackage(pyrowave_granite)
+    # Defer configuring Granite until the options below are set, including local source overrides.
+    CPMAddPackage(NAME pyrowave_granite DOWNLOAD_ONLY YES)
 
     # Scope upstream options to the dependency build and use its precompiled shaders.
     # cmake-lint: disable=C0103
