@@ -25,6 +25,30 @@ namespace platf::dxgi {
    */
   extern const std::array<const char *, 133> format_str;
 
+  /**
+   * @brief Map a DXGI capture format to its declared Sunshine pixel format.
+   *
+   * @param format DXGI capture format.
+   * @return Declared pixel format; unknown when the format is not mapped.
+   */
+  inline platf::pix_fmt_e pix_fmt_from_dxgi_format(DXGI_FORMAT format) {
+    using enum platf::pix_fmt_e;
+
+    switch (format) {
+      case DXGI_FORMAT_R8G8B8A8_UNORM:
+        return rgba;
+      case DXGI_FORMAT_B8G8R8A8_UNORM:
+      case DXGI_FORMAT_B8G8R8X8_UNORM:
+      case DXGI_FORMAT_UNKNOWN:
+        // Desktop capture reports B8G8R8A8 with an undefined alpha channel, so
+        // declaring packed BGR0 (alpha ignored) is intentional.
+        return bgr0;
+      default:
+        // Unsupported HDR formats (scRGB FP16) fail closed as undeclared.
+        return unknown;
+    }
+  }
+
   // Add D3D11_CREATE_DEVICE_DEBUG here to enable the D3D11 debug runtime.
   // You should have a debugger like WinDbg attached to receive debug messages.
   auto constexpr D3D11_CREATE_DEVICE_FLAGS = 0;  ///< Protocol or platform constant for d3 d11 create device flags.
