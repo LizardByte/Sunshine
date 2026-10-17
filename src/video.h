@@ -675,7 +675,7 @@ namespace video {
     bool valid_config(const config_t &config);
 
     /**
-     * @brief Calculate the codec byte budget, including fractional refresh rates.
+     * @brief Calculate the codec byte budget using the host bitrate ceiling and fractional refresh rate.
      *
      * @param config Validated stream configuration.
      * @return Maximum encoded coefficient bytes per frame, or zero for invalid input.

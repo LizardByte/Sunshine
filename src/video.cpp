@@ -636,7 +636,8 @@ namespace video {
         return 0;
       }
       const auto rate = config.framerateX100 ? uint64_t(config.framerateX100) : uint64_t(config.framerate) * 100;
-      const auto budget = uint64_t(config.bitrate) * 1000 * 100 / (8 * rate);
+      const auto bitrate = config::video.max_bitrate > 0 ? std::min(config.bitrate, config::video.max_bitrate) : config.bitrate;
+      const auto budget = uint64_t(bitrate) * 1000 * 100 / (8 * rate);
       return budget > 0 && budget <= max_frame_size ? size_t(budget) : 0;
     }
 
