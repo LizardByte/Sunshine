@@ -4,12 +4,17 @@
  */
 
 // standard includes
+#include <algorithm>
 #include <charconv>
 #include <chrono>
 #include <cstdint>
+#include <cstring>
 #include <optional>
 #include <string_view>
 #include <vector>
+
+// platform includes
+#import <AppKit/AppKit.h>
 
 // local includes
 #include "src/config.h"
@@ -20,6 +25,7 @@
 #include "src/platform/macos/av_video.h"
 #include "src/platform/macos/misc.h"
 #include "src/platform/macos/nv12_zero_device.h"
+#include "src/platform/macos/sc_video.h"
 
 // Avoid conflict between AVFoundation and libavutil both defining AVMediaType
 /**
@@ -78,7 +84,46 @@ namespace platf {
       const auto colorspace {video::colorspace_from_client_config(config, false)};
       return colorspace.bit_depth == 10 ? kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange : kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange;
     }
+
+    /**
+     * @brief Return the EDR headroom macOS reports for a display.
+     *
+     * EDR 1.0 is reference white, which ScreenCaptureKit's canonical HDR mode maps to 100 nits.
+     *
+     * @param display_id Display to query.
+     * @return Maximum potential EDR component value, or 1.0 (SDR only) if the display is not found.
+     */
+    double edr_headroom(CGDirectDisplayID display_id) {
+      @autoreleasepool {
+        for (NSScreen *screen in NSScreen.screens) {
+          if ([screen.deviceDescription[@"NSScreenNumber"] unsignedIntValue] == display_id) {
+            return screen.maximumPotentialExtendedDynamicRangeColorComponentValue;
+          }
+        }
+      }
+      return 1.0;
+    }
   }  // namespace
+
+  bool edr_hdr_metadata(double edr_headroom, SS_HDR_METADATA &metadata) {
+    std::memset(&metadata, 0, sizeof(metadata));
+    if (edr_headroom <= 1.0) {
+      return false;
+    }
+
+    // Chromaticities are in 0.00002 units and the minimum luminance in 0.0001 nits.
+    metadata.displayPrimaries[0] = {32000, 16500};  // red   0.640, 0.330
+    metadata.displayPrimaries[1] = {15000, 30000};  // green 0.300, 0.600
+    metadata.displayPrimaries[2] = {7500, 3000};  // blue  0.150, 0.060
+    metadata.whitePoint = {15635, 16450};  // D65   0.3127, 0.3290
+    const auto peak_nits = static_cast<uint16_t>(std::min(edr_headroom * 100.0, 10000.0));
+    metadata.maxDisplayLuminance = peak_nits;
+    metadata.minDisplayLuminance = 50;  // 0.005 nits
+    metadata.maxContentLightLevel = peak_nits;
+    metadata.maxFrameAverageLightLevel = peak_nits;
+    metadata.maxFullFrameLuminance = peak_nits;
+    return true;
+  }
 
   /**
    * @brief macOS display capture source and image buffers.
@@ -87,9 +132,29 @@ namespace platf {
     AVVideo *av_capture {};  ///< AV capture.
     CGDirectDisplayID display_id {};  ///< Display ID.
     std::unique_ptr<display_device::DisplayPowerGuardInterface> display_power_guard;  ///< Display power guard.
+    double hdr_headroom {1.0};  ///< EDR headroom when HDR capture is available, otherwise 1.0.
 
     ~av_display_t() override {
       [av_capture release];
+    }
+
+    /**
+     * @brief Report whether the display can be captured in HDR.
+     *
+     * @return `true` when ScreenCaptureKit HDR capture is available and the display has EDR headroom.
+     */
+    bool is_hdr() override {
+      return hdr_headroom > 1.0;
+    }
+
+    /**
+     * @brief Describe the display's HDR capabilities for the client.
+     *
+     * @param metadata Receives the HDR metadata.
+     * @return `true` when the display is HDR and `metadata` was filled.
+     */
+    bool get_hdr_metadata(SS_HDR_METADATA &metadata) override {
+      return edr_hdr_metadata(hdr_headroom, metadata);
     }
 
     capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
@@ -302,7 +367,23 @@ namespace platf {
     BOOST_LOG(debug) << "Active desktop bounds: "sv << display->env_offset_x << 'x' << display->env_offset_y << ' '
                      << display->env_logical_width << 'x' << display->env_logical_height;
 
-    display->av_capture = [[AVVideo alloc] initWithDisplay:display->display_id frameRate:config.framerate];
+    // ScreenCaptureKit (macOS 15+) supports HDR capture and higher frame rates than AVCaptureScreenInput.
+    if (@available(macOS 15.0, *)) {
+      auto *sc_capture = [[SCVideo alloc] initWithDisplay:display->display_id frameRate:config.framerate];
+      if (sc_capture) {
+        const auto headroom = edr_headroom(display->display_id);
+        if (headroom > 1.0) {
+          display->hdr_headroom = headroom;
+          sc_capture.hdr = config.dynamicRange > 0;
+        }
+        BOOST_LOG(info) << "Using ScreenCaptureKit capture (EDR headroom "sv << headroom << ", HDR "sv
+                        << (sc_capture.hdr ? "on"sv : "off"sv) << ')';
+      }
+      display->av_capture = sc_capture;
+    }
+    if (!display->av_capture) {
+      display->av_capture = [[AVVideo alloc] initWithDisplay:display->display_id frameRate:config.framerate];
+    }
 
     if (!display->av_capture) {
       BOOST_LOG(error) << "Video setup failed."sv;

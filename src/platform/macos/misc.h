@@ -7,10 +7,25 @@
 // standard includes
 #include <vector>
 
+// lib includes
+#include <moonlight-common-c/src/Limelight.h>
+
 // local includes
 #include "src/platform/permissions.h"
 
 namespace platf {
+  /**
+   * @brief Describe an EDR display as HDR10 metadata for the client.
+   *
+   * macOS does not expose mastering metadata for a display, so it is described as a Rec. 709 / D65
+   * panel whose peak luminance is its EDR headroom over 100-nit reference white.
+   *
+   * @param edr_headroom Display's maximum potential EDR component value (1.0 means SDR only).
+   * @param metadata Receives the HDR metadata; zeroed when the display is SDR.
+   * @return True when the display has EDR headroom and `metadata` was filled.
+   */
+  bool edr_hdr_metadata(double edr_headroom, SS_HDR_METADATA &metadata);
+
   /**
    * @brief Action to take when a macOS privacy permission is unavailable.
    */
