@@ -2,6 +2,10 @@
  * @file src/platform/macos/sc_video.m
  * @brief Definitions for ScreenCaptureKit video capture on macOS.
  */
+// platform includes
+#import <CoreVideo/CVMetalTextureCache.h>
+#import <Metal/Metal.h>
+
 // local includes
 #import "sc_video.h"
 
@@ -12,12 +16,49 @@
  */
 static const uint64_t kIdleRepeatNs = 100 * NSEC_PER_MSEC;
 
-// Documented in sc_video.h. ScreenCaptureKit owns at most 8 surfaces and stalls once they are all
-// held, while Sunshine keeps up to 12 captured images alive, so each frame is copied into our own
-// pool and the capture surface goes back to ScreenCaptureKit right away. The copy is a CPU plane
-// copy (about 2.6 ms per 1440p P010 frame on an M4).
-CMSampleBufferRef sc_copy_sample_buffer(CMSampleBufferRef source, CVPixelBufferPoolRef *pool) {
-  CVPixelBufferRef src = CMSampleBufferGetImageBuffer(source);
+const float sc_hdr_sdr_white_nits = 203.0f;
+
+/**
+ * @brief Metal kernel that scales PQ (BT.2020) 10-bit 4:2:0 video by a linear-light gain.
+ *
+ * One thread handles a 2x2 block: it converts each pixel to R'G'B', applies the gain in
+ * linear light and re-encodes to PQ, then writes the four lumas and the averaged chroma.
+ */
+static NSString *const kPqGainKernel =
+  @"#include <metal_stdlib>\n"
+   "using namespace metal;\n"
+   "constant float m1 = 2610.0 / 16384.0, m2 = 2523.0 / 32.0, c1 = 3424.0 / 4096.0, c2 = 2413.0 / 128.0, c3 = 2392.0 / 128.0;\n"
+   "constant float s = 65535.0 / 64.0;\n"
+   "float pq_eotf(float e) { float p = pow(clamp(e, 0.0, 1.0), 1.0 / m2); return pow(max(p - c1, 0.0) / (c2 - c3 * p), 1.0 / m1); }\n"
+   "float pq_oetf(float l) { float p = pow(clamp(l, 0.0, 1.0), m1); return pow((c1 + c2 * p) / (1.0 + c3 * p), m2); }\n"
+   "kernel void pq_gain(texture2d<float, access::read> srcY [[texture(0)]], texture2d<float, access::read> srcC [[texture(1)]],\n"
+   "                    texture2d<float, access::write> dstY [[texture(2)]], texture2d<float, access::write> dstC [[texture(3)]],\n"
+   "                    constant float &gain [[buffer(0)]], uint2 gid [[thread_position_in_grid]]) {\n"
+   "  if (gid.x >= srcC.get_width() || gid.y >= srcC.get_height()) return;\n"
+   "  float2 c = srcC.read(gid).rg * s;\n"
+   "  float cb = (c.x - 512.0) / 896.0, cr = (c.y - 512.0) / 896.0;\n"
+   "  float2 acc = 0.0;\n"
+   "  for (uint i = 0; i < 4; i++) {\n"
+   "    uint2 p = gid * 2 + uint2(i & 1, i >> 1);\n"
+   "    float y = (srcY.read(p).r * s - 64.0) / 876.0;\n"
+   "    float3 rgb = float3(y + 1.4746 * cr, y - 0.16455 * cb - 0.57135 * cr, y + 1.8814 * cb);\n"
+   "    rgb = float3(pq_oetf(pq_eotf(rgb.r) * gain), pq_oetf(pq_eotf(rgb.g) * gain), pq_oetf(pq_eotf(rgb.b) * gain));\n"
+   "    float yo = dot(rgb, float3(0.2627, 0.6780, 0.0593));\n"
+   "    acc += float2((rgb.b - yo) / 1.8814, (rgb.r - yo) / 1.4746);\n"
+   "    dstY.write(float4(round(yo * 876.0 + 64.0) / s), p);\n"
+   "  }\n"
+   "  acc *= 0.25;\n"
+   "  dstC.write(float4(round(acc.x * 896.0 + 512.0) / s, round(acc.y * 896.0 + 512.0) / s, 0.0, 0.0), gid);\n"
+   "}\n";
+
+/**
+ * @brief Make sure `pool` produces Metal-compatible IOSurface buffers matching `src`.
+ *
+ * @param src Pixel buffer whose format and size the pool must match.
+ * @param pool Pool to check, (re)created when it doesn't match.
+ * @return `YES` when the pool is ready.
+ */
+static BOOL ensure_pool(CVPixelBufferRef src, CVPixelBufferPoolRef *pool) {
   const OSType format = CVPixelBufferGetPixelFormatType(src);
   const size_t width = CVPixelBufferGetWidth(src), height = CVPixelBufferGetHeight(src);
 
@@ -34,17 +75,22 @@ CMSampleBufferRef sc_copy_sample_buffer(CMSampleBufferRef source, CVPixelBufferP
       (id) kCVPixelBufferWidthKey: @(width),
       (id) kCVPixelBufferHeightKey: @(height),
       (id) kCVPixelBufferIOSurfacePropertiesKey: @ {},
+      (id) kCVPixelBufferMetalCompatibilityKey: @YES,
     };
     if (CVPixelBufferPoolCreate(kCFAllocatorDefault, NULL, (CFDictionaryRef) attrs, pool) != kCVReturnSuccess) {
-      return NULL;
+      return NO;
     }
   }
+  return YES;
+}
 
-  CVPixelBufferRef dst = NULL;
-  if (CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, *pool, &dst) != kCVReturnSuccess) {
-    return NULL;
-  }
-
+/**
+ * @brief Copy every plane of `src` into `dst` on the CPU.
+ *
+ * @param src Source pixel buffer.
+ * @param dst Destination pixel buffer with the same format and size.
+ */
+static void cpu_copy(CVPixelBufferRef src, CVPixelBufferRef dst) {
   CVPixelBufferLockBaseAddress(src, kCVPixelBufferLock_ReadOnly);
   CVPixelBufferLockBaseAddress(dst, 0);
   const size_t planes = CVPixelBufferGetPlaneCount(src);
@@ -53,7 +99,7 @@ CMSampleBufferRef sc_copy_sample_buffer(CMSampleBufferRef source, CVPixelBufferP
     uint8_t *d = planes ? CVPixelBufferGetBaseAddressOfPlane(dst, p) : CVPixelBufferGetBaseAddress(dst);
     const size_t s_stride = planes ? CVPixelBufferGetBytesPerRowOfPlane(src, p) : CVPixelBufferGetBytesPerRow(src);
     const size_t d_stride = planes ? CVPixelBufferGetBytesPerRowOfPlane(dst, p) : CVPixelBufferGetBytesPerRow(dst);
-    const size_t rows = planes ? CVPixelBufferGetHeightOfPlane(src, p) : height;
+    const size_t rows = planes ? CVPixelBufferGetHeightOfPlane(src, p) : CVPixelBufferGetHeight(src);
     if (s_stride == d_stride) {
       memcpy(d, s, s_stride * rows);
     } else {
@@ -64,6 +110,107 @@ CMSampleBufferRef sc_copy_sample_buffer(CMSampleBufferRef source, CVPixelBufferP
   }
   CVPixelBufferUnlockBaseAddress(dst, 0);
   CVPixelBufferUnlockBaseAddress(src, kCVPixelBufferLock_ReadOnly);
+}
+
+/**
+ * @brief Wrap one plane of an IOSurface-backed pixel buffer as a Metal texture.
+ *
+ * @param cache Metal texture cache.
+ * @param buffer Pixel buffer.
+ * @param plane Plane index.
+ * @param format Metal pixel format of the plane.
+ * @return Retained CoreVideo Metal texture, or NULL on failure.
+ */
+static CVMetalTextureRef plane_texture(CVMetalTextureCacheRef cache, CVPixelBufferRef buffer, size_t plane, MTLPixelFormat format) {
+  CVMetalTextureRef texture = NULL;
+  CVMetalTextureCacheCreateTextureFromImage(kCFAllocatorDefault, cache, buffer, NULL, format, CVPixelBufferGetWidthOfPlane(buffer, plane), CVPixelBufferGetHeightOfPlane(buffer, plane), plane, &texture);
+  return texture;
+}
+
+/**
+ * @brief Scale a PQ 10-bit 4:2:0 frame by `gain` in linear light on the GPU.
+ *
+ * @param src Source pixel buffer (x420, BT.2020 PQ).
+ * @param dst Destination pixel buffer with the same format and size.
+ * @param gain Linear-light gain.
+ * @return `YES` on success; `NO` if Metal is unavailable or the pass failed.
+ */
+static BOOL gpu_pq_gain(CVPixelBufferRef src, CVPixelBufferRef dst, float gain) {
+  static id<MTLDevice> device;
+  static id<MTLCommandQueue> queue;
+  static id<MTLComputePipelineState> pipeline;
+  static CVMetalTextureCacheRef cache;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    device = MTLCreateSystemDefaultDevice();
+    if (!device) {
+      return;
+    }
+    NSError *error = nil;
+    id<MTLLibrary> library = [device newLibraryWithSource:kPqGainKernel options:nil error:&error];
+    id<MTLFunction> function = [library newFunctionWithName:@"pq_gain"];
+    pipeline = function ? [device newComputePipelineStateWithFunction:function error:&error] : nil;
+    if (!pipeline) {
+      NSLog(@"PQ gain kernel unavailable: %@", error);
+    }
+    [function release];
+    [library release];
+    queue = [device newCommandQueue];
+    CVMetalTextureCacheCreate(kCFAllocatorDefault, NULL, device, NULL, &cache);
+  });
+  if (!pipeline || !cache) {
+    return NO;
+  }
+
+  CVMetalTextureRef textures[4] = {
+    plane_texture(cache, src, 0, MTLPixelFormatR16Unorm),
+    plane_texture(cache, src, 1, MTLPixelFormatRG16Unorm),
+    plane_texture(cache, dst, 0, MTLPixelFormatR16Unorm),
+    plane_texture(cache, dst, 1, MTLPixelFormatRG16Unorm),
+  };
+  BOOL ok = textures[0] && textures[1] && textures[2] && textures[3];
+  if (ok) {
+    id<MTLCommandBuffer> commands = [queue commandBuffer];
+    id<MTLComputeCommandEncoder> encoder = [commands computeCommandEncoder];
+    [encoder setComputePipelineState:pipeline];
+    for (NSUInteger i = 0; i < 4; i++) {
+      [encoder setTexture:CVMetalTextureGetTexture(textures[i]) atIndex:i];
+    }
+    [encoder setBytes:&gain length:sizeof(gain) atIndex:0];
+    const MTLSize grid = MTLSizeMake(CVPixelBufferGetWidthOfPlane(src, 1), CVPixelBufferGetHeightOfPlane(src, 1), 1);
+    [encoder dispatchThreads:grid threadsPerThreadgroup:MTLSizeMake(16, 16, 1)];
+    [encoder endEncoding];
+    [commands commit];
+    [commands waitUntilCompleted];
+    ok = commands.status == MTLCommandBufferStatusCompleted;
+  }
+  for (int i = 0; i < 4; i++) {
+    if (textures[i]) {
+      CFRelease(textures[i]);
+    }
+  }
+  return ok;
+}
+
+// Documented in sc_video.h. ScreenCaptureKit owns at most 8 surfaces and stalls once they are all
+// held, while Sunshine keeps up to 12 captured images alive, so each frame goes into our own pool
+// and the capture surface returns to ScreenCaptureKit right away.
+CMSampleBufferRef sc_copy_sample_buffer(CMSampleBufferRef source, CVPixelBufferPoolRef *pool, float pq_gain) {
+  CVPixelBufferRef src = CMSampleBufferGetImageBuffer(source);
+  CVPixelBufferRef dst = NULL;
+  if (!ensure_pool(src, pool) || CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, *pool, &dst) != kCVReturnSuccess) {
+    return NULL;
+  }
+
+  CFTypeRef transfer = CVBufferCopyAttachment(src, kCVImageBufferTransferFunctionKey, NULL);
+  const BOOL is_pq = transfer && CFEqual(transfer, kCVImageBufferTransferFunction_SMPTE_ST_2084_PQ);
+  if (transfer) {
+    CFRelease(transfer);
+  }
+  const BOOL scale = is_pq && pq_gain != 1.0f && CVPixelBufferGetPixelFormatType(src) == kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange;
+  if (!scale || !gpu_pq_gain(src, dst, pq_gain)) {
+    cpu_copy(src, dst);
+  }
   CVBufferPropagateAttachments(src, dst);  // Keeps the BT.2020 / PQ color tags.
 
   CMSampleTimingInfo timing;
@@ -215,7 +362,7 @@ API_AVAILABLE(macos(15.0))
     return;
   }
 
-  CMSampleBufferRef copy = sc_copy_sample_buffer(sampleBuffer, &_pool);
+  CMSampleBufferRef copy = sc_copy_sample_buffer(sampleBuffer, &_pool, sc_hdr_sdr_white_nits / 100.0f);
   if (!copy) {
     return;
   }

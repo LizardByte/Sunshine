@@ -16,6 +16,7 @@
   // platform includes
   #import <CoreMedia/CoreMedia.h>
   #import <CoreVideo/CoreVideo.h>
+  #import <Metal/Metal.h>
 
   // local includes
   #include <src/platform/macos/misc.h>
@@ -92,6 +93,49 @@ namespace {
     CVPixelBufferUnlockBaseAddress(a, kCVPixelBufferLock_ReadOnly);
     return same;
   }
+
+  /**
+   * @brief Fill a 10-bit 4:2:0 buffer with one flat Y'CbCr color.
+   *
+   * @param buffer Buffer to fill.
+   * @param y Luma code value (10-bit, limited range).
+   * @param cb Cb code value.
+   * @param cr Cr code value.
+   */
+  void fill_flat(CVPixelBufferRef buffer, uint16_t y, uint16_t cb, uint16_t cr) {
+    CVPixelBufferLockBaseAddress(buffer, 0);
+    for (size_t row = 0; row < CVPixelBufferGetHeightOfPlane(buffer, 0); row++) {
+      auto *luma = reinterpret_cast<uint16_t *>(static_cast<uint8_t *>(CVPixelBufferGetBaseAddressOfPlane(buffer, 0)) + row * CVPixelBufferGetBytesPerRowOfPlane(buffer, 0));
+      for (size_t x = 0; x < CVPixelBufferGetWidthOfPlane(buffer, 0); x++) {
+        luma[x] = static_cast<uint16_t>(y << 6);
+      }
+    }
+    for (size_t row = 0; row < CVPixelBufferGetHeightOfPlane(buffer, 1); row++) {
+      auto *chroma = reinterpret_cast<uint16_t *>(static_cast<uint8_t *>(CVPixelBufferGetBaseAddressOfPlane(buffer, 1)) + row * CVPixelBufferGetBytesPerRowOfPlane(buffer, 1));
+      for (size_t x = 0; x < CVPixelBufferGetWidthOfPlane(buffer, 1); x++) {
+        chroma[x * 2] = static_cast<uint16_t>(cb << 6);
+        chroma[x * 2 + 1] = static_cast<uint16_t>(cr << 6);
+      }
+    }
+    CVPixelBufferUnlockBaseAddress(buffer, 0);
+  }
+
+  /**
+   * @brief Read the 10-bit luma and chroma code values at the top-left of a buffer.
+   *
+   * @param buffer Buffer to read.
+   * @param y Receives the luma code value.
+   * @param cb Receives the Cb code value.
+   * @param cr Receives the Cr code value.
+   */
+  void read_codes(CVPixelBufferRef buffer, uint16_t &y, uint16_t &cb, uint16_t &cr) {
+    CVPixelBufferLockBaseAddress(buffer, kCVPixelBufferLock_ReadOnly);
+    y = static_cast<const uint16_t *>(CVPixelBufferGetBaseAddressOfPlane(buffer, 0))[0] >> 6;
+    const auto *chroma = static_cast<const uint16_t *>(CVPixelBufferGetBaseAddressOfPlane(buffer, 1));
+    cb = chroma[0] >> 6;
+    cr = chroma[1] >> 6;
+    CVPixelBufferUnlockBaseAddress(buffer, kCVPixelBufferLock_ReadOnly);
+  }
 }  // namespace
 
 TEST(MacosEdrHdrMetadataTest, SdrDisplayReportsNoMetadata) {
@@ -102,13 +146,13 @@ TEST(MacosEdrHdrMetadataTest, SdrDisplayReportsNoMetadata) {
   EXPECT_EQ(metadata.displayPrimaries[0].x, 0);
 }
 
-TEST(MacosEdrHdrMetadataTest, EdrHeadroomSetsPeakOverReferenceWhite) {
+TEST(MacosEdrHdrMetadataTest, EdrHeadroomSetsPeakOverStreamedSdrWhite) {
   SS_HDR_METADATA metadata {};
   ASSERT_TRUE(platf::edr_hdr_metadata(5.0, metadata));
-  EXPECT_EQ(metadata.maxDisplayLuminance, 500);
-  EXPECT_EQ(metadata.maxContentLightLevel, 500);
-  EXPECT_EQ(metadata.maxFrameAverageLightLevel, 500);
-  EXPECT_EQ(metadata.maxFullFrameLuminance, 500);
+  EXPECT_EQ(metadata.maxDisplayLuminance, 1015);  // 5 x 203-nit SDR white
+  EXPECT_EQ(metadata.maxContentLightLevel, 1015);
+  EXPECT_EQ(metadata.maxFrameAverageLightLevel, 1015);
+  EXPECT_EQ(metadata.maxFullFrameLuminance, 1015);
   EXPECT_EQ(metadata.minDisplayLuminance, 50);
   EXPECT_EQ(metadata.displayPrimaries[0].x, 32000);
   EXPECT_EQ(metadata.displayPrimaries[0].y, 16500);
@@ -122,7 +166,7 @@ TEST(MacosEdrHdrMetadataTest, EdrHeadroomSetsPeakOverReferenceWhite) {
 
 TEST(MacosEdrHdrMetadataTest, PeakIsClampedToPqMaximum) {
   SS_HDR_METADATA metadata {};
-  ASSERT_TRUE(platf::edr_hdr_metadata(250.0, metadata));
+  ASSERT_TRUE(platf::edr_hdr_metadata(100.0, metadata));
   EXPECT_EQ(metadata.maxDisplayLuminance, 10000);
 }
 
@@ -131,7 +175,7 @@ TEST(MacosScVideoTest, CopyKeepsPixelsColorTagsAndTiming) {
   CMSampleBufferRef sample = make_sample(source, 42);
   CVPixelBufferPoolRef pool = nullptr;
 
-  CMSampleBufferRef copy = sc_copy_sample_buffer(sample, &pool);
+  CMSampleBufferRef copy = sc_copy_sample_buffer(sample, &pool, 1.0f);
   ASSERT_NE(copy, nullptr);
   ASSERT_NE(pool, nullptr);
 
@@ -159,12 +203,12 @@ TEST(MacosScVideoTest, PoolIsRecreatedWhenFrameSizeChanges) {
 
   CVPixelBufferRef small = make_pq_buffer(64, 32, 1);
   CMSampleBufferRef small_sample = make_sample(small, 1);
-  CMSampleBufferRef small_copy = sc_copy_sample_buffer(small_sample, &pool);
+  CMSampleBufferRef small_copy = sc_copy_sample_buffer(small_sample, &pool, 1.0f);
   ASSERT_NE(small_copy, nullptr);
 
   CVPixelBufferRef large = make_pq_buffer(128, 64, 2);
   CMSampleBufferRef large_sample = make_sample(large, 2);
-  CMSampleBufferRef large_copy = sc_copy_sample_buffer(large_sample, &pool);
+  CMSampleBufferRef large_copy = sc_copy_sample_buffer(large_sample, &pool, 1.0f);
   ASSERT_NE(large_copy, nullptr);
   NSDictionary *pool_attrs = (__bridge NSDictionary *) CVPixelBufferPoolGetPixelBufferAttributes(pool);
   EXPECT_EQ([pool_attrs[(id) kCVPixelBufferWidthKey] unsignedLongValue], 128u);
@@ -177,6 +221,45 @@ TEST(MacosScVideoTest, PoolIsRecreatedWhenFrameSizeChanges) {
   CFRelease(large_sample);
   CVPixelBufferRelease(small);
   CVPixelBufferRelease(large);
+  CVPixelBufferPoolRelease(pool);
+}
+
+TEST(MacosScVideoTest, PqGainLiftsSdrWhiteTo203Nits) {
+  if (!MTLCreateSystemDefaultDevice()) {
+    GTEST_SKIP() << "Metal is not available";
+  }
+  CVPixelBufferRef source = make_pq_buffer(64, 32, 0);
+  fill_flat(source, 509, 512, 512);  // 100-nit grey: ScreenCaptureKit's SDR white
+  CMSampleBufferRef sample = make_sample(source, 7);
+  CVPixelBufferPoolRef pool = nullptr;
+
+  CMSampleBufferRef copy = sc_copy_sample_buffer(sample, &pool, sc_hdr_sdr_white_nits / 100.0f);
+  ASSERT_NE(copy, nullptr);
+  uint16_t y = 0, cb = 0, cr = 0;
+  read_codes(CMSampleBufferGetImageBuffer(copy), y, cb, cr);
+  EXPECT_NEAR(y, 573, 1);  // PQ code for 203 nits
+  EXPECT_NEAR(cb, 512, 1);
+  EXPECT_NEAR(cr, 512, 1);
+
+  CFRelease(copy);
+  CFRelease(sample);
+  CVPixelBufferRelease(source);
+  CVPixelBufferPoolRelease(pool);
+}
+
+TEST(MacosScVideoTest, PqGainLeavesNonPqFramesUntouched) {
+  CVPixelBufferRef source = make_pq_buffer(64, 32, 5);
+  CVBufferRemoveAttachment(source, kCVImageBufferTransferFunctionKey);
+  CMSampleBufferRef sample = make_sample(source, 3);
+  CVPixelBufferPoolRef pool = nullptr;
+
+  CMSampleBufferRef copy = sc_copy_sample_buffer(sample, &pool, 2.03f);
+  ASSERT_NE(copy, nullptr);
+  EXPECT_TRUE(same_pixels(source, CMSampleBufferGetImageBuffer(copy)));
+
+  CFRelease(copy);
+  CFRelease(sample);
+  CVPixelBufferRelease(source);
   CVPixelBufferPoolRelease(pool);
 }
 

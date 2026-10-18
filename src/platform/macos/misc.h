@@ -18,7 +18,7 @@ namespace platf {
    * @brief Describe an EDR display as HDR10 metadata for the client.
    *
    * macOS does not expose mastering metadata for a display, so it is described as a Rec. 709 / D65
-   * panel whose peak luminance is its EDR headroom over 100-nit reference white.
+   * panel whose peak luminance is its EDR headroom over the streamed SDR white (sc_hdr_sdr_white_nits).
    *
    * @param edr_headroom Display's maximum potential EDR component value (1.0 means SDR only).
    * @param metadata Receives the HDR metadata; zeroed when the display is SDR.

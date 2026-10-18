@@ -116,7 +116,7 @@ namespace platf {
     metadata.displayPrimaries[1] = {15000, 30000};  // green 0.300, 0.600
     metadata.displayPrimaries[2] = {7500, 3000};  // blue  0.150, 0.060
     metadata.whitePoint = {15635, 16450};  // D65   0.3127, 0.3290
-    const auto peak_nits = static_cast<uint16_t>(std::min(edr_headroom * 100.0, 10000.0));
+    const auto peak_nits = static_cast<uint16_t>(std::min(edr_headroom * sc_hdr_sdr_white_nits, 10000.0));
     metadata.maxDisplayLuminance = peak_nits;
     metadata.minDisplayLuminance = 50;  // 0.005 nits
     metadata.maxContentLightLevel = peak_nits;
