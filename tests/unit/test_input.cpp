@@ -547,23 +547,26 @@ TEST_F(InputGamepadSessionTest, ClientPermissionsGateControllerArrival) {
   arrival.header.magic = util::endian::little(SS_CONTROLLER_ARRIVAL_MAGIC);
   arrival.controllerNumber = 0;
   arrival.type = LI_CTYPE_XBOX;
-  const auto send_arrival = [&arrival](std::shared_ptr<input::input_t> &client_input) {
-    std::vector<std::uint8_t> bytes(sizeof(arrival));
-    std::memcpy(bytes.data(), &arrival, sizeof(arrival));
-    input::passthrough(client_input, std::move(bytes));
-    input::testing::process_queued_messages(client_input);
-  };
 
-  send_arrival(stream_input);
+  std::vector<std::uint8_t> denied_bytes(sizeof(arrival));
+  std::memcpy(denied_bytes.data(), &arrival, sizeof(arrival));
+  input::passthrough(stream_input, std::move(denied_bytes));
+  input::testing::process_queued_messages(stream_input);
   EXPECT_EQ(input::testing::gamepad_id(stream_input, 0), -1);
 
   input::set_permission(session_id, input::permission_e::controller, true);
-  send_arrival(stream_input);
+  std::vector<std::uint8_t> allowed_bytes(sizeof(arrival));
+  std::memcpy(allowed_bytes.data(), &arrival, sizeof(arrival));
+  input::passthrough(stream_input, std::move(allowed_bytes));
+  input::testing::process_queued_messages(stream_input);
   EXPECT_GE(input::testing::gamepad_id(stream_input, 0), 0);
 
   input::set_permission(session_id, input::permission_e::controller, false);
   arrival.controllerNumber = 1;
-  send_arrival(stream_input);
+  std::vector<std::uint8_t> second_controller_bytes(sizeof(arrival));
+  std::memcpy(second_controller_bytes.data(), &arrival, sizeof(arrival));
+  input::passthrough(stream_input, std::move(second_controller_bytes));
+  input::testing::process_queued_messages(stream_input);
   EXPECT_EQ(input::testing::gamepad_id(stream_input, 1), -1);
   EXPECT_GE(input::testing::gamepad_id(stream_input, 0), 0);
 }
