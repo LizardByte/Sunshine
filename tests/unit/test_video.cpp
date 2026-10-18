@@ -241,6 +241,73 @@ INSTANTIATE_TEST_SUITE_P(
   )
 );
 
+/**
+ * @brief Reset the published probe results before and after each test.
+ */
+struct EncoderProbeResultsTest: testing::Test {
+  /**
+   * @brief Start from an empty published state.
+   */
+  void SetUp() override {
+    video::reset_encoder_probe_results();
+  }
+
+  /**
+   * @brief Leave no published state behind for other tests.
+   */
+  void TearDown() override {
+    video::reset_encoder_probe_results();
+  }
+};
+
+TEST_F(EncoderProbeResultsTest, FailedCodecProbeDoesNotPublishCapabilities) {
+  video::encoder_t encoder {"test"sv, {}, {}, {}, {}, 0};
+  for (auto *codec : {&encoder.h264, &encoder.hevc, &encoder.av1}) {
+    (*codec)[video::encoder_t::PASSED] = false;
+    (*codec)[video::encoder_t::YUV444] = true;
+    (*codec)[video::encoder_t::DYNAMIC_RANGE] = true;
+    (*codec)[video::encoder_t::DYNAMIC_RANGE_YUV444] = true;
+  }
+
+  video::record_encoder_probe_results(encoder);
+
+  for (std::size_t i = 0; i < 3; ++i) {
+    EXPECT_FALSE(video::last_encoder_probe_supported_yuv444_for_codec[i]) << i;
+    EXPECT_FALSE(video::last_encoder_probe_supported_dynamic_range_for_codec[i]) << i;
+    EXPECT_FALSE(video::last_encoder_probe_supported_dynamic_range_yuv444_for_codec[i]) << i;
+  }
+}
+
+TEST_F(EncoderProbeResultsTest, SubsequentProbeReplacesPriorResults) {
+  constexpr uint32_t ref_frames_invalidation = 1 << 8;  // Mirrors REF_FRAMES_INVALIDATION in video.cpp.
+  video::encoder_t first {"first"sv, {}, {}, {}, {}, ref_frames_invalidation};
+  for (auto *codec : {&first.h264, &first.hevc, &first.av1}) {
+    (*codec)[video::encoder_t::PASSED] = true;
+    (*codec)[video::encoder_t::YUV444] = true;
+    (*codec)[video::encoder_t::DYNAMIC_RANGE] = true;
+    (*codec)[video::encoder_t::DYNAMIC_RANGE_YUV444] = true;
+  }
+
+  // The second encoder only supports plain 8-bit 4:2:0 H.264.
+  video::encoder_t second {"second"sv, {}, {}, {}, {}, 0};
+  second.h264[video::encoder_t::PASSED] = true;
+
+  video::record_encoder_probe_results(first);
+  ASSERT_TRUE(video::last_encoder_probe_supported_ref_frames_invalidation);
+  ASSERT_TRUE(video::last_encoder_probe_supported_yuv444_for_codec[1]);
+  ASSERT_TRUE(video::last_encoder_probe_supported_dynamic_range_for_codec[2]);
+  ASSERT_TRUE(video::last_encoder_probe_supported_dynamic_range_yuv444_for_codec[2]);
+
+  video::record_encoder_probe_results(second);
+
+  EXPECT_FALSE(video::last_encoder_probe_supported_ref_frames_invalidation);
+  for (std::size_t i = 0; i < 3; ++i) {
+    EXPECT_FALSE(video::last_encoder_probe_supported_yuv444_for_codec[i]) << i;
+    EXPECT_FALSE(video::last_encoder_probe_supported_dynamic_range_for_codec[i]) << i;
+    EXPECT_FALSE(video::last_encoder_probe_supported_dynamic_range_yuv444_for_codec[i]) << i;
+  }
+}
+
 #ifdef _WIN32
 TEST(AmfH264OptionsTest, CoderUsesConfiguredValue) {
   const auto coder_option = std::ranges::find(video::amdvce.h264.common_options, "coder"sv, &video::encoder_t::option_t::name);

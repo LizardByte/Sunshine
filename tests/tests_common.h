@@ -1,6 +1,9 @@
 /**
  * @file tests/tests_common.h
- * @brief Common declarations.
+ * @brief Common GoogleTest support, BaseTest fixtures, and Sunshine test helpers.
+ *
+ * Include this header from Sunshine tests instead of including GoogleTest directly. The shared test support
+ * makes TEST use BaseTest so tests receive common setup, teardown, and output capture.
  */
 #pragma once
 

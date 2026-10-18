@@ -4,6 +4,9 @@
  */
 #ifdef _WIN32
 
+  // test includes
+  #include "../tests_common.h"
+
   // standard includes
   #include <array>
   #include <bit>
@@ -11,9 +14,6 @@
   #include <memory>
   #include <string_view>
   #include <utility>
-
-  // lib includes
-  #include <gtest/gtest.h>
 
   // local includes
   #include "src/nvenc/nvenc_dynamic_factory.h"

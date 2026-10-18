@@ -688,6 +688,8 @@ namespace video {
   extern int active_av1_mode;
   extern bool last_encoder_probe_supported_ref_frames_invalidation;
   extern std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec;  // 0 - H.264, 1 - HEVC, 2 - AV1
+  extern std::array<bool, 3> last_encoder_probe_supported_dynamic_range_for_codec;  // 0 - H.264, 1 - HEVC, 2 - AV1
+  extern std::array<bool, 3> last_encoder_probe_supported_dynamic_range_yuv444_for_codec;  // 0 - H.264, 1 - HEVC, 2 - AV1
 
   /**
    * @brief Resolve a client-requested dynamic range against probed encoder capabilities.
@@ -697,6 +699,19 @@ namespace video {
    * @return Effective stream configuration, downgraded to SDR when HDR is unsupported.
    */
   config_t resolve_dynamic_range(const encoder_t &encoder, config_t config);
+
+  /**
+   * @brief Clear all published encoder probe results.
+   */
+  void reset_encoder_probe_results();
+
+  /**
+   * @brief Publish the capabilities of a probed encoder for client advertisement.
+   * @details A codec that did not pass its probe publishes no capabilities.
+   *
+   * @param encoder Encoder whose probed codec capabilities should be published.
+   */
+  void record_encoder_probe_results(const encoder_t &encoder);
 
   /**
    * @brief Capture and encode video for a streaming session.
