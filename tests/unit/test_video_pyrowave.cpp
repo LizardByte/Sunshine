@@ -11,12 +11,11 @@
 #include <limits>
 #include <string_view>
 
-// platform includes
+// lib includes
 #ifdef __APPLE__
   #include <CoreVideo/CoreVideo.h>
 #endif
 
-// lib includes
 extern "C" {
 #include <libavutil/hwcontext.h>
 #include <libavutil/mem.h>
