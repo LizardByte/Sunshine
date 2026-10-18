@@ -12,18 +12,10 @@
  */
 static const uint64_t kIdleRepeatNs = 100 * NSEC_PER_MSEC;
 
-/**
- * @brief Copy a captured frame into a buffer from pool, keeping its color attachments and timing.
- *
- * ScreenCaptureKit owns at most 8 surfaces and stalls once they are all held, while Sunshine
- * keeps up to 12 captured images alive. Copy each frame into our own pool so the capture
- * surface goes back to ScreenCaptureKit right away.
- * The copy is a CPU plane copy (about 2.6 ms per 1440p P010 frame on an M4).
- *
- * @param source ScreenCaptureKit sample.
- * @param pool Pool for the copies; (re)created when the frame format or size changes. Release with CVPixelBufferPoolRelease().
- * @return Retained copy with the same color attachments and timing, or NULL on failure.
- */
+// Documented in sc_video.h. ScreenCaptureKit owns at most 8 surfaces and stalls once they are all
+// held, while Sunshine keeps up to 12 captured images alive, so each frame is copied into our own
+// pool and the capture surface goes back to ScreenCaptureKit right away. The copy is a CPU plane
+// copy (about 2.6 ms per 1440p P010 frame on an M4).
 CMSampleBufferRef sc_copy_sample_buffer(CMSampleBufferRef source, CVPixelBufferPoolRef *pool) {
   CVPixelBufferRef src = CMSampleBufferGetImageBuffer(source);
   const OSType format = CVPixelBufferGetPixelFormatType(src);
@@ -98,6 +90,9 @@ API_AVAILABLE(macos(15.0))
 @interface SCCapture: NSObject <SCStreamOutput, SCStreamDelegate>
 @end
 
+/**
+ * @brief Private methods of SCVideo used by SCCapture.
+ */
 @interface SCVideo ()
 /**
  * @brief Drop a finished capture from the active set.
