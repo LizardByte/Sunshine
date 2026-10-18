@@ -6,6 +6,7 @@
 
 // standard includes
 #include <chrono>
+#include <span>
 #include <string_view>
 
 // lib includes
@@ -712,6 +713,17 @@ namespace video {
     AVPixelFormat capture_format(const encoder_platform_formats_t &formats, const config_t &config);
 
     /**
+     * @brief Describe YUV components as GPU image views without copying pixel data.
+     *
+     * @param format Pixel layout produced by the capture converter.
+     * @param images Images containing the planes or packed components.
+     * @param buffers Y, Cb, and Cr views returned for the encoder.
+     * @param scaling_factor Normalization for ten-bit samples stored in sixteen-bit images.
+     * @return True when the image formats match the pixel layout.
+     */
+    bool map_gpu_frame(AVPixelFormat format, std::span<const pyrowave_image_view> images, pyrowave_gpu_buffers &buffers, float &scaling_factor);
+
+    /**
      * @brief PyroWave session interface used by the common capture pipeline.
      */
     class session_t: public encode_session_t {
@@ -741,13 +753,73 @@ namespace video {
     struct api_t {
       decltype(&pyrowave_get_api_version) get_api_version = pyrowave_get_api_version;  ///< Query the runtime ABI.
       decltype(&pyrowave_create_default_device) create_device = pyrowave_create_default_device;  ///< Create the Vulkan device.
+      decltype(&pyrowave_create_device) share_device = pyrowave_create_device;  ///< Borrow the converter's Vulkan device.
+      decltype(&pyrowave_create_device_by_compat) match_device = pyrowave_create_device_by_compat;  ///< Select the capture adapter for external textures.
       decltype(&pyrowave_device_destroy) destroy_device = pyrowave_device_destroy;  ///< Destroy the Vulkan device.
+      decltype(&pyrowave_device_set_command_buffer) set_command_buffer = pyrowave_device_set_command_buffer;  ///< Record encoding into the caller's command buffer.
+      decltype(&pyrowave_device_set_queue_type) set_queue_type = pyrowave_device_set_queue_type;  ///< Select the queue used for encoding.
       decltype(&pyrowave_encoder_create) create_encoder = pyrowave_encoder_create;  ///< Create an encoder.
       decltype(&pyrowave_encoder_destroy) destroy_encoder = pyrowave_encoder_destroy;  ///< Destroy an encoder before its device.
       decltype(&pyrowave_encoder_encode_cpu) encode_cpu = pyrowave_encoder_encode_cpu;  ///< Upload and encode planar YUV.
+      decltype(&pyrowave_encoder_encode_gpu) encode_gpu = pyrowave_encoder_encode_gpu;  ///< Encode GPU-resident YUV images.
+      decltype(&pyrowave_encoder_set_ycbcr_scaling_factor) set_scaling_factor = pyrowave_encoder_set_ycbcr_scaling_factor;  ///< Normalize stored YUV samples.
+      decltype(&pyrowave_image_create) import_image = pyrowave_image_create;  ///< Import shared texture memory.
+      decltype(&pyrowave_image_get_image_view) image_view = pyrowave_image_get_image_view;  ///< Describe sampled components of an imported image.
+      decltype(&pyrowave_image_destroy) destroy_image = pyrowave_image_destroy;  ///< Release an imported image.
+      decltype(&pyrowave_sync_object_create) import_sync = pyrowave_sync_object_create;  ///< Import a shared GPU fence.
+      decltype(&pyrowave_sync_object_get_semaphore) sync_semaphore = pyrowave_sync_object_get_semaphore;  ///< Obtain the imported semaphore.
+      decltype(&pyrowave_sync_object_destroy) destroy_sync = pyrowave_sync_object_destroy;  ///< Release an imported fence.
       decltype(&pyrowave_encoder_compute_num_packets) num_packets = pyrowave_encoder_compute_num_packets;  ///< Query the packet allocation.
       decltype(&pyrowave_encoder_packetize) packetize = pyrowave_encoder_packetize;  ///< Read encoded packets.
     };
+
+    /**
+     * @brief Platform GPU input resources retained until after encoder destruction.
+     */
+    class gpu_input_t {
+    public:
+      /**
+       * @brief Retain the codec entry points used by this input path.
+       * @param api Codec entry points.
+       */
+      explicit gpu_input_t(const api_t &api):
+          api {api} {}
+
+      /**
+       * @brief Allow platform implementations to release their shared resources.
+       */
+      virtual ~gpu_input_t() = default;
+
+      /**
+       * @brief Prepare a converted hardware frame without transferring pixels to the CPU.
+       * @param frame Converted frame retained by the session.
+       * @return False when the session should use its CPU fallback.
+       */
+      virtual bool prepare(AVFrame *frame) = 0;
+
+      /**
+       * @brief Submit encoding and synchronize access to the prepared images.
+       * @param encoder Codec instance using this input's device.
+       * @param rate_control Encoded frame byte budget.
+       * @return Encoding status.
+       */
+      virtual pyrowave_result encode(pyrowave_encoder encoder, const pyrowave_rate_control &rate_control) = 0;
+
+      pyrowave_device device {};  ///< Device owned by the implementation; destroyed after its image resources.
+
+    protected:
+      api_t api;  ///< Codec entry points shared with the owning session.
+    };
+
+#ifdef _WIN32
+    /**
+     * @brief Create a D3D11 texture and fence bridge to the capture adapter's Vulkan device.
+     * @param frames Initialized D3D11 conversion frame pool.
+     * @param api Codec entry points.
+     * @return GPU input resources, or null when sharing is unsupported.
+     */
+    std::unique_ptr<gpu_input_t> make_d3d11_input(AVHWFramesContext *frames, const api_t &api);
+#endif
 
     /**
      * @brief Create a session with explicitly supplied PyroWave entry points.

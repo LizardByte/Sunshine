@@ -9,6 +9,7 @@
 // standard includes
 #include <cstring>
 #include <limits>
+#include <string_view>
 
 // platform includes
 #ifdef __APPLE__
@@ -266,6 +267,105 @@ TEST(PyrowaveConfigTest, SelectsCaptureFormatsForEachProfile) {
 }
 
 /**
+ * @brief Map planar, interleaved, and packed GPU storage while preserving chroma order and HDR range.
+ */
+TEST(PyrowaveConfigTest, MapsGpuImagesWithoutRepackingPixels) {
+  struct layout_t {
+    AVPixelFormat format;  ///< Capture pixel layout.
+    VkFormat combined;  ///< Multiplanar Vulkan image format.
+    std::array<VkFormat, 3> planes;  ///< Separate Vulkan plane formats.
+    float scale;  ///< Normalization for separate images.
+  };
+
+  const layout_t layouts[] {
+    {AV_PIX_FMT_NV12, VK_FORMAT_G8_B8R8_2PLANE_420_UNORM, {VK_FORMAT_R8_UNORM, VK_FORMAT_R8G8_UNORM}, 1.0f},
+    {AV_PIX_FMT_P010, VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16, {VK_FORMAT_R16_UNORM, VK_FORMAT_R16G16_UNORM}, 65535.0f / 65472.0f},
+    {AV_PIX_FMT_YUV420P, VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM, {VK_FORMAT_R8_UNORM, VK_FORMAT_R8_UNORM, VK_FORMAT_R8_UNORM}, 1.0f},
+    {AV_PIX_FMT_YUV444P, VK_FORMAT_G8_B8_R8_3PLANE_444_UNORM, {VK_FORMAT_R8_UNORM, VK_FORMAT_R8_UNORM, VK_FORMAT_R8_UNORM}, 1.0f},
+    {AV_PIX_FMT_YUV420P10, VK_FORMAT_G16_B16_R16_3PLANE_420_UNORM, {VK_FORMAT_R16_UNORM, VK_FORMAT_R16_UNORM, VK_FORMAT_R16_UNORM}, 65535.0f / 1023.0f},
+    {AV_PIX_FMT_YUV444P10, VK_FORMAT_G16_B16_R16_3PLANE_444_UNORM, {VK_FORMAT_R16_UNORM, VK_FORMAT_R16_UNORM, VK_FORMAT_R16_UNORM}, 65535.0f / 1023.0f},
+    {AV_PIX_FMT_YUV444P16, VK_FORMAT_G16_B16_R16_3PLANE_444_UNORM, {VK_FORMAT_R16_UNORM, VK_FORMAT_R16_UNORM, VK_FORMAT_R16_UNORM}, 1.0f},
+  };
+  pyrowave_gpu_buffers buffers {};
+  float scale;
+  for (const auto &layout : layouts) {
+    SCOPED_TRACE(av_get_pix_fmt_name(layout.format));
+    const auto desc = av_pix_fmt_desc_get(layout.format);
+    const auto planes = av_pix_fmt_count_planes(layout.format);
+    for (bool combined : {false, true}) {
+      std::vector<pyrowave_image_view> images(combined ? 1 : planes);
+      for (size_t i = 0; i < images.size(); ++i) {
+        images[i].image = reinterpret_cast<VkImage>(i + 1);
+        images[i].image_format = combined ? layout.combined : layout.planes[i];
+        images[i].width = 64 >> (i ? desc->log2_chroma_w : 0);
+        images[i].height = 48 >> (i ? desc->log2_chroma_h : 0);
+        images[i].layout = VK_IMAGE_LAYOUT_GENERAL;
+      }
+      ASSERT_TRUE(video::pyrowave::map_gpu_frame(layout.format, images, buffers, scale));
+      EXPECT_FLOAT_EQ(scale, combined && layout.format == AV_PIX_FMT_P010 ? 1.0f : layout.scale);
+      for (int component = 0; component < 3; ++component) {
+        const auto plane = planes == 2 && component ? 1 : component;
+        const auto &view = buffers.planes[component];
+        EXPECT_EQ(view.image, images[combined ? 0 : plane].image);
+        EXPECT_EQ(view.aspect, combined ? VkImageAspectFlagBits(VK_IMAGE_ASPECT_PLANE_0_BIT << plane) : VK_IMAGE_ASPECT_COLOR_BIT);
+        EXPECT_EQ(view.swizzle, planes == 2 && component == 2 ? VK_COMPONENT_SWIZZLE_G : VK_COMPONENT_SWIZZLE_R);
+        EXPECT_EQ(view.width, images[combined ? 0 : plane].width);
+        EXPECT_EQ(view.height, images[combined ? 0 : plane].height);
+        EXPECT_EQ(view.layout, VK_IMAGE_LAYOUT_GENERAL);
+        EXPECT_EQ(view.view_format, combined && layout.format == AV_PIX_FMT_P010 ? (plane ? VK_FORMAT_R10X6G10X6_UNORM_2PACK16 : VK_FORMAT_R10X6_UNORM_PACK16) : layout.planes[plane]);
+      }
+      if (!combined) {
+        --images[1].width;
+        EXPECT_FALSE(video::pyrowave::map_gpu_frame(layout.format, images, buffers, scale));
+        ++images[1].width;
+        --images[1].height;
+        EXPECT_FALSE(video::pyrowave::map_gpu_frame(layout.format, images, buffers, scale));
+        ++images[1].height;
+        auto extra = images;
+        extra.push_back(images[0]);
+        EXPECT_FALSE(video::pyrowave::map_gpu_frame(layout.format, extra, buffers, scale));
+      }
+      images[0].width = 0;
+      EXPECT_FALSE(video::pyrowave::map_gpu_frame(layout.format, images, buffers, scale));
+      images[0].width = 64;
+      images[0].height = 0;
+      EXPECT_FALSE(video::pyrowave::map_gpu_frame(layout.format, images, buffers, scale));
+      images[0].height = 48;
+      images[0].image_format = VK_FORMAT_UNDEFINED;
+      EXPECT_FALSE(video::pyrowave::map_gpu_frame(layout.format, images, buffers, scale));
+    }
+  }
+  const std::pair<VkFormat, std::array<VkComponentSwizzle, 3>> packed[] {
+    {VK_FORMAT_R8G8B8A8_UNORM, {VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_R}},
+    {VK_FORMAT_A2B10G10R10_UNORM_PACK32, {VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_B}},
+    {VK_FORMAT_A2R10G10B10_UNORM_PACK32, {VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_R}},
+  };
+  for (const auto &[format, swizzles] : packed) {
+    pyrowave_image_view image {};
+    image.image = reinterpret_cast<VkImage>(1);
+    image.width = 64;
+    image.height = 48;
+    image.aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+    image.image_format = format;
+    const auto pixel_format = format == VK_FORMAT_R8G8B8A8_UNORM ? AV_PIX_FMT_VUYX : AV_PIX_FMT_XV30;
+    ASSERT_TRUE(video::pyrowave::map_gpu_frame(pixel_format, std::span(&image, 1), buffers, scale));
+    EXPECT_FLOAT_EQ(scale, 1.0f);
+    for (int component = 0; component < 3; ++component) {
+      EXPECT_EQ(buffers.planes[component].swizzle, swizzles[component]);
+      EXPECT_EQ(buffers.planes[component].view_format, format);
+    }
+    const std::array duplicate {image, image};
+    EXPECT_FALSE(video::pyrowave::map_gpu_frame(pixel_format, duplicate, buffers, scale));
+    image.image_format = VK_FORMAT_UNDEFINED;
+    EXPECT_FALSE(video::pyrowave::map_gpu_frame(pixel_format, std::span(&image, 1), buffers, scale));
+    EXPECT_FALSE(video::pyrowave::map_gpu_frame(AV_PIX_FMT_RGB24, std::span(&image, 1), buffers, scale));
+    image.image = VK_NULL_HANDLE;
+    EXPECT_FALSE(video::pyrowave::map_gpu_frame(pixel_format, std::span(&image, 1), buffers, scale));
+  }
+  EXPECT_FALSE(video::pyrowave::map_gpu_frame(AV_PIX_FMT_NV12, {}, buffers, scale));
+}
+
+/**
  * @brief Respect host bitrate limits and fractional rates without integer overflow.
  */
 TEST(PyrowaveConfigTest, BudgetsCappedAndFractionalRatesWithoutIntegerOverflow) {
@@ -385,7 +485,7 @@ namespace {
         for (int y = 0; y < height; ++y) {
           for (int x = 0; x < width; ++x) {
             const auto value = (x + (component ? y : 0) + (component == 2)) % 2 ? maximum : 1;
-            row[x] = uint16_t(value << (desc->comp[0].depth == 16 ? 6 : 0));
+            row[x] = uint16_t(desc->comp[0].depth == 16 ? value * 65535 / 1023 : value);
           }
           av_write_image_line(row.data(), frame->data, frame->linesize, desc, 0, y, component, width);
         }
@@ -430,6 +530,12 @@ namespace {
     size_t packet_offset = 2;  ///< First packet offset in the backing buffer.
     size_t packet_size = 3;  ///< First packet length.
     int encoded = 0;  ///< Number of codec calls, including repeated frames.
+    int gpu_encoded = 0;  ///< Number of GPU encoding calls.
+    pyrowave_result share_result = PYROWAVE_SUCCESS;  ///< Shared device initialization result.
+    pyrowave_device_create_info shared_info {};  ///< Borrowed Vulkan device metadata.
+    VkCommandBuffer command_buffer {};  ///< Command buffer currently receiving encoding commands.
+    pyrowave_gpu_buffers gpu_input {};  ///< Last GPU component views.
+    float scaling_factor = 0.0f;  ///< Last GPU sample normalization.
     size_t budget = 0;  ///< Last requested bitrate budget.
     pyrowave_cpu_buffer input {};  ///< Last codec input layout and borrowed plane addresses.
     pyrowave_chroma_subsampling chroma {};  ///< Chroma sampling used to create the encoder.
@@ -446,6 +552,8 @@ namespace {
    */
   video::pyrowave::api_t fake_pyrowave_api() {
     video::pyrowave::api_t api;
+    api.share_device = nullptr;
+    api.match_device = nullptr;
     api.get_api_version = [](uint32_t *major, uint32_t *minor, uint32_t *patch) {
       *major = api_state->major;
       *minor = PYROWAVE_API_VERSION_MINOR;
@@ -527,6 +635,43 @@ namespace {
     };
     return api;
   }
+
+#ifdef SUNSHINE_BUILD_VULKAN
+  /**
+   * @brief Replace only codec commands while exercising real Vulkan frame submission and synchronization.
+   * @return Codec entry points supporting shared Vulkan inputs.
+   */
+  video::pyrowave::api_t fake_gpu_pyrowave_api() {
+    auto api = fake_pyrowave_api();
+    api.share_device = [](const pyrowave_device_create_info *info, pyrowave_device *device) {
+      api_state->shared_info = *info;
+      if (api_state->share_result == PYROWAVE_SUCCESS) {
+        *device = reinterpret_cast<pyrowave_device>(api_state);
+      }
+      return api_state->share_result;
+    };
+    api.set_queue_type = [](pyrowave_device, VkQueueFlagBits queue) {
+      EXPECT_EQ(queue, VK_QUEUE_COMPUTE_BIT);
+      return PYROWAVE_SUCCESS;
+    };
+    api.set_command_buffer = [](pyrowave_device, VkCommandBuffer command) {
+      api_state->command_buffer = command;
+    };
+    api.set_scaling_factor = [](pyrowave_encoder, float factor) {
+      api_state->scaling_factor = factor;
+    };
+    api.encode_gpu = [](pyrowave_encoder, const pyrowave_gpu_sync_operation *acquire, const pyrowave_gpu_sync_operation *release, const pyrowave_gpu_buffers *buffers, const pyrowave_rate_control *rate) {
+      EXPECT_EQ(acquire, nullptr);
+      EXPECT_EQ(release, nullptr);
+      EXPECT_NE(api_state->command_buffer, VK_NULL_HANDLE);
+      api_state->gpu_input = *buffers;
+      api_state->budget = rate->maximum_bitstream_size;
+      ++api_state->gpu_encoded;
+      return api_state->encode_result;
+    };
+    return api;
+  }
+#endif
 }  // namespace
 
 /**
@@ -813,12 +958,11 @@ TEST_F(PyrowaveSessionTest, ClearsReadinessAfterConversionFailureAndRejectsWrong
   EXPECT_EQ(session->convert(image), -1);
   EXPECT_EQ(session->encode(1), nullptr);
   raw->status = 0;
-  raw->frame->format = AV_PIX_FMT_RGB24;
-  EXPECT_EQ(session->convert(image), -1);
-  raw->frame->format = AV_PIX_FMT_P010;
-  EXPECT_EQ(session->convert(image), -1);
-  raw->frame->format = AV_PIX_FMT_YUV444P;
-  EXPECT_EQ(session->convert(image), -1);
+  for (auto format : {AV_PIX_FMT_RGB24, AV_PIX_FMT_P010, AV_PIX_FMT_YUV444P}) {
+    raw->frame->format = format;
+    EXPECT_EQ(session->convert(image), -1);
+    EXPECT_EQ(session->encode(1), nullptr);
+  }
   raw->frame->format = AV_PIX_FMT_NV12;
   raw->frame->width = 0;
   EXPECT_EQ(session->convert(image), -1);
@@ -931,7 +1075,7 @@ TEST_F(PyrowaveSessionTest, FailsClosedOnEncodeAndPacketizationErrors) {
 /**
  * @brief Run integration tests only when the real device supports PyroWave's encoder shaders.
  */
-class PyrowaveRoundTripTest: public testing::Test {
+class PyrowaveRoundTripTest: public testing::TestWithParam<std::pair<AVHWDeviceType, AVPixelFormat>> {
 protected:
   /**
    * @brief Check shader capabilities, which are stricter than Vulkan device creation.
@@ -984,10 +1128,10 @@ TEST_F(PyrowaveSessionTest, ConvertsCapturedRgbThroughTheSoftwareBackend) {
   }
 }
 
-#ifdef SUNSHINE_BUILD_VULKAN
+#if defined(SUNSHINE_BUILD_VULKAN) || defined(_WIN32)
 namespace {
   /**
-   * @brief Upload prepared pixels through a borrowed Vulkan frame pool, like platform converters.
+   * @brief Upload prepared pixels through a borrowed hardware frame pool, like platform converters.
    */
   class pyrowave_test_upload_t: public pyrowave_test_converter_t {
   public:
@@ -1005,8 +1149,12 @@ namespace {
      * @param frames Hardware frame configuration.
      */
     void init_hwframes(AVHWFramesContext *frames) override {
-      auto vk = static_cast<AVVulkanFramesContext *>(frames->hwctx);
-      vk->usage = static_cast<VkImageUsageFlagBits>(VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR);
+  #ifdef SUNSHINE_BUILD_VULKAN
+      if (frames->format == AV_PIX_FMT_VULKAN) {
+        auto vk = static_cast<AVVulkanFramesContext *>(frames->hwctx);
+        vk->usage = static_cast<VkImageUsageFlagBits>(VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR);
+      }
+  #endif
     }
 
     /**
@@ -1021,10 +1169,14 @@ namespace {
       frame = owned.get();
       frames = hw_frames_ctx;
       EXPECT_EQ(frame->color_trc, AVCOL_TRC_SMPTE2084);
+  #ifdef SUNSHINE_BUILD_VULKAN
       const auto pool = reinterpret_cast<AVHWFramesContext *>(frames->data);
-      const auto vk = static_cast<AVVulkanFramesContext *>(pool->hwctx);
-      EXPECT_TRUE(vk->usage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
-      EXPECT_FALSE(vk->usage & VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR);
+      if (pool->format == AV_PIX_FMT_VULKAN) {
+        const auto vk = static_cast<AVVulkanFramesContext *>(pool->hwctx);
+        EXPECT_TRUE(vk->usage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+        EXPECT_FALSE(vk->usage & VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR);
+      }
+  #endif
       return 0;
     }
 
@@ -1045,7 +1197,9 @@ namespace {
     AVBufferRef *frames = nullptr;  ///< Borrowed pool used after session creation returns.
   };
 }  // namespace
+#endif
 
+#ifdef SUNSHINE_BUILD_VULKAN
 TEST_F(PyrowaveSessionTest, CreatesSessionsWithoutHardwareVideoEncodeUsage) {
   AVBufferRef *raw_device = nullptr;
   if (av_hwdevice_ctx_create(&raw_device, AV_HWDEVICE_TYPE_VULKAN, nullptr, nullptr, 0) < 0) {
@@ -1072,23 +1226,115 @@ TEST_F(PyrowaveSessionTest, CreatesSessionsWithoutHardwareVideoEncodeUsage) {
     auto config = pyrowave_config();
     config.dynamicRange = desc->comp[0].depth > 8;
     config.chromaSamplingType = desc->log2_chroma_w == 0;
-    auto session = video::make_pyrowave_encode_session(encoder, config, 64, 48, std::make_unique<pyrowave_test_upload_t>(format), fake_pyrowave_api());
-    ASSERT_NE(session, nullptr);
-    platf::img_t image {};
-    ASSERT_EQ(session->convert(image), 0);
-    auto pyrowave_session = dynamic_cast<video::pyrowave::session_t *>(session.get());
-    ASSERT_NE(pyrowave_session, nullptr);
-    EXPECT_NE(pyrowave_session->encode(1), nullptr);
-    EXPECT_EQ(state.chroma, config.chromaSamplingType ? PYROWAVE_CHROMA_SUBSAMPLING_444 : PYROWAVE_CHROMA_SUBSAMPLING_420);
+    for (const std::string_view mode : {"cpu", "gpu", "shared Vulkan device", "device failure", "encoder failure", "frame fallback"}) {
+      SCOPED_TRACE(mode);
+      state = {};
+      auto api = mode == "cpu" ? fake_pyrowave_api() : fake_gpu_pyrowave_api();
+      const bool gpu = mode == "gpu" || mode == "shared Vulkan device";
+      if (mode == "shared Vulkan device") {
+        api.share_device = [](const pyrowave_device_create_info *info, pyrowave_device *device) {
+          api_state->shared_info = *info;
+          return pyrowave_create_device(info, device);
+        };
+        api.create_device = [](pyrowave_device *) {
+          return PYROWAVE_ERROR_GENERIC;
+        };
+        api.destroy_device = [](pyrowave_device device) {
+          pyrowave_device_destroy(device);
+          api_state->destroyed.emplace_back("device");
+        };
+        api.set_queue_type = pyrowave_device_set_queue_type;
+      } else if (mode == "device failure") {
+        state.share_result = PYROWAVE_ERROR_NO_VULKAN;
+      } else if (mode == "encoder failure") {
+        state.encoder_result = PYROWAVE_ERROR_GENERIC;
+        api.create_encoder = [](const pyrowave_encoder_create_info *info, pyrowave_encoder *encoder) {
+          const auto result = fake_pyrowave_api().create_encoder(info, encoder);
+          *encoder = reinterpret_cast<pyrowave_encoder>(api_state);
+          api_state->encoder_result = PYROWAVE_SUCCESS;
+          return result;
+        };
+      }
+      auto converter = std::make_unique<pyrowave_test_upload_t>(format);
+      const auto upload = converter.get();
+      auto session = video::make_pyrowave_encode_session(encoder, config, 64, 48, std::move(converter), api);
+      ASSERT_NE(session, nullptr);
+      if (gpu) {
+        const auto context = reinterpret_cast<AVHWDeviceContext *>(device->data);
+        EXPECT_EQ(state.shared_info.device, static_cast<AVVulkanDeviceContext *>(context->hwctx)->act_dev);
+      }
+      platf::img_t image {};
+      if (mode == "frame fallback") {
+        ASSERT_EQ(upload->convert(image), 0);
+        auto pool = reinterpret_cast<AVHWFramesContext *>(upload->frame->hw_frames_ctx->data);
+        auto vk_frames = static_cast<AVVulkanFramesContext *>(pool->hwctx);
+        vk_frames->usage = VkImageUsageFlagBits(vk_frames->usage & ~VK_IMAGE_USAGE_SAMPLED_BIT);
+      }
+      ASSERT_EQ(session->convert(image), 0);
+      auto pyrowave_session = dynamic_cast<video::pyrowave::session_t *>(session.get());
+      ASSERT_NE(pyrowave_session, nullptr);
+      auto pixels = reinterpret_cast<AVVkFrame *>(upload->frame->data[0]);
+      const auto initial_timeline = pixels->sem_value[0];
+      for (int i = 1; i <= 2; ++i) {
+        EXPECT_NE(pyrowave_session->encode(i), nullptr);
+        if (gpu) {
+          EXPECT_EQ(state.encoded, 0);
+          EXPECT_EQ(state.gpu_encoded, i);
+          EXPECT_EQ(state.command_buffer, VK_NULL_HANDLE);
+          EXPECT_EQ(state.gpu_input.planes[0].image, pixels->img[0]);
+          EXPECT_EQ(pixels->sem_value[0], initial_timeline + i);
+          for (int plane = 0; plane < AV_NUM_DATA_POINTERS && pixels->img[plane]; ++plane) {
+            EXPECT_EQ(pixels->layout[plane], VK_IMAGE_LAYOUT_GENERAL);
+            uint64_t completed = 0;
+            EXPECT_EQ(vkGetSemaphoreCounterValue(state.shared_info.device, pixels->sem[plane], &completed), VK_SUCCESS);
+            EXPECT_EQ(completed, pixels->sem_value[plane]);
+          }
+        } else {
+          EXPECT_EQ(state.encoded, i);
+          EXPECT_EQ(state.gpu_encoded, 0);
+        }
+      }
+      EXPECT_EQ(state.chroma, config.chromaSamplingType ? PYROWAVE_CHROMA_SUBSAMPLING_444 : PYROWAVE_CHROMA_SUBSAMPLING_420);
+      if (gpu) {
+        const auto timeline = pixels->sem_value[0];
+        const auto semaphore = pixels->sem[0];
+        const auto calls = state.gpu_encoded;
+        pixels->sem[0] = VK_NULL_HANDLE;
+        EXPECT_EQ(pyrowave_session->encode(3), nullptr);
+        EXPECT_EQ(state.gpu_encoded, calls);
+        pixels->sem[0] = semaphore;
+        state.encode_result = PYROWAVE_ERROR_GENERIC;
+        EXPECT_EQ(pyrowave_session->encode(3), nullptr);
+        EXPECT_EQ(state.command_buffer, VK_NULL_HANDLE);
+        EXPECT_EQ(pixels->sem_value[0], timeline);
+        state.encode_result = PYROWAVE_SUCCESS;
+        ASSERT_EQ(session->convert(image), 0);
+        EXPECT_NE(pyrowave_session->encode(4), nullptr);
+        EXPECT_GT(pixels->sem_value[0], timeline);
+      }
+      session.reset();
+      ASSERT_GE(state.destroyed.size(), 2);
+      EXPECT_EQ(state.destroyed[state.destroyed.size() - 2], "encoder");
+      EXPECT_EQ(state.destroyed.back(), "device");
+    }
   }
 }
 #endif
 
 /**
- * @brief Exercise the real codec when a suitable Vulkan device is present.
+ * @brief Exercise real encoding, imported image views, and decoding when a suitable device is present.
  */
-TEST_F(PyrowaveRoundTripTest, DecodesSdrAndHdrFrameContainersWithTheUpstreamLibrary) {
+TEST_P(PyrowaveRoundTripTest, DecodesSdrAndHdrFrameContainersWithTheUpstreamLibrary) {
   bool decode_pixels = true;
+  video::avcodec_buffer_t hardware_device;
+  const auto [type, hardware_format] = GetParam();
+  if (type != AV_HWDEVICE_TYPE_NONE) {
+    AVBufferRef *raw_device = nullptr;
+    if (av_hwdevice_ctx_create(&raw_device, type, nullptr, nullptr, 0) < 0) {
+      GTEST_SKIP() << "A hardware frame-sharing device is unavailable";
+    }
+    hardware_device.reset(raw_device);
+  }
 #ifdef SUNSHINE_BUILD_VULKAN
   VkPhysicalDevice physical_device;
   pyrowave_device_get_vk_device_handles(device, nullptr, &physical_device, nullptr);
@@ -1101,6 +1347,9 @@ TEST_F(PyrowaveRoundTripTest, DecodesSdrAndHdrFrameContainersWithTheUpstreamLibr
   for (int profile = 0; profile < 4; ++profile) {
     const bool hdr = profile / 2;
     const bool yuv444 = profile % 2;
+    if (type == AV_HWDEVICE_TYPE_VAAPI && yuv444) {
+      continue;  // The VAAPI capture converter only exposes 4:2:0.
+    }
     pyrowave_decoder decoder {};
     const pyrowave_decoder_create_info info {device, 64, 48, yuv444 ? PYROWAVE_CHROMA_SUBSAMPLING_444 : PYROWAVE_CHROMA_SUBSAMPLING_420, false};
     ASSERT_EQ(pyrowave_decoder_create(&info, &decoder), PYROWAVE_SUCCESS);
@@ -1110,13 +1359,79 @@ TEST_F(PyrowaveRoundTripTest, DecodesSdrAndHdrFrameContainersWithTheUpstreamLibr
     auto config = pyrowave_config();
     config.dynamicRange = hdr;
     config.chromaSamplingType = yuv444;
-    const auto format = yuv444 ? (hdr ? AV_PIX_FMT_YUV444P10 : AV_PIX_FMT_YUV444P) : (hdr ? AV_PIX_FMT_P010 : AV_PIX_FMT_NV12);
-    auto session = video::pyrowave::make_session(config, std::make_unique<pyrowave_test_converter_t>(format));
+    auto format = yuv444 ? (hdr ? AV_PIX_FMT_YUV444P10 : AV_PIX_FMT_YUV444P) : (hdr ? AV_PIX_FMT_P010 : AV_PIX_FMT_NV12);
+    std::unique_ptr<video::pyrowave::session_t> session;
+    static thread_local int gpu_calls;  ///< GPU submissions observed by the real codec wrapper.
+    gpu_calls = 0;
+#ifdef _WIN32
+    static thread_local int rejected_views;  ///< Imported views rejected to verify bridge initialization failure.
+    rejected_views = 0;
+#endif
+#if defined(SUNSHINE_BUILD_VULKAN) || defined(_WIN32)
+    if (hardware_device) {
+      if (hardware_format == AV_PIX_FMT_D3D11 && yuv444) {
+        format = hdr ? AV_PIX_FMT_XV30 : AV_PIX_FMT_VUYX;
+      } else if (hardware_format == AV_PIX_FMT_CUDA && yuv444 && hdr) {
+        format = AV_PIX_FMT_YUV444P16;
+      }
+      video::avcodec_buffer_t frames {av_hwframe_ctx_alloc(hardware_device.get())};
+      ASSERT_NE(frames, nullptr);
+      auto pool = reinterpret_cast<AVHWFramesContext *>(frames->data);
+      pool->format = hardware_format;
+      pool->sw_format = format;
+      pool->width = 64;
+      pool->height = 48;
+      if (av_hwframe_ctx_init(frames.get()) < 0) {
+        GTEST_SKIP() << "The hardware frame pool does not support " << av_get_pix_fmt_name(format);
+      }
+      auto converter = std::make_unique<pyrowave_test_upload_t>(format);
+      auto frame = av_frame_alloc();
+      ASSERT_NE(frame, nullptr);
+      ASSERT_GE(av_frame_copy_props(frame, converter->frame), 0);
+      frame->format = hardware_format;
+      frame->width = 64;
+      frame->height = 48;
+      ASSERT_EQ(converter->set_frame(frame, frames.get()), 0);
+      video::pyrowave::api_t api;
+      api.encode_gpu = [](pyrowave_encoder encoder, const pyrowave_gpu_sync_operation *acquire, const pyrowave_gpu_sync_operation *release, const pyrowave_gpu_buffers *buffers, const pyrowave_rate_control *rate) {
+        ++gpu_calls;
+        return pyrowave_encoder_encode_gpu(encoder, acquire, release, buffers, rate);
+      };
+  #ifdef _WIN32
+      if (hardware_format == AV_PIX_FMT_D3D11) {
+        auto unavailable_views = api;
+        unavailable_views.image_view = [](pyrowave_image, VkImageAspectFlagBits, VkImageUsageFlagBits, pyrowave_image_view *) {
+          ++rejected_views;
+          return PYROWAVE_ERROR_INVALID_ARGUMENT;
+        };
+        EXPECT_EQ(video::pyrowave::make_d3d11_input(pool, unavailable_views), nullptr);
+      }
+  #endif
+      session = video::pyrowave::make_session(config, std::move(converter), api, std::move(frames));
+    } else
+#endif
+    {
+      session = video::pyrowave::make_session(config, std::make_unique<pyrowave_test_converter_t>(format));
+    }
     ASSERT_NE(session, nullptr);
     platf::img_t image {};
     ASSERT_EQ(session->convert(image), 0);
     auto packet = session->encode(1);
     ASSERT_NE(packet, nullptr);
+    if (hardware_device && !gpu_calls) {
+      GTEST_SKIP() << "The device cannot share this frame layout with PyroWave: " << av_get_pix_fmt_name(format);
+    }
+#ifdef _WIN32
+    if (hardware_format == AV_PIX_FMT_D3D11) {
+      EXPECT_EQ(rejected_views, 1);
+    }
+#endif
+    if (hardware_device) {
+      EXPECT_NE(session->encode(2), nullptr);
+      ASSERT_EQ(session->convert(image), 0);
+      EXPECT_NE(session->encode(3), nullptr);
+      EXPECT_EQ(gpu_calls, 3);
+    }
     const auto data = packet->data();
     ASSERT_GE(packet->data_size(), 8);
     ASSERT_EQ(std::string(reinterpret_cast<char *>(data), 4), "PYRW");
@@ -1160,3 +1475,20 @@ TEST_F(PyrowaveRoundTripTest, DecodesSdrAndHdrFrameContainersWithTheUpstreamLibr
     GTEST_SKIP() << "SDR/HDR packet validation passed; pixel decoding requires a hardware Vulkan device";
   }
 }
+
+/**
+ * @brief Exercise CPU input and each hardware sharing API supported by this build.
+ */
+constexpr std::pair<AVHWDeviceType, AVPixelFormat> pyrowave_round_trip_inputs[] {
+  {AV_HWDEVICE_TYPE_NONE, AV_PIX_FMT_NONE},
+#ifdef _WIN32
+  {AV_HWDEVICE_TYPE_D3D11VA, AV_PIX_FMT_D3D11},
+#endif
+#ifdef SUNSHINE_BUILD_VULKAN
+  {AV_HWDEVICE_TYPE_VULKAN, AV_PIX_FMT_VULKAN},
+  {AV_HWDEVICE_TYPE_CUDA, AV_PIX_FMT_CUDA},
+  {AV_HWDEVICE_TYPE_VAAPI, AV_PIX_FMT_VAAPI},
+#endif
+};
+
+INSTANTIATE_TEST_SUITE_P(CpuAndGpu, PyrowaveRoundTripTest, testing::ValuesIn(pyrowave_round_trip_inputs));
