@@ -729,7 +729,7 @@ namespace video {
       }
 
       /**
-       * @brief Initialize the codec and planar frame for the negotiated color depth and chroma sampling.
+       * @brief Initialize the codec and a stable CPU input layout for the negotiated profile.
        *
        * @param config Negotiated stream configuration.
        * @return True when the Vulkan device and encoder are usable.
@@ -751,26 +751,33 @@ namespace video {
           return false;
         }
 
-        planar.reset(av_frame_alloc());
+        converted.reset(av_frame_alloc());
         readback.reset(av_frame_alloc());
-        if (!planar || !readback) {
+        input_frame.reset(av_frame_alloc());
+        if (!converted || !readback || !input_frame) {
           return false;
         }
-        planar->format = config.chromaSamplingType ? (config.dynamicRange ? AV_PIX_FMT_YUV444P10 : AV_PIX_FMT_YUV444P) :
-                                                     (config.dynamicRange ? AV_PIX_FMT_YUV420P10 : AV_PIX_FMT_YUV420P);
-        planar->width = config.width;
-        planar->height = config.height;
-        return av_frame_copy_props(planar.get(), converter->frame) >= 0 && av_frame_get_buffer(planar.get(), 0) >= 0;
+        auto source_format = converter->frame->format;
+        if (const auto pool = converter->frame->hw_frames_ctx ? converter->frame->hw_frames_ctx : frames.get()) {
+          source_format = reinterpret_cast<AVHWFramesContext *>(pool->data)->sw_format;
+        }
+        // PyroWave caches upload images, so keep the NV12 or planar layout fixed for this session.
+        converted->format = config.chromaSamplingType ? (config.dynamicRange ? AV_PIX_FMT_YUV444P10 : AV_PIX_FMT_YUV444P) :
+                                                        (config.dynamicRange ? AV_PIX_FMT_YUV420P10 : (source_format == AV_PIX_FMT_NV12 ? AV_PIX_FMT_NV12 : AV_PIX_FMT_YUV420P));
+        converted->width = config.width;
+        converted->height = config.height;
+        return av_frame_copy_props(converted.get(), converter->frame) >= 0;
       }
 
       /**
-       * @brief Convert captured pixels, retaining the platform's HDR color conversion.
+       * @brief Retain compatible frames directly, converting other layouts while preserving HDR precision.
        *
        * @param img Captured image.
        * @return Zero on success, or a negative conversion/transfer error.
        */
       int convert(platf::img_t &img) override {
         ready = false;
+        av_frame_unref(input_frame.get());
         if (converter->convert(img)) {
           return -1;
         }
@@ -791,14 +798,27 @@ namespace video {
           return -1;
         }
         const auto input_desc = av_pix_fmt_desc_get(AVPixelFormat(source->format));
-        const auto output_desc = av_pix_fmt_desc_get(AVPixelFormat(planar->format));
+        const auto output_desc = av_pix_fmt_desc_get(AVPixelFormat(converted->format));
         if ((input_desc->comp[0].depth > 8) != (output_desc->comp[0].depth > 8) || input_desc->log2_chroma_w != output_desc->log2_chroma_w || input_desc->log2_chroma_h != output_desc->log2_chroma_h) {
           BOOST_LOG(error) << "PyroWave input color depth or chroma sampling does not match the negotiated profile";
           return -1;
         }
-        auto context = sws_getCachedContext(scaler.release(), source->width, source->height, AVPixelFormat(source->format), planar->width, planar->height, AVPixelFormat(planar->format), SWS_POINT, nullptr, nullptr, nullptr);
-        scaler.reset(context);
-        if (!scaler || av_frame_make_writable(planar.get()) < 0 || sws_scale(scaler.get(), source->data, source->linesize, 0, source->height, planar->data, planar->linesize) != planar->height) {
+        // Matching layouts and dimensions can bypass sws_scale().
+        // PyroWave requires positive row strides, so reversed rows still need conversion.
+        const bool direct = source->format == converted->format && source->width == converted->width && source->height == converted->height &&
+                            std::all_of(source->linesize, source->linesize + av_pix_fmt_count_planes(AVPixelFormat(source->format)), [](int stride) {
+                              return stride > 0;
+                            });
+        if (!direct) {
+          auto context = sws_getCachedContext(scaler.release(), source->width, source->height, AVPixelFormat(source->format), converted->width, converted->height, AVPixelFormat(converted->format), SWS_POINT, nullptr, nullptr, nullptr);
+          scaler.reset(context);
+          if (!scaler || (!converted->buf[0] && av_frame_get_buffer(converted.get(), 0) < 0) || av_frame_make_writable(converted.get()) < 0 || sws_scale(scaler.get(), source->data, source->linesize, 0, source->height, converted->data, converted->linesize) != converted->height) {
+            return -1;
+          }
+          source = converted.get();
+        }
+        // References keep repeated frames alive; av_frame_ref() copies unowned capture buffers.
+        if (av_frame_ref(input_frame.get(), source) < 0) {
           return -1;
         }
         ready = true;
@@ -834,14 +854,15 @@ namespace video {
           return nullptr;
         }
         pyrowave_cpu_buffer input {};
-        input.width = planar->width;
-        input.height = planar->height;
-        const auto desc = av_pix_fmt_desc_get(AVPixelFormat(planar->format));
-        input.format = desc->log2_chroma_w == 0 ? (desc->comp[0].depth == 10 ? PYROWAVE_CPU_BUFFER_FORMAT_YUV444P10 : PYROWAVE_CPU_BUFFER_FORMAT_YUV444P) :
-                                                  (desc->comp[0].depth == 10 ? PYROWAVE_CPU_BUFFER_FORMAT_YUV420P10 : PYROWAVE_CPU_BUFFER_FORMAT_YUV420P);
-        for (int plane = 0; plane < 3; ++plane) {
-          input.data[plane] = planar->data[plane];
-          input.row_stride_in_bytes[plane] = planar->linesize[plane];
+        input.width = input_frame->width;
+        input.height = input_frame->height;
+        const auto desc = av_pix_fmt_desc_get(AVPixelFormat(input_frame->format));
+        input.format = input_frame->format == AV_PIX_FMT_NV12 ? PYROWAVE_CPU_BUFFER_FORMAT_NV12 :
+                       desc->log2_chroma_w == 0               ? (desc->comp[0].depth == 10 ? PYROWAVE_CPU_BUFFER_FORMAT_YUV444P10 : PYROWAVE_CPU_BUFFER_FORMAT_YUV444P) :
+                                                                (desc->comp[0].depth == 10 ? PYROWAVE_CPU_BUFFER_FORMAT_YUV420P10 : PYROWAVE_CPU_BUFFER_FORMAT_YUV420P);
+        for (int plane = 0; plane < av_pix_fmt_count_planes(AVPixelFormat(input_frame->format)); ++plane) {
+          input.data[plane] = input_frame->data[plane];
+          input.row_stride_in_bytes[plane] = input_frame->linesize[plane];
           input.plane_size_in_bytes[plane] = input.row_stride_in_bytes[plane] * (input.height >> (plane ? desc->log2_chroma_h : 0));
         }
         size_t count = 0;
@@ -880,7 +901,8 @@ namespace video {
       pyrowave_encoder encoder {};  ///< Codec instance owned by this session.
       pyrowave_rate_control rate_control;  ///< Per-frame coefficient byte budget.
       avcodec_frame_t readback;  ///< Downloaded hardware frame, when needed.
-      avcodec_frame_t planar;  ///< Planar 8-bit or 10-bit YCbCr input.
+      avcodec_frame_t converted;  ///< Stable CPU input layout, with buffers allocated only when conversion is needed.
+      avcodec_frame_t input_frame;  ///< Retained pixels for encoding, including repeated frames.
       sws_t scaler;  ///< Plane-layout and bit-storage conversion preserving negotiated chroma and color depth.
       std::vector<pyrowave_packet> packets;  ///< Packet offsets returned by the C API.
       std::vector<uint8_t> bitstream;  ///< Reusable encoded coefficient storage.
