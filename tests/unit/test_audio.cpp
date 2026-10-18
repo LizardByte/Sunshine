@@ -54,6 +54,7 @@ TEST(AudioDolbyBitrateTest, SelectsChannelAwareBitrates) {
     }
   }
 }
+
 TEST(AudioDolbyNegotiationTest, ConfiguresExactlyAcceptedAc3AndResponseLabel) {
   config_t config {.packetDuration = 5, .channels = 6, .mask = 0x3F};
   const auto codec = configure_dolby_audio(config, "AC3", "AC3", true, true, true);
@@ -67,6 +68,7 @@ TEST(AudioDolbyNegotiationTest, ConfiguresExactlyAcceptedAc3AndResponseLabel) {
   EXPECT_EQ(dolby_bitrate_kbps(config.use_eac3, config.high_quality_dolby, config.channels), 640);
   EXPECT_EQ(dolby_codec_name(codec), "AC3");
 }
+
 TEST(AudioDolbyNegotiationTest, ConfiguresExactlyAcceptedEac3AndResponseLabel) {
   config_t config {.packetDuration = 5, .channels = 2, .mask = 0x3};
   const auto codec = configure_dolby_audio(config, "EAC3", "EAC3", true, true, false);
@@ -80,6 +82,7 @@ TEST(AudioDolbyNegotiationTest, ConfiguresExactlyAcceptedEac3AndResponseLabel) {
   EXPECT_EQ(dolby_bitrate_kbps(config.use_eac3, config.high_quality_dolby, config.channels), 128);
   EXPECT_EQ(dolby_codec_name(codec), "EAC3");
 }
+
 TEST(AudioDolbyNegotiationTest, FallsBackToOpusForMissingOrMismatchedAcceptance) {
   const std::array negotiations {
     std::pair<std::string_view, std::string_view> {"AC3", ""},
@@ -98,6 +101,7 @@ TEST(AudioDolbyNegotiationTest, FallsBackToOpusForMissingOrMismatchedAcceptance)
     EXPECT_EQ(dolby_codec_name(codec), "Opus");
   }
 }
+
 TEST(AudioDolbyNegotiationTest, FallsBackToOpusWhenEncoderIsUnavailable) {
   config_t ac3_config {.packetDuration = 5, .channels = 2, .mask = 0x3};
   EXPECT_EQ(configure_dolby_audio(ac3_config, "AC3", "AC3", false, true, false), dolby_codec_e::opus);
@@ -106,6 +110,7 @@ TEST(AudioDolbyNegotiationTest, FallsBackToOpusWhenEncoderIsUnavailable) {
   EXPECT_EQ(configure_dolby_audio(eac3_config, "EAC3", "EAC3", true, false, false), dolby_codec_e::opus);
   EXPECT_FALSE(eac3_config.use_eac3);
 }
+
 TEST(AudioDolbyNegotiationTest, FallsBackToOpusForUnsupportedChannelCounts) {
   config_t config {.packetDuration = 5, .channels = 8, .mask = 0x63F};
   EXPECT_EQ(configure_dolby_audio(config, "AC3", "AC3", true, true, true), dolby_codec_e::opus);
@@ -121,8 +126,7 @@ TEST(AudioDolbyEncoderTest, EncodesAllSupportedCodecsLayoutsAndQualityTiersWitho
   for (const bool eac3 : {false, true}) {
     for (const int channels : {2, 6}) {
       for (const bool high_quality : {false, true}) {
-        SCOPED_TRACE(testing::Message() << "eac3=" << eac3 << ", channels=" << channels
-                                        << ", high_quality=" << high_quality);
+        SCOPED_TRACE(testing::Message() << "eac3=" << eac3 << ", channels=" << channels << ", high_quality=" << high_quality);
         const std::vector<float> pcm(1536U * static_cast<std::size_t>(channels), 0.0F);
         buffer_t output {4096};
         EXPECT_GT(encode_dolby_frame_for_testing(eac3, high_quality, channels, pcm, output), 0);
@@ -130,6 +134,7 @@ TEST(AudioDolbyEncoderTest, EncodesAllSupportedCodecsLayoutsAndQualityTiersWitho
     }
   }
 }
+
 TEST(AudioDolbyEncoderTest, RejectsInvalidInputAndUnsupportedChannelCount) {
   ASSERT_TRUE(ac3_available());
   const std::vector<float> invalid_frame(1535U * 2U, 0.0F);

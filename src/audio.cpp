@@ -162,9 +162,7 @@ namespace audio {
       context_->thread_count = 1;
       channels_ = channels;
 
-      if (const auto channel_layout = channels == 2 ? AV_CH_LAYOUT_STEREO : AV_CH_LAYOUT_5POINT1_BACK;
-          av_channel_layout_from_mask(&context_->ch_layout, channel_layout) < 0 ||
-          avcodec_open2(context_, codec, nullptr) < 0) {
+      if (const auto channel_layout = channels == 2 ? AV_CH_LAYOUT_STEREO : AV_CH_LAYOUT_5POINT1_BACK; av_channel_layout_from_mask(&context_->ch_layout, channel_layout) < 0 || avcodec_open2(context_, codec, nullptr) < 0) {
         return false;
       }
 
@@ -181,8 +179,7 @@ namespace audio {
       frame_->format = context_->sample_fmt;
       frame_->sample_rate = context_->sample_rate;
       frame_->nb_samples = context_->frame_size;
-      if (av_channel_layout_copy(&frame_->ch_layout, &context_->ch_layout) < 0 ||
-          av_frame_get_buffer(frame_, 0) < 0) {
+      if (av_channel_layout_copy(&frame_->ch_layout, &context_->ch_layout) < 0 || av_frame_get_buffer(frame_, 0) < 0) {
         return false;
       }
 
@@ -251,14 +248,21 @@ namespace audio {
    * @return Encoded packet size, or -1 when initialization or encoding fails.
    */
   int encode_dolby_frame_for_testing(
-    bool eac3, bool high_quality, int channels,
-    const std::vector<float> &interleaved, buffer_t &output
+    bool eac3,
+    bool high_quality,
+    int channels,
+    const std::vector<float> &interleaved,
+    buffer_t &output
   ) {
     const auto bitrate_kbps = dolby_bitrate_kbps(eac3, high_quality, channels);
-    if (bitrate_kbps <= 0) return -1;
+    if (bitrate_kbps <= 0) {
+      return -1;
+    }
     ffmpeg_audio_encoder_t encoder;
     const auto codec_id = eac3 ? AV_CODEC_ID_EAC3 : AV_CODEC_ID_AC3;
-    if (!encoder.initialize(codec_id, static_cast<std::int64_t>(bitrate_kbps) * 1000, channels)) return -1;
+    if (!encoder.initialize(codec_id, static_cast<std::int64_t>(bitrate_kbps) * 1000, channels)) {
+      return -1;
+    }
     return encoder.encode(interleaved, output);
   }
 #endif
@@ -501,8 +505,12 @@ namespace audio {
   }
 
   dolby_codec_e configure_dolby_audio(
-    config_t &config, std::string_view offered, std::string_view accepted,
-    bool ac3_encoder_available, bool eac3_encoder_available, bool high_quality
+    config_t &config,
+    std::string_view offered,
+    std::string_view accepted,
+    bool ac3_encoder_available,
+    bool eac3_encoder_available,
+    bool high_quality
   ) {
     using enum audio::dolby_codec_e;
 
@@ -531,10 +539,13 @@ namespace audio {
     using enum audio::dolby_codec_e;
 
     switch (codec) {
-      case ac3: return "AC3";
-      case eac3: return "EAC3";
+      case ac3:
+        return "AC3";
+      case eac3:
+        return "EAC3";
       case opus:
-      default: return "Opus";
+      default:
+        return "Opus";
     }
   }
 

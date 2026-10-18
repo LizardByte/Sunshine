@@ -1202,9 +1202,7 @@ namespace rtsp_stream {
     // A Dolby codec is selected only when the client explicitly accepts the exact offer.
     // All other cases keep the existing Opus behavior.
     const auto audio_accept = args.find("x-ss-audio-codec-accept"sv);
-    const std::string_view accepted_audio_codec = audio_accept == args.end()
-      ? std::string_view {}
-      : std::string_view {audio_accept->second};
+    const std::string_view accepted_audio_codec = audio_accept == args.end() ? std::string_view {} : std::string_view {audio_accept->second};
     const bool client_accepted_audio_codec =
       !session.audio_negotiation.codec_offered.empty() &&
       audio_accept != args.end() &&
@@ -1214,8 +1212,12 @@ namespace rtsp_stream {
     const bool selected_encoder_available = ac3_encoder_available || eac3_encoder_available;
     const bool supported_dolby_channel_count = config.audio.channels == 2 || config.audio.channels == 6;
     const auto selected_audio_codec = audio::configure_dolby_audio(
-      config.audio, session.audio_negotiation.codec_offered, accepted_audio_codec,
-      ac3_encoder_available, eac3_encoder_available, config::audio.high_quality_audio
+      config.audio,
+      session.audio_negotiation.codec_offered,
+      accepted_audio_codec,
+      ac3_encoder_available,
+      eac3_encoder_available,
+      config::audio.high_quality_audio
     );
 
     if (config::audio.format != "opus"sv && session.audio_negotiation.codec_offered.empty()) {
@@ -1233,7 +1235,10 @@ namespace rtsp_stream {
     if (selected_audio_codec != audio::dolby_codec_e::opus) {
       const auto codec_name = selected_audio_codec == audio::dolby_codec_e::eac3 ? "E-AC-3"sv : "AC-3"sv;
       const auto bitrate_kbps = audio::dolby_bitrate_kbps(
-        config.audio.use_eac3, config.audio.high_quality_dolby, config.audio.channels);
+        config.audio.use_eac3,
+        config.audio.high_quality_dolby,
+        config.audio.channels
+      );
       BOOST_LOG(info) << "Using "sv << codec_name << " audio: "sv << config.audio.channels
                       << " channels, 48 kHz, "sv << bitrate_kbps << " kbit/s"sv;
     }

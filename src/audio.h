@@ -183,8 +183,12 @@ namespace audio {
    * @return Selected codec, falling back to Opus when negotiation is unsupported.
    */
   dolby_codec_e configure_dolby_audio(
-    config_t &config, std::string_view offered, std::string_view accepted,
-    bool ac3_encoder_available, bool eac3_encoder_available, bool high_quality
+    config_t &config,
+    std::string_view offered,
+    std::string_view accepted,
+    bool ac3_encoder_available,
+    bool eac3_encoder_available,
+    bool high_quality
   );
 
   /**
@@ -205,8 +209,11 @@ namespace audio {
    * @return Encoded packet size, or -1 when initialization or encoding fails.
    */
   int encode_dolby_frame_for_testing(
-    bool eac3, bool high_quality, int channels,
-    const std::vector<float> &interleaved, buffer_t &output
+    bool eac3,
+    bool high_quality,
+    int channels,
+    const std::vector<float> &interleaved,
+    buffer_t &output
   );
 #endif
 
