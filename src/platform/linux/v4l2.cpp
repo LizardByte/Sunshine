@@ -64,9 +64,9 @@ namespace v4l2 {
       width = in_width;
       height = in_height;
 
-      // V4L2 encoder has no need to create hw frames context,
-      // so we just set this to a non-null value to avoid falling back to software encoding.
-      data = (void *) 0x1;
+      // V4L2 owns its output buffers instead of using an FFmpeg hardware frames context.
+      // Retain this device for V4L2 conversion and submission.
+      hardware = true;
 
       current_output_frame_idx = -1;
 

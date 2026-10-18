@@ -2,12 +2,18 @@
  * @file tests/unit/test_video_packets.cpp
  * @brief Test first-IDR packet collection without an encoder or display device.
  */
+
+// test includes
 #include "../tests_common.h"
 
+// standard includes
 #include <algorithm>
 #include <initializer_list>
-#include <src/video.h>
+#include <memory>
 #include <vector>
+
+// local includes
+#include <src/video.h>
 
 namespace {
   /**

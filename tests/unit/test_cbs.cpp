@@ -9,8 +9,8 @@
 // standard includes
 #include <algorithm>
 #include <initializer_list>
-#include <memory>
 #include <span>
+#include <string_view>
 #include <tuple>
 #include <vector>
 
@@ -80,7 +80,7 @@ TEST_P(CodedBitstreamTest, RewrittenParameterSetsRetainValidVuiMetadata) {
   util::safe_ptr<AVPacket, &release_packet> packet {av_packet_alloc()};
   ASSERT_NE(packet.get(), nullptr);
   ASSERT_EQ(avcodec_receive_packet(context.get(), packet.get()), 0);
-  ASSERT_TRUE(cbs::validate_sps({packet.get()}, codec_id));
+  ASSERT_TRUE(cbs::validate_sps(std::array {packet.get()}, codec_id));
 
   const std::vector<std::uint8_t> original_packet(packet->data, packet->data + packet->size);
   std::vector<std::uint8_t> rewritten(packet->data, packet->data + packet->size);
@@ -112,75 +112,89 @@ TEST_P(CodedBitstreamTest, RewrittenParameterSetsRetainValidVuiMetadata) {
   ASSERT_NE(rewritten_packet.get(), nullptr);
   ASSERT_EQ(av_new_packet(rewritten_packet.get(), static_cast<int>(rewritten.size())), 0);
   std::ranges::copy(rewritten, rewritten_packet->data);
-  EXPECT_TRUE(cbs::validate_sps({rewritten_packet.get()}, codec_id));
+  EXPECT_TRUE(cbs::validate_sps(std::array {rewritten_packet.get()}, codec_id));
 }
 
 INSTANTIATE_TEST_SUITE_P(SoftwareCodecs, CodedBitstreamTest, testing::Values(AV_CODEC_ID_H264, AV_CODEC_ID_HEVC));
 
 namespace {
-  // Generated offline from one 16x16 black IDR frame (PTS=1), followed immediately
-  // by avcodec_send_frame(nullptr), then receiving until EOF. x264/x265 used
-  // ultrafast/zerolatency; x265 disabled Info SEI. CBS removed nonessential NALs
-  // and serialized SPS variants with and without VUI, including inferred defaults.
-  // These fixtures contain only parameter sets and IDR, with no SEI/build metadata.
+  using namespace std::literals;
 
-  /** @brief Ordered packets, each containing a list of payload bytes. */
-  using FirstIdrFixture = std::initializer_list<std::initializer_list<uint8_t>>;
+  /**
+   * @brief Annex B packets in FFmpeg receive order, retaining embedded NUL bytes.
+   *
+   * String views exclude the string-literal terminator. Parameter sets configure
+   * decoding; the IDR packet supplies the picture. The SPS VUI flag is varied to
+   * test whether the parser detects Video Usability Information metadata.
+   * Char arrays are not used in case clang-format puts each char on a separate line.
+   */
+  using FirstIdrFixture = std::initializer_list<std::string_view>;
 
-  // clang-format off
-  /** @brief H.264 packets with SPS VUI present. */
-  constexpr FirstIdrFixture h264_vui = {
-    {  // SPS with VUI + PPS.
-      0x00, 0x00, 0x00, 0x01, 0x67, 0x42, 0xc0, 0x0a, 0xda, 0x7a, 0x6a, 0x02, 0x02, 0x02, 0x80, 0x00,
-      0x00, 0x03, 0x00, 0x80, 0x00, 0x00, 0x3c, 0x47, 0x89, 0x13, 0x50, 0x00, 0x00, 0x00, 0x01, 0x68,
-      0xce, 0x0f, 0xc8,
-    },
-    {  // IDR slice.
-      0x00, 0x00, 0x01, 0x65, 0x88, 0x84, 0x3a, 0x26, 0x28, 0x00, 0x09, 0x02, 0xe0,
-    },
+  /**
+   * @brief H.264 packets with SPS Video Usability Information (VUI) present.
+   */
+  constexpr FirstIdrFixture h264_vui {
+    // Packet 1: decoder parameter sets.
+    // Sequence parameter set (SPS); starts with an Annex B delimiter.
+    "\x00\x00\x00\x01\x67\x42\xc0\x0a\xda\x7a\x6a\x02\x02\x02\x80\x00"
+    "\x00\x03\x00\x80\x00\x00\x3c\x47\x89\x13\x50"
+    // Picture parameter set (PPS); starts with an Annex B delimiter.
+    "\x00\x00\x00\x01\x68\xce\x0f\xc8"sv,
+    // Packet 2: instantaneous decoder refresh (IDR) picture.
+    // IDR slice; starts with an Annex B delimiter.
+    "\x00\x00\x01\x65\x88\x84\x3a\x26\x28\x00\x09\x02\xe0"sv,
   };
 
-  /** @brief H.264 packets with SPS VUI absent. */
-  constexpr FirstIdrFixture h264_no_vui = {
-    {  // SPS without VUI + PPS.
-      0x00, 0x00, 0x00, 0x01, 0x67, 0x42, 0xc0, 0x0a, 0xda, 0x79, 0x00, 0x00, 0x00, 0x01, 0x68, 0xce,
-      0x0f, 0xc8,
-    },
-    {  // IDR slice.
-      0x00, 0x00, 0x01, 0x65, 0x88, 0x84, 0x3a, 0x26, 0x28, 0x00, 0x09, 0x02, 0xe0,
-    },
+  /**
+   * @brief H.264 packets with SPS Video Usability Information (VUI) absent.
+   */
+  constexpr FirstIdrFixture h264_no_vui {
+    // Packet 1: decoder parameter sets.
+    // Sequence parameter set (SPS); starts with an Annex B delimiter.
+    "\x00\x00\x00\x01\x67\x42\xc0\x0a\xda\x79"
+    // Picture parameter set (PPS); starts with an Annex B delimiter.
+    "\x00\x00\x00\x01\x68\xce\x0f\xc8"sv,
+    // Packet 2: instantaneous decoder refresh (IDR) picture.
+    // IDR slice; starts with an Annex B delimiter.
+    "\x00\x00\x01\x65\x88\x84\x3a\x26\x28\x00\x09\x02\xe0"sv,
   };
 
-  /** @brief HEVC packets with SPS VUI present. */
-  constexpr FirstIdrFixture hevc_vui = {
-    {  // VPS + SPS with VUI + PPS.
-      0x00, 0x00, 0x00, 0x01, 0x40, 0x01, 0x0c, 0x01, 0xff, 0xff, 0x01, 0x60, 0x00, 0x00, 0x03, 0x00,
-      0x90, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x1e, 0xba, 0x02, 0x40, 0x00, 0x00, 0x00, 0x01,
-      0x42, 0x01, 0x01, 0x01, 0x60, 0x00, 0x00, 0x03, 0x00, 0x90, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03,
-      0x00, 0x1e, 0xa0, 0x88, 0x45, 0x96, 0xea, 0xaf, 0x0b, 0x9a, 0x80, 0x80, 0x80, 0x82, 0x00, 0x00,
-      0x03, 0x00, 0x02, 0x00, 0x00, 0x03, 0x00, 0x78, 0x10, 0x00, 0x00, 0x00, 0x01, 0x44, 0x01, 0xc0,
-      0x71, 0x81, 0x12,
-    },
-    {  // IDR slice.
-      0x00, 0x00, 0x01, 0x28, 0x01, 0xad, 0xe0, 0xd1, 0x17, 0xff, 0x25, 0xbb, 0x80,
-    },
+  /**
+   * @brief HEVC packets with SPS Video Usability Information (VUI) present.
+   */
+  constexpr FirstIdrFixture hevc_vui {
+    // Packet 1: decoder parameter sets.
+    // Video parameter set (VPS); starts with an Annex B delimiter.
+    "\x00\x00\x00\x01\x40\x01\x0c\x01\xff\xff\x01\x60\x00\x00\x03\x00"
+    "\x90\x00\x00\x03\x00\x00\x03\x00\x1e\xba\x02\x40"
+    // Sequence parameter set (SPS); starts with an Annex B delimiter.
+    "\x00\x00\x00\x01\x42\x01\x01\x01\x60\x00\x00\x03\x00\x90\x00\x00"
+    "\x03\x00\x00\x03\x00\x1e\xa0\x88\x45\x96\xea\xaf\x0b\x9a\x80\x80"
+    "\x80\x82\x00\x00\x03\x00\x02\x00\x00\x03\x00\x78\x10"
+    // Picture parameter set (PPS); starts with an Annex B delimiter.
+    "\x00\x00\x00\x01\x44\x01\xc0\x71\x81\x12"sv,
+    // Packet 2: instantaneous decoder refresh (IDR) picture.
+    // IDR slice; starts with an Annex B delimiter.
+    "\x00\x00\x01\x28\x01\xad\xe0\xd1\x17\xff\x25\xbb\x80"sv,
   };
 
-  /** @brief HEVC packets with SPS VUI absent. */
-  constexpr FirstIdrFixture hevc_no_vui = {
-    {  // VPS + SPS without VUI + PPS.
-      0x00, 0x00, 0x00, 0x01, 0x40, 0x01, 0x0c, 0x01, 0xff, 0xff, 0x01, 0x60, 0x00, 0x00, 0x03, 0x00,
-      0x90, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x1e, 0xba, 0x02, 0x40, 0x00, 0x00, 0x00, 0x01,
-      0x42, 0x01, 0x01, 0x01, 0x60, 0x00, 0x00, 0x03, 0x00, 0x90, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03,
-      0x00, 0x1e, 0xa0, 0x88, 0x45, 0x96, 0xea, 0xaf, 0x0b, 0x20, 0x00, 0x00, 0x00, 0x01, 0x44, 0x01,
-      0xc0, 0x71, 0x81, 0x12,
-    },
-    {  // IDR slice.
-      0x00, 0x00, 0x01, 0x28, 0x01, 0xad, 0xe0, 0xd1, 0x17, 0xff, 0x25, 0xbb, 0x80,
-    },
+  /**
+   * @brief HEVC packets with SPS Video Usability Information (VUI) absent.
+   */
+  constexpr FirstIdrFixture hevc_no_vui {
+    // Packet 1: decoder parameter sets.
+    // Video parameter set (VPS); starts with an Annex B delimiter.
+    "\x00\x00\x00\x01\x40\x01\x0c\x01\xff\xff\x01\x60\x00\x00\x03\x00"
+    "\x90\x00\x00\x03\x00\x00\x03\x00\x1e\xba\x02\x40"
+    // Sequence parameter set (SPS); starts with an Annex B delimiter.
+    "\x00\x00\x00\x01\x42\x01\x01\x01\x60\x00\x00\x03\x00\x90\x00\x00"
+    "\x03\x00\x00\x03\x00\x1e\xa0\x88\x45\x96\xea\xaf\x0b\x20"
+    // Picture parameter set (PPS); starts with an Annex B delimiter.
+    "\x00\x00\x00\x01\x44\x01\xc0\x71\x81\x12"sv,
+    // Packet 2: instantaneous decoder refresh (IDR) picture.
+    // IDR slice; starts with an Annex B delimiter.
+    "\x00\x00\x01\x28\x01\xad\xe0\xd1\x17\xff\x25\xbb\x80"sv,
   };
-
-  // clang-format on
 
   /**
    * @brief Select ordered packet payloads with the requested SPS VUI flag.
@@ -216,7 +230,10 @@ namespace {
 TEST_P(ValidateSpsTest, DetectsVuiInActiveSps) {
   const auto &[codec_id, has_vui, split] = GetParam();
   const auto &fixture = first_idr_fixture(codec_id, has_vui);
-  std::vector<std::vector<uint8_t>> payloads(fixture.begin(), fixture.end());
+  std::vector<std::vector<uint8_t>> payloads;
+  for (const auto packet_bytes : fixture) {
+    payloads.emplace_back(packet_bytes.begin(), packet_bytes.end());
+  }
   if (!split) {
     std::vector<uint8_t> combined;
     for (const auto &payload : payloads) {
