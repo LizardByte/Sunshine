@@ -662,7 +662,10 @@ namespace video {
   namespace pyrowave {
     inline constexpr int video_format = 3;  ///< Experimental GameStream bitStreamFormat value.
     inline constexpr uint32_t scm_sdr = 0x00800000;  ///< ServerCodecModeSupport bit for 8-bit 4:2:0.
+    inline constexpr uint32_t scm_sdr_444 = 0x01000000;  ///< ServerCodecModeSupport bit for 8-bit 4:4:4.
     inline constexpr uint32_t scm_hdr = 0x02000000;  ///< ServerCodecModeSupport bit for 10-bit 4:2:0.
+    inline constexpr uint32_t scm_hdr_444 = 0x04000000;  ///< ServerCodecModeSupport bit for 10-bit 4:4:4.
+    inline constexpr uint32_t scm_mask = scm_sdr | scm_sdr_444 | scm_hdr | scm_hdr_444;  ///< All PyroWave profile bits.
     inline constexpr size_t packet_boundary = 1400;  ///< Maximum native codec packet length inside a frame.
     inline constexpr size_t max_frame_size = 16 * 1024 * 1024;  ///< Bound on codec output allocation.
 
@@ -670,7 +673,7 @@ namespace video {
      * @brief Validate dimensions, color format, framerate, and bitrate for PyroWave.
      *
      * @param config Negotiated stream configuration.
-     * @return True for supported 8-bit or 10-bit 4:2:0 configurations.
+     * @return True for supported 8-bit or 10-bit 4:2:0 or 4:4:4 configurations.
      */
     bool valid_config(const config_t &config);
 
@@ -686,10 +689,27 @@ namespace video {
      * @brief Check a requested profile against the last successful encoder probe.
      *
      * @param config Negotiated stream configuration.
-     * @param mode Probed mode: 0 unavailable, 2 SDR, 3 SDR and 10-bit HDR.
+     * @param profiles Successfully probed ServerCodecModeSupport profile bits.
      * @return Whether the requested profile may be accepted.
      */
-    bool supported(const config_t &config, int mode);
+    bool supported(const config_t &config, uint32_t profiles);
+
+    /**
+     * @brief Probe each color depth and chroma profile independently.
+     *
+     * @param validate Callback that tests capture, conversion, and encoding for a profile.
+     * @return ServerCodecModeSupport bits for successful profiles.
+     */
+    uint32_t probe_profiles(const std::function<bool(const config_t &)> &validate);
+
+    /**
+     * @brief Select the capture converter's pixel layout for a PyroWave profile.
+     *
+     * @param formats Capture backend's pixel formats.
+     * @param config Negotiated stream configuration.
+     * @return Pixel layout, or AV_PIX_FMT_NONE when unavailable.
+     */
+    AVPixelFormat capture_format(const encoder_platform_formats_t &formats, const config_t &config);
 
     /**
      * @brief PyroWave session interface used by the common capture pipeline.
@@ -774,7 +794,7 @@ namespace video {
 
   extern int active_hevc_mode;
   extern int active_av1_mode;
-  extern int active_pyrowave_mode;  ///< Probed PyroWave profiles: 0 unavailable, 2 SDR, 3 SDR and HDR.
+  extern uint32_t active_pyrowave_profiles;  ///< Independently probed PyroWave ServerCodecModeSupport profile bits.
   extern bool last_encoder_probe_supported_ref_frames_invalidation;
   extern std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec;  // 0 - H.264, 1 - HEVC, 2 - AV1
 

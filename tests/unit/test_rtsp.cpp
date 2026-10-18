@@ -18,6 +18,7 @@ extern "C" {
 #include "../tests_common.h"
 
 // local includes
+#include <src/config.h>
 #include <src/rtsp.h>
 #include <src/video.h>
 
@@ -118,24 +119,33 @@ namespace {
 }  // namespace
 
 TEST(RtspPyrowaveTest, AdvertisesOnlyProbedProfiles) {
-  const auto previous = video::active_pyrowave_mode;
+  const auto previous = video::active_pyrowave_profiles;
   const auto restore = util::fail_guard([previous]() {
-    video::active_pyrowave_mode = previous;
+    video::active_pyrowave_profiles = previous;
   });
-  for (int mode : {0, 2, 3}) {
-    video::active_pyrowave_mode = mode;
+  for (uint32_t profiles = 0; profiles < 16; ++profiles) {
+    video::active_pyrowave_profiles = profiles << 23;
     auto response = pyrowave_rtsp_response(true);
-    EXPECT_EQ(response.find("a=rtpmap:99 PYROWAVE/90000") != std::string::npos, mode >= 2);
-    EXPECT_EQ(response.find("a=x-ss-video[0].pyrowaveFrameFormat:PYRW/1") != std::string::npos, mode >= 2);
+    EXPECT_EQ(response.find("a=rtpmap:99 PYROWAVE/90000") != std::string::npos, profiles != 0);
+    EXPECT_EQ(response.find("a=x-ss-video[0].pyrowaveFrameFormat:PYRW/1") != std::string::npos, profiles != 0);
     EXPECT_NE(response.find("CSeq: 17"), std::string::npos);
   }
 }
 
-TEST(RtspPyrowaveTest, RejectsUnavailableHdrAndUnknownFormatsBeforeStartingCapture) {
-  const auto previous = video::active_pyrowave_mode;
-  const auto restore = util::fail_guard([previous]() {
-    video::active_pyrowave_mode = previous;
+/**
+ * @brief Validate every profile independently, stopping accepted requests at the encryption gate.
+ */
+TEST(RtspPyrowaveTest, NegotiatesProbedProfilesAndRejectsUnknownFormatsBeforeStartingCapture) {
+  const auto previous = video::active_pyrowave_profiles;
+  const auto previous_lan = config::stream.lan_encryption_mode;
+  const auto previous_wan = config::stream.wan_encryption_mode;
+  const auto restore = util::fail_guard([=]() {
+    video::active_pyrowave_profiles = previous;
+    config::stream.lan_encryption_mode = previous_lan;
+    config::stream.wan_encryption_mode = previous_wan;
   });
+  config::stream.lan_encryption_mode = config::ENCRYPTION_MODE_MANDATORY;
+  config::stream.wan_encryption_mode = config::ENCRYPTION_MODE_MANDATORY;
   const std::string base =
     "s=Moonlight\r\n"
     "a=x-nv-audio.surround.numChannels:2\r\n"
@@ -148,19 +158,25 @@ TEST(RtspPyrowaveTest, RejectsUnavailableHdrAndUnknownFormatsBeforeStartingCaptu
     "a=x-nv-vqos[0].bw.maximumBitrateKbps:200000\r\n"
     "a=x-nv-video[0].videoEncoderSlicesPerFrame:1\r\n"
     "a=x-nv-video[0].maxNumReferenceFrames:0\r\n";
-  for (const auto &[mode, format, hdr, chroma] : std::array {
-         std::array {0, 3, 0, 0},
-         std::array {2, 3, 1, 0},
-         std::array {3, 3, 2, 0},
-         std::array {3, 3, 0, 1},
-         std::array {3, -1, 0, 0},
-         std::array {3, 4, 0, 0}
-       }) {
-    video::active_pyrowave_mode = mode;
-    auto payload = base + "a=x-nv-vqos[0].bitStreamFormat:" + std::to_string(format) + "\r\n" +
-                   "a=x-nv-video[0].dynamicRangeMode:" + std::to_string(hdr) + "\r\n" +
-                   "a=x-ss-video[0].chromaSamplingType:" + std::to_string(chroma) + "\r\n";
-    EXPECT_TRUE(pyrowave_rtsp_response(false, payload).starts_with("RTSP/1.0 400 BAD REQUEST\r\n"));
+  for (uint32_t profiles = 0; profiles < 16; ++profiles) {
+    video::active_pyrowave_profiles = profiles << 23;
+    for (const auto &[format, hdr, chroma] : std::array {
+           std::array {3, 0, 0},
+           std::array {3, 0, 1},
+           std::array {3, 1, 0},
+           std::array {3, 1, 1},
+           std::array {3, 2, 0},
+           std::array {3, 0, 2},
+           std::array {-1, 0, 0},
+           std::array {4, 0, 0}
+         }) {
+      auto payload = base + "a=x-nv-vqos[0].bitStreamFormat:" + std::to_string(format) + "\r\n" +
+                     "a=x-nv-video[0].dynamicRangeMode:" + std::to_string(hdr) + "\r\n" +
+                     "a=x-ss-video[0].chromaSamplingType:" + std::to_string(chroma) + "\r\n";
+      const bool supported = format == 3 && hdr < 2 && chroma < 2 && (profiles & (1 << (hdr * 2 + chroma)));
+      EXPECT_TRUE(pyrowave_rtsp_response(false, payload).starts_with(supported ? "RTSP/1.0 403 Forbidden\r\n" : "RTSP/1.0 400 BAD REQUEST\r\n"))
+        << "profiles " << profiles << ", format " << format << ", HDR " << hdr << ", chroma " << chroma;
+    }
   }
 }
 

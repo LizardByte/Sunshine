@@ -909,7 +909,7 @@ namespace rtsp_stream {
       ss << "a=rtpmap:98 AV1/90000"sv << std::endl;
     }
 
-    if (video::active_pyrowave_mode >= 2) {
+    if (video::active_pyrowave_profiles != 0) {
       ss << "a=rtpmap:99 PYROWAVE/90000"sv << std::endl;
       ss << "a=x-ss-video[0].pyrowaveFrameFormat:PYRW/1"sv << std::endl;
     }
@@ -1230,7 +1230,7 @@ namespace rtsp_stream {
       config.monitor.bitrate = (int) configuredBitrateKbps;
     }
 
-    if (config.monitor.videoFormat < 0 || config.monitor.videoFormat > video::pyrowave::video_format || (config.monitor.videoFormat == video::pyrowave::video_format && !video::pyrowave::supported(config.monitor, video::active_pyrowave_mode))) {
+    if (config.monitor.videoFormat < 0 || config.monitor.videoFormat > video::pyrowave::video_format || (config.monitor.videoFormat == video::pyrowave::video_format && !video::pyrowave::supported(config.monitor, video::active_pyrowave_profiles))) {
       BOOST_LOG(warning) << "Client requested an unavailable video format or PyroWave profile";
       respond(sock, session, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
       return;

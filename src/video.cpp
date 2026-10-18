@@ -643,14 +643,55 @@ namespace video {
 
     bool valid_config(const config_t &config) {
       return config.videoFormat == video_format &&
-             config.width > 0 && config.width <= 16384 && config.width % 2 == 0 &&
-             config.height > 0 && config.height <= 16384 && config.height % 2 == 0 &&
+             config.width > 0 && config.width <= 16384 &&
+             config.height > 0 && config.height <= 16384 &&
              (config.dynamicRange == 0 || config.dynamicRange == 1) &&
-             config.chromaSamplingType == 0 && frame_budget(config) != 0;
+             (config.chromaSamplingType == 1 || (config.chromaSamplingType == 0 && config.width % 2 == 0 && config.height % 2 == 0)) &&
+             frame_budget(config) != 0;
     }
 
-    bool supported(const config_t &config, int mode) {
-      return valid_config(config) && (mode == 3 || (mode == 2 && config.dynamicRange == 0));
+    /**
+     * @brief Identify the wire capability required by a validated PyroWave configuration.
+     * @param config Validated stream configuration.
+     * @return ServerCodecModeSupport bit for this profile.
+     */
+    uint32_t profile_flag(const config_t &config) {
+      return config.chromaSamplingType ? (config.dynamicRange ? scm_hdr_444 : scm_sdr_444) :
+                                         (config.dynamicRange ? scm_hdr : scm_sdr);
+    }
+
+    bool supported(const config_t &config, uint32_t profiles) {
+      return valid_config(config) && (profiles & profile_flag(config)) != 0;
+    }
+
+    uint32_t probe_profiles(const std::function<bool(const config_t &)> &validate) {
+      config_t probe {1920, 1080, 60, 6000, 200000, 1, 0, 3, video_format, 0, 0, 0};
+      uint32_t profiles = 0;
+      for (int chroma : {0, 1}) {
+        for (int hdr : {0, 1}) {
+          probe.chromaSamplingType = chroma;
+          probe.dynamicRange = hdr;
+          if (validate(probe)) {
+            profiles |= profile_flag(probe);
+            BOOST_LOG(info) << "Found PyroWave encoder (" << (hdr ? "HDR" : "SDR") << ", " << (chroma ? "4:4:4" : "4:2:0") << ')';
+          }
+        }
+      }
+      return profiles;
+    }
+
+    AVPixelFormat capture_format(const encoder_platform_formats_t &formats, const config_t &config) {
+      // The shared D3D11 converter supports packed 4:4:4 independently of the hardware video encoder.
+      if (formats.dev_type == platf::mem_type_e::dxgi) {
+        return config.chromaSamplingType ? (config.dynamicRange ? AV_PIX_FMT_XV30 : AV_PIX_FMT_VUYX) :
+                                           (config.dynamicRange ? AV_PIX_FMT_P010 : AV_PIX_FMT_NV12);
+      }
+      const auto avcodec_formats = dynamic_cast<const encoder_platform_formats_avcodec *>(&formats);
+      if (!avcodec_formats) {
+        return AV_PIX_FMT_NONE;
+      }
+      return config.chromaSamplingType ? (config.dynamicRange ? avcodec_formats->avcodec_pix_fmt_yuv444_10bit : avcodec_formats->avcodec_pix_fmt_yuv444_8bit) :
+                                         (config.dynamicRange ? avcodec_formats->avcodec_pix_fmt_10bit : avcodec_formats->avcodec_pix_fmt_8bit);
     }
 
     static_assert(PYROWAVE_API_VERSION_MAJOR == 1, "Sunshine requires PyroWave C API 1.x");
@@ -688,7 +729,7 @@ namespace video {
       }
 
       /**
-       * @brief Initialize the codec and planar frame for the negotiated color depth.
+       * @brief Initialize the codec and planar frame for the negotiated color depth and chroma sampling.
        *
        * @param config Negotiated stream configuration.
        * @return True when the Vulkan device and encoder are usable.
@@ -704,7 +745,7 @@ namespace video {
           BOOST_LOG(error) << "Could not create a PyroWave Vulkan device";
           return false;
         }
-        const pyrowave_encoder_create_info info {device, config.width, config.height, PYROWAVE_CHROMA_SUBSAMPLING_420};
+        const pyrowave_encoder_create_info info {device, config.width, config.height, config.chromaSamplingType ? PYROWAVE_CHROMA_SUBSAMPLING_444 : PYROWAVE_CHROMA_SUBSAMPLING_420};
         if (api.create_encoder(&info, &encoder) != PYROWAVE_SUCCESS) {
           BOOST_LOG(error) << "Could not create a PyroWave encoder";
           return false;
@@ -715,7 +756,8 @@ namespace video {
         if (!planar || !readback) {
           return false;
         }
-        planar->format = config.dynamicRange ? AV_PIX_FMT_YUV420P10 : AV_PIX_FMT_YUV420P;
+        planar->format = config.chromaSamplingType ? (config.dynamicRange ? AV_PIX_FMT_YUV444P10 : AV_PIX_FMT_YUV444P) :
+                                                     (config.dynamicRange ? AV_PIX_FMT_YUV420P10 : AV_PIX_FMT_YUV420P);
         planar->width = config.width;
         planar->height = config.height;
         return av_frame_copy_props(planar.get(), converter->frame) >= 0 && av_frame_get_buffer(planar.get(), 0) >= 0;
@@ -744,13 +786,14 @@ namespace video {
 
         // Only change plane layout/bit storage here. The capture converter has
         // already applied the negotiated matrix, range, and HDR transfer function.
-        if (source->format != AV_PIX_FMT_NV12 && source->format != AV_PIX_FMT_P010 && source->format != AV_PIX_FMT_YUV420P && source->format != AV_PIX_FMT_YUV420P10) {
+        if (source->format != AV_PIX_FMT_NV12 && source->format != AV_PIX_FMT_P010 && source->format != AV_PIX_FMT_YUV420P && source->format != AV_PIX_FMT_YUV420P10 && source->format != AV_PIX_FMT_YUV444P && source->format != AV_PIX_FMT_YUV444P10 && source->format != AV_PIX_FMT_YUV444P16 && source->format != AV_PIX_FMT_VUYX && source->format != AV_PIX_FMT_XV30) {
           BOOST_LOG(error) << "Unsupported PyroWave input pixel format: " << source->format;
           return -1;
         }
-        const bool input_10bit = source->format == AV_PIX_FMT_P010 || source->format == AV_PIX_FMT_YUV420P10;
-        if (input_10bit != (planar->format == AV_PIX_FMT_YUV420P10)) {
-          BOOST_LOG(error) << "PyroWave input color depth does not match the negotiated profile";
+        const auto input_desc = av_pix_fmt_desc_get(AVPixelFormat(source->format));
+        const auto output_desc = av_pix_fmt_desc_get(AVPixelFormat(planar->format));
+        if ((input_desc->comp[0].depth > 8) != (output_desc->comp[0].depth > 8) || input_desc->log2_chroma_w != output_desc->log2_chroma_w || input_desc->log2_chroma_h != output_desc->log2_chroma_h) {
+          BOOST_LOG(error) << "PyroWave input color depth or chroma sampling does not match the negotiated profile";
           return -1;
         }
         auto context = sws_getCachedContext(scaler.release(), source->width, source->height, AVPixelFormat(source->format), planar->width, planar->height, AVPixelFormat(planar->format), SWS_POINT, nullptr, nullptr, nullptr);
@@ -793,11 +836,13 @@ namespace video {
         pyrowave_cpu_buffer input {};
         input.width = planar->width;
         input.height = planar->height;
-        input.format = planar->format == AV_PIX_FMT_YUV420P10 ? PYROWAVE_CPU_BUFFER_FORMAT_YUV420P10 : PYROWAVE_CPU_BUFFER_FORMAT_YUV420P;
+        const auto desc = av_pix_fmt_desc_get(AVPixelFormat(planar->format));
+        input.format = desc->log2_chroma_w == 0 ? (desc->comp[0].depth == 10 ? PYROWAVE_CPU_BUFFER_FORMAT_YUV444P10 : PYROWAVE_CPU_BUFFER_FORMAT_YUV444P) :
+                                                  (desc->comp[0].depth == 10 ? PYROWAVE_CPU_BUFFER_FORMAT_YUV420P10 : PYROWAVE_CPU_BUFFER_FORMAT_YUV420P);
         for (int plane = 0; plane < 3; ++plane) {
           input.data[plane] = planar->data[plane];
           input.row_stride_in_bytes[plane] = planar->linesize[plane];
-          input.plane_size_in_bytes[plane] = input.row_stride_in_bytes[plane] * (plane ? input.height / 2 : input.height);
+          input.plane_size_in_bytes[plane] = input.row_stride_in_bytes[plane] * (input.height >> (plane ? desc->log2_chroma_h : 0));
         }
         size_t count = 0;
         if (api.encode_cpu(encoder, &input, &rate_control) != PYROWAVE_SUCCESS || api.num_packets(encoder, packet_boundary, &count) != PYROWAVE_SUCCESS || count == 0 || count > std::numeric_limits<uint16_t>::max() || count > max_frame_size / packet_boundary) {
@@ -836,7 +881,7 @@ namespace video {
       pyrowave_rate_control rate_control;  ///< Per-frame coefficient byte budget.
       avcodec_frame_t readback;  ///< Downloaded hardware frame, when needed.
       avcodec_frame_t planar;  ///< Planar 8-bit or 10-bit YCbCr input.
-      sws_t scaler;  ///< Lossless plane-layout conversion for NV12/P010 inputs.
+      sws_t scaler;  ///< Plane-layout and bit-storage conversion preserving negotiated chroma and color depth.
       std::vector<pyrowave_packet> packets;  ///< Packet offsets returned by the C API.
       std::vector<uint8_t> bitstream;  ///< Reusable encoded coefficient storage.
       bool ready = false;  ///< Whether conversion has produced a usable frame.
@@ -1718,7 +1763,7 @@ namespace video {
   static encoder_t *chosen_encoder;
   int active_hevc_mode;  ///< HEVC mode selected by the most recent encoder probe.
   int active_av1_mode;  ///< AV1 mode selected by the most recent encoder probe.
-  int active_pyrowave_mode;  ///< PyroWave profiles validated on the selected capture backend.
+  uint32_t active_pyrowave_profiles;  ///< PyroWave profile bits validated on the selected capture backend.
   bool last_encoder_probe_supported_ref_frames_invalidation = false;  ///< Whether the last probe found reference-frame invalidation support.
   std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec = {};  ///< YUV444 support discovered for each probed codec.
 
@@ -2627,9 +2672,10 @@ namespace video {
    * @param width Captured image width.
    * @param height Captured image height.
    * @param device Platform color-conversion device.
+   * @param api PyroWave C API entry points.
    * @return PyroWave session, or null if conversion or encoding is unavailable.
    */
-  std::unique_ptr<encode_session_t> make_pyrowave_encode_session(const encoder_t &encoder, const config_t &config, int width, int height, std::unique_ptr<platf::avcodec_encode_device_t> device) {
+  std::unique_ptr<encode_session_t> make_pyrowave_encode_session(const encoder_t &encoder, const config_t &config, int width, int height, std::unique_ptr<platf::avcodec_encode_device_t> device, const pyrowave::api_t &api = {}) {
     if (!pyrowave::valid_config(config) || !device || !encoder.platform_formats || width <= 0 || height <= 0) {
       return nullptr;
     }
@@ -2649,8 +2695,8 @@ namespace video {
       AV_PIX_FMT_D3D11,
       AV_PIX_FMT_NV12,
       AV_PIX_FMT_P010,
-      AV_PIX_FMT_NONE,
-      AV_PIX_FMT_NONE,
+      AV_PIX_FMT_VUYX,
+      AV_PIX_FMT_XV30,
       dxgi_init_avcodec_hardware_input_buffer
     };
     if (encoder.platform_formats->dev_type == platf::mem_type_e::dxgi) {
@@ -2660,7 +2706,10 @@ namespace video {
     if (!formats) {
       return nullptr;
     }
-    const auto sw_format = config.dynamicRange ? formats->avcodec_pix_fmt_10bit : formats->avcodec_pix_fmt_8bit;
+    const auto sw_format = pyrowave::capture_format(*encoder.platform_formats, config);
+    if (sw_format == AV_PIX_FMT_NONE) {
+      return nullptr;
+    }
     avcodec_frame_t frame {av_frame_alloc()};
     if (!frame) {
       return nullptr;
@@ -2715,7 +2764,7 @@ namespace video {
       return nullptr;
     }
     device->apply_colorspace();
-    return pyrowave::make_session(config, std::move(device), std::move(frames));
+    return pyrowave::make_session(config, std::move(device), api, std::move(frames));
   }
 
   /**
@@ -2941,7 +2990,12 @@ namespace video {
     auto colorspace = colorspace_from_client_config(config, disp.is_hdr());
 
     platf::pix_fmt_e pix_fmt;
-    if (config.chromaSamplingType == 1) {
+    if (config.videoFormat == pyrowave::video_format) {
+      pix_fmt = map_pix_fmt(pyrowave::capture_format(*encoder.platform_formats, config));
+      if (pix_fmt == platf::pix_fmt_e::unknown) {
+        return {};
+      }
+    } else if (config.chromaSamplingType == 1) {
       // YUV 4:4:4
       if (!(encoder.flags & YUV444_SUPPORT)) {
         // Encoder can't support YUV 4:4:4 regardless of hardware capabilities
@@ -3620,29 +3674,23 @@ namespace video {
   }
 
   /**
-   * @brief Probe PyroWave SDR and HDR using the selected capture and color-conversion backend.
+   * @brief Probe each PyroWave color depth and chroma profile using the selected capture backend.
    * @param encoder Encoder descriptor selecting the capture backend.
    */
   void probe_pyrowave(const encoder_t &encoder) {
-    active_pyrowave_mode = 0;
+    active_pyrowave_profiles = 0;
     if (!config::video.pyrowave) {
       return;
     }
-    config_t probe {1920, 1080, 60, 6000, 200000, 1, 0, 3, pyrowave::video_format, 0, 0, 0};
     const auto output_name = display_device::map_output_name(config::video.output_name);
     std::shared_ptr<platf::display_t> display;
-    reset_display(display, encoder.platform_formats->dev_type, output_name, probe);
-    if (!display || validate_config(display, encoder, probe) < 0) {
+    active_pyrowave_profiles = pyrowave::probe_profiles([&](const config_t &probe) {
+      reset_display(display, encoder.platform_formats->dev_type, output_name, probe);
+      return display && validate_config(display, encoder, probe) >= 0;
+    });
+    if (!active_pyrowave_profiles) {
       BOOST_LOG(warning) << "PyroWave is unavailable on the selected capture backend";
-      return;
     }
-    active_pyrowave_mode = 2;
-    probe.dynamicRange = 1;
-    reset_display(display, encoder.platform_formats->dev_type, output_name, probe);
-    if (display && validate_config(display, encoder, probe) >= 0) {
-      active_pyrowave_mode = 3;
-    }
-    BOOST_LOG(info) << "Found PyroWave encoder (" << (active_pyrowave_mode == 3 ? "SDR and HDR" : "SDR") << ')';
   }
 
   int probe_encoders() {
@@ -3664,7 +3712,7 @@ namespace video {
     chosen_encoder = nullptr;
     active_hevc_mode = config::video.hevc_mode;
     active_av1_mode = config::video.av1_mode;
-    active_pyrowave_mode = 0;
+    active_pyrowave_profiles = 0;
     last_encoder_probe_supported_ref_frames_invalidation = false;
 
     auto adjust_encoder_constraints_hevc = [&](encoder_t *encoder) {

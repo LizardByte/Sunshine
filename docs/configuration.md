@@ -2232,7 +2232,7 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Allows compatible clients to request PyroWave 8-bit or 10-bit 4:2:0 video streams.
+            Allows compatible clients to request PyroWave 8-bit or 10-bit 4:2:0 or 4:4:4 video streams.
             Support is advertised based on encoder capabilities. HDR requires a supported capture backend
             and HDR enabled on the host display and client.
             @warning{PyroWave consumes a significant amount of bandwidth. Not recommended unless on LAN and utilizing a hardwired connection.}
