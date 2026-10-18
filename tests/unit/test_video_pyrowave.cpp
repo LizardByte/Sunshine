@@ -1,6 +1,6 @@
 /**
  * @file tests/unit/test_video_pyrowave.cpp
- * @brief Regression coverage for PyroWave profiles, HDR precision, framing, and failures.
+ * @brief Regression coverage for PyroWave profiles, chroma and HDR precision, framing, and failures.
  */
 
 // test includes
@@ -19,6 +19,7 @@
 extern "C" {
 #include <libavutil/hwcontext.h>
 #include <libavutil/mem.h>
+#include <libavutil/pixdesc.h>
 #ifdef SUNSHINE_BUILD_VULKAN
   #include <libavutil/hwcontext_vulkan.h>
 #endif
@@ -53,6 +54,27 @@ namespace video {
   std::unique_ptr<encode_session_t> make_encode_session(platf::display_t *disp, const encoder_t &encoder, const config_t &config, int width, int height, std::unique_ptr<platf::encode_device_t> encode_device);
 
   /**
+   * @brief Create a PyroWave capture session with injectable codec entry points.
+   * @param encoder Capture backend descriptor.
+   * @param config Negotiated configuration.
+   * @param width Captured width.
+   * @param height Captured height.
+   * @param device Capture conversion device.
+   * @param api Codec entry points.
+   * @return Initialized session, or null on failure.
+   */
+  std::unique_ptr<encode_session_t> make_pyrowave_encode_session(const encoder_t &encoder, const config_t &config, int width, int height, std::unique_ptr<platf::avcodec_encode_device_t> device, const pyrowave::api_t &api);
+
+  /**
+   * @brief Request a capture converter for the negotiated format.
+   * @param disp Capture display.
+   * @param encoder Capture backend descriptor.
+   * @param config Negotiated configuration.
+   * @return Capture device, or null when unsupported.
+   */
+  std::unique_ptr<platf::encode_device_t> make_encode_device(platf::display_t &disp, const encoder_t &encoder, const config_t &config);
+
+  /**
    * @brief Refresh available PyroWave profiles.
    * @param encoder Capture backend descriptor.
    */
@@ -67,18 +89,20 @@ namespace nvhttp {
   uint32_t get_codec_mode_flags();
 }  // namespace nvhttp
 
-TEST(PyrowaveConfigTest, ServerInfoReportsSdrAndHdrIndependently) {
-  const auto previous = video::active_pyrowave_mode;
+TEST(PyrowaveConfigTest, ServerInfoReportsEachProfileIndependently) {
+  const auto previous = video::active_pyrowave_profiles;
   const auto restore = util::fail_guard([previous]() {
-    video::active_pyrowave_mode = previous;
+    video::active_pyrowave_profiles = previous;
   });
-  video::active_pyrowave_mode = 0;
+  video::active_pyrowave_profiles = 0;
   const auto baseline = nvhttp::get_codec_mode_flags();
-  EXPECT_EQ(baseline & (video::pyrowave::scm_sdr | video::pyrowave::scm_hdr), 0);
-  video::active_pyrowave_mode = 2;
-  EXPECT_EQ(nvhttp::get_codec_mode_flags(), baseline | video::pyrowave::scm_sdr);
-  video::active_pyrowave_mode = 3;
-  EXPECT_EQ(nvhttp::get_codec_mode_flags(), baseline | video::pyrowave::scm_sdr | video::pyrowave::scm_hdr);
+  EXPECT_EQ(baseline & video::pyrowave::scm_mask, 0);
+  for (uint32_t profiles = 0; profiles < 16; ++profiles) {
+    video::active_pyrowave_profiles = profiles << 23;
+    EXPECT_EQ(nvhttp::get_codec_mode_flags(), baseline | (profiles << 23));
+  }
+  video::active_pyrowave_profiles = ~video::pyrowave::scm_mask;
+  EXPECT_EQ(nvhttp::get_codec_mode_flags(), baseline);
 }
 
 namespace {
@@ -89,15 +113,64 @@ namespace {
   video::config_t pyrowave_config() {
     return {64, 48, 60, 6000, 200000, 1, 0, 3, video::pyrowave::video_format, 0, 0, 0};
   }
+
+  /**
+   * @brief Record converter requests without requiring a display or video encoder.
+   */
+  class pyrowave_test_display_t: public platf::display_t {
+  public:
+    /**
+     * @copydoc platf::display_t::capture
+     */
+    platf::capture_e capture(const push_captured_image_cb_t &, const pull_free_image_cb_t &, bool *) override {
+      return platf::capture_e::ok;
+    }
+
+    /**
+     * @copydoc platf::display_t::alloc_img
+     */
+    std::shared_ptr<platf::img_t> alloc_img() override {
+      return {};
+    }
+
+    /**
+     * @copydoc platf::display_t::dummy_img
+     */
+    int dummy_img(platf::img_t *) override {
+      return -1;
+    }
+
+    /**
+     * @copydoc platf::display_t::make_avcodec_encode_device
+     */
+    std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(platf::pix_fmt_e format) override {
+      requested = format;
+      return std::make_unique<platf::avcodec_encode_device_t>();
+    }
+
+    platf::pix_fmt_e requested = platf::pix_fmt_e::unknown;  ///< Last requested conversion format.
+  };
 }  // namespace
 
 TEST(PyrowaveConfigTest, NegotiatesOnlySuccessfullyProbedProfiles) {
   auto config = pyrowave_config();
-  for (int mode : {0, 1, 2, 3, 4}) {
-    config.dynamicRange = 0;
-    EXPECT_EQ(video::pyrowave::supported(config, mode), mode == 2 || mode == 3);
-    config.dynamicRange = 1;
-    EXPECT_EQ(video::pyrowave::supported(config, mode), mode == 3);
+  const uint32_t flags[] {video::pyrowave::scm_sdr, video::pyrowave::scm_sdr_444, video::pyrowave::scm_hdr, video::pyrowave::scm_hdr_444};
+  for (uint32_t profiles = 0; profiles < 16; ++profiles) {
+    std::array<int, 4> calls {};
+    const auto probed = video::pyrowave::probe_profiles([&](const video::config_t &probe) {
+      EXPECT_TRUE(video::pyrowave::valid_config(probe));
+      const auto profile = probe.dynamicRange * 2 + probe.chromaSamplingType;
+      ++calls.at(profile);
+      return (profiles & (1 << profile)) != 0;
+    });
+    EXPECT_EQ(probed, profiles << 23);
+    EXPECT_EQ(calls, (std::array {1, 1, 1, 1}));
+    for (int profile = 0; profile < 4; ++profile) {
+      config.chromaSamplingType = profile % 2;
+      config.dynamicRange = profile / 2;
+      EXPECT_EQ(video::pyrowave::supported(config, probed), (profiles & (1 << profile)) != 0);
+      EXPECT_TRUE(video::pyrowave::supported(config, flags[profile]));
+    }
   }
 }
 
@@ -118,7 +191,7 @@ TEST(PyrowaveConfigTest, RejectsMalformedOrUnsupportedRequests) {
     {&video::config_t::dynamicRange, -1},
     {&video::config_t::dynamicRange, 2},
     {&video::config_t::chromaSamplingType, -1},
-    {&video::config_t::chromaSamplingType, 1},
+    {&video::config_t::chromaSamplingType, 2},
     {&video::config_t::bitrate, 0},
     {&video::config_t::bitrate, -1},
     {&video::config_t::bitrate, std::numeric_limits<int>::max()},
@@ -130,8 +203,66 @@ TEST(PyrowaveConfigTest, RejectsMalformedOrUnsupportedRequests) {
     auto config = valid;
     config.*member = value;
     EXPECT_FALSE(video::pyrowave::valid_config(config)) << value;
-    EXPECT_FALSE(video::pyrowave::supported(config, 3)) << value;
+    EXPECT_FALSE(video::pyrowave::supported(config, video::pyrowave::scm_mask)) << value;
   }
+  auto config = valid;
+  config.chromaSamplingType = 1;
+  config.width = 63;
+  config.height = 47;
+  EXPECT_TRUE(video::pyrowave::valid_config(config));
+}
+
+/**
+ * @brief Select capture layouts independently of the hardware video encoder's codec support.
+ */
+TEST(PyrowaveConfigTest, SelectsCaptureFormatsForEachProfile) {
+  video::encoder_t native {
+    .platform_formats = std::make_unique<video::encoder_platform_formats_nvenc>(
+      platf::mem_type_e::dxgi,
+      platf::pix_fmt_e::nv12,
+      platf::pix_fmt_e::p010,
+      platf::pix_fmt_e::ayuv,
+      platf::pix_fmt_e::yuv444p16
+    )
+  };
+  video::encoder_platform_formats_avcodec cuda {
+    AV_HWDEVICE_TYPE_CUDA,
+    AV_HWDEVICE_TYPE_NONE,
+    AV_PIX_FMT_CUDA,
+    AV_PIX_FMT_NV12,
+    AV_PIX_FMT_P010,
+    AV_PIX_FMT_YUV444P,
+    AV_PIX_FMT_YUV444P16,
+    {}
+  };
+  const AVPixelFormat software_formats[] {AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV444P, AV_PIX_FMT_YUV420P10, AV_PIX_FMT_YUV444P10};
+  const AVPixelFormat dxgi_formats[] {AV_PIX_FMT_NV12, AV_PIX_FMT_VUYX, AV_PIX_FMT_P010, AV_PIX_FMT_XV30};
+  const AVPixelFormat cuda_formats[] {AV_PIX_FMT_NV12, AV_PIX_FMT_YUV444P, AV_PIX_FMT_P010, AV_PIX_FMT_YUV444P16};
+  pyrowave_test_display_t display;
+  auto config = pyrowave_config();
+  for (int profile = 0; profile < 4; ++profile) {
+    config.chromaSamplingType = profile % 2;
+    config.dynamicRange = profile / 2;
+    EXPECT_EQ(video::pyrowave::capture_format(*video::software.platform_formats, config), software_formats[profile]);
+    EXPECT_EQ(video::pyrowave::capture_format(*native.platform_formats, config), dxgi_formats[profile]);
+    EXPECT_EQ(video::pyrowave::capture_format(cuda, config), cuda_formats[profile]);
+    ASSERT_NE(video::make_encode_device(display, native, config), nullptr);
+    EXPECT_EQ(display.requested, video::map_pix_fmt(dxgi_formats[profile]));
+  }
+  video::encoder_platform_formats_t unknown {};
+  unknown.dev_type = platf::mem_type_e::system;
+  EXPECT_EQ(video::pyrowave::capture_format(unknown, config), AV_PIX_FMT_NONE);
+  cuda.avcodec_pix_fmt_yuv444_8bit = AV_PIX_FMT_NONE;
+  cuda.avcodec_pix_fmt_yuv444_10bit = AV_PIX_FMT_NONE;
+  EXPECT_EQ(video::pyrowave::capture_format(cuda, config), AV_PIX_FMT_NONE);
+  video::encoder_t unavailable {
+    .platform_formats = std::make_unique<video::encoder_platform_formats_avcodec>(cuda)
+  };
+  display.requested = platf::pix_fmt_e::unknown;
+  EXPECT_EQ(video::make_encode_device(display, unavailable, config), nullptr);
+  EXPECT_EQ(display.requested, platf::pix_fmt_e::unknown);
+  config.dynamicRange = 0;
+  EXPECT_EQ(video::make_encode_session(nullptr, unavailable, config, 64, 48, std::make_unique<platf::avcodec_encode_device_t>()), nullptr);
 }
 
 /**
@@ -176,20 +307,23 @@ TEST(PyrowaveConfigTest, PreservesHdrWithoutConsultingUnrelatedCodecCapabilities
   auto config = pyrowave_config();
   config.dynamicRange = 1;
   video::encoder_t encoder {};
-  EXPECT_EQ(video::resolve_dynamic_range(encoder, config).dynamicRange, 1);
+  for (int chroma : {0, 1}) {
+    config.chromaSamplingType = chroma;
+    EXPECT_EQ(video::resolve_dynamic_range(encoder, config).dynamicRange, 1);
+  }
 }
 
 TEST(PyrowaveConfigTest, DisablingTheCodecClearsPreviouslyProbedProfiles) {
-  const auto previous_mode = video::active_pyrowave_mode;
+  const auto previous_profiles = video::active_pyrowave_profiles;
   const auto previous_enabled = config::video.pyrowave;
   const auto restore = util::fail_guard([&]() {
-    video::active_pyrowave_mode = previous_mode;
+    video::active_pyrowave_profiles = previous_profiles;
     config::video.pyrowave = previous_enabled;
   });
-  video::active_pyrowave_mode = 3;
+  video::active_pyrowave_profiles = video::pyrowave::scm_mask;
   config::video.pyrowave = false;
   video::probe_pyrowave({});
-  EXPECT_EQ(video::active_pyrowave_mode, 0);
+  EXPECT_EQ(video::active_pyrowave_profiles, 0);
 }
 
 TEST(PyrowaveConfigTest, RejectsInvalidCaptureDevicesAndHdrFromRam) {
@@ -207,12 +341,12 @@ TEST(PyrowaveConfigTest, RejectsInvalidCaptureDevicesAndHdrFromRam) {
 
 namespace {
   /**
-   * @brief Converter supplying padded NV12/P010 frames without display hardware.
+   * @brief Converter supplying padded planar or packed YUV frames without display hardware.
    */
   class pyrowave_test_converter_t: public platf::avcodec_encode_device_t {
   public:
     /**
-     * @brief Allocate a frame and fill full-range endpoint values.
+     * @brief Fill alternating luma and checkerboard chroma with full-range endpoint values.
      * @param format Pixel storage layout supplied by the capture converter.
      */
     explicit pyrowave_test_converter_t(AVPixelFormat format) {
@@ -229,22 +363,23 @@ namespace {
       if (av_frame_get_buffer(frame, 128) < 0) {
         throw std::bad_alloc();
       }
-      const bool planar = format == AV_PIX_FMT_YUV420P || format == AV_PIX_FMT_YUV420P10;
-      for (int plane = 0; plane < (planar ? 3 : 2); ++plane) {
-        for (int y = 0; y < (plane ? 24 : 48); ++y) {
-          auto row = frame->data[plane] + y * frame->linesize[plane];
-          const auto width = planar && plane ? 32 : 64;
-          if (format == AV_PIX_FMT_P010 || format == AV_PIX_FMT_YUV420P10) {
-            auto words = reinterpret_cast<uint16_t *>(row);
-            for (int x = 0; x < width; ++x) {
-              const auto value = (planar && plane ? plane == 2 : x % 2) ? 1023 : 1;
-              words[x] = uint16_t(value << (format == AV_PIX_FMT_P010 ? 6 : 0));
-            }
-          } else {
-            for (int x = 0; x < width; ++x) {
-              row[x] = (planar && plane ? plane == 2 : x % 2) ? 255 : 1;
-            }
+      for (auto buffer : frame->buf) {
+        if (buffer) {
+          std::memset(buffer->data, 0, buffer->size);
+        }
+      }
+      const auto desc = av_pix_fmt_desc_get(format);
+      const auto maximum = desc->comp[0].depth > 8 ? 1023 : 255;
+      for (int component = 0; component < 3; ++component) {
+        const auto width = 64 >> (component ? desc->log2_chroma_w : 0);
+        const auto height = 48 >> (component ? desc->log2_chroma_h : 0);
+        std::array<uint16_t, 64> row {};
+        for (int y = 0; y < height; ++y) {
+          for (int x = 0; x < width; ++x) {
+            const auto value = (x + (component ? y : 0) + (component == 2)) % 2 ? maximum : 1;
+            row[x] = uint16_t(value << (desc->comp[0].depth == 16 ? 6 : 0));
           }
+          av_write_image_line(row.data(), frame->data, frame->linesize, desc, 0, y, component, width);
         }
       }
     }
@@ -289,6 +424,8 @@ namespace {
     int encoded = 0;  ///< Number of codec calls, including repeated frames.
     size_t budget = 0;  ///< Last requested bitrate budget.
     pyrowave_cpu_buffer_format format {};  ///< Last codec input format.
+    pyrowave_chroma_subsampling chroma {};  ///< Chroma sampling used to create the encoder.
+    std::optional<std::array<uint16_t, 3>> solid_color;  ///< Expected uniform YUV values instead of the checkerboard.
     std::array<uint16_t, 4> samples {};  ///< First two luma samples and first Cb/Cr samples.
     std::vector<std::string> destroyed;  ///< Resource destruction order.
   };
@@ -318,7 +455,7 @@ namespace {
     api.create_encoder = [](const pyrowave_encoder_create_info *info, pyrowave_encoder *encoder) {
       EXPECT_EQ(info->width, 64);
       EXPECT_EQ(info->height, 48);
-      EXPECT_EQ(info->chroma, PYROWAVE_CHROMA_SUBSAMPLING_420);
+      api_state->chroma = info->chroma;
       if (api_state->encoder_result == PYROWAVE_SUCCESS) {
         *encoder = reinterpret_cast<pyrowave_encoder>(api_state);
       }
@@ -331,11 +468,24 @@ namespace {
       ++api_state->encoded;
       api_state->budget = rate->maximum_bitstream_size;
       api_state->format = input->format;
+      const bool hdr = input->format == PYROWAVE_CPU_BUFFER_FORMAT_YUV420P10 || input->format == PYROWAVE_CPU_BUFFER_FORMAT_YUV444P10;
+      const bool subsampled = api_state->chroma == PYROWAVE_CHROMA_SUBSAMPLING_420;
       for (int plane = 0; plane < 3; ++plane) {
-        EXPECT_GE(input->row_stride_in_bytes[plane], plane ? 32 : 64);
-        EXPECT_EQ(input->plane_size_in_bytes[plane], input->row_stride_in_bytes[plane] * (plane ? 24 : 48));
+        const auto width = plane && subsampled ? 32 : 64;
+        const auto height = plane && subsampled ? 24 : 48;
+        EXPECT_GE(input->row_stride_in_bytes[plane], width * (hdr ? 2 : 1));
+        EXPECT_EQ(input->plane_size_in_bytes[plane], input->row_stride_in_bytes[plane] * height);
+        for (int y = 0; y < height; ++y) {
+          const auto row = static_cast<uint8_t *>(input->data[plane]) + y * input->row_stride_in_bytes[plane];
+          for (int x = 0; x < width; ++x) {
+            const auto value = hdr ? reinterpret_cast<const uint16_t *>(row)[x] : row[x];
+            const auto expected = api_state->solid_color ? (*api_state->solid_color)[plane] :
+                                                           ((x + (plane ? y : 0) + (plane == 2)) % 2 ? (hdr ? 1023 : 255) : 1);
+            EXPECT_EQ(value, expected) << "plane " << plane << ", x " << x << ", y " << y;
+          }
+        }
       }
-      if (input->format == PYROWAVE_CPU_BUFFER_FORMAT_YUV420P10) {
+      if (hdr) {
         api_state->samples = {static_cast<uint16_t *>(input->data[0])[0], static_cast<uint16_t *>(input->data[0])[1], static_cast<uint16_t *>(input->data[1])[0], static_cast<uint16_t *>(input->data[2])[0]};
       } else {
         api_state->samples = {static_cast<uint8_t *>(input->data[0])[0], static_cast<uint8_t *>(input->data[0])[1], static_cast<uint8_t *>(input->data[1])[0], static_cast<uint8_t *>(input->data[2])[0]};
@@ -459,10 +609,15 @@ TEST_F(PyrowaveSessionTest, RetainsTheBorrowedHardwarePoolUntilAfterConverterDes
 }
 
 TEST_F(PyrowaveSessionTest, EncodesSdrAndHdrWithExactPlaneValuesAndFraming) {
-  for (auto format : {AV_PIX_FMT_NV12, AV_PIX_FMT_P010, AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV420P10}) {
-    const bool hdr = format == AV_PIX_FMT_P010 || format == AV_PIX_FMT_YUV420P10;
+  const AVPixelFormat formats[] {AV_PIX_FMT_NV12, AV_PIX_FMT_P010, AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV420P10, AV_PIX_FMT_YUV444P, AV_PIX_FMT_YUV444P10, AV_PIX_FMT_YUV444P16, AV_PIX_FMT_VUYX, AV_PIX_FMT_XV30};
+  for (auto format : formats) {
+    SCOPED_TRACE(av_get_pix_fmt_name(format));
+    const auto desc = av_pix_fmt_desc_get(format);
+    const bool hdr = desc->comp[0].depth > 8;
+    const bool yuv444 = desc->log2_chroma_w == 0;
     auto config = pyrowave_config();
     config.dynamicRange = hdr;
+    config.chromaSamplingType = yuv444;
     auto converter = std::make_unique<pyrowave_test_converter_t>(format);
     auto session = video::pyrowave::make_session(config, std::move(converter), fake_pyrowave_api());
     ASSERT_NE(session, nullptr);
@@ -479,13 +634,16 @@ TEST_F(PyrowaveSessionTest, EncodesSdrAndHdrWithExactPlaneValuesAndFraming) {
     const std::vector<uint8_t> expected {'P', 'Y', 'R', 'W', 1, 0, 2, 0, 0, 0, 0, 3, 0x11, 0x22, 0x33, 0, 0, 0, 2, 0x44, 0x55};
     EXPECT_EQ(std::vector(packet->data(), packet->data() + packet->data_size()), expected);
     EXPECT_EQ(state.budget, 416666);
-    EXPECT_EQ(state.format, hdr ? PYROWAVE_CPU_BUFFER_FORMAT_YUV420P10 : PYROWAVE_CPU_BUFFER_FORMAT_YUV420P);
+    EXPECT_EQ(state.chroma, yuv444 ? PYROWAVE_CHROMA_SUBSAMPLING_444 : PYROWAVE_CHROMA_SUBSAMPLING_420);
+    EXPECT_EQ(state.format, yuv444 ? (hdr ? PYROWAVE_CPU_BUFFER_FORMAT_YUV444P10 : PYROWAVE_CPU_BUFFER_FORMAT_YUV444P) : (hdr ? PYROWAVE_CPU_BUFFER_FORMAT_YUV420P10 : PYROWAVE_CPU_BUFFER_FORMAT_YUV420P));
     EXPECT_EQ(state.samples, (std::array<uint16_t, 4> {1, uint16_t(hdr ? 1023 : 255), 1, uint16_t(hdr ? 1023 : 255)}));
     // Repeated capture content must be encoded again so the codec sequence advances.
     EXPECT_NE(session->encode(43), nullptr);
+    session.reset();
+    EXPECT_EQ(state.destroyed, (std::vector<std::string> {"encoder", "device"}));
+    state.destroyed.clear();
   }
-  EXPECT_EQ(state.encoded, 8);
-  EXPECT_EQ(state.destroyed, (std::vector<std::string> {"encoder", "device", "encoder", "device", "encoder", "device", "encoder", "device"}));
+  EXPECT_EQ(state.encoded, 2 * std::size(formats));
 }
 
 /**
@@ -495,19 +653,24 @@ TEST_F(PyrowaveSessionTest, DownloadsHardwareFramesWithoutLosingTenBitPrecision)
 #ifdef __APPLE__
   constexpr auto device_type = AV_HWDEVICE_TYPE_VIDEOTOOLBOX;
   constexpr auto hardware_format = AV_PIX_FMT_VIDEOTOOLBOX;
+  const AVPixelFormat formats[] {AV_PIX_FMT_NV12, AV_PIX_FMT_P010};
 #else
   constexpr auto device_type = AV_HWDEVICE_TYPE_VULKAN;
   constexpr auto hardware_format = AV_PIX_FMT_VULKAN;
+  const AVPixelFormat formats[] {AV_PIX_FMT_NV12, AV_PIX_FMT_P010, AV_PIX_FMT_YUV444P, AV_PIX_FMT_YUV444P10, AV_PIX_FMT_YUV444P16};
 #endif
   AVBufferRef *raw_device = nullptr;
   if (av_hwdevice_ctx_create(&raw_device, device_type, nullptr, nullptr, 0) < 0) {
     GTEST_SKIP() << "An FFmpeg-compatible " << av_hwdevice_get_type_name(device_type) << " device is unavailable";
   }
   video::avcodec_buffer_t device {raw_device};
-  for (bool hdr : {false, true}) {
+  for (auto format : formats) {
+    SCOPED_TRACE(av_get_pix_fmt_name(format));
+    const auto desc = av_pix_fmt_desc_get(format);
+    const bool hdr = desc->comp[0].depth > 8;
     auto config = pyrowave_config();
     config.dynamicRange = hdr;
-    const auto format = hdr ? AV_PIX_FMT_P010 : AV_PIX_FMT_NV12;
+    config.chromaSamplingType = desc->log2_chroma_w == 0;
     auto converter = std::make_unique<pyrowave_test_converter_t>(format);
     auto host = std::move(converter->owned);
     converter->owned.reset(av_frame_alloc());
@@ -564,7 +727,7 @@ TEST_F(PyrowaveSessionTest, DownloadsHardwareFramesWithoutLosingTenBitPrecision)
   }
 }
 
-TEST_F(PyrowaveSessionTest, ClearsReadinessAfterConversionFailureAndRejectsWrongDepth) {
+TEST_F(PyrowaveSessionTest, ClearsReadinessAfterConversionFailureAndRejectsWrongDepthOrChroma) {
   auto converter = std::make_unique<pyrowave_test_converter_t>(AV_PIX_FMT_NV12);
   auto raw = converter.get();
   auto session = video::pyrowave::make_session(pyrowave_config(), std::move(converter), fake_pyrowave_api());
@@ -578,6 +741,8 @@ TEST_F(PyrowaveSessionTest, ClearsReadinessAfterConversionFailureAndRejectsWrong
   raw->frame->format = AV_PIX_FMT_RGB24;
   EXPECT_EQ(session->convert(image), -1);
   raw->frame->format = AV_PIX_FMT_P010;
+  EXPECT_EQ(session->convert(image), -1);
+  raw->frame->format = AV_PIX_FMT_YUV444P;
   EXPECT_EQ(session->convert(image), -1);
   raw->frame->format = AV_PIX_FMT_NV12;
   raw->frame->width = 0;
@@ -598,7 +763,7 @@ TEST_F(PyrowaveSessionTest, RejectsInvalidInputsBeforeCallingTheCodec) {
     EXPECT_EQ(video::pyrowave::make_session(pyrowave_config(), std::move(converter), fake_pyrowave_api()), nullptr);
   }
   auto config = pyrowave_config();
-  config.chromaSamplingType = 1;
+  config.chromaSamplingType = 2;
   EXPECT_EQ(video::pyrowave::make_session(config, std::make_unique<pyrowave_test_converter_t>(AV_PIX_FMT_NV12), fake_pyrowave_api()), nullptr);
 
   auto converter = std::make_unique<pyrowave_test_converter_t>(AV_PIX_FMT_NV12);
@@ -713,11 +878,8 @@ protected:
   pyrowave_device device {};  ///< Real Vulkan codec device retained for decoder tests.
 };
 
-TEST_F(PyrowaveRoundTripTest, ConvertsCapturedRgbThroughTheSoftwareBackend) {
-  auto converter = std::make_unique<platf::avcodec_encode_device_t>();
-  converter->colorspace = video::colorspace_from_client_config(pyrowave_config(), false);
-  auto session = video::make_encode_session(nullptr, video::software, pyrowave_config(), 128, 96, std::move(converter));
-  ASSERT_NE(session, nullptr);
+TEST_F(PyrowaveSessionTest, ConvertsCapturedRgbThroughTheSoftwareBackend) {
+  state.solid_color = std::array<uint16_t, 3> {127, 128, 128};
   std::vector<uint8_t> pixels(128 * 96 * 4, 127);
   platf::img_t image {};
   image.data = pixels.data();
@@ -725,10 +887,19 @@ TEST_F(PyrowaveRoundTripTest, ConvertsCapturedRgbThroughTheSoftwareBackend) {
   image.height = 96;
   image.pixel_pitch = 4;
   image.row_pitch = 128 * 4;
-  ASSERT_EQ(session->convert(image), 0);
-  auto pyrowave_session = dynamic_cast<video::pyrowave::session_t *>(session.get());
-  ASSERT_NE(pyrowave_session, nullptr);
-  EXPECT_NE(pyrowave_session->encode(1), nullptr);
+  for (int chroma : {0, 1}) {
+    auto config = pyrowave_config();
+    config.chromaSamplingType = chroma;
+    auto converter = std::make_unique<platf::avcodec_encode_device_t>();
+    converter->colorspace = video::colorspace_from_client_config(config, false);
+    auto session = video::make_pyrowave_encode_session(video::software, config, 128, 96, std::move(converter), fake_pyrowave_api());
+    ASSERT_NE(session, nullptr);
+    ASSERT_EQ(session->convert(image), 0);
+    auto pyrowave_session = dynamic_cast<video::pyrowave::session_t *>(session.get());
+    ASSERT_NE(pyrowave_session, nullptr);
+    EXPECT_NE(pyrowave_session->encode(1), nullptr);
+    EXPECT_EQ(state.chroma, chroma ? PYROWAVE_CHROMA_SUBSAMPLING_444 : PYROWAVE_CHROMA_SUBSAMPLING_420);
+  }
 }
 
 #ifdef SUNSHINE_BUILD_VULKAN
@@ -740,7 +911,7 @@ namespace {
   public:
     /**
      * @brief Prepare SDR or HDR host pixels for upload.
-     * @param format NV12 or P010 input format.
+     * @param format Input pixel layout.
      */
     explicit pyrowave_test_upload_t(AVPixelFormat format):
         pyrowave_test_converter_t(format) {
@@ -793,7 +964,7 @@ namespace {
   };
 }  // namespace
 
-TEST_F(PyrowaveRoundTripTest, CreatesHdrSessionsWithoutHardwareVideoEncodeUsage) {
+TEST_F(PyrowaveSessionTest, CreatesSessionsWithoutHardwareVideoEncodeUsage) {
   AVBufferRef *raw_device = nullptr;
   if (av_hwdevice_ctx_create(&raw_device, AV_HWDEVICE_TYPE_VULKAN, nullptr, nullptr, 0) < 0) {
     GTEST_SKIP() << "An FFmpeg-compatible Vulkan device is unavailable";
@@ -806,22 +977,28 @@ TEST_F(PyrowaveRoundTripTest, CreatesHdrSessionsWithoutHardwareVideoEncodeUsage)
       AV_PIX_FMT_VULKAN,
       AV_PIX_FMT_NV12,
       AV_PIX_FMT_P010,
-      AV_PIX_FMT_NONE,
-      AV_PIX_FMT_NONE,
+      AV_PIX_FMT_YUV444P,
+      AV_PIX_FMT_YUV444P16,
       [&](platf::avcodec_encode_device_t *) -> util::Either<video::avcodec_buffer_t, int> {
         return video::avcodec_buffer_t {av_buffer_ref(device.get())};
       }
     )
   };
-  auto config = pyrowave_config();
-  config.dynamicRange = 1;
-  auto session = video::make_encode_session(nullptr, encoder, config, 64, 48, std::make_unique<pyrowave_test_upload_t>(AV_PIX_FMT_P010));
-  ASSERT_NE(session, nullptr);
-  platf::img_t image {};
-  ASSERT_EQ(session->convert(image), 0);
-  auto pyrowave_session = dynamic_cast<video::pyrowave::session_t *>(session.get());
-  ASSERT_NE(pyrowave_session, nullptr);
-  EXPECT_NE(pyrowave_session->encode(1), nullptr);
+  for (auto format : {AV_PIX_FMT_NV12, AV_PIX_FMT_P010, AV_PIX_FMT_YUV444P, AV_PIX_FMT_YUV444P16}) {
+    SCOPED_TRACE(av_get_pix_fmt_name(format));
+    const auto desc = av_pix_fmt_desc_get(format);
+    auto config = pyrowave_config();
+    config.dynamicRange = desc->comp[0].depth > 8;
+    config.chromaSamplingType = desc->log2_chroma_w == 0;
+    auto session = video::make_pyrowave_encode_session(encoder, config, 64, 48, std::make_unique<pyrowave_test_upload_t>(format), fake_pyrowave_api());
+    ASSERT_NE(session, nullptr);
+    platf::img_t image {};
+    ASSERT_EQ(session->convert(image), 0);
+    auto pyrowave_session = dynamic_cast<video::pyrowave::session_t *>(session.get());
+    ASSERT_NE(pyrowave_session, nullptr);
+    EXPECT_NE(pyrowave_session->encode(1), nullptr);
+    EXPECT_EQ(state.chroma, config.chromaSamplingType ? PYROWAVE_CHROMA_SUBSAMPLING_444 : PYROWAVE_CHROMA_SUBSAMPLING_420);
+  }
 }
 #endif
 
@@ -836,19 +1013,23 @@ TEST_F(PyrowaveRoundTripTest, DecodesSdrAndHdrFrameContainersWithTheUpstreamLibr
   VkPhysicalDeviceProperties properties {};
   vkGetPhysicalDeviceProperties(physical_device, &properties);
   // Lavapipe's decoder shader crash also reproduces in PyroWave's own tests.
-  // Still validate both native frame containers on software Vulkan devices.
+  // Still validate native frame containers on software Vulkan devices.
   decode_pixels = properties.deviceType != VK_PHYSICAL_DEVICE_TYPE_CPU;
 #endif
-  for (bool hdr : {false, true}) {
+  for (int profile = 0; profile < 4; ++profile) {
+    const bool hdr = profile / 2;
+    const bool yuv444 = profile % 2;
     pyrowave_decoder decoder {};
-    const pyrowave_decoder_create_info info {device, 64, 48, PYROWAVE_CHROMA_SUBSAMPLING_420, false};
+    const pyrowave_decoder_create_info info {device, 64, 48, yuv444 ? PYROWAVE_CHROMA_SUBSAMPLING_444 : PYROWAVE_CHROMA_SUBSAMPLING_420, false};
     ASSERT_EQ(pyrowave_decoder_create(&info, &decoder), PYROWAVE_SUCCESS);
     const auto destroy_decoder = util::fail_guard([&]() {
       pyrowave_decoder_destroy(decoder);
     });
     auto config = pyrowave_config();
     config.dynamicRange = hdr;
-    auto session = video::pyrowave::make_session(config, std::make_unique<pyrowave_test_converter_t>(hdr ? AV_PIX_FMT_P010 : AV_PIX_FMT_NV12));
+    config.chromaSamplingType = yuv444;
+    const auto format = yuv444 ? (hdr ? AV_PIX_FMT_YUV444P10 : AV_PIX_FMT_YUV444P) : (hdr ? AV_PIX_FMT_P010 : AV_PIX_FMT_NV12);
+    auto session = video::pyrowave::make_session(config, std::make_unique<pyrowave_test_converter_t>(format));
     ASSERT_NE(session, nullptr);
     platf::img_t image {};
     ASSERT_EQ(session->convert(image), 0);
@@ -878,11 +1059,11 @@ TEST_F(PyrowaveRoundTripTest, DecodesSdrAndHdrFrameContainersWithTheUpstreamLibr
     pyrowave_cpu_buffer decoded {};
     decoded.width = 64;
     decoded.height = 48;
-    decoded.format = PYROWAVE_CPU_BUFFER_FORMAT_YUV420P10;
+    decoded.format = yuv444 ? PYROWAVE_CPU_BUFFER_FORMAT_YUV444P10 : PYROWAVE_CPU_BUFFER_FORMAT_YUV420P10;
     for (int plane = 0; plane < 3; ++plane) {
-      output[plane].resize(plane ? 32 * 24 : 64 * 48);
+      output[plane].resize(plane && !yuv444 ? 32 * 24 : 64 * 48);
       decoded.data[plane] = output[plane].data();
-      decoded.row_stride_in_bytes[plane] = (plane ? 32 : 64) * sizeof(uint16_t);
+      decoded.row_stride_in_bytes[plane] = (plane && !yuv444 ? 32 : 64) * sizeof(uint16_t);
       decoded.plane_size_in_bytes[plane] = output[plane].size() * sizeof(uint16_t);
     }
     ASSERT_EQ(pyrowave_decoder_decode_cpu_buffer_synchronous(decoder, &decoded), PYROWAVE_SUCCESS);
@@ -890,6 +1071,8 @@ TEST_F(PyrowaveRoundTripTest, DecodesSdrAndHdrFrameContainersWithTheUpstreamLibr
     EXPECT_NEAR(output[0][1], 1023, 8);
     EXPECT_NEAR(output[1][0], hdr ? 1 : 4, 8);
     EXPECT_NEAR(output[2][0], 1023, 8);
+    EXPECT_NEAR(output[1][1], 1023, 8);
+    EXPECT_NEAR(output[2][1], hdr ? 1 : 4, 8);
   }
   if (!decode_pixels) {
     GTEST_SKIP() << "SDR/HDR packet validation passed; pixel decoding requires a hardware Vulkan device";
