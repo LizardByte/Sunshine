@@ -566,6 +566,8 @@ TEST_F(InputGamepadSessionTest, ClientPermissionsGateControllerArrival) {
   send_arrival(stream_input);
   EXPECT_EQ(input::testing::gamepad_id(stream_input, 1), -1);
   EXPECT_GE(input::testing::gamepad_id(stream_input, 0), 0);
+}
+
 TEST_F(InputGamepadSessionTest, ReplaysMotionAndRumbleAfterResumedControllerArrival) {
   config::input.gamepad = "ds5";
   const std::string session_id = "late-controller-arrival";
