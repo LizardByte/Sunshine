@@ -103,7 +103,15 @@ namespace platf {
       }
       return 1.0;
     }
+
   }  // namespace
+
+  std::chrono::steady_clock::time_point capture_time_point(double age_seconds, std::chrono::steady_clock::time_point now) {
+    if (age_seconds < 0.0 || age_seconds > 0.05) {
+      return now;
+    }
+    return now - std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(age_seconds));
+  }
 
   bool edr_hdr_metadata(double edr_headroom, double sdr_white_nits, SS_HDR_METADATA &metadata) {
     std::memset(&metadata, 0, sizeof(metadata));
@@ -185,6 +193,9 @@ namespace platf {
         img_out->height = (int) CVPixelBufferGetHeight(new_pixel_buffer->buf);
         img_out->row_pitch = (int) CVPixelBufferGetBytesPerRow(new_pixel_buffer->buf);
         img_out->pixel_pitch = img_out->row_pitch / img_out->width;
+        const CMTime pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+        const double age = CMTIME_IS_NUMERIC(pts) ? CMTimeGetSeconds(CMTimeSubtract(CMClockGetTime(CMClockGetHostTimeClock()), pts)) : -1.0;
+        img_out->frame_timestamp = capture_time_point(age, std::chrono::steady_clock::now());
 
         old_data_retainer = nullptr;
 

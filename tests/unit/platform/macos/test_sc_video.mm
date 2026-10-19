@@ -11,6 +11,7 @@
 
   // standard includes
   #include <algorithm>
+  #include <chrono>
   #include <cstring>
 
   // platform includes
@@ -137,6 +138,17 @@ namespace {
     CVPixelBufferUnlockBaseAddress(buffer, kCVPixelBufferLock_ReadOnly);
   }
 }  // namespace
+
+TEST(MacosCaptureTimeTest, RecentFramesAreDatedByTheirAge) {
+  const auto now = std::chrono::steady_clock::now();
+  EXPECT_EQ(platf::capture_time_point(0.010, now), now - std::chrono::milliseconds(10));
+}
+
+TEST(MacosCaptureTimeTest, StaleOrUnknownFramesAreStampedNow) {
+  const auto now = std::chrono::steady_clock::now();
+  EXPECT_EQ(platf::capture_time_point(0.2, now), now);
+  EXPECT_EQ(platf::capture_time_point(-1.0, now), now);
+}
 
 TEST(MacosEdrHdrMetadataTest, SdrDisplayReportsNoMetadata) {
   SS_HDR_METADATA metadata;

@@ -5,6 +5,7 @@
 #pragma once
 
 // standard includes
+#include <chrono>
 #include <vector>
 
 // lib includes
@@ -14,6 +15,18 @@
 #include "src/platform/permissions.h"
 
 namespace platf {
+  /**
+   * @brief Turn a captured frame's age into a capture time point for latency reporting.
+   *
+   * Frames older than 50 ms are re-deliveries of a static screen (or carry an unusable
+   * timestamp), so they are stamped with `now`.
+   *
+   * @param age_seconds Seconds since the frame was captured; negative when unknown.
+   * @param now Current time.
+   * @return Capture time point.
+   */
+  std::chrono::steady_clock::time_point capture_time_point(double age_seconds, std::chrono::steady_clock::time_point now);
+
   /**
    * @brief Describe an EDR display as HDR10 metadata for the client.
    *
