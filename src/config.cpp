@@ -781,6 +781,7 @@ namespace config {
       0,
       1,
       -1,
+      203,  // vt_hdr_sdr_white (ITU-R BT.2408 reference white)
     },  // vt
 
     {
@@ -1700,6 +1701,7 @@ namespace config {
     int_f(vars, "vt_software", video.vt.vt_allow_sw, vt::allow_software_from_view);
     int_f(vars, "vt_software", video.vt.vt_require_sw, vt::force_software_from_view);
     int_f(vars, "vt_realtime", video.vt.vt_realtime, vt::rt_from_view);
+    int_between_f(vars, "vt_hdr_sdr_white", video.vt.vt_hdr_sdr_white, {80, 1000});
 
     std::string vaapi_quality;
     string_f(vars, "vaapi_quality", vaapi_quality);

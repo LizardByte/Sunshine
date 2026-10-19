@@ -16,8 +16,6 @@
  */
 static const uint64_t kIdleRepeatNs = 100 * NSEC_PER_MSEC;
 
-const float sc_hdr_sdr_white_nits = 203.0f;
-
 /**
  * @brief Metal kernel that scales PQ (BT.2020) 10-bit 4:2:0 video by a linear-light gain.
  *
@@ -261,6 +259,7 @@ API_AVAILABLE(macos(15.0))
   CVPixelBufferPoolRef _pool;  ///< Pool for frame copies; only touched on `_queue`.
   BOOL _stopped;  ///< Set once the capture ended; guarded by `@synchronized(self)`.
   SCVideo *_owner;  ///< Unretained owner, cleared on stop.
+  float _pqGain;  ///< Linear-light gain applied to PQ frames.
 }
 
 /**
@@ -362,7 +361,7 @@ API_AVAILABLE(macos(15.0))
     return;
   }
 
-  CMSampleBufferRef copy = sc_copy_sample_buffer(sampleBuffer, &_pool, sc_hdr_sdr_white_nits / 100.0f);
+  CMSampleBufferRef copy = sc_copy_sample_buffer(sampleBuffer, &_pool, _pqGain);
   if (!copy) {
     return;
   }
@@ -406,6 +405,7 @@ API_AVAILABLE(macos(15.0))
   self.frameWidth = (int) CGDisplayModeGetPixelWidth(mode);
   self.frameHeight = (int) CGDisplayModeGetPixelHeight(mode);
   self.minFrameDuration = CMTimeMake(1, frameRate);
+  self.sdrWhiteNits = 203.0f;
   CFRelease(mode);
 
   _captures = [[NSMutableSet alloc] init];
@@ -484,6 +484,7 @@ API_AVAILABLE(macos(15.0))
   dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INTERACTIVE, 0);
   capture->_queue = dispatch_queue_create("sunshine.sck.capture", qos);
   capture->_callback = [frameCallback copy];
+  capture->_pqGain = self.sdrWhiteNits / 100.0f;
   capture->_signal = dispatch_semaphore_create(0);
   capture->_stream = [[SCStream alloc] initWithFilter:filter configuration:config delegate:capture];
 

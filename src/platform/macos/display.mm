@@ -105,7 +105,7 @@ namespace platf {
     }
   }  // namespace
 
-  bool edr_hdr_metadata(double edr_headroom, SS_HDR_METADATA &metadata) {
+  bool edr_hdr_metadata(double edr_headroom, double sdr_white_nits, SS_HDR_METADATA &metadata) {
     std::memset(&metadata, 0, sizeof(metadata));
     if (edr_headroom <= 1.0) {
       return false;
@@ -116,7 +116,7 @@ namespace platf {
     metadata.displayPrimaries[1] = {15000, 30000};  // green 0.300, 0.600
     metadata.displayPrimaries[2] = {7500, 3000};  // blue  0.150, 0.060
     metadata.whitePoint = {15635, 16450};  // D65   0.3127, 0.3290
-    const auto peak_nits = static_cast<uint16_t>(std::min(edr_headroom * sc_hdr_sdr_white_nits, 10000.0));
+    const auto peak_nits = static_cast<uint16_t>(std::min(edr_headroom * sdr_white_nits, 10000.0));
     metadata.maxDisplayLuminance = peak_nits;
     metadata.minDisplayLuminance = 50;  // 0.005 nits
     metadata.maxContentLightLevel = peak_nits;
@@ -133,6 +133,7 @@ namespace platf {
     CGDirectDisplayID display_id {};  ///< Display ID.
     std::unique_ptr<display_device::DisplayPowerGuardInterface> display_power_guard;  ///< Display power guard.
     double hdr_headroom {1.0};  ///< EDR headroom when HDR capture is available, otherwise 1.0.
+    double hdr_sdr_white {203.0};  ///< Luminance in nits that SDR white is streamed at in HDR.
 
     ~av_display_t() override {
       [av_capture release];
@@ -154,7 +155,7 @@ namespace platf {
      * @return `true` when the display is HDR and `metadata` was filled.
      */
     bool get_hdr_metadata(SS_HDR_METADATA &metadata) override {
-      return edr_hdr_metadata(hdr_headroom, metadata);
+      return edr_hdr_metadata(hdr_headroom, hdr_sdr_white, metadata);
     }
 
     capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
@@ -375,6 +376,8 @@ namespace platf {
         if (headroom > 1.0) {
           display->hdr_headroom = headroom;
           sc_capture.hdr = config.dynamicRange > 0;
+          display->hdr_sdr_white = config::video.vt.vt_hdr_sdr_white;
+          sc_capture.sdrWhiteNits = static_cast<float>(display->hdr_sdr_white);
         }
         BOOST_LOG(info) << "Using ScreenCaptureKit capture (EDR headroom "sv << headroom << ", HDR "sv
                         << (sc_capture.hdr ? "on"sv : "off"sv) << ')';

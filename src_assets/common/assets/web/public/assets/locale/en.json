@@ -475,6 +475,8 @@
     "virtual_sink_desc": "Manually specify a virtual audio device to use. If unset, the device is chosen automatically. We strongly recommend leaving this field blank to use automatic device selection!",
     "virtual_sink_placeholder": "Steam Streaming Speakers",
     "vt_coder": "VideoToolbox Coder",
+    "vt_hdr_sdr_white": "HDR SDR White Level (nits)",
+    "vt_hdr_sdr_white_desc": "Brightness of SDR content and the macOS interface when streaming HDR. Match it to the client's SDR white level (on Windows, the SDR content brightness setting). Default: 203.",
     "vt_realtime": "VideoToolbox Realtime Encoding",
     "vt_software": "VideoToolbox Software Encoding",
     "vt_software_allowed": "Allowed",

@@ -141,14 +141,14 @@ namespace {
 TEST(MacosEdrHdrMetadataTest, SdrDisplayReportsNoMetadata) {
   SS_HDR_METADATA metadata;
   std::memset(&metadata, 0xff, sizeof(metadata));
-  EXPECT_FALSE(platf::edr_hdr_metadata(1.0, metadata));
+  EXPECT_FALSE(platf::edr_hdr_metadata(1.0, 203.0, metadata));
   EXPECT_EQ(metadata.maxDisplayLuminance, 0);
   EXPECT_EQ(metadata.displayPrimaries[0].x, 0);
 }
 
 TEST(MacosEdrHdrMetadataTest, EdrHeadroomSetsPeakOverStreamedSdrWhite) {
   SS_HDR_METADATA metadata {};
-  ASSERT_TRUE(platf::edr_hdr_metadata(5.0, metadata));
+  ASSERT_TRUE(platf::edr_hdr_metadata(5.0, 203.0, metadata));
   EXPECT_EQ(metadata.maxDisplayLuminance, 1015);  // 5 x 203-nit SDR white
   EXPECT_EQ(metadata.maxContentLightLevel, 1015);
   EXPECT_EQ(metadata.maxFrameAverageLightLevel, 1015);
@@ -164,9 +164,15 @@ TEST(MacosEdrHdrMetadataTest, EdrHeadroomSetsPeakOverStreamedSdrWhite) {
   EXPECT_EQ(metadata.whitePoint.y, 16450);
 }
 
+TEST(MacosEdrHdrMetadataTest, PeakFollowsConfiguredSdrWhite) {
+  SS_HDR_METADATA metadata {};
+  ASSERT_TRUE(platf::edr_hdr_metadata(5.0, 480.0, metadata));
+  EXPECT_EQ(metadata.maxDisplayLuminance, 2400);
+}
+
 TEST(MacosEdrHdrMetadataTest, PeakIsClampedToPqMaximum) {
   SS_HDR_METADATA metadata {};
-  ASSERT_TRUE(platf::edr_hdr_metadata(100.0, metadata));
+  ASSERT_TRUE(platf::edr_hdr_metadata(100.0, 203.0, metadata));
   EXPECT_EQ(metadata.maxDisplayLuminance, 10000);
 }
 
@@ -233,7 +239,7 @@ TEST(MacosScVideoTest, PqGainLiftsSdrWhiteTo203Nits) {
   CMSampleBufferRef sample = make_sample(source, 7);
   CVPixelBufferPoolRef pool = nullptr;
 
-  CMSampleBufferRef copy = sc_copy_sample_buffer(sample, &pool, sc_hdr_sdr_white_nits / 100.0f);
+  CMSampleBufferRef copy = sc_copy_sample_buffer(sample, &pool, 2.03f);
   ASSERT_NE(copy, nullptr);
   uint16_t y = 0, cb = 0, cr = 0;
   read_codes(CMSampleBufferGetImageBuffer(copy), y, cb, cr);

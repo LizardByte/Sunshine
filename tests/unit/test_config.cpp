@@ -67,6 +67,10 @@ TEST(ConfigDefaultsTest, TreatsFp16SdrCapturesAsLinear) {
   EXPECT_FALSE(config::video.fp16_sdr_gamma_encoded);
 }
 
+TEST(ConfigDefaultsTest, StreamsMacosHdrSdrWhiteAtReferenceWhite) {
+  EXPECT_EQ(config::video.vt.vt_hdr_sdr_white, 203);
+}
+
 TEST(ConfigDefaultsTest, PreservesAmdEncoderNumericDefaults) {
   EXPECT_EQ(config::video.amd.amd_usage_h264, 1);
   EXPECT_EQ(config::video.amd.amd_usage_hevc, 1);

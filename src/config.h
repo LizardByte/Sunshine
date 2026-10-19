@@ -125,6 +125,7 @@ namespace config {
       int vt_require_sw;  ///< Whether VideoToolbox must use software encoding.
       int vt_realtime;  ///< Whether VideoToolbox uses realtime encoding mode.
       int vt_coder;  ///< VideoToolbox entropy-coding mode.
+      int vt_hdr_sdr_white;  ///< Luminance in nits that SDR white is streamed at in HDR (macOS ScreenCaptureKit capture).
     } vt;  ///< VideoToolbox encoder options.
 
     struct {

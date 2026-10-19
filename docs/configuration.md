@@ -3177,6 +3177,37 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     </tr>
 </table>
 
+### vt_hdr_sdr_white
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Luminance in nits that SDR content (including the macOS interface) is streamed at when streaming HDR.
+            macOS places SDR white at 100 nits in HDR captures, which looks grey next to the client's own SDR content.
+            Set this to the client's SDR white level (on Windows, the "SDR content brightness" setting) for matching whites.
+            HDR highlights scale with it.
+            @note{This option only applies when using macOS 15 or later with an HDR (EDR) capable display.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            203
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">80-1000</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vt_hdr_sdr_white = 480
+            @endcode</td>
+    </tr>
+</table>
+
 ## VA-API Encoder
 
 ### vaapi_blbrc

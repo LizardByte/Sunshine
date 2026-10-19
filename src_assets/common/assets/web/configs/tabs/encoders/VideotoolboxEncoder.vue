@@ -37,5 +37,10 @@ const config = ref(props.config)
               v-model="config.vt_realtime"
               default="true"
     ></Checkbox>
+    <div class="mb-3">
+      <label for="vt_hdr_sdr_white" class="form-label">{{ $t('config.vt_hdr_sdr_white') }}</label>
+      <input type="number" min="80" max="1000" class="form-control" id="vt_hdr_sdr_white" placeholder="203" v-model="config.vt_hdr_sdr_white" />
+      <div class="form-text">{{ $t('config.vt_hdr_sdr_white_desc') }}</div>
+    </div>
   </div>
 </template>

@@ -15,14 +15,6 @@ extern "C" {
 #endif
 
   /**
-   * @brief Luminance in nits that SDR (EDR 1.0) white is streamed at in HDR, per ITU-R BT.2408.
-   *
-   * ScreenCaptureKit's HDR modes place SDR white at 100 nits, which looks grey next to an HDR client's
-   * SDR content, so HDR frames are scaled by `sc_hdr_sdr_white_nits / 100` in linear light.
-   */
-  extern const float sc_hdr_sdr_white_nits;
-
-  /**
    * @brief Copy a captured frame into a buffer from `pool`, keeping its color attachments and timing.
    *
    * PQ-tagged 10-bit 4:2:0 frames are scaled by `pq_gain` in linear light on the GPU; other frames,
@@ -53,5 +45,14 @@ API_AVAILABLE(macos(15.0))
  * @brief Capture in HDR (BT.2020 PQ) when the pixel format is 10-bit.
  */
 @property (nonatomic, assign) BOOL hdr;
+
+/**
+ * @brief Luminance in nits that SDR (EDR 1.0) white is streamed at in HDR.
+ *
+ * ScreenCaptureKit's HDR modes place SDR white at 100 nits, which looks grey next to an HDR client's
+ * SDR content, so HDR frames are scaled by `sdrWhiteNits / 100` in linear light. Defaults to 203
+ * (ITU-R BT.2408 reference white).
+ */
+@property (nonatomic, assign) float sdrWhiteNits;
 
 @end
