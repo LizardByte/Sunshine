@@ -184,11 +184,6 @@ namespace pipewire {
         pw_context_destroy(context);
         context = nullptr;
       }
-      // Release pipewire file descriptor
-      if (fd >= 0) {
-        BOOST_LOG(debug) << "[pipewire] Close pipewire_fd"sv;
-        close(fd);
-      }
       // Release pipewire thread loop
       BOOST_LOG(debug) << "[pipewire] Stop PW thread loop"sv;
       pw_thread_loop_unlock(loop);
@@ -264,14 +259,14 @@ namespace pipewire {
     /**
      * @brief Initialize PipeWire core objects and optional stream negotiation.
      *
-     * @param stream_fd Stream fd.
+     * @param stream_fd Stream fd, or -1 to connect to the local PipeWire daemon. init() takes it over: PipeWire closes it
+     *                  after a successful connection, and init() closes it when the connection could not be set up.
      * @param stream_node Stream node.
      * @param stream_object_serial Stream object serial.
      * @param shared_state Shared state.
      * @return 0 on success; nonzero or negative platform status on failure.
      */
     int init(const int stream_fd, const uint32_t stream_node, const uint64_t stream_object_serial, std::shared_ptr<shared_state_t> shared_state) {
-      fd = stream_fd;
       node = stream_node;
       object_serial = stream_object_serial;
       stream_data.shared = std::move(shared_state);
@@ -280,20 +275,30 @@ namespace pipewire {
       BOOST_LOG(debug) << "[pipewire] Setup PW context"sv;
       context = pw_context_new(pw_thread_loop_get_loop(loop), nullptr, 0);
       if (context) {
-        BOOST_LOG(debug) << "[pipewire] Connect PW context to fd"sv;
-        if (fd >= 0) {
-          core = pw_context_connect_fd(context, fd, nullptr, 0);
+        if (stream_fd >= 0) {
+          BOOST_LOG(debug) << "[pipewire] Connect PW core on fd "sv << stream_fd;
+          core = pw_context_connect_fd(context, stream_fd, nullptr, 0);
         } else {
+          BOOST_LOG(debug) << "[pipewire] Connect PW local core"sv;
           core = pw_context_connect(context, nullptr, 0);
         }
         if (core) {
           pw_core_add_listener(core, &core_listener, &core_events, nullptr);
         } else {
           BOOST_LOG(debug) << "[pipewire] Failed to connect to PW core. Error: "sv << errno << "(" << strerror(errno) << ")"sv;
+          // A failed pw_context_connect_fd() leaves the fd open
+          if (stream_fd >= 0) {
+            close(stream_fd);
+          }
+          pw_thread_loop_unlock(loop);
           return -1;
         }
       } else {
         BOOST_LOG(debug) << "[pipewire] Failed to setup PW context. Error: "sv << errno << "(" << strerror(errno) << ")"sv;
+        if (stream_fd >= 0) {
+          close(stream_fd);
+        }
+        pw_thread_loop_unlock(loop);
         return -1;
       }
 
@@ -360,7 +365,7 @@ namespace pipewire {
         // Connection via pipewire object serial if it is supported and the serial is valid (lower 32-bits != SPA_ID_INVALID, see also PW_KEY_OBJECT_SERIAL docs)
         if (SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL && (object_serial & SPA_ID_INVALID) != SPA_ID_INVALID) {
           pw_properties_setf(props, PW_KEY_TARGET_OBJECT, "%" PRIu64, object_serial);
-          BOOST_LOG(debug) << "[pipewire] Connect PW stream - fd: "sv << fd << " object serial: "sv << object_serial;
+          BOOST_LOG(debug) << "[pipewire] Connect PW stream on object serial: "sv << object_serial;
           result = pw_stream_connect(stream_data.stream, PW_DIRECTION_INPUT, PW_ID_ANY, (enum pw_stream_flags)(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params.data(), n_params);
           if (result < 0) {
             // Unset object serial for retry with node id
@@ -371,7 +376,7 @@ namespace pipewire {
         }
         // Connection via legacy (and deprecated) pipewire node id
         if (result < 0) {
-          BOOST_LOG(debug) << "[pipewire] Connect PW stream - fd: "sv << fd << " node: "sv << node;
+          BOOST_LOG(debug) << "[pipewire] Connect PW stream on node: "sv << node;
           result = pw_stream_connect(stream_data.stream, PW_DIRECTION_INPUT, node, (enum pw_stream_flags)(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params.data(), n_params);
         }
       }
@@ -708,7 +713,6 @@ namespace pipewire {
     struct pw_core *core;
     struct spa_hook core_listener;
     struct stream_data_t stream_data;
-    int fd;
     uint32_t node;
     uint64_t object_serial;
     bool negotiate_maxframerate_ = true;

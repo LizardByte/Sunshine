@@ -68,24 +68,6 @@ jobs:
             libxfixes-dev \
             libxtst-dev
 
-      - name: Build latest libva
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        timeout-minutes: 5
-        run: |
-          gh release download --archive=tar.gz --repo=intel/libva
-          tar xzf libva-*.tar.gz && rm libva-*.tar.gz
-          cd libva-*
-          ./autogen.sh --prefix=/usr --libdir="/usr/lib/${M_ARCH}-linux-gnu" \
-            --enable-drm \
-            --enable-x11 \
-            --enable-glx \
-            --enable-wayland \
-            --without-legacy
-          make -j "$(nproc)"
-          sudo make install
-          cd .. && rm -rf libva-*
-
       - name: Build Linux
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
@@ -142,9 +124,16 @@ jobs:
             --appdir ./AppDir \
             --plugin qt \
             --executable ./sunshine \
+            --exclude-library 'libva.so*' \
+            --exclude-library 'libva-*.so*' \
             --icon-file "../$ICON_FILE" \
             --desktop-file "./$DESKTOP_FILE" \
             --output appimage
+
+          # Keep the host's libva core, backends, and driver configuration together.
+          readelf -d ./sunshine | grep -F 'Shared library: [libva.so.2]'
+          readelf -d ./sunshine | grep -F 'Shared library: [libva-drm.so.2]'
+          test -z "$(find ./AppDir \( -name 'libva.so*' -o -name 'libva-*.so*' \) -print -quit)"
 
           # print original name of AppImage file
           echo "AppImage file: $(ls Sunshine*.AppImage)"

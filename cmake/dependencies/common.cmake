@@ -103,7 +103,7 @@ include("${CMAKE_MODULE_PATH}/dependencies/ffmpeg.cmake")
 if(TARGET PkgConfig::SUNSHINE_BUNDLED_OPUS)
     # Match the Opus version linked by the shared FFmpeg package.
     set(Opus_LIBRARY PkgConfig::SUNSHINE_BUNDLED_OPUS)  # cmake-lint: disable=C0103
-    set(Opus_INCLUDE_DIR "${FFMPEG_PREPARED_BINARIES}/include")  # cmake-lint: disable=C0103
+    set(Opus_INCLUDE_DIR "${FFMPEG_INCLUDE_DIRS}")  # cmake-lint: disable=C0103
 else()
     # Homebrew provides opus as a dynamic library only, so disable static linking for Homebrew builds
     if(SUNSHINE_BUILD_HOMEBREW)

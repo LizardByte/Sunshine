@@ -3,12 +3,12 @@
  * @brief Tests for thread-safe utility types.
  */
 
+// test includes
+#include "../tests_common.h"
+
 // standard includes
 #include <cstdint>
 #include <type_traits>
-
-// lib includes
-#include <gtest/gtest.h>
 
 // local includes
 #include "src/thread_safe.h"

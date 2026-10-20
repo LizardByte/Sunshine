@@ -3,8 +3,8 @@
  * @brief Regression coverage for delayed task lookup over the complete queue.
  */
 
-// lib includes
-#include <gtest/gtest.h>
+// test includes
+#include "../tests_common.h"
 
 // local includes
 #include <src/task_pool.h>
