@@ -532,7 +532,7 @@ namespace wl {
      */
     void ready(zwlr_screencopy_frame_v1 *frame, std::uint32_t tv_sec_hi, std::uint32_t tv_sec_lo, std::uint32_t tv_nsec);
     /**
-     * @brief Mark the frame capture as failed.
+     * @brief Retry a failed DMA-BUF copy once with SHM, or request reinitialization.
      *
      * @param frame Screencopy frame that failed.
      */
@@ -573,11 +573,14 @@ namespace wl {
     void cleanup_shm();
     void destroy_shm();
 
+    zwlr_screencopy_manager_v1 *capture_manager {nullptr};  ///< Non-owning factory for a fresh SHM retry after a terminal DMA-BUF copy failure.
+    wl_output *capture_output {nullptr};  ///< Output retained for the bounded capture retry.
+    bool capture_cursor {false};  ///< Cursor option retained for the bounded capture retry.
     zwp_linux_dmabuf_v1 *dmabuf_interface {nullptr};
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers {nullptr};
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers {nullptr};  ///< Optional encoder modifiers for intersection.
     bool prefer_linear_copy {false};  ///< Allocate linear copy buffers for cross-GPU encode import.
-    bool gbm_failed {false};  ///< Sticky flag; once DMA-BUF allocation fails, stay on the SHM path.
+    bool gbm_failed {false};  ///< Stay on SHM after DMA-BUF allocation, import or copy fails.
 
     struct {
       bool supported {false};

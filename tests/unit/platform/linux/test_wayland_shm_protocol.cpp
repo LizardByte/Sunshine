@@ -129,6 +129,31 @@ namespace {
     }
 
     /**
+     * @brief Inject successful DMA-BUF creation followed by a terminal copy failure.
+     * @param fallback Whether the capture has a SHM factory for recovery.
+     */
+    void fail_dmabuf_copy(bool fallback = true) {
+      hold_buffer_done = true;
+      advertise_dmabuf = true;
+      accept_dmabuf = true;
+      capture->with_damage = true;
+      capture->listen(manager, dmabuf, nullptr, fallback ? shm : nullptr, output, true);
+      ASSERT_TRUE(sync());
+      ASSERT_TRUE(sync());
+      hold_buffer_done = false;
+      auto params = zwp_linux_dmabuf_v1_create_params(dmabuf);
+      static const zwp_linux_buffer_params_v1_listener listener {
+        wl::dmabuf_t::buffer_params_created,
+        wl::dmabuf_t::buffer_params_failed,
+      };
+      zwp_linux_buffer_params_v1_add_listener(params, &listener, capture->request);
+      zwp_linux_buffer_params_v1_create(params, width, height, DRM_FORMAT_XRGB8888, 0);
+      for (int i = 0; i < 5; ++i) {
+        ASSERT_TRUE(sync());
+      }
+    }
+
+    /**
      * @brief Complete a pending copy through the real shared-memory buffer.
      */
     void complete() {
@@ -195,7 +220,7 @@ namespace {
     }
 
     /**
-     * @brief Bind a DMA-BUF factory whose asynchronous imports are rejected.
+     * @brief Bind the controlled DMA-BUF import factory.
      */
     static void bind_dmabuf(wl_client *client, void *data, std::uint32_t version, std::uint32_t id) {
       auto resource = wl_resource_create(client, &zwp_linux_dmabuf_v1_interface, version, id);
@@ -212,6 +237,8 @@ namespace {
         wl_resource_destroy(resource);
         return 0;
       }
+      ++self.requests;
+      self.blend_cursor = args[1].i;
       self.frame_resource = wl_resource_create(wl_resource_get_client(resource), &zwlr_screencopy_frame_v1_interface, 3, args[0].n);
       wl_resource_set_dispatcher(self.frame_resource, dispatch_frame, nullptr, &self, nullptr);
       wl_resource_post_event(self.frame_resource, 0, WL_SHM_FORMAT_XRGB8888, self.width, self.height, self.stride);
@@ -234,11 +261,20 @@ namespace {
         self.frame_resource = nullptr;
         self.buffer_resource = nullptr;
         ++self.destroyed_frames;
+        if (self.failed_frame == resource) {
+          self.failed_frame = nullptr;
+        }
         wl_resource_destroy(resource);
+      } else if (resource == self.failed_frame) {
+        wl_resource_post_error(resource, 0, "Cannot copy a terminal screencopy frame");
       } else {
         self.damage_copy = opcode == 2;
         self.buffer_resource = reinterpret_cast<wl_resource *>(args[0].o);
         ++self.copies;
+        if (!wl_shm_buffer_get(self.buffer_resource)) {
+          self.failed_frame = resource;
+          wl_resource_post_event(resource, 3);
+        }
       }
       return 0;
     }
@@ -252,20 +288,33 @@ namespace {
         wl_resource_destroy(resource);
       } else if (opcode == 1) {
         auto params = wl_resource_create(wl_resource_get_client(resource), &zwp_linux_buffer_params_v1_interface, 3, args[0].n);
-        wl_resource_set_dispatcher(params, dispatch_params, nullptr, nullptr, nullptr);
+        wl_resource_set_dispatcher(params, dispatch_params, nullptr, wl_resource_get_user_data(resource), nullptr);
       }
       return 0;
     }
 
     /**
-     * @brief Reject an asynchronous import through the actual Wayland event queue.
+     * @brief Complete or reject an asynchronous import through the Wayland event queue.
      */
     static int dispatch_params(const void *, void *target, std::uint32_t opcode, const wl_message *, wl_argument *) {
       auto resource = static_cast<wl_resource *>(target);
       if (opcode == 0) {
         wl_resource_destroy(resource);
       } else if (opcode == 2) {
-        wl_resource_post_event(resource, 1);
+        auto &self = *static_cast<WaylandShmProtocolTest *>(wl_resource_get_user_data(resource));
+        if (self.accept_dmabuf) {
+          auto buffer = wl_resource_create(wl_resource_get_client(resource), &wl_buffer_interface, 1, 0);
+          wl_resource_set_dispatcher(buffer, [](const void *, void *target, std::uint32_t, const wl_message *, wl_argument *) {
+            wl_resource_destroy(static_cast<wl_resource *>(target));
+            return 0;
+          },
+                                     nullptr,
+                                     nullptr,
+                                     nullptr);
+          wl_resource_post_event(resource, 0, buffer);
+        } else {
+          wl_resource_post_event(resource, 1);
+        }
       }
       return 0;
     }
@@ -276,15 +325,19 @@ namespace {
     wl_shm *shm {};  ///< Real libwayland SHM factory.
     wl_output *output {};  ///< Output targeted by capture requests.
     zwlr_screencopy_manager_v1 *manager {};  ///< Private screencopy factory.
-    zwp_linux_dmabuf_v1 *dmabuf {};  ///< Rejected-import factory.
+    zwp_linux_dmabuf_v1 *dmabuf {};  ///< Controlled DMA-BUF import factory.
     wl_resource *frame_resource {};  ///< Active server-side screencopy frame.
     wl_resource *buffer_resource {};  ///< Buffer retained by the pending copy.
+    wl_resource *failed_frame {};  ///< Terminal frame that must not receive another copy.
     std::unique_ptr<capture_t> capture;  ///< Actual Sunshine capture implementation.
     std::uint32_t width {2};  ///< Advertised frame width.
     std::uint32_t height {2};  ///< Advertised frame height.
     std::uint32_t stride {12};  ///< Advertised padded row size.
     bool hold_buffer_done {false};  ///< Defer the allocation decision for the rejection test.
     bool advertise_dmabuf {false};  ///< Attempt real GBM initialization before falling back.
+    bool accept_dmabuf {false};  ///< Accept buffer construction but reject the later copy.
+    bool blend_cursor {false};  ///< Cursor option of the most recently requested capture.
+    int requests {0};  ///< Number of capture requests issued.
     bool inverted {false};  ///< Advertise vertically inverted captured pixels.
     bool damage_copy {false};  ///< Whether the last request used copy_with_damage.
     int copies {0};  ///< Number of real copy requests received.
@@ -350,6 +403,73 @@ TEST_F(WaylandShmProtocolTest, AsyncImportRejectionCompletesShmWithoutDisplayRec
   complete();
   EXPECT_EQ(capture->status, wl::dmabuf_t::READY);
   EXPECT_TRUE(capture->current_frame->is_shm);
+}
+
+TEST_F(WaylandShmProtocolTest, LateDmabufCopyFailureRetriesShmOnFreshRequest) {
+  fail_dmabuf_copy();
+  ASSERT_EQ(requests, 2);
+  EXPECT_EQ(destroyed_frames, 1);
+  EXPECT_EQ(copies, 2);
+  EXPECT_TRUE(blend_cursor);
+  EXPECT_FALSE(damage_copy);
+  ASSERT_EQ(capture->status, wl::dmabuf_t::WAITING);
+  complete();
+  EXPECT_EQ(capture->status, wl::dmabuf_t::READY);
+  ASSERT_TRUE(capture->current_frame->is_shm);
+  ASSERT_EQ(capture->current_frame->shm_data.size(), stride * height);
+  EXPECT_EQ(capture->current_frame->shm_data[0], 10);
+}
+
+TEST_F(WaylandShmProtocolTest, FailedShmRetryDoesNotIssueAnotherCapture) {
+  fail_dmabuf_copy();
+  ASSERT_EQ(requests, 2);
+  ASSERT_NE(frame_resource, nullptr);
+  wl_resource_post_event(frame_resource, 3);
+  ASSERT_TRUE(sync());
+  ASSERT_TRUE(sync());
+  EXPECT_EQ(requests, 2);
+  EXPECT_EQ(destroyed_frames, 2);
+  EXPECT_EQ(capture->status, wl::dmabuf_t::REINIT);
+  EXPECT_FALSE(capture->cancel());
+}
+
+TEST_F(WaylandShmProtocolTest, LateDmabufCopyFailureWithoutShmReinitializes) {
+  fail_dmabuf_copy(false);
+  EXPECT_EQ(requests, 1);
+  EXPECT_EQ(copies, 1);
+  EXPECT_EQ(destroyed_frames, 1);
+  EXPECT_EQ(capture->status, wl::dmabuf_t::REINIT);
+}
+
+TEST_F(WaylandShmProtocolTest, FailureBeforeCopyDoesNotRetry) {
+  hold_buffer_done = true;
+  start();
+  wl_resource_post_event(frame_resource, 3);
+  ASSERT_TRUE(sync());
+  ASSERT_TRUE(sync());
+  EXPECT_EQ(requests, 1);
+  EXPECT_EQ(copies, 0);
+  EXPECT_EQ(capture->status, wl::dmabuf_t::REINIT);
+}
+
+TEST_F(WaylandShmProtocolTest, ShmCopyFailureDoesNotRetry) {
+  start();
+  wl_resource_post_event(frame_resource, 3);
+  ASSERT_TRUE(sync());
+  ASSERT_TRUE(sync());
+  EXPECT_EQ(requests, 1);
+  EXPECT_EQ(copies, 1);
+  EXPECT_EQ(capture->status, wl::dmabuf_t::REINIT);
+}
+
+TEST_F(WaylandShmProtocolTest, LateDmabufFailureRetryCanBeCancelled) {
+  fail_dmabuf_copy();
+  ASSERT_EQ(requests, 2);
+  EXPECT_TRUE(capture->cancel());
+  ASSERT_TRUE(sync());
+  EXPECT_EQ(destroyed_frames, 2);
+  EXPECT_EQ(capture->status, wl::dmabuf_t::READY);
+  EXPECT_FALSE(capture->cancel());
 }
 
 TEST_F(WaylandShmProtocolTest, InvertedPixelsConvertIntoFrameOwnedBgra) {
