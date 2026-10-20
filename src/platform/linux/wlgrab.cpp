@@ -33,7 +33,7 @@ using namespace std::literals;
 namespace wl {
   static int env_width;
   static int env_height;
-  static bool force_ram_capture = false;
+  static bool force_ram_capture = false;  // NOSONAR(cpp:S5421): Retains SHM selection across VRAM-to-RAM capture backend recreation.
 
   /**
    * @brief Source byte offsets feeding each destination BGRA channel.
@@ -81,7 +81,7 @@ namespace wl {
   bool convert_shm_frame(const frame_t &frame, platf::img_t &img) {
     auto layout = shm_layout(frame.shm_format);
     if (!layout) {
-      BOOST_LOG(error) << "[wlgrab] Unsupported SHM format: 0x"sv << std::hex << frame.shm_format << std::dec;
+      BOOST_LOG(error) << "[wlgrab] Unsupported SHM format: 0x" << std::hex << frame.shm_format << std::dec;
       return false;
     }
 
