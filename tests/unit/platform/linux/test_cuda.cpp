@@ -5,12 +5,12 @@
 
 #ifdef __linux__
 
+  // test includes
+  #include "../../../tests_common.h"
+
   // standard includes
   #include <array>
   #include <cstdint>
-
-  // lib includes
-  #include <gtest/gtest.h>
 
   // local includes
   #include "src/platform/linux/cuda.h"
