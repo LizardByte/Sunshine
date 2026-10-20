@@ -459,9 +459,9 @@ namespace cuda {
           return fd;
         }
 
-        char string[1024];
+        std::array<char, 1024> message;
         BOOST_LOG(warning) << "Couldn't open render node "sv << device_path.string() << ": "sv
-                           << strerror_r(errno, string, sizeof(string)) << ", falling back to the primary node"sv;
+                           << strerror_r(errno, message.data(), message.size()) << ", falling back to the primary node"sv;
       }
 
       for (auto &entry : fs::directory_iterator {sysfs_dir}) {

@@ -34,7 +34,7 @@ namespace {
   /**
    * @brief Private compositor using libwayland's real SHM pool implementation.
    */
-  class WaylandShmProtocolTest: public testing::Test {
+  class WaylandShmProtocolTest: public testing::Test {  // NOSONAR(cpp:S3656): TEST_F generates subclasses that access the shared fixture state.
   protected:
     /**
      * @brief Observe the active proxy without replacing capture's protocol handling.
@@ -47,28 +47,28 @@ namespace {
      * @brief Create an in-process compositor without connecting to the desktop.
      */
     void SetUp() override {
-      server = wl_display_create();
-      ASSERT_NE(server, nullptr);
-      ASSERT_EQ(wl_display_init_shm(server), 0);
-      ASSERT_NE(wl_global_create(server, &zwlr_screencopy_manager_v1_interface, 3, this, bind_manager), nullptr);
-      ASSERT_NE(wl_global_create(server, &zwp_linux_dmabuf_v1_interface, 3, this, bind_dmabuf), nullptr);
-      ASSERT_NE(wl_global_create(server, &wl_output_interface, 1, this, bind_output), nullptr);
-      int sockets[2];
-      ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets), 0);
-      ASSERT_NE(wl_client_create(server, sockets[0]), nullptr);
-      client = wl_display_connect_to_fd(sockets[1]);
-      ASSERT_NE(client, nullptr);
-      registry = wl_display_get_registry(client);
+      connection.server = wl_display_create();
+      ASSERT_NE(connection.server, nullptr);
+      ASSERT_EQ(wl_display_init_shm(connection.server), 0);
+      ASSERT_NE(wl_global_create(connection.server, &zwlr_screencopy_manager_v1_interface, 3, this, bind_manager), nullptr);
+      ASSERT_NE(wl_global_create(connection.server, &zwp_linux_dmabuf_v1_interface, 3, this, bind_dmabuf), nullptr);
+      ASSERT_NE(wl_global_create(connection.server, &wl_output_interface, 1, this, bind_output), nullptr);
+      std::array<int, 2> sockets;
+      ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()), 0);
+      ASSERT_NE(wl_client_create(connection.server, sockets[0]), nullptr);
+      connection.client = wl_display_connect_to_fd(sockets[1]);
+      ASSERT_NE(connection.client, nullptr);
+      connection.registry = wl_display_get_registry(connection.client);
       static const wl_registry_listener listener {global, global_remove};
-      wl_registry_add_listener(registry, &listener, this);
+      wl_registry_add_listener(connection.registry, &listener, this);
       ASSERT_TRUE(sync());
       ASSERT_TRUE(sync());
-      ASSERT_NE(shm, nullptr);
-      ASSERT_NE(manager, nullptr);
-      ASSERT_NE(dmabuf, nullptr);
-      ASSERT_NE(output, nullptr);
+      ASSERT_NE(connection.shm, nullptr);
+      ASSERT_NE(connection.manager, nullptr);
+      ASSERT_NE(connection.dmabuf, nullptr);
+      ASSERT_NE(connection.output, nullptr);
       capture = std::make_unique<capture_t>();
-      capture->listener.buffer = [](void *data, zwlr_screencopy_frame_v1 *frame, std::uint32_t format, std::uint32_t width, std::uint32_t height, std::uint32_t stride) {
+      capture->listener.buffer = [](void *data, zwlr_screencopy_frame_v1 *frame, std::uint32_t format, std::uint32_t width, std::uint32_t height, std::uint32_t stride) {  // NOSONAR(cpp:S5008): Required by the Wayland C listener signature.
         auto &capture = *static_cast<capture_t *>(static_cast<wl::dmabuf_t *>(data));
         capture.request = frame;
         capture.buffer(frame, format, width, height, stride);
@@ -83,12 +83,12 @@ namespace {
         capture->cancel();
         capture.reset();
       }
-      if (client) {
-        wl_display_disconnect(client);
+      if (connection.client) {
+        wl_display_disconnect(connection.client);
       }
-      if (server) {
-        wl_display_destroy_clients(server);
-        wl_display_destroy(server);
+      if (connection.server) {
+        wl_display_destroy_clients(connection.server);
+        wl_display_destroy(connection.server);
       }
     }
 
@@ -98,32 +98,32 @@ namespace {
      */
     bool sync() {
       bool done = false;
-      auto callback = wl_display_sync(client);
+      auto callback = wl_display_sync(connection.client);
       static const wl_callback_listener listener {
-        [](void *data, wl_callback *callback, std::uint32_t) {
+        [](void *data, wl_callback *callback, std::uint32_t) {  // NOSONAR(cpp:S5008): Required by the Wayland C listener signature.
           *static_cast<bool *>(data) = true;
           wl_callback_destroy(callback);
         },
       };
       wl_callback_add_listener(callback, &listener, &done);
       while (!done) {
-        if (wl_display_flush(client) < 0 || wl_event_loop_dispatch(wl_display_get_event_loop(server), 0) < 0) {
+        if (wl_display_flush(connection.client) < 0 || wl_event_loop_dispatch(wl_display_get_event_loop(connection.server), 0) < 0) {
           return false;
         }
-        wl_display_flush_clients(server);
-        pollfd fd {wl_display_get_fd(client), POLLIN, 0};
-        if (poll(&fd, 1, 1000) <= 0 || wl_display_dispatch(client) < 0) {
+        wl_display_flush_clients(connection.server);
+        pollfd fd {wl_display_get_fd(connection.client), POLLIN, 0};
+        if (poll(&fd, 1, 1000) <= 0 || wl_display_dispatch(connection.client) < 0) {
           return false;
         }
       }
-      return wl_display_get_error(client) == 0;
+      return wl_display_get_error(connection.client) == 0;
     }
 
     /**
      * @brief Begin a capture and process its advertised buffer formats.
      */
     void start() {
-      capture->listen(manager, dmabuf, nullptr, shm, output);
+      capture->listen(connection.manager, connection.dmabuf, nullptr, connection.shm, connection.output);
       ASSERT_TRUE(sync());
       ASSERT_TRUE(sync());
     }
@@ -137,11 +137,11 @@ namespace {
       advertise_dmabuf = true;
       accept_dmabuf = true;
       capture->with_damage = true;
-      capture->listen(manager, dmabuf, nullptr, fallback ? shm : nullptr, output, true);
+      capture->listen(connection.manager, connection.dmabuf, nullptr, fallback ? connection.shm : nullptr, connection.output, true);
       ASSERT_TRUE(sync());
       ASSERT_TRUE(sync());
       hold_buffer_done = false;
-      auto params = zwp_linux_dmabuf_v1_create_params(dmabuf);
+      auto params = zwp_linux_dmabuf_v1_create_params(connection.dmabuf);
       static const zwp_linux_buffer_params_v1_listener listener {
         wl::dmabuf_t::buffer_params_created,
         wl::dmabuf_t::buffer_params_failed,
@@ -183,38 +183,41 @@ namespace {
      * @param interface Advertised interface name.
      * @param version Advertised interface version.
      */
-    static void global(void *data, wl_registry *registry, std::uint32_t name, const char *interface, std::uint32_t version) {
+    static void global(void *data, wl_registry *registry, std::uint32_t name, const char *interface, std::uint32_t version) {  // NOSONAR(cpp:S5008): Required by the Wayland C registry listener signature.
       auto &self = *static_cast<WaylandShmProtocolTest *>(data);
       if (std::string_view(interface) == "wl_shm") {
-        self.shm = static_cast<wl_shm *>(wl_registry_bind(registry, name, &wl_shm_interface, 1));
-        static const wl_shm_listener listener {[](void *, wl_shm *, std::uint32_t) {
+        self.connection.shm = static_cast<wl_shm *>(wl_registry_bind(registry, name, &wl_shm_interface, 1));
+        static const wl_shm_listener listener {[](void *, wl_shm *, std::uint32_t) {  // NOSONAR(cpp:S5008): Required by the Wayland C SHM listener signature.
+          // The private compositor always advertises XRGB8888 to capture.
         }};
-        wl_shm_add_listener(self.shm, &listener, nullptr);
+        wl_shm_add_listener(self.connection.shm, &listener, nullptr);
       } else if (std::string_view(interface) == "wl_output") {
-        self.output = static_cast<wl_output *>(wl_registry_bind(registry, name, &wl_output_interface, 1));
+        self.connection.output = static_cast<wl_output *>(wl_registry_bind(registry, name, &wl_output_interface, 1));
       } else if (std::string_view(interface) == "zwlr_screencopy_manager_v1") {
-        self.manager = static_cast<zwlr_screencopy_manager_v1 *>(wl_registry_bind(registry, name, &zwlr_screencopy_manager_v1_interface, version));
+        self.connection.manager = static_cast<zwlr_screencopy_manager_v1 *>(wl_registry_bind(registry, name, &zwlr_screencopy_manager_v1_interface, version));
       } else if (std::string_view(interface) == "zwp_linux_dmabuf_v1") {
-        self.dmabuf = static_cast<zwp_linux_dmabuf_v1 *>(wl_registry_bind(registry, name, &zwp_linux_dmabuf_v1_interface, version));
+        self.connection.dmabuf = static_cast<zwp_linux_dmabuf_v1 *>(wl_registry_bind(registry, name, &zwp_linux_dmabuf_v1_interface, version));
       }
     }
 
     /**
      * @brief Ignore global removal; this compositor retains globals until teardown.
      */
-    static void global_remove(void *, wl_registry *, std::uint32_t) {}
+    static void global_remove(void *, wl_registry *, std::uint32_t) {  // NOSONAR(cpp:S5008): Required by the Wayland C registry listener signature.
+      // The private compositor retains all globals until teardown.
+    }
 
     /**
      * @brief Bind an output used only as the screencopy request's target.
      */
-    static void bind_output(wl_client *client, void *, std::uint32_t version, std::uint32_t id) {
+    static void bind_output(wl_client *client, void *, std::uint32_t version, std::uint32_t id) {  // NOSONAR(cpp:S5008): Required by the Wayland C global-bind signature.
       wl_resource_create(client, &wl_output_interface, version, id);
     }
 
     /**
      * @brief Bind the screencopy manager and install its request dispatcher.
      */
-    static void bind_manager(wl_client *client, void *data, std::uint32_t version, std::uint32_t id) {
+    static void bind_manager(wl_client *client, void *data, std::uint32_t version, std::uint32_t id) {  // NOSONAR(cpp:S5008): Required by the Wayland C global-bind signature.
       auto resource = wl_resource_create(client, &zwlr_screencopy_manager_v1_interface, version, id);
       wl_resource_set_dispatcher(resource, dispatch_manager, nullptr, data, nullptr);
     }
@@ -222,7 +225,7 @@ namespace {
     /**
      * @brief Bind the controlled DMA-BUF import factory.
      */
-    static void bind_dmabuf(wl_client *client, void *data, std::uint32_t version, std::uint32_t id) {
+    static void bind_dmabuf(wl_client *client, void *data, std::uint32_t version, std::uint32_t id) {  // NOSONAR(cpp:S5008): Required by the Wayland C global-bind signature.
       auto resource = wl_resource_create(client, &zwp_linux_dmabuf_v1_interface, version, id);
       wl_resource_set_dispatcher(resource, dispatch_dmabuf, nullptr, data, nullptr);
     }
@@ -230,7 +233,7 @@ namespace {
     /**
      * @brief Advertise a SHM frame, optionally holding buffer_done for an import rejection.
      */
-    static int dispatch_manager(const void *, void *target, std::uint32_t opcode, const wl_message *, wl_argument *args) {
+    static int dispatch_manager(const void *, void *target, std::uint32_t opcode, const wl_message *, wl_argument *args) {  // NOSONAR(cpp:S5008): Required by wl_dispatcher_func_t.
       auto resource = static_cast<wl_resource *>(target);
       auto &self = *static_cast<WaylandShmProtocolTest *>(wl_resource_get_user_data(resource));
       if (opcode == 2) {
@@ -254,7 +257,7 @@ namespace {
     /**
      * @brief Retain copy buffers until the test completes or cancels a request.
      */
-    static int dispatch_frame(const void *, void *target, std::uint32_t opcode, const wl_message *, wl_argument *args) {
+    static int dispatch_frame(const void *, void *target, std::uint32_t opcode, const wl_message *, wl_argument *args) {  // NOSONAR(cpp:S5008): Required by wl_dispatcher_func_t.
       auto resource = static_cast<wl_resource *>(target);
       auto &self = *static_cast<WaylandShmProtocolTest *>(wl_resource_get_user_data(resource));
       if (opcode == 1) {
@@ -269,7 +272,7 @@ namespace {
         wl_resource_post_error(resource, 0, "Cannot copy a terminal screencopy frame");
       } else {
         self.damage_copy = opcode == 2;
-        self.buffer_resource = reinterpret_cast<wl_resource *>(args[0].o);
+        self.buffer_resource = reinterpret_cast<wl_resource *>(args[0].o);  // NOSONAR(cpp:S3630): Wayland's server dispatcher encodes wl_resource pointers in wl_argument::o.
         ++self.copies;
         if (!wl_shm_buffer_get(self.buffer_resource)) {
           self.failed_frame = resource;
@@ -282,7 +285,7 @@ namespace {
     /**
      * @brief Create import parameter resources without using a GPU.
      */
-    static int dispatch_dmabuf(const void *, void *target, std::uint32_t opcode, const wl_message *, wl_argument *args) {
+    static int dispatch_dmabuf(const void *, void *target, std::uint32_t opcode, const wl_message *, wl_argument *args) {  // NOSONAR(cpp:S5008): Required by wl_dispatcher_func_t.
       auto resource = static_cast<wl_resource *>(target);
       if (opcode == 0) {
         wl_resource_destroy(resource);
@@ -296,7 +299,7 @@ namespace {
     /**
      * @brief Complete or reject an asynchronous import through the Wayland event queue.
      */
-    static int dispatch_params(const void *, void *target, std::uint32_t opcode, const wl_message *, wl_argument *) {
+    static int dispatch_params(const void *, void *target, std::uint32_t opcode, const wl_message *, wl_argument *) {  // NOSONAR(cpp:S5008): Required by wl_dispatcher_func_t.
       auto resource = static_cast<wl_resource *>(target);
       if (opcode == 0) {
         wl_resource_destroy(resource);
@@ -304,7 +307,7 @@ namespace {
         auto &self = *static_cast<WaylandShmProtocolTest *>(wl_resource_get_user_data(resource));
         if (self.accept_dmabuf) {
           auto buffer = wl_resource_create(wl_resource_get_client(resource), &wl_buffer_interface, 1, 0);
-          wl_resource_set_dispatcher(buffer, [](const void *, void *target, std::uint32_t, const wl_message *, wl_argument *) {
+          wl_resource_set_dispatcher(buffer, [](const void *, void *target, std::uint32_t, const wl_message *, wl_argument *) {  // NOSONAR(cpp:S5008): Required by wl_dispatcher_func_t.
             wl_resource_destroy(static_cast<wl_resource *>(target));
             return 0;
           },
@@ -319,13 +322,16 @@ namespace {
       return 0;
     }
 
-    wl_display *server {};  ///< Private compositor display.
-    wl_display *client {};  ///< Private capture connection.
-    wl_registry *registry {};  ///< Registry used to bind test globals.
-    wl_shm *shm {};  ///< Real libwayland SHM factory.
-    wl_output *output {};  ///< Output targeted by capture requests.
-    zwlr_screencopy_manager_v1 *manager {};  ///< Private screencopy factory.
-    zwp_linux_dmabuf_v1 *dmabuf {};  ///< Controlled DMA-BUF import factory.
+    struct {
+      wl_display *server {};  ///< Private compositor display.
+      wl_display *client {};  ///< Private capture connection.
+      wl_registry *registry {};  ///< Registry used to bind test globals.
+      wl_shm *shm {};  ///< Real libwayland SHM factory.
+      wl_output *output {};  ///< Output targeted by capture requests.
+      zwlr_screencopy_manager_v1 *manager {};  ///< Private screencopy factory.
+      zwp_linux_dmabuf_v1 *dmabuf {};  ///< Controlled DMA-BUF import factory.
+    } connection;  ///< Objects belonging to the private Wayland connection.
+
     wl_resource *frame_resource {};  ///< Active server-side screencopy frame.
     wl_resource *buffer_resource {};  ///< Buffer retained by the pending copy.
     wl_resource *failed_frame {};  ///< Terminal frame that must not receive another copy.
@@ -386,7 +392,7 @@ TEST_F(WaylandShmProtocolTest, AsyncImportRejectionCompletesShmWithoutDisplayRec
   hold_buffer_done = true;
   start();
   ASSERT_EQ(copies, 0);
-  auto params = zwp_linux_dmabuf_v1_create_params(dmabuf);
+  auto params = zwp_linux_dmabuf_v1_create_params(connection.dmabuf);
   static const zwp_linux_buffer_params_v1_listener listener {
     wl::dmabuf_t::buffer_params_created,
     wl::dmabuf_t::buffer_params_failed,
@@ -490,7 +496,7 @@ TEST_F(WaylandShmProtocolTest, InvertedPixelsConvertIntoFrameOwnedBgra) {
 
 TEST_F(WaylandShmProtocolTest, GbmInitializationFailureStillCompletesShm) {
   const auto previous = config::video.adapter_name;
-  auto restore = util::fail_guard([&] {
+  auto restore = util::fail_guard([&previous] {
     config::video.adapter_name = previous;
   });
   config::video.adapter_name = "/nonexistent-sunshine-test-render-node";
@@ -545,7 +551,7 @@ TEST_F(WaylandShmProtocolTest, CapturedShmPixelsCanBeEncodedAsH264) {
   frame->pts = 0;
   ASSERT_EQ(av_frame_get_buffer(frame.get(), 0), 0);
 
-  std::unique_ptr<SwsContext, decltype(&sws_freeContext)> converter(sws_getContext(width, height, AV_PIX_FMT_BGRA, width, height, AV_PIX_FMT_YUV420P, SWS_POINT, nullptr, nullptr, nullptr), sws_freeContext);
+  std::unique_ptr<SwsContext, decltype(&sws_freeContext)> converter(sws_getContext(width, height, AV_PIX_FMT_BGRA, width, height, AV_PIX_FMT_YUV420P, SWS_POINT, nullptr, nullptr, nullptr), &sws_freeContext);
   ASSERT_NE(converter, nullptr);
   const std::array<const std::uint8_t *, 4> source {pixels.data()};
   const std::array<int, 4> pitches {static_cast<int>(stride)};
@@ -562,7 +568,7 @@ TEST_F(WaylandShmProtocolTest, CapturedShmPixelsCanBeEncodedAsH264) {
 }
 
 TEST_F(WaylandShmProtocolTest, MissingShmReinitializesWithoutIssuingCopy) {
-  capture->listen(manager, dmabuf, nullptr, nullptr, output);
+  capture->listen(connection.manager, connection.dmabuf, nullptr, nullptr, connection.output);
   ASSERT_TRUE(sync());
   ASSERT_TRUE(sync());
   EXPECT_EQ(copies, 0);

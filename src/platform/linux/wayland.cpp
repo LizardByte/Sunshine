@@ -384,14 +384,14 @@ namespace wl {
 
   // Destroy the per-frame SHM Wayland objects, keeping the memfd mapping
   void dmabuf_t::cleanup_shm() {
-    if (shm_wl_buffer) {
-      wl_buffer_destroy(shm_wl_buffer);
-      shm_wl_buffer = nullptr;
+    if (shm.buffer) {
+      wl_buffer_destroy(shm.buffer);
+      shm.buffer = nullptr;
     }
 
-    if (shm_pool) {
-      wl_shm_pool_destroy(shm_pool);
-      shm_pool = nullptr;
+    if (shm.pool) {
+      wl_shm_pool_destroy(shm.pool);
+      shm.pool = nullptr;
     }
   }
 
@@ -399,48 +399,48 @@ namespace wl {
   void dmabuf_t::destroy_shm() {
     cleanup_shm();
 
-    if (shm_mmap && shm_mmap_size > 0) {
-      munmap(shm_mmap, shm_mmap_size);
-      shm_mmap = nullptr;
-      shm_mmap_size = 0;
+    if (shm.mapping && shm.size > 0) {
+      munmap(shm.mapping, shm.size);
+      shm.mapping = nullptr;
+      shm.size = 0;
     }
 
-    if (shm_fd >= 0) {
-      close(shm_fd);
-      shm_fd = -1;
+    if (shm.fd >= 0) {
+      close(shm.fd);
+      shm.fd = -1;
     }
   }
 
   bool dmabuf_t::init_shm(std::size_t size) {
-    if (size == shm_mmap_size) {
+    if (size == shm.size) {
       return true;
     }
 
     destroy_shm();
 
-    shm_fd = memfd_create("sunshine-shm", 0);
-    if (shm_fd < 0) {
+    shm.fd = memfd_create("sunshine-shm", 0);
+    if (shm.fd < 0) {
       BOOST_LOG(error) << "[wayland] memfd_create failed: "sv << strerror(errno);
       return false;
     }
 
-    if (ftruncate(shm_fd, size) < 0) {
+    if (ftruncate(shm.fd, size) < 0) {
       BOOST_LOG(error) << "[wayland] ftruncate failed: "sv << strerror(errno);
-      close(shm_fd);
-      shm_fd = -1;
+      close(shm.fd);
+      shm.fd = -1;
       return false;
     }
 
-    shm_mmap = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
-    if (shm_mmap == MAP_FAILED) {
+    shm.mapping = static_cast<std::uint8_t *>(mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, shm.fd, 0));
+    if (shm.mapping == MAP_FAILED) {
       BOOST_LOG(error) << "[wayland] mmap failed: "sv << strerror(errno);
-      shm_mmap = nullptr;
-      close(shm_fd);
-      shm_fd = -1;
+      shm.mapping = nullptr;
+      close(shm.fd);
+      shm.fd = -1;
       return false;
     }
 
-    shm_mmap_size = size;
+    shm.size = size;
     return true;
   }
 
@@ -461,8 +461,7 @@ namespace wl {
         return std::nullopt;
     }
 
-    constexpr auto limit = std::numeric_limits<std::int32_t>::max();
-    if (!width || !height || !stride || width > limit || height > limit || stride > limit || width > stride / bpp || height > limit / stride) {
+    if (constexpr auto limit = std::numeric_limits<std::int32_t>::max(); !width || !height || !stride || width > limit || height > limit || stride > limit || width > stride / bpp || height > limit / stride) {
       return std::nullopt;
     }
 
@@ -482,23 +481,23 @@ namespace wl {
     // The compositor may hold a reference to the previous buffer, so hand it a fresh one
     cleanup_shm();
 
-    shm_pool = wl_shm_create_pool(shm_interface, shm_fd, shm_mmap_size);
-    if (!shm_pool) {
+    shm.pool = wl_shm_create_pool(shm.interface, shm.fd, shm.size);
+    if (!shm.pool) {
       BOOST_LOG(error) << "[wayland] Failed to create SHM pool"sv;
       zwlr_screencopy_frame_v1_destroy(frame);
       status = REINIT;
       return;
     }
 
-    shm_wl_buffer = wl_shm_pool_create_buffer(
-      shm_pool,
+    shm.buffer = wl_shm_pool_create_buffer(
+      shm.pool,
       0,
       shm_info.width,
       shm_info.height,
       shm_info.stride,
       shm_info.format
     );
-    if (!shm_wl_buffer) {
+    if (!shm.buffer) {
       BOOST_LOG(error) << "[wayland] Failed to create SHM buffer"sv;
       cleanup_shm();
       zwlr_screencopy_frame_v1_destroy(frame);
@@ -506,7 +505,7 @@ namespace wl {
       return;
     }
 
-    shm_mode = true;
+    shm.active = true;
 
     static std::once_flag shm_format_log_flag;
     std::call_once(shm_format_log_flag, [&] {
@@ -517,9 +516,9 @@ namespace wl {
     });
 
     if (with_damage) {
-      zwlr_screencopy_frame_v1_copy_with_damage(frame, shm_wl_buffer);
+      zwlr_screencopy_frame_v1_copy_with_damage(frame, shm.buffer);
     } else {
-      zwlr_screencopy_frame_v1_copy(frame, shm_wl_buffer);
+      zwlr_screencopy_frame_v1_copy(frame, shm.buffer);
     }
     pending_copy = frame;
   }
@@ -548,14 +547,12 @@ namespace wl {
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_formats_in,
     bool prefer_linear_copy_in
   ) {
-    capture_manager = screencopy_manager;
-    capture_output = output;
-    capture_cursor = blend_cursor;
+    capture_context = {screencopy_manager, output, blend_cursor};
     dmabuf_interface = dmabuf_interface_in;
     supported_modifiers = compositor_formats_in;
     encoder_modifiers = encoder_formats_in;
     prefer_linear_copy = prefer_linear_copy_in;
-    shm_interface = shm_interface_in;
+    shm.interface = shm_interface_in;
     // Reset state
     shm_info.supported = false;
     dmabuf_info.supported = false;
@@ -716,7 +713,7 @@ namespace wl {
   // Buffer done callback - time to create buffer
   void dmabuf_t::buffer_done(zwlr_screencopy_frame_v1 *frame) {
     auto next_frame = get_next_frame();
-    shm_mode = false;
+    shm.active = false;
 
     // Prefer DMA-BUF if supported
     if (dmabuf_info.supported && dmabuf_interface && allow_dmabuf && !gbm_failed) {
@@ -734,7 +731,7 @@ namespace wl {
       gbm_failed = true;
       cleanup_gbm();
 
-      if (shm_info.supported && shm_interface) {
+      if (shm_info.supported && shm.interface) {
         BOOST_LOG(warning) << "[wayland] DMA-BUF capture failed, falling back to SHM"sv;
         create_and_copy_shm(frame);
         return;
@@ -743,7 +740,7 @@ namespace wl {
       BOOST_LOG(error) << "[wayland] DMA-BUF capture failed and no SHM fallback is available"sv;
       zwlr_screencopy_frame_v1_destroy(frame);
       status = REINIT;
-    } else if (shm_info.supported && shm_interface) {
+    } else if (shm_info.supported && shm.interface) {
       create_and_copy_shm(frame);
     } else {
       BOOST_LOG(error) << "[wayland] No supported buffer types"sv;
@@ -790,7 +787,7 @@ namespace wl {
     self->gbm_failed = true;
 
     zwp_linux_buffer_params_v1_destroy(params);
-    if (self->shm_info.supported && self->shm_interface) {
+    if (self->shm_info.supported && self->shm.interface) {
       self->create_and_copy_shm(frame);
       return;
     }
@@ -816,13 +813,13 @@ namespace wl {
       std::chrono::duration_cast<std::chrono::steady_clock::duration>(ready_ts)
     };
 
-    if (shm_mode) {
+    if (shm.active) {
       // wlr_t::snapshot() checks these against the configured resolution
       current_frame->sd.width = shm_info.width;
       current_frame->sd.height = shm_info.height;
 
       // Copy out — the compositor writes the next frame into the same mapping
-      auto *src = static_cast<const std::uint8_t *>(shm_mmap);
+      const auto *src = shm.mapping;
       current_frame->shm_data.assign(src, src + static_cast<std::size_t>(shm_info.stride) * shm_info.height);
       current_frame->shm_stride = shm_info.stride;
       current_frame->shm_format = shm_info.format;
@@ -851,7 +848,7 @@ namespace wl {
   void dmabuf_t::failed(zwlr_screencopy_frame_v1 *frame) {
     BOOST_LOG(error) << "[wayland] Frame capture failed"sv;
 
-    const bool retry_shm = pending_copy == frame && current_wl_buffer && !shm_mode && !gbm_failed && shm_info.supported && shm_interface;
+    const bool retry_shm = pending_copy == frame && current_wl_buffer && !shm.active && !gbm_failed && shm_info.supported && shm.interface;
 
     // Clean up resources
     cleanup_gbm();
@@ -867,7 +864,7 @@ namespace wl {
       gbm_failed = true;
       with_damage = false;
       BOOST_LOG(warning) << "[wayland] DMA-BUF copy failed, retrying capture with SHM"sv;
-      listen(capture_manager, dmabuf_interface, supported_modifiers, shm_interface, capture_output, capture_cursor, encoder_modifiers, prefer_linear_copy);
+      listen(capture_context.manager, dmabuf_interface, supported_modifiers, shm.interface, capture_context.output, capture_context.blend_cursor, encoder_modifiers, prefer_linear_copy);
       return;
     }
     status = REINIT;

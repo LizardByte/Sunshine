@@ -573,9 +573,12 @@ namespace wl {
     void cleanup_shm();
     void destroy_shm();
 
-    zwlr_screencopy_manager_v1 *capture_manager {nullptr};  ///< Non-owning factory for a fresh SHM retry after a terminal DMA-BUF copy failure.
-    wl_output *capture_output {nullptr};  ///< Output retained for the bounded capture retry.
-    bool capture_cursor {false};  ///< Cursor option retained for the bounded capture retry.
+    struct {
+      zwlr_screencopy_manager_v1 *manager {nullptr};  ///< Non-owning factory for a fresh capture after a terminal copy failure.
+      wl_output *output {nullptr};  ///< Output retained for the bounded capture retry.
+      bool blend_cursor {false};  ///< Cursor option retained for the bounded capture retry.
+    } capture_context;  ///< Parameters needed to replace a terminal capture request.
+
     zwp_linux_dmabuf_v1 *dmabuf_interface {nullptr};
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers {nullptr};
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_modifiers {nullptr};  ///< Optional encoder modifiers for intersection.
@@ -603,13 +606,15 @@ namespace wl {
     zwlr_screencopy_frame_v1 *pending_copy {nullptr};  ///< Request whose copy is asked for and not yet answered.
     bool y_invert {false};
 
-    wl_shm *shm_interface {nullptr};
-    int shm_fd {-1};
-    void *shm_mmap {nullptr};
-    std::size_t shm_mmap_size {0};
-    wl_shm_pool *shm_pool {nullptr};
-    wl_buffer *shm_wl_buffer {nullptr};
-    bool shm_mode {false};
+    struct {
+      wl_shm *interface {nullptr};  ///< Non-owning factory for shared-memory buffers.
+      int fd {-1};  ///< File descriptor backing the shared-memory pool.
+      std::uint8_t *mapping {nullptr};  ///< Mapped pixel storage.
+      std::size_t size {0};  ///< Size of the mapped pixel storage.
+      wl_shm_pool *pool {nullptr};  ///< Per-frame Wayland pool referencing the mapping.
+      wl_buffer *buffer {nullptr};  ///< Per-frame copy destination.
+      bool active {false};  ///< Whether the pending copy uses shared memory.
+    } shm;  ///< Shared-memory resources and capture mode.
   };
 
   /**
