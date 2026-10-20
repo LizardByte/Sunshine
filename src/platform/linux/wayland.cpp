@@ -548,6 +548,9 @@ namespace wl {
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *encoder_formats_in,
     bool prefer_linear_copy_in
   ) {
+    capture_manager = screencopy_manager;
+    capture_output = output;
+    capture_cursor = blend_cursor;
     dmabuf_interface = dmabuf_interface_in;
     supported_modifiers = compositor_formats_in;
     encoder_modifiers = encoder_formats_in;
@@ -848,6 +851,8 @@ namespace wl {
   void dmabuf_t::failed(zwlr_screencopy_frame_v1 *frame) {
     BOOST_LOG(error) << "[wayland] Frame capture failed"sv;
 
+    const bool retry_shm = pending_copy == frame && current_wl_buffer && !shm_mode && !gbm_failed && shm_info.supported && shm_interface;
+
     // Clean up resources
     cleanup_gbm();
     cleanup_shm();
@@ -856,6 +861,15 @@ namespace wl {
 
     zwlr_screencopy_frame_v1_destroy(frame);
     pending_copy = nullptr;
+    if (retry_shm) {
+      // A failed screencopy is terminal. Retry with a new request, immediately,
+      // so an unchanged output does not leave the SHM fallback waiting for damage.
+      gbm_failed = true;
+      with_damage = false;
+      BOOST_LOG(warning) << "[wayland] DMA-BUF copy failed, retrying capture with SHM"sv;
+      listen(capture_manager, dmabuf_interface, supported_modifiers, shm_interface, capture_output, capture_cursor, encoder_modifiers, prefer_linear_copy);
+      return;
+    }
     status = REINIT;
   }
 
