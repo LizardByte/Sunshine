@@ -184,6 +184,7 @@ namespace nvhttp {
     std::string uuid;  ///< Persistent Moonlight client UUID associated with the certificate.
     std::string cert;  ///< Certificate PEM string or path.
     bool enabled = true;  ///< Whether this persisted client entry may connect.
+    input::permissions_t permissions;  ///< Input categories this client may send while streaming.
   };
 
   /**
@@ -290,6 +291,9 @@ namespace nvhttp {
       named_cert_node.put("cert"s, named_cert.cert);
       named_cert_node.put("uuid"s, named_cert.uuid);
       named_cert_node.put("enabled"s, named_cert.enabled);
+      named_cert_node.put("allow_mouse"s, named_cert.permissions.mouse);
+      named_cert_node.put("allow_keyboard"s, named_cert.permissions.keyboard);
+      named_cert_node.put("allow_controller"s, named_cert.permissions.controller);
       named_cert_nodes.push_back(std::make_pair(""s, named_cert_node));
     }
     root.add_child("root.named_devices"s, named_cert_nodes);
@@ -426,6 +430,9 @@ namespace nvhttp {
         named_cert.cert = el.get_child("cert").get_value<std::string>();
         named_cert.uuid = el.get_child("uuid").get_value<std::string>();
         named_cert.enabled = el.get<bool>("enabled", true);
+        named_cert.permissions.mouse = el.get<bool>("allow_mouse", true);
+        named_cert.permissions.keyboard = el.get<bool>("allow_keyboard", true);
+        named_cert.permissions.controller = el.get<bool>("allow_controller", true);
         client.named_devices.emplace_back(named_cert);
       }
     }
@@ -475,6 +482,16 @@ namespace nvhttp {
       save_state();
     }
     return uuid;
+  }
+
+  input::permissions_t get_client_permissions(const std::string_view cert_pem) {
+    std::lock_guard lock {client_auth_mutex()};
+    for (const auto &named_cert : client_root.named_devices) {
+      if (named_cert.cert == cert_pem) {
+        return named_cert.permissions;
+      }
+    }
+    return {};
   }
 
   /**
@@ -530,6 +547,7 @@ namespace nvhttp {
     launch_session->rtsp_url_scheme = launch_session->rtsp_cipher ? "rtspenc://"s : "rtsp://"s;
     launch_session->client_cert = last_verified_client_cert;
     launch_session->client_name = last_verified_client_name;
+    launch_session->input_permissions = get_client_permissions(launch_session->client_cert);
 
     // Generate the unique identifiers for this connection that we will send later during RTSP handshake
     std::array<unsigned char, 8> raw_payload;
@@ -1317,6 +1335,11 @@ namespace nvhttp {
       named_cert_node["name"] = named_cert.name;
       named_cert_node["uuid"] = named_cert.uuid;
       named_cert_node["enabled"] = named_cert.enabled;
+      named_cert_node["permissions"] = {
+        {"mouse", named_cert.permissions.mouse},
+        {"keyboard", named_cert.permissions.keyboard},
+        {"controller", named_cert.permissions.controller},
+      };
       named_cert_nodes.push_back(named_cert_node);
     }
 
@@ -1816,6 +1839,31 @@ namespace nvhttp {
         save_state();
         return true;
       }
+    }
+    return false;
+  }
+
+  bool set_client_permission(const std::string_view uuid, const input::permission_e permission, const bool allowed) {
+    std::lock_guard lock {client_auth_mutex()};
+    for (auto &named_cert : client_root.named_devices) {
+      if (named_cert.uuid != uuid) {
+        continue;
+      }
+
+      switch (permission) {
+        using enum input::permission_e;
+        case mouse:
+          named_cert.permissions.mouse = allowed;
+          break;
+        case keyboard:
+          named_cert.permissions.keyboard = allowed;
+          break;
+        case controller:
+          named_cert.permissions.controller = allowed;
+          break;
+      }
+      save_state();
+      return true;
     }
     return false;
   }

@@ -566,6 +566,7 @@ namespace stream {
     std::uint32_t launch_session_id;  ///< RTSP launch-session ID associated with this stream.
     std::string client_cert;  ///< PEM certificate for the paired client owning the stream.
     std::string input_session_id;  ///< Stable client identity used to retain input devices across resume.
+    input::permissions_t input_permissions;  ///< Input categories the paired client may send.
 
     safe::mail_raw_t::event_t<bool> shutdown_event;  ///< Event raised when the stream should shut down.
     safe::signal_t controlEnd;  ///< Signal raised when the control channel exits.
@@ -2276,7 +2277,7 @@ namespace stream {
      * @brief Start the audio, video, and control workers for a streaming session.
      */
     int start(session_t &session, const std::string &addr_string) {
-      session.input = input::alloc(session.mail, session.input_session_id);
+      session.input = input::alloc(session.mail, session.input_session_id, session.input_permissions);
 
       session.broadcast_ref = broadcast.ref();
       if (!session.broadcast_ref) {
@@ -2329,6 +2330,7 @@ namespace stream {
       session->launch_session_id = launch_session.id;
       session->client_cert = launch_session.client_cert;
       session->input_session_id = launch_session.client_cert.empty() ? launch_session.unique_id : launch_session.client_cert;
+      session->input_permissions = launch_session.input_permissions;
 
       session->config = config;
 
