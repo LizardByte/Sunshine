@@ -14,6 +14,7 @@
 
 // local includes
 #include "cuda.h"
+#include "cuda_color.h"
 
 using namespace std::literals;
 
@@ -202,15 +203,13 @@ namespace cuda {
     float3 rgb_lb = bgra_to_rgb(tex2D<float4>(srcImage, x, y + scale));
     float3 rgb_rb = bgra_to_rgb(tex2D<float4>(srcImage, x + scale, y + scale));
 
-    float2 uv_lt = calcUV(rgb_lt, color_matrix) * 256.0f;
-    float2 uv_rt = calcUV(rgb_rt, color_matrix) * 256.0f;
-    float2 uv_lb = calcUV(rgb_lb, color_matrix) * 256.0f;
-    float2 uv_rb = calcUV(rgb_rb, color_matrix) * 256.0f;
+    float2 uv_lt = calcUV(rgb_lt, color_matrix);
+    float2 uv_rt = calcUV(rgb_rt, color_matrix);
+    float2 uv_lb = calcUV(rgb_lb, color_matrix);
+    float2 uv_rb = calcUV(rgb_rb, color_matrix);
 
-    float2 uv = (uv_lt + uv_lb + uv_rt + uv_rb) * 0.25f;
-
-    dstUV[0] = uv.x;
-    dstUV[1] = uv.y;
+    dstUV[0] = nv12_chroma_sample(uv_lt.x, uv_rt.x, uv_lb.x, uv_rb.x);
+    dstUV[1] = nv12_chroma_sample(uv_lt.y, uv_rt.y, uv_lb.y, uv_rb.y);
     dstY0[0] = calcY(rgb_lt, color_matrix) * 245.0f;  // 245.0f is a magic number to ensure slight changes in luminosity are more visible
     dstY0[1] = calcY(rgb_rt, color_matrix) * 245.0f;  // 245.0f is a magic number to ensure slight changes in luminosity are more visible
     dstY1[0] = calcY(rgb_lb, color_matrix) * 245.0f;  // 245.0f is a magic number to ensure slight changes in luminosity are more visible
@@ -411,5 +410,53 @@ namespace cuda {
   int sws_t::load_ram(platf::img_t &img, cudaArray_t array) {
     return CU_CHECK_IGNORE(cudaMemcpy2DToArray(array, 0, 0, img.data, img.row_pitch, img.width * img.pixel_pitch, img.height, cudaMemcpyHostToDevice), "Couldn't copy to cuda array");
   }
+
+#ifdef SUNSHINE_TESTS
+  namespace test {
+    bool has_device() {
+      int count = 0;
+      return cudaGetDeviceCount(&count) == cudaSuccess && count > 0;
+    }
+
+    std::optional<nv12_planes_t> convert_to_nv12(const std::vector<std::uint8_t> &bgra, int width, int height, const video::sunshine_colorspace_t &colorspace) {
+      const int pitch = width * 4;
+      if (width <= 0 || height <= 0 || width % 2 != 0 || height % 2 != 0 || bgra.size() != static_cast<std::size_t>(pitch) * height) {
+        return std::nullopt;
+      }
+
+      auto tex = tex_t::make(height, pitch);
+      auto sws = sws_t::make(width, height, width, height, pitch);
+      if (!tex || !sws) {
+        return std::nullopt;
+      }
+      sws->apply_colorspace(colorspace);
+
+      CU_CHECK_OPT(cudaMemcpy2DToArray(tex->array, 0, 0, bgra.data(), pitch, pitch, height, cudaMemcpyHostToDevice), "Couldn't copy test frame to cuda array");
+
+      nv12_planes_t planes {
+        std::vector<std::uint8_t>(static_cast<std::size_t>(width) * height),
+        std::vector<std::uint8_t>(static_cast<std::size_t>(width) * height / 2),
+      };
+
+      void *luma_dev = nullptr;
+      CU_CHECK_OPT(cudaMalloc(&luma_dev, planes.y.size()), "Couldn't allocate test luma plane");
+      ptr_t luma {luma_dev};
+
+      void *chroma_dev = nullptr;
+      CU_CHECK_OPT(cudaMalloc(&chroma_dev, planes.uv.size()), "Couldn't allocate test chroma plane");
+      ptr_t chroma {chroma_dev};
+
+      if (sws->convert_nv12(static_cast<std::uint8_t *>(luma_dev), static_cast<std::uint8_t *>(chroma_dev), width, width, tex->texture.point, nullptr)) {
+        return std::nullopt;
+      }
+
+      // cudaMemcpy waits for the kernel, which ran on the default stream
+      CU_CHECK_OPT(cudaMemcpy(planes.y.data(), luma_dev, planes.y.size(), cudaMemcpyDeviceToHost), "Couldn't copy test luma plane");
+      CU_CHECK_OPT(cudaMemcpy(planes.uv.data(), chroma_dev, planes.uv.size(), cudaMemcpyDeviceToHost), "Couldn't copy test chroma plane");
+
+      return planes;
+    }
+  }  // namespace test
+#endif
 
 }  // namespace cuda

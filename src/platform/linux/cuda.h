@@ -171,6 +171,34 @@ namespace cuda {
 
     float scale;
   };
+
+  #ifdef SUNSHINE_TESTS
+  namespace test {
+    /**
+     * @brief NV12 planes copied back from the GPU.
+     */
+    struct nv12_planes_t {
+      std::vector<std::uint8_t> y;  ///< Luma plane, one byte per pixel, rows packed.
+      std::vector<std::uint8_t> uv;  ///< Chroma plane, U then V for each 2x2 block, rows packed.
+    };
+
+    /**
+     * @brief Report whether a CUDA device is available to run the kernels.
+     * @return True when at least one CUDA device can be used.
+     */
+    bool has_device();
+
+    /**
+     * @brief Convert a BGRA frame to NV12 with the production NV12 kernel.
+     * @param bgra Frame pixels, 4 bytes per pixel in B, G, R, A order, rows packed.
+     * @param width Frame width in pixels. Must be even.
+     * @param height Frame height in pixels. Must be even.
+     * @param colorspace Colorspace to apply before the conversion.
+     * @return The converted planes, or `std::nullopt` when the input is invalid or a CUDA call fails.
+     */
+    std::optional<nv12_planes_t> convert_to_nv12(const std::vector<std::uint8_t> &bgra, int width, int height, const video::sunshine_colorspace_t &colorspace);
+  }  // namespace test
+  #endif
 }  // namespace cuda
 
 #endif
