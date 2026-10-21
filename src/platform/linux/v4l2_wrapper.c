@@ -1,0 +1,70 @@
+/**
+ * @file src/platform/linux/v4l2_wrapper.c
+ * @brief Accessors for the patched FFmpeg V4L2 M2M output-buffer internals.
+ *
+ * FFmpeg's private V4L2 headers are intended for C and cause compatibility
+ * problems when included directly from C++. This translation unit includes
+ * those headers as C and presents the narrow C-compatible interface consumed
+ * by Sunshine's C++ zero-copy V4L2 encode device.
+ */
+
+// standard includes
+#include <libavcodec/avcodec.h>
+#include <libavcodec/v4l2_m2m.h>
+
+// local includes
+#include "v4l2_wrapper.h"
+
+int v4l2_wrapper_context_init(struct v4l2_wrapper_context *ctx, AVCodecContext *avctx) {
+  if (!ctx || !avctx || !avctx->priv_data) {
+    return -1;
+  }
+
+  V4L2m2mContext *v4l2_m2m_ctx = ((V4L2m2mPriv *) avctx->priv_data)->context;
+
+  ctx->avctx = avctx;
+  ctx->output = &v4l2_m2m_ctx->output;
+  ctx->fd = v4l2_m2m_ctx->fd;
+  ctx->format = v4l2_m2m_ctx->output.format;
+  ctx->width = v4l2_m2m_ctx->output.width;
+  ctx->height = v4l2_m2m_ctx->output.height;
+  ctx->num_buffers = v4l2_m2m_ctx->output.num_buffers;
+
+  v4l2_m2m_ctx->output.sunshine_zero_copy = 1;
+  v4l2_m2m_ctx->output.current_buffer_index = -1;
+
+  return 0;
+}
+
+void v4l2_wrapper_sync_v4l2buf_status(struct v4l2_wrapper_context *ctx) {
+  struct V4L2Context *output = (struct V4L2Context *) ctx->output;
+  while (v4l2_dequeue_v4l2buf(output, 0));
+}
+
+int v4l2_wrapper_getfree_v4l2buf_idx(const struct v4l2_wrapper_context *ctx) {
+  const struct V4L2Context *output = (const struct V4L2Context *) ctx->output;
+
+  for (int i = 0; i < ctx->num_buffers; i++) {
+    if (output->buffers[i].status == V4L2BUF_AVAILABLE) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+void v4l2_wrapper_set_current_buffer_index(struct v4l2_wrapper_context *ctx, int index) {
+  struct V4L2Context *output = (struct V4L2Context *) ctx->output;
+
+  output->current_buffer_index = index;
+}
+
+int v4l2_wrapper_v4l2buf_available(const struct v4l2_wrapper_context *ctx, int index) {
+  const struct V4L2Context *output = (const struct V4L2Context *) ctx->output;
+
+  if (index < 0 || index >= ctx->num_buffers) {
+    return 0;
+  }
+
+  return output->buffers[index].status == V4L2BUF_AVAILABLE;
+}
