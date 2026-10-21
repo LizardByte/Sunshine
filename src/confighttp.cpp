@@ -44,6 +44,7 @@
 #endif
 
 // local includes
+#include "audio.h"
 #include "config.h"
 #include "confighttp.h"
 #include "crypto.h"
