@@ -671,11 +671,17 @@ TEST_F(SystemTrayTest, ShowsMacBrokerLicenseAndAvailabilityWithOptionalStartupNo
 }
   #endif
 
+/**
+ * @brief Verify the tray fallback waits for shutdown using an explicitly owned worker thread.
+ */
 TEST_F(SystemTrayTest, KeepsWorkersRunningWhenTrayIsUnavailable) {
   ASSERT_FALSE(system_tray::tray_initialized_for_testing());
   auto shutdown_event = std::make_shared<safe::event_t<bool>>();
-  auto tray_loop = std::async(std::launch::async, [shutdown_event]() {
+  std::promise<void> tray_loop_exited;
+  auto tray_loop = tray_loop_exited.get_future();
+  std::jthread tray_worker([shutdown_event, &tray_loop_exited]() {
     system_tray::run_tray_until_exit(shutdown_event);
+    tray_loop_exited.set_value();
   });
 
   EXPECT_EQ(tray_loop.wait_for(100ms), std::future_status::timeout);
@@ -683,7 +689,7 @@ TEST_F(SystemTrayTest, KeepsWorkersRunningWhenTrayIsUnavailable) {
 
   shutdown_event->raise(true);
   EXPECT_EQ(tray_loop.wait_for(5s), std::future_status::ready);
-  tray_loop.get();
+  tray_worker.join();
   EXPECT_TRUE(shutdown_event->peek());
   EXPECT_FALSE(system_tray::tray_initialized_for_testing());
 }
