@@ -248,6 +248,7 @@ if(X11_FOUND)
     include_directories(SYSTEM ${X11_INCLUDE_DIR})
     list(APPEND PLATFORM_LIBRARIES ${X11_LIBRARIES})
     list(APPEND PLATFORM_TARGET_FILES
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/x11_layout.h"
             "${CMAKE_SOURCE_DIR}/src/platform/linux/x11grab.h"
             "${CMAKE_SOURCE_DIR}/src/platform/linux/x11grab.cpp")
 endif()
@@ -269,7 +270,8 @@ if(PIPEWIRE_FOUND)
     include_directories(SYSTEM ${PIPEWIRE_INCLUDE_DIRS})
     list(APPEND PLATFORM_LIBRARIES ${PIPEWIRE_LIBRARIES})
     list(APPEND PLATFORM_TARGET_FILES
-            "${CMAKE_SOURCE_DIR}/src/platform/linux/pipewire.cpp")
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/pipewire.cpp"
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/pipewire_utils.h")
 endif()
 
 # XDG portal
@@ -324,6 +326,7 @@ include_directories(SYSTEM
 
 list(APPEND PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/linux/publish.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/unpack_layout.h"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/graphics.h"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/graphics.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/misc.h"

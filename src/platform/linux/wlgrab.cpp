@@ -15,6 +15,7 @@
 
 // platform includes
 #include <fcntl.h>
+#include <libdrm/drm_fourcc.h>
 #include <unistd.h>
 #include <xf86drm.h>
 
@@ -638,6 +639,7 @@ namespace wl {
       img->height = height;
       img->pixel_pitch = 4;
       img->row_pitch = img->pixel_pitch * width;
+      img->pixel_format = platf::pix_fmt_e::bgr0;
       img->data = new std::uint8_t[height * img->row_pitch];
 
       return img;
@@ -683,6 +685,22 @@ namespace wl {
       img->sd = current_frame->sd;
       img->frame_timestamp = current_frame->frame_timestamp;
 
+      // Declare the format from the exported fourcc instead of the allocation
+      // placeholder. Only the packed 8-bit layouts have a Sunshine equivalent;
+      // any other surface stays undeclared.
+      using enum platf::pix_fmt_e;
+      switch (img->sd.fourcc) {
+        case DRM_FORMAT_XRGB8888:
+          img->pixel_format = bgr0;
+          break;
+        case DRM_FORMAT_ARGB8888:
+          img->pixel_format = bgra;
+          break;
+        default:
+          img->pixel_format = unknown;
+          break;
+      }
+
       // Prevent dmabuf from closing the file descriptors.
       current_frame->sd.fds.fill(-1);
 
@@ -702,6 +720,8 @@ namespace wl {
       img->sequence = 0;
       img->serial = std::numeric_limits<decltype(img->serial)>::max();
       img->data = nullptr;
+      img->pixel_pitch = 4;
+      img->pixel_format = platf::pix_fmt_e::bgr0;
 
       // File descriptors aren't open
       img->sd.fds.fill(-1);
