@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <format>
+#include <future>
 #include <optional>
 #include <string>
 #include <thread>
@@ -669,6 +670,34 @@ TEST_F(SystemTrayTest, ShowsMacBrokerLicenseAndAvailabilityWithOptionalStartupNo
   EXPECT_EQ(tray_data.notification_title, nullptr);
 }
   #endif
+
+TEST_F(SystemTrayTest, KeepsWorkersRunningWhenTrayIsUnavailable) {
+  ASSERT_FALSE(system_tray::tray_initialized_for_testing());
+  auto shutdown_event = std::make_shared<safe::event_t<bool>>();
+  auto tray_loop = std::async(std::launch::async, [shutdown_event]() {
+    system_tray::run_tray_until_exit(shutdown_event);
+  });
+
+  EXPECT_EQ(tray_loop.wait_for(100ms), std::future_status::timeout);
+  EXPECT_FALSE(shutdown_event->view(0ms));
+
+  shutdown_event->raise(true);
+  EXPECT_EQ(tray_loop.wait_for(5s), std::future_status::ready);
+  tray_loop.get();
+  EXPECT_TRUE(shutdown_event->peek());
+  EXPECT_FALSE(system_tray::tray_initialized_for_testing());
+}
+
+TEST_F(SystemTrayTest, HonorsPendingShutdownWhenTrayIsUnavailable) {
+  ASSERT_FALSE(system_tray::tray_initialized_for_testing());
+  auto shutdown_event = std::make_shared<safe::event_t<bool>>();
+  shutdown_event->raise(true);
+
+  system_tray::run_tray_until_exit(shutdown_event);
+
+  EXPECT_TRUE(shutdown_event->peek());
+  EXPECT_FALSE(system_tray::tray_initialized_for_testing());
+}
 
   #ifndef _WIN32
 TEST_F(SystemTrayTest, LifecycleMenuAndStateTransitions) {
