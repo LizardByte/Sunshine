@@ -123,7 +123,6 @@ namespace config {
     struct {
       int vt_allow_sw;  ///< Whether VideoToolbox may use software encoding.
       int vt_require_sw;  ///< Whether VideoToolbox must use software encoding.
-      int vt_realtime;  ///< Whether VideoToolbox uses realtime encoding mode.
       int vt_coder;  ///< VideoToolbox entropy-coding mode.
     } vt;  ///< VideoToolbox encoder options.
 
@@ -140,6 +139,18 @@ namespace config {
       int rc_mode;  ///< Vulkan encoder rate-control mode: driver, CQP, CBR, or VBR.
       int quality;  ///< Vulkan encoder quality preset: 1 = speed, 2 = balanced (default), 3 = quality.
     } vk;  ///< Vulkan encoder options.
+
+    /**
+     * @brief Dynamic range used by ScreenCaptureKit when capturing an HDR stream on macOS.
+     */
+    enum class capture_dynamic_range_macos_e {
+      sdr,  ///< Capture in standard dynamic range.
+      hdr_canonical,  ///< Capture in HDR with attributes of the canonical display.
+      hdr_local  ///< Capture in HDR with attributes of the local display.
+    };
+
+    bool disable_vsync_macos;  ///< Disable macOS V-Sync (Quartz beam sync) while streaming.
+    capture_dynamic_range_macos_e capture_dynamic_range_macos;  ///< ScreenCaptureKit dynamic range used for HDR streams.
 
     std::string capture;  ///< Capture backend name selected by configuration.
     bool fp16_sdr_gamma_encoded;  ///< Treat FP16 captures of SDR displays as already sRGB gamma-encoded (Windows).
