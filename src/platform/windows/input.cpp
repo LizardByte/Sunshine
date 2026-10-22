@@ -604,7 +604,9 @@ namespace platf {
    */
   bool should_allocate_vigembus_gamepad(const bool virtualhid_selected) {
     if (!virtualhid::should_try_vigembus_fallback(config::input.gamepad, virtualhid_selected, config::input.gamepad_driver)) {
-      if (config::input.gamepad_driver == config::GAMEPAD_DRIVER_VIRTUALHID && !virtualhid_selected) {
+      if (config::input.gamepad_driver == config::GAMEPAD_DRIVER_ESP32_BRIDGE && !virtualhid_selected) {
+        BOOST_LOG(warning) << "ESP32-S3 USB bridge is selected but is not connected or has no free slot; ViGEmBus fallback is disabled by configuration"sv;
+      } else if (config::input.gamepad_driver == config::GAMEPAD_DRIVER_VIRTUALHID && !virtualhid_selected) {
         BOOST_LOG(warning) << "Virtual HID Driver is selected but is unavailable or unlicensed; ViGEmBus fallback is disabled by configuration"sv;
       } else {
         BOOST_LOG(warning) << "libvirtualhid could not create the requested gamepad profile, and ViGEm fallback cannot emulate "sv << config::input.gamepad;
@@ -1300,11 +1302,11 @@ namespace platf {
     }
 
     if (!raw->virtualhid.runtime) {
-      if (config::input.gamepad_driver == config::GAMEPAD_DRIVER_VIRTUALHID) {
+      if (config::input.gamepad_driver == config::GAMEPAD_DRIVER_VIRTUALHID || config::input.gamepad_driver == config::GAMEPAD_DRIVER_ESP32_BRIDGE) {
         gps = virtualhid::static_supported_gamepads();
         for (auto &gamepad : gps) {
           gamepad.is_enabled = false;
-          gamepad.reason_disabled = "gamepads.virtualhid-not-available";
+          gamepad.reason_disabled = config::input.gamepad_driver == config::GAMEPAD_DRIVER_ESP32_BRIDGE ? "gamepads.esp32-bridge-not-available" : "gamepads.virtualhid-not-available";
         }
       } else {
         gps = vigembus_supported_gamepads(raw->vigem != nullptr);
@@ -1314,7 +1316,7 @@ namespace platf {
 
     const auto &capabilities = raw->virtualhid.runtime->capabilities();
     const auto licensed = !capabilities.requires_installed_driver || lvh::get_license_status().license.licensed();
-    if (const auto use_virtualhid = virtualhid::should_use_gamepad_runtime(capabilities, config::input.gamepad_driver, licensed); !use_virtualhid && config::input.gamepad_driver != config::GAMEPAD_DRIVER_VIRTUALHID) {
+    if (const auto use_virtualhid = virtualhid::should_use_gamepad_runtime(capabilities, config::input.gamepad_driver, licensed); !use_virtualhid && config::input.gamepad_driver != config::GAMEPAD_DRIVER_VIRTUALHID && config::input.gamepad_driver != config::GAMEPAD_DRIVER_ESP32_BRIDGE) {
       gps = vigembus_supported_gamepads(raw->vigem != nullptr);
       return gps;
     }
@@ -1334,7 +1336,8 @@ namespace platf {
       caps |= platform_caps::controller_touch;
     }
 
-    if (config::input.native_pen_touch) {
+    // The bridge has no pen or touchscreen slot; clients fall back to mouse input.
+    if (config::input.native_pen_touch && !virtualhid::esp32_bridge_selected()) {
       const auto runtime = virtualhid::create_runtime();
       if (runtime) {
         const auto &capabilities = runtime->capabilities();

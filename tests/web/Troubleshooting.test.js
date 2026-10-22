@@ -9,6 +9,9 @@ import Troubleshooting from '../../src_assets/common/assets/web/Troubleshooting.
 import createSunshineI18n from '../../src_assets/common/assets/web/locale.js'
 import en from '../../src_assets/common/assets/web/public/assets/locale/en.json'
 
+/// ESP32-S3 bridge status returned by the mocked `/api/esp32-bridge/status`.
+let esp32BridgeStatus = {}
+
 /**
  * @brief Mount troubleshooting with mocked API responses and an optional Vue I18n instance.
  *
@@ -36,6 +39,9 @@ async function mountTroubleshooting(platform, gamepadDriver, licenseStatus = {},
           vigembus: { installed: false },
         }),
       }
+    }
+    if (url === '/api/esp32-bridge/status') {
+      return { json: async () => ({ selected: true, active: true, connected: false, awaiting_pairing: false, ...esp32BridgeStatus }) }
     }
     if (url === '/api/virtual-input/license') {
       return { ok: true, json: async () => ({ service_available: true, state: 'licensed', licensed: true, ...licenseStatus }) }
@@ -72,6 +78,7 @@ async function mountTroubleshooting(platform, gamepadDriver, licenseStatus = {},
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
+  esp32BridgeStatus = {}
 })
 
 describe('virtual input troubleshooting', () => {
@@ -292,6 +299,41 @@ describe('virtual input troubleshooting', () => {
       'troubleshooting.permissions_status_not_determined',
     ])
     expect(wrapper.findAll('.permission-table-shell tbody button')).toHaveLength(2)
+    wrapper.unmount()
+  })
+})
+
+describe('ESP32-S3 bridge troubleshooting', () => {
+  it('shows the connected bridge with its port, id, firmware, and pairing setting', async () => {
+    esp32BridgeStatus = { connected: true, pairing_required: true, port: 'COM63', device_id: 'A4CB8FDF41D8', firmware_version: '0.2.0' }
+    const wrapper = await mountTroubleshooting('windows', 'esp32_bridge')
+
+    const text = wrapper.text()
+    expect(text).toContain('troubleshooting.esp32_bridge_state_connected')
+    expect(text).toContain('COM63')
+    expect(text).toContain('A4CB8FDF41D8')
+    expect(text).toContain('0.2.0')
+    expect(text).toContain('troubleshooting.esp32_bridge_pairing_required')
+    wrapper.unmount()
+  })
+
+  it.each([
+    [{ awaiting_pairing: true }, 'troubleshooting.esp32_bridge_state_pairing'],
+    [{}, 'troubleshooting.esp32_bridge_state_disconnected'],
+    [{ active: false }, 'troubleshooting.esp32_bridge_state_inactive'],
+  ])('describes bridge state %o', async (status, key) => {
+    esp32BridgeStatus = status
+    const wrapper = await mountTroubleshooting('windows', 'esp32_bridge')
+
+    expect(wrapper.text()).toContain(key)
+    wrapper.unmount()
+  })
+
+  it('does not query or show the bridge for other gamepad drivers', async () => {
+    const wrapper = await mountTroubleshooting('windows', 'virtualhid')
+
+    expect(fetch.mock.calls.some(([url]) => url === '/api/esp32-bridge/status')).toBe(false)
+    expect(wrapper.text()).not.toContain('troubleshooting.esp32_bridge_status')
     wrapper.unmount()
   })
 })

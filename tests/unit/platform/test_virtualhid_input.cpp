@@ -21,6 +21,7 @@
 // local includes
 #include "src/config.h"
 #include "src/globals.h"
+#include "src/platform/common.h"
 #include "src/platform/virtualhid_input.h"
 
 #if defined(_WIN32) || defined(__APPLE__)
@@ -65,6 +66,50 @@ namespace {
   };
 
 }  // namespace
+
+/**
+ * @brief Restore the gamepad driver and native pen/touch settings after a test.
+ */
+class Esp32BridgeSelectionTest: public ::testing::Test {
+protected:
+  /**
+   * @brief Preserve the input settings the tests change.
+   */
+  void SetUp() override {
+    original_driver = config::input.gamepad_driver;
+    original_pen_touch = config::input.native_pen_touch;
+  }
+
+  /**
+   * @brief Restore the preserved input settings.
+   */
+  void TearDown() override {
+    config::input.gamepad_driver = std::move(original_driver);
+    config::input.native_pen_touch = original_pen_touch;
+  }
+
+private:
+  std::string original_driver;  ///< Gamepad driver restored after each test.
+  bool original_pen_touch = false;  ///< Native pen/touch setting restored after each test.
+};
+
+TEST_F(Esp32BridgeSelectionTest, UsesTheBridgeBackendOnlyForTheBridgeDriver) {
+  config::input.gamepad_driver = std::string {config::GAMEPAD_DRIVER_ESP32_BRIDGE};
+  EXPECT_TRUE(platf::virtualhid::esp32_bridge_selected());
+  EXPECT_EQ(platf::virtualhid::configured_backend(), lvh::BackendKind::esp32_bridge);
+
+  for (const auto driver : {config::GAMEPAD_DRIVER_VIRTUALHID, config::GAMEPAD_DRIVER_VIGEMBUS, config::GAMEPAD_DRIVER_NONE}) {
+    config::input.gamepad_driver = std::string {driver};
+    EXPECT_FALSE(platf::virtualhid::esp32_bridge_selected()) << driver;
+    EXPECT_EQ(platf::virtualhid::configured_backend(), lvh::BackendKind::platform_default) << driver;
+  }
+}
+
+TEST_F(Esp32BridgeSelectionTest, DoesNotAdvertisePenOrTouchThroughTheBridge) {
+  config::input.gamepad_driver = std::string {config::GAMEPAD_DRIVER_ESP32_BRIDGE};
+  config::input.native_pen_touch = true;
+  EXPECT_EQ(platf::get_capabilities() & platf::platform_caps::pen_touch, 0U);
+}
 
 TEST_P(VirtualHidInputTest, ReportsExpectedTouchpadSupport) {
   const auto &test_case = GetParam();
