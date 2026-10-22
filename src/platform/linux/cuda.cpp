@@ -1054,7 +1054,7 @@ namespace cuda {
             auto monitor_nr = util::from_view(display_name);
 
             if (monitor_nr < 0 || monitor_nr >= status_params->dwOutputNum) {
-              BOOST_LOG(warning) << "Can't stream monitor ["sv << monitor_nr << "], it needs to be between [0] and ["sv << status_params->dwOutputNum - 1 << "], defaulting to virtual desktop"sv;
+              BOOST_LOG(warning) << "Can't stream monitor ["sv << monitor_nr << "], valid output indices are [0, "sv << status_params->dwOutputNum << "), defaulting to virtual desktop"sv;
             } else {
               streamedMonitor = monitor_nr;
             }
@@ -1384,6 +1384,11 @@ namespace platf {
       BOOST_LOG(info) << "  Resolution: "sv << output.trackedBox.w << 'x' << output.trackedBox.h;
       BOOST_LOG(info) << "  Offset: "sv << output.trackedBox.x << 'x' << output.trackedBox.y;
       display_names.emplace_back(std::to_string(x));
+    }
+
+    if (cuda::nvfbc::should_offer_virtual_desktop(status_params->dwOutputNum, status_params->bIsCapturePossible, status_params->screenSize.w, status_params->screenSize.h)) {
+      BOOST_LOG(info) << "No NvFBC outputs, offering the virtual desktop"sv;
+      display_names.emplace_back("0");
     }
 
     return display_names;
