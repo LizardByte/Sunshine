@@ -140,7 +140,15 @@ namespace proc {
     // If the cmd path is not an absolute path, resolve it using our PATH variable
     boost::filesystem::path cmd_path(parts.at(0));
     if (!cmd_path.is_absolute()) {
-      cmd_path = boost::process::v1::search_path(parts.at(0));
+      // Search the child's PATH. Boost's default search list reads this process's environment through a
+      // std::locale("") on POSIX, which throws when an LC_* variable names a locale that is not installed.
+      if (const auto path_var = env.find("PATH"); path_var != env.end()) {
+        const auto path_entries = path_var->to_vector();
+        const std::vector<boost::filesystem::path> search_dirs {path_entries.begin(), path_entries.end()};
+        cmd_path = boost::process::v1::search_path(parts.at(0), search_dirs);
+      } else {
+        cmd_path = boost::process::v1::search_path(parts.at(0));
+      }
       if (cmd_path.empty()) {
         BOOST_LOG(error) << "Unable to find executable ["sv << parts.at(0) << "]. Is it in your PATH?"sv;
         return boost::filesystem::path();
