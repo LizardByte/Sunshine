@@ -1135,7 +1135,7 @@ namespace stream {
    * @brief Send clipboard text to the client over the control channel.
    *
    * @param session Active streaming session.
-   * @param msg Clipboard text and echo token.
+   * @param msg Clipboard text to send.
    * @return 0 when the control message is queued.
    */
   int send_clipboard_text(session_t *session, const platf::clipboard_text_t &msg) {
@@ -1145,17 +1145,15 @@ namespace stream {
 
     control_header_v2 header {};
     header.type = SS_CLIPBOARD_CONTROL_PTYPE;
-    header.payloadLength = static_cast<std::uint16_t>(sizeof(std::uint32_t) * 2 + msg.text.size());
+    header.payloadLength = static_cast<std::uint16_t>(sizeof(std::uint32_t) + msg.text.size());
 
     std::vector<std::uint8_t> plaintext(sizeof(header) + header.payloadLength);
     std::memcpy(plaintext.data(), &header, sizeof(header));
 
-    auto token = util::endian::little(msg.token);
     auto length = util::endian::little(static_cast<std::uint32_t>(msg.text.size()));
     auto *payload = plaintext.data() + sizeof(header);
-    std::memcpy(payload, &token, sizeof(token));
-    std::memcpy(payload + sizeof(token), &length, sizeof(length));
-    std::memcpy(payload + sizeof(token) + sizeof(length), msg.text.data(), msg.text.size());
+    std::memcpy(payload, &length, sizeof(length));
+    std::memcpy(payload + sizeof(length), msg.text.data(), msg.text.size());
 
     const auto tagged_size = sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(plaintext.size()) + crypto::cipher::tag_size;
     std::vector<std::uint8_t> tagged(tagged_size);

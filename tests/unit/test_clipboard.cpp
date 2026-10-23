@@ -38,7 +38,7 @@ namespace {
    */
   void deliver(const std::vector<platf::clipboard_queue_t> &queues, const std::string &text) {
     for (const auto &queue : queues) {
-      queue->raise(platf::clipboard_text_t {1, text});
+      queue->raise(platf::clipboard_text_t {text});
     }
   }
 

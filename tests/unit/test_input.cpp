@@ -169,7 +169,7 @@ TEST(InputPacketValidationTest, ValidatesUnicodePacketBoundsWithoutOverflow) {
 }
 
 TEST(InputPacketValidationTest, AcceptsEmptyAndMaximumClipboardPackets) {
-  constexpr auto prefix = sizeof(std::uint32_t) + sizeof(std::uint32_t);
+  constexpr auto prefix = sizeof(std::uint32_t);
   const auto empty_packet = make_input_packet(SS_CLIPBOARD_TEXT_MAGIC, prefix, sizeof(std::uint32_t) + prefix);
   EXPECT_TRUE(input::testing::is_valid_input_packet(empty_packet));
 
@@ -183,7 +183,7 @@ TEST(InputPacketValidationTest, AcceptsEmptyAndMaximumClipboardPackets) {
 }
 
 TEST(InputPacketValidationTest, RejectsTruncatedAndOversizedClipboardPackets) {
-  constexpr auto prefix = sizeof(std::uint32_t) + sizeof(std::uint32_t);
+  constexpr auto prefix = sizeof(std::uint32_t);
   const auto truncated_packet = make_input_packet(SS_CLIPBOARD_TEXT_MAGIC, prefix + 4, sizeof(std::uint32_t) + prefix);
   EXPECT_FALSE(input::testing::is_valid_input_packet(truncated_packet));
 

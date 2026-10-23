@@ -277,7 +277,6 @@ namespace platf {
    * @brief Clipboard text waiting to be sent to the client.
    */
   struct clipboard_text_t {
-    std::uint32_t token;  ///< Echo-suppression token for this update.
     std::string text;  ///< UTF-8 clipboard text.
   };
 

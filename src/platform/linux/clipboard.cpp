@@ -9,7 +9,6 @@
 #include <condition_variable>
 #include <cstddef>
 #include <mutex>
-#include <random>
 #include <string>
 #include <thread>
 #include <vector>
@@ -81,13 +80,8 @@ namespace platf {
         return;
       }
 
-      std::random_device seed;
       for (const auto &queue : queues) {
-        auto token = seed();
-        if (token == 0) {
-          token = 1;
-        }
-        queue->raise(clipboard_text_t {token, text});
+        queue->raise(clipboard_text_t {text});
       }
     }
 

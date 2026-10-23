@@ -1321,7 +1321,7 @@ namespace input {
    */
   void passthrough_clipboard(const std::shared_ptr<input_t> &input, const NV_INPUT_HEADER *header) {
     auto declared = util::endian::big(header->size);
-    constexpr auto prefix = sizeof(std::uint32_t) + sizeof(std::uint32_t);
+    constexpr auto prefix = sizeof(std::uint32_t);
     if (declared < prefix) {
       return;
     }
@@ -1332,7 +1332,7 @@ namespace input {
       return;
     }
 
-    const auto *text = reinterpret_cast<const std::byte *>(header) + sizeof(NV_INPUT_HEADER) + sizeof(std::uint32_t);
+    const auto *text = reinterpret_cast<const std::byte *>(header) + sizeof(NV_INPUT_HEADER);
     std::string copy(text_len, '\0');
     std::memcpy(copy.data(), static_cast<const void *>(text), text_len);
     platf::clipboard_set(copy, input->clipboard_queue);
@@ -1788,7 +1788,7 @@ namespace input {
         return declared_size - sizeof(header.magic) <= UTF8_TEXT_EVENT_MAX_COUNT;
       case SS_CLIPBOARD_TEXT_MAGIC:
         {
-          constexpr auto prefix = sizeof(std::uint32_t) + sizeof(std::uint32_t);
+          constexpr auto prefix = sizeof(std::uint32_t);
           return declared_size >= prefix && declared_size - prefix <= SS_CLIPBOARD_TEXT_MAX;
         }
       case MULTI_CONTROLLER_MAGIC_GEN5:
