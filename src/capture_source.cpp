@@ -263,8 +263,6 @@ namespace capture_source {
     }
 
     const window_snapshot_t *best = nullptr;
-    match_t application_bounds {};
-    bool found_application = false;
     for (const auto &window : windows) {
       if (window.width <= 0 || window.height <= 0) {
         continue;
@@ -282,26 +280,6 @@ namespace capture_source {
         continue;
       }
 
-      if (target.mode == mode_e::application) {
-        if (!found_application) {
-          application_bounds.x = window.x;
-          application_bounds.y = window.y;
-          application_bounds.width = window.width;
-          application_bounds.height = window.height;
-          application_bounds.pid = window.pid;
-          application_bounds.bundle_id = window.bundle_id;
-          found_application = true;
-        } else {
-          const int right = std::max(application_bounds.x + application_bounds.width, window.x + window.width);
-          const int bottom = std::max(application_bounds.y + application_bounds.height, window.y + window.height);
-          application_bounds.x = std::min(application_bounds.x, window.x);
-          application_bounds.y = std::min(application_bounds.y, window.y);
-          application_bounds.width = right - application_bounds.x;
-          application_bounds.height = bottom - application_bounds.y;
-        }
-        continue;
-      }
-
       const auto area = window.width * window.height;
       const auto best_area = best == nullptr ? 0 : best->width * best->height;
       if (best == nullptr || (window.on_screen && !best->on_screen) || (window.on_screen == best->on_screen && area > best_area)) {
@@ -309,20 +287,12 @@ namespace capture_source {
       }
     }
 
-    if (target.mode == mode_e::application) {
-      if (!found_application) {
-        return std::nullopt;
-      }
-      application_bounds.application = true;
-      return application_bounds;
-    }
-
     if (best == nullptr) {
       return std::nullopt;
     }
 
     return match_t {
-      false,
+      target.mode == mode_e::application,
       best->window_id,
       best->pid,
       best->bundle_id,

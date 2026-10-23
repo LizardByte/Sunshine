@@ -376,7 +376,7 @@ UAC prompt.
 
 Display capture remains the default. An application can instead capture one window, or every window that belongs to one application. The target does not have to exist when the entry is saved: Sunshine waits for a window id, bundle identifier, `pid:` process id, window title, or the process it just launched.
 
-On macOS, ScreenCaptureKit captures that window even when it is covered, off-screen, or moved to another display. Audio follows the application. A closed, minimized, or crashed target ends the session. Absolute pointer input is mapped into the captured window, and keyboard input is sent to that application.
+On macOS, ScreenCaptureKit captures the selected window even when it is covered, on another desktop, or moved to another display. Application capture follows the main window of that application, so changing desktops does not change the stream. Audio follows the application. A closed, minimized, or crashed target ends the session. Absolute pointer input is mapped into the captured window, and keyboard input is sent to that application.
 
 ```json
 {

@@ -98,10 +98,11 @@ TEST(CaptureSourceTest, MatchesExplicitWindowAndDelayedApplication) {
   const auto bounds = capture_source::match_target(application, windows);
   ASSERT_TRUE(bounds.has_value());
   EXPECT_TRUE(bounds->application);
-  EXPECT_EQ(bounds->x, 10);
-  EXPECT_EQ(bounds->y, 20);
-  EXPECT_EQ(bounds->width, 660);
-  EXPECT_EQ(bounds->height, 500);
+  EXPECT_EQ(bounds->window_id, 21U);
+  EXPECT_EQ(bounds->x, 30);
+  EXPECT_EQ(bounds->y, 40);
+  EXPECT_EQ(bounds->width, 640);
+  EXPECT_EQ(bounds->height, 480);
 
   capture_source::target_t missing;
   missing.mode = capture_source::mode_e::window;

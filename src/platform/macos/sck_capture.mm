@@ -662,7 +662,32 @@ namespace platf {
       const auto target = capture_source::stream_target();
       @autoreleasepool {
         SCShareableContent *content = copy_shareable_content();
-        const auto matched = capture_source::match_target(target, snapshots_from(content));
+        const auto snapshots = snapshots_from(content);
+        std::optional<capture_source::match_t> matched;
+        if (match.window_id != 0) {
+          for (const auto &window : snapshots) {
+            if (window.window_id != match.window_id || window.width <= 0 || window.height <= 0) {
+              continue;
+            }
+            const bool same_owner = (match.pid > 0 && window.pid == match.pid) || (!match.bundle_id.empty() && window.bundle_id == match.bundle_id);
+            if (match.application && !same_owner) {
+              continue;
+            }
+            matched = match;
+            matched->x = window.x;
+            matched->y = window.y;
+            matched->width = window.width;
+            matched->height = window.height;
+            matched->pid = window.pid;
+            if (!window.bundle_id.empty()) {
+              matched->bundle_id = window.bundle_id;
+            }
+            break;
+          }
+        }
+        if (!matched) {
+          matched = capture_source::match_target(target, snapshots);
+        }
         [content release];
         if (!matched) {
           BOOST_LOG(info) << "The capture target is no longer available. Ending the session."sv;
@@ -703,12 +728,12 @@ namespace platf {
         return nil;
       }
 
-      if (!match.application) {
-        SCWindow *window = find_window(content, match.window_id);
-        if (window == nil) {
-          return nil;
-        }
+      SCWindow *window = find_window(content, match.window_id);
+      if (window != nil) {
         return [[SCContentFilter alloc] initWithDesktopIndependentWindow:window];
+      }
+      if (!match.application) {
+        return nil;
       }
 
       SCRunningApplication *application = find_application(content, match.pid);
