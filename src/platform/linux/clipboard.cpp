@@ -149,9 +149,9 @@ namespace platf {
       selection.property = property;
       if (property != None && request->target == targets) {
         const std::array<Atom, 3> list {utf8, XA_STRING, targets};
-        std::array<std::byte, sizeof(list)> bytes {};
+        std::array<unsigned char, sizeof(list)> bytes {};
         std::memcpy(bytes.data(), list.data(), bytes.size());
-        XChangeProperty(display, request->requestor, property, XA_ATOM, 32, PropModeReplace, reinterpret_cast<unsigned char *>(bytes.data()), static_cast<int>(list.size()));
+        XChangeProperty(display, request->requestor, property, XA_ATOM, 32, PropModeReplace, bytes.data(), static_cast<int>(list.size()));
       } else if (property != None) {
         XChangeProperty(
           display,
@@ -278,36 +278,43 @@ namespace platf {
     }
 
     /**
+     * @brief X11 objects used to answer clipboard selection events.
+     */
+    struct clipboard_watch_t {
+      Display *display;  ///< X display connection owned by the watcher thread.
+      Window window;  ///< Watcher window.
+      int event_base;  ///< First XFixes event code.
+      Atom clipboard;  ///< CLIPBOARD atom.
+      Atom utf8;  ///< UTF8_STRING atom.
+      Atom incr;  ///< INCR atom.
+      Atom targets;  ///< TARGETS atom.
+      Atom property;  ///< Property used for selection replies.
+    };
+
+    /**
      * @brief Handle one X event for the clipboard watcher.
      *
-     * @param display X display connection owned by the watcher thread.
+     * @param watch Display, window, and atoms for this watcher.
      * @param event Event just removed from the queue.
-     * @param event_base First XFixes event code.
-     * @param window Watcher window.
-     * @param clipboard_atom CLIPBOARD atom.
-     * @param utf8 UTF8_STRING atom.
-     * @param incr INCR atom.
-     * @param targets TARGETS atom.
-     * @param property Property used for selection replies.
      * @param owned Text Sunshine owns, when it owns the selection.
      * @param transfer Incremental transfer assembled across property events.
      */
-    void handle_event(Display *display, const XEvent &event, int event_base, Window window, Atom clipboard_atom, Atom utf8, Atom incr, Atom targets, Atom property, std::string &owned, incr_transfer_t &transfer) {
+    void handle_event(const clipboard_watch_t &watch, const XEvent &event, const std::string &owned, incr_transfer_t &transfer) {
       if (event.type == SelectionRequest) {
-        serve_selection(display, owned, &event.xselectionrequest, utf8, targets);
-        XFlush(display);
+        serve_selection(watch.display, owned, &event.xselectionrequest, watch.utf8, watch.targets);
+        XFlush(watch.display);
       } else if (event.type == SelectionNotify) {
         if (event.xselection.property != None) {
-          publish_property(display, window, property, utf8, incr, transfer);
+          publish_property(watch.display, watch.window, watch.property, watch.utf8, watch.incr, transfer);
         }
-      } else if (event.type == PropertyNotify && transfer.active() && event.xproperty.atom == property && event.xproperty.state == PropertyNewValue) {
-        publish_property(display, window, property, utf8, incr, transfer);
-      } else if (event.type == event_base + XFixesSelectionNotify) {
+      } else if (event.type == PropertyNotify && transfer.active() && event.xproperty.atom == watch.property && event.xproperty.state == PropertyNewValue) {
+        publish_property(watch.display, watch.window, watch.property, watch.utf8, watch.incr, transfer);
+      } else if (event.type == watch.event_base + XFixesSelectionNotify) {
         XFixesSelectionNotifyEvent selection {};
         std::memcpy(&selection, &event, sizeof(selection));
-        if (selection.selection == clipboard_atom && selection.owner != window && selection.owner != None) {
+        if (selection.selection == watch.clipboard && selection.owner != watch.window && selection.owner != None) {
           transfer = {};
-          convert_selection(display, clipboard_atom, utf8, property, window);
+          convert_selection(watch.display, watch.clipboard, watch.utf8, watch.property, watch.window);
         }
       }
     }
@@ -377,6 +384,7 @@ namespace platf {
       XFixesSelectSelectionInput(display, window, clipboard_atom, XFixesSetSelectionOwnerNotifyMask);
       XFlush(display);
 
+      const clipboard_watch_t watch {display, window, event_base, clipboard_atom, utf8, incr, targets, property};
       std::string owned;
       incr_transfer_t transfer;
       {
@@ -392,7 +400,7 @@ namespace platf {
         while (XPending(display) != 0) {
           XEvent event;
           XNextEvent(display, &event);
-          handle_event(display, event, event_base, window, clipboard_atom, utf8, incr, targets, property, owned, transfer);
+          handle_event(watch, event, owned, transfer);
         }
 
         apply_pending(display, clipboard_atom, window, owned);
