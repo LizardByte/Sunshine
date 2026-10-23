@@ -131,11 +131,11 @@ namespace service_ctrl {
   class service_controller {
   public:
     /**
-     * @brief Open the Windows service manager and Sunshine service handle.
+     * @brief Explicitly open the Windows service manager and Sunshine service handle.
      *
      * @param service_desired_access SERVICE_* desired access flags.
      */
-    service_controller(DWORD service_desired_access) {
+    explicit service_controller(DWORD service_desired_access) {
       scm_handle = OpenSCManagerA(nullptr, nullptr, SC_MANAGER_CONNECT);
       if (!scm_handle) {
         auto winerr = GetLastError();
@@ -271,8 +271,8 @@ namespace service_ctrl {
       }
 
       uint16_t port_nbo = htons(net::map_port(confighttp::PORT_HTTPS));
-      for (DWORD i = 0; i < tcp_table->dwNumEntries; i++) {
-        auto &entry = tcp_table->table[i];
+      for (DWORD entry_index = 0; entry_index < tcp_table->dwNumEntries; entry_index++) {
+        auto &entry = tcp_table->table[entry_index];
 
         // Look for our port in the listening state
         if (entry.dwLocalPort == port_nbo && entry.dwState == MIB_TCP_STATE_LISTEN) {

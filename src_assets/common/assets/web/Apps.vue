@@ -959,22 +959,33 @@
           this.fileBrowserClose();
         }
       },
-      fileBrowserNavigate(path) {
+      /**
+       * @brief Load a directory listing and display any browsing failure.
+       *
+       * @param {string} path Directory path, or an empty string for the default location.
+       * @return {Promise<void>} Completion of the directory request and loading-state update.
+       */
+      async fileBrowserNavigate(path) {
         this.fileBrowserLoading = true;
         this.fileBrowserError = '';
         const params = new URLSearchParams({ type: this.fileBrowserType });
         if (path) params.set('path', path);
-        fetch(`./api/browse?${params.toString()}`)
-          .then(r => r.ok ? r.json() : r.json().then(e => { throw new Error(e.error || 'Browse failed'); }))
-          .then(data => {
-            this.fileBrowserCurrentPath = data.path ?? '';
-            this.fileBrowserParentPath = data.parent ?? '';
-            this.fileBrowserEntries = data.entries ?? [];
-            this.fileBrowserTypedPath = data.path ?? '';
-            this.fileBrowserSelectedPath = this.fileBrowserType === 'directory' ? (data.path ?? '') : '';
-          })
-          .catch(err => { this.fileBrowserError = err.message; })
-          .finally(() => { this.fileBrowserLoading = false; });
+        try {
+          const response = await fetch(`./api/browse?${params.toString()}`);
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || 'Browse failed');
+          }
+          this.fileBrowserCurrentPath = data.path ?? '';
+          this.fileBrowserParentPath = data.parent ?? '';
+          this.fileBrowserEntries = data.entries ?? [];
+          this.fileBrowserTypedPath = data.path ?? '';
+          this.fileBrowserSelectedPath = this.fileBrowserType === 'directory' ? (data.path ?? '') : '';
+        } catch (err) {
+          this.fileBrowserError = err.message;
+        } finally {
+          this.fileBrowserLoading = false;
+        }
       },
       fileBrowserNavigateUp() {
         this.fileBrowserNavigate(this.fileBrowserParentPath);

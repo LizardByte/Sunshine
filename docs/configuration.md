@@ -938,6 +938,40 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     </tr>
 </table>
 
+### external_audio
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Enables capture-only operation when an external audio router manages application playback.
+            An explicit [audio_sink](#audio_sink) is required; use an endpoint ID when names are ambiguous.
+            Sunshine captures that endpoint directly without changing or restoring Windows default devices
+            or endpoint formats.
+            <br>
+            <br>
+            In this mode, [virtual_sink](#virtual_sink), automatic Steam audio driver installation,
+            and Moonlight's host-playback toggle do not affect routing. Configure local playback and the audio
+            sent to the selected endpoint in your external mixer. If the endpoint is unavailable, audio capture
+            fails rather than falling back to another endpoint. Video streaming can continue without audio.
+            @note{This option is only supported on Windows. Other platforms retain their existing behavior.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            external_audio = enabled
+            audio_sink = My Streaming Mix
+            @endcode</td>
+    </tr>
+</table>
+
 ### adapter_name
 
 <table>
@@ -2035,6 +2069,7 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
         <td>Description</td>
         <td colspan="2">
             Percentage of error correcting packets per data packet in each video frame.
+            Set to <code>0</code> to disable forward error correction.
             @warning{Higher values can correct for more network packet loss,
             but at the cost of increasing bandwidth usage.}
         </td>
@@ -2047,7 +2082,7 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     </tr>
     <tr>
         <td>Range</td>
-        <td colspan="2">1-255</td>
+        <td colspan="2">0-100</td>
     </tr>
     <tr>
         <td>Example</td>
@@ -2212,7 +2247,7 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
             @endcode</td>
     </tr>
     <tr>
-        <td rowspan="6">Choices</td>
+        <td rowspan="8">Choices</td>
         <td>nvfbc</td>
         <td>Use NVIDIA Frame Buffer Capture to capture direct to GPU memory. This is usually the fastest method for
             NVIDIA cards. NvFBC does not have native Wayland support and does not work with XWayland.
@@ -2221,7 +2256,10 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     <tr>
         <td>wlr</td>
         <td>Capture for wlroots based Wayland compositors via wlr-screencopy-unstable-v1. It is possible to capture
-            virtual displays in e.g. Hyprland using this method.
+            virtual displays in e.g. Hyprland using this method. On an output that refreshes at least 1.5 times
+            as fast as the stream, frames are captured when the compositor has a new one instead of on a clock of
+            Sunshine's own, which avoids repeated frames; a virtual display at twice the stream's frame rate
+            qualifies.
             @note{Applies to Linux only.}</td>
     </tr>
     <tr>
@@ -2231,7 +2269,13 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     </tr>
     <tr>
         <td>kwin</td>
-        <td>Capture with KDE/KWin Wayland compositor via KDE screencasting.
+        <td>Capture with KDE/KWin Wayland compositor directly via KDE screencasting.
+            @note{Applies to Linux only.}
+            @warning{Flatpak users currently shouldn't use this capture method and use `portal` instead. KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 is necessary to make this capture method work with Flatpak but that has security implications.}</td>
+    </tr>
+    <tr>
+        <td>portal</td>
+        <td>Capture via XDG Desktop Portal.
             @note{Applies to Linux only.}</td>
     </tr>
     <tr>
@@ -2249,6 +2293,34 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
         <td>(beta feature) Use Windows.Graphics.Capture to capture the display.
             @note{Applies to Windows only.}
             @attention{This capture method is not compatible with the Sunshine service.}</td>
+    </tr>
+</table>
+
+### fp16_sdr_gamma_encoded
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Treat FP16 captures of SDR displays as already sRGB gamma-encoded and skip the sRGB curve when converting
+            them. Enable this if the stream looks washed out or its highlights are blown out while the display is in SDR
+            mode and the desktop is captured in FP16 format (the log shows `Desktop format [DXGI_FORMAT_R16G16B16A16_FLOAT]`).
+            Leave this disabled otherwise, because it darkens the stream when the FP16 capture is linear scRGB.
+            This option has no effect when the display is in HDR mode.
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            fp16_sdr_gamma_encoded = enabled
+            @endcode</td>
     </tr>
 </table>
 

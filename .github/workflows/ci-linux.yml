@@ -68,24 +68,6 @@ jobs:
             libxfixes-dev \
             libxtst-dev
 
-      - name: Build latest libva
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        timeout-minutes: 5
-        run: |
-          gh release download --archive=tar.gz --repo=intel/libva
-          tar xzf libva-*.tar.gz && rm libva-*.tar.gz
-          cd libva-*
-          ./autogen.sh --prefix=/usr --libdir="/usr/lib/${M_ARCH}-linux-gnu" \
-            --enable-drm \
-            --enable-x11 \
-            --enable-glx \
-            --enable-wayland \
-            --without-legacy
-          make -j "$(nproc)"
-          sudo make install
-          cd .. && rm -rf libva-*
-
       - name: Build Linux
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
@@ -142,9 +124,16 @@ jobs:
             --appdir ./AppDir \
             --plugin qt \
             --executable ./sunshine \
+            --exclude-library 'libva.so*' \
+            --exclude-library 'libva-*.so*' \
             --icon-file "../$ICON_FILE" \
             --desktop-file "./$DESKTOP_FILE" \
             --output appimage
+
+          # Keep the host's libva core, backends, and driver configuration together.
+          readelf -d ./sunshine | grep -F 'Shared library: [libva.so.2]'
+          readelf -d ./sunshine | grep -F 'Shared library: [libva-drm.so.2]'
+          test -z "$(find ./AppDir \( -name 'libva.so*' -o -name 'libva-*.so*' \) -print -quit)"
 
           # print original name of AppImage file
           echo "AppImage file: $(ls Sunshine*.AppImage)"
@@ -192,7 +181,7 @@ jobs:
         uses: LizardByte/actions/actions/virtual_desktop@28374bf43cc8b6ee88b9b8a3419b2ac7a6573906  # v2026.928.123224
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
         with:
           enable-cache: true
 
@@ -216,7 +205,7 @@ jobs:
         if: >-
           always() &&
           (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: sunshine-screenshots-${{ matrix.name }}
           path: build/tests/screenshots
@@ -243,7 +232,7 @@ jobs:
         if: >-
           always() &&
           (steps.test_report.outcome == 'success')
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: coverage-Linux-${{ matrix.name }}
           path: |
@@ -252,7 +241,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: build-Linux-${{ matrix.name }}
           path: artifacts/

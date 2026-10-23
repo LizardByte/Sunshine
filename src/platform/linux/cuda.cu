@@ -292,7 +292,7 @@ namespace cuda {
       texture {INVALID_TEXTURE, INVALID_TEXTURE} {
   }
 
-  tex_t::tex_t(tex_t &&other):
+  tex_t::tex_t(tex_t &&other) noexcept:
       array {other.array},
       texture {other.texture} {
     other.array = 0;
@@ -300,7 +300,7 @@ namespace cuda {
     other.texture.linear = INVALID_TEXTURE;
   }
 
-  tex_t &tex_t::operator=(tex_t &&other) {
+  tex_t &tex_t::operator=(tex_t &&other) noexcept {
     std::swap(array, other.array);
     std::swap(texture, other.texture);
 

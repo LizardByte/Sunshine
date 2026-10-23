@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../src_assets/common/assets/web/Navbar.vue', () => ({
   default: { template: '<div />' },
@@ -11,6 +11,7 @@ import { apiFetch } from '../../src_assets/common/assets/web/fetch_utils'
 import Apps from '../../src_assets/common/assets/web/Apps.vue'
 
 beforeEach(() => vi.clearAllMocks())
+afterEach(() => vi.unstubAllGlobals())
 
 /**
  * Build a minimal context object that satisfies
@@ -170,5 +171,105 @@ describe('save – cover image validation', () => {
     expect(ctx.editForm['image-path']).toBe('/covers/cover.png')
     expect(ctx.editFormError).toBe('')
     expect(apiFetch).toHaveBeenCalledOnce()
+  })
+})
+
+/**
+ * @brief Create file-browser state with an existing selection for navigation tests.
+ *
+ * @param {string} type Browser selection type.
+ * @return {object} Context for fileBrowserNavigate().
+ */
+function navigationContext(type = 'file') {
+  return {
+    fileBrowserType: type,
+    fileBrowserLoading: false,
+    fileBrowserError: 'Previous error',
+    fileBrowserCurrentPath: '/old',
+    fileBrowserParentPath: '/',
+    fileBrowserEntries: [{ name: 'old.png', path: '/old/old.png', type: 'file' }],
+    fileBrowserTypedPath: '/old/old.png',
+    fileBrowserSelectedPath: '/old/old.png',
+  }
+}
+
+describe('fileBrowserNavigate', () => {
+  it.each(['file', 'directory'])('loads a listing and updates the %s selection', async type => {
+    const ctx = navigationContext(type)
+    const entries = [{ name: 'cover.png', path: '/covers/cover.png', type: 'file' }]
+    const response = Promise.withResolvers()
+    vi.stubGlobal('fetch', vi.fn(() => response.promise))
+
+    const navigation = Apps.methods.fileBrowserNavigate.call(ctx, '/covers')
+    expect(ctx.fileBrowserLoading).toBe(true)
+    expect(ctx.fileBrowserError).toBe('')
+    expect(fetch).toHaveBeenCalledExactlyOnceWith(`./api/browse?type=${type}&path=%2Fcovers`)
+
+    response.resolve({ ok: true, json: async () => ({ path: '/covers', parent: '/', entries }) })
+    await navigation
+
+    expect(ctx.fileBrowserCurrentPath).toBe('/covers')
+    expect(ctx.fileBrowserParentPath).toBe('/')
+    expect(ctx.fileBrowserEntries).toEqual(entries)
+    expect(ctx.fileBrowserTypedPath).toBe('/covers')
+    expect(ctx.fileBrowserSelectedPath).toBe(type === 'directory' ? '/covers' : '')
+    expect(ctx.fileBrowserError).toBe('')
+    expect(ctx.fileBrowserLoading).toBe(false)
+  })
+
+  it.each(['file', 'directory'])('uses defaults for missing fields in a %s listing', async type => {
+    const ctx = navigationContext(type)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }))
+
+    await Apps.methods.fileBrowserNavigate.call(ctx, '')
+
+    expect(fetch).toHaveBeenCalledExactlyOnceWith(`./api/browse?type=${type}`)
+    expect(ctx.fileBrowserCurrentPath).toBe('')
+    expect(ctx.fileBrowserParentPath).toBe('')
+    expect(ctx.fileBrowserEntries).toEqual([])
+    expect(ctx.fileBrowserTypedPath).toBe('')
+    expect(ctx.fileBrowserSelectedPath).toBe('')
+    expect(ctx.fileBrowserLoading).toBe(false)
+  })
+
+  it.each([
+    [{ error: 'Permission denied' }, 'Permission denied'],
+    [{}, 'Browse failed'],
+  ])('displays HTTP errors while retaining the previous listing', async (body, message) => {
+    const ctx = navigationContext()
+    const previousEntries = ctx.fileBrowserEntries
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => body }))
+
+    await Apps.methods.fileBrowserNavigate.call(ctx, '/restricted')
+
+    expect(ctx.fileBrowserError).toBe(message)
+    expect(ctx.fileBrowserLoading).toBe(false)
+    expect(ctx.fileBrowserCurrentPath).toBe('/old')
+    expect(ctx.fileBrowserEntries).toBe(previousEntries)
+    expect(ctx.fileBrowserTypedPath).toBe('/old/old.png')
+    expect(ctx.fileBrowserSelectedPath).toBe('/old/old.png')
+  })
+
+  it('displays network failures and clears the loading state', async () => {
+    const ctx = navigationContext()
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network unavailable')))
+
+    await Apps.methods.fileBrowserNavigate.call(ctx, '/covers')
+
+    expect(ctx.fileBrowserError).toBe('Network unavailable')
+    expect(ctx.fileBrowserLoading).toBe(false)
+    expect(ctx.fileBrowserCurrentPath).toBe('/old')
+  })
+
+  it.each([true, false])('displays invalid JSON errors when response.ok is %s', async ok => {
+    const ctx = navigationContext()
+    const json = vi.fn().mockRejectedValue(new Error('Invalid JSON'))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok, json }))
+
+    await Apps.methods.fileBrowserNavigate.call(ctx, '/covers')
+
+    expect(ctx.fileBrowserError).toBe('Invalid JSON')
+    expect(ctx.fileBrowserLoading).toBe(false)
+    expect(ctx.fileBrowserCurrentPath).toBe('/old')
   })
 })

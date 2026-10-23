@@ -19,8 +19,8 @@ namespace nvprefs {
   /**
    * @brief Owning Windows HANDLE wrapper that closes handles automatically.
    */
-  struct safe_handle: public util::safe_ptr_v2<void, BOOL, CloseHandle> {
-    using util::safe_ptr_v2<void, BOOL, CloseHandle>::safe_ptr_v2;
+  struct safe_handle: public util::safe_ptr_v2<void, BOOL, &CloseHandle> {
+    using util::safe_ptr_v2<void, BOOL, &CloseHandle>::safe_ptr_v2;
 
     /**
      * @brief Check whether the wrapped Windows handle is valid.
@@ -38,9 +38,11 @@ namespace nvprefs {
     /**
      * @brief Free memory allocated by Windows local-memory APIs.
      *
+     * @tparam T Native allocation type returned by the Windows API.
      * @param p LocalAlloc-compatible pointer to release.
      */
-    void operator()(void *p) {
+    template<class T>
+    void operator()(T *p) const {
       LocalFree(p);
     }
   };
@@ -54,7 +56,7 @@ namespace nvprefs {
   /**
    * @brief Safe pointer for Windows security identifiers released with `FreeSid`.
    */
-  using safe_sid = util::safe_ptr_v2<void, PVOID, FreeSid>;
+  using safe_sid = util::safe_ptr_v2<void, PVOID, &FreeSid>;
 
   /**
    * @brief Forward an informational NVPrefs message to the logger.

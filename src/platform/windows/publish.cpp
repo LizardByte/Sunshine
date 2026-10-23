@@ -5,6 +5,7 @@
 // platform includes
 // WinSock2.h must be included before Windows.h
 // clang-format off
+#include <array>
 #include <WinSock2.h>
 #include <Windows.h>
 // clang-format on
@@ -138,7 +139,7 @@ namespace platf::publish {
    * @param pInstance Registered DNS-SD service instance returned by Windows.
    * @return Callback has no return value; completion is reported through the alarm.
    */
-  VOID WINAPI register_cb(DWORD status, PVOID pQueryContext, PDNS_SERVICE_INSTANCE pInstance) {
+  VOID WINAPI register_cb(DWORD status, PVOID pQueryContext, PDNS_SERVICE_INSTANCE pInstance) {  // NOSONAR(cpp:S5008): DnsServiceRegister completion callbacks require PVOID user data.
     auto alarm = (safe::alarm_t<PDNS_SERVICE_INSTANCE>::element_type *) pQueryContext;
 
     if (status) {
@@ -171,11 +172,11 @@ namespace platf::publish {
     // Most clients aren't strictly checking TXT record compliance with RFC 1035,
     // but Apple's mDNS resolver does and rejects the entire answer if an invalid
     // TXT record is present.
-    PWCHAR keys[] = {nullptr};
-    PWCHAR values[] = {nullptr};
+    std::array<PWCHAR, 1> keys = {nullptr};
+    std::array<PWCHAR, 1> values = {nullptr};
     instance.dwPropertyCount = 1;
-    instance.keys = keys;
-    instance.values = values;
+    instance.keys = keys.data();
+    instance.values = values.data();
 
     DNS_SERVICE_REGISTER_REQUEST req {};
     req.Version = DNS_QUERY_REQUEST_VERSION1;
@@ -219,8 +220,10 @@ namespace platf::publish {
    */
   class mdns_registration_t: public ::platf::deinit_t {
   public:
-    mdns_registration_t():
-        existing_instance(nullptr) {
+    /**
+     * @brief Register Sunshine's DNS-SD service with no existing registration.
+     */
+    mdns_registration_t() {
       if (service(true, existing_instance)) {
         BOOST_LOG(error) << "Unable to register Sunshine mDNS service"sv;
         return;
@@ -241,7 +244,7 @@ namespace platf::publish {
     }
 
   private:
-    PDNS_SERVICE_INSTANCE existing_instance;
+    PDNS_SERVICE_INSTANCE existing_instance {nullptr};  ///< DNS-SD registration owned by this publisher.
   };
 
   /**

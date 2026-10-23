@@ -4,10 +4,28 @@
  * @note Adapted from https://www.avahi.org/doxygen/html/client-publish-service_8c-example.html
  */
 // standard includes
+#include <array>
+#include <cstddef>
+#include <cstring>
+#include <ifaddrs.h>
+#ifdef __linux__
+  // Netlink is a Linux-kernel API: these headers exist only on Linux.
+  #include <linux/netlink.h>
+  #include <linux/rtnetlink.h>
+#endif
+#include <net/if.h>
+#include <netinet/in.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <sys/time.h>
 #include <thread>
+#include <unistd.h>
+#include <utility>
 
 // local includes
 #include "misc.h"
+#include "publish.h"
+#include "src/config.h"
 #include "src/logging.h"
 #include "src/network.h"
 #include "src/nvhttp.h"
@@ -19,7 +37,9 @@ using namespace std::literals;
 namespace avahi {
 
   /**
-   * @brief Error codes used by avahi.
+   * @brief Error codes used by Avahi.
+   * @see https://www.rfc-editor.org/rfc/rfc2136.html#section-2.2
+   * @see https://www.iana.org/assignments/dns-parameters/
    */
   enum err_e {
     OK = 0,  ///< OK
@@ -67,11 +87,11 @@ namespace avahi {
     ERR_DNS_NOTIMP = -39,  ///< DNS Error: Not implemented
 
     ERR_DNS_REFUSED = -40,  ///< DNS Error: Operation refused
-    ERR_DNS_YXDOMAIN = -41,  ///< TODO
-    ERR_DNS_YXRRSET = -42,  ///< TODO
-    ERR_DNS_NXRRSET = -43,  ///< TODO
-    ERR_DNS_NOTAUTH = -44,  ///< DNS Error: Not authorized
-    ERR_DNS_NOTZONE = -45,  ///< TODO
+    ERR_DNS_YXDOMAIN = -41,  ///< DNS Error: A name exists despite a prerequisite requiring its absence
+    ERR_DNS_YXRRSET = -42,  ///< DNS Error: A resource record set exists despite a prerequisite requiring its absence
+    ERR_DNS_NXRRSET = -43,  ///< DNS Error: A required resource record set is missing or has different records
+    ERR_DNS_NOTAUTH = -44,  ///< DNS Error: The server lacks zone authority or TSIG authorization failed
+    ERR_DNS_NOTZONE = -45,  ///< DNS Error: An update or prerequisite name lies outside the target DNS zone
     ERR_INVALID_RDATA = -46,  ///< Invalid RDATA
     ERR_INVALID_DNS_CLASS = -47,  ///< Invalid DNS class
     ERR_INVALID_DNS_TYPE = -48,  ///< Invalid DNS type
@@ -82,22 +102,11 @@ namespace avahi {
     ERR_IS_EMPTY = -52,  ///< Is empty
     ERR_NO_CHANGE = -53,  ///< The requested operation is invalid because it is redundant
 
-    ERR_MAX = -54  ///< TODO
-  };
-
-  constexpr auto IF_UNSPEC = -1;  ///< Protocol or platform constant for if unspec.
-
-  /**
-   * @brief Enumerates supported proto options.
-   */
-  enum proto {
-    PROTO_INET = 0,  ///< IPv4
-    PROTO_INET6 = 1,  ///< IPv6
-    PROTO_UNSPEC = -1  ///< Unspecified/all protocol(s)
+    ERR_MAX = -54  ///< Sentinel below the valid Avahi error-code range; not an error code
   };
 
   /**
-   * @brief Enumerates supported server state options.
+   * @brief Avahi daemon lifecycle states.
    */
   enum ServerState {
     SERVER_INVALID,  ///< Invalid state (initial)
@@ -137,160 +146,113 @@ namespace avahi {
     CLIENT_NO_FAIL = 2  ///< Don't fail if the daemon is not available when avahi_client_new() is called, instead enter CLIENT_CONNECTING state and wait for the daemon to appear
   };
 
-  /**
-   * @brief Flags for publishing functions.
-   */
-  enum PublishFlags {
-    PUBLISH_UNIQUE = 1,  ///< For raw records: The RRset is intended to be unique
-    PUBLISH_NO_PROBE = 2,  ///< For raw records: Though the RRset is intended to be unique no probes shall be sent
-    PUBLISH_NO_ANNOUNCE = 4,  ///< For raw records: Do not announce this RR to other hosts
-    PUBLISH_ALLOW_MULTIPLE = 8,  ///< For raw records: Allow multiple local records of this type, even if they are intended to be unique
-    PUBLISH_NO_REVERSE = 16,  ///< For address records: don't create a reverse (PTR) entry
-    PUBLISH_NO_COOKIE = 32,  ///< For service records: do not implicitly add the local service cookie to TXT data
-    PUBLISH_UPDATE = 64,  ///< Update existing records instead of adding new ones
-    PUBLISH_USE_WIDE_AREA = 128,  ///< Register the record using wide area DNS (i.e. unicast DNS update)
-    PUBLISH_USE_MULTICAST = 256  ///< Register the record using multicast DNS
-  };
-
-  /**
-   * @brief Network interface index type used by Avahi.
-   */
-  using IfIndex = int;
-  /**
-   * @brief Avahi protocol/address-family selector type.
-   */
-  using Protocol = int;
-
-  struct EntryGroup;
   struct Poll;
   struct SimplePoll;
-  struct Client;
 
   /**
    * @brief Avahi client state-change callback signature.
    */
-  typedef void (*ClientCallback)(Client *, ClientState, void *userdata);
+  using ClientCallback = void (*)(Client *, ClientState, void *userdata);
   /**
    * @brief Avahi entry-group state-change callback signature.
    */
-  typedef void (*EntryGroupCallback)(EntryGroup *g, EntryGroupState state, void *userdata);
-
-  /**
-   * @brief Function pointer used to free Avahi-allocated memory.
-   */
-  typedef void (*free_fn)(void *);
+  using EntryGroupCallback = void (*)(EntryGroup *g, EntryGroupState state, void *userdata);
 
   /**
    * @brief Function pointer used to create an Avahi client.
    */
-  typedef Client *(*client_new_fn)(const Poll *poll_api, ClientFlags flags, ClientCallback callback, void *userdata, int *error);
-  /**
-   * @brief Function pointer used to destroy an Avahi client.
-   */
-  typedef void (*client_free_fn)(Client *);
-  /**
-   * @brief Function pointer used to request an alternative Avahi service name.
-   */
-  typedef char *(*alternative_service_name_fn)(char *);
-
-  /**
-   * @brief Function pointer used to get an Avahi client from an entry group.
-   */
-  typedef Client *(*entry_group_get_client_fn)(EntryGroup *);
+  using client_new_fn = Client *(*)(const Poll *poll_api, ClientFlags flags, ClientCallback callback, void *userdata, int *error);
 
   /**
    * @brief Function pointer used to create an Avahi entry group.
    */
-  typedef EntryGroup *(*entry_group_new_fn)(Client *, EntryGroupCallback, void *userdata);
-  /**
-   * @brief Function pointer used to add a service to an Avahi entry group.
-   */
-  typedef int (*entry_group_add_service_fn)(
-    EntryGroup *group,
-    IfIndex interface,
-    Protocol protocol,
-    PublishFlags flags,
-    const char *name,
-    const char *type,
-    const char *domain,
-    const char *host,
-    uint16_t port,
-    ...
-  );
-
-  /**
-   * @brief Function pointer used to test whether an Avahi entry group is empty.
-   */
-  typedef int (*entry_group_is_empty_fn)(EntryGroup *);
-  /**
-   * @brief Function pointer used to reset an Avahi entry group.
-   */
-  typedef int (*entry_group_reset_fn)(EntryGroup *);
-  /**
-   * @brief Function pointer used to publish an Avahi entry group.
-   */
-  typedef int (*entry_group_commit_fn)(EntryGroup *);
+  using entry_group_new_fn = EntryGroup *(*)(Client *, EntryGroupCallback, void *userdata);
 
   /**
    * @brief Function pointer used to duplicate Avahi strings.
    */
-  typedef char *(*strdup_fn)(const char *);
-  /**
-   * @brief Function pointer used to format Avahi error codes.
-   */
-  typedef char *(*strerror_fn)(int);
-  /**
-   * @brief Function pointer used to read the last Avahi client error.
-   */
-  typedef int (*client_errno_fn)(Client *);
+  using strdup_fn = char *(*)(const char *);
 
-  /**
-   * @brief Function pointer used to get the Avahi simple-poll API.
-   */
-  typedef Poll *(*simple_poll_get_fn)(SimplePoll *);
   /**
    * @brief Function pointer used to run the Avahi simple-poll loop.
    */
-  typedef int (*simple_poll_loop_fn)(SimplePoll *);
-  /**
-   * @brief Function pointer used to stop the Avahi simple-poll loop.
-   */
-  typedef void (*simple_poll_quit_fn)(SimplePoll *);
+  using simple_poll_loop_fn = int (*)(SimplePoll *);
   /**
    * @brief Function pointer used to allocate an Avahi simple-poll instance.
    */
-  typedef SimplePoll *(*simple_poll_new_fn)();
-  /**
-   * @brief Function pointer used to free an Avahi simple-poll instance.
-   */
-  typedef void (*simple_poll_free_fn)(SimplePoll *);
+  using simple_poll_new_fn = SimplePoll *(*)();
+
+  client_new_fn client_new;  ///< Client new.
+  entry_group_new_fn entry_group_new;  ///< Entry group new.
+  strdup_fn strdup;  ///< Strdup.
+  simple_poll_loop_fn simple_poll_loop;  ///< Simple poll loop.
+  simple_poll_new_fn simple_poll_new;  ///< Simple poll new.
 
   free_fn free;  ///< Free.
-  client_new_fn client_new;  ///< Client new.
   client_free_fn client_free;  ///< Client free.
+  simple_poll_free_fn simple_poll_free;  ///< Simple poll free.
   alternative_service_name_fn alternative_service_name;  ///< Alternative service name.
   entry_group_get_client_fn entry_group_get_client;  ///< Entry group get client.
-  entry_group_new_fn entry_group_new;  ///< Entry group new.
   entry_group_add_service_fn entry_group_add_service;  ///< Entry group add service.
+  entry_group_add_address_fn entry_group_add_address;  ///< Entry group add address.
   entry_group_is_empty_fn entry_group_is_empty;  ///< Entry group is empty.
   entry_group_reset_fn entry_group_reset;  ///< Entry group reset.
   entry_group_commit_fn entry_group_commit;  ///< Entry group commit.
-  strdup_fn strdup;  ///< Strdup.
   strerror_fn strerror;  ///< Strerror.
   client_errno_fn client_errno;  ///< Client errno.
-  simple_poll_get_fn simple_poll_get;  ///< Simple poll get.
-  simple_poll_loop_fn simple_poll_loop;  ///< Simple poll loop.
   simple_poll_quit_fn simple_poll_quit;  ///< Simple poll quit.
-  simple_poll_new_fn simple_poll_new;  ///< Simple poll new.
-  simple_poll_free_fn simple_poll_free;  ///< Simple poll free.
+  simple_poll_get_fn simple_poll_get;  ///< Simple poll get.
 
   /**
-   * @brief Load common Avahi client and entry-group function pointers.
+   * @brief Event types for Avahi poll watches.
+   * @details Layout-compatible with `AvahiWatchEvent` (see
+   * avahi-common/watch.h): the values are the `poll(2)` event flags.
+   * Scoped enum with an explicit `int` underlying type, so the layout
+   * stays identical to the C enum.
+   */
+  enum class WatchEvent : int {
+    WATCH_IN = POLLIN,  ///< Input event
+    WATCH_OUT = POLLOUT,  ///< Output event
+    WATCH_ERR = POLLERR,  ///< Error event
+    WATCH_HUP = POLLHUP  ///< Hangup event
+  };
+
+  struct Watch;
+  struct Timeout;
+
+  /**
+   * @brief Avahi poll-watch callback signature.
+   */
+  using WatchCallback = void (*)(Watch *w, int fd, WatchEvent event, void *userdata);
+  /**
+   * @brief Avahi poll-timeout callback signature.
+   */
+  using TimeoutCallback = void (*)(Timeout *t, void *userdata);
+
+  /**
+   * @brief Abstracted event polling API.
+   * @details Layout-compatible with `AvahiPoll` (see avahi-common/watch.h):
+   * a user-data pointer followed by the watch and timeout operations. Only
+   * the watch operations are used here.
+   */
+  struct Poll {
+    void *userdata;  ///< User data for the poll provider.
+    Watch *(*watch_new)(const Poll *api, int fd, WatchEvent event, WatchCallback callback, void *userdata);  ///< Create a watch.
+    void (*watch_update)(Watch *w, WatchEvent event);  ///< Update a watch's events.
+    WatchEvent (*watch_get_events)(Watch *w);  ///< Events that happened on a watch.
+    void (*watch_free)(Watch *w);  ///< Free a watch.
+    Timeout *(*timeout_new)(const Poll *api, const timeval *tv, TimeoutCallback callback, void *userdata);  ///< Create a timeout.
+    void (*timeout_update)(Timeout *t, const timeval *tv);  ///< Update a timeout.
+    void (*timeout_free)(Timeout *t);  ///< Free a timeout.
+  };
+
+  /**
+   * @brief Load Avahi common-library memory, naming, error, and simple-poll functions.
    *
    * @return 0 when common Avahi functions are available; nonzero otherwise.
    */
   int init_common() {
-    static void *handle {nullptr};
+    static dyn::library_t *handle {nullptr};
     static bool funcs_loaded = false;
 
     if (funcs_loaded) {
@@ -304,19 +266,18 @@ namespace avahi {
       }
     }
 
-    std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-      {(dyn::apiproc *) &alternative_service_name, "avahi_alternative_service_name"},
-      {(dyn::apiproc *) &free, "avahi_free"},
-      {(dyn::apiproc *) &strdup, "avahi_strdup"},
-      {(dyn::apiproc *) &strerror, "avahi_strerror"},
-      {(dyn::apiproc *) &simple_poll_get, "avahi_simple_poll_get"},
-      {(dyn::apiproc *) &simple_poll_loop, "avahi_simple_poll_loop"},
-      {(dyn::apiproc *) &simple_poll_quit, "avahi_simple_poll_quit"},
-      {(dyn::apiproc *) &simple_poll_new, "avahi_simple_poll_new"},
-      {(dyn::apiproc *) &simple_poll_free, "avahi_simple_poll_free"},
-    };
-
-    if (dyn::load(handle, funcs)) {
+    if (std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+          {(dyn::apiproc *) &alternative_service_name, "avahi_alternative_service_name"},
+          {(dyn::apiproc *) &free, "avahi_free"},
+          {(dyn::apiproc *) &strdup, "avahi_strdup"},
+          {(dyn::apiproc *) &strerror, "avahi_strerror"},
+          {(dyn::apiproc *) &simple_poll_get, "avahi_simple_poll_get"},
+          {(dyn::apiproc *) &simple_poll_loop, "avahi_simple_poll_loop"},
+          {(dyn::apiproc *) &simple_poll_quit, "avahi_simple_poll_quit"},
+          {(dyn::apiproc *) &simple_poll_new, "avahi_simple_poll_new"},
+          {(dyn::apiproc *) &simple_poll_free, "avahi_simple_poll_free"},
+        };
+        dyn::load(handle, funcs)) {
       return -1;
     }
 
@@ -325,7 +286,7 @@ namespace avahi {
   }
 
   /**
-   * @brief Load Avahi threaded-poll and client function pointers.
+   * @brief Load Avahi client and service-publication function pointers.
    *
    * @return 0 when all client functions are available; nonzero otherwise.
    */
@@ -334,7 +295,7 @@ namespace avahi {
       return -1;
     }
 
-    static void *handle {nullptr};
+    static dyn::library_t *handle {nullptr};
     static bool funcs_loaded = false;
 
     if (funcs_loaded) {
@@ -348,19 +309,19 @@ namespace avahi {
       }
     }
 
-    std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-      {(dyn::apiproc *) &client_new, "avahi_client_new"},
-      {(dyn::apiproc *) &client_free, "avahi_client_free"},
-      {(dyn::apiproc *) &entry_group_get_client, "avahi_entry_group_get_client"},
-      {(dyn::apiproc *) &entry_group_new, "avahi_entry_group_new"},
-      {(dyn::apiproc *) &entry_group_add_service, "avahi_entry_group_add_service"},
-      {(dyn::apiproc *) &entry_group_is_empty, "avahi_entry_group_is_empty"},
-      {(dyn::apiproc *) &entry_group_reset, "avahi_entry_group_reset"},
-      {(dyn::apiproc *) &entry_group_commit, "avahi_entry_group_commit"},
-      {(dyn::apiproc *) &client_errno, "avahi_client_errno"},
-    };
-
-    if (dyn::load(handle, funcs)) {
+    if (std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+          {(dyn::apiproc *) &client_new, "avahi_client_new"},
+          {(dyn::apiproc *) &client_free, "avahi_client_free"},
+          {(dyn::apiproc *) &entry_group_get_client, "avahi_entry_group_get_client"},
+          {(dyn::apiproc *) &entry_group_new, "avahi_entry_group_new"},
+          {(dyn::apiproc *) &entry_group_add_service, "avahi_entry_group_add_service"},
+          {(dyn::apiproc *) &entry_group_add_address, "avahi_entry_group_add_address"},
+          {(dyn::apiproc *) &entry_group_is_empty, "avahi_entry_group_is_empty"},
+          {(dyn::apiproc *) &entry_group_reset, "avahi_entry_group_reset"},
+          {(dyn::apiproc *) &entry_group_commit, "avahi_entry_group_commit"},
+          {(dyn::apiproc *) &client_errno, "avahi_client_errno"},
+        };
+        dyn::load(handle, funcs)) {
       return -1;
     }
 
@@ -371,30 +332,6 @@ namespace avahi {
 
 namespace platf::publish {
 
-  /**
-   * @brief Release memory allocated by Avahi.
-   *
-   * @param p Avahi-allocated pointer to release.
-   */
-  template<class T>
-  void free(T *p) {
-    avahi::free(p);
-  }
-
-  /**
-   * @brief Owning pointer for Avahi allocations released with `avahi_free`.
-   */
-  template<class T>
-  using ptr_t = util::safe_ptr<T, free<T>>;
-  /**
-   * @brief Owning pointer for an Avahi client.
-   */
-  using client_t = util::dyn_safe_ptr<avahi::Client, &avahi::client_free>;
-  /**
-   * @brief Owning pointer for an Avahi simple poll loop.
-   */
-  using poll_t = util::dyn_safe_ptr<avahi::SimplePoll, &avahi::simple_poll_free>;
-
   avahi::EntryGroup *group = nullptr;  ///< Active Avahi entry group that owns the published service.
 
   poll_t poll;  ///< Avahi poll loop used while the service is published.
@@ -402,12 +339,121 @@ namespace platf::publish {
 
   ptr_t<char> name;  ///< Current service name, updated when Avahi reports a collision.
 
-  /**
-   * @brief Create or update the Avahi service entry group.
-   *
-   * @param c Avahi client used to allocate and commit the service entry group.
-   */
-  void create_services(avahi::Client *c);
+  unsigned host_name_collision_count = 0;  ///< Suffix counter for regenerating the service host name after collisions.
+
+  std::optional<std::vector<ServedAddress>> published_addresses;  ///< Committed snapshot; nullopt while withdrawn.
+
+#ifdef __linux__
+  int netlink_fd = -1;  ///< Netlink socket watched for interface/address changes, -1 when not installed.
+  avahi::Watch *netlink_watch = nullptr;  ///< Avahi poll watch for the netlink socket, nullptr when not installed.
+#endif
+
+  /* Enumerate the local interface addresses available for publication. */
+  std::vector<ServedAddress> enumerate_interface_addresses() {
+    ifaddrs *interfaces = nullptr;
+    if (getifaddrs(&interfaces) != 0) {
+      BOOST_LOG(error) << "Failed to enumerate network interfaces."sv;
+      return {};
+    }
+    auto cleanup = util::fail_guard([&interfaces]() {
+      freeifaddrs(interfaces);
+    });
+
+    std::vector<ServedAddress> addresses;
+    for (const auto *ifa = interfaces; ifa != nullptr; ifa = ifa->ifa_next) {
+      if (ifa->ifa_addr == nullptr || (ifa->ifa_flags & IFF_UP) == 0) {
+        continue;
+      }
+
+      // The owning interface index scopes the record to the link it is
+      // reachable on; if_nametoindex() only fails for names that vanished
+      // mid-enumeration, and those records fall back to IF_UNSPEC.
+      avahi::IfIndex interface = avahi::IF_UNSPEC;
+      if (const auto index = if_nametoindex(ifa->ifa_name); index != 0) {
+        interface = static_cast<avahi::IfIndex>(index);
+      }
+
+      if (ifa->ifa_addr->sa_family == AF_INET) {
+        const auto *inet_address = reinterpret_cast<const sockaddr_in *>(ifa->ifa_addr);
+        boost::asio::ip::address_v4::bytes_type bytes {};
+        std::memcpy(bytes.data(), &inet_address->sin_addr, bytes.size());
+        addresses.emplace_back(interface, boost::asio::ip::address_v4(bytes));
+      } else if (ifa->ifa_addr->sa_family == AF_INET6) {
+        const auto *inet6_address = reinterpret_cast<const sockaddr_in6 *>(ifa->ifa_addr);
+        boost::asio::ip::address_v6::bytes_type bytes {};
+        std::memcpy(bytes.data(), &inet6_address->sin6_addr, bytes.size());
+        addresses.emplace_back(interface, boost::asio::ip::address_v6(bytes, inet6_address->sin6_scope_id));
+      }
+    }
+    return addresses;
+  }
+
+  /* Determine the addresses published for the service host name. */
+  std::vector<ServedAddress> served_addresses(net::af_e effective_family) {
+    // An explicit, non-wildcard bind address is, by definition, an address
+    // Sunshine serves: publish exactly it, with the interface index of the
+    // interface that owns it when one does.
+    if (config::sunshine.bind_address.empty()) {
+      // A wildcard bind serves every local interface address of the effective family.
+      return select_served_addresses(enumerate_interface_addresses(), effective_family);
+    }
+
+    boost::system::error_code ec;
+    auto bind_address = boost::asio::ip::make_address(config::sunshine.bind_address, ec);
+    if (ec) {
+      BOOST_LOG(warning) << "Configured bind address is not a valid IP address, falling back to interface enumeration: "sv
+                         << config::sunshine.bind_address;
+      // An unparsable bind serves every local interface address of the effective family.
+      return select_served_addresses(enumerate_interface_addresses(), effective_family);
+    }
+
+    bind_address = net::normalize_address(bind_address);
+    if (bind_address.is_unspecified()) {
+      // A wildcard bind serves every local interface address of the effective family.
+      return select_served_addresses(enumerate_interface_addresses(), effective_family);
+    }
+
+    if (effective_family == net::IPV4 && !bind_address.is_v4()) {
+      return {};
+    }
+
+    const auto enumerated = enumerate_interface_addresses();
+    const auto owner = std::find_if(
+      enumerated.begin(),
+      enumerated.end(),
+      [&bind_address](const ServedAddress &entry) {
+        return entry.address == bind_address;
+      }
+    );
+    const auto interface = owner != enumerated.end() ? owner->interface : avahi::IF_UNSPEC;
+    return {ServedAddress {interface, bind_address}};
+  }
+
+  /* Add address records for the service host name to the entry group. */
+  int add_service_addresses(
+    avahi::EntryGroup *entry_group,
+    const std::string &service_host,
+    const std::vector<ServedAddress> &addresses
+  ) {
+    using enum avahi::proto;
+
+    for (const auto &address : addresses) {
+      const auto avahi_address = to_avahi_address(address.address);
+      const int ret = avahi::entry_group_add_address(
+        entry_group,
+        address.interface,
+        std::to_underlying(PROTO_UNSPEC),
+        avahi::PUBLISH_NO_REVERSE,
+        service_host.c_str(),
+        &avahi_address
+      );
+      if (ret < 0) {
+        BOOST_LOG(error) << "Failed to add avahi address for "sv << service_host << ": "sv << avahi::strerror(ret);
+        return ret;
+      }
+    }
+    return 0;
+  }
 
   /**
    * @brief React to Avahi entry-group state changes.
@@ -415,7 +461,7 @@ namespace platf::publish {
    * @param g Entry group that emitted the state change.
    * @param state Avahi entry-group state reported by the callback.
    */
-  void entry_group_callback(avahi::EntryGroup *g, avahi::EntryGroupState state, void *) {
+  void entry_group_callback(avahi::EntryGroup *g, avahi::EntryGroupState state, void *) {  // NOSONAR(cpp:S5008): Avahi callbacks require a void pointer for user data.
     group = g;
 
     switch (state) {
@@ -426,6 +472,11 @@ namespace platf::publish {
         name.reset(avahi::alternative_service_name(name.get()));
 
         BOOST_LOG(info) << "Avahi service name collision, renaming service to " << name.get();
+
+        // The collision may have been on the service host name rather than
+        // the service name: regenerate the host name as well so the retry
+        // does not collide on the same host name again.
+        ++host_name_collision_count;
 
         create_services(avahi::entry_group_get_client(g));
         break;
@@ -438,14 +489,16 @@ namespace platf::publish {
     }
   }
 
-  /**
-   * @brief Publish Sunshine's mDNS service through Avahi.
-   */
-  void create_services(avahi::Client *c) {
+  /* Publish Sunshine's mDNS service through Avahi. */
+  void create_services(avahi::Client *c, bool quit_on_failure) {
+    using enum avahi::proto;
+
     int ret;
 
-    auto fg = util::fail_guard([]() {
-      avahi::simple_poll_quit(poll.get());
+    auto fg = util::fail_guard([quit_on_failure]() {
+      if (quit_on_failure) {
+        avahi::simple_poll_quit(poll.get());
+      }
     });
 
     if (!group) {
@@ -456,17 +509,58 @@ namespace platf::publish {
     }
 
     if (avahi::entry_group_is_empty(group)) {
+      // A fresh registration attempt starts from a withdrawn snapshot: the
+      // group is empty, so no previously committed snapshot is still live.
+      published_addresses.reset();
       BOOST_LOG(info) << "Adding avahi service "sv << name.get();
+
+      // Discovery transport stays on both protocols: the transport only
+      // decides which multicast groups carry the announcement, it does not
+      // filter the advertised host addresses (see #5860). The filter is the
+      // service-specific SRV target below: the daemon publishes address
+      // records for that host name only from the explicit records added
+      // here, so an IPv4-only configuration advertises no AAAA record even
+      // though the daemon's shared host name still carries both A and AAAA
+      // (publish-aaaa-on-ipv4). The effective family accounts for
+      // bind_address, matching the listener setup. On non-Linux platforms
+      // there is no address-change watch, so the service instead uses the
+      // daemon-managed host name (a null SRV target) and the daemon
+      // maintains the address records.
+      const auto effective_family = net::get_effective_address_family(
+        net::af_from_enum_string(config::sunshine.address_family)
+      );
+      const auto addresses = served_addresses(effective_family);
+
+      // The service-specific host name and its fixed address records are
+      // Linux-only: only Linux installs the address-change watch that
+      // refreshes them (see install_address_change_watch()).
+      const char *service_target = nullptr;
+#ifdef __linux__
+      const auto service_host = service_host_name(platf::get_host_name(), host_name_collision_count);
+      if (addresses.empty()) {
+        BOOST_LOG(warning) << "No served addresses determined for "sv << service_host
+                           << "; falling back to the daemon host name, which may advertise unserved addresses (see #5860).";
+      } else {
+        service_target = service_host.c_str();
+        ret = add_service_addresses(group, service_host, addresses);
+        if (ret < 0) {
+          published_addresses.reset();
+          avahi::entry_group_reset(group);
+          return;
+        }
+      }
+
+#endif
 
       ret = avahi::entry_group_add_service(
         group,
         avahi::IF_UNSPEC,
-        avahi::PROTO_UNSPEC,
+        std::to_underlying(PROTO_UNSPEC),
         avahi::PublishFlags(0),
         name.get(),
         platf::SERVICE_TYPE,
         nullptr,
-        nullptr,
+        service_target,
         net::map_port(nvhttp::PORT_HTTP),
         nullptr
       );
@@ -477,15 +571,22 @@ namespace platf::publish {
           name.reset(avahi::alternative_service_name(name.get()));
           BOOST_LOG(info) << "Service name collision, renaming service to "sv << name.get();
 
+          // The collision may have been on the service host name instead:
+          // regenerate it as well so the retry does not collide again.
+          ++host_name_collision_count;
+
+          published_addresses.reset();
           avahi::entry_group_reset(group);
 
-          create_services(c);
+          create_services(c, quit_on_failure);
 
           fg.disable();
           return;
         }
 
         BOOST_LOG(error) << "Failed to add "sv << platf::SERVICE_TYPE << " service: "sv << avahi::strerror(ret);
+        published_addresses.reset();
+        avahi::entry_group_reset(group);
         return;
       }
 
@@ -494,9 +595,110 @@ namespace platf::publish {
         BOOST_LOG(error) << "Failed to commit entry group: "sv << avahi::strerror(ret);
         return;
       }
+
+      published_addresses = addresses;
     }
 
     fg.disable();
+  }
+
+  /* Rebuild the service records after local interface addresses change. */
+  void refresh_service_addresses() {
+    if (!client || !group) {
+      return;
+    }
+
+    const auto effective_family = net::get_effective_address_family(
+      net::af_from_enum_string(config::sunshine.address_family)
+    );
+    const auto current = served_addresses(effective_family);
+    if (published_addresses && current == *published_addresses) {
+      return;
+    }
+
+    BOOST_LOG(info) << "Local interface addresses changed, republishing Avahi service."sv;
+    published_addresses.reset();
+    avahi::entry_group_reset(group);
+    // A refresh failure must not kill discovery: the group is already reset
+    // (records withdrawn), and the next change notification retries, while
+    // quitting the poll loop here would leave the service withdrawn with no
+    // recovery short of restarting Sunshine.
+    create_services(client.get(), false);
+  }
+
+#ifdef __linux__
+  /**
+   * @brief Refresh service publication after an interface/address change.
+   *
+   * @param fd Netlink route socket to drain before refreshing the addresses.
+   */
+  void address_change_callback(avahi::Watch * /*watch*/, int fd, avahi::WatchEvent /*event*/, void * /*userdata*/) {
+    // Drain the netlink socket: a burst of address/link messages must not
+    // leave the fd readable, or the poll loop would spin on it.
+    std::array<std::byte, 4096> buffer {};
+    while (recv(fd, buffer.data(), buffer.size(), MSG_DONTWAIT) > 0) {
+      // Discard: the snapshot is re-read from the interfaces, not from the message.
+    }
+
+    refresh_service_addresses();
+  }
+#endif
+
+  /* Subscribe to interface/address changes on the Avahi poll thread. */
+  bool install_address_change_watch() {
+#ifdef __linux__
+    if (netlink_watch) {
+      return true;
+    }
+
+    // No existing network-change notification exists in Sunshine to reuse:
+    // the only related code is UPnP's WAN-IP renewal, which is unrelated to
+    // mDNS. A netlink route socket is the kernel's address/link change
+    // feed; registering it as an Avahi poll watch dispatches the callback
+    // on the existing poll thread, so no new thread and no cross-thread
+    // Avahi calls are introduced. Failure degrades to the old behavior
+    // (no refresh) instead of failing startup.
+    const int fd = socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC | SOCK_NONBLOCK, NETLINK_ROUTE);
+    if (fd < 0) {
+      BOOST_LOG(warning) << "Failed to open netlink socket for address-change notifications, mDNS records will not refresh on network changes."sv;
+      return false;
+    }
+
+    sockaddr_nl address {};
+    address.nl_family = AF_NETLINK;
+    address.nl_groups = RTMGRP_LINK | RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR;
+    if (bind(fd, (sockaddr *) &address, sizeof(address)) < 0) {
+      BOOST_LOG(warning) << "Failed to bind netlink socket for address-change notifications, mDNS records will not refresh on network changes."sv;
+      close(fd);
+      return false;
+    }
+
+    const auto *poll_api = avahi::simple_poll_get(poll.get());
+    if (!poll_api) {
+      BOOST_LOG(warning) << "Failed to get Avahi poll API for address-change notifications, mDNS records will not refresh on network changes."sv;
+      close(fd);
+      return false;
+    }
+
+    auto *watch = poll_api->watch_new(poll_api, fd, avahi::WatchEvent::WATCH_IN, address_change_callback, nullptr);
+    if (!watch) {
+      BOOST_LOG(warning) << "Failed to install Avahi watch for address-change notifications, mDNS records will not refresh on network changes."sv;
+      close(fd);
+      return false;
+    }
+
+    netlink_fd = fd;
+    netlink_watch = watch;
+    return true;
+#else
+    // Netlink is a Linux-kernel API, so no address-change watch exists on
+    // other platforms. That is safe because create_services() publishes
+    // the service with a null SRV target there, selecting the Avahi
+    // daemon-managed host name: the daemon owns the interface address
+    // records and updates and withdraws them when addresses change, so
+    // discovery stays correct without a refresh.
+    return false;
+#endif
   }
 
   /**
@@ -505,7 +707,7 @@ namespace platf::publish {
    * @param c Avahi client that emitted the state change.
    * @param state Avahi client state reported by the callback.
    */
-  void client_callback(avahi::Client *c, avahi::ClientState state, void *) {
+  void client_callback(avahi::Client *c, avahi::ClientState state, void *) {  // NOSONAR(cpp:S5008): Avahi callbacks require a void pointer for user data.
     switch (state) {
       case avahi::CLIENT_S_RUNNING:
         create_services(c);
@@ -517,6 +719,9 @@ namespace platf::publish {
       case avahi::CLIENT_S_COLLISION:
       case avahi::CLIENT_S_REGISTERING:
         if (group) {
+          // The daemon withdraws the entries on collision/re-registration,
+          // so the committed snapshot is no longer live.
+          published_addresses.reset();
           avahi::entry_group_reset(group);
         }
         break;
@@ -532,11 +737,11 @@ namespace platf::publish {
     std::jthread poll_thread;  ///< Poll thread.
 
     /**
-     * @brief Store the Avahi polling thread for shutdown on destruction.
+     * @brief Explicitly store the Avahi polling thread for shutdown on destruction.
      *
      * @param poll_thread Poll thread.
      */
-    deinit_t(std::jthread poll_thread):
+    explicit deinit_t(std::jthread poll_thread):
         poll_thread {std::move(poll_thread)} {
     }
 
@@ -551,6 +756,21 @@ namespace platf::publish {
       if (poll_thread.joinable()) {
         poll_thread.join();
       }
+
+      // The poll thread has exited, so no watch callback can be in flight:
+      // release the address-change watch and its socket now.
+#ifdef __linux__
+      if (netlink_watch) {
+        if (const auto *poll_api = avahi::simple_poll_get(poll.get()); poll_api) {
+          poll_api->watch_free(netlink_watch);
+        }
+        netlink_watch = nullptr;
+      }
+      if (netlink_fd >= 0) {
+        close(netlink_fd);
+        netlink_fd = -1;
+      }
+#endif
 
       poll.reset();
     }
@@ -582,6 +802,12 @@ namespace platf::publish {
       BOOST_LOG(error) << "Failed to create client: "sv << avahi::strerror(avhi_error);
       return nullptr;
     }
+
+    // Best-effort: without the watch, discovery still works. On Linux the
+    // records go stale after a network change (the pre-watch behavior);
+    // on other platforms the daemon-managed host name delegates address
+    // maintenance to the Avahi daemon, so no refresh is needed.
+    install_address_change_watch();
 
     return std::make_unique<deinit_t>(std::jthread {[]() {
       avahi::simple_poll_loop(poll.get());

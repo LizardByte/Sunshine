@@ -33,7 +33,7 @@ namespace platf {
     CVPixelBufferRelease((CVPixelBufferRef) data);
   }
 
-  util::safe_ptr<AVFrame, free_frame> av_frame;  ///< AV frame.
+  util::safe_ptr<AVFrame, &free_frame> av_frame;  ///< AV frame.
 
   int nv12_zero_device::convert(platf::img_t &img) {
     auto *av_img = (av_img_t *) &img;
@@ -54,25 +54,23 @@ namespace platf {
     return 0;
   }
 
-  int nv12_zero_device::set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
-    this->frame = frame;
+  int nv12_zero_device::set_frame(AVFrame *new_frame, AVBufferRef *hw_frames_ctx) {
+    this->frame = new_frame;
 
-    av_frame.reset(frame);
+    av_frame.reset(new_frame);
 
-    resolution_fn(this->display, frame->width, frame->height);
+    resolution_fn(this->display, new_frame->width, new_frame->height);
 
     return 0;
   }
 
-  int nv12_zero_device::init(void *display, pix_fmt_e pix_fmt, resolution_fn_t resolution_fn, const pixel_format_fn_t &pixel_format_fn) {
-    pixel_format_fn(display, pix_fmt == pix_fmt_e::nv12 ? kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange : kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange);
+  int nv12_zero_device::init(AVVideo *capture_display, pix_fmt_e pix_fmt, resolution_fn_t set_resolution, const pixel_format_fn_t &pixel_format_fn) {
+    pixel_format_fn(capture_display, pix_fmt == pix_fmt_e::nv12 ? kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange : kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange);
 
-    this->display = display;
-    this->resolution_fn = std::move(resolution_fn);
+    this->display = capture_display;
+    this->resolution_fn = std::move(set_resolution);
 
-    // we never use this pointer, but its existence is checked/used
-    // by the platform independent code
-    data = this;
+    hardware = true;
 
     return 0;
   }

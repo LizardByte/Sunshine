@@ -10,6 +10,7 @@
 #include <array>
 #include <limits>
 #include <optional>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -25,6 +26,64 @@ extern "C" {
 #include <src/video.h>
 
 using namespace std::literals;
+
+/**
+ * @brief Packet replacement rules retain the original non-owning byte views.
+ */
+TEST(VideoPacketReplacementTest, CopiesViewsWithoutCopyingTheirBackingBytes) {
+  std::string original = "__old__";
+  std::string replacement = "__new__";
+  const video::packet_raw_t::replace_t rule {std::string_view(original).substr(2, 3), std::string_view(replacement).substr(2, 3)};
+  EXPECT_EQ(rule.old, "old");
+  EXPECT_EQ(rule._new, "new");
+  EXPECT_EQ(rule.old.data(), original.data() + 2);
+  EXPECT_EQ(rule._new.data(), replacement.data() + 2);
+  original[2] = 'O';
+  replacement[2] = 'N';
+  EXPECT_EQ(rule.old, "Old");
+  EXPECT_EQ(rule._new, "New");
+}
+
+TEST(VideoFormatMappingTest, MapsSupportedHardwareDevicesAndRejectsUnsupportedOnes) {
+  using enum platf::mem_type_e;
+  const std::array cases {
+    std::pair {AV_HWDEVICE_TYPE_D3D11VA, dxgi},
+    std::pair {AV_HWDEVICE_TYPE_VAAPI, vaapi},
+    std::pair {AV_HWDEVICE_TYPE_CUDA, cuda},
+    std::pair {AV_HWDEVICE_TYPE_NONE, system},
+    std::pair {AV_HWDEVICE_TYPE_VIDEOTOOLBOX, videotoolbox},
+#ifdef SUNSHINE_BUILD_VULKAN
+    std::pair {AV_HWDEVICE_TYPE_VULKAN, vulkan},
+#else
+    std::pair {AV_HWDEVICE_TYPE_VULKAN, unknown},
+#endif
+    std::pair {AV_HWDEVICE_TYPE_DXVA2, unknown},
+  };
+
+  for (const auto &[format, expected] : cases) {
+    EXPECT_EQ(video::map_base_dev_type(format), expected) << format;
+  }
+}
+
+TEST(VideoFormatMappingTest, MapsSupportedPixelFormatsAndRejectsUnsupportedOnes) {
+  using enum platf::pix_fmt_e;
+  const std::array cases {
+    std::pair {AV_PIX_FMT_VUYX, ayuv},
+    std::pair {AV_PIX_FMT_XV30, y410},
+    std::pair {AV_PIX_FMT_YUV420P10, yuv420p10},
+    std::pair {AV_PIX_FMT_YUV420P, yuv420p},
+    std::pair {AV_PIX_FMT_NV12, nv12},
+    std::pair {AV_PIX_FMT_P010, p010},
+    std::pair {AV_PIX_FMT_YUV444P, yuv444p},
+    std::pair {AV_PIX_FMT_YUV444P16, yuv444p16},
+    std::pair {AV_PIX_FMT_NONE, unknown},
+    std::pair {AV_PIX_FMT_RGB24, unknown},
+  };
+
+  for (const auto &[format, expected] : cases) {
+    EXPECT_EQ(video::map_pix_fmt(format), expected) << format;
+  }
+}
 
 struct EncoderTest: PlatformTestSuite, testing::WithParamInterface<video::encoder_t *> {
   void SetUp() override {
@@ -42,25 +101,30 @@ struct EncoderTest: PlatformTestSuite, testing::WithParamInterface<video::encode
   }
 };
 
+/**
+ * @brief Available encoder backends for this platform.
+ */
+const auto encoder_variants = std::to_array<video::encoder_t *>({
+#if !defined(__APPLE__)
+  &video::nvenc,
+#endif
+#ifdef _WIN32
+  &video::amdvce,
+  &video::quicksync,
+#endif
+#if defined(__linux__) || defined(__FreeBSD__)
+  &video::vaapi,
+#endif
+#ifdef __APPLE__
+  &video::videotoolbox,
+#endif
+  &video::software
+});
+
 INSTANTIATE_TEST_SUITE_P(
   EncoderVariants,
   EncoderTest,
-  testing::Values(
-#if !defined(__APPLE__)
-    &video::nvenc,
-#endif
-#ifdef _WIN32
-    &video::amdvce,
-    &video::quicksync,
-#endif
-#if defined(__linux__) || defined(__FreeBSD__)
-    &video::vaapi,
-#endif
-#ifdef __APPLE__
-    &video::videotoolbox,
-#endif
-    &video::software
-  ),
+  testing::ValuesIn(encoder_variants),
   [](const auto &info) {
     return std::string(info.param->name);
   }
@@ -176,6 +240,73 @@ INSTANTIATE_TEST_SUITE_P(
     std::make_tuple(1, 0, 0, false, false, 0)
   )
 );
+
+/**
+ * @brief Reset the published probe results before and after each test.
+ */
+struct EncoderProbeResultsTest: testing::Test {
+  /**
+   * @brief Start from an empty published state.
+   */
+  void SetUp() override {
+    video::reset_encoder_probe_results();
+  }
+
+  /**
+   * @brief Leave no published state behind for other tests.
+   */
+  void TearDown() override {
+    video::reset_encoder_probe_results();
+  }
+};
+
+TEST_F(EncoderProbeResultsTest, FailedCodecProbeDoesNotPublishCapabilities) {
+  video::encoder_t encoder {"test"sv, {}, {}, {}, {}, 0};
+  for (auto *codec : {&encoder.h264, &encoder.hevc, &encoder.av1}) {
+    (*codec)[video::encoder_t::PASSED] = false;
+    (*codec)[video::encoder_t::YUV444] = true;
+    (*codec)[video::encoder_t::DYNAMIC_RANGE] = true;
+    (*codec)[video::encoder_t::DYNAMIC_RANGE_YUV444] = true;
+  }
+
+  video::record_encoder_probe_results(encoder);
+
+  for (std::size_t i = 0; i < 3; ++i) {
+    EXPECT_FALSE(video::last_encoder_probe_supported_yuv444_for_codec[i]) << i;
+    EXPECT_FALSE(video::last_encoder_probe_supported_dynamic_range_for_codec[i]) << i;
+    EXPECT_FALSE(video::last_encoder_probe_supported_dynamic_range_yuv444_for_codec[i]) << i;
+  }
+}
+
+TEST_F(EncoderProbeResultsTest, SubsequentProbeReplacesPriorResults) {
+  constexpr uint32_t ref_frames_invalidation = 1 << 8;  // Mirrors REF_FRAMES_INVALIDATION in video.cpp.
+  video::encoder_t first {"first"sv, {}, {}, {}, {}, ref_frames_invalidation};
+  for (auto *codec : {&first.h264, &first.hevc, &first.av1}) {
+    (*codec)[video::encoder_t::PASSED] = true;
+    (*codec)[video::encoder_t::YUV444] = true;
+    (*codec)[video::encoder_t::DYNAMIC_RANGE] = true;
+    (*codec)[video::encoder_t::DYNAMIC_RANGE_YUV444] = true;
+  }
+
+  // The second encoder only supports plain 8-bit 4:2:0 H.264.
+  video::encoder_t second {"second"sv, {}, {}, {}, {}, 0};
+  second.h264[video::encoder_t::PASSED] = true;
+
+  video::record_encoder_probe_results(first);
+  ASSERT_TRUE(video::last_encoder_probe_supported_ref_frames_invalidation);
+  ASSERT_TRUE(video::last_encoder_probe_supported_yuv444_for_codec[1]);
+  ASSERT_TRUE(video::last_encoder_probe_supported_dynamic_range_for_codec[2]);
+  ASSERT_TRUE(video::last_encoder_probe_supported_dynamic_range_yuv444_for_codec[2]);
+
+  video::record_encoder_probe_results(second);
+
+  EXPECT_FALSE(video::last_encoder_probe_supported_ref_frames_invalidation);
+  for (std::size_t i = 0; i < 3; ++i) {
+    EXPECT_FALSE(video::last_encoder_probe_supported_yuv444_for_codec[i]) << i;
+    EXPECT_FALSE(video::last_encoder_probe_supported_dynamic_range_for_codec[i]) << i;
+    EXPECT_FALSE(video::last_encoder_probe_supported_dynamic_range_yuv444_for_codec[i]) << i;
+  }
+}
 
 #ifdef _WIN32
 TEST(AmfH264OptionsTest, CoderUsesConfiguredValue) {

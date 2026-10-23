@@ -355,6 +355,15 @@ namespace platf {
     return fs::path {homedir} / ".config/sunshine"sv;
   }
 
+  /**
+   * @brief XDG Portal token path (unused on MacOS).
+   *
+   * @return Path of portal_token in appdata path.
+   */
+  std::filesystem::path get_xdg_restore_token_path() {
+    return appdata() / "portal_token";
+  }
+
   using ifaddr_t = util::safe_ptr<ifaddrs, freeifaddrs>;
 
   ifaddr_t get_ifaddrs() {
@@ -645,7 +654,7 @@ namespace platf {
     return saddr_v6;
   }
 
-  bool send_batch(batched_send_info_t &send_info) {
+  bool send_batch(const batched_send_info_t &send_info) {
     // Fall back to unbatched send calls
     return false;
   }
@@ -878,7 +887,12 @@ namespace platf {
       std::this_thread::sleep_for(duration);
     }
 
-    operator bool() override {
+    /**
+     * @brief Explicitly report that the thread-based timer is always available.
+     *
+     * @return True because sleeping needs no additional timer resource.
+     */
+    explicit operator bool() override {
       return true;
     }
   };

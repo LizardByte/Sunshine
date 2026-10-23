@@ -51,61 +51,12 @@ namespace rtsp_stream {
     delete msg;
   }
 
-#pragma pack(push, 1)
-
-  /**
-   * @brief Encrypted RTSP message header used by GameStream.
-   */
-  struct encrypted_rtsp_header_t {
-    // We set the MSB in encrypted RTSP messages to allow format-agnostic
-    // parsing code to be able to tell encrypted from plaintext messages.
-    static constexpr std::uint32_t ENCRYPTED_MESSAGE_TYPE_BIT = 0x80000000;  ///< Protocol or platform constant for encrypted message type bit.
-
-    /**
-     * @brief Return a pointer to the protocol payload following the packet header.
-     *
-     * @return Parsed or serialized payload data.
-     */
-    uint8_t *payload() {
-      return (uint8_t *) (this + 1);
-    }
-
-    /**
-     * @brief Decode the RTSP interleaved-frame payload length.
-     *
-     * @return Payload byte count with the encrypted-message flag masked out.
-     */
-    std::uint32_t payload_length() {
-      return util::endian::big<std::uint32_t>(typeAndLength) & ~ENCRYPTED_MESSAGE_TYPE_BIT;
-    }
-
-    /**
-     * @brief Check whether encrypted.
-     *
-     * @return True when the RTSP connection is using TLS.
-     */
-    bool is_encrypted() {
-      return !!(util::endian::big<std::uint32_t>(typeAndLength) & ENCRYPTED_MESSAGE_TYPE_BIT);
-    }
-
-    // This field is the length of the payload + ENCRYPTED_MESSAGE_TYPE_BIT in big-endian
-    std::uint32_t typeAndLength;  ///< Type and length.
-
-    // This field is the number used to initialize the bottom 4 bytes of the AES IV in big-endian
-    std::uint32_t sequenceNumber;  ///< Sequence number.
-
-    // This field is the AES GCM authentication tag
-    std::uint8_t tag[16];  ///< Authentication tag appended to the encrypted payload.
-  };
-
-#pragma pack(pop)
-
   class rtsp_server_t;
 
   /**
    * @brief Owning pointer for an RTSP message allocated by moonlight-common-c.
    */
-  using msg_t = util::safe_ptr<RTSP_MESSAGE, free_msg>;
+  using msg_t = util::safe_ptr<RTSP_MESSAGE, &free_msg>;
   /**
    * @brief RTSP command handler signature used by the server dispatch table.
    */
@@ -277,7 +228,7 @@ namespace rtsp_stream {
       iv[11] = 'R';  // RTSP
 
       std::vector<uint8_t> plaintext;
-      if (socket->session->rtsp_cipher->decrypt(std::string_view {(const char *) header->tag, sizeof(header->tag) + bytes}, plaintext, &iv)) {
+      if (socket->session->rtsp_cipher->decrypt(std::string_view {(const char *) header->tag.data(), sizeof(header->tag) + bytes}, plaintext, &iv)) {
         BOOST_LOG(error) << "Failed to verify RTSP message tag"sv;
 
         respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", 0, {});
@@ -372,7 +323,7 @@ namespace rtsp_stream {
           // If content_length > bytes read, then we need to store current data read,
           // to be appended by the next read.
           std::string_view content {option->content};
-          auto begin = std::find_if(std::begin(content), std::end(content), [](auto ch) {
+          auto begin = std::ranges::find_if(content, [](auto ch) {
             return (bool) std::isdigit(ch);
           });
 
@@ -407,11 +358,11 @@ namespace rtsp_stream {
       if (ec) {
         BOOST_LOG(error) << "RTSP: handle_read_plaintext(): Couldn't read from tcp socket: "sv << ec.message();
 
-        boost::system::error_code ec;
-        socket->sock.close(ec);
+        boost::system::error_code close_error;
+        socket->sock.close(close_error);
 
-        if (ec) {
-          BOOST_LOG(error) << "RTSP: handle_read_plaintext(): Couldn't close tcp socket: "sv << ec.message();
+        if (close_error) {
+          BOOST_LOG(error) << "RTSP: handle_read_plaintext(): Couldn't close tcp socket: "sv << close_error.message();
         }
 
         return;
@@ -526,8 +477,7 @@ namespace rtsp_stream {
      * @param req Parsed RTSP request being handled.
      */
     void handle_msg(tcp::socket &sock, launch_session_t &session, msg_t &&req) {
-      auto func = _map_cmd_cb.find(req->message.request.command);
-      if (func != std::end(_map_cmd_cb)) {
+      if (auto func = _map_cmd_cb.find(req->message.request.command); func != std::end(_map_cmd_cb)) {
         func->second(this, sock, session, std::move(req));
       } else {
         cmd_not_found(sock, session, std::move(req));
@@ -563,8 +513,8 @@ namespace rtsp_stream {
         BOOST_LOG(debug) << "No pending session for incoming RTSP connection"sv;
 
         // If there is no session pending, close the connection immediately
-        boost::system::error_code ec;
-        socket->sock.close(ec);
+        boost::system::error_code close_error;
+        socket->sock.close(close_error);
       }
 
       // Queue another asynchronous accept for the next incoming connection
@@ -583,7 +533,7 @@ namespace rtsp_stream {
      * @param cb Callback invoked for each matching message or session.
      */
     void map(const std::string_view &type, cmd_func_t cb) {
-      _map_cmd_cb.emplace(type, std::move(cb));
+      _map_cmd_cb.try_emplace(type, std::move(cb));
     }
 
     /**
@@ -801,12 +751,12 @@ namespace rtsp_stream {
    * @param resp RTSP response string to send to the client.
    */
   void respond(tcp::socket &sock, launch_session_t &session, msg_t &resp) {
-    auto payload = std::make_pair(resp->payload, resp->payloadLength);
+    auto [payload, original_payload_length] = std::make_pair(resp->payload, resp->payloadLength);
 
     // Restore response message for proper destruction
-    auto lg = util::fail_guard([&]() {
-      resp->payload = payload.first;
-      resp->payloadLength = payload.second;
+    auto lg = util::fail_guard([&resp, &payload, &original_payload_length]() {
+      resp->payload = payload;
+      resp->payloadLength = original_payload_length;
     });
 
     resp->payload = nullptr;
@@ -817,7 +767,7 @@ namespace rtsp_stream {
     BOOST_LOG(debug)
       << "---Begin Response---"sv << std::endl
       << std::string_view {raw_resp.get(), (std::size_t) serialized_len} << std::endl
-      << std::string_view {payload.first, (std::size_t) payload.second} << std::endl
+      << std::string_view {payload, (std::size_t) original_payload_length} << std::endl
       << "---End Response---"sv << std::endl;
 
     // Encrypt the RTSP message if encryption is enabled
@@ -837,21 +787,21 @@ namespace rtsp_stream {
       iv[11] = 'R';  // RTSP
 
       // Allocate the message with an empty header and reserved space for the payload
-      auto payload_length = serialized_len + payload.second;
+      auto message_length = serialized_len + original_payload_length;
       std::vector<uint8_t> message(sizeof(encrypted_rtsp_header_t));
-      message.reserve(message.size() + payload_length);
+      message.reserve(message.size() + message_length);
 
       // Copy the complete plaintext into the message
       std::copy_n(raw_resp.get(), serialized_len, std::back_inserter(message));
-      std::copy_n(payload.first, payload.second, std::back_inserter(message));
+      std::copy_n(payload, original_payload_length, std::back_inserter(message));
 
       // Initialize the message header
       auto header = (encrypted_rtsp_header_t *) message.data();
-      header->typeAndLength = util::endian::big<std::uint32_t>(encrypted_rtsp_header_t::ENCRYPTED_MESSAGE_TYPE_BIT + payload_length);
+      header->typeAndLength = util::endian::big<std::uint32_t>(encrypted_rtsp_header_t::ENCRYPTED_MESSAGE_TYPE_BIT + message_length);
       header->sequenceNumber = util::endian::big<std::uint32_t>(session.rtsp_iv_counter);
 
       // Encrypt the RTSP message in place
-      session.rtsp_cipher->encrypt(std::string_view {(const char *) header->payload(), (std::size_t) payload_length}, header->tag, &iv);
+      session.rtsp_cipher->encrypt(std::string_view {(const char *) header->payload(), (std::size_t) message_length}, header->tag.data(), &iv);
 
       // Send the full encrypted message
       send(sock, std::string_view {(char *) message.data(), message.size()});
@@ -864,7 +814,7 @@ namespace rtsp_stream {
       }
 
       // Send the plaintext RTSP message payload (if present)
-      send(sock, std::string_view {payload.first, (std::size_t) payload.second});
+      send(sock, std::string_view {payload, (std::size_t) original_payload_length});
     }
   }
 
@@ -887,13 +837,13 @@ namespace rtsp_stream {
 
   /**
    * @brief Handle RTSP OPTIONS requests.
+   * @details The common command signature supplies a server pointer that this handler does not need.
    *
-   * @param server RTSP server instance handling the request.
    * @param sock Socket used to read or write the protocol message.
    * @param session Active streaming or pairing session for the request.
    * @param req Parsed RTSP request being handled.
    */
-  void cmd_option(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_option(rtsp_server_t *, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified
@@ -907,13 +857,13 @@ namespace rtsp_stream {
 
   /**
    * @brief Handle RTSP DESCRIBE requests.
+   * @details The common command signature supplies a server pointer that this handler does not need.
    *
-   * @param server RTSP server instance.
    * @param sock Client socket.
    * @param session Launch session.
    * @param req RTSP request message.
    */
-  void cmd_describe(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_describe(rtsp_server_t *, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified
@@ -932,8 +882,7 @@ namespace rtsp_stream {
     uint32_t encryption_flags_requested = SS_ENC_CONTROL_V2;
 
     // Determine the encryption desired for this remote endpoint
-    auto encryption_mode = net::encryption_mode_for_address(sock.remote_endpoint().address());
-    if (encryption_mode != config::ENCRYPTION_MODE_NEVER) {
+    if (auto encryption_mode = net::encryption_mode_for_address(sock.remote_endpoint().address()); encryption_mode != config::ENCRYPTION_MODE_NEVER) {
       // Advertise support for video encryption if it's not disabled
       encryption_flags_supported |= SS_ENC_VIDEO;
 
@@ -968,7 +917,7 @@ namespace rtsp_stream {
 
     for (int x = 0; x < audio::MAX_STREAM_CONFIG; ++x) {
       auto &stream_config = audio::stream_configs[x];
-      std::uint8_t mapping[platf::speaker::MAX_SPEAKERS];
+      std::array<std::uint8_t, platf::speaker::MAX_SPEAKERS> mapping;
 
       auto mapping_p = stream_config.mapping;
 
@@ -978,10 +927,10 @@ namespace rtsp_stream {
        * To work around this, rotate channels to the left from index '3'
        */
       if (x == audio::SURROUND51 || x == audio::SURROUND71) {
-        std::copy_n(mapping_p, stream_config.channelCount, mapping);
-        std::rotate(mapping + 3, mapping + 4, mapping + audio::MAX_STREAM_CONFIG);
+        std::copy_n(mapping_p, stream_config.channelCount, mapping.begin());
+        std::rotate(mapping.begin() + 3, mapping.begin() + 4, mapping.begin() + audio::MAX_STREAM_CONFIG);
 
-        mapping_p = mapping;
+        mapping_p = mapping.data();
       }
 
       ss << "a=fmtp:97 surround-params="sv << stream_config.channelCount << stream_config.streams << stream_config.coupledStreams;
@@ -999,13 +948,13 @@ namespace rtsp_stream {
   /**
    * @brief Handle RTSP SETUP requests and prepare transport state.
    *
-   * @param server RTSP server instance handling the request.
+   * @param rtsp_server RTSP server instance handling the request.
    * @param sock Socket used to read or write the protocol message.
    * @param session Active streaming or pairing session for the request.
    * @param req Parsed RTSP request being handled.
    */
-  void cmd_setup(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
-    OPTION_ITEM options[4] {};
+  void cmd_setup(rtsp_server_t *rtsp_server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+    std::array<OPTION_ITEM, 4> options {};
 
     auto &seqn = options[0];
     auto &session_option = options[1];
@@ -1018,7 +967,7 @@ namespace rtsp_stream {
     seqn.content = const_cast<char *>(seqn_str.c_str());
 
     std::string_view target {req->message.request.target};
-    auto begin = std::find(std::begin(target), std::end(target), '=') + 1;
+    auto begin = std::ranges::find(target, '=') + 1;
     auto end = std::find(begin, std::end(target), '/');
     std::string_view type {begin, (size_t) std::distance(begin, end)};
 
@@ -1066,12 +1015,12 @@ namespace rtsp_stream {
   /**
    * @brief Handle RTSP ANNOUNCE requests from the client.
    *
-   * @param server RTSP server instance handling the request.
+   * @param rtsp_server RTSP server instance handling the request.
    * @param sock Socket used to read or write the protocol message.
    * @param session Active streaming or pairing session for the request.
    * @param req Parsed RTSP request being handled.
    */
-  void cmd_announce(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_announce(rtsp_server_t *rtsp_server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified
@@ -1119,7 +1068,7 @@ namespace rtsp_stream {
         if (val[val.size() - 1] == ' ') {
           val = val.substr(0, val.size() - 1);
         }
-        args.emplace(name, val);
+        args.try_emplace(name, val);
       }
     }
 
@@ -1215,11 +1164,11 @@ namespace rtsp_stream {
     // in the RTSP message matches a local interface's IP address. Fortunately, Moonlight always sends
     // 0.0.0.0 when it wants low quality, so it is easy to check without enumerating interfaces.
     if (config.audio.channels == 2) {
-      for (auto option = req->options; option != nullptr; option = option->next) {
-        if ("Host"sv == option->option) {
-          std::string_view content {option->content};
+      for (auto request_option = req->options; request_option != nullptr; request_option = request_option->next) {
+        if ("Host"sv == request_option->option) {
+          std::string_view content {request_option->content};
           BOOST_LOG(debug) << "Found Host: "sv << content;
-          config.audio.flags[audio::config_t::HIGH_QUALITY] = (content.find("0.0.0.0"sv) == std::string::npos);
+          config.audio.flags[audio::config_t::HIGH_QUALITY] = !content.contains("0.0.0.0"sv);
         }
       }
     } else if (session.surround_params.length() > 3) {
@@ -1300,12 +1249,12 @@ namespace rtsp_stream {
     }
 
     auto stream_session = stream::session::alloc(config, session);
-    server->insert(stream_session);
+    rtsp_server->insert(stream_session);
 
     if (stream::session::start(*stream_session, sock.remote_endpoint().address().to_string())) {
       BOOST_LOG(error) << "Failed to start a streaming session"sv;
 
-      server->remove(stream_session);
+      rtsp_server->remove(stream_session);
       respond(sock, session, &option, 500, "Internal Server Error", req->sequenceNumber, {});
       return;
     }
@@ -1315,13 +1264,13 @@ namespace rtsp_stream {
 
   /**
    * @brief Handle RTSP PLAY requests and start streaming.
+   * @details The common command signature supplies a server pointer that this handler does not need.
    *
-   * @param server RTSP server instance handling the request.
    * @param sock Socket used to read or write the protocol message.
    * @param session Active streaming or pairing session for the request.
    * @param req Parsed RTSP request being handled.
    */
-  void cmd_play(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_play(rtsp_server_t *, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified

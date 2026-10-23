@@ -3,14 +3,13 @@
  * @brief Test src/crypto.*.
  */
 // test includes
+#include "../certificate_test_utils.h"
 #include "../tests_common.h"
 
 // lib includes
 #include <openssl/x509.h>
 
 // local includes
-#include "../certificate_test_utils.h"
-
 #include <src/crypto.h>
 
 TEST(CryptoTest, GeneratedCredentialsExposeSubjectAndVerifySignatures) {

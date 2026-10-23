@@ -10,7 +10,22 @@ the build directory.
 
 The project uses gtest as a test framework.
 
-Add or update tests for new or modified methods and code. Target 100% coverage on changed code.
+Sunshine tests must include `tests/tests_common.h` using the appropriate relative path, rather than including
+`<gtest/gtest.h>` directly. The common header provides GoogleTest through the shared test support and makes
+`TEST` use `BaseTest`, including its output capture and shared setup/teardown.
+
+Group test headers first under `// test includes`, followed by `// standard includes`, `// lib includes`, and
+`// local includes`, with a blank line between groups. Put shared test helpers in the test group, and omit empty
+groups. Keep platform-specific headers and their group comments inside the appropriate preprocessor guards.
+When a test depends on a particular include order, preserve that order and explain the dependency in a comment;
+do not move the common header ahead of headers whose first-include behavior is being tested.
+
+Add or update regression tests for new or modified source-code methods and behavior.
+Target 100% coverage on changed source code.
+
+The regression-test requirement does not apply to build-system files, such as CMake scripts and dependency configuration.
+Validate build-system changes with appropriate configuration, build, and lint checks.
+Do not add dedicated build-system regression-test projects or fixtures for these changes.
 
 ## Python tooling and formatting
 
@@ -64,6 +79,10 @@ reproduction steps or evidence when available. Do not include an exhaustive root
 plan in the issue. This limit applies only to creating issues; investigate or fix issues fully when asked.
 
 ## Code Review Rules
+
+Check new and modified tests for the common-header and include-group conventions above. Request
+`tests_common.h` instead of direct GoogleTest includes, and ensure shared test helpers are in the test include
+group. Verify any documented include-order dependency before asking the author to reorder headers.
 
 Report concrete issues introduced by the change that the contributor can address. For each finding, explain the
 triggering condition, impact, and a practical fix; point to the relevant code or test. Keep workflow status separate

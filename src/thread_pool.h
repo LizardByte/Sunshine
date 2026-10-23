@@ -20,7 +20,7 @@ namespace thread_pool_util {
     /**
      * @brief Callable unit executed by a worker thread.
      */
-    typedef TaskPool::__task __task;
+    using __task = TaskPool::__task;
 
   private:
     std::vector<std::jthread> _thread;

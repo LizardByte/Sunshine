@@ -22,6 +22,12 @@ Sunshine's build and packaging automation uses packaged static Boost libraries o
 Ubuntu 26.04 or newer, macOS with Homebrew, Windows with MSYS2, and FreeBSD. Older supported distributions continue
 to use the CPM fallback because their repositories do not meet the minimum Boost version.
 
+On Linux and FreeBSD, Sunshine and the prebuilt FFmpeg libraries use the system's shared libva core and backends.
+These components share a private display-context ABI and must come from the same libva build. Sunshine also uses
+the system libva headers so its compatibility shims match the installed API. Bundled libva archives and headers
+are excluded from the build. The system provides libdrm, the GPU's VA-API driver, and libva's driver configuration.
+AppImages use the same system libraries at runtime; they do not bundle libva.
+
 #### Prebuilt Web UI
 
 Sunshine releases publish the platform-independent Web UI as the `@lizardbyte/sunshine` package to npm and GitHub

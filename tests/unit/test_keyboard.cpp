@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <format>
 #include <memory>
@@ -36,6 +37,17 @@
 #include "src/config.h"
 #include "src/input.h"
 #include "src/platform/virtualhid_input.h"
+
+namespace input {
+  /**
+   * @brief Execute one repeat callback directly for a deterministic keyboard test.
+   *
+   * @param key_code Client key code being repeated.
+   * @param flags Client packet flags.
+   * @param synthetic_modifiers Byte mask of synthetic modifiers around the repeated key.
+   */
+  void repeat_key(std::uint16_t key_code, std::uint8_t flags, std::byte synthetic_modifiers);
+}  // namespace input
 
 namespace {
   using namespace std::chrono_literals;
@@ -576,7 +588,7 @@ TEST_F(KeyboardPassthroughTest, InjectsSyntheticModifiersTheClientHoldsWithoutSe
     {MODIFIER_ALT, VKEY_MENU},
   }};
 
-  for (unsigned combination = 1; combination < (1u << injectable.size()); ++combination) {
+  for (unsigned combination = 0; combination < (1u << injectable.size()); ++combination) {
     std::vector<std::string> expected;
     unsigned claimed = 0;
     for (std::size_t index = 0; index < injectable.size(); ++index) {
@@ -608,6 +620,29 @@ TEST_F(KeyboardPassthroughTest, NeverSynthesizesTheMetaModifier) {
   press(VKEY_A, MODIFIER_META);
   release(VKEY_A, MODIFIER_META);
   EXPECT_EQ(taken(), (std::vector<std::string> {pressed(VKEY_A), released(VKEY_A)}));
+}
+
+TEST_F(KeyboardPassthroughTest, RepeatsByteMaskedModifiersAndStopsAfterStateIsCleared) {
+  config::input.key_repeat_period = 1h;
+  constexpr auto synthetic_modifiers = std::byte {MODIFIER_SHIFT} | std::byte {MODIFIER_CTRL} | std::byte {MODIFIER_ALT};
+  constexpr std::uint8_t flags = SS_KBE_FLAG_NON_NORMALIZED;
+  press(VKEY_A, std::to_integer<unsigned>(synthetic_modifiers) | MODIFIER_EXTENDED, flags);
+  taken_events();
+
+  input::repeat_key(VKEY_A, flags, synthetic_modifiers);
+  const auto events = taken_events();
+  ASSERT_EQ(events.size(), 7U);
+  const std::array<std::uint16_t, 7> expected_keys {VKEY_SHIFT, VKEY_CONTROL, VKEY_MENU, VKEY_A, VKEY_SHIFT, VKEY_CONTROL, VKEY_MENU};
+  for (std::size_t index = 0; index < events.size(); ++index) {
+    EXPECT_EQ(events[index].key_code, expected_keys[index]);
+    EXPECT_EQ(events[index].flags, flags);
+    EXPECT_EQ(events[index].release, index > 3);
+  }
+  EXPECT_TRUE(events[3].extended);
+
+  input::testing::reset_keyboard_state();
+  input::repeat_key(VKEY_A, flags, synthetic_modifiers);
+  EXPECT_TRUE(taken_events().empty());
 }
 
 TEST_F(KeyboardPassthroughTest, PropagatesPacketFlagsToEverySyntheticEvent) {

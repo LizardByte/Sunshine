@@ -20,7 +20,8 @@ class Sunshine < Formula
   desc "@PROJECT_DESCRIPTION@"
   homepage "@PROJECT_HOMEPAGE_URL@"
   url "@GITHUB_CLONE_URL@",
-    tag: "@GITHUB_TAG@"
+    tag:      "@GITHUB_TAG@",
+    revision: "@GITHUB_COMMIT@"
   version "@BUILD_VERSION@"
   license all_of: ["GPL-3.0-only"]
   head "@GITHUB_CLONE_URL@", branch: "@GITHUB_DEFAULT_BRANCH@"
@@ -62,7 +63,7 @@ class Sunshine < Formula
   depends_on "curl"
   depends_on "icu4c@78"
   depends_on "miniupnpc"
-  depends_on "openssl@3"
+  depends_on "openssl@4"
   depends_on "opus"
   depends_on "qtbase"
   depends_on "qtsvg"
@@ -164,19 +165,27 @@ class Sunshine < Formula
     ENV["CXX"] = "#{gcc_path.opt_bin}/g++-#{GCC_VERSION}"
   end
 
+  ## @brief Generate CMake arguments with Homebrew dependency and Linux runtime paths.
+  ## @return CMake command-line arguments.
   def base_cmake_args
     args = %W[
       -DBUILD_WERROR=ON
       -DCMAKE_INSTALL_PREFIX=#{prefix}
       -DGLAD_SKIP_PIP_INSTALL=ON
       -DHOMEBREW_ALLOW_FETCHCONTENT=ON
-      -DOPENSSL_ROOT_DIR=#{formula_opt_prefix("openssl")}
+      -DOPENSSL_ROOT_DIR=#{formula_opt_prefix("openssl@4")}
       -DSUNSHINE_ASSETS_DIR=sunshine/assets
       -DSUNSHINE_BUILD_HOMEBREW=ON
       -DSUNSHINE_PUBLISHER_NAME='LizardByte'
       -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev'
       -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
     ]
+    if OS.linux?
+      # GCC treats Homebrew's lib directory as implicit, so CMake omits its automatic rpath.
+      # Keep curl's indirect dependencies ahead of incompatible system libraries when linking and running.
+      args << "-DCMAKE_BUILD_RPATH=#{HOMEBREW_PREFIX}/lib"
+      args << "-DCMAKE_INSTALL_RPATH=#{HOMEBREW_PREFIX}/lib"
+    end
     args << "-DSUNSHINE_EXECUTABLE_PATH=#{opt_bin}/sunshine" if OS.linux?
     # Point cmake at the venv Python that has jinja2 installed (set up in setup_build_environment)
     args << "-DPython_EXECUTABLE=#{@glad_python}" if @glad_python
@@ -460,7 +469,9 @@ class Sunshine < Formula
         packaging/linux/Arch/PKGBUILD
         packaging/linux/copr/Sunshine.spec
         packaging/linux/flatpak/modules/boost.json
+        packaging/linux/flatpak/scripts/additional-install.sh
         scripts/linux_build.sh
+        tests/scripts/test_additional_install.sh
       ]
       if OS.mac?
         boost_test_fixtures += %w[
@@ -554,6 +565,10 @@ class Sunshine < Formula
         assert_path_exists test_runtime/"test_assets/web/images/logo-sunshine.svg"
         assert_path_exists test_runtime/"tests/unit/test_video.cpp"
         if OS.linux?
+          assert_path_exists test_runtime/"tests/scripts/test_additional_install.sh"
+          assert_path_exists test_runtime/"packaging/linux/flatpak/scripts/additional-install.sh"
+          assert_path_exists test_runtime/"src_assets/linux/misc/60-sunshine.conf"
+          assert_path_exists test_runtime/"src_assets/linux/misc/60-sunshine.rules"
           assert_path_exists test_runtime/"coverage/src/config.cpp"
           assert_path_exists test_runtime/GCOV_PREFIX_STRIP_FILE
           source_notes = test_runtime.glob("coverage/build/tests/CMakeFiles/#{TEST_BINARY}.dir/__/src/**/*.gcno")

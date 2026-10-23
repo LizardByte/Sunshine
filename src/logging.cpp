@@ -3,9 +3,11 @@
  * @brief Definitions for logging related functions.
  */
 // standard includes
+#include <array>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <utility>
 
 // lib includes
 #include <boost/core/null_deleter.hpp>
@@ -65,9 +67,9 @@ namespace logging {
    */
   void formatter(const boost::log::record_view &view, boost::log::formatting_ostream &os) {
     constexpr const char *message = "Message";
-    constexpr const char *severity = "Severity";
+    constexpr const char *severity_attribute = "Severity";
 
-    auto log_level = view.attribute_values()[severity].extract<int>().get();
+    auto log_level = view.attribute_values()[severity_attribute].extract<int>().get();
 
     std::string_view log_type;
     switch (log_level) {
@@ -94,7 +96,7 @@ namespace logging {
         log_type = "Tests: "sv;
         break;
 #endif
-    };
+    }
 
     auto now = std::chrono::system_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -202,31 +204,31 @@ namespace logging {
     } else {
       av_log_set_level(AV_LOG_DEBUG);
     }
-    av_log_set_callback([](void *ptr, int level, const char *fmt, va_list vl) {
+    av_log_set_callback([](void *ptr, int level, const char *fmt, va_list vl) {  // NOSONAR(cpp:S5008): FFmpeg's av_log_set_callback requires a void pointer to its logging context.
       static int print_prefix = 1;
-      char buffer[1024];
+      std::array<char, 1024> buffer;
 
-      av_log_format_line(ptr, level, fmt, vl, buffer, sizeof(buffer), &print_prefix);
+      av_log_format_line(ptr, level, fmt, vl, buffer.data(), buffer.size(), &print_prefix);
       if (level <= AV_LOG_ERROR) {
         // We print AV_LOG_FATAL at the error level. FFmpeg prints things as fatal that
         // are expected in some cases, such as lack of codec support or similar things.
-        BOOST_LOG(error) << buffer;
+        BOOST_LOG(error) << buffer.data();
       } else if (level <= AV_LOG_WARNING) {
-        BOOST_LOG(warning) << buffer;
+        BOOST_LOG(warning) << buffer.data();
       } else if (level <= AV_LOG_INFO) {
-        BOOST_LOG(info) << buffer;
+        BOOST_LOG(info) << buffer.data();
       } else if (level <= AV_LOG_VERBOSE) {
         // AV_LOG_VERBOSE is less verbose than AV_LOG_DEBUG
-        BOOST_LOG(debug) << buffer;
+        BOOST_LOG(debug) << buffer.data();
       } else {
-        BOOST_LOG(verbose) << buffer;
+        BOOST_LOG(verbose) << buffer.data();
       }
     });
   }
 
   void setup_libdisplaydevice_logging(int min_log_level) {
-    constexpr int min_level {static_cast<int>(display_device::Logger::LogLevel::verbose)};
-    constexpr int max_level {static_cast<int>(display_device::Logger::LogLevel::fatal)};
+    constexpr int min_level {std::to_underlying(display_device::Logger::LogLevel::verbose)};
+    constexpr int max_level {std::to_underlying(display_device::Logger::LogLevel::fatal)};
     const auto log_level {static_cast<display_device::Logger::LogLevel>(std::min(std::max(min_level, min_log_level), max_level))};
 
     display_device::Logger::get().setLogLevel(log_level);

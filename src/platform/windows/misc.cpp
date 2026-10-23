@@ -2,19 +2,32 @@
  * @file src/platform/windows/misc.cpp
  * @brief Miscellaneous definitions for Windows.
  */
+
+// TODO: Revisit this override when formalizing the Windows 11 minimum API target.
+#ifndef NTDDI_VERSION
+  /**
+   * @def NTDDI_VERSION
+   * @brief Target Windows 10 APIs before Boost or Windows headers select a default.
+   */
+  #define NTDDI_VERSION NTDDI_WIN10
+#endif
+
 // standard includes
+#include <array>
 #include <csignal>
 #include <filesystem>
 #include <iomanip>
 #include <iterator>
 #include <set>
 #include <sstream>
+#include <utility>
 #include <vector>
 
 // lib includes
 #include <boost/algorithm/string.hpp>
 #include <boost/asio/ip/address.hpp>
 #include <boost/program_options/parsers.hpp>
+#include <boost/range/algorithm/find_if.hpp>
 
 // local includes required before platform includes
 #include "src/boost_process_compat.h"
@@ -34,16 +47,8 @@
 #include <WS2tcpip.h>
 #include <WtsApi32.h>
 #include <sddl.h>
-// clang-format on
-
-// Boost overrides NTDDI_VERSION, so we re-override it here
-#undef NTDDI_VERSION
-/**
- * @def NTDDI_VERSION
- * @brief Macro for NTDDI VERSION.
- */
-#define NTDDI_VERSION NTDDI_WIN10
 #include <Shlwapi.h>
+// clang-format on
 
 // local includes
 #include "misc.h"
@@ -99,7 +104,7 @@ extern "C" {
 
 namespace {
 
-  std::atomic<bool> used_nt_set_timer_resolution = false;
+  std::atomic used_nt_set_timer_resolution = false;
 
   bool nt_set_timer_resolution_max() {
     ULONG maximum;
@@ -160,38 +165,42 @@ namespace platf {
   decltype(WlanSetInterface) *fn_WlanSetInterface = nullptr;  ///< Fn wlan set interface.
 
   std::filesystem::path appdata() {
-    WCHAR sunshine_path[MAX_PATH];
-    GetModuleFileNameW(nullptr, sunshine_path, _countof(sunshine_path));
-    return std::filesystem::path {sunshine_path}.remove_filename() / L"config"sv;
+    std::array<WCHAR, MAX_PATH> sunshine_path;
+    GetModuleFileNameW(nullptr, sunshine_path.data(), sunshine_path.size());
+    return std::filesystem::path {sunshine_path.data()}.remove_filename() / L"config"sv;
+  }
+
+  /**
+   * @brief XDG Portal token path (unused on Windows).
+   *
+   * @return Path of portal_token in appdata path.
+   */
+  std::filesystem::path get_xdg_restore_token_path() {
+    return appdata() / "portal_token";
   }
 
   std::string from_sockaddr(const sockaddr *const socket_address) {
-    char data[INET6_ADDRSTRLEN] = {};
+    std::array<char, INET6_ADDRSTRLEN> data = {};
 
-    auto family = socket_address->sa_family;
-    if (family == AF_INET6) {
-      inet_ntop(AF_INET6, &((sockaddr_in6 *) socket_address)->sin6_addr, data, INET6_ADDRSTRLEN);
+    if (auto family = socket_address->sa_family; family == AF_INET6) {
+      inet_ntop(AF_INET6, &((const sockaddr_in6 *) socket_address)->sin6_addr, data.data(), INET6_ADDRSTRLEN);
     } else if (family == AF_INET) {
-      inet_ntop(AF_INET, &((sockaddr_in *) socket_address)->sin_addr, data, INET_ADDRSTRLEN);
+      inet_ntop(AF_INET, &((const sockaddr_in *) socket_address)->sin_addr, data.data(), INET_ADDRSTRLEN);
     }
 
-    return std::string {data};
+    return std::string {data.data()};
   }
 
   std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const ip_addr) {
-    char data[INET6_ADDRSTRLEN] = {};
-
     auto family = ip_addr->sa_family;
     std::uint16_t port = 0;
     if (family == AF_INET6) {
-      inet_ntop(AF_INET6, &((sockaddr_in6 *) ip_addr)->sin6_addr, data, INET6_ADDRSTRLEN);
-      port = ((sockaddr_in6 *) ip_addr)->sin6_port;
+      port = ((const sockaddr_in6 *) ip_addr)->sin6_port;
     } else if (family == AF_INET) {
-      inet_ntop(AF_INET, &((sockaddr_in *) ip_addr)->sin_addr, data, INET_ADDRSTRLEN);
-      port = ((sockaddr_in *) ip_addr)->sin_port;
+      port = ((const sockaddr_in *) ip_addr)->sin_port;
     }
 
-    return {port, std::string {data}};
+    return {port, from_sockaddr(ip_addr)};
   }
 
   /**
@@ -200,19 +209,19 @@ namespace platf {
    * @return Adapter-address list populated by GetAdaptersAddresses.
    */
   adapteraddrs_t get_adapteraddrs() {
-    adapteraddrs_t info {nullptr};
+    adapteraddrs_t adapter_addresses {nullptr};
     ULONG size = 0;
 
-    while (GetAdaptersAddresses(AF_UNSPEC, 0, nullptr, info.get(), &size) == ERROR_BUFFER_OVERFLOW) {
-      info.reset((PIP_ADAPTER_ADDRESSES) malloc(size));
+    while (GetAdaptersAddresses(AF_UNSPEC, 0, nullptr, adapter_addresses.get(), &size) == ERROR_BUFFER_OVERFLOW) {
+      adapter_addresses.reset((PIP_ADAPTER_ADDRESSES) malloc(size));
     }
 
-    return info;
+    return adapter_addresses;
   }
 
   std::string get_mac_address(const std::string_view &address) {
-    adapteraddrs_t info = get_adapteraddrs();
-    for (auto adapter_pos = info.get(); adapter_pos != nullptr; adapter_pos = adapter_pos->Next) {
+    adapteraddrs_t adapter_addresses = get_adapteraddrs();
+    for (auto adapter_pos = adapter_addresses.get(); adapter_pos != nullptr; adapter_pos = adapter_pos->Next) {
       for (auto addr_pos = adapter_pos->FirstUnicastAddress; addr_pos != nullptr; addr_pos = addr_pos->Next) {
         if (adapter_pos->PhysicalAddressLength != 0 && address == from_sockaddr(addr_pos->Address.lpSockaddr)) {
           std::stringstream mac_addr;
@@ -257,11 +266,11 @@ namespace platf {
    * @brief Write status details to the log.
    */
   void print_status(const std::string_view &prefix, HRESULT status) {
-    char err_string[1024];
+    std::array<char, 1024> err_string;
 
-    DWORD bytes = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, status, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), err_string, sizeof(err_string), nullptr);
+    DWORD bytes = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, status, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), err_string.data(), err_string.size(), nullptr);
 
-    BOOST_LOG(error) << prefix << ": "sv << std::string_view {err_string, bytes};
+    BOOST_LOG(error) << prefix << ": "sv << std::string_view {err_string.data(), bytes};
   }
 
   /**
@@ -370,6 +379,8 @@ namespace platf {
   /**
    * @brief Merge user environment variables into a Windows environment block.
    *
+   * Existing variable names retain their spelling when matched case-insensitively.
+   *
    * @param env Environment variables for the child process.
    * @param shell_token Shell token.
    * @return True when the user environment block was merged into `env`.
@@ -389,7 +400,7 @@ namespace platf {
       std::string env_val = env_tuple.substr(env_tuple.find('=') + 1);
 
       // Perform a case-insensitive search to see if this variable name already exists
-      if (auto itr = std::find_if(env.begin(), env.end(), [&](const auto &e) {
+      if (auto itr = boost::range::find_if(env, [&env_name](const auto &e) {
             return boost::iequals(e.get_name(), env_name);
           });
           itr != env.end()) {
@@ -623,7 +634,7 @@ namespace platf {
 
     if (file) {
       // If a file was provided, get its handle and use it as the standard output and error for the new process
-      HANDLE log_file_handle = (HANDLE) _get_osfhandle(_fileno(file));
+      auto log_file_handle = (HANDLE) _get_osfhandle(_fileno(file));
 
       // Populate std handles if the caller gave us a log file to use
       startup_info.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
@@ -824,7 +835,7 @@ namespace platf {
       // Overriding these predefined keys affects process-wide state, so serialize all calls
       // to ensure the handle state is consistent while we perform the command query.
       static std::mutex per_user_key_mutex;
-      auto lg = std::lock_guard(per_user_key_mutex);
+      auto lg = std::scoped_lock(per_user_key_mutex);
 
       // Override HKEY_CLASSES_ROOT and HKEY_CURRENT_USER to ensure we query the correct class info
       if (!override_per_user_predefined_keys(token)) {
@@ -1022,7 +1033,7 @@ namespace platf {
     auto sunshine_wenv = boost::this_process::wenvironment();
     std::wstring path_var_name {L"PATH"};
     std::wstring old_path_val;
-    auto itr = std::find_if(sunshine_wenv.cbegin(), sunshine_wenv.cend(), [&](const auto &e) {
+    auto itr = boost::range::find_if(std::as_const(sunshine_wenv), [&path_var_name](const auto &e) {
       return boost::iequals(e.get_name(), path_var_name);
     });
     if (itr != sunshine_wenv.cend()) {
@@ -1036,7 +1047,7 @@ namespace platf {
     sunshine_wenv[path_var_name].assign(start_dir + L";" + old_path_val);
 
     // Restore the old PATH value for our process when we're done here
-    auto restore_path = util::fail_guard([&]() {
+    auto restore_path = util::fail_guard([&old_path_val, &sunshine_wenv, &path_var_name]() {
       if (old_path_val.empty()) {
         sunshine_wenv[path_var_name].clear();
       } else {
@@ -1118,24 +1129,28 @@ namespace platf {
     }
   }
 
+  /**
+   * @brief Set the calling thread's Windows scheduling priority.
+   */
   void adjust_thread_priority(thread_priority_e priority) {
     int win32_priority;
 
     switch (priority) {
-      case thread_priority_e::low:
+      using enum thread_priority_e;
+      case low:
         win32_priority = THREAD_PRIORITY_BELOW_NORMAL;
         break;
-      case thread_priority_e::normal:
+      case normal:
         win32_priority = THREAD_PRIORITY_NORMAL;
         break;
-      case thread_priority_e::high:
+      case high:
         win32_priority = THREAD_PRIORITY_ABOVE_NORMAL;
         break;
-      case thread_priority_e::critical:
+      case critical:
         win32_priority = THREAD_PRIORITY_HIGHEST;
         break;
       default:
-        BOOST_LOG(error) << "Unknown thread priority: "sv << (int) priority;
+        BOOST_LOG(error) << "Unknown thread priority: "sv << std::to_underlying(priority);
         return;
     }
 
@@ -1224,8 +1239,8 @@ namespace platf {
               // https://docs.microsoft.com/en-us/windows-hardware/drivers/network/oid-wdi-set-connection-quality
               // https://docs.microsoft.com/en-us/previous-versions/windows/hardware/wireless/native-802-11-media-streaming
               BOOL value = TRUE;
-              auto error = fn_WlanSetInterface(wlan_handle, &wlan_interface_list->InterfaceInfo[i].InterfaceGuid, wlan_intf_opcode_media_streaming_mode, sizeof(value), &value, nullptr);
-              if (error == ERROR_SUCCESS) {
+              auto wlan_status = fn_WlanSetInterface(wlan_handle, &wlan_interface_list->InterfaceInfo[i].InterfaceGuid, wlan_intf_opcode_media_streaming_mode, sizeof(value), &value, nullptr);
+              if (wlan_status == ERROR_SUCCESS) {
                 BOOST_LOG(info) << "WLAN interface "sv << i << " is now in low latency mode"sv;
               }
             }
@@ -1307,15 +1322,15 @@ namespace platf {
     STARTUPINFOEXW startup_info {};
     startup_info.StartupInfo.cb = sizeof(startup_info);
 
-    WCHAR executable[MAX_PATH];
-    if (GetModuleFileNameW(nullptr, executable, ARRAYSIZE(executable)) == 0) {
+    std::array<WCHAR, MAX_PATH> executable;
+    if (GetModuleFileNameW(nullptr, executable.data(), executable.size()) == 0) {
       auto winerr = GetLastError();
       BOOST_LOG(fatal) << "Failed to get Sunshine path: "sv << winerr;
       return;
     }
 
     PROCESS_INFORMATION process_info;
-    if (!CreateProcessW(executable, GetCommandLineW(), nullptr, nullptr, false, CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT, nullptr, nullptr, (LPSTARTUPINFOW) &startup_info, &process_info)) {
+    if (!CreateProcessW(executable.data(), GetCommandLineW(), nullptr, nullptr, false, CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT, nullptr, nullptr, (LPSTARTUPINFOW) &startup_info, &process_info)) {
       auto winerr = GetLastError();
       BOOST_LOG(fatal) << "Unable to restart Sunshine: "sv << winerr;
       return;
@@ -1362,8 +1377,8 @@ namespace platf {
         BOOST_LOG(debug) << "Sent WM_CLOSE to PID: "sv << wnd_process_id;
         enum_ctx->requested_exit = true;
       } else {
-        auto error = GetLastError();
-        BOOST_LOG(warning) << "Failed to send WM_CLOSE to PID ["sv << wnd_process_id << "]: " << error;
+        auto close_error = GetLastError();
+        BOOST_LOG(warning) << "Failed to send WM_CLOSE to PID ["sv << wnd_process_id << "]: " << close_error;
       }
     }
 
@@ -1449,9 +1464,50 @@ namespace platf {
     return saddr_v6;
   }
 
+  /**
+   * @brief Write the source IP address into the first ancillary control message.
+   *
+   * @param msg Socket message with control storage sized for packet information.
+   * @param source_address Local IP address to use for outgoing packets.
+   * @return Bytes occupied by the packet-information control message.
+   */
+  static ULONG populate_source_pktinfo(WSAMSG &msg, const boost::asio::ip::address &source_address) {
+    ULONG cmbuflen = 0;
+    auto cm = WSA_CMSG_FIRSTHDR(&msg);
+    if (source_address.is_v6()) {
+      IN6_PKTINFO pktInfo;
+
+      SOCKADDR_IN6 saddr_v6 = to_sockaddr(source_address.to_v6(), 0);
+      pktInfo.ipi6_addr = saddr_v6.sin6_addr;
+      pktInfo.ipi6_ifindex = 0;
+
+      cmbuflen += WSA_CMSG_SPACE(sizeof(pktInfo));
+
+      cm->cmsg_level = IPPROTO_IPV6;
+      cm->cmsg_type = IPV6_PKTINFO;
+      cm->cmsg_len = WSA_CMSG_LEN(sizeof(pktInfo));
+      memcpy(WSA_CMSG_DATA(cm), &pktInfo, sizeof(pktInfo));
+    } else {
+      IN_PKTINFO pktInfo;
+
+      SOCKADDR_IN saddr_v4 = to_sockaddr(source_address.to_v4(), 0);
+      pktInfo.ipi_addr = saddr_v4.sin_addr;
+      pktInfo.ipi_ifindex = 0;
+
+      cmbuflen += WSA_CMSG_SPACE(sizeof(pktInfo));
+
+      cm->cmsg_level = IPPROTO_IP;
+      cm->cmsg_type = IP_PKTINFO;
+      cm->cmsg_len = WSA_CMSG_LEN(sizeof(pktInfo));
+      memcpy(WSA_CMSG_DATA(cm), &pktInfo, sizeof(pktInfo));
+    }
+
+    return cmbuflen;
+  }
+
   // Use UDP segmentation offload if it is supported by the OS. If the NIC is capable, this will use
   // hardware acceleration to reduce CPU usage. Support for USO was introduced in Windows 10 20H1.
-  bool send_batch(batched_send_info_t &send_info) {
+  bool send_batch(const batched_send_info_t &send_info) {
     WSAMSG msg;
 
     // Convert the target address into a SOCKADDR
@@ -1502,45 +1558,16 @@ namespace platf {
     msg.dwFlags = 0;
 
     // At most, one DWORD option and one PKTINFO option
-    char cmbuf[WSA_CMSG_SPACE(sizeof(DWORD)) + std::max(WSA_CMSG_SPACE(sizeof(IN6_PKTINFO)), WSA_CMSG_SPACE(sizeof(IN_PKTINFO)))] = {};
-    ULONG cmbuflen = 0;
+    std::array<char, WSA_CMSG_SPACE(sizeof(DWORD)) + std::max(WSA_CMSG_SPACE(sizeof(IN6_PKTINFO)), WSA_CMSG_SPACE(sizeof(IN_PKTINFO)))> cmbuf = {};
+    msg.Control.buf = cmbuf.data();
+    msg.Control.len = cmbuf.size();
 
-    msg.Control.buf = cmbuf;
-    msg.Control.len = sizeof(cmbuf);
-
-    auto cm = WSA_CMSG_FIRSTHDR(&msg);
-    if (send_info.source_address.is_v6()) {
-      IN6_PKTINFO pktInfo;
-
-      SOCKADDR_IN6 saddr_v6 = to_sockaddr(send_info.source_address.to_v6(), 0);
-      pktInfo.ipi6_addr = saddr_v6.sin6_addr;
-      pktInfo.ipi6_ifindex = 0;
-
-      cmbuflen += WSA_CMSG_SPACE(sizeof(pktInfo));
-
-      cm->cmsg_level = IPPROTO_IPV6;
-      cm->cmsg_type = IPV6_PKTINFO;
-      cm->cmsg_len = WSA_CMSG_LEN(sizeof(pktInfo));
-      memcpy(WSA_CMSG_DATA(cm), &pktInfo, sizeof(pktInfo));
-    } else {
-      IN_PKTINFO pktInfo;
-
-      SOCKADDR_IN saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
-      pktInfo.ipi_addr = saddr_v4.sin_addr;
-      pktInfo.ipi_ifindex = 0;
-
-      cmbuflen += WSA_CMSG_SPACE(sizeof(pktInfo));
-
-      cm->cmsg_level = IPPROTO_IP;
-      cm->cmsg_type = IP_PKTINFO;
-      cm->cmsg_len = WSA_CMSG_LEN(sizeof(pktInfo));
-      memcpy(WSA_CMSG_DATA(cm), &pktInfo, sizeof(pktInfo));
-    }
+    auto cmbuflen = populate_source_pktinfo(msg, send_info.source_address);
 
     if (send_info.block_count > 1) {
       cmbuflen += WSA_CMSG_SPACE(sizeof(DWORD));
 
-      cm = WSA_CMSG_NXTHDR(&msg, cm);
+      auto cm = WSA_CMSG_NXTHDR(&msg, WSA_CMSG_FIRSTHDR(&msg));
       cm->cmsg_level = IPPROTO_UDP;
       cm->cmsg_type = UDP_SEND_MSG_SIZE;
       cm->cmsg_len = WSA_CMSG_LEN(sizeof(DWORD));
@@ -1572,7 +1599,7 @@ namespace platf {
       msg.namelen = sizeof(taddr_v4);
     }
 
-    WSABUF bufs[2];
+    std::array<WSABUF, 2> bufs;
     DWORD bufcount = 0;
     if (send_info.header) {
       bufs[bufcount].buf = (char *) send_info.header;
@@ -1583,44 +1610,15 @@ namespace platf {
     bufs[bufcount].len = send_info.payload_size;
     bufcount++;
 
-    msg.lpBuffers = bufs;
+    msg.lpBuffers = bufs.data();
     msg.dwBufferCount = bufcount;
     msg.dwFlags = 0;
 
-    char cmbuf[std::max(WSA_CMSG_SPACE(sizeof(IN6_PKTINFO)), WSA_CMSG_SPACE(sizeof(IN_PKTINFO)))] = {};
-    ULONG cmbuflen = 0;
+    std::array<char, std::max(WSA_CMSG_SPACE(sizeof(IN6_PKTINFO)), WSA_CMSG_SPACE(sizeof(IN_PKTINFO)))> cmbuf = {};
+    msg.Control.buf = cmbuf.data();
+    msg.Control.len = cmbuf.size();
 
-    msg.Control.buf = cmbuf;
-    msg.Control.len = sizeof(cmbuf);
-
-    auto cm = WSA_CMSG_FIRSTHDR(&msg);
-    if (send_info.source_address.is_v6()) {
-      IN6_PKTINFO pktInfo;
-
-      SOCKADDR_IN6 saddr_v6 = to_sockaddr(send_info.source_address.to_v6(), 0);
-      pktInfo.ipi6_addr = saddr_v6.sin6_addr;
-      pktInfo.ipi6_ifindex = 0;
-
-      cmbuflen += WSA_CMSG_SPACE(sizeof(pktInfo));
-
-      cm->cmsg_level = IPPROTO_IPV6;
-      cm->cmsg_type = IPV6_PKTINFO;
-      cm->cmsg_len = WSA_CMSG_LEN(sizeof(pktInfo));
-      memcpy(WSA_CMSG_DATA(cm), &pktInfo, sizeof(pktInfo));
-    } else {
-      IN_PKTINFO pktInfo;
-
-      SOCKADDR_IN saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
-      pktInfo.ipi_addr = saddr_v4.sin_addr;
-      pktInfo.ipi_ifindex = 0;
-
-      cmbuflen += WSA_CMSG_SPACE(sizeof(pktInfo));
-
-      cm->cmsg_level = IPPROTO_IP;
-      cm->cmsg_type = IP_PKTINFO;
-      cm->cmsg_len = WSA_CMSG_LEN(sizeof(pktInfo));
-      memcpy(WSA_CMSG_DATA(cm), &pktInfo, sizeof(pktInfo));
-    }
+    auto cmbuflen = populate_source_pktinfo(msg, send_info.source_address);
 
     msg.Control.len = cmbuflen;
 
@@ -1640,11 +1638,11 @@ namespace platf {
   class qos_t: public deinit_t {
   public:
     /**
-     * @brief Store a Windows QoS flow ID for cleanup on destruction.
+     * @brief Explicitly store a Windows QoS flow ID for cleanup on destruction.
      *
      * @param flow_id Flow ID.
      */
-    qos_t(QOS_FLOWID flow_id):
+    explicit qos_t(QOS_FLOWID flow_id):
         flow_id(flow_id) {
     }
 
@@ -1757,7 +1755,7 @@ namespace platf {
         traffic_type = QOSTrafficTypeAudioVideo;
         break;
       default:
-        BOOST_LOG(error) << "Unknown traffic type: "sv << (int) data_type;
+        BOOST_LOG(error) << "Unknown traffic type: "sv << std::to_underlying(data_type);
         return nullptr;
     }
 
@@ -1775,8 +1773,7 @@ namespace platf {
    * @brief Read the current Windows high-resolution performance counter.
    */
   int64_t qpc_counter() {
-    LARGE_INTEGER performance_counter;
-    if (QueryPerformanceCounter(&performance_counter)) {
+    if (LARGE_INTEGER performance_counter; QueryPerformanceCounter(&performance_counter)) {
       return performance_counter.QuadPart;
     }
     return 0;
@@ -1792,20 +1789,19 @@ namespace platf {
       QueryPerformanceFrequency(&frequency);
       return frequency.QuadPart;
     };
-    static const double frequency = get_frequency();
-    if (frequency) {
+    if (static const double frequency = get_frequency(); frequency) {
       return std::chrono::nanoseconds((int64_t) ((performance_counter1 - performance_counter2) * frequency / std::nano::den));
     }
     return {};
   }
 
   std::string get_host_name() {
-    WCHAR hostname[256];
-    if (GetHostNameW(hostname, ARRAYSIZE(hostname)) == SOCKET_ERROR) {
+    std::array<WCHAR, 256> hostname;
+    if (GetHostNameW(hostname.data(), hostname.size()) == SOCKET_ERROR) {
       BOOST_LOG(error) << "GetHostNameW() failed: "sv << WSAGetLastError();
       return "Sunshine"s;
     }
-    return utf_utils::to_utf8(hostname);
+    return utf_utils::to_utf8(hostname.data());
   }
 
   /**
@@ -1850,7 +1846,12 @@ namespace platf {
       WaitForSingleObject(timer, INFINITE);
     }
 
-    operator bool() override {
+    /**
+     * @brief Explicitly check whether the timer backend is initialized.
+     *
+     * @return True when the platform timer is available.
+     */
+    explicit operator bool() override {
       return timer != nullptr;
     }
 

@@ -41,8 +41,8 @@ namespace confighttp {
   void send_unauthorized(const resp_https_t &response, const req_https_t &request);
   void send_redirect(const resp_https_t &response, const req_https_t &request, const char *path);
   bool authenticate(const resp_https_t &response, const req_https_t &request);
-  void not_found(const resp_https_t &response, const req_https_t &request, const std::string &error_message = "Not Found");
-  void bad_request(const resp_https_t &response, const req_https_t &request, const std::string &error_message = "Bad Request");
+  void not_found(const resp_https_t &response, const std::string &error_message = "Not Found");
+  void bad_request(const resp_https_t &response, const std::string &error_message = "Bad Request");
   /**
    * @brief Check content type.
    *
@@ -64,14 +64,13 @@ namespace confighttp {
   bool validate_csrf_token(const resp_https_t &response, const req_https_t &request, const std::string &client_id);
   std::string get_client_id(const req_https_t &request);
   /**
-   * @brief Check app index.
+   * @brief Validate an application index and report an invalid index through the response.
    *
    * @param response HTTP response object to populate.
-   * @param request HTTP request data from the client.
    * @param index Zero-based index of the item being addressed.
-   * @return True when the request passes validation and processing may continue.
+   * @return True when the index identifies an existing application.
    */
-  bool check_app_index(const resp_https_t &response, const req_https_t &request, int index);
+  bool check_app_index(const resp_https_t &response, int index);
   /**
    * @brief Serve the Web UI single-page application entry document.
    *
@@ -275,7 +274,7 @@ namespace confighttp {
 /**
  * @brief File-extension to MIME-type mapping used when serving the Web UI.
  */
-const std::map<std::string, std::string> mime_types = {
+const std::map<std::string, std::string, std::less<>> mime_types = {
   {"css", "text/css"},
   {"gif", "image/gif"},
   {"htm", "text/html"},

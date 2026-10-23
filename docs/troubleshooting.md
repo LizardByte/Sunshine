@@ -27,6 +27,10 @@ If you forgot your credentials to the web UI, try this.
 ### Unusual Mouse Behavior
 If you experience unusual mouse behavior, try attaching a physical mouse to the Sunshine host.
 
+For absolute-positioning problems, set **Configuration > Advanced > Log Level** to **Debug** and reproduce the issue.
+Sunshine forwards libvirtualhid diagnostics with a `[libvirtualhid]` prefix, including the streamed display viewport and
+full desktop bounds used for mouse coordinate mapping.
+
 ### Web UI Access
 Can't access the web UI?
 
@@ -190,8 +194,8 @@ open **Troubleshooting**, and select **Reset XDG Portal Capture**. Sunshine dele
 Approve the Remote Desktop prompt again and select the display to capture when it appears.
 
 > [!TIP]
-> If Sunshine uses a custom configuration directory, you may need to delete the `portal_token` file from the custom
-> directory and restart Sunshine manually in lieu of the Web UI.
+> If Sunshine uses a custom configuration directory, you may need to delete the `portal_token` file (which may
+> include a suffix such as .kde or .gnome) from the custom directory and restart Sunshine manually in lieu of the Web UI.
 
 Users of the KDE Plasma desktop can bypass manual permission setup either by switching to `kwin` capture or setting
 the following configuration to enable permanent capture authorization for Sunshine via Portal capture:

@@ -110,7 +110,7 @@ namespace input {
   /**
    * @brief Packed identifier for a pressed key and its modifier flags.
    */
-  typedef uint32_t key_press_id_t;
+  using key_press_id_t = uint32_t;
 
   /**
    * @brief Create a key-press identifier from the virtual-key code and flags.
@@ -213,12 +213,12 @@ namespace input {
   /**
    * @brief Release all platform resources associated with a virtual gamepad.
    *
-   * @param platf_input Platf input.
+   * @param platform_input Platf input.
    * @param id Identifier for the controller, session, display, or resource.
    */
-  void free_gamepad(platf::input_t &platf_input, int id) {
-    platf::gamepad_update(platf_input, id, platf::gamepad_state_t {});
-    platf::free_gamepad(platf_input, id);
+  void free_gamepad(platf::input_t &platform_input, int id) {
+    platf::gamepad_update(platform_input, id, platf::gamepad_state_t {});
+    platf::free_gamepad(platform_input, id);
 
     free_id(gamepadMask, id);
   }
@@ -227,12 +227,10 @@ namespace input {
    * @brief Per-client gamepad slot and feedback state.
    */
   struct gamepad_t {
-    gamepad_t():
-        gamepad_state {},
-        back_timeout_id {},
-        id {-1},
-        back_button_state {button_state_e::NONE} {
-    }
+    /**
+     * @brief Initialize an unassigned gamepad slot with no pending button timeout.
+     */
+    gamepad_t() = default;
 
     ~gamepad_t() {
       if (id >= 0) {
@@ -246,18 +244,18 @@ namespace input {
       }
     }
 
-    platf::gamepad_state_t gamepad_state;  ///< Gamepad state.
+    platf::gamepad_state_t gamepad_state {};  ///< Gamepad state.
 
-    thread_pool_util::ThreadPool::task_id_t back_timeout_id;  ///< Back timeout ID.
+    thread_pool_util::ThreadPool::task_id_t back_timeout_id {};  ///< Back timeout ID.
 
-    int id;  ///< Global gamepad slot assigned to this client controller.
+    int id {-1};  ///< Global gamepad slot assigned to this client controller, or -1 when unassigned.
 
     // When emulating the HOME button, we may need to artificially release the back button.
     // Afterwards, the gamepad state on sunshine won't match the state on Moonlight.
     // To prevent Sunshine from sending erroneous input data to the active application,
     // Sunshine forces the button to be in a specific state until the gamepad state matches that of
     // Moonlight once more.
-    button_state_e back_button_state;  ///< Back button state.
+    button_state_e back_button_state {button_state_e::NONE};  ///< Back button state.
   };
 
   /**
@@ -293,7 +291,7 @@ namespace input {
     };
 
     /**
-     * @brief Construct input state from the mailbox and platform backend.
+     * @brief Construct input state with default controller slots and scroll accumulators.
      *
      * @param touch_port_event Event carrying the active touch port.
      * @param feedback_queue Queue used for controller feedback.
@@ -304,27 +302,20 @@ namespace input {
       platf::feedback_queue_t feedback_queue,
       platf::clipboard_queue_t clipboard_queue
     ):
-        shortcutFlags {},
-        gamepads(MAX_GAMEPADS),
-        client_context {platf::allocate_client_input_context(platf_input)},
         touch_port_event {std::move(touch_port_event)},
         feedback_queue {std::move(feedback_queue)},
-        clipboard_queue {std::move(clipboard_queue)},
-        mouse_left_button_timeout {},
-        touch_port {{0, 0, 0, 0, 0, 0}, 0, 0, 0.0f, 0.0f, 1.0f, 1.0f, 0, 0},
-        accumulated_vscroll_delta {},
-        accumulated_hscroll_delta {} {
+        clipboard_queue {std::move(clipboard_queue)} {
     }
 
     // Keep track of alt+ctrl+shift key combo
-    int shortcutFlags;  ///< Shortcut flags.
+    int shortcutFlags {};  ///< Shortcut flags.
 
     modifier_state_t shift_keys;  ///< Client Shift keys contributing to the aggregate Shift flag.
     modifier_state_t control_keys;  ///< Client Control keys contributing to the aggregate Control flag.
     modifier_state_t alt_keys;  ///< Client Alt keys contributing to the aggregate Alt flag.
 
-    std::vector<gamepad_t> gamepads;  ///< Virtual gamepad slots tracked for the stream.
-    std::unique_ptr<platf::client_input_t> client_context;  ///< Client context.
+    std::vector<gamepad_t> gamepads {MAX_GAMEPADS};  ///< Virtual gamepad slots tracked for the stream.
+    std::unique_ptr<platf::client_input_t> client_context {platf::allocate_client_input_context(platf_input)};  ///< Client context.
 
     safe::mail_raw_t::event_t<input::touch_port_t> touch_port_event;  ///< Touch port event.
     platf::feedback_queue_t feedback_queue;  ///< Queue used to deliver controller feedback to the platform backend.
@@ -334,12 +325,12 @@ namespace input {
     std::mutex input_queue_lock;  ///< Input queue lock.
     bool input_task_scheduled {};  ///< Whether one worker task owns packet dispatch for this stream; guarded by input_queue_lock.
 
-    thread_pool_util::ThreadPool::task_id_t mouse_left_button_timeout;  ///< Mouse left button timeout.
+    thread_pool_util::ThreadPool::task_id_t mouse_left_button_timeout {};  ///< Mouse left button timeout.
 
-    input::touch_port_t touch_port;  ///< Touch coordinate bounds for the current stream.
+    input::touch_port_t touch_port {{0, 0, 0, 0, 0, 0}, 0, 0, 0.0f, 0.0f, 1.0f, 1.0f, 0, 0};  ///< Touch coordinate bounds for the current stream.
 
-    int32_t accumulated_vscroll_delta;  ///< Accumulated vscroll delta.
-    int32_t accumulated_hscroll_delta;  ///< Accumulated hscroll delta.
+    int32_t accumulated_vscroll_delta {};  ///< Accumulated vscroll delta.
+    int32_t accumulated_hscroll_delta {};  ///< Accumulated hscroll delta.
   };
 
   /**
@@ -690,10 +681,12 @@ namespace input {
   }
 
   /**
-   * @brief Write a debug log representation of the input packet.
+   * @brief Decode the input header and log the matching packet representation.
+   *
+   * @param payload Header at the start of the input packet.
    */
-  void print(void *payload) {
-    auto header = (PNV_INPUT_HEADER) payload;
+  void print(PNV_INPUT_HEADER payload) {
+    auto header = payload;
 
     switch (util::endian::little(header->magic)) {
       case MOUSE_MOVE_REL_MAGIC_GEN5:
@@ -744,6 +737,38 @@ namespace input {
   }
 
   /**
+   * @brief Consume the latest streamed-display geometry for an input session.
+   *
+   * @param input Input session receiving the geometry.
+   */
+  void refresh_touch_port(std::shared_ptr<input_t> &input) {
+    auto &touch_port_event = input->touch_port_event;
+    if (touch_port_event->peek()) {
+      input->touch_port = *touch_port_event->pop();
+    }
+  }
+
+  /**
+   * @brief Convert stream touch geometry to platform pointer bounds.
+   *
+   * @param touch_port Stream touch geometry.
+   * @return Platform pointer bounds for the full desktop and streamed display.
+   */
+  platf::touch_port_t platform_touch_port(const input::touch_port_t &touch_port) {
+    const bool has_logical_environment = touch_port.env_logical_width != 0 && touch_port.env_logical_height != 0;
+    return {
+      touch_port.offset_x,
+      touch_port.offset_y,
+      has_logical_environment ? touch_port.env_logical_width : touch_port.env_width,
+      has_logical_environment ? touch_port.env_logical_height : touch_port.env_height,
+      touch_port.logical_width,
+      touch_port.logical_height,
+      touch_port.env_offset_x,
+      touch_port.env_offset_y,
+    };
+  }
+
+  /**
    * @brief Forward a client input packet directly to the platform backend.
    *
    * @param input Platform input backend that receives the event.
@@ -755,7 +780,17 @@ namespace input {
     }
 
     input->mouse_left_button_timeout = DISABLE_LEFT_BUTTON_DELAY;
-    platf::move_mouse(platf_input, util::endian::big(packet->deltaX), util::endian::big(packet->deltaY));
+    refresh_touch_port(input);
+    if (input->touch_port) {
+      platf::move_mouse(
+        platf_input,
+        platform_touch_port(input->touch_port),
+        util::endian::big(packet->deltaX),
+        util::endian::big(packet->deltaY)
+      );
+    } else {
+      platf::move_mouse(platf_input, util::endian::big(packet->deltaX), util::endian::big(packet->deltaY));
+    }
   }
 
   /**
@@ -766,11 +801,8 @@ namespace input {
    * @return The host-relative coordinate pair if a touchport is available.
    */
   std::optional<std::pair<float, float>> client_to_touchport(std::shared_ptr<input_t> &input, const std::pair<float, float> &val, const std::pair<float, float> &size) {
-    auto &touch_port_event = input->touch_port_event;
+    refresh_touch_port(input);
     auto &touch_port = input->touch_port;
-    if (touch_port_event->peek()) {
-      touch_port = *touch_port_event->pop();
-    }
     if (!touch_port) {
       BOOST_LOG(verbose) << "Ignoring early absolute input without a touch port"sv;
       return std::nullopt;
@@ -882,26 +914,7 @@ namespace input {
 
     auto &touch_port = input->touch_port;
 
-    int touch_port_dim_x;
-    int touch_port_dim_y;
-    if (touch_port.env_logical_width != 0 && touch_port.env_logical_height != 0) {
-      touch_port_dim_x = touch_port.env_logical_width;
-      touch_port_dim_y = touch_port.env_logical_height;
-    } else {
-      touch_port_dim_x = touch_port.env_width;
-      touch_port_dim_y = touch_port.env_height;
-    }
-
-    platf::touch_port_t abs_port {
-      touch_port.offset_x,
-      touch_port.offset_y,
-      touch_port_dim_x,
-      touch_port_dim_y,
-      touch_port.logical_width,
-      touch_port.logical_height,
-    };
-
-    platf::abs_mouse(platf_input, abs_port, tpcoords->first, tpcoords->second);
+    platf::abs_mouse(platf_input, platform_touch_port(touch_port), tpcoords->first, tpcoords->second);
   }
 
   /**
@@ -940,9 +953,8 @@ namespace input {
      * when the last mouse coordinates were absolute
      */
     if (button == BUTTON_LEFT && release && !input->mouse_left_button_timeout) {
-      auto f = [=]() {
-        auto left_released = mouse_press[BUTTON_LEFT];
-        if (left_released) {
+      auto f = [input, release]() {
+        if (auto left_released = mouse_press[BUTTON_LEFT]; left_released) {
           // Already released left button
           return;
         }
@@ -978,8 +990,7 @@ namespace input {
    * @return Remapped keycode when configured, otherwise the original keycode.
    */
   short map_keycode(short keycode) {
-    auto it = config::input.keybindings.find(keycode);
-    if (it != std::end(config::input.keybindings)) {
+    if (auto it = config::input.keybindings.find(keycode); it != std::end(config::input.keybindings)) {
       return it->second;
     }
 
@@ -1126,19 +1137,19 @@ namespace input {
    * @param key_code Moonlight keyboard packet key code.
    * @param release Whether the key or button event is a release.
    * @param flags Bit flags that modify the requested operation.
-   * @param synthetic_modifiers Synthetic modifiers.
+   * @param synthetic_modifiers Byte mask of modifiers to press around the key event.
    * @param extended Whether the client identified an extended key.
    */
-  void send_key_and_modifiers(uint16_t key_code, bool release, uint8_t flags, uint8_t synthetic_modifiers, bool extended) {
+  void send_key_and_modifiers(uint16_t key_code, bool release, uint8_t flags, std::byte synthetic_modifiers, bool extended) {
     if (!release) {
       // Press any synthetic modifiers required for this key
-      if (synthetic_modifiers & MODIFIER_SHIFT) {
+      if ((synthetic_modifiers & std::byte {MODIFIER_SHIFT}) != std::byte {0}) {
         emit_keyboard_update(VKEY_SHIFT, false, flags);
       }
-      if (synthetic_modifiers & MODIFIER_CTRL) {
+      if ((synthetic_modifiers & std::byte {MODIFIER_CTRL}) != std::byte {0}) {
         emit_keyboard_update(VKEY_CONTROL, false, flags);
       }
-      if (synthetic_modifiers & MODIFIER_ALT) {
+      if ((synthetic_modifiers & std::byte {MODIFIER_ALT}) != std::byte {0}) {
         emit_keyboard_update(VKEY_MENU, false, flags);
       }
     }
@@ -1147,13 +1158,13 @@ namespace input {
 
     if (!release) {
       // Raise any synthetic modifier keys we pressed
-      if (synthetic_modifiers & MODIFIER_SHIFT) {
+      if ((synthetic_modifiers & std::byte {MODIFIER_SHIFT}) != std::byte {0}) {
         emit_keyboard_update(VKEY_SHIFT, true, flags);
       }
-      if (synthetic_modifiers & MODIFIER_CTRL) {
+      if ((synthetic_modifiers & std::byte {MODIFIER_CTRL}) != std::byte {0}) {
         emit_keyboard_update(VKEY_CONTROL, true, flags);
       }
-      if (synthetic_modifiers & MODIFIER_ALT) {
+      if ((synthetic_modifiers & std::byte {MODIFIER_ALT}) != std::byte {0}) {
         emit_keyboard_update(VKEY_MENU, true, flags);
       }
     }
@@ -1164,9 +1175,9 @@ namespace input {
    *
    * @param key_code Moonlight keyboard packet key code.
    * @param flags Bit flags that modify the requested operation.
-   * @param synthetic_modifiers Synthetic modifiers.
+   * @param synthetic_modifiers Byte mask of modifiers to press around the repeated key event.
    */
-  void repeat_key(uint16_t key_code, uint8_t flags, uint8_t synthetic_modifiers) {
+  void repeat_key(uint16_t key_code, uint8_t flags, std::byte synthetic_modifiers) {
     // If key no longer pressed, stop repeating
     const auto state = key_press[make_kpid(key_code, flags)];
     if (!state.pressed) {
@@ -1203,16 +1214,16 @@ namespace input {
 
     // Set synthetic modifier flags if the keyboard packet is requesting modifier
     // keys that are not current pressed.
-    uint8_t synthetic_modifiers = 0;
+    std::byte synthetic_modifiers {0};
     if (!release && !is_modifier(keyCode)) {
       if (!(input->shortcutFlags & input_t::SHIFT) && (modifiers & MODIFIER_SHIFT)) {
-        synthetic_modifiers |= MODIFIER_SHIFT;
+        synthetic_modifiers |= std::byte {MODIFIER_SHIFT};
       }
       if (!(input->shortcutFlags & input_t::CTRL) && (modifiers & MODIFIER_CTRL)) {
-        synthetic_modifiers |= MODIFIER_CTRL;
+        synthetic_modifiers |= std::byte {MODIFIER_CTRL};
       }
       if (!(input->shortcutFlags & input_t::ALT) && (modifiers & MODIFIER_ALT)) {
-        synthetic_modifiers |= MODIFIER_ALT;
+        synthetic_modifiers |= std::byte {MODIFIER_ALT};
       }
     }
 
@@ -1339,7 +1350,7 @@ namespace input {
   }
 
   /**
-   * @brief Allocate a virtual gamepad for a client-relative controller slot.
+   * @brief Allocate a virtual gamepad or refresh feedback after a retained controller arrives.
    *
    * @param input Stream input state.
    * @param client_index Client-relative controller index.
@@ -1354,7 +1365,14 @@ namespace input {
 
     auto &gamepad = input->gamepads[client_index];
     if (gamepad.id >= 0) {
-      BOOST_LOG(warning) << "ControllerNumber already allocated ["sv << client_index << ']';
+      // Resume-time motion requests can arrive before the client assigns this
+      // controller slot. Replay them after its arrival, without recreating the
+      // virtual device, and clear feedback deduplication for the ready client.
+      if (platf::rebind_gamepad(platf_input, {gamepad.id, static_cast<std::uint8_t>(client_index)}, input->feedback_queue) != 0) {
+        BOOST_LOG(warning) << "Failed to rebind retained controller ["sv << client_index << ']';
+        return -1;
+      }
+      BOOST_LOG(info) << "Rebound retained controller feedback after arrival ["sv << client_index << ']';
       return gamepad.id;
     }
 
@@ -1670,19 +1688,20 @@ namespace input {
 
     auto bf_new = gamepad_state.buttonFlags;
     switch (gamepad.back_button_state) {
-      case button_state_e::UP:
+      using enum button_state_e;
+      case UP:
         if (!(platf::BACK & bf_new)) {
-          gamepad.back_button_state = button_state_e::NONE;
+          gamepad.back_button_state = NONE;
         }
         gamepad_state.buttonFlags &= ~platf::BACK;
         break;
-      case button_state_e::DOWN:
+      case DOWN:
         if (platf::BACK & bf_new) {
-          gamepad.back_button_state = button_state_e::NONE;
+          gamepad.back_button_state = NONE;
         }
         gamepad_state.buttonFlags |= platf::BACK;
         break;
-      case button_state_e::NONE:
+      case NONE:
         break;
     }
 
@@ -1826,21 +1845,22 @@ namespace input {
    * @return The status of the batching operation.
    */
   batch_result_e batch(PNV_REL_MOUSE_MOVE_PACKET dest, PNV_REL_MOUSE_MOVE_PACKET src) {
+    using enum batch_result_e;
     short deltaX;
     short deltaY;
 
     // Batching is safe as long as the result doesn't overflow a 16-bit integer
     if (!__builtin_add_overflow(util::endian::big(dest->deltaX), util::endian::big(src->deltaX), &deltaX)) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
     if (!__builtin_add_overflow(util::endian::big(dest->deltaY), util::endian::big(src->deltaY), &deltaY)) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Take the sum of deltas
     dest->deltaX = util::endian::big(deltaX);
     dest->deltaY = util::endian::big(deltaY);
-    return batch_result_e::batched;
+    return batched;
   }
 
   /**
@@ -1906,25 +1926,26 @@ namespace input {
    * @return The status of the batching operation.
    */
   batch_result_e batch(PNV_MULTI_CONTROLLER_PACKET dest, PNV_MULTI_CONTROLLER_PACKET src) {
+    using enum batch_result_e;
     // Do not allow batching if the active controllers change
     if (dest->activeGamepadMask != src->activeGamepadMask) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // We can only batch entries for the same controller, but allow batching attempts to continue
     // in case we have more packets for this controller later in the queue.
     if (dest->controllerNumber != src->controllerNumber) {
-      return batch_result_e::not_batchable;
+      return not_batchable;
     }
 
     // Do not allow batching if the button state changes on this controller
     if (dest->buttonFlags != src->buttonFlags || dest->buttonFlags2 != src->buttonFlags2) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Take the latest state
     *dest = *src;
-    return batch_result_e::batched;
+    return batched;
   }
 
   /**
@@ -1934,29 +1955,30 @@ namespace input {
    * @return The status of the batching operation.
    */
   batch_result_e batch(PSS_TOUCH_PACKET dest, PSS_TOUCH_PACKET src) {
+    using enum batch_result_e;
     // Only batch hover or move events
     if (dest->eventType != LI_TOUCH_EVENT_MOVE && dest->eventType != LI_TOUCH_EVENT_HOVER) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Don't batch beyond state changing events
     if (src->eventType != LI_TOUCH_EVENT_MOVE && src->eventType != LI_TOUCH_EVENT_HOVER) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Batched events must be the same pointer ID
     if (dest->pointerId != src->pointerId) {
-      return batch_result_e::not_batchable;
+      return not_batchable;
     }
 
     // The pointer must be in the same state
     if (dest->eventType != src->eventType) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Take the latest state
     *dest = *src;
-    return batch_result_e::batched;
+    return batched;
   }
 
   /**
@@ -1966,29 +1988,30 @@ namespace input {
    * @return The status of the batching operation.
    */
   batch_result_e batch(PSS_PEN_PACKET dest, PSS_PEN_PACKET src) {
+    using enum batch_result_e;
     // Only batch hover or move events
     if (dest->eventType != LI_TOUCH_EVENT_MOVE && dest->eventType != LI_TOUCH_EVENT_HOVER) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Batched events must be the same type
     if (dest->eventType != src->eventType) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Do not allow batching if the button state changes
     if (dest->penButtons != src->penButtons) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Do not batch beyond tool changes
     if (dest->toolType != src->toolType) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Take the latest state
     *dest = *src;
-    return batch_result_e::batched;
+    return batched;
   }
 
   /**
@@ -1998,35 +2021,36 @@ namespace input {
    * @return The status of the batching operation.
    */
   batch_result_e batch(PSS_CONTROLLER_TOUCH_PACKET dest, PSS_CONTROLLER_TOUCH_PACKET src) {
+    using enum batch_result_e;
     // Only batch hover or move events
     if (dest->eventType != LI_TOUCH_EVENT_MOVE && dest->eventType != LI_TOUCH_EVENT_HOVER) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // We can only batch entries for the same controller, but allow batching attempts to continue
     // in case we have more packets for this controller later in the queue.
     if (dest->controllerNumber != src->controllerNumber) {
-      return batch_result_e::not_batchable;
+      return not_batchable;
     }
 
     // Don't batch beyond state changing events
     if (src->eventType != LI_TOUCH_EVENT_MOVE && src->eventType != LI_TOUCH_EVENT_HOVER) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Batched events must be the same pointer ID
     if (dest->pointerId != src->pointerId) {
-      return batch_result_e::not_batchable;
+      return not_batchable;
     }
 
     // The pointer must be in the same state
     if (dest->eventType != src->eventType) {
-      return batch_result_e::terminate_batch;
+      return terminate_batch;
     }
 
     // Take the latest state
     *dest = *src;
-    return batch_result_e::batched;
+    return batched;
   }
 
   /**
@@ -2036,20 +2060,21 @@ namespace input {
    * @return The status of the batching operation.
    */
   batch_result_e batch(PSS_CONTROLLER_MOTION_PACKET dest, PSS_CONTROLLER_MOTION_PACKET src) {
+    using enum batch_result_e;
     // We can only batch entries for the same controller, but allow batching attempts to continue
     // in case we have more packets for this controller later in the queue.
     if (dest->controllerNumber != src->controllerNumber) {
-      return batch_result_e::not_batchable;
+      return not_batchable;
     }
 
     // Batched events must be the same sensor
     if (dest->motionType != src->motionType) {
-      return batch_result_e::not_batchable;
+      return not_batchable;
     }
 
     // Take the latest state
     *dest = *src;
-    return batch_result_e::batched;
+    return batched;
   }
 
   /**
@@ -2127,7 +2152,7 @@ namespace input {
     // the input to the OS. This avoids potentially lengthy lock contention
     // in the control stream thread while input is being processed by the OS.
     {
-      std::lock_guard<std::mutex> lg(input->input_queue_lock);
+      std::scoped_lock lg(input->input_queue_lock);
 
       // If all entries have already been processed, nothing to do
       if (input->input_queue.empty()) {
@@ -2161,7 +2186,7 @@ namespace input {
     }
 
     // Print the final input packet
-    input::print((void *) payload);
+    input::print(payload);
 
 #ifdef SUNSHINE_TESTS
     if (const auto &hook = input_packet_hook(); hook) {
@@ -2526,6 +2551,16 @@ namespace input {
       packet.flags = static_cast<char>(flags);
 
       // Keyboard packets are never batched, so this matches passthrough_next_message().
+      ::input::passthrough(input, &packet);
+    }
+
+    void send_relative_mouse_packet(std::shared_ptr<input_t> &input, std::int16_t delta_x, std::int16_t delta_y) {
+      NV_REL_MOUSE_MOVE_PACKET packet {};
+      packet.header.size = util::endian::big<std::uint32_t>(sizeof(packet) - sizeof(packet.header.size));
+      packet.header.magic = util::endian::little<std::uint32_t>(MOUSE_MOVE_REL_MAGIC_GEN5);
+      packet.deltaX = util::endian::big(delta_x);
+      packet.deltaY = util::endian::big(delta_y);
+
       ::input::passthrough(input, &packet);
     }
 

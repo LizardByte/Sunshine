@@ -20,6 +20,7 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <utility>
 
 // platform includes
 #include <arpa/inet.h>
@@ -107,15 +108,15 @@ window_system_e window_system;  ///< Window system.
 
 namespace dyn {
   /**
-   * @brief Return the native handle owned by the wrapper.
+   * @brief Open the first available shared library from a nonempty list.
    */
-  void *handle(const std::vector<const char *> &libs) {
+  library_t *handle(const std::vector<const char *> &libs) {
     void *handle;
 
     for (auto lib : libs) {
       handle = dlopen(lib, RTLD_LAZY | RTLD_LOCAL);
       if (handle) {
-        return handle;
+        return static_cast<library_t *>(handle);
       }
     }
 
@@ -133,9 +134,9 @@ namespace dyn {
   }
 
   /**
-   * @brief Load persisted state from its backing store.
+   * @brief Load named functions from an open shared library.
    */
-  int load(void *handle, const std::vector<std::tuple<apiproc *, const char *>> &funcs, bool strict) {
+  int load(library_t *handle, const std::vector<std::tuple<apiproc *, const char *>> &funcs, bool strict) {
     int err = 0;
     for (auto &func : funcs) {
       TUPLE_2D_REF(fn, name, func);
@@ -200,7 +201,7 @@ namespace platf {
   /**
    * @brief Owning pointer for `getifaddrs` results.
    */
-  using ifaddr_t = util::safe_ptr<ifaddrs, freeifaddrs>;
+  using ifaddr_t = util::safe_ptr<ifaddrs, &freeifaddrs>;
 
   /**
    * @brief Open a DRM card node, dropping implicit DRM master when possible.
@@ -370,38 +371,51 @@ namespace platf {
   }
 
   /**
+   * @brief Get path of the XDG Portal restore token.
+   *
+   * @return Path of token that may include the session desktop as a suffix (e.g. .gnome, .kde).
+   */
+  std::filesystem::path get_xdg_restore_token_path() {
+#ifdef SUNSHINE_BUILD_PORTAL
+    return portal::get_saved_token_path();
+#else
+    return appdata() / "portal_token";
+#endif
+  }
+
+  /**
    * @brief Convert a socket address to a printable IP address.
    */
   std::string from_sockaddr(const sockaddr *const ip_addr) {
-    char data[INET6_ADDRSTRLEN] = {};
+    std::array<char, INET6_ADDRSTRLEN> data = {};
 
     auto family = ip_addr->sa_family;
     if (family == AF_INET6) {
-      inet_ntop(AF_INET6, &((sockaddr_in6 *) ip_addr)->sin6_addr, data, INET6_ADDRSTRLEN);
+      inet_ntop(AF_INET6, &((sockaddr_in6 *) ip_addr)->sin6_addr, data.data(), INET6_ADDRSTRLEN);
     } else if (family == AF_INET) {
-      inet_ntop(AF_INET, &((sockaddr_in *) ip_addr)->sin_addr, data, INET_ADDRSTRLEN);
+      inet_ntop(AF_INET, &((sockaddr_in *) ip_addr)->sin_addr, data.data(), INET_ADDRSTRLEN);
     }
 
-    return std::string {data};
+    return std::string {data.data()};
   }
 
   /**
    * @brief Convert a socket address to a port and printable IP address.
    */
   std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const ip_addr) {
-    char data[INET6_ADDRSTRLEN] = {};
+    std::array<char, INET6_ADDRSTRLEN> data = {};
 
     auto family = ip_addr->sa_family;
     std::uint16_t port = 0;
     if (family == AF_INET6) {
-      inet_ntop(AF_INET6, &((sockaddr_in6 *) ip_addr)->sin6_addr, data, INET6_ADDRSTRLEN);
+      inet_ntop(AF_INET6, &((sockaddr_in6 *) ip_addr)->sin6_addr, data.data(), INET6_ADDRSTRLEN);
       port = ((sockaddr_in6 *) ip_addr)->sin6_port;
     } else if (family == AF_INET) {
-      inet_ntop(AF_INET, &((sockaddr_in *) ip_addr)->sin_addr, data, INET_ADDRSTRLEN);
+      inet_ntop(AF_INET, &((sockaddr_in *) ip_addr)->sin_addr, data.data(), INET_ADDRSTRLEN);
       port = ((sockaddr_in *) ip_addr)->sin_port;
     }
 
-    return {port, std::string {data}};
+    return {port, std::string {data.data()}};
   }
 
   /**
@@ -458,7 +472,11 @@ namespace platf {
     return "00:00:00:00:00:00"s;
   }
 
-  bp::child run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
+  /**
+   * @brief Launch a command using the caller's Linux privileges and session.
+   * @details The common platform signature's elevation and interactivity flags do not apply on Linux.
+   */
+  bp::child run_command(bool, bool, const std::string &cmd, boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
     // clang-format off
     if (!group) {
       if (!file) {
@@ -598,8 +616,8 @@ namespace platf {
    * @brief Request a Sunshine process restart on exit.
    */
   void restart_on_exit() {
-    char executable[PATH_MAX];
-    ssize_t len = readlink("/proc/self/exe", executable, PATH_MAX - 1);
+    std::array<char, PATH_MAX> executable;
+    ssize_t len = readlink("/proc/self/exe", executable.data(), executable.size() - 1);
     if (len == -1) {
       BOOST_LOG(fatal) << "readlink() failed: "sv << errno;
       return;
@@ -607,13 +625,13 @@ namespace platf {
     executable[len] = '\0';
 
     // ASIO doesn't use O_CLOEXEC, so we have to close all fds ourselves
-    int openmax = (int) sysconf(_SC_OPEN_MAX);
+    auto openmax = (int) sysconf(_SC_OPEN_MAX);
     for (int fd = STDERR_FILENO + 1; fd < openmax; fd++) {
       close(fd);
     }
 
     // Re-exec ourselves with the same arguments
-    if (execv(executable, lifetime::get_argv()) < 0) {
+    if (execv(executable.data(), lifetime::get_argv()) < 0) {
       BOOST_LOG(fatal) << "execv() failed: "sv << errno;
       return;
     }
@@ -682,9 +700,63 @@ namespace platf {
   }
 
   /**
+   * @brief Write the source IP address into the first ancillary control message.
+   *
+   * @param msg Socket message with control storage sized for packet information.
+   * @param source_address Local IP address to use for outgoing packets.
+   * @return Bytes occupied by the packet-information control message.
+   */
+  static socklen_t populate_source_pktinfo(msghdr &msg, const boost::asio::ip::address &source_address) {
+    socklen_t cmbuflen = 0;
+    auto pktinfo_cm = CMSG_FIRSTHDR(&msg);
+    if (source_address.is_v6()) {
+      struct in6_pktinfo pktInfo;
+
+      struct sockaddr_in6 saddr_v6 = to_sockaddr(source_address.to_v6(), 0);
+      pktInfo.ipi6_addr = saddr_v6.sin6_addr;
+      pktInfo.ipi6_ifindex = 0;
+
+      cmbuflen += CMSG_SPACE(sizeof(pktInfo));
+
+      pktinfo_cm->cmsg_level = IPPROTO_IPV6;
+      pktinfo_cm->cmsg_type = IPV6_PKTINFO;
+      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
+      memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
+    } else {
+#ifdef IP_PKTINFO
+      struct in_pktinfo pktInfo;
+
+      struct sockaddr_in saddr_v4 = to_sockaddr(source_address.to_v4(), 0);
+      pktInfo.ipi_spec_dst = saddr_v4.sin_addr;
+      pktInfo.ipi_ifindex = 0;
+
+      cmbuflen += CMSG_SPACE(sizeof(pktInfo));
+
+      pktinfo_cm->cmsg_level = IPPROTO_IP;
+      pktinfo_cm->cmsg_type = IP_PKTINFO;
+      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
+      memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
+#elif defined(IP_SENDSRCADDR)
+      // FreeBSD uses IP_SENDSRCADDR with struct in_addr instead of IP_PKTINFO
+      struct sockaddr_in saddr_v4 = to_sockaddr(source_address.to_v4(), 0);
+      struct in_addr src_addr = saddr_v4.sin_addr;
+
+      cmbuflen += CMSG_SPACE(sizeof(src_addr));
+
+      pktinfo_cm->cmsg_level = IPPROTO_IP;
+      pktinfo_cm->cmsg_type = IP_SENDSRCADDR;
+      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(src_addr));
+      memcpy(CMSG_DATA(pktinfo_cm), &src_addr, sizeof(src_addr));
+#endif
+    }
+
+    return cmbuflen;
+  }
+
+  /**
    * @brief Send multiple fixed-size UDP payload blocks using the platform backend.
    */
-  bool send_batch(batched_send_info_t &send_info) {
+  bool send_batch(const batched_send_info_t &send_info) {
     auto sockfd = (int) send_info.native_socket;
     struct msghdr msg = {};
 
@@ -705,62 +777,20 @@ namespace platf {
 
     union {
 #ifdef IP_PKTINFO
-      char buf[CMSG_SPACE(sizeof(uint16_t)) + std::max(CMSG_SPACE(sizeof(struct in_pktinfo)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
+      std::array<char, CMSG_SPACE(sizeof(uint16_t)) + std::max(CMSG_SPACE(sizeof(struct in_pktinfo)), CMSG_SPACE(sizeof(struct in6_pktinfo)))> buf;
 #elif defined(IP_SENDSRCADDR)
       // FreeBSD uses IP_SENDSRCADDR with struct in_addr instead of IP_PKTINFO with struct in_pktinfo
-      char buf[CMSG_SPACE(sizeof(uint16_t)) + std::max(CMSG_SPACE(sizeof(struct in_addr)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
+      std::array<char, CMSG_SPACE(sizeof(uint16_t)) + std::max(CMSG_SPACE(sizeof(struct in_addr)), CMSG_SPACE(sizeof(struct in6_pktinfo)))> buf;
 #endif
       struct cmsghdr alignment;
     } cmbuf = {};  // Must be zeroed for CMSG_NXTHDR()
 
-    socklen_t cmbuflen = 0;
-
-    msg.msg_control = cmbuf.buf;
-    msg.msg_controllen = sizeof(cmbuf.buf);
+    msg.msg_control = cmbuf.buf.data();
+    msg.msg_controllen = cmbuf.buf.size();
 
     // The PKTINFO option will always be first, then we will conditionally
     // append the UDP_SEGMENT option next if applicable.
-    auto pktinfo_cm = CMSG_FIRSTHDR(&msg);
-    if (send_info.source_address.is_v6()) {
-      struct in6_pktinfo pktInfo;
-
-      struct sockaddr_in6 saddr_v6 = to_sockaddr(send_info.source_address.to_v6(), 0);
-      pktInfo.ipi6_addr = saddr_v6.sin6_addr;
-      pktInfo.ipi6_ifindex = 0;
-
-      cmbuflen += CMSG_SPACE(sizeof(pktInfo));
-
-      pktinfo_cm->cmsg_level = IPPROTO_IPV6;
-      pktinfo_cm->cmsg_type = IPV6_PKTINFO;
-      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
-      memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
-    } else {
-#ifdef IP_PKTINFO
-      struct in_pktinfo pktInfo;
-
-      struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
-      pktInfo.ipi_spec_dst = saddr_v4.sin_addr;
-      pktInfo.ipi_ifindex = 0;
-
-      cmbuflen += CMSG_SPACE(sizeof(pktInfo));
-
-      pktinfo_cm->cmsg_level = IPPROTO_IP;
-      pktinfo_cm->cmsg_type = IP_PKTINFO;
-      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
-      memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
-#elif defined(IP_SENDSRCADDR)
-      // FreeBSD uses IP_SENDSRCADDR with struct in_addr instead of IP_PKTINFO
-      struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
-      struct in_addr src_addr = saddr_v4.sin_addr;
-
-      cmbuflen += CMSG_SPACE(sizeof(src_addr));
-
-      pktinfo_cm->cmsg_level = IPPROTO_IP;
-      pktinfo_cm->cmsg_type = IP_SENDSRCADDR;
-      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(src_addr));
-      memcpy(CMSG_DATA(pktinfo_cm), &src_addr, sizeof(src_addr));
-#endif
-    }
+    auto cmbuflen = populate_source_pktinfo(msg, send_info.source_address);
 
     auto const max_iovs_per_msg = send_info.payload_buffers.size() + (send_info.headers ? 1 : 0);
 
@@ -769,7 +799,7 @@ namespace platf {
       // UDP GSO on Linux currently only supports sending 64K or 64 segments at a time
       size_t seg_index = 0;
       const size_t seg_max = 65536 / 1500;
-      struct iovec iovs[(send_info.headers ? std::min(seg_max, send_info.block_count) : 1) * max_iovs_per_msg];
+      std::vector<iovec> iovs((send_info.headers ? std::min(seg_max, send_info.block_count) : 1) * max_iovs_per_msg);
       auto msg_size = send_info.header_size + send_info.payload_size;
       while (seg_index < send_info.block_count) {
         int iovlen = 0;
@@ -798,7 +828,7 @@ namespace platf {
           }
         }
 
-        msg.msg_iov = iovs;
+        msg.msg_iov = iovs.data();
         msg.msg_iovlen = iovlen;
 
         // We should not use GSO if the data is <= one full block size
@@ -806,7 +836,7 @@ namespace platf {
           msg.msg_controllen = cmbuflen + CMSG_SPACE(sizeof(uint16_t));
 
           // Enable GSO to perform segmentation of our buffer for us
-          auto cm = CMSG_NXTHDR(&msg, pktinfo_cm);
+          auto cm = CMSG_NXTHDR(&msg, CMSG_FIRSTHDR(&msg));
           cm->cmsg_level = SOL_UDP;
           cm->cmsg_type = UDP_SEGMENT;
           cm->cmsg_len = CMSG_LEN(sizeof(uint16_t));
@@ -872,7 +902,7 @@ namespace platf {
 
         msgs[i].msg_hdr.msg_name = msg.msg_name;
         msgs[i].msg_hdr.msg_namelen = msg.msg_namelen;
-        msgs[i].msg_hdr.msg_control = cmbuf.buf;
+        msgs[i].msg_hdr.msg_control = cmbuf.buf.data();
         msgs[i].msg_hdr.msg_controllen = cmbuflen;
         msgs[i].msg_hdr.msg_flags = 0;
       }
@@ -933,62 +963,20 @@ namespace platf {
 
     union {
 #ifdef IP_PKTINFO
-      char buf[std::max(CMSG_SPACE(sizeof(struct in_pktinfo)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
+      std::array<char, std::max(CMSG_SPACE(sizeof(struct in_pktinfo)), CMSG_SPACE(sizeof(struct in6_pktinfo)))> buf;
 #elif defined(IP_SENDSRCADDR)
       // FreeBSD uses IP_SENDSRCADDR with struct in_addr instead of IP_PKTINFO with struct in_pktinfo
-      char buf[std::max(CMSG_SPACE(sizeof(struct in_addr)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
+      std::array<char, std::max(CMSG_SPACE(sizeof(struct in_addr)), CMSG_SPACE(sizeof(struct in6_pktinfo)))> buf;
 #endif
       struct cmsghdr alignment;
     } cmbuf;
 
-    socklen_t cmbuflen = 0;
+    msg.msg_control = cmbuf.buf.data();
+    msg.msg_controllen = cmbuf.buf.size();
 
-    msg.msg_control = cmbuf.buf;
-    msg.msg_controllen = sizeof(cmbuf.buf);
+    auto cmbuflen = populate_source_pktinfo(msg, send_info.source_address);
 
-    auto pktinfo_cm = CMSG_FIRSTHDR(&msg);
-    if (send_info.source_address.is_v6()) {
-      struct in6_pktinfo pktInfo;
-
-      struct sockaddr_in6 saddr_v6 = to_sockaddr(send_info.source_address.to_v6(), 0);
-      pktInfo.ipi6_addr = saddr_v6.sin6_addr;
-      pktInfo.ipi6_ifindex = 0;
-
-      cmbuflen += CMSG_SPACE(sizeof(pktInfo));
-
-      pktinfo_cm->cmsg_level = IPPROTO_IPV6;
-      pktinfo_cm->cmsg_type = IPV6_PKTINFO;
-      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
-      memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
-    } else {
-#ifdef IP_PKTINFO
-      struct in_pktinfo pktInfo;
-
-      struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
-      pktInfo.ipi_spec_dst = saddr_v4.sin_addr;
-      pktInfo.ipi_ifindex = 0;
-
-      cmbuflen += CMSG_SPACE(sizeof(pktInfo));
-
-      pktinfo_cm->cmsg_level = IPPROTO_IP;
-      pktinfo_cm->cmsg_type = IP_PKTINFO;
-      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
-      memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
-#elif defined(IP_SENDSRCADDR)
-      // FreeBSD uses IP_SENDSRCADDR with struct in_addr instead of IP_PKTINFO
-      struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
-      struct in_addr src_addr = saddr_v4.sin_addr;
-
-      cmbuflen += CMSG_SPACE(sizeof(src_addr));
-
-      pktinfo_cm->cmsg_level = IPPROTO_IP;
-      pktinfo_cm->cmsg_type = IP_SENDSRCADDR;
-      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(src_addr));
-      memcpy(CMSG_DATA(pktinfo_cm), &src_addr, sizeof(src_addr));
-#endif
-    }
-
-    struct iovec iovs[2];
+    std::array<iovec, 2> iovs;
     int iovlen = 0;
     if (send_info.header) {
       iovs[iovlen].iov_base = (void *) send_info.header;
@@ -999,7 +987,7 @@ namespace platf {
     iovs[iovlen].iov_len = send_info.payload_size;
     iovlen++;
 
-    msg.msg_iov = iovs;
+    msg.msg_iov = iovs.data();
     msg.msg_iovlen = iovlen;
 
     msg.msg_controllen = cmbuflen;
@@ -1033,7 +1021,7 @@ namespace platf {
   // We can't track QoS state separately for each destination on this OS,
   // so we keep a ref count to only disable QoS options when all clients
   // are disconnected.
-  static std::atomic<int> qos_ref_count = 0;
+  static std::atomic qos_ref_count = 0;
 
   /**
    * @brief Linux QoS state used to tune socket priority while streaming.
@@ -1044,9 +1032,9 @@ namespace platf {
      * @brief Apply Linux socket priority and DSCP QoS settings for scoped cleanup.
      *
      * @param sockfd Native socket descriptor whose options are updated.
-     * @param options Request options or socket options to apply.
+     * @param options Socket options copied into this cleanup object's owned storage.
      */
-    qos_t(int sockfd, std::vector<std::tuple<int, int, int>> options):
+    qos_t(int sockfd, const std::vector<std::tuple<int, int, int>> &options):
         sockfd(sockfd),
         options(options) {
       qos_ref_count++;
@@ -1054,9 +1042,8 @@ namespace platf {
 
     virtual ~qos_t() {
       if (--qos_ref_count == 0) {
-        for (const auto &tuple : options) {
-          auto reset_val = std::get<2>(tuple);
-          if (setsockopt(sockfd, std::get<0>(tuple), std::get<1>(tuple), &reset_val, sizeof(reset_val)) < 0) {
+        for (const auto &[level, option, reset_val] : options) {
+          if (setsockopt(sockfd, level, option, &reset_val, sizeof(reset_val)) < 0) {
             BOOST_LOG(warning) << "Failed to reset option: "sv << errno;
           }
         }
@@ -1072,7 +1059,7 @@ namespace platf {
    * @brief Enables QoS on the given socket for traffic to the specified destination.
    */
   std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
-    int sockfd = (int) native_socket;
+    auto sockfd = (int) native_socket;
     std::vector<std::tuple<int, int, int>> reset_options;
 
     if (dscp_tagging) {
@@ -1100,7 +1087,7 @@ namespace platf {
           dscp = 48;
           break;
         default:
-          BOOST_LOG(error) << "Unknown traffic type: "sv << (int) data_type;
+          BOOST_LOG(error) << "Unknown traffic type: "sv << std::to_underlying(data_type);
           break;
       }
 
@@ -1547,7 +1534,7 @@ namespace platf {
   }
 
   /**
-   * @brief Linux high-precision timer implementation backed by `timerfd`.
+   * @brief Explicitly linux high-precision timer implementation backed by `timerfd`.
    */
   class linux_high_precision_timer: public high_precision_timer {
   public:
@@ -1555,7 +1542,7 @@ namespace platf {
       std::this_thread::sleep_for(duration);
     }
 
-    operator bool() override {
+    explicit operator bool() override {
       return true;
     }
   };

@@ -210,6 +210,7 @@ jobs:
 
       - name: Test
         id: test
+        timeout-minutes: 5
         shell: freebsd {0}
         run: |
           set -e
@@ -218,10 +219,9 @@ jobs:
           export DISPLAY=:1
           Xvfb ${DISPLAY} -screen 0 1024x768x24 &
           XVFB_PID=$!
+          trap 'kill "${XVFB_PID}" 2>/dev/null || true; wait "${XVFB_PID}" 2>/dev/null || true' EXIT
 
           ./test_sunshine --gtest_color=yes --gtest_output=xml:test_results.xml
-
-          kill ${XVFB_PID}
 
       - name: Generate gcov report
         id: test_report
@@ -245,7 +245,7 @@ jobs:
         if: >-
           always() &&
           (steps.test_report.outcome == 'success')
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: coverage-FreeBSD-${{ matrix.cmake_processor }}
           path: |
@@ -254,7 +254,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: build-FreeBSD-${{ matrix.cmake_processor }}
           path: artifacts/

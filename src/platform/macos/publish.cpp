@@ -20,7 +20,7 @@ namespace platf::publish {
   namespace {
     /** @brief Custom deleter intended to be used for `std::unique_ptr<DNSServiceRef>`. */
     struct ServiceRefDeleter {
-      typedef DNSServiceRef pointer;  ///< Type of object to be deleted.
+      using pointer = DNSServiceRef;  ///< DNS service handle released by the deleter.
 
       void operator()(pointer serviceRef) {
         DNSServiceRefDeallocate(serviceRef);
@@ -33,14 +33,15 @@ namespace platf::publish {
      */
     class deinit_t: public ::platf::deinit_t, std::unique_ptr<DNSServiceRef, ServiceRefDeleter> {
     public:
-      /** @brief Construct deinit_t object.
+      /**
+       * @brief Explicitly construct deinit_t object.
        *
        * Create a thread that will use `select(2)` to wait for a response from the mDNS service.
        * The thread will give up if an error is received or if `_stopRequested` becomes true.
        *
        * @param serviceRef An initialized reference to the mDNS service.
        */
-      deinit_t(DNSServiceRef serviceRef):
+      explicit deinit_t(DNSServiceRef serviceRef):
           unique_ptr(serviceRef) {
         _thread = std::jthread {[serviceRef, &_stopRequested = std::as_const(_stopRequested)]() {
           platf::set_thread_name("publish::mdns");
@@ -81,7 +82,7 @@ namespace platf::publish {
     /** @brief Callback that will be invoked when the mDNS service finishes registering our service.
      *  @param errorCode Describes whether the registration was successful.
      */
-    void registrationCallback(DNSServiceRef /*serviceRef*/, DNSServiceFlags /*flags*/, DNSServiceErrorType errorCode, const char * /*name*/, const char * /*regtype*/, const char * /*domain*/, void * /*context*/) {
+    void registrationCallback(DNSServiceRef /*serviceRef*/, DNSServiceFlags /*flags*/, DNSServiceErrorType errorCode, const char * /*name*/, const char * /*regtype*/, const char * /*domain*/, void * /*context*/) {  // NOSONAR(cpp:S5008): DNSServiceRegister callbacks require a void pointer for user data.
       if (errorCode != kDNSServiceErr_NoError) {
         BOOST_LOG(error) << "Failed to register DNS service: Error "sv << errorCode;
         return;

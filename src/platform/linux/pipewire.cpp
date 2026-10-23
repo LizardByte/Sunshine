@@ -184,11 +184,6 @@ namespace pipewire {
         pw_context_destroy(context);
         context = nullptr;
       }
-      // Release pipewire file descriptor
-      if (fd >= 0) {
-        BOOST_LOG(debug) << "[pipewire] Close pipewire_fd"sv;
-        close(fd);
-      }
       // Release pipewire thread loop
       BOOST_LOG(debug) << "[pipewire] Stop PW thread loop"sv;
       pw_thread_loop_unlock(loop);
@@ -264,14 +259,14 @@ namespace pipewire {
     /**
      * @brief Initialize PipeWire core objects and optional stream negotiation.
      *
-     * @param stream_fd Stream fd.
+     * @param stream_fd Stream fd, or -1 to connect to the local PipeWire daemon. init() takes it over: PipeWire closes it
+     *                  after a successful connection, and init() closes it when the connection could not be set up.
      * @param stream_node Stream node.
      * @param stream_object_serial Stream object serial.
      * @param shared_state Shared state.
      * @return 0 on success; nonzero or negative platform status on failure.
      */
     int init(const int stream_fd, const uint32_t stream_node, const uint64_t stream_object_serial, std::shared_ptr<shared_state_t> shared_state) {
-      fd = stream_fd;
       node = stream_node;
       object_serial = stream_object_serial;
       stream_data.shared = std::move(shared_state);
@@ -280,20 +275,30 @@ namespace pipewire {
       BOOST_LOG(debug) << "[pipewire] Setup PW context"sv;
       context = pw_context_new(pw_thread_loop_get_loop(loop), nullptr, 0);
       if (context) {
-        BOOST_LOG(debug) << "[pipewire] Connect PW context to fd"sv;
-        if (fd >= 0) {
-          core = pw_context_connect_fd(context, fd, nullptr, 0);
+        if (stream_fd >= 0) {
+          BOOST_LOG(debug) << "[pipewire] Connect PW core on fd "sv << stream_fd;
+          core = pw_context_connect_fd(context, stream_fd, nullptr, 0);
         } else {
+          BOOST_LOG(debug) << "[pipewire] Connect PW local core"sv;
           core = pw_context_connect(context, nullptr, 0);
         }
         if (core) {
           pw_core_add_listener(core, &core_listener, &core_events, nullptr);
         } else {
           BOOST_LOG(debug) << "[pipewire] Failed to connect to PW core. Error: "sv << errno << "(" << strerror(errno) << ")"sv;
+          // A failed pw_context_connect_fd() leaves the fd open
+          if (stream_fd >= 0) {
+            close(stream_fd);
+          }
+          pw_thread_loop_unlock(loop);
           return -1;
         }
       } else {
         BOOST_LOG(debug) << "[pipewire] Failed to setup PW context. Error: "sv << errno << "(" << strerror(errno) << ")"sv;
+        if (stream_fd >= 0) {
+          close(stream_fd);
+        }
+        pw_thread_loop_unlock(loop);
         return -1;
       }
 
@@ -360,7 +365,7 @@ namespace pipewire {
         // Connection via pipewire object serial if it is supported and the serial is valid (lower 32-bits != SPA_ID_INVALID, see also PW_KEY_OBJECT_SERIAL docs)
         if (SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL && (object_serial & SPA_ID_INVALID) != SPA_ID_INVALID) {
           pw_properties_setf(props, PW_KEY_TARGET_OBJECT, "%" PRIu64, object_serial);
-          BOOST_LOG(debug) << "[pipewire] Connect PW stream - fd: "sv << fd << " object serial: "sv << object_serial;
+          BOOST_LOG(debug) << "[pipewire] Connect PW stream on object serial: "sv << object_serial;
           result = pw_stream_connect(stream_data.stream, PW_DIRECTION_INPUT, PW_ID_ANY, (enum pw_stream_flags)(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params.data(), n_params);
           if (result < 0) {
             // Unset object serial for retry with node id
@@ -371,7 +376,7 @@ namespace pipewire {
         }
         // Connection via legacy (and deprecated) pipewire node id
         if (result < 0) {
-          BOOST_LOG(debug) << "[pipewire] Connect PW stream - fd: "sv << fd << " node: "sv << node;
+          BOOST_LOG(debug) << "[pipewire] Connect PW stream on node: "sv << node;
           result = pw_stream_connect(stream_data.stream, PW_DIRECTION_INPUT, node, (enum pw_stream_flags)(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params.data(), n_params);
         }
       }
@@ -708,7 +713,6 @@ namespace pipewire {
     struct pw_core *core;
     struct spa_hook core_listener;
     struct stream_data_t stream_data;
-    int fd;
     uint32_t node;
     uint64_t object_serial;
     bool negotiate_maxframerate_ = true;
@@ -762,11 +766,11 @@ namespace pipewire {
       return static_cast<struct spa_pod *>(spa_pod_builder_pop(b, &object_frame));
     }
 
-    static void on_core_info_cb([[maybe_unused]] void *user_data, const struct pw_core_info *pw_info) {
+    static void on_core_info_cb([[maybe_unused]] void *user_data, const struct pw_core_info *pw_info) {  // NOSONAR(cpp:S5008): PipeWire event callbacks require a void pointer for user data.
       BOOST_LOG(info) << "[pipewire] Connected to pipewire version "sv << pw_info->version;
     }
 
-    static void on_core_error_cb([[maybe_unused]] void *user_data, const uint32_t id, const int seq, [[maybe_unused]] int res, const char *message) {
+    static void on_core_error_cb([[maybe_unused]] void *user_data, const uint32_t id, const int seq, [[maybe_unused]] int res, const char *message) {  // NOSONAR(cpp:S5008): PipeWire event callbacks require a void pointer for user data.
       BOOST_LOG(info) << "[pipewire] Pipewire Error, id:"sv << id << " seq:"sv << seq << " message: "sv << message;
     }
 
@@ -776,7 +780,7 @@ namespace pipewire {
       .error = on_core_error_cb,
     };
 
-    static void on_stream_state_changed(void *user_data, enum pw_stream_state old, enum pw_stream_state state, const char *err_msg) {
+    static void on_stream_state_changed(void *user_data, enum pw_stream_state old, enum pw_stream_state state, const char *err_msg) {  // NOSONAR(cpp:S5008): PipeWire event callbacks require a void pointer for user data.
       if (err_msg != nullptr) {
         BOOST_LOG(info) << "[pipewire] PipeWire stream error '" << err_msg << "' on state: " << pw_stream_state_as_string(old)
                         << " -> " << pw_stream_state_as_string(state);
@@ -821,7 +825,7 @@ namespace pipewire {
       }
     }
 
-    static void on_process(void *user_data) {
+    static void on_process(void *user_data) {  // NOSONAR(cpp:S5008): PipeWire event callbacks require a void pointer for user data.
       const auto d = static_cast<struct stream_data_t *>(user_data);
       struct pw_buffer *b = nullptr;
 
@@ -873,7 +877,7 @@ namespace pipewire {
       d->frame_cv.notify_one();
     }
 
-    static void on_param_changed(void *user_data, uint32_t id, const struct spa_pod *param) {
+    static void on_param_changed(void *user_data, uint32_t id, const struct spa_pod *param) {  // NOSONAR(cpp:S5008): PipeWire event callbacks require a void pointer for user data.
       const auto d = static_cast<struct stream_data_t *>(user_data);
 
       d->current_buffer = nullptr;
@@ -1202,7 +1206,7 @@ namespace pipewire {
       img->serial = std::numeric_limits<decltype(img->serial)>::max();
       img->data = nullptr;
       img->data_owned = false;
-      std::fill_n(img->sd.fds, 4, -1);
+      img->sd.fds.fill(-1);
 
       return img;
     }
@@ -1217,12 +1221,22 @@ namespace pipewire {
       return false;  // Return to default stream dead handling.
     }
 
+    /**
+     * @brief Capture PipeWire frames until capture stops or the stream needs reinitialization.
+     *
+     * @param push_captured_image_cb Callback receiving a captured image or a capture timeout.
+     * @param pull_free_image_cb Callback providing an available image buffer.
+     * @param cursor Whether the cursor should be included in the captured image.
+     * @return Final capture status reported to the streaming pipeline.
+     */
     platf::capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
+      using enum platf::capture_e;
+
       auto next_frame = std::chrono::steady_clock::now();
 
       if (pipewire.ensure_stream(mem_type, width, height, target_framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia) < 0) {
         BOOST_LOG(error) << "[pipewire] Failed to ensure pipewire stream. capture() failed with error.";
-        return platf::capture_e::error;
+        return capture_error;
       }
       sleep_overshoot_logger.reset();
 
@@ -1238,7 +1252,7 @@ namespace pipewire {
           }
           // Re-init the capture if the stream is dead for any other reason
           BOOST_LOG(warning) << "[pipewire] PipeWire stream disconnected. Forcing session reset."sv;
-          return platf::capture_e::reinit;
+          return reinit;
         }
 
         // Use unpaced event driven capture when possible
@@ -1248,27 +1262,27 @@ namespace pipewire {
 
         std::shared_ptr<platf::img_t> img_out;
         switch (const auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor)) {
-          case platf::capture_e::reinit:
-          case platf::capture_e::error:
-          case platf::capture_e::interrupted:
+          case reinit:
+          case capture_error:
+          case interrupted:
             pipewire.frame_cv().notify_all();
             return status;
-          case platf::capture_e::timeout:
+          case timeout:
             if (!pull_free_image_cb(img_out)) {
               // Detect if shutdown is pending
               BOOST_LOG(debug) << "[pipewire] PipeWire: timeout -> shutdown pending -> interrupt nudge";
               pipewire.frame_cv().notify_all();
-              return platf::capture_e::interrupted;
+              return interrupted;
             }
             if (!push_captured_image_cb(std::move(img_out), false)) {
               BOOST_LOG(debug) << "[pipewire] PipeWire: timeout -> !push_captured_image_cb -> ok";
-              return platf::capture_e::ok;
+              return ok;
             }
             break;
-          case platf::capture_e::ok:
+          case ok:
             if (!push_captured_image_cb(std::move(img_out), true)) {
               BOOST_LOG(debug) << "[pipewire] PipeWire: ok -> !push_captured_image_cb -> ok";
-              return platf::capture_e::ok;
+              return ok;
             }
             break;
           default:
@@ -1277,7 +1291,7 @@ namespace pipewire {
         }
       }
 
-      return platf::capture_e::ok;
+      return ok;
     }
 
     /**

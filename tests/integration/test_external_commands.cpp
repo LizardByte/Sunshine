@@ -164,16 +164,52 @@ INSTANTIATE_TEST_SUITE_P(
   ExternalCommandTest,
   ::testing::Values(
     UDEV_TESTS
-      // Cross-platform tests with xfail on Windows CI
       ExternalCommandTestData {
-        SIMPLE_COMMAND,
-        "all",
+        "sh tests/scripts/test_additional_install.sh success",
+        "linux",
         true,
-        "Simple command test",
-        "",  // working_directory
-        IS_WINDOWS,  // xfail_condition
-        "Simple command test fails on Windows CI environment"  // xfail_reason
+        "Flatpak installer preserves packaged files"
       },
+    ExternalCommandTestData {
+      "sh tests/scripts/test_additional_install.sh literal",
+      "linux",
+      true,
+      "Flatpak installer preserves literal shell syntax"
+    },
+    ExternalCommandTestData {
+      "sh tests/scripts/test_additional_install.sh modules",
+      "linux",
+      true,
+      "Flatpak installer stops after module configuration failure"
+    },
+    ExternalCommandTestData {
+      "sh tests/scripts/test_additional_install.sh missing",
+      "linux",
+      true,
+      "Flatpak installer stops after missing udev rules"
+    },
+    ExternalCommandTestData {
+      "sh tests/scripts/test_additional_install.sh rules",
+      "linux",
+      true,
+      "Flatpak installer stops after udev installation failure"
+    },
+    ExternalCommandTestData {
+      "sh tests/scripts/test_additional_install.sh reload",
+      "linux",
+      true,
+      "Flatpak installer stops after udev reload failure"
+    },
+    // Cross-platform tests with xfail on Windows CI
+    ExternalCommandTestData {
+      SIMPLE_COMMAND,
+      "all",
+      true,
+      "Simple command test",
+      "",  // working_directory
+      IS_WINDOWS,  // xfail_condition
+      "Simple command test fails on Windows CI environment"  // xfail_reason
+    },
     // Cross-platform failing test
     ExternalCommandTestData {
       "non_existent_command_12345",

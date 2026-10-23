@@ -56,7 +56,7 @@ namespace winrt {
      * @param object Output pointer that receives the requested COM interface.
      * @return HRESULT from the WinRT object's interface query.
      */
-    virtual HRESULT __stdcall GetInterface(REFIID id, void **object) = 0;
+    virtual HRESULT __stdcall GetInterface(REFIID id, void **object) = 0;  // NOSONAR(cpp:S5008): IDirect3DDxgiInterfaceAccess::GetInterface requires a void double pointer in the WinRT ABI.
   };
 }  // namespace winrt
 #if !WINRT_IMPL_HAS_DECLSPEC_UUID
@@ -212,7 +212,7 @@ namespace platf::dxgi {
       if (GetLastError() == ERROR_TIMEOUT) {
         return capture_e::timeout;
       } else {
-        return capture_e::error;
+        return capture_e::capture_error;
       }
     }
     if (produced_frame) {
@@ -226,7 +226,7 @@ namespace platf::dxgi {
 
     auto capture_access = consumed_frame.Surface().as<winrt::IDirect3DDxgiInterfaceAccess>();
     if (capture_access == nullptr) {
-      return capture_e::error;
+      return capture_e::capture_error;
     }
     capture_access->GetInterface(IID_ID3D11Texture2D, (void **) out);
     out_time = consumed_frame.SystemRelativeTime().count();  // raw ticks from query performance counter
@@ -293,11 +293,11 @@ namespace platf::dxgi {
       t.Format = capture_format;
       t.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
 
-      auto status = device->CreateTexture2D(&t, nullptr, &texture);
+      auto texture_status = device->CreateTexture2D(&t, nullptr, &texture);
 
-      if (FAILED(status)) {
-        BOOST_LOG(error) << "Failed to create staging texture [0x"sv << util::hex(status).to_string_view() << ']';
-        return capture_e::error;
+      if (FAILED(texture_status)) {
+        BOOST_LOG(error) << "Failed to create staging texture [0x"sv << util::hex(texture_status).to_string_view() << ']';
+        return capture_e::capture_error;
       }
     }
 
@@ -326,14 +326,14 @@ namespace platf::dxgi {
     if (FAILED(status = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &img_info))) {
       BOOST_LOG(error) << "Failed to map texture [0x"sv << util::hex(status).to_string_view() << ']';
 
-      return capture_e::error;
+      return capture_e::capture_error;
     }
 
     // Now that we know the capture format, we can finish creating the image
     if (complete_img(img, false)) {
       device_ctx->Unmap(texture.get(), 0);
       img_info.pData = nullptr;
-      return capture_e::error;
+      return capture_e::capture_error;
     }
 
     std::copy_n((std::uint8_t *) img_info.pData, height * img_info.RowPitch, (std::uint8_t *) img->data);

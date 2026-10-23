@@ -41,12 +41,28 @@ extern window_system_e window_system;  ///< Window system.
 
 namespace dyn {
   /**
+   * @brief Opaque shared-library handle returned by the dynamic loader.
+   */
+  struct library_t;
+
+  /**
    * @brief Generic GLX procedure pointer returned by the loader.
    */
-  typedef void (*apiproc)(void);
+  using apiproc = void (*)(void);
 
-  int load(void *handle, const std::vector<std::tuple<apiproc *, const char *>> &funcs, bool strict = true);
-  void *handle(const std::vector<const char *> &libs);
+  /**
+   * @brief Load named functions from an open shared library.
+   * @param handle Library whose symbols are queried.
+   * @param funcs Function pointer destinations and corresponding symbol names.
+   * @param strict Whether missing symbols make the operation fail.
+   * @return Zero on success or minus one when a required symbol is missing.
+   */
+  int load(library_t *handle, const std::vector<std::tuple<apiproc *, const char *>> &funcs, bool strict = true);
+  /**
+   * @brief Open the first available shared library from a nonempty list.
+   * @return Open library handle, or null if none could be loaded.
+   */
+  library_t *handle(const std::vector<const char *> &libs);
 
 }  // namespace dyn
 
@@ -63,6 +79,24 @@ namespace portal {
    * @brief Clear a restore token if it already exists on disk.
    */
   void clear_saved_token();
+
+  /**
+   * @brief Get path of the XDG Portal restore token.
+   *
+   * @return Path of token that may include the session desktop as a suffix (e.g. .gnome, .kde).
+   */
+  std::filesystem::path get_saved_token_path();
+
+  #ifdef SUNSHINE_TESTS
+  /**
+   * @brief Resolve and migrate a saved token using isolated test inputs.
+   *
+   * @param directory Directory containing test tokens.
+   * @param desktop Session desktop used to select the token suffix.
+   * @return Path of the selected test token.
+   */
+  std::filesystem::path get_saved_token_path_for_testing(const std::filesystem::path &directory, const std::string &desktop);
+  #endif
 
   /**
    * @brief Check if the Portal service responds to a DBus Ping within 2 seconds.

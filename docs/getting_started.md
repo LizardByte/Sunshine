@@ -129,6 +129,8 @@ apk del sunshine
 
 > [!NOTE]
 > The AppImage is built on Ubuntu 22.04, which requires `glibc 2.35` or newer and `libstdc++ 3.4.11` or newer.
+> It also requires the host's libva core and DRM libraries (`libva2` and `libva-drm2` on Debian/Ubuntu).
+> Install your GPU's VA-API driver to use VA-API encoding. Both libva libraries must come from the same system package version.
 
 ##### Install
 1. Download `Sunshine_{version}_{arch}.AppImage`
@@ -361,6 +363,9 @@ udev rules stay synchronized with Sunshine:
 ```bash
 flatpak run --command=additional-install.sh dev.lizardbyte.app.Sunshine
 ```
+
+The script prompts for administrator authorization. If a step fails, resolve the
+reported error and rerun the command before starting Sunshine.
 
 ##### Run with NVFBC capture (X11 Only) or XDG Portal (Wayland Only)
 ```bash

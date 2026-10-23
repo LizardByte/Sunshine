@@ -43,6 +43,8 @@ struct AVCodecContext;
 struct AVDictionary;
 
 #ifdef _WIN32
+struct ID3D11Device;
+
 // Forward declarations of boost classes to avoid having to include boost headers
 // here, which results in issues with Windows.h and WinSock2.h include order.
 namespace boost {
@@ -64,7 +66,7 @@ namespace boost {
     /**
      * @brief Map of environment variable names to values.
      */
-    typedef basic_environment<char> environment;
+    using environment = basic_environment<char>;
   }  // namespace process::v1
 }  // namespace boost
 #endif
@@ -386,7 +388,9 @@ namespace platf {
       _CONVERT(y410);
       _CONVERT(unknown);
     }
-#undef _CONVERT
+#ifndef DOXYGEN
+  #undef _CONVERT
+#endif
 
     return "unknown"sv;
   }
@@ -402,6 +406,8 @@ namespace platf {
     int height;  ///< Frame or display height in pixels.
     int logical_width;  ///< Logical width after display scaling.
     int logical_height;  ///< Logical height after display scaling.
+    int env_offset_x {};  ///< Horizontal origin of the full input environment in native desktop coordinates.
+    int env_offset_y {};  ///< Vertical origin of the full input environment in native desktop coordinates.
   };
 
   // These values must match Limelight-internal.h's SS_FF_* constants!
@@ -409,7 +415,7 @@ namespace platf {
     /**
      * @brief Bitset containing platform capability flags.
      */
-    typedef uint32_t caps_t;
+    using caps_t = uint32_t;
 
     /**
      * @brief Capability bit indicating native pen and touch support.
@@ -601,7 +607,15 @@ namespace platf {
    * @brief AVCodec-backed encode device and frame state.
    */
   struct avcodec_encode_device_t: encode_device_t {
-    void *data {};  ///< Backend-specific conversion state.
+    bool hardware = false;  ///< Whether this device supplies hardware frames instead of software conversion.
+    /**
+     * @brief Callback signature for backend-specific FFmpeg hardware device initialization.
+     */
+    using init_hw_device_fn_t = int (*)(avcodec_encode_device_t *encode_device, AVBufferRef **hw_device_buf);
+    init_hw_device_fn_t init_hw_device = nullptr;  ///< Optional backend-specific hardware device initializer.
+#ifdef _WIN32
+    ID3D11Device *d3d11_device = nullptr;  ///< Native D3D11 device borrowed while the encode device is alive.
+#endif
     AVFrame *frame {};  ///< FFmpeg frame currently owned by the encode device.
 
     /**
@@ -618,17 +632,18 @@ namespace platf {
      * @brief Apply the configured colorspace metadata to the active frame.
      */
     virtual void apply_colorspace() {
+      // Backends without additional colorspace state need no update here.
     }
 
     /**
      * @brief Set the frame to be encoded.
-     * @note Implementations must take ownership of 'frame'.
+     * @note Implementations must take ownership of 'new_frame'.
      *
-     * @param frame Video or graphics frame being processed.
+     * @param new_frame Video or graphics frame being processed.
      * @param hw_frames_ctx FFmpeg hardware frames context associated with the frame.
      * @return Status from updating frame.
      */
-    virtual int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
+    virtual int set_frame(AVFrame *new_frame, AVBufferRef *hw_frames_ctx) {
       BOOST_LOG(error) << "Illegal call to hwdevice_t::set_frame(). Did you forget to override it?";
       return -1;
     };
@@ -639,16 +654,20 @@ namespace platf {
      *
      * @param frames FFmpeg hardware frames context to initialize.
      */
-    virtual void init_hwframes(AVHWFramesContext *frames) {};
+    virtual void init_hwframes(AVHWFramesContext *frames) {
+      // The base implementation leaves FFmpeg's hardware-frame parameters unchanged.
+    };
 
     /**
-     * @brief Provides a hook for allow platform-specific code to adjust codec options.
+     * @brief Allow platform-specific code to adjust codec options.
      * @note Implementations may set or modify codec options prior to codec initialization.
      *
      * @param ctx Native context object used by the operation or callback.
      * @param options Request options or socket options to apply.
      */
-    virtual void init_codec_options(AVCodecContext *ctx, AVDictionary **options) {};
+    virtual void init_codec_options(AVCodecContext *ctx, AVDictionary **options) {
+      // The base implementation requires no platform-specific codec options.
+    };
 
     /**
      * @brief Prepare to derive a context.
@@ -686,7 +705,7 @@ namespace platf {
     reinit,  ///< Need to reinitialize
     timeout,  ///< Timeout
     interrupted,  ///< Capture was interrupted
-    error  ///< Error
+    capture_error  ///< Capture failed.
   };
 
   /**
@@ -723,7 +742,7 @@ namespace platf {
      * Calls to this callback and push_captured_image_cb must be synchronized as well.
      * @param cursor A pointer to the flag that indicates whether the cursor should be captured as well.
      * @retval capture_e::ok When stopping
-     * @retval capture_e::error On error
+     * @retval capture_e::capture_error On error
      * @retval capture_e::reinit When need of reinitialization
      */
     virtual capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) = 0;
@@ -798,6 +817,8 @@ namespace platf {
     // Offsets for when streaming a specific monitor. By default, they are 0.
     int offset_x {0};  ///< Horizontal capture offset in physical pixels.
     int offset_y {0};  ///< Vertical capture offset in physical pixels.
+    int env_offset_x {0};  ///< Horizontal origin of the full capture environment in native desktop coordinates.
+    int env_offset_y {0};  ///< Vertical origin of the full capture environment in native desktop coordinates.
     int env_width {0};  ///< Width of the full capture environment in physical pixels.
     int env_height {0};  ///< Height of the full capture environment in physical pixels.
     int env_logical_width {0};  ///< Width of the full capture environment after display scaling.
@@ -893,6 +914,8 @@ namespace platf {
 
   std::filesystem::path appdata();
 
+  std::filesystem::path get_xdg_restore_token_path();  ///< XDG restore token path.
+
   /**
    * @brief Return the hardware MAC address associated with a network address.
    *
@@ -905,14 +928,14 @@ namespace platf {
    * @brief Convert a socket address to a printable IP address.
    *
    * @param ip_addr Socket address to format.
-   * @return Value converted from sockaddr.
+   * @return Printable address, or an empty string for an unsupported address family.
    */
   std::string from_sockaddr(const sockaddr *const);
   /**
    * @brief Convert a socket address to a port and printable IP address.
    *
    * @param ip_addr Socket address to format.
-   * @return Value converted from sockaddr ex.
+   * @return Port in network byte order and printable address, or zero and an empty string for an unsupported family.
    */
   std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const);
 
@@ -1047,11 +1070,11 @@ namespace platf {
     boost::asio::ip::address &source_address;  ///< Local source IP address for outgoing packets.
 
     /**
-     * @brief Returns a payload buffer descriptor for the given payload offset.
+     * @brief Locate a payload region without changing the batch descriptor or its buffers.
      * @param offset The offset in the total payload data (bytes).
      * @return Buffer descriptor describing the region at the given offset.
      */
-    buffer_descriptor_t buffer_for_payload_offset(ptrdiff_t offset) {
+    buffer_descriptor_t buffer_for_payload_offset(ptrdiff_t offset) const {
       for (const auto &desc : payload_buffers) {
         if (offset < desc.size) {
           return {
@@ -1067,12 +1090,12 @@ namespace platf {
   };
 
   /**
-   * @brief Send multiple fixed-size UDP payload blocks using the platform backend.
+   * @brief Send fixed-size UDP payload blocks without modifying the batch descriptor.
    *
    * @param send_info Socket addresses, buffers, and sizes for the send operation.
    * @return True when all requested packet blocks are submitted to the socket.
    */
-  bool send_batch(batched_send_info_t &send_info);
+  bool send_batch(const batched_send_info_t &send_info);
 
   /**
    * @brief Destination address and payload data for one UDP send.
@@ -1168,6 +1191,15 @@ namespace platf {
    */
   void move_mouse(input_t &input, int deltaX, int deltaY);
   /**
+   * @brief Retarget the virtual mouse and move it relatively.
+   *
+   * @param input Platform input backend that receives the event.
+   * @param touch_port Desktop and streamed-display bounds for the pointer.
+   * @param deltaX Delta x.
+   * @param deltaY Delta y.
+   */
+  void move_mouse(input_t &input, const touch_port_t &touch_port, int deltaX, int deltaY);
+  /**
    * @brief Move the pointer to an absolute client-provided touch coordinate.
    *
    * @param input Platform input backend that receives the event.
@@ -1243,7 +1275,7 @@ namespace platf {
   /**
    * @brief Per-client input context allocated by a platform backend.
    */
-  typedef deinit_t client_input_t;
+  using client_input_t = deinit_t;
 
   /**
    * @brief Allocate a context to store per-client input data.
@@ -1371,10 +1403,10 @@ namespace platf {
     virtual void sleep_for(const std::chrono::nanoseconds &duration) = 0;
 
     /**
-     * @brief Check if platform-specific timer backend has been initialized successfully
+     * @brief Explicitly check if platform-specific timer backend has been initialized successfully
      * @return `true` on success, `false` on error
      */
-    virtual operator bool() = 0;
+    virtual explicit operator bool() = 0;
   };
 
   /**

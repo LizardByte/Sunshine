@@ -3,6 +3,8 @@
  * @brief Definitions for audio control on Linux.
  */
 // standard includes
+#include <algorithm>
+#include <array>
 #include <bitset>
 #include <sstream>
 #include <thread>
@@ -23,9 +25,9 @@ namespace platf {
   using namespace std::literals;
 
   /**
-   * @brief Position mapping.
+   * @brief PulseAudio position for each `speaker::speaker_e`, in `speaker_e` order.
    */
-  constexpr pa_channel_position_t position_mapping[] {
+  constexpr std::array<pa_channel_position_t, speaker::MAX_SPEAKERS> position_mapping {
     PA_CHANNEL_POSITION_FRONT_LEFT,
     PA_CHANNEL_POSITION_FRONT_RIGHT,
     PA_CHANNEL_POSITION_FRONT_CENTER,
@@ -65,7 +67,7 @@ namespace platf {
    * @brief PulseAudio recording stream and channel metadata.
    */
   struct mic_attr_t: public mic_t {
-    util::safe_ptr<pa_simple, pa_simple_free> mic;  ///< PulseAudio simple recording stream for microphone capture.
+    util::safe_ptr<pa_simple, &pa_simple_free> mic;  ///< PulseAudio simple recording stream for microphone capture.
 
     /**
      * @brief Deliver a captured audio sample to Sunshine's audio pipeline.
@@ -81,7 +83,7 @@ namespace platf {
       if (pa_simple_read(mic.get(), buf, sample_size * sizeof(float), &status)) {
         BOOST_LOG(error) << "pa_simple_read() failed: "sv << pa_strerror(status);
 
-        return capture_e::error;
+        return capture_e::capture_error;
       }
 
       return capture_e::ok;
@@ -89,25 +91,63 @@ namespace platf {
   };
 
   /**
-   * @brief Create a microphone capture stream for the requested layout.
+   * @brief Fill a PulseAudio channel map with the canonical layout for a channel count.
    *
-   * @param mapping Opus channel mapping table for the requested layout.
+   * Capture always uses the canonical layout, never the Opus channel mapping: the Opus mapping
+   * is applied by the multistream encoder and undone by the client, so applying it here too
+   * would leave the samples permuted. `speaker::map_stereo`, `map_surround51` and
+   * `map_surround71` are the identity over `speaker::speaker_e`, so the canonical position of
+   * channel `i` is `position_mapping[i]`.
+   *
+   * @param channels Number of audio channels in the stream.
+   * @param pa_map Channel map to fill; left untouched when `channels` is out of range.
+   * @return `true` when the channel count maps onto a known speaker layout.
+   */
+  bool fill_canonical_channel_map(int channels, pa_channel_map &pa_map) {
+    if (channels < 1 || channels > speaker::MAX_SPEAKERS) {
+      return false;
+    }
+
+    pa_channel_map_init(&pa_map);
+    pa_map.channels = static_cast<std::uint8_t>(channels);
+    for (int i = 0; i < channels; ++i) {
+      pa_map.map[i] = position_mapping[i];
+    }
+
+    return true;
+  }
+
+  /**
+   * @brief Create a microphone capture stream for the requested layout.
+   * @details Capture always uses the canonical channel layout; Opus mapping is applied by the encoder.
+   *
    * @param channels Number of audio channels in the stream.
    * @param sample_rate Audio sample rate in hertz.
    * @param frame_size Number of samples captured per audio frame.
    * @param source_name Source name.
-   * @return Microphone capture object for the requested audio layout.
+   * @return Microphone capture object for the requested audio layout, or nullptr on failure.
    */
-  std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, std::string source_name) {
+  std::unique_ptr<mic_t> microphone(int channels, std::uint32_t sample_rate, std::uint32_t frame_size, std::string source_name) {
+    // Capture in the canonical channel layout, not the one described by the Opus mapping.
+    //
+    // The Opus mapping is applied by the multistream encoder in audio.cpp and is undone by
+    // the client when it decodes, so the two cancel out. Passing it to PulseAudio as the
+    // capture channel map makes PulseAudio reorder the samples as well, and that reordering
+    // is never undone: the client ends up rendering permuted channels.
+    //
+    // This is invisible with the built-in mappings, which are all identities, but it
+    // scrambles the audio whenever a client requests custom surround-params (the webOS
+    // client asks for 0,1,4,5,2,3). The WASAPI backend ignores the mapping for this reason.
+    //
+    pa_channel_map pa_map;
+    if (!fill_canonical_channel_map(channels, pa_map)) {
+      BOOST_LOG(error) << "Unsupported channel count for audio capture: "sv << channels;
+      return nullptr;
+    }
+
     auto mic = std::make_unique<mic_attr_t>();
 
     pa_sample_spec ss {PA_SAMPLE_FLOAT32, sample_rate, (std::uint8_t) channels};
-    pa_channel_map pa_map;
-
-    pa_map.channels = channels;
-    std::for_each_n(pa_map.map, pa_map.channels, [mapping](auto &channel) mutable {
-      channel = position_mapping[*mapping++];
-    });
 
     pa_buffer_attr pa_attr = {
       .maxlength = uint32_t(-1),
@@ -177,19 +217,19 @@ namespace platf {
     /**
      * @brief Owning pointer for a PulseAudio context.
      */
-    using ctx_t = util::safe_ptr<pa_context, pa_context_unref>;
+    using ctx_t = util::safe_ptr<pa_context, &pa_context_unref>;
     /**
      * @brief Owning pointer for a PulseAudio mainloop.
      */
-    using loop_t = util::safe_ptr<pa_mainloop, pa_mainloop_free>;
+    using loop_t = util::safe_ptr<pa_mainloop, &pa_mainloop_free>;
     /**
      * @brief Owning pointer for a PulseAudio asynchronous operation.
      */
-    using op_t = util::safe_ptr<pa_operation, pa_operation_unref>;
+    using op_t = util::safe_ptr<pa_operation, &pa_operation_unref>;
     /**
      * @brief Owning pointer for PulseAudio strings allocated with `pa_xmalloc`.
      */
-    using string_t = util::safe_ptr<char, pa_free<char>>;
+    using string_t = util::safe_ptr<char, &pa_free<char>>;
 
     /**
      * @brief Callback wrapper for PulseAudio introspection results without an end marker.
@@ -205,7 +245,7 @@ namespace platf {
      * @param userdata Caller-provided pointer passed through the callback.
      */
     template<class T>
-    void cb(ctx_t::pointer ctx, add_const_t<T> i, void *userdata) {
+    void cb(ctx_t::pointer ctx, add_const_t<T> i, void *userdata) {  // NOSONAR(cpp:S5008): PulseAudio introspection callbacks require a void pointer for user data.
       auto &f = *(cb_simple_t<T> *) userdata;
 
       // Cannot similarly filter on eol here. Unless reported otherwise assume
@@ -228,7 +268,7 @@ namespace platf {
      * @param userdata Caller-provided pointer passed through the callback.
      */
     template<class T>
-    void cb(ctx_t::pointer ctx, add_const_t<T> i, int eol, void *userdata) {
+    void cb(ctx_t::pointer ctx, add_const_t<T> i, int eol, void *userdata) {  // NOSONAR(cpp:S5008): PulseAudio introspection callbacks require a void pointer for user data.
       auto &f = *(cb_t<T> *) userdata;
 
       // For some reason, pulseaudio calls this callback after disconnecting
@@ -241,12 +281,12 @@ namespace platf {
 
     /**
      * @brief Forward a PulseAudio integer callback value into a Sunshine alarm.
+     * @details The PulseAudio callback signature supplies a context that is not needed to ring the alarm.
      *
-     * @param ctx PulseAudio context that emitted the callback.
      * @param i Integer value returned by the PulseAudio operation.
      * @param userdata Caller-provided pointer passed through the callback.
      */
-    void cb_i(ctx_t::pointer ctx, std::uint32_t i, void *userdata) {
+    void cb_i(ctx_t::pointer, std::uint32_t i, void *userdata) {
       auto alarm = (safe::alarm_raw_t<int> *) userdata;
 
       alarm->ring(i);
@@ -259,19 +299,19 @@ namespace platf {
      * @param userdata Caller-provided pointer passed through the callback.
      */
     void ctx_state_cb(ctx_t::pointer ctx, void *userdata) {
-      auto &f = *(std::function<void(ctx_t::pointer)> *) userdata;
+      const auto &f = *(std::function<void(ctx_t::pointer)> *) userdata;
 
       f(ctx);
     }
 
     /**
      * @brief Record completion of a PulseAudio asynchronous operation.
+     * @details The PulseAudio callback signature supplies a context that is not needed to report completion.
      *
-     * @param ctx Native context object used by the operation or callback.
      * @param status Native status code returned by the platform API.
      * @param userdata Caller-provided pointer passed through the callback.
      */
-    void success_cb(ctx_t::pointer ctx, int status, void *userdata) {
+    void success_cb(ctx_t::pointer, int status, void *userdata) {
       assert(userdata != nullptr);
 
       auto alarm = (safe::alarm_raw_t<int> *) userdata;
@@ -314,8 +354,8 @@ namespace platf {
         loop.reset(pa_mainloop_new());
         ctx.reset(pa_context_new(pa_mainloop_get_api(loop.get()), "sunshine"));
 
-        events_cb = std::make_unique<std::function<void(ctx_t::pointer)>>([this](ctx_t::pointer ctx) {
-          switch (pa_context_get_state(ctx)) {
+        events_cb = std::make_unique<std::function<void(ctx_t::pointer)>>([this](ctx_t::pointer callback_ctx) {
+          switch (pa_context_get_state(callback_ctx)) {
             case PA_CONTEXT_READY:
               events->raise(ready);
               break;
@@ -435,10 +475,10 @@ namespace platf {
         // Count of all virtual sinks that are created by us
         int nullcount = 0;
 
-        cb_t<pa_sink_info *> f = [&](ctx_t::pointer ctx, const pa_sink_info *sink_info, int eol) {
+        cb_t<pa_sink_info *> f = [&](ctx_t::pointer callback_ctx, const pa_sink_info *sink_info, int eol) {
           if (!sink_info) {
             if (!eol) {
-              BOOST_LOG(error) << "Couldn't get pulseaudio sink info: "sv << pa_strerror(pa_context_errno(ctx));
+              BOOST_LOG(error) << "Couldn't get pulseaudio sink info: "sv << pa_strerror(pa_context_errno(callback_ctx));
 
               alarm->ring(-1);
             }
@@ -527,9 +567,9 @@ namespace platf {
         std::string sink_name;
         auto alarm = safe::make_alarm<int>();
 
-        cb_simple_t<pa_server_info *> server_f = [&](ctx_t::pointer ctx, const pa_server_info *server_info) {
+        cb_simple_t<pa_server_info *> server_f = [&](ctx_t::pointer callback_ctx, const pa_server_info *server_info) {
           if (!server_info) {
-            BOOST_LOG(error) << "Couldn't get pulseaudio server info: "sv << pa_strerror(pa_context_errno(ctx));
+            BOOST_LOG(error) << "Couldn't get pulseaudio server info: "sv << pa_strerror(pa_context_errno(callback_ctx));
             alarm->ring(-1);
           }
 
@@ -559,11 +599,11 @@ namespace platf {
           return monitor_name;
         }
 
-        cb_t<pa_sink_info *> sink_f = [&](ctx_t::pointer ctx, const pa_sink_info *sink_info, int eol) {
+        cb_t<pa_sink_info *> sink_f = [&](ctx_t::pointer callback_ctx, const pa_sink_info *sink_info, int eol) {
           if (!sink_info) {
             if (!eol) {
               BOOST_LOG(error) << "Couldn't get pulseaudio sink info for ["sv << sink_name
-                               << "]: "sv << pa_strerror(pa_context_errno(ctx));
+                               << "]: "sv << pa_strerror(pa_context_errno(callback_ctx));
               alarm->ring(-1);
             }
 
@@ -584,8 +624,8 @@ namespace platf {
 
       /**
        * @brief Create a microphone capture stream for the requested layout.
+       * @details The common audio interface supplies an Opus mapping that canonical capture does not need.
        *
-       * @param mapping Opus channel mapping table for the requested layout.
        * @param channels Number of audio channels in the stream.
        * @param sample_rate Audio sample rate in hertz.
        * @param frame_size Number of samples captured per audio frame.
@@ -593,7 +633,7 @@ namespace platf {
        * @param host_audio_enabled Whether host playback should remain enabled during capture.
        * @return Microphone capture object for the requested audio layout.
        */
-      std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, bool continuous_audio, [[maybe_unused]] bool host_audio_enabled) override {
+      std::unique_ptr<mic_t> microphone(const std::uint8_t *, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, bool continuous_audio, [[maybe_unused]] bool host_audio_enabled) override {
         // Sink choice priority:
         // 1. Config sink
         // 2. Last sink swapped to (Usually virtual in this case)
@@ -609,7 +649,7 @@ namespace platf {
           sink_name = get_default_sink_name();
         }
 
-        return ::platf::microphone(mapping, channels, sample_rate, frame_size, get_monitor_name(sink_name));
+        return ::platf::microphone(channels, sample_rate, frame_size, get_monitor_name(sink_name));
       }
 
       bool is_sink_available(const std::string &sink) override {
