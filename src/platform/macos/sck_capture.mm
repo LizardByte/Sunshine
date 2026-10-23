@@ -10,8 +10,10 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -68,6 +70,60 @@ namespace platf {
         return 2;
       }
       return value + (value & 1);
+    }
+
+    /**
+     * @brief Create a black sample the encoder can use before the first captured frame.
+     *
+     * @param pixel_width Even pixel width.
+     * @param pixel_height Even pixel height.
+     * @param format CoreVideo pixel format.
+     * @return A retained sample buffer, or nil when allocation fails. The caller releases it.
+     */
+    CMSampleBufferRef blank_sample(int pixel_width, int pixel_height, OSType format) {
+      CVPixelBufferRef pixel = nullptr;
+      if (CVPixelBufferCreate(kCFAllocatorDefault, pixel_width, pixel_height, format, nullptr, &pixel) != kCVReturnSuccess || pixel == nullptr) {
+        return nullptr;
+      }
+
+      CVPixelBufferLockBaseAddress(pixel, 0);
+      if (CVPixelBufferIsPlanar(pixel)) {
+        const size_t planes = CVPixelBufferGetPlaneCount(pixel);
+        for (size_t plane = 0; plane < planes; ++plane) {
+          auto *base = static_cast<uint8_t *>(CVPixelBufferGetBaseAddressOfPlane(pixel, plane));
+          const size_t bytes = CVPixelBufferGetBytesPerRowOfPlane(pixel, plane) * CVPixelBufferGetHeightOfPlane(pixel, plane);
+          if (base != nullptr && bytes > 0) {
+            std::memset(base, plane == 0 ? 0 : 128, bytes);
+          }
+        }
+      } else {
+        auto *base = static_cast<uint8_t *>(CVPixelBufferGetBaseAddress(pixel));
+        const size_t bytes = CVPixelBufferGetBytesPerRow(pixel) * CVPixelBufferGetHeight(pixel);
+        if (base != nullptr && bytes > 0) {
+          std::memset(base, 0, bytes);
+        }
+      }
+      CVPixelBufferUnlockBaseAddress(pixel, 0);
+
+      CMVideoFormatDescriptionRef description = nullptr;
+      if (CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, pixel, &description) != noErr || description == nullptr) {
+        CFRelease(pixel);
+        return nullptr;
+      }
+
+      CMSampleTimingInfo timing {
+        kCMTimeInvalid,
+        kCMTimeInvalid,
+        kCMTimeInvalid,
+      };
+      CMSampleBufferRef sample = nullptr;
+      const OSStatus status = CMSampleBufferCreateForImageBuffer(kCFAllocatorDefault, pixel, true, nullptr, nullptr, description, &timing, &sample);
+      CFRelease(description);
+      CFRelease(pixel);
+      if (status != noErr) {
+        return nullptr;
+      }
+      return sample;
     }
 
     /**
@@ -533,6 +589,7 @@ namespace platf {
     std::unique_ptr<display_device::DisplayPowerGuardInterface> display_power_guard;  ///< Keeps the display awake while capturing.
 
     ~sck_display_t() override {
+      std::lock_guard<std::mutex> guard {stream_mutex};
       stop_stream();
       [output release];
       output = nil;
@@ -682,6 +739,7 @@ namespace platf {
      * @return Capture status for the streaming pipeline.
      */
     capture_e run_stream(const std::function<bool(CMSampleBufferRef)> &on_video) {
+      std::lock_guard<std::mutex> guard {stream_mutex};
       reason.store(static_cast<int>(stop_reason_e::none));
       @autoreleasepool {
         SCShareableContent *content = copy_shareable_content();
@@ -744,7 +802,15 @@ namespace platf {
         }
         video_fn = on_video;
         output->on_video = &video_fn;
+        if (output->signal != nullptr) {
+          dispatch_release(output->signal);
+          output->signal = nullptr;
+        }
         output->signal = dispatch_semaphore_create(0);
+        if (output->signal == nullptr) {
+          BOOST_LOG(error) << "Unable to create the window capture signal."sv;
+          return capture_e::capture_error;
+        }
 
         NSError *stream_error = nil;
         output.stream = [[SCStream alloc] initWithFilter:filter configuration:configuration delegate:output];
@@ -794,6 +860,10 @@ namespace platf {
           return capture_e::capture_error;
         }
 
+        if (output->signal == nullptr) {
+          stop_stream();
+          return capture_e::capture_error;
+        }
         dispatch_semaphore_wait(output->signal, DISPATCH_TIME_FOREVER);
         const auto stop = static_cast<stop_reason_e>(reason.load());
         stop_stream();
@@ -876,6 +946,7 @@ namespace platf {
     bool *cursor_visible {nullptr};  ///< Session cursor toggle. The application setting replaces it when present.
     bool cursor_applied {true};  ///< Cursor visibility last sent to ScreenCaptureKit.
     std::function<bool(CMSampleBufferRef)> video_fn;  ///< Video callback used by the current stream.
+    std::mutex stream_mutex;  ///< Keeps encoder setup from opening a second stream.
 
     capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       cursor_visible = cursor;
@@ -921,22 +992,28 @@ namespace platf {
       }
 
       auto *image = static_cast<av_img_t *>(img);
-      const auto status = run_stream([&](CMSampleBufferRef sample) {
-        auto new_sample_buffer = std::make_shared<av_sample_buf_t>(sample);
-        auto new_pixel_buffer = std::make_shared<av_pixel_buf_t>(new_sample_buffer->buf);
-        auto old_data_retainer = std::make_shared<temp_retain_av_img_t>(image->sample_buffer, image->pixel_buffer, image->data);
-        image->sample_buffer = new_sample_buffer;
-        image->pixel_buffer = new_pixel_buffer;
-        image->data = new_pixel_buffer->data();
-        image->width = static_cast<int>(CVPixelBufferGetWidth(new_pixel_buffer->buf));
-        image->height = static_cast<int>(CVPixelBufferGetHeight(new_pixel_buffer->buf));
-        image->row_pitch = static_cast<int>(CVPixelBufferGetBytesPerRow(new_pixel_buffer->buf));
-        image->pixel_pitch = image->row_pitch / image->width;
-        old_data_retainer.reset();
-        reason.store(static_cast<int>(stop_reason_e::interrupted));
-        return false;
-      });
-      return status == capture_e::capture_error ? 1 : 0;
+      CMSampleBufferRef sample = blank_sample(std::max(width, 2), std::max(height, 2), pixel_format);
+      if (sample == nullptr) {
+        return 1;
+      }
+
+      auto new_sample_buffer = std::make_shared<av_sample_buf_t>(sample);
+      CFRelease(sample);
+      auto new_pixel_buffer = std::make_shared<av_pixel_buf_t>(new_sample_buffer->buf);
+      if (new_pixel_buffer->buf == nullptr) {
+        return 1;
+      }
+
+      auto old_data_retainer = std::make_shared<temp_retain_av_img_t>(image->sample_buffer, image->pixel_buffer, image->data);
+      image->sample_buffer = new_sample_buffer;
+      image->pixel_buffer = new_pixel_buffer;
+      image->data = new_pixel_buffer->data();
+      image->width = static_cast<int>(CVPixelBufferGetWidth(new_pixel_buffer->buf));
+      image->height = static_cast<int>(CVPixelBufferGetHeight(new_pixel_buffer->buf));
+      image->row_pitch = static_cast<int>(CVPixelBufferGetBytesPerRow(new_pixel_buffer->buf));
+      image->pixel_pitch = image->width > 0 ? image->row_pitch / image->width : 0;
+      old_data_retainer.reset();
+      return 0;
     }
   };
 

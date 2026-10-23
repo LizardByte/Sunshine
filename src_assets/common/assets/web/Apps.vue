@@ -1134,7 +1134,8 @@
       },
       save() {
         this.editFormError = "";
-        this.editForm["image-path"] = this.editForm["image-path"].toString().replaceAll('"', '');
+        const currentImagePath = this.editForm["image-path"] == null ? "" : String(this.editForm["image-path"]);
+        this.editForm["image-path"] = currentImagePath.replaceAll('"', '');
         if (!this.editForm.capture || this.editForm.capture === "display") {
           delete this.editForm.capture;
           delete this.editForm["window-id"];
