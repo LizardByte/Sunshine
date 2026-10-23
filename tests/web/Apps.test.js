@@ -163,6 +163,23 @@ describe('save – cover image validation', () => {
     expect(apiFetch).toHaveBeenCalledOnce()
   })
 
+  it('omits display capture fields so the desktop remains the default', () => {
+    const ctx = saveContext('/covers/cover.png')
+    ctx.editForm.capture = 'display'
+    ctx.editForm['window-id'] = 10
+    ctx.editForm['application-id'] = 'com.example.game'
+    ctx.editForm['window-title'] = 'Game'
+    ctx.editForm['capture-cursor'] = false
+
+    Apps.methods.save.call(ctx)
+
+    expect(ctx.editForm.capture).toBeUndefined()
+    expect(ctx.editForm['window-id']).toBeUndefined()
+    expect(ctx.editForm['application-id']).toBeUndefined()
+    expect(ctx.editForm['capture-cursor']).toBeUndefined()
+    expect(apiFetch).toHaveBeenCalledOnce()
+  })
+
   it('strips double quotes from the image path before validating', () => {
     const ctx = saveContext('""/covers/cover.png""')
 

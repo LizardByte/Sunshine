@@ -25,6 +25,7 @@ extern "C" {
 }
 
 // local includes
+#include "capture_source.h"
 #include "cbs.h"
 #include "config.h"
 #include "display_device.h"
@@ -1488,6 +1489,12 @@ namespace video {
     // We try this twice, in case we still get an error on reinitialization
     for (int x = 0; x < 2; ++x) {
       disp.reset();
+      const auto target = capture_source::stream_target();
+      if (!capture_source::implemented(target.mode)) {
+        BOOST_LOG(error) << "Capture source ["sv << capture_source::mode_name(target.mode)
+                         << "] is not available on this platform. Refusing to capture the full display instead."sv;
+        break;
+      }
       disp = platf::display(type, display_name, config);
       if (disp) {
         break;
@@ -1570,6 +1577,7 @@ namespace video {
     std::vector<capture_ctx_t> capture_ctxs;
 
     auto fg = util::fail_guard([&capture_ctx_queue, &capture_ctxs]() {
+      capture_source::end_stream_capture();
       capture_ctx_queue->stop();
 
       // Stop all sessions listening to this thread
@@ -1595,7 +1603,15 @@ namespace video {
     std::vector<std::string> display_names;
     int display_p = -1;
     refresh_displays(encoder.platform_formats->dev_type, display_names, display_p);
-    auto disp = platf::display(encoder.platform_formats->dev_type, display_names[display_p], capture_ctxs.front().config);
+    capture_source::begin_stream_capture();
+    const auto initial_target = capture_source::stream_target();
+    std::shared_ptr<platf::display_t> disp;
+    if (!capture_source::implemented(initial_target.mode)) {
+      BOOST_LOG(error) << "Capture source ["sv << capture_source::mode_name(initial_target.mode)
+                       << "] is not available on this platform. Refusing to capture the full display instead."sv;
+    } else {
+      disp = platf::display(encoder.platform_formats->dev_type, display_names[display_p], capture_ctxs.front().config);
+    }
     if (!disp) {
       return;
     }
@@ -2843,6 +2859,7 @@ namespace video {
 
     auto &ctx = ref->encode_session_ctx_queue;
     auto lg = util::fail_guard([&ctx, &synced_session_ctxs]() {
+      capture_source::end_stream_capture();
       ctx.stop();
 
       for (const auto &session_ctx : synced_session_ctxs) {
@@ -2859,6 +2876,7 @@ namespace video {
     // Encoding and capture takes place on this thread
     platf::set_thread_name("video::capture_sync");
     platf::adjust_thread_priority(platf::thread_priority_e::high);
+    capture_source::begin_stream_capture();
 
     std::vector<std::string> display_names;
     int display_p = -1;

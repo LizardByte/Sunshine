@@ -371,3 +371,22 @@ UAC prompt.
   "image-path": ""
 }
 ```
+
+## Window or application capture
+
+Display capture remains the default. An application can instead capture one window, or every window that belongs to one application. The target does not have to exist when the entry is saved: Sunshine waits for a window id, bundle identifier, `pid:` process id, window title, or the process it just launched.
+
+On macOS, ScreenCaptureKit captures that window even when it is covered, off-screen, or moved to another display. Audio follows the application. A closed, minimized, or crashed target ends the session. Absolute pointer input is mapped into the captured window, and keyboard input is sent to that application.
+
+```json
+{
+  "name": "Emulator",
+  "cmd": "open -a Emulator",
+  "capture": "window",
+  "application-id": "com.example.emulator",
+  "window-title": "Emulator",
+  "capture-cursor": false
+}
+```
+
+`capture` may be `display`, `window`, or `application`. On platforms that cannot capture a window yet, Sunshine ends the session instead of falling back to the full display.

@@ -12,6 +12,7 @@
 #include <vector>
 
 // local includes
+#include "src/capture_source.h"
 #include "src/config.h"
 #include "src/display_device.h"
 #include "src/logging.h"
@@ -20,6 +21,7 @@
 #include "src/platform/macos/av_video.h"
 #include "src/platform/macos/misc.h"
 #include "src/platform/macos/nv12_zero_device.h"
+#include "src/platform/macos/sck_capture.h"
 
 // Avoid conflict between AVFoundation and libavutil both defining AVMediaType
 /**
@@ -159,8 +161,17 @@ namespace platf {
         return std::make_unique<avcodec_encode_device_t>();
       } else if (pix_fmt == pix_fmt_e::nv12 || pix_fmt == pix_fmt_e::p010) {
         auto device = std::make_unique<nv12_zero_device>();
+        auto *capture = av_capture;
 
-        device->init(av_capture, pix_fmt, setResolution, setPixelFormat);
+        device->init(
+          pix_fmt,
+          [capture](int width, int height) {
+            [capture setFrameWidth:width frameHeight:height];
+          },
+          [capture](int pixel_format) {
+            capture.pixelFormat = static_cast<OSType>(pixel_format);
+          }
+        );
 
         return device;
       } else {
@@ -214,36 +225,25 @@ namespace platf {
 
       return 0;
     }
-
-    /**
-     * A bridge from the pure C++ code of the hwdevice_t class to the pure Objective C code.
-     *
-     * display --> an opaque pointer to an object of this class
-     * width --> the intended capture width
-     * height --> the intended capture height
-     * @param display Display object or identifier associated with the operation.
-     * @param width Frame or display width in pixels.
-     * @param height Frame or display height in pixels.
-     */
-    static void setResolution(AVVideo *display, int width, int height) {
-      [display setFrameWidth:width frameHeight:height];
-    }
-
-    /**
-     * @brief Set pixel format.
-     *
-     * @param display Display object or identifier associated with the operation.
-     * @param pixelFormat Pixel format.
-     */
-    static void setPixelFormat(AVVideo *display, OSType pixelFormat) {
-      display.pixelFormat = pixelFormat;
-    }
   };
 
   std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::videotoolbox) {
       BOOST_LOG(error) << "Could not initialize display with the given hw device type."sv;
       return nullptr;
+    }
+
+    const auto capture_target = capture_source::stream_target();
+    if (capture_target.mode != capture_source::mode_e::display) {
+      const auto colorspace = video::colorspace_from_client_config(config, false);
+      return sck_display(
+        hwdevice_type,
+        display_name,
+        config.width,
+        config.height,
+        config.framerate,
+        hwdevice_type == mem_type_e::videotoolbox && colorspace.bit_depth == 10
+      );
     }
 
     auto display = std::make_shared<av_display_t>();

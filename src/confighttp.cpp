@@ -44,6 +44,7 @@
 #endif
 
 // local includes
+#include "capture_source.h"
 #include "config.h"
 #include "confighttp.h"
 #include "crypto.h"
@@ -1098,7 +1099,8 @@ namespace confighttp {
         "exclude-global-prep-cmd",
         "elevated",
         "auto-detach",
-        "wait-all"
+        "wait-all",
+        "capture-cursor"
       };
 
       // List of keys to convert to integers
@@ -1166,6 +1168,47 @@ namespace confighttp {
    *
    * @api_examples{/api/apps|:| POST|:| {"name":"Hello, World!","index":-1}}
    */
+  /**
+   * @brief List windows and applications the host can capture.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/capture-sources|:| GET|:| null}
+   */
+  void getCaptureSources(const resp_https_t &response, const req_https_t &request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    nlohmann::json output;
+    output["supported"] = capture_source::implemented(capture_source::mode_e::window);
+    output["windows"] = nlohmann::json::array();
+    output["applications"] = nlohmann::json::array();
+
+    for (const auto &window : capture_source::list_windows()) {
+      output["windows"].push_back({
+        {"window_id", window.window_id},
+        {"title", window.title},
+        {"application_id", window.application_id},
+        {"application_name", window.application_name},
+        {"pid", window.pid},
+        {"width", window.width},
+        {"height", window.height},
+      });
+    }
+    for (const auto &application : capture_source::list_applications()) {
+      output["applications"].push_back({
+        {"application_id", application.application_id},
+        {"application_name", application.application_name},
+        {"pid", application.pid},
+      });
+    }
+
+    send_response(response, output);
+  }
+
   void saveApp(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
       return;
@@ -2485,6 +2528,7 @@ namespace confighttp {
     // rest api
     server.resource["^/api/browse$"]["GET"] = browseDirectory;
     server.resource["^/api/apps$"]["GET"] = getApps;
+    server.resource["^/api/capture-sources$"]["GET"] = getCaptureSources;
     server.resource["^/api/apps$"]["POST"] = saveApp;
     server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = deleteApp;
     server.resource["^/api/apps/close$"]["POST"] = closeApp;

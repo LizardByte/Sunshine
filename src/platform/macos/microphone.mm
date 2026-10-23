@@ -2,7 +2,11 @@
  * @file src/platform/macos/microphone.mm
  * @brief Definitions for microphone capture on macOS.
  */
+// standard includes
+#include <algorithm>
+
 // local includes
+#include "src/capture_source.h"
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
@@ -14,6 +18,29 @@ namespace platf {
   /**
    * @brief macOS microphone capture device and audio format state.
    */
+  /**
+   * @brief Reads application audio produced by ScreenCaptureKit.
+   */
+  struct sck_mic_t: public mic_t {
+    std::uint32_t sample_rate {48000};  ///< Sample rate requested by the stream.
+    std::uint32_t channels {2};  ///< Channel count requested by the stream.
+
+    /**
+     * @brief Deliver application audio, or time out while the target is still starting.
+     *
+     * @param sample_in Sample in.
+     * @return Capture status reported to the streaming pipeline.
+     */
+    capture_e sample(std::vector<float> &sample_in) override {
+      if (capture_source::read_audio(sample_in.data(), sample_in.size(), sample_rate, channels, 5s)) {
+        return capture_e::ok;
+      }
+
+      std::fill(sample_in.begin(), sample_in.end(), 0.0F);
+      return capture_e::timeout;
+    }
+  };
+
   struct av_mic_t: public mic_t {
     AVAudio *av_audio_capture {};  ///< AV audio capture.
 
@@ -93,6 +120,15 @@ namespace platf {
      * @return Microphone capture object for the requested audio layout.
      */
     std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, bool continuous_audio, bool host_audio_enabled) override {
+      if (capture_source::active().mode != capture_source::mode_e::display) {
+        capture_source::set_audio_request({sample_rate, static_cast<std::uint32_t>(std::max(channels, 1))});
+        auto application_mic = std::make_unique<sck_mic_t>();
+        application_mic->sample_rate = sample_rate;
+        application_mic->channels = static_cast<std::uint32_t>(std::max(channels, 1));
+        BOOST_LOG(info) << "Capturing audio from the target application."sv;
+        return application_mic;
+      }
+
       auto mic = std::make_unique<av_mic_t>();
       mic->av_audio_capture = [[AVAudio alloc] init];
 

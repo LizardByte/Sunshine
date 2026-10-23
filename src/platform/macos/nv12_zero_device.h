@@ -4,19 +4,13 @@
  */
 #pragma once
 
+// standard includes
+#include <functional>
+
 // local includes
 #include "src/platform/common.h"
 
 struct AVFrame;
-
-#ifdef __OBJC__
-@class AVVideo;
-#else
-/**
- * @brief Opaque AVFoundation capture controller, defined in Objective-C.
- */
-struct AVVideo;
-#endif
 
 namespace platf {
   /**
@@ -30,31 +24,26 @@ namespace platf {
    * @brief macOS zero-copy encode device that forwards NV12 frames from AVFoundation to FFmpeg.
    */
   class nv12_zero_device: public avcodec_encode_device_t {
-    AVVideo *display = nullptr;  ///< Borrowed AVFoundation controller, forward-declared to avoid FFmpeg name conflicts.
-
   public:
-    // this function is used to set the resolution on an av_video object that we cannot
-    // call directly because of namespace collisions between AVFoundation and FFMPEG
     /**
-     * @brief Callback signature used to update the opaque AVFoundation display resolution.
+     * @brief Callback signature used to update the capture output resolution.
      */
-    using resolution_fn_t = std::function<void(AVVideo *display, int width, int height)>;
-    resolution_fn_t resolution_fn;  ///< Callback stored for later AVFoundation resolution updates.
+    using resolution_fn_t = std::function<void(int width, int height)>;
+    resolution_fn_t resolution_fn;  ///< Callback stored for later capture resolution updates.
     /**
-     * @brief Callback signature used to update the opaque AVFoundation pixel format.
+     * @brief Callback signature used to update the capture pixel format.
      */
-    using pixel_format_fn_t = std::function<void(AVVideo *display, int pixelFormat)>;
+    using pixel_format_fn_t = std::function<void(int pixelFormat)>;
 
     /**
-     * @brief Initialize zero-copy NV12 encoding for an AVFoundation display.
+     * @brief Initialize zero-copy NV12 encoding for a macOS capture backend.
      *
-     * @param capture_display Display object or identifier associated with the operation.
      * @param pix_fmt Sunshine pixel format to convert or allocate for.
-     * @param set_resolution Callback used to resize the AVFoundation capture output.
-     * @param pixel_format_fn Pixel format.
+     * @param set_resolution Callback used to resize the capture output.
+     * @param set_pixel_format Callback used to select the capture pixel format.
      * @return 0 on success; nonzero or negative platform status on failure.
      */
-    int init(AVVideo *capture_display, pix_fmt_e pix_fmt, resolution_fn_t set_resolution, const pixel_format_fn_t &pixel_format_fn);
+    int init(pix_fmt_e pix_fmt, resolution_fn_t set_resolution, pixel_format_fn_t set_pixel_format);
 
     /**
      * @brief Forward a captured AVFoundation frame to FFmpeg without copying.

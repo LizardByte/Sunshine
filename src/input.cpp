@@ -28,6 +28,7 @@ extern "C" {
 #include <boost/endian/buffers.hpp>
 
 // local includes
+#include "capture_source.h"
 #include "config.h"
 #include "globals.h"
 #include "input.h"
@@ -748,15 +749,32 @@ namespace input {
    * @param touch_port Stream touch geometry.
    * @return Platform pointer bounds for the full desktop and streamed display.
    */
+  /**
+   * @brief Replace a stale window origin with the origin reported by window capture.
+   *
+   * @param touch_port Pointer bounds that absolute input will use.
+   */
+  void apply_live_window_origin(platf::touch_port_t &touch_port) {
+    const auto geometry = capture_source::live_geometry();
+    if (!geometry) {
+      return;
+    }
+
+    touch_port.offset_x = geometry->x;
+    touch_port.offset_y = geometry->y;
+  }
+
   platf::touch_port_t platform_touch_port(const input::touch_port_t &touch_port) {
+    auto adjusted = static_cast<platf::touch_port_t>(touch_port);
+    apply_live_window_origin(adjusted);
     const bool has_logical_environment = touch_port.env_logical_width != 0 && touch_port.env_logical_height != 0;
     return {
-      touch_port.offset_x,
-      touch_port.offset_y,
+      adjusted.offset_x,
+      adjusted.offset_y,
       has_logical_environment ? touch_port.env_logical_width : touch_port.env_width,
       has_logical_environment ? touch_port.env_logical_height : touch_port.env_height,
-      touch_port.logical_width,
-      touch_port.logical_height,
+      adjusted.logical_width,
+      adjusted.logical_height,
       touch_port.env_offset_x,
       touch_port.env_offset_y,
     };
@@ -801,6 +819,8 @@ namespace input {
       BOOST_LOG(verbose) << "Ignoring early absolute input without a touch port"sv;
       return std::nullopt;
     }
+    auto adjusted_port = static_cast<platf::touch_port_t>(touch_port);
+    apply_live_window_origin(adjusted_port);
 
     auto scalarX = touch_port.width / size.first;
     auto scalarY = touch_port.height / size.second;
@@ -834,8 +854,8 @@ namespace input {
     scalar_tpcoords, and be offset *inversely* proportionally to scalar_tpcoords. So you must account for both differences
     by multiplying and dividing.
     */
-    float final_x = (x + touch_port.offset_x * touch_port.scalar_tpcoords) / touch_port.scalar_tpcoords;
-    float final_y = (y + touch_port.offset_y * touch_port.scalar_tpcoords) / touch_port.scalar_tpcoords;
+    float final_x = (x + adjusted_port.offset_x * touch_port.scalar_tpcoords) / touch_port.scalar_tpcoords;
+    float final_y = (y + adjusted_port.offset_y * touch_port.scalar_tpcoords) / touch_port.scalar_tpcoords;
     return std::pair {final_x, final_y};
   }
 

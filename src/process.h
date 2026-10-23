@@ -17,6 +17,7 @@
 #include <unordered_map>
 
 // local includes
+#include "capture_source.h"
 #include "config.h"
 #include "platform/common.h"
 #include "rtsp.h"
@@ -79,6 +80,7 @@ namespace proc {
     bool auto_detach;  ///< Whether the process should detach automatically.
     bool wait_all;  ///< Whether Sunshine waits for all child processes.
     std::chrono::seconds exit_timeout;  ///< Exit timeout.
+    capture_source::target_t capture;  ///< Optional window or application capture source. Display is the default.
   };
 
   /**

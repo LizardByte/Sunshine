@@ -26,6 +26,7 @@
 #include <openssl/sha.h>
 
 // local includes
+#include "capture_source.h"
 #include "config.h"
 #include "crypto.h"
 #include "display_device.h"
@@ -303,6 +304,15 @@ namespace proc {
 
     _app_launch_time = std::chrono::steady_clock::now();
 
+    auto capture_target = _app.capture;
+    if (_process) {
+      capture_target.launched_pid = static_cast<std::int32_t>(_process.id());
+    }
+    capture_source::activate(capture_target);
+    if (capture_target.mode != capture_source::mode_e::display) {
+      BOOST_LOG(info) << "Application ["sv << _app.name << "] will capture "sv << capture_source::mode_name(capture_target.mode);
+    }
+
     fg.disable();
 
     return 0;
@@ -392,6 +402,7 @@ namespace proc {
     }
 
     _app_id = -1;
+    capture_source::clear();
   }
 
   const std::vector<ctx_t> &proc_t::get_apps() const {
@@ -736,6 +747,26 @@ namespace proc {
         auto auto_detach = app_node.get_optional<bool>("auto-detach"s);
         auto wait_all = app_node.get_optional<bool>("wait-all"s);
         auto exit_timeout = app_node.get_optional<int>("exit-timeout"s);
+        auto capture_mode = app_node.get_optional<std::string>("capture"s);
+        if (!capture_mode) {
+          capture_mode = app_node.get_optional<std::string>("capture_mode"s);
+        }
+        auto window_id = app_node.get_optional<std::string>("window-id"s);
+        if (!window_id) {
+          window_id = app_node.get_optional<std::string>("window_id"s);
+        }
+        auto application_id = app_node.get_optional<std::string>("application-id"s);
+        if (!application_id) {
+          application_id = app_node.get_optional<std::string>("application_id"s);
+        }
+        auto window_title = app_node.get_optional<std::string>("window-title"s);
+        if (!window_title) {
+          window_title = app_node.get_optional<std::string>("window_title"s);
+        }
+        auto capture_cursor = app_node.get_optional<std::string>("capture-cursor"s);
+        if (!capture_cursor) {
+          capture_cursor = app_node.get_optional<std::string>("capture_cursor"s);
+        }
 
         std::vector<proc::cmd_t> prep_cmds;
         if (!exclude_global_prep.value_or(false)) {
@@ -805,6 +836,27 @@ namespace proc {
         ctx.auto_detach = auto_detach.value_or(true);
         ctx.wait_all = wait_all.value_or(true);
         ctx.exit_timeout = std::chrono::seconds {exit_timeout.value_or(5)};
+        const auto as_std = [](const auto &value) -> std::optional<std::string> {
+          if (!value) {
+            return std::nullopt;
+          }
+          return std::string {*value};
+        };
+        const auto capture_mode_text = as_std(capture_mode);
+        const auto window_id_text = as_std(window_id);
+        if (capture_mode_text && !capture_source::mode_recognized(capture_mode_text)) {
+          BOOST_LOG(warning) << "Application ["sv << name << "] has unrecognized capture mode ["sv << *capture_mode_text << "]. Using display capture."sv;
+        }
+        ctx.capture = capture_source::target_from_config({
+          capture_mode_text,
+          window_id_text,
+          as_std(application_id),
+          as_std(window_title),
+          as_std(capture_cursor),
+        });
+        if (window_id_text && !window_id_text->empty() && !ctx.capture.window_id) {
+          BOOST_LOG(warning) << "Application ["sv << name << "] has invalid window-id ["sv << *window_id_text << "]."sv;
+        }
 
         auto possible_ids = calculate_app_id(name, ctx.image_path, i++);
         if (ids.count(std::get<0>(possible_ids)) == 0) {

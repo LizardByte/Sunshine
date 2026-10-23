@@ -19,6 +19,7 @@
 #include <utility>
 
 // local includes
+#include "src/capture_source.h"
 #include "src/config.h"
 #include "src/logging.h"
 #include "virtualhid_input.h"
@@ -1152,18 +1153,22 @@ namespace platf {
 #endif
 
   void move_mouse(input_t &input, int deltaX, int deltaY) {
+    capture_source::focus_active_target();
     virtualhid::move_mouse(virtualhid::get_input_context(input), deltaX, deltaY);
   }
 
   void move_mouse(input_t &input, const touch_port_t &touch_port, int deltaX, int deltaY) {
+    capture_source::focus_active_target();
     virtualhid::move_mouse(virtualhid::get_input_context(input), touch_port, deltaX, deltaY);
   }
 
   void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
+    capture_source::focus_active_target();
     virtualhid::abs_mouse(virtualhid::get_input_context(input), touch_port, x, y);
   }
 
   void button_mouse(input_t &input, int button, bool release) {
+    capture_source::focus_active_target();
     virtualhid::button_mouse(virtualhid::get_input_context(input), button, release);
   }
 
@@ -1176,10 +1181,12 @@ namespace platf {
   }
 
   void keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags, bool extended) {
+    capture_source::focus_active_target();
     virtualhid::keyboard_update(virtualhid::get_input_context(input), modcode, release, flags, extended);
   }
 
   void unicode(input_t &input, const char *utf8, int size) {
+    capture_source::focus_active_target();
     virtualhid::unicode(virtualhid::get_input_context(input), utf8, size);
   }
 

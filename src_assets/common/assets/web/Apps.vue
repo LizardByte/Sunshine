@@ -72,6 +72,8 @@
                 <span v-if="app['prep-cmd'] && app['prep-cmd'].length" class="badge app-flag-badge">{{ $t('apps.badge_app_prep') }}</span>
                 <span v-if="app['exclude-global-prep-cmd']" class="badge app-flag-badge">{{ $t('apps.badge_no_global_prep') }}</span>
                 <span v-if="app['auto-detach']" class="badge app-flag-badge">{{ $t('apps.badge_auto_detach') }}</span>
+                <span v-if="app.capture === 'window'" class="badge app-flag-badge">{{ $t('apps.badge_capture_window') }}</span>
+                <span v-if="app.capture === 'application'" class="badge app-flag-badge">{{ $t('apps.badge_capture_application') }}</span>
               </div>
             </div>
           </div>
@@ -301,6 +303,63 @@
               <input type="number" class="form-control monospace" id="exitTimeout" aria-describedby="exitTimeoutHelp"
                      v-model="editForm['exit-timeout']" min="0" placeholder="5" />
               <div id="exitTimeoutHelp" class="form-text">{{ $t('apps.exit_timeout_desc') }}</div>
+            </div>
+            <div class="mb-3">
+              <label for="appCapture" class="form-label">{{ $t('apps.capture') }}</label>
+              <select id="appCapture" class="form-select" v-model="editForm.capture">
+                <option value="display">{{ $t('apps.capture_display') }}</option>
+                <option value="window">{{ $t('apps.capture_window') }}</option>
+                <option value="application">{{ $t('apps.capture_application') }}</option>
+              </select>
+              <div class="form-text">{{ $t('apps.capture_desc') }}</div>
+            </div>
+            <div class="mb-3" v-if="editForm.capture === 'window' || editForm.capture === 'application'">
+              <div class="mb-3">
+                <label for="appWindowId" class="form-label">{{ $t('apps.capture_window_id') }}</label>
+                <input id="appWindowId" type="number" min="1" class="form-control monospace" v-model="editForm['window-id']" />
+                <div class="form-text">{{ $t('apps.capture_window_id_desc') }}</div>
+              </div>
+              <div class="mb-3">
+                <label for="appApplicationId" class="form-label">{{ $t('apps.capture_application_id') }}</label>
+                <input id="appApplicationId" type="text" class="form-control monospace" v-model="editForm['application-id']" />
+                <div class="form-text">{{ $t('apps.capture_application_id_desc') }}</div>
+              </div>
+              <div class="mb-3">
+                <label for="appWindowTitle" class="form-label">{{ $t('apps.capture_window_title') }}</label>
+                <input id="appWindowTitle" type="text" class="form-control" v-model="editForm['window-title']" />
+                <div class="form-text">{{ $t('apps.capture_window_title_desc') }}</div>
+              </div>
+              <Checkbox class="mb-3"
+                        id="captureCursor"
+                        label="apps.capture_cursor"
+                        desc="apps.capture_cursor_desc"
+                        v-model="editForm['capture-cursor']"
+                        default="true"
+              ></Checkbox>
+              <button type="button" class="btn btn-secondary btn-sm" @click="loadCaptureSources">
+                {{ $t('apps.capture_refresh') }}
+              </button>
+              <div class="form-text" v-if="captureSourcesError">{{ captureSourcesError }}</div>
+              <div class="row mt-3" v-if="captureWindows.length || captureApplications.length">
+                <div class="col-md-6 mb-3" v-if="editForm.capture === 'window'">
+                  <label for="pickWindow" class="form-label">{{ $t('apps.capture_pick_window') }}</label>
+                  <select id="pickWindow" class="form-select" @change="applyCaptureWindow($event.target.value)">
+                    <option value="">{{ $t('apps.capture_pick_window') }}</option>
+                    <option v-for="window in captureWindows" :key="window.window_id" :value="window.window_id">
+                      {{ window.application_name || window.application_id || window.pid }} — {{ window.title || window.window_id }}
+                    </option>
+                  </select>
+                </div>
+                <div class="col-md-6 mb-3" v-if="editForm.capture === 'application'">
+                  <label for="pickApplication" class="form-label">{{ $t('apps.capture_pick_application') }}</label>
+                  <select id="pickApplication" class="form-select" @change="applyCaptureApplication($event.target.value)">
+                    <option value="">{{ $t('apps.capture_pick_application') }}</option>
+                    <option v-for="application in captureApplications" :key="application.pid + application.application_id" :value="application.application_id || ('pid:' + application.pid)">
+                      {{ application.application_name || application.application_id }} ({{ application.pid }})
+                    </option>
+                  </select>
+                </div>
+              </div>
             </div>
             <div class="mb-3">
               <label for="appImagePath" class="form-label">{{ $t('apps.image') }}</label>
@@ -702,6 +761,9 @@
         fileBrowserError: "",
         fileBrowserSelectedPath: "",
         fileBrowserTypedPath: "",
+        captureWindows: [],
+        captureApplications: [],
+        captureSourcesError: "",
         searchQuery: "",
         sortMode: "default",
         deleteTarget: null,
@@ -804,7 +866,9 @@
           "exit-timeout": 5,
           "prep-cmd": [],
           detached: [],
-          "image-path": ""
+          "image-path": "",
+          capture: "display",
+          "capture-cursor": true
         };
         this.editFormError = "";
         this.openEditModal();
@@ -829,6 +893,12 @@
         }
         if (this.editForm["exit-timeout"] === undefined) {
           this.editForm["exit-timeout"] = 5;
+        }
+        if (!this.editForm.capture) {
+          this.editForm.capture = "display";
+        }
+        if (this.editForm["capture-cursor"] === undefined) {
+          this.editForm["capture-cursor"] = true;
         }
         this.editFormError = "";
         this.openEditModal();
@@ -1022,9 +1092,66 @@
           this.editForm.detached[index] = path;
         });
       },
+      loadCaptureSources() {
+        this.captureSourcesError = "";
+        fetch("./api/capture-sources")
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error(this.$t('apps.capture_unsupported'));
+            }
+            return response.json();
+          })
+          .then((body) => {
+            this.captureWindows = body.windows || [];
+            this.captureApplications = body.applications || [];
+            if (!body.supported) {
+              this.captureSourcesError = this.$t('apps.capture_unsupported');
+            }
+          })
+          .catch(() => {
+            this.captureSourcesError = this.$t('apps.capture_unsupported');
+          });
+      },
+      applyCaptureWindow(windowId) {
+        const selected = this.captureWindows.find((window) => String(window.window_id) === String(windowId));
+        if (!selected) {
+          return;
+        }
+        this.editForm.capture = "window";
+        this.editForm["window-id"] = selected.window_id;
+        this.editForm["application-id"] = selected.application_id || "";
+        this.editForm["window-title"] = selected.title || "";
+      },
+      applyCaptureApplication(applicationId) {
+        const selected = this.captureApplications.find((application) => (application.application_id || ("pid:" + application.pid)) === applicationId);
+        if (!selected) {
+          return;
+        }
+        this.editForm.capture = "application";
+        this.editForm["application-id"] = selected.application_id || ("pid:" + selected.pid);
+        this.editForm["window-id"] = "";
+        this.editForm["window-title"] = "";
+      },
       save() {
         this.editFormError = "";
         this.editForm["image-path"] = this.editForm["image-path"].toString().replaceAll('"', '');
+        if (!this.editForm.capture || this.editForm.capture === "display") {
+          delete this.editForm.capture;
+          delete this.editForm["window-id"];
+          delete this.editForm["application-id"];
+          delete this.editForm["window-title"];
+          delete this.editForm["capture-cursor"];
+        } else {
+          if (!this.editForm["window-id"]) {
+            delete this.editForm["window-id"];
+          }
+          if (!this.editForm["application-id"]) {
+            delete this.editForm["application-id"];
+          }
+          if (!this.editForm["window-title"]) {
+            delete this.editForm["window-title"];
+          }
+        }
 
         const imagePath = this.editForm["image-path"];
         if (imagePath && !imagePath.toLowerCase().endsWith('.png')) {
