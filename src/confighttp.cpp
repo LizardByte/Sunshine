@@ -1199,6 +1199,17 @@ namespace confighttp {
         input_tree.erase("detached");
       }
 
+      std::string image_path;
+      if (input_tree.contains("image-path") && input_tree["image-path"].is_string()) {
+        image_path = input_tree["image-path"].get<std::string>();
+      }
+      boost::trim(image_path);
+      if (image_path.empty()) {
+        input_tree.erase("image-path");
+      } else {
+        input_tree["image-path"] = image_path;
+      }
+
       auto &apps_node = file_tree["apps"];
       int index = input_tree["index"].get<int>();  // this will intentionally cause an exception if the provided value is the wrong type
 
