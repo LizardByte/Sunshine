@@ -11,9 +11,6 @@
   // standard includes
   #include <type_traits>
 
-  // lib includes
-  #include <gtest/gtest.h>
-
   // local includes
   #include "src/platform/windows/nvprefs/undo_data.h"
   #include "src/platform/windows/nvprefs/undo_file.h"

@@ -3,14 +3,14 @@
  * @brief Regression coverage for synchronized-value lock lifetimes.
  */
 
+// test includes
+#include "../tests_common.h"
+
 // standard includes
 #include <array>
 #include <stdexcept>
 #include <system_error>
 #include <thread>
-
-// lib includes
-#include <gtest/gtest.h>
 
 // local includes
 #include <src/sync.h>

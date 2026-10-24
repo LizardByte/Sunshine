@@ -5,12 +5,14 @@
 
 #ifdef __linux__
 
+  // test includes
+  #include "../../../tests_common.h"
+
   // standard includes
   #include <chrono>
   #include <vector>
 
   // lib includes
-  #include <gtest/gtest.h>
   #include <pulse/pulseaudio.h>
 
   // local includes

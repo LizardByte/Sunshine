@@ -3,6 +3,9 @@
  * @brief Verify RTSP response handlers through their common dispatcher signature.
  */
 
+// test includes
+#include "../tests_common.h"
+
 // standard includes
 #include <array>
 #include <string>
@@ -13,9 +16,6 @@
 extern "C" {
 #include <moonlight-common-c/src/Rtsp.h>
 }
-
-// test includes
-#include "../tests_common.h"
 
 // local includes
 #include <src/rtsp.h>
