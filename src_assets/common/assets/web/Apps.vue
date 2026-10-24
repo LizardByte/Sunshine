@@ -1134,7 +1134,7 @@
       },
       save() {
         this.editFormError = "";
-        const currentImagePath = this.editForm["image-path"] == null ? "" : String(this.editForm["image-path"]);
+        const currentImagePath = this.editForm["image-path"] == null ? "" : String(this.editForm["image-path"]).trim();
         this.editForm["image-path"] = currentImagePath.replaceAll('"', '');
         if (!this.editForm.capture || this.editForm.capture === "display") {
           delete this.editForm.capture;
@@ -1155,7 +1155,9 @@
         }
 
         const imagePath = this.editForm["image-path"];
-        if (imagePath && !imagePath.toLowerCase().endsWith('.png')) {
+        if (!imagePath) {
+          delete this.editForm["image-path"];
+        } else if (!imagePath.toLowerCase().endsWith('.png')) {
           this.editFormError = this.$t('file_browser.error_invalid_extension', { extensions: '.png' });
           const modalBody = this.$refs.editModal.querySelector('.modal-body');
           if (modalBody) modalBody.scrollTop = 0;
