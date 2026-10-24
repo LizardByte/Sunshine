@@ -11,6 +11,8 @@
 
 #include <array>
 #include <bitset>
+#include <optional>
+#include <string>
 
 namespace stream {
   struct session_t;
@@ -93,6 +95,111 @@ namespace audio {
     bool restore_sink;  ///< Whether Sunshine should restore the original sink when capture ends.
     platf::sink_t sink;  ///< Original sink captured before Sunshine switched devices.
   };
+
+  /**
+   * @brief Startup/teardown sink behavior resolved for one capture session.
+   *
+   * Both fields always agree: a session either swaps the host default and
+   * restores it, or captures without touching it. Recording one decision at
+   * startup keeps teardown symmetric on every platform.
+   */
+  struct sink_routing_policy_t {
+    bool swap_at_startup;  ///< Whether startup may change the host default sink.
+    bool restore_at_teardown;  ///< Whether teardown must restore the previous sink.
+  };
+
+  /**
+   * @brief Resolve the sink routing policy from the user request and backend capability.
+   *
+   * Pure function: no I/O, no global state. Backends that never learned the
+   * keep-default behavior get the historical swap-and-restore path even when
+   * the option is enabled, so enabling it can never strand a foreign default.
+   *
+   * @param keep_default_requested Value of config::audio.keep_default_sink.
+   * @param platform_supports_keep_default Value of platf::audio_control_t::supports_keep_default_sink().
+   * @return Policy with matching startup and teardown behavior.
+   */
+  [[nodiscard]] constexpr sink_routing_policy_t resolve_sink_routing_policy(bool keep_default_requested, bool platform_supports_keep_default) noexcept {
+    if (keep_default_requested && platform_supports_keep_default) {
+      return {false, false};
+    }
+
+    return {true, true};
+  }
+
+  /**
+   * @brief Capture startup plan: which sink to select and whether to swap the host default.
+   */
+  struct capture_routing_t {
+    bool swap_at_startup;  ///< True selects set_sink(); false selects capture_sink().
+    bool restore_at_teardown;  ///< Whether teardown must restore the previous sink.
+    std::string target;  ///< Sink name to pass to set_sink() or capture_sink().
+  };
+
+  /**
+   * @brief Resolve the capture startup plan from session inputs.
+   *
+   * Pure function: no I/O, no global state. Encodes the historical sink
+   * selection (virtual sink when host playback is muted or nothing else is
+   * selected) together with the swap-vs-capture policy. The capture-only path
+   * targets the configured sink, or the saved host sink when nothing is
+   * configured: without a swap, applications stay on the host default, so
+   * capturing the virtual sink's monitor would yield silence.
+   *
+   * @param keep_default_requested Value of config::audio.keep_default_sink.
+   * @param platform_supports_keep_default Value of platf::audio_control_t::supports_keep_default_sink().
+   * @param host_audio_enabled Whether host playback stays enabled (Moonlight HOST_AUDIO flag).
+   * @param channel_count Stream channel count selecting the virtual sink layout.
+   * @param host_sink Saved host default sink name.
+   * @param config_sink Configured audio_sink value, possibly empty.
+   * @param null_sinks Virtual sink names reported by the backend, when any.
+   * @return Startup plan with matching swap, restore, and target behavior.
+   */
+  [[nodiscard]] inline capture_routing_t resolve_capture_routing(
+    bool keep_default_requested,
+    bool platform_supports_keep_default,
+    bool host_audio_enabled,
+    int channel_count,
+    const std::string &host_sink,
+    const std::string &config_sink,
+    const std::optional<platf::sink_t::null_t> &null_sinks
+  ) {
+    // Order of priority: virtual sink, audio sink, host.
+    std::string selected = host_sink;
+    if (!config_sink.empty()) {
+      selected = config_sink;
+    }
+
+    // Prefer the virtual sink if host playback is disabled or there's no other sink.
+    if (null_sinks && (!host_audio_enabled || selected.empty())) {
+      switch (channel_count) {
+        case 2:
+          selected = null_sinks->stereo;
+          break;
+        case 6:
+          selected = null_sinks->surround51;
+          break;
+        case 8:
+          selected = null_sinks->surround71;
+          break;
+        default:
+          break;
+      }
+    }
+
+    const auto policy = resolve_sink_routing_policy(keep_default_requested, platform_supports_keep_default);
+    capture_routing_t routing {};
+    routing.swap_at_startup = policy.swap_at_startup;
+    if (policy.swap_at_startup) {
+      routing.restore_at_teardown = policy.restore_at_teardown && host_sink != selected;
+      routing.target = selected;
+    } else {
+      routing.restore_at_teardown = false;
+      routing.target = config_sink.empty() ? host_sink : config_sink;
+    }
+
+    return routing;
+  }
 
   /**
    * @brief Byte buffer used for encoded audio packet payloads.

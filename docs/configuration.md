@@ -972,6 +972,35 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     </tr>
 </table>
 
+### keep_default_sink
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Capture the selected audio sink without changing the host default sink. When disabled, Sunshine sets the
+            selected sink as the host default sink while streaming.
+            @note{Platform support: Linux captures the configured sink (or the host sink when nothing is
+            configured) and adopts pre-existing null sinks instead of unloading them. Windows captures the
+            target endpoint directly, skips the Steam driver install and the startup default-device reset,
+            and never reinstalls the default when it changes. macOS already captures through a system tap
+            or the selected input without touching the default output, so the option is honored natively.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            keep_default_sink = enabled
+            @endcode</td>
+    </tr>
+</table>
+
 ### adapter_name
 
 <table>
