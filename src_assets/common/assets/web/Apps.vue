@@ -1024,10 +1024,13 @@
       },
       save() {
         this.editFormError = "";
-        this.editForm["image-path"] = this.editForm["image-path"].toString().replaceAll('"', '');
+        const currentImagePath = this.editForm["image-path"] == null ? "" : String(this.editForm["image-path"]).trim();
+        this.editForm["image-path"] = currentImagePath.replaceAll('"', '');
 
         const imagePath = this.editForm["image-path"];
-        if (imagePath && !imagePath.toLowerCase().endsWith('.png')) {
+        if (!imagePath) {
+          delete this.editForm["image-path"];
+        } else if (!imagePath.toLowerCase().endsWith('.png')) {
           this.editFormError = this.$t('file_browser.error_invalid_extension', { extensions: '.png' });
           const modalBody = this.$refs.editModal.querySelector('.modal-body');
           if (modalBody) modalBody.scrollTop = 0;
