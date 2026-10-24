@@ -416,6 +416,16 @@ namespace wl {
 
       auto current_frame = dmabuf.current_frame;
 
+      // The compositor has queued its copy; wait here, in the capture thread, for it to land.
+      // The encoder then only ever sees finished frames, and the copy of this frame overlaps
+      // with the encode of the previous one.
+      if (dmabuf.status == dmabuf_t::READY) {
+        auto remaining_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(to - std::chrono::steady_clock::now());
+        if (!current_frame->wait_acquire(remaining_time_ms)) {
+          return platf::capture_e::timeout;
+        }
+      }
+
       auto frame_time = damage_frame_time(current_frame->frame_timestamp, std::chrono::steady_clock::now(), delay);
       next_request = next_damage_request(next_request, frame_time, delay);
       have_frame = true;

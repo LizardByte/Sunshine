@@ -2,11 +2,17 @@
  * @file src/platform/linux/wayland.cpp
  * @brief Definitions for Wayland capture.
  */
+// standard includes
+#include <algorithm>
+#include <cerrno>
+
 // platform includes
 #include <drm_fourcc.h>
 #include <fcntl.h>
 #include <gbm.h>
+#include <linux/dma-buf.h>
 #include <poll.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
 #include <wayland-client.h>
 #include <wayland-util.h>
@@ -315,17 +321,33 @@ namespace wl {
     return gbm.init(platf::resolve_render_device(), gbm_device_accessors);
   }
 
-  // Cleanup GBM
+  // Release every pooled target
   void dmabuf_t::cleanup_gbm() {
-    if (current_bo) {
-      gbm_bo_destroy(current_bo);
-      current_bo = nullptr;
+    for (auto &slot : pool) {
+      destroy_slot(slot);
     }
+    active_slot = nullptr;
+  }
 
-    if (current_wl_buffer) {
-      wl_buffer_destroy(current_wl_buffer);
-      current_wl_buffer = nullptr;
+  void dmabuf_t::destroy_slot(capture_buffer_t &slot) {
+    slot.frame.destroy();
+    if (slot.buffer) {
+      wl_buffer_destroy(slot.buffer);
+      slot.buffer = nullptr;
     }
+    if (slot.bo) {
+      gbm_bo_destroy(slot.bo);
+      slot.bo = nullptr;
+    }
+  }
+
+  void dmabuf_t::start_copy(zwlr_screencopy_frame_v1 *frame, struct wl_buffer *buffer) {
+    if (with_damage) {
+      zwlr_screencopy_frame_v1_copy_with_damage(frame, buffer);
+    } else {
+      zwlr_screencopy_frame_v1_copy(frame, buffer);
+    }
+    pending_copy = frame;
   }
 
   std::map<std::uint32_t, std::vector<std::uint64_t>> intersect_modifiers(
@@ -497,6 +519,23 @@ namespace wl {
       return;
     }
 
+    // Cycle through the pooled targets; a target that still matches the advertised
+    // buffer is handed straight back to the compositor.
+    auto &slot = pool[pool_index];
+    pool_index = (pool_index + 1) % pool_size;
+    active_slot = &slot;
+
+    const bool reusable = slot.bo && slot.buffer &&
+                          slot.frame.sd.width == static_cast<int>(dmabuf_info.width) &&
+                          slot.frame.sd.height == static_cast<int>(dmabuf_info.height) &&
+                          slot.frame.sd.fourcc == dmabuf_info.format;
+    if (reusable) {
+      start_copy(frame, slot.buffer);
+      return;
+    }
+
+    destroy_slot(slot);
+
     // Create GBM buffer - prefer encoder-intersected modifiers when available
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *modifiers_to_use = encoder_modifiers ? encoder_modifiers : supported_modifiers;
     if (const auto *advertised = find_advertised_modifiers(modifiers_to_use, dmabuf_info.format); advertised) {
@@ -506,34 +545,37 @@ namespace wl {
         // linear buffer the encoder is guaranteed to import instead. Note: no
         // GBM_BO_USE_LINEAR here, Mesa rejects that flag with modifiers2.
         constexpr std::uint64_t linear_modifier = DRM_FORMAT_MOD_LINEAR;
-        current_bo = gbm_bo_create_with_modifiers2(gbm.get(), dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, &linear_modifier, 1, GBM_BO_USE_RENDERING);
-        if (!current_bo) {
+        slot.bo = gbm_bo_create_with_modifiers2(gbm.get(), dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, &linear_modifier, 1, GBM_BO_USE_RENDERING);
+        if (!slot.bo) {
           BOOST_LOG(debug) << "Linear screencopy buffer unavailable, falling back to compositor modifiers"sv;
         }
       }
-      if (!current_bo) {
-        current_bo = gbm_bo_create_with_modifiers2(gbm.get(), dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, advertised->data(), advertised->size(), GBM_BO_USE_RENDERING);
+      if (!slot.bo) {
+        slot.bo = gbm_bo_create_with_modifiers2(gbm.get(), dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, advertised->data(), advertised->size(), GBM_BO_USE_RENDERING);
       }
     }
 
-    if (!current_bo) {
-      current_bo = gbm_bo_create(gbm.get(), dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, GBM_BO_USE_RENDERING);
+    if (!slot.bo) {
+      slot.bo = gbm_bo_create(gbm.get(), dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, GBM_BO_USE_RENDERING);
     }
 
-    if (!current_bo) {
+    if (!slot.bo) {
       BOOST_LOG(error) << "Failed to create GBM buffer"sv;
       zwlr_screencopy_frame_v1_destroy(frame);
+      active_slot = nullptr;
       status = REINIT;
       return;
     }
 
-    // Export every memory plane into the surface descriptor
-    auto next_frame = get_next_frame();
-    const auto plane_count = export_gbm_bo_planes(current_bo, *next_frame, gbm_bo_accessors);
+    // Export every memory plane into the target's surface descriptor
+    slot.frame.sd.fourcc = dmabuf_info.format;
+    slot.frame.sd.width = dmabuf_info.width;
+    slot.frame.sd.height = dmabuf_info.height;
+    const auto plane_count = export_gbm_bo_planes(slot.bo, slot.frame, gbm_bo_accessors);
     if (!plane_count.has_value()) {
-      gbm_bo_destroy(current_bo);
-      current_bo = nullptr;
+      destroy_slot(slot);
       zwlr_screencopy_frame_v1_destroy(frame);
+      active_slot = nullptr;
       status = REINIT;
       return;
     }
@@ -543,12 +585,12 @@ namespace wl {
     for (std::uint32_t plane = 0; plane < *plane_count; ++plane) {
       zwp_linux_buffer_params_v1_add(
         params,
-        next_frame->sd.fds[plane],
+        slot.frame.sd.fds[plane],
         plane,
-        next_frame->sd.offsets[plane],
-        next_frame->sd.pitches[plane],
-        next_frame->sd.modifier >> 32,
-        next_frame->sd.modifier & 0xffffffff
+        slot.frame.sd.offsets[plane],
+        slot.frame.sd.pitches[plane],
+        slot.frame.sd.modifier >> 32,
+        slot.frame.sd.modifier & 0xffffffff
       );
     }
 
@@ -559,18 +601,10 @@ namespace wl {
     zwp_linux_buffer_params_v1_create(params, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, 0);
   }
 
-  // Buffer done callback - time to create buffer
+  // Buffer done callback - time to pick a target
   void dmabuf_t::buffer_done(zwlr_screencopy_frame_v1 *frame) {
-    auto next_frame = get_next_frame();
-
     // Prefer DMA-BUF if supported
     if (dmabuf_info.supported && dmabuf_interface) {
-      // Store format info first
-      next_frame->sd.fourcc = dmabuf_info.format;
-      next_frame->sd.width = dmabuf_info.width;
-      next_frame->sd.height = dmabuf_info.height;
-
-      // Create and start copy
       create_and_copy_dmabuf(frame);
     } else if (shm_info.supported) {
       // SHM fallback would go here
@@ -593,17 +627,18 @@ namespace wl {
     auto frame = static_cast<zwlr_screencopy_frame_v1 *>(data);
     auto self = static_cast<dmabuf_t *>(zwlr_screencopy_frame_v1_get_user_data(frame));
 
-    // Store for cleanup
-    self->current_wl_buffer = buffer;
-
-    // Start the actual copy
     zwp_linux_buffer_params_v1_destroy(params);
-    if (self->with_damage) {
-      zwlr_screencopy_frame_v1_copy_with_damage(frame, buffer);
-    } else {
-      zwlr_screencopy_frame_v1_copy(frame, buffer);
+
+    if (!self->active_slot) {
+      // The request was withdrawn while the buffer was being created
+      wl_buffer_destroy(buffer);
+      zwlr_screencopy_frame_v1_destroy(frame);
+      return;
     }
-    self->pending_copy = frame;
+
+    // The target keeps this buffer for later frames
+    self->active_slot->buffer = buffer;
+    self->start_copy(frame, buffer);
   }
 
   // Buffer params failed callback
@@ -615,8 +650,10 @@ namespace wl {
     auto self = static_cast<dmabuf_t *>(zwlr_screencopy_frame_v1_get_user_data(frame));
 
     BOOST_LOG(error) << "[wayland] Failed to create buffer from params"sv;
-    self->cleanup_gbm();
-    self->get_next_frame()->destroy();
+    if (self->active_slot) {
+      self->destroy_slot(*self->active_slot);
+      self->active_slot = nullptr;
+    }
 
     zwp_linux_buffer_params_v1_destroy(params);
     zwlr_screencopy_frame_v1_destroy(frame);
@@ -630,9 +667,37 @@ namespace wl {
     std::uint32_t tv_sec_lo,
     std::uint32_t tv_nsec
   ) {
-    // Frame is ready for use, GBM buffer now contains screen content
+    auto slot = active_slot;
+    active_slot = nullptr;
+    pending_copy = nullptr;
+    zwlr_screencopy_frame_v1_destroy(frame);
+
+    if (!slot || !slot->bo) {
+      BOOST_LOG(error) << "[wayland] Frame ready without a target buffer"sv;
+      status = REINIT;
+      return;
+    }
+
+    // Hand the consumer its own descriptors for the target: the pool keeps the originals
+    // so that the compositor can be given the same wl_buffer again.
     current_frame->destroy();
     current_frame = get_next_frame();
+    current_frame->sd = slot->frame.sd;
+    for (auto &fd : current_frame->sd.fds) {
+      if (fd >= 0) {
+        fd = fcntl(fd, F_DUPFD_CLOEXEC, 0);
+        if (fd < 0) {
+          BOOST_LOG(error) << "[wayland] Failed to duplicate DMA-BUF descriptor"sv;
+          current_frame->destroy();
+          status = REINIT;
+          return;
+        }
+      }
+    }
+
+    // The compositor has only queued its copy. Export the target's write fences so that
+    // the capture loop can wait for the copy to actually land before using the frame.
+    current_frame->acquire_fence = export_acquire_fence(slot->frame.sd.fds[0]);
 
     std::uint64_t sec = (std::uint64_t(tv_sec_hi) << 32) | tv_sec_lo;
     auto ready_ts = std::chrono::seconds(sec) + std::chrono::nanoseconds(tv_nsec);
@@ -640,16 +705,6 @@ namespace wl {
       std::chrono::duration_cast<std::chrono::steady_clock::duration>(ready_ts)
     };
 
-    // Keep the GBM buffer alive but destroy the Wayland objects
-    if (current_wl_buffer) {
-      wl_buffer_destroy(current_wl_buffer);
-      current_wl_buffer = nullptr;
-    }
-
-    cleanup_gbm();
-
-    zwlr_screencopy_frame_v1_destroy(frame);
-    pending_copy = nullptr;
     status = READY;
   }
 
@@ -657,13 +712,10 @@ namespace wl {
   void dmabuf_t::failed(zwlr_screencopy_frame_v1 *frame) {
     BOOST_LOG(error) << "[wayland] Frame capture failed"sv;
 
-    // Clean up resources
-    cleanup_gbm();
-    auto next_frame = get_next_frame();
-    next_frame->destroy();
-
+    // The target stays in the pool for the next request
     zwlr_screencopy_frame_v1_destroy(frame);
     pending_copy = nullptr;
+    active_slot = nullptr;
     status = REINIT;
   }
 
@@ -674,10 +726,7 @@ namespace wl {
 
     zwlr_screencopy_frame_v1_destroy(pending_copy);
     pending_copy = nullptr;
-
-    // Same as a failed copy: the buffer the compositor was to fill is not needed anymore
-    cleanup_gbm();
-    get_next_frame()->destroy();
+    active_slot = nullptr;
 
     status = READY;
     return true;
@@ -702,6 +751,45 @@ namespace wl {
         sd.fds[x] = -1;
       }
     }
+    if (acquire_fence >= 0) {
+      close(acquire_fence);
+      acquire_fence = -1;
+    }
+  }
+
+  bool frame_t::wait_acquire(std::chrono::milliseconds timeout) {
+    if (acquire_fence < 0) {
+      return true;
+    }
+
+    pollfd pfd {};
+    pfd.fd = acquire_fence;
+    pfd.events = POLLIN;
+    const auto result = poll(&pfd, 1, std::max<int>(timeout.count(), 0));
+
+    close(acquire_fence);
+    acquire_fence = -1;
+    return result == 1;
+  }
+
+  int export_acquire_fence(int dmabuf_fd) {
+    if (dmabuf_fd < 0) {
+      return -1;
+    }
+
+    dma_buf_export_sync_file args {};
+    args.flags = DMA_BUF_SYNC_READ;
+    args.fd = -1;
+    if (ioctl(dmabuf_fd, DMA_BUF_IOCTL_EXPORT_SYNC_FILE, &args) < 0) {
+      static bool warned = false;
+      if (!warned) {
+        warned = true;
+        BOOST_LOG(warning) << "[wayland] DMA_BUF_IOCTL_EXPORT_SYNC_FILE failed ["sv << errno << "], relying on implicit synchronization"sv;
+      }
+      return -1;
+    }
+
+    return args.fd;
   }
 
   frame_t::frame_t() {

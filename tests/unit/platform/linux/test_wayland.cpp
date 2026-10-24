@@ -1112,3 +1112,37 @@ TEST(CudaPciReaderTest, ReturnsNoBusIdWhenBusIdQueryFails) {
   #endif
 
 #endif
+
+TEST(WaylandCaptureTest, AcquireWaitPassesWithoutAFence) {
+  wl::frame_t frame;
+  EXPECT_TRUE(frame.wait_acquire(0ms));
+}
+
+TEST(WaylandCaptureTest, AcquireWaitTimesOutWhileTheCopyIsInFlight) {
+  // A pipe with nothing written stands in for a sync_file whose fence has not signaled
+  int fds[2];
+  ASSERT_EQ(pipe(fds), 0);
+
+  wl::frame_t frame;
+  frame.acquire_fence = fds[0];
+  EXPECT_FALSE(frame.wait_acquire(5ms));
+  // The fence is consumed either way; a frame that timed out is not used again
+  EXPECT_EQ(frame.acquire_fence, -1);
+  close(fds[1]);
+}
+
+TEST(WaylandCaptureTest, AcquireWaitPassesOnceTheCopyLanded) {
+  int fds[2];
+  ASSERT_EQ(pipe(fds), 0);
+  ASSERT_EQ(write(fds[1], "x", 1), 1);
+
+  wl::frame_t frame;
+  frame.acquire_fence = fds[0];
+  EXPECT_TRUE(frame.wait_acquire(5ms));
+  EXPECT_EQ(frame.acquire_fence, -1);
+  close(fds[1]);
+}
+
+TEST(WaylandCaptureTest, ExportsNoFenceFromAnInvalidDescriptor) {
+  EXPECT_EQ(wl::export_acquire_fence(-1), -1);
+}

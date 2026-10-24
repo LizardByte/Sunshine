@@ -393,9 +393,30 @@ namespace wl {
      */
     void destroy();
 
+    /**
+     * @brief Block until the compositor's copy into this frame has landed.
+     *
+     * The screencopy `ready` event only means the copy was queued on the GPU. Drivers that do not
+     * honour implicit synchronization on import (NVIDIA) would otherwise read the buffer before the
+     * copy is done, which shows up as black frames with the wlroots Vulkan renderer.
+     *
+     * @param timeout Longest time to wait.
+     * @return `false` when the copy was still in flight after `timeout`.
+     */
+    bool wait_acquire(std::chrono::milliseconds timeout);
+
     egl::surface_descriptor_t sd;  ///< DMA-BUF surface descriptor received from the compositor.
+    int acquire_fence {-1};  ///< sync_file with the buffer's write fences, exported when the compositor reported the copy, or -1.
     std::optional<std::chrono::steady_clock::time_point> frame_timestamp;  ///< Capture timestamp associated with the frame.
   };
+
+  /**
+   * @brief Export the write fences of a DMA-BUF as a sync_file.
+   *
+   * @param dmabuf_fd DMA-BUF file descriptor of the first plane.
+   * @return sync_file descriptor owned by the caller, or -1 when the kernel cannot export one.
+   */
+  int export_acquire_fence(int dmabuf_fd);
 
   /**
    * @brief Export every GBM buffer plane into a captured frame descriptor.
@@ -565,8 +586,34 @@ namespace wl {
     } dmabuf_info;
 
     gbm_device_t gbm;  ///< GBM device and render-node descriptor used to allocate capture buffers.
-    struct gbm_bo *current_bo {nullptr};
-    struct wl_buffer *current_wl_buffer {nullptr};
+
+    /**
+     * @brief Reusable screencopy target: a GBM buffer, its Wayland buffer and the exported planes.
+     *
+     * The compositor caches renderer state per wl_buffer. Recreating the buffer for every frame
+     * made wlroots throw that state away each time, and its Vulkan renderer drains the whole GPU
+     * queue (vkQueueWaitIdle) when it does, which stalled the compositor behind the game's work.
+     * Targets are therefore allocated once and cycled round-robin.
+     */
+    struct capture_buffer_t {
+      struct gbm_bo *bo {nullptr};
+      struct wl_buffer *buffer {nullptr};
+      frame_t frame;  ///< Exported planes, kept open for the lifetime of the buffer.
+    };
+
+    static constexpr std::size_t pool_size = 3;  ///< Targets in flight: compositor copy, encoder read, spare.
+    std::array<capture_buffer_t, pool_size> pool {};  ///< Reusable screencopy targets.
+    std::size_t pool_index {0};  ///< Next target to hand to the compositor.
+    capture_buffer_t *active_slot {nullptr};  ///< Target used by the request in flight.
+
+    /**
+     * @brief Release one pooled target: planes, Wayland buffer and GBM buffer.
+     */
+    void destroy_slot(capture_buffer_t &slot);
+    /**
+     * @brief Ask the compositor to copy the output into a pooled target.
+     */
+    void start_copy(zwlr_screencopy_frame_v1 *frame, struct wl_buffer *buffer);
     zwlr_screencopy_frame_v1 *pending_copy {nullptr};  ///< Request whose copy is asked for and not yet answered.
     bool y_invert {false};
   };
