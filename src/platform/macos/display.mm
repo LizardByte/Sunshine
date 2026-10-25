@@ -313,7 +313,16 @@ namespace platf {
       } else if (pix_fmt == pix_fmt_e::nv12 || pix_fmt == pix_fmt_e::p010) {
         auto device = std::make_unique<nv12_zero_device>();
 
-        device->init(av_capture, pix_fmt, setResolution, setPixelFormat);
+        auto *capture = av_capture;
+        device->init(
+          pix_fmt,
+          [capture](int width, int height) {
+            [capture setFrameWidth:width frameHeight:height];
+          },
+          [capture](int pixel_format) {
+            capture.pixelFormat = pixel_format;
+          }
+        );
 
         return device;
       } else {
@@ -367,30 +376,6 @@ namespace platf {
 
       return 0;
     }
-
-    /**
-     * A bridge from the pure C++ code of the hwdevice_t class to the pure Objective C code.
-     *
-     * display --> an opaque pointer to an object of this class
-     * width --> the intended capture width
-     * height --> the intended capture height
-     * @param display Display object or identifier associated with the operation.
-     * @param width Frame or display width in pixels.
-     * @param height Frame or display height in pixels.
-     */
-    static void setResolution(AVVideo *display, int width, int height) {
-      [display setFrameWidth:width frameHeight:height];
-    }
-
-    /**
-     * @brief Set pixel format.
-     *
-     * @param display Display object or identifier associated with the operation.
-     * @param pixelFormat Pixel format.
-     */
-    static void setPixelFormat(AVVideo *display, OSType pixelFormat) {
-      display.pixelFormat = pixelFormat;
-    }
   };
 
   /**
@@ -410,7 +395,7 @@ namespace platf {
       auto signal = [sc_capture captureVideo];
       if (!signal) {
         BOOST_LOG(error) << "SCCapture failed to start video capture"sv;
-        return capture_e::error;
+        return capture_e::capture_error;
       }
       dispatch_retain(signal);
 
@@ -419,7 +404,7 @@ namespace platf {
         BOOST_LOG(error) << "SCCapture failed to create frame signal"sv;
         dispatch_release(signal);
         [sc_capture stopCapture];
-        return capture_e::error;
+        return capture_e::capture_error;
       }
       dispatch_retain(frame_signal);
 
@@ -495,7 +480,16 @@ namespace platf {
       } else if (pix_fmt == pix_fmt_e::nv12 || pix_fmt == pix_fmt_e::p010) {
         auto device = std::make_unique<nv12_zero_device>();
 
-        device->init(static_cast<void *>(sc_capture), pix_fmt, setResolution, setPixelFormat);
+        auto *capture = sc_capture;
+        device->init(
+          pix_fmt,
+          [capture](int width, int height) {
+            [capture setFrameWidth:width frameHeight:height];
+          },
+          [capture](int pixel_format) {
+            capture.pixelFormat = pixel_format;
+          }
+        );
 
         return device;
       } else {
@@ -519,27 +513,6 @@ namespace platf {
       // ScreenCaptureKit only delivers frames on screen updates, so synthesize a blank frame
       // instead of waiting for one.
       return make_dummy_img(img, sc_capture.frameWidth, sc_capture.frameHeight, sc_capture.pixelFormat, "SCCapture"sv);
-    }
-
-    /**
-     * @brief Set the capture output resolution.
-     *
-     * @param display Display object or identifier associated with the operation.
-     * @param width Frame or display width in pixels.
-     * @param height Frame or display height in pixels.
-     */
-    static void setResolution(void *display, int width, int height) {
-      [static_cast<SCCapture *>(display) setFrameWidth:width frameHeight:height];
-    }
-
-    /**
-     * @brief Set pixel format.
-     *
-     * @param display Display object or identifier associated with the operation.
-     * @param pixelFormat Pixel format.
-     */
-    static void setPixelFormat(void *display, OSType pixelFormat) {
-      static_cast<SCCapture *>(display).pixelFormat = pixelFormat;
     }
   };
 
