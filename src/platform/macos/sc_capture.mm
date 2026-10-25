@@ -244,6 +244,7 @@ API_AVAILABLE(macos(14.0))
     [self releaseCaptureSignals];
 
     self.stopping = NO;
+    self.streamFailed = NO;
     self.captureSignal = dispatch_semaphore_create(0);
     self.frameSignal = dispatch_semaphore_create(0);
 
@@ -333,10 +334,19 @@ API_AVAILABLE(macos(14.0))
 }
 
 - (void)stream:(SCStream *)stream didStopWithError:(NSError *)stop_error {
-  BOOST_LOG(error) << "SCCapture stream stopped: "sv << error_description(stop_error);
   @synchronized(self) {
-    if (!self.stopping && self.captureSignal) {
-      // Wake the capture loop so the pipeline tears down and reinitializes.
+    if (self.stopping) {
+      return;
+    }
+
+    BOOST_LOG(error) << "SCCapture stream stopped: "sv << error_description(stop_error);
+    self.streamFailed = YES;
+
+    // Wake the capture loop so the pipeline tears down and reinitializes.
+    if (self.frameSignal) {
+      dispatch_semaphore_signal(self.frameSignal);
+    }
+    if (self.captureSignal) {
       dispatch_semaphore_signal(self.captureSignal);
     }
   }

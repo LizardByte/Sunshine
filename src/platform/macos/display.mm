@@ -24,6 +24,7 @@
 #include "src/platform/macos/misc.h"
 #include "src/platform/macos/nv12_zero_device.h"
 #import "src/platform/macos/sc_capture.h"
+#include "src/platform/macos/sc_capture_loop.h"
 #include "src/utility.h"
 
 // Avoid conflict between AVFoundation and libavutil both defining AVMediaType
@@ -106,8 +107,8 @@ namespace platf {
     }
 
     // Upper bound on how long the ScreenCaptureKit capture loop waits for a frame
-    // before checking for interrupt requests again.
-    constexpr auto SCKIT_FRAME_POLL_INTERVAL_NS = NSEC_PER_SEC / 60;
+    // before reporting a timeout and checking for interrupt requests again.
+    constexpr auto SCKIT_FRAME_POLL_INTERVAL = std::chrono::nanoseconds {std::chrono::seconds {1}} / 60;
 
     /**
      * @brief Wrap a captured sample buffer into a Sunshine image.
@@ -229,6 +230,72 @@ namespace platf {
 
       return ret;
     }
+
+    /**
+     * @brief Frame source adapter exposing an SCCapture controller to the capture loop.
+     */
+    class sc_frame_source_t: public sckit::frame_source_t {
+    public:
+      /**
+       * @brief Wrap a capture controller.
+       *
+       * @param capture Controller owned by the display; it must outlive the adapter.
+       */
+      explicit sc_frame_source_t(SCCapture *capture):
+          capture(capture) {
+      }
+
+      ~sc_frame_source_t() override {
+        release_frame_signal();
+      }
+
+      bool start() override {
+        if (![capture captureVideo]) {
+          BOOST_LOG(error) << "SCCapture failed to start the capture stream"sv;
+          return false;
+        }
+
+        frame_signal = capture.frameSignal;
+        if (!frame_signal) {
+          BOOST_LOG(error) << "SCCapture failed to create frame signal"sv;
+          [capture stopCapture];
+          return false;
+        }
+        dispatch_retain(frame_signal);
+        return true;
+      }
+
+      void wait_frame(std::chrono::nanoseconds timeout) override {
+        dispatch_semaphore_wait(frame_signal, dispatch_time(DISPATCH_TIME_NOW, timeout.count()));
+      }
+
+      [[nodiscard]] bool stopped() const override {
+        return capture.streamFailed;
+      }
+
+      CMSampleBufferRef copy_latest_sample_buffer() override {
+        return [capture copyLatestSampleBuffer];
+      }
+
+      void stop() override {
+        [capture stopCapture];
+        release_frame_signal();
+      }
+
+    private:
+      /**
+       * @brief Drop the retained frame semaphore, if any.
+       */
+      void release_frame_signal() {
+        if (frame_signal) {
+          dispatch_release(frame_signal);
+          frame_signal = nullptr;
+        }
+      }
+
+      SCCapture *capture;  ///< Borrowed capture controller.
+      dispatch_semaphore_t frame_signal {};  ///< Frame-arrival semaphore, retained while the stream runs.
+    };
   }  // namespace
 
   /**
@@ -392,69 +459,18 @@ namespace platf {
     }
 
     capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
-      auto signal = [sc_capture captureVideo];
-      if (!signal) {
-        BOOST_LOG(error) << "SCCapture failed to start video capture"sv;
-        return capture_e::capture_error;
-      }
-      dispatch_retain(signal);
+      sc_frame_source_t source {sc_capture};
+      auto &policy = sckit::backend_policy();
 
-      auto frame_signal = sc_capture.frameSignal;
-      if (!frame_signal) {
-        BOOST_LOG(error) << "SCCapture failed to create frame signal"sv;
-        dispatch_release(signal);
-        [sc_capture stopCapture];
-        return capture_e::capture_error;
-      }
-      dispatch_retain(frame_signal);
-
-      auto release_signals = util::fail_guard([signal, frame_signal]() {
-        dispatch_release(frame_signal);
-        dispatch_release(signal);
-      });
-
-      while (true) {
-        // The stream pushes frames on its own; wait for the next one, waking periodically
-        // to check for interrupt requests.
-        dispatch_semaphore_wait(frame_signal, dispatch_time(DISPATCH_TIME_NOW, SCKIT_FRAME_POLL_INTERVAL_NS));
-        if (dispatch_semaphore_wait(signal, DISPATCH_TIME_NOW) == 0) {
-          break;
-        }
-
-        CMSampleBufferRef sample_buffer = [sc_capture copyLatestSampleBuffer];
-
-        if (!sample_buffer) {
-          // No new frame within the poll interval: report a timeout like the other backends
-          // so the pipeline can repeat the previous frame.
-          std::shared_ptr<img_t> img_out;
-          if (!pull_free_image_cb(img_out) || !push_captured_image_cb(std::move(img_out), false)) {
-            [sc_capture stopCapture];
-            break;
-          }
-          continue;
-        }
-
-        auto release_sample_buffer = util::fail_guard([sample_buffer]() {
-          CFRelease(sample_buffer);
-        });
-
-        std::shared_ptr<img_t> img_out;
-        if (!pull_free_image_cb(img_out)) {
-          [sc_capture stopCapture];
-          break;
-        }
-
-        if (!process_frame(sample_buffer, img_out.get())) {
-          continue;
-        }
-
-        if (!push_captured_image_cb(std::move(img_out), true)) {
-          [sc_capture stopCapture];
-          break;
+      const auto status = sckit::run_capture_loop(source, policy, push_captured_image_cb, pull_free_image_cb, process_frame, SCKIT_FRAME_POLL_INTERVAL);
+      if (status == capture_e::reinit) {
+        if (policy.stream_start_failed()) {
+          BOOST_LOG(warning) << "SCCapture stream could not be started; reinitializing capture on AVFoundation"sv;
+        } else {
+          BOOST_LOG(warning) << "SCCapture stream stopped unexpectedly; reinitializing capture"sv;
         }
       }
-
-      return capture_e::ok;
+      return status;
     }
 
     /**
@@ -561,7 +577,10 @@ namespace platf {
     // Prefer ScreenCaptureKit: it composites the cursor into frames server-side, which avoids
     // an AVCaptureScreenInput bug where a hidden cursor never reappears in the captured frames.
     if (@available(macOS 14.0, *)) {
-      if ([SCCapture isAvailable]) {
+      auto &policy = sckit::backend_policy();
+      if (policy.stream_start_failed()) {
+        BOOST_LOG(info) << "ScreenCaptureKit disabled after a stream start failure; using AVFoundation"sv;
+      } else if (policy.prefer_sckit([SCCapture isAvailable])) {
         auto display = std::make_shared<sc_display_t>();
         display->display_id = display_id;
         display->display_power_guard = std::move(display_power_guard);

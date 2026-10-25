@@ -81,6 +81,10 @@ API_AVAILABLE(macos(14.0))
  */
 @property (nonatomic, assign) BOOL stopping;
 /**
+ * @brief Whether the stream stopped on its own since capture started.
+ */
+@property (nonatomic, assign) BOOL streamFailed;
+/**
  * @brief Latest captured sample buffer, replaced as newer frames arrive.
  */
 @property (nonatomic, assign) CMSampleBufferRef latestSampleBuffer;
