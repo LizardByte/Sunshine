@@ -289,8 +289,10 @@ if(UNIX AND NOT APPLE)
     # /usr/include is a compiler default: putting it before the bundled include
     # directory cannot override bundled VA headers. Expose a header tree without
     # va/ so Sunshine's compatibility shims follow the host libva version.
-    set(FFMPEG_INCLUDE_DIRS "${CMAKE_BINARY_DIR}/_deps/ffmpeg-system-includes")
-    file(COPY "${FFMPEG_PREPARED_BINARIES}/include/" DESTINATION "${FFMPEG_INCLUDE_DIRS}" PATTERN "va" EXCLUDE)
+    if(IS_DIRECTORY "${FFMPEG_INCLUDE_DIRS}/include/va")
+        set(FFMPEG_INCLUDE_DIRS "${CMAKE_BINARY_DIR}/_deps/ffmpeg-system-includes")
+        file(COPY "${FFMPEG_PREPARED_BINARIES}/include/" DESTINATION "${FFMPEG_INCLUDE_DIRS}" PATTERN "va" EXCLUDE)
+    endif()
     set(_sunshine_bundled_include "${FFMPEG_PREPARED_BINARIES}/include")
     if(NV_CODEC_HEADERS_13_1_INCLUDE_DIR STREQUAL _sunshine_bundled_include)
         set(NV_CODEC_HEADERS_13_1_INCLUDE_DIR "${FFMPEG_INCLUDE_DIRS}")
