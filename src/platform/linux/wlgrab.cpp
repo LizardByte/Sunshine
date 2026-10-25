@@ -20,6 +20,7 @@
 
 // local includes
 #include "cuda.h"
+#include "desktop_bounds.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/video.h"
@@ -30,6 +31,8 @@
 using namespace std::literals;
 
 namespace wl {
+  static int env_offset_x;
+  static int env_offset_y;
   static int env_width;
   static int env_height;
 
@@ -343,22 +346,22 @@ namespace wl {
       width = monitor->viewport.width;
       height = monitor->viewport.height;
 
+      this->env_offset_x = ::wl::env_offset_x;
+      this->env_offset_y = ::wl::env_offset_y;
       this->env_width = ::wl::env_width;
       this->env_height = ::wl::env_height;
 
       this->logical_width = monitor->viewport.logical_width;
       this->logical_height = monitor->viewport.logical_height;
 
-      int desktop_logical_width = 0;
-      int desktop_logical_height = 0;
+      std::vector<platf::touch_port_t> viewports;
       for (auto &monitor_entry : interface.monitors) {
-        auto output_monitor = monitor_entry.get();
-        desktop_logical_width = std::max(desktop_logical_width, output_monitor->viewport.offset_x + output_monitor->viewport.logical_width);
-        desktop_logical_height = std::max(desktop_logical_height, output_monitor->viewport.offset_y + output_monitor->viewport.logical_height);
+        viewports.push_back(monitor_entry->viewport);
       }
+      const auto bounds = platf::desktop_bounds(viewports);
 
-      this->env_logical_width = desktop_logical_width;
-      this->env_logical_height = desktop_logical_height;
+      this->env_logical_width = bounds.logical_width;
+      this->env_logical_height = bounds.logical_height;
 
       BOOST_LOG(info) << "[wlgrab] Selected monitor ["sv << monitor->description << "] for streaming"sv;
       BOOST_LOG(debug) << "[wlgrab] Offset: "sv << offset_x << 'x' << offset_y;
@@ -832,22 +835,27 @@ namespace platf {
       return {};
     }
 
-    wl::env_width = 0;
-    wl::env_height = 0;
-
     for (auto &monitor : interface.monitors) {
       monitor->listen(interface.output_manager);
     }
 
     display.roundtrip();
 
+    // Absolute input maps across the box that holds every monitor (see desktop_bounds).
+    std::vector<platf::touch_port_t> viewports;
+    for (auto &monitor : interface.monitors) {
+      viewports.push_back(monitor->viewport);
+    }
+    const auto bounds = platf::desktop_bounds(viewports);
+    wl::env_offset_x = bounds.offset_x;
+    wl::env_offset_y = bounds.offset_y;
+    wl::env_width = bounds.width;
+    wl::env_height = bounds.height;
+
     BOOST_LOG(info) << "[wlgrab] -------- Start of Wayland monitor list --------"sv;
 
     for (int x = 0; x < interface.monitors.size(); ++x) {
       auto monitor = interface.monitors[x].get();
-
-      wl::env_width = std::max(wl::env_width, monitor->viewport.offset_x + monitor->viewport.width);
-      wl::env_height = std::max(wl::env_height, monitor->viewport.offset_y + monitor->viewport.height);
 
       BOOST_LOG(info) << "[wlgrab] Monitor " << x << " is "sv << monitor->name << ": "sv << monitor->description;
 
