@@ -36,6 +36,7 @@
   #include "platform/windows/misc.h"
   #include "platform/windows/utf_utils.h"
 
+  #include <libvirtualhid/esp32_bridge.hpp>
   #include <Windows.h>
 #elif defined(__APPLE__)
   #include "platform/macos/misc.h"
@@ -2107,16 +2108,22 @@ namespace confighttp {
     std::string backend_name;
     std::string runtime_error_message;
 
-    try {
-      const auto runtime = platf::virtualhid::create_runtime();
-      if (runtime) {
-        const auto &capabilities = runtime->capabilities();
-        backend_name = capabilities.backend_name;
-        requires_installed_driver = capabilities.requires_installed_driver;
-        output_tree = build_driver_status(driver_detected || capabilities.supports_gamepad, version_str, minimum_version);
+    if (platf::virtualhid::esp32_bridge_selected()) {
+      // The input context owns the bridge port; report it without opening a second runtime.
+      backend_name = "esp32_bridge";
+      requires_installed_driver = false;
+    } else {
+      try {
+        const auto runtime = platf::virtualhid::create_runtime();
+        if (runtime) {
+          const auto &capabilities = runtime->capabilities();
+          backend_name = capabilities.backend_name;
+          requires_installed_driver = capabilities.requires_installed_driver;
+          output_tree = build_driver_status(driver_detected || capabilities.supports_gamepad, version_str, minimum_version);
+        }
+      } catch (const std::bad_alloc &exception) {
+        runtime_error_message = exception.what();
       }
-    } catch (const std::bad_alloc &exception) {
-      runtime_error_message = exception.what();
     }
 
     output_tree["backend_name"] = backend_name;
@@ -2180,6 +2187,47 @@ namespace confighttp {
     nlohmann::json output_tree;
     output_tree["virtualhid"] = get_virtualhid_driver_status();
     output_tree["vigembus"] = get_vigembus_driver_status();
+    send_response(response, output_tree);
+  }
+
+  /**
+   * @brief Get the connection and pairing state of the ESP32-S3 USB bridge.
+   *
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/esp32-bridge/status|:| GET|:| null}
+   */
+  void getEsp32BridgeStatus(const resp_https_t &response, const req_https_t &request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    nlohmann::json output_tree;
+    output_tree["selected"] = config::input.gamepad_driver == config::GAMEPAD_DRIVER_ESP32_BRIDGE;
+#ifdef _WIN32
+    const auto status = lvh::esp32_bridge_status();
+    output_tree["active"] = status.active;
+    output_tree["connected"] = status.connected;
+    output_tree["awaiting_pairing"] = status.awaiting_pairing;
+    output_tree["pairing_required"] = status.pairing_required;
+    output_tree["port"] = status.port;
+    output_tree["device_id"] = status.device_id;
+    output_tree["firmware_version"] = status.firmware_version;
+    // Discovery reads USB serial numbers only; it never opens a port.
+    output_tree["detected"] = !lvh::find_esp32_bridge_ports().empty();
+#else
+    output_tree["active"] = false;
+    output_tree["connected"] = false;
+    output_tree["awaiting_pairing"] = false;
+    output_tree["pairing_required"] = false;
+    output_tree["port"] = "";
+    output_tree["device_id"] = "";
+    output_tree["firmware_version"] = "";
+    output_tree["detected"] = false;
+#endif
     send_response(response, output_tree);
   }
 
@@ -2511,6 +2559,7 @@ namespace confighttp {
     server.resource["^/api/virtual-input/license$"]["GET"] = getVirtualInputLicense;
     server.resource["^/api/virtual-input/license$"]["POST"] = updateVirtualInputLicense;
     server.resource["^/api/virtual-input/status$"]["GET"] = getVirtualInputStatus;
+    server.resource["^/api/esp32-bridge/status$"]["GET"] = getEsp32BridgeStatus;
 
     // static/dynamic resources
     server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;

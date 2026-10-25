@@ -131,9 +131,17 @@ watch(
         <option v-if="platform === 'windows'" value="all">{{ $t('config.gamepad_driver_all') }}</option>
         <option value="virtualhid">{{ $t('config.gamepad_driver_virtualhid') }}</option>
         <option v-if="platform === 'windows'" value="vigembus">{{ $t('config.gamepad_driver_vigembus') }}</option>
+        <option v-if="platform === 'windows'" value="esp32_bridge">{{ $t('config.gamepad_driver_esp32_bridge') }}</option>
         <option value="none">{{ $t('config.gamepad_driver_none') }}</option>
       </select>
       <div class="form-text">{{ $t(platform === 'macos' ? 'config.gamepad_driver_macos_desc' : 'config.gamepad_driver_desc') }}</div>
+    </div>
+
+    <!-- ESP32-S3 bridge serial port -->
+    <div class="mb-3" v-if="platform === 'windows' && config.gamepad_driver === 'esp32_bridge'">
+      <label for="esp32_bridge_port" class="form-label">{{ $t('config.esp32_bridge_port') }}</label>
+      <input type="text" class="form-control" id="esp32_bridge_port" placeholder="COM5" v-model="config.esp32_bridge_port" />
+      <div class="form-text">{{ $t('config.esp32_bridge_port_desc') }}</div>
     </div>
 
     <!-- Emulated Gamepad Type -->

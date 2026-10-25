@@ -17,6 +17,7 @@
     "options": {
       "controller": "enabled",
       "gamepad_driver": "",
+      "esp32_bridge_port": "",
       "gamepad": "auto",
       "ds4_back_as_touchpad_click": "enabled",
       "motion_as_ds4": "enabled",

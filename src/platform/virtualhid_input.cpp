@@ -511,7 +511,7 @@ namespace platf::virtualhid {
   }  // namespace
 
   input_context_t::input_context_t():
-      input_context_t {lvh::BackendKind::platform_default} {}
+      input_context_t {configured_backend()} {}
 
   input_context_t::input_context_t(lvh::BackendKind backend):
       runtime {create_runtime(backend)} {
@@ -606,10 +606,22 @@ namespace platf::virtualhid {
     }
   }
 
+  bool esp32_bridge_selected() {
+    return config::input.gamepad_driver == config::GAMEPAD_DRIVER_ESP32_BRIDGE;
+  }
+
+  lvh::BackendKind configured_backend() {
+    return esp32_bridge_selected() ? lvh::BackendKind::esp32_bridge : lvh::BackendKind::platform_default;
+  }
+
   std::unique_ptr<lvh::Runtime> create_runtime(lvh::BackendKind backend) {
     lvh::RuntimeOptions options;
     options.backend = backend;
     options.log_callback = log_virtualhid_message;
+    options.esp32_bridge.port = config::input.esp32_bridge_port;
+    options.esp32_bridge.client_name = "Sunshine";
+    // The bridge is an explicit gamepad_driver choice; never switch to it behind another choice.
+    options.esp32_bridge.autodetect = false;
     return lvh::Runtime::create(options);
   }
 
@@ -677,7 +689,7 @@ namespace platf::virtualhid {
     const bool virtualhid_selected,
     const std::string_view gamepad_driver
   ) {
-    if (gamepad_driver == config::GAMEPAD_DRIVER_VIRTUALHID || gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
+    if (gamepad_driver == config::GAMEPAD_DRIVER_VIRTUALHID || gamepad_driver == config::GAMEPAD_DRIVER_ESP32_BRIDGE || gamepad_driver == config::GAMEPAD_DRIVER_NONE) {
       return false;
     }
     if (gamepad_driver == config::GAMEPAD_DRIVER_VIGEMBUS || !virtualhid_selected) {

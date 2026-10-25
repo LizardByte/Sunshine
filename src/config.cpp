@@ -879,6 +879,7 @@ namespace config {
     true,  // client gamepads with motion events use PlayStation-style emulation
     true,  // client gamepads with touchpads use PlayStation-style emulation
     true,  // virtualhid_randomize_mac
+    {},  // esp32_bridge_port: auto-detect
 
     true,  // keyboard enabled
     false,  // key_rightalt_to_key_win
@@ -1088,6 +1089,15 @@ namespace config {
     }
 
     input.gamepad_driver = GAMEPAD_DRIVER_ALL;
+    return true;
+  }
+
+  bool select_esp32_bridge_if_detected(const bool bridge_detected) {
+    if (!bridge_detected || !input.gamepad_driver.empty() || !persist_config_option_if_missing("gamepad_driver", GAMEPAD_DRIVER_ESP32_BRIDGE)) {
+      return false;
+    }
+
+    input.gamepad_driver = GAMEPAD_DRIVER_ESP32_BRIDGE;
     return true;
   }
 
@@ -1862,6 +1872,7 @@ namespace config {
                                                                         GAMEPAD_DRIVER_ALL,
                                                                         GAMEPAD_DRIVER_VIRTUALHID,
                                                                         GAMEPAD_DRIVER_VIGEMBUS,
+                                                                        GAMEPAD_DRIVER_ESP32_BRIDGE,
                                                                         GAMEPAD_DRIVER_NONE,
                                                                       });
     string_restricted_f(vars, "gamepad"s, input.gamepad, get_supported_gamepad_options());
@@ -1875,6 +1886,7 @@ namespace config {
     bool_f(vars, "motion_as_ds4", input.motion_as_ds4);
     bool_f(vars, "touchpad_as_ds4", input.touchpad_as_ds4);
     bool_f(vars, "virtualhid_randomize_mac", input.virtualhid_randomize_mac);
+    string_f(vars, "esp32_bridge_port", input.esp32_bridge_port);
 
     bool_f(vars, "mouse", input.mouse);
     bool_f(vars, "keyboard", input.keyboard);

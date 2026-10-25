@@ -20,6 +20,13 @@ using namespace std::literals;
 namespace platf {
   platform_caps::caps_t get_capabilities() {
     platform_caps::caps_t caps = 0;
+    // The bridge port is owned by the input context and has no pen or touchscreen slot.
+    if (virtualhid::esp32_bridge_selected()) {
+      if (virtualhid::configured_gamepad_supports_controller_extensions()) {
+        caps |= platform_caps::controller_touch;
+      }
+      return caps;
+    }
     const auto runtime = virtualhid::create_runtime();
     if (!runtime) {
       return caps;
