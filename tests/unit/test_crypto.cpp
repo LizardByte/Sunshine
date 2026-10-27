@@ -7,7 +7,6 @@
 #include "../tests_common.h"
 
 // standard includes
-#include <array>
 #include <string_view>
 #include <vector>
 
@@ -33,15 +32,25 @@ TEST(CryptoTest, GeneratedCredentialsExposeSubjectAndVerifySignatures) {
   const auto subject = X509_get_subject_name(cert.get());
   ASSERT_NE(subject, nullptr);
 
-  std::array<char, common_name.size() + 1> parsed_common_name {};
-  const auto common_name_length = X509_NAME_get_text_by_NID(
-    subject,
-    NID_commonName,
-    parsed_common_name.data(),
-    static_cast<int>(parsed_common_name.size())
-  );
-  ASSERT_EQ(common_name_length, static_cast<int>(common_name.size()));
-  ASSERT_EQ(std::string_view(parsed_common_name.data(), common_name.size()), common_name);
+  const auto common_name_index = X509_NAME_get_index_by_NID(subject, NID_commonName, -1);
+  ASSERT_GE(common_name_index, 0);
+  const auto common_name_entry = X509_NAME_get_entry(subject, common_name_index);
+  ASSERT_NE(common_name_entry, nullptr);
+  const auto common_name_data = X509_NAME_ENTRY_get_data(common_name_entry);
+  ASSERT_NE(common_name_data, nullptr);
+
+  unsigned char *common_name_utf8 = nullptr;
+  const auto free_common_name = util::fail_guard([&common_name_utf8] {
+    OPENSSL_free(common_name_utf8);
+  });
+  const auto common_name_length = ASN1_STRING_to_UTF8(&common_name_utf8, common_name_data);
+  ASSERT_GE(common_name_length, 0);
+  ASSERT_NE(common_name_utf8, nullptr);
+  const std::string_view parsed_common_name {
+    reinterpret_cast<const char *>(common_name_utf8),
+    static_cast<std::size_t>(common_name_length)
+  };
+  ASSERT_EQ(parsed_common_name, common_name);
 
   ASSERT_FALSE(crypto::signature(cert).empty());
 
