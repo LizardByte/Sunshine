@@ -48,7 +48,8 @@ jobs:
         run: npm run build
 
       - name: Publish (dry run)
-        run: npm publish --dry-run
+        # PR versions can be lower than the latest published version, so select an explicit tag.
+        run: npm publish --dry-run --tag ci --ignore-scripts
 
       - name: Upload coverage artifact
         if: >-
