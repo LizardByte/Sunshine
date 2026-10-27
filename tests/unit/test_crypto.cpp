@@ -6,6 +6,11 @@
 #include "../certificate_test_utils.h"
 #include "../tests_common.h"
 
+// standard includes
+#include <array>
+#include <string_view>
+#include <vector>
+
 // lib includes
 #include <openssl/x509.h>
 
@@ -28,26 +33,51 @@ TEST(CryptoTest, GeneratedCredentialsExposeSubjectAndVerifySignatures) {
   const auto subject = X509_get_subject_name(cert.get());
   ASSERT_NE(subject, nullptr);
 
-  const auto common_name_index = X509_NAME_get_index_by_NID(subject, NID_commonName, -1);
-  ASSERT_GE(common_name_index, 0);
-
-  const auto common_name_entry = X509_NAME_get_entry(subject, common_name_index);
-  ASSERT_NE(common_name_entry, nullptr);
-
-  const auto common_name_data = X509_NAME_ENTRY_get_data(common_name_entry);
-  ASSERT_NE(common_name_data, nullptr);
-
-  const std::string_view parsed_common_name {
-    reinterpret_cast<const char *>(ASN1_STRING_get0_data(common_name_data)),
-    static_cast<std::size_t>(ASN1_STRING_length(common_name_data))
-  };
-  ASSERT_EQ(parsed_common_name, common_name);
+  std::array<char, common_name.size() + 1> parsed_common_name {};
+  const auto common_name_length = X509_NAME_get_text_by_NID(
+    subject,
+    NID_commonName,
+    parsed_common_name.data(),
+    static_cast<int>(parsed_common_name.size())
+  );
+  ASSERT_EQ(common_name_length, static_cast<int>(common_name.size()));
+  ASSERT_EQ(std::string_view(parsed_common_name.data(), common_name.size()), common_name);
 
   ASSERT_FALSE(crypto::signature(cert).empty());
 
   const auto signature = crypto::sign256(pkey, payload);
   ASSERT_FALSE(signature.empty());
   ASSERT_TRUE(crypto::verify256(cert, payload, {reinterpret_cast<const char *>(signature.data()), signature.size()}));
+}
+
+TEST(CryptoTest, CertificateSignaturePreservesBinaryBytes) {
+  constexpr std::uint32_t key_bits = 2048;
+  const auto creds = crypto::gen_creds("Sunshine Signature Test", key_bits);
+  const auto cert = crypto::x509(creds.x509);
+  ASSERT_NE(cert.get(), nullptr);
+
+  const auto der_size = i2d_X509(cert.get(), nullptr);
+  ASSERT_GT(der_size, 0);
+  std::vector<unsigned char> der(static_cast<std::size_t>(der_size));
+  auto *write_cursor = der.data();
+  ASSERT_EQ(i2d_X509(cert.get(), &write_cursor), der_size);
+
+  // The final DER field contains the RSA signature. Include every byte value,
+  // including embedded NULs, to verify that extraction preserves binary data.
+  constexpr std::size_t signature_size = key_bits / 8;
+  ASSERT_GT(der.size(), signature_size);
+  for (std::size_t i = 0; i < signature_size; ++i) {
+    der[der.size() - signature_size + i] = static_cast<unsigned char>(i);
+  }
+
+  const auto *read_cursor = der.data();
+  const crypto::x509_t binary_cert {d2i_X509(nullptr, &read_cursor, der_size)};
+  ASSERT_NE(binary_cert.get(), nullptr);
+  const std::string_view expected_signature {
+    reinterpret_cast<const char *>(der.data() + der.size() - signature_size),
+    signature_size
+  };
+  EXPECT_EQ(crypto::signature(binary_cert), expected_signature);
 }
 
 TEST(CryptoTest, CertificateChainRequiresExactPairedIdentity) {
