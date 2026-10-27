@@ -61,7 +61,7 @@ class Sunshine < Formula
   depends_on "pkgconf" => :build
   depends_on "boost"
   depends_on "curl"
-  depends_on "icu4c@78"
+  depends_on "icu4c@79"
   depends_on "miniupnpc"
   depends_on "openssl@4"
   depends_on "opus"
