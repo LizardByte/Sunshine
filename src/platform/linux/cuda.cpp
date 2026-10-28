@@ -129,6 +129,20 @@ namespace cuda {
   using registered_resource_t = util::safe_ptr<CUgraphicsResource_st, unregisterResource>;
 
   /**
+   * @brief Destroy a CUDA event.
+   *
+   * @param event CUDA event to destroy.
+   */
+  void freeEvent(CUevent event) {
+    CU_CHECK_IGNORE(cdf->cuEventDestroy(event), "Couldn't destroy cuda event");
+  }
+
+  /**
+   * @brief CUDA event pointer released with `cuEventDestroy`.
+   */
+  using event_t = util::safe_ptr<CUevent_st, freeEvent>;
+
+  /**
    * @brief CUDA image wrapper that owns mapped graphics resources for one frame.
    */
   class img_t: public platf::img_t {
@@ -477,6 +491,15 @@ namespace cuda {
    */
   class gl_cuda_vram_t: public platf::avcodec_encode_device_t {
   public:
+    ~gl_cuda_vram_t() override {
+      // Resources stay mapped for the lifetime of this device; release them
+      // before the registered_resource_t handles unregister them.
+      if (n_mapped > 0 && cdf) {
+        cdf->cuGraphicsUnmapResources(n_mapped, mapped_resources.data(), stream.get());
+        n_mapped = 0;
+      }
+    }
+
     /**
      * @brief Initialize the GL->CUDA encoding device.
      * @param in_width Width of captured frames.
@@ -591,6 +614,55 @@ namespace cuda {
         CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.y_res, nv12->tex[0], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register Y plane texture");
         CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.uv_res, nv12->tex[1], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register UV plane texture");
       }
+
+      // Map once rather than per frame: each map/unmap is a synchronizing GL<->CUDA
+      // handshake. convert() orders GL and CUDA access with a fence and copy_done.
+      int n_resources;
+      if (is_yuv444) {
+        mapped_resources = {{cu_res.y_res.get(), cu_res.u_res.get(), cu_res.v_res.get()}};
+        n_resources = 3;
+      } else {
+        mapped_resources = {{cu_res.y_res.get(), cu_res.uv_res.get(), nullptr}};
+        n_resources = 2;
+      }
+
+      CU_CHECK(cdf->cuGraphicsMapResources(n_resources, mapped_resources.data(), stream.get()), "Couldn't map GL textures in CUDA");
+      n_mapped = n_resources;
+      for (int i = 0; i < n_mapped; i++) {
+        CU_CHECK(cdf->cuGraphicsSubResourceGetMappedArray(&mapped_arrays[i], mapped_resources[i], 0, 0), "Couldn't get mapped plane array");
+      }
+
+      CUevent event;
+      CU_CHECK(cdf->cuEventCreate(&event, CU_EVENT_DISABLE_TIMING), "Couldn't create CUDA copy event");
+      copy_done.reset(event);
+
+      return 0;
+    }
+
+    /**
+     * @brief Block until GL has finished rendering into the converted textures.
+     *
+     * The textures stay mapped in CUDA, so mapping no longer orders GL writes
+     * before CUDA reads. A fence wait provides that ordering instead.
+     *
+     * @return 0 on success or -1 on failure.
+     */
+    int wait_for_gl() {
+      auto fence = gl::ctx.FenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+      if (!fence) {
+        BOOST_LOG(error) << "Couldn't create GL fence: "sv << gl::ctx.GetError();
+        return -1;
+      }
+
+      // Generous timeout: this only guards against a hung GPU.
+      auto status = gl::ctx.ClientWaitSync(fence, GL_SYNC_FLUSH_COMMANDS_BIT, std::chrono::nanoseconds(1s).count());
+      gl::ctx.DeleteSync(fence);
+
+      if (status == GL_TIMEOUT_EXPIRED || status == GL_WAIT_FAILED) {
+        BOOST_LOG(error) << "Waiting for GL fence failed: "sv << util::hex(status).to_string_view();
+        return -1;
+      }
+
       return 0;
     }
 
@@ -621,21 +693,24 @@ namespace cuda {
 
       auto fmt_desc = av_pix_fmt_desc_get(sw_format);
 
+      // The previous frame's copies must finish reading the textures before GL
+      // renders into them again. They are normally long done by now.
+      CU_CHECK(cdf->cuEventSynchronize(copy_done.get()), "Couldn't wait for previous CUDA copy");
+
       sws.load_vram(descriptor, offset_x, offset_y, rgb->tex[0], is_yuv444);
 
       if (is_yuv444) {
         // Perform the color conversion and scaling in GL
         sws.convert_yuv444(yuv444->buf);
-
-        // Map the GL textures to read for CUDA
-        std::array<CUgraphicsResource, 3> resources = {{cu_res.y_res.get(), cu_res.u_res.get(), cu_res.v_res.get()}};
-        CU_CHECK(cdf->cuGraphicsMapResources(resources.size(), resources.data(), stream.get()), "Couldn't map GL textures in CUDA");
+        if (wait_for_gl()) {
+          return -1;
+        }
 
         // Copy from the GL textures to the target CUDA frame
         for (int i = 0; i < 3; i++) {
           CUDA_MEMCPY2D cpy = {};
           cpy.srcMemoryType = CU_MEMORYTYPE_ARRAY;
-          CU_CHECK(cdf->cuGraphicsSubResourceGetMappedArray(&cpy.srcArray, resources[i], 0, 0), "Couldn't get mapped plane array");
+          cpy.srcArray = mapped_arrays[i];
 
           cpy.dstMemoryType = CU_MEMORYTYPE_DEVICE;
           cpy.dstDevice = (CUdeviceptr) frame->data[i];
@@ -645,22 +720,19 @@ namespace cuda {
 
           CU_CHECK_IGNORE(cdf->cuMemcpy2DAsync(&cpy, stream.get()), "Couldn't copy texture to CUDA frame");
         }
-        // Unmap the textures to allow modification from GL again
-        CU_CHECK(cdf->cuGraphicsUnmapResources(resources.size(), resources.data(), stream.get()), "Couldn't unmap GL textures from CUDA");
 
       } else {
         // Perform the color conversion and scaling in GL
         sws.convert_nv12(nv12->buf);
-
-        // Map the GL textures to read for CUDA
-        std::array<CUgraphicsResource, 2> resources = {{cu_res.y_res.get(), cu_res.uv_res.get()}};
-        CU_CHECK(cdf->cuGraphicsMapResources(resources.size(), resources.data(), stream.get()), "Couldn't map GL textures in CUDA");
+        if (wait_for_gl()) {
+          return -1;
+        }
 
         // Copy from the GL textures to the target CUDA frame
         for (int i = 0; i < 2; i++) {
           CUDA_MEMCPY2D cpy = {};
           cpy.srcMemoryType = CU_MEMORYTYPE_ARRAY;
-          CU_CHECK(cdf->cuGraphicsSubResourceGetMappedArray(&cpy.srcArray, resources[i], 0, 0), "Couldn't get mapped plane array");
+          cpy.srcArray = mapped_arrays[i];
 
           cpy.dstMemoryType = CU_MEMORYTYPE_DEVICE;
           cpy.dstDevice = (CUdeviceptr) frame->data[i];
@@ -670,9 +742,9 @@ namespace cuda {
 
           CU_CHECK_IGNORE(cdf->cuMemcpy2DAsync(&cpy, stream.get()), "Couldn't copy texture to CUDA frame");
         }
-        // Unmap the textures to allow modification from GL again
-        CU_CHECK(cdf->cuGraphicsUnmapResources(resources.size(), resources.data(), stream.get()), "Couldn't unmap GL textures from CUDA");
       }
+
+      CU_CHECK(cdf->cuEventRecord(copy_done.get(), stream.get()), "Couldn't record CUDA copy event");
 
       return 0;
     }
@@ -705,6 +777,11 @@ namespace cuda {
     egl::rgb_t rgb;  ///< Imported RGB source image used before CUDA conversion.
 
     cu_resources cu_res;  ///< CUDA graphics resources registered for the current frame.
+
+    std::array<CUgraphicsResource, 3> mapped_resources {};  ///< Persistently mapped graphics resources.
+    std::array<CUarray, 3> mapped_arrays {};  ///< Cached CUDA arrays for the mapped GL textures.
+    int n_mapped = 0;  ///< Number of persistently mapped resources (0 when unmapped).
+    event_t copy_done;  ///< Recorded after each frame's copies so GL waits before overwriting the textures.
 
     int offset_x;  ///< Horizontal offset in physical pixels.
     int offset_y;  ///< Vertical offset in physical pixels.
