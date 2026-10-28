@@ -102,6 +102,7 @@
       "hevc_mode": 0,
       "av1_mode": 0,
       "capture": "",
+      "pipewire_use_dmabuf": "enabled",
       "fp16_sdr_gamma_encoded": "disabled",
       "encoder": ""
     }

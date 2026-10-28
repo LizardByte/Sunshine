@@ -67,6 +67,10 @@ TEST(ConfigDefaultsTest, TreatsFp16SdrCapturesAsLinear) {
   EXPECT_FALSE(config::video.fp16_sdr_gamma_encoded);
 }
 
+TEST(ConfigDefaultsTest, PrefersDmabufForPipeWireCapture) {
+  EXPECT_TRUE(config::video.pipewire_use_dmabuf);
+}
+
 TEST(ConfigDefaultsTest, PreservesAmdEncoderNumericDefaults) {
   EXPECT_EQ(config::video.amd.amd_usage_h264, 1);
   EXPECT_EQ(config::video.amd.amd_usage_hevc, 1);
@@ -218,6 +222,24 @@ TEST_F(ConfigPersistenceTest, ParsesFp16SdrGammaEncodedOption) {
 
   config::apply_config_for_test("fp16_sdr_gamma_encoded = disabled\n");
   EXPECT_FALSE(config::video.fp16_sdr_gamma_encoded);
+}
+
+TEST_F(ConfigPersistenceTest, ParsesPipeWireDmabufOption) {
+  const auto original_video = config::video;
+  const auto original_apps = config::stream.file_apps;
+  const auto restore_config = util::fail_guard([original_video, original_apps]() {
+    config::video = original_video;
+    config::stream.file_apps = original_apps;
+  });
+  const auto apps_file = config_file().parent_path() / "sunshine_test_config_apps.json";
+  ASSERT_EQ(file_handler::write_file(apps_file.string().c_str(), "{}"), 0);
+  config::stream.file_apps = apps_file.string();
+
+  config::apply_config_for_test("pipewire_use_dmabuf = disabled\n");
+  EXPECT_FALSE(config::video.pipewire_use_dmabuf);
+
+  config::apply_config_for_test("pipewire_use_dmabuf = enabled\n");
+  EXPECT_TRUE(config::video.pipewire_use_dmabuf);
 }
 
 TEST_F(ConfigPersistenceTest, ParsesHexIntegersWiderThanAnInt) {
