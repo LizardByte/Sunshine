@@ -1564,7 +1564,7 @@ namespace pipewire {
       return 0;
     }
 
-    wl::display_t wl_display;
+    wl::display_t wl_display;  ///< Wayland connection used to query DMA-BUF import support.
     int n_dmabuf_infos = 0;  ///< Number of DMA-BUF format/modifier entries available for negotiation.
 
     // Allow subclasses to access for pipewire requirements setup and stream dead checks
