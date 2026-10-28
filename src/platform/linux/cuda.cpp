@@ -487,6 +487,16 @@ namespace cuda {
   };
 
   /**
+   * @brief CUDA graphics resources kept mapped for the lifetime of a GL->CUDA device.
+   */
+  struct cu_mapping {
+    std::array<CUgraphicsResource, 3> resources {};  ///< Mapped graphics resources.
+    std::array<CUarray, 3> arrays {};  ///< CUDA arrays backing the mapped GL textures.
+    int count = 0;  ///< Number of mapped resources (0 when unmapped).
+    event_t copy_done;  ///< Recorded after each frame's copies so GL waits before overwriting the textures.
+  };
+
+  /**
    * @brief OpenGL/CUDA interop resources used for GPU-side frame conversion.
    */
   class gl_cuda_vram_t: public platf::avcodec_encode_device_t {
@@ -494,9 +504,9 @@ namespace cuda {
     ~gl_cuda_vram_t() override {
       // Resources stay mapped for the lifetime of this device; release them
       // before the registered_resource_t handles unregister them.
-      if (n_mapped > 0 && cdf) {
-        cdf->cuGraphicsUnmapResources(n_mapped, mapped_resources.data(), stream.get());
-        n_mapped = 0;
+      if (mapped.count > 0 && cdf) {
+        cdf->cuGraphicsUnmapResources(mapped.count, mapped.resources.data(), stream.get());
+        mapped.count = 0;
       }
     }
 
@@ -616,25 +626,25 @@ namespace cuda {
       }
 
       // Map once rather than per frame: each map/unmap is a synchronizing GL<->CUDA
-      // handshake. convert() orders GL and CUDA access with a fence and copy_done.
+      // handshake. convert() orders GL and CUDA access with a fence and mapped.copy_done.
       int n_resources;
       if (is_yuv444) {
-        mapped_resources = {{cu_res.y_res.get(), cu_res.u_res.get(), cu_res.v_res.get()}};
+        mapped.resources = {{cu_res.y_res.get(), cu_res.u_res.get(), cu_res.v_res.get()}};
         n_resources = 3;
       } else {
-        mapped_resources = {{cu_res.y_res.get(), cu_res.uv_res.get(), nullptr}};
+        mapped.resources = {{cu_res.y_res.get(), cu_res.uv_res.get(), nullptr}};
         n_resources = 2;
       }
 
-      CU_CHECK(cdf->cuGraphicsMapResources(n_resources, mapped_resources.data(), stream.get()), "Couldn't map GL textures in CUDA");
-      n_mapped = n_resources;
-      for (int i = 0; i < n_mapped; i++) {
-        CU_CHECK(cdf->cuGraphicsSubResourceGetMappedArray(&mapped_arrays[i], mapped_resources[i], 0, 0), "Couldn't get mapped plane array");
+      CU_CHECK(cdf->cuGraphicsMapResources(n_resources, mapped.resources.data(), stream.get()), "Couldn't map GL textures in CUDA");
+      mapped.count = n_resources;
+      for (int i = 0; i < mapped.count; i++) {
+        CU_CHECK(cdf->cuGraphicsSubResourceGetMappedArray(&mapped.arrays[i], mapped.resources[i], 0, 0), "Couldn't get mapped plane array");
       }
 
       CUevent event;
       CU_CHECK(cdf->cuEventCreate(&event, CU_EVENT_DISABLE_TIMING), "Couldn't create CUDA copy event");
-      copy_done.reset(event);
+      mapped.copy_done.reset(event);
 
       return 0;
     }
@@ -695,7 +705,7 @@ namespace cuda {
 
       // The previous frame's copies must finish reading the textures before GL
       // renders into them again. They are normally long done by now.
-      CU_CHECK(cdf->cuEventSynchronize(copy_done.get()), "Couldn't wait for previous CUDA copy");
+      CU_CHECK(cdf->cuEventSynchronize(mapped.copy_done.get()), "Couldn't wait for previous CUDA copy");
 
       sws.load_vram(descriptor, offset_x, offset_y, rgb->tex[0], is_yuv444);
 
@@ -710,7 +720,7 @@ namespace cuda {
         for (int i = 0; i < 3; i++) {
           CUDA_MEMCPY2D cpy = {};
           cpy.srcMemoryType = CU_MEMORYTYPE_ARRAY;
-          cpy.srcArray = mapped_arrays[i];
+          cpy.srcArray = mapped.arrays[i];
 
           cpy.dstMemoryType = CU_MEMORYTYPE_DEVICE;
           cpy.dstDevice = (CUdeviceptr) frame->data[i];
@@ -732,7 +742,7 @@ namespace cuda {
         for (int i = 0; i < 2; i++) {
           CUDA_MEMCPY2D cpy = {};
           cpy.srcMemoryType = CU_MEMORYTYPE_ARRAY;
-          cpy.srcArray = mapped_arrays[i];
+          cpy.srcArray = mapped.arrays[i];
 
           cpy.dstMemoryType = CU_MEMORYTYPE_DEVICE;
           cpy.dstDevice = (CUdeviceptr) frame->data[i];
@@ -744,7 +754,7 @@ namespace cuda {
         }
       }
 
-      CU_CHECK(cdf->cuEventRecord(copy_done.get(), stream.get()), "Couldn't record CUDA copy event");
+      CU_CHECK(cdf->cuEventRecord(mapped.copy_done.get(), stream.get()), "Couldn't record CUDA copy event");
 
       return 0;
     }
@@ -778,10 +788,7 @@ namespace cuda {
 
     cu_resources cu_res;  ///< CUDA graphics resources registered for the current frame.
 
-    std::array<CUgraphicsResource, 3> mapped_resources {};  ///< Persistently mapped graphics resources.
-    std::array<CUarray, 3> mapped_arrays {};  ///< Cached CUDA arrays for the mapped GL textures.
-    int n_mapped = 0;  ///< Number of persistently mapped resources (0 when unmapped).
-    event_t copy_done;  ///< Recorded after each frame's copies so GL waits before overwriting the textures.
+    cu_mapping mapped;  ///< Persistently mapped textures and their copy-completion event.
 
     int offset_x;  ///< Horizontal offset in physical pixels.
     int offset_y;  ///< Vertical offset in physical pixels.
