@@ -8,6 +8,9 @@
 #include <cstdint>
 
 #if defined(SUNSHINE_BUILD_CUDA)
+  // standard includes
+  #include <cmath>
+  #include <cstdint>
   #include <memory>
   #include <optional>
   #include <string>
@@ -134,6 +137,40 @@ namespace cuda {
     int offsetX;
     int offsetY;
   };
+
+  /**
+   * @brief Fit a captured image into an output frame, keeping its aspect ratio.
+   *
+   * The offsets are rounded down to even values. NV12 stores one interleaved U,V pair for every
+   * two pixels, and the conversion kernel writes each pair at the pixel's x plus `offsetX`, so an
+   * odd offset would place every pair one byte off and swap U and V (red and blue).
+   *
+   * @param in_width Width of the captured image in pixels.
+   * @param in_height Height of the captured image in pixels.
+   * @param out_width Width of the output frame in pixels.
+   * @param out_height Height of the output frame in pixels.
+   * @param scale Set to the number of captured pixels per output pixel.
+   * @return The area of the output frame that the captured image covers.
+   */
+  inline viewport_t make_viewport(int in_width, int in_height, int out_width, int out_height, float &scale) {
+    // Ensure aspect ratio is maintained
+    const auto scalar = std::fminf(out_width / (float) in_width, out_height / (float) in_height);
+    const auto out_width_f = in_width * scalar;
+    const auto out_height_f = in_height * scalar;
+
+    // result is always positive
+    const auto offsetX_f = (out_width - out_width_f) / 2;
+    const auto offsetY_f = (out_height - out_height_f) / 2;
+
+    viewport_t viewport;
+    viewport.width = out_width_f;
+    viewport.height = out_height_f;
+    viewport.offsetX = static_cast<int>(offsetX_f) & ~1;
+    viewport.offsetY = static_cast<int>(offsetY_f) & ~1;
+
+    scale = 1.0f / scalar;
+    return viewport;
+  }
 
   class tex_t {
   public:
