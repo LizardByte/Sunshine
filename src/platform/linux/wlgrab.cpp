@@ -73,10 +73,6 @@ namespace wl {
 
   /**
    * @brief Copy a shared-memory frame into a BGRA image buffer.
-   *
-   * @param frame Captured frame holding shared-memory pixels.
-   * @param img Destination image, always BGRA8888.
-   * @return True when the frame's `wl_shm` format is supported.
    */
   bool convert_shm_frame(const frame_t &frame, platf::img_t &img) {
     auto layout = shm_layout(frame.shm_format);
