@@ -220,6 +220,9 @@ TEST_F(ConfigPersistenceTest, ParsesFp16SdrGammaEncodedOption) {
   EXPECT_FALSE(config::video.fp16_sdr_gamma_encoded);
 }
 
+/**
+ * @brief Verify mixed-case boolean values update configuration correctly.
+ */
 TEST_F(ConfigPersistenceTest, ParsesBooleanOptionsCaseInsensitively) {
   const auto original_video = config::video;
   const auto restore_video = util::fail_guard([original_video]() {
