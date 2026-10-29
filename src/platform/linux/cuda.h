@@ -4,8 +4,12 @@
  */
 #pragma once
 
+// standard includes
+#include <cstdint>
+
 #if defined(SUNSHINE_BUILD_CUDA)
   // standard includes
+  #include <cmath>
   #include <cstdint>
   #include <memory>
   #include <optional>
@@ -17,7 +21,27 @@
 
   // local includes
   #include "src/video_colorspace.h"
+#endif
 
+namespace cuda::nvfbc {
+  /**
+   * @brief Decide whether NvFBC should offer the whole virtual desktop as a display.
+   *
+   * NvFBC enumerates zero outputs when the X screen drives no display head.
+   * Capture can still use `NVFBC_TRACKING_SCREEN` for the virtual desktop.
+   *
+   * @param output_count Number of outputs NvFBC enumerated.
+   * @param capture_possible Whether NvFBC reported that capture is possible.
+   * @param screen_width Virtual desktop width reported by NvFBC.
+   * @param screen_height Virtual desktop height reported by NvFBC.
+   * @return `true` when the virtual desktop should be offered as a display.
+   */
+  constexpr bool should_offer_virtual_desktop(std::uint32_t output_count, bool capture_possible, std::uint32_t screen_width, std::uint32_t screen_height) {
+    return output_count == 0 && capture_possible && screen_width > 0 && screen_height > 0;
+  }
+}  // namespace cuda::nvfbc
+
+#if defined(SUNSHINE_BUILD_CUDA)
 namespace platf {
   struct avcodec_encode_device_t;
   struct img_t;
@@ -113,6 +137,40 @@ namespace cuda {
     int offsetX;
     int offsetY;
   };
+
+  /**
+   * @brief Fit a captured image into an output frame, keeping its aspect ratio.
+   *
+   * The offsets are rounded down to even values. NV12 stores one interleaved U,V pair for every
+   * two pixels, and the conversion kernel writes each pair at the pixel's x plus `offsetX`, so an
+   * odd offset would place every pair one byte off and swap U and V (red and blue).
+   *
+   * @param in_width Width of the captured image in pixels.
+   * @param in_height Height of the captured image in pixels.
+   * @param out_width Width of the output frame in pixels.
+   * @param out_height Height of the output frame in pixels.
+   * @param scale Set to the number of captured pixels per output pixel.
+   * @return The area of the output frame that the captured image covers.
+   */
+  inline viewport_t make_viewport(int in_width, int in_height, int out_width, int out_height, float &scale) {
+    // Ensure aspect ratio is maintained
+    const auto scalar = std::fminf(out_width / (float) in_width, out_height / (float) in_height);
+    const auto out_width_f = in_width * scalar;
+    const auto out_height_f = in_height * scalar;
+
+    // result is always positive
+    const auto offsetX_f = (out_width - out_width_f) / 2;
+    const auto offsetY_f = (out_height - out_height_f) / 2;
+
+    viewport_t viewport;
+    viewport.width = out_width_f;
+    viewport.height = out_height_f;
+    viewport.offsetX = static_cast<int>(offsetX_f) & ~1;
+    viewport.offsetY = static_cast<int>(offsetY_f) & ~1;
+
+    scale = 1.0f / scalar;
+    return viewport;
+  }
 
   class tex_t {
   public:
