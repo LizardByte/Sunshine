@@ -105,7 +105,7 @@ namespace cuda {
   using function_table_loader_t = int (*)(CudaFunctions **table);
 
   /**
-   * @brief Load a CUDA function table and initialize CUDA through it.
+   * @brief Load a CUDA function table unless it is already loaded, and initialize CUDA through it.
    *
    * `init()` passes the table every encode device shares and the real loader.
    *

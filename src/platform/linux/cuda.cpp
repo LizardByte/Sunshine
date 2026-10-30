@@ -8,6 +8,7 @@
 #include <cctype>
 #include <fcntl.h>
 #include <filesystem>
+#include <mutex>
 #include <thread>
 #include <utility>
 
@@ -137,17 +138,24 @@ namespace cuda {
   };
 
   /**
-   * @brief Load a CUDA function table and initialize CUDA through it.
+   * @brief Load a CUDA function table unless it is already loaded, and initialize CUDA through it.
    *
    * @param table Table to load.
    * @param load Function that fills the table, returning 0 on success.
    * @return 0 on success, -1 on failure.
    */
   int init(CudaFunctions **table, function_table_loader_t load) {
-    if (auto status = load(table)) {
-      BOOST_LOG(error) << "Couldn't load cuda: "sv << status;
+    // Load the table only once: running streams call through it on every frame, and reloading empties
+    // it first. The mutex stops streams that start at the same time from loading it concurrently.
+    static std::mutex load_mutex;
+    std::scoped_lock lock {load_mutex};
 
-      return -1;
+    if (*table == nullptr) {
+      if (auto status = load(table)) {
+        BOOST_LOG(error) << "Couldn't load cuda: "sv << status;
+
+        return -1;
+      }
     }
 
     CU_CHECK((*table)->cuInit(0), "Couldn't initialize cuda");
@@ -156,7 +164,7 @@ namespace cuda {
   }
 
   /**
-   * @brief Load the CUDA driver library and initialize CUDA.
+   * @brief Load the CUDA driver library the first time, and initialize CUDA.
    *
    * @return 0 on success; nonzero or negative platform status on failure.
    */
