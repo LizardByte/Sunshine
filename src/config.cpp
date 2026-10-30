@@ -48,7 +48,7 @@
   #include <ffnvcodec/nvEncodeAPI.h>
 #endif
 
-#if (defined(linux) || defined(__FreeBSD__)) && !defined(DOXYGEN)
+#if defined(SUNSHINE_BUILD_VAAPI) && !defined(DOXYGEN)
   // For VAAPI rate control types
   #include <va/va.h>
 #endif
@@ -419,7 +419,7 @@ namespace config {
   }  // namespace qsv
 
   namespace vaapi {
-#if !(defined(linux) || defined(__FreeBSD__)) || defined(DOXYGEN)
+#if !defined(SUNSHINE_BUILD_VAAPI) || defined(DOXYGEN)
     constexpr int VA_RC_CBR = 0x00000002;  ///< CBR rate control
     constexpr int VA_RC_VBR = 0x00000004;  ///< VBR rate control
     constexpr int VA_RC_CQP = 0x00000010;  ///< CQP rate control
