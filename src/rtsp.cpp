@@ -4,8 +4,9 @@
  */
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
+#include "compat/moonlight.h"
+
 extern "C" {
-#include <moonlight-common-c/src/Limelight-internal.h>
 #include <moonlight-common-c/src/Rtsp.h>
 }
 
