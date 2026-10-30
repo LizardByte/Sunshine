@@ -629,11 +629,13 @@ namespace wl {
     }
 
     /**
-     * @brief Ignore physical wl-output geometry; monitor placement comes from xdg-output metadata.
-     * @details Retain the wl-output listener signature while ignoring all event arguments.
+     * @brief Record the wl-output transform; monitor placement comes from xdg-output metadata.
+     * @details Physical geometry is ignored. A rotated output is captured in its native orientation, so absolute
+     * input needs the transform to map points onto it.
+     * @param transform Wayland output transform value.
      */
-    void wl_geometry(wl_output *, std::int32_t, std::int32_t, std::int32_t, std::int32_t, std::int32_t, const char *, const char *, std::int32_t) {
-      // Logical placement comes from xdg-output, so physical geometry has nothing to update.
+    void wl_geometry(wl_output *, std::int32_t, std::int32_t, std::int32_t, std::int32_t, std::int32_t, const char *, const char *, std::int32_t transform) {
+      viewport.transform = transform;
     }
 
     /**
