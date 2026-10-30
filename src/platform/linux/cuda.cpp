@@ -137,21 +137,33 @@ namespace cuda {
   };
 
   /**
-   * @brief Map CUDA graphics resources for use as an image.
+   * @brief Load a CUDA function table and initialize CUDA through it.
    *
-   * @return 0 on success; nonzero or negative platform status on failure.
+   * @param table Table to load.
+   * @param load Function that fills the table, returning 0 on success.
+   * @return 0 on success, -1 on failure.
    */
-  int init() {
-    auto status = cuda_load_functions(&cdf, nullptr);
-    if (status) {
+  int init(CudaFunctions **table, function_table_loader_t load) {
+    if (auto status = load(table)) {
       BOOST_LOG(error) << "Couldn't load cuda: "sv << status;
 
       return -1;
     }
 
-    CU_CHECK(cdf->cuInit(0), "Couldn't initialize cuda");
+    CU_CHECK((*table)->cuInit(0), "Couldn't initialize cuda");
 
     return 0;
+  }
+
+  /**
+   * @brief Load the CUDA driver library and initialize CUDA.
+   *
+   * @return 0 on success; nonzero or negative platform status on failure.
+   */
+  int init() {
+    return init(&cdf, [](CudaFunctions **table) {
+      return cuda_load_functions(table, nullptr);
+    });
   }
 
   /**
