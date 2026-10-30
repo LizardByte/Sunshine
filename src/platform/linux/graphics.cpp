@@ -66,6 +66,9 @@ namespace gl {
     return egl_image_target_texture_2d_fn;
   }
 
+  PFNEGLCREATEIMAGEPROC egl_create_image = nullptr;  ///< Selected core or KHR EGL image-creation entry point.
+  PFNEGLDESTROYIMAGEPROC egl_destroy_image = nullptr;  ///< Selected core or KHR EGL image-destruction entry point.
+
   /**
    * @brief Drain and log pending OpenGL errors.
    */
@@ -641,6 +644,17 @@ namespace egl {
       BOOST_LOG(warning) << "GL: glEGLImageTargetTexture2DOES not available; DMA-BUF import will fail"sv;
     }
 
+    if (eglCreateImage != nullptr && eglDestroyImage != nullptr) {
+      gl::egl_create_image = (gl::PFNEGLCREATEIMAGEPROC) eglCreateImage;
+      gl::egl_destroy_image = (gl::PFNEGLDESTROYIMAGEPROC) eglDestroyImage;
+    } else if (eglCreateImageKHR != nullptr && eglDestroyImageKHR != nullptr) {
+      gl::egl_create_image = (gl::PFNEGLCREATEIMAGEPROC) eglCreateImageKHR;
+      gl::egl_destroy_image = (gl::PFNEGLDESTROYIMAGEPROC) eglDestroyImageKHR;
+    } else {
+      BOOST_LOG(error) << "Neither eglCreateImage/eglDestroyImage nor eglCreateImageKHR/eglDestroyImageKHR are available"sv;
+      return std::nullopt;
+    }
+
     // GetString returns const GLubyte* (unsigned char*); convert to std::string safely (avoids sonar cpp:S6996).
     auto gl_string = [](const GLubyte *s) {
       std::string result;
@@ -722,11 +736,14 @@ namespace egl {
 
   /**
    * @brief Get EGL attributes for eglCreateImage() to import the provided surface.
+   *
+   * @tparam EglType EGLAttrib for the core API or EGLint for the KHR API.
    * @param surface The surface descriptor.
    * @return Vector of EGL attributes.
    */
-  std::vector<EGLAttrib> surface_descriptor_to_egl_attribs(const surface_descriptor_t &surface) {
-    std::vector<EGLAttrib> attribs;
+  template<typename EglType>
+  std::vector<EglType> surface_descriptor_to_egl_attribs(const surface_descriptor_t &surface) {
+    std::vector<EglType> attribs;
 
     attribs.emplace_back(EGL_WIDTH);
     attribs.emplace_back(surface.width);
@@ -759,7 +776,27 @@ namespace egl {
     }
 
     attribs.emplace_back(EGL_NONE);
-    return attribs;
+    return std::move(attribs);
+  }
+
+  /**
+   * @brief Import a DMA-BUF image through the available typed EGL API.
+   *
+   * @param display EGL display that owns the imported image.
+   * @param surface DMA-BUF descriptor used to build attributes.
+   * @return Imported image, or EGL_NO_IMAGE on failure.
+   */
+  EGLImage create_dma_buf_image(EGLDisplay display, const surface_descriptor_t &surface) {
+    if (gl::egl_create_image == (gl::PFNEGLCREATEIMAGEPROC) eglCreateImage) {
+      auto attributes = surface_descriptor_to_egl_attribs<EGLAttrib>(surface);
+      return gl::egl_create_image(display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, attributes.data());
+    } else if (gl::egl_create_image == (gl::PFNEGLCREATEIMAGEPROC) eglCreateImageKHR) {
+      auto attributes = surface_descriptor_to_egl_attribs<EGLint>(surface);
+      return gl::egl_create_image(display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, attributes.data());
+    } else {
+      BOOST_LOG(error) << "eglCreateImage and eglCreateImageKHR are both unavailable"sv;
+      return EGL_NO_IMAGE;
+    }
   }
 
   /**
@@ -770,11 +807,9 @@ namespace egl {
    * @return Imported RGB image, or empty when import fails.
    */
   std::optional<rgb_t> import_source(display_t::pointer egl_display, const surface_descriptor_t &xrgb) {
-    auto attribs = surface_descriptor_to_egl_attribs(xrgb);
-
     rgb_t rgb {
       egl_display,
-      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, attribs.data()),
+      create_dma_buf_image(egl_display, xrgb),
       gl::tex_t::make(1)
     };
 
@@ -879,13 +914,10 @@ namespace egl {
    * @return Imported NV12 image, or empty when import fails.
    */
   std::optional<nv12_t> import_target(display_t::pointer egl_display, std::array<file_t, nv12_img_t::num_fds> &&fds, const surface_descriptor_t &y, const surface_descriptor_t &uv) {
-    auto y_attribs = surface_descriptor_to_egl_attribs(y);
-    auto uv_attribs = surface_descriptor_to_egl_attribs(uv);
-
     nv12_t nv12 {
       egl_display,
-      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, y_attribs.data()),
-      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, uv_attribs.data()),
+      create_dma_buf_image(egl_display, y),
+      create_dma_buf_image(egl_display, uv),
       gl::tex_t::make(2),
       gl::frame_buf_t::make(2),
       std::move(fds)
@@ -931,15 +963,11 @@ namespace egl {
     const surface_descriptor_t &u,
     const surface_descriptor_t &v
   ) {
-    auto y_attribs = surface_descriptor_to_egl_attribs(y);
-    auto u_attribs = surface_descriptor_to_egl_attribs(u);
-    auto v_attribs = surface_descriptor_to_egl_attribs(v);
-
     yuv444_t yuv444 {
       egl_display,
-      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, y_attribs.data()),
-      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, u_attribs.data()),
-      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, v_attribs.data()),
+      create_dma_buf_image(egl_display, y),
+      create_dma_buf_image(egl_display, u),
+      create_dma_buf_image(egl_display, v),
       gl::tex_t::make(3),
       gl::frame_buf_t::make(3),
       std::move(fds)
@@ -1524,6 +1552,38 @@ namespace egl {
     }
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
+
+    gl::ctx.Flush();
+
+    return 0;
+  }
+
+  int sws_t::copy_nv12(gl::frame_buf_t &dst, gl::frame_buf_t &src) {
+    for (int plane = 0; plane < 2; ++plane) {
+      const int divisor = plane + 1;  // UV plane is half the width of the Y plane
+      const int x = offsetX / divisor;
+      const int y = offsetY / divisor;
+      const int plane_width = out_width / divisor;
+      const int plane_height = out_height / divisor;
+      const GLenum attachment = GL_COLOR_ATTACHMENT0 + plane;
+
+      gl::ctx.BindFramebuffer(GL_READ_FRAMEBUFFER, src[plane]);
+      gl::ctx.ReadBuffer(attachment);
+
+      gl::ctx.BindFramebuffer(GL_DRAW_FRAMEBUFFER, dst[plane]);
+      gl::ctx.DrawBuffers(1, &attachment);
+
+#ifndef NDEBUG
+      if (gl::ctx.CheckFramebufferStatus(GL_READ_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE || gl::ctx.CheckFramebufferStatus(GL_DRAW_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        BOOST_LOG(error) << "Copy: incomplete framebuffer for NV12 plane "sv << plane;
+        return -1;
+      }
+#endif
+
+      gl::ctx.BlitFramebuffer(x, y, x + plane_width, y + plane_height, x, y, x + plane_width, y + plane_height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
+
+    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
 
     gl::ctx.Flush();
 
