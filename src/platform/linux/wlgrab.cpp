@@ -5,6 +5,7 @@
 // standard includes
 #include <charconv>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <format>
 #include <optional>
@@ -32,6 +33,84 @@ using namespace std::literals;
 namespace wl {
   static int env_width;
   static int env_height;
+  static bool force_ram_capture = false;  // NOSONAR(cpp:S5421): Retains SHM selection across VRAM-to-RAM capture backend recreation.
+
+  /**
+   * @brief Source byte offsets feeding each destination BGRA channel.
+   */
+  struct shm_layout_t {
+    int bpp;  ///< Bytes per source pixel.
+    int b;  ///< Source byte offset of the blue channel.
+    int g;  ///< Source byte offset of the green channel.
+    int r;  ///< Source byte offset of the red channel.
+  };
+
+  /**
+   * @brief Map a `wl_shm` pixel format onto BGRA channel offsets.
+   *
+   * On little-endian systems XRGB8888 already arrives as BGRA bytes.
+   * The 24-bit formats also describe packed values, not byte order.
+   *
+   * @param format `wl_shm` pixel format reported by the compositor.
+   * @return Channel layout, or empty when the format is unsupported.
+   */
+  static std::optional<shm_layout_t> shm_layout(std::uint32_t format) {
+    switch (format) {
+      case WL_SHM_FORMAT_XRGB8888:
+      case WL_SHM_FORMAT_ARGB8888:
+        return shm_layout_t {4, 0, 1, 2};
+      case WL_SHM_FORMAT_XBGR8888:
+      case WL_SHM_FORMAT_ABGR8888:
+        return shm_layout_t {4, 2, 1, 0};
+      case WL_SHM_FORMAT_BGR888:
+        return shm_layout_t {3, 2, 1, 0};
+      case WL_SHM_FORMAT_RGB888:
+        return shm_layout_t {3, 0, 1, 2};
+      default:
+        return std::nullopt;
+    }
+  }
+
+  /**
+   * @brief Copy a shared-memory frame into a BGRA image buffer.
+   */
+  bool convert_shm_frame(const frame_t &frame, platf::img_t &img) {
+    auto layout = shm_layout(frame.shm_format);
+    if (!layout) {
+      BOOST_LOG(error) << "[wlgrab] Unsupported SHM format: 0x" << std::hex << frame.shm_format << std::dec;
+      return false;
+    }
+
+    const auto size = shm_buffer_size(frame.shm_format, frame.sd.width, frame.sd.height, frame.shm_stride);
+    if (!size || frame.shm_data.size() < *size || !img.data || img.width <= 0 || img.height <= 0 || static_cast<std::uint32_t>(img.width) != frame.sd.width || static_cast<std::uint32_t>(img.height) != frame.sd.height || img.pixel_pitch != 4 || img.row_pitch <= 0 || img.width > img.row_pitch / 4) {
+      return false;
+    }
+
+    auto src = frame.shm_data.data();
+    auto dst = static_cast<std::uint8_t *>(img.data);
+    auto row_bytes = static_cast<std::size_t>(img.width) * 4;
+    bool passthrough = layout->bpp == 4 && layout->b == 0;
+
+    for (int y = 0; y < img.height; y++) {
+      auto source_y = frame.shm_y_invert ? img.height - 1 - y : y;
+      auto row_src = src + static_cast<std::size_t>(source_y) * frame.shm_stride;
+      auto row_dst = dst + static_cast<std::size_t>(y) * img.row_pitch;
+
+      if (passthrough) {
+        std::memcpy(row_dst, row_src, row_bytes);
+        continue;
+      }
+
+      for (int x = 0; x < img.width; x++) {
+        row_dst[x * 4 + 0] = row_src[x * layout->bpp + layout->b];
+        row_dst[x * 4 + 1] = row_src[x * layout->bpp + layout->g];
+        row_dst[x * 4 + 2] = row_src[x * layout->bpp + layout->r];
+        row_dst[x * 4 + 3] = 0xFF;
+      }
+    }
+
+    return true;
+  }
 
   namespace {
     int open_render_node_read_only(const char *path) {
@@ -405,7 +484,7 @@ namespace wl {
       if (request != screencopy_request_e::keep) {
         dmabuf.with_damage = request == screencopy_request_e::copy_with_damage;
         requested_cursor = cursor;
-        dmabuf.listen(interface.screencopy_manager, interface.dmabuf_interface, &interface.supported_modifiers, output, cursor, encoder_modifiers, prefer_linear_capture);
+        dmabuf.listen(interface.screencopy_manager, interface.dmabuf_interface, &interface.supported_modifiers, interface.shm_interface, output, cursor, encoder_modifiers, prefer_linear_capture);
       }
       do {
         auto remaining_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(to - std::chrono::steady_clock::now());
@@ -550,6 +629,25 @@ namespace wl {
 
       auto current_frame = dmabuf.current_frame;
 
+      if (current_frame->is_shm) {
+        // Pixels are already in system memory; EGL import would be pointless
+        if (!pull_free_image_cb(img_out)) {
+          return platf::capture_e::interrupted;
+        }
+
+        if (!convert_shm_frame(*current_frame, *img_out)) {
+          return platf::capture_e::reinit;
+        }
+
+        img_out->frame_timestamp = current_frame->frame_timestamp;
+
+        return platf::capture_e::ok;
+      }
+
+      if (!egl_display) {
+        return platf::capture_e::reinit;
+      }
+
       auto rgb_opt = egl::import_source(egl_display.get(), current_frame->sd);
 
       if (!rgb_opt) {
@@ -592,12 +690,17 @@ namespace wl {
 
       egl_display = egl::make_display(display.get());
       if (!egl_display) {
-        return -1;
+        BOOST_LOG(warning) << "[wlgrab] EGL init failed, using SHM-only capture"sv;
+        dmabuf.allow_dmabuf = false;
+        return 0;
       }
 
       auto ctx_opt = egl::make_ctx(egl_display.get());
       if (!ctx_opt) {
-        return -1;
+        BOOST_LOG(warning) << "[wlgrab] EGL context creation failed, using SHM-only capture"sv;
+        egl_display.reset();
+        dmabuf.allow_dmabuf = false;
+        return 0;
       }
 
       ctx = std::move(*ctx_opt);
@@ -669,13 +772,24 @@ namespace wl {
         return status;
       }
 
+      auto current_frame = dmabuf.current_frame;
+
+      if (current_frame->is_shm) {
+        // The VRAM path has no DMA-BUF to hand to the encoder; restart on the RAM path
+        if (mem_type == platf::mem_type_e::vulkan) {
+          BOOST_LOG(error) << "[wlgrab] SHM capture is not supported by the Vulkan encoder"sv;
+          return platf::capture_e::capture_error;
+        }
+        BOOST_LOG(warning) << "[wlgrab] Got a SHM frame in the VRAM path, switching to RAM capture"sv;
+        force_ram_capture = true;
+        return platf::capture_e::reinit;
+      }
+
       if (!pull_free_image_cb(img_out)) {
         return platf::capture_e::interrupted;
       }
       auto img = (egl::img_descriptor_t *) img_out.get();
       img->reset();
-
-      auto current_frame = dmabuf.current_frame;
 
       ++sequence;
       img->sequence = sequence;
@@ -780,7 +894,7 @@ namespace platf {
       return nullptr;
     }
 
-    if (wl::use_vram_capture(hwdevice_type)) {
+    if ((hwdevice_type == platf::mem_type_e::vulkan || !wl::force_ram_capture) && wl::use_vram_capture(hwdevice_type)) {
       auto wlr = std::make_shared<wl::wlr_vram_t>();
       if (wlr->init(hwdevice_type, display_name, config)) {
         return nullptr;
@@ -797,6 +911,9 @@ namespace platf {
       BOOST_LOG(warning) << "This build does not include CUDA support. Falling back to GPU -> RAM -> GPU for NVENC."sv;
     }
 #endif
+    if (wl::force_ram_capture) {
+      BOOST_LOG(info) << "[wlgrab] Using RAM capture path (DMA-BUF unavailable)"sv;
+    }
 
     auto wlr = std::make_shared<wl::wlr_ram_t>();
     if (wlr->init(hwdevice_type, display_name, config)) {
