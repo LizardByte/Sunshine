@@ -2296,6 +2296,40 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     </tr>
 </table>
 
+### pipewire_use_dmabuf
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Prefer DMA-BUF buffers for PipeWire capture (KWin and XDG portal backends).
+            DMA-BUF remains the default; this setting takes effect after a Sunshine restart.
+            If the stream stays black and the log shows `Couldn't import RGB Image`
+            with `EGL_BAD_PARAMETER`, the captured DMA-BUFs may not be importable
+            into the encoder's EGL context on that system (observed for example on
+            some multi-GPU or GPU-passthrough setups). Disabling this option makes
+            Sunshine request PipeWire memory buffers instead, which avoids the
+            DMA-BUF import on the VA-API, CUDA, and software paths. Memory buffers
+            may increase CPU/memory bandwidth use and latency, especially at high
+            resolutions. The Vulkan encoder requires DMA-BUF and is unavailable
+            while this is disabled.
+            @note{Applies to Linux only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            enabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            pipewire_use_dmabuf = disabled
+            @endcode</td>
+    </tr>
+</table>
+
 ### fp16_sdr_gamma_encoded
 
 <table>

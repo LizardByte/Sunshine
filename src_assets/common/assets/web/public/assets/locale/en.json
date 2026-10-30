@@ -379,6 +379,8 @@
     "packetsize_desc": "Limit the packet size to avoid fragmentation on a low MTU link. This helps reduce packet loss and micro-stuttering, while streaming over a layer 2 VPN to clients that cannot configure this value, e.g. Moonlight for Android/iOS. Reduce the bitrate when using low values. Values larger than 1456 require jumbo frames. Range: 0, 200-65535. A value of 0 will disable the limit.",
     "ping_timeout": "Ping Timeout",
     "ping_timeout_desc": "How long to wait in milliseconds for data from moonlight before shutting down the stream",
+    "pipewire_use_dmabuf": "Use DMA-BUF for PipeWire capture",
+    "pipewire_use_dmabuf_desc": "Prefer DMA-BUF buffers for KWin and XDG portal capture (default, applied after restart). If the stream stays black and the log shows EGL import errors (EGL_BAD_PARAMETER), the captured buffers may not be importable on that system, as observed on some multi-GPU or GPU-passthrough setups. Disabling requests memory buffers instead, avoiding the DMA-BUF import on the VA-API, CUDA, and software paths; this may increase CPU/memory bandwidth use and latency, especially at high resolutions. The Vulkan encoder requires DMA-BUF.",
     "pkey": "Private Key",
     "pkey_desc": "The private key used for the web UI and Moonlight client pairing. For best compatibility, this should be an RSA-2048 private key.",
     "port": "Port",

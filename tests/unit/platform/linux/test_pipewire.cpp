@@ -52,6 +52,33 @@ namespace {
     int connect(int fd) {
       return pipewire.init(fd, PW_ID_ANY, SPA_ID_INVALID, std::make_shared<pipewire::shared_state_t>());
     }
+
+    /**
+     * @brief Run the DMA-BUF modifier query as display init does.
+     *
+     * @return Result of the modifier query: 0 on success.
+     */
+    int query_modifiers() {
+      return get_dmabuf_modifiers();
+    }
+
+    /**
+     * @brief Read how many DMA-BUF formats are available for negotiation.
+     *
+     * @return Current DMA-BUF format count.
+     */
+    int dmabuf_info_count() const {
+      return n_dmabuf_infos;
+    }
+
+    /**
+     * @brief Check whether the modifier query connected to Wayland.
+     *
+     * @return True when the Wayland display was initialized.
+     */
+    bool wayland_initialized() {
+      return wl_display.get() != nullptr;
+    }
   };
 
   /**
@@ -282,5 +309,50 @@ TEST_F(PipeWireDisplayTest, TeardownAfterFailedConnectionClosesStreamFd) {
   // With a client.conf that loads no modules, PipeWire creates the context, but without the native protocol
   // pw_context_connect_fd() fails and does not take the stream fd over.
   expect_failed_init_closes_stream_fd("context.properties = { }\ncontext.modules = [ ]\n");
+}
+
+TEST_F(PipeWireDisplayTest, DisabledDmabufSkipsModifierQuery) {
+  const auto previous = config::video.pipewire_use_dmabuf;
+  const auto restore_config = util::fail_guard([previous]() {
+    config::video.pipewire_use_dmabuf = previous;
+  });
+  config::video.pipewire_use_dmabuf = false;
+
+  auto display = std::make_shared<test_display_t>();
+  EXPECT_EQ(display->query_modifiers(), 0);
+  EXPECT_EQ(display->dmabuf_info_count(), 0);
+  EXPECT_FALSE(display->wayland_initialized()) << "the bypass must not touch Wayland or EGL";
+}
+
+TEST_F(PipeWireDisplayTest, EnabledDmabufAttemptsModifierQuery) {
+  const auto previous = config::video.pipewire_use_dmabuf;
+  const auto restore_config = util::fail_guard([previous]() {
+    config::video.pipewire_use_dmabuf = previous;
+  });
+  config::video.pipewire_use_dmabuf = true;
+
+  auto display = std::make_shared<test_display_t>();
+  const int result = display->query_modifiers();
+  if (result == 0) {
+    // A live Wayland session answered: the real query ran instead of the bypass.
+    EXPECT_TRUE(display->wayland_initialized());
+  } else {
+    // No live session (as on CI runners): the query was attempted and failed.
+    EXPECT_EQ(result, -1);
+  }
+}
+
+TEST_F(PipeWireDisplayTest, MemoryBuffersRejectVulkanBeforeStartingCapture) {
+  const auto previous = config::video.pipewire_use_dmabuf;
+  const auto restore_config = util::fail_guard([previous]() {
+    config::video.pipewire_use_dmabuf = previous;
+  });
+  config::video.pipewire_use_dmabuf = false;
+  EXPECT_FALSE(pipewire::pipewire_display_t::init_pipewire_and_check_hwdevice_type(platf::mem_type_e::vulkan));
+  EXPECT_TRUE(pipewire::pipewire_display_t::init_pipewire_and_check_hwdevice_type(platf::mem_type_e::vaapi));
+  EXPECT_TRUE(pipewire::pipewire_display_t::init_pipewire_and_check_hwdevice_type(platf::mem_type_e::system));
+  EXPECT_TRUE(pipewire::pipewire_display_t::init_pipewire_and_check_hwdevice_type(platf::mem_type_e::cuda));
+  config::video.pipewire_use_dmabuf = true;
+  EXPECT_TRUE(pipewire::pipewire_display_t::init_pipewire_and_check_hwdevice_type(platf::mem_type_e::vulkan));
 }
 #endif

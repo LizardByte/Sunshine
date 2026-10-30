@@ -142,6 +142,7 @@ namespace config {
     } vk;  ///< Vulkan encoder options.
 
     std::string capture;  ///< Capture backend name selected by configuration.
+    bool pipewire_use_dmabuf;  ///< Whether PipeWire capture (KWin/portal) may negotiate DMA-BUF buffers (Linux).
     bool fp16_sdr_gamma_encoded;  ///< Treat FP16 captures of SDR displays as already sRGB gamma-encoded (Windows).
     std::string encoder;  ///< Encoder backend name selected by configuration.
     std::string adapter_name;  ///< Display adapter name selected in configuration.

@@ -17,6 +17,7 @@
 // local includes
 #include "cuda.h"
 #include "graphics.h"
+#include "src/config.h"
 #include "src/main.h"
 #include "src/platform/common.h"
 #include "src/video.h"
@@ -977,10 +978,10 @@ namespace pipewire {
   class pipewire_display_t: public platf::display_t {
   public:
     /**
-     * @brief Initialize pipewire and check hwdevice type.
+     * @brief Initialize PipeWire and check the device supports the configured buffer transport.
      *
      * @param hwdevice_type Hardware device type requested for capture or encode.
-     * @return True when PipeWire is initialized and the hardware device type is supported.
+     * @return True when the device supports PipeWire capture with the configured buffer transport.
      */
     static bool init_pipewire_and_check_hwdevice_type(platf::mem_type_e hwdevice_type) {
       // Initialize pipewire to load necessary modules
@@ -992,7 +993,12 @@ namespace pipewire {
         case system:
         case vaapi:
         case cuda:
+          return true;
         case vulkan:
+          if (!config::video.pipewire_use_dmabuf) {
+            BOOST_LOG(error) << "[pipewire] Vulkan encoding requires DMA-BUF capture (enable pipewire_use_dmabuf or select another encoder)"sv;
+            return false;
+          }
           return true;
         default:
           return false;
@@ -1487,7 +1493,30 @@ namespace pipewire {
       }
     }
 
+    platf::mem_type_e mem_type;
+    std::array<struct dmabuf_format_info_t, MAX_DMABUF_FORMATS> dmabuf_infos;
+    bool display_is_nvidia = false;  // Track if display GPU is NVIDIA
+    std::chrono::nanoseconds delay;
+    std::optional<std::uint64_t> last_pts {};
+    std::optional<std::uint64_t> last_seq {};
+    std::uint64_t sequence {};
+    AVRational target_framerate;
+
+  protected:
+    /**
+     * @brief Discover DMA-BUF formats, or select memory buffers when DMA-BUF is disabled.
+     *
+     * @return 0 when buffer selection succeeds, or -1 if the Wayland/EGL query fails.
+     */
     int get_dmabuf_modifiers() {
+      // Forced memory buffers: skip the modifier query entirely so stream
+      // negotiation and the encode device both follow the no-DMA-BUF path.
+      if (!config::video.pipewire_use_dmabuf) {
+        n_dmabuf_infos = 0;
+        BOOST_LOG(info) << "[pipewire] DMA-BUF disabled by configuration, using memory buffers"sv;
+        return 0;
+      }
+
       if (wl_display.init() < 0) {
         return -1;
       }
@@ -1535,18 +1564,9 @@ namespace pipewire {
       return 0;
     }
 
-    platf::mem_type_e mem_type;
-    wl::display_t wl_display;
-    std::array<struct dmabuf_format_info_t, MAX_DMABUF_FORMATS> dmabuf_infos;
-    int n_dmabuf_infos;
-    bool display_is_nvidia = false;  // Track if display GPU is NVIDIA
-    std::chrono::nanoseconds delay;
-    std::optional<std::uint64_t> last_pts {};
-    std::optional<std::uint64_t> last_seq {};
-    std::uint64_t sequence {};
-    AVRational target_framerate;
+    wl::display_t wl_display;  ///< Wayland connection used to query DMA-BUF import support.
+    int n_dmabuf_infos = 0;  ///< Number of DMA-BUF format/modifier entries available for negotiation.
 
-  protected:
     // Allow subclasses to access for pipewire requirements setup and stream dead checks
     pipewire_t pipewire;  ///< Pipewire.
     std::shared_ptr<shared_state_t> shared_state;  ///< Shared state.

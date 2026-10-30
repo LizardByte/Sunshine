@@ -798,6 +798,7 @@ namespace config {
     },
 
     {},  // capture
+    true,  // pipewire_use_dmabuf
     false,  // fp16_sdr_gamma_encoded
     {},  // encoder
     {},  // adapter_name
@@ -1727,6 +1728,7 @@ namespace config {
     }
 
     string_f(vars, "capture", video.capture);
+    bool_f(vars, "pipewire_use_dmabuf", video.pipewire_use_dmabuf);
     bool_f(vars, "fp16_sdr_gamma_encoded", video.fp16_sdr_gamma_encoded);
     string_f(vars, "encoder", video.encoder);
     string_f(vars, "adapter_name", video.adapter_name);
