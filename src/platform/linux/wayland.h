@@ -634,7 +634,7 @@ namespace wl {
      * input needs the transform to map points onto it.
      * @param transform Wayland output transform value.
      */
-    void wl_geometry(wl_output *, std::int32_t, std::int32_t, std::int32_t, std::int32_t, std::int32_t, const char *, const char *, std::int32_t transform) {
+    void wl_geometry(wl_output *, std::int32_t, std::int32_t, std::int32_t, std::int32_t, std::int32_t, const char *, const char *, std::int32_t transform) {  // NOSONAR(cpp:S107): libwayland's wl_output geometry callback signature.
       viewport.transform = transform;
     }
 
