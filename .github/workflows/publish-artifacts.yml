@@ -20,6 +20,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Publish PR artifacts
-        uses: LizardByte/actions/actions/artifact_comment@28374bf43cc8b6ee88b9b8a3419b2ac7a6573906  # v2026.928.123224
+        uses: LizardByte/actions/actions/artifact_comment@0528b495e6af82b4d698ec6c907a9b1842622068  # v2026.1029.234422
         with:
           artifact_patterns: build-*
