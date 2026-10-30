@@ -21,6 +21,24 @@ namespace input {
   struct input_t;
 
   /**
+   * @brief One input category that can be allowed or denied for a paired client.
+   */
+  enum class permission_e {
+    mouse,  ///< Mouse, touch, and pen input.
+    keyboard,  ///< Keyboard and text input.
+    controller,  ///< Controller input.
+  };
+
+  /**
+   * @brief Input categories a paired client may send to the host.
+   */
+  struct permissions_t {
+    bool mouse = true;  ///< Allow mouse, touch, and pen input.
+    bool keyboard = true;  ///< Allow keyboard and text input.
+    bool controller = true;  ///< Allow controller input.
+  };
+
+  /**
    * @brief Write a debug log representation of the input packet.
    *
    * @param input Raw input packet to format for logging.
@@ -47,6 +65,18 @@ namespace input {
    * @param session_id Stable paired-client identity used by alloc().
    */
   void terminate_gamepads(std::string_view session_id);
+
+  /**
+   * @brief Update one input permission of a connected or paused paired client.
+   *
+   * Revoking the permission releases held keys, mouse buttons, and the client's gamepad state.
+   * Clients without retained input are unaffected; they receive their permissions from alloc().
+   *
+   * @param session_id Stable paired-client identity used by alloc().
+   * @param permission Input category to change.
+   * @param allowed Whether the client may send that category.
+   */
+  void set_permission(std::string_view session_id, permission_e permission, bool allowed);
 
   /**
    * @brief Queue a raw input message for platform passthrough.
@@ -80,9 +110,10 @@ namespace input {
    *
    * @param mail Mailbox used to exchange messages with worker threads.
    * @param session_id Stable paired-client identity shared by launch and resume connections.
+   * @param permissions Input categories this client may send.
    * @return Shared input state bound to the stream mailbox.
    */
-  std::shared_ptr<input_t> alloc(safe::mail_t mail, std::string session_id);
+  std::shared_ptr<input_t> alloc(safe::mail_t mail, std::string session_id, const permissions_t &permissions = {});
 
 #ifdef SUNSHINE_TESTS
   namespace testing {

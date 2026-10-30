@@ -342,6 +342,9 @@ protected:
     server->resource["^/pairing-test$"]["GET"] = confighttp::getPendingPairings;
     server->resource["^/pairing-test$"]["POST"] = confighttp::savePin;
     server->resource["^/portal-token-reset-test$"]["POST"] = confighttp::resetPortalToken;
+    server->resource["^/clients-test$"]["GET"] = confighttp::getClients;
+    server->resource["^/clients-permissions-test$"]["POST"] = confighttp::updateClientPermissions;
+    server->resource["^/clients-kick-test$"]["POST"] = confighttp::kickClient;
     server->default_resource["GET"] = confighttp::getFallbackPage;
 
     // Start server
@@ -512,6 +515,7 @@ INSTANTIATE_TEST_SUITE_P(
     endpoint_request_t {"CsrfToken", "GET", "/csrf-token-test", ""},
     endpoint_request_t {"BrowseDirectory", "GET", "/browse-test", ""},
     endpoint_request_t {"PairingList", "GET", "/pairing-test", ""},
+    endpoint_request_t {"ClientList", "GET", "/clients-test", ""},
     endpoint_request_t {"PortalTokenReset", "POST", "/portal-token-reset-test", ""},
     endpoint_request_t {"VirtualInputStatus", "GET", "/virtual-input-status-test", ""},
     endpoint_request_t {"VirtualInputLicense", "GET", "/virtual-input-license-test", ""},
@@ -1730,6 +1734,99 @@ TEST_F(ConfigHttpTest, VirtualInputStatusReturnsBothBackends) {
   ASSERT_TRUE(body.contains("vigembus"));
   EXPECT_TRUE(body.at("virtualhid").contains("installed"));
   EXPECT_TRUE(body.at("vigembus").contains("installed"));
+}
+
+TEST_F(ConfigHttpTest, ClientManagementMutationsRequireAuthenticationAndCsrf) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Content-Type", "application/json");
+  const auto permissions_body = R"({"uuid":"missing","permission":"mouse","allowed":false})"s;
+  const auto kick_body = R"({"uuid":"missing"})"s;
+  EXPECT_EQ(client->request("POST", "/clients-permissions-test", permissions_body, headers)->status_code, "401 Unauthorized");
+  EXPECT_EQ(client->request("POST", "/clients-kick-test", kick_body, headers)->status_code, "401 Unauthorized");
+
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Origin", "https://example.invalid");
+  for (const auto &[path, body] : {std::pair {"/clients-permissions-test", permissions_body}, std::pair {"/clients-kick-test", kick_body}}) {
+    const auto response = client->request("POST", path, body, headers);
+    EXPECT_EQ(response->status_code, "400 Bad Request") << path;
+    EXPECT_TRUE(response->content.string().contains("Missing CSRF token")) << path;
+  }
+}
+
+TEST_F(ConfigHttpTest, ClientManagementListsUpdatesAndKicksPairedClients) {
+  const auto original_state_file = config::nvhttp.file_state;
+  const bool original_fresh_state = config::sunshine.flags[config::flag::FRESH_STATE];
+  config::nvhttp.file_state = (test_web_dir / "client_state.json").string();
+  config::sunshine.flags[config::flag::FRESH_STATE] = false;
+  nvhttp::test_support::reset_client_state();
+  const auto restore_state = util::fail_guard([&]() {
+    nvhttp::test_support::reset_client_state();
+    config::nvhttp.file_state = original_state_file;
+    config::sunshine.flags[config::flag::FRESH_STATE] = original_fresh_state;
+  });
+
+  const auto credentials = crypto::gen_creds("Sunshine Friend Client", 2048);
+  const auto uuid = nvhttp::test_support::add_client("friend", credentials.x509, true);
+  ASSERT_FALSE(uuid.empty());
+
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Content-Type", "application/json");
+  headers.emplace("Origin", std::format("https://localhost:{}", port));
+
+  const auto list_client = [&]() {
+    const auto response = client->request("GET", "/clients-test", "", headers);
+    EXPECT_EQ(response->status_code, "200 OK");
+    return nlohmann::json::parse(response->content.string()).at("named_certs").at(0);
+  };
+  auto listed = list_client();
+  EXPECT_EQ(listed.at("uuid"), uuid);
+  EXPECT_FALSE(listed.at("active").get<bool>());
+  EXPECT_TRUE(listed.at("permissions").at("mouse").get<bool>());
+  EXPECT_TRUE(listed.at("permissions").at("keyboard").get<bool>());
+  EXPECT_TRUE(listed.at("permissions").at("controller").get<bool>());
+
+  const auto update_mouse = client->request(
+    "POST",
+    "/clients-permissions-test",
+    nlohmann::json {{"uuid", uuid}, {"permission", "mouse"}, {"allowed", false}}.dump(),
+    headers
+  );
+  ASSERT_EQ(update_mouse->status_code, "200 OK");
+  EXPECT_TRUE(nlohmann::json::parse(update_mouse->content.string()).at("status").get<bool>());
+  const auto update_controller = client->request(
+    "POST",
+    "/clients-permissions-test",
+    nlohmann::json {{"uuid", uuid}, {"permission", "controller"}, {"allowed", false}}.dump(),
+    headers
+  );
+  ASSERT_EQ(update_controller->status_code, "200 OK");
+  listed = list_client();
+  EXPECT_FALSE(listed.at("permissions").at("mouse").get<bool>());
+  EXPECT_TRUE(listed.at("permissions").at("keyboard").get<bool>());
+  EXPECT_FALSE(listed.at("permissions").at("controller").get<bool>());
+
+  const auto unknown_update = client->request(
+    "POST",
+    "/clients-permissions-test",
+    R"({"uuid":"missing","permission":"mouse","allowed":true})",
+    headers
+  );
+  ASSERT_EQ(unknown_update->status_code, "200 OK");
+  EXPECT_FALSE(nlohmann::json::parse(unknown_update->content.string()).at("status").get<bool>());
+  EXPECT_EQ(client->request("POST", "/clients-permissions-test", nlohmann::json {{"uuid", uuid}, {"allowed", false}}.dump(), headers)->status_code, "400 Bad Request");
+  EXPECT_EQ(client->request("POST", "/clients-permissions-test", nlohmann::json {{"uuid", uuid}, {"permission", "mouse"}, {"allowed", "no"}}.dump(), headers)->status_code, "400 Bad Request");
+  EXPECT_EQ(client->request("POST", "/clients-permissions-test", nlohmann::json {{"uuid", uuid}, {"permission", "pen"}, {"allowed", false}}.dump(), headers)->status_code, "400 Bad Request");
+
+  const auto kick = client->request("POST", "/clients-kick-test", nlohmann::json {{"uuid", uuid}}.dump(), headers);
+  ASSERT_EQ(kick->status_code, "200 OK");
+  EXPECT_TRUE(nlohmann::json::parse(kick->content.string()).at("status").get<bool>());
+  EXPECT_TRUE(list_client().at("enabled").get<bool>());
+
+  const auto unknown_kick = client->request("POST", "/clients-kick-test", R"({"uuid":"missing"})", headers);
+  ASSERT_EQ(unknown_kick->status_code, "200 OK");
+  EXPECT_FALSE(nlohmann::json::parse(unknown_kick->content.string()).at("status").get<bool>());
+  EXPECT_EQ(client->request("POST", "/clients-kick-test", "{}", headers)->status_code, "400 Bad Request");
 }
 
 TEST_F(ConfigHttpTest, PermissionsEndpointRequiresAuthenticationAndCsrf) {

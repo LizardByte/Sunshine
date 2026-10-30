@@ -454,7 +454,20 @@
         <li v-for="client in clients" :key="client.uuid" class="list-group-item d-flex align-items-center">
           <div class="flex-grow-1">
             {{ client.name !== "" ? client.name : $t('troubleshooting.unpair_single_unknown') }}
+            <span v-if="client.active" class="badge text-bg-success ms-2">{{ $t('troubleshooting.client_active') }}</span>
           </div>
+          <div v-for="permission in clientPermissions" :key="permission" class="form-check form-check-inline ms-2 mb-0">
+            <input class="form-check-input" type="checkbox"
+                   :id="permission + '-' + client.uuid"
+                   :checked="client.permissions[permission]"
+                   @change="setClientPermission(client, permission, !client.permissions[permission])">
+            <label class="form-check-label" :for="permission + '-' + client.uuid">
+              {{ $t('troubleshooting.client_' + permission) }}
+            </label>
+          </div>
+          <button class="btn btn-warning btn-sm ms-2" :disabled="!client.active" @click="kickClient(client.uuid)">
+            {{ $t('troubleshooting.client_kick') }}
+          </button>
           <div class="form-check form-switch ms-2 mb-0">
             <input class="form-check-input" type="checkbox" role="switch"
                    :id="'toggle-' + client.uuid"
@@ -577,6 +590,7 @@
       data() {
         return {
           clients: [],
+          clientPermissions: ['mouse', 'keyboard', 'controller'],
           closeAppPressed: false,
           closeAppStatus: null,
           ddResetPressed: false,
@@ -823,6 +837,7 @@
         this.logInterval = setInterval(() => {
           this.refreshLogs();
           if (this.platform) this.refreshPermissions();
+          this.refreshClients();
         }, 5000);
         this.refreshLogs();
         this.refreshClients();
@@ -924,6 +939,32 @@
             },
             body: JSON.stringify({ uuid, enabled })
           }).then(() => {
+            this.refreshClients();
+          });
+        },
+        setClientPermission(client, permission, allowed) {
+          apiFetch("./api/clients/permissions", {
+            method: "POST",
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              uuid: client.uuid,
+              permission,
+              allowed,
+            })
+          }).finally(() => {
+            this.refreshClients();
+          });
+        },
+        kickClient(uuid) {
+          apiFetch("./api/clients/kick", {
+            method: "POST",
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ uuid })
+          }).finally(() => {
             this.refreshClients();
           });
         },
