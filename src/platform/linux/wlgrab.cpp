@@ -348,6 +348,8 @@ namespace wl {
 
       this->logical_width = monitor->viewport.logical_width;
       this->logical_height = monitor->viewport.logical_height;
+      this->transform = monitor->viewport.transform;
+      this->monitor = monitor;
 
       int desktop_logical_width = 0;
       int desktop_logical_height = 0;
@@ -423,7 +425,8 @@ namespace wl {
       if (
         dmabuf.status == dmabuf_t::REINIT ||
         current_frame->sd.width != width ||
-        current_frame->sd.height != height
+        current_frame->sd.height != height ||
+        monitor->viewport.transform != transform  // rotated: re-read the geometry for absolute input
       ) {
         return platf::capture_e::reinit;
       }
@@ -526,6 +529,7 @@ namespace wl {
     dmabuf_t dmabuf;  ///< DMA-BUF feedback and format state advertised by the compositor.
 
     wl_output *output;  ///< Wayland output selected for capture.
+    wl::monitor_t *monitor {};  ///< Monitor selected for capture.
   };
 
   /**
