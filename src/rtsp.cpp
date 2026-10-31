@@ -14,6 +14,7 @@ extern "C" {
 #include <cctype>
 #include <format>
 #include <set>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 
@@ -1087,6 +1088,7 @@ namespace rtsp_stream {
     args.try_emplace("x-ss-general.encryptionEnabled"sv, "0"sv);
     args.try_emplace("x-ss-video[0].chromaSamplingType"sv, "0"sv);
     args.try_emplace("x-ss-video[0].intraRefresh"sv, "0"sv);
+    args.try_emplace("x-ss-video[0].sourceAspectRatio"sv, ""sv);
     args.try_emplace("x-nv-video[0].clientRefreshRateX100"sv, "0"sv);
 
     stream::config_t config;
@@ -1153,6 +1155,12 @@ namespace rtsp_stream {
       config.monitor.dynamicRange = (int) util::from_view(args.at("x-nv-video[0].dynamicRangeMode"sv));
       config.monitor.chromaSamplingType = (int) util::from_view(args.at("x-ss-video[0].chromaSamplingType"sv));
       config.monitor.enableIntraRefresh = (int) util::from_view(args.at("x-ss-video[0].intraRefresh"sv));
+      std::tie(config.monitor.sourceAspectRatioWidth, config.monitor.sourceAspectRatioHeight) = video::select_source_aspect_ratio(
+        config::video.source_aspect_ratio,
+        args.at("x-ss-video[0].sourceAspectRatio"sv),
+        config.monitor.width,
+        config.monitor.height
+      );
 
       configuredBitrateKbps = util::from_view(args.at("x-ml-video.configuredBitrateKbps"sv));
     } catch (std::out_of_range &) {

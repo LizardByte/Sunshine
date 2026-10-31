@@ -1544,6 +1544,48 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     </tr>
 </table>
 
+### source_aspect_ratio
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Crops the display to a centered region of this aspect ratio before encoding, instead of fitting the whole display into the stream with black bars. This is useful when the display is wider or taller than the client, for example a 32:9 monitor streaming to a 16:10 tablet in a game that widens its field of view with the aspect ratio.
+            @note{Cropping is available with the D3D11 hardware encoders on Windows, and with software encoding on every platform. Other encoders stream the whole display and log a warning.}
+            @note{The mouse cursor can move outside the cropped region, where the client can't see it. Absolute mouse and touch input are mapped to the cropped region.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            client
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            source_aspect_ratio = 16:9
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="4">Choices</td>
+        <td>client</td>
+        <td>Use the aspect ratio requested by the client. Clients that don't request one get the whole display.</td>
+    </tr>
+    <tr>
+        <td>display</td>
+        <td>Always stream the whole display, ignoring the client's request.</td>
+    </tr>
+    <tr>
+        <td>stream</td>
+        <td>Crop to the aspect ratio of the stream's resolution, ignoring the client's request.</td>
+    </tr>
+    <tr>
+        <td>width:height</td>
+        <td>Crop to this aspect ratio, ignoring the client's request. For example 4:3, 16:10, 16:9, 21:9 or 32:9.</td>
+    </tr>
+</table>
+
 ## Network
 
 ### upnp

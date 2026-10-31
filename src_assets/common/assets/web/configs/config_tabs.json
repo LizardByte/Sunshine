@@ -60,7 +60,8 @@
         "refresh_rate_only": []
       },
       "max_bitrate": 0,
-      "minimum_fps_target": 0
+      "minimum_fps_target": 0,
+      "source_aspect_ratio": "client"
     }
   },
   {

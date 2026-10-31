@@ -21,6 +21,23 @@ const config = ref(props.config)
     <input type="number" min="0" max="1000" class="form-control" id="minimum_fps_target" placeholder="0" v-model="config.minimum_fps_target" />
     <div class="form-text">{{ $t("config.minimum_fps_target_desc") }}</div>
   </div>
+
+  <!--source_aspect_ratio-->
+  <div class="mb-3">
+    <label for="source_aspect_ratio" class="form-label">{{ $t("config.source_aspect_ratio") }}</label>
+    <input type="text" class="form-control" id="source_aspect_ratio" list="source_aspect_ratio_choices" placeholder="client" v-model="config.source_aspect_ratio" />
+    <datalist id="source_aspect_ratio_choices">
+      <option value="client" />
+      <option value="display" />
+      <option value="stream" />
+      <option value="4:3" />
+      <option value="16:10" />
+      <option value="16:9" />
+      <option value="21:9" />
+      <option value="32:9" />
+    </datalist>
+    <div class="form-text">{{ $t("config.source_aspect_ratio_desc") }}</div>
+  </div>
 </template>
 
 <style scoped>

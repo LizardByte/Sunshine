@@ -27,6 +27,10 @@ extern "C" {
 
 using namespace std::literals;
 
+namespace video {
+  input::touch_port_t make_port(platf::display_t *display, const config_t &config, const std::optional<platf::source_crop_t> &source_crop);
+}  // namespace video
+
 /**
  * @brief Packet replacement rules retain the original non-owning byte views.
  */
@@ -476,6 +480,203 @@ INSTANTIATE_TEST_SUITE_P(
  * @brief Software encoder converts BGR0 and NV12 frames, including padded strides and
  *        backends that don't report the pixel pitch.
  */
+/**
+ * @brief The host setting decides, and only "client" lets the client's request through.
+ */
+TEST(SourceAspectRatioTest, HostSettingOverridesTheClientRequest) {
+  EXPECT_EQ(video::select_source_aspect_ratio("client", "", 1920, 1200), std::pair(0, 0));
+  EXPECT_EQ(video::select_source_aspect_ratio("client", "16:9", 1920, 1200), std::pair(16, 9));
+  EXPECT_EQ(video::select_source_aspect_ratio("client", "nonsense", 1920, 1200), std::pair(0, 0));
+  EXPECT_EQ(video::select_source_aspect_ratio("display", "16:9", 1920, 1200), std::pair(0, 0));
+  EXPECT_EQ(video::select_source_aspect_ratio("stream", "16:9", 1920, 1200), std::pair(1920, 1200));
+  EXPECT_EQ(video::select_source_aspect_ratio("21:9", "16:9", 1920, 1200), std::pair(21, 9));
+}
+
+namespace {
+  /**
+   * @brief Create a stream configuration that requests a source aspect ratio.
+   *
+   * @param ratio_width Width of the requested ratio.
+   * @param ratio_height Height of the requested ratio.
+   * @return Stream configuration with the ratio set.
+   */
+  video::config_t crop_config(int ratio_width, int ratio_height) {
+    video::config_t config {};
+    config.sourceAspectRatioWidth = ratio_width;
+    config.sourceAspectRatioHeight = ratio_height;
+    return config;
+  }
+
+  /**
+   * @brief Display with a fixed size that never captures anything.
+   */
+  struct fixed_size_display_t: platf::display_t {
+    /**
+     * @brief Create a display on the right of a primary display.
+     *
+     * @param display_width Width of the display in pixels.
+     * @param display_height Height of the display in pixels.
+     */
+    fixed_size_display_t(int display_width, int display_height) {
+      width = display_width;
+      height = display_height;
+      offset_x = 1920;
+      offset_y = 40;
+      env_width = 1920 + display_width;
+      env_height = display_height;
+    }
+
+    /**
+     * @brief Report a capture error, as this display has no images.
+     *
+     * @return Always a capture error.
+     */
+    platf::capture_e capture(const push_captured_image_cb_t &, const pull_free_image_cb_t &, bool *) override {
+      return platf::capture_e::capture_error;
+    }
+
+    /**
+     * @brief Refuse to allocate images.
+     *
+     * @return Always null.
+     */
+    std::shared_ptr<platf::img_t> alloc_img() override {
+      return nullptr;
+    }
+
+    /**
+     * @brief Refuse to fill images.
+     *
+     * @return Always a failure status.
+     */
+    int dummy_img(platf::img_t *) override {
+      return -1;
+    }
+  };
+}  // namespace
+
+/**
+ * @brief No crop is applied without a request, or when the source already fits.
+ */
+TEST(SourceCropTest, LeavesTheWholeImageWhenThereIsNothingToCrop) {
+  EXPECT_FALSE(video::compute_source_crop(7680, 2160, crop_config(0, 0)).has_value());
+  EXPECT_FALSE(video::compute_source_crop(3840, 2160, crop_config(16, 9)).has_value());
+  EXPECT_FALSE(video::compute_source_crop(3840, 2160, crop_config(1920, 1080)).has_value());
+  EXPECT_FALSE(video::compute_source_crop(0, 0, crop_config(16, 9)).has_value());
+}
+
+/**
+ * @brief A display wider than the requested ratio loses its left and right edges.
+ */
+TEST(SourceCropTest, CentersHorizontallyOnWiderDisplays) {
+  const auto crop = video::compute_source_crop(7680, 2160, crop_config(16, 10));
+  ASSERT_TRUE(crop.has_value());
+  EXPECT_EQ(crop->x, 2112);
+  EXPECT_EQ(crop->y, 0);
+  EXPECT_EQ(crop->width, 3456);
+  EXPECT_EQ(crop->height, 2160);
+}
+
+/**
+ * @brief A display taller than the requested ratio loses its top and bottom edges.
+ */
+TEST(SourceCropTest, CentersVerticallyOnTallerDisplays) {
+  const auto crop = video::compute_source_crop(2560, 1600, crop_config(21, 9));
+  ASSERT_TRUE(crop.has_value());
+  EXPECT_EQ(crop->x, 0);
+  EXPECT_EQ(crop->y, 252);
+  EXPECT_EQ(crop->width, 2560);
+  EXPECT_EQ(crop->height, 1096);
+}
+
+/**
+ * @brief Regions stay even and inside the image whatever the ratio.
+ */
+TEST(SourceCropTest, KeepsCoordinatesEvenAndInsideTheImage) {
+  for (const auto &[ratio_width, ratio_height] : {std::pair(1, 1), std::pair(3, 2), std::pair(1000, 999), std::pair(1, 1000000), std::pair(1000000, 1), std::pair(2147483647, 2147483646)}) {
+    for (const auto &[width, height] : {std::pair(1366, 768), std::pair(1367, 769), std::pair(5120, 1440)}) {
+      const auto crop = video::compute_source_crop(width, height, crop_config(ratio_width, ratio_height));
+      if (!crop) {
+        continue;
+      }
+      EXPECT_EQ(crop->x % 2, 0);
+      EXPECT_EQ(crop->y % 2, 0);
+      EXPECT_EQ(crop->width % 2, 0);
+      EXPECT_EQ(crop->height % 2, 0);
+      EXPECT_GE(crop->width, 2);
+      EXPECT_GE(crop->height, 2);
+      EXPECT_LE(crop->x + crop->width, width);
+      EXPECT_LE(crop->y + crop->height, height);
+    }
+  }
+}
+
+/**
+ * @brief Input stays mapped to the whole display when nothing is cropped.
+ */
+TEST(SourceCropInputTest, MapsTheWholeDisplayWithoutACrop) {
+  fixed_size_display_t display {7680, 2160};
+  video::config_t config {};
+  config.width = 1920;
+  config.height = 1080;
+
+  const auto port = video::make_port(&display, config, std::nullopt);
+
+  EXPECT_EQ(port.offset_x, 1920);
+  EXPECT_EQ(port.offset_y, 40);
+  EXPECT_FLOAT_EQ(port.client_offsetX, 0.0f);
+  EXPECT_FLOAT_EQ(port.client_offsetY, 270.0f);
+  EXPECT_FLOAT_EQ(port.scalar_inv, 4.0f);
+}
+
+/**
+ * @brief Client coordinates cover only the crop, which starts away from the display's edge.
+ */
+TEST(SourceCropInputTest, MapsTheClientToTheCroppedRegion) {
+  fixed_size_display_t display {7680, 2160};
+  video::config_t config {};
+  config.width = 1920;
+  config.height = 1200;
+
+  const auto port = video::make_port(&display, config, platf::source_crop_t {2112, 0, 3456, 2160});
+
+  EXPECT_EQ(port.offset_x, 1920 + 2112);
+  EXPECT_EQ(port.offset_y, 40);
+  EXPECT_EQ(port.width, 1920);
+  EXPECT_EQ(port.height, 1200);
+  EXPECT_EQ(port.env_width, 1920 + 7680);
+  EXPECT_NEAR(port.client_offsetX, 0.0f, 0.001f);
+  EXPECT_NEAR(port.client_offsetY, 0.0f, 0.001f);
+  EXPECT_FLOAT_EQ(port.scalar_inv, 1.8f);
+}
+
+/**
+ * @brief Black bars around a crop that doesn't match the stream are left out of the mapping.
+ */
+TEST(SourceCropInputTest, AccountsForBarsAroundTheCrop) {
+  fixed_size_display_t display {7680, 2160};
+  video::config_t config {};
+  config.width = 1920;
+  config.height = 1080;
+
+  const auto port = video::make_port(&display, config, platf::source_crop_t {2112, 0, 3456, 2160});
+
+  EXPECT_FLOAT_EQ(port.client_offsetX, 96.0f);
+  EXPECT_FLOAT_EQ(port.client_offsetY, 0.0f);
+  EXPECT_FLOAT_EQ(port.scalar_inv, 2.0f);
+}
+
+/**
+ * @brief Only software conversion crops unless a hardware device says otherwise.
+ */
+TEST(SourceCropDeviceTest, SupportDefaultsToSoftwareDevices) {
+  platf::avcodec_encode_device_t device;
+  EXPECT_TRUE(device.supports_source_crop());
+
+  device.hardware = true;
+  EXPECT_FALSE(device.supports_source_crop());
+}
+
 TEST(SoftwareEncoderConversion, Bgr0AndNv12) {
   constexpr int w = 320;
   constexpr int h = 240;
@@ -539,4 +740,62 @@ TEST(SoftwareEncoderConversion, Bgr0AndNv12) {
   fallback_nv12_img.height = h;
   fallback_nv12_img.row_pitch = w;
   EXPECT_EQ(device.convert(fallback_nv12_img), 0);
+}
+
+/**
+ * @brief The software path encodes only the source crop of BGR0 and NV12 captures.
+ */
+TEST(SoftwareEncoderConversion, EncodesOnlyTheSourceCrop) {
+  constexpr int capture_w = 640;
+  constexpr int capture_h = 480;
+  constexpr platf::source_crop_t crop {160, 120, 320, 240};
+  constexpr std::uint8_t bright = 0xFF;
+
+  AVFrame *frame = av_frame_alloc();
+  ASSERT_NE(frame, nullptr);
+  frame->width = crop.width;
+  frame->height = crop.height;
+  frame->format = AV_PIX_FMT_YUV420P;
+
+  video::avcodec_software_encode_device_t device;
+  device.source_crop = crop;
+  ASSERT_EQ(device.init(crop.width, crop.height, frame, AV_PIX_FMT_YUV420P, false), 0);
+  ASSERT_EQ(device.set_frame(frame, nullptr), 0);
+
+  const auto expect_bright_luma = [&]() {
+    for (int y = 0; y < crop.height; ++y) {
+      for (int x = 0; x < crop.width; ++x) {
+        ASSERT_GT(frame->data[0][y * frame->linesize[0] + x], 200) << "pixel " << x << ',' << y;
+      }
+    }
+  };
+
+  // Everything outside of the crop stays black, so any of it reaching the frame would darken it.
+  std::vector<std::uint8_t> bgr0_buffer(static_cast<std::size_t>(capture_w) * capture_h * 4);
+  for (int y = crop.y; y < crop.y + crop.height; ++y) {
+    std::fill_n(bgr0_buffer.begin() + (y * capture_w + crop.x) * 4, crop.width * 4, bright);
+  }
+  platf::img_t bgr0_img {};
+  bgr0_img.data = bgr0_buffer.data();
+  bgr0_img.width = capture_w;
+  bgr0_img.height = capture_h;
+  bgr0_img.row_pitch = capture_w * 4;
+  bgr0_img.pixel_pitch = 4;
+  ASSERT_EQ(device.convert(bgr0_img), 0);
+  expect_bright_luma();
+
+  std::vector<std::uint8_t> nv12_buffer(static_cast<std::size_t>(capture_w) * capture_h * 3 / 2, 0x80);
+  std::fill_n(nv12_buffer.begin(), capture_w * capture_h, 0);
+  for (int y = crop.y; y < crop.y + crop.height; ++y) {
+    std::fill_n(nv12_buffer.begin() + y * capture_w + crop.x, crop.width, bright);
+  }
+  platf::img_t nv12_img {};
+  nv12_img.data = nv12_buffer.data();
+  nv12_img.width = capture_w;
+  nv12_img.height = capture_h;
+  nv12_img.row_pitch = capture_w;
+  nv12_img.pixel_pitch = 1;
+  std::fill_n(frame->data[0], static_cast<std::size_t>(frame->linesize[0]) * crop.height, 0);
+  ASSERT_EQ(device.convert(nv12_img), 0);
+  expect_bright_luma();
 }

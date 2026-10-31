@@ -11,6 +11,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 // local includes
@@ -146,6 +147,7 @@ namespace config {
     std::string encoder;  ///< Encoder backend name selected by configuration.
     std::string adapter_name;  ///< Display adapter name selected in configuration.
     std::string output_name;  ///< Display output name selected in configuration.
+    std::string source_aspect_ratio;  ///< Part of the display to stream: "client", "display", "stream" or a "width:height" ratio.
 
     /**
      * @brief Display-device integration settings.
@@ -438,6 +440,14 @@ namespace config {
    * @return Parsed configuration key-value entries.
    */
   config_map_t parse_config(const std::string_view &file_content);
+
+  /**
+   * @brief Parse an aspect ratio written as "width:height".
+   *
+   * @param text Text to parse.
+   * @return The ratio's width and height, or nothing when the text isn't a positive ratio.
+   */
+  std::optional<std::pair<int, int>> parse_aspect_ratio(std::string_view text);
 
   /**
    * @brief Persist a configuration option when the active file does not already define it.

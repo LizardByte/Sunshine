@@ -6,7 +6,9 @@
 
 // standard includes
 #include <chrono>
+#include <optional>
 #include <string_view>
+#include <utility>
 
 // local includes
 #include "input.h"
@@ -43,7 +45,31 @@ namespace video {
     int dynamicRange;  ///< Encoding color depth: 0 = 8-bit, 1 = 10-bit.
     int chromaSamplingType;  ///< Chroma sampling type: 0 = 4:2:0, 1 = 4:4:4.
     int enableIntraRefresh;  ///< Intra refresh setting: 0 = disabled, 1 = enabled.
+    int sourceAspectRatioWidth = 0;  ///< Width of the aspect ratio to crop the captured image to; 0 = don't crop.
+    int sourceAspectRatioHeight = 0;  ///< Height of the aspect ratio to crop the captured image to; 0 = don't crop.
   };
+
+  /**
+   * @brief Select the aspect ratio a stream crops the captured image to.
+   *
+   * @param host_setting Value of the source_aspect_ratio setting.
+   * @param client_request Ratio requested by the client as "width:height", empty when it requested none.
+   * @param stream_width Width of the stream in pixels.
+   * @param stream_height Height of the stream in pixels.
+   * @return The ratio's width and height, both 0 to encode the whole captured image.
+   */
+  std::pair<int, int> select_source_aspect_ratio(std::string_view host_setting, std::string_view client_request, int stream_width, int stream_height);
+
+  /**
+   * @brief Compute the centered part of a captured image that matches a stream's aspect ratio.
+   * @note Every coordinate is even so that the chroma planes of 4:2:0 images stay aligned.
+   *
+   * @param width Width of the captured image in pixels.
+   * @param height Height of the captured image in pixels.
+   * @param config Configuration of the stream.
+   * @return The region to encode, or nothing when the whole image should be encoded.
+   */
+  std::optional<platf::source_crop_t> compute_source_crop(int width, int height, const config_t &config);
 
   namespace amf {
 
