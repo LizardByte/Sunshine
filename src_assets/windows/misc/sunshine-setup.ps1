@@ -362,12 +362,25 @@ if ($Action -eq "install") {
         -Activity "Installing Sunshine" `
         -Status "Updating system PATH" `
         -PercentComplete (($currentStep / $totalSteps) * 100)
-    $updatePathScript = Join-Path $RootDir "scripts\update-path.bat"
-    Invoke-ScriptIfExist `
-        -ScriptPath $updatePathScript `
-        -Arguments "add" `
-        -Description "Adding Sunshine directories to PATH" `
-        -Emoji "📁"
+    Write-LogMessage -Message "📁 Adding Sunshine directories to PATH" -Level "Step"
+    try {
+        $pathResult = Invoke-PathUpdate -Add @(
+            $RootDir,
+            (Join-Path $RootDir "tools")
+        )
+        if ($pathResult.Changed) {
+            Write-LogMessage -Message "  ✓ Added Sunshine directories to PATH" -Level "Success"
+        } else {
+            Write-LogMessage `
+                -Message "  ⓘ Sunshine directories already in PATH" `
+                -Level "Information" `
+                -Color "DarkGray"
+        }
+    } catch {
+        Write-LogMessage `
+            -Message "  ⚠ Failed to add Sunshine directories to PATH: $($_.Exception.Message)" `
+            -Level "Warning"
+    }
     Write-Information ""
 
     # 2. Migrate configuration
@@ -495,12 +508,25 @@ if ($Action -eq "install") {
         -Activity "Uninstalling Sunshine" `
         -Status "Cleaning up system PATH" `
         -PercentComplete (($currentStep / $totalSteps) * 100)
-    $updatePathScript = Join-Path $RootDir "scripts\update-path.bat"
-    Invoke-ScriptIfExist `
-        -ScriptPath $updatePathScript `
-        -Arguments "remove" `
-        -Description "Removing from PATH" `
-        -Emoji "📁"
+    Write-LogMessage -Message "📁 Removing from PATH" -Level "Step"
+    try {
+        $pathResult = Invoke-PathUpdate -Remove @(
+            $RootDir,
+            (Join-Path $RootDir "tools")
+        )
+        if ($pathResult.Changed) {
+            Write-LogMessage -Message "  ✓ Removed Sunshine directories from PATH" -Level "Success"
+        } else {
+            Write-LogMessage `
+                -Message "  ⓘ Sunshine directories not found in PATH" `
+                -Level "Information" `
+                -Color "DarkGray"
+        }
+    } catch {
+        Write-LogMessage `
+            -Message "  ⚠ Failed to remove Sunshine directories from PATH: $($_.Exception.Message)" `
+            -Level "Warning"
+    }
     Write-Information ""
 
     Write-Progress -Activity "Uninstalling Sunshine" -Completed

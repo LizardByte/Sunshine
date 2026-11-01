@@ -246,3 +246,174 @@ Describe "Executable wrappers" {
         }
     }
 }
+
+Describe "ConvertTo-NormalizedPathEntry" {
+    It "trims whitespace and trailing directory separators" {
+        ConvertTo-NormalizedPathEntry -Entry " C:\Temp\ " | Should -Be "C:\Temp"
+    }
+
+    It "preserves a drive root" {
+        ConvertTo-NormalizedPathEntry -Entry "C:\" | Should -Be "C:\"
+    }
+}
+
+Describe "Invoke-PathUpdate" {
+    BeforeEach {
+        $script:testHive = [Microsoft.Win32.Registry]::CurrentUser
+        $script:testSubKey = "Software\Sunshine\Tests\Path-$([guid]::NewGuid().ToString('N'))"
+        $script:testKey = $script:testHive.CreateSubKey($script:testSubKey)
+        Mock Send-EnvironmentChange {}
+    }
+
+    AfterEach {
+        if ($script:testKey) {
+            $script:testKey.Dispose()
+            $script:testKey = $null
+        }
+        $script:testHive.DeleteSubKeyTree($script:testSubKey, $false)
+    }
+
+    It "appends missing entries and preserves unrelated entries" {
+        $script:testKey.SetValue(
+            "Path",
+            "C:\Temp\;%SystemRoot%\system32",
+            [Microsoft.Win32.RegistryValueKind]::ExpandString
+        )
+
+        $result = Invoke-PathUpdate `
+            -Add @("C:\Program Files\Sunshine", "C:\Program Files\Sunshine\tools") `
+            -Hive $script:testHive `
+            -SubKey $script:testSubKey
+
+        $value = [string]$script:testKey.GetValue(
+            "Path",
+            "",
+            [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames
+        )
+        $value | Should -Be (
+            "C:\Temp\;%SystemRoot%\system32;" +
+            "C:\Program Files\Sunshine;C:\Program Files\Sunshine\tools"
+        )
+        $value | Should -Not -Match '"'
+        $script:testKey.GetValueKind("Path") |
+            Should -Be ([Microsoft.Win32.RegistryValueKind]::ExpandString)
+        $result.Changed | Should -BeTrue
+        $result.Added.Count | Should -Be 2
+        $result.Removed.Count | Should -Be 0
+        Should -Invoke -CommandName Send-EnvironmentChange -Times 1 -Exactly -Scope It
+    }
+
+    It "skips entries that already exist regardless of case or trailing separators" {
+        $script:testKey.SetValue(
+            "Path",
+            "C:\Temp\;c:\program files\sunshine\",
+            [Microsoft.Win32.RegistryValueKind]::ExpandString
+        )
+
+        $result = Invoke-PathUpdate `
+            -Add "C:\Program Files\Sunshine" `
+            -Hive $script:testHive `
+            -SubKey $script:testSubKey
+
+        $value = [string]$script:testKey.GetValue(
+            "Path",
+            "",
+            [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames
+        )
+        $value | Should -Be "C:\Temp\;c:\program files\sunshine\"
+        $result.Changed | Should -BeFalse
+        $result.Added.Count | Should -Be 0
+        Should -Invoke -CommandName Send-EnvironmentChange -Times 0 -Exactly -Scope It
+    }
+
+    It "removes entries and preserves the trailing separator of the last entry" {
+        $script:testKey.SetValue(
+            "Path",
+            "C:\Temp\;C:\Program Files\Sunshine;C:\Program Files\Sunshine\tools",
+            [Microsoft.Win32.RegistryValueKind]::ExpandString
+        )
+
+        $result = Invoke-PathUpdate `
+            -Remove @("C:\Program Files\Sunshine", "C:\Program Files\Sunshine\tools") `
+            -Hive $script:testHive `
+            -SubKey $script:testSubKey
+
+        $value = [string]$script:testKey.GetValue(
+            "Path",
+            "",
+            [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames
+        )
+        $value | Should -Be "C:\Temp\"
+        $value | Should -Not -Match '"'
+        $result.Changed | Should -BeTrue
+        $result.Removed.Count | Should -Be 2
+        Should -Invoke -CommandName Send-EnvironmentChange -Times 1 -Exactly -Scope It
+    }
+
+    It "removes entries case-insensitively and ignores trailing separators" {
+        $script:testKey.SetValue(
+            "Path",
+            "c:\program files\sunshine\;C:\Keep",
+            [Microsoft.Win32.RegistryValueKind]::ExpandString
+        )
+
+        $result = Invoke-PathUpdate `
+            -Remove "C:\Program Files\Sunshine" `
+            -Hive $script:testHive `
+            -SubKey $script:testSubKey
+
+        $value = [string]$script:testKey.GetValue(
+            "Path",
+            "",
+            [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames
+        )
+        $value | Should -Be "C:\Keep"
+        $result.Changed | Should -BeTrue
+        $result.Removed.Count | Should -Be 1
+    }
+
+    It "initializes an empty PATH without a leading separator" {
+        $result = Invoke-PathUpdate `
+            -Add "C:\Tools" `
+            -Hive $script:testHive `
+            -SubKey $script:testSubKey
+
+        $value = [string]$script:testKey.GetValue(
+            "Path",
+            "",
+            [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames
+        )
+        $value | Should -Be "C:\Tools"
+        $result.Changed | Should -BeTrue
+    }
+
+    It "throws when the registry key does not exist" {
+        $missingSubKey = "Software\Sunshine\Tests\Missing-$([guid]::NewGuid().ToString('N'))"
+
+        {
+            Invoke-PathUpdate `
+                -Add "C:\Tools" `
+                -Hive $script:testHive `
+                -SubKey $missingSubKey
+        } | Should -Throw "*Registry key not found*"
+    }
+
+    It "throws when an empty entry is added" {
+        {
+            Invoke-PathUpdate -Add "" -Hive $script:testHive -SubKey $script:testSubKey
+        } | Should -Throw "*empty PATH entry*"
+    }
+
+    It "throws when an empty entry is removed" {
+        {
+            Invoke-PathUpdate -Remove " " -Hive $script:testHive -SubKey $script:testSubKey
+        } | Should -Throw "*empty PATH entry*"
+    }
+}
+
+Describe "Send-EnvironmentChange" {
+    It "broadcasts the environment change without throwing" {
+        { Send-EnvironmentChange } | Should -Not -Throw
+        { Send-EnvironmentChange } | Should -Not -Throw
+    }
+}
