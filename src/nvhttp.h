@@ -103,8 +103,14 @@ namespace nvhttp {
     }
 
     virtual ~SunshineHTTPS() {
-      // Gracefully shutdown the TLS connection
+      // Gracefully shutdown the TLS connection without blocking.
+      // A synchronous shutdown() sends close_notify and then waits, with no timeout, for the
+      // peer's close_notify. This destructor runs on the server's only I/O thread, so a client
+      // that vanishes mid-request (e.g. a phone on a flaky cellular link) would freeze the whole
+      // HTTPS listener for every client until the OS gives up on the TCP connection (minutes).
+      // In non-blocking mode we still send our close_notify, but don't wait for the reply.
       SimpleWeb::error_code ec;
+      lowest_layer().non_blocking(true, ec);
       shutdown(ec);
     }
   };
