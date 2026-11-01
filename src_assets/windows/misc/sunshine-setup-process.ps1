@@ -261,6 +261,125 @@ function ConvertTo-NormalizedPathEntry {
     return $trimmed.TrimEnd('\')
 }
 
+# Normalize and validate a list of PATH entries.
+function ConvertTo-NormalizedPathEntryList {
+    <#
+    .SYNOPSIS
+    Normalizes PATH entries and rejects empty ones.
+
+    .PARAMETER Entries
+    Entries to normalize.
+
+    .PARAMETER Action
+    Action used in the error message, such as add or remove.
+
+    .OUTPUTS
+    An object whose Entries property contains the normalized entries.
+    #>
+    param(
+        [string[]]$Entries,
+        [string]$Action
+    )
+
+    $normalized = @()
+    foreach ($entry in $Entries) {
+        $value = ConvertTo-NormalizedPathEntry -Entry $entry
+        if (-not $value) {
+            throw "Cannot $Action an empty PATH entry."
+        }
+        $normalized += $value
+    }
+
+    return [PSCustomObject]@{
+        Entries = $normalized
+    }
+}
+
+# Split a PATH list into kept and removed entries.
+function Split-PathEntryList {
+    <#
+    .SYNOPSIS
+    Splits a PATH list into kept and removed entries.
+
+    .PARAMETER Entries
+    Current PATH entries.
+
+    .PARAMETER Remove
+    Normalized entries to remove.
+
+    .OUTPUTS
+    An object with the kept entries and the removed entries.
+    #>
+    param(
+        [string[]]$Entries,
+        [string[]]$Remove
+    )
+
+    $removeSet = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase
+    )
+    foreach ($entry in $Remove) {
+        [void]$removeSet.Add($entry)
+    }
+
+    $kept = @()
+    $removed = @()
+    foreach ($entry in $Entries) {
+        if ($removeSet.Contains((ConvertTo-NormalizedPathEntry -Entry $entry))) {
+            $removed += $entry
+        } else {
+            $kept += $entry
+        }
+    }
+
+    return [PSCustomObject]@{
+        Entries = $kept
+        Removed = $removed
+    }
+}
+
+# Join new entries into a PATH list without duplicates.
+function Join-PathEntryList {
+    <#
+    .SYNOPSIS
+    Joins new entries into a PATH list, skipping duplicates.
+
+    .PARAMETER Entries
+    Current PATH entries.
+
+    .PARAMETER Add
+    Normalized entries to append.
+
+    .OUTPUTS
+    An object with the resulting entries and the added entries.
+    #>
+    param(
+        [string[]]$Entries,
+        [string[]]$Add
+    )
+
+    $existing = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase
+    )
+    foreach ($entry in $Entries) {
+        [void]$existing.Add((ConvertTo-NormalizedPathEntry -Entry $entry))
+    }
+
+    $result = @($Entries)
+    $added = @()
+    foreach ($entry in $Add) {
+        if ($existing.Add($entry)) {
+            $result += $entry
+            $added += $entry
+        }
+    }
+
+    return [PSCustomObject]@{
+        Entries = $result
+        Added = $added
+    }
+}
+
 # Notify the system that environment variables changed.
 function Send-EnvironmentChange {
     <#
@@ -320,23 +439,8 @@ function Invoke-PathUpdate {
         [string]$ValueName = "Path"
     )
 
-    $normalizedAdd = @()
-    foreach ($entry in $Add) {
-        $normalized = ConvertTo-NormalizedPathEntry -Entry $entry
-        if (-not $normalized) {
-            throw "Cannot add an empty PATH entry."
-        }
-        $normalizedAdd += $normalized
-    }
-
-    $normalizedRemove = @()
-    foreach ($entry in $Remove) {
-        $normalized = ConvertTo-NormalizedPathEntry -Entry $entry
-        if (-not $normalized) {
-            throw "Cannot remove an empty PATH entry."
-        }
-        $normalizedRemove += $normalized
-    }
+    $addEntries = ConvertTo-NormalizedPathEntryList -Entries $Add -Action "add"
+    $removeEntries = ConvertTo-NormalizedPathEntryList -Entries $Remove -Action "remove"
 
     $key = $Hive.OpenSubKey($SubKey, $true)
     if (-not $key) {
@@ -349,50 +453,26 @@ function Invoke-PathUpdate {
             "",
             [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames
         )
-        $entries = if ($raw) { @($raw -split ';') } else { @() }
+        $entries = @()
+        if ($raw) {
+            $entries = @($raw -split ';')
+        }
 
         $added = @()
         $removed = @()
-        $changed = $false
-
-        if ($normalizedRemove.Count -gt 0) {
-            $removeSet = [System.Collections.Generic.HashSet[string]]::new(
-                [System.StringComparer]::OrdinalIgnoreCase
-            )
-            foreach ($entry in $normalizedRemove) {
-                [void]$removeSet.Add($entry)
-            }
-
-            $kept = @()
-            foreach ($entry in $entries) {
-                $normalized = ConvertTo-NormalizedPathEntry -Entry $entry
-                if ($removeSet.Contains($normalized)) {
-                    $removed += $entry
-                    $changed = $true
-                } else {
-                    $kept += $entry
-                }
-            }
-            $entries = $kept
+        if ($removeEntries.Entries.Count -gt 0) {
+            $removeResult = Split-PathEntryList -Entries $entries -Remove $removeEntries.Entries
+            $entries = $removeResult.Entries
+            $removed = $removeResult.Removed
         }
 
-        if ($normalizedAdd.Count -gt 0) {
-            $existing = [System.Collections.Generic.HashSet[string]]::new(
-                [System.StringComparer]::OrdinalIgnoreCase
-            )
-            foreach ($entry in $entries) {
-                [void]$existing.Add((ConvertTo-NormalizedPathEntry -Entry $entry))
-            }
-
-            foreach ($entry in $normalizedAdd) {
-                if ($existing.Add($entry)) {
-                    $entries += $entry
-                    $added += $entry
-                    $changed = $true
-                }
-            }
+        if ($addEntries.Entries.Count -gt 0) {
+            $addResult = Join-PathEntryList -Entries $entries -Add $addEntries.Entries
+            $entries = $addResult.Entries
+            $added = $addResult.Added
         }
 
+        $changed = ($added.Count + $removed.Count) -gt 0
         if ($changed) {
             $key.SetValue(
                 $ValueName,
