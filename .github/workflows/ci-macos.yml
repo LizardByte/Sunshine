@@ -39,8 +39,7 @@ env:
   BRANCH: ${{ github.head_ref || github.ref_name }}
   BUILD_VERSION: ${{ inputs.release_version }}
   COMMIT: ${{ inputs.release_commit }}
-  # Match the minimum version required by the prebuilt macOS dependencies.
-  MACOSX_DEPLOYMENT_TARGET: '15.0'
+  MACOSX_DEPLOYMENT_TARGET: '15.0'  # Match the minimum version required by the prebuilt macOS dependencies.
   PYTHON_VERSION: '3.14'
 
 jobs:
