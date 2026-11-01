@@ -39,7 +39,8 @@ env:
   BRANCH: ${{ github.head_ref || github.ref_name }}
   BUILD_VERSION: ${{ inputs.release_version }}
   COMMIT: ${{ inputs.release_commit }}
-  MACOSX_DEPLOYMENT_TARGET: 14.2
+  # Match the minimum version required by the prebuilt macOS dependencies.
+  MACOSX_DEPLOYMENT_TARGET: '15.0'
   PYTHON_VERSION: '3.14'
 
 jobs:
@@ -88,7 +89,7 @@ jobs:
             pkgconf \
             icu4c@78 \
             miniupnpc \
-            openssl@3 \
+            openssl@4 \
             opus \
             qtbase \
             qtsvg
@@ -134,7 +135,7 @@ jobs:
             -DBUILD_WERROR=ON \
             -DCMAKE_BUILD_TYPE=Release \
             -DICU_ROOT="${icu4c_root}" \
-            -DOPENSSL_ROOT_DIR="$(brew --prefix openssl@3 2>/dev/null)" \
+            -DOPENSSL_ROOT_DIR="$(brew --prefix openssl@4 2>/dev/null)" \
             -DOpus_ROOT_DIR="$(brew --prefix opus 2>/dev/null)" \
             -DQt6_DIR="$(brew --prefix qtbase 2>/dev/null)/lib/cmake/Qt6" \
             -DQt6Svg_DIR="$(brew --prefix qtsvg 2>/dev/null)/lib/cmake/Qt6Svg" \
