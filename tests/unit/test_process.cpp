@@ -8,6 +8,7 @@
 // standard includes
 #include <cstdlib>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <optional>
 #include <system_error>
@@ -19,7 +20,7 @@
 #ifdef _WIN32
   // lib includes
   #include <boost/process/v1/windows.hpp>
-  #include <windows.h>
+  #include <Windows.h>
 #else
   // lib includes
   #include <unistd.h>
@@ -64,17 +65,18 @@ namespace proc {
 
 namespace {
   /**
-   * @brief Launch a hidden child without requiring permission to break away from the test runner's Windows job.
+   * @brief Launch a short-lived shell command, hidden on Windows.
    *
    * @param exit_code Exit status returned by the child.
    * @param ec Error set if launching the child fails.
    * @return Child process used to exercise prep-command waiting.
    */
   boost::process::v1::child launch_prep_test_child(int exit_code, std::error_code &ec) {
+    const auto command = std::format("exit {}", exit_code);
 #ifdef _WIN32
-    return boost::process::v1::child(boost::process::v1::search_path("cmd.exe"), "/c", "exit " + std::to_string(exit_code), boost::process::v1::windows::create_no_window, ec);
+    return boost::process::v1::child(boost::process::v1::search_path("cmd.exe"), "/c", command, boost::process::v1::windows::create_no_window, ec);
 #else
-    return boost::process::v1::child("/bin/sh", "-c", "exit " + std::to_string(exit_code), ec);
+    return boost::process::v1::child("/bin/sh", "-c", command, ec);
 #endif
   }
 }  // namespace
