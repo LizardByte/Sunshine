@@ -842,9 +842,11 @@ namespace wl {
       }
 #endif
 
+#ifdef SUNSHINE_BUILD_VULKAN
       if (mem_type == platf::mem_type_e::vulkan) {
         return vk::make_avcodec_encode_device_vram(width, height, 0, 0);
       }
+#endif
 
       return std::make_unique<platf::avcodec_encode_device_t>();
     }
@@ -867,6 +869,7 @@ namespace wl {
      */
     void init_encoder_modifiers(platf::mem_type_e hwdevice_type) {
       if (hwdevice_type == platf::mem_type_e::vulkan) {
+#ifdef SUNSHINE_BUILD_VULKAN
         encoder_modifiers = vk::get_supported_capture_modifiers();
         if (!encoder_modifiers.empty()) {
           intersected_modifiers = wl::intersect_modifiers(interface.supported_modifiers, encoder_modifiers);
@@ -874,6 +877,7 @@ namespace wl {
             BOOST_LOG(warning) << "[wlgrab] No common modifiers between compositor and vulkan encoder"sv;
           }
         }
+#endif
       }
     }
 
