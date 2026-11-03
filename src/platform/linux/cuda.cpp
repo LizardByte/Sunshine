@@ -503,6 +503,44 @@ namespace cuda {
     registered_resource_t uv_res;  ///< Uv res.
   };
 
+  int wait_for_gl_fence(const gl_fence_ops_t &ops) {
+    auto fence = ops.create();
+    if (!fence) {
+      BOOST_LOG(error) << "Couldn't create GL fence"sv;
+      return -1;
+    }
+
+    auto status = ops.client_wait(fence);
+    ops.destroy(fence);
+    if (status != GL_ALREADY_SIGNALED && status != GL_CONDITION_SATISFIED) {
+      BOOST_LOG(error) << "Waiting for GL fence failed: "sv << util::hex(status).to_string_view();
+      return -1;
+    }
+
+    return 0;
+  }
+
+  int gl_cuda_handoff(bool shared_planes, int plane_count, const gl_cuda_handoff_ops_t &ops) {
+    if (shared_planes && ops.wait_for_cuda()) {
+      return -1;
+    }
+
+    ops.render();
+
+    if (shared_planes ? ops.wait_for_gl() : ops.map()) {
+      return -1;
+    }
+
+    int status = 0;
+    for (int plane = 0; plane < plane_count && status == 0; ++plane) {
+      status = ops.copy(plane);
+    }
+
+    // Release what this frame acquired even when a copy failed.
+    const int release_status = shared_planes ? ops.record_copies() : ops.unmap();
+    return status || release_status ? -1 : 0;
+  }
+
   /**
    * @brief Output plane textures shared by GL and CUDA through external memory.
    *
@@ -750,21 +788,19 @@ namespace cuda {
      * @return 0 on success or -1 on failure.
      */
     int wait_for_gl() {
-      auto fence = gl::ctx.FenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-      if (!fence) {
-        BOOST_LOG(error) << "Couldn't create GL fence: "sv << gl::ctx.GetError();
-        return -1;
-      }
-
-      // Generous timeout: this only guards against a hung GPU.
-      auto status = gl::ctx.ClientWaitSync(fence, GL_SYNC_FLUSH_COMMANDS_BIT, std::chrono::nanoseconds(1s).count());
-      gl::ctx.DeleteSync(fence);
-      if (status == GL_TIMEOUT_EXPIRED || status == GL_WAIT_FAILED) {
-        BOOST_LOG(error) << "Waiting for GL fence failed: "sv << util::hex(status).to_string_view();
-        return -1;
-      }
-
-      return 0;
+      static const gl_fence_ops_t ops {
+        .create = [] {
+          return (void *) gl::ctx.FenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        },
+        // Generous timeout: this only guards against a hung GPU.
+        .client_wait = [](void *fence) {
+          return (std::uint32_t) gl::ctx.ClientWaitSync((GLsync) fence, GL_SYNC_FLUSH_COMMANDS_BIT, std::chrono::nanoseconds(1s).count());
+        },
+        .destroy = [](void *fence) {
+          gl::ctx.DeleteSync((GLsync) fence);
+        },
+      };
+      return wait_for_gl_fence(ops);
     }
 
     /**
@@ -1085,61 +1121,59 @@ namespace cuda {
 
       sws.load_vram(descriptor, offset_x, offset_y, rgb->tex[0], is_yuv444);
 
-      // Perform the color conversion and scaling in GL, once CUDA is done reading the previous frame
-      if (shared.is_active() && shared.wait_for_cuda()) {
-        return -1;
-      }
-      if (is_yuv444) {
-        sws.convert_yuv444(yuv444->buf);
-      } else {
-        sws.convert_nv12(nv12->buf);
-      }
-
-      std::array<CUarray, 3> arrays {};
       std::array<CUgraphicsResource, 3> resources {};
-      if (shared.is_active()) {
-        if (shared.wait_for_gl()) {
-          return -1;
-        }
-        for (int i = 0; i < plane_count; i++) {
-          arrays[i] = shared.array(i);
-        }
+      if (is_yuv444) {
+        resources = {{cu_res.y_res.get(), cu_res.u_res.get(), cu_res.v_res.get()}};
       } else {
-        // Map the GL textures to read for CUDA
-        if (is_yuv444) {
-          resources = {{cu_res.y_res.get(), cu_res.u_res.get(), cu_res.v_res.get()}};
-        } else {
-          resources = {{cu_res.y_res.get(), cu_res.uv_res.get(), nullptr}};
-        }
-        CU_CHECK(cdf->cuGraphicsMapResources(plane_count, resources.data(), stream.get()), "Couldn't map GL textures in CUDA");
-        for (int i = 0; i < plane_count; i++) {
-          CU_CHECK(cdf->cuGraphicsSubResourceGetMappedArray(&arrays[i], resources[i], 0, 0), "Couldn't get mapped plane array");
-        }
+        resources = {{cu_res.y_res.get(), cu_res.uv_res.get(), nullptr}};
       }
 
-      // Copy from the GL textures to the target CUDA frame
-      for (int i = 0; i < plane_count; i++) {
-        CUDA_MEMCPY2D cpy = {};
-        cpy.srcMemoryType = CU_MEMORYTYPE_ARRAY;
-        cpy.srcArray = arrays[i];
+      return gl_cuda_handoff(shared.is_active(), plane_count, {
+                                                                .wait_for_cuda = [this] {
+                                                                  return shared.wait_for_cuda();
+                                                                },
+                                                                // Perform the color conversion and scaling in GL
+                                                                .render = [this] {
+                                                                  if (is_yuv444) {
+                                                                    sws.convert_yuv444(yuv444->buf);
+                                                                  } else {
+                                                                    sws.convert_nv12(nv12->buf);
+                                                                  }
+                                                                },
+                                                                .wait_for_gl = [this] {
+                                                                  return shared.wait_for_gl();
+                                                                },
+                                                                .map = [&] {
+                                                                  CU_CHECK(cdf->cuGraphicsMapResources(plane_count, resources.data(), stream.get()), "Couldn't map GL textures in CUDA");
+                                                                  return 0;
+                                                                },
+                                                                // Copy from the GL textures to the target CUDA frame
+                                                                .copy = [&](int plane) {
+                                                                  CUDA_MEMCPY2D cpy = {};
+                                                                  cpy.srcMemoryType = CU_MEMORYTYPE_ARRAY;
+                                                                  if (shared.is_active()) {
+                                                                    cpy.srcArray = shared.array(plane);
+                                                                  } else {
+                                                                    CU_CHECK(cdf->cuGraphicsSubResourceGetMappedArray(&cpy.srcArray, resources[plane], 0, 0), "Couldn't get mapped plane array");
+                                                                  }
 
-        cpy.dstMemoryType = CU_MEMORYTYPE_DEVICE;
-        cpy.dstDevice = (CUdeviceptr) frame->data[i];
-        cpy.dstPitch = frame->linesize[i];
-        cpy.WidthInBytes = (frame->width * fmt_desc->comp[i].step) >> (i ? fmt_desc->log2_chroma_w : 0);
-        cpy.Height = frame->height >> (i ? fmt_desc->log2_chroma_h : 0);
+                                                                  cpy.dstMemoryType = CU_MEMORYTYPE_DEVICE;
+                                                                  cpy.dstDevice = (CUdeviceptr) frame->data[plane];
+                                                                  cpy.dstPitch = frame->linesize[plane];
+                                                                  cpy.WidthInBytes = (frame->width * fmt_desc->comp[plane].step) >> (plane ? fmt_desc->log2_chroma_w : 0);
+                                                                  cpy.Height = frame->height >> (plane ? fmt_desc->log2_chroma_h : 0);
 
-        CU_CHECK_IGNORE(cdf->cuMemcpy2DAsync(&cpy, stream.get()), "Couldn't copy texture to CUDA frame");
-      }
-
-      if (shared.is_active()) {
-        return shared.record_copies(stream.get());
-      }
-
-      // Unmap the textures to allow modification from GL again
-      CU_CHECK(cdf->cuGraphicsUnmapResources(plane_count, resources.data(), stream.get()), "Couldn't unmap GL textures from CUDA");
-
-      return 0;
+                                                                  CU_CHECK_IGNORE(cdf->cuMemcpy2DAsync(&cpy, stream.get()), "Couldn't copy texture to CUDA frame");
+                                                                  return 0;
+                                                                },
+                                                                .unmap = [&] {
+                                                                  CU_CHECK(cdf->cuGraphicsUnmapResources(plane_count, resources.data(), stream.get()), "Couldn't unmap GL textures from CUDA");
+                                                                  return 0;
+                                                                },
+                                                                .record_copies = [this] {
+                                                                  return shared.record_copies(stream.get());
+                                                                },
+                                                              });
     }
 
     /**

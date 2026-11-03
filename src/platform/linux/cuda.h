@@ -11,6 +11,7 @@
   // standard includes
   #include <cmath>
   #include <cstdint>
+  #include <functional>
   #include <memory>
   #include <optional>
   #include <string>
@@ -91,6 +92,50 @@ namespace cuda {
    *         CUDA is unavailable or the query fails.
    */
   std::optional<std::string> device_pci_bus_id(int index, const cuda_pci_accessors_t &accessors);
+
+  /**
+   * @brief GL fence calls used to wait for GL on the CPU.
+   */
+  struct gl_fence_ops_t {
+    std::function<void *()> create;  ///< Insert a fence after the submitted GL commands, returning null on failure.
+    std::function<std::uint32_t(void *fence)> client_wait;  ///< Wait for the fence, returning the GL wait status.
+    std::function<void(void *fence)> destroy;  ///< Delete the fence.
+  };
+
+  /**
+   * @brief Block until GL has finished the commands submitted so far.
+   *
+   * @param ops GL fence calls.
+   * @return 0 on success or -1 when the fence couldn't be created, timed out or failed.
+   */
+  int wait_for_gl_fence(const gl_fence_ops_t &ops);
+
+  /**
+   * @brief Steps of handing one converted frame from GL to CUDA.
+   */
+  struct gl_cuda_handoff_ops_t {
+    std::function<int()> wait_for_cuda;  ///< Shared planes: block until the previous frame's copies are done.
+    std::function<void()> render;  ///< Render the frame into the plane textures with GL.
+    std::function<int()> wait_for_gl;  ///< Shared planes: block until GL has finished rendering.
+    std::function<int()> map;  ///< Mapped planes: map the plane textures into CUDA.
+    std::function<int(int plane)> copy;  ///< Queue the copy of one plane into the frame.
+    std::function<int()> unmap;  ///< Mapped planes: unmap the plane textures.
+    std::function<int()> record_copies;  ///< Shared planes: record the queued copies for the next wait_for_cuda.
+  };
+
+  /**
+   * @brief Hand one converted frame from GL to CUDA.
+   *
+   * With shared planes, GL and CUDA take turns through CPU waits. Otherwise the plane
+   * textures are mapped into CUDA for the copies only. Whatever a frame acquires is
+   * released even when a copy fails.
+   *
+   * @param shared_planes Whether the planes are shared through external memory.
+   * @param plane_count Number of planes to copy.
+   * @param ops Steps of the handoff.
+   * @return 0 on success or -1 on failure.
+   */
+  int gl_cuda_handoff(bool shared_planes, int plane_count, const gl_cuda_handoff_ops_t &ops);
 
   int init();
 }  // namespace cuda
