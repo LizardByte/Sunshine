@@ -6,14 +6,20 @@
 #include <array>
 #include <bitset>
 #include <cctype>
+#include <cstring>
 #include <fcntl.h>
 #include <filesystem>
 #include <thread>
+#include <unistd.h>
 #include <utility>
+#include <vector>
 
 // lib includes
 #include <ffnvcodec/dynlink_loader.h>
 #include <NvFBC.h>
+#ifdef SUNSHINE_BUILD_VULKAN
+  #include <vulkan/vulkan.h>
+#endif
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -127,20 +133,6 @@ namespace cuda {
    * @brief CUDA graphics resource pointer released with `cuGraphicsUnregisterResource`.
    */
   using registered_resource_t = util::safe_ptr<CUgraphicsResource_st, unregisterResource>;
-
-  /**
-   * @brief Destroy a CUDA event.
-   *
-   * @param event CUDA event to destroy.
-   */
-  void freeEvent(CUevent event) {
-    CU_CHECK_IGNORE(cdf->cuEventDestroy(event), "Couldn't destroy cuda event");
-  }
-
-  /**
-   * @brief CUDA event pointer released with `cuEventDestroy`.
-   */
-  using event_t = util::safe_ptr<CUevent_st, freeEvent>;
 
   /**
    * @brief CUDA image wrapper that owns mapped graphics resources for one frame.
@@ -512,13 +504,393 @@ namespace cuda {
   };
 
   /**
-   * @brief CUDA graphics resources kept mapped for the lifetime of a GL->CUDA device.
+   * @brief Output plane textures shared by GL and CUDA through external memory.
+   *
+   * Vulkan allocates exportable memory for each plane. GL and CUDA both import it,
+   * so CUDA reads what GL renders without mapping the textures.
+   *
+   * Each handoff waits on the CPU: a GL fence before the copies, and a CUDA event
+   * before GL renders into the planes again. Handing off on the GPU instead, by
+   * mapping or with external semaphores, makes GL and CUDA wait on each other inside
+   * the GPU, which stalls other GPU work such as a game.
+   *
+   * Without Vulkan, init() always fails and the caller maps the textures every frame.
    */
-  struct cu_mapping {
-    std::array<CUgraphicsResource, 3> resources {};  ///< Mapped graphics resources.
-    std::array<CUarray, 3> arrays {};  ///< CUDA arrays backing the mapped GL textures.
-    int count = 0;  ///< Number of mapped resources (0 when unmapped).
-    event_t copy_done;  ///< Recorded after each frame's copies so GL waits before overwriting the textures.
+  class gl_cuda_shared_planes_t {
+  public:
+    gl_cuda_shared_planes_t() = default;
+    gl_cuda_shared_planes_t(const gl_cuda_shared_planes_t &) = delete;
+    gl_cuda_shared_planes_t &operator=(const gl_cuda_shared_planes_t &) = delete;
+
+    ~gl_cuda_shared_planes_t() {
+      reset();
+    }
+
+    /**
+     * @brief Create a Vulkan device on the current CUDA device to allocate the shared memory.
+     *
+     * @return 0 on success or -1 when GL, CUDA or Vulkan can't share memory here.
+     */
+    int init() {
+#ifndef SUNSHINE_BUILD_VULKAN
+      return -1;
+#else
+      if (!gl::ctx.EXT_memory_object_fd) {
+        BOOST_LOG(info) << "GL lacks GL_EXT_memory_object_fd"sv;
+        return -1;
+      }
+
+      if (!cdf->cuDeviceGetUuid || !cdf->cuImportExternalMemory) {
+        BOOST_LOG(info) << "CUDA driver lacks external memory interop"sv;
+        return -1;
+      }
+
+      CUdevice cu_device;
+      CU_CHECK(cdf->cuCtxGetDevice(&cu_device), "Couldn't get CUDA device");
+      CUuuid uuid;
+      CU_CHECK(cdf->cuDeviceGetUuid(&uuid, cu_device), "Couldn't get CUDA device UUID");
+
+      VkApplicationInfo app = {.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO};
+      app.apiVersion = VK_API_VERSION_1_1;
+
+      VkInstanceCreateInfo instance_info = {.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
+      instance_info.pApplicationInfo = &app;
+      if (vkCreateInstance(&instance_info, nullptr, &instance) != VK_SUCCESS) {
+        BOOST_LOG(info) << "Couldn't create Vulkan instance for GL/CUDA sharing"sv;
+        return -1;
+      }
+
+      physical_device = find_physical_device(uuid);
+      if (physical_device == VK_NULL_HANDLE) {
+        BOOST_LOG(info) << "No Vulkan device matches the CUDA device"sv;
+        return -1;
+      }
+
+      const float priority = 1.0f;
+      VkDeviceQueueCreateInfo queue_info = {.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
+      queue_info.queueFamilyIndex = 0;
+      queue_info.queueCount = 1;
+      queue_info.pQueuePriorities = &priority;
+
+      const char *extension = VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME;
+      VkDeviceCreateInfo device_info = {.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
+      device_info.queueCreateInfoCount = 1;
+      device_info.pQueueCreateInfos = &queue_info;
+      device_info.enabledExtensionCount = 1;
+      device_info.ppEnabledExtensionNames = &extension;
+      if (vkCreateDevice(physical_device, &device_info, nullptr, &device) != VK_SUCCESS) {
+        BOOST_LOG(info) << "Couldn't create Vulkan device with external memory export"sv;
+        return -1;
+      }
+
+      get_memory_fd = (PFN_vkGetMemoryFdKHR) vkGetDeviceProcAddr(device, "vkGetMemoryFdKHR");
+      if (!get_memory_fd) {
+        return -1;
+      }
+
+      CU_CHECK(cdf->cuEventCreate(&copy_done, CU_EVENT_DISABLE_TIMING), "Couldn't create CUDA copy event");
+
+      active = true;
+      return 0;
+#endif
+    }
+
+    /**
+     * @brief Back the texture bound to `GL_TEXTURE_2D` with exportable memory and import it into CUDA.
+     *
+     * Matches egl::target_storage_fn.
+     *
+     * @param plane Plane index.
+     * @param internal_format Sized GL internal format of the plane.
+     * @param width Plane width.
+     * @param height Plane height.
+     * @return 0 on success or -1 on failure.
+     */
+    int allocate([[maybe_unused]] std::size_t plane, [[maybe_unused]] GLenum internal_format, [[maybe_unused]] int width, [[maybe_unused]] int height) {
+#ifndef SUNSHINE_BUILD_VULKAN
+      return -1;
+#else
+      struct format_t {
+        GLenum gl;
+        VkFormat vk;
+        CUarray_format cu;
+        unsigned int channels;
+      };
+
+      constexpr std::array<format_t, 4> formats {{
+        {GL_R8, VK_FORMAT_R8_UNORM, CU_AD_FORMAT_UNSIGNED_INT8, 1},
+        {GL_RG8, VK_FORMAT_R8G8_UNORM, CU_AD_FORMAT_UNSIGNED_INT8, 2},
+        {GL_R16, VK_FORMAT_R16_UNORM, CU_AD_FORMAT_UNSIGNED_INT16, 1},
+        {GL_RG16, VK_FORMAT_R16G16_UNORM, CU_AD_FORMAT_UNSIGNED_INT16, 2},
+      }};
+      const auto format = std::ranges::find(formats, internal_format, &format_t::gl);
+      if (format == formats.end()) {
+        BOOST_LOG(error) << "Unsupported shared plane format: "sv << util::hex(internal_format).to_string_view();
+        return -1;
+      }
+
+      auto &p = planes[plane];
+
+      VkExternalMemoryImageCreateInfo external_info = {.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO};
+      external_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+      VkImageCreateInfo image_info = {.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+      image_info.pNext = &external_info;
+      image_info.imageType = VK_IMAGE_TYPE_2D;
+      image_info.format = format->vk;
+      image_info.extent = {(std::uint32_t) width, (std::uint32_t) height, 1};
+      image_info.mipLevels = 1;
+      image_info.arrayLayers = 1;
+      image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+      image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+      image_info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+      if (vkCreateImage(device, &image_info, nullptr, &p.image) != VK_SUCCESS) {
+        BOOST_LOG(error) << "Couldn't create Vulkan image for plane "sv << plane;
+        return -1;
+      }
+
+      VkMemoryRequirements requirements;
+      vkGetImageMemoryRequirements(device, p.image, &requirements);
+
+      VkPhysicalDeviceMemoryProperties memory_props;
+      vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_props);
+      std::uint32_t type_index = 0;
+      while (type_index < memory_props.memoryTypeCount &&
+             !((requirements.memoryTypeBits & (1u << type_index)) && (memory_props.memoryTypes[type_index].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))) {
+        ++type_index;
+      }
+
+      VkMemoryDedicatedAllocateInfo dedicated_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO};
+      dedicated_info.image = p.image;
+      VkExportMemoryAllocateInfo export_info = {.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO};
+      export_info.pNext = &dedicated_info;
+      export_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+      VkMemoryAllocateInfo alloc_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+      alloc_info.pNext = &export_info;
+      alloc_info.allocationSize = requirements.size;
+      alloc_info.memoryTypeIndex = type_index;
+      if (type_index == memory_props.memoryTypeCount || vkAllocateMemory(device, &alloc_info, nullptr, &p.memory) != VK_SUCCESS || vkBindImageMemory(device, p.image, p.memory, 0) != VK_SUCCESS) {
+        BOOST_LOG(error) << "Couldn't allocate exportable memory for plane "sv << plane;
+        return -1;
+      }
+
+      // GL and CUDA each import their own fd, and take ownership of it on success.
+      VkMemoryGetFdInfoKHR fd_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR};
+      fd_info.memory = p.memory;
+      fd_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+      int gl_fd = -1;
+      CUDA_EXTERNAL_MEMORY_HANDLE_DESC memory_desc {};
+      memory_desc.handle.fd = -1;
+      if (get_memory_fd(device, &fd_info, &gl_fd) != VK_SUCCESS || get_memory_fd(device, &fd_info, &memory_desc.handle.fd) != VK_SUCCESS) {
+        BOOST_LOG(error) << "Couldn't export memory for plane "sv << plane;
+        close(gl_fd);
+        return -1;
+      }
+
+      const GLint dedicated = GL_TRUE;
+      gl::ctx.CreateMemoryObjectsEXT(1, &p.gl_memory);
+      gl::ctx.MemoryObjectParameterivEXT(p.gl_memory, GL_DEDICATED_MEMORY_OBJECT_EXT, &dedicated);
+      gl::ctx.ImportMemoryFdEXT(p.gl_memory, requirements.size, GL_HANDLE_TYPE_OPAQUE_FD_EXT, gl_fd);
+      if (auto err = gl::ctx.GetError(); err != GL_NO_ERROR) {
+        BOOST_LOG(error) << "Couldn't import plane memory into GL: "sv << util::hex(err).to_string_view();
+        close(gl_fd);
+        close(memory_desc.handle.fd);
+        return -1;
+      }
+      gl::ctx.TexStorageMem2DEXT(GL_TEXTURE_2D, 1, internal_format, width, height, p.gl_memory, 0);
+      if (auto err = gl::ctx.GetError(); err != GL_NO_ERROR) {
+        BOOST_LOG(error) << "Couldn't create GL texture on plane memory: "sv << util::hex(err).to_string_view();
+        close(memory_desc.handle.fd);
+        return -1;
+      }
+
+      memory_desc.type = CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD;
+      memory_desc.size = requirements.size;
+      memory_desc.flags = cu_external_memory_dedicated;
+      if (check(cdf->cuImportExternalMemory(&p.cu_memory, &memory_desc), "Couldn't import plane memory into CUDA: "sv)) {
+        close(memory_desc.handle.fd);
+        return -1;
+      }
+
+      CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC array_desc {};
+      array_desc.arrayDesc.Width = width;
+      array_desc.arrayDesc.Height = height;
+      array_desc.arrayDesc.Format = format->cu;
+      array_desc.arrayDesc.NumChannels = format->channels;
+      array_desc.arrayDesc.Flags = cu_array3d_color_attachment;
+      array_desc.numLevels = 1;
+      CU_CHECK(cdf->cuExternalMemoryGetMappedMipmappedArray(&p.cu_mipmap, p.cu_memory, &array_desc), "Couldn't map plane memory as a CUDA array");
+      CU_CHECK(cdf->cuMipmappedArrayGetLevel(&p.cu_array, p.cu_mipmap, 0), "Couldn't get plane array");
+
+      return 0;
+#endif
+    }
+
+    /**
+     * @brief Block until CUDA has copied the previous frame out of the planes.
+     *
+     * Call before GL renders into the planes.
+     *
+     * @return 0 on success or -1 on failure.
+     */
+    int wait_for_cuda() {
+      if (!copies_pending) {
+        return 0;
+      }
+
+      copies_pending = false;
+      CU_CHECK(cdf->cuEventSynchronize(copy_done), "Couldn't wait for previous CUDA copy");
+      return 0;
+    }
+
+    /**
+     * @brief Block until GL has finished rendering into the planes.
+     *
+     * Call before queuing the copies out of the planes.
+     *
+     * @return 0 on success or -1 on failure.
+     */
+    int wait_for_gl() {
+      auto fence = gl::ctx.FenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+      if (!fence) {
+        BOOST_LOG(error) << "Couldn't create GL fence: "sv << gl::ctx.GetError();
+        return -1;
+      }
+
+      // Generous timeout: this only guards against a hung GPU.
+      auto status = gl::ctx.ClientWaitSync(fence, GL_SYNC_FLUSH_COMMANDS_BIT, std::chrono::nanoseconds(1s).count());
+      gl::ctx.DeleteSync(fence);
+      if (status == GL_TIMEOUT_EXPIRED || status == GL_WAIT_FAILED) {
+        BOOST_LOG(error) << "Waiting for GL fence failed: "sv << util::hex(status).to_string_view();
+        return -1;
+      }
+
+      return 0;
+    }
+
+    /**
+     * @brief Note that this frame's copies out of the planes are queued, so wait_for_cuda() waits for them.
+     *
+     * @param stream CUDA stream the copies were queued on.
+     * @return 0 on success or -1 on failure.
+     */
+    int record_copies(CUstream stream) {
+      CU_CHECK(cdf->cuEventRecord(copy_done, stream), "Couldn't record CUDA copy event");
+      copies_pending = true;
+      return 0;
+    }
+
+    /**
+     * @brief CUDA array backing a plane.
+     *
+     * @param plane Plane index.
+     * @return The plane's CUDA array.
+     */
+    CUarray array(std::size_t plane) const {
+      return planes[plane].cu_array;
+    }
+
+    /**
+     * @brief Whether the planes are shared and the handoff methods apply.
+     *
+     * @return True after a successful init() until reset().
+     */
+    bool is_active() const {
+      return active;
+    }
+
+    /**
+     * @brief Release everything init() and allocate() created. The plane textures must already be deleted.
+     */
+    void reset() {
+      for (auto &p : planes) {
+        if (p.cu_mipmap) {
+          CU_CHECK_IGNORE(cdf->cuMipmappedArrayDestroy(p.cu_mipmap), "Couldn't destroy CUDA mipmapped array");
+        }
+        if (p.cu_memory) {
+          CU_CHECK_IGNORE(cdf->cuDestroyExternalMemory(p.cu_memory), "Couldn't destroy CUDA external memory");
+        }
+        if (p.gl_memory) {
+          gl::ctx.DeleteMemoryObjectsEXT(1, &p.gl_memory);
+        }
+#ifdef SUNSHINE_BUILD_VULKAN
+        if (device != VK_NULL_HANDLE) {
+          vkDestroyImage(device, p.image, nullptr);
+          vkFreeMemory(device, p.memory, nullptr);
+        }
+#endif
+        p = {};
+      }
+
+      if (copy_done) {
+        CU_CHECK_IGNORE(cdf->cuEventDestroy(copy_done), "Couldn't destroy CUDA event");
+        copy_done = nullptr;
+      }
+
+#ifdef SUNSHINE_BUILD_VULKAN
+      vkDestroyDevice(device, nullptr);
+      vkDestroyInstance(instance, nullptr);
+      instance = VK_NULL_HANDLE;
+      physical_device = VK_NULL_HANDLE;
+      device = VK_NULL_HANDLE;
+#endif
+      copies_pending = false;
+      active = false;
+    }
+
+  private:
+    /**
+     * @brief Memory backing one plane, as seen by Vulkan, GL and CUDA.
+     */
+    struct plane_t {
+#ifdef SUNSHINE_BUILD_VULKAN
+      VkImage image = VK_NULL_HANDLE;  ///< Vulkan image that owns the allocation's layout.
+      VkDeviceMemory memory = VK_NULL_HANDLE;  ///< Exportable Vulkan allocation.
+#endif
+      GLuint gl_memory = 0;  ///< GL memory object imported from the allocation.
+      CUexternalMemory cu_memory = nullptr;  ///< CUDA external memory imported from the allocation.
+      CUmipmappedArray cu_mipmap = nullptr;  ///< CUDA view of the allocation.
+      CUarray cu_array = nullptr;  ///< Level 0 of `cu_mipmap`, the source of the copies.
+    };
+
+#ifdef SUNSHINE_BUILD_VULKAN
+    static constexpr unsigned int cu_external_memory_dedicated = 0x1;  ///< `CUDA_EXTERNAL_MEMORY_DEDICATED`, missing from ffnvcodec.
+    static constexpr unsigned int cu_array3d_color_attachment = 0x20;  ///< `CUDA_ARRAY3D_COLOR_ATTACHMENT`, missing from ffnvcodec.
+
+    /**
+     * @brief Find the Vulkan physical device with a given UUID.
+     *
+     * @param uuid UUID of the CUDA device.
+     * @return The matching device, or `VK_NULL_HANDLE`.
+     */
+    VkPhysicalDevice find_physical_device(const CUuuid &uuid) const {
+      std::uint32_t count = 0;
+      vkEnumeratePhysicalDevices(instance, &count, nullptr);
+      std::vector<VkPhysicalDevice> devices(count);
+      vkEnumeratePhysicalDevices(instance, &count, devices.data());
+
+      for (auto dev : devices) {
+        VkPhysicalDeviceIDProperties id = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES};
+        VkPhysicalDeviceProperties2 props = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+        props.pNext = &id;
+        vkGetPhysicalDeviceProperties2(dev, &props);
+
+        if (std::memcmp(id.deviceUUID, uuid.bytes, VK_UUID_SIZE) == 0) {
+          return dev;
+        }
+      }
+
+      return VK_NULL_HANDLE;
+    }
+
+    VkInstance instance = VK_NULL_HANDLE;  ///< Vulkan instance owning `device`.
+    VkPhysicalDevice physical_device = VK_NULL_HANDLE;  ///< Vulkan view of the CUDA device.
+    VkDevice device = VK_NULL_HANDLE;  ///< Vulkan device that allocates the shared memory.
+    PFN_vkGetMemoryFdKHR get_memory_fd = nullptr;  ///< `vkGetMemoryFdKHR`.
+#endif
+    std::array<plane_t, 3> planes {};  ///< Shared memory of each plane.
+    CUevent copy_done = nullptr;  ///< Recorded after each frame's copies out of the planes.
+    bool copies_pending = false;  ///< Whether `copy_done` was recorded since wait_for_cuda() last waited on it.
+    bool active = false;  ///< Whether init() succeeded.
   };
 
   /**
@@ -527,11 +899,9 @@ namespace cuda {
   class gl_cuda_vram_t: public platf::avcodec_encode_device_t {
   public:
     ~gl_cuda_vram_t() override {
-      // Resources stay mapped for the lifetime of this device; release them
-      // before the registered_resource_t handles unregister them.
-      if (mapped.count > 0 && cdf) {
-        cdf->cuGraphicsUnmapResources(mapped.count, mapped.resources.data(), stream.get());
-        mapped.count = 0;
+      // Let queued copies finish before the shared planes they read are released.
+      if (stream && cdf) {
+        CU_CHECK_IGNORE(cdf->cuStreamSynchronize(stream.get()), "Couldn't synchronize CUDA stream");
       }
     }
 
@@ -618,20 +988,6 @@ namespace cuda {
 
       this->sws = std::move(*sws_opt);
 
-      if (is_yuv444) {
-        auto yuv444_opt = egl::create_yuv444_target(new_frame->width, new_frame->height, sw_format);
-        if (!yuv444_opt) {
-          return -1;
-        }
-        this->yuv444 = std::move(*yuv444_opt);
-      } else {
-        auto nv12_opt = egl::create_nv12_target(new_frame->width, new_frame->height, sw_format);
-        if (!nv12_opt) {
-          return -1;
-        }
-        this->nv12 = std::move(*nv12_opt);
-      }
-
       auto cuda_ctx = (AVCUDADeviceContext *) hw_frames_ctx->device_ctx->hwctx;
 
       stream = make_stream();
@@ -640,6 +996,24 @@ namespace cuda {
       }
 
       cuda_ctx->stream = stream.get();
+
+      // Share the output planes through external memory when possible, so CUDA can
+      // read them without a synchronizing map/unmap every frame.
+      if (shared.init() == 0) {
+        auto storage = [this](std::size_t plane, GLenum format, int plane_width, int plane_height) {
+          return shared.allocate(plane, format, plane_width, plane_height);
+        };
+        if (create_target(storage) == 0) {
+          BOOST_LOG(info) << "Sharing GL->CUDA planes through external memory"sv;
+          return 0;
+        }
+        BOOST_LOG(warning) << "Couldn't share GL->CUDA planes, falling back to mapping them every frame"sv;
+      }
+      shared.reset();
+
+      if (create_target({})) {
+        return -1;
+      }
 
       if (is_yuv444) {
         CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.y_res, yuv444->tex[0], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register Y texture");
@@ -650,52 +1024,32 @@ namespace cuda {
         CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.uv_res, nv12->tex[1], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register UV plane texture");
       }
 
-      // Map once rather than per frame: each map/unmap is a synchronizing GL<->CUDA
-      // handshake. convert() orders GL and CUDA access with a fence and mapped.copy_done.
-      int n_resources;
-      if (is_yuv444) {
-        mapped.resources = {{cu_res.y_res.get(), cu_res.u_res.get(), cu_res.v_res.get()}};
-        n_resources = 3;
-      } else {
-        mapped.resources = {{cu_res.y_res.get(), cu_res.uv_res.get(), nullptr}};
-        n_resources = 2;
-      }
-
-      CU_CHECK(cdf->cuGraphicsMapResources(n_resources, mapped.resources.data(), stream.get()), "Couldn't map GL textures in CUDA");
-      mapped.count = n_resources;
-      for (int i = 0; i < mapped.count; i++) {
-        CU_CHECK(cdf->cuGraphicsSubResourceGetMappedArray(&mapped.arrays[i], mapped.resources[i], 0, 0), "Couldn't get mapped plane array");
-      }
-
-      CUevent event;
-      CU_CHECK(cdf->cuEventCreate(&event, CU_EVENT_DISABLE_TIMING), "Couldn't create CUDA copy event");
-      mapped.copy_done.reset(event);
-
       return 0;
     }
 
     /**
-     * @brief Block until GL has finished rendering into the converted textures.
+     * @brief Create the GL textures that the color conversion renders into.
      *
-     * The textures stay mapped in CUDA, so mapping no longer orders GL writes
-     * before CUDA reads. A fence wait provides that ordering instead.
-     *
+     * @param storage Allocator for the plane textures' storage, or empty for plain GL textures.
      * @return 0 on success or -1 on failure.
      */
-    int wait_for_gl() {
-      auto fence = gl::ctx.FenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-      if (!fence) {
-        BOOST_LOG(error) << "Couldn't create GL fence: "sv << gl::ctx.GetError();
-        return -1;
-      }
+    int create_target(const egl::target_storage_fn &storage) {
+      // Drop any previous attempt's textures before their storage is released.
+      yuv444 = egl::yuv444_t {};
+      nv12 = egl::nv12_t {};
 
-      // Generous timeout: this only guards against a hung GPU.
-      auto status = gl::ctx.ClientWaitSync(fence, GL_SYNC_FLUSH_COMMANDS_BIT, std::chrono::nanoseconds(1s).count());
-      gl::ctx.DeleteSync(fence);
-
-      if (status == GL_TIMEOUT_EXPIRED || status == GL_WAIT_FAILED) {
-        BOOST_LOG(error) << "Waiting for GL fence failed: "sv << util::hex(status).to_string_view();
-        return -1;
+      if (is_yuv444) {
+        auto yuv444_opt = egl::create_yuv444_target(frame->width, frame->height, sw_format, storage);
+        if (!yuv444_opt) {
+          return -1;
+        }
+        this->yuv444 = std::move(*yuv444_opt);
+      } else {
+        auto nv12_opt = egl::create_nv12_target(frame->width, frame->height, sw_format, storage);
+        if (!nv12_opt) {
+          return -1;
+        }
+        this->nv12 = std::move(*nv12_opt);
       }
 
       return 0;
@@ -727,59 +1081,63 @@ namespace cuda {
       }
 
       auto fmt_desc = av_pix_fmt_desc_get(sw_format);
-
-      // The previous frame's copies must finish reading the textures before GL
-      // renders into them again. They are normally long done by now.
-      CU_CHECK(cdf->cuEventSynchronize(mapped.copy_done.get()), "Couldn't wait for previous CUDA copy");
+      const int plane_count = is_yuv444 ? 3 : 2;
 
       sws.load_vram(descriptor, offset_x, offset_y, rgb->tex[0], is_yuv444);
 
+      // Perform the color conversion and scaling in GL, once CUDA is done reading the previous frame
+      if (shared.is_active() && shared.wait_for_cuda()) {
+        return -1;
+      }
       if (is_yuv444) {
-        // Perform the color conversion and scaling in GL
         sws.convert_yuv444(yuv444->buf);
-        if (wait_for_gl()) {
-          return -1;
-        }
-
-        // Copy from the GL textures to the target CUDA frame
-        for (int i = 0; i < 3; i++) {
-          CUDA_MEMCPY2D cpy = {};
-          cpy.srcMemoryType = CU_MEMORYTYPE_ARRAY;
-          cpy.srcArray = mapped.arrays[i];
-
-          cpy.dstMemoryType = CU_MEMORYTYPE_DEVICE;
-          cpy.dstDevice = (CUdeviceptr) frame->data[i];
-          cpy.dstPitch = frame->linesize[i];
-          cpy.WidthInBytes = (frame->width * fmt_desc->comp[i].step);
-          cpy.Height = frame->height;
-
-          CU_CHECK_IGNORE(cdf->cuMemcpy2DAsync(&cpy, stream.get()), "Couldn't copy texture to CUDA frame");
-        }
-
       } else {
-        // Perform the color conversion and scaling in GL
         sws.convert_nv12(nv12->buf);
-        if (wait_for_gl()) {
+      }
+
+      std::array<CUarray, 3> arrays {};
+      std::array<CUgraphicsResource, 3> resources {};
+      if (shared.is_active()) {
+        if (shared.wait_for_gl()) {
           return -1;
         }
-
-        // Copy from the GL textures to the target CUDA frame
-        for (int i = 0; i < 2; i++) {
-          CUDA_MEMCPY2D cpy = {};
-          cpy.srcMemoryType = CU_MEMORYTYPE_ARRAY;
-          cpy.srcArray = mapped.arrays[i];
-
-          cpy.dstMemoryType = CU_MEMORYTYPE_DEVICE;
-          cpy.dstDevice = (CUdeviceptr) frame->data[i];
-          cpy.dstPitch = frame->linesize[i];
-          cpy.WidthInBytes = (frame->width * fmt_desc->comp[i].step) >> (i ? fmt_desc->log2_chroma_w : 0);
-          cpy.Height = frame->height >> (i ? fmt_desc->log2_chroma_h : 0);
-
-          CU_CHECK_IGNORE(cdf->cuMemcpy2DAsync(&cpy, stream.get()), "Couldn't copy texture to CUDA frame");
+        for (int i = 0; i < plane_count; i++) {
+          arrays[i] = shared.array(i);
+        }
+      } else {
+        // Map the GL textures to read for CUDA
+        if (is_yuv444) {
+          resources = {{cu_res.y_res.get(), cu_res.u_res.get(), cu_res.v_res.get()}};
+        } else {
+          resources = {{cu_res.y_res.get(), cu_res.uv_res.get(), nullptr}};
+        }
+        CU_CHECK(cdf->cuGraphicsMapResources(plane_count, resources.data(), stream.get()), "Couldn't map GL textures in CUDA");
+        for (int i = 0; i < plane_count; i++) {
+          CU_CHECK(cdf->cuGraphicsSubResourceGetMappedArray(&arrays[i], resources[i], 0, 0), "Couldn't get mapped plane array");
         }
       }
 
-      CU_CHECK(cdf->cuEventRecord(mapped.copy_done.get(), stream.get()), "Couldn't record CUDA copy event");
+      // Copy from the GL textures to the target CUDA frame
+      for (int i = 0; i < plane_count; i++) {
+        CUDA_MEMCPY2D cpy = {};
+        cpy.srcMemoryType = CU_MEMORYTYPE_ARRAY;
+        cpy.srcArray = arrays[i];
+
+        cpy.dstMemoryType = CU_MEMORYTYPE_DEVICE;
+        cpy.dstDevice = (CUdeviceptr) frame->data[i];
+        cpy.dstPitch = frame->linesize[i];
+        cpy.WidthInBytes = (frame->width * fmt_desc->comp[i].step) >> (i ? fmt_desc->log2_chroma_w : 0);
+        cpy.Height = frame->height >> (i ? fmt_desc->log2_chroma_h : 0);
+
+        CU_CHECK_IGNORE(cdf->cuMemcpy2DAsync(&cpy, stream.get()), "Couldn't copy texture to CUDA frame");
+      }
+
+      if (shared.is_active()) {
+        return shared.record_copies(stream.get());
+      }
+
+      // Unmap the textures to allow modification from GL again
+      CU_CHECK(cdf->cuGraphicsUnmapResources(plane_count, resources.data(), stream.get()), "Couldn't unmap GL textures from CUDA");
 
       return 0;
     }
@@ -800,6 +1158,9 @@ namespace cuda {
     stream_t stream;  ///< CUDA stream used for asynchronous conversion work.
     frame_t hwframe;  ///< FFmpeg hardware frame backed by CUDA resources.
 
+    // Holds the plane textures' memory, so it must outlive nv12 and yuv444
+    gl_cuda_shared_planes_t shared;  ///< Output planes shared with CUDA, when external memory is available.
+
     egl::sws_t sws;  ///< Software scaler used for CUDA frame conversion fallback paths.
     egl::nv12_t nv12;  ///< EGL/OpenGL resources used for NV12 output frames.
     egl::yuv444_t yuv444;  ///< EGL/OpenGL resources used for YUV444 output frames.
@@ -812,8 +1173,6 @@ namespace cuda {
     egl::rgb_t rgb;  ///< Imported RGB source image used before CUDA conversion.
 
     cu_resources cu_res;  ///< CUDA graphics resources registered for the current frame.
-
-    cu_mapping mapped;  ///< Persistently mapped textures and their copy-completion event.
 
     int offset_x;  ///< Horizontal offset in physical pixels.
     int offset_y;  ///< Vertical offset in physical pixels.
