@@ -3,12 +3,14 @@
  * @brief Definitions for CUDA encoding.
  */
 // standard includes
+#include <algorithm>
 #include <array>
 #include <bitset>
 #include <cctype>
 #include <cstring>
 #include <fcntl.h>
 #include <filesystem>
+#include <ranges>
 #include <thread>
 #include <unistd.h>
 #include <utility>
@@ -504,14 +506,13 @@ namespace cuda {
   };
 
   int wait_for_gl_fence(const gl_fence_ops_t &ops) {
-    auto fence = ops.create();
-    if (!fence) {
+    if (!ops.create()) {
       BOOST_LOG(error) << "Couldn't create GL fence"sv;
       return -1;
     }
 
-    auto status = ops.client_wait(fence);
-    ops.destroy(fence);
+    auto status = ops.client_wait();
+    ops.destroy();
     if (status != GL_ALREADY_SIGNALED && status != GL_CONDITION_SATISFIED) {
       BOOST_LOG(error) << "Waiting for GL fence failed: "sv << util::hex(status).to_string_view();
       return -1;
@@ -531,14 +532,14 @@ namespace cuda {
       return -1;
     }
 
-    int status = 0;
-    for (int plane = 0; plane < plane_count && status == 0; ++plane) {
-      status = ops.copy(plane);
-    }
+    // Stops at the first failed copy.
+    const bool copied = std::ranges::all_of(std::views::iota(0, plane_count), [&ops](int plane) {
+      return ops.copy(plane) == 0;
+    });
 
     // Release what this frame acquired even when a copy failed.
     const int release_status = shared_planes ? ops.record_copies() : ops.unmap();
-    return status || release_status ? -1 : 0;
+    return copied && release_status == 0 ? 0 : -1;
   }
 
   /**
@@ -788,19 +789,20 @@ namespace cuda {
      * @return 0 on success or -1 on failure.
      */
     int wait_for_gl() {
-      static const gl_fence_ops_t ops {
-        .create = [] {
-          return (void *) gl::ctx.FenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+      GLsync fence = nullptr;
+      return wait_for_gl_fence({
+        .create = [&fence] {
+          fence = gl::ctx.FenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+          return fence != nullptr;
         },
         // Generous timeout: this only guards against a hung GPU.
-        .client_wait = [](void *fence) {
-          return (std::uint32_t) gl::ctx.ClientWaitSync((GLsync) fence, GL_SYNC_FLUSH_COMMANDS_BIT, std::chrono::nanoseconds(1s).count());
+        .client_wait = [&fence] {
+          return gl::ctx.ClientWaitSync(fence, GL_SYNC_FLUSH_COMMANDS_BIT, std::chrono::nanoseconds(1s).count());
         },
-        .destroy = [](void *fence) {
-          gl::ctx.DeleteSync((GLsync) fence);
+        .destroy = [&fence] {
+          gl::ctx.DeleteSync(fence);
         },
-      };
-      return wait_for_gl_fence(ops);
+      });
     }
 
     /**

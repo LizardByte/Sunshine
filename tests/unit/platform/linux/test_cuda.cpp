@@ -247,7 +247,6 @@ namespace {
     std::uint32_t wait_status = GL_ALREADY_SIGNALED;  ///< Status the wait returns.
     int waits = 0;  ///< Number of waits.
     int destroys = 0;  ///< Number of deletions.
-    void *destroyed = nullptr;  ///< Fence passed to the last deletion.
 
     /**
      * @brief Fence calls backed by this fake.
@@ -256,16 +255,15 @@ namespace {
      */
     cuda::gl_fence_ops_t ops() {
       return {
-        .create = [this]() -> void * {
-          return create_fails ? nullptr : this;
+        .create = [this] {
+          return !create_fails;
         },
-        .client_wait = [this](void *) {
+        .client_wait = [this] {
           ++waits;
           return wait_status;
         },
-        .destroy = [this](void *fence) {
+        .destroy = [this] {
           ++destroys;
-          destroyed = fence;
         },
       };
     }
@@ -292,7 +290,6 @@ TEST_P(GlFenceWaitStatusTest, DeletesTheFenceOnceAndReportsTheStatus) {
   EXPECT_EQ(cuda::wait_for_gl_fence(fake.ops()), expected);
   EXPECT_EQ(fake.waits, 1);
   EXPECT_EQ(fake.destroys, 1);
-  EXPECT_EQ(fake.destroyed, &fake);
 }
 
 INSTANTIATE_TEST_SUITE_P(

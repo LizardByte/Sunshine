@@ -94,12 +94,12 @@ namespace cuda {
   std::optional<std::string> device_pci_bus_id(int index, const cuda_pci_accessors_t &accessors);
 
   /**
-   * @brief GL fence calls used to wait for GL on the CPU.
+   * @brief GL fence calls used to wait for GL on the CPU, all acting on the same fence.
    */
   struct gl_fence_ops_t {
-    std::function<void *()> create;  ///< Insert a fence after the submitted GL commands, returning null on failure.
-    std::function<std::uint32_t(void *fence)> client_wait;  ///< Wait for the fence, returning the GL wait status.
-    std::function<void(void *fence)> destroy;  ///< Delete the fence.
+    std::function<bool()> create;  ///< Insert a fence after the submitted GL commands, returning false on failure.
+    std::function<std::uint32_t()> client_wait;  ///< Wait for the fence, returning the GL wait status.
+    std::function<void()> destroy;  ///< Delete the fence.
   };
 
   /**
