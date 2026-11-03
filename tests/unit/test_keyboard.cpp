@@ -13,8 +13,8 @@
  * that only compile on their own platform.
  *
  * These tests record keyboard output instead of delivering it, so they never type into the
- * machine running the suite. One test deliberately clears the recorder to prove the real
- * delivery path still reaches the virtual keyboard.
+ * machine running the suite. Tests that clear the recorder exercise the real delivery path
+ * through the platform adapter to a fake virtual keyboard, including F17/F18 volume remapping.
  */
 
 // test includes
@@ -704,6 +704,29 @@ TEST_F(KeyboardPassthroughTest, EmitsRemappedKeycodesFromKeybindings) {
   press(VKEY_A);
   release(VKEY_A);
   EXPECT_EQ(taken(), (std::vector<std::string> {pressed(VKEY_A), released(VKEY_A)}));
+}
+
+TEST_F(KeyboardPassthroughTest, RemapsFunctionKeysToVolumeKeysThroughThePlatformAdapter) {
+  // Issue #4981: F17/F18 must reach the backend as volume keys, with no client extended bit.
+  config::input.keybindings = {{0x80, 0xAE}, {0x81, 0xAF}};
+  input::testing::set_keyboard_sink({});
+
+  for (const auto flags : {0U, static_cast<unsigned>(SS_KBE_FLAG_NON_NORMALIZED)}) {
+    for (const auto &[client, host] : config::input.keybindings) {
+      SCOPED_TRACE(hex(client));
+      SCOPED_TRACE(flags);
+      const auto prior_count = fake_keyboard().submit_count();
+      press(client, 0, flags);
+      auto event = fake_keyboard().last_submitted_event();
+      EXPECT_EQ(event.key_code, host);
+      EXPECT_TRUE(event.pressed);
+      release(client, 0, flags);
+      event = fake_keyboard().last_submitted_event();
+      EXPECT_EQ(event.key_code, host);
+      EXPECT_FALSE(event.pressed);
+      EXPECT_EQ(fake_keyboard().submit_count(), prior_count + 2U);
+    }
+  }
 }
 
 TEST_F(KeyboardPassthroughTest, DoesNotInjectSyntheticAltWhenAltIsRemappedToMeta) {
