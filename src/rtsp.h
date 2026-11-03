@@ -12,6 +12,7 @@
 
 // local includes
 #include "crypto.h"
+#include "input.h"
 #include "thread_safe.h"
 
 namespace rtsp_stream {
@@ -99,6 +100,7 @@ namespace rtsp_stream {
     std::string rtsp_url_scheme;  ///< URL scheme selected by the RTSP SETUP flow.
     uint32_t rtsp_iv_counter;  ///< Counter value mixed into encrypted RTSP IVs.
     std::string client_cert;  ///< PEM certificate for the paired Moonlight client.
+    input::permissions_t input_permissions;  ///< Input categories the paired client may send.
   };
 
   /**
@@ -130,6 +132,14 @@ namespace rtsp_stream {
    * @param cert Certificate data or object used by the operation.
    */
   void terminate_sessions_by_cert(std::string_view cert);
+
+  /**
+   * @brief Check whether a paired client currently has a running stream.
+   *
+   * @param cert PEM certificate of the paired client.
+   * @return `true` when at least one running session uses the certificate.
+   */
+  bool is_client_active(std::string_view cert);
 
   /**
    * @brief Runs the RTSP server loop.

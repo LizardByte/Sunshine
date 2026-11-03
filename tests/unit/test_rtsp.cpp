@@ -115,3 +115,8 @@ TEST(RtspResponseTest, CommonDispatcherPreservesResponsesWithoutServerContext) {
     }
   }
 }
+
+TEST(RtspSessionTest, ClientWithoutRunningSessionIsInactive) {
+  EXPECT_FALSE(rtsp_stream::is_client_active(""));
+  EXPECT_FALSE(rtsp_stream::is_client_active("paired-client-certificate"));
+}

@@ -463,6 +463,28 @@ TEST_F(KeyboardPassthroughTest, ForwardsEveryUnmodifiedKeyUnchanged) {
   }
 }
 
+TEST_F(KeyboardPassthroughTest, ClientPermissionGatesKeyboardInputAndUpdatesLive) {
+  const std::string session_id = "keyboard-permission-client";
+  auto stream_input = input::alloc(std::make_shared<safe::mail_raw_t>(), session_id, {.keyboard = false});
+  ASSERT_NE(stream_input, nullptr);
+
+  input::testing::send_keyboard_packet(stream_input, VKEY_A, 0, 0, false);
+  input::testing::send_keyboard_packet(stream_input, VKEY_A, 0, 0, true);
+  EXPECT_TRUE(taken().empty());
+
+  input::set_permission(session_id, input::permission_e::keyboard, true);
+  input::testing::send_keyboard_packet(stream_input, VKEY_A, 0, 0, false);
+  input::testing::send_keyboard_packet(stream_input, VKEY_A, 0, 0, true);
+  EXPECT_EQ(taken(), (std::vector<std::string> {pressed(VKEY_A), released(VKEY_A)}));
+
+  input::set_permission(session_id, input::permission_e::keyboard, false);
+  input::testing::send_keyboard_packet(stream_input, VKEY_B, 0, 0, false);
+  input::testing::send_keyboard_packet(stream_input, VKEY_B, 0, 0, true);
+  EXPECT_TRUE(taken().empty());
+
+  input::terminate_gamepads(session_id);
+}
+
 TEST_F(KeyboardPassthroughTest, PreservesExtendedEnterOnReleaseAndDisconnect) {
   press(VKEY_RETURN);
   release(VKEY_RETURN);

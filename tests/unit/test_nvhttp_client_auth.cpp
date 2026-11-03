@@ -14,6 +14,10 @@
 #include <type_traits>
 #include <vector>
 
+// lib includes
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
+
 // local includes
 #include <src/config.h>
 #include <src/nvhttp.h>
@@ -175,6 +179,80 @@ TEST_F(ClientAuthorizationTest, RePairingReplacesDuplicateCertificateIdentity) {
   EXPECT_EQ(nvhttp::get_all_clients().size(), 2);
   EXPECT_TRUE(nvhttp::test_support::authorize_client_certificate(paired_credentials.x509));
   EXPECT_TRUE(nvhttp::test_support::authorize_client_certificate(other_credentials.x509));
+}
+
+TEST_F(ClientAuthorizationTest, InputPermissionsDefaultToAllowedAndPersistIndependently) {
+  const auto credentials = test_utils::certificates::generate_ca_credentials();
+  const auto uuid = nvhttp::test_support::add_client("friend", credentials.x509, true);
+  ASSERT_FALSE(uuid.empty());
+
+  const auto defaults = nvhttp::get_client_permissions(credentials.x509);
+  EXPECT_TRUE(defaults.mouse);
+  EXPECT_TRUE(defaults.keyboard);
+  EXPECT_TRUE(defaults.controller);
+  const auto listed = nvhttp::get_all_clients().at(0).at("permissions");
+  EXPECT_TRUE(listed.at("mouse").get<bool>());
+  EXPECT_TRUE(listed.at("keyboard").get<bool>());
+  EXPECT_TRUE(listed.at("controller").get<bool>());
+
+  EXPECT_FALSE(nvhttp::set_client_permission("missing", input::permission_e::mouse, false));
+  ASSERT_TRUE(nvhttp::set_client_permission(uuid, input::permission_e::mouse, false));
+  ASSERT_TRUE(nvhttp::set_client_permission(uuid, input::permission_e::controller, false));
+  ASSERT_TRUE(nvhttp::set_client_enabled(uuid, false));
+
+  nvhttp::test_support::reset_client_state();
+  nvhttp::test_support::reload_client_state();
+  const auto reloaded = nvhttp::get_client_permissions(credentials.x509);
+  EXPECT_FALSE(reloaded.mouse);
+  EXPECT_TRUE(reloaded.keyboard);
+  EXPECT_FALSE(reloaded.controller);
+  EXPECT_FALSE(nvhttp::get_all_clients().at(0).at("enabled").get<bool>());
+
+  const auto unknown = nvhttp::get_client_permissions("not a paired certificate");
+  EXPECT_TRUE(unknown.mouse);
+  EXPECT_TRUE(unknown.keyboard);
+  EXPECT_TRUE(unknown.controller);
+}
+
+TEST_F(ClientAuthorizationTest, ClientsSavedBeforePermissionFieldsLoadAsAllowed) {
+  const auto credentials = test_utils::certificates::generate_ca_credentials();
+  const auto uuid = nvhttp::test_support::add_client("legacy", credentials.x509, true);
+  ASSERT_FALSE(uuid.empty());
+  ASSERT_TRUE(nvhttp::set_client_permission(uuid, input::permission_e::mouse, false));
+
+  boost::property_tree::ptree state;
+  boost::property_tree::read_json(config::nvhttp.file_state, state);
+  auto &device = state.get_child("root.named_devices").front().second;
+  device.erase("allow_mouse");
+  device.erase("allow_keyboard");
+  device.erase("allow_controller");
+  boost::property_tree::write_json(config::nvhttp.file_state, state);
+
+  nvhttp::test_support::reset_client_state();
+  nvhttp::test_support::reload_client_state();
+  const auto loaded = nvhttp::get_client_permissions(credentials.x509);
+  EXPECT_TRUE(loaded.mouse);
+  EXPECT_TRUE(loaded.keyboard);
+  EXPECT_TRUE(loaded.controller);
+  EXPECT_TRUE(nvhttp::get_all_clients().at(0).at("enabled").get<bool>());
+}
+
+TEST_F(ClientAuthorizationTest, RepairingAClientRestoresDefaultPermissions) {
+  const auto credentials = test_utils::certificates::generate_ca_credentials();
+  const auto uuid = nvhttp::test_support::add_client("friend", credentials.x509, true);
+  ASSERT_FALSE(uuid.empty());
+  ASSERT_TRUE(nvhttp::set_client_permission(uuid, input::permission_e::mouse, false));
+  ASSERT_TRUE(nvhttp::set_client_permission(uuid, input::permission_e::keyboard, false));
+
+  const auto repaired_uuid = nvhttp::test_support::add_client("friend", credentials.x509, true);
+  ASSERT_FALSE(repaired_uuid.empty());
+  EXPECT_NE(repaired_uuid, uuid);
+  ASSERT_EQ(nvhttp::get_all_clients().size(), 1);
+
+  const auto permissions = nvhttp::get_client_permissions(credentials.x509);
+  EXPECT_TRUE(permissions.mouse);
+  EXPECT_TRUE(permissions.keyboard);
+  EXPECT_TRUE(permissions.controller);
 }
 
 TEST_F(ClientAuthorizationTest, ConcurrentStateChangesRemainConsistent) {
