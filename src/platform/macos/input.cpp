@@ -17,6 +17,7 @@
 
 // local includes
 #include "src/config.h"
+#include "src/platform/common.h"
 #include "src/platform/virtualhid_input.h"
 
 namespace platf {
@@ -65,6 +66,18 @@ namespace platf {
     const auto licensed = lvh::get_license_status().license.licensed();
     gamepads = virtualhid::supported_gamepads(virtualhid::get_input_context(*input).runtime.get(), false, licensed, true);
     return gamepads;
+  }
+
+  void clipboard_set(std::string_view, const clipboard_queue_t &) {
+    // macOS host clipboard sync is not implemented yet.
+  }
+
+  void clipboard_subscribe(clipboard_queue_t) {
+    // macOS host clipboard sync is not implemented yet.
+  }
+
+  void clipboard_unsubscribe(const clipboard_queue_t &) {
+    // macOS host clipboard sync is not implemented yet.
   }
 
 }  // namespace platf
