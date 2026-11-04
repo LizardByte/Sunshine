@@ -500,7 +500,7 @@ namespace vk {
         const char *preset_name = "speed";
 
         // First pass: get max quality to calculate target
-        if (query_and_validate_quality_level(ctx->codec_id, vk_ctx, 0, &max_quality)) {
+        if (query_and_validate_quality_level(ctx->codec_id, vk_ctx, 0, &max_quality).has_value()) {
           switch (quality_preset) {
             default:
             case 1:  // speed (level 0 = fastest)

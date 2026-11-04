@@ -11,6 +11,7 @@
   // standard includes
   #include <algorithm>
   #include <array>
+  #include <bit>
   #include <optional>
   #include <string>
   #include <string_view>
@@ -65,11 +66,11 @@ namespace {
      * @return Fake function pointer, or nullptr when unavailable.
      */
     static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL get_proc_addr(VkInstance instance, const char *name) {
-      auto &driver = *reinterpret_cast<quality_driver_t *>(instance);
+      auto &driver = *std::bit_cast<quality_driver_t *>(instance);
       if (std::string_view(name) == "vkGetPhysicalDeviceVideoCapabilitiesKHR") {
-        return driver.capabilities_available ? reinterpret_cast<PFN_vkVoidFunction>(&get_capabilities) : nullptr;
+        return driver.capabilities_available ? std::bit_cast<PFN_vkVoidFunction>(&get_capabilities) : nullptr;
       }
-      return driver.quality_available ? reinterpret_cast<PFN_vkVoidFunction>(&get_quality) : nullptr;
+      return driver.quality_available ? std::bit_cast<PFN_vkVoidFunction>(&get_quality) : nullptr;
     }
 
     /**
@@ -80,7 +81,7 @@ namespace {
      * @return Configured driver result.
      */
     static VKAPI_ATTR VkResult VKAPI_CALL get_capabilities(VkPhysicalDevice physical_device, const VkVideoProfileInfoKHR *profile, VkVideoCapabilitiesKHR *capabilities) {
-      auto &driver = *reinterpret_cast<quality_driver_t *>(physical_device);
+      auto &driver = *std::bit_cast<quality_driver_t *>(physical_device);
       auto *usage = static_cast<const VkVideoEncodeUsageInfoKHR *>(profile->pNext);
       auto *codec_profile = static_cast<const VkBaseInStructure *>(usage->pNext);
       auto *encode_caps = static_cast<VkVideoEncodeCapabilitiesKHR *>(capabilities->pNext);
@@ -100,20 +101,20 @@ namespace {
     /**
      * @brief Require codec-specific output storage and a valid zero-based quality index.
      * @param physical_device Fake physical device carrying the driver state.
-     * @param info Profile and quality index to validate.
+     * @param quality_info Profile and quality index to validate.
      * @param properties Quality output chain to validate and populate.
      * @return Success, or an error for invalid structures or an injected failure.
      */
-    static VKAPI_ATTR VkResult VKAPI_CALL get_quality(VkPhysicalDevice physical_device, const VkPhysicalDeviceVideoEncodeQualityLevelInfoKHR *info, VkVideoEncodeQualityLevelPropertiesKHR *properties) {
-      auto &driver = *reinterpret_cast<quality_driver_t *>(physical_device);
-      driver.queried_levels.push_back(info->qualityLevel);
+    static VKAPI_ATTR VkResult VKAPI_CALL get_quality(VkPhysicalDevice physical_device, const VkPhysicalDeviceVideoEncodeQualityLevelInfoKHR *quality_info, VkVideoEncodeQualityLevelPropertiesKHR *properties) {
+      auto &driver = *std::bit_cast<quality_driver_t *>(physical_device);
+      driver.queried_levels.push_back(quality_info->qualityLevel);
       const auto *codec_quality = static_cast<const VkBaseOutStructure *>(properties->pNext);
       const auto count = driver.quality_counts[std::min(driver.capability_calls - 1, driver.quality_counts.size() - 1)];
-      driver.valid_chains &= info->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_ENCODE_QUALITY_LEVEL_INFO_KHR &&
-                             info->pVideoProfile->videoCodecOperation == driver.codec.operation &&
+      driver.valid_chains &= quality_info->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_ENCODE_QUALITY_LEVEL_INFO_KHR &&
+                             quality_info->pVideoProfile->videoCodecOperation == driver.codec.operation &&
                              properties->sType == VK_STRUCTURE_TYPE_VIDEO_ENCODE_QUALITY_LEVEL_PROPERTIES_KHR &&
                              codec_quality && codec_quality->sType == driver.codec.quality &&
-                             info->qualityLevel < count;
+                             quality_info->qualityLevel < count;
       if (!driver.valid_chains || driver.queried_levels.size() == driver.fail_quality_call) {
         return VK_ERROR_INITIALIZATION_FAILED;
       }
@@ -146,25 +147,25 @@ namespace {
     AVBufferRef frames_buffer {};  ///< Non-owning reference to the frame pool.
     AVCodecContext codec {};  ///< Codec configuration passed to the real encode device.
     AVDictionary *options = nullptr;  ///< Options produced by the real encode device.
-    std::unique_ptr<platf::avcodec_encode_device_t> device;  ///< Production Vulkan encode device under test.
+    std::unique_ptr<platf::avcodec_encode_device_t> device = vk::make_avcodec_encode_device_vram(1920, 1080, 0, 0);  ///< Production Vulkan encode device under test.
 
     /**
      * @brief Configure the requested codec and quality preset using fake Vulkan handles.
      * @param codec_case Codec-specific Vulkan structures expected by the fake driver.
      * @param preset Sunshine quality preset.
+     * @note Buffer data pointers carry typed context addresses without byte-oriented access.
      */
     explicit quality_context_t(const quality_codec_t &codec_case, int preset = 2):
-        driver {codec_case},
-        device(vk::make_avcodec_encode_device_vram(1920, 1080, 0, 0)) {
+        driver {codec_case} {
       config::video.vk.quality = preset;
       config::video.vk.rc_mode = 0;
-      vulkan.inst = reinterpret_cast<VkInstance>(&driver);
-      vulkan.phys_dev = reinterpret_cast<VkPhysicalDevice>(&driver);
+      vulkan.inst = std::bit_cast<VkInstance>(&driver);
+      vulkan.phys_dev = std::bit_cast<VkPhysicalDevice>(&driver);
       vulkan.get_proc_addr = &quality_driver_t::get_proc_addr;
       hardware.hwctx = &vulkan;
-      device_buffer.data = reinterpret_cast<uint8_t *>(&hardware);
+      device_buffer.data = static_cast<decltype(device_buffer.data)>(static_cast<void *>(&hardware));
       frames.device_ref = &device_buffer;
-      frames_buffer.data = reinterpret_cast<uint8_t *>(&frames);
+      frames_buffer.data = static_cast<decltype(frames_buffer.data)>(static_cast<void *>(&frames));
       codec.hw_frames_ctx = &frames_buffer;
       codec.codec_id = codec_case.codec;
     }
