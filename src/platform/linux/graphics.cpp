@@ -1001,6 +1001,7 @@ namespace egl {
    * @param width Width of the target frame.
    * @param height Height of the target frame.
    * @param format Format of the target frame.
+   * @param storage Optional allocator for the plane textures' storage. Uses `TexStorage2D` when empty.
    * @return The new RGB texture.
    */
   std::optional<nv12_t> create_nv12_target(int width, int height, AVPixelFormat format, const target_storage_fn &storage) {

@@ -505,6 +505,12 @@ namespace cuda {
     registered_resource_t uv_res;  ///< Uv res.
   };
 
+  /**
+   * @brief Block until GL has finished the commands submitted so far.
+   *
+   * @param ops GL fence calls.
+   * @return 0 on success or -1 when the fence couldn't be created, timed out or failed.
+   */
   int wait_for_gl_fence(const gl_fence_ops_t &ops) {
     if (!ops.create()) {
       BOOST_LOG(error) << "Couldn't create GL fence"sv;
@@ -521,6 +527,18 @@ namespace cuda {
     return 0;
   }
 
+  /**
+   * @brief Hand one converted frame from GL to CUDA.
+   *
+   * With shared planes, GL and CUDA take turns through CPU waits. Otherwise the plane
+   * textures are mapped into CUDA for the copies only. Whatever a frame acquires is
+   * released even when a copy fails.
+   *
+   * @param shared_planes Whether the planes are shared through external memory.
+   * @param plane_count Number of planes to copy.
+   * @param ops Steps of the handoff.
+   * @return 0 on success or -1 on failure.
+   */
   int gl_cuda_handoff(bool shared_planes, int plane_count, const gl_cuda_handoff_ops_t &ops) {
     if (shared_planes && ops.wait_for_cuda()) {
       return -1;
