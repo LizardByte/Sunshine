@@ -524,6 +524,7 @@ namespace platf {
 
     /**
      * @brief Open the X11 display and cache capture window attributes.
+     * @details Fails when RandR cannot report the screen resources or the matched output's CRTC, so the caller can retry.
      *
      * @param display_name Display name.
      * @param config Configuration values to apply.
@@ -548,6 +549,10 @@ namespace platf {
       }
 
       screen_res_t screenr {x11::rr::GetScreenResources(xdisplay.get(), xwindow)};
+      if (!screenr) {
+        BOOST_LOG(error) << "Could not query X screen resources"sv;
+        return -1;
+      }
       int output = screenr->noutput;
 
       output_info_t result;
@@ -568,6 +573,11 @@ namespace platf {
 
       if (result_found && result->crtc) {
         crtc_info_t crt_info {x11::rr::GetCrtcInfo(xdisplay.get(), screenr.get(), result->crtc)};
+        if (!crt_info) {
+          BOOST_LOG(error) << "Could not query CRTC info for display ["sv << display_name << ']';
+          return -1;
+        }
+
         BOOST_LOG(info)
           << "Streaming display: "sv << result->name << " with res "sv << crt_info->width << 'x' << crt_info->height << " offset by "sv << crt_info->x << 'x' << crt_info->y;
 
@@ -978,6 +988,7 @@ namespace platf {
 
   /**
    * @brief Enumerate display names accepted by the X11 backend.
+   * @details Retries the RandR screen resources query for up to about a second before giving up.
    *
    * @return X11 display names, or an empty list when X11 probing fails.
    */
@@ -997,6 +1008,18 @@ namespace platf {
 
     auto xwindow = DefaultRootWindow(xdisplay.get());
     screen_res_t screenr {x11::rr::GetScreenResources(xdisplay.get(), xwindow)};
+
+    int retries = 4;
+    while (!screenr && retries > 0) {
+      --retries;
+      std::this_thread::sleep_for(200ms);
+      screenr.reset(x11::rr::GetScreenResources(xdisplay.get(), xwindow));
+    }
+
+    if (!screenr) {
+      BOOST_LOG(error) << "Could not query X screen resources"sv;
+      return {};
+    }
     int output = screenr->noutput;
 
     std::vector<std::string> names;
@@ -1114,5 +1137,74 @@ namespace platf {
     void freeCursorCtx(cursor_ctx_t::pointer ctx) {
       CloseDisplay((xdisplay_t::pointer) ctx);
     }
+
+#ifdef SUNSHINE_TESTS
+    namespace {
+      /**
+       * @brief Saved RandR entry points and failure-injection state.
+       */
+      struct randr_test_state_t {
+        int screen_resources_failures_left = 0;  ///< Queries still to fail; negative means all queries.
+        rr::GetScreenResources_fn get_screen_resources = nullptr;  ///< Original screen-resources entry point.
+        rr::GetCrtcInfo_fn get_crtc_info = nullptr;  ///< Original CRTC-info entry point.
+      };
+
+      /**
+       * @brief Access the shared RandR failure-injection state.
+       *
+       * @return Mutable failure-injection state.
+       */
+      randr_test_state_t &randr_test_state() {
+        static randr_test_state_t state;
+        return state;
+      }
+
+      /**
+       * @brief Inject a screen-resources failure or forward to the original query.
+       *
+       * @param dpy X11 display connection.
+       * @param window Window whose screen resources are requested.
+       * @return Null for an injected failure or missing entry point; otherwise the RandR result.
+       */
+      XRRScreenResources *get_screen_resources_for_testing(Display *dpy, Window window) {
+        auto &state = randr_test_state();
+        if (state.screen_resources_failures_left != 0 || !state.get_screen_resources) {
+          if (state.screen_resources_failures_left > 0) {
+            --state.screen_resources_failures_left;
+          }
+          return nullptr;
+        }
+
+        return state.get_screen_resources(dpy, window);
+      }
+
+      /**
+       * @brief Simulate a failed CRTC query.
+       *
+       * @return Null for every CRTC query.
+       */
+      XRRCrtcInfo *get_crtc_info_for_testing(Display *, XRRScreenResources *, RRCrtc) {
+        return nullptr;
+      }
+    }  // namespace
+
+    int fail_randr_for_testing(int screen_resources_failures, bool fail_crtc_info) {
+      if (rr::init()) {
+        return -1;
+      }
+
+      auto &state = randr_test_state();
+      if (!state.get_screen_resources) {
+        state.get_screen_resources = rr::GetScreenResources;
+        state.get_crtc_info = rr::GetCrtcInfo;
+      }
+
+      state.screen_resources_failures_left = screen_resources_failures;
+      rr::GetScreenResources = &get_screen_resources_for_testing;
+      rr::GetCrtcInfo = fail_crtc_info ? &get_crtc_info_for_testing : state.get_crtc_info;
+
+      return 0;
+    }
+#endif
   }  // namespace x11
 }  // namespace platf
