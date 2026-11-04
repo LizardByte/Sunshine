@@ -14,6 +14,7 @@
   #include <filesystem>
   #include <format>
   #include <fstream>
+  #include <functional>
   #include <future>
   #include <map>
   #include <optional>
@@ -94,7 +95,7 @@ namespace {
 
       std::promise<bool> ready;
       auto started = ready.get_future();
-      thread_ = std::thread([this, bus_address, ready = std::move(ready)]() mutable {
+      thread_ = std::jthread([this, bus_address, ready = std::move(ready)]() mutable {
         g_main_context_push_thread_default(context_);
         const bool ok = setup(bus_address);
         ready.set_value(ok);
@@ -195,7 +196,7 @@ namespace {
     /**
      * @brief Answer a portal method call, emitting the request's Response first.
      */
-    static void handle_method_call(GDBusConnection *conn, const gchar *sender, [[maybe_unused]] const gchar *object_path, [[maybe_unused]] const gchar *interface_name, const gchar *method_name, GVariant *parameters, GDBusMethodInvocation *invocation, [[maybe_unused]] gpointer user_data) {
+    static void handle_method_call(GDBusConnection *conn, const gchar *sender, [[maybe_unused]] const gchar *object_path, [[maybe_unused]] const gchar *interface_name, const gchar *method_name, GVariant *parameters, GDBusMethodInvocation *invocation, [[maybe_unused]] gpointer user_data) {  // NOSONAR(cpp:S107): GDBusInterfaceMethodCallFunc signature.
       if (g_str_equal(method_name, "OpenPipeWireRemote")) {
         g_autoptr(GUnixFDList) fd_list = g_unix_fd_list_new();
         const int fd = open("/dev/null", O_RDONLY | O_CLOEXEC);
@@ -243,7 +244,7 @@ namespace {
     GMainLoop *loop_ = nullptr;
     GDBusConnection *conn_ = nullptr;
     std::vector<guint> registrations_;
-    std::thread thread_;
+    std::jthread thread_;
   };
 
   /**
@@ -337,6 +338,7 @@ namespace {
       BaseTest::TearDown();
     }
 
+  private:
     /**
      * @brief Set an environment variable for the test, remembering its previous value for TearDown.
      * @param name Variable name.
@@ -344,7 +346,7 @@ namespace {
      */
     void set_env(const std::string &name, const std::string &value) {
       if (!previous_env_.contains(name)) {
-        const char *previous = std::getenv(name.c_str());
+        const gchar *previous = g_getenv(name.c_str());
         previous_env_[name] = previous ? std::optional<std::string> {previous} : std::nullopt;
       }
       g_setenv(name.c_str(), value.c_str(), true);
@@ -354,7 +356,7 @@ namespace {
     GPid daemon_pid_ = 0;
     FILE *daemon_output_ = nullptr;
     std::filesystem::path bus_directory_;
-    std::map<std::string, std::optional<std::string>> previous_env_;
+    std::map<std::string, std::optional<std::string>, std::less<>> previous_env_;
   };
 }  // namespace
 
