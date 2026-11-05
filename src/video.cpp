@@ -2516,7 +2516,7 @@ namespace video {
   }
 
   /**
-   * @brief Create a port object or message.
+   * @brief Describe the streamed display, desktop bounds, and client letterboxing for absolute input.
    *
    * @param display Display object or identifier associated with the operation.
    * @param config Configuration values to apply.
@@ -2559,6 +2559,7 @@ namespace video {
         display->logical_height,
         display->env_offset_x,
         display->env_offset_y,
+        display->output_name,
       },
       display->env_width,
       display->env_height,

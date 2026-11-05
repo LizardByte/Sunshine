@@ -1083,6 +1083,7 @@ namespace portal {
       out_pipewire_node = stream.pipewire_node;
       out_pipewire_object_serial = stream.pipewire_object_serial;
       // Set/update basic stream parameters on display_t
+      this->output_name = stream.monitor_name;
       this->offset_x = stream.pos_x;
       this->offset_y = stream.pos_y;
       this->width = stream.width;

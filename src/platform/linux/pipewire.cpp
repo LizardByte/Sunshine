@@ -16,6 +16,7 @@
 
 // local includes
 #include "cuda.h"
+#include "display_geometry.h"
 #include "graphics.h"
 #include "src/main.h"
 #include "src/platform/common.h"
@@ -1010,41 +1011,24 @@ namespace pipewire {
     virtual int configure_stream(const std::string &display_name, int &out_pipewire_fd, uint32_t &out_pipewire_node, uint64_t &out_pipewire_objectserial) = 0;
 
     /**
-     *  @brief Verify and update display parameters for logical dimensions, desktop dimensions and logical desktop dimensions (default is adapted from wlgrab)
+     * @brief Resolve the streamed connector and full desktop bounds for absolute input.
      */
     virtual void verify_and_update_display_parameters() {
-      // Query outputs directly using wayland wl::monitors()
-      if (logical_height <= 0 || logical_width <= 0 || env_logical_height <= 0 || env_logical_width <= 0 || env_height <= 0 || env_width <= 0) {
-        int desktop_width = 0;
-        int desktop_height = 0;
-        int desktop_logical_width = 0;
-        int desktop_logical_height = 0;
-        for (const auto &monitor : wl::monitors()) {
-          BOOST_LOG(debug) << "[pipewire] Found output: '"sv << monitor->name << "' offset: "sv << monitor->viewport.offset_x << 'x' << monitor->viewport.offset_y << " resolution: "sv << monitor->viewport.width << 'x' << monitor->viewport.height << " logical resolution: "sv << monitor->viewport.logical_width << 'x' << monitor->viewport.logical_height;
-          // If logical_width and logical_height are not valid try to update them to correct values by matching to monitor
-          // position/dimension or position/logical dimensions here since we're iterating for maximum environment size anyway
-          if ((logical_width <= 0 || logical_height <= 0) && monitor->viewport.offset_x == offset_x && monitor->viewport.offset_y == offset_y && ((monitor->viewport.width == width && monitor->viewport.height == height) || (monitor->viewport.logical_width == width && monitor->viewport.logical_height == height))) {
-            this->logical_width = monitor->viewport.logical_width;
-            this->logical_height = monitor->viewport.logical_height;
-            BOOST_LOG(debug) << "[pipewire] Set logical resolution: "sv << logical_width << 'x' << logical_height;
+      platf::desktop_geometry_t desktop;
+      for (const auto &monitor : wl::monitors()) {
+        desktop.add(monitor->viewport);
+        if (monitor->viewport.offset_x == offset_x && monitor->viewport.offset_y == offset_y && ((monitor->viewport.width == width && monitor->viewport.height == height) || (monitor->viewport.logical_width == width && monitor->viewport.logical_height == height))) {
+          if (logical_width <= 0 || logical_height <= 0) {
+            logical_width = monitor->viewport.logical_width;
+            logical_height = monitor->viewport.logical_height;
           }
-          // Update desktop dimensions to setup maximum environment size over all screens
-          desktop_width = std::max(desktop_width, monitor->viewport.offset_x + monitor->viewport.width);
-          desktop_height = std::max(desktop_height, monitor->viewport.offset_y + monitor->viewport.height);
-          // Update desktop logical dimensions to setup maximum logical environment size over all screens
-          desktop_logical_width = std::max(desktop_logical_width, monitor->viewport.offset_x + monitor->viewport.logical_width);
-          desktop_logical_height = std::max(desktop_logical_height, monitor->viewport.offset_y + monitor->viewport.logical_height);
+          if (output_name.empty()) {
+            output_name = monitor->name;
+          }
         }
-        if (env_height <= 0 || env_width <= 0) {
-          this->env_width = desktop_width;
-          this->env_height = desktop_height;
-          BOOST_LOG(debug) << "[pipewire] Set desktop resolution: "sv << env_width << 'x' << env_height;
-        }
-        if (env_logical_height <= 0 || env_logical_width <= 0) {
-          this->env_logical_width = desktop_logical_width;
-          this->env_logical_height = desktop_logical_height;
-          BOOST_LOG(debug) << "[pipewire] Set desktop logical resolution: "sv << env_logical_width << 'x' << env_logical_height;
-        }
+      }
+      if (desktop.bounds().width > 0 && desktop.bounds().height > 0) {
+        desktop.apply(*this);
       }
     }
 

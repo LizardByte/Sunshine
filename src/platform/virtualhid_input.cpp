@@ -367,6 +367,7 @@ namespace platf::virtualhid {
         .offset_y = touch_port.offset_y,
         .width = touch_port.width,
         .height = touch_port.height,
+        .output_name = touch_port.output_name,
       };
     }
 
