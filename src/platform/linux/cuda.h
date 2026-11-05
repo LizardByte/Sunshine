@@ -47,6 +47,11 @@ namespace platf {
   struct img_t;
 }  // namespace platf
 
+/**
+ * @brief Table of CUDA driver entry points, defined by `ffnvcodec/dynlink_loader.h`.
+ */
+struct CudaFunctions;
+
 namespace cuda {
 
   namespace nvfbc {
@@ -93,6 +98,22 @@ namespace cuda {
   std::optional<std::string> device_pci_bus_id(int index, const cuda_pci_accessors_t &accessors);
 
   int init();
+
+  /**
+   * @brief Fill a CUDA function table the way `cuda_load_functions` does.
+   */
+  using function_table_loader_t = int (*)(CudaFunctions **table);
+
+  /**
+   * @brief Load a CUDA function table unless it is already loaded, and initialize CUDA through it.
+   *
+   * `init()` passes the table every encode device shares and the real loader.
+   *
+   * @param table Table to load.
+   * @param load Function that fills the table, returning 0 on success.
+   * @return 0 on success, -1 on failure.
+   */
+  int init(CudaFunctions **table, function_table_loader_t load);
 }  // namespace cuda
 
 /**
