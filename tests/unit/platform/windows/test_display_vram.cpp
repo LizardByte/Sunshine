@@ -168,4 +168,20 @@ INSTANTIATE_TEST_SUITE_P(
     Fp16TransferParam {DXGI_FORMAT_Y410, true, true, fp16_transfer_e::perceptual_quantizer}
   )
 );
+
+/**
+ * @brief Every capture format maps to a declared pixel format, and unsupported
+ *        HDR formats fail closed as undeclared.
+ */
+TEST(DxgiPixelFormatTests, DeclaresSupportedCaptureFormats) {
+  using platf::dxgi::pix_fmt_from_dxgi_format;
+
+  EXPECT_EQ(pix_fmt_from_dxgi_format(DXGI_FORMAT_R8G8B8A8_UNORM), platf::pix_fmt_e::rgba);
+  EXPECT_EQ(pix_fmt_from_dxgi_format(DXGI_FORMAT_B8G8R8A8_UNORM), platf::pix_fmt_e::bgr0);
+  EXPECT_EQ(pix_fmt_from_dxgi_format(DXGI_FORMAT_B8G8R8X8_UNORM), platf::pix_fmt_e::bgr0);
+  EXPECT_EQ(pix_fmt_from_dxgi_format(DXGI_FORMAT_UNKNOWN), platf::pix_fmt_e::bgr0);
+
+  // scRGB FP16 is not representable as a declared capture format yet.
+  EXPECT_EQ(pix_fmt_from_dxgi_format(DXGI_FORMAT_R16G16B16A16_FLOAT), platf::pix_fmt_e::unknown);
+}
 #endif

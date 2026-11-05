@@ -1959,8 +1959,11 @@ namespace platf::dxgi {
       img->encoder_texture_handle = nullptr;
     }
 
-    // Initialize format-dependent fields
+    // Initialize format-dependent fields. Only the BGRA/BGRX capture formats
+    // are packed 8-bit BGR; RGBA has a different channel order and the HDR
+    // scRGB capture format is 16-bit float.
     img->pixel_pitch = get_pixel_pitch();
+    img->pixel_format = pix_fmt_from_dxgi_format(capture_format);
     img->row_pitch = img->pixel_pitch * img->width;
     img->dummy = dummy;
     img->format = (capture_format == DXGI_FORMAT_UNKNOWN) ? DXGI_FORMAT_B8G8R8A8_UNORM : capture_format;

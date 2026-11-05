@@ -8,12 +8,14 @@
 #include <future>
 #include <stdexcept>
 #include <string_view>
+#include <vector>
 
 // local includes
 #include "graphics.h"
 #include "src/file_handler.h"
 #include "src/logging.h"
 #include "src/video.h"
+#include "unpack_layout.h"
 
 // platform includes
 #if !defined(__FreeBSD__)
@@ -1394,11 +1396,41 @@ namespace egl {
     return make_nv12(in_width, in_height, out_width, out_height, std::move(tex));
   }
 
-  void sws_t::load_ram(platf::img_t &img) {
+  int sws_t::load_ram(const platf::img_t &img) {
+    // This upload path only understands packed 8-bit BGR captures. Fail loudly
+    // for declared formats it cannot represent (e.g. NV12 or 10-bit formats),
+    // and for undeclared formats that are not 4 bytes per pixel, instead of
+    // silently uploading them as BGR0.
+    int unpack_row_length = 0;
+    using enum ram_upload_e;
+    switch (const auto classification = classify_ram_upload(img); classification.kind) {
+      case unsupported_format:
+        BOOST_LOG(error) << "RAM capture upload does not support capture image "sv << platf::describe_capture_image(img);
+        return -1;
+      case unsupported_stride:
+        BOOST_LOG(error) << "Capture row pitch does not describe a complete packed row ("sv << img.row_pitch << " bytes for "sv << img.width << " pixels)"sv;
+        return -1;
+      case direct:
+        unpack_row_length = classification.row_length;
+        break;
+      default:
+        // A future classification must not silently fall back to a tight upload.
+        BOOST_LOG(error) << "Unhandled RAM capture upload classification"sv;
+        return -1;
+    }
+
     loaded_texture = tex[0];
 
+    // Preserve the surrounding unpack state instead of assuming the default.
+    GLint previous_row_length = 0;
+    gl::ctx.GetIntegerv(GL_UNPACK_ROW_LENGTH, &previous_row_length);
+
     gl::ctx.BindTexture(GL_TEXTURE_2D, loaded_texture);
+    gl::ctx.PixelStorei(GL_UNPACK_ROW_LENGTH, unpack_row_length);
     gl::ctx.TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, img.width, img.height, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
+    gl::ctx.PixelStorei(GL_UNPACK_ROW_LENGTH, previous_row_length);
+
+    return 0;
   }
 
   void sws_t::load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture, bool is_yuv444) {

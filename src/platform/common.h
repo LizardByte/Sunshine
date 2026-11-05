@@ -7,6 +7,7 @@
 // standard includes
 #include <bitset>
 #include <filesystem>
+#include <format>
 #include <functional>
 #include <mutex>
 #include <optional>
@@ -24,6 +25,8 @@
 #endif
 #include "src/config.h"
 #include "src/logging.h"
+#include "src/platform/img_layout.h"
+#include "src/platform/pix_fmt_e.h"
 #include "src/thread_safe.h"
 #include "src/utility.h"
 #include "src/video_colorspace.h"
@@ -337,21 +340,6 @@ namespace platf {
   };
 
   /**
-   * @brief Enumerates supported pix fmt options.
-   */
-  enum class pix_fmt_e {
-    yuv420p,  ///< YUV 4:2:0
-    yuv420p10,  ///< YUV 4:2:0 10-bit
-    nv12,  ///< NV12
-    p010,  ///< P010
-    ayuv,  ///< AYUV
-    yuv444p16,  ///< Planar 10-bit (shifted to 16-bit) YUV 4:4:4
-    yuv444p,  ///< Planar 8-bit YUV 4:4:4
-    y410,  ///< Y410
-    unknown  ///< Unknown
-  };
-
-  /**
    * @brief Convert a Sunshine pixel format enum to its string name.
    *
    * @param pix_fmt Sunshine pixel format to convert or allocate for.
@@ -373,6 +361,14 @@ namespace platf {
       _CONVERT(yuv444p16);
       _CONVERT(yuv444p);
       _CONVERT(y410);
+      _CONVERT(bgr0);
+      _CONVERT(bgra);
+      _CONVERT(rgba);
+      _CONVERT(xbgr2101010);
+      _CONVERT(bgra1010102);
+      _CONVERT(rgba1010102);
+      _CONVERT(abgr2101010);
+      _CONVERT(argb2101010);
       _CONVERT(unknown);
     }
 #ifndef DOXYGEN
@@ -380,6 +376,21 @@ namespace platf {
 #endif
 
     return "unknown"sv;
+  }
+
+  /**
+   * @brief Check whether a capture pixel format can be uploaded as packed 8-bit BGR.
+   * @note Unknown formats are treated as BGR0, the historical assumption for
+   * capture buffers that do not declare a format. Use is_bgr_capture_image()
+   * to validate an actual image, which also requires 4 bytes per pixel.
+   *
+   * @param pix_fmt Capture pixel format to check.
+   * @return True when the format is representable as packed 8-bit BGR.
+   */
+  inline bool is_bgr_capture_format(pix_fmt_e pix_fmt) {
+    using enum pix_fmt_e;
+
+    return pix_fmt == unknown || pix_fmt == bgr0 || pix_fmt == bgra;
   }
 
   // Dimensions for touchscreen input
@@ -529,7 +540,7 @@ namespace platf {
   /**
    * @brief Captured frame buffer shared between capture and encode stages.
    */
-  struct img_t: std::enable_shared_from_this<img_t> {
+  struct img_t: std::enable_shared_from_this<img_t>, public img_layout_t {
   public:
     img_t() = default;
 
@@ -538,19 +549,110 @@ namespace platf {
     img_t &operator=(img_t &&) = delete;
     img_t &operator=(const img_t &) = delete;
 
-    std::uint8_t *data {};  ///< Pointer to the captured image buffer.
-    std::int32_t width {};  ///< Image width in pixels.
-    std::int32_t height {};  ///< Image height in pixels.
-    std::int32_t pixel_pitch {};  ///< Bytes per pixel in the image buffer.
-    std::int32_t row_pitch {};  ///< Bytes between consecutive image rows.
+    /**
+     * @brief Resolve the bytes per pixel of the captured image.
+     *
+     * Backends that only report the row pitch have the pixel pitch derived
+     * from it. Negative pitches are invalid and resolve to 0 instead of being
+     * masked by the derived value.
+     *
+     * @note The derived value truncates a padded row pitch, so callers that
+     * read the buffer must also validate the row layout with
+     * packed_4byte_row_layout_valid().
+     *
+     * @return Bytes per pixel, or 0 when it cannot be determined.
+     */
+    std::int32_t bytes_per_pixel() const {
+      if (pixel_pitch > 0) {
+        return pixel_pitch;
+      }
 
-    std::optional<std::chrono::steady_clock::time_point> frame_timestamp;  ///< Capture timestamp associated with the frame.
+      if (pixel_pitch < 0 || width <= 0 || row_pitch <= 0) {
+        return 0;
+      }
+
+      return row_pitch / width;
+    }
 
     /**
      * @brief Destroy the image.
      */
     virtual ~img_t() = default;
   };
+
+  /**
+   * @brief Check whether a capture image is classified as packed 8-bit BGR.
+   *
+   * Only the declared format (and the historical 4-byte assumption for
+   * undeclared captures) is classified here. Neither the pixel size nor the
+   * row layout is validated, so callers that read `width * 4` bytes per row
+   * must also require 4 bytes per pixel and packed_4byte_row_layout_valid().
+   *
+   * Declared `bgr0`/`bgra` captures define 4 bytes per pixel, but a
+   * declaration that disagrees with the reported pixel size is rejected by
+   * those callers before any buffer is read.
+   * Undeclared formats are accepted only when the image reports (or derives)
+   * 4 bytes per pixel, the historical assumption for packed BGR0 captures;
+   * this keeps backends that do not declare a format working without letting
+   * lower bit-depth buffers be misread as BGR0.
+   *
+   * @param img Capture image to check.
+   * @return True when the image is representable as packed 8-bit BGR.
+   */
+  inline bool is_bgr_capture_image(const img_t &img) {
+    if (!is_bgr_capture_format(img.pixel_format)) {
+      return false;
+    }
+
+    if (img.pixel_format == pix_fmt_e::unknown) {
+      if (img.bytes_per_pixel() != 4) {
+        return false;
+      }
+
+      static std::once_flag undeclared_bgr_warning;
+      std::call_once(undeclared_bgr_warning, [] {
+        BOOST_LOG(warning) << "Capture backend did not declare img.pixel_format; accepting the 4-byte layout as packed BGR0";
+      });
+
+      return true;
+    }
+
+    return true;
+  }
+
+  /**
+   * @brief Check whether a row pitch describes complete packed 4-byte rows.
+   *
+   * @param width Image width in pixels.
+   * @param row_pitch Bytes between consecutive image rows.
+   * @return True when every row is at least one packed pixel and a whole
+   * number of pixels long.
+   */
+  inline bool packed_4byte_row_layout_valid(std::int32_t width, std::int32_t row_pitch) {
+    return width > 0 && static_cast<std::int64_t>(row_pitch) >= static_cast<std::int64_t>(width) * 4 && row_pitch % 4 == 0;
+  }
+
+  /**
+   * @brief Check whether the row pitch of a capture image describes complete
+   * packed 4-byte rows.
+   *
+   * @param img Capture image to check.
+   * @return True when every row is at least one packed pixel and a whole
+   * number of pixels long.
+   */
+  inline bool packed_4byte_row_layout_valid(const img_t &img) {
+    return packed_4byte_row_layout_valid(img.width, img.row_pitch);
+  }
+
+  /**
+   * @brief Describe the declared layout of a capture image for diagnostics.
+   *
+   * @param img Capture image to describe.
+   * @return Description with the declared format and bytes per pixel.
+   */
+  inline std::string describe_capture_image(const img_t &img) {
+    return std::format("(format: {}, bytes per pixel: {})", from_pix_fmt(img.pixel_format), img.bytes_per_pixel());
+  }
 
   /**
    * @brief Host and virtual audio sink names for audio routing.

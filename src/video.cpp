@@ -8,6 +8,7 @@
 #include <atomic>
 #include <bitset>
 #include <list>
+#include <mutex>
 #include <thread>
 #include <utility>
 
@@ -74,6 +75,193 @@ namespace video {
 
       BOOST_LOG(error) << "No display devices are active at the moment! Cannot probe the encoders.";
       return false;
+    }
+
+    /**
+     * @brief Map a declared capture pixel format to its FFmpeg equivalent.
+     * @note Formats without an FFmpeg equivalent in the bundled build-deps
+     * FFmpeg map to AV_PIX_FMT_NONE, letting callers fail loudly.
+     *
+     * @param pix_fmt Declared capture pixel format.
+     * @return FFmpeg pixel format; AV_PIX_FMT_NONE when the value is not a capture format.
+     */
+    AVPixelFormat map_capture_pix_fmt(platf::pix_fmt_e pix_fmt) {
+      using enum platf::pix_fmt_e;
+
+      switch (pix_fmt) {
+        case nv12:
+          return AV_PIX_FMT_NV12;
+        case p010:
+          return AV_PIX_FMT_P010;
+        case bgr0:
+          return AV_PIX_FMT_BGR0;
+        case bgra:
+          return AV_PIX_FMT_BGRA;
+        case rgba:
+          return AV_PIX_FMT_RGBA;
+        case xbgr2101010:
+          return AV_PIX_FMT_X2BGR10LE;
+        case abgr2101010:
+          return AV_PIX_FMT_X2BGR10LE;
+        case argb2101010:
+          return AV_PIX_FMT_X2RGB10LE;
+        case bgra1010102:
+          return AV_PIX_FMT_BGRA1010102LE;
+        case rgba1010102:
+          return AV_PIX_FMT_RGBA1010102LE;
+        default:
+          return AV_PIX_FMT_NONE;
+      }
+    }
+
+    /**
+     * @brief Check that the resolved input format can read the capture image.
+     *
+     * The scaler reads the luma plane directly with `row_pitch` as its line
+     * size, and semi-planar chroma immediately after it, so a declared or
+     * inferred layout whose row cannot hold the luma samples, or whose rows
+     * do not start at whole-sample boundaries, would be scaled at the wrong
+     * stride. Semi-planar chroma rows hold ceil(width / 2) sample pairs with
+     * two components each, so an odd width needs one more pair than the luma
+     * row and the shared row pitch must cover it.
+     *
+     * A persistently refused layout would otherwise log at the capture frame
+     * rate, so the refusal is reported once per declaration variant.
+     *
+     * @param img Capture image to validate.
+     * @param input_fmt Resolved FFmpeg pixel format.
+     * @param undeclared Whether the capture did not declare a pixel format.
+     * @return True when the image can be read with the resolved format.
+     */
+    bool capture_layout_readable(const platf::img_t &img, AVPixelFormat input_fmt, bool undeclared) {
+      const auto *input_desc = av_pix_fmt_desc_get(input_fmt);
+      const auto luma_step = input_desc ? input_desc->comp[0].step : 0;
+      const bool semi_planar = input_fmt == AV_PIX_FMT_NV12 || input_fmt == AV_PIX_FMT_P010;
+      const auto row_samples = static_cast<std::int64_t>(img.width) + (semi_planar ? (img.width & 1) : 0);
+      const auto min_row_pitch = row_samples * luma_step;
+      const bool readable = img.data && img.width > 0 && img.height > 0 && luma_step > 0 && static_cast<std::int64_t>(img.row_pitch) >= min_row_pitch && img.row_pitch % luma_step == 0 && (!semi_planar || (img.row_pitch & 1) == 0);
+      if (readable) {
+        return true;
+      }
+
+      static std::once_flag undeclared_layout_error;
+      static std::once_flag declared_layout_error;
+      std::call_once(undeclared ? undeclared_layout_error : declared_layout_error, [&] {
+        BOOST_LOG(error) << (undeclared ? "Undeclared"sv : "Declared"sv) << " capture layout is unusable (data: "sv << (img.data ? "present"sv : "null"sv) << ", "sv << img.width << 'x' << img.height << ", row pitch "sv << img.row_pitch << " bytes, minimum "sv << min_row_pitch << ')';
+      });
+      return false;
+    }
+
+    /**
+     * @brief Resolve the FFmpeg pixel format for a capture image.
+     * @note Uses the format declared by the capture backend when it knows it,
+     * falling back to deriving the format from the bytes per pixel otherwise.
+     * Only the historical layouts can be inferred: 1 byte per pixel is NV12
+     * and 4 bytes per pixel is packed BGR0. Other pitches (e.g. 2-byte X11
+     * RGB565, 3-byte X11 BGR, or 8-byte scRGB) are ambiguous and fail loudly
+     * instead of being decoded as BGR0. The first use of each heuristic logs a
+     * warning once per process. The image must carry data with a positive
+     * width and height, and the row pitch must be able to hold the luma
+     * samples of the resolved layout plus the chroma pairs when the layout is
+     * semi-planar.
+     *
+     * @param img Capture image to resolve the input format for.
+     * @return FFmpeg pixel format; AV_PIX_FMT_NONE when the declared format is unsupported.
+     */
+    AVPixelFormat resolve_input_fmt(const platf::img_t &img) {
+      using enum platf::pix_fmt_e;
+
+      const bool undeclared = img.pixel_format == unknown;
+      AVPixelFormat input_fmt = AV_PIX_FMT_NONE;
+      if (undeclared) {
+        // No declared format; derive the format from the bytes per pixel.
+        const auto pixel_pitch = img.bytes_per_pixel();
+        if (pixel_pitch == 1) {
+          input_fmt = AV_PIX_FMT_NV12;
+        } else if (pixel_pitch == 4) {
+          input_fmt = AV_PIX_FMT_BGR0;
+        } else {
+          BOOST_LOG(error) << "Unsupported undeclared capture layout: "sv << pixel_pitch << " bytes per pixel"sv;
+          return AV_PIX_FMT_NONE;
+        }
+      } else {
+        input_fmt = map_capture_pix_fmt(img.pixel_format);
+        if (input_fmt == AV_PIX_FMT_NONE) {
+          BOOST_LOG(error) << "Unsupported capture pixel format: "sv << platf::from_pix_fmt(img.pixel_format);
+          return AV_PIX_FMT_NONE;
+        }
+      }
+
+      if (!capture_layout_readable(img, input_fmt, undeclared)) {
+        return AV_PIX_FMT_NONE;
+      }
+
+      if (undeclared) {
+        // Warn once per process: a backend that does not declare formats will
+        // keep using this fallback for every frame and capture session.
+        static std::once_flag nv12_fallback_warning;
+        static std::once_flag bgr0_fallback_warning;
+        if (input_fmt == AV_PIX_FMT_NV12) {
+          std::call_once(nv12_fallback_warning, [] {
+            BOOST_LOG(warning) << "Capture backend did not declare img.pixel_format; inferring NV12 from the 1 byte per pixel layout. The backend should declare the capture format explicitly."sv;
+          });
+        } else {
+          std::call_once(bgr0_fallback_warning, [] {
+            BOOST_LOG(warning) << "Capture backend did not declare img.pixel_format; inferring BGR0 from the 4 bytes per pixel layout. The backend should declare the capture format explicitly."sv;
+          });
+        }
+      }
+
+      return input_fmt;
+    }
+
+    /**
+     * @brief Copy the scaled output frame into the padded output frame.
+     * @note Used when aspect ratio padding is required; copies line by line to
+     * preserve the leading padding for each row of every plane.
+     *
+     * @param padded_frame Destination frame carrying the aspect ratio padding.
+     * @param output_frame Source frame produced by the scaler.
+     * @param offset_w Horizontal offset in pixels of the scaled region.
+     * @param offset_h Vertical offset in pixels of the scaled region.
+     * @return True when the frame was copied; false for unknown or empty layouts.
+     */
+    bool copy_padded_frame(AVFrame &padded_frame, const AVFrame &output_frame, int offset_w, int offset_h) {
+      auto fmt_desc = av_pix_fmt_desc_get(static_cast<AVPixelFormat>(output_frame.format));
+      if (!fmt_desc) {
+        BOOST_LOG(error) << "Unknown pixel format for padded capture copy"sv;
+        return false;
+      }
+
+      auto planes = av_pix_fmt_count_planes(static_cast<AVPixelFormat>(output_frame.format));
+      if (planes <= 0) {
+        BOOST_LOG(error) << "Pixel format has no planes for padded capture copy"sv;
+        return false;
+      }
+
+      // Validate every plane before writing so a rejected layout cannot leave
+      // a partially updated destination frame.
+      for (int plane = 0; plane < planes; plane++) {
+        if (!padded_frame.data[plane] || !output_frame.data[plane]) {
+          BOOST_LOG(error) << "Missing plane data for padded capture copy"sv;
+          return false;
+        }
+      }
+
+      for (int plane = 0; plane < planes; plane++) {
+        auto shift_h = plane == 0 ? 0 : fmt_desc->log2_chroma_h;
+        auto shift_w = plane == 0 ? 0 : fmt_desc->log2_chroma_w;
+        auto offset = ((offset_w >> shift_w) * fmt_desc->comp[plane].step) + (offset_h >> shift_h) * padded_frame.linesize[plane];
+
+        // Copy line-by-line to preserve leading padding for each row. Chroma
+        // extents use ceil (ceil(width/2) x ceil(height/2) for subsampled
+        // formats), matching the plane dimensions FFmpeg allocates.
+        for (int line = 0; line < AV_CEIL_RSHIFT(output_frame.height, shift_h); line++) {
+          memcpy(padded_frame.data[plane] + offset + (line * padded_frame.linesize[plane]), output_frame.data[plane] + (line * output_frame.linesize[plane]), static_cast<std::size_t>(AV_CEIL_RSHIFT(output_frame.width, shift_w)) * fmt_desc->comp[plane].step);
+        }
+      }
+
+      return true;
     }
   }  // namespace
 
@@ -225,29 +413,42 @@ namespace video {
     // If we need to add aspect ratio padding, we need to scale into an intermediate output buffer
     bool requires_padding = (sw_frame->width != sws_output_frame->width || sw_frame->height != sws_output_frame->height);
 
-    // Detect the actual capture pixel format. PipeWire-based captures (KWin
-    // screencast / XDG portal) deliver NV12 with 1 byte per pixel, while
-    // KMS/DMABUF captures deliver BGR0 (4 bytes per pixel). The capture
-    // backend reports bytes per pixel in img.pixel_pitch; fall back to the row
-    // pitch heuristic when it is unavailable.
-    const auto pixel_pitch = img.pixel_pitch > 0 ? img.pixel_pitch : (img.row_pitch / std::max(img.width, 1));
-    const auto input_fmt = (pixel_pitch == 1) ? AV_PIX_FMT_NV12 : AV_PIX_FMT_BGR0;
+    // Resolve the capture pixel format: use the format declared by the
+    // capture backend when available, deriving it from the bytes per pixel
+    // otherwise.
+    AVPixelFormat input_fmt = resolve_input_fmt(img);
+    if (input_fmt == AV_PIX_FMT_NONE) {
+      return -1;
+    }
 
-    // The sws context is created with the default BGR0 source format;
-    // recreate it once if the capture is actually NV12.
+    // The sws context is created with the default source format; recreate it
+    // whenever the capture announces a different one. The announced format is
+    // only recorded after the new context is ready, so a failed reinit is
+    // retried instead of converting with a stale or half-built context.
     if (input_fmt != sws_src_format) {
-      sws_src_format = input_fmt;
       if (reinit_sws(input_fmt) < 0) {
         return -1;
       }
+      sws_src_format = input_fmt;
       // The colorspace details were applied to the previous sws context.
       apply_colorspace();
+    }
+
+    // The scaler reads the input frame with the dimensions captured at init,
+    // so an image with a different size would make every plane read
+    // inconsistent.
+    if (img.width != sws_input_frame->width || img.height != sws_input_frame->height) {
+      BOOST_LOG(error) << "Capture image size ("sv << img.width << 'x' << img.height << ") differs from the converter input ("sv << sws_input_frame->width << 'x' << sws_input_frame->height << ')';
+      return -1;
     }
 
     // Setup the input frame using the caller's img_t
     sws_input_frame->data[0] = img.data;
     sws_input_frame->linesize[0] = img.row_pitch;
-    if (input_fmt == AV_PIX_FMT_NV12) {
+    if (input_fmt == AV_PIX_FMT_NV12 || input_fmt == AV_PIX_FMT_P010) {
+      // Semi-planar captures keep the interleaved chroma plane immediately
+      // after the luma plane using the same row pitch, as delivered by
+      // CVPixelBuffer and the PipeWire memory buffers.
       sws_input_frame->data[1] = img.data + static_cast<std::size_t>(img.row_pitch) * img.height;
       sws_input_frame->linesize[1] = img.row_pitch;
     } else {
@@ -268,19 +469,8 @@ namespace video {
     }
 
     // If we require aspect ratio padding, copy the output frame into the final padded frame
-    if (requires_padding) {
-      auto fmt_desc = av_pix_fmt_desc_get(static_cast<AVPixelFormat>(sws_output_frame->format));
-      auto planes = av_pix_fmt_count_planes(static_cast<AVPixelFormat>(sws_output_frame->format));
-      for (int plane = 0; plane < planes; plane++) {
-        auto shift_h = plane == 0 ? 0 : fmt_desc->log2_chroma_h;
-        auto shift_w = plane == 0 ? 0 : fmt_desc->log2_chroma_w;
-        auto offset = ((offsetW >> shift_w) * fmt_desc->comp[plane].step) + (offsetH >> shift_h) * sw_frame->linesize[plane];
-
-        // Copy line-by-line to preserve leading padding for each row
-        for (int line = 0; line < sws_output_frame->height >> shift_h; line++) {
-          memcpy(sw_frame->data[plane] + offset + (line * sw_frame->linesize[plane]), sws_output_frame->data[plane] + (line * sws_output_frame->linesize[plane]), static_cast<std::size_t>(sws_output_frame->width >> shift_w) * fmt_desc->comp[plane].step);
-        }
-      }
+    if (requires_padding && !copy_padded_frame(*sw_frame, *sws_output_frame, offsetW, offsetH)) {
+      return -1;
     }
 
     // If frame is not a software frame, it means we still need to transfer from main memory
@@ -360,9 +550,11 @@ namespace video {
     sws_output_frame->height = out_height;
     sws_output_frame->format = format;
 
-    // Result is always positive
-    offsetW = (in_frame->width - out_width) / 2;
-    offsetH = (in_frame->height - out_height) / 2;
+    // The chroma planes sample pairs of luma rows and columns, so the scaled
+    // content must start at an even offset to keep the chroma grid aligned.
+    // Result is always positive.
+    offsetW = ((in_frame->width - out_width) / 2) & ~1;
+    offsetH = ((in_frame->height - out_height) / 2) & ~1;
 
     sws_src_format = AV_PIX_FMT_BGR0;
 
@@ -370,10 +562,10 @@ namespace video {
   }
 
   int avcodec_software_encode_device_t::reinit_sws(AVPixelFormat src_format) {
-    sws_input_frame->format = src_format;
-
-    sws.reset(sws_alloc_context());
-    if (!sws) {
+    // Build the replacement context first so a failure leaves the current one
+    // usable and the reinit can be retried.
+    sws_t next_sws {sws_alloc_context()};
+    if (!next_sws) {
       return -1;
     }
 
@@ -387,7 +579,7 @@ namespace video {
     av_dict_set_int(&options, "sws_flags", SWS_LANCZOS | SWS_ACCURATE_RND, 0);
     av_dict_set_int(&options, "threads", config::video.min_threads, 0);
 
-    auto status = av_opt_set_dict(sws.get(), &options);
+    auto status = av_opt_set_dict(next_sws.get(), &options);
     av_dict_free(&options);
     if (status < 0) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
@@ -395,13 +587,18 @@ namespace video {
       return -1;
     }
 
-    status = sws_init_context(sws.get(), nullptr, nullptr);
+    status = sws_init_context(next_sws.get(), nullptr, nullptr);
     if (status < 0) {
       std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
       BOOST_LOG(error) << "Failed to initialize SWS: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
       return -1;
     }
 
+    sws = std::move(next_sws);
+    // Announce the source format only once the context is committed: on a
+    // failed reinit the input frame must keep describing the retained context,
+    // or the next conversion would be rejected as inconsistent.
+    sws_input_frame->format = src_format;
     return 0;
   }
 

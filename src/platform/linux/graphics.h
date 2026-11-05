@@ -726,10 +726,13 @@ namespace egl {
 
     /**
      * @brief Load ram data from the backing API or store.
+     * @note Only packed 8-bit BGR captures are supported; other declared
+     * formats fail with a negative status instead of being misread.
      *
      * @param img Image or frame object to read from or populate.
+     * @return 0 on success; negative on unsupported formats or row strides.
      */
-    void load_ram(platf::img_t &img);
+    [[nodiscard]] int load_ram(const platf::img_t &img);
     /**
      * @brief Load vram data from the backing API or store.
      *

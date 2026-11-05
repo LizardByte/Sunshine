@@ -14,6 +14,8 @@
 
 // local includes
 #include "cuda.h"
+#include "src/platform/img_layout.h"
+#include "src/platform/pix_fmt_e.h"
 
 using namespace std::literals;
 
@@ -49,16 +51,11 @@ using namespace std::literals;
  * Not pretty and extremely error-prone, fix at earliest convenience.
  */
 namespace platf {
-  struct img_t: std::enable_shared_from_this<img_t> {
+  /**
+   * @brief CUDA-side captured image, sharing the host field layout by construction.
+   */
+  struct img_t: std::enable_shared_from_this<img_t>, img_layout_t {
   public:
-    std::uint8_t *data {};
-    std::int32_t width {};
-    std::int32_t height {};
-    std::int32_t pixel_pitch {};
-    std::int32_t row_pitch {};
-
-    std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
-
     virtual ~img_t() = default;
   };
 }  // namespace platf
