@@ -2515,13 +2515,6 @@ namespace video {
     }
   }
 
-  /**
-   * @brief Describe the streamed display, desktop bounds, and client letterboxing for absolute input.
-   *
-   * @param display Display object or identifier associated with the operation.
-   * @param config Configuration values to apply.
-   * @return Constructed port object.
-   */
   input::touch_port_t make_port(platf::display_t *display, const config_t &config) {
     float wd = display->width;
     float hd = display->height;
