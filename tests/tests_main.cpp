@@ -8,6 +8,9 @@
 #include "tests_environment.h"
 #include "tests_events.h"
 
+// standard includes
+#include <memory>
+
 #ifdef _WIN32
   // standard includes
   #include <cwchar>
@@ -61,13 +64,14 @@ std::optional<int> record_test_url() {
  */
 int main(int argc, char **argv) {
 #ifdef _WIN32
-  if (auto result = record_test_url()) {
+  if (auto result = record_test_url(); result.has_value()) {
     return *result;
   }
 #endif
 
   testing::InitGoogleTest(&argc, argv);
-  testing::AddGlobalTestEnvironment(new SunshineEnvironment);
-  testing::UnitTest::GetInstance()->listeners().Append(new SunshineEventListener);
+  // GoogleTest takes ownership of the environment and listener after registration.
+  testing::AddGlobalTestEnvironment(std::make_unique<SunshineEnvironment>().release());
+  testing::UnitTest::GetInstance()->listeners().Append(std::make_unique<SunshineEventListener>().release());
   return RUN_ALL_TESTS();
 }

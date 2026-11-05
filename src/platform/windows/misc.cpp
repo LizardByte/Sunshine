@@ -1114,8 +1114,6 @@ namespace platf {
   /**
    * @brief Open a URL through the Windows shell in the user's session.
    * @details The command processor's start command preserves shell activation for packaged browsers.
-   *
-   * @param url The URL to open.
    */
   void open_url(const std::string &url) {
     std::array<wchar_t, MAX_PATH> system_directory;

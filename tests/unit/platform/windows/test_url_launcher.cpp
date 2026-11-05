@@ -12,6 +12,7 @@
   #include <atomic>
   #include <chrono>
   #include <filesystem>
+  #include <format>
   #include <fstream>
   #include <iterator>
   #include <string>
@@ -46,8 +47,8 @@ protected:
     if (IsSkipped()) {
       return;
     }
-    scheme = L"sunshine-url-test-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(sequence++);
-    registry_path = L"Software\\Classes\\" + scheme;
+    scheme = std::format(L"sunshine-url-test-{}-{}", GetCurrentProcessId(), sequence++);
+    registry_path = std::format(LR"(Software\Classes\{})", scheme);
     output_path = std::filesystem::path {SUNSHINE_TEST_BIN_DIR} / (scheme + L".txt");
 
     HKEY protocol;
@@ -66,9 +67,9 @@ protected:
     const auto length = GetModuleFileNameW(nullptr, executable.data(), executable.size());
     ASSERT_GT(length, 0U);
     ASSERT_LT(length, executable.size());
-    const auto command = L"\"" + std::wstring {executable.data(), length} + L"\" --record-url \"" + output_path.wstring() + L"\" \"%1\"";
+    const auto command = std::format(LR"("{}" --record-url "{}" "%1")", std::wstring {executable.data(), length}, output_path.wstring());
     HKEY command_key;
-    ASSERT_EQ(RegCreateKeyExW(protocol, L"shell\\open\\command", 0, nullptr, 0, KEY_WRITE, nullptr, &command_key, nullptr), ERROR_SUCCESS);
+    ASSERT_EQ(RegCreateKeyExW(protocol, LR"(shell\open\command)", 0, nullptr, 0, KEY_WRITE, nullptr, &command_key, nullptr), ERROR_SUCCESS);
     auto close_command = util::fail_guard([command_key]() {
       RegCloseKey(command_key);
     });
@@ -81,9 +82,9 @@ protected:
   void TearDown() override {
     if (owns_protocol) {
       EXPECT_EQ(RegDeleteTreeW(HKEY_CURRENT_USER, registry_path.c_str()), ERROR_SUCCESS);
-      std::error_code error;
-      std::filesystem::remove(output_path, error);
-      EXPECT_FALSE(error);
+      std::error_code remove_error;
+      std::filesystem::remove(output_path, remove_error);
+      EXPECT_FALSE(remove_error);
     }
     BaseTest::TearDown();
   }
@@ -109,6 +110,7 @@ protected:
     EXPECT_EQ(received, url);
   }
 
+private:
   inline static std::atomic_uint64_t sequence = 0;  ///< Distinguishes protocols created by this test process.
   std::wstring scheme;  ///< Unique URL scheme owned by the fixture.
   std::wstring registry_path;  ///< Per-user protocol registration to remove during cleanup.
@@ -120,7 +122,7 @@ protected:
  * @brief Preserve Unicode URLs, query separators, percent escapes, and pairing fragments.
  */
 TEST_F(WindowsOpenUrlTest, PreservesUnicodeQueriesAndFragments) {
-  expect_url_delivered(L"://localhost/pin?name=\u65e5\u672c\u8a9e&text=hello%20world&value=100%25#pair");
+  expect_url_delivered(L"://localhost/pin?name=\u{65e5}\u{672c}\u{8a9e}&text=hello%20world&value=100%25#pair");
 }
 
 /**
@@ -134,13 +136,13 @@ TEST_F(WindowsOpenUrlTest, PreservesSpacesAndShellMetacharacters) {
  * @brief Keep environment-like URL text from expanding in the command processor.
  */
 TEST_F(WindowsOpenUrlTest, PreservesPercentAndExclamationDelimitedText) {
-  const auto name = L"SUNSHINE_URL_TEST_" + std::to_wstring(GetCurrentProcessId());
+  const auto name = std::format(L"SUNSHINE_URL_TEST_{}", GetCurrentProcessId());
   ASSERT_EQ(GetEnvironmentVariableW(name.c_str(), nullptr, 0), 0U);
   ASSERT_EQ(GetLastError(), ERROR_ENVVAR_NOT_FOUND);
   ASSERT_TRUE(SetEnvironmentVariableW(name.c_str(), L"unexpected-expansion"));
   auto clear_environment = util::fail_guard([&name]() {
     SetEnvironmentVariableW(name.c_str(), nullptr);
   });
-  expect_url_delivered(L"://localhost/?percent=%" + name + L"%&exclamation=!" + name + L"!");
+  expect_url_delivered(std::format(L"://localhost/?percent=%{}%&exclamation=!{}!", name, name));
 }
 #endif
