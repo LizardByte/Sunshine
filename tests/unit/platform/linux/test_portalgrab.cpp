@@ -31,6 +31,9 @@
   #include <sys/wait.h>
   #include <unistd.h>
 
+  // local includes
+  #include "src/logging.h"
+
 namespace platf {
   std::vector<std::string> portal_display_names(bool allow_start_timeout);
 }  // namespace platf
@@ -304,6 +307,8 @@ namespace {
       ASSERT_NE(fgets(address.data(), address.size(), daemon_output_), nullptr) << "dbus-daemon did not print its address";
       const std::string bus_address = g_strchomp(address.data());
 
+      // Drain queued log records first: the log formatter reads the environment, which must not race with setenv
+      logging::log_flush();
       set_env("DBUS_SESSION_BUS_ADDRESS", bus_address);
       // Start resolves monitor names through the compositor; keep the test away from the user's session.
       set_env("WAYLAND_DISPLAY", (bus_directory_ / "no-wayland").string());
@@ -316,6 +321,7 @@ namespace {
      */
     void TearDown() override {
       portal_.stop();
+      logging::log_flush();
       for (const auto &[name, previous] : previous_env_) {
         if (previous) {
           g_setenv(name.c_str(), previous->c_str(), true);
