@@ -18,14 +18,15 @@
 #include <tuple>
 #include <utility>
 
+#if defined(_WIN32) || defined(__APPLE__)
+  // lib includes
+  #include <libvirtualhid/license.hpp>
+#endif
+
 // local includes
 #include "src/config.h"
 #include "src/globals.h"
 #include "src/platform/virtualhid_input.h"
-
-#if defined(_WIN32) || defined(__APPLE__)
-  #include <libvirtualhid/license.hpp>
-#endif
 
 using namespace std::chrono_literals;
 using namespace std::literals;
@@ -885,7 +886,7 @@ TEST_F(VirtualHidDeviceTest, RetargetsRelativeMouseWhenStreamedViewportChanges) 
 }
 
 TEST_F(VirtualHidDeviceTest, TranslatesTouchscreenLifecycleAndGeometry) {
-  const platf::touch_port_t viewport {10, 20, 800, 600, 400, 300};
+  const platf::touch_port_t viewport {10, 20, 800, 600, 400, 300, 0, 0, "DP-1"};
   platf::touch_input_t touch {LI_TOUCH_EVENT_DOWN, 100, 7, -0.1F, 1.1F, 1.2F, 15.0F, 10.0F};
   platf::virtualhid::touch_update(*client(), viewport, touch);
   auto contact = client()->touch->last_submitted_contact();
@@ -896,6 +897,7 @@ TEST_F(VirtualHidDeviceTest, TranslatesTouchscreenLifecycleAndGeometry) {
   EXPECT_EQ(contact.orientation, 80);
   EXPECT_TRUE(contact.touching);
   EXPECT_EQ(contact.viewport.offset_x, 10);
+  EXPECT_EQ(contact.viewport.output_name, "DP-1");
   EXPECT_EQ(contact.viewport.offset_y, 20);
   EXPECT_EQ(contact.viewport.width, 800);
   EXPECT_EQ(contact.viewport.height, 600);
@@ -953,7 +955,7 @@ TEST_F(VirtualHidDeviceTest, TranslatesTouchscreenLifecycleAndGeometry) {
 }
 
 TEST_F(VirtualHidDeviceTest, TranslatesPenButtonsToolsAndTransitions) {
-  const platf::touch_port_t viewport {1, 2, 1000, 500, 1000, 500};
+  const platf::touch_port_t viewport {1, 2, 1000, 500, 1000, 500, 0, 0, "HDMI-A-1"};
   platf::pen_input_t pen {
     LI_TOUCH_EVENT_DOWN,
     LI_TOOL_TYPE_PEN,
@@ -978,6 +980,7 @@ TEST_F(VirtualHidDeviceTest, TranslatesPenButtonsToolsAndTransitions) {
   EXPECT_EQ(state.transition, lvh::PointerTransition::update);
   EXPECT_EQ(state.viewport.offset_x, 1);
   EXPECT_EQ(state.viewport.offset_y, 2);
+  EXPECT_EQ(state.viewport.output_name, "HDMI-A-1");
   EXPECT_TRUE(client()->pressed_pen_buttons.contains(lvh::PenButton::primary));
   EXPECT_TRUE(client()->pressed_pen_buttons.contains(lvh::PenButton::secondary));
 

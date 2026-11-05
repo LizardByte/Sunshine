@@ -24,6 +24,7 @@
 
 // local includes
 #include "cuda.h"
+#include "display_geometry.h"
 #include "graphics.h"
 #include "kms_plane.h"
 #include "src/config.h"
@@ -343,11 +344,7 @@ namespace platf {
      */
     using conn_type_count_t = std::map<std::uint32_t, std::uint32_t>;
 
-    static int env_width;
-    static int env_height;
-
-    static int env_logical_width;
-    static int env_logical_height;
+    static platf::touch_port_t env_bounds {};  ///< Full desktop origin and extents for absolute input.
 
     /**
      * @brief Convert a DRM plane type value to a diagnostic string.
@@ -1259,11 +1256,13 @@ namespace platf {
             img_offset_x = crtc->x;
             img_offset_y = crtc->y;
 
-            this->env_width = ::platf::kms::env_width;
-            this->env_height = ::platf::kms::env_height;
+            this->env_offset_x = ::platf::kms::env_bounds.offset_x;
+            this->env_offset_y = ::platf::kms::env_bounds.offset_y;
+            this->env_width = ::platf::kms::env_bounds.width;
+            this->env_height = ::platf::kms::env_bounds.height;
 
-            this->env_logical_width = ::platf::kms::env_logical_width;
-            this->env_logical_height = ::platf::kms::env_logical_height;
+            this->env_logical_width = ::platf::kms::env_bounds.logical_width;
+            this->env_logical_height = ::platf::kms::env_bounds.logical_height;
 
             auto monitor_pos = pos->crtc_to_monitor.find(plane->crtc_id);
             if (monitor_pos != std::end(pos->crtc_to_monitor)) {
@@ -1289,6 +1288,7 @@ namespace platf {
 
               offset_x = viewport.offset_x;
               offset_y = viewport.offset_y;
+              output_name = viewport.output_name;
             }
 
             // This code path shouldn't happen, but it's there just in case.
@@ -2264,6 +2264,7 @@ namespace platf {
       for (auto &card_descriptor : cds) {
         for (auto &[_, monitor_descriptor] : card_descriptor.crtc_to_monitor) {
           if (monitor_descriptor.index == index && monitor_descriptor.type == type) {
+            monitor_descriptor.viewport.output_name = monitor->name;
             monitor_descriptor.viewport.offset_x = monitor->viewport.offset_x;
             monitor_descriptor.viewport.offset_y = monitor->viewport.offset_y;
             monitor_descriptor.viewport.logical_width = monitor->viewport.logical_width;
@@ -2398,11 +2399,9 @@ namespace platf {
           it->second.monitor_index = count;
         }
 
-        kms::env_width = std::max(kms::env_width, (int) (crtc->x + crtc->width));
-        kms::env_height = std::max(kms::env_height, (int) (crtc->y + crtc->height));
-
         kms::print(plane.get(), fb.get(), crtc.get());
-        display_names.emplace_back(std::format("{}-{}", drmModeGetConnectorTypeName(it->second.type), it->second.index));
+        it->second.viewport.output_name = std::format("{}-{}", drmModeGetConnectorTypeName(it->second.type), it->second.index);
+        display_names.emplace_back(it->second.viewport.output_name);
         count++;
       }
 
@@ -2416,28 +2415,14 @@ namespace platf {
       correlate_to_wayland(cds);
     }
 
-    // Deduce the full virtual desktop size
-    kms::env_width = 0;
-    kms::env_height = 0;
-
-    kms::env_logical_width = 0;
-    kms::env_logical_height = 0;
-
-    for (auto &card_descriptor : cds) {
-      for (auto &[_, monitor_descriptor] : card_descriptor.crtc_to_monitor) {
-        BOOST_LOG(debug) << "Monitor description"sv;
-        BOOST_LOG(debug) << "Resolution: "sv << monitor_descriptor.viewport.width << 'x' << monitor_descriptor.viewport.height;
-        BOOST_LOG(debug) << "Offset: "sv << monitor_descriptor.viewport.offset_x << 'x' << monitor_descriptor.viewport.offset_y;
-
-        kms::env_width = std::max(kms::env_width, monitor_descriptor.viewport.offset_x + monitor_descriptor.viewport.width);
-        kms::env_height = std::max(kms::env_height, monitor_descriptor.viewport.offset_y + monitor_descriptor.viewport.height);
-
-        kms::env_logical_height = std::max(kms::env_logical_height, monitor_descriptor.viewport.offset_y + monitor_descriptor.viewport.logical_height);
-        kms::env_logical_width = std::max(kms::env_logical_width, monitor_descriptor.viewport.offset_x + monitor_descriptor.viewport.logical_width);
+    platf::desktop_geometry_t desktop;
+    for (const auto &card_descriptor : cds) {
+      for (const auto &[_, monitor_descriptor] : card_descriptor.crtc_to_monitor) {
+        desktop.add(monitor_descriptor.viewport);
       }
     }
-
-    BOOST_LOG(debug) << "Desktop resolution: "sv << kms::env_width << 'x' << kms::env_height;
+    kms::env_bounds = desktop.bounds();
+    BOOST_LOG(debug) << "Desktop resolution: "sv << kms::env_bounds.width << 'x' << kms::env_bounds.height;
 
     kms::card_descriptors = std::move(cds);
 

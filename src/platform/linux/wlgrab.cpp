@@ -21,6 +21,7 @@
 
 // local includes
 #include "cuda.h"
+#include "display_geometry.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/video.h"
@@ -31,8 +32,6 @@
 using namespace std::literals;
 
 namespace wl {
-  static int env_width;
-  static int env_height;
   static bool force_ram_capture = false;  // NOSONAR(cpp:S5421): Retains SHM selection across VRAM-to-RAM capture backend recreation.
 
   /**
@@ -422,22 +421,15 @@ namespace wl {
       width = monitor->viewport.width;
       height = monitor->viewport.height;
 
-      this->env_width = ::wl::env_width;
-      this->env_height = ::wl::env_height;
-
+      this->output_name = monitor->name;
       this->logical_width = monitor->viewport.logical_width;
       this->logical_height = monitor->viewport.logical_height;
 
-      int desktop_logical_width = 0;
-      int desktop_logical_height = 0;
-      for (auto &monitor_entry : interface.monitors) {
-        auto output_monitor = monitor_entry.get();
-        desktop_logical_width = std::max(desktop_logical_width, output_monitor->viewport.offset_x + output_monitor->viewport.logical_width);
-        desktop_logical_height = std::max(desktop_logical_height, output_monitor->viewport.offset_y + output_monitor->viewport.logical_height);
+      platf::desktop_geometry_t desktop;
+      for (const auto &monitor_entry : interface.monitors) {
+        desktop.add(monitor_entry->viewport);
       }
-
-      this->env_logical_width = desktop_logical_width;
-      this->env_logical_height = desktop_logical_height;
+      desktop.apply(*this);
 
       BOOST_LOG(info) << "[wlgrab] Selected monitor ["sv << monitor->description << "] for streaming"sv;
       BOOST_LOG(debug) << "[wlgrab] Offset: "sv << offset_x << 'x' << offset_y;
@@ -953,9 +945,6 @@ namespace platf {
       return {};
     }
 
-    wl::env_width = 0;
-    wl::env_height = 0;
-
     for (auto &monitor : interface.monitors) {
       monitor->listen(interface.output_manager);
     }
@@ -966,9 +955,6 @@ namespace platf {
 
     for (int x = 0; x < interface.monitors.size(); ++x) {
       auto monitor = interface.monitors[x].get();
-
-      wl::env_width = std::max(wl::env_width, monitor->viewport.offset_x + monitor->viewport.width);
-      wl::env_height = std::max(wl::env_height, monitor->viewport.offset_y + monitor->viewport.height);
 
       BOOST_LOG(info) << "[wlgrab] Monitor " << x << " is "sv << monitor->name << ": "sv << monitor->description;
 

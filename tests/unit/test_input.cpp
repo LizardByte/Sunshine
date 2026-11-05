@@ -9,6 +9,7 @@
 // standard includes
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <chrono>
 #include <cstdint>
 #include <cstring>
@@ -19,7 +20,7 @@
 #include <thread>
 #include <vector>
 
-// moonlight-common-c includes
+// lib includes
 extern "C" {
 #include <moonlight-common-c/src/Input.h>
 }
@@ -641,4 +642,116 @@ TEST_F(InputGamepadSessionTest, RetargetsRelativeMouseFromLatestStreamGeometry) 
   EXPECT_EQ(mouse_event.x, -5);
   EXPECT_EQ(mouse_event.y, 9);
   EXPECT_EQ(context().mouse_viewport.offset_x, 0);
+}
+
+TEST_F(InputGamepadSessionTest, RetargetsNativeTouchAndPenWithoutApplyingTheMonitorOffsetTwice) {
+  auto session_mail = std::make_shared<safe::mail_raw_t>();
+  auto stream_input = input::alloc(session_mail, "absolute-input-client");
+  ASSERT_NE(stream_input, nullptr);
+  auto &client = platf::virtualhid::get_client_context(input::testing::client_context(stream_input));
+  ASSERT_NE(client.touch, nullptr);
+  ASSERT_NE(client.pen, nullptr);
+  input::testing::set_input_task_sink([](std::shared_ptr<input::input_t>) {
+  });
+  input::touch_port_t viewport {
+    {.offset_x = -1920, .offset_y = -1080, .width = 2560, .height = 1080, .logical_width = 1920, .logical_height = 1080, .env_offset_x = -1920, .env_offset_y = -1080, .output_name = "DP-1"},
+    7680,
+    4320,
+    320.0F,
+    0.0F,
+    2.0F,
+    2.0F,
+    3840,
+    2160,
+  };
+  const auto write_float = [](netfloat &target, float value) {
+    const auto bits = util::endian::little(std::bit_cast<std::uint32_t>(value));
+    std::memcpy(target, &bits, sizeof(bits));
+  };
+  const auto send_packet = [&]<typename Packet>(Packet &packet, std::uint32_t magic) {
+    packet.header.size = util::endian::big<std::uint32_t>(sizeof(packet) - sizeof(packet.header.size));
+    packet.header.magic = util::endian::little(magic);
+    std::vector<std::uint8_t> bytes(sizeof(packet));
+    std::memcpy(bytes.data(), &packet, sizeof(packet));
+    input::passthrough(stream_input, std::move(bytes));
+    input::testing::process_queued_messages(stream_input);
+  };
+  SS_TOUCH_PACKET touch {};
+  touch.eventType = LI_TOUCH_EVENT_DOWN;
+  touch.pointerId = util::endian::little<std::uint32_t>(42);
+  write_float(touch.x, 0.5F);
+  write_float(touch.y, 0.25F);
+  write_float(touch.pressureOrDistance, 0.75F);
+  SS_PEN_PACKET pen {};
+  pen.eventType = LI_TOUCH_EVENT_DOWN;
+  pen.toolType = LI_TOOL_TYPE_PEN;
+  write_float(pen.x, 0.5F);
+  write_float(pen.y, 0.25F);
+  write_float(pen.pressureOrDistance, 0.75F);
+  for (const auto *name : {"DP-1", "HDMI-A-1"}) {
+    viewport.output_name = name;
+    session_mail->event<input::touch_port_t>(mail::touch_port)->raise(viewport);
+    send_packet(touch, SS_TOUCH_MAGIC);
+    const auto contact = client.touch->last_submitted_contact();
+    EXPECT_EQ(contact.viewport.output_name, name);
+    EXPECT_EQ(contact.viewport.offset_x, viewport.offset_x);
+    EXPECT_EQ(contact.viewport.offset_y, viewport.offset_y);
+    EXPECT_EQ(contact.viewport.width, 1920);
+    EXPECT_EQ(contact.viewport.height, 1080);
+    EXPECT_FLOAT_EQ(contact.x, 0.5F);
+    EXPECT_FLOAT_EQ(contact.y, 0.25F);
+    send_packet(pen, SS_PEN_MAGIC);
+    const auto tool = client.pen->last_submitted_tool();
+    EXPECT_EQ(tool.viewport.output_name, name);
+    EXPECT_EQ(tool.viewport.offset_x, viewport.offset_x);
+    EXPECT_EQ(tool.viewport.offset_y, viewport.offset_y);
+    EXPECT_FLOAT_EQ(tool.x, 0.5F);
+    EXPECT_FLOAT_EQ(tool.y, 0.25F);
+    viewport.offset_x = 0;
+    viewport.offset_y = 0;
+    touch.eventType = LI_TOUCH_EVENT_MOVE;
+    pen.eventType = LI_TOUCH_EVENT_MOVE;
+  }
+  // A capture backend can report monitor scaling before the desktop bounds are available.
+  viewport.scalar_tpcoords = 1.0F;
+  viewport.env_logical_width = 0;
+  viewport.env_logical_height = 0;
+  session_mail->event<input::touch_port_t>(mail::touch_port)->raise(viewport);
+  send_packet(touch, SS_TOUCH_MAGIC);
+  send_packet(pen, SS_PEN_MAGIC);
+  EXPECT_FLOAT_EQ(client.touch->last_submitted_contact().x, 0.5F);
+  EXPECT_FLOAT_EQ(client.touch->last_submitted_contact().y, 0.25F);
+  EXPECT_FLOAT_EQ(client.pen->last_submitted_tool().x, 0.5F);
+  EXPECT_FLOAT_EQ(client.pen->last_submitted_tool().y, 0.25F);
+  viewport.scalar_tpcoords = 2.0F;
+  viewport.logical_width = 0;
+  viewport.logical_height = 0;
+  session_mail->event<input::touch_port_t>(mail::touch_port)->raise(viewport);
+  send_packet(touch, SS_TOUCH_MAGIC);
+  send_packet(pen, SS_PEN_MAGIC);
+  EXPECT_EQ(client.touch->last_submitted_contact().viewport.width, 1920);
+  EXPECT_EQ(client.pen->last_submitted_tool().viewport.width, 1920);
+  EXPECT_FLOAT_EQ(client.touch->last_submitted_contact().x, 0.5F);
+  EXPECT_FLOAT_EQ(client.pen->last_submitted_tool().x, 0.5F);
+  viewport.logical_width = 1920;
+  session_mail->event<input::touch_port_t>(mail::touch_port)->raise(viewport);
+  send_packet(touch, SS_TOUCH_MAGIC);
+  EXPECT_EQ(client.touch->last_submitted_contact().viewport.width, 1920);
+
+  const auto touch_count = client.touch->submit_count();
+  const auto pen_count = client.pen->submit_count();
+  viewport.logical_width = 0;
+  viewport.client_offsetX = viewport.width / 2.0F;
+  session_mail->event<input::touch_port_t>(mail::touch_port)->raise(viewport);
+  send_packet(touch, SS_TOUCH_MAGIC);
+  send_packet(pen, SS_PEN_MAGIC);
+  EXPECT_EQ(client.touch->submit_count(), touch_count);
+  EXPECT_EQ(client.pen->submit_count(), pen_count);
+  viewport.client_offsetX = 0;
+  viewport.client_offsetY = viewport.height / 2.0F;
+  session_mail->event<input::touch_port_t>(mail::touch_port)->raise(viewport);
+  send_packet(touch, SS_TOUCH_MAGIC);
+  send_packet(pen, SS_PEN_MAGIC);
+  EXPECT_EQ(client.touch->submit_count(), touch_count);
+  EXPECT_EQ(client.pen->submit_count(), pen_count);
 }
