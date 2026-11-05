@@ -629,22 +629,22 @@ namespace cuda {
    * @return The image's creation info.
    */
   VkImageCreateInfo shared_plane_image_info(std::uint32_t internal_format, int width, int height, VkFormatFeatureFlags optimal_tiling_features, const VkExternalMemoryImageCreateInfo &external_info) {
-    VkImageCreateInfo info = {.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
-    info.pNext = &external_info;
-    info.flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
-    info.imageType = VK_IMAGE_TYPE_2D;
-    info.format = shared_plane_vk_format(internal_format);
-    info.extent = {(std::uint32_t) width, (std::uint32_t) height, 1};
-    info.mipLevels = 1;
-    info.arrayLayers = 1;
-    info.samples = VK_SAMPLE_COUNT_1_BIT;
-    info.tiling = VK_IMAGE_TILING_OPTIMAL;
-    info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+    VkImageCreateInfo image_info = {.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+    image_info.pNext = &external_info;
+    image_info.flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+    image_info.imageType = VK_IMAGE_TYPE_2D;
+    image_info.format = shared_plane_vk_format(internal_format);
+    image_info.extent = {(std::uint32_t) width, (std::uint32_t) height, 1};
+    image_info.mipLevels = 1;
+    image_info.arrayLayers = 1;
+    image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+    image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+    image_info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
     if (optimal_tiling_features & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT) {
-      info.usage |= VK_IMAGE_USAGE_STORAGE_BIT;
+      image_info.usage |= VK_IMAGE_USAGE_STORAGE_BIT;
     }
 
-    return info;
+    return image_info;
   }
 
   /**
@@ -734,7 +734,7 @@ namespace cuda {
     }
 
     int create_event() override {
-      return cu_check(cu()->cuEventCreate(&copy_done, CU_EVENT_DISABLE_TIMING), "Couldn't create CUDA copy event: "sv);
+      return cu_check(cu()->cuEventCreate(&copy_done, CU_EVENT_DISABLE_TIMING), std::string_view {"Couldn't create CUDA copy event: "});
     }
 
     void destroy_event() override {
