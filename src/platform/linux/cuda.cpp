@@ -660,7 +660,7 @@ namespace cuda {
      */
     vulkan_shared_memory_t(const vulkan_calls_t &vulkan_calls, cuda_functions_fn cuda_functions):
         vk {vulkan_calls},
-        cu_functions {cuda_functions} {
+        cu_functions {std::move(cuda_functions)} {
     }
 
     bool supported() override {
@@ -995,7 +995,7 @@ namespace cuda {
    * @return The driver.
    */
   std::unique_ptr<shared_memory_driver_t> make_vulkan_shared_memory(const vulkan_calls_t &calls, cuda_functions_fn cuda_functions) {
-    return std::make_unique<vulkan_shared_memory_t>(calls, cuda_functions);
+    return std::make_unique<vulkan_shared_memory_t>(calls, std::move(cuda_functions));
   }
 #endif
 

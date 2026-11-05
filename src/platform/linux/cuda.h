@@ -255,7 +255,7 @@ namespace cuda {
   /**
    * @brief Function returning the CUDA function table.
    */
-  using cuda_functions_fn = const ::CudaFunctions *(*)();
+  using cuda_functions_fn = std::function<const ::CudaFunctions *()>;
 
   /**
    * @brief Create a driver that shares plane memory through Vulkan.
