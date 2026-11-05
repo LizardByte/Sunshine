@@ -73,6 +73,7 @@ if(CUDA_FOUND)
     include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/third-party/nvfbc")
     list(APPEND PLATFORM_TARGET_FILES
             "${CMAKE_SOURCE_DIR}/src/platform/linux/cuda.h"
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/cuda_color.h"
             "${CMAKE_SOURCE_DIR}/src/platform/linux/cuda.cu"
             "${CMAKE_SOURCE_DIR}/src/platform/linux/cuda.cpp"
             "${CMAKE_SOURCE_DIR}/third-party/nvfbc/NvFBC.h")
