@@ -28,6 +28,8 @@
 
   // local includes
   #include "src/video_colorspace.h"
+
+struct CudaFunctions;
 #endif
 
 namespace cuda::nvfbc {
@@ -144,6 +146,13 @@ namespace cuda {
   int gl_cuda_handoff(bool shared_planes, int plane_count, const gl_cuda_handoff_ops_t &ops);
 
   /**
+   * @brief Block until GL has finished the commands submitted so far on the current context.
+   *
+   * @return 0 on success or -1 on failure.
+   */
+  int wait_for_gl_commands();
+
+  /**
    * @brief How a shared plane's format appears to GL and CUDA.
    */
   struct shared_plane_format_t {
@@ -212,6 +221,51 @@ namespace cuda {
     virtual void release_array(std::size_t plane) = 0;  ///< Release a plane's CUDA array.
     virtual CUarray array(std::size_t plane) const = 0;  ///< CUDA array backing a plane.
   };
+
+  /**
+   * @brief Create the driver that shares plane memory on this build.
+   *
+   * @return The driver, or nullptr in a build without Vulkan.
+   */
+  std::unique_ptr<shared_memory_driver_t> make_shared_memory_driver();
+
+  #ifdef SUNSHINE_BUILD_VULKAN
+  /**
+   * @brief Vulkan entry points used to allocate shared memory.
+   */
+  struct vulkan_calls_t {
+    PFN_vkCreateInstance create_instance;  ///< `vkCreateInstance`.
+    PFN_vkDestroyInstance destroy_instance;  ///< `vkDestroyInstance`.
+    PFN_vkEnumeratePhysicalDevices enumerate_physical_devices;  ///< `vkEnumeratePhysicalDevices`.
+    PFN_vkGetPhysicalDeviceProperties2 get_properties2;  ///< `vkGetPhysicalDeviceProperties2`.
+    PFN_vkGetPhysicalDeviceFormatProperties get_format_properties;  ///< `vkGetPhysicalDeviceFormatProperties`.
+    PFN_vkGetPhysicalDeviceMemoryProperties get_memory_properties;  ///< `vkGetPhysicalDeviceMemoryProperties`.
+    PFN_vkCreateDevice create_device;  ///< `vkCreateDevice`.
+    PFN_vkDestroyDevice destroy_device;  ///< `vkDestroyDevice`.
+    PFN_vkCreateImage create_image;  ///< `vkCreateImage`.
+    PFN_vkDestroyImage destroy_image;  ///< `vkDestroyImage`.
+    PFN_vkGetImageMemoryRequirements get_image_memory_requirements;  ///< `vkGetImageMemoryRequirements`.
+    PFN_vkAllocateMemory allocate_memory;  ///< `vkAllocateMemory`.
+    PFN_vkFreeMemory free_memory;  ///< `vkFreeMemory`.
+    PFN_vkBindImageMemory bind_image_memory;  ///< `vkBindImageMemory`.
+    PFN_vkGetMemoryFdKHR (*load_get_memory_fd)(VkDevice device);  ///< Load `vkGetMemoryFdKHR` for a device.
+    int (*close_fd)(int fd);  ///< `close`.
+  };
+
+  /**
+   * @brief Function returning the CUDA function table.
+   */
+  using cuda_functions_fn = const ::CudaFunctions *(*)();
+
+  /**
+   * @brief Create a driver that shares plane memory through Vulkan.
+   *
+   * @param calls Vulkan entry points.
+   * @param cuda_functions Returns the CUDA function table, which loads after construction.
+   * @return The driver.
+   */
+  std::unique_ptr<shared_memory_driver_t> make_vulkan_shared_memory(const vulkan_calls_t &calls, cuda_functions_fn cuda_functions);
+  #endif
 
   /**
    * @brief Output plane textures shared by GL and CUDA through external memory.
@@ -451,7 +505,6 @@ namespace cuda {
   struct gl_cuda_target_ops_t {
     std::function<int()> init_shared;  ///< Prepare to share memory.
     std::function<int()> create_shared_target;  ///< Create the textures on shared memory.
-    std::function<void()> drop_target;  ///< Delete the textures.
     std::function<void()> reset_shared;  ///< Release the shared memory.
     std::function<int()> create_mapped_target;  ///< Create plain GL textures.
     std::function<int()> register_mapped_target;  ///< Register the plain textures with CUDA.
@@ -461,7 +514,8 @@ namespace cuda {
    * @brief Create the plane textures, sharing their memory with CUDA when possible.
    *
    * Falls back to textures mapped every frame, after releasing anything the shared attempt
-   * left behind: first the textures, then the memory backing them.
+   * left behind. A failed attempt must have deleted its textures already, because they can't
+   * outlive the memory backing them.
    *
    * @param ops Steps of creating the textures.
    * @return 0 on success or -1 when neither way of creating them works.

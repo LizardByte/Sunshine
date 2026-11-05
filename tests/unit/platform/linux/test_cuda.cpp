@@ -11,7 +11,9 @@
   // standard includes
   #include <algorithm>
   #include <array>
+  #include <bit>
   #include <cstdint>
+  #include <deque>
   #include <map>
   #include <memory>
   #include <ranges>
@@ -22,9 +24,21 @@
 
   // lib includes
   #include <glad/gl.h>
+  #ifdef SUNSHINE_BUILD_CUDA
+    #include <ffnvcodec/dynlink_loader.h>
+
+extern "C" {
+    #include <libavutil/frame.h>
+    #include <libavutil/pixdesc.h>
+}
+  #endif
 
   // local includes
   #include "src/platform/linux/cuda.h"
+  #ifdef SUNSHINE_BUILD_CUDA
+    #include "src/platform/linux/cuda_gl_textures.h"
+    #include "src/platform/linux/graphics.h"
+  #endif
 
 namespace {
   /**
@@ -893,7 +907,6 @@ namespace {
       return {
         .init_shared = step("init_shared"),
         .create_shared_target = step("create_shared_target"),
-        .drop_target = void_step("drop_target"),
         .reset_shared = void_step("reset_shared"),
         .create_mapped_target = step("create_mapped_target"),
         .register_mapped_target = step("register_mapped_target"),
@@ -913,17 +926,17 @@ TEST(CudaGlInteropTest, InitFailureFallsBackToMappedTarget) {
   fake_target_t fake {.failing_steps = {"init_shared"}};
 
   EXPECT_EQ(cuda::create_gl_cuda_target(fake.ops()), 0);
-  EXPECT_EQ(fake.calls, (std::vector<std::string> {"init_shared", "drop_target", "reset_shared", "create_mapped_target", "register_mapped_target"}));
+  EXPECT_EQ(fake.calls, (std::vector<std::string> {"init_shared", "reset_shared", "create_mapped_target", "register_mapped_target"}));
 }
 
-TEST(CudaGlInteropTest, SharedTargetFailureDropsTexturesBeforeTheirMemoryAndFallsBack) {
+TEST(CudaGlInteropTest, SharedTargetFailureReleasesItsMemoryAndFallsBack) {
   fake_target_t fake {.failing_steps = {"create_shared_target"}};
 
   EXPECT_EQ(cuda::create_gl_cuda_target(fake.ops()), 0);
-  EXPECT_EQ(fake.calls, (std::vector<std::string> {"init_shared", "create_shared_target", "drop_target", "reset_shared", "create_mapped_target", "register_mapped_target"}));
+  EXPECT_EQ(fake.calls, (std::vector<std::string> {"init_shared", "create_shared_target", "reset_shared", "create_mapped_target", "register_mapped_target"}));
 }
 
-TEST(CudaGlInteropTest, RealPlaneFailureReleasesItsMemoryAfterDroppingTexturesAndFallsBack) {
+TEST(CudaGlInteropTest, RealPlaneFailureReleasesItsMemoryAndFallsBack) {
   shared_planes_fixture_t f;
   f.state->failing_step = "import_cuda";
   f.state->failing_plane = 1;
@@ -935,12 +948,6 @@ TEST(CudaGlInteropTest, RealPlaneFailureReleasesItsMemoryAfterDroppingTexturesAn
   };
   ops.create_shared_target = [&f] {
     return f.planes.allocate(0, GL_R8, 64, 32) || f.planes.allocate(1, GL_RG8, 32, 16) ? -1 : 0;
-  };
-  ops.drop_target = [&f, &target] {
-    // Nothing backing the textures may be gone yet.
-    EXPECT_EQ(f.state->count("free_memory:0"), 0);
-    EXPECT_EQ(f.state->count("destroy_device"), 0);
-    target.calls.emplace_back("drop_target");
   };
   ops.reset_shared = [&f, &target] {
     f.planes.reset();
@@ -954,14 +961,14 @@ TEST(CudaGlInteropTest, RealPlaneFailureReleasesItsMemoryAfterDroppingTexturesAn
   EXPECT_EQ(f.state->count("free_memory:0"), 1);
   EXPECT_EQ(f.state->count("free_memory:1"), 1);
   EXPECT_EQ(f.state->count("destroy_device"), 1);
-  EXPECT_EQ(target.calls, (std::vector<std::string> {"drop_target", "reset_shared", "create_mapped_target", "register_mapped_target"}));
+  EXPECT_EQ(target.calls, (std::vector<std::string> {"reset_shared", "create_mapped_target", "register_mapped_target"}));
 }
 
 TEST(CudaGlInteropTest, MappedTargetFailureSkipsRegistration) {
   fake_target_t fake {.failing_steps = {"init_shared", "create_mapped_target"}};
 
   EXPECT_EQ(cuda::create_gl_cuda_target(fake.ops()), -1);
-  EXPECT_EQ(fake.calls, (std::vector<std::string> {"init_shared", "drop_target", "reset_shared", "create_mapped_target"}));
+  EXPECT_EQ(fake.calls, (std::vector<std::string> {"init_shared", "reset_shared", "create_mapped_target"}));
 }
 
 TEST(CudaGlInteropTest, RegistrationFailureIsReported) {
@@ -969,6 +976,1226 @@ TEST(CudaGlInteropTest, RegistrationFailureIsReported) {
 
   EXPECT_EQ(cuda::create_gl_cuda_target(fake.ops()), -1);
 }
+
+TEST(CudaGlInteropTest, DriverMatchesTheBuild) {
+    #ifdef SUNSHINE_BUILD_VULKAN
+  EXPECT_NE(cuda::make_shared_memory_driver(), nullptr);
+    #else
+  EXPECT_EQ(cuda::make_shared_memory_driver(), nullptr);
+    #endif
+}
+
+    #ifdef SUNSHINE_BUILD_VULKAN
+// The real handle types are opaque. Completing them here lets the fakes hand out real, distinct addresses.
+struct VkInstance_T {};  ///< Fake Vulkan instance.
+
+struct VkPhysicalDevice_T {};  ///< Fake Vulkan physical device.
+
+struct VkDevice_T {};  ///< Fake Vulkan device.
+
+struct VkImage_T {};  ///< Fake Vulkan image.
+
+struct VkDeviceMemory_T {};  ///< Fake Vulkan allocation.
+
+struct CUextMemory_st {};  ///< Fake CUDA external memory.
+
+struct CUmipmappedArray_st {};  ///< Fake CUDA mipmapped array.
+
+struct CUarray_st {};  ///< Fake CUDA array.
+
+struct CUevent_st {};  ///< Fake CUDA event.
+
+struct CUstream_st {};  ///< Fake CUDA stream.
+
+struct CUgraphicsResource_st {};  ///< Fake CUDA graphics resource.
+
+struct __GLsync {};  ///< Fake GL fence.
+
+namespace {
+  /**
+   * @brief Fake Vulkan, GL and CUDA drivers, recording every call in one log so order across them can be checked.
+   */
+  struct fake_api_t {
+    /**
+     * @brief Arguments of `vkAllocateMemory`.
+     */
+    struct allocation_t {
+      VkDeviceSize size;  ///< Allocation size.
+      std::uint32_t type_index;  ///< Memory type.
+      VkImage dedicated_image;  ///< Image of the chained dedicated allocation.
+      VkExternalMemoryHandleTypeFlags handle_types;  ///< Handle types of the chained export info.
+    };
+
+    /**
+     * @brief Arguments of `glImportMemoryFdEXT`.
+     */
+    struct gl_import_t {
+      GLuint memory;  ///< Memory object.
+      GLuint64 size;  ///< Allocation size.
+      GLenum handle_type;  ///< Handle type.
+      GLint fd;  ///< File descriptor.
+    };
+
+    /**
+     * @brief Arguments of a GL storage call, and the texture bound during it.
+     */
+    struct storage_t {
+      GLuint texture;  ///< Bound texture.
+      GLenum target;  ///< Texture target.
+      GLsizei levels;  ///< Mip levels.
+      GLenum format;  ///< Sized internal format.
+      GLsizei width;  ///< Width.
+      GLsizei height;  ///< Height.
+      GLuint memory;  ///< Memory object, or 0 for plain storage.
+      GLuint64 offset;  ///< Offset into the memory object.
+    };
+
+    std::map<std::string, int> fail_at;  ///< Call name, and which call of that name fails, counting from 1.
+    std::map<std::string, int> counts;  ///< Number of calls by name.
+    std::vector<std::string> log;  ///< Every call, in order.
+    std::multiset<std::string> live;  ///< Objects created and not yet destroyed.
+    std::set<int> open_fds;  ///< Exported descriptors that nobody has taken over or closed.
+    std::deque<GLenum> gl_errors;  ///< Errors glGetError will report.
+
+    VkInstance_T instance;  ///< Vulkan instance.
+    std::array<VkPhysicalDevice_T, 2> physical_devices;  ///< Vulkan physical devices. Only the second matches CUDA.
+    VkDevice_T device;  ///< Vulkan device.
+    std::array<VkImage_T, 3> images;  ///< Vulkan images.
+    std::array<VkDeviceMemory_T, 3> memories;  ///< Vulkan allocations.
+    std::array<CUextMemory_st, 3> cu_memories;  ///< CUDA external memory.
+    std::array<CUmipmappedArray_st, 3> cu_mipmaps;  ///< CUDA mipmapped arrays.
+    std::array<CUarray_st, 3> cu_arrays;  ///< CUDA arrays.
+    CUevent_st event;  ///< CUDA event.
+    CUstream_st stream;  ///< CUDA stream.
+    std::array<CUgraphicsResource_st, 3> resources;  ///< CUDA graphics resources.
+    std::array<CUarray_st, 3> mapped_arrays;  ///< CUDA arrays of mapped resources.
+    __GLsync fence;  ///< GL fence.
+
+    std::uint32_t memory_type_bits = 0b11;  ///< Memory types an image can use.
+    bool uuid_matches = true;  ///< Whether a Vulkan device matches the CUDA device.
+    GLenum fence_status = GL_ALREADY_SIGNALED;  ///< Status of waiting for a GL fence.
+    int next_fd = 100;  ///< Next descriptor to export.
+    GLuint next_texture = 1;  ///< Next texture name.
+    GLuint next_framebuffer = 1;  ///< Next framebuffer name.
+    GLuint next_gl_memory = 1;  ///< Next GL memory object name.
+    GLuint bound_texture = 0;  ///< Texture bound to `GL_TEXTURE_2D`.
+
+    std::uint32_t api_version = 0;  ///< Version given to `vkCreateInstance`.
+    VkPhysicalDevice chosen_device = nullptr;  ///< Physical device given to `vkCreateDevice`.
+    std::vector<std::string> device_extensions;  ///< Extensions given to `vkCreateDevice`.
+    std::vector<VkImageCreateInfo> image_infos;  ///< Infos given to `vkCreateImage`.
+    std::vector<VkExternalMemoryHandleTypeFlags> image_handle_types;  ///< Handle types chained to those infos.
+    std::vector<allocation_t> allocations;  ///< Arguments of `vkAllocateMemory`.
+    std::vector<VkDeviceMemory> bound_memories;  ///< Memory given to `vkBindImageMemory`.
+    std::vector<VkMemoryGetFdInfoKHR> fd_infos;  ///< Infos given to `vkGetMemoryFdKHR`.
+    std::vector<GLint> dedicated_params;  ///< Values given to `glMemoryObjectParameterivEXT`.
+    std::vector<gl_import_t> gl_imports;  ///< Arguments of `glImportMemoryFdEXT`.
+    std::vector<storage_t> shared_storage;  ///< Arguments of `glTexStorageMem2DEXT`.
+    std::vector<storage_t> plain_storage;  ///< Arguments of `glTexStorage2D`.
+    std::vector<CUDA_EXTERNAL_MEMORY_HANDLE_DESC> cu_imports;  ///< Descriptors given to `cuImportExternalMemory`.
+    std::vector<CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC> cu_array_descs;  ///< Descriptors given to `cuExternalMemoryGetMappedMipmappedArray`.
+    std::vector<unsigned int> cu_levels;  ///< Levels given to `cuMipmappedArrayGetLevel`.
+    std::vector<CUDA_MEMCPY2D> copies;  ///< Descriptors given to `cuMemcpy2DAsync`.
+    std::vector<GLuint> registered_textures;  ///< Textures given to `cuGraphicsGLRegisterImage`.
+    int mapped_count = 0;  ///< Number of resources currently mapped.
+    unsigned int expected_map_count = 0;  ///< Number of resources each map and unmap must act on.
+    CUstream expected_stream = nullptr;  ///< Stream the copy event must be recorded on.
+    CudaFunctions cuda {};  ///< CUDA function table.
+
+    /**
+     * @brief Log a call and decide whether it fails.
+     *
+     * @param name Call name.
+     * @return True when the call must fail.
+     */
+    bool fails(const std::string &name) {
+      log.push_back(name);
+      const int call = ++counts[name];
+      const auto configured = fail_at.find(name);
+      return configured != fail_at.end() && configured->second == call;
+    }
+
+    /**
+     * @brief Note that an object was created.
+     *
+     * @param object Object name.
+     */
+    void acquire(const std::string &object) {
+      live.insert(object);
+    }
+
+    /**
+     * @brief Note that an object was destroyed. It must exist.
+     *
+     * @param object Object name.
+     */
+    void release(const std::string &object) {
+      const auto found = live.find(object);
+      ASSERT_NE(found, live.end()) << "released twice or never created: " << object;
+      live.erase(found);
+    }
+
+    /**
+     * @brief Move an open descriptor to an importing API.
+     *
+     * @param fd File descriptor. It must be open.
+     */
+    void take_over(int fd) {
+      EXPECT_EQ(open_fds.erase(fd), 1u) << "imported a descriptor that wasn't open: " << fd;
+    }
+
+    /**
+     * @brief Find the first call of a name.
+     *
+     * @param name Call name.
+     * @return Its position, or the size of the log when it wasn't called.
+     */
+    auto first(const std::string &name) const {
+      return std::ranges::find(log, name) - log.begin();
+    }
+
+    /**
+     * @brief Find the last call of a name.
+     *
+     * @param name Call name.
+     * @return Its position, or -1 when it wasn't called.
+     */
+    auto last(const std::string &name) const {
+      const auto found = std::ranges::find(log | std::views::reverse, name);
+      return static_cast<long>(log.rend() - found) - 1;
+    }
+  };
+
+  /**
+   * @brief The fake that the C function pointers below act on.
+   *
+   * @return The fake.
+   */
+  fake_api_t &api() {
+    static fake_api_t instance;
+    return instance;
+  }
+
+  /**
+   * @brief Index of an object in a fake's array of them.
+   *
+   * @param objects The array.
+   * @param object The object.
+   * @return The index.
+   */
+  template<typename Objects, typename Object>
+  std::string index_of(const Objects &objects, const Object *object) {
+    return std::to_string(object - objects.data());
+  }
+
+  /**
+   * @brief Fake Vulkan entry points.
+   *
+   * @return The entry points.
+   */
+  cuda::vulkan_calls_t fake_vulkan_calls() {
+    return {
+      .create_instance = [](const VkInstanceCreateInfo *info, const VkAllocationCallbacks *, VkInstance *out) {
+        if (api().fails("vkCreateInstance")) {
+          return VK_ERROR_INITIALIZATION_FAILED;
+        }
+        api().api_version = info->pApplicationInfo->apiVersion;
+        api().acquire("instance");
+        *out = &api().instance;
+        return VK_SUCCESS;
+      },
+      .destroy_instance = [](VkInstance instance, const VkAllocationCallbacks *) {
+        api().log.emplace_back("vkDestroyInstance");
+        if (instance) {
+          api().release("instance");
+        }
+      },
+      .enumerate_physical_devices = [](VkInstance, std::uint32_t *count, VkPhysicalDevice *devices) {
+        *count = 2;
+        if (devices) {
+          devices[0] = &api().physical_devices[0];
+          devices[1] = &api().physical_devices[1];
+        }
+        return VK_SUCCESS;
+      },
+      .get_properties2 = [](VkPhysicalDevice device, VkPhysicalDeviceProperties2 *properties) {
+        const bool matches = api().uuid_matches && device == &api().physical_devices[1];
+        auto *id = static_cast<VkPhysicalDeviceIDProperties *>(properties->pNext);
+        std::ranges::fill(id->deviceUUID, matches ? 0x11 : 0x22);
+      },
+      .get_format_properties = [](VkPhysicalDevice, VkFormat, VkFormatProperties *properties) {
+        properties->optimalTilingFeatures = VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
+      },
+      .get_memory_properties = [](VkPhysicalDevice, VkPhysicalDeviceMemoryProperties *properties) {
+        properties->memoryTypeCount = 2;
+        properties->memoryTypes[0].propertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+        properties->memoryTypes[1].propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+      },
+      .create_device = [](VkPhysicalDevice physical_device, const VkDeviceCreateInfo *info, const VkAllocationCallbacks *, VkDevice *out) {
+        if (api().fails("vkCreateDevice")) {
+          return VK_ERROR_INITIALIZATION_FAILED;
+        }
+        api().chosen_device = physical_device;
+        for (std::uint32_t i = 0; i < info->enabledExtensionCount; ++i) {
+          api().device_extensions.emplace_back(info->ppEnabledExtensionNames[i]);
+        }
+        api().acquire("device");
+        *out = &api().device;
+        return VK_SUCCESS;
+      },
+      .destroy_device = [](VkDevice device, const VkAllocationCallbacks *) {
+        api().log.emplace_back("vkDestroyDevice");
+        if (device) {
+          api().release("device");
+        }
+      },
+      .create_image = [](VkDevice, const VkImageCreateInfo *info, const VkAllocationCallbacks *, VkImage *out) {
+        if (api().fails("vkCreateImage")) {
+          return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+        }
+        const auto plane = api().image_infos.size();
+        api().image_infos.push_back(*info);
+        api().image_handle_types.push_back(static_cast<const VkExternalMemoryImageCreateInfo *>(info->pNext)->handleTypes);
+        api().image_infos.back().pNext = nullptr;
+        api().acquire("image:" + std::to_string(plane));
+        *out = &api().images[plane];
+        return VK_SUCCESS;
+      },
+      .destroy_image = [](VkDevice, VkImage image, const VkAllocationCallbacks *) {
+        if (image) {
+          api().log.emplace_back("vkDestroyImage");
+          api().release("image:" + index_of(api().images, image));
+        }
+      },
+      .get_image_memory_requirements = [](VkDevice, VkImage image, VkMemoryRequirements *requirements) {
+        requirements->size = 4096 * static_cast<VkDeviceSize>(image - api().images.data() + 1);
+        requirements->memoryTypeBits = api().memory_type_bits;
+      },
+      .allocate_memory = [](VkDevice, const VkMemoryAllocateInfo *info, const VkAllocationCallbacks *, VkDeviceMemory *out) {
+        if (api().fails("vkAllocateMemory")) {
+          return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+        }
+        const auto *exported = static_cast<const VkExportMemoryAllocateInfo *>(info->pNext);
+        const auto *dedicated = static_cast<const VkMemoryDedicatedAllocateInfo *>(exported->pNext);
+        const auto plane = api().allocations.size();
+        api().allocations.push_back({info->allocationSize, info->memoryTypeIndex, dedicated->image, exported->handleTypes});
+        api().acquire("memory:" + std::to_string(plane));
+        *out = &api().memories[plane];
+        return VK_SUCCESS;
+      },
+      .free_memory = [](VkDevice, VkDeviceMemory memory, const VkAllocationCallbacks *) {
+        if (memory) {
+          api().log.emplace_back("vkFreeMemory");
+          api().release("memory:" + index_of(api().memories, memory));
+        }
+      },
+      .bind_image_memory = [](VkDevice, VkImage, VkDeviceMemory memory, VkDeviceSize) {
+        if (api().fails("vkBindImageMemory")) {
+          return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+        }
+        api().bound_memories.push_back(memory);
+        return VK_SUCCESS;
+      },
+      .load_get_memory_fd = [](VkDevice) -> PFN_vkGetMemoryFdKHR {
+        if (api().fails("load_get_memory_fd")) {
+          return nullptr;
+        }
+        return [](VkDevice, const VkMemoryGetFdInfoKHR *info, int *fd) {
+          if (api().fails("vkGetMemoryFdKHR")) {
+            return VK_ERROR_TOO_MANY_OBJECTS;
+          }
+          api().fd_infos.push_back(*info);
+          *fd = api().next_fd++;
+          api().open_fds.insert(*fd);
+          return VK_SUCCESS;
+        };
+      },
+      .close_fd = [](int fd) {
+        api().log.emplace_back("close");
+        EXPECT_EQ(api().open_fds.erase(fd), 1u) << "closed a descriptor that wasn't open: " << fd;
+        return 0;
+      },
+    };
+  }
+
+  constexpr auto cu_failed = static_cast<CUresult>(1);  ///< Result of a failed CUDA call.
+
+  /**
+   * @brief Fake CUDA function table.
+   *
+   * @return The table.
+   */
+  CudaFunctions fake_cuda_functions() {
+    CudaFunctions functions {};
+    functions.cuGetErrorName = [](CUresult, const char **text) {
+      *text = "fake";
+      return CUresult {};
+    };
+    functions.cuGetErrorString = [](CUresult, const char **text) {
+      *text = "failure";
+      return CUresult {};
+    };
+    functions.cuCtxGetDevice = [](CUdevice *device) {
+      *device = 0;
+      return api().fails("cuCtxGetDevice") ? cu_failed : CUresult {};
+    };
+    functions.cuDeviceGetUuid = [](CUuuid *uuid, CUdevice) {
+      std::ranges::fill(uuid->bytes, 0x11);
+      return api().fails("cuDeviceGetUuid") ? cu_failed : CUresult {};
+    };
+    functions.cuEventCreate = [](CUevent *event, unsigned int) {
+      if (api().fails("cuEventCreate")) {
+        return cu_failed;
+      }
+      api().acquire("event");
+      *event = &api().event;
+      return CUresult {};
+    };
+    functions.cuEventDestroy = [](CUevent) {
+      api().log.emplace_back("cuEventDestroy");
+      api().release("event");
+      return CUresult {};
+    };
+    functions.cuEventSynchronize = [](CUevent event) {
+      EXPECT_EQ(event, &api().event);
+      return api().fails("cuEventSynchronize") ? cu_failed : CUresult {};
+    };
+    functions.cuEventRecord = [](CUevent event, CUstream stream) {
+      EXPECT_EQ(event, &api().event);
+      EXPECT_EQ(stream, api().expected_stream);
+      return api().fails("cuEventRecord") ? cu_failed : CUresult {};
+    };
+    functions.cuImportExternalMemory = [](CUexternalMemory *out, const CUDA_EXTERNAL_MEMORY_HANDLE_DESC *desc) {
+      if (api().fails("cuImportExternalMemory")) {
+        return cu_failed;
+      }
+      const auto plane = api().cu_imports.size();
+      api().cu_imports.push_back(*desc);
+      api().take_over(desc->handle.fd);
+      api().acquire("cu_memory:" + std::to_string(plane));
+      *out = &api().cu_memories[plane];
+      return CUresult {};
+    };
+    functions.cuDestroyExternalMemory = [](CUexternalMemory memory) {
+      api().log.emplace_back("cuDestroyExternalMemory");
+      api().release("cu_memory:" + index_of(api().cu_memories, memory));
+      return CUresult {};
+    };
+    functions.cuExternalMemoryGetMappedMipmappedArray = [](CUmipmappedArray *out, CUexternalMemory memory, const CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC *desc) {
+      if (api().fails("cuExternalMemoryGetMappedMipmappedArray")) {
+        return cu_failed;
+      }
+      const auto plane = static_cast<std::size_t>(memory - api().cu_memories.data());
+      api().cu_array_descs.push_back(*desc);
+      api().acquire("cu_mipmap:" + std::to_string(plane));
+      *out = &api().cu_mipmaps[plane];
+      return CUresult {};
+    };
+    functions.cuMipmappedArrayGetLevel = [](CUarray *out, CUmipmappedArray mipmap, unsigned int level) {
+      if (api().fails("cuMipmappedArrayGetLevel")) {
+        return cu_failed;
+      }
+      api().cu_levels.push_back(level);
+      *out = &api().cu_arrays[static_cast<std::size_t>(mipmap - api().cu_mipmaps.data())];
+      return CUresult {};
+    };
+    functions.cuMipmappedArrayDestroy = [](CUmipmappedArray mipmap) {
+      api().log.emplace_back("cuMipmappedArrayDestroy");
+      api().release("cu_mipmap:" + index_of(api().cu_mipmaps, mipmap));
+      return CUresult {};
+    };
+    functions.cuGraphicsGLRegisterImage = [](CUgraphicsResource *resource, GLuint texture, GLenum target, unsigned int flags) {
+      if (api().fails("cuGraphicsGLRegisterImage")) {
+        return cu_failed;
+      }
+      EXPECT_EQ(target, static_cast<GLenum>(GL_TEXTURE_2D));
+      EXPECT_EQ(flags, static_cast<unsigned int>(CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY));
+      api().registered_textures.push_back(texture);
+      *resource = &api().resources[0];
+      return CUresult {};
+    };
+    functions.cuGraphicsMapResources = [](unsigned int count, CUgraphicsResource *resources, CUstream stream) {
+      if (api().fails("cuGraphicsMapResources")) {
+        return cu_failed;
+      }
+      EXPECT_EQ(stream, &api().stream);
+      EXPECT_EQ(count, api().expected_map_count);
+      for (unsigned int i = 0; i < count; ++i) {
+        EXPECT_EQ(resources[i], &api().resources[i]);
+      }
+      api().mapped_count = static_cast<int>(count);
+      return CUresult {};
+    };
+    functions.cuGraphicsUnmapResources = [](unsigned int count, CUgraphicsResource *resources, CUstream stream) {
+      if (api().fails("cuGraphicsUnmapResources")) {
+        return cu_failed;
+      }
+      EXPECT_EQ(stream, &api().stream);
+      EXPECT_EQ(count, api().expected_map_count);
+      for (unsigned int i = 0; i < count; ++i) {
+        EXPECT_EQ(resources[i], &api().resources[i]);
+      }
+      api().mapped_count = 0;
+      return CUresult {};
+    };
+    functions.cuGraphicsSubResourceGetMappedArray = [](CUarray *array, CUgraphicsResource resource, unsigned int index, unsigned int level) {
+      if (api().fails("cuGraphicsSubResourceGetMappedArray")) {
+        return cu_failed;
+      }
+      EXPECT_LT(resource - api().resources.data(), api().mapped_count) << "the array of an unmapped resource";
+      EXPECT_EQ(index, 0u);
+      EXPECT_EQ(level, 0u);
+      *array = &api().mapped_arrays[static_cast<std::size_t>(resource - api().resources.data())];
+      return CUresult {};
+    };
+    functions.cuMemcpy2DAsync = [](const CUDA_MEMCPY2D *copy, CUstream stream) {
+      EXPECT_EQ(stream, &api().stream);
+      if (api().fails("cuMemcpy2DAsync")) {
+        return cu_failed;
+      }
+      api().copies.push_back(*copy);
+      return CUresult {};
+    };
+    return functions;
+  }
+
+  /**
+   * @brief Point the GL function table at the fake.
+   */
+  void install_fake_gl() {
+    gl::ctx.EXT_memory_object_fd = 1;
+    gl::ctx.GetError = [] {
+      if (api().gl_errors.empty()) {
+        return GLenum {GL_NO_ERROR};
+      }
+      const auto error = api().gl_errors.front();
+      api().gl_errors.pop_front();
+      return error;
+    };
+    gl::ctx.GenTextures = [](GLsizei count, GLuint *textures) {
+      for (const auto i : std::views::iota(0, count)) {
+        textures[i] = api().next_texture++;
+        api().acquire("texture:" + std::to_string(textures[i]));
+      }
+    };
+    gl::ctx.DeleteTextures = [](GLsizei count, const GLuint *textures) {
+      for (const auto i : std::views::iota(0, count)) {
+        api().log.emplace_back("DeleteTextures");
+        api().release("texture:" + std::to_string(textures[i]));
+      }
+    };
+    gl::ctx.BindTexture = [](GLenum, GLuint texture) {
+      api().bound_texture = texture;
+    };
+    gl::ctx.TexParameteri = [](GLenum, GLenum, GLint) {
+    };
+    gl::ctx.TexParameterfv = [](GLenum, GLenum, const GLfloat *) {
+    };
+    gl::ctx.TexStorage2D = [](GLenum target, GLsizei levels, GLenum format, GLsizei width, GLsizei height) {
+      api().log.emplace_back("TexStorage2D");
+      api().plain_storage.push_back({api().bound_texture, target, levels, format, width, height, 0, 0});
+    };
+    gl::ctx.GenFramebuffers = [](GLsizei count, GLuint *framebuffers) {
+      for (const auto i : std::views::iota(0, count)) {
+        framebuffers[i] = api().next_framebuffer++;
+      }
+    };
+    gl::ctx.DeleteFramebuffers = [](GLsizei, const GLuint *) {
+    };
+    gl::ctx.BindFramebuffer = [](GLenum, GLuint) {
+    };
+    gl::ctx.FramebufferTexture = [](GLenum, GLenum, GLuint, GLint) {
+    };
+    gl::ctx.DrawBuffers = [](GLsizei, const GLenum *) {
+    };
+    gl::ctx.ClearBufferfv = [](GLenum, GLint, const GLfloat *) {
+    };
+    gl::ctx.CreateMemoryObjectsEXT = [](GLsizei, GLuint *memory) {
+      api().log.emplace_back("CreateMemoryObjectsEXT");
+      *memory = api().next_gl_memory++;
+      api().acquire("gl_memory:" + std::to_string(*memory));
+    };
+    gl::ctx.DeleteMemoryObjectsEXT = [](GLsizei, const GLuint *memory) {
+      api().log.emplace_back("DeleteMemoryObjectsEXT");
+      api().release("gl_memory:" + std::to_string(*memory));
+    };
+    gl::ctx.MemoryObjectParameterivEXT = [](GLuint, GLenum parameter, const GLint *value) {
+      EXPECT_EQ(parameter, static_cast<GLenum>(GL_DEDICATED_MEMORY_OBJECT_EXT));
+      api().dedicated_params.push_back(*value);
+    };
+    gl::ctx.ImportMemoryFdEXT = [](GLuint memory, GLuint64 size, GLenum handle_type, GLint fd) {
+      if (api().fails("ImportMemoryFdEXT")) {
+        api().gl_errors.push_back(GL_INVALID_OPERATION);
+        return;
+      }
+      api().gl_imports.push_back({memory, size, handle_type, fd});
+      api().take_over(fd);
+    };
+    gl::ctx.TexStorageMem2DEXT = [](GLenum target, GLsizei levels, GLenum format, GLsizei width, GLsizei height, GLuint memory, GLuint64 offset) {
+      if (api().fails("TexStorageMem2DEXT")) {
+        api().gl_errors.push_back(GL_INVALID_OPERATION);
+        return;
+      }
+      api().shared_storage.push_back({api().bound_texture, target, levels, format, width, height, memory, offset});
+    };
+    gl::ctx.FenceSync = [](GLenum condition, GLbitfield flags) -> GLsync {
+      EXPECT_EQ(condition, static_cast<GLenum>(GL_SYNC_GPU_COMMANDS_COMPLETE));
+      EXPECT_EQ(flags, 0u);
+      if (api().fails("FenceSync")) {
+        return nullptr;
+      }
+      api().acquire("fence");
+      return &api().fence;
+    };
+    gl::ctx.ClientWaitSync = [](GLsync fence, GLbitfield flags, GLuint64 timeout) {
+      EXPECT_EQ(fence, &api().fence);
+      // Without the flush, a fence that was never submitted would only time out.
+      EXPECT_EQ(flags, static_cast<GLbitfield>(GL_SYNC_FLUSH_COMMANDS_BIT));
+      EXPECT_GT(timeout, 0u);
+      api().log.emplace_back("ClientWaitSync");
+      return api().fence_status;
+    };
+    gl::ctx.DeleteSync = [](GLsync fence) {
+      EXPECT_EQ(fence, &api().fence);
+      api().log.emplace_back("DeleteSync");
+      api().release("fence");
+    };
+  }
+
+  /**
+   * @brief A plane a stream format must end up with.
+   */
+  struct expected_plane_t {
+    GLenum gl_format;  ///< Sized GL internal format.
+    VkFormat vk_format;  ///< Vulkan format.
+    CUarray_format cu_format;  ///< CUDA array format.
+    unsigned int channels;  ///< Channels per pixel.
+    int width;  ///< Plane width.
+    int height;  ///< Plane height.
+  };
+
+  /**
+   * @brief A stream format and its planes.
+   */
+  struct stream_format_t {
+    AVPixelFormat format;  ///< Frame format.
+    bool is_yuv444;  ///< Whether the frame has three planes.
+    std::vector<expected_plane_t> planes;  ///< Expected planes.
+  };
+
+  /**
+   * @brief Every stream format, at 640x360.
+   *
+   * @return The formats.
+   */
+  std::vector<stream_format_t> stream_formats() {
+    const expected_plane_t r8 {GL_R8, VK_FORMAT_R8_UNORM, CU_AD_FORMAT_UNSIGNED_INT8, 1, 640, 360};
+    const expected_plane_t rg8 {GL_RG8, VK_FORMAT_R8G8_UNORM, CU_AD_FORMAT_UNSIGNED_INT8, 2, 320, 180};
+    const expected_plane_t r16 {GL_R16, VK_FORMAT_R16_UNORM, CU_AD_FORMAT_UNSIGNED_INT16, 1, 640, 360};
+    const expected_plane_t rg16 {GL_RG16, VK_FORMAT_R16G16_UNORM, CU_AD_FORMAT_UNSIGNED_INT16, 2, 320, 180};
+    return {
+      {AV_PIX_FMT_NV12, false, {r8, rg8}},
+      {AV_PIX_FMT_P010LE, false, {r16, rg16}},
+      {AV_PIX_FMT_YUV444P, true, {r8, r8, r8}},
+      {AV_PIX_FMT_YUV444P16LE, true, {r16, r16, r16}},
+    };
+  }
+
+  /**
+   * @brief Tests of the real driver and texture creation on top of the fake Vulkan, GL and CUDA.
+   */
+  class CudaGlDriverTest: public testing::Test {
+  protected:
+    /**
+     * @brief Install the fakes.
+     */
+    void SetUp() override {
+      saved_gl = gl::ctx;
+      api() = fake_api_t {};
+      api().cuda = fake_cuda_functions();
+      install_fake_gl();
+    }
+
+    /**
+     * @brief Restore the real GL table.
+     */
+    void TearDown() override {
+      textures = {};
+      planes.reset();
+      gl::ctx = saved_gl;
+    }
+
+    /**
+     * @brief Create shared planes on the real driver and fake APIs.
+     *
+     * @return The planes.
+     */
+    static std::unique_ptr<cuda::gl_cuda_shared_planes_t> make_planes() {
+      return std::make_unique<cuda::gl_cuda_shared_planes_t>(cuda::make_vulkan_shared_memory(fake_vulkan_calls(), [] {
+        return static_cast<const CudaFunctions *>(&api().cuda);
+      }));
+    }
+
+    /**
+     * @brief Create textures for a stream format, recording which textures get registered.
+     *
+     * @param format Stream format.
+     * @return The result of creating them.
+     */
+    int create(const stream_format_t &format) {
+      return cuda::create_gl_cuda_textures(textures, *planes, 640, 360, format.format, format.is_yuv444, [this](std::size_t plane, std::uint32_t texture) {
+        registered.emplace_back(plane, texture);
+        return register_fails ? -1 : 0;
+      });
+    }
+
+    /**
+     * @brief Check that a stream fell back to plain, registered textures with nothing of the shared attempt left.
+     *
+     * @param format Stream format.
+     */
+    void expect_clean_fallback(const stream_format_t &format) {
+      EXPECT_FALSE(planes->is_active());
+      EXPECT_TRUE(api().open_fds.empty());
+
+      // Only the plain textures remain, for each plane.
+      const auto &tex = format.is_yuv444 ? textures.yuv444->tex : textures.nv12->tex;
+      EXPECT_EQ(api().live.size(), format.planes.size());
+      for (std::size_t plane = 0; plane < format.planes.size(); ++plane) {
+        EXPECT_EQ(api().live.count("texture:" + std::to_string(tex[plane])), 1u);
+      }
+      ASSERT_EQ(api().plain_storage.size(), format.planes.size());
+      ASSERT_EQ(registered.size(), format.planes.size());
+      for (std::size_t plane = 0; plane < format.planes.size(); ++plane) {
+        EXPECT_EQ(api().plain_storage[plane].format, format.planes[plane].gl_format);
+        EXPECT_EQ(api().plain_storage[plane].width, format.planes[plane].width);
+        EXPECT_EQ(api().plain_storage[plane].height, format.planes[plane].height);
+        EXPECT_EQ(registered[plane].first, plane);
+        EXPECT_EQ(registered[plane].second, api().plain_storage[plane].texture);
+      }
+
+      // Each plain texture's storage comes after the shared attempt was torn down.
+      EXPECT_GT(api().first("TexStorage2D"), api().last("vkDestroyInstance"));
+    }
+
+    /**
+     * @brief Check the release order of everything the shared attempt created.
+     */
+    static void expect_release_order() {
+      const auto &a = api();
+      const auto check_before = [&a](const std::string &earlier, const std::string &later) {
+        if (a.counts.contains(earlier) || std::ranges::count(a.log, earlier)) {
+          EXPECT_LT(a.last(earlier), a.first(later)) << earlier << " must come before " << later;
+        }
+      };
+
+      // Textures can't outlive the memory backing them.
+      check_before("DeleteTextures", "cuMipmappedArrayDestroy");
+      check_before("DeleteTextures", "cuDestroyExternalMemory");
+      check_before("DeleteTextures", "DeleteMemoryObjectsEXT");
+      check_before("DeleteTextures", "vkDestroyImage");
+      check_before("DeleteTextures", "vkFreeMemory");
+
+      // Everything goes before the device that allocated it.
+      for (const auto *call : {"vkDestroyImage", "vkFreeMemory", "cuEventDestroy"}) {
+        check_before(call, "vkDestroyDevice");
+      }
+      check_before("vkDestroyDevice", "vkDestroyInstance");
+    }
+
+    /**
+     * @brief Create a target frame, its plane pointers distinct and its pitches larger than the planes.
+     *
+     * @param format Stream format.
+     * @return The frame.
+     */
+    AVFrame make_frame(const stream_format_t &format) {
+      AVFrame frame {};
+      frame.width = 640;
+      frame.height = 360;
+      for (std::size_t plane = 0; plane < format.planes.size(); ++plane) {
+        frame.data[plane] = &frame_memory[plane];
+        frame.linesize[plane] = 4096 + static_cast<int>(plane);
+      }
+      return frame;
+    }
+
+    /**
+     * @brief Hand one frame over with the real handoff steps.
+     *
+     * @param format Stream format.
+     * @param frame Target frame.
+     * @return The result of the handoff.
+     */
+    int run_frame(const stream_format_t &format, const AVFrame &frame) {
+      const auto plane_count = static_cast<int>(format.planes.size());
+      api().expected_map_count = format.planes.size();
+      api().expected_stream = &api().stream;
+      const cuda::gl_cuda_frame_copy_t copy {
+        .cu = api().cuda,
+        .shared = *planes,
+        .stream = &api().stream,
+        .frame = frame,
+        .fmt_desc = *av_pix_fmt_desc_get(format.format),
+        .resources = {{&api().resources[0], &api().resources[1], format.is_yuv444 ? &api().resources[2] : nullptr}},
+        .plane_count = plane_count,
+      };
+
+      return cuda::gl_cuda_handoff(planes->is_active(), plane_count, cuda::make_gl_cuda_handoff_ops(copy, [] {
+                                     api().log.emplace_back("render");
+                                   }));
+    }
+
+    /**
+     * @brief Check the copies of one frame.
+     *
+     * @param format Stream format.
+     * @param frame Target frame.
+     * @param sources Arrays the copies must read from.
+     */
+    static void expect_copies(const stream_format_t &format, const AVFrame &frame, const std::array<CUarray_st, 3> &sources) {
+      ASSERT_EQ(api().copies.size(), format.planes.size());
+      for (std::size_t plane = 0; plane < format.planes.size(); ++plane) {
+        SCOPED_TRACE("plane " + std::to_string(plane));
+        const auto &expected = format.planes[plane];
+        const auto &copy = api().copies[plane];
+        const std::size_t channel_bytes = expected.cu_format == CU_AD_FORMAT_UNSIGNED_INT16 ? 2 : 1;
+
+        EXPECT_EQ(copy.srcMemoryType, CU_MEMORYTYPE_ARRAY);
+        EXPECT_EQ(copy.srcArray, &sources[plane]);
+        EXPECT_EQ(copy.dstMemoryType, CU_MEMORYTYPE_DEVICE);
+        EXPECT_EQ(copy.dstDevice, std::bit_cast<CUdeviceptr>(frame.data[plane]));
+        EXPECT_EQ(copy.dstPitch, static_cast<std::size_t>(frame.linesize[plane]));
+        EXPECT_EQ(copy.WidthInBytes, expected.width * expected.channels * channel_bytes);
+        EXPECT_EQ(copy.Height, static_cast<std::size_t>(expected.height));
+      }
+    }
+
+    GladGLContext saved_gl {};  ///< The GL table before the test.
+    std::array<std::uint8_t, 3> frame_memory {};  ///< What the target frame's plane pointers point into.
+    std::unique_ptr<cuda::gl_cuda_shared_planes_t> planes = make_planes();  ///< Planes under test.
+    cuda::gl_cuda_textures_t textures;  ///< Textures under test.
+    std::vector<std::pair<std::size_t, std::uint32_t>> registered;  ///< Plain textures registered with CUDA.
+    bool register_fails = false;  ///< Whether registering a texture fails.
+  };
+
+  /**
+   * @brief Tests that run for every stream format.
+   */
+  class CudaGlDriverFormatTest: public CudaGlDriverTest, public testing::WithParamInterface<stream_format_t> {};
+
+  /**
+   * @brief A failing call, and which call of that name fails.
+   */
+  using failing_call_t = std::pair<std::string, int>;
+
+  /**
+   * @brief Tests that fail one call while setting up shared planes.
+   */
+  class CudaGlDriverFailureTest: public CudaGlDriverTest, public testing::WithParamInterface<failing_call_t> {};
+}  // namespace
+
+TEST_P(CudaGlDriverFormatTest, SharedTexturesPassTheRightValuesToEveryApi) {
+  const auto &format = GetParam();
+
+  ASSERT_EQ(create(format), 0);
+
+  EXPECT_TRUE(planes->is_active());
+  EXPECT_TRUE(registered.empty());
+  EXPECT_TRUE(api().plain_storage.empty());
+  EXPECT_TRUE(api().open_fds.empty());
+
+  EXPECT_EQ(api().api_version, static_cast<std::uint32_t>(VK_API_VERSION_1_1));
+  EXPECT_EQ(api().chosen_device, &api().physical_devices[1]);
+  EXPECT_EQ(api().device_extensions, std::vector<std::string> {VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME});
+
+  const auto count = format.planes.size();
+  ASSERT_EQ(api().image_infos.size(), count);
+  ASSERT_EQ(api().allocations.size(), count);
+  ASSERT_EQ(api().bound_memories.size(), count);
+  ASSERT_EQ(api().fd_infos.size(), count * 2);
+  ASSERT_EQ(api().gl_imports.size(), count);
+  ASSERT_EQ(api().dedicated_params.size(), count);
+  ASSERT_EQ(api().shared_storage.size(), count);
+  ASSERT_EQ(api().cu_imports.size(), count);
+  ASSERT_EQ(api().cu_array_descs.size(), count);
+  ASSERT_EQ(api().cu_levels.size(), count);
+
+  const auto &tex = format.is_yuv444 ? textures.yuv444->tex : textures.nv12->tex;
+  for (std::size_t plane = 0; plane < count; ++plane) {
+    SCOPED_TRACE("plane " + std::to_string(plane));
+    const auto &expected = format.planes[plane];
+    const VkDeviceSize size = 4096 * (plane + 1);
+
+    const auto &image = api().image_infos[plane];
+    EXPECT_EQ(image.format, expected.vk_format);
+    EXPECT_EQ(image.extent.width, static_cast<std::uint32_t>(expected.width));
+    EXPECT_EQ(image.extent.height, static_cast<std::uint32_t>(expected.height));
+    EXPECT_EQ(image.flags, static_cast<VkImageCreateFlags>(VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT));
+    EXPECT_TRUE(image.usage & VK_IMAGE_USAGE_STORAGE_BIT);
+    EXPECT_TRUE(image.usage & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
+    EXPECT_EQ(image.tiling, VK_IMAGE_TILING_OPTIMAL);
+    EXPECT_EQ(api().image_handle_types[plane], static_cast<VkExternalMemoryHandleTypeFlags>(VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT));
+
+    const auto &allocation = api().allocations[plane];
+    EXPECT_EQ(allocation.size, size);
+    EXPECT_EQ(allocation.type_index, 1u);  // The device-local one.
+    EXPECT_EQ(allocation.dedicated_image, &api().images[plane]);
+    EXPECT_EQ(allocation.handle_types, static_cast<VkExternalMemoryHandleTypeFlags>(VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT));
+    EXPECT_EQ(api().bound_memories[plane], &api().memories[plane]);
+
+    for (const auto &fd_info : {api().fd_infos[plane * 2], api().fd_infos[plane * 2 + 1]}) {
+      EXPECT_EQ(fd_info.memory, &api().memories[plane]);
+      EXPECT_EQ(fd_info.handleType, VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT);
+    }
+
+    EXPECT_EQ(api().dedicated_params[plane], GL_TRUE);
+    const auto &gl_import = api().gl_imports[plane];
+    EXPECT_EQ(gl_import.size, size);
+    EXPECT_EQ(gl_import.handle_type, static_cast<GLenum>(GL_HANDLE_TYPE_OPAQUE_FD_EXT));
+
+    const auto &storage = api().shared_storage[plane];
+    EXPECT_EQ(storage.texture, tex[plane]);
+    EXPECT_EQ(storage.target, static_cast<GLenum>(GL_TEXTURE_2D));
+    EXPECT_EQ(storage.levels, 1);
+    EXPECT_EQ(storage.format, expected.gl_format);
+    EXPECT_EQ(storage.width, expected.width);
+    EXPECT_EQ(storage.height, expected.height);
+    EXPECT_EQ(storage.memory, gl_import.memory);
+    EXPECT_EQ(storage.offset, 0u);
+
+    const auto &cu_import = api().cu_imports[plane];
+    EXPECT_EQ(cu_import.type, CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD);
+    EXPECT_EQ(cu_import.size, size);
+    EXPECT_EQ(cu_import.flags, 0x1u);  // CUDA_EXTERNAL_MEMORY_DEDICATED
+    EXPECT_NE(cu_import.handle.fd, gl_import.fd);
+
+    const auto &array = api().cu_array_descs[plane].arrayDesc;
+    EXPECT_EQ(array.Width, static_cast<std::size_t>(expected.width));
+    EXPECT_EQ(array.Height, static_cast<std::size_t>(expected.height));
+    EXPECT_EQ(array.Format, expected.cu_format);
+    EXPECT_EQ(array.NumChannels, expected.channels);
+    EXPECT_EQ(array.Flags, 0x20u);  // CUDA_ARRAY3D_COLOR_ATTACHMENT
+    EXPECT_EQ(api().cu_array_descs[plane].numLevels, 1u);
+    EXPECT_EQ(api().cu_levels[plane], 0u);
+
+    EXPECT_EQ(planes->array(plane), &api().cu_arrays[plane]);
+  }
+}
+
+TEST_P(CudaGlDriverFormatTest, MissingGlExtensionUsesPlainRegisteredTextures) {
+  const auto &format = GetParam();
+  gl::ctx.EXT_memory_object_fd = 0;
+
+  ASSERT_EQ(create(format), 0);
+
+  EXPECT_FALSE(planes->is_active());
+  EXPECT_FALSE(api().counts.contains("vkCreateInstance"));
+  ASSERT_EQ(registered.size(), format.planes.size());
+  ASSERT_EQ(api().plain_storage.size(), format.planes.size());
+  for (std::size_t plane = 0; plane < format.planes.size(); ++plane) {
+    EXPECT_EQ(api().plain_storage[plane].format, format.planes[plane].gl_format);
+    EXPECT_EQ(api().plain_storage[plane].width, format.planes[plane].width);
+    EXPECT_EQ(api().plain_storage[plane].height, format.planes[plane].height);
+    EXPECT_EQ(registered[plane].first, plane);
+    EXPECT_EQ(registered[plane].second, api().plain_storage[plane].texture);
+  }
+}
+
+TEST_P(CudaGlDriverFormatTest, EverythingIsReleasedOnceWhenTexturesThenPlanesGoAway) {
+  const auto &format = GetParam();
+  ASSERT_EQ(create(format), 0);
+
+  textures = {};
+  planes->reset();
+  planes->reset();
+  planes.reset();
+
+  EXPECT_TRUE(api().live.empty());
+  expect_release_order();
+}
+
+TEST_P(CudaGlDriverFormatTest, SharedFramesTakeTurnsAndCopyEveryPlane) {
+  const auto &format = GetParam();
+  ASSERT_EQ(create(format), 0);
+  ASSERT_TRUE(planes->is_active());
+
+  const auto frame = make_frame(format);
+  api().log.clear();
+  const auto first_frame = run_frame(format, frame);
+  ASSERT_EQ(first_frame, 0);
+
+  // Nothing to wait for before the first frame.
+  std::vector<std::string> expected {"render", "FenceSync", "ClientWaitSync", "DeleteSync"};
+  expected.insert(expected.end(), format.planes.size(), "cuMemcpy2DAsync");
+  expected.emplace_back("cuEventRecord");
+  EXPECT_EQ(api().log, expected);
+  expect_copies(format, frame, api().cu_arrays);
+
+  api().log.clear();
+  api().copies.clear();
+  ASSERT_EQ(run_frame(format, frame), 0);
+
+  // GL renders again only after CUDA finished the previous copies.
+  expected.insert(expected.begin(), "cuEventSynchronize");
+  EXPECT_EQ(api().log, expected);
+}
+
+TEST_P(CudaGlDriverFormatTest, MappedFramesMapOnlyForTheCopies) {
+  const auto &format = GetParam();
+  gl::ctx.EXT_memory_object_fd = 0;
+  ASSERT_EQ(create(format), 0);
+
+  const auto frame = make_frame(format);
+  api().log.clear();
+  ASSERT_EQ(run_frame(format, frame), 0);
+
+  std::vector<std::string> expected {"render", "cuGraphicsMapResources"};
+  for (std::size_t plane = 0; plane < format.planes.size(); ++plane) {
+    expected.emplace_back("cuGraphicsSubResourceGetMappedArray");
+    expected.emplace_back("cuMemcpy2DAsync");
+  }
+  expected.emplace_back("cuGraphicsUnmapResources");
+  EXPECT_EQ(api().log, expected);
+  EXPECT_EQ(api().mapped_count, 0);
+  expect_copies(format, frame, api().mapped_arrays);
+}
+
+INSTANTIATE_TEST_SUITE_P(StreamFormats, CudaGlDriverFormatTest, testing::ValuesIn(stream_formats()));
+
+TEST_P(CudaGlDriverFailureTest, FailureFallsBackWithNothingLeftBehind) {
+  const auto &[call, nth] = GetParam();
+
+  for (const auto &format : stream_formats()) {
+    SCOPED_TRACE(format.format);
+    textures = {};
+    planes = make_planes();
+    registered.clear();
+    api() = fake_api_t {};
+    api().cuda = fake_cuda_functions();
+    api().fail_at[call] = nth;
+
+    EXPECT_EQ(create(format), 0);
+
+    EXPECT_EQ(api().counts[call], nth) << "the failing call must run, and nothing may repeat it";
+    expect_clean_fallback(format);
+    expect_release_order();
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  Calls,
+  CudaGlDriverFailureTest,
+  testing::Values(
+    failing_call_t {"cuCtxGetDevice", 1},
+    failing_call_t {"cuDeviceGetUuid", 1},
+    failing_call_t {"vkCreateInstance", 1},
+    failing_call_t {"vkCreateDevice", 1},
+    failing_call_t {"load_get_memory_fd", 1},
+    failing_call_t {"cuEventCreate", 1},
+    failing_call_t {"vkCreateImage", 1},
+    failing_call_t {"vkCreateImage", 2},
+    failing_call_t {"vkAllocateMemory", 2},
+    failing_call_t {"vkBindImageMemory", 2},
+    failing_call_t {"vkGetMemoryFdKHR", 3},  // The second plane's fd for GL.
+    failing_call_t {"vkGetMemoryFdKHR", 4},  // The second plane's fd for CUDA.
+    failing_call_t {"ImportMemoryFdEXT", 2},
+    failing_call_t {"TexStorageMem2DEXT", 2},
+    failing_call_t {"cuImportExternalMemory", 2},
+    failing_call_t {"cuExternalMemoryGetMappedMipmappedArray", 2},
+    failing_call_t {"cuMipmappedArrayGetLevel", 2}
+  )
+);
+
+TEST_F(CudaGlDriverTest, FailedSecondPlaneDropsTexturesBeforeTheirMemory) {
+  api().fail_at["cuImportExternalMemory"] = 2;
+
+  EXPECT_EQ(create(stream_formats()[0]), 0);
+
+  // The first plane's memory was fully set up, so all of its release calls ran.
+  for (const auto *call : {"cuMipmappedArrayDestroy", "cuDestroyExternalMemory", "DeleteMemoryObjectsEXT", "vkDestroyImage", "vkFreeMemory"}) {
+    EXPECT_GE(std::ranges::count(api().log, std::string(call)), 1) << call;
+    EXPECT_LT(api().first("DeleteTextures"), api().first(call)) << call;
+  }
+}
+
+TEST_F(CudaGlDriverTest, GlImportFailureClosesBothDescriptors) {
+  api().fail_at["ImportMemoryFdEXT"] = 1;
+
+  EXPECT_EQ(create(stream_formats()[0]), 0);
+
+  EXPECT_EQ(std::ranges::count(api().log, std::string("close")), 2);
+  EXPECT_TRUE(api().open_fds.empty());
+}
+
+TEST_F(CudaGlDriverTest, GlStorageFailureClosesOnlyTheCudaDescriptor) {
+  api().fail_at["TexStorageMem2DEXT"] = 1;
+
+  EXPECT_EQ(create(stream_formats()[0]), 0);
+
+  EXPECT_EQ(std::ranges::count(api().log, std::string("close")), 1);
+  EXPECT_TRUE(api().open_fds.empty());
+}
+
+TEST_F(CudaGlDriverTest, StaleGlErrorDoesNotFailTheImports) {
+  api().gl_errors.push_back(GL_INVALID_VALUE);
+
+  EXPECT_EQ(create(stream_formats()[0]), 0);
+
+  EXPECT_TRUE(planes->is_active());
+  EXPECT_EQ(std::ranges::count(api().log, std::string("close")), 0);
+}
+
+TEST_F(CudaGlDriverTest, MissingCudaExternalMemoryUsesPlainTextures) {
+  api().cuda.cuImportExternalMemory = nullptr;
+
+  EXPECT_EQ(create(stream_formats()[0]), 0);
+
+  EXPECT_FALSE(planes->is_active());
+  EXPECT_FALSE(api().counts.contains("vkCreateInstance"));
+  EXPECT_EQ(registered.size(), 2u);
+}
+
+TEST_F(CudaGlDriverTest, MissingCudaUuidUsesPlainTextures) {
+  api().cuda.cuDeviceGetUuid = nullptr;
+
+  EXPECT_EQ(create(stream_formats()[0]), 0);
+
+  EXPECT_FALSE(planes->is_active());
+  EXPECT_FALSE(api().counts.contains("vkCreateInstance"));
+  EXPECT_EQ(registered.size(), 2u);
+}
+
+TEST_F(CudaGlDriverTest, NoVulkanDeviceMatchingCudaFallsBack) {
+  api().uuid_matches = false;
+
+  EXPECT_EQ(create(stream_formats()[0]), 0);
+
+  EXPECT_FALSE(api().counts.contains("vkCreateDevice"));
+  expect_clean_fallback(stream_formats()[0]);
+}
+
+TEST_F(CudaGlDriverTest, NoDeviceLocalMemoryTypeFallsBack) {
+  api().memory_type_bits = 0b01;
+
+  EXPECT_EQ(create(stream_formats()[0]), 0);
+
+  EXPECT_FALSE(api().counts.contains("vkAllocateMemory"));
+  expect_clean_fallback(stream_formats()[0]);
+}
+
+TEST_F(CudaGlDriverTest, RegistrationFailureIsReported) {
+  gl::ctx.EXT_memory_object_fd = 0;
+  register_fails = true;
+
+  EXPECT_EQ(create(stream_formats()[0]), -1);
+  EXPECT_EQ(registered.size(), 1u);
+}
+
+TEST_F(CudaGlDriverTest, HandoffUsesTheCopyEvent) {
+  ASSERT_EQ(create(stream_formats()[0]), 0);
+
+  api().expected_stream = &api().stream;
+  EXPECT_EQ(planes->record_copies(&api().stream), 0);
+  EXPECT_EQ(planes->wait_for_cuda(), 0);
+  EXPECT_EQ(api().counts["cuEventRecord"], 1);
+  EXPECT_EQ(api().counts["cuEventSynchronize"], 1);
+}
+
+TEST_F(CudaGlDriverTest, HandoffReportsCopyEventFailures) {
+  api().fail_at["cuEventRecord"] = 1;
+  api().fail_at["cuEventSynchronize"] = 1;
+  ASSERT_EQ(create(stream_formats()[0]), 0);
+
+  api().expected_stream = &api().stream;
+  EXPECT_EQ(planes->record_copies(&api().stream), -1);
+  EXPECT_EQ(planes->record_copies(&api().stream), 0);
+  EXPECT_EQ(planes->wait_for_cuda(), -1);
+}
+
+TEST_F(CudaGlDriverTest, MappingFailureSkipsTheCopiesAndTheUnmap) {
+  const auto format = stream_formats()[0];
+  gl::ctx.EXT_memory_object_fd = 0;
+  api().fail_at["cuGraphicsMapResources"] = 1;
+  ASSERT_EQ(create(format), 0);
+
+  EXPECT_EQ(run_frame(format, make_frame(format)), -1);
+
+  EXPECT_TRUE(api().copies.empty());
+  EXPECT_FALSE(api().counts.contains("cuGraphicsUnmapResources"));
+}
+
+TEST_F(CudaGlDriverTest, MappedArrayFailureStopsTheCopiesAndStillUnmaps) {
+  const auto format = stream_formats()[0];
+  gl::ctx.EXT_memory_object_fd = 0;
+  api().fail_at["cuGraphicsSubResourceGetMappedArray"] = 2;
+  ASSERT_EQ(create(format), 0);
+
+  EXPECT_EQ(run_frame(format, make_frame(format)), -1);
+
+  EXPECT_EQ(api().copies.size(), 1u);
+  EXPECT_EQ(api().counts["cuGraphicsUnmapResources"], 1);
+  EXPECT_EQ(api().mapped_count, 0);
+}
+
+TEST_F(CudaGlDriverTest, UnmapFailureIsReported) {
+  const auto format = stream_formats()[0];
+  gl::ctx.EXT_memory_object_fd = 0;
+  api().fail_at["cuGraphicsUnmapResources"] = 1;
+  ASSERT_EQ(create(format), 0);
+
+  EXPECT_EQ(run_frame(format, make_frame(format)), -1);
+}
+
+TEST_F(CudaGlDriverTest, FailedCopyIsLoggedAndTheFrameContinues) {
+  const auto format = stream_formats()[0];
+  api().fail_at["cuMemcpy2DAsync"] = 1;
+  ASSERT_EQ(create(format), 0);
+
+  EXPECT_EQ(run_frame(format, make_frame(format)), 0);
+
+  EXPECT_EQ(api().counts["cuMemcpy2DAsync"], 2);
+  EXPECT_EQ(api().counts["cuEventRecord"], 1);
+}
+
+TEST_F(CudaGlDriverTest, GlFenceFailureSkipsTheCopiesAndReleasesNothingTwice) {
+  const auto format = stream_formats()[0];
+  api().fail_at["FenceSync"] = 1;
+  ASSERT_EQ(create(format), 0);
+
+  EXPECT_EQ(run_frame(format, make_frame(format)), -1);
+
+  EXPECT_TRUE(api().copies.empty());
+}
+
+TEST_F(CudaGlDriverTest, PlaneTextureRegistration) {
+  CUgraphicsResource resource = nullptr;
+
+  EXPECT_EQ(cuda::register_plane_texture(api().cuda, &resource, 7), 0);
+  EXPECT_EQ(resource, &api().resources[0]);
+  EXPECT_EQ(api().registered_textures, std::vector<GLuint> {7});
+
+  api().fail_at["cuGraphicsGLRegisterImage"] = 2;
+  EXPECT_EQ(cuda::register_plane_texture(api().cuda, &resource, 8), -1);
+}
+
+TEST_F(CudaGlDriverTest, GlCommandsWaitDeletesItsFence) {
+  EXPECT_EQ(cuda::wait_for_gl_commands(), 0);
+
+  EXPECT_EQ(api().log, (std::vector<std::string> {"FenceSync", "ClientWaitSync", "DeleteSync"}));
+  EXPECT_TRUE(api().live.empty());
+}
+
+TEST_F(CudaGlDriverTest, GlCommandsWaitReportsFailures) {
+  api().fence_status = GL_TIMEOUT_EXPIRED;
+  EXPECT_EQ(cuda::wait_for_gl_commands(), -1);
+  EXPECT_TRUE(api().live.empty());
+
+  api().fail_at["FenceSync"] = 2;
+  EXPECT_EQ(cuda::wait_for_gl_commands(), -1);
+  EXPECT_TRUE(api().live.empty());
+}
+    #endif  // SUNSHINE_BUILD_VULKAN
   #endif  // SUNSHINE_BUILD_CUDA
 
 #endif  // __linux__
