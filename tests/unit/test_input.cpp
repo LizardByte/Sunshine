@@ -742,7 +742,7 @@ TEST_F(InputGamepadSessionTest, RetargetsNativeTouchAndPenWithoutApplyingTheMoni
     std::vector<std::uint8_t> bytes(sizeof(packet));
     std::memcpy(bytes.data(), &packet, sizeof(packet));
     input::passthrough(stream_input, std::move(bytes));
-    input::testing::process_queued_messages(stream_input);
+    static_cast<void>(input::testing::process_queued_messages(stream_input));
   };
   SS_TOUCH_PACKET touch {};
   touch.eventType = LI_TOUCH_EVENT_DOWN;

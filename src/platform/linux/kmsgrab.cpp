@@ -749,17 +749,15 @@ namespace platf {
       /**
        * @brief Return framebuffer metadata for the current CRTC.
        *
-       * @param plane DRM or EGL plane index being described.
+       * @param plane DRM plane whose framebuffer metadata should be read.
        * @return Framebuffer metadata wrapper, or nullptr when the framebuffer cannot be read.
        */
-      fb_t fb(plane_t::pointer plane) {
-        auto fb2 = platf::kms::privileged_drm_worker::drmModeGetFB2_privileged(fd.el, plane->fb_id);
-        if (fb2) {
+      fb_t fb(const drmModePlane *plane) {
+        if (auto fb2 = platf::kms::privileged_drm_worker::drmModeGetFB2_privileged(fd.el, plane->fb_id); fb2) {
           return std::make_unique<wrapper_fb>(fd.el, fb2);
         }
 
-        auto fb = platf::kms::privileged_drm_worker::drmModeGetFB_privileged(fd.el, plane->fb_id);
-        if (fb) {
+        if (auto fb = platf::kms::privileged_drm_worker::drmModeGetFB_privileged(fd.el, plane->fb_id); fb) {
           return std::make_unique<wrapper_fb>(fd.el, fb);
         }
 
@@ -934,8 +932,7 @@ namespace platf {
       file_t handleFD(std::uint32_t handle) {
         file_t fb_fd;
 
-        auto status = drmPrimeHandleToFD(fd.el, handle, 0 /* flags */, &fb_fd.el);
-        if (status) {
+        if (const auto status = drmPrimeHandleToFD(fd.el, handle, 0 /* flags */, &fb_fd.el); status) {
           return {};
         }
 
@@ -1069,7 +1066,7 @@ namespace platf {
     /**
      * @brief Write a debug log representation of the input packet.
      *
-     * @param plane DRM or EGL plane index being described.
+     * @param plane DRM plane whose framebuffer metadata should be read.
      * @param fb Framebuffer object to bind or update.
      * @param crtc DRM CRTC identifier to map.
      */
@@ -2119,12 +2116,14 @@ namespace platf {
       /**
        * @brief Capture a display frame into the provided image object.
        *
-       * @param pull_free_image_cb Pull free image cb.
+       * @tparam PullFreeImage Callback type used to retrieve a free capture image.
+       * @param pull_free_image_cb Callback retrieving a free capture image.
        * @param img_out Captured KMS image descriptor returned to the streaming pipeline.
        * @param cursor Cursor image or visibility state to composite.
        * @return Capture status reported to the streaming pipeline.
        */
-      capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds /* timeout */, bool cursor) {
+      template<typename PullFreeImage>
+      capture_e snapshot(const PullFreeImage &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds /* timeout */, bool cursor) {
         std::array<file_t, 4> fb_fd;
 
         if (!pull_free_image_cb(img_out)) {
@@ -2133,8 +2132,7 @@ namespace platf {
         auto img = (egl::img_descriptor_t *) img_out.get();
         img->reset();
 
-        auto status = refresh(fb_fd.data(), &img->sd, img->frame_timestamp);
-        if (status != capture_e::ok) {
+        if (const auto status = refresh(fb_fd.data(), &img->sd, img->frame_timestamp); status != capture_e::ok) {
           return status;
         }
 
