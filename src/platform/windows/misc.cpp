@@ -1112,19 +1112,30 @@ namespace platf {
   }
 
   /**
-   * @brief Open a url in the default web browser.
-   * @param url The url to open.
+   * @brief Open a URL through the Windows shell in the user's session.
+   * @details The command processor's start command preserves shell activation for packaged browsers.
+   *
+   * @param url The URL to open.
    */
   void open_url(const std::string &url) {
+    std::array<wchar_t, MAX_PATH> system_directory;
+    const auto length = GetSystemDirectoryW(system_directory.data(), system_directory.size());
+    if (!length || length >= system_directory.size()) {
+      BOOST_LOG(warning) << "Couldn't locate Windows command processor to open url ["sv << url << ']';
+      return;
+    }
+    // Use the system command processor and disable AutoRun and delayed environment expansion.
+    // start performs shell activation in the user's process context, including MSIX activation.
+    const auto command = utf_utils::to_utf8(escape_argument(std::wstring {system_directory.data(), length} + L"\\cmd.exe") + L" /d /v:off /c start \"\" " + escape_argument_for_cmd(escape_argument(utf_utils::from_utf8(url))));
     boost::process::v1::environment _env = boost::this_process::environment();
     auto working_dir = boost::filesystem::path();
     std::error_code ec;
 
-    auto child = run_command(false, false, url, working_dir, _env, nullptr, ec, nullptr);
+    auto child = run_command(false, false, command, working_dir, _env, nullptr, ec, nullptr);
     if (ec) {
       BOOST_LOG(warning) << "Couldn't open url ["sv << url << "]: System: "sv << ec.message();
     } else {
-      BOOST_LOG(info) << "Opened url ["sv << url << "]"sv;
+      BOOST_LOG(info) << "Opening url ["sv << url << "]"sv;
       child.detach();
     }
   }
