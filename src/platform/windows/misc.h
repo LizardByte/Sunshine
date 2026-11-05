@@ -30,6 +30,15 @@ namespace platf {
   HDESK syncThreadDesktop();
 
   /**
+   * @brief Build a command that delegates URL activation to the Windows shell.
+   *
+   * @param command_processor Absolute path to the system command processor.
+   * @param url URL to pass unchanged to the shell's default protocol handler.
+   * @return Command line suitable for CreateProcessW().
+   */
+  std::wstring make_url_launch_command(const std::wstring &command_processor, const std::wstring &url);
+
+  /**
    * @brief Read the current Windows high-resolution performance counter.
    *
    * @return Raw QPC tick value from `QueryPerformanceCounter`.

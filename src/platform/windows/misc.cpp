@@ -16,6 +16,7 @@
 #include <array>
 #include <csignal>
 #include <filesystem>
+#include <format>
 #include <iomanip>
 #include <iterator>
 #include <set>
@@ -1111,6 +1112,10 @@ namespace platf {
     return create_boost_child_from_results(ret, cmd, ec, process_info);
   }
 
+  std::wstring make_url_launch_command(const std::wstring &command_processor, const std::wstring &url) {
+    return std::format(LR"({} /d /v:off /c start "" {})", escape_argument(command_processor), escape_argument_for_cmd(escape_argument(url)));
+  }
+
   /**
    * @brief Open a URL through the Windows shell in the user's session.
    * @details The command processor's start command preserves shell activation for packaged browsers.
@@ -1124,7 +1129,7 @@ namespace platf {
     }
     // Use the system command processor and disable AutoRun and delayed environment expansion.
     // start performs shell activation in the user's process context, including MSIX activation.
-    const auto command = utf_utils::to_utf8(escape_argument(std::wstring {system_directory.data(), length} + L"\\cmd.exe") + L" /d /v:off /c start \"\" " + escape_argument_for_cmd(escape_argument(utf_utils::from_utf8(url))));
+    const auto command = utf_utils::to_utf8(make_url_launch_command(std::wstring {system_directory.data(), length} + L"\\cmd.exe", utf_utils::from_utf8(url)));
     boost::process::v1::environment _env = boost::this_process::environment();
     auto working_dir = boost::filesystem::path();
     std::error_code ec;

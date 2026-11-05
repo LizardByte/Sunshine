@@ -5,6 +5,7 @@
 
 // test includes
 #include "../../../tests_common.h"
+#include "../../../tests_log_checker.h"
 
 #ifdef _WIN32
   // standard includes
@@ -22,6 +23,7 @@
   #include <Windows.h>
 
   // local includes
+  #include <src/platform/windows/misc.h>
   #include <src/platform/windows/utf_utils.h>
   #include <src/utility.h>
 
@@ -96,7 +98,37 @@ protected:
    */
   void expect_url_delivered(const std::wstring &suffix) {
     const auto url = utf_utils::to_utf8(scheme + suffix);
-    platf::open_url(url);
+    std::array<wchar_t, MAX_PATH> system_directory;
+    const auto length = GetSystemDirectoryW(system_directory.data(), system_directory.size());
+    ASSERT_GT(length, 0U);
+    ASSERT_LT(length, system_directory.size());
+    const auto command_processor = std::filesystem::path {system_directory.data()} / L"cmd.exe";
+    auto command = platf::make_url_launch_command(command_processor.wstring(), utf_utils::from_utf8(url));
+
+    // CI runners prohibit the breakaway flag used by run_command(). Exercise the production URL
+    // command inside the runner's job instead of changing Sunshine's process-lifetime behavior.
+    STARTUPINFOW startup_info {};
+    startup_info.cb = sizeof(startup_info);
+    PROCESS_INFORMATION process_info {};
+    ASSERT_TRUE(CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startup_info, &process_info)) << GetLastError();
+    auto close_process = util::fail_guard([&process_info]() {
+      CloseHandle(process_info.hThread);
+      CloseHandle(process_info.hProcess);
+    });
+    ASSERT_EQ(WaitForSingleObject(process_info.hProcess, 10000), WAIT_OBJECT_0);
+    DWORD exit_code;
+    ASSERT_TRUE(GetExitCodeProcess(process_info.hProcess, &exit_code));
+    ASSERT_EQ(exit_code, 0U);
+
+    expect_url_recorded(url);
+  }
+
+  /**
+   * @brief Wait until the registered handler records the exact URL delivered by the shell.
+   *
+   * @param url Expected UTF-8 URL.
+   */
+  void expect_url_recorded(const std::string &url) {
     std::string received;
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds {10};
     do {
@@ -108,6 +140,23 @@ protected:
       std::this_thread::sleep_for(std::chrono::milliseconds {20});
     } while (std::chrono::steady_clock::now() < deadline);
     EXPECT_EQ(received, url);
+  }
+
+  /**
+   * @brief Exercise the public launcher and distinguish accepted requests from runner access denial.
+   */
+  void expect_launch_request_reported() {
+    const auto url = utf_utils::to_utf8(scheme + L"://localhost/launch-request");
+    platf::open_url(url);
+    const auto accepted = log_checker::line_contains("test_sunshine.log", std::format("Opening url [{}]", url));
+    const auto failed = log_checker::line_contains("test_sunshine.log", std::format("Couldn't open url [{}]", url));
+    ASSERT_NE(accepted, failed);
+    if (accepted) {
+      expect_url_recorded(url);
+    } else {
+      // The runner can reject CREATE_BREAKAWAY_FROM_JOB with ERROR_ACCESS_DENIED.
+      EXPECT_TRUE(log_checker::line_contains("test_sunshine.log", "Failed to launch process: 5"));
+    }
   }
 
 private:
@@ -144,5 +193,12 @@ TEST_F(WindowsOpenUrlTest, PreservesPercentAndExclamationDelimitedText) {
     SetEnvironmentVariableW(name.c_str(), nullptr);
   });
   expect_url_delivered(std::format(L"://localhost/?percent=%{}%&exclamation=!{}!", name, name));
+}
+
+/**
+ * @brief Verify that the public launcher reports accepted requests or runner access denial accurately.
+ */
+TEST_F(WindowsOpenUrlTest, ReportsTheActualLaunchRequestOutcome) {
+  expect_launch_request_reported();
 }
 #endif
