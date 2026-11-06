@@ -342,7 +342,7 @@ namespace stream {
     return ((size + 15) / 16) * 16;
   }
 
-  constexpr std::size_t MAX_AUDIO_PACKET_SIZE = 1400;  ///< Protocol or platform constant for max audio packet size.
+  constexpr std::size_t MAX_AUDIO_PACKET_SIZE = 2048;  ///< Supports larger optional Dolby audio access units.
 
   /**
    * @brief AES key storage used for audio packet encryption.
