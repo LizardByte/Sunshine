@@ -3292,18 +3292,23 @@ namespace video {
                                                                      encoder.av1[encoder_t::DYNAMIC_RANGE_YUV444];
   }
 
-  int probe_encoders() {
-    if (!allow_encoder_probing()) {
-      // Error already logged
-      return -1;
+  int probe_again_if_display_appeared(const std::function<int()> &probe, const std::function<bool()> &has_display) {
+    const bool display_before = has_display();
+    const int result = probe();
+    if (display_before || !has_display()) {
+      return result;
     }
+    BOOST_LOG(info) << "A display appeared while probing: probing the encoders again"sv;
+    return probe();
+  }
 
+  /**
+   * @brief Validate the encoders and choose the best one.
+   *
+   * @return 0 when a usable encoder is selected; nonzero when none works.
+   */
+  static int probe_all_encoders() {
     auto encoder_list = encoders;
-
-    // If we already have a good encoder, check to see if another probe is required
-    if (chosen_encoder && !(chosen_encoder->flags & ALWAYS_REPROBE) && !platf::needs_encoder_reenumeration()) {
-      return 0;
-    }
 
     // Restart encoder selection
     auto previous_encoder = chosen_encoder;
@@ -3526,6 +3531,22 @@ namespace video {
     }
 
     return 0;
+  }
+
+  int probe_encoders() {
+    if (!allow_encoder_probing()) {
+      // Error already logged
+      return -1;
+    }
+
+    // If we already have a good encoder, check to see if another probe is required
+    if (chosen_encoder && !(chosen_encoder->flags & ALWAYS_REPROBE) && !platf::needs_encoder_reenumeration()) {
+      return 0;
+    }
+
+    return probe_again_if_display_appeared(probe_all_encoders, [] {
+      return !platf::display_names(platf::mem_type_e::system).empty();
+    });
   }
 
   /**

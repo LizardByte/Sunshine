@@ -540,3 +540,50 @@ TEST(SoftwareEncoderConversion, Bgr0AndNv12) {
   fallback_nv12_img.row_pitch = w;
   EXPECT_EQ(device.convert(fallback_nv12_img), 0);
 }
+
+namespace {
+  struct probe_run_t {
+    int calls = 0;
+    int checks = 0;
+    std::vector<bool> displays;  ///< What each display check answers.
+
+    int probe_again_with(int first_result, int second_result) {
+      return video::probe_again_if_display_appeared(
+        [&] {
+          return ++calls == 1 ? first_result : second_result;
+        },
+        [&] {
+          return displays[checks++];
+        }
+      );
+    }
+  };
+}  // namespace
+
+TEST(ProbeAgainIfDisplayAppeared, ProbesOnceWithADisplayFromTheStart) {
+  probe_run_t run {.displays = {true}};
+
+  EXPECT_EQ(run.probe_again_with(0, 1), 0);
+  EXPECT_EQ(run.calls, 1);
+}
+
+TEST(ProbeAgainIfDisplayAppeared, ProbesOnceWithNoDisplayAtAll) {
+  probe_run_t run {.displays = {false, false}};
+
+  EXPECT_EQ(run.probe_again_with(1, 0), 1);
+  EXPECT_EQ(run.calls, 1);
+}
+
+TEST(ProbeAgainIfDisplayAppeared, ProbesAgainWhenADisplayAppearedDuringAProbeThatPassed) {
+  probe_run_t run {.displays = {false, true}};
+
+  EXPECT_EQ(run.probe_again_with(0, 0), 0);
+  EXPECT_EQ(run.calls, 2);
+}
+
+TEST(ProbeAgainIfDisplayAppeared, ReturnsTheResultOfTheSecondProbe) {
+  probe_run_t run {.displays = {false, true}};
+
+  EXPECT_EQ(run.probe_again_with(1, 0), 0);
+  EXPECT_EQ(run.calls, 2);
+}
