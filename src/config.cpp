@@ -5,6 +5,7 @@
 // standard includes
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -802,6 +803,7 @@ namespace config {
     {},  // encoder
     {},  // adapter_name
     {},  // output_name
+    "client",  // source_aspect_ratio
 
     {
       video_t::dd_t::config_option_e::disabled,  // configuration_option
@@ -1143,6 +1145,53 @@ namespace config {
         destination = std::move(temp);
         return;
       }
+    }
+  }
+
+  std::optional<std::pair<int, int>> parse_aspect_ratio(std::string_view text) {
+    const auto separator = text.find(':');
+    if (separator == std::string_view::npos) {
+      return std::nullopt;
+    }
+
+    const auto parse_positive = [](std::string_view digits) -> std::optional<int> {
+      int value = 0;
+      const auto end = digits.data() + digits.size();
+      const auto [parsed_to, error] = std::from_chars(digits.data(), end, value);
+      if (error != std::errc {} || parsed_to != end || value <= 0) {
+        return std::nullopt;
+      }
+      return value;
+    };
+
+    const auto width = parse_positive(text.substr(0, separator));
+    const auto height = parse_positive(text.substr(separator + 1));
+    if (!width || !height) {
+      return std::nullopt;
+    }
+
+    return std::pair {*width, *height};
+  }
+
+  /**
+   * @brief Parse the source aspect ratio setting, ignoring values it can't act on.
+   *
+   * @param vars Configuration key-value map.
+   * @param name Setting name.
+   * @param destination Setting value to update.
+   */
+  void source_aspect_ratio_f(config_map_t &vars, const std::string &name, std::string &destination) {
+    std::string temp;
+    string_f(vars, name, temp);
+
+    if (temp.empty()) {
+      return;
+    }
+
+    if (temp == "client"sv || temp == "display"sv || temp == "stream"sv || parse_aspect_ratio(temp)) {
+      destination = std::move(temp);
+    } else {
+      BOOST_LOG(warning) << "config: '"sv << name << "' must be client, display, stream or width:height, ignoring: "sv << temp;
     }
   }
 
@@ -1731,6 +1780,7 @@ namespace config {
     string_f(vars, "encoder", video.encoder);
     string_f(vars, "adapter_name", video.adapter_name);
     string_f(vars, "output_name", video.output_name);
+    source_aspect_ratio_f(vars, "source_aspect_ratio", video.source_aspect_ratio);
 
     generic_f(vars, "dd_configuration_option", video.dd.configuration_option, dd::config_option_from_view);
     generic_f(vars, "dd_resolution_option", video.dd.resolution_option, dd::resolution_option_from_view);

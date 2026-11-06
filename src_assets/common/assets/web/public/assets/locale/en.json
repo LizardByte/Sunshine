@@ -408,6 +408,8 @@
     "qsv_slow_hevc_desc": "This can enable HEVC encoding on older Intel GPUs, at the cost of higher GPU usage and worse performance.",
     "restart_note": "Sunshine is restarting to apply changes.",
     "search_options": "Search configuration options...",
+    "source_aspect_ratio": "Source Aspect Ratio",
+    "source_aspect_ratio_desc": "The part of the display that is streamed, centered and cropped to this aspect ratio. Use client to do what the client asks for, display to always stream the whole display, stream to crop to the aspect ratio of the stream, or a ratio such as 16:9. Anything other than client overrides the client's request.",
     "stream_audio": "Stream Audio",
     "stream_audio_desc": "Whether to stream audio or not. Disabling this can be useful for streaming headless displays as second monitors.",
     "sunshine_name": "Sunshine Name",

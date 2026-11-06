@@ -596,9 +596,10 @@ namespace platf::dxgi {
      * @param frame_texture Frame texture.
      * @param width Frame or display width in pixels.
      * @param height Frame or display height in pixels.
+     * @param source_crop Part of the captured image to encode; unset encodes all of it.
      * @return 0 when output resources are initialized; nonzero on D3D failure.
      */
-    int init_output(ID3D11Texture2D *frame_texture, int width, int height) {
+    int init_output(ID3D11Texture2D *frame_texture, int width, int height, const std::optional<source_crop_t> &source_crop) {
       // The underlying frame pool owns the texture, so we must reference it for ourselves
       frame_texture->AddRef();
       output_texture.reset(frame_texture);
@@ -620,7 +621,10 @@ namespace platf::dxgi {
     }
 #endif
 
-      const bool downscaling = display->width > width || display->height > height;
+      const int source_width = source_crop ? source_crop->width : display->width;
+      const int source_height = source_crop ? source_crop->height : display->height;
+
+      const bool downscaling = source_width > width || source_height > height;
 
       const auto fp16_transfer = select_fp16_transfer(format, display->is_hdr(), config::video.fp16_sdr_gamma_encoded);
       if (fp16_transfer == fp16_transfer_e::gamma_encoded) {
@@ -704,8 +708,8 @@ namespace platf::dxgi {
       auto out_width = width;
       auto out_height = height;
 
-      float in_width = display->width;
-      float in_height = display->height;
+      float in_width = source_width;
+      float in_height = source_height;
 
       // Ensure aspect ratio is maintained
       auto scalar = std::fminf(out_width / in_width, out_height / in_height);
@@ -731,7 +735,11 @@ namespace platf::dxgi {
       out_UV_viewport = {offsetX / 2, offsetY / 2, out_width_f / 2, out_height_f / 2, 0.0f, 1.0f};
       out_UV_viewport_for_clear = {0, 0, (float) out_width / 2, (float) out_height / 2, 0.0f, 1.0f};
 
-      std::array<float, 16 / sizeof(float)> subsample_offset_in {1.0f / (float) out_width_f, 1.0f / (float) out_height_f};  // aligned to 16-byte
+      // The shaders sample a centered part of the capture of this size, as a fraction of the whole texture
+      const float source_scale_x = in_width / display->width;
+      const float source_scale_y = in_height / display->height;
+
+      std::array<float, 16 / sizeof(float)> subsample_offset_in {source_scale_x / (float) out_width_f, source_scale_y / (float) out_height_f};  // aligned to 16-byte
       subsample_offset = make_buffer(device.get(), subsample_offset_in);
 
       if (!subsample_offset) {
@@ -749,6 +757,16 @@ namespace platf::dxgi {
           return -1;
         }
         device_ctx->VSSetConstantBuffers(1, 1, &rotation);
+      }
+
+      {
+        std::array<float, 16 / sizeof(float)> source_crop_data {source_scale_x, source_scale_y};  // aligned to 16-byte
+        auto source_crop_buffer = make_buffer(device.get(), source_crop_data);
+        if (!source_crop_buffer) {
+          BOOST_LOG(error) << "Failed to create source crop vertex constant buffer";
+          return -1;
+        }
+        device_ctx->VSSetConstantBuffers(2, 1, &source_crop_buffer);
       }
 
       DXGI_FORMAT rtv_Y_or_YUV_format = DXGI_FORMAT_UNKNOWN;
@@ -1228,7 +1246,16 @@ namespace platf::dxgi {
         frame_texture = (ID3D11Texture2D *) new_frame->data[0];
       }
 
-      return base.init_output(frame_texture, new_frame->width, new_frame->height);
+      return base.init_output(frame_texture, new_frame->width, new_frame->height, source_crop);
+    }
+
+    /**
+     * @brief Report whether convert() honors source_crop.
+     *
+     * @return True, the conversion shaders can sample part of the captured texture.
+     */
+    bool supports_source_crop() const override {
+      return true;
     }
 
   private:
@@ -1291,7 +1318,7 @@ namespace platf::dxgi {
       }
 
       base.apply_colorspace(encoder_colorspace);
-      return base.init_output(nvenc_d3d->get_input_texture(), client_config.width, client_config.height) == 0;
+      return base.init_output(nvenc_d3d->get_input_texture(), client_config.width, client_config.height, source_crop) == 0;
     }
 
     /**
@@ -1302,6 +1329,15 @@ namespace platf::dxgi {
      */
     int convert(platf::img_t &img_base) override {
       return base.convert(img_base);
+    }
+
+    /**
+     * @brief Report whether convert() honors source_crop.
+     *
+     * @return True, the conversion shaders can sample part of the captured texture.
+     */
+    bool supports_source_crop() const override {
+      return true;
     }
 
   private:

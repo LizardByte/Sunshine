@@ -574,6 +574,16 @@ namespace platf {
   };
 
   /**
+   * @brief Region of a captured image, in pixels, that a stream encodes.
+   */
+  struct source_crop_t {
+    int x;  ///< Left edge of the region.
+    int y;  ///< Top edge of the region.
+    int width;  ///< Width of the region.
+    int height;  ///< Height of the region.
+  };
+
+  /**
    * @brief Base interface for hardware or software frame conversion.
    */
   struct encode_device_t {
@@ -587,7 +597,17 @@ namespace platf {
      */
     virtual int convert(platf::img_t &img) = 0;
 
+    /**
+     * @brief Report whether convert() honors source_crop.
+     *
+     * @return True when the device can encode only part of the captured image.
+     */
+    virtual bool supports_source_crop() const {
+      return false;
+    }
+
     video::sunshine_colorspace_t colorspace;  ///< Colorspace metadata expected by the encoder.
+    std::optional<source_crop_t> source_crop;  ///< Part of the captured image to encode; unset encodes all of it.
   };
 
   /**
@@ -613,6 +633,16 @@ namespace platf {
      */
     int convert(platf::img_t &img) override {
       return -1;
+    }
+
+    /**
+     * @brief Report whether convert() honors source_crop.
+     * @note Non-hardware devices are replaced by the software device, which always supports cropping.
+     *
+     * @return True when the device can encode only part of the captured image.
+     */
+    bool supports_source_crop() const override {
+      return !hardware;
     }
 
     /**

@@ -167,6 +167,43 @@ namespace video {
    * @param config Client-requested stream configuration.
    * @return Effective stream configuration, downgraded to SDR when HDR is unsupported.
    */
+  std::pair<int, int> select_source_aspect_ratio(std::string_view host_setting, std::string_view client_request, int stream_width, int stream_height) {
+    if (host_setting == "display"sv) {
+      return {0, 0};
+    }
+
+    if (host_setting == "stream"sv) {
+      return {stream_width, stream_height};
+    }
+
+    return config::parse_aspect_ratio(host_setting == "client"sv ? client_request : host_setting).value_or(std::pair {0, 0});
+  }
+
+  std::optional<platf::source_crop_t> compute_source_crop(int width, int height, const config_t &config) {
+    const std::int64_t ratio_width = config.sourceAspectRatioWidth;
+    const std::int64_t ratio_height = config.sourceAspectRatioHeight;
+
+    if (ratio_width <= 0 || ratio_height <= 0 || width <= 0 || height <= 0) {
+      return std::nullopt;
+    }
+
+    const auto even_size = [](std::int64_t size) {
+      return std::max<int>(static_cast<int>(size & ~std::int64_t {1}), 2);
+    };
+
+    if (auto crop_width = height * ratio_width / ratio_height; crop_width < width) {
+      const auto even_width = even_size(crop_width);
+      return platf::source_crop_t {((width - even_width) / 2) & ~1, 0, even_width, height & ~1};
+    }
+
+    if (auto crop_height = width * ratio_height / ratio_width; crop_height < height) {
+      const auto even_height = even_size(crop_height);
+      return platf::source_crop_t {0, ((height - even_height) / 2) & ~1, width & ~1, even_height};
+    }
+
+    return std::nullopt;
+  }
+
   config_t resolve_dynamic_range(const encoder_t &encoder, config_t config) {
     if (!config.dynamicRange) {
       return config;
@@ -244,11 +281,14 @@ namespace video {
       apply_colorspace();
     }
 
+    const std::size_t crop_x = source_crop ? source_crop->x : 0;
+    const std::size_t crop_y = source_crop ? source_crop->y : 0;
+
     // Setup the input frame using the caller's img_t
-    sws_input_frame->data[0] = img.data;
+    sws_input_frame->data[0] = img.data + crop_y * img.row_pitch + crop_x * pixel_pitch;
     sws_input_frame->linesize[0] = img.row_pitch;
     if (input_fmt == AV_PIX_FMT_NV12) {
-      sws_input_frame->data[1] = img.data + static_cast<std::size_t>(img.row_pitch) * img.height;
+      sws_input_frame->data[1] = img.data + static_cast<std::size_t>(img.row_pitch) * img.height + crop_y / 2 * img.row_pitch + crop_x;
       sws_input_frame->linesize[1] = img.row_pitch;
     } else {
       sws_input_frame->data[1] = nullptr;
@@ -2323,7 +2363,10 @@ namespace video {
     if (!encode_device->hardware) {
       auto software_encode_device = std::make_unique<avcodec_software_encode_device_t>();
 
-      if (software_encode_device->init(width, height, frame.get(), sw_fmt, hardware)) {
+      const auto &source_crop = encode_device->source_crop;
+      software_encode_device->source_crop = source_crop;
+
+      if (software_encode_device->init(source_crop ? source_crop->width : width, source_crop ? source_crop->height : height, frame.get(), sw_fmt, hardware)) {
         return nullptr;
       }
       software_encode_device->colorspace = colorspace;
@@ -2520,16 +2563,21 @@ namespace video {
    *
    * @param display Display object or identifier associated with the operation.
    * @param config Configuration values to apply.
+   * @param source_crop Part of the display the stream encodes; unset when it encodes all of it.
    * @return Constructed port object.
    */
-  input::touch_port_t make_port(platf::display_t *display, const config_t &config) {
+  input::touch_port_t make_port(platf::display_t *display, const config_t &config, const std::optional<platf::source_crop_t> &source_crop) {
     float wd = display->width;
     float hd = display->height;
+
+    // Only the cropped part of the display is visible to the client
+    float wv = source_crop ? source_crop->width : wd;
+    float hv = source_crop ? source_crop->height : hd;
 
     float wt = config.width;
     float ht = config.height;
 
-    auto scalar = std::fminf(wt / wd, ht / hd);
+    auto scalar = std::fminf(wt / wv, ht / hv);
 
     // we initialize scalar_tpcoords and logical dimensions to default values in case they are not set (non-KMS)
     float scalar_tpcoords = 1.0f;
@@ -2543,16 +2591,16 @@ namespace video {
       display_env_logical_height = display->env_logical_height;
     }
 
-    auto w2 = scalar * wd;
-    auto h2 = scalar * hd;
+    auto w2 = scalar * wv;
+    auto h2 = scalar * hv;
 
     auto offsetX = (config.width - w2) * 0.5f;
     auto offsetY = (config.height - h2) * 0.5f;
 
     return input::touch_port_t {
       {
-        display->offset_x,
-        display->offset_y,
+        display->offset_x + (source_crop ? static_cast<int>(source_crop->x / scalar_tpcoords) : 0),
+        display->offset_y + (source_crop ? static_cast<int>(source_crop->y / scalar_tpcoords) : 0),
         config.width,
         config.height,
         display->logical_width,
@@ -2619,6 +2667,15 @@ namespace video {
 
     if (result) {
       result->colorspace = colorspace;
+
+      if (auto source_crop = compute_source_crop(disp.width, disp.height, config)) {
+        if (result->supports_source_crop()) {
+          BOOST_LOG(info) << "Encoding "sv << source_crop->width << 'x' << source_crop->height << " of the "sv << disp.width << 'x' << disp.height << " display"sv;
+          result->source_crop = source_crop;
+        } else {
+          BOOST_LOG(warning) << "Encoder can't crop the display, streaming all of it"sv;
+        }
+      }
     }
 
     return result;
@@ -2644,7 +2701,7 @@ namespace video {
     }
 
     // absolute mouse coordinates require that the dimensions of the screen are known
-    ctx.touch_port_events->raise(make_port(disp, ctx.config));
+    ctx.touch_port_events->raise(make_port(disp, ctx.config, encode_device->source_crop));
 
     // Update client with our current HDR display state
     auto hdr_info = std::make_unique<hdr_info_raw_t>(false);
@@ -2929,7 +2986,7 @@ namespace video {
       }
 
       // absolute mouse coordinates require that the dimensions of the screen are known
-      touch_port_event->raise(make_port(display.get(), config));
+      touch_port_event->raise(make_port(display.get(), config, encode_device->source_crop));
 
       // Update client with our current HDR display state
       auto hdr_info = std::make_unique<hdr_info_raw_t>(false);
