@@ -642,3 +642,54 @@ TEST_F(InputGamepadSessionTest, RetargetsRelativeMouseFromLatestStreamGeometry) 
   EXPECT_EQ(mouse_event.y, 9);
   EXPECT_EQ(context().mouse_viewport.offset_x, 0);
 }
+
+TEST_F(InputGamepadSessionTest, MapsAbsoluteMouseOntoRotatedOutputs) {
+  auto session_mail = std::make_shared<safe::mail_raw_t>();
+  auto stream_input = input::alloc(session_mail, "absolute-mouse-client");
+  ASSERT_NE(stream_input, nullptr);
+
+  // A 3000x1920 output at scale 2, streamed at its native size. Rotated outputs are captured in their native
+  // orientation, so the stream stays 3000x1920 while the logical size turns to 960x1500.
+  struct rotation_case_t {
+    int transform;  // wl_output transform: rotated by 0, 90, 180 or 270 degrees
+    int logical_width;
+    int logical_height;
+    float expected_x;
+    float expected_y;
+  };
+
+  for (const auto &[transform, logical_width, logical_height, expected_x, expected_y] : {
+         rotation_case_t {0, 1500, 960, 150.0F, 100.0F},
+         rotation_case_t {1, 960, 1500, 860.0F, 150.0F},
+         rotation_case_t {2, 1500, 960, 1350.0F, 860.0F},
+         rotation_case_t {3, 960, 1500, 100.0F, 1350.0F},
+       }) {
+    input::touch_port_t viewport {
+      {
+        .offset_x = 0,
+        .offset_y = 0,
+        .width = 3000,
+        .height = 1920,
+        .logical_width = logical_width,
+        .logical_height = logical_height,
+        .transform = transform,
+      },
+      3000,
+      1920,
+      0.0F,
+      0.0F,
+      1.0F,
+      2.0F,
+      logical_width,
+      logical_height,
+    };
+    session_mail->event<input::touch_port_t>(mail::touch_port)->raise(viewport);
+
+    input::testing::send_absolute_mouse_packet(stream_input, 300, 200, 3000, 1920);
+
+    const auto mouse_event = context().mouse->last_submitted_event();
+    EXPECT_EQ(mouse_event.kind, lvh::MouseEventKind::absolute_motion) << "transform " << transform;
+    EXPECT_FLOAT_EQ(mouse_event.absolute_x, expected_x) << "transform " << transform;
+    EXPECT_FLOAT_EQ(mouse_event.absolute_y, expected_y) << "transform " << transform;
+  }
+}

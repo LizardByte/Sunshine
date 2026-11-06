@@ -139,6 +139,7 @@ TEST(WaylandMonitorTest, ListenerIgnoresPhysicalGeometryScaleAndDone) {
   EXPECT_EQ(monitor.viewport.width, 2560);
   EXPECT_EQ(monitor.viewport.height, 1440);
   EXPECT_EQ(monitor.refresh_mhz, 120000);
+  EXPECT_EQ(monitor.viewport.transform, WL_OUTPUT_TRANSFORM_90);
   EXPECT_EQ(monitor.name, "DP-1");
   EXPECT_EQ(monitor.description, "Logical monitor");
 }
