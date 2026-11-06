@@ -8,6 +8,7 @@
 #include <future>
 #include <stdexcept>
 #include <string_view>
+#include <tuple>
 
 // local includes
 #include "graphics.h"
@@ -972,13 +973,38 @@ namespace egl {
   }
 
   /**
+   * @brief Allocate storage for each plane texture of a render target.
+   *
+   * @param tex Plane textures, one per entry in `planes`.
+   * @param planes Sized internal format, width and height of each plane.
+   * @param storage Optional allocator. Uses `TexStorage2D` when empty.
+   * @return True when every plane was allocated.
+   */
+  template<std::size_t N>
+  static bool allocate_target_storage(const gl::tex_t &tex, const std::array<std::tuple<GLint, int, int>, N> &planes, const target_storage_fn &storage) {
+    for (std::size_t i = 0; i < N; ++i) {
+      const auto &[format, plane_width, plane_height] = planes[i];
+
+      gl::ctx.BindTexture(GL_TEXTURE_2D, tex[i]);
+      if (!storage) {
+        gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, format, plane_width, plane_height);
+      } else if (storage(i, format, plane_width, plane_height)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
    * @brief Create biplanar YUV textures to render into.
    * @param width Width of the target frame.
    * @param height Height of the target frame.
    * @param format Format of the target frame.
+   * @param storage Optional allocator for the plane textures' storage. Uses `TexStorage2D` when empty.
    * @return The new RGB texture.
    */
-  std::optional<nv12_t> create_nv12_target(int width, int height, AVPixelFormat format) {
+  std::optional<nv12_t> create_nv12_target(int width, int height, AVPixelFormat format, const target_storage_fn &storage) {
     nv12_t nv12 {
       nv12_img_t {
         .display = EGL_NO_DISPLAY,
@@ -1005,11 +1031,13 @@ namespace egl {
       return std::nullopt;
     }
 
-    gl::ctx.BindTexture(GL_TEXTURE_2D, nv12->tex[0]);
-    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, y_format, width, height);
-
-    gl::ctx.BindTexture(GL_TEXTURE_2D, nv12->tex[1]);
-    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, uv_format, width >> fmt_desc->log2_chroma_w, height >> fmt_desc->log2_chroma_h);
+    const std::array<std::tuple<GLint, int, int>, 2> planes {{
+      {y_format, width, height},
+      {uv_format, width >> fmt_desc->log2_chroma_w, height >> fmt_desc->log2_chroma_h},
+    }};
+    if (!allocate_target_storage(nv12->tex, planes, storage)) {
+      return std::nullopt;
+    }
 
     nv12->buf.bind(std::begin(nv12->tex), std::end(nv12->tex));
 
@@ -1021,7 +1049,7 @@ namespace egl {
   /**
    * @brief Create YUV444 target.
    */
-  std::optional<yuv444_t> create_yuv444_target(int width, int height, AVPixelFormat format) {
+  std::optional<yuv444_t> create_yuv444_target(int width, int height, AVPixelFormat format, const target_storage_fn &storage) {
     yuv444_t yuv444 {
       yuv444_img_t {
         .display = EGL_NO_DISPLAY,
@@ -1052,14 +1080,14 @@ namespace egl {
       return std::nullopt;
     }
 
-    gl::ctx.BindTexture(GL_TEXTURE_2D, yuv444->tex[0]);
-    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, y_format, width, height);
-
-    gl::ctx.BindTexture(GL_TEXTURE_2D, yuv444->tex[1]);
-    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, u_format, width, height);
-
-    gl::ctx.BindTexture(GL_TEXTURE_2D, yuv444->tex[2]);
-    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, v_format, width, height);
+    const std::array<std::tuple<GLint, int, int>, 3> planes {{
+      {y_format, width, height},
+      {u_format, width, height},
+      {v_format, width, height},
+    }};
+    if (!allocate_target_storage(yuv444->tex, planes, storage)) {
+      return std::nullopt;
+    }
 
     yuv444->buf.bind(std::begin(yuv444->tex), std::end(yuv444->tex));
 
