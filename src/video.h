@@ -6,7 +6,6 @@
 
 // standard includes
 #include <chrono>
-#include <functional>
 #include <string_view>
 
 // local includes
@@ -746,19 +745,6 @@ namespace video {
    * @return 0 when a usable encoder is selected; nonzero when probing fails.
    */
   int probe_encoders();
-
-  /**
-   * @brief Run an encoder probe, and once more if a display appeared while it ran.
-   *
-   * With every display off, the encoders tried first fail for want of a display. If one lights up
-   * partway through, a later encoder passes, usually a worse one such as software, so the result
-   * can't be trusted: the probe runs again with the display there.
-   *
-   * @param probe The probe. Returns `0` when an encoder works.
-   * @param has_display Whether any display can be captured now.
-   * @return The result of the last run of the probe.
-   */
-  int probe_again_if_display_appeared(const std::function<int()> &probe, const std::function<bool()> &has_display);
 
   // Several NTSC standard refresh rates are hardcoded here, because their
   // true rate requires a denominator of 1001. ffmpeg's av_d2q() would assume it could
