@@ -309,3 +309,35 @@ TEST_F(ConfigPersistenceTest, ParsesNvencTwoPassModesAndDefaultsUnknownValues) {
     EXPECT_EQ(config::video.nv.two_pass, expected) << setting;
   }
 }
+
+/**
+ * @brief Verify the keep_default_sink option parses into the audio configuration.
+ */
+TEST(KeepDefaultSinkConfigTest, ParsesEnabledAndDisabledValues) {
+  const bool original_keep_default_sink = config::audio.keep_default_sink;
+
+  config::apply_config_for_test("keep_default_sink = enabled\n");
+  EXPECT_TRUE(config::audio.keep_default_sink);
+
+  config::apply_config_for_test("keep_default_sink = disabled\n");
+  EXPECT_FALSE(config::audio.keep_default_sink);
+
+  config::audio.keep_default_sink = original_keep_default_sink;
+}
+
+/**
+ * @brief Verify a missing keep_default_sink key leaves the current value unchanged.
+ */
+TEST(KeepDefaultSinkConfigTest, MissingKeyLeavesValueUnchanged) {
+  const bool original_keep_default_sink = config::audio.keep_default_sink;
+
+  config::audio.keep_default_sink = true;
+  config::apply_config_for_test("");
+  EXPECT_TRUE(config::audio.keep_default_sink);
+
+  config::audio.keep_default_sink = false;
+  config::apply_config_for_test("");
+  EXPECT_FALSE(config::audio.keep_default_sink);
+
+  config::audio.keep_default_sink = original_keep_default_sink;
+}

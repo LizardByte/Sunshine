@@ -114,3 +114,144 @@ TEST_P(AudioTest, TestEncode) {
   timer.join();
   capture.join();
 }
+
+// The routing policy is pure: resolvable at compile time, no I/O, no globals.
+static_assert(!resolve_sink_routing_policy(true, true).swap_at_startup);
+static_assert(!resolve_sink_routing_policy(true, true).restore_at_teardown);
+static_assert(resolve_sink_routing_policy(true, false).swap_at_startup);
+static_assert(resolve_sink_routing_policy(true, false).restore_at_teardown);
+
+TEST(SinkRoutingPolicyTest, KeepsDefaultOnlyWhenRequestedAndSupported) {
+  const auto keep = resolve_sink_routing_policy(true, true);
+  EXPECT_FALSE(keep.swap_at_startup);
+  EXPECT_FALSE(keep.restore_at_teardown);
+
+  // Unsupported backends keep legacy swap-and-restore even when requested:
+  // the (true, false) row is the MUST-1 regression pin (startup swapped,
+  // teardown skipped, host default stranded).
+  for (const auto &[requested, supported] : {std::pair {false, false}, {false, true}, {true, false}}) {
+    const auto legacy = resolve_sink_routing_policy(requested, supported);
+    EXPECT_TRUE(legacy.swap_at_startup);
+    EXPECT_TRUE(legacy.restore_at_teardown);
+  }
+}
+
+TEST(SinkRoutingPolicyTest, StartupAndTeardownNeverDiverge) {
+  for (const auto requested : {false, true}) {
+    for (const auto supported : {false, true}) {
+      const auto policy = resolve_sink_routing_policy(requested, supported);
+      EXPECT_EQ(policy.swap_at_startup, policy.restore_at_teardown);
+    }
+  }
+}
+
+namespace {
+  /**
+   * @brief Virtual sink names shared by the capture-routing tests.
+   */
+  std::optional<platf::sink_t::null_t> test_null_sinks() {
+    return platf::sink_t::null_t {"virtual-stereo", "virtual-surround51", "virtual-surround71"};
+  }
+}  // namespace
+
+/**
+ * @brief Capture-only startup must target the host sink when nothing is configured.
+ *
+ * Regression test: without a swap, applications stay on the host default, so
+ * capturing the virtual sink's monitor would yield silence.
+ */
+TEST(CaptureRoutingTest, CaptureOnlyUsesHostSinkWhenNothingConfigured) {
+  for (const auto host_audio : {false, true}) {
+    const auto routing = resolve_capture_routing(true, true, host_audio, 2, "hw-default", "", test_null_sinks());
+    EXPECT_FALSE(routing.swap_at_startup) << "host_audio=" << host_audio;
+    EXPECT_FALSE(routing.restore_at_teardown) << "host_audio=" << host_audio;
+    EXPECT_EQ(routing.target, "hw-default") << "host_audio=" << host_audio;
+  }
+}
+
+/**
+ * @brief Capture-only startup must target the configured sink when one is set.
+ */
+TEST(CaptureRoutingTest, CaptureOnlyUsesConfiguredSinkWhenSet) {
+  for (const auto host_audio : {false, true}) {
+    const auto routing = resolve_capture_routing(true, true, host_audio, 2, "hw-default", "eq-sink", test_null_sinks());
+    EXPECT_FALSE(routing.swap_at_startup) << "host_audio=" << host_audio;
+    EXPECT_FALSE(routing.restore_at_teardown) << "host_audio=" << host_audio;
+    EXPECT_EQ(routing.target, "eq-sink") << "host_audio=" << host_audio;
+  }
+}
+
+/**
+ * @brief Swap-path startup must preserve the historical virtual sink selection.
+ */
+TEST(CaptureRoutingTest, SwapPathKeepsVirtualSinkSelection) {
+  const auto stereo = resolve_capture_routing(false, true, false, 2, "hw-default", "", test_null_sinks());
+  EXPECT_TRUE(stereo.swap_at_startup);
+  EXPECT_TRUE(stereo.restore_at_teardown);
+  EXPECT_EQ(stereo.target, "virtual-stereo");
+
+  const auto surround = resolve_capture_routing(false, true, false, 6, "hw-default", "", test_null_sinks());
+  EXPECT_TRUE(surround.swap_at_startup);
+  EXPECT_EQ(surround.target, "virtual-surround51");
+
+  const auto configured = resolve_capture_routing(false, true, true, 2, "hw-default", "eq-sink", test_null_sinks());
+  EXPECT_TRUE(configured.swap_at_startup);
+  EXPECT_TRUE(configured.restore_at_teardown);
+  EXPECT_EQ(configured.target, "eq-sink");
+
+  // Legacy backends take the swap path even when keep-default is requested.
+  const auto legacy = resolve_capture_routing(true, false, false, 2, "hw-default", "", test_null_sinks());
+  EXPECT_TRUE(legacy.swap_at_startup);
+  EXPECT_TRUE(legacy.restore_at_teardown);
+  EXPECT_EQ(legacy.target, "virtual-stereo");
+}
+
+/**
+ * @brief Startup without virtual sinks must fall back to the host sink.
+ */
+TEST(CaptureRoutingTest, FallsBackToHostWithoutVirtualSinks) {
+  const auto routing = resolve_capture_routing(true, true, false, 2, "hw-default", "", std::nullopt);
+  EXPECT_FALSE(routing.swap_at_startup);
+  EXPECT_FALSE(routing.restore_at_teardown);
+  EXPECT_EQ(routing.target, "hw-default");
+
+  // Swap path with no alternative: the target is already the host, so there is nothing to restore.
+  const auto swap = resolve_capture_routing(false, true, false, 2, "hw-default", "", std::nullopt);
+  EXPECT_TRUE(swap.swap_at_startup);
+  EXPECT_FALSE(swap.restore_at_teardown);
+  EXPECT_EQ(swap.target, "hw-default");
+}
+
+namespace {
+  /**
+   * @brief Minimal backend that never learned the keep-default behavior.
+   */
+  class legacy_audio_control_t: public platf::audio_control_t {
+  public:
+    int set_sink(const std::string &) override {
+      set_sink_called = true;
+      return 0;
+    }
+
+    std::unique_ptr<platf::mic_t> microphone(const std::uint8_t *, int, std::uint32_t, std::uint32_t, bool, bool) override {
+      return nullptr;
+    }
+
+    bool is_sink_available(const std::string &) override {
+      return true;
+    }
+
+    std::optional<platf::sink_t> sink_info() override {
+      return std::nullopt;
+    }
+
+    bool set_sink_called = false;  ///< Whether the legacy swap path ran.
+  };
+}  // namespace
+
+TEST(AudioControlAdapterTest, LegacyBackendKeepsSwapBehavior) {
+  legacy_audio_control_t control;
+  EXPECT_FALSE(control.supports_keep_default_sink());
+  EXPECT_EQ(control.capture_sink("any-sink"), 0);
+  EXPECT_TRUE(control.set_sink_called);
+}
