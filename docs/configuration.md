@@ -1914,6 +1914,32 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     </tr>
 </table>
 
+### dscp_tagging
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Mark audio and video packets with DSCP priority tags when requested by the client.
+            @tip{Disabling this may help if audio crackles or stutters on Wi-Fi while the network otherwise appears
+            healthy. Some routers handle tagged traffic poorly.}
+            @note{On Windows, disabling this also removes local traffic prioritization.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            enabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dscp_tagging = disabled
+            @endcode</td>
+    </tr>
+</table>
+
 ## Config Files
 
 ### file_apps

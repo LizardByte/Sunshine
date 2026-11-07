@@ -844,6 +844,7 @@ namespace config {
     ENCRYPTION_MODE_NEVER,  // lan_encryption_mode
     ENCRYPTION_MODE_OPPORTUNISTIC,  // wan_encryption_mode
     0,  // packetsize
+    true,  // dscp_tagging
   };
 
   /**
@@ -1811,6 +1812,7 @@ namespace config {
     int_between_f(vars, "lan_encryption_mode", stream.lan_encryption_mode, {0, 2});
     int_between_f(vars, "wan_encryption_mode", stream.wan_encryption_mode, {0, 2});
     int_between_f(vars, "packetsize", stream.packetsize, {0, PACKETSIZE_MAX});
+    bool_f(vars, "dscp_tagging", stream.dscp_tagging);
 
     path_f(vars, "file_apps", stream.file_apps);
 #ifndef __ANDROID__
