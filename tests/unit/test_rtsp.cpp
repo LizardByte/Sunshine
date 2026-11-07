@@ -10,6 +10,7 @@
 #include <array>
 #include <string>
 #include <utility>
+#include <vector>
 
 // lib includes
 #include <boost/asio.hpp>
@@ -18,6 +19,7 @@ extern "C" {
 }
 
 // local includes
+#include <src/audio.h>
 #include <src/rtsp.h>
 
 /**
@@ -113,5 +115,53 @@ TEST(RtspResponseTest, CommonDispatcherPreservesResponsesWithoutServerContext) {
     } else {
       EXPECT_TRUE(response.ends_with("\r\n\r\n"));
     }
+  }
+}
+
+/**
+ * @brief Surround mappings compensate for the client swap over the channels of each layout, so every
+ * speaker lands on its own position once the client applies its rotation.
+ */
+TEST(RtspDescribeTest, SurroundParamsCompensateClientRotationForEveryStreamConfig) {
+  using boost::asio::ip::tcp;
+
+  boost::asio::io_context io;
+  tcp::acceptor acceptor {io, {boost::asio::ip::address_v4::loopback(), 0}};
+  tcp::socket client {io};
+  client.connect(acceptor.local_endpoint());
+  auto server_socket = acceptor.accept();
+
+  rtsp_stream::launch_session_t session {};
+  rtsp_stream::msg_t request {new RTSP_MESSAGE {}};
+  rtsp_stream::cmd_describe(nullptr, server_socket, session, std::move(request));
+  server_socket.shutdown(tcp::socket::shutdown_send);
+
+  std::string response;
+  boost::system::error_code read_error;
+  boost::asio::read(client, boost::asio::dynamic_buffer(response), read_error);
+  ASSERT_EQ(read_error, boost::asio::error::eof);
+
+  const std::string params_prefix = "a=fmtp:97 surround-params=";
+  std::vector<std::string> advertised;
+  for (auto start = response.find(params_prefix); start != std::string::npos;
+       start = response.find(params_prefix, start + params_prefix.size())) {
+    const auto end = response.find('\n', start);
+    advertised.push_back(response.substr(start + params_prefix.size(), end - start - params_prefix.size()));
+  }
+
+  // moonlight-common-c moves the last speaker of a surround layout to index 3 and shifts the rest up,
+  // so the compensation must cover the channels of the layout being advertised rather than a fixed range.
+  const std::vector<std::pair<int, std::string>> expected {
+    {audio::STEREO, "21101"},
+    {audio::HIGH_STEREO, "21101"},
+    {audio::SURROUND51, "642012453"},
+    {audio::HIGH_SURROUND51, "660012345"},
+    {audio::SURROUND71, "85301245673"},
+    {audio::HIGH_SURROUND71, "88001234567"},
+  };
+
+  ASSERT_EQ(advertised.size(), expected.size());
+  for (std::size_t x = 0; x < expected.size(); ++x) {
+    EXPECT_EQ(advertised[x], expected[x].second) << "stream config " << expected[x].first;
   }
 }

@@ -20,7 +20,8 @@ class Sunshine < Formula
   desc "@PROJECT_DESCRIPTION@"
   homepage "@PROJECT_HOMEPAGE_URL@"
   url "@GITHUB_CLONE_URL@",
-    tag: "@GITHUB_TAG@"
+    tag:      "@GITHUB_TAG@",
+    revision: "@GITHUB_COMMIT@"
   version "@BUILD_VERSION@"
   license all_of: ["GPL-3.0-only"]
   head "@GITHUB_CLONE_URL@", branch: "@GITHUB_DEFAULT_BRANCH@"
@@ -60,7 +61,7 @@ class Sunshine < Formula
   depends_on "pkgconf" => :build
   depends_on "boost"
   depends_on "curl"
-  depends_on "icu4c@78"
+  depends_on "icu4c@79"
   depends_on "miniupnpc"
   depends_on "openssl@4"
   depends_on "opus"

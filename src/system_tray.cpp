@@ -820,6 +820,12 @@ namespace system_tray {
   }
 
   void run_tray_until_exit(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) {
+    if (!tray_initialized_state().load()) {
+      BOOST_LOG(info) << "System tray is unavailable; continuing without it"sv;
+      shutdown_event->view();
+      return;
+    }
+
     while (process_tray_events() == 0);
     shutdown_event->raise(true);
   }

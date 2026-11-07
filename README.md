@@ -436,7 +436,7 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
         <td>Linux/Ubuntu: 22.04+ (jammy)</td>
     </tr>
     <tr>
-        <td>macOS: 14.2+</td>
+        <td>macOS: 15.0+</td>
     </tr>
     <tr>
         <td>Windows: 11+</td>

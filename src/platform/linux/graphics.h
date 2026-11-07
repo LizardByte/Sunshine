@@ -6,6 +6,7 @@
 
 // standard includes
 #include <array>
+#include <functional>
 #include <optional>
 #include <string_view>
 
@@ -568,13 +569,22 @@ namespace egl {
   );
 
   /**
+   * @brief Allocates storage for one plane of a render target.
+   *
+   * Called with the plane's texture bound to `GL_TEXTURE_2D`. Returns 0 on success or -1 on failure.
+   * The arguments are the plane index, its sized internal format, width and height.
+   */
+  using target_storage_fn = std::function<int(std::size_t plane, GLenum internal_format, int width, int height)>;
+
+  /**
    * @brief Creates biplanar YUV textures to render into.
    * @param width Width of the target frame.
    * @param height Height of the target frame.
    * @param format Format of the target frame.
+   * @param storage Optional allocator for the plane textures' storage. Uses `TexStorage2D` when empty.
    * @return The new RGB texture.
    */
-  std::optional<nv12_t> create_nv12_target(int width, int height, AVPixelFormat format);
+  std::optional<nv12_t> create_nv12_target(int width, int height, AVPixelFormat format, const target_storage_fn &storage = {});
 
   /**
    * @brief Create YUV444 target.
@@ -582,9 +592,10 @@ namespace egl {
    * @param width Frame or display width in pixels.
    * @param height Frame or display height in pixels.
    * @param format Pixel, audio, or protocol format being converted.
+   * @param storage Optional allocator for the plane textures' storage. Uses `TexStorage2D` when empty.
    * @return Created YUV444 target object or status.
    */
-  std::optional<yuv444_t> create_yuv444_target(int width, int height, AVPixelFormat format);
+  std::optional<yuv444_t> create_yuv444_target(int width, int height, AVPixelFormat format, const target_storage_fn &storage = {});
 
   /**
    * @brief Cursor image and hotspot metadata captured from the window system.

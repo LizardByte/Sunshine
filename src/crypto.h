@@ -150,10 +150,10 @@ namespace crypto {
   creds_t gen_creds(const std::string_view &cn, std::uint32_t key_bits);
 
   /**
-   * @brief Return the certificate signature bytes.
+   * @brief Return the certificate signature bytes using the available OpenSSL length API.
    *
-   * @param x Certificate object or PEM text, depending on the overload.
-   * @return Parsed or generated OpenSSL object or PEM data.
+   * @param x Certificate containing the signature.
+   * @return A view of the binary signature owned by the certificate.
    */
   std::string_view signature(const x509_t &x);
 
