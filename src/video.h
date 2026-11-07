@@ -45,6 +45,15 @@ namespace video {
     int enableIntraRefresh;  ///< Intra refresh setting: 0 = disabled, 1 = enabled.
   };
 
+  /**
+   * @brief Describe the streamed display, desktop bounds, and client letterboxing for absolute input.
+   *
+   * @param display Capture display supplying native output identity and geometry.
+   * @param config Client stream dimensions.
+   * @return Touch port forwarded from the video pipeline to input handling.
+   */
+  input::touch_port_t make_port(platf::display_t *display, const config_t &config);
+
   namespace amf {
 
     /**
