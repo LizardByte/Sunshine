@@ -11,15 +11,19 @@
   // standard includes
   #include <algorithm>
   #include <array>
+  #include <atomic>
   #include <bit>
+  #include <chrono>
   #include <cstdint>
   #include <cstdlib>
   #include <deque>
+  #include <latch>
   #include <map>
   #include <memory>
   #include <ranges>
   #include <set>
   #include <string>
+  #include <thread>
   #include <utility>
   #include <vector>
 
@@ -2201,32 +2205,86 @@ TEST_F(CudaGlDriverTest, GlCommandsWaitReportsFailures) {
 
 namespace {
   /**
-   * @brief How many times a fake loader below has been asked to fill a table.
+   * @brief What the fake CUDA driver used by the `cuda::init()` tests has been asked to do.
+   *
+   * The loader `cuda::init()` takes is a plain function pointer, so the fakes share this state.
    */
-  int table_loads = 0;
+  struct fake_init_driver_t {
+    std::atomic<int> table_loads;  ///< Times a table was loaded.
+    std::atomic<int> cu_inits;  ///< Times `cuInit` was called.
+    std::atomic<int> failing_cu_inits;  ///< How many of the next `cuInit` calls fail.
+    std::atomic<int> error_name_lookups;  ///< Times `cuGetErrorName` was called.
+    std::atomic<int> error_description_lookups;  ///< Times `cuGetErrorString` was called.
+    std::atomic<CUresult> looked_up_error;  ///< Result the last lookup was asked about.
+  };
+
+  constexpr auto init_failure = CUDA_ERROR_UNKNOWN;  ///< What a failing fake `cuInit` returns.
 
   /**
-   * @brief Stand-in for `cuInit` that always succeeds.
+   * @brief The fake driver's state, reset for every test.
    *
-   * @return `CUDA_SUCCESS`.
+   * @return The state.
    */
-  CUresult fake_cu_init(unsigned int) {
-    return CUDA_SUCCESS;
+  fake_init_driver_t &init_driver() {
+    static fake_init_driver_t driver;
+    return driver;
   }
 
   /**
-   * @brief Fill a table the way `cuda_load_functions` does, without needing the CUDA driver.
-   *
-   * Like the real loader, it frees the table it is given and starts a new, empty one.
+   * @brief Forget everything the fake driver recorded.
+   */
+  void reset_init_driver() {
+    auto &driver = init_driver();
+    driver.table_loads = 0;
+    driver.cu_inits = 0;
+    driver.failing_cu_inits = 0;
+    driver.error_name_lookups = 0;
+    driver.error_description_lookups = 0;
+    driver.looked_up_error = CUDA_SUCCESS;
+  }
+
+  /**
+   * @brief Fill a table with the fake driver's functions.
    *
    * @param table Table to fill.
+   */
+  void fill_fake_table(CudaFunctions &table) {
+    table.cuInit = [](unsigned int) {
+      auto &driver = init_driver();
+      ++driver.cu_inits;
+      if (driver.failing_cu_inits > 0) {
+        --driver.failing_cu_inits;
+        return init_failure;
+      }
+      return CUDA_SUCCESS;
+    };
+    table.cuGetErrorName = [](CUresult result, const char **text) {
+      ++init_driver().error_name_lookups;
+      init_driver().looked_up_error = result;
+      *text = "fake";
+      return CUDA_SUCCESS;
+    };
+    table.cuGetErrorString = [](CUresult result, const char **text) {
+      ++init_driver().error_description_lookups;
+      init_driver().looked_up_error = result;
+      *text = "failure";
+      return CUDA_SUCCESS;
+    };
+  }
+
+  /**
+   * @brief Load a table the way `cuda_load_functions` does, without needing the CUDA driver.
+   *
+   * Like the real loader, it frees the table it is given and starts a new one.
+   *
+   * @param table Table to load.
    * @return 0.
    */
-  int fake_load_table(CudaFunctions **table) {
-    ++table_loads;
+  int load_fake_table(CudaFunctions **table) {
+    ++init_driver().table_loads;
     cuda_free_functions(table);
     *table = static_cast<CudaFunctions *>(std::calloc(1, sizeof(CudaFunctions)));
-    (*table)->cuInit = fake_cu_init;
+    fill_fake_table(**table);
     return 0;
   }
 
@@ -2236,8 +2294,36 @@ namespace {
    * @return -1.
    */
   int failing_load_table(CudaFunctions **) {
-    ++table_loads;
+    ++init_driver().table_loads;
     return -1;
+  }
+
+  /**
+   * @brief Load a table slowly enough for any caller not waiting its turn to reach the loader too.
+   *
+   * The first load waits until a second load starts, or 200 ms at most. Every load hands out the same
+   * table and frees nothing, so callers loading at the same time are counted rather than crashing.
+   *
+   * @param table Table to load.
+   * @return 0.
+   */
+  int load_fake_table_slowly(CudaFunctions **table) {
+    using namespace std::chrono_literals;
+    static CudaFunctions shared_table = [] {
+      CudaFunctions functions {};
+      fill_fake_table(functions);
+      return functions;
+    }();
+
+    if (++init_driver().table_loads == 1) {
+      const auto deadline = std::chrono::steady_clock::now() + 200ms;
+      while (init_driver().table_loads < 2 && std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(1ms);
+      }
+    }
+
+    *table = &shared_table;
+    return 0;
   }
 }  // namespace
 
@@ -2246,14 +2332,14 @@ TEST(CudaInitTest, LoadsTheFunctionTableOnlyOnce) {
   auto free_table = util::fail_guard([&table] {
     cuda_free_functions(&table);
   });
-  table_loads = 0;
+  reset_init_driver();
 
-  ASSERT_EQ(cuda::init(&table, fake_load_table), 0);
+  ASSERT_EQ(cuda::init(&table, load_fake_table), 0);
   // Every new stream calls cuda::init() again, while the streams already running keep calling
   // through the table. Loading it again would empty it under them.
-  ASSERT_EQ(cuda::init(&table, fake_load_table), 0);
+  ASSERT_EQ(cuda::init(&table, load_fake_table), 0);
 
-  EXPECT_EQ(table_loads, 1);
+  EXPECT_EQ(init_driver().table_loads.load(), 1);
 }
 
 TEST(CudaInitTest, RetriesLoadingAfterAFailure) {
@@ -2261,12 +2347,55 @@ TEST(CudaInitTest, RetriesLoadingAfterAFailure) {
   auto free_table = util::fail_guard([&table] {
     cuda_free_functions(&table);
   });
-  table_loads = 0;
+  reset_init_driver();
 
   EXPECT_NE(cuda::init(&table, failing_load_table), 0);
-  EXPECT_EQ(cuda::init(&table, fake_load_table), 0);
+  EXPECT_EQ(cuda::init(&table, load_fake_table), 0);
 
-  EXPECT_EQ(table_loads, 2);
+  EXPECT_EQ(init_driver().table_loads.load(), 2);
+}
+
+TEST(CudaInitTest, ReportsACuInitFailureThroughTheTableAndRetriesItWithTheSameTable) {
+  CudaFunctions *table = nullptr;
+  auto free_table = util::fail_guard([&table] {
+    cuda_free_functions(&table);
+  });
+  reset_init_driver();
+  init_driver().failing_cu_inits = 1;
+
+  EXPECT_NE(cuda::init(&table, load_fake_table), 0);
+  EXPECT_EQ(init_driver().error_name_lookups.load(), 1);
+  EXPECT_EQ(init_driver().error_description_lookups.load(), 1);
+  EXPECT_EQ(init_driver().looked_up_error.load(), init_failure);
+
+  const auto *loaded_table = table;
+  EXPECT_EQ(cuda::init(&table, load_fake_table), 0);
+
+  EXPECT_EQ(table, loaded_table);
+  EXPECT_EQ(init_driver().table_loads.load(), 1);
+  EXPECT_EQ(init_driver().cu_inits.load(), 2);
+}
+
+TEST(CudaInitTest, CallersStartingTogetherLoadTheTableOnce) {
+  constexpr int callers = 8;
+  CudaFunctions *table = nullptr;
+  reset_init_driver();
+
+  // Streams that start at the same time all call cuda::init() at once.
+  std::array<int, callers> results {};
+  std::latch start {callers};
+  std::vector<std::jthread> threads;
+  for (auto &result : results) {
+    threads.emplace_back([&result, &start, &table] {
+      start.arrive_and_wait();
+      result = cuda::init(&table, load_fake_table_slowly);
+    });
+  }
+  threads.clear();
+
+  EXPECT_EQ(results, (std::array<int, callers> {}));
+  EXPECT_EQ(init_driver().table_loads.load(), 1);
+  EXPECT_EQ(init_driver().cu_inits.load(), callers);
 }
   #endif  // SUNSHINE_BUILD_CUDA
 
