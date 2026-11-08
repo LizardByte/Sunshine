@@ -39,7 +39,7 @@ env:
   BRANCH: ${{ github.head_ref || github.ref_name }}
   BUILD_VERSION: ${{ inputs.release_version }}
   COMMIT: ${{ inputs.release_commit }}
-  MACOSX_DEPLOYMENT_TARGET: 14.2
+  MACOSX_DEPLOYMENT_TARGET: '15.0'  # Match the minimum version required by the prebuilt macOS dependencies.
   PYTHON_VERSION: '3.14'
 
 jobs:
@@ -55,7 +55,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: "macos-14"
+          - os: "macos-15"
             name: "macOS-arm64"
             arch: "arm64"
             build_docs: "ON"
@@ -65,7 +65,7 @@ jobs:
             build_docs: "OFF"
     steps:
       - name: Install Apple certificate
-        uses: apple-actions/import-codesign-certs@77ba2a2a8f5cfc8c405ebf3159f767c323e238f9  # v7.1.0
+        uses: apple-actions/import-codesign-certs@288b8ec97b82c66b6f2a6baaf7acc8dfbcbe331c  # v7.2.0
         if: inputs.publish_release == 'true'
         with:
           p12-file-base64: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64 }}
@@ -75,10 +75,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           submodules: recursive
-
-      - name: Select Xcode 16.2
-        if: matrix.os == 'macos-14'
-        run: sudo xcode-select --switch /Applications/Xcode_16.2.app
 
       - name: Install dependencies
         timeout-minutes: 5
@@ -92,7 +88,7 @@ jobs:
             pkgconf \
             icu4c@78 \
             miniupnpc \
-            openssl@3 \
+            openssl@4 \
             opus \
             qtbase \
             qtsvg
@@ -106,7 +102,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
         with:
           enable-cache: true
 
@@ -138,7 +134,7 @@ jobs:
             -DBUILD_WERROR=ON \
             -DCMAKE_BUILD_TYPE=Release \
             -DICU_ROOT="${icu4c_root}" \
-            -DOPENSSL_ROOT_DIR="$(brew --prefix openssl@3 2>/dev/null)" \
+            -DOPENSSL_ROOT_DIR="$(brew --prefix openssl@4 2>/dev/null)" \
             -DOpus_ROOT_DIR="$(brew --prefix opus 2>/dev/null)" \
             -DQt6_DIR="$(brew --prefix qtbase 2>/dev/null)/lib/cmake/Qt6" \
             -DQt6Svg_DIR="$(brew --prefix qtsvg 2>/dev/null)/lib/cmake/Qt6Svg" \
@@ -268,7 +264,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: "macos-14"
+          - os: "macos-15"
             name: "macOS-arm64"
             arch: "arm64"
           - os: "macos-15-intel"
@@ -276,7 +272,7 @@ jobs:
             arch: "x86_64"
     steps:
       - name: Install Apple certificate
-        uses: apple-actions/import-codesign-certs@77ba2a2a8f5cfc8c405ebf3159f767c323e238f9  # v7.1.0
+        uses: apple-actions/import-codesign-certs@288b8ec97b82c66b6f2a6baaf7acc8dfbcbe331c  # v7.2.0
         with:
           p12-file-base64: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64 }}
           p12-password: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_P12_PASSWORD }}

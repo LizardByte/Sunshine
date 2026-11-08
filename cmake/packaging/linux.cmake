@@ -164,10 +164,12 @@ if(${SUNSHINE_TRAY} STREQUAL 1)
     # because Qt6 will not allow icons not part of the theme... so we will use icons from our web directory instead
 
     if(SUNSHINE_TRAY_QT_VERSION EQUAL 6)
+        # Qt loads platform plugins at runtime, so shlibdeps cannot detect this dependency.
         set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
                     ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \
                     libqt6widgets6, \
-                    libqt6svg6"
+                    libqt6svg6, \
+                    qt6-qpa-plugins"
         )
         set(CPACK_RPM_PACKAGE_REQUIRES "\
                     ${CPACK_RPM_PACKAGE_REQUIRES}, \
