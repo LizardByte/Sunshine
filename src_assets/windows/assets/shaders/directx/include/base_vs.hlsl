@@ -1,6 +1,6 @@
 #include "include/base_vs_types.hlsl"
 
-vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, float2 subsample_offset, int rotate_texture_steps)
+vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, float2 subsample_offset, int rotate_texture_steps, float2 source_crop_scale)
 {
     vertex_t output;
     float2 tex_coord;
@@ -28,8 +28,12 @@ vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, float2 subsample_of
         // Swap the xy offset coordinates if the texture is rotated an odd number of times.
         if (rotate_texture_steps & 1) {
             subsample_offset.xy = subsample_offset.yx;
+            source_crop_scale.xy = source_crop_scale.yx;
         }
     }
+
+    // Sample only the centered part of the texture picked by the source crop.
+    tex_coord = 0.5 + (tex_coord - 0.5) * source_crop_scale;
 
 #if defined(LEFT_SUBSAMPLING)
     output.tex_right_left_center = float3(tex_coord.x, tex_coord.x - subsample_offset.x, tex_coord.y);

@@ -221,6 +221,41 @@ TEST_F(ConfigPersistenceTest, ParsesFp16SdrGammaEncodedOption) {
 }
 
 /**
+ * @brief Aspect ratios are positive integer width:height pairs.
+ */
+TEST(ConfigAspectRatioTest, ParsesPositiveRatiosAndRejectsEverythingElse) {
+  EXPECT_EQ(config::parse_aspect_ratio("16:9"), std::pair(16, 9));
+  EXPECT_EQ(config::parse_aspect_ratio("2560:1600"), std::pair(2560, 1600));
+
+  for (const auto text : {""sv, "16"sv, "16:"sv, ":9"sv, "0:9"sv, "16:0"sv, "-16:9"sv, "16:9:1"sv, "16x9"sv, " 16:9"sv, "16.5:9"sv, "99999999999:1"sv}) {
+    EXPECT_FALSE(config::parse_aspect_ratio(text).has_value()) << text;
+  }
+}
+
+/**
+ * @brief The source aspect ratio setting keeps its previous value when it is invalid.
+ */
+TEST_F(ConfigPersistenceTest, ParsesSourceAspectRatioAndIgnoresInvalidValues) {
+  const auto original_video = config::video;
+  const auto restore_video = util::fail_guard([original_video]() {
+    config::video = original_video;
+  });
+  const auto apps_file = config_file().parent_path() / "sunshine_test_config_apps.json";
+  ASSERT_EQ(file_handler::write_file(apps_file.string().c_str(), "{}"), 0);
+  config::stream.file_apps = apps_file.string();
+
+  EXPECT_EQ(config::video.source_aspect_ratio, "client");
+
+  for (const auto value : {"display"sv, "stream"sv, "client"sv, "21:9"sv}) {
+    config::apply_config_for_test(std::format("source_aspect_ratio = {}\n", value));
+    EXPECT_EQ(config::video.source_aspect_ratio, value);
+  }
+
+  config::apply_config_for_test("source_aspect_ratio = wide\n");
+  EXPECT_EQ(config::video.source_aspect_ratio, "21:9");
+}
+
+/**
  * @brief Verify mixed-case boolean values update configuration correctly.
  */
 TEST_F(ConfigPersistenceTest, ParsesBooleanOptionsCaseInsensitively) {
