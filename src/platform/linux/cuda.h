@@ -527,7 +527,7 @@ namespace cuda {
   /**
    * @brief Fill a CUDA function table the way `cuda_load_functions` does.
    */
-  using function_table_loader_t = int (*)(CudaFunctions **table);
+  using function_table_loader_t = std::function<int(CudaFunctions **table)>;
 
   /**
    * @brief Load a CUDA function table unless it is already loaded, and initialize CUDA through it.
@@ -538,7 +538,7 @@ namespace cuda {
    * @param load Function that fills the table, returning 0 on success.
    * @return 0 on success, -1 on failure.
    */
-  int init(CudaFunctions **table, function_table_loader_t load);
+  int init(CudaFunctions **table, const function_table_loader_t &load);
 }  // namespace cuda
 
 /**

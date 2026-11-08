@@ -172,7 +172,7 @@ namespace cuda {
    * @param load Function that fills the table, returning 0 on success.
    * @return 0 on success, -1 on failure.
    */
-  int init(CudaFunctions **table, function_table_loader_t load) {
+  int init(CudaFunctions **table, const function_table_loader_t &load) {
     // Load the table only once: running streams call through it on every frame, and reloading empties
     // it first. The mutex stops streams that start at the same time from loading it concurrently.
     static std::mutex load_mutex;

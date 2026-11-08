@@ -2207,7 +2207,7 @@ namespace {
   /**
    * @brief What the fake CUDA driver used by the `cuda::init()` tests has been asked to do.
    *
-   * The loader `cuda::init()` takes is a plain function pointer, so the fakes share this state.
+   * The entries of a CUDA function table are plain function pointers, so the fakes share this state.
    */
   struct fake_init_driver_t {
     std::atomic<int> table_loads;  ///< Times a table was loaded.
