@@ -402,14 +402,18 @@ namespace crypto {
    * @brief Return the certificate signature bytes.
    */
   std::string_view signature(const x509_t &x) {
-    // X509_ALGOR *_ = nullptr;
-
     const ASN1_BIT_STRING *asn1 = nullptr;
     X509_get0_signature(&asn1, nullptr, x.get());
 
+#if OPENSSL_VERSION_NUMBER >= 0x40100000L
+    const auto length = ASN1_STRING_get_length(asn1);
+#else
+    const auto length = static_cast<std::size_t>(ASN1_STRING_length(asn1));
+#endif
+
     return {
       reinterpret_cast<const char *>(ASN1_STRING_get0_data(asn1)),
-      static_cast<std::size_t>(ASN1_STRING_length(asn1))
+      length
     };
   }
 

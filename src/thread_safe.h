@@ -813,7 +813,7 @@ namespace safe {
     using queue_t = std::shared_ptr<post_t<queue_t<T>>>;
 
     /**
-     * @brief Create a typed event channel from the raw mailbox.
+     * @brief Create a typed event channel or reuse the live channel with the same identifier.
      *
      * @param id Identifier for the controller, session, display, or resource.
      * @return Typed event channel associated with the supplied identifier.
@@ -827,13 +827,13 @@ namespace safe {
       }
 
       auto post = std::make_shared<typename event_t<T>::element_type>(shared_from_this());
-      id_to_post.emplace(std::pair<std::string, std::weak_ptr<void>> {std::string {id}, post});
+      id_to_post.try_emplace(std::string {id}, post);
 
       return post;
     }
 
     /**
-     * @brief Create a typed queue channel from the raw mailbox.
+     * @brief Create a typed queue channel or reuse the live channel with the same identifier.
      *
      * @param id Identifier for the controller, session, display, or resource.
      * @return Typed queue channel associated with the supplied identifier.
@@ -847,7 +847,7 @@ namespace safe {
       }
 
       auto post = std::make_shared<typename queue_t<T>::element_type>(shared_from_this(), 32);
-      id_to_post.emplace(std::pair<std::string, std::weak_ptr<void>> {std::string {id}, post});
+      id_to_post.try_emplace(std::string {id}, post);
 
       return post;
     }

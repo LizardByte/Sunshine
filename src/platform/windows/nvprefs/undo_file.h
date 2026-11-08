@@ -21,19 +21,19 @@ namespace nvprefs {
     /**
      * @brief Open existing file.
      *
-     * @param file_path File path.
+     * @param file_path File path inspected without copying or modifying it.
      * @param access_denied Access denied.
      * @return Open undo file wrapper, or std::nullopt when the file cannot be opened.
      */
-    static std::optional<undo_file_t> open_existing_file(std::filesystem::path file_path, bool &access_denied);
+    static std::optional<undo_file_t> open_existing_file(const std::filesystem::path &file_path, bool &access_denied);
 
     /**
      * @brief Create new file.
      *
-     * @param file_path File path.
+     * @param file_path File path inspected without copying or modifying it.
      * @return Created new file object or status.
      */
-    static std::optional<undo_file_t> create_new_file(std::filesystem::path file_path);
+    static std::optional<undo_file_t> create_new_file(const std::filesystem::path &file_path);
 
     /**
      * @brief Delete the persisted NVIDIA settings undo file.

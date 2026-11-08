@@ -9,6 +9,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -334,7 +335,7 @@ namespace nvhttp {
    * bool pin_status = nvhttp::pin("0123456789abcdef0123456789abcdef", "1234", "laptop");
    * @examples_end
    */
-  bool pin(std::string_view pairing_id, std::string pin, std::string name);
+  bool pin(std::string_view pairing_id, const std::string &pin, std::string name);
 
   /**
    * @brief Remove single client.
@@ -378,6 +379,13 @@ namespace nvhttp {
    * @examples_end
    */
   void erase_all_clients();
+
+  /**
+   * @brief Get codec mode flags.
+   *
+   * @return Moonlight codec capability bitmask for the currently probed encoders.
+   */
+  uint32_t get_codec_mode_flags();
 
 #ifdef SUNSHINE_TESTS
   /**

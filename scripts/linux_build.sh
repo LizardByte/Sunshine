@@ -197,7 +197,7 @@ Options:
                            If you provide a modified version of Sunshine, we kindly request that you use your own url.
   --skip-cleanup           Do not restore the original gcc alternatives, or the math-vector.h file.
   --skip-cuda              Skip CUDA installation.
-  --skip-libva             Skip libva installation. This will automatically be enabled if passing --appimage-build.
+  --skip-libva             Skip libva installation.
   --skip-package           Skip creating DEB, or RPM package.
   --ubuntu-test-repo       Install ppa:ubuntu-toolchain-r/test repo on Ubuntu.
   --step                   Which step(s) to run: deps, cmake, validation, build, package, cleanup, or all (default: all)
@@ -225,7 +225,6 @@ while getopts ":hs-:" opt; do
         help) _usage 0 ;;
         appimage-build)
           appimage_build=1
-          skip_libva=1
           ;;
         cuda-patches)
           cuda_patches=1

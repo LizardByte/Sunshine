@@ -2,11 +2,15 @@
  * @file tests/unit/platform/linux/test_kmsgrab_cursor_formats.cpp
  * @brief Test KMS cursor format conversion and validation.
  */
+// test includes
+#include "../../../tests_common.h"
+
+// standard includes
 #include <array>
 #include <cstdint>
-#include <gtest/gtest.h>
 
 #ifdef SUNSHINE_BUILD_DRM
+  // lib includes
   #include <drm_fourcc.h>
 
 namespace platf::kms {

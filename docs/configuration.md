@@ -2311,7 +2311,7 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
             @endcode</td>
     </tr>
     <tr>
-        <td rowspan="6">Choices</td>
+        <td rowspan="8">Choices</td>
         <td>nvfbc</td>
         <td>Use NVIDIA Frame Buffer Capture to capture direct to GPU memory. This is usually the fastest method for
             NVIDIA cards. NvFBC does not have native Wayland support and does not work with XWayland.
@@ -2333,7 +2333,13 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     </tr>
     <tr>
         <td>kwin</td>
-        <td>Capture with KDE/KWin Wayland compositor via KDE screencasting.
+        <td>Capture with KDE/KWin Wayland compositor directly via KDE screencasting.
+            @note{Applies to Linux only.}
+            @warning{Flatpak users currently shouldn't use this capture method and use `portal` instead. KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 is necessary to make this capture method work with Flatpak but that has security implications.}</td>
+    </tr>
+    <tr>
+        <td>portal</td>
+        <td>Capture via XDG Desktop Portal.
             @note{Applies to Linux only.}</td>
     </tr>
     <tr>

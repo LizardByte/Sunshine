@@ -242,6 +242,19 @@ namespace portal {
     guint subscription_id;  ///< Subscription ID.
     std::string request_path;  ///< For Request.Close() on cancellation.
     GDBusConnection *conn;  ///< Borrowed — owned by the calling dbus_t/portal_t.
+
+    dbus_response_t() = default;
+    dbus_response_t(const dbus_response_t &) = delete;
+    dbus_response_t &operator=(const dbus_response_t &) = delete;
+
+    /**
+     * @brief Stop listening if the request is abandoned before its response is awaited.
+     */
+    ~dbus_response_t() {
+      if (subscription_id != 0) {
+        g_dbus_connection_signal_unsubscribe(conn, subscription_id);
+      }
+    }
   };
 
   /**
@@ -538,7 +551,7 @@ namespace portal {
 
       dbus_response_t response {};
       g_autofree gchar *request_token = nullptr;
-      create_request_path(conn, nullptr, &request_token);
+      dbus_response_prepare(&response, loop, conn, &request_token);
 
       GVariantBuilder builder;
       g_variant_builder_init(&builder, G_VARIANT_TYPE("(a{sv})"));
@@ -555,9 +568,7 @@ namespace portal {
         return -1;
       }
 
-      const gchar *request_path = nullptr;
-      g_variant_get(reply, "(o)", &request_path);
-      dbus_response_init(&response, loop, conn, request_path);
+      dbus_response_follow_handle(&response, reply);
 
       g_autoptr(GVariant) create_response = dbus_response_wait(&response, dbus_timeout);
 
@@ -599,7 +610,7 @@ namespace portal {
     int select_remote_desktop_devices(GMainLoop *loop, const gchar *session_path) {
       dbus_response_t response {};
       g_autofree gchar *request_token = nullptr;
-      create_request_path(conn, nullptr, &request_token);
+      dbus_response_prepare(&response, loop, conn, &request_token);
 
       GVariantBuilder builder;
       g_variant_builder_init(&builder, G_VARIANT_TYPE("(oa{sv})"));
@@ -621,9 +632,7 @@ namespace portal {
         return -1;
       }
 
-      const gchar *request_path = nullptr;
-      g_variant_get(reply, "(o)", &request_path);
-      dbus_response_init(&response, loop, conn, request_path);
+      dbus_response_follow_handle(&response, reply);
 
       g_autoptr(GVariant) devices_response = dbus_response_wait(&response, dbus_timeout);
 
@@ -647,7 +656,7 @@ namespace portal {
     int select_screencast_sources(GMainLoop *loop, const gchar *session_path, bool persist) {
       dbus_response_t response {};
       g_autofree gchar *request_token = nullptr;
-      create_request_path(conn, nullptr, &request_token);
+      dbus_response_prepare(&response, loop, conn, &request_token);
 
       GVariantBuilder builder;
       g_variant_builder_init(&builder, G_VARIANT_TYPE("(oa{sv})"));
@@ -672,9 +681,7 @@ namespace portal {
         return -1;
       }
 
-      const gchar *request_path = nullptr;
-      g_variant_get(reply, "(o)", &request_path);
-      dbus_response_init(&response, loop, conn, request_path);
+      dbus_response_follow_handle(&response, reply);
 
       g_autoptr(GVariant) sources_response = dbus_response_wait(&response, dbus_timeout);
 
@@ -701,7 +708,7 @@ namespace portal {
 
       dbus_response_t response {};
       g_autofree gchar *request_token = nullptr;
-      create_request_path(conn, nullptr, &request_token);
+      dbus_response_prepare(&response, loop, conn, &request_token);
 
       GVariantBuilder builder;
       g_variant_builder_init(&builder, G_VARIANT_TYPE("(osa{sv})"));
@@ -718,9 +725,7 @@ namespace portal {
         return -1;
       }
 
-      const gchar *request_path = nullptr;
-      g_variant_get(reply, "(o)", &request_path);
-      dbus_response_init(&response, loop, conn, request_path);
+      dbus_response_follow_handle(&response, reply);
 
       g_autoptr(GVariant) start_response = dbus_response_wait(&response, (allow_start_timeout ? dbus_timeout : 0));
 
@@ -914,6 +919,42 @@ namespace portal {
       );
 
       g_main_context_pop_thread_default(context);
+    }
+
+    /**
+     * @brief Subscribe to the Response signal of a portal request before making the request.
+     *
+     * The portal can emit Response within a millisecond of replying to the method call, so subscribing only after the
+     * reply may miss it and wait forever. The request path is predictable from handle_token, as documented for
+     * org.freedesktop.portal.Request.
+     *
+     * @param response DBus response to subscribe.
+     * @param loop GLib main loop that will wait for the response.
+     * @param conn DBus connection used for the request.
+     * @param out_token Receives the handle_token to pass in the request options.
+     */
+    static void dbus_response_prepare(dbus_response_t *response, GMainLoop *loop, GDBusConnection *conn, gchar **out_token) {
+      g_autofree gchar *request_path = nullptr;
+      create_request_path(conn, &request_path, out_token);
+      dbus_response_init(response, loop, conn, request_path);
+    }
+
+    /**
+     * @brief Move the subscription to the request handle returned by the portal if it differs from the predicted one.
+     *
+     * xdg-desktop-portal versions before 0.9 do not derive the handle from handle_token. On those versions a Response
+     * sent before this re-subscription is still missed, as it was before handle_token was used.
+     *
+     * @param response DBus response subscribed by dbus_response_prepare().
+     * @param reply Reply of the portal method call that created the request.
+     */
+    static void dbus_response_follow_handle(dbus_response_t *response, GVariant *reply) {
+      const gchar *request_path = nullptr;
+      g_variant_get(reply, "(&o)", &request_path);
+      if (response->request_path != request_path) {
+        g_dbus_connection_signal_unsubscribe(response->conn, response->subscription_id);
+        dbus_response_init(response, response->loop, response->conn, request_path);
+      }
     }
 
     /**

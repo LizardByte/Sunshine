@@ -625,6 +625,7 @@ namespace util {
    * @brief Decode hexadecimal text into an object's byte representation.
    *
    * Digits beyond the size of the object are ignored, keeping the low-order bytes.
+   * An odd number of digits is read as if it had a leading zero.
    *
    * @param hex Hexadecimal text to decode.
    * @param rev Whether bytes should be emitted in reverse order.
@@ -642,7 +643,8 @@ namespace util {
       return ('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z');
     };
 
-    auto buf_size = std::min<std::size_t>(std::ranges::count_if(hex, is_convertable) / 2, sizeof(T));
+    auto digits_left = std::ranges::count_if(hex, is_convertable);
+    auto buf_size = std::min<std::size_t>((digits_left + 1) / 2, sizeof(T));
     auto padding = sizeof(T) - buf_size;
 
     const char *data = hex.data() + hex.size() - 1;
@@ -663,11 +665,16 @@ namespace util {
         --data;
       }
       const auto ch_r = convert(*data--);
+      --digits_left;
 
-      while (!is_convertable(*data)) {
-        --data;
+      auto ch_l = std::byte {0};
+      if (digits_left > 0) {
+        while (!is_convertable(*data)) {
+          --data;
+        }
+        ch_l = convert(*data--);
+        --digits_left;
       }
-      const auto ch_l = convert(*data--);
 
       el = (ch_l << 4) | ch_r;
     });
@@ -1426,15 +1433,17 @@ namespace util {
    * @brief Helper specialization for optional values.
    */
   template<class T>
-  struct __false_v<T, std::enable_if_t<instantiation_of_v<std::optional, T>>> {
+    requires instantiation_of_v<std::optional, T>
+  struct __false_v<T> {
     static constexpr std::nullopt_t value = std::nullopt;  ///< Value.
   };
 
   /**
-   * @brief Enables an overload only when the provided type is a pointer.
+   * @brief Select a null sentinel for raw and supported smart pointer types.
    */
   template<class T>
-  struct __false_v<T, std::enable_if_t<is_pointer_v<T>>> {
+    requires is_pointer_v<T>
+  struct __false_v<T> {
     static constexpr std::nullptr_t value = nullptr;  ///< Value.
   };
 
@@ -1442,7 +1451,8 @@ namespace util {
    * @brief Type trait comparing a value with a boolean template argument.
    */
   template<class T>
-  struct __false_v<T, std::enable_if_t<std::is_same_v<T, bool>>> {
+    requires std::is_same_v<T, bool>
+  struct __false_v<T> {
     static constexpr bool value = false;  ///< Trait value for the false specialization.
   };
 
@@ -1773,10 +1783,11 @@ namespace util {
     struct endian_helper {};
 
     /**
-     * @brief Helper specialization for optional values.
+     * @brief Convert non-optional values between native and requested byte order.
      */
     template<class T>
-    struct endian_helper<T, std::enable_if_t<!(instantiation_of_v<std::optional, T>)>> {
+      requires(!instantiation_of_v<std::optional, T>)
+    struct endian_helper<T> {
       /**
        * @brief Convert a value to or from big-endian byte order.
        *
@@ -1814,7 +1825,8 @@ namespace util {
      * @brief Helper specialization for optional values.
      */
     template<class T>
-    struct endian_helper<T, std::enable_if_t<instantiation_of_v<std::optional, T>>> {
+      requires instantiation_of_v<std::optional, T>
+    struct endian_helper<T> {
       /**
        * @brief Convert a value to or from little-endian byte order.
        *

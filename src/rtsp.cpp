@@ -534,7 +534,7 @@ namespace rtsp_stream {
      * @param cb Callback invoked for each matching message or session.
      */
     void map(const std::string_view &type, cmd_func_t cb) {
-      _map_cmd_cb.emplace(type, std::move(cb));
+      _map_cmd_cb.try_emplace(type, std::move(cb));
     }
 
     /**
@@ -941,7 +941,7 @@ namespace rtsp_stream {
        */
       if (x == audio::SURROUND51 || x == audio::SURROUND71) {
         std::copy_n(mapping_p, stream_config.channelCount, mapping.begin());
-        std::rotate(mapping.begin() + 3, mapping.begin() + 4, mapping.begin() + audio::MAX_STREAM_CONFIG);
+        std::rotate(mapping.begin() + 3, mapping.begin() + 4, mapping.begin() + stream_config.channelCount);
 
         mapping_p = mapping.data();
       }
@@ -1107,7 +1107,7 @@ namespace rtsp_stream {
         if (val[val.size() - 1] == ' ') {
           val = val.substr(0, val.size() - 1);
         }
-        args.emplace(name, val);
+        args.try_emplace(name, val);
       }
     }
 

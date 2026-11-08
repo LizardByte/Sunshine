@@ -11,15 +11,43 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 // local includes
 #include <src/utility.h>
+
+/**
+ * @brief Whether a type has a supported empty-state sentinel.
+ */
+template<class T>
+concept has_false_value = requires { util::__false_v<T>::value; };
+
+/**
+ * @brief Sentinel constraints select empty states without accepting unrelated values.
+ */
+TEST(UtilityFalseValueTests, SelectsSentinelsForOptionalPointerAndBooleanTypes) {
+  static_assert(std::is_same_v<decltype(util::false_v<std::optional<int>>), const std::nullopt_t>);
+  static_assert(std::is_same_v<decltype(util::false_v<int *>), const std::nullptr_t>);
+  static_assert(std::is_same_v<decltype(util::false_v<std::unique_ptr<int>>), const std::nullptr_t>);
+  static_assert(std::is_same_v<decltype(util::false_v<std::shared_ptr<int>>), const std::nullptr_t>);
+  static_assert(std::is_same_v<decltype(util::false_v<util::uniq_ptr<int>>), const std::nullptr_t>);
+  static_assert(std::is_same_v<decltype(util::false_v<bool>), const bool>);
+  static_assert(!has_false_value<int>);
+
+  EXPECT_FALSE(std::optional<int> {util::false_v<std::optional<int>>});
+  EXPECT_EQ(util::false_v<int *>, nullptr);
+  EXPECT_EQ(util::false_v<std::unique_ptr<int>>, nullptr);
+  EXPECT_EQ(util::false_v<std::shared_ptr<int>>, nullptr);
+  EXPECT_EQ(util::false_v<util::uniq_ptr<int>>, nullptr);
+  EXPECT_FALSE(util::false_v<bool>);
+}
 
 /**
  * @brief A const resource deleter invokes its release function exactly once per call.
@@ -381,6 +409,13 @@ TEST(UtilityFromHexTests, ShortInputPadsUnusedBytesWithZeros) {
 TEST(UtilityFromHexTests, LongInputKeepsTheLowOrderBytes) {
   EXPECT_EQ(util::from_hex<std::uint32_t>("123456789A"), util::endian::little(std::uint32_t {0x3456789A}));
   EXPECT_EQ(util::from_hex<std::uint32_t>("123456789A", true), util::endian::big(std::uint32_t {0x3456789A}));
+}
+
+TEST(UtilityFromHexTests, OddDigitCountReadsTheLeadingDigitAsTheHighNibble) {
+  EXPECT_EQ(util::from_hex<std::uint32_t>("8"), util::endian::little(std::uint32_t {0x8}));
+  EXPECT_EQ(util::from_hex<std::uint16_t>("ABC"), util::endian::little(std::uint16_t {0xABC}));
+  EXPECT_EQ(util::from_hex<std::uint16_t>("ABC", true), util::endian::big(std::uint16_t {0xABC}));
+  EXPECT_EQ(util::from_hex<std::uint16_t>("1:2:3"), util::endian::little(std::uint16_t {0x123}));
 }
 
 TEST(UtilityFromHexTests, DecodesIntoAByteArrayWithoutPointerTypePunning) {

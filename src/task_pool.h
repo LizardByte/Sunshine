@@ -26,8 +26,6 @@ namespace task_pool_util {
    */
   class _ImplBase {
   public:
-    // _unique_base_type _this_ptr;
-
     /**
      * @brief Destroy a queued callable through its polymorphic base.
      */

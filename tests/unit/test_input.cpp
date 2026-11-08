@@ -501,6 +501,81 @@ TEST_F(InputGamepadSessionTest, ReusesGamepadsAcrossPauseAndDestroysThemOnTermin
   EXPECT_NE(replacement, resumed);
 }
 
+TEST_F(InputGamepadSessionTest, ReplaysMotionAndRumbleAfterResumedControllerArrival) {
+  config::input.gamepad = "ds5";
+  const std::string session_id = "late-controller-arrival";
+  const auto capabilities = static_cast<std::uint16_t>(LI_CCAP_ACCEL | LI_CCAP_GYRO | LI_CCAP_RUMBLE);
+  auto first_mail = std::make_shared<safe::mail_raw_t>();
+  auto stream_input = input::alloc(first_mail, session_id);
+  const auto id = input::testing::alloc_gamepad(stream_input, 0, {LI_CTYPE_PS, capabilities, 0});
+  ASSERT_GE(id, 0);
+  auto *adapter = platf::virtualhid::gamepad_adapter_for_testing(context(), id);
+  ASSERT_NE(adapter, nullptr);
+  const auto device_count = runtime().active_device_count();
+  auto old_queue = first_mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback);
+  while (old_queue->pop(std::chrono::milliseconds {0})) {
+    // Discard initial motion requests before simulating a reconnect.
+  }
+
+  for (int reconnect = 0; reconnect < 3; ++reconnect) {
+    auto resumed_mail = std::make_shared<safe::mail_raw_t>();
+    auto resumed = input::alloc(resumed_mail, session_id);
+    ASSERT_EQ(resumed, stream_input);
+    auto feedback = resumed_mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback);
+    // Model the client discarding requests received before controller assignment.
+    ASSERT_TRUE(feedback->pop(std::chrono::milliseconds {0}));
+    ASSERT_TRUE(feedback->pop(std::chrono::milliseconds {0}));
+    ASSERT_FALSE(feedback->pop(std::chrono::milliseconds {0}));
+    lvh::GamepadOutput output;
+    output.kind = lvh::GamepadOutputKind::rumble;
+    output.low_frequency_rumble = 1234;
+    output.high_frequency_rumble = 5678;
+    ASSERT_TRUE(adapter->dispatch_output(output).ok());
+    ASSERT_TRUE(feedback->pop(std::chrono::milliseconds {0}));
+
+    SS_CONTROLLER_ARRIVAL_PACKET arrival {};
+    arrival.header.size = util::endian::big<std::uint32_t>(sizeof(arrival) - sizeof(arrival.header.size));
+    arrival.header.magic = util::endian::little(SS_CONTROLLER_ARRIVAL_MAGIC);
+    arrival.controllerNumber = 0;
+    arrival.type = LI_CTYPE_PS;
+    arrival.capabilities = util::endian::little(capabilities);
+    std::vector<std::uint8_t> bytes(sizeof(arrival));
+    std::memcpy(bytes.data(), &arrival, sizeof(arrival));
+    input::passthrough(resumed, std::move(bytes));
+    input::testing::process_queued_messages(resumed);
+
+    for (const auto motion_type : {LI_MOTION_TYPE_ACCEL, LI_MOTION_TYPE_GYRO}) {
+      const auto request = feedback->pop(std::chrono::milliseconds {0});
+      ASSERT_TRUE(request);
+      EXPECT_EQ(request->type, platf::gamepad_feedback_e::set_motion_event_state);
+      EXPECT_EQ(request->id, 0);
+      EXPECT_EQ(request->data.motion_event_state.motion_type, motion_type);
+      EXPECT_EQ(request->data.motion_event_state.report_rate, 100);
+    }
+    // Identical feedback sent before client readiness must not suppress this rumble.
+    ASSERT_TRUE(adapter->dispatch_output(output).ok());
+    const auto rumble = feedback->pop(std::chrono::milliseconds {0});
+    ASSERT_TRUE(rumble);
+    EXPECT_EQ(rumble->type, platf::gamepad_feedback_e::rumble);
+    EXPECT_EQ(rumble->data.rumble.lowfreq, 1234);
+    EXPECT_EQ(rumble->data.rumble.highfreq, 5678);
+    EXPECT_FALSE(old_queue->pop(std::chrono::milliseconds {0}));
+    EXPECT_EQ(input::testing::gamepad_id(resumed, 0), id);
+    EXPECT_EQ(platf::virtualhid::gamepad_adapter_for_testing(context(), id), adapter);
+    EXPECT_EQ(runtime().active_device_count(), device_count);
+    old_queue = std::move(feedback);
+  }
+}
+
+TEST_F(InputGamepadSessionTest, ReportsMissingRetainedBackendOnArrival) {
+  auto stream_input = input::alloc(std::make_shared<safe::mail_raw_t>(), "missing-retained-backend");
+  const platf::gamepad_arrival_t metadata {LI_CTYPE_XBOX, 0, 0};
+  const auto id = input::testing::alloc_gamepad(stream_input, 0, metadata);
+  ASSERT_GE(id, 0);
+  platf::virtualhid::free_gamepad(context(), id);
+  EXPECT_EQ(input::testing::alloc_gamepad(stream_input, 0, metadata), -1);
+}
+
 TEST_F(InputGamepadSessionTest, RefreshesSharedVirtualInputAfterLicenseStateChanges) {
   ASSERT_NE(context().keyboard, nullptr);
   ASSERT_NE(context().mouse, nullptr);

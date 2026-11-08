@@ -129,6 +129,8 @@ apk del sunshine
 
 > [!NOTE]
 > The AppImage is built on Ubuntu 22.04, which requires `glibc 2.35` or newer and `libstdc++ 3.4.11` or newer.
+> It also requires the host's libva core and DRM libraries (`libva2` and `libva-drm2` on Debian/Ubuntu).
+> Install your GPU's VA-API driver to use VA-API encoding. Both libva libraries must come from the same system package version.
 
 ##### Install
 1. Download `Sunshine_{version}_{arch}.AppImage`
@@ -418,6 +420,8 @@ for license management and downloads. Sunshine’s DMG does not contain the brok
 standard macOS synthetic-input permission path.
 
 #### DMG
+
+Prebuilt DMG packages require macOS 15.0 (Sequoia) or newer.
 
 ##### Install
 

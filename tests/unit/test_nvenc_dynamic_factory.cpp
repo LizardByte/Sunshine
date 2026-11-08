@@ -4,6 +4,9 @@
  */
 #ifdef _WIN32
 
+  // test includes
+  #include "../tests_common.h"
+
   // standard includes
   #include <array>
   #include <bit>
@@ -11,9 +14,6 @@
   #include <memory>
   #include <string_view>
   #include <utility>
-
-  // lib includes
-  #include <gtest/gtest.h>
 
   // local includes
   #include "src/nvenc/nvenc_dynamic_factory.h"
@@ -49,6 +49,7 @@ namespace {
     }
 
     void destroy_encoder() override {
+      // The fake encoder allocates no driver resources to release.
     }
 
     nvenc::nvenc_encoded_frame encode_frame(std::uint64_t frame_index, bool force_idr) override {
@@ -74,6 +75,7 @@ namespace {
     return {
       reinterpret_cast<HMODULE>(fake_handle_value),
       [](HMODULE) {
+        // The synthetic handle is not an owned module, so it must not be unloaded.
       },
     };
   }

@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "id": "org-sync",
+  "files": {
+    ".clang-format": {
+      "mode": "sync",
+      "sha": "782d1575c6671b069aaf7324ad76a17162e6e6e7",
+      "permissions": "100644"
+    },
+    ".github/dependabot.yml": {
+      "mode": "sync",
+      "sha": "0b364513353fb5e5ebc5ba4e7e76c987229b28c0",
+      "permissions": "100644"
+    },
+    ".github/ISSUE_TEMPLATE/config.yml": {
+      "mode": "sync",
+      "sha": "50d9f85fa31957e184aa815e213e926f11062fe9",
+      "permissions": "100644"
+    },
+    ".github/semantic.yml": {
+      "mode": "sync",
+      "sha": "92d97a741e8c6f2de6258df8bd25a4e32e274b51",
+      "permissions": "100644"
+    },
+    ".github/workflows/_codeql.yml": {
+      "mode": "sync",
+      "sha": "5569a2ed7c0b3129613878e3e0550e1ef377d115",
+      "permissions": "100644"
+    },
+    ".github/workflows/_common-lint.yml": {
+      "mode": "sync",
+      "sha": "276fca5110ca2748a5a6391769e93e647d0dbef7",
+      "permissions": "100644"
+    },
+    ".github/workflows/_release-notifier.yml": {
+      "mode": "sync",
+      "sha": "7a30fa1a356c9113993059734de5905b1907e328",
+      "permissions": "100644"
+    },
+    ".github/workflows/_top-issues.yml": {
+      "mode": "sync",
+      "sha": "3072822c6a6832079de60fe8940953e008da165f",
+      "permissions": "100644"
+    },
+    ".github/workflows/_update-changelog.yml": {
+      "mode": "sync",
+      "sha": "314caf7ef30b645909d3567d1f6a7fd33c268cd0",
+      "permissions": "100644"
+    },
+    ".github/workflows/_update-docs.yml": {
+      "mode": "sync",
+      "sha": "22c2a5175dcb70b44a80d0df25795e9a119dafe9",
+      "permissions": "100644"
+    },
+    ".github/workflows/_update-flathub-repo.yml": {
+      "mode": "sync",
+      "sha": "4b75a2482160981e7370dfe6ed80ff0ef6bc1058",
+      "permissions": "100644"
+    },
+    ".github/workflows/_update-homebrew-repo.yml": {
+      "mode": "sync",
+      "sha": "cdd96ddb50eb55191a19977cef22d770785c5eec",
+      "permissions": "100644"
+    },
+    ".github/workflows/_update-pacman-repo.yml": {
+      "mode": "sync",
+      "sha": "89a67aaedf9eeb3d14731eb62ebc27c4ff7c9981",
+      "permissions": "100644"
+    },
+    ".github/workflows/_update-winget-repo.yml": {
+      "mode": "sync",
+      "sha": "9bb4d8e97f4171025489854485f7ab6dfe6e64aa",
+      "permissions": "100644"
+    },
+    "renovate.json": {
+      "mode": "sync",
+      "sha": "11ebb7e879d8a91d648d1b1b8c19395896331669",
+      "permissions": "100644"
+    }
+  }
+}

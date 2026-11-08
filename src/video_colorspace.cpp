@@ -166,15 +166,15 @@ namespace video {
           Kr = 0.299;
           Kb = 0.114;
           break;
-        case rec709:
-        default:
-          Kr = 0.2126;
-          Kb = 0.0722;
-          break;
         case bt2020:
         case bt2020sdr:
           Kr = 0.2627;
           Kb = 0.0593;
+          break;
+        case rec709:
+        default:
+          Kr = 0.2126;
+          Kb = 0.0722;
           break;
       }
       double Kg = 1.0 - Kr - Kb;
@@ -269,13 +269,13 @@ namespace video {
       case rec601:
         result = &colors[0];
         break;
-      case rec709:
-      default:
-        result = &colors[4];
-        break;
       case bt2020:
       case bt2020sdr:
         result = &colors[8];
+        break;
+      case rec709:
+      default:
+        result = &colors[4];
         break;
     }
 

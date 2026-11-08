@@ -71,6 +71,7 @@ namespace nvprefs {
 
     /**
      * @brief Restore global NVIDIA profile settings from undo data.
+     * @details A saved value of zero is restored; only an absent value removes the setting.
      *
      * @param undo_data Driver settings captured before Sunshine modified them.
      * @return True when the NVIDIA driver-settings operation succeeds.

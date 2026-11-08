@@ -438,7 +438,7 @@ namespace stream {
      * @param cb Callback invoked for each matching message or session.
      */
     void map(uint16_t type, std::function<void(session_t *, const std::string_view &)> cb) {
-      _map_type_cb.emplace(type, std::move(cb));
+      _map_type_cb.try_emplace(type, std::move(cb));
     }
 
     /**
@@ -536,8 +536,7 @@ namespace stream {
       std::string ping_payload;  ///< Payload expected from audio-channel ping packets.
 
       std::uint16_t sequenceNumber;  ///< Next RTP sequence number for an audio packet.
-      // avRiKeyId == util::endian::big(First (sizeof(avRiKeyId)) bytes of launch_session->iv)
-      std::uint32_t avRiKeyId;  ///< Base audio encryption key identifier derived from the launch-session IV.
+      std::uint32_t avRiKeyId;  ///< Base audio encryption key identifier decoded from the first four IV bytes in big-endian order.
       std::uint32_t timestamp;  ///< RTP timestamp for the next audio packet.
       udp::endpoint peer;  ///< Client UDP endpoint for the audio channel.
 
@@ -803,6 +802,24 @@ namespace stream {
   }
 
   namespace fec {
+    /**
+     * @brief Limit data shards so data and parity fit in an 8-bit Reed-Solomon block.
+     *
+     * @param percentage Recovery-shard percentage between 0 and 100.
+     * @return Maximum data shards with room for the requested parity shards.
+     */
+    int max_data_shards(int percentage) {
+      // The 8-bit Reed-Solomon encoder allows 255 data and parity shards combined.
+      // The max number of data shards per block is found by solving this system of equations for D:
+      // D = 255 - P
+      // P = D * F
+      // which results in the solution:
+      // D = 255 / (1 + F)
+      // multiplied by 100 since F is the percentage as an integer:
+      // D = (255 * 100) / (100 + F)
+      return (RS8_DATA_SHARDS_MAX * 100) / (100 + percentage);
+    }
+
     /**
      * @brief Owning pointer for a Reed-Solomon encoder instance.
      */
@@ -1446,7 +1463,8 @@ namespace stream {
 
     auto &io = ctx.io_context;
 
-    udp::endpoint peer;
+    // Pending audio and video receives must not write into the same endpoint.
+    std::array<udp::endpoint, 2> peers;
 
     std::array<std::array<char, 2048>, 2> buf;
     std::array<std::function<void(const boost::system::error_code, size_t)>, 2> recv_func;
@@ -1461,14 +1479,14 @@ namespace stream {
         switch (socket_type) {
           case socket_e::video:
             if (message_queue) {
-              peer_to_video_session.emplace(session_id, message_queue);
+              peer_to_video_session.try_emplace(session_id, message_queue);
             } else {
               peer_to_video_session.erase(session_id);
             }
             break;
           case socket_e::audio:
             if (message_queue) {
-              peer_to_audio_session.emplace(session_id, message_queue);
+              peer_to_audio_session.try_emplace(session_id, message_queue);
             } else {
               peer_to_audio_session.erase(session_id);
             }
@@ -1479,6 +1497,7 @@ namespace stream {
 
     auto recv_func_init = [&](udp::socket &sock, int buf_elem, std::map<av_session_id_t, message_queue_t> &peer_to_session) {
       recv_func[buf_elem] = [&, buf_elem](const boost::system::error_code &ec, size_t bytes) {
+        auto &peer = peers[buf_elem];
         auto fg = util::fail_guard([&sock, &buf, &peer, &recv_func, &buf_elem]() {
           sock.async_receive_from(asio::buffer(buf[buf_elem]), peer, 0, recv_func[buf_elem]);
         });
@@ -1521,13 +1540,70 @@ namespace stream {
     recv_func_init(video_sock, 0, peer_to_video_session);
     recv_func_init(audio_sock, 1, peer_to_audio_session);
 
-    video_sock.async_receive_from(asio::buffer(buf[0]), peer, 0, recv_func[0]);
-    audio_sock.async_receive_from(asio::buffer(buf[1]), peer, 0, recv_func[1]);
+    video_sock.async_receive_from(asio::buffer(buf[0]), peers[0], 0, recv_func[0]);
+    audio_sock.async_receive_from(asio::buffer(buf[1]), peers[1], 0, recv_func[1]);
 
     while (!broadcast_shutdown_event->peek()) {
       io.run();
     }
   }
+
+#ifdef SUNSHINE_TESTS
+  /**
+   * @brief Exercise production ping routing with concurrent loopback audio and video receives.
+   * @param session_id_pings Use session-ID pings instead of legacy address-based pings.
+   * @return True when every ping retains its sending channel's endpoint and payload.
+   */
+  bool test_receive_ping_endpoints(bool session_id_pings) {
+    broadcast_ctx_t ctx;
+    const auto loopback = asio::ip::address_v4::loopback();
+    ctx.video_sock.open(udp::v4());
+    ctx.audio_sock.open(udp::v4());
+    ctx.video_sock.bind(udp::endpoint {loopback, 0});
+    ctx.audio_sock.bind(udp::endpoint {loopback, 0});
+    ctx.message_queue_queue = std::make_shared<message_queue_queue_t::element_type>(4);
+
+    udp::socket video_sender {ctx.io_context, udp::endpoint {loopback, 0}};
+    udp::socket audio_sender {ctx.io_context, udp::endpoint {loopback, 0}};
+    const std::array expected {video_sender.local_endpoint(), audio_sender.local_endpoint()};
+    const std::string token {"abcdefghijklmnop"};
+    const auto packet = session_id_pings ? token + std::string(4, '\0') : "PING"s;
+    std::array<message_queue_t, 2> queues;
+    for (std::size_t channel = 0; channel < queues.size(); ++channel) {
+      queues[channel] = std::make_shared<message_queue_t::element_type>(4);
+      const auto id = session_id_pings ? av_session_id_t {token} : av_session_id_t {asio::ip::address {loopback}};
+      ctx.message_queue_queue->raise(static_cast<socket_e>(channel), id, queues[channel]);
+    }
+
+    // Queued packets exercise both initial receives and callback rearming before the next handler runs.
+    for (int packet_index = 0; packet_index < 2; ++packet_index) {
+      video_sender.send_to(asio::buffer(packet), ctx.video_sock.local_endpoint());
+      audio_sender.send_to(asio::buffer(packet), ctx.audio_sock.local_endpoint());
+    }
+
+    auto shutdown = mail::man->event<bool>(mail::broadcast_shutdown);
+    shutdown->reset();
+    auto reset_shutdown = util::fail_guard([&shutdown]() {
+      shutdown->reset();
+    });
+    bool matched = true;
+    std::jthread observer {[&]() {
+      for (std::size_t channel = 0; channel < queues.size(); ++channel) {
+        for (int packet_index = 0; packet_index < 2; ++packet_index) {
+          auto received = queues[channel]->pop(1s);
+          if (!received || received->first != expected[channel] || received->second != packet) {
+            matched = false;
+          }
+        }
+      }
+      shutdown->raise(true);
+      ctx.io_context.stop();
+    }};
+    recvThread(ctx);
+    observer.join();
+    return matched;
+  }
+#endif
 
   /**
    * @brief Run the broadcast video sender thread.
@@ -1621,14 +1697,7 @@ namespace stream {
       // There are 2 bits for FEC block count for a maximum of 4 FEC blocks
       constexpr auto MAX_FEC_BLOCKS = 4;
 
-      // The max number of data shards per block is found by solving this system of equations for D:
-      // D = 255 - P
-      // P = D * F
-      // which results in the solution:
-      // D = 255 / (1 + F)
-      // multiplied by 100 since F is the percentage as an integer:
-      // D = (255 * 100) / (100 + F)
-      auto max_data_shards_per_fec_block = (DATA_SHARDS_MAX * 100) / (100 + fecPercentage);
+      auto max_data_shards_per_fec_block = fec::max_data_shards(fecPercentage);
 
       // Compute the number of FEC blocks needed for this frame using the block size and max shards
       auto max_data_per_fec_block = max_data_shards_per_fec_block * blocksize;

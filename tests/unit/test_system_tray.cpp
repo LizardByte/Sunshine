@@ -5,6 +5,12 @@
 
 // test includes
 #include "../tests_common.h"
+#if defined(SUNSHINE_TRAY) && SUNSHINE_TRAY >= 1
+  #if defined(__linux__) || defined(__APPLE__) || defined(_WIN32)
+    #include "third-party/tray/tests/notification_utils.h"
+    #include "third-party/tray/tests/screenshot_utils.h"
+  #endif
+#endif
 
 // standard includes
 #include <atomic>
@@ -12,6 +18,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <format>
+#include <future>
 #include <optional>
 #include <string>
 #include <thread>
@@ -25,20 +32,14 @@
   #if defined(_WIN32) || defined(__APPLE__)
     #include <libvirtualhid/license.hpp>
   #endif
+  #if defined(__linux__) || defined(__APPLE__) || defined(_WIN32)
+    #include <lizardbyte/common/env.h>
+  #endif
 
   // local includes
   #include <src/config.h>
   #include <src/system_tray.h>
   #include <src/thread_safe.h>
-
-  #if defined(__linux__) || defined(__APPLE__) || defined(_WIN32)
-    // lib includes
-    #include <lizardbyte/common/env.h>
-
-    // test includes
-    #include "third-party/tray/tests/notification_utils.h"
-    #include "third-party/tray/tests/screenshot_utils.h"
-  #endif
 
 namespace {
   using namespace std::chrono_literals;
@@ -669,6 +670,40 @@ TEST_F(SystemTrayTest, ShowsMacBrokerLicenseAndAvailabilityWithOptionalStartupNo
   EXPECT_EQ(tray_data.notification_title, nullptr);
 }
   #endif
+
+/**
+ * @brief Verify the tray fallback waits for shutdown using an explicitly owned worker thread.
+ */
+TEST_F(SystemTrayTest, KeepsWorkersRunningWhenTrayIsUnavailable) {
+  ASSERT_FALSE(system_tray::tray_initialized_for_testing());
+  auto shutdown_event = std::make_shared<safe::event_t<bool>>();
+  std::promise<void> tray_loop_exited;
+  auto tray_loop = tray_loop_exited.get_future();
+  std::jthread tray_worker([shutdown_event, &tray_loop_exited]() {
+    system_tray::run_tray_until_exit(shutdown_event);
+    tray_loop_exited.set_value();
+  });
+
+  EXPECT_EQ(tray_loop.wait_for(100ms), std::future_status::timeout);
+  EXPECT_FALSE(shutdown_event->view(0ms));
+
+  shutdown_event->raise(true);
+  EXPECT_EQ(tray_loop.wait_for(5s), std::future_status::ready);
+  tray_worker.join();
+  EXPECT_TRUE(shutdown_event->peek());
+  EXPECT_FALSE(system_tray::tray_initialized_for_testing());
+}
+
+TEST_F(SystemTrayTest, HonorsPendingShutdownWhenTrayIsUnavailable) {
+  ASSERT_FALSE(system_tray::tray_initialized_for_testing());
+  auto shutdown_event = std::make_shared<safe::event_t<bool>>();
+  shutdown_event->raise(true);
+
+  system_tray::run_tray_until_exit(shutdown_event);
+
+  EXPECT_TRUE(shutdown_event->peek());
+  EXPECT_FALSE(system_tray::tray_initialized_for_testing());
+}
 
   #ifndef _WIN32
 TEST_F(SystemTrayTest, LifecycleMenuAndStateTransitions) {

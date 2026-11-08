@@ -3,12 +3,12 @@
  * @brief Tests for thread-safe utility types.
  */
 
+// test includes
+#include "../tests_common.h"
+
 // standard includes
 #include <cstdint>
 #include <type_traits>
-
-// lib includes
-#include <gtest/gtest.h>
 
 // local includes
 #include "src/thread_safe.h"
@@ -51,6 +51,25 @@ TEST(ThreadSafeMail, CleanupPreservesLivePostsAndRemovesExpiredPosts) {
   EXPECT_EQ(mailbox.id_to_post.at("live").lock(), live);
   mailbox.cleanup();
   EXPECT_EQ(mailbox.id_to_post.size(), 1);
+}
+
+/**
+ * @brief Repeated lookups reuse each live mailbox channel and preserve queued values.
+ */
+TEST(ThreadSafeMail, ReusesExistingEventAndQueueForDuplicateIdentifiers) {
+  const auto mailbox = std::make_shared<safe::mail_raw_t>();
+  const auto event = mailbox->event<int>("event");
+  event->raise(0);
+  const auto same_event = mailbox->event<int>("event");
+  EXPECT_EQ(same_event, event);
+  EXPECT_EQ(same_event->pop(), 0);
+
+  const auto queue = mailbox->queue<int>("queue");
+  ASSERT_TRUE(queue->raise(7));
+  const auto same_queue = mailbox->queue<int>("queue");
+  EXPECT_EQ(same_queue, queue);
+  EXPECT_EQ(same_queue->pop(), 7);
+  EXPECT_EQ(mailbox->id_to_post.size(), 2);
 }
 
 TEST(ThreadSafeQueue, RejectsNewestItemAtCapacity) {

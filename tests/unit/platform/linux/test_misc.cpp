@@ -5,14 +5,14 @@
 
 #ifdef __linux__
 
+  // test includes
+  #include "../../../tests_common.h"
+
   // standard includes
   #include <array>
   #include <cstdlib>
   #include <optional>
   #include <string>
-
-  // lib includes
-  #include <gtest/gtest.h>
 
   // local includes
   #include "src/logging.h"

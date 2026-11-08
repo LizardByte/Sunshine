@@ -3,6 +3,9 @@
  * @brief Tests for explicit conversions, ownership transfers, and member initialization.
  */
 
+// test includes
+#include "../tests_common.h"
+
 // standard includes
 #include <array>
 #include <functional>
@@ -11,9 +14,6 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
-
-// lib includes
-#include <gtest/gtest.h>
 
 // local includes
 #include "src/crypto.h"

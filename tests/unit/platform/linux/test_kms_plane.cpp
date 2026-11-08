@@ -5,11 +5,11 @@
 
 #ifdef __linux__
 
+  // test includes
+  #include "../../../tests_common.h"
+
   // standard includes
   #include <chrono>
-
-  // lib includes
-  #include <gtest/gtest.h>
 
   // local includes
   #include "src/platform/linux/kms_plane.h"

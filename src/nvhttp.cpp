@@ -630,7 +630,7 @@ namespace nvhttp {
 
     sess.async_insert_pin.id = pairing_id;
     sess.async_insert_pin.expires_at = now + PAIRING_SESSION_TIMEOUT;
-    map_id_sess.emplace(sess.client.uniqueID, std::move(sess));
+    map_id_sess.try_emplace(sess.client.uniqueID, std::move(sess));
     return pair_session_insert_e::ADDED;
   }
 
@@ -734,7 +734,7 @@ namespace nvhttp {
    * @param tree XML property tree used for the response body.
    * @param status_msg Status msg.
    */
-  void fail_pair(pair_session_t &sess, pt::ptree &tree, const std::string status_msg) {
+  void fail_pair(pair_session_t &sess, pt::ptree &tree, const std::string &status_msg) {
     tree.put("root.paired", 0);
     tree.put("root.<xmlattr>.status_code", 400);
     tree.put("root.<xmlattr>.status_message", status_msg);
@@ -1126,15 +1126,14 @@ namespace nvhttp {
     }
 
     bool pairing_complete = false;
-    args_t::const_iterator it;
-    if (it = args.find("clientchallenge"); it != std::end(args)) {
-      auto challenge = util::from_hex_vec(it->second, true);
+    if (const auto challenge_it = args.find("clientchallenge"); challenge_it != std::end(args)) {
+      auto challenge = util::from_hex_vec(challenge_it->second, true);
       clientchallenge(sess_it->second, tree, challenge);
-    } else if (it = args.find("serverchallengeresp"); it != std::end(args)) {
-      auto encrypted_response = util::from_hex_vec(it->second, true);
+    } else if (const auto response_it = args.find("serverchallengeresp"); response_it != std::end(args)) {
+      auto encrypted_response = util::from_hex_vec(response_it->second, true);
       serverchallengeresp(sess_it->second, tree, encrypted_response);
-    } else if (it = args.find("clientpairingsecret"); it != std::end(args)) {
-      auto pairingsecret = util::from_hex_vec(it->second, true);
+    } else if (const auto secret_it = args.find("clientpairingsecret"); secret_it != std::end(args)) {
+      auto pairingsecret = util::from_hex_vec(secret_it->second, true);
       clientpairingsecret(sess_it->second, tree, pairingsecret);
       pairing_complete = true;
     } else {
@@ -1146,7 +1145,7 @@ namespace nvhttp {
     }
   }
 
-  bool pin(const std::string_view pairing_id, std::string pin, std::string name) {
+  bool pin(const std::string_view pairing_id, const std::string &pin, std::string name) {
     if (!is_valid_pairing_id(pairing_id) || !is_valid_pairing_pin(pin) || !is_valid_pairing_name(name)) {
       return false;
     }
@@ -1201,11 +1200,6 @@ namespace nvhttp {
     return false;
   }
 
-  /**
-   * @brief Get codec mode flags.
-   *
-   * @return Moonlight codec capability bitmask for the currently probed encoders.
-   */
   uint32_t get_codec_mode_flags() {
     uint32_t codec_mode_flags = SCM_H264;
     if (video::last_encoder_probe_supported_yuv444_for_codec[0]) {
@@ -1217,10 +1211,10 @@ namespace nvhttp {
         codec_mode_flags |= SCM_HEVC_REXT8_444;
       }
     }
-    if (video::active_hevc_mode == 3 || video::active_hevc_mode == 5) {
+    if ((video::active_hevc_mode == 3 || video::active_hevc_mode == 5) && video::last_encoder_probe_supported_dynamic_range_for_codec[1]) {
       codec_mode_flags |= SCM_HEVC_MAIN10;
     }
-    if ((video::active_hevc_mode == 4 || video::active_hevc_mode == 5) && video::last_encoder_probe_supported_yuv444_for_codec[1]) {
+    if ((video::active_hevc_mode == 4 || video::active_hevc_mode == 5) && video::last_encoder_probe_supported_dynamic_range_yuv444_for_codec[1]) {
       codec_mode_flags |= SCM_HEVC_REXT10_444;
     }
 
@@ -1230,10 +1224,10 @@ namespace nvhttp {
         codec_mode_flags |= SCM_AV1_HIGH8_444;
       }
     }
-    if (video::active_av1_mode == 3 || video::active_av1_mode == 5) {
+    if ((video::active_av1_mode == 3 || video::active_av1_mode == 5) && video::last_encoder_probe_supported_dynamic_range_for_codec[2]) {
       codec_mode_flags |= SCM_AV1_MAIN10;
     }
-    if ((video::active_av1_mode == 4 || video::active_av1_mode == 5) && video::last_encoder_probe_supported_yuv444_for_codec[2]) {
+    if ((video::active_av1_mode == 4 || video::active_av1_mode == 5) && video::last_encoder_probe_supported_dynamic_range_yuv444_for_codec[2]) {
       codec_mode_flags |= SCM_AV1_HIGH10_444;
     }
     return codec_mode_flags;
@@ -1360,7 +1354,7 @@ namespace nvhttp {
       app.put("AppTitle"s, proc.name);
       app.put("ID", proc.id);
 
-      apps.push_back(std::make_pair("App", std::move(app)));
+      apps.push_back(std::make_pair("App", app));
     }
   }
 

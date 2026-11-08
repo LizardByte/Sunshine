@@ -20,6 +20,21 @@
 
 using namespace std::literals;
 
+/**
+ * @brief Preparation commands own their command strings and copy privilege settings.
+ */
+TEST(ConfigPrepCommandTest, PreservesCommandsAndElevationWithBothConstructors) {
+  const config::prep_cmd_t paired {"launch"s, "undo"s, true};
+  EXPECT_EQ(paired.do_cmd, "launch");
+  EXPECT_EQ(paired.undo_cmd, "undo");
+  EXPECT_TRUE(paired.elevated);
+
+  const config::prep_cmd_t single {"launch-only"s, false};
+  EXPECT_EQ(single.do_cmd, "launch-only");
+  EXPECT_TRUE(single.undo_cmd.empty());
+  EXPECT_FALSE(single.elevated);
+}
+
 TEST(ConfigParsingTest, ParsedEntriesOwnKeysAndSupportStringViewLookup) {
   std::string input = "encoder = software\nencoder = nvenc\n";
   const auto entries = config::parse_config(input);
@@ -32,6 +47,16 @@ TEST(ConfigParsingTest, ParsedEntriesOwnKeysAndSupportStringViewLookup) {
   EXPECT_EQ(found->second, "software");
   EXPECT_FALSE(entries.contains("missing"sv));
   EXPECT_EQ(entries.size(), 1);
+}
+
+/**
+ * @brief Duplicate configuration keys retain their first nonempty entry.
+ */
+TEST(ConfigParsingTest, DuplicateKeysPreserveFirstValueAfterIgnoredEmptyEntry) {
+  const auto entries = config::parse_config("encoder = software\nencoder = nvenc\noutput_name =\noutput_name = later\noutput_name = ignored\n");
+  EXPECT_EQ(entries.at("encoder"), "software");
+  EXPECT_EQ(entries.at("output_name"), "later");
+  EXPECT_EQ(entries.size(), 2);
 }
 
 TEST(ConfigDefaultsTest, UsesAutomaticGamepadSelection) {
@@ -193,6 +218,34 @@ TEST_F(ConfigPersistenceTest, ParsesFp16SdrGammaEncodedOption) {
 
   config::apply_config_for_test("fp16_sdr_gamma_encoded = disabled\n");
   EXPECT_FALSE(config::video.fp16_sdr_gamma_encoded);
+}
+
+/**
+ * @brief Verify mixed-case boolean values update configuration correctly.
+ */
+TEST_F(ConfigPersistenceTest, ParsesBooleanOptionsCaseInsensitively) {
+  const auto original_video = config::video;
+  const auto restore_video = util::fail_guard([original_video]() {
+    config::video = original_video;
+  });
+  const auto apps_file = config_file().parent_path() / "sunshine_test_config_apps.json";
+  ASSERT_EQ(file_handler::write_file(apps_file.string().c_str(), "{}"), 0);
+  config::stream.file_apps = apps_file.string();
+
+  constexpr std::array cases {
+    std::pair {"Enabled"sv, true},
+    std::pair {"TRUE"sv, true},
+    std::pair {"On"sv, true},
+    std::pair {"Yes"sv, true},
+    std::pair {"Disabled"sv, false},
+    std::pair {"False"sv, false},
+    std::pair {"OFF"sv, false},
+  };
+  for (const auto &[setting, expected] : cases) {
+    config::video.fp16_sdr_gamma_encoded = !expected;
+    config::apply_config_for_test(std::string {"fp16_sdr_gamma_encoded = "} + std::string {setting} + "\n");
+    EXPECT_EQ(config::video.fp16_sdr_gamma_encoded, expected) << setting;
+  }
 }
 
 TEST_F(ConfigPersistenceTest, ParsesHexIntegersWiderThanAnInt) {
