@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   organization:
-    uses: LizardByte/.github/.github/workflows/__call-organization.yml@390ac9c7c1950249fe8197fe06b7ae49233ce405
+    uses: LizardByte/.github/.github/workflows/__call-organization.yml@master
 
   npm:
     needs: organization
@@ -26,7 +26,7 @@ jobs:
       contents: read
       id-token: write  # required for provenance and OIDC
       packages: write
-    uses: LizardByte/.github/.github/workflows/__call-update-npm.yml@390ac9c7c1950249fe8197fe06b7ae49233ce405
+    uses: LizardByte/.github/.github/workflows/__call-update-npm.yml@master
     secrets:
       GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
     with:

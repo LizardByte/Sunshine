@@ -18,7 +18,7 @@ on:
 
 jobs:
   organization:
-    uses: LizardByte/.github/.github/workflows/__call-organization.yml@390ac9c7c1950249fe8197fe06b7ae49233ce405
+    uses: LizardByte/.github/.github/workflows/__call-organization.yml@master
 
   call-copr-ci:
     needs: organization
