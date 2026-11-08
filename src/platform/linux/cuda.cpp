@@ -186,7 +186,9 @@ namespace cuda {
       }
     }
 
-    CU_CHECK((*table)->cuInit(0), "Couldn't initialize cuda");
+    if (check(**table, (*table)->cuInit(0), "Couldn't initialize cuda: "sv)) {
+      return -1;
+    }
 
     return 0;
   }
