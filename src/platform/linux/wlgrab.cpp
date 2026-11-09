@@ -186,6 +186,10 @@ namespace wl {
     return screencopy_version >= 2 && stream_fps > 0 && refresh_mhz / 1000.0 >= stream_fps * 1.5;
   }
 
+  bool capture_needs_reinit(int frame_width, int frame_height, int width, int height, int output_transform, int transform) {
+    return frame_width != width || frame_height != height || output_transform != transform;
+  }
+
   std::chrono::steady_clock::time_point next_damage_request(
     std::chrono::steady_clock::time_point next_request,
     std::chrono::steady_clock::time_point frame_time,
@@ -424,9 +428,7 @@ namespace wl {
 
       if (
         dmabuf.status == dmabuf_t::REINIT ||
-        current_frame->sd.width != width ||
-        current_frame->sd.height != height ||
-        monitor->viewport.transform != transform  // rotated: re-read the geometry for absolute input
+        capture_needs_reinit(current_frame->sd.width, current_frame->sd.height, width, height, monitor->viewport.transform, transform)
       ) {
         return platf::capture_e::reinit;
       }

@@ -29,6 +29,7 @@ extern "C" {
 #include "src/input.h"
 #include "src/platform/virtualhid_input.h"
 #include "src/utility.h"
+#include "src/video.h"
 
 namespace {
   /**
@@ -641,6 +642,75 @@ TEST_F(InputGamepadSessionTest, RetargetsRelativeMouseFromLatestStreamGeometry) 
   EXPECT_EQ(mouse_event.x, -5);
   EXPECT_EQ(mouse_event.y, 9);
   EXPECT_EQ(context().mouse_viewport.offset_x, 0);
+}
+
+namespace {
+  /**
+   * @brief Display that only carries geometry, for building a touch port.
+   */
+  class geometry_display_t: public platf::display_t {
+  public:
+    /**
+     * @brief Report no frames; only the geometry is used.
+     *
+     * @return Always `capture_e::ok`.
+     */
+    platf::capture_e capture(const push_captured_image_cb_t &, const pull_free_image_cb_t &, bool *) override {
+      return platf::capture_e::ok;
+    }
+
+    /**
+     * @brief Allocate no image; only the geometry is used.
+     *
+     * @return Always `nullptr`.
+     */
+    std::shared_ptr<platf::img_t> alloc_img() override {
+      return nullptr;
+    }
+
+    /**
+     * @brief Leave the image untouched; only the geometry is used.
+     *
+     * @return Always 0.
+     */
+    int dummy_img(platf::img_t *) override {
+      return 0;
+    }
+  };
+}  // namespace
+
+TEST_F(InputGamepadSessionTest, RebuildsTheTouchPortForARotatedDisplay) {
+  // The display after turning from 90 to 270 degrees: same 3000x1920 native and 960x1500 logical size.
+  geometry_display_t display;
+  display.width = 3000;
+  display.height = 1920;
+  display.logical_width = 960;
+  display.logical_height = 1500;
+  display.env_width = 3000;
+  display.env_height = 1920;
+  display.env_logical_width = 960;
+  display.env_logical_height = 1500;
+  display.transform = 3;
+
+  video::config_t config {};
+  config.width = 3000;
+  config.height = 1920;
+
+  const auto port = video::make_port(&display, config);
+  EXPECT_EQ(port.transform, 3);
+  EXPECT_FLOAT_EQ(port.scalar_tpcoords, 2.0F);
+
+  auto session_mail = std::make_shared<safe::mail_raw_t>();
+  auto stream_input = input::alloc(session_mail, "rotated-display-client");
+  ASSERT_NE(stream_input, nullptr);
+  session_mail->event<input::touch_port_t>(mail::touch_port)->raise(port);
+
+  input::testing::send_absolute_mouse_packet(stream_input, 300, 200, 3000, 1920);
+
+  const auto mouse_event = context().mouse->last_submitted_event();
+  EXPECT_EQ(mouse_event.kind, lvh::MouseEventKind::absolute_motion);
+  EXPECT_FLOAT_EQ(mouse_event.absolute_x, 100.0F);
+  EXPECT_FLOAT_EQ(mouse_event.absolute_y, 1350.0F);
 }
 
 TEST_F(InputGamepadSessionTest, MapsAbsoluteMouseOntoRotatedOutputs) {

@@ -189,6 +189,23 @@ namespace wl {
   bool use_damage_capture(std::uint32_t screencopy_version, double stream_fps, std::int32_t refresh_mhz);
 
   /**
+   * @brief Decide whether a received frame means capture has to be reinitialized.
+   *
+   * The display's size and transform feed the touch port, so a change in either has to rebuild it.
+   * Turning an output between 90 and 270 degrees changes neither its native nor its logical size,
+   * so the transform is compared on its own.
+   *
+   * @param frame_width Width of the received frame.
+   * @param frame_height Height of the received frame.
+   * @param width Width the capture was initialized with.
+   * @param height Height the capture was initialized with.
+   * @param output_transform Current transform of the captured output.
+   * @param transform Transform the capture was initialized with.
+   * @return `true` when capture has to be reinitialized.
+   */
+  bool capture_needs_reinit(int frame_width, int frame_height, int width, int height, int output_transform, int transform);
+
+  /**
    * @brief Move the earliest time of the next damage-driven request on by one captured frame.
    *
    * Every captured frame costs one frame interval of budget, which holds an output that changes
