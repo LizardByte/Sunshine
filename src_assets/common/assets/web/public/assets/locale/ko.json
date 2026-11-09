@@ -241,6 +241,8 @@
     "dd_wa_hdr_toggle_delay": "HDR을 위한 고대비 해결 방법",
     "ds4_back_as_touchpad_click": "지도 뒤로 가기/터치패드 클릭으로 선택",
     "ds4_back_as_touchpad_click_desc": "DS4 에뮬레이션을 강제할 때 뒤로/선택을 터치패드 클릭에 매핑합니다.",
+    "dscp_tagging": "DSCP 태깅",
+    "dscp_tagging_desc": "클라이언트의 요청이 있을 경우 오디오 및 비디오 패킷에 DSCP 우선순위 태그를 지정합니다. 일부 라우터는 태그가 지정된 트래픽을 제대로 처리하지 못하기 때문에, Wi-Fi 사용 시 오디오에서 잡음이 나거나 끊김 현상이 발생할 경우 이 기능을 비활성화하면 도움이 될 수 있습니다.",
     "virtualhid_randomize_mac": "가상 컨트롤러의 MAC 주소 무작위 할당",
     "virtualhid_randomize_mac_desc": "컨트롤러 인덱스를 기반으로 한 MAC 주소 대신, PlayStation 스타일의 가상 컨트롤러에는 임의의 MAC 주소를 사용하십시오. 이렇게 하면 클라이언트 측에서 컨트롤러를 교체할 때 컨트롤러별 설정이 혼합되는 것을 방지할 수 있습니다.",
     "encoder": "특정 인코더 강제 적용",
