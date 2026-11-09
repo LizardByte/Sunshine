@@ -21,6 +21,7 @@
 #include "src/platform/common.h"
 #include "src/platform/macos/av_img_t.h"
 #include "src/platform/macos/av_video.h"
+#include "src/platform/macos/display_helpers.h"
 #include "src/platform/macos/misc.h"
 #include "src/platform/macos/nv12_zero_device.h"
 #import "src/platform/macos/sc_capture.h"
@@ -54,30 +55,6 @@ namespace platf {
       }
 
       return display_id;
-    }
-
-    /**
-     * @brief Return the union of active CoreGraphics display bounds.
-     *
-     * @param fallback_display Display whose bounds are used if enumeration fails.
-     * @return Full active desktop bounds in CoreGraphics coordinates.
-     */
-    CGRect active_desktop_bounds(CGDirectDisplayID fallback_display) {
-      std::uint32_t display_count {};
-      if (CGGetActiveDisplayList(0, nullptr, &display_count) != kCGErrorSuccess || display_count == 0) {
-        return CGDisplayBounds(fallback_display);
-      }
-
-      std::vector<CGDirectDisplayID> displays(display_count);
-      if (CGGetActiveDisplayList(display_count, displays.data(), &display_count) != kCGErrorSuccess || display_count == 0) {
-        return CGDisplayBounds(fallback_display);
-      }
-
-      auto bounds = CGDisplayBounds(displays.front());
-      for (std::uint32_t index = 1; index < display_count; ++index) {
-        bounds = CGRectUnion(bounds, CGDisplayBounds(displays[index]));
-      }
-      return bounds;
     }
 
     OSType videotoolbox_pixel_format(const video::config_t &config) {
@@ -151,29 +128,6 @@ namespace platf {
     }
 
     /**
-     * @brief Zero-fill all planes of a pixel buffer.
-     *
-     * @param pixel_buffer Pixel buffer to clear.
-     */
-    void clear_pixel_buffer(CVPixelBufferRef pixel_buffer) {
-      CVPixelBufferLockBaseAddress(pixel_buffer, 0);
-
-      if (CVPixelBufferIsPlanar(pixel_buffer)) {
-        for (size_t plane = 0; plane < CVPixelBufferGetPlaneCount(pixel_buffer); ++plane) {
-          auto *base = static_cast<std::uint8_t *>(CVPixelBufferGetBaseAddressOfPlane(pixel_buffer, plane));
-          auto bytes_per_row = CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer, plane);
-          auto height = CVPixelBufferGetHeightOfPlane(pixel_buffer, plane);
-          std::memset(base, 0, bytes_per_row * height);
-        }
-      } else {
-        auto *base = static_cast<std::uint8_t *>(CVPixelBufferGetBaseAddress(pixel_buffer));
-        std::memset(base, 0, CVPixelBufferGetBytesPerRow(pixel_buffer) * CVPixelBufferGetHeight(pixel_buffer));
-      }
-
-      CVPixelBufferUnlockBaseAddress(pixel_buffer, 0);
-    }
-
-    /**
      * @brief Synthesize a blank frame for capture backends that only deliver frames on screen changes.
      *
      * @param img Image object to populate.
@@ -203,7 +157,7 @@ namespace platf {
         return 1;
       }
 
-      clear_pixel_buffer(pixel_buffer);
+      display_helpers::fill_black(pixel_buffer);
 
       CMVideoFormatDescriptionRef format_desc = nullptr;
       status = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, pixel_buffer, &format_desc);
@@ -589,9 +543,7 @@ namespace platf {
         if (display->sc_capture) {
           display->width = display->sc_capture.frameWidth;
           display->height = display->sc_capture.frameHeight;
-          // We also need set env_width and env_height for absolute mouse coordinates
-          display->env_width = display->width;
-          display->env_height = display->height;
+          display_helpers::init_display_geometry(*display, display_id);
 
           if (hwdevice_type == platf::mem_type_e::videotoolbox) {
             const auto pixel_format {videotoolbox_pixel_format(config)};
@@ -611,23 +563,7 @@ namespace platf {
     display->display_id = display_id;
     display->display_power_guard = std::move(display_power_guard);
 
-    const auto selected_display_bounds = CGDisplayBounds(display->display_id);
-    const auto desktop_bounds = active_desktop_bounds(display->display_id);
-    display->offset_x = static_cast<int>(selected_display_bounds.origin.x);
-    display->offset_y = static_cast<int>(selected_display_bounds.origin.y);
-    display->logical_width = static_cast<int>(selected_display_bounds.size.width);
-    display->logical_height = static_cast<int>(selected_display_bounds.size.height);
-    display->env_offset_x = static_cast<int>(desktop_bounds.origin.x);
-    display->env_offset_y = static_cast<int>(desktop_bounds.origin.y);
-    display->env_logical_width = static_cast<int>(desktop_bounds.size.width);
-    display->env_logical_height = static_cast<int>(desktop_bounds.size.height);
-    display->env_width = display->env_logical_width;
-    display->env_height = display->env_logical_height;
-
-    BOOST_LOG(debug) << "Selected display bounds: "sv << display->offset_x << 'x' << display->offset_y << ' '
-                     << display->logical_width << 'x' << display->logical_height;
-    BOOST_LOG(debug) << "Active desktop bounds: "sv << display->env_offset_x << 'x' << display->env_offset_y << ' '
-                     << display->env_logical_width << 'x' << display->env_logical_height;
+    display_helpers::init_display_geometry(*display, display->display_id);
 
     display->av_capture = [[AVVideo alloc] initWithDisplay:display->display_id frameRate:config.framerate];
 
