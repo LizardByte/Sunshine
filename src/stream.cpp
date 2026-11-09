@@ -803,6 +803,24 @@ namespace stream {
 
   namespace fec {
     /**
+     * @brief Limit data shards so data and parity fit in an 8-bit Reed-Solomon block.
+     *
+     * @param percentage Recovery-shard percentage between 0 and 100.
+     * @return Maximum data shards with room for the requested parity shards.
+     */
+    int max_data_shards(int percentage) {
+      // The 8-bit Reed-Solomon encoder allows 255 data and parity shards combined.
+      // The max number of data shards per block is found by solving this system of equations for D:
+      // D = 255 - P
+      // P = D * F
+      // which results in the solution:
+      // D = 255 / (1 + F)
+      // multiplied by 100 since F is the percentage as an integer:
+      // D = (255 * 100) / (100 + F)
+      return (RS8_DATA_SHARDS_MAX * 100) / (100 + percentage);
+    }
+
+    /**
      * @brief Owning pointer for a Reed-Solomon encoder instance.
      */
     using rs_t = util::safe_ptr<reed_solomon, [](reed_solomon *rs) {
@@ -1679,14 +1697,7 @@ namespace stream {
       // There are 2 bits for FEC block count for a maximum of 4 FEC blocks
       constexpr auto MAX_FEC_BLOCKS = 4;
 
-      // The max number of data shards per block is found by solving this system of equations for D:
-      // D = 255 - P
-      // P = D * F
-      // which results in the solution:
-      // D = 255 / (1 + F)
-      // multiplied by 100 since F is the percentage as an integer:
-      // D = (255 * 100) / (100 + F)
-      auto max_data_shards_per_fec_block = (DATA_SHARDS_MAX * 100) / (100 + fecPercentage);
+      auto max_data_shards_per_fec_block = fec::max_data_shards(fecPercentage);
 
       // Compute the number of FEC blocks needed for this frame using the block size and max shards
       auto max_data_per_fec_block = max_data_shards_per_fec_block * blocksize;
@@ -2216,7 +2227,7 @@ namespace stream {
 
     // Enable local prioritization and QoS tagging on video traffic if requested by the client
     auto address = session->video.peer.address();
-    session->video.qos = platf::enable_socket_qos(ref->video_sock.native_handle(), address, session->video.peer.port(), platf::qos_data_type_e::video, session->config.videoQosType != 0);
+    session->video.qos = platf::enable_socket_qos(ref->video_sock.native_handle(), address, session->video.peer.port(), platf::qos_data_type_e::video, config::stream.dscp_tagging && session->config.videoQosType != 0);
 
     BOOST_LOG(debug) << "Start capturing Video"sv;
     video::capture(session->mail, session->config.monitor, session);
@@ -2243,7 +2254,7 @@ namespace stream {
 
     // Enable local prioritization and QoS tagging on audio traffic if requested by the client
     auto address = session->audio.peer.address();
-    session->audio.qos = platf::enable_socket_qos(ref->audio_sock.native_handle(), address, session->audio.peer.port(), platf::qos_data_type_e::audio, session->config.audioQosType != 0);
+    session->audio.qos = platf::enable_socket_qos(ref->audio_sock.native_handle(), address, session->audio.peer.port(), platf::qos_data_type_e::audio, config::stream.dscp_tagging && session->config.audioQosType != 0);
 
     BOOST_LOG(debug) << "Start capturing Audio"sv;
     audio::capture(session->mail, session->config.audio, session, []() {

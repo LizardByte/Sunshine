@@ -221,6 +221,21 @@ TEST_F(ConfigPersistenceTest, ParsesFp16SdrGammaEncodedOption) {
 }
 
 /**
+ * @brief Verify the DSCP tagging option parses enabled and disabled values.
+ */
+TEST_F(ConfigPersistenceTest, ParsesDscpTaggingOption) {
+  const auto apps_file = config_file().parent_path() / "sunshine_test_config_apps.json";
+  ASSERT_EQ(file_handler::write_file(apps_file.string().c_str(), "{}"), 0);
+  config::stream.file_apps = apps_file.string();
+
+  config::apply_config_for_test("dscp_tagging = disabled\n");
+  EXPECT_FALSE(config::stream.dscp_tagging);
+
+  config::apply_config_for_test("dscp_tagging = enabled\n");
+  EXPECT_TRUE(config::stream.dscp_tagging);
+}
+
+/**
  * @brief Verify mixed-case boolean values update configuration correctly.
  */
 TEST_F(ConfigPersistenceTest, ParsesBooleanOptionsCaseInsensitively) {

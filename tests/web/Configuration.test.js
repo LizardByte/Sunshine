@@ -103,7 +103,7 @@ describe('network configuration', () => {
     const wrapper = mount(Network, {
       props: {
         platform: 'linux',
-        config: { upnp: false },
+        config: { upnp: false, dscp_tagging: 'enabled' },
       },
       global: globalOptions,
     })
@@ -113,6 +113,23 @@ describe('network configuration', () => {
     expect(tableText).toContain('47989')
     expect(tableText).toContain('48010')
     expect(tableText).not.toContain('NaN')
+  })
+
+  it('toggles DSCP tagging between enabled and disabled', async () => {
+    const config = { upnp: false, dscp_tagging: 'enabled' }
+    const wrapper = mount(Network, {
+      props: { platform: 'linux', config },
+      global: { ...globalOptions, stubs: { ...globalOptions.stubs, Checkbox: false } },
+    })
+    const input = wrapper.get('#dscp_tagging')
+
+    expect(input.element.checked).toBe(true)
+
+    await input.setValue(false)
+    expect(config.dscp_tagging).toBe('disabled')
+
+    await input.setValue(true)
+    expect(config.dscp_tagging).toBe('enabled')
   })
 })
 

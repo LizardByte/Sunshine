@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <drm_fourcc.h>
 #include <map>
+#include <optional>
 #include <sys/stat.h>
 #if defined(__FreeBSD__)
   #include <sys/types.h>
@@ -171,26 +172,26 @@ namespace vk {
    *
    * This uses FFmpeg's Vulkan context to query maxQualityLevels and validate
    * the requested level using vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR.
-   * If the requested level is invalid, returns 0 to indicate failure.
+   * Codec-specific quality properties are chained to the output as required by Vulkan.
    *
    * @param codec_id FFmpeg codec ID (AV_CODEC_ID_H264, AV_CODEC_ID_HEVC, AV_CODEC_ID_AV1).
    * @param vk_ctx FFmpeg's AVVulkanDeviceContext with initialized Vulkan handles.
    * @param requested_level Requested quality level to validate (0 = speed, max = quality).
-   * @param[out] max_level Maximum quality level supported by the driver.
-   * @return Validated quality level (requested_level if valid, 0 if invalid).
+   * @param[out] max_level Highest zero-based quality level supported by the driver.
+   * @return Validated quality level, or std::nullopt when the query fails.
    */
-  static uint32_t query_and_validate_quality_level(AVCodecID codec_id, AVVulkanDeviceContext *vk_ctx, uint32_t requested_level, uint32_t *max_level) {
+  static std::optional<uint32_t> query_and_validate_quality_level(AVCodecID codec_id, AVVulkanDeviceContext *vk_ctx, uint32_t requested_level, uint32_t *max_level) {
     *max_level = 0;
 
     if (!vk_ctx || !vk_ctx->inst || !vk_ctx->phys_dev || !vk_ctx->get_proc_addr) {
-      return 0;
+      return std::nullopt;
     }
 
     auto vkGetPhysicalDeviceVideoCapabilitiesKHR_fn = (PFN_vkGetPhysicalDeviceVideoCapabilitiesKHR)
                                                         vk_ctx->get_proc_addr(vk_ctx->inst, "vkGetPhysicalDeviceVideoCapabilitiesKHR");
 
     if (!vkGetPhysicalDeviceVideoCapabilitiesKHR_fn) {
-      return 0;
+      return std::nullopt;
     }
 
     // Codec-specific profile extensions (zero-initialized)
@@ -216,6 +217,18 @@ namespace vk {
     VkVideoEncodeAV1CapabilitiesKHR av1_caps = {};
     av1_caps.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_AV1_CAPABILITIES_KHR;
 
+    VkVideoEncodeH264QualityLevelPropertiesKHR h264_quality = {};
+    h264_quality.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_H264_QUALITY_LEVEL_PROPERTIES_KHR;
+
+    VkVideoEncodeH265QualityLevelPropertiesKHR h265_quality = {};
+    h265_quality.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_H265_QUALITY_LEVEL_PROPERTIES_KHR;
+
+    VkVideoEncodeAV1QualityLevelPropertiesKHR av1_quality = {};
+    av1_quality.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_AV1_QUALITY_LEVEL_PROPERTIES_KHR;
+
+    VkVideoEncodeQualityLevelPropertiesKHR quality_props = {};
+    quality_props.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_QUALITY_LEVEL_PROPERTIES_KHR;
+
     // Usage info chain (follows FFmpeg's pattern)
     VkVideoEncodeUsageInfoKHR usage_info = {};
     usage_info.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_USAGE_INFO_KHR;
@@ -235,25 +248,28 @@ namespace vk {
     VkVideoEncodeCapabilitiesKHR enc_caps = {};
     enc_caps.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_CAPABILITIES_KHR;
 
-    // Set codec operation and chain codec-specific extensions (profile and caps)
+    // Set codec operation and chain codec-specific profile, capabilities, and quality properties.
     switch (codec_id) {
       case AV_CODEC_ID_H264:
         profile.videoCodecOperation = VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR;
         usage_info.pNext = &h264_profile;
         enc_caps.pNext = &h264_caps;
+        quality_props.pNext = &h264_quality;
         break;
       case AV_CODEC_ID_HEVC:
         profile.videoCodecOperation = VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR;
         usage_info.pNext = &h265_profile;
         enc_caps.pNext = &h265_caps;
+        quality_props.pNext = &h265_quality;
         break;
       case AV_CODEC_ID_AV1:
         profile.videoCodecOperation = VK_VIDEO_CODEC_OPERATION_ENCODE_AV1_BIT_KHR;
         usage_info.pNext = &av1_profile;
         enc_caps.pNext = &av1_caps;
+        quality_props.pNext = &av1_quality;
         break;
       default:
-        return 0;
+        return std::nullopt;
     }
 
     // Main capabilities output
@@ -262,11 +278,11 @@ namespace vk {
     caps.pNext = &enc_caps;
 
     VkResult result = vkGetPhysicalDeviceVideoCapabilitiesKHR_fn(vk_ctx->phys_dev, &profile, &caps);
-    if (result != VK_SUCCESS) {
-      return 0;
+    if (result != VK_SUCCESS || enc_caps.maxQualityLevels == 0) {
+      return std::nullopt;
     }
 
-    *max_level = enc_caps.maxQualityLevels;
+    *max_level = enc_caps.maxQualityLevels - 1;
     BOOST_LOG(debug) << "[vulkan] Driver max quality level: "sv << *max_level;
 
     // If requested level is 0 or within range, try to validate it
@@ -286,12 +302,9 @@ namespace vk {
       quality_level_info.pVideoProfile = &profile;
       quality_level_info.qualityLevel = requested_level;
 
-      VkVideoEncodeQualityLevelPropertiesKHR quality_props = {};
-      quality_props.sType = VK_STRUCTURE_TYPE_VIDEO_ENCODE_QUALITY_LEVEL_PROPERTIES_KHR;
-
       result = vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR_fn(vk_ctx->phys_dev, &quality_level_info, &quality_props);
       if (result != VK_SUCCESS) {
-        return 0;
+        return std::nullopt;
       }
     }
 
@@ -456,7 +469,8 @@ namespace vk {
     }
 
     /**
-     * @brief Initialize codec options.
+     * @brief Configure rate control and validated Vulkan encoder quality options.
+     * @note Failed quality queries leave the encoder's default quality unchanged.
      *
      * @param ctx Native context object used by the operation or callback.
      * @param options Request options or socket options to apply.
@@ -486,9 +500,7 @@ namespace vk {
         const char *preset_name = "speed";
 
         // First pass: get max quality to calculate target
-        query_and_validate_quality_level(ctx->codec_id, vk_ctx, 0, &max_quality);
-
-        if (max_quality > 0) {
+        if (query_and_validate_quality_level(ctx->codec_id, vk_ctx, 0, &max_quality).has_value()) {
           switch (quality_preset) {
             default:
             case 1:  // speed (level 0 = fastest)
@@ -506,11 +518,11 @@ namespace vk {
           }
 
           // Validate the calculated target quality level
-          uint32_t validated_quality = query_and_validate_quality_level(ctx->codec_id, vk_ctx, target_quality, &max_quality);
+          auto validated_quality = query_and_validate_quality_level(ctx->codec_id, vk_ctx, target_quality, &max_quality);
 
-          if (validated_quality == target_quality) {
-            av_dict_set_int(options, "quality", validated_quality, 0);
-            BOOST_LOG(info) << "[vulkan] Encoder quality set to "sv << validated_quality
+          if (validated_quality && *validated_quality == target_quality) {
+            av_dict_set_int(options, "quality", *validated_quality, 0);
+            BOOST_LOG(info) << "[vulkan] Encoder quality set to "sv << *validated_quality
                             << " ("sv << preset_name << "), driver range: 0-"sv << max_quality;
           } else {
             BOOST_LOG(warning) << "[vulkan] Quality level "sv << target_quality
@@ -602,6 +614,7 @@ namespace vk {
 
     /**
      * @brief Configure FFmpeg Vulkan hardware frames for video encode input.
+     * @note FFmpeg adds video encode usage only when the device and format support it.
      *
      * @param frames FFmpeg hardware frames context to initialize.
      */
@@ -611,8 +624,7 @@ namespace vk {
       vk_frames->tiling = VK_IMAGE_TILING_OPTIMAL;
       vk_frames->usage = (VkImageUsageFlagBits) (VK_IMAGE_USAGE_STORAGE_BIT |
                                                  VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                                 VK_IMAGE_USAGE_SAMPLED_BIT |
-                                                 VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR);
+                                                 VK_IMAGE_USAGE_SAMPLED_BIT);
     }
 
     /**

@@ -411,6 +411,13 @@ TEST(UtilityFromHexTests, LongInputKeepsTheLowOrderBytes) {
   EXPECT_EQ(util::from_hex<std::uint32_t>("123456789A", true), util::endian::big(std::uint32_t {0x3456789A}));
 }
 
+TEST(UtilityFromHexTests, OddDigitCountReadsTheLeadingDigitAsTheHighNibble) {
+  EXPECT_EQ(util::from_hex<std::uint32_t>("8"), util::endian::little(std::uint32_t {0x8}));
+  EXPECT_EQ(util::from_hex<std::uint16_t>("ABC"), util::endian::little(std::uint16_t {0xABC}));
+  EXPECT_EQ(util::from_hex<std::uint16_t>("ABC", true), util::endian::big(std::uint16_t {0xABC}));
+  EXPECT_EQ(util::from_hex<std::uint16_t>("1:2:3"), util::endian::little(std::uint16_t {0x123}));
+}
+
 TEST(UtilityFromHexTests, DecodesIntoAByteArrayWithoutPointerTypePunning) {
   const auto bytes = util::from_hex<std::array<std::uint8_t, 4>>("12:34:56:78", true);
   EXPECT_EQ(bytes, (std::array<std::uint8_t, 4> {0x12, 0x34, 0x56, 0x78}));

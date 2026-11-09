@@ -8,12 +8,23 @@
 // standard includes
 #include <cstdlib>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <optional>
+#include <system_error>
 #include <thread>
 
-// lib imports
+// lib includes
 #include <boost/process/v1.hpp>
+
+#ifdef _WIN32
+  // lib includes
+  #include <boost/process/v1/windows.hpp>
+  #include <Windows.h>
+#else
+  // lib includes
+  #include <unistd.h>
+#endif
 
 // local includes
 #include <src/process.h>
@@ -39,7 +50,126 @@ namespace proc {
    * @return Text with environment references expanded.
    */
   std::string parse_env_val(boost::process::v1::native_environment &env, const std::string_view &val_raw);
+
+  /**
+   * @brief Check a prep-command launch and wait for successful completion.
+   *
+   * @param child Process returned by the launch, or an empty child on failure.
+   * @param command Command line used for logging.
+   * @param ec Launch error, updated by the wait or cleared for an allowed permission denial.
+   * @param allow_permission_denied Whether permission-denied launches may be skipped for Desktop access.
+   * @return True if the command succeeded or its permission-denied launch was allowed.
+   */
+  bool wait_for_prep_command(boost::process::v1::child &child, const std::string &command, std::error_code &ec, bool allow_permission_denied);
 }  // namespace proc
+
+namespace {
+  /**
+   * @brief Launch a short-lived shell command, hidden on Windows.
+   *
+   * @param exit_code Exit status returned by the child.
+   * @param ec Error set if launching the child fails.
+   * @return Child process used to exercise prep-command waiting.
+   */
+  boost::process::v1::child launch_prep_test_child(int exit_code, std::error_code &ec) {
+    const auto command = std::format("exit {}", exit_code);
+#ifdef _WIN32
+    return boost::process::v1::child(boost::process::v1::search_path("cmd.exe"), "/c", command, boost::process::v1::windows::create_no_window, ec);
+#else
+    return boost::process::v1::child("/bin/sh", "-c", command, ec);
+#endif
+  }
+}  // namespace
+
+TEST(ProcessTest, DesktopSkipsPermissionDeniedPrepLaunches) {
+  boost::process::v1::child child;
+  auto ec = std::make_error_code(std::errc::permission_denied);
+
+  EXPECT_TRUE(proc::wait_for_prep_command(child, "prep-command", ec, true));
+  EXPECT_FALSE(ec) << "The skipped launch error must not prevent subsequent commands from starting";
+  EXPECT_FALSE(child.valid());
+}
+
+TEST(ProcessTest, ApplicationsRejectPermissionDeniedPrepLaunches) {
+  boost::process::v1::child child;
+  auto ec = std::make_error_code(std::errc::permission_denied);
+
+  EXPECT_FALSE(proc::wait_for_prep_command(child, "prep-command", ec, false));
+  EXPECT_EQ(ec, std::errc::permission_denied);
+}
+
+TEST(ProcessTest, OtherPrepLaunchErrorsRemainFatal) {
+  for (const bool desktop : {false, true}) {
+    boost::process::v1::child child;
+    auto ec = std::make_error_code(std::errc::no_such_file_or_directory);
+
+    EXPECT_FALSE(proc::wait_for_prep_command(child, "prep-command", ec, desktop));
+    EXPECT_EQ(ec, std::errc::no_such_file_or_directory);
+  }
+}
+
+TEST(ProcessTest, PrepCommandsRunAfterSkippedPermissionDenial) {
+  boost::process::v1::child skipped_child;
+  auto ec = std::make_error_code(std::errc::permission_denied);
+  ASSERT_TRUE(proc::wait_for_prep_command(skipped_child, "skipped-command", ec, true));
+  ASSERT_FALSE(ec);
+
+  auto child = launch_prep_test_child(0, ec);
+  ASSERT_FALSE(ec) << ec.message();
+  ASSERT_TRUE(child.valid());
+  EXPECT_TRUE(proc::wait_for_prep_command(child, "prep-command", ec, true));
+  EXPECT_FALSE(ec);
+}
+
+TEST(ProcessTest, NonzeroPrepExitRemainsFatalForDesktop) {
+  std::error_code ec;
+  auto child = launch_prep_test_child(7, ec);
+  ASSERT_FALSE(ec) << ec.message();
+  ASSERT_TRUE(child.valid());
+  EXPECT_FALSE(proc::wait_for_prep_command(child, "prep-command", ec, true));
+  EXPECT_FALSE(ec);
+  EXPECT_EQ(child.exit_code(), 7);
+}
+
+TEST(ProcessTest, PrepWaitErrorsRemainFatalForDesktop) {
+#ifdef _WIN32
+  std::error_code launch_ec;
+  auto launched = launch_prep_test_child(0, launch_ec);
+  ASSERT_FALSE(launch_ec) << launch_ec.message();
+  ASSERT_TRUE(launched.valid());
+
+  // Keep the exited process alive with a handle that allows waiting but cannot query its exit code.
+  const auto wait_only_handle = OpenProcess(SYNCHRONIZE, FALSE, launched.id());
+  ASSERT_NE(wait_only_handle, nullptr);
+  const boost::winapi::PROCESS_INFORMATION_ process_info {wait_only_handle, nullptr, launched.id(), 0};
+  boost::process::v1::child child {boost::process::v1::child::child_handle {process_info}};
+  child.detach();
+  launched.wait(launch_ec);
+  ASSERT_FALSE(launch_ec) << launch_ec.message();
+#else
+  // The current process is not our child, so waitpid() must fail without blocking.
+  boost::process::v1::child child {static_cast<boost::process::v1::pid_t>(getpid())};
+#endif
+  std::error_code ec;
+  EXPECT_FALSE(proc::wait_for_prep_command(child, "prep-command", ec, true));
+  EXPECT_TRUE(ec);
+}
+
+TEST(ProcessTest, PrepLaunchErrorsAbortDesktopLaunch) {
+  proc::ctx_t app {};
+  app.id = "42";
+  app.name = "Desktop";
+  app.working_dir = SUNSHINE_SOURCE_DIR;
+  app.prep_cmds.emplace_back("sunshine-nonexistent-prep-command", "", false);
+  boost::process::v1::environment env = boost::this_process::environment();
+  proc::proc_t process(std::move(env), {std::move(app)});
+  const auto cleanup = util::fail_guard([&process]() {
+    process.terminate();
+  });
+
+  EXPECT_EQ(process.execute(42, std::make_shared<rtsp_stream::launch_session_t>()), -1);
+  EXPECT_EQ(process.running(), 0);
+}
 
 #ifdef _WIN32
 TEST(ProcessTest, ExpandsEnvironmentNamesWithoutChangingTheirCase) {
