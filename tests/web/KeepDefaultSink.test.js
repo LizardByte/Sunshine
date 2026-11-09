@@ -41,6 +41,9 @@ describe('keep default sink configuration', () => {
       expect(wrapper.text()).toContain('config.audio_capture_target_silent_desc_macos')
       expect(wrapper.get('#audio_capture_target_current').element.checked).toBe(true)
       expectInsight('current')
+      // A blank sink mounts as Play on this PC here, so mount syncs the saved keys to match.
+      expect(config.keep_default_sink).toBe('enabled')
+      expect(config.audio_sink).toBe('')
     } else {
       expect(wrapper.get('#audio_capture_target_silent').element.checked).toBe(true)
       expectInsight('silent')

@@ -57,6 +57,11 @@ function syncCaptureConfig() {
 }
 
 watch([captureTarget, captureOwner, specificSink], syncCaptureConfig)
+
+// Normalize platform-forced selections back to the saved keys on mount: macOS
+// has no Quiet path, so a blank sink shows Play on this PC here even when the
+// saved keys still describe Quiet streaming.
+syncCaptureConfig()
 </script>
 
 <template>

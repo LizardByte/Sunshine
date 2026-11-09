@@ -884,14 +884,18 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
             with <strong>I route apps myself</strong>. A named [audio_sink](#audio_sink) always wins over
             this virtual sink, including when Moonlight host playback is off.
             @tip{See [audio_sink](#audio_sink)!}
-            @tip{These are some options for virtual sound devices.
-            * Steam Streaming Speakers (Windows)
+            @tip{This option is Windows only. Some options for virtual sound devices on Windows:
+            * Steam Streaming Speakers
               * Steam must be installed.
               * Enable [install_steam_audio_drivers](#install_steam_audio_drivers)
                 or use Steam Remote Play at least once to install the drivers.
-            * Sunshine null sinks (FreeBSD/Linux, provided automatically)
-            * [BlackHole](https://github.com/ExistentialAudio/BlackHole) or
-              [Virtual Audio Cable](https://vb-audio.com/Cable) (macOS, Windows)
+            * [Virtual Audio Cable](https://vb-audio.com/Cable)
+            <br>
+            <br>
+            On FreeBSD/Linux, leave this option unset and use <strong>Quiet streaming</strong> instead:
+            Sunshine captures its own null sinks (for example `sink-sunshine-stereo`) automatically.
+            On macOS, use <strong>Custom device</strong> with
+            [BlackHole](https://github.com/ExistentialAudio/BlackHole) and route the game to it yourself.
             }
         </td>
     </tr>
@@ -970,8 +974,11 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
             <code>external_audio = enabled</code> setting is migrated to <code>keep_default_sink = enabled</code>
             on upgrade, unless <code>keep_default_sink</code> is also set. Unlike the old Windows mode, an
             explicit [audio_sink](#audio_sink) is no longer required. Note that [virtual_sink](#virtual_sink)
-            and Moonlight's host-playback selection only apply on the swap path; in keep-default mode the
+            only affects sink selection on the swap path; in keep-default mode the
             capture target is the configured <code>audio_sink</code>, or the host sink when none is configured.
+            Moonlight's host-playback selection likewise only affects sink selection on the swap path,
+            except on macOS where it still controls the system tap mute behavior (muted tap versus tap plus
+            speakers) in keep-default mode.
             <br>
             <br>
             In the Web UI, the Audio Capture choices map to these keys as follows: <strong>Quiet streaming</strong>
