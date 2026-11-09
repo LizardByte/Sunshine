@@ -241,6 +241,8 @@
     "dd_wa_hdr_toggle_delay": "HDR 高对比度临时解决方案",
     "ds4_back_as_touchpad_click": "将 Back/Select 映射为触摸板点击",
     "ds4_back_as_touchpad_click_desc": "模拟 PlayStation 系游戏手柄时，将 Back/Select 映射为触摸板点击",
+    "dscp_tagging": "DSCP 标签",
+    "dscp_tagging_desc": "当客户端提出请求时，用DSCP优先级标签标记标记音频和视频数据包。 禁用这个选项可能有助于在Wi-Fi上的语音破解或停用，因为某些路由器处理标签的流量很差。",
     "virtualhid_randomize_mac": "随机虚拟手柄 MAC 地址",
     "virtualhid_randomize_mac_desc": "为 PlayStation 系的虚拟手柄使用随机 MAC 地址，而不是根据手柄索引生成的 MAC 地址。这样可以避免客户端更换手柄后混淆各手柄的独立设置。",
     "encoder": "强制指定编码器",
