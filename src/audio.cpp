@@ -155,7 +155,7 @@ namespace audio {
   /**
    * @brief Run the capture loop for this backend.
    */
-  void capture(safe::mail_t mail, config_t config, stream::session_t *channel_data) {
+  void capture(safe::mail_t mail, config_t config, stream::session_t *channel_data, std::function<std::uint32_t()> capture_process_id_provider) {
     auto shutdown_event = mail->event<bool>(mail::shutdown);
     if (!config::audio.stream) {
       shutdown_event->view();
@@ -184,6 +184,20 @@ namespace audio {
       return;
     }
 
+    const auto capture_intent = resolve_audio_capture_intent(config::audio.keep_default_sink, config::audio.sink);
+    const auto process_capture_supported = control->supports_process_capture();
+
+    auto clear_capture_target = util::fail_guard([&control]() {
+      control->set_capture_target(platf::audio_capture_intent_e::client_only, 0);
+    });
+
+    // Refresh the capture target before every microphone creation so a
+    // process that appears or exits between reinitializations is reflected.
+    auto refresh_capture_target = [&]() {
+      const auto process_id = capture_process_id_provider ? capture_process_id_provider() : 0u;
+      control->set_capture_target(capture_intent, should_capture_process_tree(capture_intent, process_capture_supported, process_id) ? process_id : 0u);
+    };
+
     // Only the first to start a session may change the default sink
     if (!ref->sink_flag->exchange(true, std::memory_order_acquire)) {
       // One decision point for swap-vs-capture: the recorded restore flag keeps
@@ -199,6 +213,13 @@ namespace audio {
         ref->sink.null
       );
       ref->restore_sink = routing.restore_at_teardown;
+      BOOST_LOG(info) << "Audio capture mode ["sv << (routing.swap_at_startup ? "swap-and-restore"sv : "capture-keep-default"sv)
+                      << "], target ["sv << routing.target
+                      << "], restore_at_teardown ["sv << routing.restore_at_teardown
+                      << "], keep_default_sink requested ["sv << config::audio.keep_default_sink
+                      << "], keep_default_sink supported ["sv << control->supports_keep_default_sink()
+                      << "], capture intent ["sv << audio_capture_intent_name(capture_intent)
+                      << "], process capture supported ["sv << process_capture_supported << ']';
       if (routing.swap_at_startup) {
         // If the selected sink is different than the current one, change sinks.
         if (ref->restore_sink && control->set_sink(routing.target)) {
@@ -212,6 +233,7 @@ namespace audio {
     auto frame_size = config.packetDuration * stream.sampleRate / 1000;
     bool host_audio = config.flags[config_t::HOST_AUDIO];
     bool continuous_audio = config.flags[config_t::CONTINUOUS_AUDIO];
+    refresh_capture_target();
     auto mic = control->microphone(stream.mapping, stream.channelCount, stream.sampleRate, frame_size, continuous_audio, host_audio);
     if (!mic) {
       return;
@@ -249,6 +271,7 @@ namespace audio {
           BOOST_LOG(info) << "Reinitializing audio capture"sv;
           mic.reset();
           do {
+            refresh_capture_target();
             mic = control->microphone(stream.mapping, stream.channelCount, stream.sampleRate, frame_size, continuous_audio, host_audio);
             if (!mic) {
               BOOST_LOG(warning) << "Couldn't re-initialize audio input"sv;
@@ -271,6 +294,12 @@ namespace audio {
   bool is_audio_ctx_sink_available(const audio_ctx_t &ctx) {
     if (!ctx.control) {
       return false;
+    }
+
+    // Keep-default captures the configured sink, so probe that endpoint rather
+    // than the host default recorded at startup.
+    if (config::audio.keep_default_sink && !config::audio.sink.empty() && ctx.control->supports_keep_default_sink()) {
+      return ctx.control->is_sink_available(config::audio.sink);
     }
 
     const std::string &sink = ctx.sink.host.empty() ? config::audio.sink : ctx.sink.host;

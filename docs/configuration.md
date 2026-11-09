@@ -820,7 +820,6 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
             <br>
             Sunshine can only access microphones on macOS due to system limitations.
             To stream system audio use
-            [Soundflower](https://github.com/mattingalls/Soundflower) or
             [BlackHole](https://github.com/ExistentialAudio/BlackHole).
             <br>
             <br>
@@ -834,6 +833,18 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
             }
             @attention{If you want to mute the host speakers, use
             [virtual_sink](#virtual_sink) instead.}
+            @tip{On FreeBSD/Linux, Sunshine also provides its own null sinks (for example
+            `sink-sunshine-stereo`). Enter one here to capture a private mix you route
+            yourself; combined with [keep_default_sink](#keep_default_sink), the host
+            default output is left untouched.}
+            <br>
+            <br>
+            In the Web UI Audio Capture choices: a blank value with
+            [keep_default_sink](#keep_default_sink) disabled is <strong>Quiet streaming</strong>; a blank value
+            with it enabled is <strong>Play on this PC too</strong>; a named value is <strong>Custom device</strong>,
+            where <strong>I route apps myself</strong> enables [keep_default_sink](#keep_default_sink) and
+            <strong>Sunshine sets it as the default</strong> leaves it disabled so Sunshine sets the named
+            sink as the default while streaming and restores the previous default afterwards.
         </td>
     </tr>
     <tr>
@@ -867,14 +878,20 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
         <td>Description</td>
         <td colspan="2">
             The audio device that's virtual, like Steam Streaming Speakers. This allows Sunshine to stream audio,
-            while muting the speakers.
+            while muting the speakers. It applies only to the <strong>Quiet streaming</strong> path
+            ([keep_default_sink](#keep_default_sink) disabled; the Windows Web UI shows it only for Quiet
+            streaming) and is ignored for <strong>Play on this PC too</strong> and for <strong>Custom device</strong>
+            with <strong>I route apps myself</strong>. A named [audio_sink](#audio_sink) always wins over
+            this virtual sink, including when Moonlight host playback is off.
             @tip{See [audio_sink](#audio_sink)!}
             @tip{These are some options for virtual sound devices.
-            * Stream Streaming Speakers (Linux, macOS, Windows)
+            * Steam Streaming Speakers (Windows)
               * Steam must be installed.
               * Enable [install_steam_audio_drivers](#install_steam_audio_drivers)
                 or use Steam Remote Play at least once to install the drivers.
-            * [Virtual Audio Cable](https://vb-audio.com/Cable) (macOS, Windows)
+            * Sunshine null sinks (FreeBSD/Linux, provided automatically)
+            * [BlackHole](https://github.com/ExistentialAudio/BlackHole) or
+              [Virtual Audio Cable](https://vb-audio.com/Cable) (macOS, Windows)
             }
         </td>
     </tr>
@@ -938,53 +955,48 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     </tr>
 </table>
 
-### external_audio
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Enables capture-only operation when an external audio router manages application playback.
-            An explicit [audio_sink](#audio_sink) is required; use an endpoint ID when names are ambiguous.
-            Sunshine captures that endpoint directly without changing or restoring Windows default devices
-            or endpoint formats.
-            <br>
-            <br>
-            In this mode, [virtual_sink](#virtual_sink), automatic Steam audio driver installation,
-            and Moonlight's host-playback toggle do not affect routing. Configure local playback and the audio
-            sent to the selected endpoint in your external mixer. If the endpoint is unavailable, audio capture
-            fails rather than falling back to another endpoint. Video streaming can continue without audio.
-            @note{This option is only supported on Windows. Other platforms retain their existing behavior.}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            disabled
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            external_audio = enabled
-            audio_sink = My Streaming Mix
-            @endcode</td>
-    </tr>
-</table>
-
 ### keep_default_sink
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Capture the selected audio sink without changing the host default sink. When disabled, Sunshine sets the
-            selected sink as the host default sink while streaming.
-            @note{Platform support: Linux captures the configured sink (or the host sink when nothing is
-            configured) and adopts pre-existing null sinks instead of unloading them. Windows captures the
-            target endpoint directly, skips the Steam driver install and the startup default-device reset,
-            and never reinstalls the default when it changes. macOS already captures through a system tap
-            or the selected input without touching the default output, so the option is honored natively.}
+            Capture the selected audio sink without changing the host default sink. When disabled, Sunshine sets
+            the selected (or virtual) sink as the host default sink while streaming on platforms that swap
+            defaults; macOS never changes the default output.
+            <br>
+            <br>
+            This replaces the Windows-only <code>external_audio</code> option. An existing
+            <code>external_audio = enabled</code> setting is migrated to <code>keep_default_sink = enabled</code>
+            on upgrade, unless <code>keep_default_sink</code> is also set. Unlike the old Windows mode, an
+            explicit [audio_sink](#audio_sink) is no longer required. Note that [virtual_sink](#virtual_sink)
+            and Moonlight's host-playback selection only apply on the swap path; in keep-default mode the
+            capture target is the configured <code>audio_sink</code>, or the host sink when none is configured.
+            <br>
+            <br>
+            In the Web UI, the Audio Capture choices map to these keys as follows: <strong>Quiet streaming</strong>
+            leaves this option disabled and <code>audio_sink</code> blank, so the client hears the audio while the
+            host stays silent when Moonlight host playback is off; <strong>Play on this PC too</strong> enables this
+            option with <code>audio_sink</code> blank; <strong>Custom device</strong> sets <code>audio_sink</code>
+            to the named sink, device, or input and adds a routing-owner choice: <strong>I route apps
+            myself</strong> enables this option (Sunshine captures the named sink without changing the default),
+            while <strong>Sunshine sets it as the default</strong> leaves this option disabled (Sunshine sets the
+            named sink as the default while streaming and restores the previous default afterwards). On macOS, Quiet streaming is
+            disabled in the Web UI and neither Custom routing owner changes the default output; for silent or
+            separated capture, use Custom device with BlackHole and route the game to it yourself.
+            @note{Platform behavior:<br>
+            <strong>Windows:</strong> captures the target endpoint directly and is hands-off, so an external
+            router such as VoiceMeeter or GoXLR keeps owning endpoint defaults and formats; it also skips the
+            Steam driver install, the startup default-device reset, and default reinstallation. When no
+            <code>audio_sink</code> is configured and Sunshine launched the application, Windows may instead
+            capture the launched process tree with WASAPI process loopback, so other applications stay out of
+            the stream; endpoint capture remains the fallback.<br>
+            <strong>Linux:</strong> captures the configured sink's monitor, or the host sink's monitor when
+            none is configured, and adopts pre-existing null sinks instead of unloading them.<br>
+            <strong>FreeBSD:</strong> captures the configured sink's monitor, or the host sink's monitor when
+            none is configured, without changing the default sink.<br>
+            <strong>macOS:</strong> honors the option natively through a system tap or the selected input,
+            without touching the default output.}
         </td>
     </tr>
     <tr>

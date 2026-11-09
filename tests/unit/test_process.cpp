@@ -524,6 +524,28 @@ TEST_F(ProcessRefreshTest, UpdateAppsAndEnv_UpdatesAppsList) {
   EXPECT_EQ(target.get_apps()[1].name, "AppC");
 }
 
+TEST_F(ProcessUpdateTest, AppProcessIdIsZeroForDesktopPlacebo) {
+  EXPECT_EQ(proc::proc.app_process_id(), 0u);
+}
+
+#ifndef _WIN32
+TEST(ProcessTest, AppProcessIdTracksRealChildLifecycle) {
+  boost::process::v1::environment env = boost::this_process::environment();
+  proc::ctx_t ctx;
+  ctx.name = "Sleeper";
+  ctx.id = "7";
+  ctx.cmd = "sleep 30";
+  std::vector<proc::ctx_t> apps;
+  apps.push_back(std::move(ctx));
+  proc::proc_t target(std::move(env), std::move(apps));
+  auto launch_session = std::make_shared<rtsp_stream::launch_session_t>();
+  ASSERT_EQ(target.execute(7, launch_session), 0);
+  EXPECT_NE(target.app_process_id(), 0u);
+  target.terminate();
+  EXPECT_EQ(target.app_process_id(), 0u);
+}
+#endif
+
 TEST_F(ProcessUpdateTest, UpdateAppsAndEnv_PreservesRunningState) {
   proc::proc.update_apps_and_env(buildNewSource());
 

@@ -316,6 +316,13 @@ namespace proc {
     return 0;
   }
 
+  std::uint32_t proc_t::app_process_id() {
+    if (placebo || !_process.valid() || !_process.running()) {
+      return 0u;
+    }
+    return static_cast<std::uint32_t>(_process.id());
+  }
+
   int proc_t::running() {
 #ifndef _WIN32
     // On POSIX OSes, we must periodically wait for our children to avoid

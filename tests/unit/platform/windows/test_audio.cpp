@@ -9,6 +9,7 @@
 #ifdef _WIN32
   // standard includes
   #include <array>
+  #include <cstdint>
   #include <cstdlib>
   #include <cstring>
   #include <functional>
@@ -19,6 +20,10 @@
   #include <mmdeviceapi.h>
   #include <mmreg.h>
   #include <propsys.h>
+  #if __has_include(<audioclientactivationparams.h>)
+    #include <audioclientactivationparams.h>
+    #define SUNSHINE_TEST_HAS_AUDIOCLIENT_ACTIVATION_PARAMS 1
+  #endif
 
   // local includes
   #include "src/config.h"
@@ -27,18 +32,24 @@
 namespace platf::audio::tests {
   std::vector<WAVEFORMATEXTENSIBLE> virtual_sink_waveformats(WORD channel_count);
   int initialize_audio_control(const std::function<std::remove_pointer_t<decltype(&CoCreateInstance)>> &create_instance);
-  std::optional<sink_t> configured_sink_info();
-  int set_external_sink(const std::string &sink);
+  int set_keep_default_sink(const std::string &sink);
   bool keep_default_supported();
   std::string capture_assigned_sink(const std::string &sink);
-  bool installs_default_callback(const std::string &sink, bool keep_default, bool external_audio);
-  bool resets_default_device(bool keep_default, bool external_audio);
-  bool installs_steam_drivers(bool keep_default, bool external_audio, bool install_requested);
+  bool installs_default_callback(const std::string &sink, bool keep_default);
+  bool resets_default_device(bool keep_default);
+  bool installs_steam_drivers(bool keep_default, bool install_requested);
   void reset_with_keep_default();
   bool sink_device_available(const std::string &sink, IMMDeviceEnumerator *device_enum);
+  std::optional<sink_t> reported_sinks(IMMDeviceEnumerator *device_enum);
   bool microphone_available(const std::string &assigned_sink, const std::string &configured_sink, IMMDeviceEnumerator *device_enum);
   bool capture_follows_default_device(IMMDeviceEnumerator *device_enum, IMMDevice *capture_device);
   capture_e simulate_default_device_change(bool follows_default_device, bool install_callback, bool render_device_changed, int &callback_count);
+  bool use_process_loopback(std::uint32_t process_id, const std::string &configured_sink, platf::audio_capture_intent_e intent);
+  bool process_loopback_fails_with_null_activator();
+  std::uint32_t recorded_capture_process_id(std::uint32_t process_id);
+  #ifdef SUNSHINE_TEST_HAS_AUDIOCLIENT_ACTIVATION_PARAMS
+  AUDIOCLIENT_ACTIVATION_PARAMS make_process_loopback_activation_params(std::uint32_t process_id);
+  #endif
 }  // namespace platf::audio::tests
 
 namespace {
@@ -222,6 +233,9 @@ namespace {
 
     HRESULT STDMETHODCALLTYPE GetDefaultAudioEndpoint(EDataFlow, ERole, IMMDevice **resolved_device) override {
       ++get_default_device_calls;
+      if (FAILED(get_default_status)) {
+        return get_default_status;
+      }
       device.AddRef();
       *resolved_device = &device;
       return S_OK;
@@ -254,6 +268,7 @@ namespace {
     fake_device_collection_t collection;
     HRESULT enumeration_status = S_OK;
     HRESULT get_device_status = S_OK;
+    HRESULT get_default_status = S_OK;
     int get_device_calls = 0;
     int get_default_device_calls = 0;
     std::wstring last_requested_id;
@@ -329,11 +344,11 @@ TEST(WindowsAudioTest, DefaultDeviceIsUsedWhenNoSinkWasRequested) {
 /**
  * @brief Preserve global audio configuration while exercising capture-only mode.
  */
-class ExternalAudioTest: public testing::Test {
+class WindowsKeepDefaultTest: public testing::Test {
 protected:
   void SetUp() override {
     previous = config::audio;
-    config::audio.external_audio = true;
+    config::audio.keep_default_sink = true;
     config::audio.sink = "configured-id";
     config::audio.virtual_sink = "ignored-virtual-sink";
     policy_requests = 0;
@@ -400,94 +415,105 @@ private:
   inline static HRESULT enumerator_status = S_OK;  ///< Simulated enumeration initialization result.
 };
 
-TEST_F(ExternalAudioTest, InitializesWithoutPolicyInterface) {
+TEST_F(WindowsKeepDefaultTest, InitializesWithoutPolicyInterface) {
   EXPECT_EQ(platf::audio::tests::initialize_audio_control(&create_capture_interface), 0);
   EXPECT_EQ(policy_request_count(), 0);
   EXPECT_EQ(enumerator_request_count(), 1);
 }
 
-TEST_F(ExternalAudioTest, InitializationRequiresEndpointEnumerator) {
+TEST_F(WindowsKeepDefaultTest, InitializationRequiresEndpointEnumerator) {
   fail_enumerator_initialization();
   EXPECT_NE(platf::audio::tests::initialize_audio_control(&create_capture_interface), 0);
   EXPECT_EQ(policy_request_count(), 0);
   EXPECT_EQ(enumerator_request_count(), 1);
 }
 
-TEST_F(ExternalAudioTest, DisabledModeStillRequiresPolicyInterface) {
-  config::audio.external_audio = false;
+TEST_F(WindowsKeepDefaultTest, DisabledModeStillRequiresPolicyInterface) {
+  config::audio.keep_default_sink = false;
   EXPECT_NE(platf::audio::tests::initialize_audio_control(&create_capture_interface), 0);
   EXPECT_EQ(policy_request_count(), 1);
   EXPECT_EQ(enumerator_request_count(), 0);
 }
 
-TEST_F(ExternalAudioTest, RequiresExplicitSink) {
-  config::audio.sink.clear();
-  EXPECT_EXIT(std::exit(platf::audio::tests::configured_sink_info() ? 1 : 0), testing::ExitedWithCode(0), "");
-  fake_device_enumerator_t enumerator {L"endpoint-id"};
-  EXPECT_FALSE(platf::audio::tests::microphone_available({}, {}, &enumerator));
-  EXPECT_EQ(enumerator.get_default_device_calls, 0);
-  EXPECT_EQ(enumerator.get_device_calls, 0);
+TEST_F(WindowsKeepDefaultTest, SinkChangesDoNotAccessPolicyOrFormatInterfaces) {
+  EXPECT_EXIT(std::exit(platf::audio::tests::set_keep_default_sink("virtual-Stereoendpoint-id")), testing::ExitedWithCode(0), "");
+  EXPECT_EXIT(std::exit(platf::audio::tests::set_keep_default_sink("other-endpoint")), testing::ExitedWithCode(0), "");
 }
 
-TEST_F(ExternalAudioTest, SkipsDefaultAndVirtualDeviceDiscovery) {
-  EXPECT_EXIT(
-    {
-      const auto sinks = platf::audio::tests::configured_sink_info();
-      std::exit(sinks && sinks->host == "configured-id" && !sinks->null ? 0 : 1);
-    },
-    testing::ExitedWithCode(0),
-    ""
-  );
-}
-
-TEST_F(ExternalAudioTest, SinkChangesDoNotAccessPolicyOrFormatInterfaces) {
-  EXPECT_EXIT(std::exit(platf::audio::tests::set_external_sink("virtual-Stereoendpoint-id")), testing::ExitedWithCode(0), "");
-  EXPECT_EXIT(std::exit(platf::audio::tests::set_external_sink("other-endpoint")), testing::ExitedWithCode(0), "");
-}
-
-TEST_F(ExternalAudioTest, ConfiguredSinkWinsOverAssignedSink) {
-  fake_device_enumerator_t enumerator {L"configured-id"};
-  EXPECT_FALSE(platf::audio::tests::microphone_available("virtual-Stereoother-id", "configured-id", &enumerator));
-  EXPECT_EQ(enumerator.last_requested_id, L"configured-id");
-  EXPECT_EQ(enumerator.get_default_device_calls, 0);
-}
-
-TEST_F(ExternalAudioTest, MissingSinkDoesNotFallBackToDefault) {
-  fake_device_enumerator_t enumerator {L"endpoint-id"};
-  EXPECT_FALSE(platf::audio::tests::microphone_available({}, "missing-id", &enumerator));
-  EXPECT_EQ(enumerator.get_default_device_calls, 0);
-}
-
-TEST_F(ExternalAudioTest, DisconnectedSinkDoesNotFallBackToDefault) {
-  fake_device_enumerator_t enumerator {L"configured-id"};
-  enumerator.device.state = DEVICE_STATE_UNPLUGGED;
-  EXPECT_FALSE(platf::audio::tests::microphone_available({}, "configured-id", &enumerator));
-  EXPECT_EQ(enumerator.get_default_device_calls, 0);
-}
-
-TEST_F(ExternalAudioTest, DisabledModePreservesAssignedSinkPriority) {
-  config::audio.external_audio = false;
+TEST_F(WindowsKeepDefaultTest, AssignedSinkWinsOverConfiguredSink) {
   fake_device_enumerator_t enumerator {L"assigned-id"};
   EXPECT_FALSE(platf::audio::tests::microphone_available("assigned-id", "configured-id", &enumerator));
   EXPECT_EQ(enumerator.last_requested_id, L"assigned-id");
   EXPECT_EQ(enumerator.get_default_device_calls, 0);
 }
 
-TEST_F(ExternalAudioTest, DisabledModePreservesDefaultFallback) {
-  config::audio.external_audio = false;
+TEST_F(WindowsKeepDefaultTest, MissingSinkDoesNotFallBackToDefault) {
+  fake_device_enumerator_t enumerator {L"endpoint-id"};
+  EXPECT_FALSE(platf::audio::tests::microphone_available({}, "missing-id", &enumerator));
+  EXPECT_EQ(enumerator.get_default_device_calls, 0);
+}
+
+TEST_F(WindowsKeepDefaultTest, DisconnectedSinkDoesNotFallBackToDefault) {
+  fake_device_enumerator_t enumerator {L"configured-id"};
+  enumerator.device.state = DEVICE_STATE_UNPLUGGED;
+  EXPECT_FALSE(platf::audio::tests::microphone_available({}, "configured-id", &enumerator));
+  EXPECT_EQ(enumerator.get_default_device_calls, 0);
+}
+
+TEST_F(WindowsKeepDefaultTest, DisabledModePreservesDefaultFallback) {
+  config::audio.keep_default_sink = false;
   fake_device_enumerator_t enumerator {L"endpoint-id"};
   EXPECT_TRUE(platf::audio::tests::capture_follows_default_device(&enumerator, nullptr));
   EXPECT_EQ(enumerator.get_default_device_calls, 1);
   EXPECT_EQ(enumerator.get_device_calls, 0);
 }
 
-TEST_F(ExternalAudioTest, ReactivatedSinkCanBeResolvedAgain) {
+TEST_F(WindowsKeepDefaultTest, ReactivatedSinkCanBeResolvedAgain) {
   fake_device_enumerator_t enumerator {L"configured-id"};
   enumerator.device.state = DEVICE_STATE_UNPLUGGED;
   EXPECT_FALSE(platf::audio::tests::sink_device_available("configured-id", &enumerator));
   enumerator.device.state = DEVICE_STATE_ACTIVE;
   EXPECT_TRUE(platf::audio::tests::sink_device_available("configured-id", &enumerator));
   EXPECT_EQ(enumerator.get_default_device_calls, 0);
+}
+
+TEST_F(WindowsKeepDefaultTest, KeepsConfiguredSinkWhenDefaultUnavailable) {
+  fake_device_enumerator_t enumerator {L"configured-id"};
+  enumerator.get_default_status = E_FAIL;
+
+  const auto sinks = platf::audio::tests::reported_sinks(&enumerator);
+
+  ASSERT_TRUE(sinks.has_value());
+  EXPECT_EQ(sinks->host, "configured-id");
+  EXPECT_FALSE(sinks->null.has_value());
+  EXPECT_EQ(enumerator.get_default_device_calls, 1);
+}
+
+TEST_F(WindowsKeepDefaultTest, EmptyConfigStillUsesDefaultEndpointAsHost) {
+  config::audio.sink.clear();
+  fake_device_enumerator_t enumerator {L"endpoint-id"};
+
+  const auto sinks = platf::audio::tests::reported_sinks(&enumerator);
+
+  ASSERT_TRUE(sinks.has_value());
+  EXPECT_EQ(sinks->host, "endpoint-id");
+  EXPECT_EQ(enumerator.get_default_device_calls, 1);
+}
+
+TEST_F(WindowsKeepDefaultTest, EmptyConfigWithoutDefaultReportsNoSink) {
+  config::audio.sink.clear();
+  fake_device_enumerator_t enumerator {L"endpoint-id"};
+  enumerator.get_default_status = E_FAIL;
+
+  EXPECT_FALSE(platf::audio::tests::reported_sinks(&enumerator).has_value());
+}
+
+TEST_F(WindowsKeepDefaultTest, DisabledModeWithoutDefaultReportsNoSink) {
+  config::audio.keep_default_sink = false;
+  fake_device_enumerator_t enumerator {L"configured-id"};
+  enumerator.get_default_status = E_FAIL;
+
+  EXPECT_FALSE(platf::audio::tests::reported_sinks(&enumerator).has_value());
 }
 
 TEST(WindowsAudioTest, DefaultCaptureSelectsDefaultEndpoint) {
@@ -603,21 +629,49 @@ TEST(WindowsAudioTest, KeepDefaultModeCapturesWithoutSwapping) {
 
 TEST(WindowsAudioTest, KeepDefaultModeInstallsNoReassertionCallback) {
   constexpr const char *virtual_sink = "virtual-Stereoendpoint-id";
-  EXPECT_TRUE(platf::audio::tests::installs_default_callback(virtual_sink, false, false));
-  EXPECT_FALSE(platf::audio::tests::installs_default_callback(virtual_sink, true, false));
-  EXPECT_FALSE(platf::audio::tests::installs_default_callback(virtual_sink, false, true));
-  EXPECT_FALSE(platf::audio::tests::installs_default_callback(virtual_sink, true, true));
-  EXPECT_FALSE(platf::audio::tests::installs_default_callback("endpoint-id", false, false));
+  EXPECT_TRUE(platf::audio::tests::installs_default_callback(virtual_sink, false));
+  EXPECT_FALSE(platf::audio::tests::installs_default_callback(virtual_sink, true));
+  EXPECT_FALSE(platf::audio::tests::installs_default_callback("endpoint-id", false));
 }
 
-TEST(WindowsAudioTest, HandsOffModesSkipDefaultResetAndDriverInstall) {
-  EXPECT_TRUE(platf::audio::tests::resets_default_device(false, false));
-  EXPECT_FALSE(platf::audio::tests::resets_default_device(true, false));
-  EXPECT_FALSE(platf::audio::tests::resets_default_device(false, true));
-  EXPECT_TRUE(platf::audio::tests::installs_steam_drivers(false, false, true));
-  EXPECT_FALSE(platf::audio::tests::installs_steam_drivers(true, false, true));
-  EXPECT_FALSE(platf::audio::tests::installs_steam_drivers(false, true, true));
-  EXPECT_FALSE(platf::audio::tests::installs_steam_drivers(false, false, false));
+TEST(WindowsAudioTest, ProcessLoopbackRequiresHostAndClientIntentPidAndNoConfiguredSink) {
+  using intent = platf::audio_capture_intent_e;
+  EXPECT_FALSE(platf::audio::tests::use_process_loopback(0, "", intent::client_only));
+  EXPECT_FALSE(platf::audio::tests::use_process_loopback(0, "", intent::host_and_client));
+  EXPECT_FALSE(platf::audio::tests::use_process_loopback(0, "eq-sink", intent::host_and_client));
+  // Quiet streaming with a PID must not bypass the silent virtual endpoint.
+  EXPECT_FALSE(platf::audio::tests::use_process_loopback(1234, "", intent::client_only));
+  // The only true row: Play on this PC too with a PID and no pinned sink.
+  EXPECT_TRUE(platf::audio::tests::use_process_loopback(1234, "", intent::host_and_client));
+  // A configured Custom sink wins over process loopback.
+  EXPECT_FALSE(platf::audio::tests::use_process_loopback(1234, "eq-sink", intent::host_and_client));
+  EXPECT_FALSE(platf::audio::tests::use_process_loopback(1234, "eq-sink", intent::pinned_sink));
+}
+
+TEST(WindowsAudioTest, CaptureProcessSetterStoresPid) {
+  EXPECT_EQ(platf::audio::tests::recorded_capture_process_id(1234), 1234u);
+  EXPECT_EQ(platf::audio::tests::recorded_capture_process_id(0), 0u);
+}
+
+TEST(WindowsAudioTest, ProcessLoopbackFailsWithNullActivator) {
+  EXPECT_TRUE(platf::audio::tests::process_loopback_fails_with_null_activator());
+}
+
+  #ifdef SUNSHINE_TEST_HAS_AUDIOCLIENT_ACTIVATION_PARAMS
+TEST(WindowsAudioTest, ProcessLoopbackActivationParamsIncludeProcessTree) {
+  const auto params = platf::audio::tests::make_process_loopback_activation_params(1234);
+  EXPECT_EQ(params.ActivationType, AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK);
+  EXPECT_EQ(params.ProcessLoopbackParams.TargetProcessId, 1234u);
+  EXPECT_EQ(params.ProcessLoopbackParams.ProcessLoopbackMode, PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE);
+}
+  #endif
+
+TEST(WindowsAudioTest, HandsOffModeSkipsDefaultResetAndDriverInstall) {
+  EXPECT_TRUE(platf::audio::tests::resets_default_device(false));
+  EXPECT_FALSE(platf::audio::tests::resets_default_device(true));
+  EXPECT_TRUE(platf::audio::tests::installs_steam_drivers(false, true));
+  EXPECT_FALSE(platf::audio::tests::installs_steam_drivers(true, true));
+  EXPECT_FALSE(platf::audio::tests::installs_steam_drivers(false, false));
   platf::audio::tests::reset_with_keep_default();
 }
 #endif
