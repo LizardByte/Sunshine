@@ -661,7 +661,7 @@ TEST_F(ProcessUpdateTest, AppProcessIdIsZeroForDesktopPlacebo) {
 #ifndef _WIN32
 TEST(ProcessTest, AppProcessIdTracksRealChildLifecycle) {
   boost::process::v1::environment env = boost::this_process::environment();
-  proc::ctx_t ctx;
+  proc::ctx_t ctx {};
   ctx.name = "Sleeper";
   ctx.id = "7";
   ctx.cmd = "sleep 30";
