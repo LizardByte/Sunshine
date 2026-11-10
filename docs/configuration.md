@@ -1553,6 +1553,8 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
         <td>Description</td>
         <td colspan="2">
             Sunshine will attempt to open ports for streaming over the internet.
+            If Sunshine's router is behind another router (double NAT) and both support UPnP,
+            the ports are also opened on the outer router, forwarded to the inner router.
         </td>
     </tr>
     <tr>

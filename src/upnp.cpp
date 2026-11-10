@@ -4,6 +4,8 @@
  */
 // standard includes
 #include <array>
+#include <bit>
+#include <set>
 #include <stddef.h>  // workaround for type_t error in miniupnpc 2.3.3, see https://github.com/miniupnp/miniupnp/commit/e263ab6f56c382e10fed31347ec68095d691a0e8
 
 // lib includes
@@ -38,6 +40,52 @@ namespace upnp {
 
     std::string description;  ///< Human-readable UPnP lease description advertised to the gateway.
   };
+
+  /**
+   * @brief A discovered IGD and the data needed to manage its port mappings.
+   */
+  struct igd_t {
+    std::string host;  ///< Address of the IGD, taken from its description URL.
+    urls_t urls;  ///< Control URLs of the IGD.
+    IGDdatas data {};  ///< Service data of the IGD.
+  };
+
+  /**
+   * @brief Describe the discovered IGDs other than the one already in the list.
+   * @param device Device list from upnpDiscover().
+   * @param igds List holding the IGD chosen by UPNP_GetValidIGD(); the other IGDs are appended to it.
+   */
+  static void add_other_igds(const device_t &device, std::vector<igd_t> &igds) {
+    std::set<std::string, std::less<>> seen {igds.front().urls->rootdescURL};
+    for (auto dev = device.get(); dev != nullptr; dev = dev->pNext) {
+      if (!seen.emplace(dev->descURL).second) {
+        continue;
+      }
+
+      igd_t igd;
+      std::array<char, INET6_ADDRESS_STRLEN> lan_addr {};
+      if (UPNP_GetIGDFromUrl(dev->descURL, &igd.urls.el, &igd.data, lan_addr.data(), (int) lan_addr.size()) != 1 || igd.urls->controlURL == nullptr || igd.urls->controlURL[0] == 0 || igd.data.first.servicetype[0] == 0) {
+        continue;
+      }
+
+      igd.host = url_host(dev->descURL);
+      igds.emplace_back(std::move(igd));
+    }
+  }
+
+  /**
+   * @brief Get the external address an IGD reports.
+   * @param igd The IGD to ask.
+   * @return The external address, or an empty string if the IGD doesn't report one.
+   */
+  static std::string external_address(const igd_t &igd) {
+    std::array<char, INET6_ADDRESS_STRLEN> addr {};
+    if (UPNP_GetExternalIPAddress(igd.urls->controlURL, igd.data.first.servicetype, addr.data()) != UPNPCOMMAND_SUCCESS) {
+      return {};
+    }
+
+    return addr.data();
+  }
 
   static std::string_view status_string(igd_status_e status) {
     using enum igd_status_e;
@@ -86,6 +134,78 @@ namespace upnp {
       default:
         return false;
     }
+  }
+
+  /**
+   * @brief Check whether a value is a private (LAN) IPv4 address.
+   * @param address The value to check.
+   * @return `true` if `address` is an IPv4 address in a private, shared or link-local range.
+   */
+  static bool is_private_ipv4(std::string_view address) {
+    boost::system::error_code ec;
+    const auto addr = boost::asio::ip::make_address_v4(std::string {address}, ec);
+    return !ec && net::from_address(addr.to_string()) == net::LAN;
+  }
+
+  int shared_prefix_length(std::string_view a, std::string_view b) {
+    boost::system::error_code ec_a;
+    boost::system::error_code ec_b;
+    const auto addr_a = boost::asio::ip::make_address_v4(std::string {a}, ec_a);
+    const auto addr_b = boost::asio::ip::make_address_v4(std::string {b}, ec_b);
+    if (ec_a || ec_b) {
+      return -1;
+    }
+
+    return std::countl_zero(addr_a.to_uint() ^ addr_b.to_uint());
+  }
+
+  std::string url_host(std::string_view url) {
+    if (const auto scheme = url.find("://"sv); scheme != std::string_view::npos) {
+      url.remove_prefix(scheme + 3);
+    }
+
+    if (url.starts_with('[')) {
+      return std::string {url.substr(1, url.find(']') - 1)};
+    }
+
+    return std::string {url.substr(0, url.find_first_of(":/"sv))};
+  }
+
+  std::size_t select_inner_igd(const std::vector<std::string> &igd_hosts, std::string_view lan_addr) {
+    std::size_t best = 0;
+    int best_bits = -1;
+    for (std::size_t i = 0; i < igd_hosts.size(); ++i) {
+      if (const auto bits = shared_prefix_length(igd_hosts[i], lan_addr); bits > best_bits) {
+        best = i;
+        best_bits = bits;
+      }
+    }
+
+    return best;
+  }
+
+  std::optional<std::size_t> select_outer_igd(const std::vector<std::string> &igd_hosts, std::size_t inner, std::string_view inner_external_addr) {
+    // A public external address means the inner gateway is the edge router: there is nothing in front of it to map.
+    if (!is_private_ipv4(inner_external_addr)) {
+      return std::nullopt;
+    }
+
+    // The outer router sits in the same network as the inner gateway's external address.
+    constexpr int min_shared_bits = 16;
+    std::optional<std::size_t> best;
+    int best_bits = min_shared_bits - 1;
+    for (std::size_t i = 0; i < igd_hosts.size(); ++i) {
+      if (i == inner) {
+        continue;
+      }
+
+      if (const auto bits = shared_prefix_length(igd_hosts[i], inner_external_addr); bits > best_bits) {
+        best = i;
+        best_bits = bits;
+      }
+    }
+
+    return best;
   }
 
   /**
@@ -335,8 +455,9 @@ namespace upnp {
       platf::set_thread_name("upnp");
       auto shutdown_event = mail::man->event<bool>(mail::shutdown);
       bool mapped = false;
-      IGDdatas data;
-      urls_t mapped_urls;
+      igd_t mapped_igd;
+      std::optional<igd_t> mapped_outer_igd;
+      bool warned_no_outer_igd = false;
       auto address_family = net::get_effective_address_family(net::af_from_enum_string(config::sunshine.address_family));
 
       // Refresh UPnP rules every few minutes. They can be lost if the router reboots,
@@ -356,8 +477,8 @@ namespace upnp {
 
         std::array<char, INET6_ADDRESS_STRLEN> lan_addr;
 
-        urls_t urls;
-        auto status = upnp::UPNP_GetValidIGDStatus(device, &urls, &data, lan_addr);
+        std::vector<igd_t> igds(1);
+        auto status = upnp::UPNP_GetValidIGDStatus(device, &igds.front().urls, &igds.front().data, lan_addr);
         if (!is_valid_igd(status)) {
           BOOST_LOG(error) << status_string(status);
           mapped = false;
@@ -366,14 +487,49 @@ namespace upnp {
 
         std::string lan_addr_str {lan_addr.data()};
 
-        BOOST_LOG(debug) << "Found valid IGD device: "sv << urls->rootdescURL;
+        BOOST_LOG(debug) << "Found valid IGD device: "sv << igds.front().urls->rootdescURL;
+
+        // Behind two routers, the IGD chosen above may be the outer one, which can't reach this host.
+        igds.front().host = url_host(igds.front().urls->rootdescURL);
+        add_other_igds(device, igds);
+        std::vector<std::string> igd_hosts;
+        for (const auto &igd : igds) {
+          igd_hosts.push_back(igd.host);
+        }
+
+        const auto inner = select_inner_igd(igd_hosts, lan_addr_str);
+        auto &igd = igds[inner];
+        if (inner != 0) {
+          BOOST_LOG(debug) << "Using the IGD on this host's network instead: "sv << igd.urls->rootdescURL;
+        }
 
         for (auto it = std::begin(mappings); it != std::end(mappings) && !shutdown_event->peek(); ++it) {
-          map_upnp_port(data, urls, lan_addr_str, *it);
+          map_upnp_port(igd.data, igd.urls, lan_addr_str, *it);
         }
 
         if (!mapped) {
-          BOOST_LOG(info) << "Completed UPnP port mappings to "sv << lan_addr_str << " via "sv << urls->rootdescURL;
+          BOOST_LOG(info) << "Completed UPnP port mappings to "sv << lan_addr_str << " via "sv << igd.urls->rootdescURL;
+        }
+
+        // Double NAT: if the gateway's external address is private, map the same ports on the IGD in front of it,
+        // forwarding them to the gateway's external address.
+        const auto external_addr = external_address(igd);
+        if (const auto outer = select_outer_igd(igd_hosts, inner, external_addr)) {
+          auto &outer_igd = igds[*outer];
+          for (auto it = std::begin(mappings); it != std::end(mappings) && !shutdown_event->peek(); ++it) {
+            map_upnp_port(outer_igd.data, outer_igd.urls, external_addr, *it);
+          }
+
+          if (!mapped || !mapped_outer_igd || mapped_outer_igd->host != outer_igd.host) {
+            BOOST_LOG(info) << "Completed UPnP port mappings to "sv << external_addr << " via "sv << outer_igd.urls->rootdescURL;
+          }
+
+          mapped_outer_igd = std::move(outer_igd);
+          warned_no_outer_igd = false;
+        } else if (is_private_ipv4(external_addr) && !warned_no_outer_igd) {
+          BOOST_LOG(warning) << "The IGD's external address "sv << external_addr
+                             << " is private and no UPnP IGD answered in front of it: ports must be forwarded on the outer router"sv;
+          warned_no_outer_igd = true;
         }
 
         // If we are listening on IPv6 and the IGD has an IPv6 firewall enabled, try to create IPv6 firewall pinholes
@@ -385,13 +541,16 @@ namespace upnp {
         }
 
         mapped = true;
-        mapped_urls = std::move(urls);
+        mapped_igd = std::move(igd);
       } while (!shutdown_event->view(REFRESH_INTERVAL));
 
       if (mapped) {
         // Unmap ports upon termination
         BOOST_LOG(info) << "Unmapping UPNP ports..."sv;
-        unmap_all_upnp_ports(mapped_urls, data);
+        unmap_all_upnp_ports(mapped_igd.urls, mapped_igd.data);
+        if (mapped_outer_igd) {
+          unmap_all_upnp_ports(mapped_outer_igd->urls, mapped_outer_igd->data);
+        }
       }
     }
 
