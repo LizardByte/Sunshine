@@ -1135,6 +1135,69 @@ namespace confighttp {
   }
 
   /**
+   * @brief Omit null optional application fields and normalize empty collections and cover paths.
+   *
+   * Required `name`/`index` handling stays with the caller. Explicit `false` and `0` values are kept.
+   * Null `do`, `undo`, and `elevated` members are removed from preparation-command objects.
+   * Missing, non-string, empty, or whitespace-only image-path values are omitted from the saved
+   * application. Nonempty string values are trimmed before saving.
+   *
+   * @param input_tree Application JSON from the save request, mutated in place.
+   */
+  void normalize_optional_app_fields(nlohmann::json &input_tree) {
+    static constexpr std::array optional_keys {
+      "prep-cmd",
+      "detached",
+      "exclude-global-prep-cmd",
+      "elevated",
+      "auto-detach",
+      "wait-all",
+      "exit-timeout",
+      "cmd",
+      "output",
+      "working-dir",
+      "image-path",
+    };
+    for (const char *key : optional_keys) {
+      if (input_tree.contains(key) && input_tree[key].is_null()) {
+        input_tree.erase(key);
+      }
+    }
+
+    if (input_tree.contains("prep-cmd")) {
+      if (!input_tree["prep-cmd"].is_array() || input_tree["prep-cmd"].empty()) {
+        input_tree.erase("prep-cmd");
+      } else {
+        for (auto &cmd : input_tree["prep-cmd"]) {
+          if (!cmd.is_object()) {
+            continue;
+          }
+          for (const char *member : {"do", "undo", "elevated"}) {
+            if (cmd.contains(member) && cmd[member].is_null()) {
+              cmd.erase(member);
+            }
+          }
+        }
+      }
+    }
+
+    if (input_tree.contains("detached") && (!input_tree["detached"].is_array() || input_tree["detached"].empty())) {
+      input_tree.erase("detached");
+    }
+
+    std::string image_path;
+    if (input_tree.contains("image-path") && input_tree["image-path"].is_string()) {
+      image_path = input_tree["image-path"].get<std::string>();
+    }
+    boost::trim(image_path);
+    if (image_path.empty()) {
+      input_tree.erase("image-path");
+    } else {
+      input_tree["image-path"] = image_path;
+    }
+  }
+
+  /**
    * @brief Save an application. To save a new application, the index must be `-1`. To update an existing application, you must provide the current index of the application.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -1164,6 +1227,10 @@ namespace confighttp {
    * }
    * @endcode
    *
+   * Missing, non-string, empty, or whitespace-only image-path values are omitted
+   * from the saved application. Nonempty string values are trimmed before saving.
+   * Null optional fields are omitted before persistence; explicit `false` and `0` are preserved.
+   *
    * @api_examples{/api/apps|:| POST|:| {"name":"Hello, World!","index":-1}}
    */
   void saveApp(const resp_https_t &response, const req_https_t &request) {
@@ -1191,24 +1258,7 @@ namespace confighttp {
       BOOST_LOG(info) << file;
       nlohmann::json file_tree = nlohmann::json::parse(file);
 
-      if (input_tree["prep-cmd"].empty()) {
-        input_tree.erase("prep-cmd");
-      }
-
-      if (input_tree["detached"].empty()) {
-        input_tree.erase("detached");
-      }
-
-      std::string image_path;
-      if (input_tree.contains("image-path") && input_tree["image-path"].is_string()) {
-        image_path = input_tree["image-path"].get<std::string>();
-      }
-      boost::trim(image_path);
-      if (image_path.empty()) {
-        input_tree.erase("image-path");
-      } else {
-        input_tree["image-path"] = image_path;
-      }
+      normalize_optional_app_fields(input_tree);
 
       auto &apps_node = file_tree["apps"];
       int index = input_tree["index"].get<int>();  // this will intentionally cause an exception if the provided value is the wrong type

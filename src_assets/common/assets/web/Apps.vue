@@ -804,31 +804,34 @@
           "exit-timeout": 5,
           "prep-cmd": [],
           detached: [],
+          "working-dir": "",
           "image-path": ""
         };
         this.editFormError = "";
         this.openEditModal();
       },
+      /**
+       * @brief Open an application for editing with nullish optional fields defaulted.
+       * @param {number} id Index of the application to edit.
+       */
       editApp(id) {
         this.editForm = structuredClone(toRaw(this.apps[id]));
         this.editForm.index = id;
-        if (this.editForm["prep-cmd"] === undefined)
-          this.editForm["prep-cmd"] = [];
-        if (this.editForm["detached"] === undefined)
-          this.editForm["detached"] = [];
-        if (this.editForm["exclude-global-prep-cmd"] === undefined)
-          this.editForm["exclude-global-prep-cmd"] = false;
-        if (this.editForm["elevated"] === undefined && this.platform === 'windows') {
-          this.editForm["elevated"] = false;
-        }
-        if (this.editForm["auto-detach"] === undefined) {
-          this.editForm["auto-detach"] = true;
-        }
-        if (this.editForm["wait-all"] === undefined) {
-          this.editForm["wait-all"] = true;
-        }
-        if (this.editForm["exit-timeout"] === undefined) {
-          this.editForm["exit-timeout"] = 5;
+        const defaults = {
+          "prep-cmd": [],
+          detached: [],
+          "exclude-global-prep-cmd": false,
+          elevated: false,
+          "auto-detach": true,
+          "wait-all": true,
+          "exit-timeout": 5,
+          cmd: "",
+          output: "",
+          "working-dir": "",
+          "image-path": ""
+        };
+        for (const [key, value] of Object.entries(defaults)) {
+          this.editForm[key] ??= value;
         }
         this.editFormError = "";
         this.openEditModal();
