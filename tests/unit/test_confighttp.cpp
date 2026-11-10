@@ -434,9 +434,7 @@ protected:
      * @param subdir Directory name under `SUNSHINE_TEST_BIN_DIR`.
      */
     explicit ScopedSaveAppAppsFile(std::string_view subdir):
-        test_dir(std::filesystem::path(SUNSHINE_TEST_BIN_DIR) / subdir),
-        previous_file_apps(config::stream.file_apps),
-        previous_proc(std::move(proc::proc)) {
+        test_dir(std::filesystem::path(SUNSHINE_TEST_BIN_DIR) / subdir) {
       std::filesystem::create_directories(test_dir);
       config::stream.file_apps = (test_dir / "apps.json").string();
     }
@@ -447,16 +445,20 @@ protected:
     /**
      * @brief Restore `file_apps`/`proc::proc` and remove the temporary directory.
      */
-    ~ScopedSaveAppAppsFile() {
-      config::stream.file_apps = previous_file_apps;
-      proc::proc = std::move(previous_proc);
-      std::error_code ec;
-      std::filesystem::remove_all(test_dir, ec);
+    ~ScopedSaveAppAppsFile() noexcept {
+      try {
+        config::stream.file_apps = previous_file_apps;
+        proc::proc = std::move(previous_proc);
+        std::error_code ec;
+        std::filesystem::remove_all(test_dir, ec);
+      } catch (...) {
+        ADD_FAILURE() << "Failed to restore apps.json path or process manager state";
+      }
     }
 
     std::filesystem::path test_dir;  ///< Temporary directory for apps.json.
-    std::string previous_file_apps;  ///< Prior apps.json path.
-    proc::proc_t previous_proc;  ///< Prior process manager state.
+    std::string previous_file_apps {config::stream.file_apps};  ///< Prior apps.json path.
+    proc::proc_t previous_proc {std::move(proc::proc)};  ///< Prior process manager state.
   };
 
   /**
