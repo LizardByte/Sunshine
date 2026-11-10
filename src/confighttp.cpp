@@ -1135,6 +1135,74 @@ namespace confighttp {
   }
 
   /**
+   * @brief Remove object members whose values are JSON null.
+   *
+   * @param object JSON object to mutate.
+   * @param members Member names to inspect.
+   */
+  void erase_null_members(nlohmann::json &object, std::initializer_list<const char *> members) {
+    for (const char *member : members) {
+      if (object.contains(member) && object[member].is_null()) {
+        object.erase(member);
+      }
+    }
+  }
+
+  /**
+   * @brief Drop empty or invalid prep-cmd arrays and null prep-command members.
+   *
+   * @param input_tree Application JSON from the save request, mutated in place.
+   */
+  void normalize_prep_cmd_field(nlohmann::json &input_tree) {
+    if (!input_tree.contains("prep-cmd")) {
+      return;
+    }
+    if (!input_tree["prep-cmd"].is_array() || input_tree["prep-cmd"].empty()) {
+      input_tree.erase("prep-cmd");
+      return;
+    }
+
+    for (auto &cmd : input_tree["prep-cmd"]) {
+      if (!cmd.is_object()) {
+        continue;
+      }
+      erase_null_members(cmd, {"do", "undo", "elevated"});
+    }
+  }
+
+  /**
+   * @brief Drop empty or invalid detached command arrays.
+   *
+   * @param input_tree Application JSON from the save request, mutated in place.
+   */
+  void normalize_detached_field(nlohmann::json &input_tree) {
+    if (!input_tree.contains("detached")) {
+      return;
+    }
+    if (!input_tree["detached"].is_array() || input_tree["detached"].empty()) {
+      input_tree.erase("detached");
+    }
+  }
+
+  /**
+   * @brief Trim cover paths and omit missing, non-string, empty, or whitespace-only values.
+   *
+   * @param input_tree Application JSON from the save request, mutated in place.
+   */
+  void normalize_image_path_field(nlohmann::json &input_tree) {
+    std::string image_path;
+    if (input_tree.contains("image-path") && input_tree["image-path"].is_string()) {
+      image_path = input_tree["image-path"].get<std::string>();
+    }
+    boost::trim(image_path);
+    if (image_path.empty()) {
+      input_tree.erase("image-path");
+      return;
+    }
+    input_tree["image-path"] = image_path;
+  }
+
+  /**
    * @brief Omit null optional application fields and normalize empty collections and cover paths.
    *
    * Required `name`/`index` handling stays with the caller. Explicit `false` and `0` values are kept.
@@ -1145,56 +1213,22 @@ namespace confighttp {
    * @param input_tree Application JSON from the save request, mutated in place.
    */
   void normalize_optional_app_fields(nlohmann::json &input_tree) {
-    static constexpr std::array optional_keys {
-      "prep-cmd",
-      "detached",
-      "exclude-global-prep-cmd",
-      "elevated",
-      "auto-detach",
-      "wait-all",
-      "exit-timeout",
-      "cmd",
-      "output",
-      "working-dir",
-      "image-path",
-    };
-    for (const char *key : optional_keys) {
-      if (input_tree.contains(key) && input_tree[key].is_null()) {
-        input_tree.erase(key);
-      }
-    }
-
-    if (input_tree.contains("prep-cmd")) {
-      if (!input_tree["prep-cmd"].is_array() || input_tree["prep-cmd"].empty()) {
-        input_tree.erase("prep-cmd");
-      } else {
-        for (auto &cmd : input_tree["prep-cmd"]) {
-          if (!cmd.is_object()) {
-            continue;
-          }
-          for (const char *member : {"do", "undo", "elevated"}) {
-            if (cmd.contains(member) && cmd[member].is_null()) {
-              cmd.erase(member);
-            }
-          }
-        }
-      }
-    }
-
-    if (input_tree.contains("detached") && (!input_tree["detached"].is_array() || input_tree["detached"].empty())) {
-      input_tree.erase("detached");
-    }
-
-    std::string image_path;
-    if (input_tree.contains("image-path") && input_tree["image-path"].is_string()) {
-      image_path = input_tree["image-path"].get<std::string>();
-    }
-    boost::trim(image_path);
-    if (image_path.empty()) {
-      input_tree.erase("image-path");
-    } else {
-      input_tree["image-path"] = image_path;
-    }
+    erase_null_members(input_tree, {
+                                     "prep-cmd",
+                                     "detached",
+                                     "exclude-global-prep-cmd",
+                                     "elevated",
+                                     "auto-detach",
+                                     "wait-all",
+                                     "exit-timeout",
+                                     "cmd",
+                                     "output",
+                                     "working-dir",
+                                     "image-path",
+                                   });
+    normalize_prep_cmd_field(input_tree);
+    normalize_detached_field(input_tree);
+    normalize_image_path_field(input_tree);
   }
 
   /**

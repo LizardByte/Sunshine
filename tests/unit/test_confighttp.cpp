@@ -17,6 +17,7 @@
 #include <format>
 #include <fstream>
 #include <iostream>
+#include <string_view>
 #include <thread>
 #include <utility>
 
@@ -402,6 +403,61 @@ protected:
   static std::string create_auth_header(const std::string &username, const std::string &password) {
     return "Basic " + SimpleWeb::Crypto::Base64::encode(username + ":" + password);
   }
+
+  /**
+   * @brief Build authenticated JSON POST headers with a fresh CSRF token.
+   *
+   * @return Headers suitable for POST /api/apps.
+   */
+  SimpleWeb::CaseInsensitiveMultimap authenticated_json_headers() {
+    SimpleWeb::CaseInsensitiveMultimap auth_headers;
+    auth_headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+    const auto token_response = client->request("GET", "/csrf-token-test", "", auth_headers);
+    EXPECT_EQ(token_response->status_code, "200 OK");
+    const auto csrf_token = nlohmann::json::parse(token_response->content.string()).at("csrf_token").get<std::string>();
+
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+    headers.emplace("Content-Type", "application/json");
+    headers.emplace("X-CSRF-Token", csrf_token);
+    return headers;
+  }
+
+  /**
+   * @brief Redirect apps.json to a temporary directory and restore process state on destruction.
+   */
+  class ScopedSaveAppAppsFile {
+  public:
+    /**
+     * @brief Create the temporary apps.json directory and take ownership of `proc::proc`.
+     *
+     * @param subdir Directory name under `SUNSHINE_TEST_BIN_DIR`.
+     */
+    explicit ScopedSaveAppAppsFile(std::string_view subdir):
+        test_dir(std::filesystem::path(SUNSHINE_TEST_BIN_DIR) / subdir),
+        previous_file_apps(config::stream.file_apps),
+        previous_proc(std::move(proc::proc)) {
+      std::filesystem::create_directories(test_dir);
+      config::stream.file_apps = (test_dir / "apps.json").string();
+    }
+
+    ScopedSaveAppAppsFile(const ScopedSaveAppAppsFile &) = delete;
+    ScopedSaveAppAppsFile &operator=(const ScopedSaveAppAppsFile &) = delete;
+
+    /**
+     * @brief Restore `file_apps`/`proc::proc` and remove the temporary directory.
+     */
+    ~ScopedSaveAppAppsFile() {
+      config::stream.file_apps = previous_file_apps;
+      proc::proc = std::move(previous_proc);
+      std::error_code ec;
+      std::filesystem::remove_all(test_dir, ec);
+    }
+
+    std::filesystem::path test_dir;  ///< Temporary directory for apps.json.
+    std::string previous_file_apps;  ///< Prior apps.json path.
+    proc::proc_t previous_proc;  ///< Prior process manager state.
+  };
 
   /**
    * @brief Insert a test pairing request into the production pending-session registry.
@@ -2068,17 +2124,8 @@ TEST_F(BrowseDirectoryTest, GetWindowsDrives_EntriesHaveCorrectFormat) {
 
 TEST_F(ConfigHttpTest, SaveAppNormalizesOptionalImagePath) {
   using json = nlohmann::json;
-  const auto test_dir = std::filesystem::path(SUNSHINE_TEST_BIN_DIR) / "save_app_image_path";
-  std::filesystem::create_directories(test_dir);
-  const auto previous_file_apps = config::stream.file_apps;
-  auto previous_proc = std::move(proc::proc);
-  auto restore = util::fail_guard([&]() {
-    config::stream.file_apps = previous_file_apps;
-    proc::proc = std::move(previous_proc);
-    std::error_code ec;
-    std::filesystem::remove_all(test_dir, ec);
-  });
-  config::stream.file_apps = (test_dir / "apps.json").string();
+  ScopedSaveAppAppsFile apps_file("save_app_image_path");
+  const auto headers = authenticated_json_headers();
 
   const std::array<std::pair<json, std::string>, 7> cases {{
     {json::object(), ""},
@@ -2089,17 +2136,6 @@ TEST_F(ConfigHttpTest, SaveAppNormalizesOptionalImagePath) {
     {json {{"image-path", "  /covers/cover.png  "}}, "/covers/cover.png"},
     {json {{"image-path", "/covers/cover.png"}}, "/covers/cover.png"},
   }};
-
-  SimpleWeb::CaseInsensitiveMultimap auth_headers;
-  auth_headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
-  const auto token_response = client->request("GET", "/csrf-token-test", "", auth_headers);
-  ASSERT_EQ(token_response->status_code, "200 OK");
-  const auto csrf_token = nlohmann::json::parse(token_response->content.string()).at("csrf_token").get<std::string>();
-
-  SimpleWeb::CaseInsensitiveMultimap headers;
-  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
-  headers.emplace("Content-Type", "application/json");
-  headers.emplace("X-CSRF-Token", csrf_token);
 
   for (const auto &[fields, expected_path] : cases) {
     for (const int index : {-1, 0}) {
@@ -2134,32 +2170,12 @@ TEST_F(ConfigHttpTest, SaveAppNormalizesOptionalImagePath) {
 
 TEST_F(ConfigHttpTest, SaveAppOmitsNullOptionalFieldsAndPreservesConfiguredValues) {
   using json = nlohmann::json;
-  const auto test_dir = std::filesystem::path(SUNSHINE_TEST_BIN_DIR) / "save_app_optional_fields";
-  std::filesystem::create_directories(test_dir);
-  const auto previous_file_apps = config::stream.file_apps;
-  auto previous_proc = std::move(proc::proc);
-  auto restore = util::fail_guard([&]() {
-    config::stream.file_apps = previous_file_apps;
-    proc::proc = std::move(previous_proc);
-    std::error_code ec;
-    std::filesystem::remove_all(test_dir, ec);
-  });
-  config::stream.file_apps = (test_dir / "apps.json").string();
+  ScopedSaveAppAppsFile apps_file("save_app_optional_fields");
   {
     std::ofstream file(config::stream.file_apps);
     file << json {{"env", json::object()}, {"apps", json::array()}}.dump();
   }
-
-  SimpleWeb::CaseInsensitiveMultimap auth_headers;
-  auth_headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
-  const auto token_response = client->request("GET", "/csrf-token-test", "", auth_headers);
-  ASSERT_EQ(token_response->status_code, "200 OK");
-  const auto csrf_token = nlohmann::json::parse(token_response->content.string()).at("csrf_token").get<std::string>();
-
-  SimpleWeb::CaseInsensitiveMultimap headers;
-  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
-  headers.emplace("Content-Type", "application/json");
-  headers.emplace("X-CSRF-Token", csrf_token);
+  const auto headers = authenticated_json_headers();
 
   json null_fields {
     {"name", "Null optional"},
