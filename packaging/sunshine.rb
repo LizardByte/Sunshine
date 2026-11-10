@@ -15,7 +15,7 @@ class Sunshine < Formula
   LLVM_PROFILE_FILE_ENV = "LLVM_PROFILE_FILE".freeze
   TEST_BINARY = "test_sunshine".freeze
   TEST_RESULTS_XML = "tests/test_results.xml".freeze
-  IS_UPSTREAM_REPO = ENV.fetch("GITHUB_REPOSITORY", "") == "LizardByte/Sunshine"
+  IS_UPSTREAM_REPO = ENV.fetch("GITHUB_REPOSITORY", "") == "SunshineStream/Sunshine"
 
   desc "@PROJECT_DESCRIPTION@"
   homepage "@PROJECT_HOMEPAGE_URL@"
