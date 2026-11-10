@@ -77,20 +77,17 @@ TEST(UpnpSelectInnerIgdTest, KeepsFirstIgdOnTie) {
 }
 
 TEST(UpnpSelectOuterIgdTest, FindsIgdInFrontOfGateway) {
-  const std::vector<std::string> hosts {"192.168.1.100", "10.0.0.1"};
-  EXPECT_EQ(upnp::select_outer_igd(hosts, 0, "10.0.0.86"), 1U);
+  EXPECT_EQ(upnp::select_outer_igd({"192.168.1.100", "10.0.0.1"}, 0, "10.0.0.86"), 1U);
 }
 
 TEST(UpnpSelectOuterIgdTest, IgnoresGatewayWithPublicAddress) {
-  const std::vector<std::string> hosts {"192.168.1.100", "10.0.0.1"};
-  EXPECT_EQ(upnp::select_outer_igd(hosts, 0, "203.0.113.5"), std::nullopt);
+  EXPECT_EQ(upnp::select_outer_igd({"192.168.1.100", "10.0.0.1"}, 0, "203.0.113.5"), std::nullopt);
 }
 
 TEST(UpnpSelectOuterIgdTest, IgnoresMissingOrInvalidExternalAddress) {
-  const std::vector<std::string> hosts {"192.168.1.100", "10.0.0.1"};
-  EXPECT_EQ(upnp::select_outer_igd(hosts, 0, ""), std::nullopt);
-  EXPECT_EQ(upnp::select_outer_igd(hosts, 0, "not-an-address"), std::nullopt);
-  EXPECT_EQ(upnp::select_outer_igd(hosts, 0, "fc00::1"), std::nullopt);
+  EXPECT_EQ(upnp::select_outer_igd({"192.168.1.100", "10.0.0.1"}, 0, ""), std::nullopt);
+  EXPECT_EQ(upnp::select_outer_igd({"192.168.1.100", "10.0.0.1"}, 0, "not-an-address"), std::nullopt);
+  EXPECT_EQ(upnp::select_outer_igd({"192.168.1.100", "10.0.0.1"}, 0, "fc00::1"), std::nullopt);
 }
 
 TEST(UpnpSelectOuterIgdTest, IgnoresInnerGatewayAndUnrelatedIgds) {
@@ -100,6 +97,5 @@ TEST(UpnpSelectOuterIgdTest, IgnoresInnerGatewayAndUnrelatedIgds) {
 }
 
 TEST(UpnpSelectOuterIgdTest, PrefersClosestIgd) {
-  const std::vector<std::string> hosts {"192.168.1.100", "10.0.5.1", "10.0.0.1"};
-  EXPECT_EQ(upnp::select_outer_igd(hosts, 0, "10.0.0.86"), 2U);
+  EXPECT_EQ(upnp::select_outer_igd({"192.168.1.100", "10.0.5.1", "10.0.0.1"}, 0, "10.0.0.86"), 2U);
 }

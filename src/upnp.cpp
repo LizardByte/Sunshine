@@ -449,6 +449,74 @@ namespace upnp {
     }
 
     /**
+     * @brief Maps every port on an IGD, stopping early on shutdown.
+     * @param igd The IGD to map the ports on.
+     * @param addr Address the ports are forwarded to.
+     */
+    void map_all_upnp_ports(const igd_t &igd, const std::string &addr) {
+      auto shutdown_event = mail::man->event<bool>(mail::shutdown);
+      for (auto it = std::begin(mappings); it != std::end(mappings) && !shutdown_event->peek(); ++it) {
+        map_upnp_port(igd.data, igd.urls, addr, *it);
+      }
+    }
+
+    /**
+     * @brief Find the IGD of the network this host is attached to.
+     * @details Behind two routers, the IGD chosen by UPNP_GetValidIGD() may be the outer one, which can't reach
+     * this host. The other IGDs that answered discovery are described and the closest one is selected.
+     * @param device Device list from upnpDiscover().
+     * @param igds List holding the IGD chosen by UPNP_GetValidIGD(); the other IGDs are appended to it.
+     * @param igd_hosts Receives the address of each IGD in `igds`.
+     * @param lan_addr This host's local address.
+     * @return Index of the selected IGD in `igds`.
+     */
+    static std::size_t find_gateway(const device_t &device, std::vector<igd_t> &igds, std::vector<std::string> &igd_hosts, const std::string &lan_addr) {
+      igds.front().host = url_host(igds.front().urls->rootdescURL);
+      add_other_igds(device, igds);
+      for (const auto &igd : igds) {
+        igd_hosts.push_back(igd.host);
+      }
+
+      const auto inner = select_inner_igd(igd_hosts, lan_addr);
+      if (inner != 0) {
+        BOOST_LOG(debug) << "Using the IGD on this host's network instead: "sv << igds[inner].urls->rootdescURL;
+      }
+
+      return inner;
+    }
+
+    /**
+     * @brief Behind double NAT, map the ports on the IGD in front of the gateway.
+     * @details If the gateway's external address is private, the same ports are mapped on the IGD in front of it,
+     * forwarded to the gateway's external address. That IGD is kept to remove the mappings on shutdown.
+     * @param igds The discovered IGDs.
+     * @param igd_hosts Address of each IGD in `igds`.
+     * @param inner Index of the gateway in `igds`.
+     * @param first_pass Whether this is the first mapping pass since the mappings were last completed.
+     */
+    void map_outer_upnp_ports(std::vector<igd_t> &igds, const std::vector<std::string> &igd_hosts, std::size_t inner, bool first_pass) {
+      const auto external_addr = external_address(igds[inner]);
+      const auto outer = select_outer_igd(igd_hosts, inner, external_addr);
+      if (!outer.has_value()) {
+        if (is_private_ipv4(external_addr) && !warned_no_outer_igd) {
+          BOOST_LOG(warning) << "The IGD's external address "sv << external_addr
+                             << " is private and no UPnP IGD answered in front of it: ports must be forwarded on the outer router"sv;
+          warned_no_outer_igd = true;
+        }
+        return;
+      }
+
+      auto &outer_igd = igds[*outer];
+      map_all_upnp_ports(outer_igd, external_addr);
+      if (first_pass || !mapped_outer_igd.has_value() || mapped_outer_igd->host != outer_igd.host) {
+        BOOST_LOG(info) << "Completed UPnP port mappings to "sv << external_addr << " via "sv << outer_igd.urls->rootdescURL;
+      }
+
+      mapped_outer_igd = std::move(outer_igd);
+      warned_no_outer_igd = false;
+    }
+
+    /**
      * @brief Maintains UPnP port forwarding rules
      */
     void upnp_thread_proc() {
@@ -456,8 +524,6 @@ namespace upnp {
       auto shutdown_event = mail::man->event<bool>(mail::shutdown);
       bool mapped = false;
       igd_t mapped_igd;
-      std::optional<igd_t> mapped_outer_igd;
-      bool warned_no_outer_igd = false;
       auto address_family = net::get_effective_address_family(net::af_from_enum_string(config::sunshine.address_family));
 
       // Refresh UPnP rules every few minutes. They can be lost if the router reboots,
@@ -489,48 +555,15 @@ namespace upnp {
 
         BOOST_LOG(debug) << "Found valid IGD device: "sv << igds.front().urls->rootdescURL;
 
-        // Behind two routers, the IGD chosen above may be the outer one, which can't reach this host.
-        igds.front().host = url_host(igds.front().urls->rootdescURL);
-        add_other_igds(device, igds);
         std::vector<std::string> igd_hosts;
-        for (const auto &igd : igds) {
-          igd_hosts.push_back(igd.host);
-        }
-
-        const auto inner = select_inner_igd(igd_hosts, lan_addr_str);
-        auto &igd = igds[inner];
-        if (inner != 0) {
-          BOOST_LOG(debug) << "Using the IGD on this host's network instead: "sv << igd.urls->rootdescURL;
-        }
-
-        for (auto it = std::begin(mappings); it != std::end(mappings) && !shutdown_event->peek(); ++it) {
-          map_upnp_port(igd.data, igd.urls, lan_addr_str, *it);
-        }
+        const auto inner = find_gateway(device, igds, igd_hosts, lan_addr_str);
+        map_all_upnp_ports(igds[inner], lan_addr_str);
 
         if (!mapped) {
-          BOOST_LOG(info) << "Completed UPnP port mappings to "sv << lan_addr_str << " via "sv << igd.urls->rootdescURL;
+          BOOST_LOG(info) << "Completed UPnP port mappings to "sv << lan_addr_str << " via "sv << igds[inner].urls->rootdescURL;
         }
 
-        // Double NAT: if the gateway's external address is private, map the same ports on the IGD in front of it,
-        // forwarding them to the gateway's external address.
-        const auto external_addr = external_address(igd);
-        if (const auto outer = select_outer_igd(igd_hosts, inner, external_addr)) {
-          auto &outer_igd = igds[*outer];
-          for (auto it = std::begin(mappings); it != std::end(mappings) && !shutdown_event->peek(); ++it) {
-            map_upnp_port(outer_igd.data, outer_igd.urls, external_addr, *it);
-          }
-
-          if (!mapped || !mapped_outer_igd || mapped_outer_igd->host != outer_igd.host) {
-            BOOST_LOG(info) << "Completed UPnP port mappings to "sv << external_addr << " via "sv << outer_igd.urls->rootdescURL;
-          }
-
-          mapped_outer_igd = std::move(outer_igd);
-          warned_no_outer_igd = false;
-        } else if (is_private_ipv4(external_addr) && !warned_no_outer_igd) {
-          BOOST_LOG(warning) << "The IGD's external address "sv << external_addr
-                             << " is private and no UPnP IGD answered in front of it: ports must be forwarded on the outer router"sv;
-          warned_no_outer_igd = true;
-        }
+        map_outer_upnp_ports(igds, igd_hosts, inner, !mapped);
 
         // If we are listening on IPv6 and the IGD has an IPv6 firewall enabled, try to create IPv6 firewall pinholes
         if (address_family == net::af_e::BOTH) {
@@ -541,20 +574,22 @@ namespace upnp {
         }
 
         mapped = true;
-        mapped_igd = std::move(igd);
+        mapped_igd = std::move(igds[inner]);
       } while (!shutdown_event->view(REFRESH_INTERVAL));
 
       if (mapped) {
         // Unmap ports upon termination
         BOOST_LOG(info) << "Unmapping UPNP ports..."sv;
         unmap_all_upnp_ports(mapped_igd.urls, mapped_igd.data);
-        if (mapped_outer_igd) {
+        if (mapped_outer_igd.has_value()) {
           unmap_all_upnp_ports(mapped_outer_igd->urls, mapped_outer_igd->data);
         }
       }
     }
 
     std::vector<mapping_t> mappings;  ///< Port mappings Sunshine should keep registered with the gateway.
+    std::optional<igd_t> mapped_outer_igd;  ///< IGD in front of the gateway (double NAT) holding mappings, if any.
+    bool warned_no_outer_igd = false;  ///< Whether the missing outer IGD has already been reported.
     std::jthread upnp_thread;  ///< Worker thread that refreshes mappings until shutdown.
   };
 
