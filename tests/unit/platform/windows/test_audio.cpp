@@ -11,6 +11,9 @@
 #include "../../../tests_common.h"
 
 #ifdef _WIN32
+  // test includes
+  #include "src/platform/windows/audio_tests.h"
+
   // standard includes
   #include <array>
   #include <cstdint>
@@ -35,7 +38,6 @@
   // local includes
   #include "src/config.h"
   #include "src/platform/common.h"
-  #include "src/platform/windows/audio_tests.h"
 
 namespace platf::audio::tests {
   std::vector<WAVEFORMATEXTENSIBLE> virtual_sink_waveformats(WORD channel_count);
