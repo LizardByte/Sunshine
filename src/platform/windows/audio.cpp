@@ -463,8 +463,8 @@ namespace platf::audio {
     handle_t process;
     process.reset(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, process_id));
     if (!process) {
-      const auto error = GetLastError();
-      BOOST_LOG(debug) << "Cannot open process ["sv << process_id << "] to verify its capture identity: [0x"sv << util::hex(error).to_string_view() << ']';
+      const auto last_error = GetLastError();
+      BOOST_LOG(debug) << "Cannot open process ["sv << process_id << "] to verify its capture identity: [0x"sv << util::hex(last_error).to_string_view() << ']';
       return std::nullopt;
     }
     DWORD exit_code {};
@@ -477,8 +477,8 @@ namespace platf::audio {
     FILETIME kernel_time {};
     FILETIME user_time {};
     if (!GetProcessTimes(process.get(), &creation_time, &exit_time, &kernel_time, &user_time)) {
-      const auto error = GetLastError();
-      BOOST_LOG(debug) << "Cannot read creation time for process ["sv << process_id << "]: [0x"sv << util::hex(error).to_string_view() << ']';
+      const auto last_error = GetLastError();
+      BOOST_LOG(debug) << "Cannot read creation time for process ["sv << process_id << "]: [0x"sv << util::hex(last_error).to_string_view() << ']';
       return std::nullopt;
     }
     const auto combined_creation_time = (static_cast<std::uint64_t>(creation_time.dwHighDateTime) << 32) | static_cast<std::uint64_t>(creation_time.dwLowDateTime);
@@ -1945,6 +1945,50 @@ namespace platf::audio {
     }
 
     /**
+     * @brief Identity and property store read from one enumerated endpoint.
+     */
+    struct endpoint_probe_t {
+      std::wstring device_id;  ///< Device identifier string.
+      prop_t prop;  ///< Opened property store for endpoint metadata.
+    };
+
+    /**
+     * @brief Read one enumerated endpoint's identity and property store.
+     *
+     * Every Item(), GetId(), and OpenPropertyStore() HRESULT is checked; an
+     * entry that cannot be read reports std::nullopt so the caller skips it
+     * instead of risking a null device id or a null property store dereference.
+     *
+     * @param collection Enumerated active render endpoints.
+     * @param index Endpoint index within the collection, used for diagnostics.
+     * @return Probe data, or std::nullopt when the endpoint cannot be read.
+     */
+    static std::optional<endpoint_probe_t> probe_audio_endpoint(collection_t &collection, int index) {
+      device_t device;
+      auto status = collection->Item(index, &device);
+      if (FAILED(status) || !device) {
+        BOOST_LOG(warning) << "Skipping endpoint ["sv << index << "] that could not be read: [0x"sv << util::hex(status).to_string_view() << ']';
+        return std::nullopt;
+      }
+
+      wstring_t wstring_id;
+      status = device->GetId(&wstring_id);
+      if (FAILED(status) || !wstring_id.get()) {
+        BOOST_LOG(warning) << "Skipping endpoint ["sv << index << "] without a readable device id: [0x"sv << util::hex(status).to_string_view() << ']';
+        return std::nullopt;
+      }
+
+      prop_t prop;
+      status = device->OpenPropertyStore(STGM_READ, &prop);
+      if (FAILED(status) || !prop) {
+        BOOST_LOG(warning) << "Skipping endpoint ["sv << index << "] without a readable property store: [0x"sv << util::hex(status).to_string_view() << ']';
+        return std::nullopt;
+      }
+
+      return endpoint_probe_t {std::wstring {wstring_id.get()}, std::move(prop)};
+    }
+
+    /**
      * @brief Search for currently present audio device_id using multiple match fields.
      *
      * Entries that cannot be read are skipped: every Item(), GetId(), and
@@ -1976,27 +2020,12 @@ namespace platf::audio {
 
       std::vector<std::wstring> matched(match_list.size());
       for (auto x = 0; x < count; ++x) {
-        audio::device_t device;
-        status = collection->Item(x, &device);
-        if (FAILED(status) || !device) {
-          BOOST_LOG(warning) << "Skipping endpoint ["sv << x << "] that could not be read: [0x"sv << util::hex(status).to_string_view() << ']';
+        auto probe = probe_audio_endpoint(collection, x);
+        if (!probe) {
           continue;
         }
-
-        audio::wstring_t wstring_id;
-        status = device->GetId(&wstring_id);
-        if (FAILED(status) || !wstring_id.get()) {
-          BOOST_LOG(warning) << "Skipping endpoint ["sv << x << "] without a readable device id: [0x"sv << util::hex(status).to_string_view() << ']';
-          continue;
-        }
-        std::wstring device_id = wstring_id.get();
-
-        audio::prop_t prop;
-        status = device->OpenPropertyStore(STGM_READ, &prop);
-        if (FAILED(status) || !prop) {
-          BOOST_LOG(warning) << "Skipping endpoint ["sv << x << "] without a readable property store: [0x"sv << util::hex(status).to_string_view() << ']';
-          continue;
-        }
+        std::wstring device_id = std::move(probe->device_id);
+        audio::prop_t prop = std::move(probe->prop);
 
         prop_var_t adapter_friendly_name;
         prop_var_t device_friendly_name;
@@ -2872,7 +2901,7 @@ namespace platf::audio {
      * @return True when the wrapper returns an initialized client.
      */
     bool process_loopback_wrapper_succeeds_with_fake_activation() {
-      process_loopback_activation_t activation = [](std::uint32_t) -> audio_client_t {
+      process_loopback_activation_t activation = [](std::uint32_t) {
         audio_client_t client;
         client.reset(new fake_process_loopback_audio_client_t(S_OK));
         return client;
@@ -2906,7 +2935,7 @@ namespace platf::audio {
      * @return True when the wrapper returns no client.
      */
     bool process_loopback_wrapper_fails_when_initialization_fails() {
-      process_loopback_activation_t activation = [](std::uint32_t) -> audio_client_t {
+      process_loopback_activation_t activation = [](std::uint32_t) {
         audio_client_t client;
         client.reset(new fake_process_loopback_audio_client_t(E_FAIL));
         return client;
@@ -3039,22 +3068,23 @@ namespace platf::audio {
      * @return True when every snapshot read a consistent value.
      */
     bool concurrent_control_access_is_consistent() {
+      using enum audio_capture_intent_e;
       audio_control_t control;
-      std::atomic<bool> consistent {true};
+      std::atomic consistent {true};
       const auto worker = [&](std::uint32_t pid) {
         for (int i = 0; i < 50 && consistent.load(std::memory_order_relaxed); ++i) {
-          control.capture_sink("sink-" + std::to_string(pid));
+          control.capture_sink(std::format("sink-{}", pid));
           if (control.snapshot_assigned_sink().compare(0, 5, "sink-") != 0) {
             consistent.store(false, std::memory_order_relaxed);
           }
-          control.set_capture_target(audio_capture_intent_e::host_and_client, pid);
+          control.set_capture_target(host_and_client, pid);
           const auto target = control.snapshot_capture_target();
-          const bool valid_target = (target.intent == audio_capture_intent_e::host_and_client && target.process_id >= 1 && target.process_id <= 4) ||
-                                    (target.intent == audio_capture_intent_e::client_only && target.process_id == 0);
+          const bool valid_target = (target.intent == host_and_client && target.process_id >= 1 && target.process_id <= 4) ||
+                                    (target.intent == client_only && target.process_id == 0);
           if (!valid_target) {
             consistent.store(false, std::memory_order_relaxed);
           }
-          control.clear_capture_target(audio_capture_intent_e::host_and_client, pid);
+          control.clear_capture_target(host_and_client, pid);
         }
       };
       {
