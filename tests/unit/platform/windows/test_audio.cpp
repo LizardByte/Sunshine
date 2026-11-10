@@ -73,6 +73,9 @@ namespace platf::audio::tests {
   AUDIOCLIENT_ACTIVATION_PARAMS make_process_loopback_activation_params(std::uint32_t process_id);
   bool activation_blob_holds_heap_copy(std::uint32_t process_id);
   #endif
+  #if defined(SUNSHINE_TEST_HAS_AUDIOCLIENT_ACTIVATION_PARAMS) && defined(VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK)
+  int process_loopback_completion_after_timeout_is_discarded();
+  #endif
 }  // namespace platf::audio::tests
 
 namespace {
@@ -1014,6 +1017,12 @@ TEST(WindowsAudioTest, ProcessLoopbackActivationParamsIncludeProcessTree) {
 
 TEST(WindowsAudioTest, ProcessLoopbackActivationBlobIsHeapOwnedAndClearable) {
   EXPECT_TRUE(platf::audio::tests::activation_blob_holds_heap_copy(1234));
+}
+  #endif
+
+  #if defined(SUNSHINE_TEST_HAS_AUDIOCLIENT_ACTIVATION_PARAMS) && defined(VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK)
+TEST(WindowsAudioTest, ProcessLoopbackCompletionAfterTimeoutIsDiscarded) {
+  EXPECT_EQ(platf::audio::tests::process_loopback_completion_after_timeout_is_discarded(), 0);
 }
   #endif
 

@@ -604,6 +604,13 @@ namespace platf::audio {
 #if defined(SUNSHINE_HAS_AUDIOCLIENT_ACTIVATION_PARAMS) && defined(VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK)
   /**
    * @brief Completion handler for asynchronous WASAPI process-loopback activation.
+   *
+   * The callback fills in the result fields and then signals the completion event.
+   * The waiter reads the fields only after a signaled wait; on timeout it must not
+   * touch them at all, because the callback may still be running or arrive later.
+   * A signaled wait also makes the callback's writes visible to the waiter: the
+   * wait/signal functions act as memory barriers.
+   * https://learn.microsoft.com/en-us/windows/win32/sync/synchronization-and-multiprocessor-issues
    */
   class process_loopback_completion_handler_t final: public IActivateAudioInterfaceCompletionHandler, public IAgileObject {
   public:
@@ -714,6 +721,49 @@ namespace platf::audio {
   };
 
   /**
+   * @brief Wait for loopback activation completion and collect its result.
+   *
+   * Consumes the caller's handler reference on every path. When the wait reports
+   * anything but WAIT_OBJECT_0 the completion fields are never touched, because the
+   * callback may still be running or arrive later; a signaled wait means the callback
+   * has finished writing them. A late callback stays alive through the reference
+   * Windows itself holds until the operation completes; the handler must not be
+   * freed before the callback runs.
+   * https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-activateaudiointerfaceasync
+   *
+   * The handler must be non-null with a live caller reference; the caller must not
+   * touch it after return, even on timeout, because the late callback is covered by
+   * the operation's own reference.
+   *
+   * @param handler Completion handler passed to ActivateAudioInterfaceAsync; its caller reference is consumed.
+   * @param process_id Launched application PID being captured, used for diagnostics.
+   * @param timeout_ms Wait deadline in milliseconds.
+   * @return Activated (not yet initialized) audio client, or nullptr on failure or timeout.
+   */
+  audio_client_t collect_process_loopback_activation(process_loopback_completion_handler_t *handler, std::uint32_t process_id, DWORD timeout_ms = process_loopback_activation_timeout_ms) {
+    auto wait_result = WaitForSingleObject(handler->event_handle, timeout_ms);
+    if (wait_result != WAIT_OBJECT_0) {
+      BOOST_LOG(warning) << "Process loopback activation timed out for process ["sv << process_id
+                         << "]: wait returned [0x"sv << util::hex(wait_result).to_string_view() << "] after timeout ["sv << timeout_ms
+                         << " ms]; completion results unavailable"sv;
+      handler->Release();
+      return nullptr;
+    }
+    audio_client_t client;
+    if (SUCCEEDED(handler->activate_result) && SUCCEEDED(handler->activation_hresult) && SUCCEEDED(handler->query_interface_result) && handler->activated_client) {
+      client = std::move(handler->activated_client);
+    } else {
+      BOOST_LOG(warning) << "Process loopback activation did not complete successfully for process ["sv << process_id
+                         << "]: wait returned [0x"sv << util::hex(wait_result).to_string_view() << "] after timeout ["sv << timeout_ms
+                         << " ms], GetActivateResult returned [0x"sv << util::hex(handler->activate_result).to_string_view()
+                         << "], activation returned [0x"sv << util::hex(handler->activation_hresult).to_string_view()
+                         << "], QueryInterface(IAudioClient) returned [0x"sv << util::hex(handler->query_interface_result).to_string_view() << ']';
+    }
+    handler->Release();
+    return client;
+  }
+
+  /**
    * @brief Activate a WASAPI audio client for a process tree via ActivateAudioInterfaceAsync.
    *
    * @param process_id Launched application PID to capture.
@@ -755,19 +805,8 @@ namespace platf::audio {
       handler->Release();
       return nullptr;
     }
-    auto wait_result = WaitForSingleObject(handler->event_handle, process_loopback_activation_timeout_ms);
-    audio_client_t client;
-    if (wait_result == WAIT_OBJECT_0 && SUCCEEDED(handler->activate_result) && SUCCEEDED(handler->activation_hresult) && SUCCEEDED(handler->query_interface_result) && handler->activated_client) {
-      client = std::move(handler->activated_client);
-    } else {
-      BOOST_LOG(warning) << "Process loopback activation did not complete successfully for process ["sv << process_id
-                         << "]: wait returned [0x"sv << util::hex(wait_result).to_string_view() << "] after timeout ["sv << process_loopback_activation_timeout_ms
-                         << " ms], GetActivateResult returned [0x"sv << util::hex(handler->activate_result).to_string_view()
-                         << "], activation returned [0x"sv << util::hex(handler->activation_hresult).to_string_view()
-                         << "], QueryInterface(IAudioClient) returned [0x"sv << util::hex(handler->query_interface_result).to_string_view() << ']';
-    }
-    handler->Release();
-    return client;
+    // collect_process_loopback_activation() consumes the caller's handler reference on every path.
+    return collect_process_loopback_activation(handler, process_id);
   }
 #endif
 
@@ -2352,6 +2391,14 @@ namespace platf::audio {
        */
       explicit fake_process_loopback_audio_client_t(HRESULT initialize_status):
           initialize_status {initialize_status} {
+        ++live_count;
+      }
+
+      /**
+       * @brief Destroy the fake client, releasing its lifetime count.
+       */
+      ~fake_process_loopback_audio_client_t() {
+        --live_count;
       }
 
       /**
@@ -2520,10 +2567,300 @@ namespace platf::audio {
         return E_NOTIMPL;
       }
 
+      static inline std::atomic<int> live_count {0};  ///< Live fake-client count for leak checks.
+
     private:
       HRESULT initialize_status;  ///< HRESULT returned by Initialize().
       std::atomic<ULONG> ref_count {1};  ///< COM reference count.
     };
+
+  #if defined(SUNSHINE_HAS_AUDIOCLIENT_ACTIVATION_PARAMS) && defined(VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK)
+    /**
+     * @brief Fake async operation reporting successful activation of a supplied interface.
+     */
+    class fake_process_loopback_async_operation_t final: public IActivateAudioInterfaceAsyncOperation {
+    public:
+      /**
+       * @brief Construct a fake operation serving the given interface.
+       * @param served_interface Interface returned from GetActivateResult; the operation holds its own reference.
+       */
+      explicit fake_process_loopback_async_operation_t(IUnknown *served_interface):
+          served_interface {served_interface} {
+        if (served_interface) {
+          served_interface->AddRef();
+        }
+      }
+
+      /**
+       * @brief Destroy the operation, releasing the served interface.
+       */
+      ~fake_process_loopback_async_operation_t() {
+        if (served_interface) {
+          served_interface->Release();
+        }
+      }
+
+      /**
+       * @brief Query a supported COM interface.
+       * @param riid Requested interface identifier.
+       * @param object Receives the interface pointer.
+       * @return S_OK when supported, E_NOINTERFACE otherwise.
+       */
+      HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void **object) override {  // NOSONAR(cpp:S5008): IUnknown::QueryInterface requires a void double pointer in the COM ABI.
+        if (!object) {
+          return E_POINTER;
+        }
+        if (riid == IID_IUnknown || riid == __uuidof(IActivateAudioInterfaceAsyncOperation)) {
+          *object = static_cast<IActivateAudioInterfaceAsyncOperation *>(this);
+          AddRef();
+          return S_OK;
+        }
+        *object = nullptr;
+        return E_NOINTERFACE;
+      }
+
+      /**
+       * @brief Increment the reference count.
+       * @return New reference count.
+       */
+      ULONG STDMETHODCALLTYPE AddRef() override {
+        return ++ref_count;
+      }
+
+      /**
+       * @brief Decrement the reference count, deleting when it reaches zero.
+       * @return New reference count.
+       */
+      ULONG STDMETHODCALLTYPE Release() override {
+        auto count = --ref_count;
+        if (count == 0) {
+          delete this;
+        }
+        return count;
+      }
+
+      /**
+       * @brief Report successful activation of the served interface.
+       * @param activation_hresult Receives the activation HRESULT.
+       * @param activated_interface Receives the served interface.
+       * @return S_OK.
+       */
+      HRESULT STDMETHODCALLTYPE GetActivateResult(HRESULT *activation_hresult, IUnknown **activated_interface) override {
+        if (!activation_hresult || !activated_interface) {
+          return E_POINTER;
+        }
+        *activation_hresult = S_OK;
+        *activated_interface = served_interface;
+        if (served_interface) {
+          served_interface->AddRef();
+        }
+        return S_OK;
+      }
+
+    private:
+      IUnknown *served_interface {};  ///< Served interface held with an owning reference, or nullptr.
+      std::atomic<ULONG> ref_count {1};  ///< COM reference count.
+    };
+
+    /**
+     * @brief Verify timeout, failure, and success activation paths discard and deliver safely.
+     *
+     * Drives the real completion handler through the production wait-and-collect path
+     * in phases: a null completion arriving strictly after a short timeout must be
+     * discarded without delivering a client, a late success completion must likewise be
+     * discarded without leaking its client, an invalid wait handle must report no
+     * client, a pre-signaled failure must report no client, a pre-signaled success
+     * must deliver its client, and the same success through the default timeout
+     * argument must deliver it the way production calls it. The timeout phases hold
+     * the worker behind a gate event
+     * so the completion provably starts only after the wait expired, and hold an extra
+     * handler reference while waiting to model the reference Windows retains until the
+     * callback runs, so the late callback always sees a live handler. A final overlap
+     * loop hammers the race to pin crash-freedom and lifetime balance.
+     *
+     * The stress loop pins crash-freedom and lifetime balance only; it does not prove
+     * overlap occurred. Data-race freedom is unverified: the msys2/ucrt64 MinGW
+     * toolchain has no ThreadSanitizer support.
+     *
+     * @return 0 when every phase passes; otherwise the failing-phase id. Setup failures
+     * (a missing completion event or gate handle) reuse the id of the phase they belong to.
+     */
+    int process_loopback_completion_after_timeout_is_discarded() {
+      constexpr int kPhasePassed {0};  ///< All phases passed.
+      constexpr int kPhaseTimeoutOrdering {1};  ///< Timeout setup failed, or the wait did not expire before the late null completion started.
+      constexpr int kPhaseTimeoutDiscard {2};  ///< Expired wait delivered a client for the late null completion.
+      constexpr int kPhaseLateSuccess {3};  ///< Late-success setup failed, the wait did not expire first, or the expired wait delivered a client.
+      constexpr int kPhaseWaitFailed {4};  ///< Invalid-handle wait delivered a client.
+      constexpr int kPhaseSignaledFailure {5};  ///< Pre-signaled failure setup failed or delivered a client.
+      constexpr int kPhaseSignaledSuccess {6};  ///< Pre-signaled success setup failed or delivered no client.
+      constexpr int kPhaseStress {7};  ///< Overlap stress iteration setup failed.
+      constexpr int kPhaseLifetime {8};  ///< A fake client leaked across the late-success phase or the stress loop.
+      constexpr int kPhaseDefaultTimeout {9};  ///< Pre-signaled success through the default timeout delivered no client.
+      constexpr DWORD kShortTimeoutMs {10};  ///< Timeout that expires while the gated completion is still held.
+      constexpr DWORD kSignaledWaitMs {1000};  ///< Wait allowing pre-signaled completions to report.
+      constexpr DWORD kGateWaitMs {5000};  ///< Bound on the gated worker wait so a stuck gate fails instead of hanging.
+      {
+        auto *handler = new platf::audio::process_loopback_completion_handler_t();
+        if (!handler->event_handle) {
+          handler->Release();
+          return kPhaseTimeoutOrdering;
+        }
+        handler->AddRef();  // Model the reference Windows holds until the callback runs.
+        HANDLE gate = CreateEventA(nullptr, TRUE, FALSE, nullptr);
+        if (!gate) {
+          handler->Release();
+          handler->Release();
+          return kPhaseTimeoutOrdering;
+        }
+        std::atomic<bool> completion_started {false};
+        std::thread late_completion([handler, gate, &completion_started] {
+          WaitForSingleObject(gate, kGateWaitMs);
+          completion_started.store(true, std::memory_order_release);
+          handler->ActivateCompleted(nullptr);
+          handler->Release();
+        });
+        auto client = platf::audio::collect_process_loopback_activation(handler, 1234, kShortTimeoutMs);
+        const bool expired_before_completion = !completion_started.load(std::memory_order_acquire);
+        SetEvent(gate);
+        late_completion.join();
+        CloseHandle(gate);
+        if (!expired_before_completion) {
+          return kPhaseTimeoutOrdering;
+        }
+        if (client) {
+          return kPhaseTimeoutDiscard;
+        }
+      }
+      {
+        const int live_baseline = fake_process_loopback_audio_client_t::live_count.load();
+        {
+          auto *served_client = new fake_process_loopback_audio_client_t(S_OK);
+          fake_process_loopback_async_operation_t operation(served_client);
+          served_client->Release();
+          auto *handler = new platf::audio::process_loopback_completion_handler_t();
+          if (!handler->event_handle) {
+            handler->Release();
+            return kPhaseLateSuccess;
+          }
+          handler->AddRef();  // Model the reference Windows holds until the callback runs.
+          HANDLE gate = CreateEventA(nullptr, TRUE, FALSE, nullptr);
+          if (!gate) {
+            handler->Release();
+            handler->Release();
+            return kPhaseLateSuccess;
+          }
+          std::atomic<bool> completion_started {false};
+          std::thread late_completion([handler, gate, &completion_started, &operation] {
+            WaitForSingleObject(gate, kGateWaitMs);
+            completion_started.store(true, std::memory_order_release);
+            handler->ActivateCompleted(&operation);
+            handler->Release();
+          });
+          auto client = platf::audio::collect_process_loopback_activation(handler, 1234, kShortTimeoutMs);
+          const bool expired_before_completion = !completion_started.load(std::memory_order_acquire);
+          SetEvent(gate);
+          late_completion.join();
+          CloseHandle(gate);
+          if (!expired_before_completion || client) {
+            return kPhaseLateSuccess;
+          }
+        }
+        if (fake_process_loopback_audio_client_t::live_count.load() != live_baseline) {
+          return kPhaseLifetime;
+        }
+      }
+      {
+        auto *handler = new platf::audio::process_loopback_completion_handler_t();
+        if (!handler->event_handle) {
+          handler->Release();
+          return kPhaseWaitFailed;
+        }
+        // Production never passes an invalid handle (activate_process_loopback_audio_client checks
+        // creation), so this pins the shared non-signaled wait branch rather than a production path.
+        CloseHandle(handler->event_handle);
+        handler->event_handle = nullptr;
+        auto client = platf::audio::collect_process_loopback_activation(handler, 1234, kSignaledWaitMs);
+        if (client) {
+          return kPhaseWaitFailed;
+        }
+      }
+      {
+        auto *handler = new platf::audio::process_loopback_completion_handler_t();
+        if (!handler->event_handle) {
+          handler->Release();
+          return kPhaseSignaledFailure;
+        }
+        handler->ActivateCompleted(nullptr);
+        auto client = platf::audio::collect_process_loopback_activation(handler, 1234, kSignaledWaitMs);
+        if (client) {
+          return kPhaseSignaledFailure;
+        }
+      }
+      {
+        auto *served_client = new fake_process_loopback_audio_client_t(S_OK);
+        fake_process_loopback_async_operation_t operation(served_client);
+        served_client->Release();
+        auto *handler = new platf::audio::process_loopback_completion_handler_t();
+        if (!handler->event_handle) {
+          handler->Release();
+          return kPhaseSignaledSuccess;
+        }
+        handler->ActivateCompleted(&operation);
+        auto client = platf::audio::collect_process_loopback_activation(handler, 1234, kSignaledWaitMs);
+        if (!client) {
+          return kPhaseSignaledSuccess;
+        }
+      }
+      {
+        // Same success shape production uses: default timeout argument with a pre-signaled event.
+        auto *served_client = new fake_process_loopback_audio_client_t(S_OK);
+        fake_process_loopback_async_operation_t operation(served_client);
+        served_client->Release();
+        auto *handler = new platf::audio::process_loopback_completion_handler_t();
+        if (!handler->event_handle) {
+          handler->Release();
+          return kPhaseDefaultTimeout;
+        }
+        handler->ActivateCompleted(&operation);
+        auto client = platf::audio::collect_process_loopback_activation(handler, 1234);
+        if (!client) {
+          return kPhaseDefaultTimeout;
+        }
+      }
+      {
+        const int live_baseline = fake_process_loopback_audio_client_t::live_count.load();
+        for (int i = 0; i < 25; ++i) {
+          auto *served_client = new fake_process_loopback_audio_client_t(S_OK);
+          fake_process_loopback_async_operation_t operation(served_client);
+          served_client->Release();
+          auto *handler = new platf::audio::process_loopback_completion_handler_t();
+          if (!handler->event_handle) {
+            handler->Release();
+            return kPhaseStress;
+          }
+          handler->AddRef();  // Model the reference Windows holds until the callback runs.
+          std::thread racer([handler, &operation, i] {
+            if (i % 2 != 0) {
+              ::Sleep(1);
+            }
+            if (i % 2 == 0) {
+              handler->ActivateCompleted(&operation);
+            } else {
+              handler->ActivateCompleted(nullptr);
+            }
+            handler->Release();
+          });
+          auto client = platf::audio::collect_process_loopback_activation(handler, 1234, (i % 3 == 0) ? 0 : 1);
+          (void) client;  // Either outcome is legal under the race; only crash-freedom and lifetime are pinned.
+          racer.join();
+        }
+        if (fake_process_loopback_audio_client_t::live_count.load() != live_baseline) {
+          return kPhaseLifetime;
+        }
+      }
+      return kPhasePassed;
+    }
+  #endif
 
     /**
      * @brief Exercise the process-loopback wrapper with a fake activation that succeeds.
