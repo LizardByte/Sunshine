@@ -46,9 +46,8 @@ if /i "%~1"=="add" (
     rem Only update if path was changed
     if "!NEW_PATH!" neq "!CURRENT_PATH!" (
         rem Set the new path in the registry
-        rem Some localized systems may unexpectedly ignore /f at the end of the command.
-        rem Keep it before /d so the installer never waits for overwrite confirmation.
-        reg add "%KEY_NAME%" /v "%VALUE_NAME%" /t REG_EXPAND_SZ /f /d "!NEW_PATH!"
+        set "PATH_TO_WRITE=!NEW_PATH!"
+        call :write_path
         if !ERRORLEVEL!==0 (
             echo Successfully added Sunshine directories to PATH
         ) else (
@@ -96,9 +95,8 @@ if /i "%~1"=="remove" (
     rem Only update if path was changed
     if "!CHANGES_MADE!"=="1" (
         rem Set the new path in the registry
-        rem Some localized systems may unexpectedly ignore /f at the end of the command.
-        rem Keep it before /d so the installer never waits for overwrite confirmation.
-        reg add "%KEY_NAME%" /v "%VALUE_NAME%" /t REG_EXPAND_SZ /f /d "!CURRENT_PATH!"
+        set "PATH_TO_WRITE=!CURRENT_PATH!"
+        call :write_path
         if !ERRORLEVEL!==0 (
             echo Successfully removed Sunshine directories from PATH
         ) else (
@@ -113,3 +111,23 @@ if /i "%~1"=="remove" (
 echo Unknown parameter: %~1
 echo Usage: %0 [add^|remove]
 exit /b 1
+
+rem @brief Write PATH_TO_WRITE to KEY_NAME\VALUE_NAME without corrupting trailing backslashes.
+rem @return The exit code from reg.exe.
+:write_path
+set "REG_PATH=!PATH_TO_WRITE!"
+set "TRAILING_PATH=!PATH_TO_WRITE!"
+
+rem Windows argument parsing requires every backslash before the closing quote to be doubled.
+rem Escape a copy so PATH comparisons and the original entries remain unchanged.
+:escape_trailing_backslashes
+if "!TRAILING_PATH:~-1!"=="\" (
+    set "REG_PATH=!REG_PATH!\"
+    set "TRAILING_PATH=!TRAILING_PATH:~0,-1!"
+    goto escape_trailing_backslashes
+)
+
+rem Some localized systems may unexpectedly ignore /f at the end of the command.
+rem Keep it before /d so the installer never waits for overwrite confirmation.
+reg add "%KEY_NAME%" /v "%VALUE_NAME%" /t REG_EXPAND_SZ /f /d "!REG_PATH!"
+exit /b !ERRORLEVEL!

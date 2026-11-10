@@ -178,6 +178,40 @@ namespace proc {
 #endif
   }
 
+  /**
+   * @brief Check a prep-command launch and wait for successful completion.
+   *
+   * @param child Process returned by the prep-command launch, or an empty child on failure.
+   * @param command Command line used for logging.
+   * @param ec Launch error, updated by the wait or cleared when permission denial is allowed.
+   * @param allow_permission_denied Whether a permission-denied launch may be skipped for Desktop access before login.
+   * @return True if the command succeeded or its permission-denied launch was allowed.
+   */
+  bool wait_for_prep_command(boost::process::v1::child &child, const std::string &command, std::error_code &ec, bool allow_permission_denied) {
+    if (ec) {
+      BOOST_LOG(error) << "Couldn't run ["sv << command << "]: System: "sv << ec.message();
+      // User impersonation can fail before anyone signs in after a reboot. Allow Desktop access
+      // without waiting on the child that never started or passing its launch error to later commands.
+      if (allow_permission_denied && ec == std::errc::permission_denied) {
+        ec.clear();
+        return true;
+      }
+      return false;
+    }
+
+    child.wait(ec);
+    if (ec) {
+      BOOST_LOG(error) << '[' << command << "] wait failed with error code ["sv << ec << ']';
+      return false;
+    }
+    auto ret = child.exit_code();
+    if (ret != 0) {
+      BOOST_LOG(error) << '[' << command << "] exited with code ["sv << ret << ']';
+      return false;
+    }
+    return true;
+  }
+
   int proc_t::execute(int app_id, std::shared_ptr<rtsp_stream::launch_session_t> launch_session) {
     // Ensure starting from a clean slate
     terminate();
@@ -257,24 +291,7 @@ namespace proc {
       BOOST_LOG(info) << "Executing Do Cmd: ["sv << command << ']';
       auto child = platf::run_command(cmd.elevated, true, command, working_dir, _env, _pipe.get(), ec, nullptr);
 
-      if (ec) {
-        BOOST_LOG(error) << "Couldn't run ["sv << command << "]: System: "sv << ec.message();
-        // We don't want any prep commands failing launch of the desktop.
-        // This is to prevent the issue where users reboot their PC and need to log in with Sunshine.
-        // permission_denied is typically returned when the user impersonation fails, which can happen when user is not signed in yet.
-        if (!(_app.cmd.empty() && ec == std::errc::permission_denied)) {
-          return -1;
-        }
-      }
-
-      child.wait(ec);
-      if (ec) {
-        BOOST_LOG(error) << '[' << command << "] wait failed with error code ["sv << ec << ']';
-        return -1;
-      }
-      auto ret = child.exit_code();
-      if (ret != 0) {
-        BOOST_LOG(error) << '[' << command << "] exited with code ["sv << ret << ']';
+      if (!wait_for_prep_command(child, command, ec, _app.cmd.empty())) {
         return -1;
       }
     }

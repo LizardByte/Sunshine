@@ -25,6 +25,9 @@ export BUILD_VERSION
 export BRANCH
 export COMMIT
 
+# Match the deployment target used by the macOS CI build unless explicitly overridden.
+export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-15.0}"
+
 required_formulas=(
   "boost"
   "cmake"
@@ -34,7 +37,7 @@ required_formulas=(
   "pkgconf"
   "icu4c@78"
   "miniupnpc"
-  "openssl@3"
+  "openssl@4"
   "opus"
   "llvm"
   "qtbase"
@@ -107,7 +110,7 @@ function run_step_cmake() {
     "-DBUILD_WERROR=ON"
     "-DCMAKE_BUILD_TYPE=${build_type}"
     "-DICU_ROOT=${icu4c_root}"
-    "-DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3 2>/dev/null)"
+    "-DOPENSSL_ROOT_DIR=$(brew --prefix openssl@4 2>/dev/null)"
     "-DOpus_ROOT_DIR=$(brew --prefix opus 2>/dev/null)"
     "-DQt6_DIR=$(brew --prefix qtbase 2>/dev/null)/lib/cmake/Qt6"
     "-DQt6Svg_DIR=$(brew --prefix qtsvg 2>/dev/null)/lib/cmake/Qt6Svg"

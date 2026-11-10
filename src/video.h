@@ -807,13 +807,6 @@ namespace video {
     return std::fminf(width / logical_width, height / logical_height);
   }
 
-  /**
-   * @brief Build the touch port that maps client input onto a captured display.
-   *
-   * @param display Captured display, with its physical, logical and environment geometry.
-   * @param config Stream configuration carrying the client's resolution.
-   * @return Touch port for absolute input on that display.
-   */
   input::touch_port_t make_port(platf::display_t *display, const config_t &config);
 
   /**

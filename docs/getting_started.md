@@ -421,6 +421,8 @@ standard macOS synthetic-input permission path.
 
 #### DMG
 
+Prebuilt DMG packages require macOS 15.0 (Sequoia) or newer.
+
 ##### Install
 
 1. Download and install based on your architecture:

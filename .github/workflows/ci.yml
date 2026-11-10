@@ -14,6 +14,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  organization:
+    uses: LizardByte/.github/.github/workflows/__call-organization.yml@master
+
   github-env:
     name: GitHub Env Debug
     permissions:
@@ -21,9 +24,12 @@ jobs:
     uses: LizardByte/.github/.github/workflows/__call-github-env.yml@master
 
   release-setup:
+    needs: organization
     name: Release Setup
     outputs:
-      publish_release: ${{ steps.release-setup.outputs.publish_release }}
+      publish_release: >-
+        ${{ needs.organization.outputs.allowed == 'true' &&
+        steps.release-setup.outputs.publish_release == 'true' }}
       release_body: ${{ steps.release-setup.outputs.release_body }}
       release_commit: ${{ steps.release-setup.outputs.release_commit }}
       release_generate_release_notes: ${{ steps.release-setup.outputs.release_generate_release_notes }}
@@ -202,8 +208,9 @@ jobs:
     if: >-
       always() &&
       !cancelled() &&
-      startsWith(github.repository, 'LizardByte/')
+      needs.organization.outputs.allowed == 'true'
     needs:
+      - organization
       - build-freebsd
       - build-linux
       - build-archlinux
@@ -292,8 +299,9 @@ jobs:
     name: Release
     if:
       needs.release-setup.outputs.publish_release == 'true' &&
-      startsWith(github.repository, 'LizardByte/')
+      needs.organization.outputs.allowed == 'true'
     needs:
+      - organization
       - release-setup
       - build-archlinux
       - build-alpine
@@ -334,8 +342,9 @@ jobs:
     name: Release Homebrew Beta
     if:
       needs.release-setup.outputs.publish_release == 'true' &&
-      startsWith(github.repository, 'LizardByte/')
+      needs.organization.outputs.allowed == 'true'
     needs:
+      - organization
       - release-setup
       - build-homebrew
       - release

@@ -48,7 +48,7 @@
   #include <ffnvcodec/nvEncodeAPI.h>
 #endif
 
-#if (defined(linux) || defined(__FreeBSD__)) && !defined(DOXYGEN)
+#if defined(SUNSHINE_BUILD_VAAPI) && !defined(DOXYGEN)
   // For VAAPI rate control types
   #include <va/va.h>
 #endif
@@ -419,7 +419,7 @@ namespace config {
   }  // namespace qsv
 
   namespace vaapi {
-#if !(defined(linux) || defined(__FreeBSD__)) || defined(DOXYGEN)
+#if !defined(SUNSHINE_BUILD_VAAPI) || defined(DOXYGEN)
     constexpr int VA_RC_CBR = 0x00000002;  ///< CBR rate control
     constexpr int VA_RC_VBR = 0x00000004;  ///< VBR rate control
     constexpr int VA_RC_CQP = 0x00000010;  ///< CQP rate control
@@ -844,6 +844,7 @@ namespace config {
     ENCRYPTION_MODE_NEVER,  // lan_encryption_mode
     ENCRYPTION_MODE_OPPORTUNISTIC,  // wan_encryption_mode
     0,  // packetsize
+    true,  // dscp_tagging
   };
 
   /**
@@ -1333,7 +1334,7 @@ namespace config {
    * @return True when the tested parser condition is met.
    */
   bool to_bool(std::string &boolean) {
-    std::for_each(std::begin(boolean), std::end(boolean), [](char ch) {
+    std::transform(std::begin(boolean), std::end(boolean), std::begin(boolean), [](unsigned char ch) {
       return (char) std::tolower(ch);
     });
 
@@ -1811,6 +1812,7 @@ namespace config {
     int_between_f(vars, "lan_encryption_mode", stream.lan_encryption_mode, {0, 2});
     int_between_f(vars, "wan_encryption_mode", stream.wan_encryption_mode, {0, 2});
     int_between_f(vars, "packetsize", stream.packetsize, {0, PACKETSIZE_MAX});
+    bool_f(vars, "dscp_tagging", stream.dscp_tagging);
 
     path_f(vars, "file_apps", stream.file_apps);
 #ifndef __ANDROID__

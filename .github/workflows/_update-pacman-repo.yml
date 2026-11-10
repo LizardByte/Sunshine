@@ -3,7 +3,7 @@
 # Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
 # the above-mentioned repo.
 
-# To use, add the `pacman-pkg` repository label to identify repositories that should trigger this workflow.
+# To use, select `pacman` in the `workflow_profiles` repository custom property.
 
 # Update pacman repo on release events.
 
@@ -23,7 +23,6 @@ jobs:
   update-pacman-repo:
     name: Update pacman repo
     uses: LizardByte/.github/.github/workflows/__call-update-pacman-repo.yml@master
-    if: github.repository_owner == 'LizardByte'
     permissions:
       contents: read
     with:

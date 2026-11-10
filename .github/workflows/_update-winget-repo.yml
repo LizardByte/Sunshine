@@ -3,7 +3,7 @@
 # Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
 # the above-mentioned repo.
 
-# To use, add the `winget-pkg` repository label to identify repositories that should trigger this workflow.
+# To use, select `winget` in the `workflow_profiles` repository custom property.
 
 # Update Winget on release events.
 
@@ -23,7 +23,6 @@ jobs:
   update-winget-repo:
     name: Update Winget repo
     uses: LizardByte/.github/.github/workflows/__call-update-winget-repo.yml@master
-    if: github.repository_owner == 'LizardByte'
     permissions:
       contents: read
     secrets:

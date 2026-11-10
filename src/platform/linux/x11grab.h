@@ -81,4 +81,15 @@ namespace platf::x11 {
    * @return Constructed display object.
    */
   xdisplay_t make_display();
+
+#ifdef SUNSHINE_TESTS
+  /**
+   * @brief Make RandR queries return NULL, as they do when an X request fails.
+   *
+   * @param screen_resources_failures Number of upcoming screen resources queries that fail; negative fails all of them.
+   * @param fail_crtc_info Whether CRTC info queries fail.
+   * @return 0 on success, or nonzero when the X11 libraries could not be loaded.
+   */
+  int fail_randr_for_testing(int screen_resources_failures, bool fail_crtc_info);
+#endif
 }  // namespace platf::x11
