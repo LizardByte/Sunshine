@@ -2601,7 +2601,7 @@ namespace platf::audio {
         return E_NOTIMPL;
       }
 
-      static inline std::atomic<int> live_count {0};  ///< Live fake-client count for leak checks.
+      static inline std::atomic live_count {0};  ///< Live fake-client count for leak checks.
 
     private:
       HRESULT initialize_status;  ///< HRESULT returned by Initialize().
