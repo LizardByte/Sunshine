@@ -6,10 +6,12 @@
 #include "../tests_common.h"
 
 // standard includes
+#include <atomic>
 #include <cstdlib>
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <latch>
 #include <optional>
 #include <system_error>
 #include <thread>
@@ -670,8 +672,31 @@ TEST(ProcessTest, AppProcessIdTracksRealChildLifecycle) {
   proc::proc_t target(std::move(env), std::move(apps));
   auto launch_session = std::make_shared<rtsp_stream::launch_session_t>();
   ASSERT_EQ(target.execute(7, launch_session), 0);
-  EXPECT_NE(target.app_process_id(), 0u);
+  const auto expected_pid = target.app_process_id();
+  EXPECT_NE(expected_pid, 0u);
+  std::atomic<bool> saw_unexpected_pid {false};
+  std::atomic<unsigned int> reader_calls {0};
+  std::latch reader_ready {1};
+  std::jthread reader {[&](std::stop_token stop_token) {
+    bool signaled = false;
+    while (!stop_token.stop_requested()) {
+      const auto pid = target.app_process_id();
+      if (pid != 0u && pid != expected_pid) {
+        saw_unexpected_pid.store(true);
+      }
+      reader_calls.fetch_add(1);
+      if (!signaled) {
+        signaled = true;
+        reader_ready.count_down();
+      }
+    }
+  }};
+  reader_ready.wait();
   target.terminate();
+  reader.request_stop();
+  reader.join();
+  EXPECT_GT(reader_calls.load(), 0u);
+  EXPECT_FALSE(saw_unexpected_pid.load());
   EXPECT_EQ(target.app_process_id(), 0u);
 }
 #endif

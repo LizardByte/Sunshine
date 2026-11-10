@@ -182,6 +182,27 @@ namespace proc {
 #endif
 
   private:
+    /**
+     * @brief Implementation of execute() that calls terminate_impl() directly for internal cleanup.
+     *
+     * @param app_id App ID.
+     * @param launch_session Launch session.
+     * @return Process exit code or launch error status.
+     */
+    int execute_impl(int app_id, std::shared_ptr<rtsp_stream::launch_session_t> launch_session);
+
+    /**
+     * @brief Implementation of running() that may call terminate_impl() directly for cleanup.
+     *
+     * @return `_app_id` if a process is running, otherwise returns `0`.
+     */
+    int running_impl();
+
+    /**
+     * @brief Implementation of terminate() used by public wrappers and internal callers.
+     */
+    void terminate_impl();
+
     int _app_id;
 
     boost::process::v1::environment _env;
