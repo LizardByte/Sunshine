@@ -4,13 +4,13 @@
   "description": "Prebuilt web UI assets for the Sunshine game-stream host",
   "license": "GPL-3.0-only",
   "funding": "https://app.lizardbyte.dev",
-  "homepage": "https://app.lizardbyte.dev/Sunshine",
+  "homepage": "https://sunshine.lizardbyte.dev",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/LizardByte/Sunshine.git"
+    "url": "git+https://github.com/SunshineStream/Sunshine.git"
   },
   "bugs": {
-    "url": "https://github.com/LizardByte/Sunshine/issues"
+    "url": "https://github.com/SunshineStream/Sunshine/issues"
   },
   "files": [
     "build/assets/web/"
