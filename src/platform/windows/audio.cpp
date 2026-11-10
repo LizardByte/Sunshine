@@ -1509,31 +1509,34 @@ namespace platf::audio {
     };
 
     /**
-     * @brief Copy the recorded capture target under control_mutex.
+     * @brief Copy the recorded capture target under the base capture mutex.
+     *
+     * Holds `capture_state_mutex_` once so the intent, PID, and identity form
+     * one consistent snapshot with the shared `recorded_target_` record.
      *
      * @return Intent, PID, and identity as one consistent snapshot.
      */
     capture_target_snapshot_t snapshot_capture_target() const {
-      std::lock_guard lock {control_mutex};
-      return {capture_intent, capture_process_id, capture_target_identity};
+      std::lock_guard lock {capture_state_mutex_};
+      return {recorded_target_.intent, recorded_target_.process_id, capture_target_identity};
     }
 
     /**
-     * @brief Copy the assigned sink name under control_mutex.
+     * @brief Copy the assigned sink name under the base capture mutex.
      *
      * @return Sink assigned while Sunshine captures host audio, possibly empty.
      */
     std::string snapshot_assigned_sink() const {
-      std::lock_guard lock {control_mutex};
-      return assigned_sink;
+      return snapshot_recorded_sink();
     }
 
     /**
      * @brief Record the capture target for the next microphone() call.
      *
      * Thread-safe: the intent, PID, and identity are stored as one snapshot
-     * under control_mutex, so microphone() never sees a mismatched pair. The
-     * process identity is queried before locking; only the store is guarded.
+     * under `capture_state_mutex_`, so microphone() never sees a mismatched
+     * pair. The process identity is queried before locking; only the store is
+     * guarded.
      *
      * @param intent Capture intent resolved from the audio configuration.
      * @param process_id Operating-system PID to capture, or 0 for endpoint capture.
@@ -1547,30 +1550,30 @@ namespace platf::audio {
           BOOST_LOG(debug) << "Cannot record a verifiable identity for capture target process ["sv << process_id << "]; endpoint capture will be used"sv;
         }
       }
-      std::lock_guard lock {control_mutex};
-      capture_intent = intent;
-      capture_process_id = process_id;
+      std::lock_guard lock {capture_state_mutex_};
+      recorded_target_.intent = intent;
+      recorded_target_.process_id = process_id;
       capture_target_identity = identity;
     }
 
     /**
      * @brief Release the recorded capture target when it still belongs to the caller.
      *
-     * Thread-safe: the compare-and-reset runs under control_mutex. The target
-     * resets to endpoint capture only when the stored intent and PID still
-     * equal the given ones, so one exiting session cannot wipe another
-     * session's recorded target.
+     * Thread-safe: the compare-and-reset runs under `capture_state_mutex_`.
+     * The target resets to endpoint capture only when the stored intent and
+     * PID still equal the given ones, so one exiting session cannot wipe
+     * another session's recorded target.
      *
      * @param intent Capture intent recorded by the session being torn down.
      * @param process_id PID recorded by the session being torn down, or 0 for endpoint capture.
      */
     void clear_capture_target(audio_capture_intent_e intent, std::uint32_t process_id) override {
-      std::lock_guard lock {control_mutex};
-      if (!capture_target_matches(capture_intent, capture_process_id, intent, process_id)) {
+      std::lock_guard lock {capture_state_mutex_};
+      if (!recorded_target_.matches(intent, process_id)) {
         return;
       }
-      capture_intent = audio_capture_intent_e::client_only;
-      capture_process_id = 0;
+      recorded_target_.intent = audio_capture_intent_e::client_only;
+      recorded_target_.process_id = 0;
       capture_target_identity = {};
     }
 
@@ -1593,7 +1596,7 @@ namespace platf::audio {
     /**
      * @brief Revalidate the recorded capture target immediately before activation.
      *
-     * Snapshots the target under control_mutex, then revalidates without
+     * Snapshots the target under `capture_state_mutex_`, then revalidates without
      * holding the lock so process queries never block other sessions.
      *
      * @return Recorded PID when it still refers to the same live process, or 0 when the process exited, the PID was reused, or its identity cannot be verified.
@@ -1780,7 +1783,7 @@ namespace platf::audio {
      * @brief Update the sink value on the backend.
      *
      * Thread-safe: only the assigned-sink store is guarded; the endpoint
-     * switch itself runs outside control_mutex. Safe to call from the
+     * switch itself runs outside `capture_state_mutex_`. Safe to call from the
      * default-endpoint callback on the capture thread.
      *
      * @param sink Audio sink name to route or capture.
@@ -1789,8 +1792,7 @@ namespace platf::audio {
     int set_sink(const std::string &sink) override {
       if (config::audio.keep_default_sink) {
         // Keep-default never swaps the host default; capture follows the recorded endpoint.
-        std::lock_guard lock {control_mutex};
-        assigned_sink = sink;
+        record_capture_sink(sink);
         return 0;
       }
 
@@ -1817,8 +1819,7 @@ namespace platf::audio {
       // Remember the assigned sink name, so we have it for later if we need to set it
       // back after another application changes it
       if (!failure) {
-        std::lock_guard lock {control_mutex};
-        assigned_sink = sink;
+        record_capture_sink(sink);
       }
 
       return failure;
@@ -1836,7 +1837,7 @@ namespace platf::audio {
     /**
      * @brief Capture the given sink without changing the host default.
      *
-     * Records the target for microphone() under control_mutex; unlike
+     * Records the target for microphone() under the base capture mutex; unlike
      * set_sink(), this never calls SetDefaultEndpoint and never installs the
      * Steam drivers.
      *
@@ -1845,8 +1846,7 @@ namespace platf::audio {
      */
     int capture_sink(const std::string &sink) override {
       BOOST_LOG(info) << "Keeping host default sink; capturing ["sv << sink << "] without swapping"sv;
-      std::lock_guard lock {control_mutex};
-      assigned_sink = sink;
+      record_capture_sink(sink);
 
       return 0;
     }
@@ -2262,7 +2262,7 @@ namespace platf::audio {
      * @brief Revalidate a capture-target snapshot immediately before or after activation.
      *
      * Operates only on the given snapshot plus a fresh process query, so
-     * callers must not hold control_mutex while revalidation runs.
+     * callers must not hold `capture_state_mutex_` while revalidation runs.
      *
      * @param snapshot Capture target snapshot to revalidate.
      * @return Snapshot PID when it still refers to the same live process, or 0 for endpoint capture.
@@ -2279,14 +2279,10 @@ namespace platf::audio {
       return effective;
     }
 
-    mutable std::mutex control_mutex;  ///< Guards the capture target and assigned sink against concurrent sessions.
 #ifdef SUNSHINE_TESTS
     process_loopback_activator_t test_loopback_activator;  ///< Test override for the loopback activator used by microphone(), empty in production.
 #endif
-    std::string assigned_sink;  ///< Sink assigned while Sunshine captures host audio, snapshotted by microphone().
-    std::uint32_t capture_process_id {};  ///< PID for process-loopback capture, or 0 for endpoint capture.
-    process_identity_t capture_target_identity {};  ///< Creation-time identity recorded with `capture_process_id`, empty when unverifiable.
-    audio_capture_intent_e capture_intent {audio_capture_intent_e::client_only};  ///< Intent for the next microphone() call.
+    process_identity_t capture_target_identity {};  ///< Creation-time identity recorded with the PID, guarded by the base `capture_state_mutex_`, empty when unverifiable.
   };
 
 #ifdef SUNSHINE_TESTS

@@ -43,10 +43,10 @@ namespace audio {
    * session from resetting the shared target between another session's
    * refresh and microphone creation.
    *
-   * Lock order: this outer mutex is always taken before any backend-internal
-   * audio mutex (such as the Windows control_mutex, acquired inside
-   * set_capture_target()/microphone()/clear_capture_target()). Backends never
-   * take this mutex, so the order cannot invert.
+   * Lock order: this outer mutex is always taken before the backend-internal
+   * `platf::audio_control_t::capture_state_mutex_`, acquired inside
+   * `set_capture_target()`/`microphone()`/`clear_capture_target()`. Backends
+   * never take this mutex, so the order cannot invert.
    *
    * @return Reference to the process-lifetime capture-target mutex.
    */

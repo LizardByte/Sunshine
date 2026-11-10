@@ -886,6 +886,34 @@ namespace platf {
   };
 
   /**
+   * @brief Recorded per-process capture target shared by audio backends.
+   *
+   * Windows and Linux record the sink selected at startup so microphone() can
+   * consume it later; Windows additionally records the intent and PID for
+   * process-loopback capture. The record carries at most the intent and the
+   * PID: process identity queries and revalidation stay backend-side because
+   * they depend on WASAPI-only process APIs.
+   */
+  struct capture_target_record_t {
+    audio_capture_intent_e intent {audio_capture_intent_e::client_only};  ///< Intent for the next microphone() call.
+    std::uint32_t process_id {};  ///< PID for process-loopback capture, or 0 for endpoint capture.
+
+    /**
+     * @brief Check whether this record still matches the expected session target.
+     *
+     * Delegates to `capture_target_matches()` so sessions share one
+     * compare-and-reset contract.
+     *
+     * @param expected_intent Intent recorded by the session being torn down.
+     * @param expected_process_id PID recorded by the session being torn down.
+     * @return True only when both the intent and the PID still match.
+     */
+    [[nodiscard]] bool matches(audio_capture_intent_e expected_intent, std::uint32_t expected_process_id) const noexcept {
+      return capture_target_matches(intent, process_id, expected_intent, expected_process_id);
+    }
+  };
+
+  /**
    * @brief Platform audio controller that manages sinks and microphone capture.
    */
   class audio_control_t {
@@ -1010,6 +1038,92 @@ namespace platf {
      * @brief Destroy the audio control.
      */
     virtual ~audio_control_t() = default;
+
+  protected:
+    mutable std::mutex capture_state_mutex_;  ///< Guards `recorded_sink_` and `recorded_target_` against concurrent sessions.
+    std::string recorded_sink_;  ///< Sink recorded for later consumption in microphone(), possibly empty.
+    capture_target_record_t recorded_target_;  ///< Intent and PID recorded for the next microphone() call.
+
+    /**
+     * @brief Record a capture sink for later consumption in microphone().
+     *
+     * Thread-safe: the store runs under `capture_state_mutex_`, so concurrent
+     * sessions cannot tear the recorded sink mid-write. Opt-in helper only:
+     * the `capture_sink()` virtual keeps its legacy delegation so backends
+     * without keep-default capture are unchanged.
+     *
+     * @param sink Audio sink name to capture.
+     */
+    void record_capture_sink(const std::string &sink) {
+      std::lock_guard lock {capture_state_mutex_};
+      recorded_sink_ = sink;
+    }
+
+    /**
+     * @brief Copy the recorded sink name under `capture_state_mutex_`.
+     *
+     * @return Recorded sink name, possibly empty when nothing was recorded.
+     */
+    [[nodiscard]] std::string snapshot_recorded_sink() const {
+      std::lock_guard lock {capture_state_mutex_};
+      return recorded_sink_;
+    }
+
+    /**
+     * @brief Record the capture target for the next microphone() call.
+     *
+     * Thread-safe: the intent and PID are stored as one snapshot under
+     * `capture_state_mutex_`, so microphone() never sees a mismatched pair.
+     * Opt-in helper only: the `set_capture_target()` virtual stays a no-op so
+     * backends without per-process capture are unchanged.
+     *
+     * @param intent Capture intent resolved from the audio configuration.
+     * @param process_id Operating-system PID to capture, or 0 for endpoint capture.
+     */
+    void record_capture_target(audio_capture_intent_e intent, std::uint32_t process_id) {
+      std::lock_guard lock {capture_state_mutex_};
+      recorded_target_.intent = intent;
+      recorded_target_.process_id = process_id;
+    }
+
+    /**
+     * @brief Copy the recorded capture target under `capture_state_mutex_`.
+     *
+     * Named `snapshot_recorded_capture_target()` (rather than reusing the
+     * Windows `snapshot_capture_target()` name) because the Windows snapshot
+     * carries an additional process identity and C++ cannot overload on the
+     * return type alone.
+     *
+     * @return Intent and PID as one consistent snapshot.
+     */
+    [[nodiscard]] capture_target_record_t snapshot_recorded_capture_target() const {
+      std::lock_guard lock {capture_state_mutex_};
+      return recorded_target_;
+    }
+
+    /**
+     * @brief Release the recorded capture target when it still belongs to the caller.
+     *
+     * Thread-safe: the compare-and-reset runs under `capture_state_mutex_`.
+     * The target resets to endpoint capture only when the stored intent and
+     * PID still equal the given ones, so one exiting session cannot wipe
+     * another session's recorded target. Opt-in helper only: the
+     * `clear_capture_target()` virtual stays a no-op so backends without
+     * per-process capture are unchanged.
+     *
+     * @param intent Capture intent recorded by the session being torn down.
+     * @param process_id PID recorded by the session being torn down, or 0 for endpoint capture.
+     * @return True when the stored target matched and was reset.
+     */
+    bool clear_recorded_capture_target_if_matches(audio_capture_intent_e intent, std::uint32_t process_id) {
+      std::lock_guard lock {capture_state_mutex_};
+      if (!recorded_target_.matches(intent, process_id)) {
+        return false;
+      }
+      recorded_target_.intent = audio_capture_intent_e::client_only;
+      recorded_target_.process_id = 0;
+      return true;
+    }
   };
 
   /**
