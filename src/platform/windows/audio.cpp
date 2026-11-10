@@ -14,6 +14,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <type_traits>
 #include <utility>
@@ -376,8 +377,9 @@ namespace platf::audio {
    * @param intent Capture intent recorded for the next microphone() call.
    * @return True only for host-and-client intent with a known PID.
    */
-  bool use_process_loopback(std::uint32_t process_id, audio_capture_intent_e intent) {
-    return intent == audio_capture_intent_e::host_and_client && process_id != 0;
+  [[nodiscard]] constexpr bool use_process_loopback(std::uint32_t process_id, audio_capture_intent_e intent) noexcept {
+    using enum audio_capture_intent_e;
+    return intent == host_and_client && process_id != 0;
   }
 
   /**
@@ -402,7 +404,7 @@ namespace platf::audio {
    * @param current Identity queried immediately before activation.
    * @return True only when both identities name the same nonzero PID with the same nonzero creation time.
    */
-  bool process_identity_matches(const process_identity_t &recorded, const process_identity_t &current) {
+  [[nodiscard]] constexpr bool process_identity_matches(const process_identity_t &recorded, const process_identity_t &current) noexcept {
     return recorded.process_id != 0 && current.process_id == recorded.process_id && recorded.creation_time != 0 && current.creation_time == recorded.creation_time;
   }
 
@@ -413,7 +415,7 @@ namespace platf::audio {
    * @param current Identity queried immediately before activation, or empty when the process exited or could not be opened.
    * @return True only when a current identity is available and matches the recorded identity.
    */
-  bool capture_target_is_live(const process_identity_t &recorded, const std::optional<process_identity_t> &current) {
+  [[nodiscard]] constexpr bool capture_target_is_live(const process_identity_t &recorded, const std::optional<process_identity_t> &current) noexcept {
     return current.has_value() && process_identity_matches(recorded, *current);
   }
 
@@ -424,7 +426,7 @@ namespace platf::audio {
    * @param current Identity queried immediately before activation, or empty when the process exited or could not be opened.
    * @return The recorded PID when the target is still the same live process, or 0 to select endpoint capture.
    */
-  std::uint32_t effective_capture_process_id(const process_identity_t &recorded, const std::optional<process_identity_t> &current) {
+  [[nodiscard]] constexpr std::uint32_t effective_capture_process_id(const process_identity_t &recorded, const std::optional<process_identity_t> &current) noexcept {
     return capture_target_is_live(recorded, current) ? recorded.process_id : 0;
   }
 
@@ -440,7 +442,7 @@ namespace platf::audio {
    * @param revalidated_process_id PID revalidation still accepts, or 0 when the target exited or was reused.
    * @return True only when revalidation still accepts the activated PID.
    */
-  bool activated_process_target_is_current(std::uint32_t activated_process_id, std::uint32_t revalidated_process_id) {
+  [[nodiscard]] constexpr bool activated_process_target_is_current(std::uint32_t activated_process_id, std::uint32_t revalidated_process_id) noexcept {
     return activated_process_id != 0 && revalidated_process_id == activated_process_id;
   }
 
@@ -509,7 +511,7 @@ namespace platf::audio {
    * @param process_id Launched application PID to capture.
    * @return Activation parameters including the target process tree.
    */
-  AUDIOCLIENT_ACTIVATION_PARAMS make_process_loopback_activation_params(std::uint32_t process_id) {
+  [[nodiscard]] AUDIOCLIENT_ACTIVATION_PARAMS make_process_loopback_activation_params(std::uint32_t process_id) noexcept {
     AUDIOCLIENT_ACTIVATION_PARAMS params {};
     params.ActivationType = AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK;
     params.ProcessLoopbackParams.TargetProcessId = process_id;
@@ -560,6 +562,7 @@ namespace platf::audio {
    * @return Initialized audio client, or nullptr on failure.
    */
   audio_client_t initialize_audio_client(audio_client_t audio_client, const format_t &format, mix_format_failure_e mix_format_failure) {
+    using enum mix_format_failure_e;
     if (!audio_client) {
       return nullptr;
     }
@@ -569,7 +572,7 @@ namespace platf::audio {
       wave_format_t mixer_waveformat;
       auto status = audio_client->GetMixFormat(&mixer_waveformat);
       if (FAILED(status)) {
-        if (mix_format_failure == mix_format_failure_e::fail) {
+        if (mix_format_failure == fail) {
           BOOST_LOG(error) << "Couldn't get mix format for audio device: [0x"sv << util::hex(status).to_string_view() << ']';
           return nullptr;
         }
@@ -1449,17 +1452,17 @@ namespace platf::audio {
      * @return A pair of device_id and format reference if the sink name matches
      *         our naming scheme for virtual audio sinks, `std::nullopt` otherwise.
      */
-    std::optional<std::pair<std::wstring, std::reference_wrapper<const format_t>>> extract_virtual_sink_info(const std::string &sink) {
+    std::optional<std::pair<std::wstring, std::reference_wrapper<const format_t>>> extract_virtual_sink_info(std::string_view sink) const {
       // Encoding format:
       // [virtual-(format name)]device_id
-      std::string current = sink;
+      std::string_view current = sink;
       if (auto prefix = "virtual-"sv; current.find(prefix) == 0) {
         current = current.substr(prefix.size(), current.size() - prefix.size());
 
         for (const auto &format : formats) {
           auto &name = format.name;
           if (current.find(name) == 0) {
-            auto device_id = utf_utils::from_utf8(current.substr(name.size(), current.size() - name.size()));
+            auto device_id = utf_utils::from_utf8(std::string {current.substr(name.size(), current.size() - name.size())});
             return std::make_pair(device_id, std::reference_wrapper(format));
           }
         }
@@ -1857,7 +1860,7 @@ namespace platf::audio {
      *
      * @return True when keep-default is enabled with no configured sink.
      */
-    bool should_follow_default_device() {
+    [[nodiscard]] bool should_follow_default_device() const noexcept {
       return config::audio.keep_default_sink && config::audio.sink.empty();
     }
 
@@ -1870,7 +1873,7 @@ namespace platf::audio {
      * @param sink Assigned sink name that would be reinstalled.
      * @return True when the reassertion callback may be installed.
      */
-    bool should_install_default_callback(const std::string &sink) {
+    [[nodiscard]] bool should_install_default_callback(std::string_view sink) const {
       return static_cast<bool>(extract_virtual_sink_info(sink)) && !config::audio.keep_default_sink;
     }
 
@@ -1879,7 +1882,7 @@ namespace platf::audio {
      *
      * @return False in hands-off modes that never touch the host default.
      */
-    bool should_reset_default_device() {
+    [[nodiscard]] bool should_reset_default_device() const noexcept {
       return !config::audio.keep_default_sink;
     }
 
@@ -1891,7 +1894,7 @@ namespace platf::audio {
      *
      * @return False in hands-off modes that never touch the host audio graph.
      */
-    bool should_install_steam_drivers() {
+    [[nodiscard]] bool should_install_steam_drivers() const noexcept {
       return !config::audio.keep_default_sink && config::audio.install_steam_drivers;
     }
 
@@ -1931,13 +1934,13 @@ namespace platf::audio {
      * @param name Endpoint name or identifier to match across all fields.
      * @return Field list requiring every supported endpoint field to match the name.
      */
-    audio_control_t::match_fields_list_t match_all_fields(const std::wstring &name) {
+    audio_control_t::match_fields_list_t match_all_fields(std::wstring_view name) {
       using enum match_field_e;
       return {
-        {device_id, name},  // {0.0.0.00000000}.{29dd7668-45b2-4846-882d-950f55bf7eb8}
-        {device_friendly_name, name},  // Digital Audio (S/PDIF) (High Definition Audio Device)
-        {device_description, name},  // Digital Audio (S/PDIF)
-        {adapter_friendly_name, name},  // High Definition Audio Device
+        {device_id, std::wstring {name}},  // {0.0.0.00000000}.{29dd7668-45b2-4846-882d-950f55bf7eb8}
+        {device_friendly_name, std::wstring {name}},  // Digital Audio (S/PDIF) (High Definition Audio Device)
+        {device_description, std::wstring {name}},  // Digital Audio (S/PDIF)
+        {adapter_friendly_name, std::wstring {name}},  // High Definition Audio Device
       };
     }
 
@@ -2006,6 +2009,8 @@ namespace platf::audio {
         for (size_t i = 0; i < match_list.size(); i++) {
           if (matched[i].empty()) {
             const wchar_t *match_value = nullptr;
+            // Note: no using-enum here; the enumerator names would shadow the
+            // device_id/device_friendly_name/adapter_friendly_name locals below.
             switch (match_list[i].first) {
               case match_field_e::device_id:
                 match_value = device_id.c_str();
