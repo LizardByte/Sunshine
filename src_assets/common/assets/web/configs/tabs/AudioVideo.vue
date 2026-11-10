@@ -19,12 +19,18 @@ const config = ref(props.config)
 const silentCaptureDisabled = computed(() => props.platform === 'macos')
 const configuredSink = typeof config.value.audio_sink === 'string' ? config.value.audio_sink : ''
 const specificSink = ref(configuredSink)
-const captureTarget = ref(
-  configuredSink.trim() !== '' ? 'specific' : (props.platform === 'macos' || isConfigBoolEnabled(config.value.keep_default_sink) ? 'current' : 'silent')
-)
-const captureOwner = ref(
-  configuredSink.trim() !== '' ? (isConfigBoolEnabled(config.value.keep_default_sink) ? 'self' : 'sunshine') : 'sunshine'
-)
+let initialTarget = 'silent'
+if (configuredSink.trim() !== '') {
+  initialTarget = 'specific'
+} else if (props.platform === 'macos' || isConfigBoolEnabled(config.value.keep_default_sink)) {
+  initialTarget = 'current'
+}
+const captureTarget = ref(initialTarget)
+let initialOwner = 'sunshine'
+if (configuredSink.trim() !== '' && isConfigBoolEnabled(config.value.keep_default_sink)) {
+  initialOwner = 'self'
+}
+const captureOwner = ref(initialOwner)
 
 const howItWorksKey = computed(() => captureTarget.value === 'specific' && captureOwner.value === 'sunshine'
   ? `config.audio_capture_target_specific_sunshine_desc_${props.platform}`
