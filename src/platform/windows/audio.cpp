@@ -1568,13 +1568,7 @@ namespace platf::audio {
      * @param process_id PID recorded by the session being torn down, or 0 for endpoint capture.
      */
     void clear_capture_target(audio_capture_intent_e intent, std::uint32_t process_id) override {
-      std::lock_guard lock {capture_state_mutex_};
-      if (!recorded_target_.matches(intent, process_id)) {
-        return;
-      }
-      recorded_target_.intent = audio_capture_intent_e::client_only;
-      recorded_target_.process_id = 0;
-      capture_target_identity = {};
+      clear_recorded_capture_target_if_matches(intent, process_id);
     }
 
 #ifdef SUNSHINE_TESTS
@@ -1845,10 +1839,7 @@ namespace platf::audio {
      * @return Always 0: recording a capture target cannot fail here.
      */
     int capture_sink(const std::string &sink) override {
-      BOOST_LOG(info) << "Keeping host default sink; capturing ["sv << sink << "] without swapping"sv;
-      record_capture_sink(sink);
-
-      return 0;
+      return record_keep_default_capture_sink(sink);
     }
 
     /**
@@ -2282,6 +2273,18 @@ namespace platf::audio {
 #ifdef SUNSHINE_TESTS
     process_loopback_activator_t test_loopback_activator;  ///< Test override for the loopback activator used by microphone(), empty in production.
 #endif
+    /**
+     * @brief Reset the WASAPI creation-time identity paired with the recorded target.
+     *
+     * Invoked by the base `clear_recorded_capture_target_if_matches()` while holding
+     * `capture_state_mutex_`, so the intent/PID/identity reset stays atomic under one
+     * lock hold. Non-reentrant by design: plain struct reset only, no OS queries,
+     * no base-helper calls.
+     */
+    void on_capture_target_cleared() override {
+      capture_target_identity = {};
+    }
+
     process_identity_t capture_target_identity {};  ///< Creation-time identity recorded with the PID, guarded by the base `capture_state_mutex_`, empty when unverifiable.
   };
 

@@ -1060,6 +1060,23 @@ namespace platf {
     }
 
     /**
+     * @brief Capture the given sink without changing the host default.
+     *
+     * Shared keep-default body for backends whose capture path only records
+     * the target for `microphone()`: logs the decision, stores the sink under
+     * `capture_state_mutex_` via `record_capture_sink()`, and reports success.
+     * Backends that only observe the sink (macOS) keep their own override.
+     *
+     * @param sink Audio sink name to capture.
+     * @return Always 0: recording a capture target cannot fail here.
+     */
+    int record_keep_default_capture_sink(const std::string &sink) {
+      BOOST_LOG(info) << "Keeping host default sink; capturing ["sv << sink << "] without swapping"sv;
+      record_capture_sink(sink);
+      return 0;
+    }
+
+    /**
      * @brief Copy the recorded sink name under `capture_state_mutex_`.
      *
      * @return Recorded sink name, possibly empty when nothing was recorded.
@@ -1102,6 +1119,20 @@ namespace platf {
     }
 
     /**
+     * @brief Reset backend-side state paired with the recorded capture target.
+     *
+     * Called by `clear_recorded_capture_target_if_matches()` while holding
+     * `capture_state_mutex_` after the shared record was reset. The default is
+     * a no-op. Overrides must be non-reentrant: they must not call any
+     * `record_*`/`snapshot_*`/`clear_*` helper (non-recursive mutex would
+     * deadlock) and must not perform OS, provider, or PulseAudio calls — no
+     * lock is ever held across such calls.
+     */
+    virtual void on_capture_target_cleared() {
+      // Intentionally empty: backends without paired state inherit this no-op.
+    }
+
+    /**
      * @brief Release the recorded capture target when it still belongs to the caller.
      *
      * Thread-safe: the compare-and-reset runs under `capture_state_mutex_`.
@@ -1109,7 +1140,9 @@ namespace platf {
      * PID still equal the given ones, so one exiting session cannot wipe
      * another session's recorded target. Opt-in helper only: the
      * `clear_capture_target()` virtual stays a no-op so backends without
-     * per-process capture are unchanged.
+     * per-process capture are unchanged. After the shared record resets,
+     * `on_capture_target_cleared()` runs under the same lock hold so paired
+     * backend state resets atomically with the shared record.
      *
      * @param intent Capture intent recorded by the session being torn down.
      * @param process_id PID recorded by the session being torn down, or 0 for endpoint capture.
@@ -1122,6 +1155,7 @@ namespace platf {
       }
       recorded_target_.intent = audio_capture_intent_e::client_only;
       recorded_target_.process_id = 0;
+      on_capture_target_cleared();
       return true;
     }
   };
