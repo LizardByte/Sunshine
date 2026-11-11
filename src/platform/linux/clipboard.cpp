@@ -518,14 +518,18 @@ namespace platf {
           sends_.push_back(send_t {request.requestor, property, request.target, *bytes, data, incr_sender_t {bytes->size(), chunk_size_}, std::chrono::steady_clock::now()});
         }
 
+        XSelectionEvent selection {};
+        selection.type = SelectionNotify;
+        selection.display = request.display;
+        selection.requestor = request.requestor;
+        selection.selection = request.selection;
+        selection.target = request.target;
+        selection.property = property;
+        selection.time = request.time;
+
+        // Copy the reply into the XEvent union instead of writing a member that is not active
         XEvent notify {};
-        notify.xselection.type = SelectionNotify;
-        notify.xselection.display = request.display;
-        notify.xselection.requestor = request.requestor;
-        notify.xselection.selection = request.selection;
-        notify.xselection.target = request.target;
-        notify.xselection.property = property;
-        notify.xselection.time = request.time;
+        std::memcpy(&notify, &selection, sizeof(selection));
         XSendEvent(display_, request.requestor, False, 0, &notify);
         XFlush(display_);
       }
