@@ -1,6 +1,6 @@
 /**
  * @file src/platform/clipboard_sync.h
- * @brief Clipboard subscriber tracking and X11 selection decoding shared with tests.
+ * @brief Clipboard formats, subscriber tracking, and X11 selection transfers shared with tests.
  */
 #pragma once
 
@@ -8,28 +8,129 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
+
+// lib includes
+extern "C" {
+#include <moonlight-common-c/src/Limelight.h>
+}
 
 // local includes
 #include "src/platform/common.h"
 
 namespace platf {
   /**
-   * @brief Maximum UTF-8 clipboard payload accepted by the protocol.
+   * @brief Largest clipboard format accepted from a client or the host.
    */
-  inline constexpr std::size_t clipboard_max_bytes = 32755;
+  inline constexpr std::size_t clipboard_max_bytes = SS_CLIPBOARD_DATA_MAX;
+
+  /**
+   * @brief Report whether a MIME type is plain text.
+   *
+   * @param mime MIME type, with or without parameters.
+   * @return True for text/plain and text/plain with parameters such as a charset.
+   */
+  inline bool clipboard_is_text(std::string_view mime) {
+    return mime == "text/plain" || mime.starts_with("text/plain;");
+  }
+
+  /**
+   * @brief List the MIME types a clipboard can be offered as.
+   *
+   * @param data Clipboard to offer.
+   * @return The text MIME type when there is text, then the image MIME type when there is an image.
+   */
+  inline std::vector<std::string> clipboard_mime_types(const clipboard_data_t &data) {
+    std::vector<std::string> types;
+    if (!data.text.empty()) {
+      types.emplace_back(SS_CLIPBOARD_MIME_TEXT);
+    }
+    if (!data.image_mime.empty()) {
+      types.push_back(data.image_mime);
+    }
+    return types;
+  }
+
+  /**
+   * @brief Find the bytes of one offered format.
+   *
+   * @param data Offered clipboard.
+   * @param mime MIME type that was requested.
+   * @return The format's bytes, or empty when the clipboard does not have that format.
+   */
+  inline std::optional<std::span<const std::uint8_t>> clipboard_payload(const clipboard_data_t &data, std::string_view mime) {
+    if (clipboard_is_text(mime) && !data.text.empty()) {
+      return std::span {reinterpret_cast<const std::uint8_t *>(data.text.data()), data.text.size()};
+    }
+    if (!data.image_mime.empty() && mime == data.image_mime) {
+      return std::span<const std::uint8_t> {data.image};
+    }
+    return std::nullopt;
+  }
+
+  /**
+   * @brief Choose the formats to request from a client offer.
+   *
+   * Sunshine takes text and one image. PNG is preferred to JPEG because it is lossless.
+   *
+   * @param offered MIME types in the client offer.
+   * @return The offered MIME types to request.
+   */
+  inline std::vector<std::string> clipboard_wanted_formats(std::span<const std::string_view> offered) {
+    std::vector<std::string> wanted;
+    if (const auto text = std::ranges::find_if(offered, clipboard_is_text); text != offered.end()) {
+      wanted.emplace_back(*text);
+    }
+    for (const std::string_view image : {std::string_view {SS_CLIPBOARD_MIME_PNG}, std::string_view {SS_CLIPBOARD_MIME_JPEG}}) {
+      if (std::ranges::find(offered, image) != offered.end()) {
+        wanted.emplace_back(image);
+        break;
+      }
+    }
+    return wanted;
+  }
+
+  /**
+   * @brief Convert ISO-8859-1 text, which X11 uses for the STRING target, to UTF-8.
+   *
+   * @param latin1 Latin-1 bytes.
+   * @return The same text in UTF-8.
+   */
+  inline std::string latin1_to_utf8(std::string_view latin1) {
+    std::string utf8;
+    utf8.reserve(latin1.size());
+    for (const char c : latin1) {
+      const auto byte = static_cast<unsigned char>(c);
+      if (byte < 0x80) {
+        utf8.push_back(c);
+      } else {
+        utf8.push_back(static_cast<char>(0xC0 | (byte >> 6)));
+        utf8.push_back(static_cast<char>(0x80 | (byte & 0x3F)));
+      }
+    }
+    return utf8;
+  }
 
   /**
    * @brief One client waiting for host clipboard updates.
    */
   struct clipboard_subscriber_t {
     clipboard_queue_t queue;  ///< Queue drained by that client's control stream.
-    std::string last_sent;  ///< Last text delivered to this client, or applied from it.
-    bool has_snapshot = false;  ///< Whether this client has received its initial clipboard value.
+    std::shared_ptr<const clipboard_data_t> last;  ///< Clipboard this client last received or supplied. Null before the first one.
+  };
+
+  /**
+   * @brief Queues that should be offered one clipboard, and the offer sequence to use.
+   */
+  struct clipboard_delivery_t {
+    std::uint32_t sequence = 0;  ///< Sequence number of the offer.
+    std::vector<clipboard_queue_t> queues;  ///< Subscribers that do not have this clipboard yet.
   };
 
   /**
@@ -41,7 +142,7 @@ namespace platf {
      * @brief Register a client queue.
      *
      * @param queue Queue drained by the client's control stream.
-     * @return True when the queue is new and still needs the current clipboard snapshot.
+     * @return True when the queue is new and still needs the current clipboard.
      */
     bool add(clipboard_queue_t queue) {
       if (!queue) {
@@ -52,14 +153,14 @@ namespace platf {
           return false;
         }
       }
-      entries_.push_back(clipboard_subscriber_t {std::move(queue), {}, false});
+      entries_.push_back(clipboard_subscriber_t {std::move(queue), nullptr});
       return true;
     }
 
     /**
      * @brief Drop a client queue when its session stops.
      *
-     * @param queue Queue that should no longer receive clipboard text.
+     * @param queue Queue that should no longer receive clipboard offers.
      */
     void remove(const clipboard_queue_t &queue) {
       std::erase_if(entries_, [&queue](const auto &entry) {
@@ -68,64 +169,37 @@ namespace platf {
     }
 
     /**
-     * @brief Deliver host text to every subscriber that does not already have it.
+     * @brief Record a new host clipboard and select the subscribers that need it.
      *
-     * A subscriber that has not received a snapshot gets the text even when an older
-     * subscriber was already given the same value.
+     * The origin client supplied this clipboard, so it is recorded without an offer.
+     * A subscriber that has not received a clipboard yet always gets one.
      *
-     * @param text UTF-8 clipboard text.
-     * @return Queues that should be raised with this text.
+     * @param data New host clipboard.
+     * @param origin Queue of the client that supplied the clipboard, or null for a host copy.
+     * @return Queues to offer the clipboard to, with a new sequence number when there are any.
      */
-    std::vector<clipboard_queue_t> publish(const std::string &text) {
-      std::vector<clipboard_queue_t> delivered;
+    clipboard_delivery_t publish(const std::shared_ptr<const clipboard_data_t> &data, const clipboard_queue_t &origin = {}) {
+      clipboard_delivery_t delivery;
       for (auto &entry : entries_) {
-        if (auto queue = deliver(entry, text)) {
-          delivered.push_back(std::move(queue));
-        }
-      }
-      return delivered;
-    }
-
-    /**
-     * @brief Record text applied from one client and forward it to the others.
-     *
-     * @param origin Queue belonging to the client that supplied the text.
-     * @param text UTF-8 clipboard text applied on the host.
-     * @return Queues other than the origin that should be raised with this text.
-     */
-    std::vector<clipboard_queue_t> note_local(const clipboard_queue_t &origin, const std::string &text) {
-      std::vector<clipboard_queue_t> delivered;
-      for (auto &entry : entries_) {
-        if (origin && entry.queue == origin) {
-          entry.last_sent = text;
-          entry.has_snapshot = true;
+        const bool is_origin = origin && entry.queue == origin;
+        if (!is_origin && entry.last && *entry.last == *data) {
           continue;
         }
-        if (auto queue = deliver(entry, text)) {
-          delivered.push_back(std::move(queue));
+        entry.last = data;
+        if (!is_origin) {
+          delivery.queues.push_back(entry.queue);
         }
       }
-      return delivered;
+      if (!delivery.queues.empty()) {
+        sequence_ = sequence_ == UINT32_MAX ? 1 : sequence_ + 1;
+        delivery.sequence = sequence_;
+      }
+      return delivery;
     }
 
   private:
-    /**
-     * @brief Send text unless this subscriber already has that snapshot.
-     *
-     * @param entry Subscriber being considered.
-     * @param text UTF-8 clipboard text.
-     * @return The subscriber queue when a delivery is required.
-     */
-    static clipboard_queue_t deliver(clipboard_subscriber_t &entry, std::string_view text) {
-      if (entry.has_snapshot && entry.last_sent == text) {
-        return {};
-      }
-      entry.last_sent = text;
-      entry.has_snapshot = true;
-      return entry.queue;
-    }
-
     std::vector<clipboard_subscriber_t> entries_;  ///< Subscribers registered for the current process.
+    std::uint32_t sequence_ = 0;  ///< Sequence number of the last offer.
   };
 
   /**
@@ -150,7 +224,7 @@ namespace platf {
   }
 
   /**
-   * @brief Byte width of one X property item.
+   * @brief Byte width of one X property item, as stored in selection_fragment_t::data.
    *
    * @param format Property format in bits. 8, 16, and 32 are the X formats.
    * @return Number of bytes in one item. Unknown formats count as one byte.
@@ -183,14 +257,15 @@ namespace platf {
   /**
    * @brief Maximum 32-bit units read from one selection property at a time.
    *
-   * This is the protocol cap rounded up to a 32-bit unit, which is the longest read
-   * XGetWindowProperty is given. A larger chunk stays on the window until a later read
-   * or an explicit delete brings bytes_after to zero.
+   * A larger property is read in several slices. X11 deletes it only after the
+   * slice that reaches its end.
    */
-  inline constexpr unsigned long selection_property_long_length = (clipboard_max_bytes + 3) / 4;
+  inline constexpr unsigned long selection_property_long_length = 64 * 1024;
 
   /**
    * @brief One slice of a selection property, as XGetWindowProperty returns it.
+   *
+   * Format-32 items are stored as 4 bytes each in host byte order.
    */
   struct selection_fragment_t {
     bool ok = false;  ///< Whether the property read succeeded.
@@ -209,6 +284,7 @@ namespace platf {
     int format = 0;  ///< Property format from the first read.
     std::vector<std::byte> data;  ///< Property bytes, capped at clipboard_max_bytes.
     bool acknowledged = false;  ///< Whether the last read had no unread tail, so X11 deleted the property.
+    bool truncated = false;  ///< Whether the property was larger than clipboard_max_bytes.
   };
 
   /**
@@ -216,23 +292,20 @@ namespace platf {
    *
    * @param out Destination bytes.
    * @param chunk Bytes returned by one property read.
+   * @return False when some bytes did not fit under the cap.
    */
-  inline void append_property_bytes(std::vector<std::byte> &out, const std::vector<std::byte> &chunk) {
-    if (chunk.empty() || out.size() >= clipboard_max_bytes) {
-      return;
-    }
-    const auto take = std::min(chunk.size(), clipboard_max_bytes - out.size());
-    const auto offset = out.size();
-    out.resize(offset + take);
-    std::copy_n(chunk.data(), take, out.data() + offset);
+  inline bool append_property_bytes(std::vector<std::byte> &out, std::span<const std::byte> chunk) {
+    const auto take = std::min(chunk.size(), clipboard_max_bytes - std::min(out.size(), clipboard_max_bytes));
+    out.insert(out.end(), chunk.begin(), chunk.begin() + static_cast<std::ptrdiff_t>(take));
+    return take == chunk.size();
   }
 
   /**
    * @brief Read a selection property until X11 can delete it.
    *
    * Each fetch uses delete=True and selection_property_long_length. XGetWindowProperty
-   * deletes the property only when bytes_after is zero, so a chunk larger than the read
-   * is fetched again at the next 32-bit offset. Stored text still stops at the protocol cap.
+   * deletes the property only when bytes_after is zero, so a property larger than one read
+   * is fetched again at the next 32-bit offset. Stored bytes stop at the protocol cap.
    * Fetch returns ok=false when the X call fails. The fragment's data must own its bytes.
    *
    * @tparam Fetch Reads one slice. Called with the 32-bit offset and the maximum 32-bit length.
@@ -257,7 +330,9 @@ namespace platf {
         loaded.format = fragment.format;
         started = true;
       }
-      append_property_bytes(loaded.data, fragment.data);
+      if (!append_property_bytes(loaded.data, fragment.data)) {
+        loaded.truncated = true;
+      }
       if (fragment.bytes_after == 0) {
         loaded.acknowledged = true;
         return loaded;
@@ -271,7 +346,7 @@ namespace platf {
   }
 
   /**
-   * @brief Incremental X selection transfer assembled from INCR chunks.
+   * @brief Selection value received directly or assembled from INCR chunks.
    */
   class incr_transfer_t {
   public:
@@ -285,102 +360,110 @@ namespace platf {
     }
 
     /**
-     * @brief Accept one selection property and maybe finish a text value.
+     * @brief Accept one selection property and maybe finish a value.
      *
-     * An INCR property carries a byte-count announcement, not clipboard text.
-     * Format-8 UTF8_STRING and STRING chunks are appended until the empty property ends the transfer.
-     * An unsupported type discards the bytes and rejects the transfer. The transfer stays active
-     * until that empty text property so every chunk can be deleted, and the terminator is not published.
+     * An INCR property carries a byte-count announcement, not data. Format-8 chunks of
+     * the expected type are appended until an empty property ends the transfer. A chunk
+     * of another type, or data over clipboard_max_bytes, rejects the transfer. The transfer
+     * stays active until the empty property so every chunk is still deleted.
      *
      * @param actual_type Property type atom.
      * @param actual_format Property format, in bits.
-     * @param item_count Number of items of that format.
-     * @param data Property bytes. May be null when the item count is zero.
-     * @param utf8_atom Atom for UTF8_STRING.
-     * @param string_atom Atom for STRING.
+     * @param data Property bytes.
+     * @param truncated Whether the property was larger than clipboard_max_bytes.
+     * @param expected_type Type atom of the requested target.
      * @param incr_atom Atom for INCR.
-     * @return Completed clipboard text, or empty when the transfer is unfinished or ignored.
+     * @return The completed value, or empty when the transfer is unfinished or rejected.
      */
-    std::optional<std::string> consume(
+    std::optional<std::vector<std::byte>> consume(
       std::uint64_t actual_type,
       int actual_format,
-      std::size_t item_count,
-      const std::byte *data,
-      std::uint64_t utf8_atom,
-      std::uint64_t string_atom,
+      std::span<const std::byte> data,
+      bool truncated,
+      std::uint64_t expected_type,
       std::uint64_t incr_atom
     ) {
+      const bool expected = actual_format == 8 && actual_type == expected_type;
       if (active_) {
-        if (
-          const bool text_chunk = actual_format == 8 && (actual_type == utf8_atom || actual_type == string_atom);
-          !text_chunk
-        ) {
-          rejected_ = true;
-          text_.clear();
-          return std::nullopt;
-        }
-        if (item_count == 0) {
+        if (data.empty()) {
           active_ = false;
-          auto done = std::move(text_);
-          text_.clear();
-          const bool rejected = rejected_;
-          rejected_ = false;
-          if (rejected) {
+          auto done = std::exchange(data_, {});
+          if (std::exchange(rejected_, false)) {
             return std::nullopt;
           }
           return done;
         }
-        if (!rejected_) {
-          append_bytes(data, item_count);
+        if (!expected || truncated || !append_property_bytes(data_, data)) {
+          rejected_ = true;
+          data_.clear();
         }
         return std::nullopt;
       }
 
       if (actual_type == incr_atom && actual_format == 32) {
         active_ = true;
-        text_.clear();
+        rejected_ = false;
+        data_.clear();
         return std::nullopt;
       }
 
-      if ((actual_type == utf8_atom || actual_type == string_atom) && actual_format == 8) {
-        std::string text;
-        append_to(text, data, item_count);
-        return text;
+      if (expected && !truncated) {
+        return std::vector<std::byte> {data.begin(), data.end()};
       }
-
       return std::nullopt;
     }
 
   private:
-    /**
-     * @brief Copy property bytes into a string without passing the protocol cap.
-     *
-     * @param text Destination text.
-     * @param data Property bytes. May be null when the item count is zero.
-     * @param size Number of bytes available at data.
-     */
-    static void append_to(std::string &text, const std::byte *data, std::size_t size) {
-      if (data == nullptr || size == 0 || text.size() >= clipboard_max_bytes) {
-        return;
-      }
-      const auto take = std::min(size, clipboard_max_bytes - text.size());
-      const auto offset = text.size();
-      text.resize(offset + take);
-      std::copy_n(data, take, reinterpret_cast<std::byte *>(text.data() + offset));
-    }
-
-    /**
-     * @brief Append one INCR chunk to the transfer buffer.
-     *
-     * @param data Chunk bytes.
-     * @param size Number of bytes in the chunk.
-     */
-    void append_bytes(const std::byte *data, std::size_t size) {
-      append_to(text_, data, size);
-    }
-
     bool active_ = false;  ///< Whether the empty INCR chunk has not arrived yet.
-    bool rejected_ = false;  ///< Whether an unsupported chunk discarded this INCR transfer.
-    std::string text_;  ///< UTF-8 text accumulated from INCR chunks.
+    bool rejected_ = false;  ///< Whether an unsupported or oversized chunk discarded this INCR transfer.
+    std::vector<std::byte> data_;  ///< Bytes accumulated from INCR chunks.
+  };
+
+  /**
+   * @brief Slices of a value Sunshine sends to a requestor with the INCR protocol.
+   *
+   * The requestor deletes the property after reading each slice. Sunshine then writes
+   * the next slice, and finally an empty one.
+   */
+  class incr_sender_t {
+  public:
+    /**
+     * @brief Start sending a value.
+     *
+     * @param size Total bytes to send.
+     * @param chunk_size Largest slice written at once. Must be nonzero.
+     */
+    incr_sender_t(std::size_t size, std::size_t chunk_size):
+        size_ {size},
+        chunk_size_ {chunk_size} {
+    }
+
+    /**
+     * @brief Report whether the empty terminating slice has been handed out.
+     *
+     * @return True when the transfer is complete.
+     */
+    [[nodiscard]] bool done() const {
+      return done_;
+    }
+
+    /**
+     * @brief Take the next slice to write.
+     *
+     * @return Offset and length of the next slice. A zero length is the terminator.
+     */
+    std::pair<std::size_t, std::size_t> next() {
+      const auto length = std::min(chunk_size_, size_ - offset_);
+      const std::pair slice {offset_, length};
+      offset_ += length;
+      done_ = length == 0;
+      return slice;
+    }
+
+  private:
+    std::size_t size_;  ///< Total bytes to send.
+    std::size_t chunk_size_;  ///< Largest slice written at once.
+    std::size_t offset_ = 0;  ///< Bytes already handed out.
+    bool done_ = false;  ///< Whether the terminator was handed out.
   };
 }  // namespace platf

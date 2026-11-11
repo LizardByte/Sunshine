@@ -7,10 +7,16 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
+#include <memory>
 #include <mutex>
+#include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -19,7 +25,7 @@
 #ifndef SUNSHINE_BUILD_X11
 
 namespace platf {
-  void clipboard_set(std::string_view, const clipboard_queue_t &) {
+  void clipboard_set(clipboard_data_t, const clipboard_queue_t &) {
     // This build has no X11 display, so the host clipboard cannot be updated.
   }
 
@@ -46,6 +52,11 @@ namespace platf {
 namespace platf {
   namespace {
     /**
+     * @brief How long an INCR send may wait for the requestor before it is dropped.
+     */
+    constexpr auto incr_send_timeout = std::chrono::seconds {30};
+
+    /**
      * @brief Process-wide X11 clipboard watcher state.
      */
     struct state_t {
@@ -54,10 +65,9 @@ namespace platf {
       bool ready = false;  ///< Whether the X11 watcher can accept clipboard operations.
       bool failed = false;  ///< Whether opening the display or XFixes failed.
       bool started = false;  ///< Whether the watcher thread has been launched.
-      bool has_pending = false;  ///< Whether a client clipboard value is waiting to take selection ownership.
       bool pull = false;  ///< Whether a new subscriber still needs the current host clipboard.
       int wake_write = -1;  ///< Write end of the pipe that wakes the watcher thread.
-      std::string pending;  ///< Client clipboard text waiting to become the selection owner.
+      std::shared_ptr<const clipboard_data_t> pending;  ///< Client clipboard waiting to become the selection.
       clipboard_subscribers_t subscribers;  ///< One entry for each streaming client that opted in.
       std::jthread thread;  ///< X11 watcher thread.
     };
@@ -73,34 +83,44 @@ namespace platf {
     }
 
     /**
-     * @brief Raise clipboard text on each queue that still needs it.
+     * @brief Wake the watcher thread so it handles new state.
      *
-     * @param queues Subscriber queues selected by the publish or local-set rules.
-     * @param text UTF-8 clipboard text.
+     * @param clipboard Watcher state. The caller holds its lock.
      */
-    void raise_clipboard(const std::vector<clipboard_queue_t> &queues, const std::string &text) {
-      if (queues.empty()) {
-        return;
-      }
-
-      for (const auto &queue : queues) {
-        queue->raise(clipboard_text_t {text});
+    void wake_watcher(const state_t &clipboard) {
+      if (clipboard.wake_write >= 0) {
+        char byte = 1;
+        if (write(clipboard.wake_write, &byte, 1) < 0) {
+          BOOST_LOG(debug) << "Clipboard watcher wakeup was not queued"sv;
+        }
       }
     }
 
     /**
-     * @brief Publish host clipboard text to every subscriber that does not already have it.
+     * @brief Queue a clipboard offer for each selected subscriber.
      *
-     * @param text UTF-8 clipboard text.
+     * @param delivery Subscribers and sequence chosen by clipboard_subscribers_t::publish().
+     * @param data Clipboard to offer.
      */
-    void publish(const std::string &text) {
-      std::vector<clipboard_queue_t> queues;
+    void raise_offers(const clipboard_delivery_t &delivery, const std::shared_ptr<const clipboard_data_t> &data) {
+      for (const auto &queue : delivery.queues) {
+        queue->raise(clipboard_message_t {clipboard_action_e::offer, delivery.sequence, {}, data});
+      }
+    }
+
+    /**
+     * @brief Offer a host clipboard to every subscriber that does not already have it.
+     *
+     * @param data Host clipboard.
+     */
+    void publish(const std::shared_ptr<const clipboard_data_t> &data) {
+      clipboard_delivery_t delivery;
       {
         auto &clipboard = state();
         std::lock_guard lock {clipboard.mutex};
-        queues = clipboard.subscribers.publish(text);
+        delivery = clipboard.subscribers.publish(data);
       }
-      raise_clipboard(queues, text);
+      raise_offers(delivery, data);
     }
 
     /**
@@ -127,51 +147,38 @@ namespace platf {
     }
 
     /**
-     * @brief Answer one X selection request with the text Sunshine owns.
-     *
-     * @param display X display connection owned by the watcher thread.
-     * @param text UTF-8 text currently owned by Sunshine.
-     * @param request Selection request from another client.
-     * @param utf8 UTF8_STRING atom.
-     * @param targets TARGETS atom.
+     * @brief Display connection owned by the watcher thread.
      */
-    void serve_selection(Display *display, std::string_view text, const XSelectionRequestEvent *request, Atom utf8, Atom targets) {
-      XSelectionEvent selection {};
-      selection.type = SelectionNotify;
-      selection.display = request->display;
-      selection.requestor = request->requestor;
-      selection.selection = request->selection;
-      selection.target = request->target;
-      selection.time = request->time;
+    std::atomic<Display *> watcher_display {nullptr};
 
-      const bool supported = request->target == targets || request->target == utf8 || request->target == XA_STRING;
-      const auto property = static_cast<Atom>(selection_reply_property(request->property, request->target, supported));
-      selection.property = property;
-      if (property != None && request->target == targets) {
-        const std::array<Atom, 3> list {utf8, XA_STRING, targets};
-        std::array<unsigned char, sizeof(list)> bytes {};
-        std::memcpy(bytes.data(), list.data(), bytes.size());
-        XChangeProperty(display, request->requestor, property, XA_ATOM, 32, PropModeReplace, bytes.data(), static_cast<int>(list.size()));
-      } else if (property != None) {
-        XChangeProperty(
-          display,
-          request->requestor,
-          property,
-          request->target,
-          8,
-          PropModeReplace,
-          reinterpret_cast<const unsigned char *>(text.data()),
-          static_cast<int>(text.size())
-        );
+    /**
+     * @brief X error handler that was installed before the watcher's.
+     */
+    XErrorHandler previous_error_handler = nullptr;
+
+    /**
+     * @brief Ignore X errors on the watcher's display and pass the rest on.
+     *
+     * Other clients can destroy their windows during a selection transfer. The default
+     * Xlib handler exits the process on the resulting BadWindow error.
+     *
+     * @param display Display the error happened on.
+     * @param event X error.
+     * @return Zero. Xlib ignores the return value.
+     */
+    int handle_x_error(Display *display, XErrorEvent *event) {
+      if (display == watcher_display.load()) {
+        BOOST_LOG(debug) << "Clipboard sync ignored X error "sv << static_cast<int>(event->error_code);
+        return 0;
       }
-
-      XEvent notify {};
-      notify.xselection = selection;
-      XSendEvent(display, request->requestor, False, 0, &notify);
+      return previous_error_handler != nullptr ? previous_error_handler(display, event) : 0;
     }
 
     /**
      * @brief Read one slice of the selection property.
+     *
+     * Format-32 items arrive from Xlib as longs. They are stored as 4-byte values so the
+     * slice uses the same 32-bit units as the X property offset.
      *
      * @param display X display connection owned by the watcher thread.
      * @param window Window that holds the property.
@@ -199,11 +206,15 @@ namespace platf {
       fragment.item_count = item_count;
       fragment.bytes_after = bytes_after;
       if (data != nullptr) {
-        const auto limit = static_cast<std::size_t>(length) * 4;
-        const auto reported = item_count * property_byte_width(actual_format);
-        const auto nbytes = std::min(reported, limit);
-        fragment.data.resize(nbytes);
-        if (nbytes > 0) {
+        if (actual_format == 32) {
+          fragment.data.resize(item_count * 4);
+          for (unsigned long i = 0; i < item_count; ++i) {
+            const auto item = static_cast<std::uint32_t>(reinterpret_cast<const long *>(data)[i]);
+            std::memcpy(fragment.data.data() + i * 4, &item, sizeof(item));
+          }
+        } else {
+          const auto nbytes = std::min(item_count * property_byte_width(actual_format), static_cast<std::size_t>(length) * 4);
+          fragment.data.resize(nbytes);
           std::copy_n(reinterpret_cast<const std::byte *>(data), nbytes, fragment.data.begin());
         }
         XFree(data);
@@ -212,112 +223,359 @@ namespace platf {
     }
 
     /**
-     * @brief Publish clipboard text from the window property, deleting an unread tail.
+     * @brief Watches the X11 CLIPBOARD selection, reads host copies, and serves client copies.
      *
-     * @param display X display connection owned by the watcher thread.
-     * @param window Window that holds the property.
-     * @param property Property atom being read.
-     * @param utf8 UTF8_STRING atom.
-     * @param incr INCR atom.
-     * @param transfer Incremental transfer assembled across property events.
+     * Every method runs on the watcher thread.
      */
-    void publish_property(Display *display, Window window, Atom property, Atom utf8, Atom incr, incr_transfer_t &transfer) {
-      const auto loaded = load_selection_property([display, window, property](unsigned long offset, unsigned long length) {
-        return read_selection_fragment(display, window, property, offset, length);
-      });
-      if (!loaded) {
-        return;
+    class watcher_t {
+    public:
+      /**
+       * @brief Set up the atoms and transfer limits for one display connection.
+       *
+       * @param display X display connection owned by the watcher thread.
+       * @param window Window used to own and request the selection.
+       * @param event_base First XFixes event code.
+       */
+      watcher_t(Display *display, Window window, int event_base):
+          display_ {display},
+          window_ {window},
+          event_base_ {event_base},
+          clipboard_ {XInternAtom(display, "CLIPBOARD", False)},
+          targets_ {XInternAtom(display, "TARGETS", False)},
+          utf8_ {XInternAtom(display, "UTF8_STRING", False)},
+          incr_ {XInternAtom(display, "INCR", False)},
+          png_ {XInternAtom(display, SS_CLIPBOARD_MIME_PNG, False)},
+          jpeg_ {XInternAtom(display, SS_CLIPBOARD_MIME_JPEG, False)},
+          property_ {XInternAtom(display, "SUNSHINE_CLIPBOARD", False)},
+          // Keep each property write well under the server's request size limit
+          chunk_size_ {std::min<std::size_t>(256 * 1024, static_cast<std::size_t>(XMaxRequestSize(display)) * 4 - 64)} {
+        XFixesSelectSelectionInput(display_, window_, clipboard_, XFixesSetSelectionOwnerNotifyMask);
+        XFlush(display_);
       }
-      if (!loaded->acknowledged) {
-        XDeleteProperty(display, window, property);
-      }
-      const auto width = property_byte_width(loaded->format);
-      const auto items = loaded->data.size() / width;
-      const auto *bytes = loaded->data.empty() ? nullptr : loaded->data.data();
-      if (const auto text = transfer.consume(loaded->type, loaded->format, items, bytes, utf8, XA_STRING, incr)) {
-        publish(*text);
-      }
-    }
 
-    /**
-     * @brief Take ownership of the selection when a client clipboard is waiting.
-     *
-     * @param display X display connection owned by the watcher thread.
-     * @param clipboard_atom CLIPBOARD atom.
-     * @param window Window that becomes the selection owner.
-     * @param owned Text Sunshine now owns.
-     */
-    void apply_pending(Display *display, Atom clipboard_atom, Window window, std::string &owned) {
-      std::string text;
-      {
-        auto &clipboard = state();
-        std::lock_guard lock {clipboard.mutex};
-        if (!clipboard.has_pending) {
+      /**
+       * @brief Handle one X event.
+       *
+       * @param event Event just removed from the queue.
+       */
+      void handle(const XEvent &event) {
+        if (event.type == SelectionRequest) {
+          serve(event.xselectionrequest);
+        } else if (event.type == SelectionNotify) {
+          converted(event.xselection);
+        } else if (event.type == PropertyNotify && event.xproperty.window == window_) {
+          if (event.xproperty.atom == property_ && event.xproperty.state == PropertyNewValue && fetching_ && transfer_.active()) {
+            read_reply();
+          }
+        } else if (event.type == PropertyNotify) {
+          continue_send(event.xproperty);
+        } else if (event.type == event_base_ + XFixesSelectionNotify) {
+          XFixesSelectionNotifyEvent selection {};
+          std::memcpy(&selection, &event, sizeof(selection));
+          if (selection.selection == clipboard_ && selection.owner != window_ && selection.owner != None) {
+            owned_.reset();
+            start_fetch();
+          }
+        }
+      }
+
+      /**
+       * @brief Take ownership of the selection when a client clipboard is waiting.
+       */
+      void take_pending() {
+        std::shared_ptr<const clipboard_data_t> data;
+        {
+          auto &clipboard = state();
+          std::lock_guard lock {clipboard.mutex};
+          data = std::move(clipboard.pending);
+        }
+        if (!data) {
           return;
         }
-        text = std::move(clipboard.pending);
-        clipboard.has_pending = false;
+
+        // A host clipboard still being read is now stale
+        fetching_ = false;
+        owned_ = std::move(data);
+        XSetSelectionOwner(display_, clipboard_, window_, CurrentTime);
+        XFlush(display_);
       }
-      owned = std::move(text);
-      XSetSelectionOwner(display, clipboard_atom, window, CurrentTime);
-      XFlush(display);
-    }
 
-    /**
-     * @brief Ask the selection owner for its UTF-8 text.
-     *
-     * @param display X display connection owned by the watcher thread.
-     * @param clipboard_atom CLIPBOARD atom.
-     * @param utf8 UTF8_STRING atom.
-     * @param property Property that receives the reply.
-     * @param window Requestor window.
-     */
-    void convert_selection(Display *display, Atom clipboard_atom, Atom utf8, Atom property, Window window) {
-      XConvertSelection(display, clipboard_atom, utf8, property, window, CurrentTime);
-      XFlush(display);
-    }
+      /**
+       * @brief Offer the current host clipboard to a new subscriber.
+       */
+      void pull() {
+        if (fetching_) {
+          // The read in progress will reach the new subscriber too
+          return;
+        }
+        if (owned_ && XGetSelectionOwner(display_, clipboard_) == window_) {
+          publish(owned_);
+        } else {
+          start_fetch();
+        }
+      }
 
-    /**
-     * @brief X11 objects used to answer clipboard selection events.
-     */
-    struct clipboard_watch_t {
-      Display *display;  ///< X display connection owned by the watcher thread.
-      Window window;  ///< Watcher window.
-      int event_base;  ///< First XFixes event code.
-      Atom clipboard;  ///< CLIPBOARD atom.
-      Atom utf8;  ///< UTF8_STRING atom.
-      Atom incr;  ///< INCR atom.
-      Atom targets;  ///< TARGETS atom.
-      Atom property;  ///< Property used for selection replies.
+      /**
+       * @brief Drop INCR sends whose requestor stopped reading.
+       */
+      void prune_sends() {
+        const auto now = std::chrono::steady_clock::now();
+        std::erase_if(sends_, [this, now](const send_t &send) {
+          if (now - send.started < incr_send_timeout) {
+            return false;
+          }
+          XSelectInput(display_, send.requestor, NoEventMask);
+          return true;
+        });
+      }
+
+    private:
+      /**
+       * @brief Value Sunshine sends to one requestor with the INCR protocol.
+       */
+      struct send_t {
+        Window requestor;  ///< Window that requested the value.
+        Atom property;  ///< Property the requestor reads.
+        Atom type;  ///< Type of the value.
+        std::span<const std::uint8_t> bytes;  ///< Value being sent. data keeps it alive.
+        std::shared_ptr<const clipboard_data_t> data;  ///< Clipboard that holds bytes.
+        incr_sender_t sender;  ///< Slices still to write.
+        std::chrono::steady_clock::time_point started;  ///< When the transfer began.
+      };
+
+      /**
+       * @brief Ask the selection owner to convert the clipboard to one target.
+       *
+       * @param target Target atom.
+       */
+      void request(Atom target) {
+        current_ = target;
+        transfer_ = {};
+        XDeleteProperty(display_, window_, property_);
+        XConvertSelection(display_, clipboard_, target, property_, window_, CurrentTime);
+        XFlush(display_);
+      }
+
+      /**
+       * @brief Start reading the host clipboard, beginning with its target list.
+       */
+      void start_fetch() {
+        fetching_ = true;
+        fetched_ = {};
+        remaining_.clear();
+        request(targets_);
+      }
+
+      /**
+       * @brief Request the next wanted target, or publish what was read.
+       */
+      void next_target() {
+        if (remaining_.empty()) {
+          fetching_ = false;
+          if (!fetched_.text.empty() || !fetched_.image.empty()) {
+            publish(std::make_shared<const clipboard_data_t>(std::move(fetched_)));
+          }
+          fetched_ = {};
+          return;
+        }
+        const auto target = remaining_.front();
+        remaining_.erase(remaining_.begin());
+        request(target);
+      }
+
+      /**
+       * @brief Handle the owner's answer to a conversion request.
+       *
+       * @param event SelectionNotify event.
+       */
+      void converted(const XSelectionEvent &event) {
+        if (!fetching_ || event.requestor != window_ || event.target != current_) {
+          return;
+        }
+        if (event.property == None) {
+          // Owners that predate TARGETS can still convert to UTF8_STRING
+          if (current_ == targets_) {
+            remaining_ = {utf8_};
+          }
+          next_target();
+          return;
+        }
+        read_reply();
+      }
+
+      /**
+       * @brief Read the reply property for the current target.
+       */
+      void read_reply() {
+        const auto loaded = load_selection_property([this](unsigned long offset, unsigned long length) {
+          return read_selection_fragment(display_, window_, property_, offset, length);
+        });
+        if (!loaded) {
+          next_target();
+          return;
+        }
+        if (!loaded->acknowledged) {
+          XDeleteProperty(display_, window_, property_);
+        }
+
+        if (current_ == targets_) {
+          choose_targets(*loaded);
+          next_target();
+          return;
+        }
+
+        auto value = transfer_.consume(loaded->type, loaded->format, loaded->data, loaded->truncated, current_, incr_);
+        if (value) {
+          store(std::move(*value));
+        } else if (transfer_.active()) {
+          // Wait for the next INCR chunk
+          return;
+        }
+        next_target();
+      }
+
+      /**
+       * @brief Pick the text and image targets to read from the owner's target list.
+       *
+       * @param loaded TARGETS reply.
+       */
+      void choose_targets(const loaded_selection_t &loaded) {
+        std::vector<Atom> offered;
+        if (loaded.type == XA_ATOM && loaded.format == 32) {
+          for (std::size_t i = 0; i + 4 <= loaded.data.size(); i += 4) {
+            std::uint32_t atom = 0;
+            std::memcpy(&atom, loaded.data.data() + i, sizeof(atom));
+            offered.push_back(atom);
+          }
+        }
+        const auto has = [&offered](Atom atom) {
+          return std::ranges::find(offered, atom) != offered.end();
+        };
+
+        remaining_.clear();
+        if (has(utf8_)) {
+          remaining_.push_back(utf8_);
+        } else if (has(XA_STRING)) {
+          remaining_.push_back(XA_STRING);
+        }
+        if (has(png_)) {
+          remaining_.push_back(png_);
+        } else if (has(jpeg_)) {
+          remaining_.push_back(jpeg_);
+        }
+      }
+
+      /**
+       * @brief Keep a value read for the current target.
+       *
+       * @param value Bytes of the converted selection.
+       */
+      void store(std::vector<std::byte> value) {
+        const std::string_view bytes {reinterpret_cast<const char *>(value.data()), value.size()};
+        if (current_ == utf8_) {
+          fetched_.text = bytes;
+        } else if (current_ == XA_STRING) {
+          fetched_.text = latin1_to_utf8(bytes);
+        } else if (!value.empty()) {
+          fetched_.image_mime = current_ == png_ ? SS_CLIPBOARD_MIME_PNG : SS_CLIPBOARD_MIME_JPEG;
+          fetched_.image.assign(bytes.begin(), bytes.end());
+        }
+      }
+
+      /**
+       * @brief Answer one selection request with the clipboard Sunshine owns.
+       *
+       * @param request Selection request from another client.
+       */
+      void serve(const XSelectionRequestEvent &request) {
+        const auto data = owned_;
+        std::optional<std::span<const std::uint8_t>> bytes;
+        if (data && (request.target == utf8_ || request.target == XA_STRING)) {
+          bytes = clipboard_payload(*data, SS_CLIPBOARD_MIME_TEXT);
+        } else if (data && (request.target == png_ || request.target == jpeg_)) {
+          bytes = clipboard_payload(*data, request.target == png_ ? SS_CLIPBOARD_MIME_PNG : SS_CLIPBOARD_MIME_JPEG);
+        }
+
+        const bool supported = request.target == targets_ || bytes.has_value();
+        const auto property = static_cast<Atom>(selection_reply_property(request.property, request.target, supported));
+        if (property != None && request.target == targets_) {
+          std::vector<Atom> list {targets_};
+          if (data && !data->text.empty()) {
+            list.push_back(utf8_);
+            list.push_back(XA_STRING);
+          }
+          if (data && !data->image_mime.empty()) {
+            list.push_back(data->image_mime == SS_CLIPBOARD_MIME_PNG ? png_ : jpeg_);
+          }
+          XChangeProperty(display_, request.requestor, property, XA_ATOM, 32, PropModeReplace, reinterpret_cast<const unsigned char *>(list.data()), static_cast<int>(list.size()));
+        } else if (property != None && bytes->size() <= chunk_size_) {
+          XChangeProperty(display_, request.requestor, property, request.target, 8, PropModeReplace, bytes->data(), static_cast<int>(bytes->size()));
+        } else if (property != None) {
+          // Too large for one request, so announce the size and send it in INCR slices
+          XSelectInput(display_, request.requestor, PropertyChangeMask);
+          const long size = static_cast<long>(bytes->size());
+          XChangeProperty(display_, request.requestor, property, incr_, 32, PropModeReplace, reinterpret_cast<const unsigned char *>(&size), 1);
+          sends_.push_back(send_t {request.requestor, property, request.target, *bytes, data, incr_sender_t {bytes->size(), chunk_size_}, std::chrono::steady_clock::now()});
+        }
+
+        XEvent notify {};
+        notify.xselection.type = SelectionNotify;
+        notify.xselection.display = request.display;
+        notify.xselection.requestor = request.requestor;
+        notify.xselection.selection = request.selection;
+        notify.xselection.target = request.target;
+        notify.xselection.property = property;
+        notify.xselection.time = request.time;
+        XSendEvent(display_, request.requestor, False, 0, &notify);
+        XFlush(display_);
+      }
+
+      /**
+       * @brief Write the next INCR slice after the requestor read the last one.
+       *
+       * @param event PropertyNotify event from a requestor window.
+       */
+      void continue_send(const XPropertyEvent &event) {
+        if (event.state != PropertyDelete) {
+          return;
+        }
+        const auto send = std::ranges::find_if(sends_, [&event](const send_t &candidate) {
+          return candidate.requestor == event.window && candidate.property == event.atom;
+        });
+        if (send == sends_.end()) {
+          return;
+        }
+
+        const auto [offset, length] = send->sender.next();
+        XChangeProperty(display_, send->requestor, send->property, send->type, 8, PropModeReplace, send->bytes.data() + offset, static_cast<int>(length));
+        if (send->sender.done()) {
+          XSelectInput(display_, send->requestor, NoEventMask);
+          sends_.erase(send);
+        }
+        XFlush(display_);
+      }
+
+      Display *display_;  ///< X display connection owned by the watcher thread.
+      Window window_;  ///< Window used to own and request the selection.
+      int event_base_;  ///< First XFixes event code.
+      Atom clipboard_;  ///< CLIPBOARD atom.
+      Atom targets_;  ///< TARGETS atom.
+      Atom utf8_;  ///< UTF8_STRING atom.
+      Atom incr_;  ///< INCR atom.
+      Atom png_;  ///< image/png atom.
+      Atom jpeg_;  ///< image/jpeg atom.
+      Atom property_;  ///< Property that receives conversion replies.
+      std::size_t chunk_size_;  ///< Largest value written with one XChangeProperty.
+
+      std::shared_ptr<const clipboard_data_t> owned_;  ///< Clipboard Sunshine serves while it owns the selection.
+      std::vector<send_t> sends_;  ///< INCR sends waiting for their requestors.
+
+      bool fetching_ = false;  ///< Whether the host clipboard is being read.
+      Atom current_ = None;  ///< Target being converted.
+      std::vector<Atom> remaining_;  ///< Targets still to convert after current_.
+      clipboard_data_t fetched_;  ///< Formats read so far.
+      incr_transfer_t transfer_;  ///< INCR transfer for current_.
     };
-
-    /**
-     * @brief Handle one X event for the clipboard watcher.
-     *
-     * @param watch Display, window, and atoms for this watcher.
-     * @param event Event just removed from the queue.
-     * @param owned Text Sunshine owns, when it owns the selection.
-     * @param transfer Incremental transfer assembled across property events.
-     */
-    void handle_event(const clipboard_watch_t &watch, const XEvent &event, const std::string &owned, incr_transfer_t &transfer) {
-      if (event.type == SelectionRequest) {
-        serve_selection(watch.display, owned, &event.xselectionrequest, watch.utf8, watch.targets);
-        XFlush(watch.display);
-      } else if (event.type == SelectionNotify) {
-        if (event.xselection.property != None) {
-          publish_property(watch.display, watch.window, watch.property, watch.utf8, watch.incr, transfer);
-        }
-      } else if (event.type == PropertyNotify && transfer.active() && event.xproperty.atom == watch.property && event.xproperty.state == PropertyNewValue) {
-        publish_property(watch.display, watch.window, watch.property, watch.utf8, watch.incr, transfer);
-      } else if (event.type == watch.event_base + XFixesSelectionNotify) {
-        XFixesSelectionNotifyEvent selection {};
-        std::memcpy(&selection, &event, sizeof(selection));
-        if (selection.selection == watch.clipboard && selection.owner != watch.window && selection.owner != None) {
-          transfer = {};
-          convert_selection(watch.display, watch.clipboard, watch.utf8, watch.property, watch.window);
-        }
-      }
-    }
 
     /**
      * @brief Take and clear the request for the current host clipboard.
@@ -373,20 +631,12 @@ namespace platf {
         return;
       }
 
-      auto root = DefaultRootWindow(display);
-      auto window = XCreateSimpleWindow(display, root, 0, 0, 1, 1, 0, 0, 0);
-      XSelectInput(display, window, PropertyChangeMask);
-      auto clipboard_atom = XInternAtom(display, "CLIPBOARD", False);
-      auto utf8 = XInternAtom(display, "UTF8_STRING", False);
-      auto incr = XInternAtom(display, "INCR", False);
-      auto targets = XInternAtom(display, "TARGETS", False);
-      auto property = XInternAtom(display, "SUNSHINE_CLIPBOARD", False);
-      XFixesSelectSelectionInput(display, window, clipboard_atom, XFixesSetSelectionOwnerNotifyMask);
-      XFlush(display);
+      watcher_display = display;
+      previous_error_handler = XSetErrorHandler(handle_x_error);
 
-      const clipboard_watch_t watch {display, window, event_base, clipboard_atom, utf8, incr, targets, property};
-      std::string owned;
-      incr_transfer_t transfer;
+      auto window = XCreateSimpleWindow(display, DefaultRootWindow(display), 0, 0, 1, 1, 0, 0, 0);
+      XSelectInput(display, window, PropertyChangeMask);
+      watcher_t watcher {display, window, event_base};
       {
         auto &clipboard = state();
         std::lock_guard lock {clipboard.mutex};
@@ -400,14 +650,14 @@ namespace platf {
         while (XPending(display) != 0) {
           XEvent event;
           XNextEvent(display, &event);
-          handle_event(watch, event, owned, transfer);
+          watcher.handle(event);
         }
 
-        apply_pending(display, clipboard_atom, window, owned);
+        watcher.take_pending();
         if (consume_pull()) {
-          transfer = {};
-          convert_selection(display, clipboard_atom, utf8, property, window);
+          watcher.pull();
         }
+        watcher.prune_sends();
 
         std::array<pollfd, 2> fds {pollfd {xfd, POLLIN, 0}, pollfd {wake_read, POLLIN, 0}};
         poll(fds.data(), fds.size(), 200);
@@ -418,30 +668,24 @@ namespace platf {
     }
   }  // namespace
 
-  void clipboard_set(std::string_view text, const clipboard_queue_t &origin) {
-    std::string capped {text};
-    if (capped.size() > clipboard_max_bytes) {
-      capped.resize(clipboard_max_bytes);
+  void clipboard_set(clipboard_data_t data, const clipboard_queue_t &origin) {
+    if (data.text.empty() && data.image.empty()) {
+      return;
     }
 
-    std::vector<clipboard_queue_t> queues;
+    const auto shared = std::make_shared<const clipboard_data_t>(std::move(data));
+    clipboard_delivery_t delivery;
     {
       auto &clipboard = state();
       std::lock_guard lock {clipboard.mutex};
       if (clipboard.failed || !clipboard.ready) {
         return;
       }
-      clipboard.pending = capped;
-      clipboard.has_pending = true;
-      queues = clipboard.subscribers.note_local(origin, capped);
-      if (clipboard.wake_write >= 0) {
-        char byte = 1;
-        if (write(clipboard.wake_write, &byte, 1) < 0) {
-          BOOST_LOG(debug) << "Clipboard watcher wakeup was not queued"sv;
-        }
-      }
+      clipboard.pending = shared;
+      delivery = clipboard.subscribers.publish(shared, origin);
+      wake_watcher(clipboard);
     }
-    raise_clipboard(queues, capped);
+    raise_offers(delivery, shared);
   }
 
   void clipboard_subscribe(clipboard_queue_t queue) {
@@ -458,12 +702,7 @@ namespace platf {
       return;
     }
     clipboard.pull = true;
-    if (clipboard.wake_write >= 0) {
-      char byte = 1;
-      if (write(clipboard.wake_write, &byte, 1) < 0) {
-        BOOST_LOG(debug) << "Clipboard watcher wakeup was not queued"sv;
-      }
-    }
+    wake_watcher(clipboard);
   }
 
   void clipboard_unsubscribe(const clipboard_queue_t &queue) {

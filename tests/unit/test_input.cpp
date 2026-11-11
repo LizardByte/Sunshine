@@ -21,6 +21,7 @@
 
 // moonlight-common-c includes
 extern "C" {
+#include <moonlight-common-c/src/Clipboard.h>
 #include <moonlight-common-c/src/Input.h>
 }
 
@@ -202,31 +203,37 @@ TEST(InputPacketValidationTest, ValidatesUnicodePacketBoundsWithoutOverflow) {
 }
 
 TEST(InputPacketValidationTest, AcceptsEmptyAndMaximumClipboardPackets) {
+  constexpr std::array packet_specs {
+    input_packet_spec_t {SS_CLIPBOARD_OFFER_MAGIC, SS_CLIPBOARD_OFFER_MAX},
+    input_packet_spec_t {SS_CLIPBOARD_REQUEST_MAGIC, SS_CLIPBOARD_REQUEST_MAX},
+    input_packet_spec_t {SS_CLIPBOARD_DATA_MAGIC, SS_CLIPBOARD_DATA_HEADER_MAX + SS_CLIPBOARD_CHUNK_MAX},
+  };
   constexpr auto prefix = sizeof(std::uint32_t);
-  const auto empty_packet = make_input_packet(SS_CLIPBOARD_TEXT_MAGIC, prefix, sizeof(std::uint32_t) + prefix);
-  EXPECT_TRUE(input::testing::is_valid_input_packet(empty_packet));
+  for (const auto &spec : packet_specs) {
+    const auto empty_packet = make_input_packet(spec.magic, prefix, sizeof(std::uint32_t) + prefix);
+    EXPECT_TRUE(input::testing::is_valid_input_packet(empty_packet)) << "magic=" << spec.magic;
 
-  constexpr auto maximum_declared_size = static_cast<std::uint32_t>(prefix + SS_CLIPBOARD_TEXT_MAX);
-  const auto maximum_packet = make_input_packet(
-    SS_CLIPBOARD_TEXT_MAGIC,
-    maximum_declared_size,
-    sizeof(std::uint32_t) + maximum_declared_size
-  );
-  EXPECT_TRUE(input::testing::is_valid_input_packet(maximum_packet));
+    const auto maximum_declared_size = static_cast<std::uint32_t>(prefix + spec.size);
+    const auto maximum_packet = make_input_packet(spec.magic, maximum_declared_size, sizeof(std::uint32_t) + maximum_declared_size);
+    EXPECT_TRUE(input::testing::is_valid_input_packet(maximum_packet)) << "magic=" << spec.magic;
+  }
 }
 
 TEST(InputPacketValidationTest, RejectsTruncatedAndOversizedClipboardPackets) {
+  constexpr std::array packet_specs {
+    input_packet_spec_t {SS_CLIPBOARD_OFFER_MAGIC, SS_CLIPBOARD_OFFER_MAX},
+    input_packet_spec_t {SS_CLIPBOARD_REQUEST_MAGIC, SS_CLIPBOARD_REQUEST_MAX},
+    input_packet_spec_t {SS_CLIPBOARD_DATA_MAGIC, SS_CLIPBOARD_DATA_HEADER_MAX + SS_CLIPBOARD_CHUNK_MAX},
+  };
   constexpr auto prefix = sizeof(std::uint32_t);
-  const auto truncated_packet = make_input_packet(SS_CLIPBOARD_TEXT_MAGIC, prefix + 4, sizeof(std::uint32_t) + prefix);
-  EXPECT_FALSE(input::testing::is_valid_input_packet(truncated_packet));
+  for (const auto &spec : packet_specs) {
+    const auto truncated_packet = make_input_packet(spec.magic, prefix + 4, sizeof(std::uint32_t) + prefix);
+    EXPECT_FALSE(input::testing::is_valid_input_packet(truncated_packet)) << "magic=" << spec.magic;
 
-  constexpr auto oversized_declared_size = static_cast<std::uint32_t>(prefix + SS_CLIPBOARD_TEXT_MAX + 1);
-  const auto oversized_packet = make_input_packet(
-    SS_CLIPBOARD_TEXT_MAGIC,
-    oversized_declared_size,
-    sizeof(std::uint32_t) + oversized_declared_size
-  );
-  EXPECT_FALSE(input::testing::is_valid_input_packet(oversized_packet));
+    const auto oversized_declared_size = static_cast<std::uint32_t>(prefix + spec.size + 1);
+    const auto oversized_packet = make_input_packet(spec.magic, oversized_declared_size, sizeof(std::uint32_t) + oversized_declared_size);
+    EXPECT_FALSE(input::testing::is_valid_input_packet(oversized_packet)) << "magic=" << spec.magic;
+  }
 }
 
 TEST(InputPacketValidationTest, EnforcesEveryFixedPacketSize) {

@@ -4,12 +4,14 @@
  */
 
 // standard includes
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <fstream>
 #include <future>
 #include <optional>
 #include <queue>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -20,6 +22,7 @@
 
 extern "C" {
   // clang-format off
+#include <moonlight-common-c/src/Clipboard.h>
 #include <moonlight-common-c/src/Input.h>
 #include <moonlight-common-c/src/Limelight-internal.h>
   // clang-format on
@@ -32,6 +35,7 @@ extern "C" {
 #include "input.h"
 #include "logging.h"
 #include "network.h"
+#include "platform/clipboard_sync.h"
 #include "platform/common.h"
 #include "process.h"
 #include "stream.h"
@@ -316,6 +320,22 @@ namespace stream {
   using control_encrypted_p = control_encrypted_t *;
 
   /**
+   * @brief Packed encrypted control-channel envelope for messages too large for control_encrypted_t.
+   */
+  struct control_encrypted_jumbo_t {
+    std::uint16_t encryptedHeaderType;  ///< Always LE 0x0002.
+    std::uint32_t length;  ///< Size of seq, tag, secondary header, and data.
+    std::uint32_t seq;  ///< Monotonically increasing sequence number used as the AES-GCM IV.
+
+    // encrypted control header type (no length) and payload data follow
+  };
+
+  /**
+   * @brief Wire type of control_encrypted_jumbo_t.
+   */
+  constexpr std::uint16_t encrypted_jumbo_type = 0x0002;
+
+  /**
    * @brief Packed RTP and FEC headers for an audio recovery packet.
    */
   struct audio_fec_packet_t {
@@ -333,6 +353,7 @@ namespace stream {
   static_assert(sizeof(control_adaptive_triggers_t) == 9 + 2 * DS_EFFECT_PAYLOAD_SIZE);
   static_assert(offsetof(control_adaptive_triggers_t, left) == 9);
   static_assert(offsetof(control_adaptive_triggers_t, right) == 9 + DS_EFFECT_PAYLOAD_SIZE);
+  static_assert(sizeof(control_encrypted_jumbo_t) == 10);
 
   /**
    * @brief Round a byte count up to the next PKCS#7 padding boundary.
@@ -562,7 +583,9 @@ namespace stream {
       std::uint32_t seq;  ///< Sequence number for the next encrypted control message.
 
       platf::feedback_queue_t feedback_queue;  ///< Queue of controller feedback awaiting control-channel delivery.
-      platf::clipboard_queue_t clipboard_queue;  ///< Queue of clipboard text awaiting control-channel delivery.
+      platf::clipboard_queue_t clipboard_queue;  ///< Queue of clipboard messages awaiting control-channel delivery.
+      std::shared_ptr<const platf::clipboard_data_t> clipboard_offer;  ///< Host clipboard last offered to the client.
+      std::uint32_t clipboard_sequence = 0;  ///< Sequence number of clipboard_offer.
       safe::mail_raw_t::event_t<video::hdr_info_t> hdr_queue;  ///< Queue of HDR metadata awaiting control-channel delivery.
     } control;  ///< Runtime state for the encrypted GameStream control channel.
 
@@ -577,22 +600,13 @@ namespace stream {
   };
 
   /**
-   * First part of cipher must be struct of type control_encrypted_t
+   * @brief Prepare the IV for one host-originated control message.
    *
-   * returns empty string_view on failure
-   * returns string_view pointing to payload data
+   * @param session Session whose outgoing IV is updated.
+   * @param seq Sequence number of the message.
+   * @return The session's outgoing IV.
    */
-  static inline std::string_view encode_control(session_t *session, const std::string_view &plaintext, std::uint8_t *tagged_cipher, std::size_t tagged_size) {
-    if (tagged_size < sizeof(control_encrypted_t) + sizeof(crypto::cipher::tag_size)) {
-      return {};
-    }
-
-    if (session->config.controlProtocolType != 13) {
-      return plaintext;
-    }
-
-    auto seq = session->control.seq++;
-
+  static crypto::aes_t *outgoing_control_iv(session_t *session, std::uint32_t seq) {
     auto &iv = session->control.outgoing_iv;
     if (session->config.encryptionFlagsEnabled & SS_ENC_CONTROL_V2) {
       // We use the deterministic IV construction algorithm specified in NIST SP 800-38D
@@ -614,9 +628,29 @@ namespace stream {
       iv[0] = (std::uint8_t) seq;
     }
 
+    return &iv;
+  }
+
+  /**
+   * First part of cipher must be struct of type control_encrypted_t
+   *
+   * returns empty string_view on failure
+   * returns string_view pointing to payload data
+   */
+  static inline std::string_view encode_control(session_t *session, const std::string_view &plaintext, std::uint8_t *tagged_cipher, std::size_t tagged_size) {
+    if (tagged_size < sizeof(control_encrypted_t) + sizeof(crypto::cipher::tag_size)) {
+      return {};
+    }
+
+    if (session->config.controlProtocolType != 13) {
+      return plaintext;
+    }
+
+    auto seq = session->control.seq++;
+
     auto packet = (control_encrypted_p) tagged_cipher;
 
-    auto bytes = session->control.cipher.encrypt(plaintext, packet->payload(), &iv);
+    auto bytes = session->control.cipher.encrypt(plaintext, packet->payload(), outgoing_control_iv(session, seq));
     if (bytes <= 0) {
       BOOST_LOG(error) << "Couldn't encrypt control data"sv;
       return {};
@@ -639,6 +673,38 @@ namespace stream {
     );
 
     return encode_control(session, plaintext, tagged_cipher.data(), tagged_cipher.size());
+  }
+
+  /**
+   * @brief Encrypt a control message that is too large for control_encrypted_t.
+   *
+   * Jumbo messages need the SS_ENC_CONTROL_V2 encrypted control stream.
+   *
+   * @param session Session that owns the control stream.
+   * @param plaintext Control message type followed by the payload, without a length field.
+   * @param tagged_cipher Destination for the jumbo envelope, the GCM tag, and the ciphertext.
+   * @param tagged_size Size of tagged_cipher.
+   * @return The encoded message, or empty when the client cannot receive jumbo messages.
+   */
+  static std::string_view encode_control_jumbo(session_t *session, const std::string_view &plaintext, std::uint8_t *tagged_cipher, std::size_t tagged_size) {
+    if (session->config.controlProtocolType != 13 || !(session->config.encryptionFlagsEnabled & SS_ENC_CONTROL_V2) || tagged_size < sizeof(control_encrypted_jumbo_t) + crypto::cipher::tag_size + plaintext.size()) {
+      return {};
+    }
+
+    auto seq = session->control.seq++;
+
+    auto bytes = session->control.cipher.encrypt(plaintext, tagged_cipher + sizeof(control_encrypted_jumbo_t), outgoing_control_iv(session, seq));
+    if (bytes <= 0) {
+      BOOST_LOG(error) << "Couldn't encrypt jumbo control data"sv;
+      return {};
+    }
+
+    auto packet = (control_encrypted_jumbo_t *) tagged_cipher;
+    packet->encryptedHeaderType = util::endian::little(encrypted_jumbo_type);
+    packet->length = util::endian::little(static_cast<std::uint32_t>(sizeof(seq) + crypto::cipher::tag_size + bytes));
+    packet->seq = util::endian::little(seq);
+
+    return std::string_view {(char *) tagged_cipher, sizeof(control_encrypted_jumbo_t) + crypto::cipher::tag_size + bytes};
   }
 
   /**
@@ -754,7 +820,7 @@ namespace stream {
    */
   void control_server_t::call(std::uint16_t type, session_t *session, const std::string_view &payload, bool reinjected) {
     // If we are using the encrypted control stream protocol, drop any messages that come off the wire unencrypted
-    if (session->config.controlProtocolType == 13 && !reinjected && type != packetTypes[IDX_ENCRYPTED]) {
+    if (session->config.controlProtocolType == 13 && !reinjected && type != packetTypes[IDX_ENCRYPTED] && type != encrypted_jumbo_type) {
       BOOST_LOG(error) << "Dropping unencrypted message on encrypted control stream: "sv << util::hex(type).to_string_view();
       return;
     }
@@ -1145,41 +1211,122 @@ namespace stream {
   }
 
   /**
-   * @brief Send clipboard text to the client over the control channel.
+   * @brief Send one clipboard message body to the client over the control channel.
+   *
+   * Bodies too large for control_encrypted_t are sent as jumbo messages.
    *
    * @param session Active streaming session.
-   * @param msg Clipboard text to send.
+   * @param type Clipboard control message type.
+   * @param body Message body.
    * @return 0 when the control message is queued.
    */
-  int send_clipboard_text(session_t *session, const platf::clipboard_text_t &msg) {
-    if (!session->control.peer || msg.text.size() > SS_CLIPBOARD_TEXT_MAX) {
+  int send_clipboard_message(session_t *session, std::uint16_t type, std::span<const std::uint8_t> body) {
+    if (!session->control.peer) {
       return -1;
     }
 
-    control_header_v2 header {};
-    header.type = SS_CLIPBOARD_CONTROL_PTYPE;
-    header.payloadLength = static_cast<std::uint16_t>(sizeof(std::uint32_t) + msg.text.size());
+    std::vector<std::uint8_t> plaintext;
+    std::vector<std::uint8_t> tagged;
+    std::string_view encoded;
+    // control_encrypted_t has a 16-bit length covering the sequence number, GCM tag, and control_header_v2.
+    if (sizeof(std::uint32_t) + crypto::cipher::tag_size + sizeof(control_header_v2) + body.size() <= 0xFFFF) {
+      control_header_v2 header {};
+      header.type = type;
+      header.payloadLength = static_cast<std::uint16_t>(body.size());
 
-    std::vector<std::uint8_t> plaintext(sizeof(header) + header.payloadLength);
-    std::memcpy(plaintext.data(), &header, sizeof(header));
+      plaintext.resize(sizeof(header) + body.size());
+      std::memcpy(plaintext.data(), &header, sizeof(header));
+      std::ranges::copy(body, plaintext.begin() + sizeof(header));
 
-    auto length = util::endian::little(static_cast<std::uint32_t>(msg.text.size()));
-    auto *payload = plaintext.data() + sizeof(header);
-    std::memcpy(payload, &length, sizeof(length));
-    std::memcpy(payload + sizeof(length), msg.text.data(), msg.text.size());
+      tagged.resize(sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(plaintext.size()) + crypto::cipher::tag_size);
+      encoded = encode_control(session, util::view(plaintext.data(), plaintext.data() + plaintext.size()), tagged.data(), tagged.size());
+    } else {
+      const auto type_le = util::endian::little(type);
 
-    const auto tagged_size = sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(plaintext.size()) + crypto::cipher::tag_size;
-    std::vector<std::uint8_t> tagged(tagged_size);
-    auto encoded = encode_control(session, util::view(plaintext.data(), plaintext.data() + plaintext.size()), tagged.data(), tagged.size());
-    if (encoded.empty()) {
-      return -1;
+      plaintext.resize(sizeof(type_le) + body.size());
+      std::memcpy(plaintext.data(), &type_le, sizeof(type_le));
+      std::ranges::copy(body, plaintext.begin() + sizeof(type_le));
+
+      tagged.resize(sizeof(control_encrypted_jumbo_t) + crypto::cipher::tag_size + plaintext.size());
+      encoded = encode_control_jumbo(session, util::view(plaintext.data(), plaintext.data() + plaintext.size()), tagged.data(), tagged.size());
     }
 
-    if (session->broadcast_ref->control_server.send(encoded, session->control.peer)) {
+    if (encoded.empty() || session->broadcast_ref->control_server.send(encoded, session->control.peer)) {
       return -1;
     }
 
     return 0;
+  }
+
+  /**
+   * @brief Send every chunk of one clipboard format the client requested.
+   *
+   * @param session Active streaming session.
+   * @param mime MIME type the client requested.
+   * @param sequence Offer sequence the request answers.
+   * @return 0 when every chunk is queued, or when the request is for an older offer.
+   */
+  int send_clipboard_data(session_t *session, const std::string &mime, std::uint32_t sequence) {
+    const auto &offer = session->control.clipboard_offer;
+    if (!offer || sequence != session->control.clipboard_sequence) {
+      return 0;
+    }
+
+    const auto data = platf::clipboard_payload(*offer, mime);
+    if (!data) {
+      return -1;
+    }
+
+    const auto size = static_cast<std::uint32_t>(data->size());
+    const auto count = ClipboardChunkCount(size);
+    for (std::uint16_t index = 0; index < count; ++index) {
+      const auto offset = std::size_t {index} * SS_CLIPBOARD_CHUNK_MAX;
+      const auto chunk = data->subspan(offset, std::min<std::size_t>(data->size() - offset, SS_CLIPBOARD_CHUNK_MAX));
+      std::vector<std::uint8_t> body(SS_CLIPBOARD_DATA_HEADER_MAX + chunk.size());
+      const auto length = ClipboardEncodeChunk(body.data(), static_cast<int>(body.size()), mime.c_str(), sequence, index, count, chunk.data(), static_cast<std::uint32_t>(chunk.size()));
+      if (length < 0 || send_clipboard_message(session, SS_CLIPBOARD_DATA_PTYPE, std::span {body}.first(static_cast<std::size_t>(length)))) {
+        return -1;
+      }
+    }
+
+    return 0;
+  }
+
+  /**
+   * @brief Send a clipboard offer, request, or data raised on the session's clipboard queue.
+   *
+   * @param session Active streaming session.
+   * @param msg Message raised by the platform clipboard or the input thread.
+   * @return 0 when the control messages are queued.
+   */
+  int send_clipboard(session_t *session, const platf::clipboard_message_t &msg) {
+    switch (msg.action) {
+      case platf::clipboard_action_e::offer:
+        {
+          session->control.clipboard_offer = msg.data;
+          session->control.clipboard_sequence = msg.sequence;
+
+          const auto mime_types = platf::clipboard_mime_types(*msg.data);
+          std::vector<const char *> pointers;
+          for (const auto &mime : mime_types) {
+            pointers.push_back(mime.c_str());
+          }
+
+          std::array<std::uint8_t, SS_CLIPBOARD_OFFER_MAX> body {};
+          const auto length = ClipboardEncodeOffer(body.data(), static_cast<int>(body.size()), pointers.data(), static_cast<int>(pointers.size()), msg.sequence);
+          return length < 0 ? -1 : send_clipboard_message(session, SS_CLIPBOARD_OFFER_PTYPE, std::span {body}.first(static_cast<std::size_t>(length)));
+        }
+      case platf::clipboard_action_e::request:
+        {
+          std::array<std::uint8_t, SS_CLIPBOARD_REQUEST_MAX> body {};
+          const auto length = ClipboardEncodeRequest(body.data(), static_cast<int>(body.size()), msg.mime.c_str(), msg.sequence);
+          return length < 0 ? -1 : send_clipboard_message(session, SS_CLIPBOARD_REQUEST_PTYPE, std::span {body}.first(static_cast<std::size_t>(length)));
+        }
+      case platf::clipboard_action_e::send:
+        return send_clipboard_data(session, msg.mime, msg.sequence);
+    }
+
+    return -1;
   }
 
   /**
@@ -1216,6 +1363,71 @@ namespace stream {
 
     BOOST_LOG(debug) << "Sent HDR mode: " << hdr_info->enabled;
     return 0;
+  }
+
+  /**
+   * @brief Decrypt a client control message and handle the message inside it.
+   *
+   * @param server Control server that dispatches the decrypted message.
+   * @param session Session the message arrived on.
+   * @param seq Sequence number from the encrypted envelope.
+   * @param tagged_cipher GCM tag followed by the ciphertext.
+   * @param header_size Size of the decrypted control header: 4 for control_header_v2, or 2 for a jumbo message, which has no length field.
+   */
+  void handle_encrypted_control(control_server_t *server, session_t *session, std::uint32_t seq, std::string_view tagged_cipher, std::size_t header_size) {
+    auto &cipher = session->control.cipher;
+    auto &iv = session->control.incoming_iv;
+    if (session->config.encryptionFlagsEnabled & SS_ENC_CONTROL_V2) {
+      // We use the deterministic IV construction algorithm specified in NIST SP 800-38D
+      // Section 8.2.1. The sequence number is our "invocation" field and the 'CC' in the
+      // high bytes is the "fixed" field. Because each client provides their own unique
+      // key, our values in the fixed field need only uniquely identify each independent
+      // use of the client's key with AES-GCM in our code.
+      //
+      // The sequence number is 32 bits long which allows for 2^32 control stream messages
+      // to be received from each client before the IV repeats.
+      iv.resize(12);
+      std::copy_n((uint8_t *) &seq, sizeof(seq), std::begin(iv));
+      iv[10] = 'C';  // Client originated
+      iv[11] = 'C';  // Control stream
+    } else {
+      // Nvidia's old style encryption uses a 16-byte IV
+      iv.resize(16);
+
+      iv[0] = (std::uint8_t) seq;
+    }
+
+    std::vector<uint8_t> plaintext;
+    if (cipher.decrypt(tagged_cipher, plaintext, &iv)) {
+      // something went wrong :(
+
+      BOOST_LOG(error) << "Failed to verify tag"sv;
+
+      session::stop(*session);
+      return;
+    }
+
+    if (plaintext.size() < header_size) {
+      BOOST_LOG(warning) << "Control: Runt decrypted packet"sv;
+      return;
+    }
+
+    auto type = *(std::uint16_t *) plaintext.data();
+    std::string_view next_payload {(char *) plaintext.data() + header_size, plaintext.size() - header_size};
+
+    if (type == packetTypes[IDX_ENCRYPTED] || type == encrypted_jumbo_type) {
+      BOOST_LOG(error) << "Bad packet type [IDX_ENCRYPTED] found"sv;
+      session::stop(*session);
+      return;
+    }
+
+    // IDX_INPUT_DATA callback will attempt to decrypt unencrypted data, therefore we need pass it directly
+    if (type == packetTypes[IDX_INPUT_DATA]) {
+      plaintext.erase(std::begin(plaintext), std::begin(plaintext) + static_cast<std::ptrdiff_t>(header_size));
+      input::passthrough(session->input, std::move(plaintext));
+    } else {
+      server->call(type, session, next_payload, true);
+    }
   }
 
   /**
@@ -1313,54 +1525,31 @@ namespace stream {
       auto tagged_cipher_length = length - 4;
       std::string_view tagged_cipher {(char *) header->payload(), (size_t) tagged_cipher_length};
 
-      auto &cipher = session->control.cipher;
-      auto &iv = session->control.incoming_iv;
-      if (session->config.encryptionFlagsEnabled & SS_ENC_CONTROL_V2) {
-        // We use the deterministic IV construction algorithm specified in NIST SP 800-38D
-        // Section 8.2.1. The sequence number is our "invocation" field and the 'CC' in the
-        // high bytes is the "fixed" field. Because each client provides their own unique
-        // key, our values in the fixed field need only uniquely identify each independent
-        // use of the client's key with AES-GCM in our code.
-        //
-        // The sequence number is 32 bits long which allows for 2^32 control stream messages
-        // to be received from each client before the IV repeats.
-        iv.resize(12);
-        std::copy_n((uint8_t *) &seq, sizeof(seq), std::begin(iv));
-        iv[10] = 'C';  // Client originated
-        iv[11] = 'C';  // Control stream
-      } else {
-        // Nvidia's old style encryption uses a 16-byte IV
-        iv.resize(16);
+      handle_encrypted_control(server, session, seq, tagged_cipher, sizeof(control_header_v2));
+    });
 
-        iv[0] = (std::uint8_t) seq;
+    server->map(encrypted_jumbo_type, [server](session_t *session, const std::string_view &payload) {
+      BOOST_LOG(verbose) << "type [IDX_ENCRYPTED_JUMBO]"sv;
+
+      control_encrypted_jumbo_t header {};
+      if (payload.size() < sizeof(header) - sizeof(header.encryptedHeaderType)) {
+        BOOST_LOG(warning) << "Control: Runt jumbo packet"sv;
+        return;
       }
+      std::memcpy(&header, payload.data() - sizeof(header.encryptedHeaderType), sizeof(header));
 
-      std::vector<uint8_t> plaintext;
-      if (cipher.decrypt(tagged_cipher, plaintext, &iv)) {
-        // something went wrong :(
+      auto length = util::endian::little(header.length);
+      auto seq = util::endian::little(header.seq);
 
-        BOOST_LOG(error) << "Failed to verify tag"sv;
-
-        session::stop(*session);
+      // The decrypted message holds at least the 2-byte message type
+      if (length < sizeof(seq) + crypto::cipher::tag_size + sizeof(std::uint16_t) || length > payload.size() - sizeof(header.length)) {
+        BOOST_LOG(warning) << "Control: Runt jumbo packet"sv;
         return;
       }
 
-      auto type = *(std::uint16_t *) plaintext.data();
-      std::string_view next_payload {(char *) plaintext.data() + 4, plaintext.size() - 4};
+      std::string_view tagged_cipher {payload.data() + sizeof(header) - sizeof(header.encryptedHeaderType), length - sizeof(seq)};
 
-      if (type == packetTypes[IDX_ENCRYPTED]) {
-        BOOST_LOG(error) << "Bad packet type [IDX_ENCRYPTED] found"sv;
-        session::stop(*session);
-        return;
-      }
-
-      // IDX_INPUT_DATA callback will attempt to decrypt unencrypted data, therefore we need pass it directly
-      if (type == packetTypes[IDX_INPUT_DATA]) {
-        plaintext.erase(std::begin(plaintext), std::begin(plaintext) + 4);
-        input::passthrough(session->input, std::move(plaintext));
-      } else {
-        server->call(type, session, next_payload, true);
-      }
+      handle_encrypted_control(server, session, seq, tagged_cipher, sizeof(std::uint16_t));
     });
 
     // This thread handles latency-sensitive control messages
@@ -1426,7 +1615,7 @@ namespace stream {
             auto &clipboard_queue = session->control.clipboard_queue;
             while (session->control.peer && clipboard_queue->peek()) {
               auto clipboard_msg = clipboard_queue->pop();
-              send_clipboard_text(session, *clipboard_msg);
+              send_clipboard(session, *clipboard_msg);
             }
 
             auto &hdr_queue = session->control.hdr_queue;
@@ -2389,7 +2578,7 @@ namespace stream {
 
       session->control.connect_data = launch_session.control_connect_data;
       session->control.feedback_queue = mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback);
-      session->control.clipboard_queue = mail->queue<platf::clipboard_text_t>(mail::clipboard);
+      session->control.clipboard_queue = mail->queue<platf::clipboard_message_t>(mail::clipboard);
       session->control.hdr_queue = mail->event<video::hdr_info_t>(mail::hdr);
       session->control.legacy_input_enc_iv = launch_session.iv;
       session->control.cipher = crypto::cipher::gcm_t {

@@ -131,6 +131,8 @@ endif()
 list(APPEND PLATFORM_TARGET_FILES ${NVENC_SOURCES})
 
 set(SUNSHINE_TARGET_FILES
+        "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/src/Clipboard.c"
+        "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/src/Clipboard.h"
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/src/Input.h"
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/src/Rtsp.h"
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/src/RtspParser.c"
