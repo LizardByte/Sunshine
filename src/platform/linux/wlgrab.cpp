@@ -265,6 +265,10 @@ namespace wl {
     return screencopy_version >= 2 && stream_fps > 0 && refresh_mhz / 1000.0 >= stream_fps * 1.5;
   }
 
+  bool capture_needs_reinit(int frame_width, int frame_height, int width, int height, int output_transform, int transform) {
+    return frame_width != width || frame_height != height || output_transform != transform;
+  }
+
   std::chrono::steady_clock::time_point next_damage_request(
     std::chrono::steady_clock::time_point next_request,
     std::chrono::steady_clock::time_point frame_time,
@@ -427,6 +431,8 @@ namespace wl {
 
       this->logical_width = monitor->viewport.logical_width;
       this->logical_height = monitor->viewport.logical_height;
+      this->transform = monitor->viewport.transform;
+      this->monitor = monitor;
 
       int desktop_logical_width = 0;
       int desktop_logical_height = 0;
@@ -501,8 +507,7 @@ namespace wl {
 
       if (
         dmabuf.status == dmabuf_t::REINIT ||
-        current_frame->sd.width != width ||
-        current_frame->sd.height != height
+        capture_needs_reinit(current_frame->sd.width, current_frame->sd.height, width, height, monitor->viewport.transform, transform)
       ) {
         return platf::capture_e::reinit;
       }
@@ -605,6 +610,7 @@ namespace wl {
     dmabuf_t dmabuf;  ///< DMA-BUF feedback and format state advertised by the compositor.
 
     wl_output *output;  ///< Wayland output selected for capture.
+    wl::monitor_t *monitor {};  ///< Monitor selected for capture.
   };
 
   /**
