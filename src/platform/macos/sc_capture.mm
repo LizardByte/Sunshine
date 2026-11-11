@@ -368,8 +368,7 @@ API_AVAILABLE(macos(14.0))
   }
 
   if (stream) {
-    [stream stopCaptureWithCompletionHandler:^(NSError *stop_error) {
-    }];
+    [stream stopCaptureWithCompletionHandler:^(NSError *stop_error) {}];
     [stream release];
   }
 }
