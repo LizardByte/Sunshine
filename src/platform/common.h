@@ -442,6 +442,7 @@ namespace platf {
     int logical_height;  ///< Logical height after display scaling.
     int env_offset_x {};  ///< Horizontal origin of the full input environment in native desktop coordinates.
     int env_offset_y {};  ///< Vertical origin of the full input environment in native desktop coordinates.
+    std::string output_name {};  ///< Native connector name used to assign compositor-managed touch and pen devices.
   };
 
   // These values must match Limelight-internal.h's SS_FF_* constants!
@@ -849,6 +850,7 @@ namespace platf {
     virtual ~display_t() = default;
 
     // Offsets for when streaming a specific monitor. By default, they are 0.
+    std::string output_name;  ///< Native connector name of the captured display for absolute input assignment.
     int offset_x {0};  ///< Horizontal capture offset in physical pixels.
     int offset_y {0};  ///< Vertical capture offset in physical pixels.
     int env_offset_x {0};  ///< Horizontal origin of the full capture environment in native desktop coordinates.

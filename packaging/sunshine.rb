@@ -15,7 +15,7 @@ class Sunshine < Formula
   LLVM_PROFILE_FILE_ENV = "LLVM_PROFILE_FILE".freeze
   TEST_BINARY = "test_sunshine".freeze
   TEST_RESULTS_XML = "tests/test_results.xml".freeze
-  IS_UPSTREAM_REPO = ENV.fetch("GITHUB_REPOSITORY", "") == "LizardByte/Sunshine"
+  IS_UPSTREAM_REPO = ENV.fetch("GITHUB_REPOSITORY", "") == "SunshineStream/Sunshine"
 
   desc "@PROJECT_DESCRIPTION@"
   homepage "@PROJECT_HOMEPAGE_URL@"
@@ -61,7 +61,7 @@ class Sunshine < Formula
   depends_on "pkgconf" => :build
   depends_on "boost"
   depends_on "curl"
-  depends_on "icu4c@78"
+  depends_on "icu4c@79"
   depends_on "miniupnpc"
   depends_on "openssl@4"
   depends_on "opus"

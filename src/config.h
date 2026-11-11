@@ -272,6 +272,8 @@ namespace config {
 
     // Limit the packetsize to avoid fragmentation on a low MTU link
     int packetsize;  ///< Maximum payload size for network packets.
+
+    bool dscp_tagging;  ///< Allow DSCP tagging of audio and video traffic when requested by the client.
   };
 
   /**
