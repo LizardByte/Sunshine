@@ -6,11 +6,15 @@
 
 // standard includes
 #include <bitset>
+#include <cstdint>
 #include <filesystem>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <vector>
 
 // lib includes
 #include <boost/core/noncopyable.hpp>
@@ -273,6 +277,49 @@ namespace platf {
    * @brief Queue used to deliver controller feedback commands to the platform backend.
    */
   using feedback_queue_t = safe::mail_raw_t::queue_t<gamepad_feedback_msg_t>;
+
+  /**
+   * @brief Clipboard contents synced between the host and clients.
+   *
+   * A clipboard holds text, one image, or both. An empty member means that format is absent.
+   */
+  struct clipboard_data_t {
+    std::string text;  ///< UTF-8 text.
+    std::string image_mime;  ///< MIME type of image, or empty when there is no image.
+    std::vector<std::uint8_t> image;  ///< Encoded image bytes.
+
+    /**
+     * @brief Compare two clipboards by content.
+     *
+     * @param other Clipboard to compare with.
+     * @return True when both clipboards hold the same formats and bytes.
+     */
+    bool operator==(const clipboard_data_t &other) const = default;
+  };
+
+  /**
+   * @brief Clipboard control message the control stream should send to the client.
+   */
+  enum class clipboard_action_e : std::uint8_t {
+    offer,  ///< Offer data to the client under sequence.
+    request,  ///< Ask the client for mime from its offer sequence.
+    send,  ///< Send mime from the host offer sequence.
+  };
+
+  /**
+   * @brief Clipboard work queued for one client's control stream.
+   */
+  struct clipboard_message_t {
+    clipboard_action_e action = clipboard_action_e::offer;  ///< Control message to send.
+    std::uint32_t sequence = 0;  ///< Offer sequence the message belongs to.
+    std::string mime;  ///< MIME type for request and send.
+    std::shared_ptr<const clipboard_data_t> data;  ///< Clipboard offered by an offer message.
+  };
+
+  /**
+   * @brief Queue used to deliver clipboard messages to the control stream.
+   */
+  using clipboard_queue_t = safe::mail_raw_t::queue_t<clipboard_message_t>;
 
   namespace speaker {
     /**
@@ -1238,6 +1285,28 @@ namespace platf {
    * @param size Number of bytes or elements requested.
    */
   void unicode(input_t &input, const char *utf8, int size);
+
+  /**
+   * @brief Replace the host clipboard with a clipboard from the client.
+   *
+   * @param data Clipboard formats received from the client.
+   * @param origin Queue of the client that supplied the clipboard. That client is not sent an echo.
+   */
+  void clipboard_set(clipboard_data_t data, const clipboard_queue_t &origin);
+
+  /**
+   * @brief Start forwarding host clipboard changes to one client.
+   *
+   * @param queue Queue drained by the control stream.
+   */
+  void clipboard_subscribe(clipboard_queue_t queue);
+
+  /**
+   * @brief Stop forwarding host clipboard changes when a client session ends.
+   *
+   * @param queue Queue that should no longer receive clipboard text.
+   */
+  void clipboard_unsubscribe(const clipboard_queue_t &queue);
 
   /**
    * @brief Per-client input context allocated by a platform backend.

@@ -2,8 +2,10 @@
  * @file src/input.cpp
  * @brief Definitions for gamepad, keyboard, and mouse input handling.
  */
+#include <cstddef>
 #include <cstdint>
 extern "C" {
+#include <moonlight-common-c/src/Clipboard.h>
 #include <moonlight-common-c/src/Input.h>
 #include <moonlight-common-c/src/Limelight.h>
 }
@@ -24,6 +26,7 @@ extern "C" {
 #include <string_view>
 #include <thread>
 #include <unordered_map>
+#include <utility>
 
 // lib includes
 #include <boost/endian/buffers.hpp>
@@ -33,6 +36,7 @@ extern "C" {
 #include "globals.h"
 #include "input.h"
 #include "logging.h"
+#include "platform/clipboard_sync.h"
 #include "platform/common.h"
 #include "platform/virtualhid_input.h"
 #include "thread_pool.h"
@@ -305,13 +309,16 @@ namespace input {
      *
      * @param touch_port_event Event carrying the active touch port.
      * @param feedback_queue Queue used for controller feedback.
+     * @param clipboard_queue Queue used for host clipboard updates.
      */
     input_t(
       safe::mail_raw_t::event_t<input::touch_port_t> touch_port_event,
-      platf::feedback_queue_t feedback_queue
+      platf::feedback_queue_t feedback_queue,
+      platf::clipboard_queue_t clipboard_queue
     ):
         touch_port_event {std::move(touch_port_event)},
-        feedback_queue {std::move(feedback_queue)} {
+        feedback_queue {std::move(feedback_queue)},
+        clipboard_queue {std::move(clipboard_queue)} {
     }
 
     // Keep track of alt+ctrl+shift key combo
@@ -326,6 +333,35 @@ namespace input {
 
     safe::mail_raw_t::event_t<input::touch_port_t> touch_port_event;  ///< Touch port event.
     platf::feedback_queue_t feedback_queue;  ///< Queue used to deliver controller feedback to the platform backend.
+    platf::clipboard_queue_t clipboard_queue;  ///< Queue used to deliver clipboard messages to the client.
+
+    /**
+     * @brief Client clipboard being received after the client offered it.
+     */
+    struct clipboard_incoming_t {
+      std::uint32_t sequence = 0;  ///< Client offer being received.
+      std::vector<std::string> waiting;  ///< Requested MIME types that have not arrived.
+      platf::clipboard_data_t data;  ///< Formats received so far.
+      CLIPBOARD_ASSEMBLER assembler {};  ///< Chunks of the format being received.
+
+      clipboard_incoming_t() = default;
+      clipboard_incoming_t(const clipboard_incoming_t &) = delete;
+      clipboard_incoming_t &operator=(const clipboard_incoming_t &) = delete;
+
+      ~clipboard_incoming_t() {
+        ClipboardAssemblerReset(&assembler);
+      }
+
+      /**
+       * @brief Forget the offer being received.
+       */
+      void clear() {
+        sequence = 0;
+        waiting.clear();
+        data = {};
+        ClipboardAssemblerReset(&assembler);
+      }
+    } clipboard_incoming;  ///< Client clipboard being received.
 
     std::list<std::vector<uint8_t>> input_queue;  ///< Validated input packets waiting for processing.
     std::mutex input_queue_lock;  ///< Input queue lock.
@@ -436,6 +472,7 @@ namespace input {
   void rebind_input(const std::shared_ptr<input_t> &input, const safe::mail_t &mail) {
     input->touch_port_event = mail->event<input::touch_port_t>(mail::touch_port);
     input->feedback_queue = mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback);
+    input->clipboard_queue = mail->queue<platf::clipboard_message_t>(mail::clipboard);
 
     for (int client_index = 0; client_index < input->gamepads.size(); ++client_index) {
       auto &gamepad = input->gamepads[client_index];
@@ -1361,6 +1398,114 @@ namespace input {
   }
 
   /**
+   * @brief Queue a clipboard request or data message for the client's control stream.
+   *
+   * @param input Stream input state.
+   * @param action Message to send.
+   * @param sequence Offer sequence the message belongs to.
+   * @param mime MIME type the message is about.
+   */
+  void raise_clipboard(const std::shared_ptr<input_t> &input, platf::clipboard_action_e action, std::uint32_t sequence, std::string mime) {
+    input->clipboard_queue->raise(platf::clipboard_message_t {action, sequence, std::move(mime), nullptr});
+  }
+
+  /**
+   * @brief Request the formats Sunshine wants from a client clipboard offer.
+   *
+   * @param input Stream input state.
+   * @param offer Decoded client offer.
+   */
+  void accept_clipboard_offer(const std::shared_ptr<input_t> &input, const CLIPBOARD_OFFER &offer) {
+    std::vector<std::string_view> offered;
+    for (int i = 0; i < offer.mimeTypeCount; ++i) {
+      offered.emplace_back(offer.mimeTypes[i]);
+    }
+
+    auto &incoming = input->clipboard_incoming;
+    incoming.clear();
+    incoming.sequence = offer.sequence;
+    incoming.waiting = platf::clipboard_wanted_formats(offered);
+    for (const auto &mime : incoming.waiting) {
+      raise_clipboard(input, platf::clipboard_action_e::request, offer.sequence, mime);
+    }
+  }
+
+  /**
+   * @brief Add a chunk of client clipboard data, and set the host clipboard once every requested format arrived.
+   *
+   * @param input Stream input state.
+   * @param chunk Decoded data chunk.
+   */
+  void accept_clipboard_chunk(const std::shared_ptr<input_t> &input, const CLIPBOARD_CHUNK &chunk) {
+    auto &incoming = input->clipboard_incoming;
+    const std::string mime {chunk.mimeType};
+    if (chunk.sequence != incoming.sequence || std::ranges::find(incoming.waiting, mime) == incoming.waiting.end()) {
+      return;
+    }
+    if (ClipboardAssemblerAdd(&incoming.assembler, &chunk) != 1) {
+      return;
+    }
+
+    const std::span<const std::uint8_t> bytes {incoming.assembler.data, incoming.assembler.length};
+    if (platf::clipboard_is_text(mime)) {
+      incoming.data.text.assign(bytes.begin(), bytes.end());
+    } else {
+      incoming.data.image_mime = mime;
+      incoming.data.image.assign(bytes.begin(), bytes.end());
+    }
+    ClipboardAssemblerReset(&incoming.assembler);
+
+    std::erase(incoming.waiting, mime);
+    if (incoming.waiting.empty()) {
+      platf::clipboard_set(std::exchange(incoming.data, {}), input->clipboard_queue);
+    }
+  }
+
+  /**
+   * @brief Handle a client clipboard offer, request, or data packet.
+   *
+   * Any clipboard packet subscribes the client to host clipboard changes.
+   *
+   * @param input Stream input state.
+   * @param header Packet header at the start of the raw input bytes.
+   */
+  void passthrough_clipboard(const std::shared_ptr<input_t> &input, const NV_INPUT_HEADER *header) {
+    const auto *body = reinterpret_cast<const std::uint8_t *>(header) + sizeof(NV_INPUT_HEADER);
+    const auto length = static_cast<int>(util::endian::big(header->size) - sizeof(header->magic));
+    platf::clipboard_subscribe(input->clipboard_queue);
+
+    switch (util::endian::little(header->magic)) {
+      case SS_CLIPBOARD_OFFER_MAGIC:
+        {
+          CLIPBOARD_OFFER offer;
+          // An empty offer only subscribes
+          if (ClipboardDecodeOffer(body, length, &offer) && offer.mimeTypeCount > 0) {
+            accept_clipboard_offer(input, offer);
+          }
+          break;
+        }
+      case SS_CLIPBOARD_REQUEST_MAGIC:
+        {
+          CLIPBOARD_REQUEST request;
+          if (ClipboardDecodeRequest(body, length, &request)) {
+            raise_clipboard(input, platf::clipboard_action_e::send, request.sequence, request.mimeType);
+          }
+          break;
+        }
+      case SS_CLIPBOARD_DATA_MAGIC:
+        {
+          CLIPBOARD_CHUNK chunk;
+          if (ClipboardDecodeChunk(body, length, &chunk)) {
+            accept_clipboard_chunk(input, chunk);
+          }
+          break;
+        }
+      default:
+        break;
+    }
+  }
+
+  /**
    * @brief Allocate a virtual gamepad or refresh feedback after a retained controller arrives.
    *
    * @param input Stream input state.
@@ -1820,6 +1965,12 @@ namespace input {
         return validate_fixed_input_packet<NV_KEYBOARD_PACKET>(packet, declared_size);
       case UTF8_TEXT_EVENT_MAGIC:
         return declared_size - sizeof(header.magic) <= UTF8_TEXT_EVENT_MAX_COUNT;
+      case SS_CLIPBOARD_OFFER_MAGIC:
+        return declared_size - sizeof(header.magic) <= SS_CLIPBOARD_OFFER_MAX;
+      case SS_CLIPBOARD_REQUEST_MAGIC:
+        return declared_size - sizeof(header.magic) <= SS_CLIPBOARD_REQUEST_MAX;
+      case SS_CLIPBOARD_DATA_MAGIC:
+        return declared_size - sizeof(header.magic) <= SS_CLIPBOARD_DATA_HEADER_MAX + SS_CLIPBOARD_CHUNK_MAX;
       case MULTI_CONTROLLER_MAGIC_GEN5:
         return validate_fixed_input_packet<NV_MULTI_CONTROLLER_PACKET>(packet, declared_size);
       case SS_TOUCH_MAGIC:
@@ -2229,6 +2380,11 @@ namespace input {
       case UTF8_TEXT_EVENT_MAGIC:
         passthrough(static_cast<const NV_UNICODE_PACKET *>(static_cast<const void *>(payload)));
         break;
+      case SS_CLIPBOARD_OFFER_MAGIC:
+      case SS_CLIPBOARD_REQUEST_MAGIC:
+      case SS_CLIPBOARD_DATA_MAGIC:
+        passthrough_clipboard(input, payload);
+        break;
       case MULTI_CONTROLLER_MAGIC_GEN5:
         passthrough(input, (PNV_MULTI_CONTROLLER_PACKET) payload);
         break;
@@ -2371,6 +2527,7 @@ namespace input {
    * @param input Retained stream input state to reset.
    */
   void reset_input_state(const std::shared_ptr<input_t> &input) {
+    input->clipboard_incoming.clear();
     reset_mouse_buttons();
     reset_keyboard_keys();
     reset_gamepads(input);
@@ -2380,6 +2537,7 @@ namespace input {
    * @brief Reset the object to its initial empty state.
    */
   void reset(std::shared_ptr<input_t> &input) {
+    platf::clipboard_unsubscribe(input->clipboard_queue);
     task_pool.cancel(key_press_repeat_id);
     task_pool.cancel(input->mouse_left_button_timeout);
 
@@ -2490,7 +2648,8 @@ namespace input {
       } else {
         input = std::make_shared<input_t>(
           mail->event<input::touch_port_t>(mail::touch_port),
-          mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback)
+          mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback),
+          mail->queue<platf::clipboard_message_t>(mail::clipboard)
         );
         state.inputs.try_emplace(std::move(session_id), input);
       }

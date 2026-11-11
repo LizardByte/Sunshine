@@ -22,6 +22,7 @@
 
 // lib includes
 extern "C" {
+#include <moonlight-common-c/src/Clipboard.h>
 #include <moonlight-common-c/src/Input.h>
 }
 
@@ -200,6 +201,40 @@ TEST(InputPacketValidationTest, ValidatesUnicodePacketBoundsWithoutOverflow) {
 
   const auto truncated_text = make_input_packet(UTF8_TEXT_EVENT_MAGIC, maximum_declared_size, sizeof(NV_INPUT_HEADER));
   EXPECT_FALSE(input::testing::is_valid_input_packet(truncated_text));
+}
+
+TEST(InputPacketValidationTest, AcceptsEmptyAndMaximumClipboardPackets) {
+  constexpr std::array packet_specs {
+    input_packet_spec_t {SS_CLIPBOARD_OFFER_MAGIC, SS_CLIPBOARD_OFFER_MAX},
+    input_packet_spec_t {SS_CLIPBOARD_REQUEST_MAGIC, SS_CLIPBOARD_REQUEST_MAX},
+    input_packet_spec_t {SS_CLIPBOARD_DATA_MAGIC, SS_CLIPBOARD_DATA_HEADER_MAX + SS_CLIPBOARD_CHUNK_MAX},
+  };
+  constexpr auto prefix = sizeof(std::uint32_t);
+  for (const auto &spec : packet_specs) {
+    const auto empty_packet = make_input_packet(spec.magic, prefix, sizeof(std::uint32_t) + prefix);
+    EXPECT_TRUE(input::testing::is_valid_input_packet(empty_packet)) << "magic=" << spec.magic;
+
+    const auto maximum_declared_size = static_cast<std::uint32_t>(prefix + spec.size);
+    const auto maximum_packet = make_input_packet(spec.magic, maximum_declared_size, sizeof(std::uint32_t) + maximum_declared_size);
+    EXPECT_TRUE(input::testing::is_valid_input_packet(maximum_packet)) << "magic=" << spec.magic;
+  }
+}
+
+TEST(InputPacketValidationTest, RejectsTruncatedAndOversizedClipboardPackets) {
+  constexpr std::array packet_specs {
+    input_packet_spec_t {SS_CLIPBOARD_OFFER_MAGIC, SS_CLIPBOARD_OFFER_MAX},
+    input_packet_spec_t {SS_CLIPBOARD_REQUEST_MAGIC, SS_CLIPBOARD_REQUEST_MAX},
+    input_packet_spec_t {SS_CLIPBOARD_DATA_MAGIC, SS_CLIPBOARD_DATA_HEADER_MAX + SS_CLIPBOARD_CHUNK_MAX},
+  };
+  constexpr auto prefix = sizeof(std::uint32_t);
+  for (const auto &spec : packet_specs) {
+    const auto truncated_packet = make_input_packet(spec.magic, prefix + 4, sizeof(std::uint32_t) + prefix);
+    EXPECT_FALSE(input::testing::is_valid_input_packet(truncated_packet)) << "magic=" << spec.magic;
+
+    const auto oversized_declared_size = static_cast<std::uint32_t>(prefix + spec.size + 1);
+    const auto oversized_packet = make_input_packet(spec.magic, oversized_declared_size, sizeof(std::uint32_t) + oversized_declared_size);
+    EXPECT_FALSE(input::testing::is_valid_input_packet(oversized_packet)) << "magic=" << spec.magic;
+  }
 }
 
 TEST(InputPacketValidationTest, EnforcesEveryFixedPacketSize) {
