@@ -2515,13 +2515,6 @@ namespace video {
     }
   }
 
-  /**
-   * @brief Create a port object or message.
-   *
-   * @param display Display object or identifier associated with the operation.
-   * @param config Configuration values to apply.
-   * @return Constructed port object.
-   */
   input::touch_port_t make_port(platf::display_t *display, const config_t &config) {
     float wd = display->width;
     float hd = display->height;
@@ -2559,6 +2552,7 @@ namespace video {
         display->logical_height,
         display->env_offset_x,
         display->env_offset_y,
+        display->output_name,
       },
       display->env_width,
       display->env_height,
