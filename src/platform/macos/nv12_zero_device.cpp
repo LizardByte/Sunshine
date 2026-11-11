@@ -59,16 +59,32 @@ namespace platf {
 
     av_frame.reset(new_frame);
 
-    resolution_fn(this->display, new_frame->width, new_frame->height);
+    resolution_fn(this->sc, frame->width, frame->height);
 
     return 0;
   }
 
-  int nv12_zero_device::init(AVVideo *capture_display, pix_fmt_e pix_fmt, resolution_fn_t set_resolution, const pixel_format_fn_t &pixel_format_fn) {
-    pixel_format_fn(capture_display, pix_fmt == pix_fmt_e::nv12 ? kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange : kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange);
+  int nv12_zero_device::init(::screen_capture *sc, pix_fmt_e pix_fmt, bool full_range, resolution_fn_t resolution_fn, const pixel_format_fn_t &pixel_format_fn) {
+    OSType pixelFormat;
+    switch (pix_fmt) {
+      case pix_fmt_e::p010:
+        pixelFormat = full_range ? kCVPixelFormatType_420YpCbCr10BiPlanarFullRange : kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange;
+        break;
+      case pix_fmt_e::nv24:
+        pixelFormat = full_range ? kCVPixelFormatType_444YpCbCr8BiPlanarFullRange : kCVPixelFormatType_444YpCbCr8BiPlanarVideoRange;
+        break;
+      case pix_fmt_e::p410:
+        pixelFormat = full_range ? kCVPixelFormatType_444YpCbCr10BiPlanarFullRange : kCVPixelFormatType_444YpCbCr10BiPlanarVideoRange;
+        break;
+      case pix_fmt_e::nv12:
+      default:
+        pixelFormat = full_range ? kCVPixelFormatType_420YpCbCr8BiPlanarFullRange : kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange;
+        break;
+    }
+    pixel_format_fn(sc, pixelFormat);
 
-    this->display = capture_display;
-    this->resolution_fn = std::move(set_resolution);
+    this->sc = sc;
+    this->resolution_fn = std::move(resolution_fn);
 
     hardware = true;
 
