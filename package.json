@@ -37,12 +37,12 @@
   "devDependencies": {
     "@codecov/vite-plugin": "2.0.1",
     "@vitejs/plugin-vue": "6.0.10",
-    "@vitest/coverage-v8": "5.0.5",
+    "@vitest/coverage-v8": "5.1.0",
     "@vue/test-utils": "2.5.1",
     "jsdom": "31.0.0",
-    "serve": "14.2.6",
-    "vite": "8.3.5",
-    "vitest": "5.0.5"
+    "serve": "14.2.7",
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
   },
   "overrides": {
     "@codecov/vite-plugin": {
