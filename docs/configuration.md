@@ -2370,7 +2370,7 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
             @endcode</td>
     </tr>
     <tr>
-        <td rowspan="5">Choices</td>
+        <td rowspan="7">Choices</td>
         <td>nvenc</td>
         <td>For NVIDIA graphics cards</td>
     </tr>
@@ -2390,6 +2390,11 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
         <td>vulkan</td>
         <td>Use Vulkan encoder (AMD, Intel, NVIDIA).
             @note{Applies to Linux only.}</td>
+    </tr>
+    <tr>
+        <td>videotoolbox</td>
+        <td>Use VideoToolbox.
+            @note{Applies to macOS only.}</td>
     </tr>
     <tr>
         <td>software</td>
@@ -3106,7 +3111,7 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     <tr>
         <td>Description</td>
         <td colspan="2">
-            The entropy encoding to use.
+            The entropy encoding to use for H.264.
             @note{This option only applies when using macOS.}
         </td>
     </tr>
@@ -3125,15 +3130,15 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     <tr>
         <td rowspan="3">Choices</td>
         <td>auto</td>
-        <td>let ffmpeg decide</td>
+        <td>let VideoToolbox decide</td>
     </tr>
     <tr>
         <td>cabac</td>
-        <td>context adaptive binary arithmetic coding - faster decode</td>
+        <td>context adaptive binary arithmetic coding - higher quality</td>
     </tr>
     <tr>
         <td>cavlc</td>
-        <td>context adaptive variable-length coding - higher quality</td>
+        <td>context adaptive variable-length coding - faster decode</td>
     </tr>
 </table>
 
@@ -3143,7 +3148,7 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Force Video Toolbox to use software encoding.
+            Whether VideoToolbox may or must use its software encoder instead of the hardware encoder.
             @note{This option only applies when using macOS.}
         </td>
     </tr>
@@ -3162,7 +3167,7 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     <tr>
         <td rowspan="4">Choices</td>
         <td>auto</td>
-        <td>let ffmpeg decide</td>
+        <td>same as disabled</td>
     </tr>
     <tr>
         <td>disabled</td>

@@ -58,8 +58,6 @@ set(PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/macos/microphone.mm"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/misc.mm"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/misc.h"
-        "${CMAKE_SOURCE_DIR}/src/platform/macos/nv12_zero_device.cpp"
-        "${CMAKE_SOURCE_DIR}/src/platform/macos/nv12_zero_device.h"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/publish.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/sc_capture.h"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/sc_capture.mm"

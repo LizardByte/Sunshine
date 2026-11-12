@@ -117,8 +117,7 @@ const config = ref(props.config)
             <option value="vulkan">Vulkan</option>
           </template>
           <template #macos>
-            <option value="videotoolbox_native">VideoToolbox (Native)</option>
-            <option value="videotoolbox">VideoToolbox (FFmpeg)</option>
+            <option value="videotoolbox">VideoToolbox</option>
           </template>
         </PlatformLayout>
         <option value="software">{{ $t('config.encoder_software') }}</option>

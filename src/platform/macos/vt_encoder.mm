@@ -2,8 +2,7 @@
  * @file src/platform/macos/vt_encoder.mm
  * @brief Definitions for the native VideoToolbox encoder on macOS.
  *
- * Encodes captured CVPixelBuffers directly through a VTCompressionSession, bypassing
- * ffmpeg's vtenc wrapper. The session is driven strictly one frame in flight: each
+ * Encodes captured CVPixelBuffers directly through a VTCompressionSession. The session is driven strictly one frame in flight: each
  * submission blocks until the output callback delivers the encoded frame, so packets
  * come back in submission order with exactly one packet per frame index.
  */
@@ -397,11 +396,11 @@ namespace {
 
     bool init_encoder(const video::config_t &client_config, const video::sunshine_colorspace_t &colorspace) override {
       if (client_config.videoFormat == 2) {
-        BOOST_LOG(info) << "VideoToolbox native encoder doesn't support AV1"sv;
+        BOOST_LOG(info) << "VideoToolbox encoder doesn't support AV1"sv;
         return false;
       }
       if (client_config.videoFormat == 0 && colorspace.bit_depth == 10) {
-        BOOST_LOG(error) << "VideoToolbox native encoder doesn't support 10-bit H.264"sv;
+        BOOST_LOG(error) << "VideoToolbox encoder doesn't support 10-bit H.264"sv;
         return false;
       }
 

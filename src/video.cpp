@@ -209,13 +209,6 @@ namespace video {
    */
   util::Either<avcodec_buffer_t, int> cuda_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
   /**
-   * @brief Create an FFmpeg hardware device buffer for VideoToolbox input.
-   *
-   * @param encode_device Encode device.
-   * @return Hardware buffer on success, or an error code on failure.
-   */
-  util::Either<avcodec_buffer_t, int> vt_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
-  /**
    * @brief Create an FFmpeg hardware device buffer for Vulkan input.
    *
    * @return Hardware buffer on success, or an error code on failure.
@@ -1448,10 +1441,10 @@ namespace video {
 
 #ifdef __APPLE__
   /**
-   * @brief Native VideoToolbox.
+   * @brief VideoToolbox, driven directly through VTCompressionSession.
    */
-  encoder_t videotoolbox_native {
-    "videotoolbox_native"sv,
+  encoder_t videotoolbox {
+    "videotoolbox"sv,
     std::make_unique<encoder_platform_formats_vt>(
       platf::mem_type_e::videotoolbox,
       platf::pix_fmt_e::nv12,
@@ -1494,82 +1487,6 @@ namespace video {
     },
     PARALLEL_ENCODING
   };
-
-  /**
-   * @brief Videotoolbox.
-   */
-  encoder_t videotoolbox {
-    "videotoolbox"sv,
-    std::make_unique<encoder_platform_formats_avcodec>(
-      AV_HWDEVICE_TYPE_VIDEOTOOLBOX,
-      AV_HWDEVICE_TYPE_NONE,
-      AV_PIX_FMT_VIDEOTOOLBOX,
-      AV_PIX_FMT_NV12,
-      AV_PIX_FMT_P010,
-      AV_PIX_FMT_NONE,
-      AV_PIX_FMT_NONE,
-      vt_init_avcodec_hardware_input_buffer
-    ),
-    {
-      // Common options
-      {
-        {"allow_sw"s, &config::video.vt.vt_allow_sw},
-        {"require_sw"s, &config::video.vt.vt_require_sw},
-        {"realtime"s, &config::video.vt.vt_realtime},
-        {"prio_speed"s, 1},
-        {"max_ref_frames"s, 1},
-      },
-      {},  // SDR-specific options
-      {},  // HDR-specific options
-      {},  // YUV444 SDR-specific options
-      {},  // YUV444 HDR-specific options
-      {},  // Fallback options
-      "av1_videotoolbox"s,
-      {},  // capabilities
-    },
-    {
-      // Common options
-      {
-        {"allow_sw"s, &config::video.vt.vt_allow_sw},
-        {"require_sw"s, &config::video.vt.vt_require_sw},
-        {"realtime"s, &config::video.vt.vt_realtime},
-        {"prio_speed"s, 1},
-        {"max_ref_frames"s, 1},
-      },
-      {},  // SDR-specific options
-      {},  // HDR-specific options
-      {},  // YUV444 SDR-specific options
-      {},  // YUV444 HDR-specific options
-      {},  // Fallback options
-      "hevc_videotoolbox"s,
-      {},  // capabilities
-    },
-    {
-      // Common options
-      // Note: max_ref_frames is intentionally omitted for H.264 because
-      // VideoToolbox on Apple Silicon produces all-IDR output when
-      // ReferenceBufferCount=1 is set for H.264, causing massive bandwidth
-      // inflation (~3x) and frame drops. HEVC and AV1 are unaffected and
-      // retain max_ref_frames=1. See LizardByte/Sunshine#5013.
-      {
-        {"allow_sw"s, &config::video.vt.vt_allow_sw},
-        {"require_sw"s, &config::video.vt.vt_require_sw},
-        {"realtime"s, &config::video.vt.vt_realtime},
-        {"prio_speed"s, 1},
-      },
-      {},  // SDR-specific options
-      {},  // HDR-specific options
-      {},  // YUV444 SDR-specific options
-      {},  // YUV444 HDR-specific options
-      {
-        // Fallback options
-        {"flags"s, "-low_delay"},
-      },
-      "h264_videotoolbox"s,
-      {},  // capabilities
-    },
-    PARALLEL_ENCODING
-  };
 #endif
 
   static const std::vector encoders {
@@ -1588,7 +1505,6 @@ namespace video {
     &vaapi,
 #endif
 #ifdef __APPLE__
-    &videotoolbox_native,
     &videotoolbox,
 #endif
     &software
@@ -3802,22 +3718,6 @@ namespace video {
     return hw_device_buf;
   }
 
-  /**
-   * @brief Initialize AVCodec hardware input buffers for VideoToolbox.
-   */
-  util::Either<avcodec_buffer_t, int> vt_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device) {
-    avcodec_buffer_t hw_device_buf;
-
-    auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VIDEOTOOLBOX, nullptr, nullptr, 0);
-    if (status < 0) {
-      std::array<char, AV_ERROR_MAX_STRING_SIZE> string;
-      BOOST_LOG(error) << "Failed to create a VideoToolbox device: "sv << av_make_error_string(string.data(), AV_ERROR_MAX_STRING_SIZE, status);
-      return -1;
-    }
-
-    return hw_device_buf;
-  }
-
 #ifdef _WIN32
 }
 
@@ -3921,8 +3821,6 @@ namespace video {
         return cuda;
       case AV_HWDEVICE_TYPE_NONE:
         return system;
-      case AV_HWDEVICE_TYPE_VIDEOTOOLBOX:
-        return videotoolbox;
       default:
         return unknown;
     }

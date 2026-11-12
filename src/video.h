@@ -543,7 +543,6 @@ namespace video {
 #endif
 
 #ifdef __APPLE__
-  extern encoder_t videotoolbox_native;
   extern encoder_t videotoolbox;
 #endif
 
