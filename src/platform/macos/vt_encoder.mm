@@ -199,9 +199,16 @@ namespace {
 
       // Honor the host-side bitrate ceiling, matching the avcodec path
       const int bitrate_kbps = config::video.max_bitrate > 0 ? std::min(config.bitrate, config::video.max_bitrate) : config.bitrate;
+      // No DataRateLimits: with a hard byte window, low-latency rate control drops frames that
+      // would exceed it (e.g. full-screen changes at 4K120). Without it, AverageBitRate still
+      // steers the rate and oversized frames cost quality on later frames instead of a drop.
       set_int_property(kVTCompressionPropertyKey_AverageBitRate, bitrate_kbps * 1000, "AverageBitRate"sv);
-      set_data_rate_limits(bitrate_kbps);
-      set_int_property(kVTCompressionPropertyKey_ExpectedFrameRate, config.framerate, "ExpectedFrameRate"sv);
+      const int expected_rate = platf::vt::expected_frame_rate(codec, config.width, config.height, config.framerate);
+      if (expected_rate != config.framerate) {
+        BOOST_LOG(info) << "VideoToolbox H.264 expected frame rate capped at "sv << expected_rate << " (level 5.2 limit for "sv
+                        << config.width << 'x' << config.height << ")"sv;
+      }
+      set_int_property(kVTCompressionPropertyKey_ExpectedFrameRate, expected_rate, "ExpectedFrameRate"sv);
       set_int_property(kVTCompressionPropertyKey_MaxKeyFrameInterval, std::numeric_limits<int>::max(), "MaxKeyFrameInterval"sv);
       apply_colorspace(colorspace);
 
@@ -273,6 +280,8 @@ namespace {
         need_idr = false;
       }
 
+      frame_size_logger.collect_and_log(annexb.size() / 1000.);
+
       platf::vt_encoded_frame result;
       result.data = std::move(annexb);
       result.frame_index = frame_index;
@@ -341,20 +350,6 @@ namespace {
       return ok;
     }
 
-    void set_data_rate_limits(int bitrate_kbps) {
-      // VBV-like cap of one second's worth of bytes over a one-second window
-      int64_t bytes = (int64_t) bitrate_kbps * 1000 / 8;
-      double seconds = 1.0;
-      CFNumberRef bytes_ref = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt64Type, &bytes);
-      CFNumberRef seconds_ref = CFNumberCreate(kCFAllocatorDefault, kCFNumberDoubleType, &seconds);
-      const void *values[] = {bytes_ref, seconds_ref};
-      CFArrayRef limits = CFArrayCreate(kCFAllocatorDefault, values, 2, &kCFTypeArrayCallBacks);
-      set_property(kVTCompressionPropertyKey_DataRateLimits, limits, "DataRateLimits"sv);
-      CFRelease(limits);
-      CFRelease(bytes_ref);
-      CFRelease(seconds_ref);
-    }
-
     void apply_colorspace(const video::sunshine_colorspace_t &colorspace) {
       CFStringRef primaries;
       CFStringRef transfer;
@@ -398,6 +393,7 @@ namespace {
     bool idr_out = false;
     bool need_idr = false;
     std::vector<uint8_t> annexb;
+    logging::min_max_avg_periodic_logger<double> frame_size_logger = {debug, "VideoToolbox: encoded frame sizes in kB", ""};  ///< Periodic encoded frame size statistics.
     // Pointer identity only, never dereferenced; used to notice mid-stream parameter set changes
     CMFormatDescriptionRef last_format = nullptr;
   };
@@ -474,6 +470,18 @@ namespace {
 }  // namespace
 
 namespace platf::vt {
+  int expected_frame_rate(CMVideoCodecType codec, int width, int height, int framerate) {
+    if (codec != kCMVideoCodecType_H264 || width <= 0 || height <= 0) {
+      return framerate;
+    }
+
+    // H.264 level 5.2 MaxMBPS (macroblocks per second), Table A-1
+    constexpr std::int64_t max_macroblocks_per_second = 2073600;
+    const std::int64_t macroblocks_per_frame = static_cast<std::int64_t>((width + 15) / 16) * ((height + 15) / 16);
+    const auto level_limit = static_cast<int>(std::max<std::int64_t>(1, max_macroblocks_per_second / macroblocks_per_frame));
+    return std::min(framerate, level_limit);
+  }
+
   std::unique_ptr<vt_encode_device_t> make_encode_device(pix_fmt_e pix_fmt, resolution_fn_t resolution_fn, const pixel_format_fn_t &pixel_format_fn) {
     if (pix_fmt != pix_fmt_e::nv12 && pix_fmt != pix_fmt_e::p010) {
       BOOST_LOG(error) << "Unsupported pixel format for the VideoToolbox encoder"sv;

@@ -8,6 +8,9 @@
 #include <functional>
 #include <memory>
 
+// platform includes
+#include <CoreMedia/CoreMedia.h>
+
 // local includes
 #include "src/platform/common.h"
 
@@ -21,6 +24,22 @@ namespace platf::vt {
    * @brief Callback that selects the capture pixel format.
    */
   using pixel_format_fn_t = std::function<void(int pixel_format)>;
+
+  /**
+   * @brief Compute the frame rate to declare to a VideoToolbox compression session.
+   *
+   * Low-latency H.264 sessions drop every frame when the declared rate exceeds what H.264
+   * level 5.2 (the highest level the hardware encoder offers) allows at the session's
+   * resolution, so H.264 rates are capped at that limit. Frames are still submitted at the
+   * negotiated rate; only the rate-control hint changes. Other codecs are not capped.
+   *
+   * @param codec CoreMedia codec type of the session.
+   * @param width Encoded width in pixels.
+   * @param height Encoded height in pixels.
+   * @param framerate Negotiated stream frame rate.
+   * @return Frame rate to set as `kVTCompressionPropertyKey_ExpectedFrameRate`.
+   */
+  int expected_frame_rate(CMVideoCodecType codec, int width, int height, int framerate);
 
   /**
    * @brief Create a native VideoToolbox encode device bound to the capture display.
