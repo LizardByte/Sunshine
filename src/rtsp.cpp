@@ -4,7 +4,11 @@
  */
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
-#include "moonlight_common.h"
+#include "compat/moonlight.h"
+
+extern "C" {
+#include <moonlight-common-c/src/Rtsp.h>
+}
 
 // standard includes
 #include <array>

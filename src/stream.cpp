@@ -17,13 +17,15 @@
 #include <openssl/err.h>
 #include <rs.h>
 
+// Keep this separate so clang-format preserves the include order.
+#include "compat/moonlight.h"
+
 // local includes
 #include "config.h"
 #include "display_device.h"
 #include "globals.h"
 #include "input.h"
 #include "logging.h"
-#include "moonlight_common.h"
 #include "network.h"
 #include "platform/common.h"
 #include "process.h"

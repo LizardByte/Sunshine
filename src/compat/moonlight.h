@@ -1,6 +1,6 @@
 /**
- * @file src/moonlight_common.h
- * @brief Include Moonlight's internal protocol headers with C++ atomic support and C linkage.
+ * @file src/compat/moonlight.h
+ * @brief Import Moonlight's internal C declarations with C++ atomic support.
  */
 #pragma once
 
@@ -11,5 +11,4 @@
 // lib includes
 extern "C" {
 #include <moonlight-common-c/src/Limelight-internal.h>
-#include <moonlight-common-c/src/Rtsp.h>
 }

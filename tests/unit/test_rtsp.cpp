@@ -5,7 +5,7 @@
 
 // local includes
 // Include before test helpers so transitive atomic includes cannot hide C++ templates inside C linkage.
-#include <src/moonlight_common.h>
+#include <src/compat/moonlight.h>
 
 // test includes
 #include "../tests_common.h"
@@ -18,15 +18,18 @@
 
 // lib includes
 #include <boost/asio.hpp>
+extern "C" {
+#include <moonlight-common-c/src/Rtsp.h>
+}
 
 // local includes
 #include <src/audio.h>
 #include <src/rtsp.h>
 
 /**
- * @brief The standalone Moonlight header preserves C linkage when calling the C RTSP parser.
+ * @brief The Moonlight compatibility header can be included first before using the C RTSP parser.
  */
-TEST(RtspHeaderTest, StandaloneMoonlightHeaderPreservesCLinkage) {
+TEST(RtspHeaderTest, MoonlightCompatibilityHeaderCanPrecedeRtspParser) {
   char request[] = "OPTIONS rtsp://localhost RTSP/1.0\r\nCSeq: 42\r\n\r\n";
   RTSP_MESSAGE message {};
   ASSERT_EQ(parseRtspMessage(&message, request, sizeof(request) - 1), RTSP_ERROR_SUCCESS);
