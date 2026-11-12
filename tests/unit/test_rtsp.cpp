@@ -3,6 +3,10 @@
  * @brief Verify RTSP response handlers through their common dispatcher signature.
  */
 
+// local includes
+// Include before test helpers so transitive atomic includes cannot hide C++ templates inside C linkage.
+#include <src/moonlight_common.h>
+
 // test includes
 #include "../tests_common.h"
 
@@ -14,13 +18,26 @@
 
 // lib includes
 #include <boost/asio.hpp>
-extern "C" {
-#include <moonlight-common-c/src/Rtsp.h>
-}
 
 // local includes
 #include <src/audio.h>
 #include <src/rtsp.h>
+
+/**
+ * @brief The standalone Moonlight header preserves C linkage when calling the C RTSP parser.
+ */
+TEST(RtspHeaderTest, StandaloneMoonlightHeaderPreservesCLinkage) {
+  char request[] = "OPTIONS rtsp://localhost RTSP/1.0\r\nCSeq: 42\r\n\r\n";
+  RTSP_MESSAGE message {};
+  ASSERT_EQ(parseRtspMessage(&message, request, sizeof(request) - 1), RTSP_ERROR_SUCCESS);
+  const auto cleanup = util::fail_guard([&message]() {
+    freeMessage(&message);
+  });
+
+  EXPECT_EQ(message.type, TYPE_REQUEST);
+  EXPECT_EQ(message.sequenceNumber, 42);
+  EXPECT_STREQ(message.message.request.command, "OPTIONS");
+}
 
 /**
  * @brief Const RTSP wire headers decode network-order lengths independently of encryption flags.
