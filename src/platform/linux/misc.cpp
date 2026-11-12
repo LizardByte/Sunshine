@@ -59,7 +59,7 @@
 // local includes
 #include "graphics.h"
 #include "misc.h"
-#include "src/boost_process_compat.h"
+#include "src/compat/boost_process.h"
 #include "src/config.h"
 #include "src/entry_handler.h"
 #include "src/globals.h"
