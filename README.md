@@ -12,25 +12,25 @@
   <!-- Keep whitespace outside the badge links to avoid an underlined gap. -->
   <!-- Use raw HTML aliases to keep Doxygen's emitted comment delimiters balanced. -->
   <!--! @htmlonly_start -->
-  <a href="https://www.star-history.com/lizardbyte/sunshine"><picture><source
+  <a href="https://www.star-history.com/sunshinestream/sunshine"><picture><source
     media="(prefers-color-scheme: dark)"
-    srcset="https://api.star-history.com/badge?repo=lizardbyte/sunshine&type=rank&theme=dark"
+    srcset="https://api.star-history.com/badge?repo=sunshinestream/sunshine&type=rank&theme=dark"
   /><source
     media="(prefers-color-scheme: light)"
-    srcset="https://api.star-history.com/badge?repo=lizardbyte/sunshine&type=rank"
+    srcset="https://api.star-history.com/badge?repo=sunshinestream/sunshine&type=rank"
   /><img
     alt="Star History Rank"
-    src="https://api.star-history.com/badge?repo=lizardbyte/sunshine&type=rank"
+    src="https://api.star-history.com/badge?repo=sunshinestream/sunshine&type=rank"
   /></picture></a>
-  <a href="https://www.star-history.com/lizardbyte/sunshine"><picture><source
+  <a href="https://www.star-history.com/sunshinestream/sunshine"><picture><source
     media="(prefers-color-scheme: dark)"
-    srcset="https://api.star-history.com/badge?repo=lizardbyte/sunshine&type=trending&theme=dark"
+    srcset="https://api.star-history.com/badge?repo=sunshinestream/sunshine&type=trending&theme=dark"
   /><source
     media="(prefers-color-scheme: light)"
-    srcset="https://api.star-history.com/badge?repo=lizardbyte/sunshine&type=trending"
+    srcset="https://api.star-history.com/badge?repo=sunshinestream/sunshine&type=trending"
   /><img
     alt="GitHub Trending Repository of the Day"
-    src="https://api.star-history.com/badge?repo=lizardbyte/sunshine&type=trending"
+    src="https://api.star-history.com/badge?repo=sunshinestream/sunshine&type=trending"
   /></picture></a><br><br>
   <!--! @htmlonly_end -->
   <a href="https://github.com/SunshineStream/Sunshine"><img src="https://img.shields.io/github/stars/SunshineStream/Sunshine.svg?logo=github&style=for-the-badge" alt="GitHub stars"></a>
