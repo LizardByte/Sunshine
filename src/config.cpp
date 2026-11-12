@@ -1698,8 +1698,13 @@ namespace config {
     }
 
     int_f(vars, "vt_coder", video.vt.vt_coder, vt::coder_from_view);
-    int_f(vars, "vt_software", video.vt.vt_allow_sw, vt::allow_software_from_view);
-    int_f(vars, "vt_software", video.vt.vt_require_sw, vt::force_software_from_view);
+    // One setting drives both flags; read it once because reading consumes the entry.
+    std::string vt_software;
+    string_f(vars, "vt_software", vt_software);
+    if (!vt_software.empty()) {
+      video.vt.vt_allow_sw = vt::allow_software_from_view(vt_software);
+      video.vt.vt_require_sw = vt::force_software_from_view(vt_software);
+    }
     int_f(vars, "vt_realtime", video.vt.vt_realtime, vt::rt_from_view);
 
     std::string vaapi_quality;

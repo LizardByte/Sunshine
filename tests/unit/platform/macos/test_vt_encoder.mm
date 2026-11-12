@@ -15,6 +15,7 @@
 
   // lib includes
   #import <CoreMedia/CoreMedia.h>
+  #import <VideoToolbox/VideoToolbox.h>
 
   // local includes
   #include <src/platform/macos/vt_encoder.h>
@@ -279,6 +280,42 @@ TEST(VTEncoder, RejectsSampleWithoutDataBuffer) {
   bytes_t out;
   EXPECT_FALSE(platf::vt::append_annexb(sample.get(), true, out));
   EXPECT_TRUE(out.empty());
+}
+
+TEST(VTEncoder, DefaultSettingsRequireHardwareAndTryLowLatencyFirst) {
+  using enum platf::vt::hardware_e;
+  const std::vector<platf::vt::session_spec_t> expected = {{required, true}, {required, false}};
+  EXPECT_EQ(platf::vt::session_specs(kCMVideoCodecType_H264, false, false, true), expected);
+  EXPECT_EQ(platf::vt::session_specs(kCMVideoCodecType_HEVC, false, false, true), expected);
+  EXPECT_EQ(platf::vt::session_specs(kCMVideoCodecType_H264, false, false, false), expected);
+}
+
+TEST(VTEncoder, AllowedSoftwarePrefersHardware) {
+  using enum platf::vt::hardware_e;
+  const std::vector<platf::vt::session_spec_t> expected = {{preferred, true}, {preferred, false}};
+  EXPECT_EQ(platf::vt::session_specs(kCMVideoCodecType_H264, true, false, true), expected);
+}
+
+TEST(VTEncoder, ForcedSoftwareDisablesHardwareWithoutLowLatency) {
+  using enum platf::vt::hardware_e;
+  const std::vector<platf::vt::session_spec_t> expected = {{disabled, false}};
+  // vt_software = forced sets both flags.
+  EXPECT_EQ(platf::vt::session_specs(kCMVideoCodecType_H264, true, true, true), expected);
+  EXPECT_EQ(platf::vt::session_specs(kCMVideoCodecType_HEVC, true, true, true), expected);
+}
+
+TEST(VTEncoder, IntelHevcSkipsLowLatency) {
+  using enum platf::vt::hardware_e;
+  const std::vector<platf::vt::session_spec_t> expected = {{required, false}};
+  EXPECT_EQ(platf::vt::session_specs(kCMVideoCodecType_HEVC, false, false, false), expected);
+}
+
+TEST(VTEncoder, CoderSettingMapsToH264EntropyMode) {
+  EXPECT_EQ(platf::vt::h264_entropy_mode(1), kVTH264EntropyMode_CABAC);
+  EXPECT_EQ(platf::vt::h264_entropy_mode(2), kVTH264EntropyMode_CAVLC);
+  // auto parses to 0; the built-in default is -1.
+  EXPECT_EQ(platf::vt::h264_entropy_mode(0), nullptr);
+  EXPECT_EQ(platf::vt::h264_entropy_mode(-1), nullptr);
 }
 
 TEST(VTEncoder, H264ExpectedFrameRateIsCappedAtLevel52) {

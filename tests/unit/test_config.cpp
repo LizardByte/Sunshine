@@ -324,3 +324,33 @@ TEST_F(ConfigPersistenceTest, ParsesNvencTwoPassModesAndDefaultsUnknownValues) {
     EXPECT_EQ(config::video.nv.two_pass, expected) << setting;
   }
 }
+
+TEST_F(ConfigPersistenceTest, ParsesVideoToolboxSoftwareModeIntoBothFlags) {
+  const auto original_video = config::video;
+  const auto restore_video = util::fail_guard([original_video]() {
+    config::video = original_video;
+  });
+  const auto apps_file = config_file().parent_path() / "sunshine_test_config_apps.json";
+  ASSERT_EQ(file_handler::write_file(apps_file.string().c_str(), "{}"), 0);
+  config::stream.file_apps = apps_file.string();
+
+  struct vt_software_case {
+    std::string_view setting;
+    int allow_sw;
+    int require_sw;
+  };
+
+  constexpr std::array cases {
+    vt_software_case {"auto"sv, 0, 0},
+    vt_software_case {"disabled"sv, 0, 0},
+    vt_software_case {"allowed"sv, 1, 0},
+    vt_software_case {"forced"sv, 1, 1},
+  };
+  for (const auto &[setting, allow_sw, require_sw] : cases) {
+    config::video.vt.vt_allow_sw = -1;
+    config::video.vt.vt_require_sw = -1;
+    config::apply_config_for_test(std::string {"vt_software = "} + std::string {setting} + "\n");
+    EXPECT_EQ(config::video.vt.vt_allow_sw, allow_sw) << setting;
+    EXPECT_EQ(config::video.vt.vt_require_sw, require_sw) << setting;
+  }
+}

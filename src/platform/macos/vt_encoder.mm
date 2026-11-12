@@ -57,23 +57,37 @@ namespace {
       height = config.height;
       framerate = config.framerate;
 
-      CFMutableDictionaryRef spec = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-      CFDictionarySetValue(spec, kVTVideoEncoderSpecification_RequireHardwareAcceleratedVideoEncoder, kCFBooleanTrue);
-      CFDictionarySetValue(spec, kVTVideoEncoderSpecification_EnableLowLatencyRateControl, kCFBooleanTrue);
-      const auto create_status = VTCompressionSessionCreate(kCFAllocatorDefault, config.width, config.height, codec, spec, nullptr, nullptr, output_callback, this, &session);
-      CFRelease(spec);
-      if (create_status != noErr || !session) {
-        BOOST_LOG(error) << "VTCompressionSessionCreate failed: "sv << create_status;
-        session = nullptr;
+#if defined(__arm64__) || defined(__aarch64__)
+      constexpr bool arm64 = true;
+#else
+      constexpr bool arm64 = false;
+#endif
+      const auto specs = platf::vt::session_specs(codec, config::video.vt.vt_allow_sw, config::video.vt.vt_require_sw, arm64);
+      bool low_latency = false;
+      for (const auto &spec : specs) {
+        if (create_session(codec, config, spec)) {
+          low_latency = spec.low_latency;
+          break;
+        }
+      }
+      if (!session) {
+        BOOST_LOG(error) << "VideoToolbox could not create a compression session"sv;
         return false;
       }
+      if (!low_latency && specs.front().low_latency) {
+        BOOST_LOG(info) << "VideoToolbox low-latency rate control is unavailable; using standard rate control"sv;
+      }
+      log_session_encoder(low_latency);
 
-      set_property(kVTCompressionPropertyKey_RealTime, kCFBooleanTrue, "RealTime"sv);
+      set_property(kVTCompressionPropertyKey_RealTime, config::video.vt.vt_realtime ? kCFBooleanTrue : kCFBooleanFalse, "RealTime"sv);
       set_property(kVTCompressionPropertyKey_AllowFrameReordering, kCFBooleanFalse, "AllowFrameReordering"sv);
       if (codec == kCMVideoCodecType_H264) {
         // Low-latency H.264 sessions mark pictures as long-term references by default; some
         // client hardware decoders mishandle that and freeze, so keep to short-term references.
         set_property(kVTCompressionPropertyKey_EnableLTR, kCFBooleanFalse, "EnableLTR"sv);
+        if (const auto entropy_mode = platf::vt::h264_entropy_mode(config::video.vt.vt_coder)) {
+          set_property(kVTCompressionPropertyKey_H264EntropyMode, entropy_mode, "H264EntropyMode"sv);
+        }
       }
 
       CFStringRef profile;
@@ -89,10 +103,15 @@ namespace {
 
       // Honor the host-side bitrate ceiling, matching the avcodec path
       const int bitrate_kbps = config::video.max_bitrate > 0 ? std::min(config.bitrate, config::video.max_bitrate) : config.bitrate;
-      // No DataRateLimits: with a hard byte window, low-latency rate control drops frames that
-      // would exceed it (e.g. full-screen changes at 4K120). Without it, AverageBitRate still
+      // No DataRateLimits under low-latency rate control: with a hard byte window it drops frames
+      // that would exceed it (e.g. full-screen changes at 4K120). Without it, AverageBitRate still
       // steers the rate and oversized frames cost quality on later frames instead of a drop.
       set_int_property(kVTCompressionPropertyKey_AverageBitRate, bitrate_kbps * 1000, "AverageBitRate"sv);
+      if (!low_latency) {
+        // Standard rate control treats AverageBitRate as a long-term target, so bound each second
+        // to the bitrate, matching what the avcodec path requested for these sessions.
+        set_data_rate_limit(bitrate_kbps * 1000 / 8);
+      }
       const int expected_rate = platf::vt::expected_frame_rate(codec, config.width, config.height, config.framerate);
       if (expected_rate != config.framerate) {
         BOOST_LOG(info) << "VideoToolbox H.264 expected frame rate capped at "sv << expected_rate << " (level 5.2 limit for "sv
@@ -222,6 +241,74 @@ namespace {
         self->failed = false;
       } while (false);
       self->cv.notify_one();
+    }
+
+    /**
+     * @brief Try to create the compression session with one encoder specification.
+     *
+     * @param codec CoreMedia codec type to encode.
+     * @param config Client stream configuration negotiated for this session.
+     * @param spec Encoder specification to request.
+     * @return True when the session was created.
+     */
+    bool create_session(CMVideoCodecType codec, const video::config_t &config, const platf::vt::session_spec_t &spec) {
+      CFMutableDictionaryRef specification = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+      switch (spec.hardware) {
+        case platf::vt::hardware_e::required:
+          CFDictionarySetValue(specification, kVTVideoEncoderSpecification_RequireHardwareAcceleratedVideoEncoder, kCFBooleanTrue);
+          break;
+        case platf::vt::hardware_e::preferred:
+          CFDictionarySetValue(specification, kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder, kCFBooleanTrue);
+          break;
+        case platf::vt::hardware_e::disabled:
+          CFDictionarySetValue(specification, kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder, kCFBooleanFalse);
+          break;
+      }
+      if (spec.low_latency) {
+        CFDictionarySetValue(specification, kVTVideoEncoderSpecification_EnableLowLatencyRateControl, kCFBooleanTrue);
+      }
+
+      const auto status = VTCompressionSessionCreate(kCFAllocatorDefault, config.width, config.height, codec, specification, nullptr, nullptr, output_callback, this, &session);
+      CFRelease(specification);
+      if (status != noErr || !session) {
+        BOOST_LOG(warning) << "VTCompressionSessionCreate failed (low latency: "sv << spec.low_latency << ", hardware: "sv
+                           << static_cast<int>(spec.hardware) << "): "sv << status;
+        session = nullptr;
+        return false;
+      }
+      return true;
+    }
+
+    /**
+     * @brief Log which encoder VideoToolbox selected for the session.
+     *
+     * @param low_latency Whether the session uses low-latency rate control.
+     */
+    void log_session_encoder(bool low_latency) {
+      auto hardware = "unknown"sv;
+      CFBooleanRef using_hardware = nullptr;
+      if (VTSessionCopyProperty(session, kVTCompressionPropertyKey_UsingHardwareAcceleratedVideoEncoder, kCFAllocatorDefault, &using_hardware) == noErr && using_hardware) {
+        hardware = CFBooleanGetValue(using_hardware) ? "hardware"sv : "software"sv;
+        CFRelease(using_hardware);
+      }
+      BOOST_LOG(info) << "VideoToolbox session: "sv << hardware << " encoder, "sv << (low_latency ? "low-latency"sv : "standard"sv) << " rate control"sv;
+    }
+
+    /**
+     * @brief Limit the encoded data to a number of bytes per second.
+     *
+     * @param bytes_per_second Maximum encoded bytes in any one-second window.
+     */
+    void set_data_rate_limit(std::int64_t bytes_per_second) {
+      constexpr std::int64_t one_second = 1;
+      CFNumberRef bytes = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt64Type, &bytes_per_second);
+      CFNumberRef seconds = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt64Type, &one_second);
+      const void *values[] = {bytes, seconds};
+      CFArrayRef limits = CFArrayCreate(kCFAllocatorDefault, values, 2, &kCFTypeArrayCallBacks);
+      set_property(kVTCompressionPropertyKey_DataRateLimits, limits, "DataRateLimits"sv);
+      CFRelease(limits);
+      CFRelease(seconds);
+      CFRelease(bytes);
     }
 
     bool set_property(CFStringRef key, CFTypeRef value, std::string_view name) {
@@ -464,6 +551,35 @@ namespace platf::vt {
       restore_out.disable();
     }
     return ok;
+  }
+
+  std::vector<session_spec_t> session_specs(CMVideoCodecType codec, bool allow_software, bool require_software, bool arm64) {
+    hardware_e hardware = hardware_e::required;
+    if (require_software) {
+      hardware = hardware_e::disabled;
+    } else if (allow_software) {
+      hardware = hardware_e::preferred;
+    }
+
+    std::vector<session_spec_t> specs;
+    // The software encoder rejects low-latency rate control, and FFmpeg only enables it for
+    // HEVC on Apple silicon, so those combinations go straight to standard rate control.
+    if (hardware != hardware_e::disabled && (codec == kCMVideoCodecType_H264 || arm64)) {
+      specs.push_back({hardware, true});
+    }
+    specs.push_back({hardware, false});
+    return specs;
+  }
+
+  CFStringRef h264_entropy_mode(int coder) {
+    switch (coder) {
+      case 1:
+        return kVTH264EntropyMode_CABAC;
+      case 2:
+        return kVTH264EntropyMode_CAVLC;
+      default:
+        return nullptr;
+    }
   }
 
   int expected_frame_rate(CMVideoCodecType codec, int width, int height, int framerate) {
