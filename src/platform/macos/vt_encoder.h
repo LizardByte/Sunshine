@@ -5,8 +5,10 @@
 #pragma once
 
 // standard includes
+#include <cstdint>
 #include <functional>
 #include <memory>
+#include <vector>
 
 // platform includes
 #include <CoreMedia/CoreMedia.h>
@@ -24,6 +26,20 @@ namespace platf::vt {
    * @brief Callback that selects the capture pixel format.
    */
   using pixel_format_fn_t = std::function<void(int pixel_format)>;
+
+  /**
+   * @brief Convert one encoded sample buffer from AVCC framing to an Annex-B elementary stream.
+   *
+   * On IDR frames the parameter sets held out-of-band in the format description are emitted
+   * first (H.264: SPS, PPS; HEVC: VPS, SPS, PPS), because Moonlight identifies IDR frames by
+   * the leading parameter-set NAL and decodes each packet as a self-contained frame.
+   *
+   * @param sample_buffer Encoded sample buffer delivered by the compression session.
+   * @param idr Whether the sample buffer holds a sync (IDR) frame.
+   * @param out Vector that receives the Annex-B bytes; left unchanged when conversion fails.
+   * @return True when the complete frame was converted.
+   */
+  bool append_annexb(CMSampleBufferRef sample_buffer, bool idr, std::vector<uint8_t> &out);
 
   /**
    * @brief Compute the frame rate to declare to a VideoToolbox compression session.

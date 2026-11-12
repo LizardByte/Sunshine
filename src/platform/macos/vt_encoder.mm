@@ -24,121 +24,11 @@
 #include "src/logging.h"
 #include "src/platform/macos/av_img_t.h"
 #include "src/platform/macos/vt_encoder.h"
+#include "src/utility.h"
 #include "src/video.h"
 
 namespace {
   using namespace std::literals;
-
-  /**
-   * @brief Convert one encoded sample buffer from AVCC framing to an Annex-B elementary stream.
-   *
-   * On IDR frames the parameter sets held out-of-band in the format description are emitted
-   * first (H.264: SPS, PPS; HEVC: VPS, SPS, PPS), because Moonlight identifies IDR frames by
-   * the leading parameter-set NAL and decodes each packet as a self-contained frame.
-   *
-   * @param sample_buffer Encoded sample buffer delivered by the compression session.
-   * @param idr Whether the sample buffer holds a sync (IDR) frame.
-   * @param out Vector that receives the Annex-B bytes.
-   * @return True when the complete frame was converted.
-   */
-  bool append_annexb(CMSampleBufferRef sample_buffer, bool idr, std::vector<uint8_t> &out) {
-    constexpr uint8_t start_code[] = {0, 0, 0, 1};
-
-    CMFormatDescriptionRef format = CMSampleBufferGetFormatDescription(sample_buffer);
-    if (!format) {
-      BOOST_LOG(error) << "VideoToolbox sample buffer has no format description"sv;
-      return false;
-    }
-    const bool hevc = CMFormatDescriptionGetMediaSubType(format) == kCMVideoCodecType_HEVC;
-
-    size_t parameter_set_count = 0;
-    int nal_length_size = 4;
-    {
-      const uint8_t *ps = nullptr;
-      size_t ps_size = 0;
-      const auto status = hevc ?
-                            CMVideoFormatDescriptionGetHEVCParameterSetAtIndex(format, 0, &ps, &ps_size, &parameter_set_count, &nal_length_size) :
-                            CMVideoFormatDescriptionGetH264ParameterSetAtIndex(format, 0, &ps, &ps_size, &parameter_set_count, &nal_length_size);
-      if (status != noErr) {
-        BOOST_LOG(error) << "VideoToolbox parameter set query failed: "sv << status;
-        return false;
-      }
-    }
-
-    if (idr) {
-      for (size_t i = 0; i < parameter_set_count; ++i) {
-        const uint8_t *ps = nullptr;
-        size_t ps_size = 0;
-        const auto status = hevc ?
-                              CMVideoFormatDescriptionGetHEVCParameterSetAtIndex(format, i, &ps, &ps_size, nullptr, nullptr) :
-                              CMVideoFormatDescriptionGetH264ParameterSetAtIndex(format, i, &ps, &ps_size, nullptr, nullptr);
-        if (status != noErr || !ps_size) {
-          BOOST_LOG(error) << "VideoToolbox parameter set "sv << i << " query failed: "sv << status;
-          return false;
-        }
-        if (i == 0) {
-          const int nal_type = hevc ? ((ps[0] >> 1) & 0x3f) : (ps[0] & 0x1f);
-          const int expected = hevc ? 32 : 7;  // Moonlight requires VPS-first (HEVC) / SPS-first (H.264) IDR frames
-          if (nal_type != expected) {
-            BOOST_LOG(error) << "VideoToolbox emitted unexpected leading parameter set NAL type "sv << nal_type;
-          }
-        }
-        out.insert(out.end(), std::begin(start_code), std::end(start_code));
-        out.insert(out.end(), ps, ps + ps_size);
-      }
-    }
-
-    CMBlockBufferRef block = CMSampleBufferGetDataBuffer(sample_buffer);
-    if (!block) {
-      BOOST_LOG(error) << "VideoToolbox sample buffer has no data buffer"sv;
-      return false;
-    }
-
-    char *data = nullptr;
-    size_t contiguous_length = 0;
-    size_t total_length = 0;
-    CMBlockBufferRef contiguous = nullptr;
-    auto status = CMBlockBufferGetDataPointer(block, 0, &contiguous_length, &total_length, &data);
-    if (status != kCMBlockBufferNoErr || contiguous_length < total_length) {
-      if (CMBlockBufferCreateContiguous(kCFAllocatorDefault, block, nullptr, nullptr, 0, 0, 0, &contiguous) != kCMBlockBufferNoErr) {
-        BOOST_LOG(error) << "VideoToolbox block buffer could not be made contiguous"sv;
-        return false;
-      }
-      status = CMBlockBufferGetDataPointer(contiguous, 0, &contiguous_length, &total_length, &data);
-      if (status != kCMBlockBufferNoErr || contiguous_length < total_length) {
-        CFRelease(contiguous);
-        BOOST_LOG(error) << "VideoToolbox contiguous block buffer access failed: "sv << status;
-        return false;
-      }
-    }
-
-    bool ok = true;
-    size_t offset = 0;
-    while (offset + nal_length_size <= total_length) {
-      uint64_t nal_length = 0;
-      for (int i = 0; i < nal_length_size; ++i) {
-        nal_length = (nal_length << 8) | (uint8_t) data[offset + i];
-      }
-      offset += nal_length_size;
-      if (!nal_length || nal_length > total_length - offset) {
-        ok = false;
-        break;
-      }
-      out.insert(out.end(), std::begin(start_code), std::end(start_code));
-      out.insert(out.end(), data + offset, data + offset + nal_length);
-      offset += nal_length;
-    }
-    if (offset != total_length) {
-      ok = false;
-    }
-    if (!ok) {
-      BOOST_LOG(error) << "VideoToolbox produced a malformed AVCC bitstream"sv;
-    }
-    if (contiguous) {
-      CFRelease(contiguous);
-    }
-    return ok;
-  }
 
   /**
    * @brief Blocking one-frame-in-flight wrapper around a VTCompressionSession.
@@ -324,7 +214,7 @@ namespace {
         }
         self->last_format = format;
 
-        if (!append_annexb(sample_buffer, sync, self->annexb)) {
+        if (!platf::vt::append_annexb(sample_buffer, sync, self->annexb)) {
           self->annexb.clear();
           break;
         }
@@ -470,6 +360,112 @@ namespace {
 }  // namespace
 
 namespace platf::vt {
+  bool append_annexb(CMSampleBufferRef sample_buffer, bool idr, std::vector<uint8_t> &out) {
+    constexpr uint8_t start_code[] = {0, 0, 0, 1};
+    const auto start_size = out.size();
+    auto restore_out = util::fail_guard([&]() {
+      out.resize(start_size);
+    });
+
+    CMFormatDescriptionRef format = CMSampleBufferGetFormatDescription(sample_buffer);
+    if (!format) {
+      BOOST_LOG(error) << "VideoToolbox sample buffer has no format description"sv;
+      return false;
+    }
+    const bool hevc = CMFormatDescriptionGetMediaSubType(format) == kCMVideoCodecType_HEVC;
+
+    size_t parameter_set_count = 0;
+    int nal_length_size = 4;
+    {
+      const uint8_t *ps = nullptr;
+      size_t ps_size = 0;
+      const auto status = hevc ?
+                            CMVideoFormatDescriptionGetHEVCParameterSetAtIndex(format, 0, &ps, &ps_size, &parameter_set_count, &nal_length_size) :
+                            CMVideoFormatDescriptionGetH264ParameterSetAtIndex(format, 0, &ps, &ps_size, &parameter_set_count, &nal_length_size);
+      if (status != noErr) {
+        BOOST_LOG(error) << "VideoToolbox parameter set query failed: "sv << status;
+        return false;
+      }
+    }
+
+    if (idr) {
+      for (size_t i = 0; i < parameter_set_count; ++i) {
+        const uint8_t *ps = nullptr;
+        size_t ps_size = 0;
+        const auto status = hevc ?
+                              CMVideoFormatDescriptionGetHEVCParameterSetAtIndex(format, i, &ps, &ps_size, nullptr, nullptr) :
+                              CMVideoFormatDescriptionGetH264ParameterSetAtIndex(format, i, &ps, &ps_size, nullptr, nullptr);
+        if (status != noErr || !ps_size) {
+          BOOST_LOG(error) << "VideoToolbox parameter set "sv << i << " query failed: "sv << status;
+          return false;
+        }
+        if (i == 0) {
+          const int nal_type = hevc ? ((ps[0] >> 1) & 0x3f) : (ps[0] & 0x1f);
+          const int expected = hevc ? 32 : 7;  // Moonlight requires VPS-first (HEVC) / SPS-first (H.264) IDR frames
+          if (nal_type != expected) {
+            BOOST_LOG(error) << "VideoToolbox emitted unexpected leading parameter set NAL type "sv << nal_type;
+          }
+        }
+        out.insert(out.end(), std::begin(start_code), std::end(start_code));
+        out.insert(out.end(), ps, ps + ps_size);
+      }
+    }
+
+    CMBlockBufferRef block = CMSampleBufferGetDataBuffer(sample_buffer);
+    if (!block) {
+      BOOST_LOG(error) << "VideoToolbox sample buffer has no data buffer"sv;
+      return false;
+    }
+
+    char *data = nullptr;
+    size_t contiguous_length = 0;
+    size_t total_length = 0;
+    CMBlockBufferRef contiguous = nullptr;
+    auto status = CMBlockBufferGetDataPointer(block, 0, &contiguous_length, &total_length, &data);
+    if (status != kCMBlockBufferNoErr || contiguous_length < total_length) {
+      if (CMBlockBufferCreateContiguous(kCFAllocatorDefault, block, nullptr, nullptr, 0, 0, 0, &contiguous) != kCMBlockBufferNoErr) {
+        BOOST_LOG(error) << "VideoToolbox block buffer could not be made contiguous"sv;
+        return false;
+      }
+      status = CMBlockBufferGetDataPointer(contiguous, 0, &contiguous_length, &total_length, &data);
+      if (status != kCMBlockBufferNoErr || contiguous_length < total_length) {
+        CFRelease(contiguous);
+        BOOST_LOG(error) << "VideoToolbox contiguous block buffer access failed: "sv << status;
+        return false;
+      }
+    }
+
+    bool ok = true;
+    size_t offset = 0;
+    while (offset + nal_length_size <= total_length) {
+      uint64_t nal_length = 0;
+      for (int i = 0; i < nal_length_size; ++i) {
+        nal_length = (nal_length << 8) | (uint8_t) data[offset + i];
+      }
+      offset += nal_length_size;
+      if (!nal_length || nal_length > total_length - offset) {
+        ok = false;
+        break;
+      }
+      out.insert(out.end(), std::begin(start_code), std::end(start_code));
+      out.insert(out.end(), data + offset, data + offset + nal_length);
+      offset += nal_length;
+    }
+    if (offset != total_length) {
+      ok = false;
+    }
+    if (!ok) {
+      BOOST_LOG(error) << "VideoToolbox produced a malformed AVCC bitstream"sv;
+    }
+    if (contiguous) {
+      CFRelease(contiguous);
+    }
+    if (ok) {
+      restore_out.disable();
+    }
+    return ok;
+  }
+
   int expected_frame_rate(CMVideoCodecType codec, int width, int height, int framerate) {
     if (codec != kCMVideoCodecType_H264 || width <= 0 || height <= 0) {
       return framerate;
