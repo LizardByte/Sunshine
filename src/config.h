@@ -121,8 +121,6 @@ namespace config {
     } amd;  ///< AMD AMF encoder options.
 
     struct {
-      int vt_allow_sw;  ///< Whether VideoToolbox may use software encoding.
-      int vt_require_sw;  ///< Whether VideoToolbox must use software encoding.
       int vt_realtime;  ///< Whether VideoToolbox uses realtime encoding mode.
       int vt_coder;  ///< VideoToolbox entropy-coding mode.
     } vt;  ///< VideoToolbox encoder options.

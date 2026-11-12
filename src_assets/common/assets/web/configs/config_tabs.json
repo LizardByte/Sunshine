@@ -150,7 +150,6 @@
     "nameKey": "config.category_videotoolbox_encoder",
     "options": {
       "vt_coder": "auto",
-      "vt_software": "auto",
       "vt_realtime": "enabled"
     }
   },

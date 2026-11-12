@@ -282,32 +282,11 @@ TEST(VTEncoder, RejectsSampleWithoutDataBuffer) {
   EXPECT_TRUE(out.empty());
 }
 
-TEST(VTEncoder, DefaultSettingsRequireHardwareAndTryLowLatencyFirst) {
-  using enum platf::vt::hardware_e;
-  const std::vector<platf::vt::session_spec_t> expected = {{required, true}, {required, false}};
-  EXPECT_EQ(platf::vt::session_specs(kCMVideoCodecType_H264, false, false, true), expected);
-  EXPECT_EQ(platf::vt::session_specs(kCMVideoCodecType_HEVC, false, false, true), expected);
-  EXPECT_EQ(platf::vt::session_specs(kCMVideoCodecType_H264, false, false, false), expected);
-}
-
-TEST(VTEncoder, AllowedSoftwarePrefersHardware) {
-  using enum platf::vt::hardware_e;
-  const std::vector<platf::vt::session_spec_t> expected = {{preferred, true}, {preferred, false}};
-  EXPECT_EQ(platf::vt::session_specs(kCMVideoCodecType_H264, true, false, true), expected);
-}
-
-TEST(VTEncoder, ForcedSoftwareDisablesHardwareWithoutLowLatency) {
-  using enum platf::vt::hardware_e;
-  const std::vector<platf::vt::session_spec_t> expected = {{disabled, false}};
-  // vt_software = forced sets both flags.
-  EXPECT_EQ(platf::vt::session_specs(kCMVideoCodecType_H264, true, true, true), expected);
-  EXPECT_EQ(platf::vt::session_specs(kCMVideoCodecType_HEVC, true, true, true), expected);
-}
-
-TEST(VTEncoder, IntelHevcSkipsLowLatency) {
-  using enum platf::vt::hardware_e;
-  const std::vector<platf::vt::session_spec_t> expected = {{required, false}};
-  EXPECT_EQ(platf::vt::session_specs(kCMVideoCodecType_HEVC, false, false, false), expected);
+TEST(VTEncoder, TriesLowLatencyFirstExceptForHevcOnIntel) {
+  EXPECT_TRUE(platf::vt::try_low_latency(kCMVideoCodecType_H264, true));
+  EXPECT_TRUE(platf::vt::try_low_latency(kCMVideoCodecType_HEVC, true));
+  EXPECT_TRUE(platf::vt::try_low_latency(kCMVideoCodecType_H264, false));
+  EXPECT_FALSE(platf::vt::try_low_latency(kCMVideoCodecType_HEVC, false));
 }
 
 TEST(VTEncoder, CoderSettingMapsToH264EntropyMode) {

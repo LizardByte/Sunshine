@@ -3142,47 +3142,6 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
     </tr>
 </table>
 
-### vt_software
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Whether VideoToolbox may or must use its software encoder instead of the hardware encoder.
-            @note{This option only applies when using macOS.}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            auto
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            vt_software = auto
-            @endcode</td>
-    </tr>
-    <tr>
-        <td rowspan="4">Choices</td>
-        <td>auto</td>
-        <td>same as disabled</td>
-    </tr>
-    <tr>
-        <td>disabled</td>
-        <td>disable software encoding</td>
-    </tr>
-    <tr>
-        <td>allowed</td>
-        <td>allow software encoding</td>
-    </tr>
-    <tr>
-        <td>forced</td>
-        <td>force software encoding</td>
-    </tr>
-</table>
-
 ### vt_realtime
 
 <table>

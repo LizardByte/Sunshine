@@ -28,43 +28,17 @@ namespace platf::vt {
   using pixel_format_fn_t = std::function<void(int pixel_format)>;
 
   /**
-   * @brief Hardware encoder policy requested for a compression session.
-   */
-  enum class hardware_e {
-    required,  ///< Only a hardware encoder may be used (`vt_software = auto` or `disabled`).
-    preferred,  ///< Prefer a hardware encoder, falling back to software (`vt_software = allowed`).
-    disabled,  ///< Only the software encoder may be used (`vt_software = forced`).
-  };
-
-  /**
-   * @brief Encoder specification for one compression session creation attempt.
-   */
-  struct session_spec_t {
-    hardware_e hardware;  ///< Hardware encoder policy.
-    bool low_latency;  ///< Whether to request low-latency rate control.
-
-    /**
-     * @brief Compare two specifications.
-     *
-     * @param other Specification to compare against.
-     * @return True when both specifications are equal.
-     */
-    bool operator==(const session_spec_t &other) const = default;
-  };
-
-  /**
-   * @brief List the encoder specifications to try, in order, when creating a compression session.
+   * @brief Decide whether to request low-latency rate control before standard rate control.
    *
-   * Low-latency rate control is requested first where it can be supported. A specification
-   * without it always follows, so encoders that reject it still get a session.
+   * A session without low-latency rate control is always tried next, so encoders that reject
+   * it still get a session. FFmpeg only enabled it for HEVC on Apple silicon, so HEVC on Intel
+   * goes straight to standard rate control.
    *
    * @param codec CoreMedia codec type of the session.
-   * @param allow_software Whether VideoToolbox may fall back to its software encoder.
-   * @param require_software Whether VideoToolbox must use its software encoder.
    * @param arm64 Whether the host is Apple silicon.
-   * @return Specifications to try; never empty.
+   * @return True when low-latency rate control should be tried first.
    */
-  std::vector<session_spec_t> session_specs(CMVideoCodecType codec, bool allow_software, bool require_software, bool arm64);
+  bool try_low_latency(CMVideoCodecType codec, bool arm64);
 
   /**
    * @brief Map the `vt_coder` setting to an H.264 entropy mode.
