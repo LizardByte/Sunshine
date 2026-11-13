@@ -122,6 +122,17 @@ namespace platf {
   bool sanitize_process_environment();
 
   /**
+   * @brief Log a hint when no graphical session is visible to Sunshine.
+   *
+   * Called after every capture method failed to initialize. When neither `WAYLAND_DISPLAY` nor `DISPLAY` is set
+   * and the configured capture method is not KMS, an error explains that Sunshine is not running inside a
+   * graphical session and how to export the session environment to systemd.
+   *
+   * @return `true` when the hint was logged; `false` when a session variable is set or KMS capture is configured.
+   */
+  bool log_missing_graphical_session_hint();
+
+  /**
    * @brief Open a DRM card node and drop implicit DRM master, if any.
    *
    * Performs `open(path, flags | O_CLOEXEC)` and probes the resulting fd with
