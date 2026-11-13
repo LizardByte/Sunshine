@@ -901,7 +901,7 @@ TEST_F(ProcessInputOnlyTest, Parse_OmitsInputOnlyEntryWhenDisabled) {
 
   const auto &apps = parsed->get_apps();
   ASSERT_EQ(apps.size(), 2U);
-  for (const auto &app: apps) {
+  for (const auto &app : apps) {
     EXPECT_NE(app.name, "Input Only");
   }
   EXPECT_TRUE(proc::input_only_app_id.empty());

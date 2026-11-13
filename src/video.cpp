@@ -1773,27 +1773,124 @@ namespace video {
           return false;
         }
 
+        // If every remaining session is input-only, unwind the capture backend so the
+        // outer loop can switch to its idle path instead of grabbing frames forever.
+        if (!capture_ctxs.empty() && !std::any_of(std::begin(capture_ctxs), std::end(capture_ctxs), [](const capture_ctx_t &capture_ctx) {
+             return capture_ctx.images->running() && !capture_ctx.config.input_only;
+           })) {
+          artificial_reinit = true;
+          return false;
+        }
+
+        return true;
+      };
+
+      // Shared display reinitialization sequence. Returns false when the capture thread must exit.
+      auto do_reinit = [&]() -> bool {
+        reinit_event.raise(true);
+
+        // Some classes of images contain references to the display --> display won't delete unless img is deleted
+        for (auto &img : imgs) {
+          img.reset();
+        }
+
+        // display_wp is modified in this thread only
+        // Wait for the other shared_ptr's of display to be destroyed.
+        // New displays will only be created in this thread.
+        while (display_wp->use_count() != 1) {
+          // Free images that weren't consumed by the encoders. These can reference the display and prevent
+          // the ref count from reaching 1. We do this here rather than on the encoder thread to avoid race
+          // conditions where the encoding loop might free a good frame after reinitializing if we capture
+          // a new frame here before the encoder has finished reinitializing.
+          KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
+            if (!capture_ctx->images->running()) {
+              capture_ctx = capture_ctxs.erase(capture_ctx);
+              continue;
+            }
+
+            while (capture_ctx->images->try_pop()) {
+            }
+
+            ++capture_ctx;
+          });
+
+          std::this_thread::sleep_for(20ms);
+        }
+
+        if (capture_ctxs.empty()) {
+          // Every session went away while we were reinitializing. Refcount-driven shutdown
+          // of the shared capture thread will take care of the rest.
+          return false;
+        }
+
+        while (capture_ctx_queue->running()) {
+          // Release the display before reenumerating displays, since some capture backends
+          // only support a single display session per device/application.
+          disp.reset();
+
+          // Refresh display names since a display removal might have caused the reinitialization
+          refresh_displays(encoder.platform_formats->dev_type, display_names, display_p);
+
+          // Process any pending display switch with the new list of displays
+          if (switch_display_event->peek()) {
+            display_p = std::clamp(*switch_display_event->pop(), 0, static_cast<int>(display_names.size()) - 1);
+          }
+
+          // reset_display() will sleep between retries
+          reset_display(disp, encoder.platform_formats->dev_type, display_names[display_p], capture_ctxs.front().config);
+          if (disp) {
+            break;
+          }
+        }
+        if (!disp) {
+          return false;
+        }
+
+        display_wp = disp;
+
+        reinit_event.reset();
         return true;
       };
 
       // Only run the capture backend when at least one active session needs video frames.
-      // Input-only sessions receive a single blank frame and then idle.
+      // Input-only sessions serve blank frames and never consume captured images.
       bool capture_needed = std::any_of(std::begin(capture_ctxs), std::end(capture_ctxs), [](const capture_ctx_t &capture_ctx) {
         return capture_ctx.images->running() && !capture_ctx.config.input_only;
       });
 
-      platf::capture_e status;
       if (!capture_needed) {
         std::this_thread::sleep_for(50ms);
+
+        // Prune sessions that have stopped while we were idling
+        KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
+          if (!capture_ctx->images->running()) {
+            capture_ctx = capture_ctxs.erase(capture_ctx);
+
+            continue;
+          }
+
+          ++capture_ctx;
+        })
 
         while (capture_ctx_queue->peek()) {
           capture_ctxs.emplace_back(std::move(*capture_ctx_queue->pop()));
         }
 
-        status = switch_display_event->peek() ? platf::capture_e::reinit : platf::capture_e::ok;
-      } else {
-        status = disp->capture(push_captured_image_callback, pull_free_image_callback, &display_cursor);
+        if (switch_display_event->peek()) {
+          if (!do_reinit()) {
+            return;
+          }
+
+          continue;
+        }
+
+        // Keep idling or pick up newly queued sessions by re-evaluating capture_needed at the top
+        // of the loop. Note: we must not fall through to the status switch with a non-terminal
+        // status because capture_e::ok is handled as end-of-capture and would kill this shared thread.
+        continue;
       }
+
+      auto status = disp->capture(push_captured_image_callback, pull_free_image_callback, &display_cursor);
 
       if (artificial_reinit && status != platf::capture_e::capture_error) {
         status = platf::capture_e::reinit;
@@ -1803,65 +1900,11 @@ namespace video {
 
       switch (status) {
         case platf::capture_e::reinit:
-          {
-            reinit_event.raise(true);
-
-            // Some classes of images contain references to the display --> display won't delete unless img is deleted
-            for (auto &img : imgs) {
-              img.reset();
-            }
-
-            // display_wp is modified in this thread only
-            // Wait for the other shared_ptr's of display to be destroyed.
-            // New displays will only be created in this thread.
-            while (display_wp->use_count() != 1) {
-              // Free images that weren't consumed by the encoders. These can reference the display and prevent
-              // the ref count from reaching 1. We do this here rather than on the encoder thread to avoid race
-              // conditions where the encoding loop might free a good frame after reinitializing if we capture
-              // a new frame here before the encoder has finished reinitializing.
-              KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
-                if (!capture_ctx->images->running()) {
-                  capture_ctx = capture_ctxs.erase(capture_ctx);
-                  continue;
-                }
-
-                while (capture_ctx->images->try_pop()) {
-                }
-
-                ++capture_ctx;
-              });
-
-              std::this_thread::sleep_for(20ms);
-            }
-
-            while (capture_ctx_queue->running()) {
-              // Release the display before reenumerating displays, since some capture backends
-              // only support a single display session per device/application.
-              disp.reset();
-
-              // Refresh display names since a display removal might have caused the reinitialization
-              refresh_displays(encoder.platform_formats->dev_type, display_names, display_p);
-
-              // Process any pending display switch with the new list of displays
-              if (switch_display_event->peek()) {
-                display_p = std::clamp(*switch_display_event->pop(), 0, static_cast<int>(display_names.size()) - 1);
-              }
-
-              // reset_display() will sleep between retries
-              reset_display(disp, encoder.platform_formats->dev_type, display_names[display_p], capture_ctxs.front().config);
-              if (disp) {
-                break;
-              }
-            }
-            if (!disp) {
-              return;
-            }
-
-            display_wp = disp;
-
-            reinit_event.reset();
-            continue;
+          if (!do_reinit()) {
+            return;
           }
+
+          continue;
         case platf::capture_e::capture_error:
         case platf::capture_e::ok:
         case platf::capture_e::timeout:
@@ -2614,7 +2657,19 @@ namespace video {
       // example, if it arrived before the client's video socket was bound) or if
       // the client asks for a refresh. Keep serving the blank frame until the
       // session ends instead of blocking forever on the first one.
-      while (!shutdown_event->peek()) {
+      while (!shutdown_event->peek() && images->running()) {
+        while (invalidate_ref_frames_events->peek()) {
+          if (auto frames = invalidate_ref_frames_events->pop(0ms)) {
+            session->invalidate_ref_frames(frames->first, frames->second);
+          }
+        }
+
+        if (reinit_event.peek() && frame_nr > 1) {
+          // The display is being reinitialized. Return so capture_async can recreate
+          // the encode session, releasing our reference to the old display in the process.
+          break;
+        }
+
         if (idr_events->peek()) {
           idr_events->pop();
           session->request_idr_frame();
@@ -2958,16 +3013,37 @@ namespace video {
             continue;
           }
 
+          if (ctx->config.input_only) {
+            // Input-only sessions must never encode a real captured frame. The synced session
+            // already converted the black dummy image at setup time, so encode that on the
+            // first pass and again whenever the client requests an IDR, and otherwise idle.
+            bool serve_idr = ctx->idr_events->peek() != 0;
+            if (serve_idr) {
+              ctx->idr_events->pop();
+            }
+
+            if (serve_idr || ctx->frame_nr == 1) {
+              if (serve_idr) {
+                pos->session->request_idr_frame();
+              }
+
+              if (encode(ctx->frame_nr++, *pos->session, ctx->packets, ctx->channel_data, {})) {
+                BOOST_LOG(error) << "Could not encode dummy video packet"sv;
+                ctx->shutdown_event->raise(true);
+
+                continue;
+              }
+
+              pos->session->request_normal_frame();
+            }
+
+            ++pos;
+            continue;
+          }
+
           if (ctx->idr_events->peek()) {
             pos->session->request_idr_frame();
             ctx->idr_events->pop();
-          }
-
-          if (ctx->config.input_only && ctx->frame_nr > 1) {
-            // The single blank IDR frame has already been sent. Keep the session
-            // alive, but stop converting and encoding further frames.
-            ++pos;
-            continue;
           }
 
           if (frame_captured && pos->session->convert(*captured_image)) {

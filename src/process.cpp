@@ -53,6 +53,14 @@ namespace proc {
   /// Application ID of the synthetic "Input Only" app entry, or empty when input-only mode is disabled.
   std::string input_only_app_id;
 
+  std::mutex input_only_app_id_mutex;
+
+  std::string
+  get_input_only_app_id() {
+    std::lock_guard<std::mutex> lock(input_only_app_id_mutex);
+    return input_only_app_id;
+  }
+
   /**
    * @brief RAII helper that runs shutdown cleanup when destroyed.
    */
@@ -873,10 +881,14 @@ namespace proc {
         }
         ids.insert(ctx.id);
 
-        input_only_app_id = ctx.id;
+        {
+          std::lock_guard<std::mutex> lock(input_only_app_id_mutex);
+          input_only_app_id = ctx.id;
+        }
 
         apps.emplace_back(std::move(ctx));
       } else {
+        std::lock_guard<std::mutex> lock(input_only_app_id_mutex);
         input_only_app_id.clear();
       }
 

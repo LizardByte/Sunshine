@@ -2318,6 +2318,14 @@ namespace stream {
 
       // If this is the last session, invoke the platform callbacks
       if (--running_sessions == 0) {
+        // If the only thing running was the synthetic "Input Only" placeholder, there is
+        // no real app to keep alive once the last client disconnects. Terminate it so the
+        // host does not stay stuck reporting a phantom running app.
+        const std::string input_only_id = proc::get_input_only_app_id();
+        if (!input_only_id.empty() && proc::proc.running() == (int) util::from_view(input_only_id)) {
+          proc::proc.terminate();
+        }
+
         bool revert_display_config {config::video.dd.config_revert_on_disconnect};
         if (proc::proc.running()) {
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1

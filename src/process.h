@@ -13,7 +13,9 @@
 #endif
 
 // standard includes
+#include <mutex>
 #include <optional>
+#include <string>
 #include <unordered_map>
 
 // local includes
@@ -244,6 +246,18 @@ namespace proc {
 
   extern proc_t proc;
 
+  /// Guards input_only_app_id, which is written on config refresh and read from request handlers.
+  extern std::mutex input_only_app_id_mutex;
+
   /// Application ID of the synthetic "Input Only" app entry, or empty when input-only mode is disabled.
+  /// Must be accessed while holding input_only_app_id_mutex, or via get_input_only_app_id().
   extern std::string input_only_app_id;
+
+  /**
+   * @brief Get a consistent copy of the synthetic "Input Only" application ID.
+   *
+   * @return The ID string, or an empty string when input-only mode is disabled.
+   */
+  std::string
+  get_input_only_app_id();
 }  // namespace proc

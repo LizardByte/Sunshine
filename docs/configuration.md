@@ -762,7 +762,7 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
             When enabled, Sunshine adds a special "Input Only" app to its application list.
             <br>
             Launching it starts a session that forwards input and audio but performs no screen capture:
-            the video pipeline sends a single blank frame and then idles, minimizing CPU/GPU usage on the host.
+            the video pipeline serves blank frames on request and otherwise idles, minimizing CPU/GPU usage on the host.
         </td>
     </tr>
     <tr>
