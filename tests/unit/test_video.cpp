@@ -51,13 +51,13 @@ TEST(VideoFormatMappingTest, MapsSupportedHardwareDevicesAndRejectsUnsupportedOn
     std::pair {AV_HWDEVICE_TYPE_VAAPI, vaapi},
     std::pair {AV_HWDEVICE_TYPE_CUDA, cuda},
     std::pair {AV_HWDEVICE_TYPE_NONE, system},
-    std::pair {AV_HWDEVICE_TYPE_VIDEOTOOLBOX, videotoolbox},
 #ifdef SUNSHINE_BUILD_VULKAN
     std::pair {AV_HWDEVICE_TYPE_VULKAN, vulkan},
 #else
     std::pair {AV_HWDEVICE_TYPE_VULKAN, unknown},
 #endif
     std::pair {AV_HWDEVICE_TYPE_DXVA2, unknown},
+    std::pair {AV_HWDEVICE_TYPE_VIDEOTOOLBOX, unknown},
   };
 
   for (const auto &[format, expected] : cases) {

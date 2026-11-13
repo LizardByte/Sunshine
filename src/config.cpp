@@ -533,34 +533,6 @@ namespace config {
     }
 
     /**
-     * @brief Parse whether VideoToolbox software encoding is allowed.
-     *
-     * @param software Whether the software encoder path is being configured.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
-    int allow_software_from_view(const std::string_view &software) {
-      if (software == "allowed"sv || software == "forced") {
-        return 1;
-      }
-
-      return 0;
-    }
-
-    /**
-     * @brief Parse whether VideoToolbox software encoding is forced.
-     *
-     * @param software Whether the software encoder path is being configured.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
-    int force_software_from_view(const std::string_view &software) {
-      if (software == "forced") {
-        return 1;
-      }
-
-      return 0;
-    }
-
-    /**
      * @brief Parse the VideoToolbox realtime encoder flag.
      *
      * @param rt Real-time encoder usage selector.
@@ -777,8 +749,6 @@ namespace config {
     },  // amd
 
     {
-      0,
-      0,
       1,
       -1,
     },  // vt
@@ -1698,8 +1668,6 @@ namespace config {
     }
 
     int_f(vars, "vt_coder", video.vt.vt_coder, vt::coder_from_view);
-    int_f(vars, "vt_software", video.vt.vt_allow_sw, vt::allow_software_from_view);
-    int_f(vars, "vt_software", video.vt.vt_require_sw, vt::force_software_from_view);
     int_f(vars, "vt_realtime", video.vt.vt_realtime, vt::rt_from_view);
 
     std::string vaapi_quality;

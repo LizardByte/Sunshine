@@ -23,9 +23,9 @@
 #include "src/platform/macos/av_video.h"
 #include "src/platform/macos/display_helpers.h"
 #include "src/platform/macos/misc.h"
-#include "src/platform/macos/nv12_zero_device.h"
 #import "src/platform/macos/sc_capture.h"
 #include "src/platform/macos/sc_capture_loop.h"
+#include "src/platform/macos/vt_encoder.h"
 #include "src/utility.h"
 
 // Avoid conflict between AVFoundation and libavutil both defining AVMediaType
@@ -331,21 +331,6 @@ namespace platf {
         av_capture.pixelFormat = kCVPixelFormatType_32BGRA;
 
         return std::make_unique<avcodec_encode_device_t>();
-      } else if (pix_fmt == pix_fmt_e::nv12 || pix_fmt == pix_fmt_e::p010) {
-        auto device = std::make_unique<nv12_zero_device>();
-
-        auto *capture = av_capture;
-        device->init(
-          pix_fmt,
-          [capture](int width, int height) {
-            [capture setFrameWidth:width frameHeight:height];
-          },
-          [capture](int pixel_format) {
-            capture.pixelFormat = pixel_format;
-          }
-        );
-
-        return device;
       } else {
         BOOST_LOG(error) << "Unsupported Pixel Format."sv;
         return nullptr;
@@ -397,6 +382,25 @@ namespace platf {
 
       return 0;
     }
+
+    /**
+     * @brief Create a native VideoToolbox encode device.
+     *
+     * @param pix_fmt Sunshine pixel format to convert or allocate for.
+     * @return Constructed VideoToolbox encode device object.
+     */
+    std::unique_ptr<vt_encode_device_t> make_vt_encode_device(pix_fmt_e pix_fmt) override {
+      auto *capture = av_capture;
+      return vt::make_encode_device(
+        pix_fmt,
+        [capture](int width, int height) {
+          [capture setFrameWidth:width frameHeight:height];
+        },
+        [capture](int pixel_format) {
+          capture.pixelFormat = pixel_format;
+        }
+      );
+    }
   };
 
   /**
@@ -447,25 +451,29 @@ namespace platf {
         sc_capture.pixelFormat = kCVPixelFormatType_32BGRA;
 
         return std::make_unique<avcodec_encode_device_t>();
-      } else if (pix_fmt == pix_fmt_e::nv12 || pix_fmt == pix_fmt_e::p010) {
-        auto device = std::make_unique<nv12_zero_device>();
-
-        auto *capture = sc_capture;
-        device->init(
-          pix_fmt,
-          [capture](int width, int height) {
-            [capture setFrameWidth:width frameHeight:height];
-          },
-          [capture](int pixel_format) {
-            capture.pixelFormat = pixel_format;
-          }
-        );
-
-        return device;
       } else {
         BOOST_LOG(error) << "Unsupported Pixel Format."sv;
         return nullptr;
       }
+    }
+
+    /**
+     * @brief Create a native VideoToolbox encode device.
+     *
+     * @param pix_fmt Sunshine pixel format to convert or allocate for.
+     * @return Constructed VideoToolbox encode device object.
+     */
+    std::unique_ptr<vt_encode_device_t> make_vt_encode_device(pix_fmt_e pix_fmt) override {
+      auto *capture = sc_capture;
+      return vt::make_encode_device(
+        pix_fmt,
+        [capture](int width, int height) {
+          [capture setFrameWidth:width frameHeight:height];
+        },
+        [capture](int pixel_format) {
+          capture.pixelFormat = pixel_format;
+        }
+      );
     }
 
     /**
