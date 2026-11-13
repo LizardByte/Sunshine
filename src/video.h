@@ -10,6 +10,7 @@
 #include <optional>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 // local includes
 #include "input.h"
@@ -23,6 +24,10 @@ extern "C" {
 }
 
 struct AVPacket;
+
+namespace display_device {
+  struct EnumeratedDevice;
+}
 
 namespace stream {
   struct session_t;
@@ -79,6 +84,14 @@ namespace video {
    * @return FFmpeg H.264 profile applied to the codec context.
    */
   int select_h264_profile(std::string_view encoder_name, const config_t &config, int amd_coder);
+
+  /**
+   * @brief Decide whether encoder probing may proceed with the given display devices.
+   *
+   * @param devices Display devices currently enumerated by libdisplaydevice.
+   * @return True if there should be no issues with the probing, false if it must be prevented.
+   */
+  bool allow_encoder_probing(const std::vector<display_device::EnumeratedDevice> &devices);
 
   /**
    * @brief Map an FFmpeg hardware device type to Sunshine's memory type.
