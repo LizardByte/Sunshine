@@ -1500,6 +1500,14 @@ namespace platf {
 
     if (sources.none()) {
       BOOST_LOG(error) << "Unable to initialize capture method"sv;
+      if (std::string v; config::video.capture != "kms" && !lizardbyte::common::get_env("WAYLAND_DISPLAY", v) && !lizardbyte::common::get_env("DISPLAY", v)) {
+        // Without a session the encoder probe fails too, and its final message
+        // points at the display instead of at the missing session. KMS capture
+        // runs without a session, so the hint does not apply to it.
+        BOOST_LOG(error) << "Neither WAYLAND_DISPLAY nor DISPLAY is set, so Sunshine is not running inside a graphical session. "sv
+                         << "If it runs as a systemd user service, make sure the session exports its environment to systemd, "sv
+                         << "for example with \"systemctl --user import-environment WAYLAND_DISPLAY DISPLAY\"."sv;
+      }
       return nullptr;
     }
 
