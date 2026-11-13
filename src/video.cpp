@@ -1753,7 +1753,7 @@ namespace video {
             continue;
           }
 
-          if (frame_captured) {
+          if (frame_captured && !capture_ctx->config.input_only) {
             capture_ctx->images->raise(img);
           }
 
@@ -1776,7 +1776,24 @@ namespace video {
         return true;
       };
 
-      auto status = disp->capture(push_captured_image_callback, pull_free_image_callback, &display_cursor);
+      // Only run the capture backend when at least one active session needs video frames.
+      // Input-only sessions receive a single blank frame and then idle.
+      bool capture_needed = std::any_of(std::begin(capture_ctxs), std::end(capture_ctxs), [](const capture_ctx_t &capture_ctx) {
+        return capture_ctx.images->running() && !capture_ctx.config.input_only;
+      });
+
+      platf::capture_e status;
+      if (!capture_needed) {
+        std::this_thread::sleep_for(50ms);
+
+        while (capture_ctx_queue->peek()) {
+          capture_ctxs.emplace_back(std::move(*capture_ctx_queue->pop()));
+        }
+
+        status = switch_display_event->peek() ? platf::capture_e::reinit : platf::capture_e::ok;
+      } else {
+        status = disp->capture(push_captured_image_callback, pull_free_image_callback, &display_cursor);
+      }
 
       if (artificial_reinit && status != platf::capture_e::capture_error) {
         status = platf::capture_e::reinit;
@@ -2560,13 +2577,68 @@ namespace video {
 
     {
       // Load a dummy image into the AVFrame to ensure we have something to encode
-      // even if we timeout waiting on the first frame. This is a relatively large
+      // even if we timeout waiting for the first frame. This is a relatively large
       // allocation which can be freed immediately after convert(), so we do this
       // in a separate scope.
       auto dummy_img = disp->alloc_img();
-      if (!dummy_img || disp->dummy_img(dummy_img.get()) || session->convert(*dummy_img)) {
+      if (!dummy_img || disp->dummy_img(dummy_img.get())) {
         return;
       }
+
+      // Input-only sessions never capture, so this dummy frame is the only video
+      // the client will ever receive. Force it to opaque black: some backends
+      // leave the buffer uninitialized (or zero the alpha channel), which decodes
+      // as a green screen on some clients.
+      if (config.input_only && dummy_img->data != nullptr && dummy_img->pixel_pitch == 4) {
+        for (int y = 0; y < dummy_img->height; ++y) {
+          auto row = dummy_img->data + static_cast<std::size_t>(y) * dummy_img->row_pitch;
+          for (int x = 0; x < dummy_img->width; ++x) {
+            row[x * 4 + 0] = 0x00;  // B
+            row[x * 4 + 1] = 0x00;  // G
+            row[x * 4 + 2] = 0x00;  // R
+            row[x * 4 + 3] = 0xFF;  // A
+          }
+        }
+      }
+
+      if (session->convert(*dummy_img)) {
+        return;
+      }
+    }
+
+    if (config.input_only) {
+      BOOST_LOG(info) << "Input only session: idling without video capture; serving blank IDR frames on request"sv;
+
+      // The client's first-frame checks need at least one complete frame, and the
+      // client may request additional IDR frames if that frame was missed (for
+      // example, if it arrived before the client's video socket was bound) or if
+      // the client asks for a refresh. Keep serving the blank frame until the
+      // session ends instead of blocking forever on the first one.
+      while (!shutdown_event->peek()) {
+        if (idr_events->peek()) {
+          idr_events->pop();
+          session->request_idr_frame();
+          if (encode(frame_nr++, *session, packets, channel_data, {})) {
+            BOOST_LOG(error) << "Could not encode dummy video packet"sv;
+            return;
+          }
+          continue;
+        }
+
+        if (frame_nr == 1) {
+          // Guarantee the very first frame goes out even if the initial IDR
+          // request was already consumed elsewhere.
+          session->request_idr_frame();
+          if (encode(frame_nr++, *session, packets, channel_data, {})) {
+            BOOST_LOG(error) << "Could not encode dummy video packet"sv;
+            return;
+          }
+          continue;
+        }
+
+        std::this_thread::sleep_for(100ms);
+      }
+      return;
     }
 
     while (true) {
@@ -2889,6 +2961,13 @@ namespace video {
           if (ctx->idr_events->peek()) {
             pos->session->request_idr_frame();
             ctx->idr_events->pop();
+          }
+
+          if (ctx->config.input_only && ctx->frame_nr > 1) {
+            // The single blank IDR frame has already been sent. Keep the session
+            // alive, but stop converting and encoding further frames.
+            ++pos;
+            continue;
           }
 
           if (frame_captured && pos->session->convert(*captured_image)) {

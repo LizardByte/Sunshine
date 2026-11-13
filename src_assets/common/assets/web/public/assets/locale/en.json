@@ -249,6 +249,8 @@
     "encoder_desc": "Force a specific encoder, otherwise Sunshine will select the best available option. Note: If you specify a hardware encoder on Windows, it must match the GPU where the display is connected.",
     "encoder_software": "Software",
     "encoders": "Encoders",
+    "enable_input_only_mode": "Enable Input Only Mode",
+    "enable_input_only_mode_desc": "Adds a special \"Input Only\" app that streams input and audio without screen capture. The video pipeline sends a single blank frame and then idles, minimizing CPU/GPU usage on the host.",
     "external_audio": "Externally Managed Audio",
     "external_audio_desc": "Capture only the configured Audio Sink without changing Windows defaults or device formats. Requires an explicit Audio Sink. Virtual Sink selection, automatic Steam audio driver installation, and Moonlight's host-playback toggle are ignored; manage playback and application routing in your audio mixer.",
     "external_ip": "External IP",

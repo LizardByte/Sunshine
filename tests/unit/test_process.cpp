@@ -27,6 +27,7 @@
 #endif
 
 // local includes
+#include <src/config.h>
 #include <src/process.h>
 #include <src/utility.h>
 
@@ -841,4 +842,87 @@ TEST_F(ProcessRefreshTest, FileTimeType_DefaultValueComparison) {
   // The actual correctness is verified by Refresh_ParsesFileOnFirstCall above —
   // if that test passes, the optional fix works regardless of platform behavior.
   SUCCEED();
+}
+
+/**
+ * @brief Test fixture for the synthetic "Input Only" app entry.
+ */
+class ProcessInputOnlyTest: public ProcessRefreshTest {  // NOSONAR(cpp:S3656): protected members are intentional for test fixture subclassing
+protected:
+  bool saved_enable_input_only_mode;
+  std::string saved_input_only_app_id;
+
+  void SetUp() override {
+    ProcessRefreshTest::SetUp();
+    saved_enable_input_only_mode = config::input.enable_input_only_mode;
+    saved_input_only_app_id = proc::input_only_app_id;
+  }
+
+  void TearDown() override {
+    config::input.enable_input_only_mode = saved_enable_input_only_mode;
+    proc::input_only_app_id = saved_input_only_app_id;
+    ProcessRefreshTest::TearDown();
+  }
+};
+
+TEST_F(ProcessInputOnlyTest, Parse_AddsInputOnlyEntryWhenEnabled) {
+  config::input.enable_input_only_mode = true;
+  proc::input_only_app_id.clear();
+
+  const auto path = test_dir / "apps_input_only_enabled.json";
+  writeAppsJson(path, {"Game One", "Game Two"});
+
+  auto parsed = proc::parse(path.string());
+  ASSERT_TRUE(parsed.has_value());
+
+  const auto &apps = parsed->get_apps();
+  ASSERT_EQ(apps.size(), 3U);
+
+  const auto &entry = apps.back();
+  EXPECT_EQ(entry.name, "Input Only");
+  EXPECT_TRUE(entry.cmd.empty());
+  EXPECT_FALSE(entry.id.empty());
+  EXPECT_EQ(proc::input_only_app_id, entry.id);
+
+  // Existing apps keep stable IDs regardless of the input-only flag
+  EXPECT_EQ(apps[0].name, "Game One");
+  EXPECT_EQ(apps[1].name, "Game Two");
+}
+
+TEST_F(ProcessInputOnlyTest, Parse_OmitsInputOnlyEntryWhenDisabled) {
+  config::input.enable_input_only_mode = false;
+  proc::input_only_app_id = "stale-id";
+
+  const auto path = test_dir / "apps_input_only_disabled.json";
+  writeAppsJson(path, {"Game One", "Game Two"});
+
+  auto parsed = proc::parse(path.string());
+  ASSERT_TRUE(parsed.has_value());
+
+  const auto &apps = parsed->get_apps();
+  ASSERT_EQ(apps.size(), 2U);
+  for (const auto &app: apps) {
+    EXPECT_NE(app.name, "Input Only");
+  }
+  EXPECT_TRUE(proc::input_only_app_id.empty());
+}
+
+TEST_F(ProcessInputOnlyTest, Parse_KeepsExistingAppIdsStableWhenToggled) {
+  const auto path = test_dir / "apps_input_only_toggle.json";
+  writeAppsJson(path, {"Game One", "Game Two"});
+
+  config::input.enable_input_only_mode = false;
+  auto disabled = proc::parse(path.string());
+  ASSERT_TRUE(disabled.has_value());
+
+  config::input.enable_input_only_mode = true;
+  auto enabled = proc::parse(path.string());
+  ASSERT_TRUE(enabled.has_value());
+
+  const auto &disabled_apps = disabled->get_apps();
+  const auto &enabled_apps = enabled->get_apps();
+  ASSERT_EQ(enabled_apps.size(), disabled_apps.size() + 1);
+  for (size_t i = 0; i < disabled_apps.size(); ++i) {
+    EXPECT_EQ(enabled_apps[i].id, disabled_apps[i].id);
+  }
 }

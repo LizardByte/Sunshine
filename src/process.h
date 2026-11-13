@@ -243,4 +243,7 @@ namespace proc {
   void terminate_process_group(boost::process::v1::child &child_process, boost::process::v1::group &group, std::chrono::seconds exit_timeout);
 
   extern proc_t proc;
+
+  /// Application ID of the synthetic "Input Only" app entry, or empty when input-only mode is disabled.
+  extern std::string input_only_app_id;
 }  // namespace proc

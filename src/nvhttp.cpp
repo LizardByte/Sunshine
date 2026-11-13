@@ -493,6 +493,7 @@ namespace nvhttp {
     std::copy(rikey.cbegin(), rikey.cend(), std::back_inserter(launch_session->gcm_key));
 
     launch_session->host_audio = host_audio;
+    launch_session->input_only = false;  // Overridden by /launch for the Input Only app
     auto mode = std::stringstream(get_arg(args, "mode", "0x0x0"));
     // Split mode by the char "x", to populate width/height/fps
     int x = 0;
@@ -1298,6 +1299,13 @@ namespace nvhttp {
     }
 
     auto current_appid = proc::proc.running();
+
+    // An active placeholder "Input Only" app should not show up as a running game
+    // to other clients (they would try to resume a session with no real app behind it).
+    if (!proc::input_only_app_id.empty() && current_appid == (int) util::from_view(proc::input_only_app_id)) {
+      current_appid = 0;
+    }
+
     tree.put("root.PairStatus", pair_status);
     tree.put("root.currentgame", current_appid);
     tree.put("root.state", current_appid > 0 ? "SUNSHINE_SERVER_BUSY" : "SUNSHINE_SERVER_FREE");
@@ -1400,10 +1408,16 @@ namespace nvhttp {
       return;
     }
 
-    auto appid = util::from_view(get_arg(args, "appid"));
+    auto appid_str = get_arg(args, "appid");
+    auto appid = util::from_view(appid_str);
 
     auto current_appid = proc::proc.running();
-    if (current_appid > 0) {
+
+    const bool has_input_only = !proc::input_only_app_id.empty();
+    const bool is_input_only = config::input.enable_input_only_mode && has_input_only && appid_str == proc::input_only_app_id;
+    const bool current_is_input_only = has_input_only && current_appid == (int) util::from_view(proc::input_only_app_id);
+
+    if (current_appid > 0 && !is_input_only && !current_is_input_only) {
       tree.put("root.resume", 0);
       tree.put("root.<xmlattr>.status_code", 400);
       tree.put("root.<xmlattr>.status_message", "An app is already running on this host");
@@ -1413,6 +1427,7 @@ namespace nvhttp {
 
     host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
     auto launch_session = make_launch_session(host_audio, args);
+    launch_session->input_only = is_input_only;
 
     if (rtsp_stream::session_count() == 0) {
       // The display should be restored in case something fails as there are no other sessions.
@@ -1447,7 +1462,22 @@ namespace nvhttp {
       return;
     }
 
-    if (appid > 0) {
+    if (is_input_only) {
+      BOOST_LOG(info) << "Launching input only session"sv;
+
+      // An input-only session does not conflict with an already running app. Only
+      // launch the placeholder app when nothing is running yet.
+      if (current_appid == 0) {
+        auto err = proc::proc.execute((int) appid, launch_session);
+        if (err) {
+          tree.put("root.<xmlattr>.status_code", err);
+          tree.put("root.<xmlattr>.status_message", "Failed to start the specified application");
+          tree.put("root.gamesession", 0);
+
+          return;
+        }
+      }
+    } else if (appid > 0) {
       auto err = proc::proc.execute((int) appid, launch_session);
       if (err) {
         tree.put("root.<xmlattr>.status_code", err);

@@ -50,6 +50,9 @@ namespace proc {
 
   proc_t proc;  ///< Global process registry used to track and terminate child processes.
 
+  /// Application ID of the synthetic "Input Only" app entry, or empty when input-only mode is disabled.
+  std::string input_only_app_id;
+
   /**
    * @brief RAII helper that runs shutdown cleanup when destroyed.
    */
@@ -846,6 +849,35 @@ namespace proc {
         ctx.detached = std::move(detached);
 
         apps.emplace_back(std::move(ctx));
+      }
+
+      // Synthetic "Input Only" entry. Launching it starts a session where video capture is
+      // skipped (a single blank frame is sent to keep the stream alive) while input and
+      // audio keep working normally. Added last so enabling the mode never changes the
+      // generated app IDs of existing apps.
+      if (config::input.enable_input_only_mode) {
+        proc::ctx_t ctx;
+        ctx.name = "Input Only";
+        ctx.elevated = false;
+        ctx.auto_detach = true;
+        ctx.wait_all = true;
+        ctx.exit_timeout = std::chrono::seconds {5};
+
+        auto possible_ids = calculate_app_id(ctx.name, ctx.image_path, i++);
+        if (ids.count(std::get<0>(possible_ids)) == 0) {
+          // Avoid using index to generate id if possible
+          ctx.id = std::get<0>(possible_ids);
+        } else {
+          // Fallback to include index on collision
+          ctx.id = std::get<1>(possible_ids);
+        }
+        ids.insert(ctx.id);
+
+        input_only_app_id = ctx.id;
+
+        apps.emplace_back(std::move(ctx));
+      } else {
+        input_only_app_id.clear();
       }
 
       return proc::proc_t {
