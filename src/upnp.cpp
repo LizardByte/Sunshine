@@ -5,7 +5,10 @@
 // standard includes
 #include <array>
 #include <bit>
+#include <filesystem>
+#include <fstream>
 #include <set>
+#include <sstream>
 #include <stddef.h>  // workaround for type_t error in miniupnpc 2.3.3, see https://github.com/miniupnp/miniupnp/commit/e263ab6f56c382e10fed31347ec68095d691a0e8
 
 // lib includes
@@ -22,6 +25,7 @@
 #include "rtsp.h"
 #include "stream.h"
 #include "upnp.h"
+#include "upnp_mapping.h"
 #include "utility.h"
 
 using namespace std::literals;
@@ -315,136 +319,142 @@ namespace upnp {
     }
 
     /**
-     * @brief Maps a port via UPnP.
-     * @param data IGDdatas from UPNP_GetValidIGD()
-     * @param urls urls_t from UPNP_GetValidIGD()
-     * @param lan_addr Local IP address to map to
-     * @param mapping Information about port to map
-     * @return `true` on success.
+     * @brief Append recovery intent before creating a permanent rule, or completion after removing it.
+     * @param mapping Rule to record.
+     * @param added Whether this records creation intent.
+     * @return Whether the complete event reached the file stream successfully.
      */
-    bool map_upnp_port(const IGDdatas &data, const urls_t &urls, const std::string &lan_addr, const mapping_t &mapping) {
-      std::array<char, 16> intClient;
-      std::array<char, 6> intPort;
-      std::array<char, 80> desc;
-      std::array<char, 4> enabled;
-      std::array<char, 16> leaseDuration;
-      bool indefinite = false;
-
-      // First check if this port is already mapped successfully
-      BOOST_LOG(debug) << "Checking for existing UPnP port mapping for "sv << mapping.port.wan;
-      auto err = UPNP_GetSpecificPortMappingEntry(
-        urls->controlURL,
-        data.first.servicetype,
-        // In params
-        mapping.port.wan.c_str(),
-        mapping.port.proto.c_str(),
-        nullptr,
-        // Out params
-        intClient.data(),
-        intPort.data(),
-        desc.data(),
-        enabled.data(),
-        leaseDuration.data()
-      );
-      if (err == 714) {  // NoSuchEntryInArray
-        BOOST_LOG(debug) << "Mapping entry not found for "sv << mapping.port.wan;
-      } else if (err == UPNPCOMMAND_SUCCESS) {
-        // Some routers change the description, so we can't check that here
-        if (std::string_view {intClient.data()} == lan_addr) {
-          if (std::atoi(leaseDuration.data()) == 0) {
-            BOOST_LOG(debug) << "Static mapping entry found for "sv << mapping.port.wan;
-
-            // It's a static mapping, so we're done here
-            return true;
-          } else {
-            BOOST_LOG(debug) << "Mapping entry found for "sv << mapping.port.wan << " ("sv << leaseDuration.data() << " seconds remaining)"sv;
-          }
-        } else {
-          BOOST_LOG(warning) << "UPnP conflict detected with: "sv << intClient.data();
-
-          // Some UPnP IGDs won't let unauthenticated clients delete other conflicting port mappings
-          // for security reasons, but we will give it a try anyway.
-          err = UPNP_DeletePortMapping(
-            urls->controlURL,
-            data.first.servicetype,
-            mapping.port.wan.c_str(),
-            mapping.port.proto.c_str(),
-            nullptr
-          );
-          if (err) {
-            BOOST_LOG(error) << "Unable to delete conflicting UPnP port mapping: "sv << err;
-            return false;
-          }
-        }
-      } else {
-        BOOST_LOG(error) << "UPNP_GetSpecificPortMappingEntry() failed: "sv << err;
-
-        // If we get a strange error from the router, we'll assume it's some old broken IGDv1
-        // device and only use indefinite lease durations to hopefully avoid confusing it.
-        if (err != 606) {  // Unauthorized
-          indefinite = true;
-        }
-      }
-
-      // Add/update the port mapping
-      auto mapping_period = std::to_string(indefinite ? 0 : PORT_MAPPING_LIFETIME.count());
-      err = UPNP_AddPortMapping(
-        urls->controlURL,
-        data.first.servicetype,
-        mapping.port.wan.c_str(),
-        mapping.port.lan.c_str(),
-        lan_addr.data(),
-        mapping.description.c_str(),
-        mapping.port.proto.c_str(),
-        nullptr,
-        mapping_period.c_str()
-      );
-
-      if (err != UPNPCOMMAND_SUCCESS && !indefinite) {
-        // This may be an old/broken IGD that doesn't like non-static mappings.
-        BOOST_LOG(debug) << "Trying static mapping after failure: "sv << err;
-        err = UPNP_AddPortMapping(
-          urls->controlURL,
-          data.first.servicetype,
-          mapping.port.wan.c_str(),
-          mapping.port.lan.c_str(),
-          lan_addr.data(),
-          mapping.description.c_str(),
-          mapping.port.proto.c_str(),
-          nullptr,
-          "0"
-        );
-      }
-
-      if (err) {
-        BOOST_LOG(error) << "Failed to map "sv << mapping.port.proto << ' ' << mapping.port.lan << ": "sv << err;
+    bool journal_mapping(const owned_mapping_t &mapping, bool added) {
+      std::ofstream out {journal_path(), std::ios::app};
+      out << mapping_journal_event(mapping, added);
+      out.flush();
+      out.close();
+      if (!out) {
+        BOOST_LOG(warning) << "Could not update UPnP recovery journal; refusing an unrecorded permanent mapping"sv;
         return false;
       }
-
-      BOOST_LOG(debug) << "Successfully mapped "sv << mapping.port.proto << ' ' << mapping.port.lan;
       return true;
     }
 
     /**
-     * @brief Unmaps all ports.
-     * @param urls urls_t from UPNP_GetValidIGD()
-     * @param data IGDdatas from UPNP_GetValidIGD()
+     * @brief Remember a rule independently of discovery and persist permanent-rule intent before adding it.
+     * @param mapping Rule owned by Sunshine.
+     * @return Whether the rule can safely be managed.
      */
-    void unmap_all_upnp_ports(const urls_t &urls, const IGDdatas &data) {
-      for (auto it = std::begin(mappings); it != std::end(mappings); ++it) {
-        auto status = UPNP_DeletePortMapping(
-          urls->controlURL,
-          data.first.servicetype,
-          it->port.wan.c_str(),
-          it->port.proto.c_str(),
-          nullptr
-        );
+    bool remember_mapping(owned_mapping_t mapping) {
+      auto found = std::find(owned_mappings.begin(), owned_mappings.end(), mapping);
+      if (mapping.permanent && (found == owned_mappings.end() || !found->permanent) && !journal_mapping(mapping, true)) {
+        return false;
+      }
+      if (found == owned_mappings.end()) {
+        owned_mappings.push_back(std::move(mapping));
+      } else {
+        found->generation = generation;
+        found->permanent = found->permanent || mapping.permanent;
+      }
+      return true;
+    }
 
-        if (status && status != 714) {  // NoSuchEntryInArray
-          BOOST_LOG(warning) << "Failed to unmap "sv << it->port.proto << ' ' << it->port.lan << ": "sv << status;
-        } else {
-          BOOST_LOG(debug) << "Successfully unmapped "sv << it->port.proto << ' ' << it->port.lan;
+    /**
+     * @brief Maps one port without deleting or adopting a rule belonging to another application.
+     * @param data Gateway's WAN connection service.
+     * @param urls Gateway's control URLs.
+     * @param lan_addr Desired destination address.
+     * @param mapping Desired forwarding rule.
+     * @return Whether the desired destination is reachable through this mapping.
+     */
+    bool map_upnp_port(const IGDdatas &data, const urls_t &urls, const std::string &lan_addr, const mapping_t &mapping) {
+      owned_mapping_t wanted {urls->controlURL, data.first.servicetype, lan_addr, mapping.port.wan, mapping.port.lan, mapping.port.proto, mapping.description, false, generation};
+      // A failed refresh must not forget a rule that was successfully added earlier.
+      for (auto &owned : owned_mappings) {
+        if (owned == wanted) {
+          owned.generation = generation;
         }
+      }
+      std::array<char, 16> client {};
+      std::array<char, 6> port {};
+      std::array<char, 80> description {};
+      std::array<char, 4> enabled {};
+      std::array<char, 16> lease {};
+      auto err = UPNP_GetSpecificPortMappingEntry(urls->controlURL, data.first.servicetype, mapping.port.wan.c_str(), mapping.port.proto.c_str(), nullptr, client.data(), port.data(), description.data(), enabled.data(), lease.data());
+      switch (classify_mapping(err, client.data(), port.data(), description.data(), wanted)) {
+        case mapping_state_e::conflict:
+          BOOST_LOG(warning) << "UPnP port "sv << mapping.port.wan << " already forwards elsewhere; leaving it unchanged"sv;
+          return false;
+        case mapping_state_e::existing:
+          // A manual rule already does what we need. Never renew or remove it.
+          return true;
+        case mapping_state_e::unknown:
+          BOOST_LOG(warning) << "UPnP mapping ownership could not be checked: "sv << err;
+          return false;
+        case mapping_state_e::ours:
+          wanted.permanent = std::string_view {lease.data()} == "0"sv;
+          if (!remember_mapping(wanted)) {
+            return false;
+          }
+          if (wanted.permanent) {
+            return true;
+          }
+          break;
+        case mapping_state_e::missing:
+          break;
+      }
+      auto shutdown_event = mail::man->event<bool>(mail::shutdown);
+      if (shutdown_event->peek()) {
+        return false;
+      }
+      const auto period = std::to_string(PORT_MAPPING_LIFETIME.count());
+      err = UPNP_AddPortMapping(urls->controlURL, data.first.servicetype, mapping.port.wan.c_str(), mapping.port.lan.c_str(), lan_addr.c_str(), mapping.description.c_str(), mapping.port.proto.c_str(), nullptr, period.c_str());
+      if (err == 725 && !shutdown_event->peek()) {  // OnlyPermanentLeasesSupported
+        wanted.permanent = true;
+        // Persist intent first: a process crash immediately after AddPortMapping must be recoverable.
+        if (!remember_mapping(wanted)) {
+          return false;
+        }
+        err = UPNP_AddPortMapping(urls->controlURL, data.first.servicetype, mapping.port.wan.c_str(), mapping.port.lan.c_str(), lan_addr.c_str(), mapping.description.c_str(), mapping.port.proto.c_str(), nullptr, "0");
+      }
+      if (err != UPNPCOMMAND_SUCCESS) {
+        BOOST_LOG(warning) << "Failed to map "sv << mapping.port.proto << ' ' << mapping.port.wan << ": "sv << err;
+        return false;
+      }
+      return remember_mapping(std::move(wanted));
+    }
+
+    /**
+     * @brief Remove only recorded rules whose current destination, port and description still match.
+     * @param stale_only Whether to retain rules wanted by the current discovery pass.
+     */
+    void unmap_owned_ports(bool stale_only = false) {
+      std::erase_if(owned_mappings, [this, stale_only](const owned_mapping_t &owned) {
+        if (stale_only && owned.generation == generation) {
+          return false;
+        }
+        std::array<char, 16> client {};
+        std::array<char, 6> port {};
+        std::array<char, 80> description {};
+        std::array<char, 4> enabled {};
+        std::array<char, 16> lease {};
+        const auto lookup = UPNP_GetSpecificPortMappingEntry(owned.control_url.c_str(), owned.service.c_str(), owned.external_port.c_str(), owned.protocol.c_str(), nullptr, client.data(), port.data(), description.data(), enabled.data(), lease.data());
+        const auto state = classify_mapping(lookup, client.data(), port.data(), description.data(), owned);
+        if (state == mapping_state_e::unknown) {
+          BOOST_LOG(warning) << "Could not check UPnP rule for cleanup: "sv << owned.control_url << ' ' << owned.external_port;
+          return false;
+        }
+        if (state == mapping_state_e::ours) {
+          const auto removed = UPNP_DeletePortMapping(owned.control_url.c_str(), owned.service.c_str(), owned.external_port.c_str(), owned.protocol.c_str(), nullptr);
+          if (removed != UPNPCOMMAND_SUCCESS && removed != 714) {
+            BOOST_LOG(warning) << "Failed to remove UPnP rule: "sv << removed;
+            return false;
+          }
+        }
+        // Missing or replaced rules are forgotten without deleting the replacement.
+        return !owned.permanent || journal_mapping(owned, false);
+      });
+      if (std::none_of(owned_mappings.begin(), owned_mappings.end(), [](const auto &mapping) {
+            return mapping.permanent;
+          })) {
+        std::error_code ec;
+        std::filesystem::remove(journal_path(), ec);
       }
     }
 
@@ -452,12 +462,18 @@ namespace upnp {
      * @brief Maps every port on an IGD, stopping early on shutdown.
      * @param igd The IGD to map the ports on.
      * @param addr Address the ports are forwarded to.
+     * @return Whether every requested mapping succeeded before shutdown.
      */
-    void map_all_upnp_ports(const igd_t &igd, const std::string &addr) {
+    bool map_all_upnp_ports(const igd_t &igd, const std::string &addr) {
       auto shutdown_event = mail::man->event<bool>(mail::shutdown);
-      for (auto it = std::begin(mappings); it != std::end(mappings) && !shutdown_event->peek(); ++it) {
-        map_upnp_port(igd.data, igd.urls, addr, *it);
+      bool complete = true;
+      for (const auto &mapping : mappings) {
+        if (shutdown_event->peek()) {
+          return false;
+        }
+        complete = map_upnp_port(igd.data, igd.urls, addr, mapping) && complete;
       }
+      return complete;
     }
 
     /**
@@ -498,6 +514,12 @@ namespace upnp {
       const auto external_addr = external_address(igds[inner]);
       const auto outer = select_outer_igd(igd_hosts, inner, external_addr);
       if (!outer.has_value()) {
+        // A missing reply is not proof that a working outer mapping is obsolete.
+        for (auto &owned : owned_mappings) {
+          if (external_addr.empty() || (is_private_ipv4(external_addr) && owned.target == external_addr)) {
+            owned.generation = generation;
+          }
+        }
         if (is_private_ipv4(external_addr) && !warned_no_outer_igd) {
           BOOST_LOG(warning) << "The IGD's external address "sv << external_addr
                              << " is private and no UPnP IGD answered in front of it: ports must be forwarded on the outer router"sv;
@@ -507,12 +529,14 @@ namespace upnp {
       }
 
       auto &outer_igd = igds[*outer];
-      map_all_upnp_ports(outer_igd, external_addr);
-      if (first_pass || !mapped_outer_igd.has_value() || mapped_outer_igd->host != outer_igd.host) {
+      const bool complete = map_all_upnp_ports(outer_igd, external_addr);
+      if (complete && (first_pass || mapped_outer_host != outer_igd.host)) {
         BOOST_LOG(info) << "Completed UPnP port mappings to "sv << external_addr << " via "sv << outer_igd.urls->rootdescURL;
       }
 
-      mapped_outer_igd = std::move(outer_igd);
+      if (complete) {
+        mapped_outer_host = outer_igd.host;
+      }
       warned_no_outer_igd = false;
     }
 
@@ -522,8 +546,25 @@ namespace upnp {
     void upnp_thread_proc() {
       platf::set_thread_name("upnp");
       auto shutdown_event = mail::man->event<bool>(mail::shutdown);
+      std::ifstream journal {journal_path()};
+      std::error_code journal_error;
+      const bool journal_exists = std::filesystem::exists(journal_path(), journal_error);
+      if (journal_error || (journal_exists && !journal.is_open())) {
+        BOOST_LOG(error) << "Could not read UPnP recovery journal; leaving it intact and skipping new mappings"sv;
+        return;
+      }
+      const std::string contents {(std::istreambuf_iterator<char>(journal)), std::istreambuf_iterator<char>()};
+      if (journal.bad()) {
+        BOOST_LOG(error) << "Could not finish reading UPnP recovery journal; leaving it intact"sv;
+        return;
+      }
+      journal.close();
+      owned_mappings = read_mapping_journal(contents);
+      unmap_owned_ports();
+      if (!config::sunshine.flags[config::flag::UPNP]) {
+        return;
+      }
       bool mapped = false;
-      igd_t mapped_igd;
       auto address_family = net::get_effective_address_family(net::af_from_enum_string(config::sunshine.address_family));
 
       // Refresh UPnP rules every few minutes. They can be lost if the router reboots,
@@ -557,13 +598,15 @@ namespace upnp {
 
         std::vector<std::string> igd_hosts;
         const auto inner = find_gateway(device, igds, igd_hosts, lan_addr_str);
-        map_all_upnp_ports(igds[inner], lan_addr_str);
+        ++generation;
+        const bool complete = map_all_upnp_ports(igds[inner], lan_addr_str);
 
-        if (!mapped) {
+        if (!mapped && complete) {
           BOOST_LOG(info) << "Completed UPnP port mappings to "sv << lan_addr_str << " via "sv << igds[inner].urls->rootdescURL;
         }
 
         map_outer_upnp_ports(igds, igd_hosts, inner, !mapped);
+        unmap_owned_ports(true);
 
         // If we are listening on IPv6 and the IGD has an IPv6 firewall enabled, try to create IPv6 firewall pinholes
         if (address_family == net::af_e::BOTH) {
@@ -573,22 +616,25 @@ namespace upnp {
           }
         }
 
-        mapped = true;
-        mapped_igd = std::move(igds[inner]);
+        mapped = complete;
       } while (!shutdown_event->view(REFRESH_INTERVAL));
 
-      if (mapped) {
-        // Unmap ports upon termination
-        BOOST_LOG(info) << "Unmapping UPNP ports..."sv;
-        unmap_all_upnp_ports(mapped_igd.urls, mapped_igd.data);
-        if (mapped_outer_igd.has_value()) {
-          unmap_all_upnp_ports(mapped_outer_igd->urls, mapped_outer_igd->data);
-        }
-      }
+      // Discovery failures and gateway changes never discard ownership records.
+      unmap_owned_ports();
     }
 
-    std::vector<mapping_t> mappings;  ///< Port mappings Sunshine should keep registered with the gateway.
-    std::optional<igd_t> mapped_outer_igd;  ///< IGD in front of the gateway (double NAT) holding mappings, if any.
+    /**
+     * @brief Locate the append-only recovery journal used even when UPnP is disabled at the next start.
+     * @return File containing outstanding permanent-rule intents.
+     */
+    static std::filesystem::path journal_path() {
+      return platf::appdata() / "upnp_mappings.journal";
+    }
+
+    std::vector<mapping_t> mappings;  ///< Ports requested by Sunshine.
+    std::vector<owned_mapping_t> owned_mappings;  ///< Rules retained independently of discovery results.
+    std::string mapped_outer_host;  ///< Last outer gateway logged as mapped.
+    std::size_t generation = 0;  ///< Current successful discovery pass.
     bool warned_no_outer_igd = false;  ///< Whether the missing outer IGD has already been reported.
     std::jthread upnp_thread;  ///< Worker thread that refreshes mappings until shutdown.
   };
@@ -597,7 +643,8 @@ namespace upnp {
    * @brief Start UPnP port mapping and return its shutdown guard.
    */
   std::unique_ptr<platf::deinit_t> start() {
-    if (!config::sunshine.flags[config::flag::UPNP]) {
+    std::error_code ec;
+    if (!config::sunshine.flags[config::flag::UPNP] && !std::filesystem::exists(platf::appdata() / "upnp_mappings.journal", ec)) {
       return nullptr;
     }
 
