@@ -573,6 +573,63 @@ TEST(PyrowaveConfigTest, BudgetsCappedAndFractionalRatesWithoutIntegerOverflow) 
   config = pyrowave_config();
   config::video.max_bitrate = -1;
   EXPECT_EQ(video::pyrowave::frame_budget(config), 416666);
+  for (int packet_size : {-1, 0, 16, 65536}) {
+    config.packetSize = packet_size;
+    EXPECT_EQ(video::pyrowave::frame_budget(config), 0);
+  }
+}
+
+/**
+ * @brief Fit below-budget native frames within the negotiated transport, including record padding.
+ */
+TEST(PyrowaveConfigTest, BoundsAcceptedBudgetsByPacketCapacity) {
+  const auto previous = config::video.max_bitrate;
+  const auto restore = util::fail_guard([previous]() {
+    config::video.max_bitrate = previous;
+  });
+  config::video.max_bitrate = 0;
+  auto config = pyrowave_config();
+  config.width = 3840;
+  config.height = 2160;
+  for (bool records : {false, true}) {
+    config.pyrowaveRecordFraming = records;
+    for (int packet_size : {config::PACKETSIZE_MIN, 201, 1392, 36, 65532}) {
+      SCOPED_TRACE(testing::Message() << "records " << records << ", packet size " << packet_size);
+      config.packetSize = packet_size;
+      config.bitrate = packet_size == 65532 ? 8000000 : 1000000;
+      ASSERT_TRUE(video::pyrowave::valid_config(config));
+      const auto budget = video::pyrowave::frame_budget(config);
+      const auto capacity = 4092 * (size_t(packet_size) - 16) - 8;
+      if (packet_size == config::PACKETSIZE_MIN) {
+        EXPECT_EQ(capacity, 752920);
+        // The reported 1,024,008-byte frame must no longer be below the accepted budget.
+        EXPECT_LT(budget, 1024008);
+      } else if (packet_size == 1392) {
+        EXPECT_EQ(budget, 2083333);
+      }
+      // Cover tiny records, padding on either side of a shard boundary, and records spanning shards.
+      for (size_t record_size : {8, 88, 164, 176, 180, 184, 1024, 16380}) {
+        SCOPED_TRACE(record_size);
+        std::vector<uint8_t> native(8);
+        std::vector<pyrowave_packet> packets {{0, 8}};
+        for (uint32_t index = 0; native.size() + record_size <= budget; ++index) {
+          const auto offset = native.size();
+          native.resize(offset + record_size);
+          AV_WL32(native.data() + offset, (record_size / 4) << 16);
+          AV_WL32(native.data() + offset + 4, index << 8);
+          packets.push_back({offset, record_size});
+        }
+        AV_WL32(native.data(), 0x80000000u | (config.width - 1) | ((config.height - 1) << 14));
+        AV_WL32(native.data() + 4, packets.size() - 1);
+        ASSERT_LE(native.size(), budget);
+        const auto frame = video::pyrowave::frame_packets(packets, native, config, 12, 1);
+        ASSERT_NE(frame, nullptr);
+        EXPECT_LE(frame->data_size(), capacity);
+        EXPECT_LE(frame->data_size(), video::pyrowave::max_frame_size);
+        EXPECT_LE(frame->pyrowave_record_starts.size(), 4092);
+      }
+    }
+  }
 }
 
 TEST(PyrowaveConfigTest, PreservesHdrWithoutConsultingUnrelatedCodecCapabilities) {

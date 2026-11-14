@@ -756,6 +756,7 @@ namespace video {
     inline constexpr size_t record_packet_boundary = 16384;  ///< Packet allocation large enough for any native block record.
     inline constexpr size_t frame_header_size = 8;  ///< Sunshine short frame header preceding the codec payload.
     inline constexpr size_t shard_overhead = 16;  ///< NV video header bytes included in the negotiated packet size.
+    inline constexpr size_t max_frame_packets = 4 * 1023;  ///< Four FEC blocks with ten-bit data packet counts.
     inline constexpr size_t max_frame_size = 16 * 1024 * 1024;  ///< Bound on codec output allocation.
 
     /**
@@ -767,10 +768,10 @@ namespace video {
     bool valid_config(const config_t &config);
 
     /**
-     * @brief Calculate the codec byte budget using the host bitrate ceiling and fractional refresh rate.
+     * @brief Calculate the codec byte budget within host bitrate, packet capacity, and allocation limits.
      *
-     * @param config Validated stream configuration.
-     * @return Maximum encoded coefficient bytes per frame, or zero for invalid input.
+     * @param config Negotiated stream configuration.
+     * @return Maximum native bitstream bytes per frame, including headers, or zero for invalid input.
      */
     size_t frame_budget(const config_t &config);
 

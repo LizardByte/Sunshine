@@ -628,13 +628,28 @@ namespace video {
 
   namespace pyrowave {
     size_t frame_budget(const config_t &config) {
-      if (config.bitrate <= 0 || config.framerate <= 0 || config.framerateX100 < 0) {
+      if (config.bitrate <= 0 || config.framerate <= 0 || config.framerateX100 < 0 || config.packetSize <= int(shard_overhead) || config.packetSize > config::PACKETSIZE_MAX) {
         return 0;
       }
       const auto rate = config.framerateX100 ? uint64_t(config.framerateX100) : uint64_t(config.framerate) * 100;
       const auto bitrate = config::video.max_bitrate > 0 ? std::min(config.bitrate, config::video.max_bitrate) : config.bitrate;
       const auto budget = uint64_t(bitrate) * 1000 * 100 / (8 * rate);
-      return budget > 0 && budget <= max_frame_size ? size_t(budget) : 0;
+      if (!budget || budget > max_frame_size) {
+        return 0;
+      }
+
+      const auto payload_size = size_t(config.packetSize) - shard_overhead;
+      auto capacity = std::min(max_frame_size, max_frame_packets * payload_size - frame_header_size);
+      // The codec budget already includes the eight-byte sequence and block headers.
+      if (!config.pyrowaveRecordFraming) {
+        // Each native packet is at least eight bytes and needs a four-byte length, plus the packet count.
+        capacity = (capacity - 4) * 2 / 3;
+      } else if (payload_size >= 24 && payload_size % 4 == 0) {
+        // Padding costs at most one record's size plus four bytes per record (minimum eight bytes).
+        // Reserve another payload for the critical/detail boundary: framed size <= 5/2 * budget + payload.
+        capacity = (capacity - payload_size) * 2 / 5;
+      }
+      return std::min(size_t(budget), capacity);
     }
 
     bool valid_config(const config_t &config) {
@@ -762,7 +777,7 @@ namespace video {
       if (aligned && detail == records.end()) {
         critical_packets = record_starts.size();
       }
-      if (record_starts.size() > 4 * 1023) {
+      if (record_starts.size() > max_frame_packets) {
         return nullptr;
       }
       auto result = std::make_unique<packet_raw_generic>(std::move(output), frame_index, true);
@@ -1281,7 +1296,7 @@ namespace video {
        * @brief Store the converter and byte budget before initializing the codec.
        *
        * @param device Initialized frame conversion device.
-       * @param budget Maximum encoded coefficient bytes per frame.
+       * @param budget Maximum native bitstream bytes per frame, including record headers.
        * @param api C API implementation to call.
        * @param frames Hardware frame pool retained until after converter destruction.
        */
