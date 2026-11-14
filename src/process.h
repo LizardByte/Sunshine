@@ -13,6 +13,7 @@
 #endif
 
 // standard includes
+#include <cstdint>
 #include <optional>
 #include <unordered_map>
 
@@ -117,6 +118,17 @@ namespace proc {
      */
     int running();
 
+    /**
+     * @brief Return the operating-system PID of the launched application root process.
+     *
+     * Returns 0 for the Desktop/placebo session, when no application has been
+     * launched, and when the root process is no longer running. Callers use 0
+     * to fall back to ordinary endpoint audio capture.
+     *
+     * @return Launched root process PID, or 0 when unavailable.
+     */
+    std::uint32_t app_process_id();
+
     ~proc_t();
 
     /**
@@ -170,6 +182,27 @@ namespace proc {
 #endif
 
   private:
+    /**
+     * @brief Implementation of execute() that calls terminate_impl() directly for internal cleanup.
+     *
+     * @param app_id App ID.
+     * @param launch_session Launch session.
+     * @return Process exit code or launch error status.
+     */
+    int execute_impl(int app_id, std::shared_ptr<rtsp_stream::launch_session_t> launch_session);
+
+    /**
+     * @brief Implementation of running() that may call terminate_impl() directly for cleanup.
+     *
+     * @return `_app_id` if a process is running, otherwise returns `0`.
+     */
+    int running_impl();
+
+    /**
+     * @brief Implementation of terminate() used by public wrappers and internal callers.
+     */
+    void terminate_impl();
+
     int _app_id;
 
     boost::process::v1::environment _env;
