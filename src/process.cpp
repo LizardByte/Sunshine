@@ -33,6 +33,7 @@
 #include "logging.h"
 #include "platform/common.h"
 #include "process.h"
+#include "stream.h"
 #include "system_tray.h"
 #include "utility.h"
 
@@ -386,8 +387,11 @@ namespace proc {
   void proc_t::terminate() {
     // Gamepads of an input-only client must survive the placeholder being replaced by a real
     // app, but there is nothing left to keep once every session is gone.
+    //
+    // This must not use rtsp_stream::session_count(): it joins stopping sessions, which
+    // deadlocks when terminate() is reached from a session teardown thread.
     const bool input_only = _app.input_only;
-    if (!input_only || rtsp_stream::session_count() == 0) {
+    if (!input_only || stream::session::running_session_count() == 0) {
       input::terminate_gamepads();
     }
 

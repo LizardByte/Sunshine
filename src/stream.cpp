@@ -2275,6 +2275,13 @@ namespace stream {
     }
 
     /**
+     * @brief Return the number of streaming sessions that have not finished teardown.
+     */
+    std::uint32_t running_session_count() {
+      return running_sessions;
+    }
+
+    /**
      * @brief Stop the active streaming session and prevent new packets from being queued.
      */
     void stop(session_t &session) {
