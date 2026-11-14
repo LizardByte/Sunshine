@@ -271,6 +271,8 @@ TEST(WindowsRamCaptureTest, CopiesEveryOrientationWithIndependentRowPadding) {
 
 /**
  * @brief Exercise real texture creation, staging, mapping, rotation, and image reuse for every mode.
+ *
+ * Verify that a pointer-only update with a fully initialized timestamp reuses the staged desktop image.
  */
 TEST(WindowsRamCaptureTest, CapturesRotatedPortraitPanelWithoutReinitialization) {
   for (auto format : {DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_B8G8R8X8_UNORM}) {
@@ -294,7 +296,8 @@ TEST(WindowsRamCaptureTest, CapturesRotatedPortraitPanelWithoutReinitialization)
         }
       }
       const auto data = image->data;
-      capture.duplication.frame_info = {.LastMouseUpdateTime = {1}};
+      capture.duplication.frame_info = {};
+      capture.duplication.frame_info.LastMouseUpdateTime.QuadPart = 1;
       ASSERT_EQ(capture.snapshot(image), platf::capture_e::ok);
       EXPECT_EQ(image->data, data);
       EXPECT_EQ(read_pixel(*image, 0, 0), orientation.pixels.front());
