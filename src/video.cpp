@@ -708,6 +708,8 @@ namespace video {
   struct sync_session_t {
     sync_session_ctx_t *ctx;  ///< Shared capture/encode synchronization context.
     std::unique_ptr<encode_session_t> session;  ///< Active encoder session used by the capture thread.
+
+    bool encoded_initial_frame {};  ///< Whether the current encoder session already emitted an initial IDR frame.
   };
 
   /**
@@ -1776,8 +1778,8 @@ namespace video {
         // If every remaining session is input-only, unwind the capture backend so the
         // outer loop can switch to its idle path instead of grabbing frames forever.
         if (!capture_ctxs.empty() && !std::any_of(std::begin(capture_ctxs), std::end(capture_ctxs), [](const capture_ctx_t &capture_ctx) {
-             return capture_ctx.images->running() && !capture_ctx.config.input_only;
-           })) {
+              return capture_ctx.images->running() && !capture_ctx.config.input_only;
+            })) {
           artificial_reinit = true;
           return false;
         }
@@ -1793,6 +1795,23 @@ namespace video {
         for (auto &img : imgs) {
           img.reset();
         }
+
+        // Sessions can stop at any time, including while the display is being reinitialized.
+        auto prune_stopped_sessions = [&capture_ctxs]() {
+          KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
+            if (!capture_ctx->images->running()) {
+              capture_ctx = capture_ctxs.erase(capture_ctx);
+              continue;
+            }
+
+            ++capture_ctx;
+          });
+        };
+
+        // Prune up front: if the display refcount is already 1, the wait loop below never runs
+        // and stopped sessions would be left behind, including at the front of capture_ctxs
+        // whose config is used to create the new display.
+        prune_stopped_sessions();
 
         // display_wp is modified in this thread only
         // Wait for the other shared_ptr's of display to be destroyed.
@@ -1817,10 +1836,23 @@ namespace video {
           std::this_thread::sleep_for(20ms);
         }
 
+        // Sessions may have stopped while we were waiting for the display to be released.
+        prune_stopped_sessions();
+
+        // Pick up sessions that joined while the display was being reinitialized.
+        while (capture_ctx_queue->peek()) {
+          capture_ctxs.emplace_back(std::move(*capture_ctx_queue->pop()));
+        }
+
         if (capture_ctxs.empty()) {
-          // Every session went away while we were reinitializing. Refcount-driven shutdown
-          // of the shared capture thread will take care of the rest.
-          return false;
+          // Every session went away while we were reinitializing. Wait for a replacement so a
+          // session joining now isn't left without a capture thread, and exit if the shared
+          // capture thread is being torn down instead.
+          if (auto next_ctx = capture_ctx_queue->pop()) {
+            capture_ctxs.emplace_back(std::move(*next_ctx));
+          } else {
+            return false;
+          }
         }
 
         while (capture_ctx_queue->running()) {
@@ -2562,6 +2594,41 @@ namespace video {
     return nullptr;
   }
 
+  void fill_blank_image(platf::img_t &img) {
+    if (img.data == nullptr || img.width <= 0 || img.height <= 0 || img.row_pitch <= 0) {
+      return;
+    }
+
+    // Backends that don't fill in pixel_pitch can still be identified by the row pitch.
+    const auto pixel_pitch = img.pixel_pitch > 0 ? img.pixel_pitch : (img.row_pitch / img.width);
+
+    // A row that is shorter than the pixels it is supposed to hold is malformed
+    if (static_cast<std::int64_t>(img.row_pitch) < static_cast<std::int64_t>(img.width) * pixel_pitch) {
+      return;
+    }
+
+    if (pixel_pitch == 4) {
+      for (auto y = 0; y < img.height; ++y) {
+        auto row = img.data + static_cast<std::size_t>(y) * img.row_pitch;
+        std::fill_n(row, static_cast<std::size_t>(img.width) * 4, (std::uint8_t) 0x00);
+
+        // Restore the alpha channel, which is the last byte of every BGRA/xRGB pixel
+        for (auto x = 0; x < img.width; ++x) {
+          row[x * 4 + 3] = 0xFF;
+        }
+      }
+    } else if (pixel_pitch == 1) {
+      for (auto y = 0; y < img.height; ++y) {
+        std::fill_n(img.data + static_cast<std::size_t>(y) * img.row_pitch, img.width, (std::uint8_t) 0x00);
+      }
+
+      auto uv_plane = img.data + static_cast<std::size_t>(img.row_pitch) * img.height;
+      for (auto y = 0; y < img.height / 2; ++y) {
+        std::fill_n(uv_plane + static_cast<std::size_t>(y) * img.row_pitch, img.width, (std::uint8_t) 0x80);
+      }
+    }
+  }
+
   /**
    * @brief Run one encode loop for a display capture stream.
    *
@@ -2632,16 +2699,8 @@ namespace video {
       // the client will ever receive. Force it to opaque black: some backends
       // leave the buffer uninitialized (or zero the alpha channel), which decodes
       // as a green screen on some clients.
-      if (config.input_only && dummy_img->data != nullptr && dummy_img->pixel_pitch == 4) {
-        for (int y = 0; y < dummy_img->height; ++y) {
-          auto row = dummy_img->data + static_cast<std::size_t>(y) * dummy_img->row_pitch;
-          for (int x = 0; x < dummy_img->width; ++x) {
-            row[x * 4 + 0] = 0x00;  // B
-            row[x * 4 + 1] = 0x00;  // G
-            row[x * 4 + 2] = 0x00;  // R
-            row[x * 4 + 3] = 0xFF;  // A
-          }
-        }
+      if (config.input_only) {
+        fill_blank_image(*dummy_img);
       }
 
       if (session->convert(*dummy_img)) {
@@ -2652,42 +2711,44 @@ namespace video {
     if (config.input_only) {
       BOOST_LOG(info) << "Input only session: idling without video capture; serving blank IDR frames on request"sv;
 
+      // The display (and with it this encoder session) can be recreated while the stream
+      // stays alive, so remember whether the *current* encoder has produced a frame. The
+      // frame counter is shared across reinits and can't be used for that purpose.
+      bool encoded_initial_frame = false;
+
       // The client's first-frame checks need at least one complete frame, and the
       // client may request additional IDR frames if that frame was missed (for
       // example, if it arrived before the client's video socket was bound) or if
       // the client asks for a refresh. Keep serving the blank frame until the
       // session ends instead of blocking forever on the first one.
       while (!shutdown_event->peek() && images->running()) {
-        while (invalidate_ref_frames_events->peek()) {
-          if (auto frames = invalidate_ref_frames_events->pop(0ms)) {
-            session->invalidate_ref_frames(frames->first, frames->second);
-          }
+        // There are no reference frames to recover from in a blank stream, so a request to
+        // invalidate reference frames is served by emitting a fresh IDR frame instead.
+        bool rfi_requested = false;
+        while (invalidate_ref_frames_events->pop(0ms)) {
+          rfi_requested = true;
         }
 
-        if (reinit_event.peek() && frame_nr > 1) {
+        if (reinit_event.peek() && encoded_initial_frame) {
           // The display is being reinitialized. Return so capture_async can recreate
           // the encode session, releasing our reference to the old display in the process.
           break;
         }
 
-        if (idr_events->peek()) {
-          idr_events->pop();
-          session->request_idr_frame();
-          if (encode(frame_nr++, *session, packets, channel_data, {})) {
-            BOOST_LOG(error) << "Could not encode dummy video packet"sv;
-            return;
+        bool idr_requested = idr_events->peek();
+        if (!encoded_initial_frame || idr_requested || rfi_requested) {
+          if (idr_requested) {
+            idr_events->pop();
           }
-          continue;
-        }
 
-        if (frame_nr == 1) {
-          // Guarantee the very first frame goes out even if the initial IDR
-          // request was already consumed elsewhere.
           session->request_idr_frame();
           if (encode(frame_nr++, *session, packets, channel_data, {})) {
             BOOST_LOG(error) << "Could not encode dummy video packet"sv;
             return;
           }
+
+          session->request_normal_frame();
+          encoded_initial_frame = true;
           continue;
         }
 
@@ -2866,7 +2927,8 @@ namespace video {
    *
    * @param disp Display connection or display handle.
    * @param encoder Encoder configuration or encoder instance.
-   * @param img Image or frame object to read from or populate.
+   * @param img Frame used to seed the encoder. Input-only sessions ignore it and seed
+   *            themselves with a blank frame instead.
    * @param ctx Native context object used by the operation or callback.
    * @return Constructed synced session object.
    */
@@ -2900,7 +2962,22 @@ namespace video {
     }
 
     // Load the initial image to prepare for encoding
-    if (session->convert(img)) {
+    if (ctx.config.input_only) {
+      // Input-only sessions must never be seeded with captured content: the shared image can
+      // hold a live desktop frame (or be uninitialized), so convert a dedicated blank frame.
+      auto dummy_img = disp->alloc_img();
+      if (!dummy_img || disp->dummy_img(dummy_img.get())) {
+        BOOST_LOG(error) << "Could not get dummy image for input only session"sv;
+        return std::nullopt;
+      }
+
+      fill_blank_image(*dummy_img);
+
+      if (session->convert(*dummy_img)) {
+        BOOST_LOG(error) << "Could not convert initial image"sv;
+        return std::nullopt;
+      }
+    } else if (session->convert(img)) {
       BOOST_LOG(error) << "Could not convert initial image"sv;
       return std::nullopt;
     }
@@ -2975,68 +3052,133 @@ namespace video {
       synced_sessions.emplace_back(std::move(*synced_session));
     }
 
+    // Status returned to the caller when the capture backend unwinds.
     auto ec = platf::capture_e::ok;
-    while (encode_session_ctx_queue.running()) {
-      auto push_captured_image_callback = [&](std::shared_ptr<platf::img_t> &&captured_image, bool frame_captured) {
-        while (encode_session_ctx_queue.peek()) {
-          auto encode_session_ctx = encode_session_ctx_queue.pop();
-          if (!encode_session_ctx) {
-            return false;
-          }
 
-          synced_session_ctxs.emplace_back(std::make_unique<sync_session_ctx_t>(std::move(*encode_session_ctx)));
+    // True while at least one active session needs captured video frames. Input-only sessions
+    // are served blank frames and must not keep the capture backend running.
+    auto capture_needed = [&synced_sessions]() {
+      return std::any_of(std::begin(synced_sessions), std::end(synced_sessions), [](const sync_session_t &synced_session) {
+        return !synced_session.ctx->config.input_only;
+      });
+    };
 
-          auto encode_session = make_synced_session(disp.get(), encoder, *captured_image, *synced_session_ctxs.back());
-          if (!encode_session) {
-            ec = platf::capture_e::capture_error;
-            return false;
-          }
-
-          synced_sessions.emplace_back(std::move(*encode_session));
+    // Creates encoder sessions for clients that joined since the last pass.
+    // Returns false when the queue was stopped or a session could not be created.
+    auto accept_pending_sessions = [&](platf::img_t &seed_img) -> bool {
+      while (encode_session_ctx_queue.peek()) {
+        auto encode_session_ctx = encode_session_ctx_queue.pop();
+        if (!encode_session_ctx) {
+          return false;
         }
+
+        synced_session_ctxs.emplace_back(std::make_unique<sync_session_ctx_t>(std::move(*encode_session_ctx)));
+
+        auto encode_session = make_synced_session(disp.get(), encoder, seed_img, *synced_session_ctxs.back());
+        if (!encode_session) {
+          ec = platf::capture_e::capture_error;
+          return false;
+        }
+
+        synced_sessions.emplace_back(std::move(*encode_session));
+      }
+
+      return true;
+    };
+
+    // Drops sessions whose stream has shut down. Returns false when the last session went away.
+    auto prune_shutdown_sessions = [&]() -> bool {
+      KITTY_WHILE_LOOP(auto pos = std::begin(synced_sessions), pos != std::end(synced_sessions), {
+        auto ctx = pos->ctx;
+        if (!ctx->shutdown_event->peek()) {
+          ++pos;
+          continue;
+        }
+
+        // Let waiting thread know it can delete shutdown_event
+        ctx->join_event->raise(true);
+
+        pos = synced_sessions.erase(pos);
+        synced_session_ctxs.erase(std::find_if(std::begin(synced_session_ctxs), std::end(synced_session_ctxs), [&ctx_p = ctx](auto &ctx) {
+          return ctx.get() == ctx_p;
+        }));
+      })
+
+      return !synced_sessions.empty();
+    };
+
+    // Emits the initial frame, or a requested refresh, for every input-only session. The frame
+    // content is the blank image converted when the session was created, so no captured video
+    // can leak to an input-only client.
+    auto serve_input_only_sessions = [&]() {
+      for (auto &synced_session : synced_sessions) {
+        auto ctx = synced_session.ctx;
+        if (!ctx->config.input_only) {
+          continue;
+        }
+
+        bool idr_requested = ctx->idr_events->peek();
+        if (idr_requested) {
+          ctx->idr_events->pop();
+        }
+
+        if (!idr_requested && synced_session.encoded_initial_frame) {
+          continue;
+        }
+
+        synced_session.session->request_idr_frame();
+        if (encode(ctx->frame_nr++, *synced_session.session, ctx->packets, ctx->channel_data, {})) {
+          BOOST_LOG(error) << "Could not encode dummy video packet"sv;
+          ctx->shutdown_event->raise(true);
+
+          continue;
+        }
+
+        // Track it on the synced session, not on the context: the context survives display
+        // reinitialization, while a recreated encoder session needs a fresh initial IDR frame.
+        synced_session.encoded_initial_frame = true;
+        synced_session.session->request_normal_frame();
+      }
+    };
+
+    while (encode_session_ctx_queue.running()) {
+      // Nothing to capture: keep input-only clients fed with blank frames instead of running
+      // the capture backend at full framerate.
+      if (!capture_needed()) {
+        if (!accept_pending_sessions(*img) || !prune_shutdown_sessions()) {
+          return ec != platf::capture_e::ok ? ec : encode_e::ok;
+        }
+
+        serve_input_only_sessions();
+
+        // A failed blank-frame encode raises shutdown_event; prune right away so the
+        // session's join_event is released instead of after the next idle interval.
+        if (!prune_shutdown_sessions()) {
+          return ec != platf::capture_e::ok ? ec : encode_e::ok;
+        }
+
+        if (switch_display_event->peek()) {
+          return encode_e::reinit;
+        }
+
+        std::this_thread::sleep_for(50ms);
+        continue;
+      }
+
+      // Set when the capture backend was unwound because no session needs video anymore.
+      bool unwind_for_idle = false;
+
+      auto push_captured_image_callback = [&](std::shared_ptr<platf::img_t> &&captured_image, bool frame_captured) {
+        auto &seed_img = captured_image ? *captured_image : *img;
+        if (!accept_pending_sessions(seed_img) || !prune_shutdown_sessions()) {
+          return false;
+        }
+
+        serve_input_only_sessions();
 
         KITTY_WHILE_LOOP(auto pos = std::begin(synced_sessions), pos != std::end(synced_sessions), {
           auto ctx = pos->ctx;
-          if (ctx->shutdown_event->peek()) {
-            // Let waiting thread know it can delete shutdown_event
-            ctx->join_event->raise(true);
-
-            pos = synced_sessions.erase(pos);
-            synced_session_ctxs.erase(std::find_if(std::begin(synced_session_ctxs), std::end(synced_session_ctxs), [&ctx_p = ctx](auto &ctx) {
-              return ctx.get() == ctx_p;
-            }));
-
-            if (synced_sessions.empty()) {
-              return false;
-            }
-
-            continue;
-          }
-
           if (ctx->config.input_only) {
-            // Input-only sessions must never encode a real captured frame. The synced session
-            // already converted the black dummy image at setup time, so encode that on the
-            // first pass and again whenever the client requests an IDR, and otherwise idle.
-            bool serve_idr = ctx->idr_events->peek() != 0;
-            if (serve_idr) {
-              ctx->idr_events->pop();
-            }
-
-            if (serve_idr || ctx->frame_nr == 1) {
-              if (serve_idr) {
-                pos->session->request_idr_frame();
-              }
-
-              if (encode(ctx->frame_nr++, *pos->session, ctx->packets, ctx->channel_data, {})) {
-                BOOST_LOG(error) << "Could not encode dummy video packet"sv;
-                ctx->shutdown_event->raise(true);
-
-                continue;
-              }
-
-              pos->session->request_normal_frame();
-            }
-
             ++pos;
             continue;
           }
@@ -3050,6 +3192,7 @@ namespace video {
             BOOST_LOG(error) << "Could not convert image"sv;
             ctx->shutdown_event->raise(true);
 
+            ++pos;
             continue;
           }
 
@@ -3062,6 +3205,7 @@ namespace video {
             BOOST_LOG(error) << "Could not encode video packet"sv;
             ctx->shutdown_event->raise(true);
 
+            ++pos;
             continue;
           }
 
@@ -3070,8 +3214,19 @@ namespace video {
           ++pos;
         })
 
+        // Sessions whose convert() or encode() failed above are dropped here so their
+        // join_event is released without waiting for the next captured frame.
+        if (!prune_shutdown_sessions()) {
+          return false;
+        }
+
         if (switch_display_event->peek()) {
           ec = platf::capture_e::reinit;
+          return false;
+        }
+
+        if (!capture_needed()) {
+          unwind_for_idle = true;
           return false;
         }
 
@@ -3085,6 +3240,13 @@ namespace video {
       };
 
       auto status = disp->capture(push_captured_image_callback, pull_free_image_callback, &display_cursor);
+
+      if (unwind_for_idle) {
+        // Only input-only sessions are left. Reinitialize so capture backends that tear down
+        // their state when capture() returns are in a clean state before we start idling.
+        return encode_e::reinit;
+      }
+
       switch (status) {
         case platf::capture_e::reinit:
         case platf::capture_e::capture_error:

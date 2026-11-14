@@ -247,6 +247,22 @@ namespace video {
   std::optional<std::chrono::steady_clock::time_point> match_frame_timestamp(frame_timestamp_queue_t &timestamps, int64_t pts);
 
   /**
+   * @brief Fill an image buffer with opaque black pixels.
+   *
+   * Capture backends may hand out uninitialized buffers, or buffers with a zeroed alpha
+   * channel, for `dummy_img()`. Such a frame decodes as a green screen on some clients, so
+   * anything that is meant to be shown as a blank placeholder must be normalized first.
+   *
+   * Packed BGRA/xRGB images (`pixel_pitch == 4`) and planar NV12 images (`pixel_pitch == 1`,
+   * where the half-height interleaved UV plane directly follows the Y plane) are supported.
+   * Any other layout, or a descriptor that is unusable (no buffer, degenerate dimensions, or a
+   * row pitch too small to hold a row of pixels), is left untouched.
+   *
+   * @param img Image to fill in place.
+   */
+  void fill_blank_image(platf::img_t &img);
+
+  /**
    * @brief Pixel formats supported by one encoder backend.
    */
   struct encoder_platform_formats_t {

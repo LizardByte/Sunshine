@@ -2321,8 +2321,8 @@ namespace stream {
         // If the only thing running was the synthetic "Input Only" placeholder, there is
         // no real app to keep alive once the last client disconnects. Terminate it so the
         // host does not stay stuck reporting a phantom running app.
-        const std::string input_only_id = proc::get_input_only_app_id();
-        if (!input_only_id.empty() && proc::proc.running() == (int) util::from_view(input_only_id)) {
+        const bool was_input_only = proc::proc.is_input_only_running();
+        if (was_input_only) {
           proc::proc.terminate();
         }
 
@@ -2331,6 +2331,10 @@ namespace stream {
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
           system_tray::update_tray_pausing(proc::proc.get_last_run_app_name());
 #endif
+        } else if (was_input_only) {
+          // The input-only placeholder never configured the display, so there is nothing to
+          // revert on its account. There are no sessions left, so gamepads can go away too.
+          input::terminate_gamepads();
         } else {
           // We have no app running and also no clients anymore.
           revert_display_config = true;
@@ -2385,7 +2389,10 @@ namespace stream {
       if (++running_sessions == 1) {
         platf::streaming_will_start();
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
-        system_tray::update_tray_playing(proc::proc.get_last_run_app_name());
+        // The "Input Only" placeholder is not a real app, so don't announce it as playing.
+        if (!proc::proc.is_input_only_running()) {
+          system_tray::update_tray_playing(proc::proc.get_last_run_app_name());
+        }
 #endif
       }
 

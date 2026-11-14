@@ -81,6 +81,7 @@ namespace proc {
     bool auto_detach;  ///< Whether the process should detach automatically.
     bool wait_all;  ///< Whether Sunshine waits for all child processes.
     std::chrono::seconds exit_timeout;  ///< Exit timeout.
+    bool input_only = false;  ///< Synthetic app that streams no captured video while keeping input and audio active.
   };
 
   /**
@@ -118,6 +119,16 @@ namespace proc {
      * @return `_app_id` if a process is running, otherwise returns `0`
      */
     int running();
+
+    /**
+     * @brief Check whether the running app is the synthetic "Input Only" placeholder.
+     *
+     * Unlike the configured app ID, this stays valid for the lifetime of the session even if
+     * `input.enable_input_only_mode` is turned off while the placeholder is still running.
+     *
+     * @return true if an input-only session is currently running.
+     */
+    bool is_input_only_running() const;
 
     ~proc_t();
 
@@ -259,5 +270,5 @@ namespace proc {
    * @return The ID string, or an empty string when input-only mode is disabled.
    */
   std::string
-  get_input_only_app_id();
+    get_input_only_app_id();
 }  // namespace proc

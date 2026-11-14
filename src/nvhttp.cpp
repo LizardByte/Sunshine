@@ -1302,8 +1302,7 @@ namespace nvhttp {
 
     // An active placeholder "Input Only" app should not show up as a running game
     // to other clients (they would try to resume a session with no real app behind it).
-    const std::string input_only_id_for_state = proc::get_input_only_app_id();
-    if (!input_only_id_for_state.empty() && current_appid == (int) util::from_view(input_only_id_for_state)) {
+    if (proc::proc.is_input_only_running()) {
       current_appid = 0;
     }
 
@@ -1417,10 +1416,10 @@ namespace nvhttp {
     // Compare numerically so zero-padded or otherwise formatted appids from quirky
     // clients still resolve to the placeholder entry.
     const std::string input_only_id = proc::get_input_only_app_id();
-    const bool has_input_only = !input_only_id.empty();
-    const int input_only_id_int = has_input_only ? (int) util::from_view(input_only_id) : 0;
-    const bool is_input_only = config::input.enable_input_only_mode && has_input_only && (int) appid == input_only_id_int;
-    const bool current_is_input_only = has_input_only && current_appid == input_only_id_int;
+    const bool is_input_only = config::input.enable_input_only_mode && !input_only_id.empty() && (int) appid == (int) util::from_view(input_only_id);
+
+    // The running placeholder is recognized even if the mode was toggled off after it started.
+    const bool current_is_input_only = proc::proc.is_input_only_running();
 
     if (current_appid > 0 && !is_input_only && !current_is_input_only) {
       tree.put("root.resume", 0);
@@ -1434,9 +1433,12 @@ namespace nvhttp {
     auto launch_session = make_launch_session(host_audio, args);
     launch_session->input_only = is_input_only;
 
-    if (rtsp_stream::session_count() == 0) {
-      // The display should be restored in case something fails as there are no other sessions.
-      revert_display_configuration = true;
+    // A real app launched on top of a running input-only placeholder needs the display
+    // prepared, even though other sessions are still active.
+    if (rtsp_stream::session_count() == 0 || (current_is_input_only && !is_input_only)) {
+      // The display should be restored in case something fails as there are no other sessions
+      // that depend on it. An input-only session never changes it, so there is nothing to revert.
+      revert_display_configuration = !is_input_only;
 
       // We want to prepare display only if there are no active sessions at
       // the moment. This should be done before probing encoders as it could
@@ -1568,17 +1570,18 @@ namespace nvhttp {
     const auto launch_session = make_launch_session(host_audio, args);
 
     // If only the synthetic "Input Only" placeholder is running, a resume must not
-    // silently upgrade into a full desktop-capture session.
-    {
-      const std::string input_only_id = proc::get_input_only_app_id();
-      launch_session->input_only = !input_only_id.empty() && current_appid == (int) util::from_view(input_only_id);
-    }
+    // silently upgrade into a full desktop-capture session. The placeholder is recognized
+    // even if input-only mode was turned off after it started.
+    launch_session->input_only = proc::proc.is_input_only_running();
 
     if (no_active_sessions) {
       // We want to prepare display only if there are no active sessions at
       // the moment. This should be done before probing encoders as it could
-      // change the active displays.
-      display_device::configure_display(config::video, *launch_session);
+      // change the active displays. Input-only sessions show no video, so they
+      // must not change the physical display configuration.
+      if (!launch_session->input_only) {
+        display_device::configure_display(config::video, *launch_session);
+      }
 
       // Probe encoders again before streaming to ensure our chosen
       // encoder matches the active GPU (which could have changed
