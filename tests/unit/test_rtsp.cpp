@@ -13,6 +13,7 @@
 // standard includes
 #include <array>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -26,6 +27,7 @@ extern "C" {
 #include <src/audio.h>
 #include <src/config.h>
 #include <src/rtsp.h>
+#include <src/stream.h>
 #include <src/video.h>
 
 /**
@@ -62,6 +64,15 @@ TEST(RtspHeaderTest, ConstAccessorsPreserveTheSerializedHeader) {
 
 namespace rtsp_stream {
   class rtsp_server_t;
+
+  /**
+   * @brief Select the client's requested PyroWave wire format.
+   *
+   * @param config Negotiated stream configuration.
+   * @param args ANNOUNCE attributes.
+   * @return Whether the transport is supported.
+   */
+  bool configure_pyrowave(stream::config_t &config, const std::unordered_map<std::string_view, std::string_view> &args);
 
   /**
    * @brief Release a parsed RTSP message and its allocation.
@@ -149,8 +160,51 @@ TEST(RtspPyrowaveTest, AdvertisesOnlyProbedProfiles) {
     video::active_pyrowave_profiles = profiles << 23;
     auto response = pyrowave_rtsp_response(true);
     EXPECT_EQ(response.find("a=rtpmap:99 PYROWAVE/90000") != std::string::npos, profiles != 0);
-    EXPECT_EQ(response.find("a=x-ss-video[0].pyrowaveFrameFormat:PYRW/1") != std::string::npos, profiles != 0);
+    EXPECT_EQ(response.find("a=x-ss-pyrowave.bitstream:" SUNSHINE_PYROWAVE_BITSTREAM_ID) != std::string::npos, profiles != 0 && std::string_view {SUNSHINE_PYROWAVE_BITSTREAM_ID}.size() != 0);
+    EXPECT_EQ(response.find("PYRW/1"), std::string::npos);
     EXPECT_NE(response.find("CSeq: 17"), std::string::npos);
+  }
+}
+
+/**
+ * @brief Negotiate from advertised features without relying on a client name or platform.
+ */
+TEST(RtspPyrowaveTest, SelectsFramingFromCapabilitiesAndRejectsUnsupportedTransports) {
+  stream::config_t config {};
+  config.monitor.videoFormat = video::pyrowave::video_format;
+  config.packetsize = 1000;
+  for (auto features : {"0", "1", "2", "3", "4", "8", "4294967295"}) {
+    for (bool adaptive : {false, true}) {
+      std::unordered_map<std::string_view, std::string_view> args {{"x-ss-video[0].pyrowaveFeatures", features}};
+      if (adaptive) {
+        args.emplace("x-ss-video[0].pyrowaveAdaptiveFec", "0");
+      }
+      ASSERT_TRUE(rtsp_stream::configure_pyrowave(config, args));
+      EXPECT_EQ(config.monitor.pyrowaveRecordFraming, adaptive || features == "1"sv || features == "3"sv || features == "4294967295"sv);
+      EXPECT_EQ(config.monitor.packetSize, 1000);
+    }
+  }
+  ASSERT_TRUE(rtsp_stream::configure_pyrowave(config, {}));
+  EXPECT_FALSE(config.monitor.pyrowaveRecordFraming);
+  for (auto name : {"x-ss-video[0].pyrowaveFeatures", "x-ss-video[0].pyrowaveCompression", "x-ss-video[0].pyrowaveHybrid"}) {
+    for (auto value : {"", "-1", "4294967296", "invalid", "1x"}) {
+      EXPECT_FALSE(rtsp_stream::configure_pyrowave(config, {{name, value}})) << name << ':' << value;
+    }
+    EXPECT_TRUE(rtsp_stream::configure_pyrowave(config, {{name, "0"}}));
+    if (name != "x-ss-video[0].pyrowaveFeatures"sv) {
+      EXPECT_FALSE(rtsp_stream::configure_pyrowave(config, {{name, "1"}}));
+    }
+  }
+  for (int size : {0, config::PACKETSIZE_MIN - 1, config::PACKETSIZE_MAX + 1}) {
+    config.packetsize = size;
+    EXPECT_FALSE(rtsp_stream::configure_pyrowave(config, {}));
+  }
+  config.packetsize = 1392;
+  config.minRequiredFecPackets = -1;
+  EXPECT_FALSE(rtsp_stream::configure_pyrowave(config, {}));
+  for (int format : {0, 1, 2}) {
+    config.monitor.videoFormat = format;
+    EXPECT_TRUE(rtsp_stream::configure_pyrowave(config, {{"x-ss-video[0].pyrowaveCompression", "1"}}));
   }
 }
 
@@ -200,6 +254,12 @@ TEST(RtspPyrowaveTest, NegotiatesProbedProfilesAndRejectsUnknownFormatsBeforeSta
         << "profiles " << profiles << ", format " << format << ", HDR " << hdr << ", chroma " << chroma;
     }
   }
+  video::active_pyrowave_profiles = video::pyrowave::scm_sdr;
+  for (auto attribute : {"pyrowaveCompression:1", "pyrowaveHybrid:1", "pyrowaveFeatures:invalid"}) {
+    const auto payload = base + "a=x-nv-vqos[0].bitStreamFormat:3\r\na=x-ss-video[0]." + attribute + "\r\n";
+    EXPECT_TRUE(pyrowave_rtsp_response(false, payload).starts_with("RTSP/1.0 400 BAD REQUEST\r\n"));
+  }
+  EXPECT_TRUE(pyrowave_rtsp_response(false, base + "a=x-nv-vqos[0].bitStreamFormat:3\r\na=x-ss-video[0].pyrowaveAdaptiveFec:\r\n").starts_with("RTSP/1.0 403 Forbidden\r\n"));
 }
 
 /**

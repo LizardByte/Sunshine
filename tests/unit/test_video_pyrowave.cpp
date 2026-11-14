@@ -18,6 +18,7 @@
 
 extern "C" {
 #include <libavutil/hwcontext.h>
+#include <libavutil/intreadwrite.h>
 #include <libavutil/mem.h>
 #include <libavutil/pixdesc.h>
 #ifdef SUNSHINE_BUILD_VULKAN
@@ -115,6 +116,25 @@ namespace {
   }
 
   /**
+   * @brief Build native v1 records with known block indices and payload lengths.
+   *
+   * @param blocks Block index and total byte length for each record.
+   * @return Sequence header followed by the requested block records.
+   */
+  std::vector<uint8_t> pyrowave_records(std::initializer_list<std::pair<uint32_t, size_t>> blocks) {
+    std::vector<uint8_t> data(8);
+    AV_WL32(data.data(), 0x80000000u | 63 | (47 << 14));
+    AV_WL32(data.data() + 4, blocks.size());
+    for (auto [index, size] : blocks) {
+      const auto offset = data.size();
+      data.resize(offset + size, uint8_t(index));
+      AV_WL32(data.data() + offset, (size / 4) << 16);
+      AV_WL32(data.data() + offset + 4, index << 8);
+    }
+    return data;
+  }
+
+  /**
    * @brief Record converter requests without requiring a display or video encoder.
    */
   class pyrowave_test_display_t: public platf::display_t {
@@ -152,6 +172,156 @@ namespace {
   };
 }  // namespace
 
+/**
+ * @brief Match legacy clients and record clients, including short and unaligned RTP payloads.
+ */
+TEST(PyrowaveFramingTest, MatchesLegacyAndRecordWireFormats) {
+  const auto data = pyrowave_records({{0, 12}, {12, 12}});
+  const std::array packets {pyrowave_packet {0, data.size()}};
+  auto config = pyrowave_config();
+  auto legacy = video::pyrowave::frame_packets(packets, data, config, 12, 42);
+  ASSERT_NE(legacy, nullptr);
+  std::vector<uint8_t> expected {1, 0, 0, 0, 32, 0, 0, 0};
+  expected.insert(expected.end(), data.begin(), data.end());
+  EXPECT_EQ(std::vector(legacy->data(), legacy->data() + legacy->data_size()), expected);
+  EXPECT_TRUE(legacy->is_idr());
+  EXPECT_EQ(legacy->frame_index(), 42);
+  EXPECT_EQ(legacy->pyrowave_critical_packets, 0);
+  EXPECT_TRUE(legacy->pyrowave_record_starts.empty());
+
+  const auto large = pyrowave_records({{0, 2048}});
+  const std::array large_packets {pyrowave_packet {0, 8}, pyrowave_packet {8, 2048}};
+  auto oversized = video::pyrowave::frame_packets(large_packets, large, config, 12, 42);
+  ASSERT_NE(oversized, nullptr);
+  EXPECT_EQ(AV_RL32(oversized->data()), 2);
+  EXPECT_EQ(AV_RL32(oversized->data() + 16), 2048);
+  EXPECT_EQ(oversized->data_size(), large.size() + 12);
+
+  config.pyrowaveRecordFraming = true;
+  config.packetSize = 40;  // 24 data bytes per RTP packet; the first includes an eight-byte frame header.
+  auto records = video::pyrowave::frame_packets(packets, data, config, 12, 43);
+  ASSERT_NE(records, nullptr);
+  ASSERT_EQ(records->data_size(), 52);
+  EXPECT_EQ(records->pyrowave_critical_packets, 2);
+  EXPECT_EQ(records->pyrowave_record_starts, (std::vector<bool> {true, true, true}));
+  EXPECT_EQ(AV_RL32(records->data()), AV_RL32(data.data()));
+  EXPECT_EQ(AV_RL32(records->data() + 8), 0xffffffffu);
+  EXPECT_EQ(AV_RL32(records->data() + 12), 0);
+  EXPECT_EQ(AV_RL32(records->data() + 28), 0xffffffffu);
+  EXPECT_EQ(AV_RL32(records->data() + 32), 1);
+  EXPECT_EQ(AV_RL32(records->data() + 44) >> 8, 12);
+
+  for (int packet_size : {36, 42}) {
+    config.packetSize = packet_size;
+    auto unaligned = video::pyrowave::frame_packets(packets, data, config, 12, 44);
+    ASSERT_NE(unaligned, nullptr);
+    EXPECT_EQ(std::vector(unaligned->data(), unaligned->data() + unaligned->data_size()), data);
+    EXPECT_EQ(unaligned->pyrowave_critical_packets, 0);
+    EXPECT_TRUE(unaligned->pyrowave_record_starts.empty());
+  }
+}
+
+/**
+ * @brief Preserve native records while aligning recoverable detail and critical prefix boundaries.
+ */
+TEST(PyrowaveFramingTest, AlignsOversizedRecordsAndMarksRecoveryBoundaries) {
+  auto config = pyrowave_config();
+  config.pyrowaveRecordFraming = true;
+  config.packetSize = 64;
+  for (const auto &data : {
+         pyrowave_records({{0, 12}, {1, 84}, {12, 12}, {13, 88}}),
+         pyrowave_records({{0, 76}, {12, 12}}),
+         pyrowave_records({{0, 12}}),
+         pyrowave_records({})
+       }) {
+    const std::array packets {pyrowave_packet {0, data.size()}};
+    auto frame = video::pyrowave::frame_packets(packets, data, config, 12, 1);
+    ASSERT_NE(frame, nullptr);
+    std::vector<bool> starts((frame->data_size() + 8 + 47) / 48);
+    std::vector<uint32_t> indices;
+    size_t critical_end = 8;
+    for (size_t offset = 0; offset < frame->data_size();) {
+      ASSERT_GE(frame->data_size() - offset, 8);
+      const auto word = AV_RL32(frame->data() + offset);
+      const auto info = AV_RL32(frame->data() + offset + 4);
+      if (offset == 0 || (offset + 8) % 48 == 0) {
+        starts[(offset + 8) / 48] = true;
+      }
+      const auto size = word == 0xffffffffu ? 8 + size_t(info) * 4 : word & 0x80000000u ? 8 :
+                                                                                          size_t((word >> 16) & 0xfff) * 4;
+      ASSERT_GE(size, 8);
+      ASSERT_LE(size, frame->data_size() - offset);
+      if (!(word & 0x80000000u)) {
+        const auto index = info >> 8;
+        indices.push_back(index);
+        if (index < 12) {
+          critical_end = offset + size;
+        }
+        if (size <= 40) {
+          EXPECT_EQ((offset + 8) / 48, (offset + 8 + size - 1) / 48);
+        }
+      }
+      offset += size;
+    }
+    EXPECT_EQ(frame->pyrowave_record_starts, starts);
+    EXPECT_EQ(frame->pyrowave_critical_packets, (critical_end + 8 + 47) / 48);
+    if (indices.size() == 4) {
+      EXPECT_EQ(indices, (std::vector<uint32_t> {1, 0, 13, 12}));
+    }
+  }
+}
+
+/**
+ * @brief Reject malformed native packets and frames that exceed transport or allocation limits.
+ */
+TEST(PyrowaveFramingTest, RejectsInvalidPacketRangesRecordsAndFrameSizes) {
+  auto config = pyrowave_config();
+  for (bool records : {false, true}) {
+    config.pyrowaveRecordFraming = records;
+    auto data = pyrowave_records({{0, 12}});
+    for (auto packet : {pyrowave_packet {0, 0}, {0, 3}, {0, 20000}, {data.size() + 1, 8}, {data.size() - 4, 8}}) {
+      EXPECT_EQ(video::pyrowave::frame_packets(std::span(&packet, 1), data, config, 12, 1), nullptr);
+    }
+    EXPECT_EQ(video::pyrowave::frame_packets({}, data, config, 12, 1), nullptr);
+    for (int size : {-1, 0, 16, 65536}) {
+      config.packetSize = size;
+      const std::array packets {pyrowave_packet {0, data.size()}};
+      EXPECT_EQ(video::pyrowave::frame_packets(packets, data, config, 12, 1), nullptr);
+    }
+    config.packetSize = 1392;
+  }
+  for (int failure = 0; failure < 5; ++failure) {
+    auto data = pyrowave_records({{0, 12}});
+    if (failure == 0) {
+      data.resize(4);
+    } else if (failure == 1) {
+      AV_WL32(data.data(), 2 << 16);
+    } else if (failure == 2) {
+      AV_WL32(data.data() + 8, 0x80000000u);
+    } else {
+      AV_WL32(data.data() + 8, (failure == 3 ? 1 : 4) << 16);
+    }
+    const std::array packets {pyrowave_packet {0, data.size()}};
+    EXPECT_EQ(video::pyrowave::frame_packets(packets, data, config, 12, 1), nullptr) << failure;
+  }
+  const auto data = pyrowave_records({{12, 12}});
+  std::vector<pyrowave_packet> packets(9000, {8, 12});
+  packets.front() = {0, 8};
+  config.packetSize = 40;
+  EXPECT_EQ(video::pyrowave::frame_packets(packets, data, config, 12, 1), nullptr);
+  const auto large_record = pyrowave_records({{0, 16380}});
+  config.packetSize = 65532;
+  for (size_t count : {1001, 1101}) {
+    packets.assign(count, {8, 16380});
+    packets.front() = {0, 8};
+    EXPECT_EQ(video::pyrowave::frame_packets(packets, large_record, config, 12, 1), nullptr);
+  }
+  config.pyrowaveRecordFraming = false;
+  std::vector<uint8_t> large_packet(video::pyrowave::packet_boundary);
+  packets.assign(video::pyrowave::max_frame_size / large_packet.size(), {0, large_packet.size()});
+  EXPECT_EQ(video::pyrowave::frame_packets(packets, large_packet, config, 0, 1), nullptr);
+}
+
 TEST(PyrowaveConfigTest, NegotiatesOnlySuccessfullyProbedProfiles) {
   auto config = pyrowave_config();
   const uint32_t flags[] {video::pyrowave::scm_sdr, video::pyrowave::scm_sdr_444, video::pyrowave::scm_hdr, video::pyrowave::scm_hdr_444};
@@ -188,6 +358,9 @@ TEST(PyrowaveConfigTest, RejectsMalformedOrUnsupportedRequests) {
     {&video::config_t::height, -2},
     {&video::config_t::height, 47},
     {&video::config_t::height, 16386},
+    {&video::config_t::packetSize, 0},
+    {&video::config_t::packetSize, -1},
+    {&video::config_t::packetSize, 65536},
     {&video::config_t::dynamicRange, -1},
     {&video::config_t::dynamicRange, 2},
     {&video::config_t::chromaSamplingType, -1},
@@ -523,11 +696,15 @@ namespace {
     pyrowave_result encoder_result = PYROWAVE_SUCCESS;  ///< Encoder creation status.
     pyrowave_result encode_result = PYROWAVE_SUCCESS;  ///< Encode status.
     pyrowave_result count_result = PYROWAVE_SUCCESS;  ///< Packet count status.
+    pyrowave_result storage_result = PYROWAVE_SUCCESS;  ///< Native storage allocation query status.
     pyrowave_result packet_result = PYROWAVE_SUCCESS;  ///< Packetization status.
+    pyrowave_result blocks_result = PYROWAVE_SUCCESS;  ///< Critical band query status.
     size_t count = 2;  ///< Packet allocation requested from the caller.
+    size_t storage_count = 1;  ///< Large native packets required for safe backing storage.
     size_t output_count = 2;  ///< Packet count actually written.
-    size_t packet_offset = 2;  ///< First packet offset in the backing buffer.
-    size_t packet_size = 3;  ///< First packet length.
+    size_t packet_offset = 4;  ///< First packet offset in the backing buffer.
+    size_t packet_size = 20;  ///< First packet length.
+    size_t boundary = video::pyrowave::packet_boundary;  ///< Expected native packetization boundary.
     int encoded = 0;  ///< Number of codec calls, including repeated frames.
     int gpu_encoded = 0;  ///< Number of GPU encoding calls.
     pyrowave_result share_result = PYROWAVE_SUCCESS;  ///< Shared device initialization result.
@@ -617,20 +794,36 @@ namespace {
       return api_state->encode_result;
     };
     api.num_packets = [](pyrowave_encoder, size_t boundary, size_t *count) {
-      EXPECT_EQ(boundary, video::pyrowave::packet_boundary);
+      if (api_state->boundary == video::pyrowave::packet_boundary && boundary == video::pyrowave::record_packet_boundary) {
+        *count = api_state->storage_count;
+        return api_state->storage_result;
+      }
+      EXPECT_EQ(boundary, api_state->boundary);
       *count = api_state->count;
       return api_state->count_result;
     };
     api.packetize = [](pyrowave_encoder, pyrowave_packet *packets, size_t, size_t *count, void *data, size_t size) {
-      EXPECT_GE(size, 12);
+      EXPECT_GE(size, video::pyrowave::record_packet_boundary);
       packets[0] = {api_state->packet_offset, api_state->packet_size};
       if (api_state->count > 1) {
-        packets[1] = {9, 2};
+        packets[1] = {32, 12};
       }
-      const uint8_t bytes[] {0, 0, 0x11, 0x22, 0x33, 0, 0, 0, 0, 0x44, 0x55, 0};
-      std::memcpy(data, bytes, sizeof(bytes));
+      auto bytes = static_cast<uint8_t *>(data);
+      AV_WL32(bytes + 4, 0x80000000u | 63 | (47 << 14));
+      AV_WL32(bytes + 8, 2 | (api_state->chroma == PYROWAVE_CHROMA_SUBSAMPLING_444 ? 1 << 26 : 0));
+      AV_WL32(bytes + 12, 3 << 16);
+      AV_WL32(bytes + 16, 0);
+      AV_WL32(bytes + 20, 0x11223344);
+      AV_WL32(bytes + 32, 3 << 16);
+      AV_WL32(bytes + 36, 12 << 8);
+      AV_WL32(bytes + 40, 0x55667788);
       *count = api_state->output_count;
       return api_state->packet_result;
+    };
+    api.active_blocks = [](pyrowave_encoder, int bands, size_t *blocks) {
+      EXPECT_EQ(bands, 2);
+      *blocks = 12;
+      return api_state->blocks_result;
     };
     return api;
   }
@@ -808,8 +1001,15 @@ TEST_F(PyrowaveSessionTest, EncodesSdrAndHdrWithExactPlaneValuesAndFraming) {
       ASSERT_NE(packet, nullptr);
       EXPECT_TRUE(packet->is_idr());
       EXPECT_EQ(packet->frame_index(), 42);
-      const std::vector<uint8_t> expected {'P', 'Y', 'R', 'W', 1, 0, 2, 0, 0, 0, 0, 3, 0x11, 0x22, 0x33, 0, 0, 0, 2, 0x44, 0x55};
-      EXPECT_EQ(std::vector(packet->data(), packet->data() + packet->data_size()), expected);
+      ASSERT_EQ(packet->data_size(), 44);
+      EXPECT_EQ(AV_RL32(packet->data()), 2);
+      EXPECT_EQ(AV_RL32(packet->data() + 4), 20);
+      EXPECT_EQ(AV_RL32(packet->data() + 8), 0x80000000u | 63 | (47 << 14));
+      EXPECT_EQ(AV_RL32(packet->data() + 24), 0x11223344);
+      EXPECT_EQ(AV_RL32(packet->data() + 28), 12);
+      EXPECT_EQ(AV_RL32(packet->data() + 40), 0x55667788);
+      EXPECT_EQ(packet->pyrowave_critical_packets, 0);
+      EXPECT_TRUE(packet->pyrowave_record_starts.empty());
       EXPECT_EQ(state.budget, 416666);
       EXPECT_EQ(state.chroma, yuv444 ? PYROWAVE_CHROMA_SUBSAMPLING_444 : PYROWAVE_CHROMA_SUBSAMPLING_420);
       EXPECT_EQ(state.input.format, format == AV_PIX_FMT_NV12 ? PYROWAVE_CPU_BUFFER_FORMAT_NV12 : yuv444 ? (hdr ? PYROWAVE_CPU_BUFFER_FORMAT_YUV444P10 : PYROWAVE_CPU_BUFFER_FORMAT_YUV444P) :
@@ -1027,7 +1227,7 @@ TEST_F(PyrowaveSessionTest, FailsClosedOnEncodeAndPacketizationErrors) {
   ASSERT_NE(session, nullptr);
   platf::img_t image {};
   ASSERT_EQ(session->convert(image), 0);
-  for (int failure = 0; failure < 12; ++failure) {
+  for (int failure = 0; failure < 15; ++failure) {
     state = {};
     switch (failure) {
       case 0:
@@ -1058,17 +1258,41 @@ TEST_F(PyrowaveSessionTest, FailsClosedOnEncodeAndPacketizationErrors) {
         state.packet_size = 0;
         break;
       case 9:
-        state.packet_size = video::pyrowave::packet_boundary + 1;
+        state.packet_size = video::pyrowave::record_packet_boundary + 4;
         break;
       case 10:
         state.packet_offset = std::numeric_limits<size_t>::max();
         break;
       case 11:
-        state.packet_offset = 2 * video::pyrowave::packet_boundary - 1;
+        state.packet_offset = video::pyrowave::record_packet_boundary - 4;
+        break;
+      case 12:
+        state.storage_result = PYROWAVE_ERROR_GENERIC;
+        break;
+      case 13:
+        state.storage_count = 0;
+        break;
+      case 14:
+        state.storage_count = video::pyrowave::max_frame_size / video::pyrowave::record_packet_boundary + 1;
         break;
     }
     EXPECT_EQ(session->encode(failure), nullptr) << failure;
   }
+  auto config = pyrowave_config();
+  config.pyrowaveRecordFraming = true;
+  state = {};
+  state.boundary = video::pyrowave::record_packet_boundary;
+  session = video::pyrowave::make_session(config, std::make_unique<pyrowave_test_converter_t>(AV_PIX_FMT_NV12), fake_pyrowave_api());
+  ASSERT_NE(session, nullptr);
+  ASSERT_EQ(session->convert(image), 0);
+  state.blocks_result = PYROWAVE_ERROR_GENERIC;
+  EXPECT_EQ(session->encode(42), nullptr);
+  state.blocks_result = PYROWAVE_SUCCESS;
+  auto records = session->encode(43);
+  ASSERT_NE(records, nullptr);
+  EXPECT_EQ(AV_RL32(records->data()), 0x80000000u | 63 | (47 << 14));
+  EXPECT_EQ(records->pyrowave_critical_packets, 1);
+  EXPECT_EQ(records->pyrowave_record_starts, (std::vector<bool> {true, true}));
 }
 
 /**
@@ -1343,8 +1567,8 @@ TEST_P(PyrowaveRoundTripTest, DecodesSdrAndHdrFrameContainersWithTheUpstreamLibr
   // Still validate native frame containers on software Vulkan devices.
   decode_pixels = properties.deviceType != VK_PHYSICAL_DEVICE_TYPE_CPU;
 #endif
-  for (int profile = 0; profile < 4; ++profile) {
-    const bool hdr = profile / 2;
+  for (int profile = 0; profile < 8; ++profile) {
+    const bool hdr = (profile % 4) / 2;
     const bool yuv444 = profile % 2;
     if (type == AV_HWDEVICE_TYPE_VAAPI && yuv444) {
       continue;  // The VAAPI capture converter only exposes 4:2:0.
@@ -1356,6 +1580,7 @@ TEST_P(PyrowaveRoundTripTest, DecodesSdrAndHdrFrameContainersWithTheUpstreamLibr
       pyrowave_decoder_destroy(decoder);
     });
     auto config = pyrowave_config();
+    config.pyrowaveRecordFraming = profile >= 4;
     config.dynamicRange = hdr;
     config.chromaSamplingType = yuv444;
     auto format = yuv444 ? (hdr ? AV_PIX_FMT_YUV444P10 : AV_PIX_FMT_YUV444P) : (hdr ? AV_PIX_FMT_P010 : AV_PIX_FMT_NV12);
@@ -1432,16 +1657,21 @@ TEST_P(PyrowaveRoundTripTest, DecodesSdrAndHdrFrameContainersWithTheUpstreamLibr
       EXPECT_EQ(gpu_calls, 3);
     }
     const auto data = packet->data();
-    ASSERT_GE(packet->data_size(), 8);
-    ASSERT_EQ(std::string(reinterpret_cast<char *>(data), 4), "PYRW");
-    ASSERT_EQ(data[4], 1);
-    const auto count = (uint16_t(data[5]) << 8) | data[6];
-    size_t offset = 8;
-    for (int i = 0; i < count; ++i) {
+    ASSERT_GE(packet->data_size(), 4);
+    const auto count = config.pyrowaveRecordFraming ? std::numeric_limits<uint32_t>::max() : AV_RL32(data);
+    size_t offset = config.pyrowaveRecordFraming ? 0 : 4;
+    for (uint32_t i = 0; i < count && offset < packet->data_size(); ++i) {
       ASSERT_LE(offset + 4, packet->data_size());
-      const auto size = (uint32_t(data[offset]) << 24) | (uint32_t(data[offset + 1]) << 16) |
-                        (uint32_t(data[offset + 2]) << 8) | data[offset + 3];
-      offset += 4;
+      const auto word = AV_RL32(data + offset);
+      if (config.pyrowaveRecordFraming && word == 0xffffffffu) {
+        ASSERT_LE(offset + 8, packet->data_size());
+        offset += 8 + size_t(AV_RL32(data + offset + 4)) * 4;
+        continue;
+      }
+      const auto size = config.pyrowaveRecordFraming ? (word & 0x80000000u ? 8 : ((word >> 16) & 0xfff) * 4) : word;
+      if (!config.pyrowaveRecordFraming) {
+        offset += 4;
+      }
       ASSERT_LE(size, packet->data_size() - offset);
       ASSERT_EQ(pyrowave_decoder_push_packet(decoder, data + offset, size), PYROWAVE_SUCCESS);
       offset += size;

@@ -19,6 +19,7 @@
 extern "C" {
 #include <libavutil/hwcontext.h>
 #include <libavutil/imgutils.h>
+#include <libavutil/intreadwrite.h>
 #include <libavutil/mastering_display_metadata.h>
 #include <libavutil/opt.h>
 #include <libavutil/pixdesc.h>
@@ -640,9 +641,134 @@ namespace video {
       return config.videoFormat == video_format &&
              config.width > 0 && config.width <= 16384 &&
              config.height > 0 && config.height <= 16384 &&
+             config.packetSize > int(shard_overhead) && config.packetSize <= config::PACKETSIZE_MAX &&
              (config.dynamicRange == 0 || config.dynamicRange == 1) &&
              (config.chromaSamplingType == 1 || (config.chromaSamplingType == 0 && config.width % 2 == 0 && config.height % 2 == 0)) &&
              frame_budget(config) != 0;
+    }
+
+    packet_t frame_packets(std::span<const pyrowave_packet> packets, std::span<const uint8_t> bitstream, const config_t &config, size_t critical_blocks, int64_t frame_index) {
+      if (packets.empty() || packets.size() > std::numeric_limits<uint32_t>::max() || config.packetSize <= int(shard_overhead) || config.packetSize > config::PACKETSIZE_MAX) {
+        return nullptr;
+      }
+      std::vector<uint8_t> output;
+      std::vector<std::span<const uint8_t>> records;
+      if (!config.pyrowaveRecordFraming) {
+        output.resize(4);
+        AV_WL32(output.data(), packets.size());
+      }
+      size_t native_size = 0;
+      for (const auto &packet : packets) {
+        if (!packet.size || packet.size > record_packet_boundary || packet.size % 4 || packet.offset > bitstream.size() || packet.size > bitstream.size() - packet.offset || packet.size > max_frame_size - native_size) {
+          return nullptr;
+        }
+        native_size += packet.size;
+        auto bytes = bitstream.subspan(packet.offset, packet.size);
+        if (!config.pyrowaveRecordFraming) {
+          if (output.size() > max_frame_size - 4 - bytes.size()) {
+            return nullptr;
+          }
+          const auto offset = output.size();
+          output.resize(offset + 4);
+          AV_WL32(output.data() + offset, bytes.size());
+          output.insert(output.end(), bytes.begin(), bytes.end());
+          continue;
+        }
+        while (!bytes.empty()) {
+          if (bytes.size() < 8) {
+            return nullptr;
+          }
+          const auto word = AV_RL32(bytes.data());
+          // Native sequence and block records both have eight-byte headers.
+          const bool sequence = word & 0x80000000u;
+          const size_t size = sequence ? 8 : ((word >> 16) & 0xfffu) * 4;
+          if (sequence != records.empty() || size < 8 || size > bytes.size()) {
+            return nullptr;
+          }
+          records.push_back(bytes.first(size));
+          bytes = bytes.subspan(size);
+        }
+      }
+      if (!config.pyrowaveRecordFraming) {
+        return std::make_unique<packet_raw_generic>(std::move(output), frame_index, true);
+      }
+
+      const auto payload_size = size_t(config.packetSize) - shard_overhead;
+      const bool aligned = payload_size >= 24 && payload_size % 4 == 0;
+      output.reserve(native_size);
+      std::vector<bool> record_starts;
+      auto append = [&](std::span<const uint8_t> bytes) {
+        if (bytes.size() > max_frame_size - output.size()) {
+          return false;
+        }
+        const auto position = output.size() + frame_header_size;
+        if (aligned) {
+          record_starts.resize((position + bytes.size() + payload_size - 1) / payload_size);
+          if (output.empty() || position % payload_size == 0) {
+            record_starts[position / payload_size] = true;
+          }
+        }
+        output.insert(output.end(), bytes.begin(), bytes.end());
+        return true;
+      };
+      auto pad = [&](size_t size) {
+        std::array<uint8_t, 8> padding;
+        AV_WL32(padding.data(), 0xffffffffu);
+        AV_WL32(padding.data() + 4, (size - 8) / 4);
+        if (size > max_frame_size - output.size()) {
+          return false;
+        }
+        append(padding);
+        output.resize(output.size() + size - padding.size());
+        return true;
+      };
+      auto remaining = [&]() {
+        return payload_size - (output.size() + frame_header_size) % payload_size;
+      };
+
+      size_t critical_packets = 0;
+      auto detail = records.end();
+      if (aligned) {
+        detail = std::stable_partition(records.begin() + 1, records.end(), [&](auto record) {
+          return (AV_RL32(record.data() + 4) >> 8) < critical_blocks;
+        });
+        // Put records that must span shards first, preserving recovery for small records.
+        auto oversized = [&](auto record) {
+          return record.size() > payload_size - 8;
+        };
+        std::stable_partition(records.begin() + 1, detail, oversized);
+        std::stable_partition(detail, records.end(), oversized);
+      }
+      for (auto record = records.begin(); record != records.end(); ++record) {
+        if (aligned) {
+          if (record == detail) {
+            if (remaining() != payload_size && !pad(remaining())) {
+              return nullptr;
+            }
+            critical_packets = (output.size() + frame_header_size) / payload_size;
+          }
+          if (record->size() <= payload_size - 8) {
+            if ((record->size() > remaining() || remaining() - record->size() == 4) && !pad(remaining())) {
+              return nullptr;
+            }
+          } else if ((output.size() + frame_header_size + record->size()) % payload_size == payload_size - 4 && !pad(8)) {
+            return nullptr;
+          }
+        }
+        if (!append(*record)) {
+          return nullptr;
+        }
+      }
+      if (aligned && detail == records.end()) {
+        critical_packets = record_starts.size();
+      }
+      if (record_starts.size() > 4 * 1023) {
+        return nullptr;
+      }
+      auto result = std::make_unique<packet_raw_generic>(std::move(output), frame_index, true);
+      result->pyrowave_critical_packets = uint16_t(critical_packets);
+      result->pyrowave_record_starts = std::move(record_starts);
+      return result;
     }
 
     /**
@@ -1185,6 +1311,7 @@ namespace video {
        * @return True when the Vulkan device and encoder are usable.
        */
       bool init(const config_t &config) {
+        framing = config;
         uint32_t major, minor, patch;
         api.get_api_version(&major, &minor, &patch);
         if (major != PYROWAVE_API_VERSION_MAJOR || std::pair {major, minor} < std::pair {uint32_t(PYROWAVE_API_VERSION_MAJOR), uint32_t(PYROWAVE_API_VERSION_MINOR)}) {
@@ -1364,31 +1491,31 @@ namespace video {
           result = api.encode_cpu(encoder, &input, &rate_control);
         }
         size_t count = 0;
-        if (result != PYROWAVE_SUCCESS || api.num_packets(encoder, packet_boundary, &count) != PYROWAVE_SUCCESS || count == 0 || count > std::numeric_limits<uint16_t>::max() || count > max_frame_size / packet_boundary) {
+        const auto boundary = framing.pyrowaveRecordFraming ? record_packet_boundary : packet_boundary;
+        if (result != PYROWAVE_SUCCESS || api.num_packets(encoder, boundary, &count) != PYROWAVE_SUCCESS || count == 0 || count > max_frame_size / boundary) {
           BOOST_LOG(error) << "PyroWave encoding failed";
           return nullptr;
         }
 
         packets.resize(count);
-        bitstream.resize(count * packet_boundary);
-        if (api.packetize(encoder, packets.data(), packet_boundary, &count, bitstream.data(), bitstream.size()) != PYROWAVE_SUCCESS || count == 0 || count > packets.size()) {
+        // Native records cannot be split, so a legacy packet can exceed its 1024-byte target.
+        // Query an allocation with a boundary large enough for any native record.
+        size_t storage_count = count;
+        if (boundary != record_packet_boundary && (api.num_packets(encoder, record_packet_boundary, &storage_count) != PYROWAVE_SUCCESS || !storage_count || storage_count > max_frame_size / record_packet_boundary)) {
+          return nullptr;
+        }
+        bitstream.resize(storage_count * record_packet_boundary);
+        if (api.packetize(encoder, packets.data(), boundary, &count, bitstream.data(), bitstream.size()) != PYROWAVE_SUCCESS || count == 0 || count > packets.size()) {
           BOOST_LOG(error) << "PyroWave packetization failed";
           return nullptr;
         }
 
-        std::vector<uint8_t> output {'P', 'Y', 'R', 'W', 1, uint8_t(count >> 8), uint8_t(count), 0};
-        output.reserve(8 + count * (4 + packet_boundary));
-        for (size_t i = 0; i < count; ++i) {
-          const auto &packet = packets[i];
-          if (!packet.size || packet.size > packet_boundary || packet.offset > bitstream.size() || packet.size > bitstream.size() - packet.offset) {
-            BOOST_LOG(error) << "PyroWave returned an invalid packet range";
-            return nullptr;
-          }
-          auto size = uint32_t(packet.size);
-          output.insert(output.end(), {uint8_t(size >> 24), uint8_t(size >> 16), uint8_t(size >> 8), uint8_t(size)});
-          output.insert(output.end(), bitstream.begin() + packet.offset, bitstream.begin() + packet.offset + packet.size);
+        size_t critical_blocks = 0;
+        // The first two native bands contain the coarsest wavelet level and its detail.
+        if (framing.pyrowaveRecordFraming && api.active_blocks(encoder, 2, &critical_blocks) != PYROWAVE_SUCCESS) {
+          return nullptr;
         }
-        return std::make_unique<packet_raw_generic>(std::move(output), frame_index, true);
+        return frame_packets(std::span(packets.data(), count), bitstream, framing, critical_blocks, frame_index);
       }
 
     private:
@@ -1412,6 +1539,7 @@ namespace video {
       pyrowave_device device {};  ///< Device owned by gpu_input, or owned directly for CPU input.
       pyrowave_encoder encoder {};  ///< Codec instance owned by this session.
       pyrowave_rate_control rate_control;  ///< Per-frame coefficient byte budget.
+      config_t framing {};  ///< Client framing and final negotiated packet size.
       avcodec_frame_t readback;  ///< Downloaded hardware frame, when needed.
       avcodec_frame_t converted;  ///< Stable CPU input layout, with buffers allocated only when conversion is needed.
       avcodec_frame_t input_frame;  ///< Retained pixels for encoding, including repeated frames.

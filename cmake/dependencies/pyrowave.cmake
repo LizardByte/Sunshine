@@ -48,6 +48,12 @@ function(sunshine_add_pyrowave)
             "${pyrowave_source_dir}"
             "${pyrowave_granite_SOURCE_DIR}/third_party/khronos/vulkan-headers/include")
     target_link_libraries(sunshine_pyrowave PRIVATE pyrowave granite-vulkan granite-math Threads::Threads)
+
+    # Clients use the vendored revision to diagnose bitstream compatibility.
+    execute_process(COMMAND git -C "${pyrowave_source_dir}" rev-parse --short=8 HEAD
+            OUTPUT_VARIABLE pyrowave_bitstream_id OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    target_compile_definitions(sunshine_pyrowave INTERFACE
+            SUNSHINE_PYROWAVE_BITSTREAM_ID="${pyrowave_bitstream_id}")
 endfunction()
 
 sunshine_add_pyrowave()

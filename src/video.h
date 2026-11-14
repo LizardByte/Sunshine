@@ -58,6 +58,8 @@ namespace video {
     int dynamicRange;  ///< Encoding color depth: 0 = 8-bit, 1 = 10-bit.
     int chromaSamplingType;  ///< Chroma sampling type: 0 = 4:2:0, 1 = 4:4:4.
     int enableIntraRefresh;  ///< Intra refresh setting: 0 = disabled, 1 = enabled.
+    bool pyrowaveRecordFraming = false;  ///< Client accepts native PyroWave records and padding.
+    int packetSize = 1392;  ///< Negotiated video packet size, including the NV video header.
   };
 
   /**
@@ -625,6 +627,8 @@ namespace video {
     stream::session_t *channel_data = nullptr;  ///< Stream session that receives this packet.
     bool after_ref_frame_invalidation = false;  ///< Whether the frame follows reference-frame invalidation.
     std::optional<std::chrono::steady_clock::time_point> frame_timestamp;  ///< Capture timestamp associated with the frame.
+    uint16_t pyrowave_critical_packets = 0;  ///< Leading RTP data packets needed to decode the coarsest wavelet level.
+    std::vector<bool> pyrowave_record_starts;  ///< RTP data packets that start with a native or padding record.
   };
 
   /**
@@ -748,7 +752,10 @@ namespace video {
     inline constexpr uint32_t scm_hdr = 0x02000000;  ///< ServerCodecModeSupport bit for 10-bit 4:2:0.
     inline constexpr uint32_t scm_hdr_444 = 0x04000000;  ///< ServerCodecModeSupport bit for 10-bit 4:4:4.
     inline constexpr uint32_t scm_mask = scm_sdr | scm_sdr_444 | scm_hdr | scm_hdr_444;  ///< All PyroWave profile bits.
-    inline constexpr size_t packet_boundary = 1400;  ///< Maximum native codec packet length inside a frame.
+    inline constexpr size_t packet_boundary = 1024;  ///< Native packet boundary used by legacy PyroWave clients.
+    inline constexpr size_t record_packet_boundary = 16384;  ///< Packet allocation large enough for any native block record.
+    inline constexpr size_t frame_header_size = 8;  ///< Sunshine short frame header preceding the codec payload.
+    inline constexpr size_t shard_overhead = 16;  ///< NV video header bytes included in the negotiated packet size.
     inline constexpr size_t max_frame_size = 16 * 1024 * 1024;  ///< Bound on codec output allocation.
 
     /**
@@ -794,6 +801,18 @@ namespace video {
     AVPixelFormat capture_format(const encoder_platform_formats_t &formats, const config_t &config);
 
     /**
+     * @brief Frame native codec packets for the client's negotiated transport.
+     *
+     * @param packets Native packet byte ranges returned by the encoder.
+     * @param bitstream Storage containing the native packets.
+     * @param config Negotiated framing and packet size.
+     * @param critical_blocks Native block indices below this value belong to the coarsest level.
+     * @param frame_index Monotonic frame index.
+     * @return Framed packet and recovery metadata, or null for malformed or oversized output.
+     */
+    packet_t frame_packets(std::span<const pyrowave_packet> packets, std::span<const uint8_t> bitstream, const config_t &config, size_t critical_blocks, int64_t frame_index);
+
+    /**
      * @brief Describe YUV components as GPU image views without copying pixel data.
      *
      * @param format Pixel layout produced by the capture converter.
@@ -810,7 +829,7 @@ namespace video {
     class session_t: public encode_session_t {
     public:
       /**
-       * @brief Encode the converted frame as an independent PYRW container.
+       * @brief Encode the converted frame using the client's negotiated framing.
        *
        * @param frame_index Monotonic GameStream frame index.
        * @return Encoded frame, or null on failure.
@@ -852,6 +871,7 @@ namespace video {
       decltype(&pyrowave_sync_object_destroy) destroy_sync = pyrowave_sync_object_destroy;  ///< Release an imported fence.
       decltype(&pyrowave_encoder_compute_num_packets) num_packets = pyrowave_encoder_compute_num_packets;  ///< Query the packet allocation.
       decltype(&pyrowave_encoder_packetize) packetize = pyrowave_encoder_packetize;  ///< Read encoded packets.
+      decltype(&pyrowave_encoder_get_num_active_blocks) active_blocks = pyrowave_encoder_get_num_active_blocks;  ///< Query native block indices for the critical wavelet bands.
     };
 
     /**
