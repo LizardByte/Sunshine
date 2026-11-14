@@ -100,4 +100,13 @@ namespace {
     ASSERT_EQ(recovered.size(), 1);
     EXPECT_EQ(recovered.front(), mapping);
   }
+
+  TEST(UpnpMappingJournalTest, RefusesLineBreaksThatWouldSplitARecoveryRecord) {
+    auto mapping = sample_mapping();
+    mapping.control_url += "\nextra";
+    EXPECT_TRUE(upnp::mapping_journal_event(mapping, true).empty());
+    mapping = sample_mapping();
+    mapping.description += '\r';
+    EXPECT_TRUE(upnp::mapping_journal_event(mapping, true).empty());
+  }
 }  // namespace

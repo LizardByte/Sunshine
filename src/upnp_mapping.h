@@ -78,9 +78,14 @@ namespace upnp {
    * @brief Encode one append-only recovery event before adding or after removing a permanent rule.
    * @param mapping Rule being recorded.
    * @param added Whether this records creation intent rather than completed removal.
-   * @return A newline-delimited event; the leading newline isolates a previously interrupted write.
+   * @return A newline-delimited event, or an empty string for an invalid identity.
    */
   inline std::string mapping_journal_event(const owned_mapping_t &mapping, bool added) {
+    for (const auto *field : {&mapping.control_url, &mapping.service, &mapping.target, &mapping.external_port, &mapping.internal_port, &mapping.protocol, &mapping.description}) {
+      if (field->empty() || field->find_first_of("\r\n") != std::string::npos) {
+        return {};
+      }
+    }
     std::ostringstream out;
     out << '\n'
         << (added ? '+' : '-') << ' ' << std::quoted(mapping.control_url) << ' ' << std::quoted(mapping.service) << ' '

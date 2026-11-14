@@ -325,8 +325,13 @@ namespace upnp {
      * @return Whether the complete event reached the file stream successfully.
      */
     bool journal_mapping(const owned_mapping_t &mapping, bool added) {
+      const auto event = mapping_journal_event(mapping, added);
+      if (event.empty()) {
+        BOOST_LOG(warning) << "Invalid UPnP recovery identity; refusing an unrecorded permanent mapping"sv;
+        return false;
+      }
       std::ofstream out {journal_path(), std::ios::app};
-      out << mapping_journal_event(mapping, added);
+      out << event;
       out.flush();
       out.close();
       if (!out) {
