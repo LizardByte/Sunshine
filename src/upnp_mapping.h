@@ -71,7 +71,9 @@ namespace upnp {
     if (result != 0) {
       return mapping_state_e::unknown;
     }
-    if (client != wanted.target || port != wanted.internal_port) {
+    // Some gateways report the internal port of an existing rule as 0 or leave it empty; that is not another destination.
+    const bool port_reported = !port.empty() && port != "0";
+    if (client != wanted.target || (port_reported && port != wanted.internal_port)) {
       return mapping_state_e::conflict;
     }
     return description == wanted.description ? mapping_state_e::ours : mapping_state_e::existing;

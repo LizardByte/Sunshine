@@ -48,6 +48,15 @@ namespace {
     EXPECT_EQ(upnp::classify_mapping(0, mapping.target, "48000", mapping.description, mapping), upnp::mapping_state_e::conflict);
   }
 
+  TEST(UpnpMappingOwnershipTest, UnreportedInternalPortIsNotAnotherDestination) {
+    const auto mapping = sample_mapping();
+    for (const auto *port : {"0", ""}) {
+      EXPECT_EQ(upnp::classify_mapping(0, mapping.target, port, mapping.description, mapping), upnp::mapping_state_e::ours) << port;
+      EXPECT_EQ(upnp::classify_mapping(0, mapping.target, port, "Manual forwarding", mapping), upnp::mapping_state_e::existing) << port;
+      EXPECT_EQ(upnp::classify_mapping(0, "192.168.1.99", port, mapping.description, mapping), upnp::mapping_state_e::conflict) << port;
+    }
+  }
+
   TEST(UpnpMappingOwnershipTest, LookupErrorsAreNeverProofOfOwnershipOrAbsence) {
     const auto mapping = sample_mapping();
     EXPECT_EQ(upnp::classify_mapping(714, "", "", "", mapping), upnp::mapping_state_e::missing);
