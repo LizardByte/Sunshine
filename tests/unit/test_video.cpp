@@ -655,3 +655,141 @@ TEST_F(FrameTimestampQueueTest, ConsumesEntriesOnce) {
   EXPECT_EQ(ts(1), video::match_frame_timestamp(queue, 1));
   EXPECT_EQ(std::nullopt, video::match_frame_timestamp(queue, 1));
 }
+
+namespace {
+  /**
+   * @brief Point an image descriptor at a caller-owned buffer.
+   *
+   * @param img Descriptor to populate.
+   * @param data Buffer holding the image data.
+   * @param width Image width in pixels.
+   * @param height Image height in pixels.
+   * @param pixel_pitch Bytes per pixel reported by the capture backend.
+   * @param row_pitch Bytes between consecutive image rows.
+   */
+  void bind_image(platf::img_t &img, std::uint8_t *data, int width, int height, int pixel_pitch, int row_pitch) {
+    img.data = data;
+    img.width = width;
+    img.height = height;
+    img.pixel_pitch = pixel_pitch;
+    img.row_pitch = row_pitch;
+  }
+}  // namespace
+
+TEST(FillBlankImageTest, PacksOpaqueBlackForBgra) {
+  std::array<std::uint8_t, 2 * 2 * 4> buffer;
+  buffer.fill(0x11);
+
+  platf::img_t img;
+  bind_image(img, buffer.data(), 2, 2, 4, 2 * 4);
+
+  video::fill_blank_image(img);
+
+  for (size_t pixel = 0; pixel < 4; ++pixel) {
+    EXPECT_EQ(buffer[pixel * 4 + 0], 0x00);
+    EXPECT_EQ(buffer[pixel * 4 + 1], 0x00);
+    EXPECT_EQ(buffer[pixel * 4 + 2], 0x00);
+    EXPECT_EQ(buffer[pixel * 4 + 3], 0xFF);
+  }
+}
+
+TEST(FillBlankImageTest, PreservesPaddingBytesAfterEachBgraRow) {
+  // Two rows of two BGRA pixels padded to 12 bytes: the trailing 4 bytes must stay untouched.
+  std::array<std::uint8_t, 2 * 12> buffer;
+  buffer.fill(0x5A);
+
+  platf::img_t img;
+  bind_image(img, buffer.data(), 2, 2, 4, 12);
+
+  video::fill_blank_image(img);
+
+  for (int row = 0; row < 2; ++row) {
+    EXPECT_EQ(buffer[row * 12 + 0], 0x00);
+    EXPECT_EQ(buffer[row * 12 + 7], 0xFF);
+    EXPECT_EQ(buffer[row * 12 + 8], 0x5A);
+    EXPECT_EQ(buffer[row * 12 + 11], 0x5A);
+  }
+}
+
+TEST(FillBlankImageTest, UsesNeutralChromaForNv12) {
+  // 2x2 NV12: a 4-byte Y plane followed by a 2-byte interleaved UV plane.
+  std::array<std::uint8_t, 2 * 2 + 2> buffer;
+  buffer.fill(0x33);
+
+  platf::img_t img;
+  bind_image(img, buffer.data(), 2, 2, 1, 2);
+
+  video::fill_blank_image(img);
+
+  EXPECT_EQ(buffer[0], 0x00);
+  EXPECT_EQ(buffer[1], 0x00);
+  EXPECT_EQ(buffer[2], 0x00);
+  EXPECT_EQ(buffer[3], 0x00);
+  EXPECT_EQ(buffer[4], 0x80);
+  EXPECT_EQ(buffer[5], 0x80);
+}
+
+TEST(FillBlankImageTest, InfersPixelPitchFromRowPitchWhenBackendOmitsIt) {
+  std::array<std::uint8_t, 8> buffer;
+  buffer.fill(0x77);
+
+  platf::img_t img;
+  bind_image(img, buffer.data(), 2, 1, 0, 8);
+
+  video::fill_blank_image(img);
+
+  EXPECT_EQ(buffer[0], 0x00);
+  EXPECT_EQ(buffer[3], 0xFF);
+  EXPECT_EQ(buffer[4], 0x00);
+  EXPECT_EQ(buffer[7], 0xFF);
+}
+
+TEST(FillBlankImageTest, LeavesUnusableDescriptorsAndUnknownLayoutsAlone) {
+  // An unsupported pixel pitch must not be guessed at.
+  std::array<std::uint8_t, 4> packed;
+  packed.fill(0x42);
+
+  platf::img_t img;
+  bind_image(img, packed.data(), 2, 2, 2, 4);
+
+  video::fill_blank_image(img);
+
+  EXPECT_EQ(packed[0], 0x42);
+  EXPECT_EQ(packed[3], 0x42);
+
+  // A descriptor without a buffer must be ignored rather than dereferenced.
+  platf::img_t without_data;
+  bind_image(without_data, nullptr, 2, 2, 4, 8);
+  video::fill_blank_image(without_data);
+
+  // Degenerate dimensions must not divide by zero or run off the row.
+  std::array<std::uint8_t, 4> guard;
+  guard.fill(0x42);
+
+  platf::img_t zero_width;
+  bind_image(zero_width, guard.data(), 0, 2, 0, 0);
+  video::fill_blank_image(zero_width);
+
+  platf::img_t zero_height;
+  bind_image(zero_height, guard.data(), 2, 0, 4, 8);
+  video::fill_blank_image(zero_height);
+
+  EXPECT_EQ(guard[0], 0x42);
+  EXPECT_EQ(guard[3], 0x42);
+
+  // A row pitch smaller than width * pixel_pitch would run past the buffer.
+  std::array<std::uint8_t, 8> tight;
+  tight.fill(0x42);
+
+  platf::img_t tight_bgra;
+  bind_image(tight_bgra, tight.data(), 2, 2, 4, 4);
+  video::fill_blank_image(tight_bgra);
+
+  platf::img_t tight_nv12;
+  bind_image(tight_nv12, tight.data(), 2, 2, 1, 1);
+  video::fill_blank_image(tight_nv12);
+
+  for (const auto byte : tight) {
+    EXPECT_EQ(byte, 0x42);
+  }
+}
