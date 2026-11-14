@@ -1556,6 +1556,7 @@ consent prompt for directory ACLs, so the Web UI shows setup steps for correctin
             If Sunshine's router is behind another router (double NAT) and both support UPnP,
             the ports are also opened on the outer router, forwarded to the inner router.
             Existing rules for another destination are left unchanged, and only rules owned by Sunshine are removed.
+            A disabled rule created by someone else is also left unchanged, and its port is reported as not opened.
             Rules without an expiry are used only when the router explicitly requires them; they are recorded in
             <code>upnp_mappings.journal</code> in Sunshine's application data directory before creation.
             At the next start Sunshine attempts to remove outstanding recorded rules, even if UPnP has since been disabled.

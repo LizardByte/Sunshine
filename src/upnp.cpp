@@ -213,6 +213,76 @@ namespace upnp {
   }
 
   /**
+   * @brief Gateway calls through MiniUPnPc.
+   */
+  struct miniupnpc_gateway_t {
+    /**
+     * @brief Look up the rule on the requested gateway port.
+     * @param rule Rule whose gateway, service, port and protocol are looked up.
+     * @return The gateway's current rule.
+     */
+    mapping_entry_t lookup(const owned_mapping_t &rule) const {
+      std::array<char, 16> client {};
+      std::array<char, 6> port {};
+      std::array<char, 80> description {};
+      std::array<char, 4> enabled {};
+      std::array<char, 16> lease {};
+      const auto result = UPNP_GetSpecificPortMappingEntry(rule.control_url.c_str(), rule.service.c_str(), rule.external_port.c_str(), rule.protocol.c_str(), nullptr, client.data(), port.data(), description.data(), enabled.data(), lease.data());
+      return {result, client.data(), port.data(), description.data(), enabled.data(), lease.data()};
+    }
+
+    /**
+     * @brief Add or renew a rule.
+     * @param rule Rule to add.
+     * @param lease Requested lease in seconds, `0` for a rule without expiry.
+     * @return MiniUPnPc result.
+     */
+    int add(const owned_mapping_t &rule, const std::string &lease) const {
+      return UPNP_AddPortMapping(rule.control_url.c_str(), rule.service.c_str(), rule.external_port.c_str(), rule.internal_port.c_str(), rule.target.c_str(), rule.description.c_str(), rule.protocol.c_str(), nullptr, lease.c_str());
+    }
+
+    /**
+     * @brief Remove a rule.
+     * @param rule Rule to remove.
+     * @return MiniUPnPc result.
+     */
+    int remove(const owned_mapping_t &rule) const {
+      return UPNP_DeletePortMapping(rule.control_url.c_str(), rule.service.c_str(), rule.external_port.c_str(), rule.protocol.c_str(), nullptr);
+    }
+  };
+
+  static_assert(mapping_gateway<miniupnpc_gateway_t>);
+
+  /**
+   * @brief Log a mapping attempt that left the port closed.
+   * @param rule Requested rule.
+   * @param outcome Mapping outcome.
+   * @param error Last gateway result.
+   */
+  static void report_mapping(const owned_mapping_t &rule, map_outcome_e outcome, int error) {
+    switch (outcome) {
+      case map_outcome_e::conflict:
+        BOOST_LOG(warning) << "UPnP port "sv << rule.external_port << " already forwards elsewhere; leaving it unchanged"sv;
+        break;
+      case map_outcome_e::disabled:
+        BOOST_LOG(warning) << "UPnP port "sv << rule.external_port << " has a disabled manual mapping; leaving it unchanged"sv;
+        break;
+      case map_outcome_e::unknown:
+        BOOST_LOG(warning) << "UPnP mapping ownership could not be checked: "sv << error;
+        break;
+      case map_outcome_e::failed:
+        BOOST_LOG(warning) << "Failed to map "sv << rule.protocol << ' ' << rule.external_port << ": "sv << error;
+        break;
+      case map_outcome_e::mapped:
+      case map_outcome_e::reused:
+      case map_outcome_e::unrecorded:
+      case map_outcome_e::cancelled:
+        // Open ports need no message; recording failures are logged where they happen.
+        break;
+    }
+  }
+
+  /**
    * @brief RAII helper that runs shutdown cleanup when destroyed.
    */
   class deinit_t: public platf::deinit_t {
@@ -361,92 +431,23 @@ namespace upnp {
     }
 
     /**
-     * @brief Maps one port without deleting or adopting a rule belonging to another application.
-     * @param data Gateway's WAN connection service.
-     * @param urls Gateway's control URLs.
-     * @param lan_addr Desired destination address.
-     * @param mapping Desired forwarding rule.
-     * @return Whether the desired destination is reachable through this mapping.
-     */
-    bool map_upnp_port(const IGDdatas &data, const urls_t &urls, const std::string &lan_addr, const mapping_t &mapping) {
-      owned_mapping_t wanted {urls->controlURL, data.first.servicetype, lan_addr, mapping.port.wan, mapping.port.lan, mapping.port.proto, mapping.description, false, generation};
-      // A failed refresh must not forget a rule that was successfully added earlier.
-      for (auto &owned : owned_mappings) {
-        if (owned == wanted) {
-          owned.generation = generation;
-        }
-      }
-      std::array<char, 16> client {};
-      std::array<char, 6> port {};
-      std::array<char, 80> description {};
-      std::array<char, 4> enabled {};
-      std::array<char, 16> lease {};
-      auto err = UPNP_GetSpecificPortMappingEntry(urls->controlURL, data.first.servicetype, mapping.port.wan.c_str(), mapping.port.proto.c_str(), nullptr, client.data(), port.data(), description.data(), enabled.data(), lease.data());
-      switch (classify_mapping(err, client.data(), port.data(), description.data(), wanted)) {
-        case mapping_state_e::conflict:
-          BOOST_LOG(warning) << "UPnP port "sv << mapping.port.wan << " already forwards elsewhere; leaving it unchanged"sv;
-          return false;
-        case mapping_state_e::existing:
-          // A manual rule already does what we need. Never renew or remove it.
-          return true;
-        case mapping_state_e::unknown:
-          BOOST_LOG(warning) << "UPnP mapping ownership could not be checked: "sv << err;
-          return false;
-        case mapping_state_e::ours:
-          wanted.permanent = std::string_view {lease.data()} == "0"sv;
-          if (!remember_mapping(wanted)) {
-            return false;
-          }
-          if (wanted.permanent) {
-            return true;
-          }
-          break;
-        case mapping_state_e::missing:
-          break;
-      }
-      auto shutdown_event = mail::man->event<bool>(mail::shutdown);
-      if (shutdown_event->peek()) {
-        return false;
-      }
-      const auto period = std::to_string(PORT_MAPPING_LIFETIME.count());
-      err = UPNP_AddPortMapping(urls->controlURL, data.first.servicetype, mapping.port.wan.c_str(), mapping.port.lan.c_str(), lan_addr.c_str(), mapping.description.c_str(), mapping.port.proto.c_str(), nullptr, period.c_str());
-      if (err == 725 && !shutdown_event->peek()) {  // OnlyPermanentLeasesSupported
-        wanted.permanent = true;
-        // Persist intent first: a process crash immediately after AddPortMapping must be recoverable.
-        if (!remember_mapping(wanted)) {
-          return false;
-        }
-        err = UPNP_AddPortMapping(urls->controlURL, data.first.servicetype, mapping.port.wan.c_str(), mapping.port.lan.c_str(), lan_addr.c_str(), mapping.description.c_str(), mapping.port.proto.c_str(), nullptr, "0");
-      }
-      if (err != UPNPCOMMAND_SUCCESS) {
-        BOOST_LOG(warning) << "Failed to map "sv << mapping.port.proto << ' ' << mapping.port.wan << ": "sv << err;
-        return false;
-      }
-      return remember_mapping(std::move(wanted));
-    }
-
-    /**
      * @brief Remove only recorded rules whose current destination, port and description still match.
      * @param stale_only Whether to retain rules wanted by the current discovery pass.
      */
     void unmap_owned_ports(bool stale_only = false) {
-      std::erase_if(owned_mappings, [this, stale_only](const owned_mapping_t &owned) {
+      const miniupnpc_gateway_t gateway {};
+      std::erase_if(owned_mappings, [this, stale_only, &gateway](const owned_mapping_t &owned) {
         if (stale_only && owned.generation == generation) {
           return false;
         }
-        std::array<char, 16> client {};
-        std::array<char, 6> port {};
-        std::array<char, 80> description {};
-        std::array<char, 4> enabled {};
-        std::array<char, 16> lease {};
-        const auto lookup = UPNP_GetSpecificPortMappingEntry(owned.control_url.c_str(), owned.service.c_str(), owned.external_port.c_str(), owned.protocol.c_str(), nullptr, client.data(), port.data(), description.data(), enabled.data(), lease.data());
-        const auto state = classify_mapping(lookup, client.data(), port.data(), description.data(), owned);
+        const auto entry = gateway.lookup(owned);
+        const auto state = classify_mapping(entry.result, entry.client, entry.port, entry.description, owned);
         if (state == mapping_state_e::unknown) {
           BOOST_LOG(warning) << "Could not check UPnP rule for cleanup: "sv << owned.control_url << ' ' << owned.external_port;
           return false;
         }
         if (state == mapping_state_e::ours) {
-          const auto removed = UPNP_DeletePortMapping(owned.control_url.c_str(), owned.service.c_str(), owned.external_port.c_str(), owned.protocol.c_str(), nullptr);
+          const auto removed = gateway.remove(owned);
           if (removed != UPNPCOMMAND_SUCCESS && removed != 714) {
             BOOST_LOG(warning) << "Failed to remove UPnP rule: "sv << removed;
             return false;
@@ -470,15 +471,32 @@ namespace upnp {
      * @return Whether every requested mapping succeeded before shutdown.
      */
     bool map_all_upnp_ports(const igd_t &igd, const std::string &addr) {
-      auto shutdown_event = mail::man->event<bool>(mail::shutdown);
-      bool complete = true;
+      std::vector<owned_mapping_t> rules;
       for (const auto &mapping : mappings) {
-        if (shutdown_event->peek()) {
-          return false;
+        owned_mapping_t rule {igd.urls->controlURL, igd.data.first.servicetype, addr, mapping.port.wan, mapping.port.lan, mapping.port.proto, mapping.description, false, generation};
+        // A failed refresh must not forget a rule that was successfully added earlier.
+        for (auto &owned : owned_mappings) {
+          if (owned == rule) {
+            owned.generation = generation;
+          }
         }
-        complete = map_upnp_port(igd.data, igd.urls, addr, mapping) && complete;
+        rules.push_back(std::move(rule));
       }
-      return complete;
+
+      auto shutdown_event = mail::man->event<bool>(mail::shutdown);
+      const miniupnpc_gateway_t gateway {};
+      return map_ports(
+        gateway,
+        rules,
+        std::to_string(PORT_MAPPING_LIFETIME.count()),
+        [this](const owned_mapping_t &rule) {
+          return remember_mapping(rule);
+        },
+        [&shutdown_event]() {
+          return shutdown_event->peek();
+        },
+        report_mapping
+      );
     }
 
     /**
